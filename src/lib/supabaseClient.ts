@@ -86,50 +86,27 @@ const isDevelopment = (): boolean => {
 };
 
 // 验证环境变量是否完整
-if (!supabaseUrl) {
-  // 只在开发环境输出详细日志
-  if (isDevelopment()) {
-    console.error('❌ Supabase URL未配置')
-    console.error('请检查Vercel环境变量配置，确保已添加以下环境变量之一:')
-    console.error('- NEXT_PUBLIC_SUPABASE_URL')
-    console.error('- VITE_SUPABASE_URL')
-    console.error('- SUPABASE_URL')
-  }
-} 
+if (!supabaseUrl && isDevelopment()) {
+  console.warn('⚠️ Supabase URL未配置，将使用模拟数据');
+}
 
-if (!supabaseKey) {
-  // 只在开发环境输出详细日志
-  if (isDevelopment()) {
-    console.error('❌ Supabase密钥未配置')
-    console.error('请检查Vercel环境变量配置，确保已添加以下环境变量之一:')
-    console.error('- NEXT_PUBLIC_SUPABASE_ANON_KEY')
-    console.error('- NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY')
-    console.error('- VITE_SUPABASE_ANON_KEY')
-    console.error('- SUPABASE_ANON_KEY')
-    console.error('- SUPABASE_PUBLISHABLE_KEY')
-  }
-} 
+if (!supabaseKey && isDevelopment()) {
+  console.warn('⚠️ Supabase密钥未配置，将使用模拟数据');
+}
 
-if (supabaseUrl && supabaseKey) {
-  // 只在开发环境输出详细日志
-  if (isDevelopment()) {
-    console.log('✅ Supabase环境变量配置完整')
-  }
+if (supabaseUrl && supabaseKey && isDevelopment()) {
+  console.log('✅ Supabase环境变量配置完整');
 }
 
 // 创建并导出Supabase客户端实例
 // 只有在环境变量有效的情况下才创建客户端
 export let supabase: ReturnType<typeof createClient> | null = null
 
+// 仅在非测试环境和开发环境下输出详细日志
+const shouldLogDetails = isDevelopment() && !isTestEnvironment();
+
 try {
   if (supabaseUrl && supabaseKey) {
-    // 添加更详细的日志
-    console.log('正在创建Supabase客户端...')
-    console.log('- URL:', supabaseUrl)
-    console.log('- 密钥前缀:', supabaseKey ? supabaseKey.substring(0, 20) + '...' : '未设置')
-    console.log('- 完整URL:', supabaseUrl)
-    console.log('- 密钥长度:', supabaseKey ? supabaseKey.length : 0)
-    
     // 验证URL格式
     let isValidUrl = false;
     try {
@@ -144,69 +121,51 @@ try {
         // 根据密钥格式调整配置
         const isNewKeyFormat = supabaseKey.startsWith('sb_publishable_') || supabaseKey.startsWith('sb_secret_');
 
-        console.log('密钥格式:', isNewKeyFormat ? '新格式' : '旧格式');
-
         // 为新格式密钥配置正确的客户端选项
-        const baseAuthConfig = {
-          autoRefreshToken: true,
-          persistSession: true,
-          detectSessionInUrl: true
-        };
-
         const clientOptions = {
           auth: {
-            ...baseAuthConfig,
-            // 对于新格式密钥，明确指定auth端点版本，确保兼容性
-            ...(isNewKeyFormat && {
-              endpoints: {
-                signUp: `${supabaseUrl}/auth/v1/signup`,
-                signIn: `${supabaseUrl}/auth/v1/token?grant_type=password`,
-                refreshToken: `${supabaseUrl}/auth/v1/token?grant_type=refresh_token`,
-                signOut: `${supabaseUrl}/auth/v1/logout`,
-                getUser: `${supabaseUrl}/auth/v1/user`,
-                resetPasswordForEmail: `${supabaseUrl}/auth/v1/recover`,
-                updateUser: `${supabaseUrl}/auth/v1/user`,
-                getSession: `${supabaseUrl}/auth/v1/session`
-              }
-            })
+            autoRefreshToken: true,
+            persistSession: true,
+            detectSessionInUrl: true
+          },
+          // 减少不必要的日志输出
+          logger: {
+            log: shouldLogDetails ? (message) => console.log('[Supabase]', message) : () => {},
+            error: (error) => console.error('[Supabase Error]', error),
+            warn: (warning) => console.warn('[Supabase Warning]', warning),
+            debug: shouldLogDetails ? (message) => console.debug('[Supabase Debug]', message) : () => {}
           }
         };
 
         supabase = createClient(supabaseUrl, supabaseKey, clientOptions);
         
-        console.log('✅ Supabase客户端创建成功')
-        console.log('✅ Supabase auth对象:', typeof supabase?.auth)
-        console.log('✅ Supabase auth.signUp方法:', typeof supabase?.auth.signUp)
+        if (shouldLogDetails) {
+          console.log('✅ Supabase客户端创建成功');
+        }
       } catch (clientError) {
         console.error('❌ 创建Supabase客户端失败:', clientError);
-        console.error('错误详情:', clientError instanceof Error ? clientError.message : String(clientError));
-        console.error('错误堆栈:', clientError instanceof Error ? clientError.stack : '');
         supabase = null;
       }
     } else {
       // 处理无效URL或密钥长度不足的情况
       if (!isValidUrl) {
         console.error('❌ Supabase URL格式不正确:', supabaseUrl);
-        console.error('请确保URL以http://或https://开头，并且是完整的URL格式');
       }
       
       if (supabaseKey.length < 30) {
-        console.error('❌ Supabase密钥长度过短，可能是无效密钥:', supabaseKey);
-        console.error('请检查密钥格式和长度，确保是有效的Supabase密钥');
+        console.error('❌ Supabase密钥长度过短，可能是无效密钥');
       }
       
       supabase = null;
     }
   } else {
-    console.error('❌ 无法创建Supabase客户端，环境变量不完整:')
-    console.error('- URL:', supabaseUrl || '未设置')
-    console.error('- 密钥:', supabaseKey ? '已设置但为空' : '未设置')
+    if (shouldLogDetails) {
+      console.warn('⚠️ 无法创建Supabase客户端，环境变量不完整，将使用模拟数据');
+    }
   }
 } catch (error) {
-  console.error('❌ 创建Supabase客户端失败:', error)
-  console.error('错误详情:', error instanceof Error ? error.message : String(error))
-  console.error('错误堆栈:', error instanceof Error ? error.stack : '')
-  supabase = null
+  console.error('❌ 创建Supabase客户端失败:', error);
+  supabase = null;
 }
 
 // 确保supabase不会被tree-shaking移除
@@ -243,7 +202,9 @@ export interface Post {
 // 示例：获取用户列表
 export async function getUsers(): Promise<User[]> {
   if (!supabase) {
-    console.error('Supabase客户端未配置，无法获取用户列表')
+    if (shouldLogDetails) {
+      console.warn('⚠️ Supabase客户端未配置，返回空用户列表');
+    }
     return []
   }
   try {
@@ -263,7 +224,9 @@ export async function getUsers(): Promise<User[]> {
 // 示例：获取帖子列表
 export async function getPosts(): Promise<Post[]> {
   if (!supabase) {
-    console.error('Supabase客户端未配置，无法获取帖子列表')
+    if (shouldLogDetails) {
+      console.warn('⚠️ Supabase客户端未配置，返回空帖子列表');
+    }
     return []
   }
   try {
@@ -283,7 +246,9 @@ export async function getPosts(): Promise<Post[]> {
 // 示例：创建帖子
 export async function createPost(postData: Omit<Post, 'id' | 'created_at' | 'updated_at'>): Promise<Post | null> {
   if (!supabase) {
-    console.error('Supabase客户端未配置，无法创建帖子')
+    if (shouldLogDetails) {
+      console.warn('⚠️ Supabase客户端未配置，无法创建帖子');
+    }
     return null
   }
   try {

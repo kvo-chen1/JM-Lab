@@ -1986,14 +1986,47 @@ class LLMService {
    * 诊断创作问题
    */
   public diagnoseCreationIssues(prompt: string): string[] {
-    // 这里可以实现更复杂的创作问题诊断逻辑
-    return [
-      '创意方向不明确',
-      '文化元素融合不够自然',
-      '视觉层次不清晰',
-      '色彩搭配不协调',
-      '缺乏创新亮点'
-    ];
+    // 基于输入内容生成有针对性的创作问题
+    const issues: string[] = [];
+    const lowerPrompt = prompt.toLowerCase();
+    
+    // 分析输入内容，生成个性化问题
+    if (!lowerPrompt.includes('创意') && !lowerPrompt.includes('创新')) {
+      issues.push('建议明确创意方向，突出设计的独特性');
+    }
+    
+    if (!lowerPrompt.includes('文化') && !lowerPrompt.includes('传统')) {
+      issues.push('可以考虑融入更多文化元素，增强作品的文化底蕴');
+    }
+    
+    if (!lowerPrompt.includes('视觉') && !lowerPrompt.includes('层次')) {
+      issues.push('建议优化视觉层次，使设计更有深度和立体感');
+    }
+    
+    if (!lowerPrompt.includes('色彩') && !lowerPrompt.includes('配色')) {
+      issues.push('可以考虑调整色彩搭配，增强作品的视觉冲击力');
+    }
+    
+    if (!lowerPrompt.includes('创新') && !lowerPrompt.includes('亮点')) {
+      issues.push('建议添加创新亮点，使作品更具吸引力和竞争力');
+    }
+    
+    // 如果没有生成足够的问题，添加一些通用建议
+    while (issues.length < 3) {
+      const generalIssues = [
+        '考虑优化作品的构图，使其更加平衡和谐',
+        '建议增强作品的故事性，让设计更有感染力',
+        '可以考虑作品的实际应用场景，优化设计细节',
+        '建议添加更多细节，丰富作品的表现力',
+        '考虑作品的目标受众，调整设计风格和元素'
+      ];
+      const randomIssue = generalIssues[Math.floor(Math.random() * generalIssues.length)];
+      if (!issues.includes(randomIssue)) {
+        issues.push(randomIssue);
+      }
+    }
+    
+    return issues;
   }
 
   /**

@@ -204,5 +204,81 @@
     "TEXTURE_ERROR": "纹理加载失败，请检查网络后重试。",
     "CANVAS_ERROR": "Canvas操作失败，请检查浏览器兼容性。",
     "WEBGL_ERROR": "WebGL初始化失败，请检查浏览器支持情况。"
+  },
+  "review": {
+    "aiReview": "AI 点评",
+    "overallRating": "总体评分",
+    "detailedReview": "详细点评",
+    "commercialAdvice": "商业化建议",
+    "culturalFit": "文化契合度",
+    "creativity": "创意性",
+    "aesthetics": "美学表现",
+    "totalScore": "总分",
+    "workHighlights": "作品亮点",
+    "recommendedWorks": "推荐参考作品",
+    "excellent": "优秀",
+    "good": "良好",
+    "average": "一般",
+    "pass": "合格",
+    "needImprovement": "需要改进",
+    "applySuggestion": "应用此建议",
+    "applySuggestionSuccess": "建议应用成功",
+    "applyAllSuggestions": "应用所有建议",
+    "applyAllSuggestionsSuccess": "已应用所有建议",
+    "improvementSuggestions": "改进建议",
+    "viewMoreSuggestions": "查看更多建议",
+    "collapse": "收起",
+    "commercialPotential": "商业化潜力评估",
+    "commercialAnalysis": "商业化分析",
+    "applyCommercialAdvice": "采纳商业化建议",
+    "applyCommercialAdviceSuccess": "商业化建议已采纳",
+    "recommendedCommercialPaths": "推荐的商业化路径",
+    "culturalCreativeProduct": "文化创意产品开发",
+    "culturalCreativeProductDesc": "适合开发各类文化创意周边产品",
+    "brandPackaging": "品牌包装设计",
+    "brandPackagingDesc": "可应用于老字号品牌包装升级",
+    "digitalCollectibles": "数字藏品",
+    "digitalCollectiblesDesc": "具有转化为数字藏品的潜力",
+    "relatedActivities": "相关活动推荐",
+    "timeHonoredBrandCompetition": "老字号品牌创新大赛",
+    "timeHonoredBrandCompetitionDeadline": "截止日期：2025-12-31",
+    "timeHonoredBrandCompetitionReward": "最高奖金50,000元",
+    "nationalTrendDesignCamp": "国潮文化创意设计营",
+    "nationalTrendDesignCampDeadline": "截止日期：2025-11-30",
+    "nationalTrendDesignCampReward": "专业导师指导 + 展览机会",
+    "deadline": "截止日期",
+    "close": "关闭",
+    "loading": "生成AI点评中...",
+    "analyzing": "正在分析您的作品，请稍候...",
+    "generationFailed": "生成点评失败",
+    "retry": "重试",
+    "culturalFitDetails": [
+      "文化元素成功融入设计中",
+      "色彩搭配符合传统美学",
+      "图案布局既保留文化韵味又现代感十足"
+    ],
+    "creativityDetails": [
+      "传统元素与现代设计创新结合",
+      "构图新颖，视觉冲击力强",
+      "多元文化元素融合展现创意"
+    ],
+    "aestheticsDetails": [
+      "整体视觉效果和谐统一",
+      "色彩层次分明，过渡自然",
+      "排版合理，突出重点"
+    ],
+    "suggestions": [
+      "考虑添加更多样化的传统图案组合",
+      "通过融入非物质文化遗产元素增强文化深度",
+      "尝试不同的配色方案，进一步突出国潮风格",
+      "添加互动元素，提升用户参与度",
+      "优化设计细节，适合商业应用场景"
+    ],
+    "commercialAnalysisDetails": [
+      "设计风格符合当前市场趋势，具有较高的商业价值",
+      "适用于文化创意产品、包装设计等多个领域",
+      "考虑申请版权认证，保护原创权益",
+      "在平台上探索商业对接机会"
+    ]
   }
 }

@@ -23,11 +23,15 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   
-  /* 天津特色配色系统 */
-  --color-primary: #dc2626;              /* 主色调：泥人张红 - 统一品牌识别（调整为更深的红色，提高对比度） */
-  --color-secondary: #7c3aed;            /* 辅助色：津门蓝紫 - 用于强调和交互（调整为更深的紫色，提高对比度） */
-  --color-accent: #059669;               /* 强调色：杨柳青绿 - 用于成功状态和亮点（调整为更深的绿色，提高对比度） */
-  --color-neutral: #92400e;              /* 中性色：漕运褐 - 用于次要信息和背景（调整为更鲜明的棕色，提高辨识度） */
+  /* 天津特色配色系统 - 增强版 */
+  --color-primary: #c21807;              /* 主色调：泥人张红 - 更深的红色，显著提高对比度和品牌识别度 */
+  --color-secondary: #6d28d9;            /* 辅助色：津门蓝紫 - 更深的紫色，增强视觉层次感和交互反馈 */
+  --color-accent: #047857;               /* 强调色：杨柳青绿 - 更深的绿色，提升成功状态的视觉冲击力 */
+  --color-neutral: #78350f;              /* 中性色：漕运褐 - 更鲜明的棕色，提高次要信息的辨识度 */
+  --color-success: #059669;              /* 成功色：增强版绿色 */
+  --color-warning: #d97706;              /* 警告色：金色 */
+  --color-error: #dc2626;                /* 错误色：红色 */
+  --color-info: #3b82f6;                 /* 信息色：蓝色 */
   
   /* 高级灰度梯度（优化对比度和层次感） */
   --color-gray-1: #f9fafb;
@@ -83,10 +87,14 @@
   --border-tertiary: #64748b;    /* 雾蓝灰 - 辅助边框 */
   
   /* 暗色主题强调色 - 与亮色主题保持一致的品牌色彩 */
-  --color-primary: #f87171;      /* 主色调：泥人张红 - 统一品牌识别 */
-  --color-secondary: #a78bfa;    /* 辅助色：津门蓝紫 - 用于强调和交互 */
-  --color-accent: #34d399;       /* 强调色：杨柳青绿 - 用于成功状态和亮点 */
-  --color-neutral: #92400e;      /* 中性色：漕运褐 - 用于次要信息和背景 */
+  --color-primary: #fca5a5;      /* 主色调：泥人张红 - 更亮的红色，提高深色模式下的可读性 */
+  --color-secondary: #c4b5fd;    /* 辅助色：津门蓝紫 - 更亮的紫色，增强交互反馈 */
+  --color-accent: #6ee7b7;       /* 强调色：杨柳青绿 - 更亮的绿色，提升成功状态的辨识度 */
+  --color-neutral: #d97706;      /* 中性色：漕运褐 - 更鲜明的金色，提高次要信息的可见性 */
+  --color-success: #4ade80;      /* 成功色：增强版绿色 */
+  --color-warning: #fbbf24;      /* 警告色：金色 */
+  --color-error: #f87171;        /* 错误色：红色 */
+  --color-info: #60a5fa;         /* 信息色：蓝色 */
   
   /* 渐变色彩 */
   --gradient-primary: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
@@ -128,62 +136,166 @@ body {
   }
 }
 
+/* 现代化排版系统 - 增强版 */
+
+/* 基础字体设置 */
+:root {
+  --font-size-xs: 0.75rem;    /* 12px */
+  --font-size-sm: 0.875rem;   /* 14px */
+  --font-size-base: 1rem;      /* 16px */
+  --font-size-lg: 1.125rem;    /* 18px */
+  --font-size-xl: 1.25rem;     /* 20px */
+  --font-size-2xl: 1.5rem;     /* 24px */
+  --font-size-3xl: 1.875rem;   /* 30px */
+  --font-size-4xl: 2.25rem;    /* 36px */
+  --font-size-5xl: 3rem;       /* 48px */
+  --font-size-6xl: 3.75rem;    /* 60px */
+  
+  --line-height-tight: 1.25;
+  --line-height-snug: 1.375;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.625;
+  --line-height-loose: 2;
+  
+  --space-1: 0.25rem;    /* 4px */
+  --space-2: 0.5rem;     /* 8px */
+  --space-3: 0.75rem;    /* 12px */
+  --space-4: 1rem;       /* 16px */
+  --space-5: 1.25rem;    /* 20px */
+  --space-6: 1.5rem;      /* 24px */
+  --space-8: 2rem;        /* 32px */
+  --space-10: 2.5rem;     /* 40px */
+  --space-12: 3rem;       /* 48px */
+  --space-16: 4rem;       /* 64px */
+  --space-20: 5rem;       /* 80px */
+  --space-24: 6rem;       /* 96px */
+  --space-32: 8rem;       /* 128px */
+}
+
+/* 标题层级优化 */
+h1 {
+  font-size: var(--font-size-5xl);
+  font-weight: 800;
+  line-height: var(--line-height-tight);
+  letter-spacing: -0.025em;
+  margin-bottom: var(--space-6);
+}
+
+h2 {
+  font-size: var(--font-size-4xl);
+  font-weight: 700;
+  line-height: var(--line-height-tight);
+  letter-spacing: -0.025em;
+  margin-bottom: var(--space-5);
+}
+
+h3 {
+  font-size: var(--font-size-3xl);
+  font-weight: 600;
+  line-height: var(--line-height-snug);
+  margin-bottom: var(--space-4);
+}
+
+h4 {
+  font-size: var(--font-size-2xl);
+  font-weight: 600;
+  line-height: var(--line-height-snug);
+  margin-bottom: var(--space-4);
+}
+
+h5 {
+  font-size: var(--font-size-xl);
+  font-weight: 600;
+  line-height: var(--line-height-normal);
+  margin-bottom: var(--space-3);
+}
+
+h6 {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  line-height: var(--line-height-normal);
+  margin-bottom: var(--space-3);
+}
+
+/* 正文排版优化 */
+p {
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-relaxed);
+  margin-bottom: var(--space-4);
+}
+
+/* 小文本优化 */
+small {
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+/* 微型文本优化 */
+.text-xs {
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-normal);
+}
+
 /* 移动端元素尺寸优化 */
 @media (max-width: 768px) {
-  /* 按钮尺寸优化 */
-  button {
-    padding: 0.5rem 1rem;
-    font-size: 0.9rem;
-  }
-  
-  /* 输入框尺寸优化 */
-  input, textarea, select {
-    padding: 0.5rem 0.75rem;
-    font-size: 0.9rem;
-  }
-  
-  /* 标题尺寸优化 */
+  /* 响应式标题尺寸 */
   h1 {
-    font-size: 1.75rem;
+    font-size: var(--font-size-4xl);
   }
   
   h2 {
-    font-size: 1.5rem;
+    font-size: var(--font-size-3xl);
   }
   
   h3 {
-    font-size: 1.25rem;
+    font-size: var(--font-size-2xl);
   }
   
-  /* 卡片间距优化 */
+  h4 {
+    font-size: var(--font-size-xl);
+  }
+  
+  /* 响应式按钮尺寸 */
+  button {
+    padding: var(--space-2) var(--space-4);
+    font-size: var(--font-size-sm);
+  }
+  
+  /* 响应式输入框尺寸 */
+  input, textarea, select {
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--font-size-sm);
+  }
+  
+  /* 响应式间距优化 */
   .card, section, article {
-    margin-bottom: 1rem;
+    margin-bottom: var(--space-4);
   }
   
-  /* 网格布局优化 */
+  /* 响应式网格布局 */
   .grid {
-    gap: 1rem;
+    gap: var(--space-4);
   }
   
-  /* 移动端通用内边距优化 */
+  /* 响应式内边距优化 */
   .px-4 {
-    padding-left: 1rem;
-    padding-right: 1rem;
+    padding-left: var(--space-4);
+    padding-right: var(--space-4);
   }
   
   .px-6 {
-    padding-left: 1.25rem;
-    padding-right: 1.25rem;
+    padding-left: var(--space-5);
+    padding-right: var(--space-5);
   }
   
   .py-4 {
-    padding-top: 1rem;
-    padding-bottom: 1rem;
+    padding-top: var(--space-4);
+    padding-bottom: var(--space-4);
   }
   
   .py-6 {
-    padding-top: 1.5rem;
-    padding-bottom: 1.5rem;
+    padding-top: var(--space-6);
+    padding-bottom: var(--space-6);
   }
 }
 

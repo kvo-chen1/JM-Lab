@@ -111,8 +111,8 @@ const PWAStatusIndicator: React.FC<PWAStatusIndicatorProps> = ({
   const positionClasses = {
     'top-left': 'top-4 left-4',
     'top-right': 'top-4 right-4',
-    'bottom-left': 'bottom-4 left-4',
-    'bottom-right': 'bottom-4 right-4'
+    'bottom-left': 'bottom-28 left-4',
+    'bottom-right': 'bottom-28 right-4'
   };
 
   return (

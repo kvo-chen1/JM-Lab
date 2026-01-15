@@ -9,7 +9,7 @@ import clsx from 'clsx'
 import { TianjinImage } from './TianjinStyleComponents'
 import useLanguage from '@/contexts/LanguageContext'
 import { useTranslation } from 'react-i18next'
-import PWAStatusIndicator from './PWAStatusIndicator'
+
 import PWAInstallButton from './PWAInstallButton'
 
 interface MobileLayoutProps {
@@ -32,8 +32,6 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
   const [isListening, setIsListening] = useState(false)
   const [scrollProgress, setScrollProgress] = useState(0)
   const [showSidebarDrawer, setShowSidebarDrawer] = useState(false)
-  // 通知状态管理
-  const [showNotifications, setShowNotifications] = useState(false)
   // 通知数据类型
   type Notification = {
     id: string
@@ -41,29 +39,107 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
     description: string
     time: string
     read: boolean
-    type: 'info' | 'success' | 'warning' | 'error'
-    category: string
+    type: 'success' | 'info' | 'warning' | 'error'
+    category: 'like' | 'join' | 'message' | 'mention' | 'task' | 'points' | 'system' | 'learning' | 'creation' | 'social'
+    actionUrl?: string
+    timestamp: number
+    sound?: boolean
   }
+
+  // 通知状态管理
+  const [showNotifications, setShowNotifications] = useState(false)
+  const [notificationFilter, setNotificationFilter] = useState<'all' | 'unread' | 'info' | 'success' | 'warning' | 'error' | 'like' | 'join' | 'message' | 'mention' | 'task' | 'points' | 'system' | 'learning' | 'creation' | 'social'>('all')
+  const [showSettings, setShowSettings] = useState(false)
+
+  // 通知设置状态
+  interface NotificationSettings {
+    enableSound: boolean;
+    enableDesktop: boolean;
+    maxNotifications: number;
+    notificationTypes: {
+      [key in Notification['category']]: boolean;
+    };
+  }
+
+  const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>(() => {
+    try {
+      const stored = localStorage.getItem('notificationSettings');
+      if (stored) return JSON.parse(stored);
+    } catch (error) {
+      console.error('Failed to load notification settings:', error);
+    }
+    return {
+      enableSound: true,
+      enableDesktop: true,
+      maxNotifications: 50,
+      notificationTypes: {
+        like: true,
+        join: true,
+        message: true,
+        mention: true,
+        task: true,
+        points: true,
+        system: true,
+        learning: true,
+        creation: true,
+        social: true,
+      },
+    };
+  });
+
   // 初始化通知数据
   const [notifications, setNotifications] = useState<Notification[]>(() => {
     try {
       const stored = localStorage.getItem('notifications')
-      if (stored) return JSON.parse(stored)
+      if (stored) {
+        const parsed = JSON.parse(stored)
+        // 确保所有通知都有完整字段
+        return parsed.map((n: any) => ({
+          ...n,
+          category: n.category || 'system',
+          timestamp: n.timestamp || Date.now() - 3600000,
+          description: n.description || '',
+        }))
+      }
     } catch (error) {
       console.error('Failed to load notifications from localStorage:', error)
     }
+    const now = Date.now()
     // 默认通知数据
     return [
-      { id: 'n1', title: '新消息', description: '您有一条新的私信', time: '刚刚', read: false, type: 'info', category: 'message' },
-      { id: 'n2', title: '活动提醒', description: '共创活动将于明天开始', time: '1 小时前', read: false, type: 'warning', category: 'event' },
-      { id: 'n3', title: '系统通知', description: '新功能已上线，快来体验', time: '昨天', read: true, type: 'success', category: 'system' },
-      { id: 'n4', title: '作品点赞', description: '您的作品获得了新的点赞', time: '2 天前', read: true, type: 'success', category: 'like' },
-      { id: 'n5', title: '关注通知', description: '有人关注了您', time: '3 天前', read: true, type: 'info', category: 'follow' },
-      { id: 'n6', title: '错误通知', description: '上传失败，请重试', time: '4 小时前', read: false, type: 'error', category: 'creation' },
+      { id: 'n1', title: '新消息', description: '您有一条新的私信', time: '刚刚', read: false, type: 'info', category: 'message', timestamp: now },
+      { id: 'n2', title: '系统通知', description: '新功能已上线，快来体验', time: '1 小时前', read: false, type: 'success', category: 'system', timestamp: now - 3600000 },
+      { id: 'n3', title: '作品点赞', description: '您的作品获得了新的点赞', time: '2 小时前', read: false, type: 'success', category: 'like', timestamp: now - 7200000 },
+      { id: 'n4', title: '新成员加入', description: '张三加入了您的创作群', time: '30 分钟前', read: false, type: 'info', category: 'join', timestamp: now - 1800000 },
+      { id: 'n5', title: '@提及通知', description: '王五在评论中@了您', time: '3 小时前', read: true, type: 'info', category: 'mention', timestamp: now - 10800000 },
+      { id: 'n6', title: '任务完成', description: '您的创作任务已完成', time: '4 小时前', read: true, type: 'success', category: 'task', timestamp: now - 14400000 },
+      { id: 'n7', title: '积分增加', description: '您获得了50积分奖励', time: '5 小时前', read: false, type: 'success', category: 'points', timestamp: now - 18000000 },
+      { id: 'n8', title: '上传失败', description: '作品上传失败，请重试', time: '6 小时前', read: false, type: 'error', category: 'creation', timestamp: now - 21600000 },
     ]
   })
   // 未读通知数量
   const unreadNotificationCount = useMemo(() => notifications.filter(n => !n.read).length, [notifications])
+  
+  // 过滤后的通知
+  const filteredNotifications = useMemo(() => {
+    let result = [...notifications];
+    
+    if (notificationFilter === 'unread') {
+      result = result.filter(n => !n.read);
+    } else if (notificationFilter !== 'all') {
+      // 检查是否为类型过滤或分类过滤
+      const isTypeFilter = ['info', 'success', 'warning', 'error'].includes(notificationFilter);
+      if (isTypeFilter) {
+        result = result.filter(n => n.type === notificationFilter);
+      } else {
+        // 分类过滤
+        result = result.filter(n => n.category === notificationFilter);
+      }
+    }
+    
+    return result;
+  }, [notifications, notificationFilter]);
+
   // 保存通知到本地存储
   useEffect(() => {
     try {
@@ -72,6 +148,15 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
       console.error('Failed to save notifications to localStorage:', error)
     }
   }, [notifications])
+
+  // 保存通知设置到本地存储
+  useEffect(() => {
+    try {
+      localStorage.setItem('notificationSettings', JSON.stringify(notificationSettings));
+    } catch (error) {
+      console.error('Failed to save notification settings:', error);
+    }
+  }, [notificationSettings]);
   
   // 使用 useMemo 优化主题相关的样式计算
   const themeStyles = useMemo(() => {
@@ -356,7 +441,11 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
                   <div className={`relative w-full max-w-xs rounded-xl shadow-2xl ring-2 overflow-hidden pointer-events-auto ${isDark ? 'bg-gray-800 ring-gray-700' : theme === 'pink' ? 'bg-white ring-pink-300' : 'bg-white ring-gray-300'}`} role="dialog" aria-label="通知列表">
                     {/* 通知列表头部 */}
                     <div className={`px-4 py-3 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'} flex items-center justify-between bg-gradient-to-r ${isDark ? 'from-gray-800 to-gray-900' : theme === 'pink' ? 'from-pink-50 to-white' : 'from-gray-50 to-white'}`}>
-                      <h4 className="font-medium">最新通知</h4>
+                      <h4 className="font-medium flex items-center">
+                        <i className="fas fa-bell mr-2 text-blue-500"></i>
+                        通知
+                        <span className="ml-2 text-xs font-normal ${isDark ? 'text-gray-400' : 'text-gray-500'}">({unreadNotificationCount} 未读)</span>
+                      </h4>
                       <div className="flex items-center space-x-2">
                         <button
                           className={`text-xs px-3 py-1.5 rounded-lg transition-all duration-300 ${isDark ? 'bg-gray-700 text-white hover:bg-blue-900/50 hover:text-blue-400' : 'bg-gray-100 text-gray-900 hover:bg-blue-50 hover:text-blue-700'}`}
@@ -370,32 +459,144 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
                           <i className="fas fa-trash mr-1"></i>
                           清空
                         </button>
+                        <button
+                          className={`text-xs px-3 py-1.5 rounded-lg transition-all duration-300 ${isDark ? 'bg-gray-700 text-white hover:bg-purple-900/50 hover:text-purple-400' : 'bg-gray-100 text-gray-900 hover:bg-purple-50 hover:text-purple-700'}`}
+                          onClick={() => setShowSettings(!showSettings)}>
+                          <i className="fas fa-cog mr-1"></i>
+                          设置
+                        </button>
                       </div>
                     </div>
-                    {/* 通知列表内容 */}
-                    {notifications.length === 0 ? (
-                      <div className="p-4 text-center">
-                        <i className="fas fa-bell-slash text-3xl text-gray-400 mb-2"></i>
-                        <p className="text-sm text-gray-500">暂无通知</p>
-                      </div>
-                    ) : (
-                      <div className="max-h-[300px] overflow-y-auto">
-                        {notifications.map((notification) => (
-                          <div key={notification.id} className={`p-4 border-b last:border-b-0 transition-all duration-200 hover:bg-opacity-90 ${isDark ? 'border-gray-700 hover:bg-gray-700/50' : 'border-gray-100 hover:bg-gray-50'}`}>
-                            <div className="flex items-start gap-3">
-                              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold ${notification.type === 'success' ? (isDark ? 'bg-green-700' : 'bg-green-500') : notification.type === 'error' ? (isDark ? 'bg-red-700' : 'bg-red-500') : notification.type === 'warning' ? (isDark ? 'bg-yellow-700' : 'bg-yellow-500') : (isDark ? 'bg-blue-700' : 'bg-blue-500')}`}>
-                                {notification.type === 'success' ? '✓' : notification.type === 'error' ? '✗' : notification.type === 'warning' ? '!' : 'i'}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium truncate">{notification.title}</p>
-                                <p className="text-xs text-gray-500 mt-1 line-clamp-2">{notification.description}</p>
-                                <p className="text-xs text-gray-400 mt-2">{notification.time}</p>
-                              </div>
-                            </div>
+
+                    {/* 通知设置面板 */}
+                    {showSettings && (
+                      <div className={`px-4 py-3 border-b ${isDark ? 'border-gray-700 bg-gray-800/50' : 'border-gray-200 bg-gray-50'}`}>
+                        <h4 className="font-medium mb-3 flex items-center">
+                          <i className="fas fa-sliders-h mr-2 text-purple-500"></i>
+                          通知设置
+                        </h4>
+                        
+                        {/* 基本设置 */}
+                        <div className="space-y-4">
+                          {/* 声音提醒 */}
+                          <div className="flex items-center justify-between">
+                            <label className="text-sm flex items-center">
+                              <i className="fas fa-volume-up mr-2 text-gray-500"></i>
+                              声音提醒
+                            </label>
+                            <label className="relative inline-flex items-center cursor-pointer">
+                              <input 
+                                type="checkbox" 
+                                checked={notificationSettings.enableSound} 
+                                onChange={(e) => setNotificationSettings(prev => ({ ...prev, enableSound: e.target.checked }))}
+                                className="sr-only peer"
+                              />
+                              <div className={`w-11 h-6 rounded-full transition-all duration-300 peer ${notificationSettings.enableSound ? 'bg-blue-500' : 'bg-gray-400'}`}></div>
+                              <span className={`absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-all duration-300 peer-checked:translate-x-5`}></span>
+                            </label>
                           </div>
-                        ))}
+                          
+                          {/* 桌面通知 */}
+                          <div className="flex items-center justify-between">
+                            <label className="text-sm flex items-center">
+                              <i className="fas fa-desktop mr-2 text-gray-500"></i>
+                              桌面通知
+                            </label>
+                            <label className="relative inline-flex items-center cursor-pointer">
+                              <input 
+                                type="checkbox" 
+                                checked={notificationSettings.enableDesktop} 
+                                onChange={(e) => setNotificationSettings(prev => ({ ...prev, enableDesktop: e.target.checked }))}
+                                className="sr-only peer"
+                              />
+                              <div className={`w-11 h-6 rounded-full transition-all duration-300 peer ${notificationSettings.enableDesktop ? 'bg-blue-500' : 'bg-gray-400'}`}></div>
+                              <span className={`absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-all duration-300 peer-checked:translate-x-5`}></span>
+                            </label>
+                          </div>
+                        </div>
                       </div>
                     )}
+
+                    {/* 通知过滤标签 */}
+                    <div className={`px-4 py-2 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'} overflow-x-auto whitespace-nowrap`}>
+                      <div className="flex space-x-2">
+                        {[
+                          { value: 'all', label: '全部', icon: 'fa-inbox' },
+                          { value: 'unread', label: '未读', icon: 'fa-envelope-open-text' },
+                          { value: 'like', label: '点赞', icon: 'fa-heart' },
+                          { value: 'message', label: '私信', icon: 'fa-envelope' },
+                          { value: 'mention', label: '@提及', icon: 'fa-at' },
+                          { value: 'task', label: '任务', icon: 'fa-tasks' },
+                          { value: 'points', label: '积分', icon: 'fa-coins' },
+                        ].map(filter => (
+                          <button
+                            key={filter.value}
+                            onClick={() => setNotificationFilter(filter.value as any)}
+                            className={`px-3 py-1 rounded-full text-xs font-medium flex items-center transition-all duration-300 ${notificationFilter === filter.value ? 
+                              (isDark ? 'bg-blue-900/50 text-blue-400 border border-blue-700' : 'bg-blue-100 text-blue-700 border border-blue-300') : 
+                              (isDark ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200')}`}
+                          >
+                            <i className={`fas ${filter.icon} mr-1.5 text-xs`}></i>
+                            {filter.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* 通知列表内容 */}
+                    <div className="max-h-[300px] overflow-y-auto">
+                      {filteredNotifications.length === 0 ? (
+                        <div className="p-4 text-center">
+                          <i className="fas fa-bell-slash text-3xl text-gray-400 mb-2"></i>
+                          <p className="text-sm text-gray-500">暂无通知</p>
+                          <p className="text-xs text-gray-400 mt-1">当有新通知时，会在这里显示</p>
+                        </div>
+                      ) : (
+                        filteredNotifications.map((notification) => (
+                          <div key={notification.id} className={`p-4 border-b last:border-b-0 transition-all duration-200 hover:bg-opacity-90 ${isDark ? 'border-gray-700 hover:bg-gray-700/50' : 'border-gray-100 hover:bg-gray-50'} ${!notification.read ? (isDark ? 'bg-blue-900/20' : 'bg-blue-50') : ''}`}>
+                            <div className="flex items-start gap-3">
+                              {/* 通知图标 - 根据分类显示不同图标 */}
+                              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-lg transition-all duration-300 ${isDark ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                                <i className={`fas ${notification.category === 'like' ? 'fa-heart text-red-500' : 
+                                                notification.category === 'join' ? 'fa-user-plus text-green-500' : 
+                                                notification.category === 'message' ? 'fa-envelope text-blue-500' : 
+                                                notification.category === 'mention' ? 'fa-at text-purple-500' : 
+                                                notification.category === 'task' ? 'fa-tasks text-green-600' : 
+                                                notification.category === 'points' ? 'fa-coins text-yellow-500' : 
+                                                notification.type === 'success' ? 'fa-check-circle text-green-500' : 
+                                                notification.type === 'error' ? 'fa-times-circle text-red-500' : 
+                                                notification.type === 'warning' ? 'fa-exclamation-triangle text-yellow-500' : 
+                                                'fa-info-circle text-blue-500'}`}></i>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-start justify-between">
+                                  <h4 className={`text-sm font-medium truncate ${!notification.read ? 'font-semibold' : ''}`}>{notification.title}</h4>
+                                  <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'} mt-1`}>{notification.time}</span>
+                                </div>
+                                <p className={`text-xs ${isDark ? 'text-gray-300' : 'text-gray-700'} mt-1 line-clamp-2`}>{notification.description}</p>
+                                {/* 通知分类标签 */}
+                                <span className={`mt-1 inline-block px-2 py-0.5 rounded-full text-xs ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'}`}>
+                                  {notification.category === 'like' && '点赞'}
+                                  {notification.category === 'join' && '新成员'}
+                                  {notification.category === 'message' && '私信'}
+                                  {notification.category === 'mention' && '@提及'}
+                                  {notification.category === 'task' && '任务'}
+                                  {notification.category === 'points' && '积分'}
+                                  {notification.category === 'system' && '系统'}
+                                  {notification.category === 'learning' && '学习'}
+                                  {notification.category === 'creation' && '创作'}
+                                  {notification.category === 'social' && '社交'}
+                                </span>
+                              </div>
+                              {/* 未读指示器 */}
+                              {!notification.read && (
+                                <span className={`w-2 h-2 rounded-full ${isDark ? 'bg-blue-400' : 'bg-blue-500'} mt-1.5 animate-ping`}></span>
+                              )}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
@@ -1040,8 +1241,8 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
         </ul>
       </nav>
       
-      {/* PWA状态指示器 */}
-      <PWAStatusIndicator position="top-right" />
+      {/* PWA状态指示器 - 暂时隐藏 */}
+      {/* <PWAStatusIndicator position="bottom-right" /> */}
       
       {/* PWA安装按钮 */}
       <div className="fixed bottom-20 right-4 z-40">

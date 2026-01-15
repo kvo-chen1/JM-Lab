@@ -20,6 +20,26 @@ export const themeConfig: ThemeConfig[] = [
   { value: 'green', label: '绿色', icon: 'fas fa-leaf' }
 ];
 
+// 主题色彩增强配置
+export const themeEnhancements = {
+  // 色彩对比度增强
+  contrast: {
+    light: 1.2,
+    dark: 1.1,
+    pink: 1.15,
+    blue: 1.15,
+    green: 1.15
+  },
+  // 色彩饱和度优化
+  saturation: {
+    light: 1.05,
+    dark: 1.1,
+    pink: 1.1,
+    blue: 1.1,
+    green: 1.1
+  }
+};
+
 // 默认主题配置
 export const defaultTheme: Theme = 'light';
 

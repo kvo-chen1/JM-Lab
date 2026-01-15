@@ -810,6 +810,7 @@ export default function App() {
         }>
           <Route path="/explore" element={<RouteCache><LazyComponent><Explore /></LazyComponent></RouteCache>} />
           <Route path="/explore/:id" element={<LazyComponent><WorkDetail /></LazyComponent>} />
+          <Route path="/works/:id" element={<LazyComponent><WorkDetail /></LazyComponent>} />
           <Route path="/tools" element={<RouteCache><LazyComponent><Tools /></LazyComponent></RouteCache>} />
           <Route path="/about" element={<RouteCache><LazyComponent><About /></LazyComponent></RouteCache>} />
           <Route path="/neo" element={<LazyComponent><Neo /></LazyComponent>} />

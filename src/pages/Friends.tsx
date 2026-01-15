@@ -22,6 +22,8 @@ const FriendsPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState('friends'); // 'friends', 'requests', 'search'
   const [noteInput, setNoteInput] = useState('');
   const [editingFriendId, setEditingFriendId] = useState<string | null>(null);
+  const [isSearching, setIsSearching] = useState(false); // 独立的搜索loading状态
+  const [searchError, setSearchError] = useState<string | null>(null); // 搜索错误状态
 
   // 初始化加载数据
   useEffect(() => {
@@ -31,10 +33,35 @@ const FriendsPage: React.FC = () => {
 
   // 搜索用户
   const handleSearch = async () => {
-    if (searchQuery.trim()) {
-      const results = await searchUsers(searchQuery.trim());
+    // 清空之前的错误
+    setSearchError(null);
+    
+    // 空输入处理
+    if (!searchQuery.trim()) {
+      setSearchError('请输入搜索内容');
+      return;
+    }
+    
+    // 超长文本处理（限制为50个字符）
+    const trimmedQuery = searchQuery.trim();
+    if (trimmedQuery.length > 50) {
+      setSearchError('搜索内容不能超过50个字符');
+      return;
+    }
+    
+    setIsSearching(true);
+    
+    try {
+      // 搜索用户
+      const results = await searchUsers(trimmedQuery);
       setSearchResults(results);
       setActiveTab('search');
+    } catch (error) {
+      console.error('搜索失败:', error);
+      setSearchError('搜索失败，请稍后重试');
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
     }
   };
 
@@ -93,15 +120,24 @@ const FriendsPage: React.FC = () => {
               type="text"
               placeholder="搜索用户名、邮箱或用户ID..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setSearchError(null); // 输入时清空错误提示
+              }}
               className="flex-1"
               onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
             />
-            <Button onClick={handleSearch} disabled={loading}>
-              {loading && <LoadingSpinner className="mr-2 h-4 w-4" />}
+            <Button onClick={handleSearch} disabled={isSearching}>
+              {isSearching && <LoadingSpinner className="mr-2 h-4 w-4" />}
               搜索
             </Button>
           </div>
+          {/* 搜索错误提示 */}
+          {searchError && (
+            <div className="mt-2 text-sm text-red-500 dark:text-red-400">
+              {searchError}
+            </div>
+          )}
         </div>
 
         {/* 标签页切换 */}
@@ -286,49 +322,63 @@ const FriendsPage: React.FC = () => {
 
           {/* 搜索结果 */}
           {activeTab === 'search' && (
-            <div className="grid gap-4">
-              {searchResults.length === 0 ? (
-                <Card className="p-8 text-center">
-                  <div className="text-gray-500 dark:text-gray-400">
-                    <i className="fas fa-search text-4xl mb-2"></i>
-                    <p className="text-lg">未找到匹配的用户</p>
-                    <p className="text-sm mt-1">请尝试其他搜索条件</p>
-                  </div>
-                </Card>
-              ) : (
-                searchResults.map((user) => (
-                  <Card key={user.id} className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <img
-                          src={user.avatar || 'https://picsum.photos/id/1005/200/200'}
-                          alt={user.username}
-                          className="w-12 h-12 rounded-full object-cover"
-                        />
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <h3 className="font-semibold text-gray-800 dark:text-white">
-                              {user.username || '未知用户'}
-                            </h3>
-                            <span className={`inline-flex items-center justify-center w-2 h-2 rounded-full ${user.status === 'online' ? 'bg-green-500' : 'bg-gray-400'}`} title={user.status}></span>
-                          </div>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            {user.email}
-                          </p>
-                        </div>
-                      </div>
-                      <Button 
-                        size="small" 
-                        onClick={() => handleSendRequest(user.id)}
-                        disabled={loading}
-                      >
-                        {loading && <LoadingSpinner className="mr-2 h-4 w-4" />}
-                        添加好友
-                      </Button>
+            <div className="space-y-4">
+              {/* 搜索结果统计 */}
+              {searchResults.length > 0 && (
+                <div className="text-sm text-gray-500 dark:text-gray-400">
+                  找到 {searchResults.length} 个匹配的用户
+                </div>
+              )}
+              
+              <div className="grid gap-4">
+                {searchResults.length === 0 ? (
+                  <Card className="p-8 text-center">
+                    <div className="text-gray-500 dark:text-gray-400">
+                      <i className="fas fa-search text-4xl mb-2"></i>
+                      <p className="text-lg">未找到匹配的用户</p>
+                      <p className="text-sm mt-1">请尝试以下方法：</p>
+                      <ul className="text-sm mt-3 space-y-1 list-disc list-inside text-left max-w-xs mx-auto">
+                        <li>检查拼写是否正确</li>
+                        <li>尝试使用不同的关键词</li>
+                        <li>搜索更短的用户名或邮箱</li>
+                      </ul>
                     </div>
                   </Card>
-                ))
-              )}
+                ) : (
+                  searchResults.map((user) => (
+                    <Card key={user.id} className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <img
+                            src={user.avatar || 'https://picsum.photos/id/1005/200/200'}
+                            alt={user.username}
+                            className="w-12 h-12 rounded-full object-cover"
+                          />
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-semibold text-gray-800 dark:text-white">
+                                {user.username || '未知用户'}
+                              </h3>
+                              <span className={`inline-flex items-center justify-center w-2 h-2 rounded-full ${user.status === 'online' ? 'bg-green-500' : 'bg-gray-400'}`} title={user.status}></span>
+                            </div>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                              {user.email}
+                            </p>
+                          </div>
+                        </div>
+                        <Button 
+                          size="small" 
+                          onClick={() => handleSendRequest(user.id)}
+                          disabled={loading}
+                        >
+                          {loading && <LoadingSpinner className="mr-2 h-4 w-4" />}
+                          添加好友
+                        </Button>
+                      </div>
+                    </Card>
+                  ))
+                )}
+              </div>
             </div>
           )}
         </div>

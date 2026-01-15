@@ -1,5 +1,5 @@
 import { useState, useContext, useEffect, useRef, useMemo, useCallback } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { AuthContext } from '@/contexts/authContext';
@@ -2424,14 +2424,18 @@ export default function Create() {
          )}
          
          {/* AI点评面板 */}
+        <AnimatePresence>
           {showAIReview && (
-            <HaiheBoatTransition>
-              <AIReview 
-                workId="123"
-                onClose={() => setShowAIReview(false)}
-              />
-            </HaiheBoatTransition>
+            <AIReview 
+              workId={selectedResult ? selectedResult.toString() : `temp_${Date.now()}`}
+              prompt={prompt}
+              aiExplanation={aiExplanation}
+              selectedResult={selectedResult}
+              generatedResults={generatedResults}
+              onClose={() => setShowAIReview(false)}
+            />
           )}
+        </AnimatePresence>
 
           {/* 模型选择弹窗 */}
           {showModelSelector && (

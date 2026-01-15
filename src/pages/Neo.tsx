@@ -355,8 +355,8 @@ export default function Neo() {
     });
   };
   
-  // 检查是否需要显示教程
-  useEffect(() => {
+  // 检查是否需要显示教程 - 已禁用
+  /* useEffect(() => {
     try {
       const completed = localStorage.getItem('NEO_TUTORIAL_COMPLETED');
       if (!completed) {
@@ -367,7 +367,7 @@ export default function Neo() {
         return () => clearTimeout(timer);
       }
     } catch {}
-  }, []);
+  }, []); */
   
   // 加载历史记录
   useEffect(() => {
@@ -2842,8 +2842,8 @@ export default function Neo() {
         </div>
       )}
       
-      {/* 开始教程按钮 */}
-      {!tutorialCompleted && !showTutorial && (
+      {/* 开始教程按钮 - 已隐藏 */}
+      {/* {!tutorialCompleted && !showTutorial && (
         <div className="fixed bottom-4 right-4 z-40">
           <button
             onClick={startTutorial}
@@ -2853,7 +2853,7 @@ export default function Neo() {
             开始教程
           </button>
         </div>
-      )}
+      )} */}
     </>
   )
 }

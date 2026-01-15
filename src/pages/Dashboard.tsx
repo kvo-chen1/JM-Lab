@@ -70,12 +70,13 @@ export default function Dashboard() {
   const [activePeriod, setActivePeriod] = useState<'周' | '月' | '年'>('月');
   // 作品操作菜单状态管理
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
 
   // 点击外部关闭菜单
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+      // 检查点击目标是否在菜单内部
+      const target = event.target as HTMLElement;
+      if (!target.closest('.work-menu-container') && !target.closest('.work-actions-button')) {
         setOpenMenuId(null);
       }
     };
@@ -513,9 +514,9 @@ export default function Dashboard() {
                       </div>
                     </div>
                     {/* 作品操作按钮 */}
-                    <div className="relative ml-2" ref={menuRef}>
+                    <div className="relative ml-2 work-menu-container">
                       <button 
-                        className={`text-gray-400 hover:text-gray-600 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-full transition-colors ${openMenuId === work.id ? 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300' : ''}`}
+                        className={`text-gray-400 hover:text-gray-600 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-full transition-colors ${openMenuId === work.id ? 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300' : ''} work-actions-button`}
                         aria-label="更多操作"
                         type="button"
                         id={`work-actions-${work.id}`}
@@ -530,7 +531,7 @@ export default function Dashboard() {
                           <button 
                             className={`w-full text-left px-4 py-2 text-sm ${isDark ? 'hover:bg-gray-600 text-white' : 'hover:bg-gray-100 text-gray-700'} transition-colors flex items-center`}
                             onClick={() => {
-                              navigate(`/works/${work.id}`);
+                              navigate(`/explore/${work.id}`);
                               setOpenMenuId(null);
                             }}
                           >
@@ -552,6 +553,7 @@ export default function Dashboard() {
                               className={`w-full text-left px-4 py-2 text-sm ${isDark ? 'hover:bg-gray-600 text-white' : 'hover:bg-gray-100 text-gray-700'} transition-colors flex items-center`}
                               onClick={() => {
                                 // 添加发布作品逻辑
+                                alert('作品发布成功！');
                                 setOpenMenuId(null);
                               }}
                             >
@@ -564,6 +566,7 @@ export default function Dashboard() {
                               className={`w-full text-left px-4 py-2 text-sm ${isDark ? 'hover:bg-gray-600 text-white' : 'hover:bg-gray-100 text-gray-700'} transition-colors flex items-center`}
                               onClick={() => {
                                 // 添加复制作品逻辑
+                                alert('作品复制成功！');
                                 setOpenMenuId(null);
                               }}
                             >
@@ -575,7 +578,10 @@ export default function Dashboard() {
                             className={`w-full text-left px-4 py-2 text-sm ${isDark ? 'hover:bg-red-900/30 text-red-400' : 'hover:bg-red-50 text-red-600'} transition-colors flex items-center`}
                             onClick={() => {
                               // 添加删除作品逻辑
-                              setOpenMenuId(null);
+                              if (window.confirm('确定要删除此作品吗？')) {
+                                alert('作品删除成功！');
+                                setOpenMenuId(null);
+                              }
                             }}
                           >
                             <i className="far fa-trash-alt mr-2"></i>
@@ -838,8 +844,8 @@ export default function Dashboard() {
                   {[
                     { id: 1, title: '完成新手引导', status: 'completed', reward: '50 积分', icon: 'fas fa-graduation-cap' },
                     { id: 2, title: '发布第一篇作品', status: 'completed', reward: '100 积分 + 素材包', icon: 'fas fa-paper-plane' },
-                    { id: 3, title: '邀请一位好友', status: 'pending', reward: '150 积分', icon: 'fas fa-user-plus' },
-                    { id: 4, title: '参与一次主题活动', status: 'pending', reward: '200 积分', icon: 'fas fa-calendar-alt' }
+                    { id: 3, title: '邀请一位好友', status: 'pending', reward: '150 积分', icon: 'fas fa-user-plus', route: '/friends' },
+                    { id: 4, title: '参与一次主题活动', status: 'pending', reward: '200 积分', icon: 'fas fa-calendar-alt', route: '/events' }
                   ].map((task) => (
                     <motion.div 
                       key={task.id} 
@@ -861,6 +867,11 @@ export default function Dashboard() {
                         disabled={task.status === 'completed'}
                         whileHover={{ scale: task.status !== 'completed' ? 1.05 : 1 }}
                         whileTap={{ scale: task.status !== 'completed' ? 0.95 : 1 }}
+                        onClick={() => {
+                          if (task.status !== 'completed' && (task as any).route) {
+                            navigate((task as any).route);
+                          }
+                        }}
                       >
                         {task.status === 'completed' ? '已完成' : '去完成'}
                       </motion.button>
@@ -875,9 +886,9 @@ export default function Dashboard() {
                 <div className="space-y-3">
                   {[
                     { id: 5, title: '登录平台', status: 'completed', reward: '2 积分', icon: 'fas fa-sign-in-alt' },
-                    { id: 6, title: '浏览 5 个作品', status: 'completed', reward: '3 积分', icon: 'fas fa-eye' },
-                    { id: 7, title: '发表 1 条评论', status: 'pending', reward: '5 积分', icon: 'fas fa-comment' },
-                    { id: 8, title: '分享作品到社交平台', status: 'pending', reward: '10 积分', icon: 'fas fa-share-alt' }
+                    { id: 6, title: '浏览 5 个作品', status: 'completed', reward: '3 积分', icon: 'fas fa-eye', route: '/explore' },
+                    { id: 7, title: '发表 1 条评论', status: 'pending', reward: '5 积分', icon: 'fas fa-comment', route: '/explore' },
+                    { id: 8, title: '分享作品到社交平台', status: 'pending', reward: '10 积分', icon: 'fas fa-share-alt', route: '/explore' }
                   ].map((task) => (
                     <motion.div 
                       key={task.id} 
@@ -899,6 +910,11 @@ export default function Dashboard() {
                         disabled={task.status === 'completed'}
                         whileHover={{ scale: task.status !== 'completed' ? 1.05 : 1 }}
                         whileTap={{ scale: task.status !== 'completed' ? 0.95 : 1 }}
+                        onClick={() => {
+                          if (task.status !== 'completed' && (task as any).route) {
+                            navigate((task as any).route);
+                          }
+                        }}
                       >
                         {task.status === 'completed' ? '已完成' : '去完成'}
                       </motion.button>

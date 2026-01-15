@@ -3,6 +3,11 @@ import { createContext, useState, ReactNode, useEffect, useContext } from 'react
 import { supabase } from '@/lib/supabaseClient';
 import { AuthContext, User as AuthUser } from './authContext';
 
+// 检查是否为开发环境
+const isDevelopment = (): boolean => {
+  return import.meta.env?.MODE === 'development' || import.meta.env?.DEV === true;
+};
+
 // 好友请求状态类型
 export type FriendRequestStatus = 'pending' | 'accepted' | 'rejected';
 
@@ -73,6 +78,10 @@ export interface FriendContextType {
 // 创建好友上下文
 const FriendContext = createContext<FriendContextType | undefined>(undefined);
 
+// 导出上下文
+// 注意：仅导出上下文和钩子，不导出内部实现细节
+// 这是为了确保 Vite Fast Refresh 能正常工作
+
 // 好友提供者组件
 export const FriendProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const authContext = useContext(AuthContext);
@@ -111,7 +120,7 @@ export const FriendProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         cleanupFunction();
       }
     };
-  }, [currentUser, friends]);
+  }, [currentUser]);
 
   // 搜索用户
   const searchUsers = async (query: string): Promise<User[]> => {
@@ -134,9 +143,11 @@ export const FriendProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         if (error) {
           // 忽略表不存在的错误，这是正常的开发环境状态
           if (error.code === 'PGRST205') {
-            console.warn('搜索用户时表不存在，这是正常的开发环境状态');
-            return [];
-          }
+              if (isDevelopment()) {
+                console.warn('搜索用户时表不存在，这是正常的开发环境状态');
+              }
+              return [];
+            }
           throw error;
         }
         
@@ -184,11 +195,13 @@ export const FriendProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           existingRequest = data;
         } catch (checkErr: any) {
           // 忽略表不存在的错误，继续执行
-          if (checkErr.code === 'PGRST205') {
-            console.warn('好友请求表尚未创建，这是正常的开发环境状态');
-          } else {
-            throw checkErr;
-          }
+            if (checkErr.code === 'PGRST205') {
+              if (isDevelopment()) {
+                console.warn('好友请求表尚未创建，这是正常的开发环境状态');
+              }
+            } else {
+              throw checkErr;
+            }
         }
         
         if (existingRequest) {
@@ -208,9 +221,11 @@ export const FriendProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         if (error) {
           // 忽略表不存在的错误，这是正常的开发环境状态
           if (error.code === 'PGRST205') {
-            console.warn('发送好友请求时表不存在，这是正常的开发环境状态');
-            return true;
-          }
+              if (isDevelopment()) {
+                console.warn('发送好友请求时表不存在，这是正常的开发环境状态');
+              }
+              return true;
+            }
           throw error;
         }
         
@@ -250,13 +265,15 @@ export const FriendProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           request = data;
         } catch (getErr: any) {
           // 忽略表不存在的错误，模拟成功
-          if (getErr.code === 'PGRST205') {
-            console.warn('好友请求表尚未创建，这是正常的开发环境状态');
-            // 更新本地状态
-            setFriendRequests(prev => prev.filter(r => r.id !== requestId));
-            getFriends();
-            return true;
-          }
+            if (getErr.code === 'PGRST205') {
+              if (isDevelopment()) {
+                console.warn('好友请求表尚未创建，这是正常的开发环境状态');
+              }
+              // 更新本地状态
+              setFriendRequests(prev => prev.filter(r => r.id !== requestId));
+              getFriends();
+              return true;
+            }
           throw getErr;
         }
         
@@ -275,11 +292,13 @@ export const FriendProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           if (updateError) throw updateError;
         } catch (updateErr: any) {
           // 忽略表不存在的错误，继续执行
-          if (updateErr.code === 'PGRST205') {
-            console.warn('好友请求表尚未创建，这是正常的开发环境状态');
-          } else {
-            throw updateErr;
-          }
+            if (updateErr.code === 'PGRST205') {
+              if (isDevelopment()) {
+                console.warn('好友请求表尚未创建，这是正常的开发环境状态');
+              }
+            } else {
+              throw updateErr;
+            }
         }
         
         // 创建双向好友关系
@@ -296,11 +315,13 @@ export const FriendProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           ]);
         } catch (insertErr: any) {
           // 忽略表不存在的错误，继续执行
-          if (insertErr.code === 'PGRST205') {
-            console.warn('好友表尚未创建，这是正常的开发环境状态');
-          } else {
-            throw insertErr;
-          }
+            if (insertErr.code === 'PGRST205') {
+              if (isDevelopment()) {
+                console.warn('好友表尚未创建，这是正常的开发环境状态');
+              }
+            } else {
+              throw insertErr;
+            }
         }
         
         // 更新本地状态
@@ -341,7 +362,9 @@ export const FriendProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           if (error) {
             // 忽略表不存在的错误，这是正常的开发环境状态
             if (error.code === 'PGRST205') {
-              console.warn('好友请求表尚未创建，这是正常的开发环境状态');
+              if (isDevelopment()) {
+                console.warn('好友请求表尚未创建，这是正常的开发环境状态');
+              }
             } else {
               throw error;
             }
@@ -392,23 +415,27 @@ export const FriendProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           
           if (result.error) {
             // 忽略表不存在的错误，返回空数组
-            if (result.error.code === 'PGRST205') {
+          if (result.error.code === 'PGRST205') {
+            if (isDevelopment()) {
               console.warn('好友请求表尚未创建，这是正常的开发环境状态');
-              data = [];
-            } else {
-              throw result.error;
             }
+            data = [];
+          } else {
+            throw result.error;
+          }
           } else {
             data = result.data;
           }
         } catch (fetchErr: any) {
           // 忽略表不存在的错误，返回空数组
-          if (fetchErr.code === 'PGRST205') {
+        if (fetchErr.code === 'PGRST205') {
+          if (isDevelopment()) {
             console.warn('好友请求表尚未创建，这是正常的开发环境状态');
-            data = [];
-          } else {
-            throw fetchErr;
           }
+          data = [];
+        } else {
+          throw fetchErr;
+        }
         }
         
         // 获取发送者信息
@@ -470,23 +497,27 @@ export const FriendProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           
           if (result.error) {
             // 忽略表不存在的错误，返回空数组
-            if (result.error.code === 'PGRST205') {
+          if (result.error.code === 'PGRST205') {
+            if (isDevelopment()) {
               console.warn('好友表尚未创建，这是正常的开发环境状态');
-              data = [];
-            } else {
-              throw result.error;
             }
+            data = [];
+          } else {
+            throw result.error;
+          }
           } else {
             data = result.data;
           }
         } catch (fetchErr: any) {
           // 忽略表不存在的错误，返回空数组
-          if (fetchErr.code === 'PGRST205') {
+        if (fetchErr.code === 'PGRST205') {
+          if (isDevelopment()) {
             console.warn('好友表尚未创建，这是正常的开发环境状态');
-            data = [];
-          } else {
-            throw fetchErr;
           }
+          data = [];
+        } else {
+          throw fetchErr;
+        }
         }
         
         // 获取好友详细信息和状态
@@ -570,7 +601,9 @@ export const FriendProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         if (error) {
           // 忽略表不存在的错误，因为这可能是开发环境中的临时状态
           if (error.code === 'PGRST205') {
-            console.warn('用户状态表尚未创建，这是正常的开发环境状态');
+            if (isDevelopment()) {
+              console.warn('用户状态表尚未创建，这是正常的开发环境状态');
+            }
             return true;
           }
           throw error;
@@ -627,7 +660,9 @@ export const FriendProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           if (error) {
             // 忽略表不存在的错误，这是正常的开发环境状态
             if (error.code === 'PGRST205') {
-              console.warn('好友表尚未创建，这是正常的开发环境状态');
+              if (isDevelopment()) {
+                console.warn('好友表尚未创建，这是正常的开发环境状态');
+              }
             } else {
               throw error;
             }
@@ -677,7 +712,9 @@ export const FriendProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           if (error) {
             // 忽略表不存在的错误，这是正常的开发环境状态
             if (error.code === 'PGRST205') {
-              console.warn('好友表尚未创建，这是正常的开发环境状态');
+              if (isDevelopment()) {
+                console.warn('好友表尚未创建，这是正常的开发环境状态');
+              }
             } else {
               throw error;
             }

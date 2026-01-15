@@ -202,5 +202,81 @@
     "TEXTURE_ERROR": "Texture loading failed. Please check your network and try again.",
     "CANVAS_ERROR": "Canvas operation failed. Please check browser compatibility.",
     "WEBGL_ERROR": "WebGL initialization failed. Please check browser support."
+  },
+  "review": {
+    "aiReview": "AI Review",
+    "overallRating": "Overall Rating",
+    "detailedReview": "Detailed Review",
+    "commercialAdvice": "Commercial Advice",
+    "culturalFit": "Cultural Fit",
+    "creativity": "Creativity",
+    "aesthetics": "Aesthetics",
+    "totalScore": "Total Score",
+    "workHighlights": "Work Highlights",
+    "recommendedWorks": "Recommended Reference Works",
+    "excellent": "Excellent",
+    "good": "Good",
+    "average": "Average",
+    "pass": "Pass",
+    "needImprovement": "Need Improvement",
+    "applySuggestion": "Apply this suggestion",
+    "applySuggestionSuccess": "Suggestion applied successfully",
+    "applyAllSuggestions": "Apply all suggestions",
+    "applyAllSuggestionsSuccess": "All suggestions applied",
+    "improvementSuggestions": "Improvement Suggestions",
+    "viewMoreSuggestions": "View more suggestions",
+    "collapse": "Collapse",
+    "commercialPotential": "Commercial Potential Assessment",
+    "commercialAnalysis": "Commercial Analysis",
+    "applyCommercialAdvice": "Adopt commercial advice",
+    "applyCommercialAdviceSuccess": "Commercial advice adopted",
+    "recommendedCommercialPaths": "Recommended Commercial Paths",
+    "culturalCreativeProduct": "Cultural and Creative Product Development",
+    "culturalCreativeProductDesc": "Suitable for developing various cultural and creative peripheral products",
+    "brandPackaging": "Brand Packaging Design",
+    "brandPackagingDesc": "Can be applied to packaging upgrades for time-honored brands",
+    "digitalCollectibles": "Digital Collectibles",
+    "digitalCollectiblesDesc": "Has potential for conversion to digital collectibles",
+    "relatedActivities": "Recommended Related Activities",
+    "timeHonoredBrandCompetition": "Time-honored Brand Innovation Competition",
+    "timeHonoredBrandCompetitionDeadline": "Deadline: 2025-12-31",
+    "timeHonoredBrandCompetitionReward": "Maximum prize ¥50,000",
+    "nationalTrendDesignCamp": "National Trend Cultural and Creative Design Camp",
+    "nationalTrendDesignCampDeadline": "Deadline: 2025-11-30",
+    "nationalTrendDesignCampReward": "Professional mentor guidance + exhibition opportunities",
+    "deadline": "Deadline",
+    "close": "Close",
+    "loading": "Generating AI review...",
+    "analyzing": "Analyzing your work, please wait...",
+    "generationFailed": "Failed to generate review",
+    "retry": "Retry",
+    "culturalFitDetails": [
+      "Successfully integrated cultural elements into the design",
+      "Color matching aligns with traditional aesthetics",
+      "Pattern layout preserves cultural charm while being modern"
+    ],
+    "creativityDetails": [
+      "Innovative combination of traditional elements with modern design",
+      "Novel composition with strong visual impact",
+      "Diverse cultural element fusion shows creativity"
+    ],
+    "aestheticsDetails": [
+      "Overall visual effect is harmonious and unified",
+      "Clear color hierarchy with natural transitions",
+      "Reasonable typography that highlights key points"
+    ],
+    "suggestions": [
+      "Consider adding more diverse traditional pattern combinations",
+      "Enhance cultural depth by incorporating intangible cultural heritage elements",
+      "Try different color schemes to further highlight the national trend style",
+      "Add interactive elements to increase user engagement",
+      "Optimize design details for commercial application scenarios"
+    ],
+    "commercialAnalysisDetails": [
+      "Design style aligns with current market trends, having high commercial value",
+      "Suitable for cultural and creative products, packaging design, and more",
+      "Consider applying for copyright certification to protect original rights",
+      "Explore commercial docking opportunities on the platform"
+    ]
   }
 }

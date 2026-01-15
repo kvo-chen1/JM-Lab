@@ -67,6 +67,11 @@ export const AuthContext = createContext<AuthContextType>({
 
 // AuthProvider 组件
 export const AuthProvider = ({ children }: AuthProviderProps) => {
+  // 检查是否为开发环境
+  const isDevelopment = () => {
+    return import.meta.env?.MODE === 'development' || import.meta.env?.DEV === true;
+  };
+  
   // 从本地存储获取用户认证状态
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     return !!localStorage.getItem('token') || localStorage.getItem('isAuthenticated') === 'true';
@@ -266,7 +271,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           if (error) {
             console.error('Supabase登录失败:', error);
             // Supabase登录失败时，使用模拟登录
-            console.log('Supabase登录失败，尝试使用模拟登录');
+            if (isDevelopment()) {
+              console.log('Supabase登录失败，尝试使用模拟登录');
+            }
           } else if (data.user) {
             // 强制使用固定的头像URL
             const avatarUrl = 'https://picsum.photos/id/1005/200/200';
@@ -302,7 +309,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       }
 
       // 模拟登录功能（当Supabase不可用或登录失败时）
-      console.log('使用模拟登录功能');
+      if (isDevelopment()) {
+        console.log('使用模拟登录功能');
+      }
       
       // 简单的模拟登录逻辑：只要邮箱和密码格式正确就允许登录
       // 生成一个模拟用户
@@ -331,7 +340,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       setIsAuthenticated(true);
       setUser(mockUser);
       
-      console.log('模拟登录成功');
+      if (isDevelopment()) {
+        console.log('模拟登录成功');
+      }
       return true;
     } catch (error) {
       console.error('登录失败:', error);
@@ -342,7 +353,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   // 注册方法
   const register = async (username: string, email: string, password: string, age?: string, tags?: string[]): Promise<{ success: boolean; error?: string }> => {
     try {
-      console.log('Register function called with:', { username, email, password: '****', age, tags });
+      if (isDevelopment()) {
+        console.log('Register function called with:', { username, email, password: '****', age, tags });
+      }
       
       // 密码格式验证（与前端zod验证规则保持一致）
       const passwordRegex = /^(?=.*[a-zA-Z])(?=.*\d)[A-Za-z\d@$!%*?&]{8,}$/;
@@ -352,10 +365,14 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         return { success: false, error: errorMsg };
       }
       
-      console.log('Password validation passed');
+      if (isDevelopment()) {
+        console.log('Password validation passed');
+      }
       
       if (supabase) {
-        console.log('Supabase client is available, calling signUp with secret key...');
+        if (isDevelopment()) {
+          console.log('Supabase client is available, calling signUp...');
+        }
         
         try {
           // 使用Supabase真实注册功能，现在有了secret key应该可以正常工作
@@ -376,7 +393,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             }
           });
           
-          console.log('Supabase signUp response received:', { data, error });
+          if (isDevelopment()) {
+            console.log('Supabase signUp response received:', { data: { ...data, user: data.user ? { id: data.user.id, email: data.user.email } : null }, error });
+          }
           
           if (error) {
             console.error('注册失败:', error);
@@ -403,7 +422,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           
           // 检查user是否存在
           if (data.user) {
-            console.log('User created successfully:', data.user.id);
+            if (isDevelopment()) {
+              console.log('User created successfully:', data.user.id);
+            }
             
             // 添加默认会员信息
             const avatarUrl = data.user.user_metadata?.avatar && data.user.user_metadata?.avatar.trim() 
@@ -431,10 +452,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
               // 现在数据库表结构已经与代码匹配，可以正常保存用户信息
               // 注意：移除created_at和updated_at，让数据库使用默认值
               // 因为数据库中这些字段可能是bigint类型，而不是timestamp
-              const avatarUrl = data.user.user_metadata?.avatar && data.user.user_metadata?.avatar.trim() 
-                ? data.user.user_metadata?.avatar 
-                : 'https://picsum.photos/id/1005/200/200';
-              
               const userForDb = {
                 id: data.user.id,
                 username: data.user.user_metadata?.username || username,
@@ -449,43 +466,38 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
                 membership_status: data.user.user_metadata?.membershipStatus || 'active',
                 membership_start: data.user.user_metadata?.membershipStart || new Date().toISOString(),
                 membership_end: data.user.user_metadata?.membershipEnd
-                // 移除created_at和updated_at，让数据库使用默认值
-                // created_at: new Date().toISOString(),
-                // updated_at: new Date().toISOString()
               };
               
-              console.log('Attempting to save user to database with:', userForDb);
+              if (isDevelopment()) {
+                console.log('Attempting to save user to database...');
+              }
               
               // 尝试直接插入，如果失败则使用update
               // 这是为了解决外键约束问题，因为auth.users记录可能还没有完全提交
-              
-              // 确保supabase不为null
               if (supabase) {
                 // 先尝试插入
                 const { error: insertError } = await (supabase as any).from('users').insert([userForDb]);
                 
                 if (insertError) {
-                  console.log('插入用户信息失败，尝试更新:', insertError.message);
+                  if (isDevelopment()) {
+                    console.log('插入用户信息失败，尝试更新:', insertError.message);
+                  }
                   
                   // 如果插入失败，尝试更新
                   const { error: updateError } = await (supabase as any).from('users').update(userForDb).eq('id', data.user.id);
                   
                   if (updateError) {
                     console.error('将用户信息保存到数据库失败:', updateError);
-                    console.error('数据库错误代码:', updateError.code);
-                    console.error('数据库错误信息:', updateError.message);
-                  } else {
+                  } else if (isDevelopment()) {
                     console.log('用户信息已成功更新到数据库');
                   }
-                } else {
+                } else if (isDevelopment()) {
                   console.log('用户信息已成功保存到数据库');
                 }
-              } else {
-                console.error('Supabase客户端未初始化，无法保存用户信息到数据库');
               }
             } catch (dbException: any) {
               console.error('保存用户信息到数据库时发生异常:', dbException);
-              if (dbException && typeof dbException === 'object' && 'stack' in dbException) {
+              if (isDevelopment() && dbException && typeof dbException === 'object' && 'stack' in dbException) {
                 console.error('异常堆栈:', dbException.stack);
               }
             }
@@ -500,17 +512,23 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             
             return { success: true };
           } else if (data.session) {
-            console.log('Session created but no user object returned, session:', data.session.user?.id);
+            if (isDevelopment()) {
+              console.log('Session created but no user object returned');
+            }
             return { success: true };
           } else {
-            console.log('Sign up initiated, user needs to confirm email:', data);
+            if (isDevelopment()) {
+              console.log('Sign up initiated, user needs to confirm email');
+            }
             // 如果需要邮箱确认，我们仍然返回成功，让用户去确认邮箱
             return { success: true };
           }
         } catch (error: any) {
           console.error('Supabase signUp call failed with exception:', error);
-          console.error('Exception message:', error.message);
-          console.error('Exception stack:', error.stack);
+          if (isDevelopment()) {
+            console.error('Exception message:', error.message);
+            console.error('Exception stack:', error.stack);
+          }
           return { success: false, error: error.message || '注册失败，请稍后重试' };
         }
       } else {
@@ -520,8 +538,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       }
     } catch (error: any) {
       console.error('注册函数执行失败:', error);
-      console.error('错误信息:', error.message);
-      console.error('错误堆栈:', error.stack);
+      if (isDevelopment()) {
+        console.error('错误信息:', error.message);
+        console.error('错误堆栈:', error.stack);
+      }
       return { success: false, error: error.message || '注册失败，请稍后重试' };
     }
   };
@@ -730,7 +750,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         
         return data.session !== null;
       } else {
-        console.error('Supabase客户端未配置，无法刷新令牌');
+        if (isDevelopment()) {
+          console.warn('Supabase客户端未配置，无法刷新令牌');
+        }
         return false;
       }
     } catch (error) {
@@ -744,7 +766,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const enableTwoFactorAuth = async (): Promise<boolean> => {
     try {
       // Supabase提供了双因素认证功能，这里简化实现
-      console.log('Supabase双因素认证功能已准备就绪');
+      if (isDevelopment()) {
+        console.log('Supabase双因素认证功能已准备就绪');
+      }
       return true;
     } catch (error) {
       console.error('启用双因素认证失败:', error);
@@ -756,7 +780,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const verifyTwoFactorCode = async (code: string): Promise<boolean> => {
     try {
       // Supabase会自动处理双因素认证代码验证
-      console.log('使用Supabase验证双因素认证代码:', code);
+      if (isDevelopment()) {
+        console.log('使用Supabase验证双因素认证代码:', code);
+      }
       return true;
     } catch (error) {
       console.error('验证双因素认证代码失败:', error);

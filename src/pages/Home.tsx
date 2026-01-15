@@ -443,8 +443,8 @@ export default function Home() {
             )}
           </p>
         
-        {/* 搜索与功能按钮区域 */}
-        <div className={`rounded-3xl shadow-lg ring-1 ${isDark ? 'bg-gray-800/80 backdrop-blur-sm ring-gray-700 hover:shadow-xl' : 'bg-white/80 backdrop-blur-sm ring-gray-200 hover:shadow-xl'} p-4 md:p-6 transition-all duration-300`}> 
+        {/* 搜索与功能按钮区域 - 增强版 */}
+        <div className={`rounded-3xl shadow-lg ring-1 ${isDark ? 'bg-gradient-to-br from-gray-800/90 to-gray-900/90 backdrop-blur-sm ring-gray-700 hover:shadow-xl' : 'bg-gradient-to-br from-white/90 to-gray-50/90 backdrop-blur-sm ring-gray-200 hover:shadow-xl'} p-4 md:p-6 transition-all duration-300 transform hover:-translate-y-1`}> 
           <div className="flex flex-col md:flex-row md:items-center md:space-x-4 space-y-4 md:space-y-0">
             <div className="relative flex-1">
               <PromptInput
@@ -455,28 +455,49 @@ export default function Home() {
               />
             </div>
             
-            {/* 功能按钮组 */}
+            {/* 功能按钮组 - 增强版 */}
             <div className="flex flex-wrap items-center justify-center gap-3 w-full sm:w-auto">
-              <button onClick={handleInspireClick} className={`px-5 py-3.5 rounded-xl text-sm sm:text-base font-semibold ${isDark ? 'bg-gray-700 hover:bg-gray-600 text-white shadow-lg shadow-gray-500/30' : 'bg-white hover:bg-gray-50 text-gray-900 shadow-lg shadow-gray-200'} ring-2 ${isDark ? 'ring-gray-600 hover:ring-primary' : 'ring-gray-300 hover:ring-primary'} transition-all duration-300 flex items-center justify-center gap-2 hover:shadow-xl hover:-translate-y-0.5 flex-1 sm:flex-none`}>
+              <motion.button 
+                onClick={handleInspireClick}
+                whileHover={{ scale: 1.03, y: -2 }}
+                whileTap={{ scale: 0.98 }}
+                className={`px-5 py-3.5 rounded-xl text-sm sm:text-base font-semibold ${isDark ? 'bg-gradient-to-r from-gray-700 to-gray-600 text-white shadow-lg shadow-gray-500/30' : 'bg-gradient-to-r from-white to-gray-50 text-gray-900 shadow-lg shadow-gray-200'} ring-2 ${isDark ? 'ring-gray-600 hover:ring-primary' : 'ring-gray-300 hover:ring-primary'} transition-all duration-300 flex items-center justify-center gap-2 hover:shadow-xl flex-1 sm:flex-none`}
+              >
                 <i className="fas fa-bolt transition-transform duration-300 hover:scale-110"></i>
                 {t('home.inspire')}
-              </button>
-              <button onClick={handleGenerateClick} className={`px-5 py-3.5 rounded-xl text-sm sm:text-base font-semibold ${isDark ? 'bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/30' : 'bg-black hover:bg-gray-800 text-white shadow-xl shadow-black/20'} ring-2 ${isDark ? 'ring-primary/50 hover:ring-primary' : 'ring-black/50 hover:ring-black'} transition-all duration-300 flex items-center justify-center gap-2 hover:shadow-2xl hover:-translate-y-0.5 flex-1 sm:flex-none`}>
+              </motion.button>
+              <motion.button 
+                onClick={handleGenerateClick}
+                whileHover={{ scale: 1.03, y: -2 }}
+                whileTap={{ scale: 0.98 }}
+                className={`px-5 py-3.5 rounded-xl text-sm sm:text-base font-semibold ${isDark ? 'bg-gradient-to-r from-primary to-primary/90 text-white shadow-xl shadow-primary/30' : 'bg-gradient-to-r from-black to-gray-800 text-white shadow-xl shadow-black/20'} ring-2 ${isDark ? 'ring-primary/50 hover:ring-primary' : 'ring-black/50 hover:ring-black'} transition-all duration-300 flex items-center justify-center gap-2 hover:shadow-2xl flex-1 sm:flex-none`}
+              >
                 <i className="fas fa-wand-magic-sparkles transition-transform duration-300 hover:scale-110"></i>
                 {t('home.generate')}
-              </button>
+              </motion.button>
             </div>
           </div>
           
-          {/* 功能按钮组 - 第二行 */}
+          {/* 功能按钮组 - 第二行 - 增强版 */}
           <div className="flex flex-wrap items-center justify-center gap-3 w-full mt-3">
-            <button onClick={handleOptimizeClick} disabled={isOptimizing} className={`px-5 py-3.5 rounded-xl text-sm sm:text-base font-semibold ${isDark ? 'bg-gray-700 hover:bg-gray-600 text-white shadow-lg shadow-gray-500/30' : 'bg-white hover:bg-gray-50 text-gray-900 shadow-lg shadow-gray-200'} ring-2 ${isDark ? 'ring-gray-600 hover:ring-primary' : 'ring-gray-300 hover:ring-primary'} transition-all duration-300 flex items-center justify-center gap-2 hover:shadow-xl hover:-translate-y-0.5 ${isOptimizing ? 'opacity-60 cursor-not-allowed hover:shadow-none hover:-translate-y-0' : ''} flex-1 sm:flex-none`}>
+            <motion.button 
+              onClick={handleOptimizeClick}
+              disabled={isOptimizing}
+              whileHover={{ scale: 1.03, y: -2 }}
+              whileTap={{ scale: 0.98 }}
+              className={`px-5 py-3.5 rounded-xl text-sm sm:text-base font-semibold ${isDark ? 'bg-gradient-to-r from-gray-700 to-gray-600 text-white shadow-lg shadow-gray-500/30' : 'bg-gradient-to-r from-white to-gray-50 text-gray-900 shadow-lg shadow-gray-200'} ring-2 ${isDark ? 'ring-gray-600 hover:ring-primary' : 'ring-gray-300 hover:ring-primary'} transition-all duration-300 flex items-center justify-center gap-2 hover:shadow-xl ${isOptimizing ? 'opacity-60 cursor-not-allowed hover:shadow-none hover:-translate-y-0' : ''} flex-1 sm:flex-none`}
+            >
               <i className="fas fa-adjust transition-transform duration-300 hover:scale-110"></i>
               {isOptimizing ? t('home.optimizing') : t('home.optimize')}
-            </button>
-            <button onClick={toggleInspire} className={`px-5 py-3.5 rounded-xl text-sm sm:text-base font-semibold ${inspireOn ? 'bg-primary text-white shadow-xl shadow-primary/30' : isDark ? 'bg-gray-700 hover:bg-gray-600 text-white shadow-lg shadow-gray-500/30' : 'bg-white hover:bg-gray-50 text-gray-900 shadow-lg shadow-gray-200'} ring-2 ${inspireOn ? 'ring-primary hover:ring-primary/80' : isDark ? 'ring-gray-600 hover:ring-primary' : 'ring-gray-300 hover:ring-primary'} transition-all duration-300 flex items-center justify-center gap-2 hover:shadow-xl hover:-translate-y-0.5 flex-1 sm:flex-none`}>
+            </motion.button>
+            <motion.button 
+              onClick={toggleInspire}
+              whileHover={{ scale: 1.03, y: -2 }}
+              whileTap={{ scale: 0.98 }}
+              className={`px-5 py-3.5 rounded-xl text-sm sm:text-base font-semibold ${inspireOn ? 'bg-gradient-to-r from-primary to-primary/90 text-white shadow-xl shadow-primary/30' : isDark ? 'bg-gradient-to-r from-gray-700 to-gray-600 text-white shadow-lg shadow-gray-500/30' : 'bg-gradient-to-r from-white to-gray-50 text-gray-900 shadow-lg shadow-gray-200'} ring-2 ${inspireOn ? 'ring-primary hover:ring-primary/80' : isDark ? 'ring-gray-600 hover:ring-primary' : 'ring-gray-300 hover:ring-primary'} transition-all duration-300 flex items-center justify-center gap-2 hover:shadow-xl flex-1 sm:flex-none`}
+            >
               {t('home.inspirationBoost')} {inspireOn ? t('common.on') : t('common.off')}
-            </button>
+            </motion.button>
           </div>
           
           {/* 快速标签 */}
@@ -622,19 +643,19 @@ export default function Home() {
           <h2 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">{t('home.recommendedForYou')}</h2>
           <button onClick={handleExplore} className="px-3 py-1.5 rounded-lg text-sm font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-all duration-300">{t('home.viewPortfolio')}</button>
         </div>
-        <div ref={galleryRef} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 scroll-mt-24">
+        <div ref={galleryRef} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 scroll-mt-24">
           {gallery.map((item, idx) => (
             <motion.div 
               key={item.id} 
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: idx * 0.1 }}
+              transition={{ duration: 0.6, delay: idx * 0.1 }}
               whileHover={{ 
-                y: -5, 
-                boxShadow: isDark ? '0 20px 25px -5px rgba(245, 158, 11, 0.2), 0 10px 10px -5px rgba(245, 158, 11, 0.1)' : '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)' 
+                y: -8, 
+                boxShadow: isDark ? '0 25px 50px -12px rgba(245, 158, 11, 0.25)' : '0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 10px 10px -5px rgba(0, 0, 0, 0.05)' 
               }}
-              className={`rounded-2xl overflow-hidden shadow-md transition-all duration-300 ${isDark ? 'bg-gradient-to-b from-gray-800 to-gray-800/90 ring-1 ring-gray-700 hover:ring-primary/50' : 'bg-gradient-to-b from-white to-gray-50 ring-1 ring-gray-200 hover:ring-primary/50'} cursor-pointer`}
+              className={`rounded-2xl overflow-hidden shadow-md transition-all duration-300 ${isDark ? 'bg-gradient-to-b from-gray-800 to-gray-900 ring-1 ring-gray-700 hover:ring-primary/50' : 'bg-gradient-to-b from-white to-gray-50 ring-1 ring-gray-200 hover:ring-primary/50'} cursor-pointer group`}
               role="button"
               tabIndex={0}
               onClick={() => {
@@ -646,31 +667,51 @@ export default function Home() {
                 }
               }}
             >
-              <div className="relative aspect-video overflow-hidden rounded-t-2xl group">
-                <TianjinImage 
-                  src={item.thumbnail} 
-                  alt={item.title} 
-                  ratio="landscape" 
-                  rounded="2xl" 
-                  className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" 
-                  disableFallback={true} 
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                <motion.span 
+              <div className="relative aspect-video overflow-hidden rounded-t-2xl">
+                <motion.div 
                   whileHover={{ scale: 1.1 }}
-                  className={`absolute top-3 right-3 text-sm px-3 py-1.5 rounded-full backdrop-blur-md ${isDark ? 'bg-gray-800/80 ring-1 ring-gray-700 text-gray-200' : 'bg-white/90 ring-1 ring-gray-200 text-gray-800'} shadow-md transition-all duration-300 hover:shadow-lg`}
+                  transition={{ type: "spring", stiffness: 300 }}
                 >
-                  <i className="far fa-heart mr-1"></i>{item.likes}
+                  <TianjinImage 
+                    src={item.thumbnail} 
+                    alt={item.title} 
+                    ratio="landscape" 
+                    rounded="2xl" 
+                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" 
+                    disableFallback={true} 
+                  />
+                </motion.div>
+                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                <motion.span 
+                  whileHover={{ scale: 1.1, y: -2 }}
+                  className={`absolute top-4 right-4 text-sm px-4 py-2 rounded-full backdrop-blur-md ${isDark ? 'bg-gray-800/90 ring-1 ring-gray-700 text-gray-200' : 'bg-white/95 ring-1 ring-gray-200 text-gray-800'} shadow-lg transition-all duration-300 hover:shadow-xl`}
+                >
+                  <i className="far fa-heart mr-1 group-hover:text-red-500 transition-colors duration-300"></i>{item.likes}
                 </motion.span>
+                <motion.div 
+                  initial={{ opacity: 0, y: 10 }}
+                  whileHover={{ opacity: 1, y: 0 }}
+                  className={`absolute bottom-0 left-0 right-0 p-4 transform translate-y-full group-hover:translate-y-0 transition-all duration-300`}
+                >
+                  <span className={`inline-block px-3 py-1.5 rounded-full text-xs font-medium ${isDark ? 'bg-primary/90 text-white' : 'bg-primary text-white'} shadow-md`}>
+                    {item.category}
+                  </span>
+                </motion.div>
               </div>
-              <div className={`p-5 ${isDark ? 'bg-gray-800' : 'bg-white'} transition-all duration-300`}>
-                <div className="flex justify-between items-start mb-3">
-                  <h3 className={`font-semibold text-base md:text-lg transition-all duration-200 hover:text-primary ${isDark ? 'text-gray-100' : 'text-gray-900'} line-clamp-1`}>{item.title}</h3>
-                  <span className={`text-xs px-3 py-1 rounded-full ${isDark ? 'bg-primary/20 text-primary' : 'bg-primary/10 text-primary'} transition-all duration-200 hover:bg-primary/30`}>{item.category}</span>
-                </div>
-                <div className={`${isDark ? 'text-gray-300' : 'text-gray-600'} text-sm flex items-center`}>
-                  <i className="fas fa-star text-yellow-400 mr-1.5"></i>
-                  <span>精选创作 · 高质量示例</span>
+              <div className={`p-6 ${isDark ? 'bg-gray-800' : 'bg-white'} transition-all duration-300`}>
+                <h3 className={`font-semibold text-lg md:text-xl transition-all duration-200 hover:text-primary ${isDark ? 'text-gray-100' : 'text-gray-900'} line-clamp-2 mb-3`}>{item.title}</h3>
+                <div className="flex items-center justify-between">
+                  <div className={`${isDark ? 'text-gray-300' : 'text-gray-600'} text-sm flex items-center`}>
+                    <i className="fas fa-star text-yellow-400 mr-1.5"></i>
+                    <span>精选创作 · 高质量示例</span>
+                  </div>
+                  <motion.button 
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.95 }}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium ${isDark ? 'bg-primary/10 text-primary hover:bg-primary/20' : 'bg-primary/5 text-primary hover:bg-primary/10'} transition-all duration-300`}
+                  >
+                    查看详情
+                  </motion.button>
                 </div>
               </div>
             </motion.div>

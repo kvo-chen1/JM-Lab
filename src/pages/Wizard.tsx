@@ -126,7 +126,7 @@ export default function Wizard() {
               })()}
             </div>
             <div className="mt-6 flex justify-end gap-2">
-              <button onClick={next} className="bg-red-600 text-white px-4 py-2 rounded-lg" disabled={!((state.brandName || '').trim())}>下一步</button>
+              <button onClick={next} disabled={!((state.brandName || '').trim())} className={`text-white px-4 py-2 rounded-lg ${((state.brandName || '').trim()) ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-400 cursor-not-allowed'}`}>下一步</button>
             </div>
           </motion.div>
         )}

@@ -444,7 +444,7 @@ export default function Home() {
           </p>
         
         {/* 搜索与功能按钮区域 - 增强版 */}
-        <div className={`rounded-3xl shadow-lg ring-1 ${isDark ? 'bg-gradient-to-br from-gray-800/90 to-gray-900/90 backdrop-blur-sm ring-gray-700 hover:shadow-xl' : 'bg-gradient-to-br from-white/90 to-gray-50/90 backdrop-blur-sm ring-gray-200 hover:shadow-xl'} p-4 md:p-6 transition-all duration-300 transform hover:-translate-y-1`}> 
+        <div className={`rounded-3xl shadow-lg ring-2 ${isDark ? 'bg-gradient-to-br from-gray-900 to-gray-800 backdrop-blur-sm ring-gray-700 hover:ring-gray-600 hover:shadow-2xl hover:shadow-primary/10' : 'bg-gradient-to-br from-white/90 to-gray-50/90 backdrop-blur-sm ring-gray-200 hover:ring-gray-300 hover:shadow-xl'} p-4 md:p-6 transition-all duration-300 transform hover:-translate-y-1`}> 
           <div className="flex flex-col md:flex-row md:items-center md:space-x-4 space-y-4 md:space-y-0">
             <div className="relative flex-1">
               <PromptInput
@@ -504,9 +504,9 @@ export default function Home() {
           <div className="mt-5 flex flex-wrap justify-center gap-3 scroll-mt-24">
             {quickTags.map((t, i) => {
               const active = selectedTags.includes(t);
-              const base = 'ring-2 text-sm px-4 py-2 rounded-xl transition-all duration-300 hover:shadow-md hover:-translate-y-0.5';
-              const activeCls = isDark ? 'bg-primary text-white ring-primary/50 shadow-lg shadow-primary/20' : 'bg-primary/10 text-primary ring-primary font-medium shadow-md shadow-primary/10';
-              const normalCls = isDark ? 'bg-gray-800 text-gray-200 ring-gray-700 hover:bg-gray-700 hover:ring-primary/50 font-medium' : 'bg-white text-gray-800 ring-gray-300 hover:bg-gray-50 hover:ring-primary/50 font-medium';
+              const base = 'ring-2 text-sm px-4 py-2 rounded-xl transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 transform hover:-translate-y-0.5';
+              const activeCls = isDark ? 'bg-primary text-white ring-primary/70 shadow-lg shadow-primary/30' : 'bg-primary/10 text-primary ring-primary font-medium shadow-md shadow-primary/10';
+              const normalCls = isDark ? 'bg-gray-900 text-gray-300 ring-gray-700 hover:bg-gray-800 hover:ring-primary/50 font-medium' : 'bg-white text-gray-800 ring-gray-300 hover:bg-gray-50 hover:ring-primary/50 font-medium';
               return (
                 <button
                   key={i}

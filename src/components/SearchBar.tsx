@@ -166,9 +166,9 @@ const SearchBar: React.FC<SearchBarProps> = memo(({
 
   return (
     <div className="relative">
-      <div className="flex items-center rounded-lg ring-1 bg-white ring-gray-200 px-3 py-2 transition-all duration-300 hover:shadow-lg">
+      <div className={`flex items-center rounded-lg ring-1 ${isDark ? 'bg-gray-900 ring-gray-700 hover:ring-gray-600' : 'bg-white ring-gray-200 hover:ring-gray-300'} px-3 py-2 transition-all duration-300 hover:shadow-lg`}>
         {/* 搜索图标 */}
-        <div className="flex items-center justify-center text-gray-500 mr-2">
+        <div className={`flex items-center justify-center ${isDark ? 'text-gray-400 hover:text-gray-300' : 'text-gray-500 hover:text-gray-600'} mr-2 transition-colors duration-300`}>
           <i className="fas fa-search"></i>
         </div>
         

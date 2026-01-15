@@ -938,7 +938,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                   )}
                 </button>
                 {showNotifications && (
-                  <div className={`absolute right-0 mt-2 w-96 rounded-2xl shadow-xl ring-1 transition-all duration-300 transform scale-100 opacity-100 translate-y-0 ${isDark ? 'bg-gray-800 ring-gray-700' : 'bg-white ring-gray-200'} z-50`} role="dialog" aria-label="通知列表">
+                  <div className={`absolute right-0 mt-2 w-[350px] sm:w-[400px] rounded-2xl shadow-xl ring-1 transition-all duration-300 transform scale-100 opacity-100 translate-y-0 ${isDark ? 'bg-gray-800 ring-gray-700' : 'bg-white ring-gray-200'} z-50`} role="dialog" aria-label="通知列表">
                     <div className={`px-4 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center space-x-3">

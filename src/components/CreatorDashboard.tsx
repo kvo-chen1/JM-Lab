@@ -213,7 +213,7 @@ const CreatorDashboard: React.FC = () => {
       {isVisible && (
         <div 
           ref={dashboardRef}
-          className="absolute right-0 mt-2 p-4 bg-white dark:bg-gray-800 rounded-xl shadow-xl border dark:border-gray-700 w-full sm:w-80 md:w-96 z-50 overflow-hidden"
+          className="absolute right-0 mt-2 p-4 bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl shadow-2xl shadow-primary/10 border-2 border-gray-700 dark:border-gray-600 w-full sm:w-80 md:w-96 z-50 overflow-hidden"
           style={{ 
             animation: 'slideInRight 0.3s ease-out forwards',
             opacity: 0,
@@ -227,10 +227,10 @@ const CreatorDashboard: React.FC = () => {
           </h3>
           
           {/* 作品概览 */}
-          <div className="mb-4 bg-gray-50 dark:bg-gray-750 rounded-xl p-4 shadow-sm">
-            <h4 className="text-sm font-semibold mb-3 text-gray-600 dark:text-gray-400">作品概览</h4>
+          <div className="mb-4 bg-gray-50 dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-gray-700">
+            <h4 className="text-sm font-semibold mb-3 text-gray-600 dark:text-gray-300">作品概览</h4>
             <div className="grid grid-cols-2 gap-3">
-              <div className="bg-white dark:bg-gray-800 p-3 rounded-lg hover:shadow-md transition-all duration-300 transform hover:-translate-y-0.5 border border-gray-100 dark:border-gray-700">
+              <div className="bg-white dark:bg-gray-900 p-3 rounded-lg hover:shadow-lg hover:shadow-primary/10 transition-all duration-300 transform hover:-translate-y-0.5 border border-gray-100 dark:border-gray-700">
                 <div className="flex items-center justify-between mb-1">
                   <p className="text-xs text-gray-500 dark:text-gray-400">总作品</p>
                   <i className="fas fa-image text-purple-500 text-xs"></i>
@@ -243,7 +243,7 @@ const CreatorDashboard: React.FC = () => {
                   </span>
                 </div>
               </div>
-              <div className="bg-white dark:bg-gray-800 p-3 rounded-lg hover:shadow-md transition-all duration-300 transform hover:-translate-y-0.5 border border-gray-100 dark:border-gray-700">
+              <div className="bg-white dark:bg-gray-900 p-3 rounded-lg hover:shadow-lg hover:shadow-primary/10 transition-all duration-300 transform hover:-translate-y-0.5 border border-gray-100 dark:border-gray-700">
                 <div className="flex items-center justify-between mb-1">
                   <p className="text-xs text-gray-500 dark:text-gray-400">总点赞</p>
                   <i className="fas fa-heart text-red-500 text-xs"></i>
@@ -256,7 +256,7 @@ const CreatorDashboard: React.FC = () => {
                   </span>
                 </div>
               </div>
-              <div className="bg-white dark:bg-gray-800 p-3 rounded-lg hover:shadow-md transition-all duration-300 transform hover:-translate-y-0.5 border border-gray-100 dark:border-gray-700">
+              <div className="bg-white dark:bg-gray-900 p-3 rounded-lg hover:shadow-lg hover:shadow-primary/10 transition-all duration-300 transform hover:-translate-y-0.5 border border-gray-100 dark:border-gray-700">
                 <div className="flex items-center justify-between mb-1">
                   <p className="text-xs text-gray-500 dark:text-gray-400">总浏览</p>
                   <i className="fas fa-eye text-blue-500 text-xs"></i>
@@ -269,7 +269,7 @@ const CreatorDashboard: React.FC = () => {
                   </span>
                 </div>
               </div>
-              <div className="bg-white dark:bg-gray-800 p-3 rounded-lg hover:shadow-md transition-all duration-300 transform hover:-translate-y-0.5 border border-gray-100 dark:border-gray-700">
+              <div className="bg-white dark:bg-gray-900 p-3 rounded-lg hover:shadow-lg hover:shadow-primary/10 transition-all duration-300 transform hover:-translate-y-0.5 border border-gray-100 dark:border-gray-700">
                 <div className="flex items-center justify-between mb-1">
                   <p className="text-xs text-gray-500 dark:text-gray-400">总评论</p>
                   <i className="fas fa-comment text-yellow-500 text-xs"></i>
@@ -286,9 +286,9 @@ const CreatorDashboard: React.FC = () => {
           </div>
 
           {/* 创作进度 */}
-          <div className="mb-4 bg-gray-50 dark:bg-gray-750 rounded-xl p-4 shadow-sm">
+          <div className="mb-4 bg-gray-50 dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-gray-700">
             <div className="flex justify-between items-center mb-3">
-              <h4 className="text-sm font-semibold text-gray-600 dark:text-gray-400">创作进度</h4>
+              <h4 className="text-sm font-semibold text-gray-600 dark:text-gray-300">创作进度</h4>
               <span className="text-xs text-purple-600 dark:text-purple-400 flex items-center">
                 <i className="fas fa-file-alt mr-1"></i>
                 {workStats.draftCount} 个草稿
@@ -301,37 +301,37 @@ const CreatorDashboard: React.FC = () => {
                     className="bg-gradient-to-r from-purple-500 via-pink-500 to-red-500 h-3.5 rounded-full transition-all duration-1500 ease-out shadow-lg relative"
                     style={{ width: `${Math.min((workStats.totalWorks / 20) * 100, 100)}%` }}
                   >
-                    <div className="absolute right-0 top-1/2 transform -translate-y-1/2 -translate-x-1/2 w-5 h-5 bg-white dark:bg-gray-800 rounded-full border-2 border-purple-500 shadow-md animate-pulse"></div>
+                    <div className="absolute right-0 top-1/2 transform -translate-y-1/2 -translate-x-1/2 w-5 h-5 bg-white dark:bg-gray-900 rounded-full border-2 border-purple-500 shadow-md animate-pulse"></div>
                   </div>
                 </div>
-                <div className="absolute top-0 right-0 transform translate-y-1/2 translate-x-1/2 bg-white dark:bg-gray-800 px-2 py-0.5 rounded-full text-xs font-medium text-purple-600 dark:text-purple-400 shadow-md">
+                <div className="absolute top-0 right-0 transform translate-y-1/2 translate-x-1/2 bg-white dark:bg-gray-900 px-2 py-0.5 rounded-full text-xs font-medium text-purple-600 dark:text-purple-400 shadow-md">
                   {Math.min(Math.round((workStats.totalWorks / 20) * 100), 100)}%
                 </div>
               </div>
               <div className="flex items-center justify-between">
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  已完成 <span className="font-semibold text-gray-700 dark:text-gray-300">{workStats.totalWorks}</span> 个作品
+                  已完成 <span className="font-semibold text-gray-700 dark:text-gray-200">{workStats.totalWorks}</span> 个作品
                 </p>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  目标 <span className="font-semibold text-gray-700 dark:text-gray-300">20</span> 个作品
+                  目标 <span className="font-semibold text-gray-700 dark:text-gray-200">20</span> 个作品
                 </p>
               </div>
               <div className="flex items-center gap-2 text-xs">
                 <div className="flex items-center gap-1">
                   <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                  <span className="text-gray-600 dark:text-gray-400">本周新增 2 个</span>
+                  <span className="text-gray-600 dark:text-gray-300">本周新增 2 个</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-                  <span className="text-gray-600 dark:text-gray-400">进度提升 10%</span>
+                  <span className="text-gray-600 dark:text-gray-300">进度提升 10%</span>
                 </div>
               </div>
             </div>
           </div>
 
           {/* 近期活动 */}
-          <div className="mb-4 bg-gray-50 dark:bg-gray-750 rounded-xl p-4 shadow-sm">
-            <h4 className="text-sm font-semibold mb-3 text-gray-600 dark:text-gray-400 flex items-center">
+          <div className="mb-4 bg-gray-50 dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-gray-700">
+            <h4 className="text-sm font-semibold mb-3 text-gray-600 dark:text-gray-300 flex items-center">
               <i className="fas fa-bell text-purple-500 mr-2"></i>
               近期活动
             </h4>
@@ -339,7 +339,7 @@ const CreatorDashboard: React.FC = () => {
               {recentActivities.map(activity => (
                 <div 
                   key={activity.id} 
-                  className="flex items-start gap-3 p-3 rounded-lg bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-300 cursor-pointer transform hover:translate-x-1 border border-gray-100 dark:border-gray-700"
+                  className="flex items-start gap-3 p-3 rounded-lg bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-300 cursor-pointer transform hover:translate-x-1 border border-gray-100 dark:border-gray-700"
                   onClick={() => {
                     if (activity.workId) {
                       navigate(`/explore/${activity.workId}`);
@@ -357,7 +357,7 @@ const CreatorDashboard: React.FC = () => {
                         alt={activity.user} 
                         className="w-7 h-7 rounded-full object-cover ring-2 ring-purple-100 dark:ring-purple-900"
                       />
-                      <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white dark:border-gray-800 ${getActivityIconColor(activity.type)}`}></div>
+                      <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white dark:border-gray-900 ${getActivityIconColor(activity.type)}`}></div>
                     </div>
                   </div>
                   <div className="flex-1 min-w-0">
@@ -388,8 +388,8 @@ const CreatorDashboard: React.FC = () => {
           </div>
 
           {/* 社群消息 */}
-          <div className="mb-4 bg-gray-50 dark:bg-gray-750 rounded-xl p-4 shadow-sm">
-            <h4 className="text-sm font-semibold mb-3 text-gray-600 dark:text-gray-400 flex items-center">
+          <div className="mb-4 bg-gray-50 dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-gray-700">
+            <h4 className="text-sm font-semibold mb-3 text-gray-600 dark:text-gray-300 flex items-center">
               <i className="fas fa-comments text-blue-500 mr-2"></i>
               社群消息
             </h4>
@@ -397,7 +397,7 @@ const CreatorDashboard: React.FC = () => {
               {communityMessages.map(message => (
                 <div 
                   key={message.id} 
-                  className="flex items-start gap-3 p-3 rounded-lg bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-300 cursor-pointer transform hover:translate-x-1 border border-gray-100 dark:border-gray-700"
+                  className="flex items-start gap-3 p-3 rounded-lg bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-300 cursor-pointer transform hover:translate-x-1 border border-gray-100 dark:border-gray-700"
                   onClick={() => {
                     navigate('/community');
                     setIsVisible(false); // 关闭面板
@@ -439,15 +439,15 @@ const CreatorDashboard: React.FC = () => {
           </div>
 
           {/* 快速操作 */}
-          <div className="bg-gray-50 dark:bg-gray-750 rounded-xl p-4 shadow-sm">
-            <h4 className="text-sm font-semibold mb-3 text-gray-600 dark:text-gray-400">快速操作</h4>
+          <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-gray-700">
+            <h4 className="text-sm font-semibold mb-3 text-gray-600 dark:text-gray-300">快速操作</h4>
             <div className="grid grid-cols-2 gap-3">
               <button
                 onClick={() => {
                   navigate('/create');
                   setIsVisible(false); // 关闭面板
                 }}
-                className="group px-3 py-2.5 bg-gradient-to-r from-purple-500 to-purple-600 text-white text-sm font-medium rounded-lg hover:from-purple-600 hover:to-purple-700 transition-all duration-300 flex items-center justify-center gap-1 hover:shadow-xl transform hover:-translate-y-0.5 active:scale-95"
+                className="group px-3 py-2.5 bg-gradient-to-r from-purple-500 to-purple-600 text-white text-sm font-medium rounded-lg hover:from-purple-600 hover:to-purple-700 transition-all duration-300 flex items-center justify-center gap-1 hover:shadow-xl hover:shadow-purple/20 transform hover:-translate-y-0.5 active:scale-95"
                 title="创建新作品"
               >
                 <i className="fas fa-plus text-sm group-hover:rotate-90 transition-transform duration-300"></i>
@@ -458,7 +458,7 @@ const CreatorDashboard: React.FC = () => {
                   navigate('/dashboard');
                   setIsVisible(false); // 关闭面板
                 }}
-                className="group px-3 py-2.5 bg-white dark:bg-gray-800 text-gray-800 dark:text-white text-sm font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-300 flex items-center justify-center gap-1 hover:shadow-xl transform hover:-translate-y-0.5 active:scale-95 border border-gray-100 dark:border-gray-700"
+                className="group px-3 py-2.5 bg-white dark:bg-gray-900 text-gray-800 dark:text-white text-sm font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-300 flex items-center justify-center gap-1 hover:shadow-xl hover:shadow-primary/10 transform hover:-translate-y-0.5 active:scale-95 border border-gray-100 dark:border-gray-700"
                 title="查看作品管理"
               >
                 <i className="fas fa-images text-sm text-purple-500 group-hover:scale-125 transition-transform duration-300"></i>
@@ -469,7 +469,7 @@ const CreatorDashboard: React.FC = () => {
                   navigate('/dashboard/stats');
                   setIsVisible(false); // 关闭面板
                 }}
-                className="group px-3 py-2.5 bg-white dark:bg-gray-800 text-gray-800 dark:text-white text-sm font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-300 flex items-center justify-center gap-1 hover:shadow-xl transform hover:-translate-y-0.5 active:scale-95 border border-gray-100 dark:border-gray-700"
+                className="group px-3 py-2.5 bg-white dark:bg-gray-900 text-gray-800 dark:text-white text-sm font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-300 flex items-center justify-center gap-1 hover:shadow-xl hover:shadow-primary/10 transform hover:-translate-y-0.5 active:scale-95 border border-gray-100 dark:border-gray-700"
                 title="查看数据分析"
               >
                 <i className="fas fa-chart-line text-sm text-blue-500 group-hover:scale-125 transition-transform duration-300"></i>
@@ -480,7 +480,7 @@ const CreatorDashboard: React.FC = () => {
                   navigate('/community');
                   setIsVisible(false); // 关闭面板
                 }}
-                className="group px-3 py-2.5 bg-white dark:bg-gray-800 text-gray-800 dark:text-white text-sm font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-300 flex items-center justify-center gap-1 hover:shadow-xl transform hover:-translate-y-0.5 active:scale-95 border border-gray-100 dark:border-gray-700"
+                className="group px-3 py-2.5 bg-white dark:bg-gray-900 text-gray-800 dark:text-white text-sm font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-300 flex items-center justify-center gap-1 hover:shadow-xl hover:shadow-primary/10 transform hover:-translate-y-0.5 active:scale-95 border border-gray-100 dark:border-gray-700"
                 title="查看社群消息"
               >
                 <i className="fas fa-comments text-sm text-green-500 group-hover:scale-125 transition-transform duration-300"></i>

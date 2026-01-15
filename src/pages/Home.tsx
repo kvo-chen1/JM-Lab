@@ -678,7 +678,7 @@ export default function Home() {
                     ratio="landscape" 
                     rounded="2xl" 
                     className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" 
-                    disableFallback={true} 
+                    disableFallback={false} 
                   />
                 </motion.div>
                 <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
@@ -756,7 +756,7 @@ export default function Home() {
                 ratio="landscape"
                 fit="cover"
                 className="transition-transform duration-700 group-hover:scale-110"
-                disableFallback={true}
+                disableFallback={false}
               />
              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
              <div className="absolute bottom-0 left-0 right-0 p-5 transform translate-y-full group-hover:translate-y-0 transition-transform duration-300">
@@ -794,7 +794,7 @@ export default function Home() {
                 ratio="landscape"
                 fit="cover"
                 className="transition-transform duration-700 group-hover:scale-110"
-                disableFallback={true}
+                disableFallback={false}
               />
              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
              <div className="absolute bottom-0 left-0 right-0 p-5 transform translate-y-full group-hover:translate-y-0 transition-transform duration-300">
@@ -832,7 +832,7 @@ export default function Home() {
                 ratio="landscape"
                 fit="cover"
                 className="transition-transform duration-700 group-hover:scale-110"
-                disableFallback={true}
+                disableFallback={false}
               />
              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
              <div className="absolute bottom-0 left-0 right-0 p-5 transform translate-y-full group-hover:translate-y-0 transition-transform duration-300">
@@ -898,7 +898,7 @@ export default function Home() {
                     className="w-full h-full object-cover object-center"
                     ratio="square"
                     fit="cover"
-                    disableFallback={true}
+                    disableFallback={false}
                   />
                 </motion.div>
               </div>
@@ -961,7 +961,7 @@ export default function Home() {
                     alt={work.title} 
                     ratio="landscape" 
                     className="w-full h-full object-cover"
-                    disableFallback={true}
+                    disableFallback={false}
                   />
                 </motion.div>
                 <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
@@ -1004,6 +1004,472 @@ export default function Home() {
         </div>
       </div>
       
+      {/* 核心功能介绍板块 */}
+      <div className="max-w-7xl mx-auto mb-16 scroll-mt-24">
+        <div className="flex items-center justify-between mb-8 animate-slide-up">
+          <h2 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">核心功能</h2>
+          <button onClick={() => navigate('/tools')} className="px-3 py-1.5 rounded-lg text-sm font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-all duration-300 hover:shadow-md">了解更多功能</button>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <motion.div 
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6, delay: 0.1 }}
+            whileHover={{ 
+              y: -8, 
+              boxShadow: isDark ? '0 25px 50px -12px rgba(245, 158, 11, 0.25)' : '0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 10px 10px -5px rgba(0, 0, 0, 0.05)' 
+            }}
+            className={`rounded-2xl overflow-hidden shadow-lg transition-all duration-300 ${isDark ? 'bg-gradient-to-b from-gray-800 to-gray-800/90 ring-1 ring-gray-700 hover:ring-primary/50' : 'bg-gradient-to-b from-white to-gray-50 ring-1 ring-gray-200 hover:ring-primary/50'}`}
+          >
+            <div className="relative aspect-video overflow-hidden rounded-t-2xl">
+              <TianjinImage 
+                src="https://images.unsplash.com/photo-1633356122102-3fe601e05bd2?w=1920&h=1080&fit=crop"
+                alt="AI创意生成"
+                ratio="landscape" 
+                className="w-full h-full object-cover transition-transform duration-700 hover:scale-110" 
+                disableFallback={false} 
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent"></div>
+              <div className="absolute bottom-4 left-4">
+                <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${isDark ? 'bg-primary/80 text-white' : 'bg-primary text-white'}`}>
+                  AI 技术
+                </span>
+              </div>
+            </div>
+            <div className={`p-6 ${isDark ? 'bg-gray-800' : 'bg-white'} transition-all duration-300`}>
+              <h3 className={`font-bold text-lg mb-3 transition-colors duration-200 hover:text-primary ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>AI 创意生成</h3>
+              <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'} leading-relaxed mb-4`}>
+                利用先进的人工智能技术，快速生成符合天津文化特色的创意作品，支持多种风格和形式的创作。
+              </p>
+              <div className="flex items-center justify-between">
+                <div className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                  <i className="fas fa-magic mr-1"></i> 智能创作
+                </div>
+                <button onClick={() => navigate('/neo')} className={`px-3 py-1.5 rounded-lg text-sm font-medium ${isDark ? 'bg-primary/10 text-primary hover:bg-primary/20' : 'bg-primary/5 text-primary hover:bg-primary/10'} transition-all duration-300`}>
+                  立即体验
+                </button>
+              </div>
+            </div>
+          </motion.div>
+          
+          <motion.div 
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+            whileHover={{ 
+              y: -8, 
+              boxShadow: isDark ? '0 25px 50px -12px rgba(245, 158, 11, 0.25)' : '0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 10px 10px -5px rgba(0, 0, 0, 0.05)' 
+            }}
+            className={`rounded-2xl overflow-hidden shadow-lg transition-all duration-300 ${isDark ? 'bg-gradient-to-b from-gray-800 to-gray-800/90 ring-1 ring-gray-700 hover:ring-primary/50' : 'bg-gradient-to-b from-white to-gray-50 ring-1 ring-gray-200 hover:ring-primary/50'}`}
+          >
+            <div className="relative aspect-video overflow-hidden rounded-t-2xl">
+              <TianjinImage 
+                src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=1920&h=1080&fit=crop"
+                alt="共创社区"
+                ratio="landscape" 
+                className="w-full h-full object-cover transition-transform duration-700 hover:scale-110" 
+                disableFallback={false} 
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent"></div>
+              <div className="absolute bottom-4 left-4">
+                <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${isDark ? 'bg-primary/80 text-white' : 'bg-primary text-white'}`}>
+                  社区互动
+                </span>
+              </div>
+            </div>
+            <div className={`p-6 ${isDark ? 'bg-gray-800' : 'bg-white'} transition-all duration-300`}>
+              <h3 className={`font-bold text-lg mb-3 transition-colors duration-200 hover:text-primary ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>共创社区</h3>
+              <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'} leading-relaxed mb-4`}>
+                连接创作者、品牌和文化机构，构建开放的共创生态，促进天津文化的传承与创新。
+              </p>
+              <div className="flex items-center justify-between">
+                <div className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                  <i className="fas fa-users mr-1"></i> 协同创作
+                </div>
+                <button onClick={() => navigate('/community')} className={`px-3 py-1.5 rounded-lg text-sm font-medium ${isDark ? 'bg-primary/10 text-primary hover:bg-primary/20' : 'bg-primary/5 text-primary hover:bg-primary/10'} transition-all duration-300`}>
+                  加入社区
+                </button>
+              </div>
+            </div>
+          </motion.div>
+          
+          <motion.div 
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6, delay: 0.3 }}
+            whileHover={{ 
+              y: -8, 
+              boxShadow: isDark ? '0 25px 50px -12px rgba(245, 158, 11, 0.25)' : '0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 10px 10px -5px rgba(0, 0, 0, 0.05)' 
+            }}
+            className={`rounded-2xl overflow-hidden shadow-lg transition-all duration-300 ${isDark ? 'bg-gradient-to-b from-gray-800 to-gray-800/90 ring-1 ring-gray-700 hover:ring-primary/50' : 'bg-gradient-to-b from-white to-gray-50 ring-1 ring-gray-200 hover:ring-primary/50'}`}
+          >
+            <div className="relative aspect-video overflow-hidden rounded-t-2xl">
+              <TianjinImage 
+                src="https://images.unsplash.com/photo-1512820790803-83ca734da794?w=1920&h=1080&fit=crop"
+                alt="文化知识库"
+                ratio="landscape" 
+                className="w-full h-full object-cover transition-transform duration-700 hover:scale-110" 
+                disableFallback={false} 
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent"></div>
+              <div className="absolute bottom-4 left-4">
+                <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${isDark ? 'bg-primary/80 text-white' : 'bg-primary text-white'}`}>
+                  文化资源
+                </span>
+              </div>
+            </div>
+            <div className={`p-6 ${isDark ? 'bg-gray-800' : 'bg-white'} transition-all duration-300`}>
+              <h3 className={`font-bold text-lg mb-3 transition-colors duration-200 hover:text-primary ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>文化知识库</h3>
+              <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'} leading-relaxed mb-4`}>
+                整合天津历史文化资源，建立系统化的文化知识库，为创作者提供丰富的文化素材和灵感来源。
+              </p>
+              <div className="flex items-center justify-between">
+                <div className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                  <i className="fas fa-book mr-1"></i> 知识储备
+                </div>
+                <button onClick={() => navigate('/cultural-knowledge')} className={`px-3 py-1.5 rounded-lg text-sm font-medium ${isDark ? 'bg-primary/10 text-primary hover:bg-primary/20' : 'bg-primary/5 text-primary hover:bg-primary/10'} transition-all duration-300`}>
+                  探索知识
+                </button>
+              </div>
+            </div>
+          </motion.div>
+          
+          <motion.div 
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6, delay: 0.4 }}
+            whileHover={{ 
+              y: -8, 
+              boxShadow: isDark ? '0 25px 50px -12px rgba(245, 158, 11, 0.25)' : '0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 10px 10px -5px rgba(0, 0, 0, 0.05)' 
+            }}
+            className={`rounded-2xl overflow-hidden shadow-lg transition-all duration-300 ${isDark ? 'bg-gradient-to-b from-gray-800 to-gray-800/90 ring-1 ring-gray-700 hover:ring-primary/50' : 'bg-gradient-to-b from-white to-gray-50 ring-1 ring-gray-200 hover:ring-primary/50'}`}
+          >
+            <div className="relative aspect-video overflow-hidden rounded-t-2xl">
+              <TianjinImage 
+                src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=1920&h=1080&fit=crop"
+                alt="数据分析"
+                ratio="landscape" 
+                className="w-full h-full object-cover transition-transform duration-700 hover:scale-110" 
+                disableFallback={false} 
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent"></div>
+              <div className="absolute bottom-4 left-4">
+                <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${isDark ? 'bg-primary/80 text-white' : 'bg-primary text-white'}`}>
+                  数据驱动
+                </span>
+              </div>
+            </div>
+            <div className={`p-6 ${isDark ? 'bg-gray-800' : 'bg-white'} transition-all duration-300`}>
+              <h3 className={`font-bold text-lg mb-3 transition-colors duration-200 hover:text-primary ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>数据分析</h3>
+              <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'} leading-relaxed mb-4`}>
+                提供详细的创作数据和市场分析，帮助创作者了解作品表现，优化创作策略，提升创作效果。
+              </p>
+              <div className="flex items-center justify-between">
+                <div className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                  <i className="fas fa-chart-line mr-1"></i> 数据洞察
+                </div>
+                <button onClick={() => navigate('/analytics')} className={`px-3 py-1.5 rounded-lg text-sm font-medium ${isDark ? 'bg-primary/10 text-primary hover:bg-primary/20' : 'bg-primary/5 text-primary hover:bg-primary/10'} transition-all duration-300`}>
+                  查看数据
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      </div>
+      
+      {/* 功能介绍板块 */}
+      <div className="max-w-7xl mx-auto mb-16 scroll-mt-24">
+        <div className="flex items-center justify-between mb-8 animate-slide-up">
+          <h2 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">特色功能</h2>
+          <button onClick={() => navigate('/tools')} className="px-3 py-1.5 rounded-lg text-sm font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-all duration-300 hover:shadow-md">查看全部功能</button>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <motion.div 
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6, delay: 0.1 }}
+            whileHover={{ 
+              y: -8, 
+              boxShadow: isDark ? '0 25px 50px -12px rgba(245, 158, 11, 0.25)' : '0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 10px 10px -5px rgba(0, 0, 0, 0.05)' 
+            }}
+            className={`rounded-2xl overflow-hidden shadow-lg transition-all duration-300 ${isDark ? 'bg-gradient-to-b from-gray-800 to-gray-800/90 ring-1 ring-gray-700 hover:ring-primary/50' : 'bg-gradient-to-b from-white to-gray-50 ring-1 ring-gray-200 hover:ring-primary/50'}`}
+          >
+            <div className="relative aspect-video overflow-hidden rounded-t-2xl">
+              <TianjinImage 
+                src="https://images.unsplash.com/photo-1551107696-a4b0c5a0d9a2?w=1920&h=1080&fit=crop"
+                alt="方言指令创作"
+                ratio="landscape" 
+                className="w-full h-full object-cover transition-transform duration-700 hover:scale-110" 
+                disableFallback={false} 
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent"></div>
+              <div className="absolute bottom-4 left-4">
+                <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${isDark ? 'bg-primary/80 text-white' : 'bg-primary text-white'}`}>
+                  语音交互
+                </span>
+              </div>
+            </div>
+            <div className={`p-6 ${isDark ? 'bg-gray-800' : 'bg-white'} transition-all duration-300`}>
+              <h3 className={`font-bold text-lg mb-3 transition-colors duration-200 hover:text-primary ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>方言指令创作</h3>
+              <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'} leading-relaxed mb-4`}>
+                使用天津方言指令进行AI创作，体验独特的交互方式，生成具有天津特色的创意作品。
+              </p>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                    <i className="fas fa-microphone mr-1"></i> 语音输入
+                  </div>
+                  <div className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                    <i className="fas fa-language mr-1"></i> 方言识别
+                  </div>
+                </div>
+                <button onClick={() => navigate('/tools?feature=dialect')} className={`px-3 py-1.5 rounded-lg text-sm font-medium ${isDark ? 'bg-primary/10 text-primary hover:bg-primary/20' : 'bg-primary/5 text-primary hover:bg-primary/10'} transition-all duration-300`}>
+                  立即体验
+                </button>
+              </div>
+            </div>
+          </motion.div>
+          
+          <motion.div 
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+            whileHover={{ 
+              y: -8, 
+              boxShadow: isDark ? '0 25px 50px -12px rgba(245, 158, 11, 0.25)' : '0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 10px 10px -5px rgba(0, 0, 0, 0.05)' 
+            }}
+            className={`rounded-2xl overflow-hidden shadow-lg transition-all duration-300 ${isDark ? 'bg-gradient-to-b from-gray-800 to-gray-800/90 ring-1 ring-gray-700 hover:ring-primary/50' : 'bg-gradient-to-b from-white to-gray-50 ring-1 ring-gray-200 hover:ring-primary/50'}`}
+          >
+            <div className="relative aspect-video overflow-hidden rounded-t-2xl">
+              <TianjinImage 
+                src="https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=1920&h=1080&fit=crop"
+                alt="津味共创活动"
+                ratio="landscape" 
+                className="w-full h-full object-cover transition-transform duration-700 hover:scale-110" 
+                disableFallback={false} 
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent"></div>
+              <div className="absolute bottom-4 left-4">
+                <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${isDark ? 'bg-primary/80 text-white' : 'bg-primary text-white'}`}>
+                  社区活动
+                </span>
+              </div>
+            </div>
+            <div className={`p-6 ${isDark ? 'bg-gray-800' : 'bg-white'} transition-all duration-300`}>
+              <h3 className={`font-bold text-lg mb-3 transition-colors duration-200 hover:text-primary ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>津味共创活动</h3>
+              <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'} leading-relaxed mb-4`}>
+                参与天津特色主题创作活动，展示津门文化魅力，与创作者们一起交流分享，赢取丰厚奖励。
+              </p>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                    <i className="fas fa-calendar-alt mr-1"></i> 定期活动
+                  </div>
+                  <div className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                    <i className="fas fa-award mr-1"></i> 丰厚奖励
+                  </div>
+                </div>
+                <button onClick={() => navigate('/events')} className={`px-3 py-1.5 rounded-lg text-sm font-medium ${isDark ? 'bg-primary/10 text-primary hover:bg-primary/20' : 'bg-primary/5 text-primary hover:bg-primary/10'} transition-all duration-300`}>
+                  参与活动
+                </button>
+              </div>
+            </div>
+          </motion.div>
+          
+          <motion.div 
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6, delay: 0.3 }}
+            whileHover={{ 
+              y: -8, 
+              boxShadow: isDark ? '0 25px 50px -12px rgba(245, 158, 11, 0.25)' : '0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 10px 10px -5px rgba(0, 0, 0, 0.05)' 
+            }}
+            className={`rounded-2xl overflow-hidden shadow-lg transition-all duration-300 ${isDark ? 'bg-gradient-to-b from-gray-800 to-gray-800/90 ring-1 ring-gray-700 hover:ring-primary/50' : 'bg-gradient-to-b from-white to-gray-50 ring-1 ring-gray-200 hover:ring-primary/50'}`}
+          >
+            <div className="relative aspect-video overflow-hidden rounded-t-2xl">
+              <TianjinImage 
+                src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=1920&h=1080&fit=crop"
+                alt="文化知识图谱"
+                ratio="landscape" 
+                className="w-full h-full object-cover transition-transform duration-700 hover:scale-110" 
+                disableFallback={false} 
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent"></div>
+              <div className="absolute bottom-4 left-4">
+                <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${isDark ? 'bg-primary/80 text-white' : 'bg-primary text-white'}`}>
+                  知识可视化
+                </span>
+              </div>
+            </div>
+            <div className={`p-6 ${isDark ? 'bg-gray-800' : 'bg-white'} transition-all duration-300`}>
+              <h3 className={`font-bold text-lg mb-3 transition-colors duration-200 hover:text-primary ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>文化知识图谱</h3>
+              <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'} leading-relaxed mb-4`}>
+                可视化展示天津文化知识网络，探索文化元素之间的关联，为创作提供丰富的灵感来源和知识支撑。
+              </p>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                    <i className="fas fa-project-diagram mr-1"></i> 知识网络
+                  </div>
+                  <div className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                    <i className="fas fa-lightbulb mr-1"></i> 灵感启发
+                  </div>
+                </div>
+                <button onClick={() => navigate('/cultural-knowledge?feature=graph')} className={`px-3 py-1.5 rounded-lg text-sm font-medium ${isDark ? 'bg-primary/10 text-primary hover:bg-primary/20' : 'bg-primary/5 text-primary hover:bg-primary/10'} transition-all duration-300`}>
+                  探索图谱
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      </div>
+      
+      {/* 合作伙伴信息板块 */}
+      <div className="max-w-7xl mx-auto mb-16 scroll-mt-24">
+        <div className="flex items-center justify-between mb-8 animate-slide-up">
+          <h2 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">合作伙伴</h2>
+          <button onClick={() => navigate('/community')} className="px-3 py-1.5 rounded-lg text-sm font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-all duration-300 hover:shadow-md">了解合作方式</button>
+        </div>
+        <div className={`rounded-2xl p-8 ${isDark ? 'bg-gradient-to-br from-gray-800 to-gray-800/90 ring-1 ring-gray-700' : 'bg-gradient-to-br from-white to-gray-50 ring-1 ring-gray-200'}`}>
+          <p className={`text-center ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-8`}>
+            我们与众多知名品牌、文化机构和教育院校建立了长期稳定的合作关系，共同推动天津文化的数字化传承与创新。
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
+            {['杨柳青年画社', '泥人张世家', '天津博物馆', '南开大学', '天津大学', '天津文化旅游局'].map((partner, idx) => (
+              <motion.div 
+                key={idx}
+                initial={{ opacity: 0, scale: 0.9 }}
+                whileInView={{ opacity: 1, scale: 1 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.4, delay: idx * 0.08 }}
+                whileHover={{ 
+                  y: -4, 
+                  boxShadow: isDark ? '0 10px 25px -5px rgba(245, 158, 11, 0.25)' : '0 10px 25px -5px rgba(0, 0, 0, 0.15)' 
+                }}
+                className={`p-6 rounded-xl text-center ${isDark ? 'bg-gray-700/50 hover:bg-gray-700' : 'bg-white/50 hover:bg-white'} transition-all duration-300`}
+              >
+                <div className={`text-lg font-medium ${isDark ? 'text-gray-200 hover:text-primary' : 'text-gray-800 hover:text-primary'} transition-colors duration-300`}>
+                  {partner}
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </div>
+      
+      {/* 平台发展历程板块 */}
+      <div className="max-w-7xl mx-auto mb-16 scroll-mt-24">
+        <div className="flex items-center justify-between mb-8 animate-slide-up">
+          <h2 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">发展历程</h2>
+          <button onClick={() => navigate('/about')} className="px-3 py-1.5 rounded-lg text-sm font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-all duration-300 hover:shadow-md">了解更多历史</button>
+        </div>
+        <div className={`rounded-2xl p-8 ${isDark ? 'bg-gradient-to-br from-gray-800 to-gray-800/90 ring-1 ring-gray-700' : 'bg-gradient-to-br from-white to-gray-50 ring-1 ring-gray-200'}`}>
+          <div className="relative">
+            {/* 时间线 */}
+            <div className={`absolute left-0 md:left-1/2 top-0 bottom-0 w-0.5 ${isDark ? 'bg-gray-600' : 'bg-gray-300'} transform md:translate-x-[-50%]`}></div>
+            
+            {/* 时间点 1 */}
+            <motion.div 
+              initial={{ opacity: 0, x: -50 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6, delay: 0.1 }}
+              className="relative mb-12 md:mb-24"
+            >
+              <div className="flex flex-col md:flex-row items-center">
+                <div className="md:w-1/2 md:pr-12 md:text-right mb-6 md:mb-0">
+                  <div className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${isDark ? 'bg-primary/20 text-primary' : 'bg-primary/10 text-primary'} mb-3`}>
+                    2022 年 6 月
+                  </div>
+                  <h3 className={`text-xl font-bold mb-2 ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>平台正式启动</h3>
+                  <p className={`${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                    津脉智坊平台正式启动，致力于通过AI技术推动天津文化的数字化传承与创新。
+                  </p>
+                </div>
+                <div className={`z-10 w-6 h-6 rounded-full ${isDark ? 'bg-primary' : 'bg-primary'} border-4 ${isDark ? 'border-gray-800' : 'border-white'} shadow-lg`}></div>
+                <div className="md:w-1/2 md:pl-12 hidden md:block"></div>
+              </div>
+            </motion.div>
+            
+            {/* 时间点 2 */}
+            <motion.div 
+              initial={{ opacity: 0, x: 50 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6, delay: 0.2 }}
+              className="relative mb-12 md:mb-24"
+            >
+              <div className="flex flex-col md:flex-row items-center">
+                <div className="md:w-1/2 md:pr-12 hidden md:block"></div>
+                <div className={`z-10 w-6 h-6 rounded-full ${isDark ? 'bg-primary' : 'bg-primary'} border-4 ${isDark ? 'border-gray-800' : 'border-white'} shadow-lg`}></div>
+                <div className="md:w-1/2 md:pl-12 mb-6 md:mb-0">
+                  <div className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${isDark ? 'bg-primary/20 text-primary' : 'bg-primary/10 text-primary'} mb-3`}>
+                    2023 年 3 月
+                  </div>
+                  <h3 className={`text-xl font-bold mb-2 ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>杨柳青年画数字化项目启动</h3>
+                  <p className={`${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                    与杨柳青年画社合作，启动传统年画数字化项目，利用AI技术将传统元素现代化。
+                  </p>
+                </div>
+              </div>
+            </motion.div>
+            
+            {/* 时间点 3 */}
+            <motion.div 
+              initial={{ opacity: 0, x: -50 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6, delay: 0.3 }}
+              className="relative mb-12 md:mb-24"
+            >
+              <div className="flex flex-col md:flex-row items-center">
+                <div className="md:w-1/2 md:pr-12 md:text-right mb-6 md:mb-0">
+                  <div className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${isDark ? 'bg-primary/20 text-primary' : 'bg-primary/10 text-primary'} mb-3`}>
+                    2023 年 10 月
+                  </div>
+                  <h3 className={`text-xl font-bold mb-2 ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>AI创意生成功能上线</h3>
+                  <p className={`${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                    平台上线AI创意生成功能，支持用户通过提示词生成符合天津文化特色的创意作品。
+                  </p>
+                </div>
+                <div className={`z-10 w-6 h-6 rounded-full ${isDark ? 'bg-primary' : 'bg-primary'} border-4 ${isDark ? 'border-gray-800' : 'border-white'} shadow-lg`}></div>
+                <div className="md:w-1/2 md:pl-12 hidden md:block"></div>
+              </div>
+            </motion.div>
+            
+            {/* 时间点 4 */}
+            <motion.div 
+              initial={{ opacity: 0, x: 50 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6, delay: 0.4 }}
+              className="relative"
+            >
+              <div className="flex flex-col md:flex-row items-center">
+                <div className="md:w-1/2 md:pr-12 hidden md:block"></div>
+                <div className={`z-10 w-6 h-6 rounded-full ${isDark ? 'bg-primary' : 'bg-primary'} border-4 ${isDark ? 'border-gray-800' : 'border-white'} shadow-lg`}></div>
+                <div className="md:w-1/2 md:pl-12 mb-6 md:mb-0">
+                  <div className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${isDark ? 'bg-primary/20 text-primary' : 'bg-primary/10 text-primary'} mb-3`}>
+                    2024 年 5 月
+                  </div>
+                  <h3 className={`text-xl font-bold mb-2 ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>文化旅游地图发布</h3>
+                  <p className={`${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                    发布交互式天津文化旅游地图，整合天津各区域文化资源，为游客提供个性化的文化旅游体验。
+                  </p>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        </div>
+      </div>
+
 
     </section>
   );

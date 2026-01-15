@@ -938,15 +938,15 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                   )}
                 </button>
                 {showNotifications && (
-                  <div className={`absolute right-0 mt-2 w-[350px] sm:w-[400px] rounded-2xl shadow-xl ring-1 transition-all duration-300 transform scale-100 opacity-100 translate-y-0 ${isDark ? 'bg-gray-800 ring-gray-700' : 'bg-white ring-gray-200'} z-50`} role="dialog" aria-label="通知列表">
-                    <div className={`px-4 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+                  <div className={`absolute right-0 mt-2 w-[360px] sm:w-[420px] rounded-2xl shadow-xl ring-1 transition-all duration-300 transform scale-100 opacity-100 translate-y-0 ${isDark ? 'bg-gray-800 ring-gray-700' : 'bg-white ring-gray-200'} z-50`} role="dialog" aria-label="通知列表">
+                    <div className={`px-3 py-3 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center space-x-3">
-                          <span className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
-                            <i className="fas fa-bell text-lg"></i>
+                          <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
+                            <i className="fas fa-bell text-base"></i>
                           </span>
                           <div>
-                            <h3 className="font-bold text-lg flex items-center">
+                            <h3 className="font-bold text-base flex items-center">
                               通知
                               <span className={`ml-2 text-xs font-normal px-2 py-0.5 rounded-full ${isDark ? 'bg-blue-900/50 text-blue-400' : 'bg-blue-100 text-blue-700'}`}>
                                 {unreadCount} 未读
@@ -1103,7 +1103,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                       </div>
                     </div>
                     
-                    <ul className="max-h-96 overflow-auto">
+                    <ul className="max-h-48 overflow-auto">
                       {filteredNotifications.length === 0 ? (
                         <li className={`${isDark ? 'text-gray-400' : 'text-gray-500'} px-4 py-16 text-center`}>
                           <div className={`inline-flex items-center justify-center w-20 h-20 rounded-full mb-6 transition-all duration-300 ${isDark ? 'bg-gray-700/50' : 'bg-gray-100'}`}>
@@ -1124,10 +1124,10 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                                   setShowNotifications(false)
                                 }
                               }}
-                              className={`w-full text-left px-5 py-5 flex items-start space-x-4 transition-all duration-300 transform hover:translate-x-1 ${isDark ? 'hover:bg-gray-700/80' : 'hover:bg-gray-50'} ${newNotification?.id === n.id ? 'animate-pulse bg-opacity-90' : ''} ${!n.read ? `${isDark ? 'bg-blue-900/20 border-l-4 border-blue-500 shadow-lg shadow-blue-900/10' : 'bg-blue-50 border-l-4 border-blue-500 shadow-lg shadow-blue-100'}` : ''} active:scale-95`}
+                              className={`w-full text-left px-2 py-2 flex items-start space-x-1.5 transition-all duration-300 transform hover:translate-x-1 ${isDark ? 'hover:bg-gray-700/80' : 'hover:bg-gray-50'} ${newNotification?.id === n.id ? 'animate-pulse bg-opacity-90' : ''} ${!n.read ? `${isDark ? 'bg-blue-900/20 border-l-4 border-blue-500 shadow-lg shadow-blue-900/10' : 'bg-blue-50 border-l-4 border-blue-500 shadow-lg shadow-blue-100'}` : ''} active:scale-95`}
                             >
                               {/* 通知图标 - 根据分类显示不同图标 */}
-                              <span className={`inline-flex items-center justify-center w-10 h-10 rounded-full transition-all duration-300 ${isDark ? 'bg-gray-700' : 'bg-gray-100'} text-lg ${newNotification?.id === n.id ? 'scale-110' : ''}`}>
+                              <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full transition-all duration-300 ${isDark ? 'bg-gray-700' : 'bg-gray-100'} text-sm ${newNotification?.id === n.id ? 'scale-110' : ''}`}>
                                 <i className={`fas ${n.category === 'like' ? 'fa-heart text-red-500' : 
                                                 n.category === 'join' ? 'fa-user-plus text-green-500' : 
                                                 n.category === 'message' ? 'fa-envelope text-blue-500' : 
@@ -1141,17 +1141,17 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                               </span>
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-start justify-between">
-                                  <h4 className={`text-base font-medium truncate ${!n.read ? 'font-semibold' : ''} ${newNotification?.id === n.id ? 'text-blue-600 dark:text-blue-400' : ''}`}>{n.title}</h4>
+                                  <h4 className={`text-sm font-medium truncate ${!n.read ? 'font-semibold' : ''} ${newNotification?.id === n.id ? 'text-blue-600 dark:text-blue-400' : ''}`}>{n.title}</h4>
                                   <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'} transition-all duration-300`}>
                                     {n.time}
                                   </span>
                                 </div>
                                 {n.description && (
-                                  <p className={`mt-2 text-sm leading-relaxed line-clamp-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{n.description}</p>
+                                  <p className={`mt-1.5 text-xs leading-relaxed line-clamp-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{n.description}</p>
                                 )}
-                                <div className="flex items-center justify-between mt-3">
+                                <div className="flex items-center justify-between mt-1.5">
                                   {/* 通知分类标签 - 显示完整分类 */}
-                                  <span className={`inline-block px-3 py-0.5 rounded-full text-xs font-medium transition-all duration-300 ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'} ${newNotification?.id === n.id ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-400' : ''}`}>
+                                  <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium transition-all duration-300 ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'} ${newNotification?.id === n.id ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-400' : ''}`}>
                                     {n.category === 'like' && '点赞'}
                                     {n.category === 'join' && '新成员'}
                                     {n.category === 'message' && '私信'}
@@ -1251,6 +1251,9 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                         </li>
                         <li>
                           <PWAInstallButton asMenuItem isDark={isDark} />
+                        </li>
+                        <li>
+                          <button className={`w-full text-left px-4 py-2 ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}`} onClick={() => { setShowUserMenu(false); window.location.href = '/landing.html' }}>{t('header.backToOfficialWebsite')}</button>
                         </li>
                         <li className="border-t ${isDark ? 'border-gray-700' : 'border-gray-200'} mt-2">
                           <button className={`w-full text-left px-4 py-2 text-red-600 ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}`} onClick={() => { setShowUserMenu(false); logout() }}>{t('header.logout')}</button>

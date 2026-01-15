@@ -300,6 +300,49 @@ const SimplifiedARPreview: React.FC<{
 
     checkARSupport();
   }, []);
+  
+  // 相机权限处理
+  const [cameraPermission, setCameraPermission] = useState<boolean | null>(null);
+  
+  const requestCameraPermission = async () => {
+    try {
+      if ('mediaDevices' in navigator && 'getUserMedia' in navigator.mediaDevices) {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        stream.getTracks().forEach(track => track.stop());
+        setCameraPermission(true);
+        return true;
+      } else {
+        setCameraPermission(false);
+        return false;
+      }
+    } catch (error) {
+      console.error('Camera permission error:', error);
+      setCameraPermission(false);
+      return false;
+    }
+  };
+  
+  // 检查相机权限
+  useEffect(() => {
+    const checkCameraPermission = async () => {
+      if ('permissions' in navigator && 'query' in navigator.permissions) {
+        try {
+          const permissionStatus = await navigator.permissions.query({ name: 'camera' as PermissionName });
+          setCameraPermission(permissionStatus.state === 'granted');
+          
+          // 监听权限状态变化
+          permissionStatus.addEventListener('change', () => {
+            setCameraPermission(permissionStatus.state === 'granted');
+          });
+        } catch (error) {
+          console.warn('Camera permission check failed:', error);
+          setCameraPermission(null);
+        }
+      }
+    };
+    
+    checkCameraPermission();
+  }, []);
 
   // 加载资源的函数，包含进度反馈和错误处理
   const loadResource = useCallback(async () => {
@@ -465,17 +508,49 @@ const SimplifiedARPreview: React.FC<{
       {/* 顶部控制栏 */}
       <div className="flex items-center justify-between p-4 bg-gray-900 text-white z-10">
         <h2 className="text-xl font-bold">AR预览</h2>
-        <button
-          onClick={onClose}
-          className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
-        >
-          关闭
-        </button>
+        <div className="flex gap-2">
+          {/* AR模式切换按钮 */}
+          <button
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center gap-2"
+            onClick={() => {
+              // 尝试启动AR会话
+              if (navigator.xr) {
+                navigator.xr.requestSession('immersive-ar', {
+                  requiredFeatures: ['hit-test'],
+                  optionalFeatures: ['dom-overlay', 'dom-overlay-for-handheld-ar'],
+                  domOverlay: {
+                    root: modalRef.current || document.body
+                  }
+                }).then(session => {
+                  console.log('AR session started:', session);
+                  // 处理AR会话
+                  session.addEventListener('end', () => {
+                    console.log('AR session ended');
+                  });
+                }).catch(error => {
+                  console.error('AR session request failed:', error);
+                  setError('无法启动AR会话: ' + error.message);
+                });
+              } else {
+                setError('当前浏览器不支持AR功能');
+              }
+            }}
+          >
+            <i className="fas fa-vr-cardboard mr-2"></i>
+            进入AR模式
+          </button>
+          <button
+            onClick={onClose}
+            className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
+          >
+            关闭
+          </button>
+        </div>
       </div>
 
       {/* 主要内容区域 */}
       <div className="flex-1 relative">
-        {/* Canvas */}
+        {/* 增强的Canvas - 支持AR模式 */}
         <Canvas
           camera={{ position: [5, 5, 5] }}
           gl={{ antialias: true }}
@@ -500,51 +575,17 @@ const SimplifiedARPreview: React.FC<{
             <meshStandardMaterial color="#e2e8f0" />
           </mesh>
 
-          {/* 2D图像 - 添加变换控制和更好的视觉效果 */}
-          {config.type === '2d' && texture && (
-            <mesh 
-              ref={modelRef}
-              position={[position.x, position.y, position.z]}
-              rotation={[rotation.x, rotation.y, rotation.z]}
-              scale={scale}
-              castShadow
-              receiveShadow
-            >
-              <planeGeometry args={[3, 3]} />
-              <meshPhysicalMaterial 
-                map={texture} 
-                transparent 
-                side={THREE.DoubleSide} 
-                roughness={0.5} 
-                metalness={0.2}
-                transmission={0.1}
-              />
-            </mesh>
-          )}
-
-          {/* 3D模型 - 使用ModelViewer组件加载实际模型 */}
-          {config.type === '3d' && config.modelUrl && (
-            <ModelViewer
-              url={config.modelUrl}
-              onLoad={handleModelLoad}
-              onError={handleModelError}
-              position={[position.x, position.y, position.z]}
-              rotation={[rotation.x, rotation.y, rotation.z]}
-              scale={scale}
-            />
-          )}
-          
-          {/* 3D模型占位符 - 加载完成前显示 */}
-          {config.type === '3d' && !modelLoaded && (
-            <mesh 
-              position={[position.x, position.y, position.z]}
-              rotation={[rotation.x, rotation.y, rotation.z]}
-              scale={scale}
-            >
-              <boxGeometry args={[2, 2, 2]} />
-              <meshStandardMaterial color="#4f46e5" opacity={0.5} transparent />
-            </mesh>
-          )}
+          {/* AR内容渲染器 */}
+          <ARContent 
+            config={config} 
+            texture={texture} 
+            modelLoaded={modelLoaded}
+            position={position}
+            rotation={rotation}
+            scale={scale}
+            onModelLoad={handleModelLoad}
+            onModelError={handleModelError}
+          />
         </Canvas>
         
         {/* 控制按钮 */}
@@ -672,6 +713,24 @@ const SimplifiedARPreview: React.FC<{
             </div>
           ) : isSupported ? (
             <div className="flex flex-col gap-2">
+              {/* 相机权限提示 */}
+              {cameraPermission === false && (
+                <div className="text-white text-sm bg-red-900 bg-opacity-90 px-4 py-3 rounded-lg max-w-xs backdrop-blur-md shadow-lg">
+                  <div className="font-medium mb-2 flex items-center gap-2">
+                    <i className="fas fa-camera text-red-400"></i>
+                    <span>需要相机权限</span>
+                  </div>
+                  <p className="text-xs opacity-90 mb-2">AR功能需要访问相机权限才能工作</p>
+                  <button
+                    onClick={requestCameraPermission}
+                    className="w-full py-2 bg-red-700 hover:bg-red-600 text-xs rounded-lg transition-colors"
+                  >
+                    请求相机权限
+                  </button>
+                </div>
+              )}
+              
+              {/* AR功能说明 */}
               <div className="text-white text-sm bg-blue-900 bg-opacity-90 px-4 py-3 rounded-lg max-w-xs backdrop-blur-md shadow-lg">
                 <div className="font-medium mb-2 flex items-center gap-2">
                   <i className="fas fa-vr-cardboard text-blue-400"></i>
@@ -680,11 +739,11 @@ const SimplifiedARPreview: React.FC<{
                 <div className="space-y-1 text-xs">
                   <p className="flex items-start gap-1">
                     <span className="text-blue-400">📱</span>
-                    <span>目前仅在移动设备上支持完整AR功能</span>
+                    <span>点击顶部"Enter AR"按钮进入AR模式</span>
                   </p>
                   <p className="flex items-start gap-1">
                     <span className="text-blue-400">🔍</span>
-                    <span>确保设备支持WebXR技术</span>
+                    <span>将设备对准平面表面，等待检测</span>
                   </p>
                   <p className="flex items-start gap-1">
                     <span className="text-blue-400">🌞</span>
@@ -692,19 +751,10 @@ const SimplifiedARPreview: React.FC<{
                   </p>
                   <p className="flex items-start gap-1">
                     <span className="text-blue-400">📋</span>
-                    <span>将设备对准平面表面</span>
+                    <span>点击检测到的平面放置虚拟内容</span>
                   </p>
                 </div>
               </div>
-              <button
-                onClick={() => {
-                  alert('📱 AR功能开发中\n\n开发团队正在努力开发完整的AR功能，敬请期待！\n\n您可以继续使用3D预览功能查看和操作模型。');
-                }}
-                className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-300 shadow-lg hover:shadow-xl hover:translate-y-[-2px] transform"
-              >
-                <i className="fas fa-vr-cardboard mr-2"></i>
-                了解AR功能
-              </button>
             </div>
           ) : (
             <div className="flex flex-col gap-2">
@@ -730,6 +780,9 @@ const SimplifiedARPreview: React.FC<{
                       <span>iOS 15+设备 + Safari 15+</span>
                     </li>
                   </ul>
+                  <p className="mt-2 text-xs text-gray-300">
+                    您仍可以使用3D预览功能查看和操作模型
+                  </p>
                 </div>
               </div>
             </div>
@@ -784,11 +837,102 @@ const SimplifiedARPreview: React.FC<{
                   请检查网络连接或稍后重试
                 </p>
               )}
+              <div className="text-xs opacity-70 mt-4">
+                <p>常见问题：</p>
+                <ul className="mt-2 space-y-1">
+                  <li>• 网络连接不稳定</li>
+                  <li>• 模型文件过大</li>
+                  <li>• 服务器暂时不可用</li>
+                  <li>• 浏览器不支持3D渲染</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {/* AR会话错误提示 */}
+        {isSupported && (
+          <div className="absolute top-4 left-4 z-10">
+            <div className="text-white text-xs bg-blue-900 bg-opacity-70 px-3 py-2 rounded-lg backdrop-blur-md shadow-lg max-w-xs">
+              <div className="font-medium mb-1 flex items-center gap-1">
+                <i className="fas fa-lightbulb text-yellow-400"></i>
+                <span>使用提示</span>
+              </div>
+              <ul className="space-y-1">
+                <li>• 保持设备稳定以获得最佳效果</li>
+                <li>• 在光线充足的环境中使用</li>
+                <li>• 确保相机镜头干净</li>
+                <li>• 尝试不同的平面表面</li>
+              </ul>
             </div>
           </div>
         )}
       </div>
     </div>
+  );
+};
+
+// AR内容渲染组件
+const ARContent: React.FC<{
+  config: SimplifiedARPreviewConfig;
+  texture: THREE.Texture | null;
+  modelLoaded: boolean;
+  position: { x: number; y: number; z: number };
+  rotation: { x: number; y: number; z: number };
+  scale: number;
+  onModelLoad: () => void;
+  onModelError: (error: Error) => void;
+}> = ({ config, texture, modelLoaded, position, rotation, scale, onModelLoad, onModelError }) => {
+  return (
+    <>
+      {/* 桌面模式内容 */}
+      <>
+        {/* 2D图像 */}
+        {config.type === '2d' && texture && (
+          <mesh 
+            position={[position.x, position.y, position.z]}
+            rotation={[rotation.x, rotation.y, rotation.z]}
+            scale={scale}
+            castShadow
+            receiveShadow
+          >
+            <planeGeometry args={[3, 3]} />
+            <meshPhysicalMaterial 
+              map={texture} 
+              transparent 
+              side={THREE.DoubleSide} 
+              roughness={0.5} 
+              metalness={0.2}
+              transmission={0.1}
+            />
+          </mesh>
+        )}
+
+        {/* 3D模型 */}
+        {config.type === '3d' && config.modelUrl && (
+          <ModelViewer
+            url={config.modelUrl}
+            onLoad={onModelLoad}
+            onError={onModelError}
+            position={[position.x, position.y, position.z]}
+            rotation={[rotation.x, rotation.y, rotation.z]}
+            scale={scale}
+          />
+        )}
+        
+        {/* 3D模型占位符 */}
+        {config.type === '3d' && !modelLoaded && (
+          <mesh 
+            position={[position.x, position.y, position.z]}
+            rotation={[rotation.x, rotation.y, rotation.z]}
+            scale={scale}
+          >
+            <boxGeometry args={[2, 2, 2]} />
+            <meshStandardMaterial color="#4f46e5" opacity={0.5} transparent />
+          </mesh>
+        )}
+      </>
+    </>
   );
 };
 

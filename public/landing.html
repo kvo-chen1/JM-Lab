@@ -103,13 +103,109 @@
             background: rgba(255, 255, 255, 0.03);
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.05);
-            transition: all 0.4s ease;
+            transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
         }
         .glass-card:hover {
             background: rgba(255, 255, 255, 0.08);
             border-color: rgba(0, 240, 255, 0.3);
-            transform: translateY(-5px);
-            box-shadow: 0 10px 40px -10px rgba(0, 240, 255, 0.15);
+            transform: translateY(-8px) scale(1.02);
+            box-shadow: 0 15px 40px -10px rgba(0, 240, 255, 0.2);
+        }
+        
+        /* 渐变背景动画 */
+        @keyframes gradientFlow {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        
+        /* 文字渐变动画 */
+        .gradient-text {
+            background: linear-gradient(90deg, #00f0ff, #7000ff, #00f0ff);
+            background-size: 200% auto;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: gradientFlow 3s ease infinite;
+        }
+        
+        /* 按钮脉冲动画 */
+        @keyframes pulse {
+            0%, 100% {
+                box-shadow: 0 0 0 0 rgba(0, 240, 255, 0.4);
+            }
+            50% {
+                box-shadow: 0 0 0 10px rgba(0, 240, 255, 0);
+            }
+        }
+        .pulse-button:hover {
+            animation: pulse 2s infinite;
+        }
+        
+        /* 文字呼吸动画 */
+        @keyframes breathe {
+            0%, 100% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.05);
+            }
+        }
+        .breathe-text {
+            animation: breathe 3s ease-in-out infinite;
+        }
+        
+        /* 卡片悬浮动画 */
+        @keyframes float {
+            0%, 100% {
+                transform: translateY(0px);
+            }
+            50% {
+                transform: translateY(-10px);
+            }
+        }
+        .float-card {
+            animation: float 4s ease-in-out infinite;
+        }
+        
+        /* 滚动触发的缩放动画 */
+        .scale-in-section {
+            opacity: 0;
+            transform: scale(0.9);
+            transition: opacity 1s ease-out, transform 1s ease-out;
+        }
+        .scale-in-section.is-visible {
+            opacity: 1;
+            transform: scale(1);
+        }
+        
+        /* 边框发光动画 */
+        @keyframes border-glow {
+            0%, 100% {
+                box-shadow: 0 0 20px rgba(0, 240, 255, 0.2);
+            }
+            50% {
+                box-shadow: 0 0 40px rgba(0, 240, 255, 0.4), 0 0 60px rgba(112, 0, 255, 0.2);
+            }
+        }
+        .border-glow {
+            animation: border-glow 3s ease-in-out infinite;
+        }
+        
+        /* 背景渐变动画 */
+        @keyframes bg-gradient {
+            0% {
+                background-position: 0% 50%;
+            }
+            50% {
+                background-position: 100% 50%;
+            }
+            100% {
+                background-position: 0% 50%;
+            }
+        }
+        .bg-gradient-animate {
+            background-size: 200% 200%;
+            animation: bg-gradient 8s ease infinite;
         }
 
         /* 动态背景 Canvas */
@@ -276,26 +372,26 @@
     </section>
 
     <!-- About Section -->
-    <section id="about" class="py-24 relative bg-deep">
+    <section id="about" class="py-32 relative bg-deep">
         <div class="max-w-7xl mx-auto px-6 lg:px-8">
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-24 items-center">
                 <div class="fade-in-section">
                     <h2 class="text-3xl md:text-4xl font-bold mb-6">关于<span class="text-accent">津脉智坊</span></h2>
                     <div class="w-20 h-1 bg-gradient-to-r from-accent to-transparent mb-8"></div>
                     <p class="text-gray-400 text-lg leading-relaxed mb-6">
-                        津脉智坊（Jinmai Lab）是植根于天津的先锋科技文化企业。我们不只是一个展示平台，更是一座连接过去与未来的桥梁。
+                        津脉智坊（Jinmai Lab）是植根于天津的先锋科技文化企业，致力于以AI技术为传统文化注入数字生命力。我们不仅是展示平台，更是一座连接历史传承与未来创新的桥梁，为非遗文化的可持续发展开辟新路径。
                     </p>
                     <p class="text-gray-400 text-lg leading-relaxed mb-8">
-                        面对数字化浪潮，我们思考如何让“狗不理”、“达仁堂”这些百年符号在Z世代心中重生。通过自研的AI生成算法与NEBULA FLOW粒子交互技术，我们将传统纹样、口味、历史转化为可感知的数字艺术，赋能品牌年轻化转型。
+                        面对数字时代的文化传承挑战，我们深入探索如何让"狗不理"、"达仁堂"等天津百年老字号在Z世代语境中焕发新生。依托自主研发的AI生成算法与NEBULA FLOW粒子交互技术，我们将传统纹样、味觉记忆、历史叙事转化为可交互、可感知的数字艺术体验，为品牌提供全方位的年轻化转型解决方案。
                     </p>
                     <div class="grid grid-cols-2 gap-6">
                         <div>
                             <h3 class="text-white font-bold text-xl mb-1">使命</h3>
-                            <p class="text-sm text-gray-500">用AI复兴城市文化记忆</p>
+                            <p class="text-sm text-gray-500">以AI技术复兴城市文化记忆，让非遗在数字时代焕发新生</p>
                         </div>
                         <div>
                             <h3 class="text-white font-bold text-xl mb-1">愿景</h3>
-                            <p class="text-sm text-gray-500">打造全球最大的非遗数字资产库</p>
+                            <p class="text-sm text-gray-500">构建全球领先的非遗数字资产库，成为传统文化数字化转型的标杆</p>
                         </div>
                     </div>
                 </div>
@@ -318,68 +414,297 @@
                     </div>
                 </div>
             </div>
-        </div>
-    </section>
 
-    <!-- Culture Section -->
-    <section id="culture" class="py-24 relative overflow-hidden">
-        <!-- Background elements -->
-        <div class="absolute top-0 right-0 w-1/3 h-full bg-blue-900/10 blur-[100px] pointer-events-none"></div>
-
-        <div class="max-w-7xl mx-auto px-6 lg:px-8 relative z-10">
-            <div class="text-center mb-20 fade-in-section">
-                <h2 class="text-3xl md:text-5xl font-bold mb-4">文化与精神</h2>
-                <p class="text-gray-400 max-w-2xl mx-auto">以天津为原点，以技术为半径，绘制文化创新的无限可能</p>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-                <!-- Card 1 -->
-                <div class="glass-card p-8 rounded-2xl fade-in-section">
-                    <div class="w-14 h-14 rounded-full bg-accent/10 flex items-center justify-center mb-6 text-accent">
-                        <i class="fas fa-landmark text-2xl"></i>
+            <!-- Vision and Mission Section -->
+            <div class="mt-32 fade-in-section">
+                <h3 class="text-2xl md:text-3xl font-bold mb-16 text-center">企业愿景与使命</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-12">
+                    <!-- Mission -->
+                    <div class="glass-card p-8 rounded-2xl relative overflow-hidden">
+                        <div class="absolute top-0 right-0 w-40 h-40 bg-accent/10 rounded-full blur-2xl"></div>
+                        <div class="relative z-10">
+                            <div class="w-16 h-16 rounded-full bg-accent/20 flex items-center justify-center mb-6 text-accent">
+                                <i class="fas fa-compass text-2xl"></i>
+                            </div>
+                            <h4 class="text-xl font-bold mb-4 text-white">我们的使命</h4>
+                            <p class="text-gray-400 leading-relaxed mb-6">
+                                以AI技术复兴城市文化记忆，让非遗在数字时代焕发新生。我们致力于通过技术创新，为传统文化注入现代活力，构建可持续的文化传承生态。
+                            </p>
+                            <ul class="space-y-3 text-sm text-gray-500">
+                                <li class="flex items-center gap-2">
+                                    <i class="fas fa-check text-accent text-sm"></i>
+                                    保护与传承非物质文化遗产
+                                </li>
+                                <li class="flex items-center gap-2">
+                                    <i class="fas fa-check text-accent text-sm"></i>
+                                    用技术赋能传统文化创新
+                                </li>
+                                <li class="flex items-center gap-2">
+                                    <i class="fas fa-check text-accent text-sm"></i>
+                                    构建开放共享的文化生态
+                                </li>
+                            </ul>
+                        </div>
                     </div>
-                    <h3 class="text-xl font-bold mb-4 text-white">非遗溯源</h3>
-                    <p class="text-gray-400 text-sm leading-relaxed mb-6">
-                        深入挖掘“泥人张”的色彩逻辑与“风筝魏”的结构美学。我们将非遗技艺解构为数据模型，建立数字化基因库，确保传承的严谨性与纯正度。
-                    </p>
-                    <div class="h-32 bg-black/40 rounded-lg relative overflow-hidden group">
-                         <!-- Abstract representation of Clay Figurine -->
-                         <div class="absolute inset-0 flex items-center justify-center text-gray-700 group-hover:text-accent transition-colors">
-                            <i class="fas fa-palette text-4xl"></i>
-                         </div>
-                    </div>
-                </div>
-
-                <!-- Card 2 -->
-                <div class="glass-card p-8 rounded-2xl fade-in-section" style="transition-delay: 100ms;">
-                    <div class="w-14 h-14 rounded-full bg-purpleAccent/10 flex items-center justify-center mb-6 text-purpleAccent">
-                        <i class="fas fa-brain text-2xl"></i>
-                    </div>
-                    <h3 class="text-xl font-bold mb-4 text-white">AI 共创</h3>
-                    <p class="text-gray-400 text-sm leading-relaxed mb-6">
-                        打破传统边界。利用 Generative Art 技术，让“十八街麻花”的纹理变成流动的星云。我们鼓励创作者使用我们的 AI 工具，重新定义国潮视觉。
-                    </p>
-                    <div class="h-32 bg-black/40 rounded-lg relative overflow-hidden group">
-                        <!-- Abstract representation of AI processing -->
-                        <div class="absolute inset-0 flex items-center justify-center text-gray-700 group-hover:text-purpleAccent transition-colors">
-                           <i class="fas fa-wave-square text-4xl"></i>
+                    
+                    <!-- Vision -->
+                    <div class="glass-card p-8 rounded-2xl relative overflow-hidden">
+                        <div class="absolute top-0 right-0 w-40 h-40 bg-purpleAccent/10 rounded-full blur-2xl"></div>
+                        <div class="relative z-10">
+                            <div class="w-16 h-16 rounded-full bg-purpleAccent/20 flex items-center justify-center mb-6 text-purpleAccent">
+                                <i class="fas fa-eye text-2xl"></i>
+                            </div>
+                            <h4 class="text-xl font-bold mb-4 text-white">我们的愿景</h4>
+                            <p class="text-gray-400 leading-relaxed mb-6">
+                                构建全球领先的非遗数字资产库，成为传统文化数字化转型的标杆。我们希望通过持续创新，引领文化科技融合的新潮流。
+                            </p>
+                            <ul class="space-y-3 text-sm text-gray-500">
+                                <li class="flex items-center gap-2">
+                                    <i class="fas fa-check text-purpleAccent text-sm"></i>
+                                    成为全球非遗数字化的领导者
+                                </li>
+                                <li class="flex items-center gap-2">
+                                    <i class="fas fa-check text-purpleAccent text-sm"></i>
+                                    打造最具影响力的文化科技品牌
+                                </li>
+                                <li class="flex items-center gap-2">
+                                    <i class="fas fa-check text-purpleAccent text-sm"></i>
+                                    推动文化与科技深度融合发展
+                                </li>
+                            </ul>
                         </div>
                     </div>
                 </div>
+            </div>
 
-                <!-- Card 3 -->
-                <div class="glass-card p-8 rounded-2xl fade-in-section" style="transition-delay: 200ms;">
-                    <div class="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center mb-6 text-white">
-                        <i class="fas fa-users text-2xl"></i>
+            <!-- Core Values Section -->
+            <div class="mt-32 fade-in-section">
+                <h3 class="text-xl md:text-2xl lg:text-3xl font-bold mb-12 md:mb-16 text-center">核心价值观</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
+                    <!-- Value 1 -->
+                    <div class="glass-card p-6 rounded-2xl transition-all duration-300 hover:bg-white/5 hover:transform hover:-translate-y-2">
+                        <div class="w-14 h-14 rounded-full bg-accent/20 flex items-center justify-center mb-4 text-accent">
+                            <i class="fas fa-lightbulb text-2xl"></i>
+                        </div>
+                        <h4 class="text-lg font-bold mb-2 text-white">创新引领</h4>
+                        <p class="text-sm text-gray-500">
+                            以技术创新为驱动，不断探索传统文化数字化的新可能
+                        </p>
                     </div>
-                    <h3 class="text-xl font-bold mb-4 text-white">开源社区</h3>
-                    <p class="text-gray-400 text-sm leading-relaxed mb-6">
-                        文化不应被束之高阁。津脉智坊汇聚了全球 12,000+ 设计师与开发者。我们开放部分数据集，旨在构建一个开放、共享的非遗元宇宙生态。
-                    </p>
-                    <div class="h-32 bg-black/40 rounded-lg relative overflow-hidden group">
-                        <!-- Abstract representation of Community -->
-                        <div class="absolute inset-0 flex items-center justify-center text-gray-700 group-hover:text-white transition-colors">
-                           <i class="fas fa-globe-asia text-4xl"></i>
+                    
+                    <!-- Value 2 -->
+                    <div class="glass-card p-6 rounded-2xl transition-all duration-300 hover:bg-white/5 hover:transform hover:-translate-y-2">
+                        <div class="w-14 h-14 rounded-full bg-purpleAccent/20 flex items-center justify-center mb-4 text-purpleAccent">
+                            <i class="fas fa-heart text-2xl"></i>
+                        </div>
+                        <h4 class="text-lg font-bold mb-2 text-white">文化传承</h4>
+                        <p class="text-sm text-gray-500">
+                            尊重传统文化，守护非遗技艺，让经典在数字时代重生
+                        </p>
+                    </div>
+                    
+                    <!-- Value 3 -->
+                    <div class="glass-card p-6 rounded-2xl transition-all duration-300 hover:bg-white/5 hover:transform hover:-translate-y-2">
+                        <div class="w-14 h-14 rounded-full bg-blue-500/20 flex items-center justify-center mb-4 text-blue-400">
+                            <i class="fas fa-handshake text-2xl"></i>
+                        </div>
+                        <h4 class="text-lg font-bold mb-2 text-white">开放协作</h4>
+                        <p class="text-sm text-gray-500">
+                            构建开放共享的生态系统，与全球创作者共同成长
+                        </p>
+                    </div>
+                    
+                    <!-- Value 4 -->
+                    <div class="glass-card p-6 rounded-2xl transition-all duration-300 hover:bg-white/5 hover:transform hover:-translate-y-2">
+                        <div class="w-14 h-14 rounded-full bg-green-500/20 flex items-center justify-center mb-4 text-green-400">
+                            <i class="fas fa-star text-2xl"></i>
+                        </div>
+                        <h4 class="text-lg font-bold mb-2 text-white">卓越品质</h4>
+                        <p class="text-sm text-gray-500">
+                            追求极致的产品与服务质量，为用户创造卓越体验
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Team and Activities Section -->
+            <div class="mt-32 fade-in-section">
+                <h3 class="text-2xl md:text-3xl font-bold mb-16 text-center">团队风采与员工活动</h3>
+                
+                <!-- Team Members -->
+                <div class="mb-20">
+                    <h4 class="text-xl font-bold mb-12 text-center">核心团队</h4>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 md:gap-6">
+                        <!-- Team Member 1 -->
+                        <div class="glass-card p-4 rounded-2xl text-center transition-all duration-300 hover:bg-white/5 hover:transform hover:-translate-y-2">
+                            <div class="w-20 h-20 rounded-full bg-gradient-to-br from-accent to-purpleAccent flex items-center justify-center mx-auto mb-3 text-white">
+                                <i class="fas fa-user text-2xl"></i>
+                            </div>
+                            <h5 class="text-base font-bold mb-1 text-white">陈声辉</h5>
+                            <p class="text-xs text-accent mb-2">创始人 & CEO</p>
+                            <p class="text-xs text-gray-500">
+                                AI技术专家，致力于传统文化数字化转型
+                            </p>
+                        </div>
+                        
+                        <!-- Team Member 2 -->
+                        <div class="glass-card p-4 rounded-2xl text-center transition-all duration-300 hover:bg-white/5 hover:transform hover:-translate-y-2">
+                            <div class="w-20 h-20 rounded-full bg-gradient-to-br from-blue-400 to-accent flex items-center justify-center mx-auto mb-3 text-white">
+                                <i class="fas fa-user text-2xl"></i>
+                            </div>
+                            <h5 class="text-base font-bold mb-1 text-white">李凯硕</h5>
+                            <p class="text-xs text-accent mb-2">CTO</p>
+                            <p class="text-xs text-gray-500">
+                                技术总监，负责AI算法与NEBULA FLOW技术研发
+                            </p>
+                        </div>
+                        
+                        <!-- Team Member 3 -->
+                        <div class="glass-card p-4 rounded-2xl text-center transition-all duration-300 hover:bg-white/5 hover:transform hover:-translate-y-2">
+                            <div class="w-20 h-20 rounded-full bg-gradient-to-br from-purpleAccent to-pink-400 flex items-center justify-center mx-auto mb-3 text-white">
+                                <i class="fas fa-user text-2xl"></i>
+                            </div>
+                            <h5 class="text-base font-bold mb-1 text-white">程艳</h5>
+                            <p class="text-xs text-accent mb-2">文化总监</p>
+                            <p class="text-xs text-gray-500">
+                                文化学者，专注非遗文化研究与数字化表达
+                            </p>
+                        </div>
+                        
+                        <!-- Team Member 4 -->
+                        <div class="glass-card p-4 rounded-2xl text-center transition-all duration-300 hover:bg-white/5 hover:transform hover:-translate-y-2">
+                            <div class="w-20 h-20 rounded-full bg-gradient-to-br from-green-400 to-blue-400 flex items-center justify-center mx-auto mb-3 text-white">
+                                <i class="fas fa-user text-2xl"></i>
+                            </div>
+                            <h5 class="text-base font-bold mb-1 text-white">胡静</h5>
+                            <p class="text-xs text-accent mb-2">设计总监</p>
+                            <p class="text-xs text-gray-500">
+                                视觉设计师，负责品牌视觉与用户体验设计
+                            </p>
+                        </div>
+                        
+                        <!-- Team Member 5 -->
+                        <div class="glass-card p-4 rounded-2xl text-center transition-all duration-300 hover:bg-white/5 hover:transform hover:-translate-y-2">
+                            <div class="w-20 h-20 rounded-full bg-gradient-to-br from-pink-400 to-purpleAccent flex items-center justify-center mx-auto mb-3 text-white">
+                                <i class="fas fa-user text-2xl"></i>
+                            </div>
+                            <h5 class="text-base font-bold mb-1 text-white">王曦凯</h5>
+                            <p class="text-xs text-accent mb-2">市场总监</p>
+                            <p class="text-xs text-gray-500">
+                                品牌营销专家，负责市场推广与合作伙伴关系
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Team Activities -->
+                <div>
+                    <h4 class="text-xl font-bold mb-12 text-center">员工活动</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <!-- Activity 1 -->
+                        <div class="glass-card rounded-2xl overflow-hidden group">
+                            <div class="h-40 bg-gradient-to-br from-teal-500 to-blue-700 flex items-center justify-center">
+                                <i class="fas fa-users text-4xl text-white/80 group-hover:text-white transition-colors"></i>
+                            </div>
+                            <div class="p-4 bg-black/40">
+                                <h5 class="text-base font-bold mb-1 text-white">团队建设活动</h5>
+                                <p class="text-xs text-gray-400">
+                                    定期组织团队建设活动，增强团队凝聚力，促进跨部门协作
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <!-- Activity 2 -->
+                        <div class="glass-card rounded-2xl overflow-hidden group">
+                            <div class="h-40 bg-gradient-to-br from-blue-500 to-teal-600 flex items-center justify-center">
+                                <i class="fas fa-laptop-code text-4xl text-white/80 group-hover:text-white transition-colors"></i>
+                            </div>
+                            <div class="p-4 bg-black/40">
+                                <h5 class="text-base font-bold mb-1 text-white">技术分享会</h5>
+                                <p class="text-xs text-gray-400">
+                                    每周举办技术分享会，交流最新AI技术与传统文化数字化经验
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <!-- Activity 3 -->
+                        <div class="glass-card rounded-2xl overflow-hidden group">
+                            <div class="h-40 bg-gradient-to-br from-purple-600 to-pink-500 flex items-center justify-center">
+                                <i class="fas fa-paint-brush text-4xl text-white/80 group-hover:text-white transition-colors"></i>
+                            </div>
+                            <div class="p-4 bg-black/40">
+                                <h5 class="text-base font-bold mb-1 text-white">文化体验日</h5>
+                                <p class="text-xs text-gray-400">
+                                    组织非遗文化体验活动，深入了解传统文化内涵与技艺
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <!-- Activity 4 -->
+                        <div class="glass-card rounded-2xl overflow-hidden group">
+                            <div class="h-40 bg-gradient-to-br from-green-600 to-teal-500 flex items-center justify-center">
+                                <i class="fas fa-award text-4xl text-white/80 group-hover:text-white transition-colors"></i>
+                            </div>
+                            <div class="p-4 bg-black/40">
+                                <h5 class="text-base font-bold mb-1 text-white">创新成果展</h5>
+                                <p class="text-xs text-gray-400">
+                                    定期举办创新成果展示，激励员工持续创新与突破
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Culture Stories Section -->
+            <div class="mt-32 fade-in-section">
+                <h3 class="text-2xl md:text-3xl font-bold mb-16 text-center">企业文化故事</h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    <!-- Story 1 -->
+                    <div class="glass-card rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/5 hover:transform hover:-translate-y-2">
+                        <div class="h-48 bg-gradient-to-br from-accent/20 to-purpleAccent/20 flex items-center justify-center">
+                            <i class="fas fa-history text-5xl text-white/30"></i>
+                        </div>
+                        <div class="p-6">
+                            <h4 class="text-xl font-bold mb-3 text-white">泥人张的数字化重生</h4>
+                            <p class="text-sm text-gray-500 mb-4">
+                                如何通过AI技术解析泥人张的色彩搭配与造型艺术，将传统技艺转化为数字资产，让经典艺术在数字时代焕发新生
+                            </p>
+                            <button class="text-accent text-sm font-medium flex items-center gap-2 hover:text-white transition-colors">
+                                阅读更多 <i class="fas fa-arrow-right text-xs"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Story 2 -->
+                    <div class="glass-card rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/5 hover:transform hover:-translate-y-2">
+                        <div class="h-48 bg-gradient-to-br from-blue-400/20 to-accent/20 flex items-center justify-center">
+                            <i class="fas fa-lightbulb text-5xl text-white/30"></i>
+                        </div>
+                        <div class="p-6">
+                            <h4 class="text-xl font-bold mb-3 text-white">NEBULA FLOW技术的诞生</h4>
+                            <p class="text-sm text-gray-500 mb-4">
+                                团队如何攻克技术难题，研发出独特的NEBULA FLOW粒子交互技术，为传统文化数字化提供全新的视觉表达方式
+                            </p>
+                            <button class="text-accent text-sm font-medium flex items-center gap-2 hover:text-white transition-colors">
+                                阅读更多 <i class="fas fa-arrow-right text-xs"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Story 3 -->
+                    <div class="glass-card rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/5 hover:transform hover:-translate-y-2">
+                        <div class="h-48 bg-gradient-to-br from-purpleAccent/20 to-pink-400/20 flex items-center justify-center">
+                            <i class="fas fa-users text-5xl text-white/30"></i>
+                        </div>
+                        <div class="p-6">
+                            <h4 class="text-xl font-bold mb-3 text-white">全球创作者社区的构建</h4>
+                            <p class="text-sm text-gray-500 mb-4">
+                                如何从一个小团队发展成为拥有12,000+全球创作者的社区，共同推动传统文化数字化转型
+                            </p>
+                            <button class="text-accent text-sm font-medium flex items-center gap-2 hover:text-white transition-colors">
+                                阅读更多 <i class="fas fa-arrow-right text-xs"></i>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -388,9 +713,9 @@
     </section>
 
     <!-- Achievements Section -->
-    <section id="achievements" class="py-20 border-y border-white/5 bg-white/2">
+    <section id="achievements" class="py-28 border-y border-white/5 bg-white/2">
         <div class="max-w-7xl mx-auto px-6 lg:px-8">
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-8 text-center fade-in-section">
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-12 text-center fade-in-section">
                 <div>
                     <div class="text-4xl md:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-b from-white to-gray-600 counter" data-target="12536">0</div>
                     <div class="text-sm text-accent mt-2 tracking-widest uppercase">活跃创作者</div>
@@ -411,22 +736,266 @@
         </div>
     </section>
 
+    <!-- Core Features Section -->
+    <section id="features" class="py-32 relative bg-deep">
+        <div class="max-w-7xl mx-auto px-6 lg:px-8">
+            <div class="text-center mb-24 fade-in-section">
+                <h2 class="text-3xl md:text-4xl font-bold mb-8">核心<span class="text-accent">功能</span></h2>
+                <div class="w-20 h-1 bg-gradient-to-r from-accent to-transparent mx-auto mb-12"></div>
+                <p class="text-gray-400 max-w-2xl mx-auto">我们提供全方位的AI赋能工具，助力传统文化的数字化转型与创新发展</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10">
+                <!-- Feature 1 -->
+                <div class="glass-card p-8 rounded-2xl fade-in-section">
+                    <div class="w-16 h-16 rounded-full bg-accent/20 flex items-center justify-center mb-6 text-accent">
+                        <i class="fas fa-database text-2xl"></i>
+                    </div>
+                    <h3 class="text-xl font-bold mb-4 text-white">非遗数字资产库</h3>
+                    <p class="text-gray-400 text-sm leading-relaxed">
+                        构建系统化的非遗数字资产库，包含传统工艺、纹样、音乐等多种形式的文化遗产数据，为创新提供丰富素材。
+                    </p>
+                </div>
+
+                <!-- Feature 2 -->
+                <div class="glass-card p-8 rounded-2xl fade-in-section" style="transition-delay: 100ms;">
+                    <div class="w-16 h-16 rounded-full bg-purpleAccent/20 flex items-center justify-center mb-6 text-purpleAccent">
+                        <i class="fas fa-robot text-2xl"></i>
+                    </div>
+                    <h3 class="text-xl font-bold mb-4 text-white">AI 创作工具</h3>
+                    <p class="text-gray-400 text-sm leading-relaxed">
+                        基于深度学习的生成式AI工具，可将传统元素转化为现代设计，助力创作者快速实现创意落地。
+                    </p>
+                </div>
+
+                <!-- Feature 3 -->
+                <div class="glass-card p-8 rounded-2xl fade-in-section" style="transition-delay: 200ms;">
+                    <div class="w-16 h-16 rounded-full bg-blue-500/20 flex items-center justify-center mb-6 text-blue-400">
+                        <i class="fas fa-globe text-2xl"></i>
+                    </div>
+                    <h3 class="text-xl font-bold mb-4 text-white">数字展览平台</h3>
+                    <p class="text-gray-400 text-sm leading-relaxed">
+                        沉浸式数字展览解决方案，通过3D建模和交互技术，为传统文化打造现代化的展示空间。
+                    </p>
+                </div>
+
+                <!-- Feature 4 -->
+                <div class="glass-card p-8 rounded-2xl fade-in-section" style="transition-delay: 300ms;">
+                    <div class="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center mb-6 text-green-400">
+                        <i class="fas fa-chart-line text-2xl"></i>
+                    </div>
+                    <h3 class="text-xl font-bold mb-4 text-white">品牌增长分析</h3>
+                    <p class="text-gray-400 text-sm leading-relaxed">
+                        基于大数据的品牌增长分析工具，帮助老字号品牌了解市场趋势，制定精准的数字化战略。
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Case Studies Section -->
+    <section id="cases" class="py-32 relative overflow-hidden">
+        <!-- Background elements -->
+        <div class="absolute top-0 left-0 w-1/3 h-full bg-purple-900/10 blur-[100px] pointer-events-none"></div>
+
+        <div class="max-w-7xl mx-auto px-6 lg:px-8 relative z-10">
+            <div class="text-center mb-24 fade-in-section">
+                <h2 class="text-3xl md:text-4xl font-bold mb-8">用户<span class="text-purpleAccent">案例</span></h2>
+                <div class="w-20 h-1 bg-gradient-to-r from-purpleAccent to-transparent mx-auto mb-12"></div>
+                <p class="text-gray-400 max-w-2xl mx-auto">探索我们如何通过AI技术助力传统文化品牌实现数字化转型与创新发展</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+                <!-- Case 1 -->
+                <div class="glass-card p-8 rounded-2xl fade-in-section">
+                    <div class="h-48 bg-black/40 rounded-xl mb-6 relative overflow-hidden group">
+                        <div class="absolute inset-0 flex items-center justify-center text-gray-700 group-hover:text-accent transition-colors">
+                            <i class="fas fa-store text-4xl"></i>
+                        </div>
+                    </div>
+                    <h3 class="text-xl font-bold mb-4 text-white">狗不理数字化转型</h3>
+                    <p class="text-gray-400 text-sm leading-relaxed mb-6">
+                        通过AI技术重构品牌视觉系统，结合传统包子制作工艺与现代设计语言，打造全新的品牌形象和数字化营销方案。
+                    </p>
+                    <div class="flex justify-between items-center text-sm">
+                        <span class="text-accent">品牌重塑</span>
+                        <span class="text-gray-500">2024</span>
+                    </div>
+                </div>
+
+                <!-- Case 2 -->
+                <div class="glass-card p-8 rounded-2xl fade-in-section" style="transition-delay: 100ms;">
+                    <div class="h-48 bg-black/40 rounded-xl mb-6 relative overflow-hidden group">
+                        <div class="absolute inset-0 flex items-center justify-center text-gray-700 group-hover:text-purpleAccent transition-colors">
+                            <i class="fas fa-magic text-4xl"></i>
+                        </div>
+                    </div>
+                    <h3 class="text-xl font-bold mb-4 text-white">泥人张数字艺术馆</h3>
+                    <p class="text-gray-400 text-sm leading-relaxed mb-6">
+                        为国家级非遗项目"泥人张"打造沉浸式数字艺术馆，通过3D扫描和AI技术，实现传统泥塑艺术的数字化展示与互动体验。
+                    </p>
+                    <div class="flex justify-between items-center text-sm">
+                        <span class="text-purpleAccent">数字展览</span>
+                        <span class="text-gray-500">2023</span>
+                    </div>
+                </div>
+
+                <!-- Case 3 -->
+                <div class="glass-card p-8 rounded-2xl fade-in-section" style="transition-delay: 200ms;">
+                    <div class="h-48 bg-black/40 rounded-xl mb-6 relative overflow-hidden group">
+                        <div class="absolute inset-0 flex items-center justify-center text-gray-700 group-hover:text-blue-400 transition-colors">
+                            <i class="fas fa-music text-4xl"></i>
+                        </div>
+                    </div>
+                    <h3 class="text-xl font-bold mb-4 text-white">天津相声数字化工程</h3>
+                    <p class="text-gray-400 text-sm leading-relaxed mb-6">
+                        运用AI语音技术和自然语言处理，对传统相声段子进行数字化整理与创新，开发互动式相声体验平台，吸引年轻受众。
+                    </p>
+                    <div class="flex justify-between items-center text-sm">
+                        <span class="text-blue-400">文化传承</span>
+                        <span class="text-gray-500">2024</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Partners Section -->
+    <section id="partners" class="py-32 relative bg-deep">
+        <div class="max-w-7xl mx-auto px-6 lg:px-8">
+            <div class="text-center mb-24 fade-in-section">
+                <h2 class="text-3xl md:text-4xl font-bold mb-8">合作<span class="text-accent">伙伴</span></h2>
+                <div class="w-20 h-1 bg-gradient-to-r from-accent to-transparent mx-auto mb-12"></div>
+                <p class="text-gray-400 max-w-2xl mx-auto">我们与行业领先的品牌、机构和院校建立了深度合作关系，共同推动传统文化的数字化发展</p>
+            </div>
+
+            <div class="fade-in-section">
+                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-10">
+                    <!-- Partner 1 -->
+                    <div class="glass-card p-6 rounded-xl flex items-center justify-center h-24 hover:border-accent/30 transition-all group">
+                        <div class="text-gray-400 group-hover:text-accent transition-colors">
+                            <i class="fas fa-building text-3xl"></i>
+                            <span class="block text-xs mt-2 text-center">品牌合作</span>
+                        </div>
+                    </div>
+                    <!-- Partner 2 -->
+                    <div class="glass-card p-6 rounded-xl flex items-center justify-center h-24 hover:border-accent/30 transition-all group">
+                        <div class="text-gray-400 group-hover:text-accent transition-colors">
+                            <i class="fas fa-university text-3xl"></i>
+                            <span class="block text-xs mt-2 text-center">学术机构</span>
+                        </div>
+                    </div>
+                    <!-- Partner 3 -->
+                    <div class="glass-card p-6 rounded-xl flex items-center justify-center h-24 hover:border-accent/30 transition-all group">
+                        <div class="text-gray-400 group-hover:text-accent transition-colors">
+                            <i class="fas fa-museum text-3xl"></i>
+                            <span class="block text-xs mt-2 text-center">文化场馆</span>
+                        </div>
+                    </div>
+                    <!-- Partner 4 -->
+                    <div class="glass-card p-6 rounded-xl flex items-center justify-center h-24 hover:border-accent/30 transition-all group">
+                        <div class="text-gray-400 group-hover:text-accent transition-colors">
+                            <i class="fas fa-laptop-code text-3xl"></i>
+                            <span class="block text-xs mt-2 text-center">科技企业</span>
+                        </div>
+                    </div>
+                    <!-- Partner 5 -->
+                    <div class="glass-card p-6 rounded-xl flex items-center justify-center h-24 hover:border-accent/30 transition-all group">
+                        <div class="text-gray-400 group-hover:text-accent transition-colors">
+                            <i class="fas fa-paint-brush text-3xl"></i>
+                            <span class="block text-xs mt-2 text-center">创意机构</span>
+                        </div>
+                    </div>
+                    <!-- Partner 6 -->
+                    <div class="glass-card p-6 rounded-xl flex items-center justify-center h-24 hover:border-accent/30 transition-all group">
+                        <div class="text-gray-400 group-hover:text-accent transition-colors">
+                            <i class="fas fa-handshake text-3xl"></i>
+                            <span class="block text-xs mt-2 text-center">行业协会</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Timeline Section -->
+    <section id="timeline" class="py-32 relative overflow-hidden">
+        <!-- Background elements -->
+        <div class="absolute top-0 right-0 w-1/3 h-full bg-blue-900/10 blur-[100px] pointer-events-none"></div>
+
+        <div class="max-w-7xl mx-auto px-6 lg:px-8 relative z-10">
+            <div class="text-center mb-24 fade-in-section">
+                <h2 class="text-3xl md:text-4xl font-bold mb-8">发展<span class="text-accent">历程</span></h2>
+                <div class="w-20 h-1 bg-gradient-to-r from-accent to-transparent mx-auto mb-12"></div>
+                <p class="text-gray-400 max-w-2xl mx-auto">探索津脉智坊的成长轨迹，见证我们如何通过技术创新推动传统文化的数字化发展</p>
+            </div>
+
+            <div class="relative">
+                <!-- Timeline line -->
+                <div class="hidden md:block absolute left-1/2 top-0 bottom-0 w-1 bg-gradient-to-b from-accent to-purpleAccent transform -translate-x-1/2"></div>
+
+                <!-- Timeline items -->
+                <div class="space-y-24">
+                    <!-- Timeline item 1 -->
+                    <div class="flex flex-col md:flex-row items-center fade-in-section">
+                        <div class="md:w-1/2 md:pr-12 md:text-right mb-8 md:mb-0">
+                            <h3 class="text-2xl font-bold mb-2 text-white">2022</h3>
+                            <p class="text-gray-400 leading-relaxed">津脉智坊成立，专注于AI技术与传统文化的融合研究，启动非遗数字化保护项目。</p>
+                        </div>
+                        <div class="hidden md:block w-8 h-8 rounded-full bg-accent z-10"></div>
+                        <div class="md:w-1/2 md:pl-12"></div>
+                    </div>
+
+                    <!-- Timeline item 2 -->
+                    <div class="flex flex-col md:flex-row items-center fade-in-section">
+                        <div class="md:w-1/2 md:pr-12"></div>
+                        <div class="hidden md:block w-8 h-8 rounded-full bg-purpleAccent z-10"></div>
+                        <div class="md:w-1/2 md:pl-12 mb-8 md:mb-0">
+                            <h3 class="text-2xl font-bold mb-2 text-white">2023</h3>
+                            <p class="text-gray-400 leading-relaxed">推出首个AI非遗创作平台，与多家天津老字号品牌建立合作关系，启动数字化转型项目。</p>
+                        </div>
+                    </div>
+
+                    <!-- Timeline item 3 -->
+                    <div class="flex flex-col md:flex-row items-center fade-in-section">
+                        <div class="md:w-1/2 md:pr-12 md:text-right mb-8 md:mb-0">
+                            <h3 class="text-2xl font-bold mb-2 text-white">2024</h3>
+                            <p class="text-gray-400 leading-relaxed">平台用户突破10,000+，成功举办首届数字非遗艺术节，与多家高校建立产学研合作关系。</p>
+                        </div>
+                        <div class="hidden md:block w-8 h-8 rounded-full bg-accent z-10"></div>
+                        <div class="md:w-1/2 md:pl-12"></div>
+                    </div>
+
+                    <!-- Timeline item 4 -->
+                    <div class="flex flex-col md:flex-row items-center fade-in-section">
+                        <div class="md:w-1/2 md:pr-12"></div>
+                        <div class="hidden md:block w-8 h-8 rounded-full bg-purpleAccent z-10"></div>
+                        <div class="md:w-1/2 md:pl-12 mb-8 md:mb-0">
+                            <h3 class="text-2xl font-bold mb-2 text-white">未来</h3>
+                            <p class="text-gray-400 leading-relaxed">计划推出全球非遗数字资产库，拓展国际合作，打造传统文化数字化的全球标杆。</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <!-- Call to Action Footer -->
-    <section class="py-24 relative overflow-hidden flex items-center justify-center">
+    <section class="py-24 md:py-32 relative overflow-hidden flex items-center justify-center">
         <div class="absolute inset-0 bg-gradient-to-t from-accent/5 to-transparent pointer-events-none"></div>
         <div class="text-center px-4 fade-in-section">
-            <h2 class="text-4xl font-bold mb-6">准备好体验数字非遗了吗？</h2>
-            <p class="text-gray-400 mb-10 max-w-xl mx-auto">探索我们的 NEBULA FLOW 粒子实验，亲手触摸数据化的天津脉搏。</p>
-            <button onclick="handleExploreClick()" class="inline-block px-10 py-5 bg-white text-black font-bold text-lg rounded-full hover:bg-accent transition-colors shadow-[0_0_20px_rgba(255,255,255,0.3)] hover:shadow-[0_0_40px_rgba(0,240,255,0.6)] cursor-pointer">
+            <h2 class="text-2xl md:text-3xl lg:text-4xl font-bold mb-6 md:mb-8 breathe-text">准备好体验数字非遗了吗？</h2>
+            <p class="text-gray-400 mb-8 md:mb-12 max-w-xl mx-auto">探索我们的 NEBULA FLOW 粒子实验，亲手触摸数据化的天津脉搏。</p>
+            <button onclick="handleExploreClick()" class="inline-block px-8 md:px-12 py-4 md:py-6 bg-white text-black font-bold text-base md:text-lg rounded-full hover:bg-accent transition-colors shadow-[0_0_20px_rgba(255,255,255,0.3)] hover:shadow-[0_0_40px_rgba(0,240,255,0.6)] cursor-pointer pulse-button">
                 进入 Jinmai Lab 平台
             </button>
         </div>
     </section>
 
     <!-- Footer -->
-    <footer id="contact" class="bg-black py-12 border-t border-white/10 text-sm">
+    <footer id="contact" class="bg-black py-16 border-t border-white/10 text-sm">
         <div class="max-w-7xl mx-auto px-6 lg:px-8">
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-12 mb-12">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-16 mb-16">
                 <div class="col-span-1 md:col-span-2">
                     <span class="text-2xl font-bold text-white block mb-4">津脉<span class="text-accent">智坊</span></span>
                     <p class="text-gray-500 max-w-xs">
@@ -621,7 +1190,7 @@
             const counterObserver = new IntersectionObserver((entries) => {
                 entries.forEach(entry => {
                     if (entry.isIntersecting) {
-                        const target = +entry.target.getAttribute('data-target');
+                        const target = +(entry.target.getAttribute('data-target') ?? 0);
                         const duration = 2000; // ms
                         const increment = target / (duration / 16); 
                         

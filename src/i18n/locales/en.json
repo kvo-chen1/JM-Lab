@@ -99,7 +99,8 @@
     "settings": "Settings",
     "logout": "Logout",
     "login": "Login",
-    "clear": "Clear"
+    "clear": "Clear",
+    "backToOfficialWebsite": "Back to Official Website"
   },
   "mobile": {
     "menu": "Menu",

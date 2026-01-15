@@ -8,10 +8,10 @@ export default function About() {
   const { isDark } = useTheme()
 
   const values = [
-    { title: '文化传承', icon: 'landmark', desc: '以现代方式演绎传统文化' },
-    { title: '创意共创', icon: 'hands-helping', desc: '连接创作者与品牌共同创新' },
-    { title: '低门槛工具', icon: 'tools', desc: '人人都能用的 AI 创作工具' },
-    { title: '商业转化', icon: 'chart-line', desc: '让好创意走向真实商业场景' },
+    { title: '文化传承', icon: 'landmark', desc: '以数字技术激活传统文化，让百年津门符号在新时代重获生命力' },
+    { title: '创意共创', icon: 'hands-helping', desc: '构建开放协作的创意生态，连接创作者与品牌共同探索无限可能' },
+    { title: '技术赋能', icon: 'tools', desc: '打造低门槛 AI 创作工具，让人人都能成为文化创新的参与者' },
+    { title: '商业转化', icon: 'chart-line', desc: '搭建创意与市场的桥梁，让优秀文化创意实现商业价值' },
   ]
 
   return (
@@ -24,8 +24,11 @@ export default function About() {
           <div className="text-center lg:text-left">
             <h1 className="text-3xl md:text-4xl font-bold tracking-tight mb-2">关于津脉智坊</h1>
             <div className="w-20 h-1 rounded-full bg-gradient-to-r from-blue-600 via-red-500 to-yellow-500 mx-auto lg:mx-0 mb-4"></div>
-            <p className={`${isDark ? 'text-gray-400' : 'text-gray-600'} max-w-xl mx-auto lg:mx-0`}>
-              我们致力于用 AI 赋能天津传统文化创新，让津门老字号焕发新生，连接创意与品牌，实现文化与商业的双向奔赴。
+            <p className={`${isDark ? 'text-gray-400' : 'text-gray-600'} max-w-xl mx-auto lg:mx-0 text-lg leading-relaxed`}>
+              津脉智坊（Jinmai Lab）是植根于天津的先锋科技文化企业，我们不仅是一个展示平台，更是一座连接过去与未来的桥梁。面对数字化浪潮，我们致力于用 AI 赋能天津传统文化创新，让"狗不理"、"达仁堂"等百年符号在 Z 世代心中重获新生。
+            </p>
+            <p className={`${isDark ? 'text-gray-400' : 'text-gray-600'} max-w-xl mx-auto lg:mx-0 text-lg leading-relaxed mt-4`}>
+              通过自研的 AI 生成算法与 NEBULA FLOW 粒子交互技术，我们将传统纹样、口味、历史转化为可感知的数字艺术，赋能品牌年轻化转型，实现文化与商业的双向赋能。
             </p>
           </div>
           <div className="hidden lg:block">
@@ -63,11 +66,12 @@ export default function About() {
           <div className="rounded-2xl p-[1px] bg-gradient-to-br from-blue-500/20 via-red-500/20 to-yellow-500/20">
             <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl p-8 shadow-sm`}> 
               <h2 className="text-xl font-bold mb-4">我们的使命</h2>
+              <p className={`${isDark ? 'text-gray-300' : 'text-gray-700'} mb-4`}>用 AI 复兴城市文化记忆，打造全球最大的非遗数字资产库</p>
               <ul className={`space-y-3 ${isDark ? 'text-gray-300' : 'text-gray-700'} text-sm`}>
-                <li className="flex items-center"><i className="fas fa-check text-green-500 mr-2"></i> 推动传统与现代的融合表达</li>
-                <li className="flex items-center"><i className="fas fa-check text-green-500 mr-2"></i> 赋能创作者与品牌的共创</li>
-                <li className="flex items-center"><i className="fas fa-check text-green-500 mr-2"></i> 打造低门槛的 AI 创作工具</li>
-                <li className="flex items-center"><i className="fas fa-check text-green-500 mr-2"></i> 促进优秀创意的商业落地</li>
+                <li className="flex items-center"><i className="fas fa-check text-green-500 mr-2"></i> 推动传统与现代的融合表达，让百年文化符号在数字时代焕发新生</li>
+                <li className="flex items-center"><i className="fas fa-check text-green-500 mr-2"></i> 赋能创作者与品牌的共创，构建开放协作的创意生态</li>
+                <li className="flex items-center"><i className="fas fa-check text-green-500 mr-2"></i> 打造低门槛的 AI 创作工具，让人人都能参与文化创新</li>
+                <li className="flex items-center"><i className="fas fa-check text-green-500 mr-2"></i> 促进优秀创意的商业落地，实现文化价值的可持续发展</li>
               </ul>
             </div>
           </div>

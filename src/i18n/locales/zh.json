@@ -101,7 +101,8 @@
     "settings": "设置",
     "logout": "退出登录",
     "login": "登录",
-    "clear": "清除"
+    "clear": "清除",
+    "backToOfficialWebsite": "返回官网"
   },
   "mobile": {
     "menu": "菜单",

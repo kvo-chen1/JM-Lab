@@ -689,10 +689,11 @@ export default defineConfig({
                 .replace(/THREE\.GammaEncoding/g, '3007'); // 2 -> 3007 (NoColorSpace/Gamma is deprecated)
                 
                // 处理直接使用的情况 (LinearEncoding) -> 3000
-               code = code
-                .replace(/\bLinearEncoding\b/g, '3000')
-                .replace(/\bsRGBEncoding\b/g, '3001')
-                .replace(/\bGammaEncoding\b/g, '3007');
+              // 使用负向回顾断言避免替换变量声明
+              code = code
+                .replace(/(?<!(const|let|var|function|class|import|export)\s+)\bLinearEncoding\b/g, '3000')
+                .replace(/(?<!(const|let|var|function|class|import|export)\s+)\bsRGBEncoding\b/g, '3001')
+                .replace(/(?<!(const|let|var|function|class|import|export)\s+)\bGammaEncoding\b/g, '3007');
             }
             return code;
           }

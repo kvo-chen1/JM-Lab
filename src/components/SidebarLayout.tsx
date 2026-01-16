@@ -15,6 +15,7 @@ import SearchBar, { SearchSuggestion } from '@/components/SearchBar'
 import searchService from '@/services/searchService'
 import PWAInstallButton from '@/components/PWAInstallButton'
 import { playNotificationSound, sendDesktopNotification, requestDesktopNotificationPermission } from '../utils/notificationUtils'
+import NotificationPanel, { Notification, NotificationSettings } from './NotificationPanel'
 
 interface SidebarLayoutProps {
   children: React.ReactNode
@@ -152,19 +153,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
-  // 中文注释：通知数据类型与状态管理
-  interface Notification {
-    id: string
-    title: string
-    description?: string
-    time: string
-    read: boolean
-    type: 'success' | 'info' | 'warning' | 'error'
-    category: 'like' | 'join' | 'message' | 'mention' | 'task' | 'points' | 'system' | 'learning' | 'creation' | 'social'
-    actionUrl?: string
-    timestamp: number
-    sound?: boolean
-  }
+
   const [showNotifications, setShowNotifications] = useState(false)
   // 中文注释：滚动超过一定距离后显示“回到顶部”悬浮按钮，提升长页可用性
   const [showBackToTop, setShowBackToTop] = useState(false)
@@ -173,20 +162,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
   const shortcutsRef = useRef<HTMLDivElement | null>(null)
   // 中文注释：问题反馈弹层显示状态
   const [showFeedback, setShowFeedback] = useState(false)
-  // 通知过滤状态
-  const [notificationFilter, setNotificationFilter] = useState<'all' | 'unread' | 'info' | 'success' | 'warning' | 'error' | 'like' | 'join' | 'message' | 'mention' | 'task' | 'points' | 'system' | 'learning' | 'creation' | 'social'>('all')
 
-  // 通知设置状态
-  interface NotificationSettings {
-    enableSound: boolean;
-    enableDesktop: boolean;
-    maxNotifications: number;
-    notificationTypes: {
-      [key in Notification['category']]: boolean;
-    };
-  }
-
-  const [showSettings, setShowSettings] = useState(false);
   const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>(() => {
     try {
       const stored = localStorage.getItem('notificationSettings');
@@ -273,26 +249,6 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
       { id: 'n10', title: '系统警告', description: '部分功能暂时不可用', time: '5 小时前', read: true, type: 'warning', category: 'system', timestamp: now - 18000000 },
     ]
   })
-  
-  // 过滤后的通知
-  const filteredNotifications = useMemo(() => {
-    let result = [...notifications]
-    
-    if (notificationFilter === 'unread') {
-      result = result.filter(n => !n.read)
-    } else if (notificationFilter !== 'all') {
-      // 检查是否为类型过滤或分类过滤
-      const isTypeFilter = ['info', 'success', 'warning', 'error'].includes(notificationFilter)
-      if (isTypeFilter) {
-        result = result.filter(n => n.type === notificationFilter)
-      } else {
-        // 分类过滤
-        result = result.filter(n => n.category === notificationFilter)
-      }
-    }
-    
-    return result
-  }, [notifications, notificationFilter])
   
   const unreadCount = useMemo(() => notifications.filter(n => !n.read).length, [notifications])
   
@@ -940,243 +896,15 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                   )}
                 </button>
                 {showNotifications && (
-                  <div className={`absolute right-0 mt-2 w-[360px] sm:w-[420px] rounded-2xl shadow-xl ring-1 transition-all duration-300 transform scale-100 opacity-100 translate-y-0 ${isDark ? 'bg-gray-800 ring-gray-700' : 'bg-white ring-gray-200'} z-50`} role="dialog" aria-label="通知列表">
-                    <div className={`px-3 py-3 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center space-x-3">
-                          <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
-                            <i className="fas fa-bell text-base"></i>
-                          </span>
-                          <div>
-                            <h3 className="font-bold text-base flex items-center">
-                              通知
-                              <span className={`ml-2 text-xs font-normal px-2 py-0.5 rounded-full ${isDark ? 'bg-blue-900/50 text-blue-400' : 'bg-blue-100 text-blue-700'}`}>
-                                {unreadCount} 未读
-                              </span>
-                            </h3>
-                            <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'} mt-1`}>
-                              共 {notifications.length} 条通知
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between space-x-2">
-                        <button
-                          className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-all duration-300 transform hover:scale-105 shadow-sm ${isDark ? 'bg-blue-900/30 text-blue-400 hover:bg-blue-900/50' : 'bg-blue-50 text-blue-700 hover:bg-blue-100'}`}
-                          onClick={() => setNotifications(prev => prev.map(n => ({ ...n, read: true })))}>
-                          <i className="fas fa-check-double mr-1"></i>
-                          全部已读
-                        </button>
-                        <button
-                          className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-all duration-300 transform hover:scale-105 shadow-sm ${isDark ? 'bg-red-900/30 text-red-400 hover:bg-red-900/50' : 'bg-red-50 text-red-700 hover:bg-red-100'}`}
-                          onClick={() => setNotifications([])}>
-                          <i className="fas fa-trash mr-1"></i>
-                          清空
-                        </button>
-                        <button
-                          className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-all duration-300 transform hover:scale-105 shadow-sm ${isDark ? 'bg-purple-900/30 text-purple-400 hover:bg-purple-900/50' : 'bg-purple-50 text-purple-700 hover:bg-purple-100'}`}
-                          onClick={() => setShowSettings(!showSettings)}>
-                          <i className="fas fa-cog mr-1"></i>
-                          设置
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* 通知设置面板 */}
-                    {showSettings && (
-                      <div className={`px-4 py-3 border-b ${isDark ? 'border-gray-700 bg-gray-800/50' : 'border-gray-200 bg-gray-50'}`}>
-                        <h4 className="font-medium mb-3 flex items-center">
-                          <i className="fas fa-sliders-h mr-2 text-purple-500"></i>
-                          通知设置
-                        </h4>
-                        
-                        {/* 基本设置 */}
-                        <div className="space-y-4">
-                          {/* 声音提醒 */}
-                          <div className="flex items-center justify-between">
-                            <label className="text-sm flex items-center">
-                              <i className="fas fa-volume-up mr-2 text-gray-500"></i>
-                              声音提醒
-                            </label>
-                            <label className="relative inline-flex items-center cursor-pointer">
-                              <input 
-                                type="checkbox" 
-                                checked={notificationSettings.enableSound} 
-                                onChange={(e) => setNotificationSettings(prev => ({ ...prev, enableSound: e.target.checked }))}
-                                className="sr-only peer"
-                              />
-                              <div className={`w-11 h-6 rounded-full transition-all duration-300 peer ${notificationSettings.enableSound ? 'bg-blue-500' : 'bg-gray-400'}`}></div>
-                              <span className={`absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-all duration-300 peer-checked:translate-x-5`}></span>
-                            </label>
-                          </div>
-                          
-                          {/* 桌面通知 */}
-                          <div className="flex items-center justify-between">
-                            <label className="text-sm flex items-center">
-                              <i className="fas fa-desktop mr-2 text-gray-500"></i>
-                              桌面通知
-                            </label>
-                            <label className="relative inline-flex items-center cursor-pointer">
-                              <input 
-                                type="checkbox" 
-                                checked={notificationSettings.enableDesktop} 
-                                onChange={(e) => setNotificationSettings(prev => ({ ...prev, enableDesktop: e.target.checked }))}
-                                className="sr-only peer"
-                              />
-                              <div className={`w-11 h-6 rounded-full transition-all duration-300 peer ${notificationSettings.enableDesktop ? 'bg-blue-500' : 'bg-gray-400'}`}></div>
-                              <span className={`absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-all duration-300 peer-checked:translate-x-5`}></span>
-                            </label>
-                          </div>
-                        </div>
-                        
-                        {/* 通知类型设置 */}
-                        <div className="mt-4">
-                          <h5 className="text-sm font-medium mb-3 text-gray-500">通知类型</h5>
-                          <div className="space-y-2 max-h-48 overflow-y-auto">
-                            {Object.entries(notificationSettings.notificationTypes).map(([type, enabled]) => (
-                              <div key={type} className="flex items-center justify-between">
-                                <label className="text-sm flex items-center">
-                                  <i className={`fas ${type === 'like' ? 'fa-heart' : type === 'join' ? 'fa-user-plus' : type === 'message' ? 'fa-envelope' : type === 'mention' ? 'fa-at' : type === 'task' ? 'fa-tasks' : type === 'points' ? 'fa-coins' : type === 'system' ? 'fa-cog' : type === 'learning' ? 'fa-book' : type === 'creation' ? 'fa-paint-brush' : 'fa-users'} mr-2 text-gray-500`}></i>
-                                  {type === 'like' && '点赞'}
-                                  {type === 'join' && '新成员'}
-                                  {type === 'message' && '私信'}
-                                  {type === 'mention' && '@提及'}
-                                  {type === 'task' && '任务'}
-                                  {type === 'points' && '积分'}
-                                  {type === 'system' && '系统'}
-                                  {type === 'learning' && '学习'}
-                                  {type === 'creation' && '创作'}
-                                  {type === 'social' && '社交'}
-                                </label>
-                                <label className="relative inline-flex items-center cursor-pointer">
-                                  <input 
-                                    type="checkbox" 
-                                    checked={enabled} 
-                                    onChange={(e) => setNotificationSettings(prev => ({
-                                      ...prev,
-                                      notificationTypes: {
-                                        ...prev.notificationTypes,
-                                        [type]: e.target.checked
-                                      }
-                                    }))}
-                                    className="sr-only peer"
-                                  />
-                                  <div className={`w-11 h-6 rounded-full transition-all duration-300 peer ${enabled ? 'bg-blue-500' : 'bg-gray-400'}`}></div>
-                                  <span className={`absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-all duration-300 peer-checked:translate-x-5`}></span>
-                                </label>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* 通知过滤标签 */}
-                    <div className={`px-4 py-3 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'} overflow-x-auto whitespace-nowrap`}>
-                      <div className="flex space-x-2">
-                        {[
-                          // 基础过滤
-                          { value: 'all', label: '全部', icon: 'fa-inbox' },
-                          { value: 'unread', label: '未读', icon: 'fa-envelope-open-text' },
-                          // 类型过滤
-                          { value: 'success', label: '成功', icon: 'fa-check-circle' },
-                          { value: 'info', label: '信息', icon: 'fa-info-circle' },
-                          { value: 'warning', label: '警告', icon: 'fa-exclamation-triangle' },
-                          { value: 'error', label: '错误', icon: 'fa-times-circle' },
-                          // 分类过滤
-                          { value: 'like', label: '点赞', icon: 'fa-heart' },
-                          { value: 'join', label: '新成员', icon: 'fa-user-plus' },
-                          { value: 'message', label: '私信', icon: 'fa-envelope' },
-                          { value: 'mention', label: '@提及', icon: 'fa-at' },
-                          { value: 'task', label: '任务', icon: 'fa-tasks' },
-                          { value: 'points', label: '积分', icon: 'fa-coins' },
-                        ].map(filter => (
-                          <button
-                            key={filter.value}
-                            onClick={() => setNotificationFilter(filter.value as any)}
-                            className={`px-3 py-1.5 rounded-full text-xs font-medium flex items-center transition-all duration-300 transform hover:scale-105 ${notificationFilter === filter.value ? 
-                              (isDark ? 'bg-blue-900/50 text-blue-400 border border-blue-700' : 'bg-blue-100 text-blue-700 border border-blue-300') : 
-                              (isDark ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200')}`}
-                          >
-                            <i className={`fas ${filter.icon} mr-1.5 text-xs`}></i>
-                            {filter.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    
-                    <ul className="max-h-48 overflow-auto">
-                      {filteredNotifications.length === 0 ? (
-                        <li className={`${isDark ? 'text-gray-400' : 'text-gray-500'} px-4 py-16 text-center`}>
-                          <div className={`inline-flex items-center justify-center w-20 h-20 rounded-full mb-6 transition-all duration-300 ${isDark ? 'bg-gray-700/50' : 'bg-gray-100'}`}>
-                            <i className="fas fa-bell-slash text-5xl opacity-40"></i>
-                          </div>
-                          <h4 className="text-lg font-medium mb-3">暂无通知</h4>
-                          <p className="text-sm opacity-75 max-w-xs mx-auto">当有新通知时，会在这里显示</p>
-                        </li>
-                      ) : (
-                        filteredNotifications.map(n => (
-                          <li key={n.id}>
-                            <button
-                              onClick={() => {
-                                setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, read: true } : x))
-                                // 如果有跳转链接，处理跳转
-                                if (n.actionUrl) {
-                                  navigate(n.actionUrl)
-                                  setShowNotifications(false)
-                                }
-                              }}
-                              className={`w-full text-left px-2 py-2 flex items-start space-x-1.5 transition-all duration-300 transform hover:translate-x-1 ${isDark ? 'hover:bg-gray-700/80' : 'hover:bg-gray-50'} ${newNotification?.id === n.id ? 'animate-pulse bg-opacity-90' : ''} ${!n.read ? `${isDark ? 'bg-blue-900/20 border-l-4 border-blue-500 shadow-lg shadow-blue-900/10' : 'bg-blue-50 border-l-4 border-blue-500 shadow-lg shadow-blue-100'}` : ''} active:scale-95`}
-                            >
-                              {/* 通知图标 - 根据分类显示不同图标 */}
-                              <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full transition-all duration-300 ${isDark ? 'bg-gray-700' : 'bg-gray-100'} text-sm ${newNotification?.id === n.id ? 'scale-110' : ''}`}>
-                                <i className={`fas ${n.category === 'like' ? 'fa-heart text-red-500' : 
-                                                n.category === 'join' ? 'fa-user-plus text-green-500' : 
-                                                n.category === 'message' ? 'fa-envelope text-blue-500' : 
-                                                n.category === 'mention' ? 'fa-at text-purple-500' : 
-                                                n.category === 'task' ? 'fa-tasks text-green-600' : 
-                                                n.category === 'points' ? 'fa-coins text-yellow-500' : 
-                                                n.type === 'success' ? 'fa-check-circle text-green-500' : 
-                                                n.type === 'info' ? 'fa-info-circle text-blue-500' : 
-                                                n.type === 'warning' ? 'fa-exclamation-triangle text-yellow-500' : 
-                                                'fa-times-circle text-red-500'}`}></i>
-                              </span>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-start justify-between">
-                                  <h4 className={`text-sm font-medium truncate ${!n.read ? 'font-semibold' : ''} ${newNotification?.id === n.id ? 'text-blue-600 dark:text-blue-400' : ''}`}>{n.title}</h4>
-                                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'} transition-all duration-300`}>
-                                    {n.time}
-                                  </span>
-                                </div>
-                                {n.description && (
-                                  <p className={`mt-1.5 text-xs leading-relaxed line-clamp-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{n.description}</p>
-                                )}
-                                <div className="flex items-center justify-between mt-1.5">
-                                  {/* 通知分类标签 - 显示完整分类 */}
-                                  <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium transition-all duration-300 ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'} ${newNotification?.id === n.id ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-400' : ''}`}>
-                                    {n.category === 'like' && '点赞'}
-                                    {n.category === 'join' && '新成员'}
-                                    {n.category === 'message' && '私信'}
-                                    {n.category === 'mention' && '@提及'}
-                                    {n.category === 'task' && '任务'}
-                                    {n.category === 'points' && '积分'}
-                                    {n.category === 'system' && '系统'}
-                                    {n.category === 'learning' && '学习'}
-                                    {n.category === 'creation' && '创作'}
-                                    {n.category === 'social' && '社交'}
-                                  </span>
-                                  {/* 未读指示器 */}
-                                  {!n.read && (
-                                    <span className={`w-2 h-2 rounded-full ${isDark ? 'bg-blue-400' : 'bg-blue-500'} animate-pulse`}></span>
-                                  )}
-                                </div>
-                              </div>
-                            </button>
-                          </li>
-                        ))
-                      )}
-                    </ul>
-                  </div>
+                  <NotificationPanel
+                    notifications={notifications}
+                    setNotifications={setNotifications}
+                    unreadCount={unreadCount}
+                    isDark={isDark}
+                    onClose={() => setShowNotifications(false)}
+                    notificationSettings={notificationSettings}
+                    setNotificationSettings={setNotificationSettings}
+                  />
                 )}
               </div>
               

@@ -226,7 +226,7 @@ export default defineConfig({
     }),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'robots.txt', 'assets/*.svg', 'assets/*.woff2', 'icons/*', 'images/*'],
+      includeAssets: ['favicon.ico', 'robots.txt', 'assets/*.svg', 'assets/*.woff2'],
       manifest: {
         name: '津脉智坊 - 津门老字号共创平台',
         short_name: '津脉智坊',
@@ -497,9 +497,9 @@ export default defineConfig({
           // 第三方库优化分割
           if (id.includes('node_modules')) {
             // React核心库 - 合并为一个chunk
-            // 使用更精确的匹配，避免误判其他包含react字符的包
             // 包含所有React核心依赖，防止循环依赖
-            if (/[\\/]node_modules[\\/](react|react-dom|react-router-dom|react-router|scheduler|react-is|prop-types)[\\/]/.test(id)) {
+            // 将 zustand, framer-motion, react-router 等核心库也放入 vendor-react，避免初始化顺序问题
+            if (/[\\/]node_modules[\\/](react|react-dom|react-router-dom|react-router|scheduler|react-is|prop-types|zustand|framer-motion|clsx|tailwind-merge)[\\/]/.test(id)) {
               return 'vendor-react';
             }
             
@@ -516,11 +516,6 @@ export default defineConfig({
             // Three.js扩展库
             if (id.includes('three-stdlib')) {
               return 'three-stdlib';
-            }
-            
-            // 动画库
-            if (id.includes('framer-motion')) {
-              return 'animation-framer';
             }
             
             // 图表库
@@ -546,11 +541,6 @@ export default defineConfig({
             // 国际化库
             if (id.includes('i18next') || id.includes('react-i18next')) {
               return 'i18n';
-            }
-            
-            // 状态管理库
-            if (id.includes('zustand')) {
-              return 'state-zustand';
             }
             
             // 数据库相关库

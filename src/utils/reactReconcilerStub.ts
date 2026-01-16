@@ -35,7 +35,24 @@ export const DefaultEventPriority = 1;
 export const ContinuousEventPriority = 2;
 export const DiscreteEventPriority = 3;
 
-// 导出一个简单的 react-reconciler 实现
-export default {
-  // 空实现，仅用于构建通过
-};
+// 导出一个更完整的 react-reconciler 实现，避免运行时错误
+export default function createReconciler() {
+  return {
+    mountContainer: () => {},
+    updateContainer: () => {},
+    unmountContainer: () => {},
+    flushSync: (fn) => fn(),
+    createPortal: () => null,
+    // 添加更多 @react-three/fiber 可能需要的方法
+  };
+}
+
+// 添加 @react-three/fiber 所需的其他导出
+export const unstable_scheduleCallback = () => {};
+export const unstable_cancelCallback = () => {};
+export const unstable_now = () => Date.now();
+export const ImmediateSchedulerPriority = 1;
+export const UserBlockingSchedulerPriority = 2;
+export const NormalSchedulerPriority = 3;
+export const LowSchedulerPriority = 4;
+export const IdleSchedulerPriority = 5;

@@ -497,12 +497,14 @@ export default defineConfig({
           // 第三方库优化分割
           if (id.includes('node_modules')) {
             // React核心库 - 合并为一个chunk
-            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router-dom')) {
+            // 使用更精确的匹配，避免误判其他包含react字符的包
+            // 包含所有React核心依赖，防止循环依赖
+            if (/[\\/]node_modules[\\/](react|react-dom|react-router-dom|react-router|scheduler|react-is|prop-types)[\\/]/.test(id)) {
               return 'vendor-react';
             }
             
             // Three.js核心库
-            if (id.includes('three/lib') || id.includes('three/build')) {
+            if (/[\\/]node_modules[\\/]three[\\/]/.test(id)) {
               return 'three-core';
             }
             

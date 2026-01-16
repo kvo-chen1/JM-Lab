@@ -8,7 +8,7 @@ import './i18n/i18n';
 import { StrictMode } from "react";
 import "./styles/tianjin.css";
 import "./styles/neo.css";
-import { createRoot } from "react-dom/client";
+import * as ReactDOMClient from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import { Toaster } from 'sonner';
 import App from "./App.tsx";
@@ -32,25 +32,33 @@ if (typeof window !== 'undefined') {
 // 应用渲染
 const root = document.getElementById("root");
 if (root) {
-  // 使用createRoot直接渲染，不进行hydration
-  createRoot(root).render(
-    <ErrorBoundary>
-      <LanguageProvider>
-        <ThemeProvider>
-          <BrowserRouter>
-              <AuthProvider>
-                <FriendProvider>
-                  <WorkflowProvider>
-                    <App />
-                    <Toaster />
-                  </WorkflowProvider>
-                </FriendProvider>
-              </AuthProvider>
-            </BrowserRouter>
-        </ThemeProvider>
-      </LanguageProvider>
-    </ErrorBoundary>
-  );
+  // 安全获取createRoot
+  const createRoot = ReactDOMClient.createRoot || (ReactDOMClient as any).default?.createRoot;
+  
+  if (createRoot) {
+    // 使用createRoot直接渲染，不进行hydration
+    createRoot(root).render(
+      <ErrorBoundary>
+        <LanguageProvider>
+          <ThemeProvider>
+            <BrowserRouter>
+                <AuthProvider>
+                  <FriendProvider>
+                    <WorkflowProvider>
+                      <App />
+                      <Toaster />
+                    </WorkflowProvider>
+                  </FriendProvider>
+                </AuthProvider>
+              </BrowserRouter>
+          </ThemeProvider>
+        </LanguageProvider>
+      </ErrorBoundary>
+    );
+  } else {
+    console.error('Failed to resolve createRoot from react-dom/client', ReactDOMClient);
+    root.innerHTML = '<div style="padding: 20px; color: red;">System Error: Failed to initialize React. Please refresh.</div>';
+  }
 } else {
   // 如果找不到root元素，说明当前页面是landing.html或其他静态页面
   // 不进行React渲染，避免控制台错误

@@ -51,4 +51,8 @@ if (root) {
       </LanguageProvider>
     </ErrorBoundary>
   );
+} else {
+  // 如果找不到root元素，说明当前页面是landing.html或其他静态页面
+  // 不进行React渲染，避免控制台错误
+  console.log('Root element not found, React app will not render. This is expected on static pages like landing.html.');
 }

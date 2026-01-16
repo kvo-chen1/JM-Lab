@@ -51,6 +51,21 @@ export default function createReconciler() {
     createPortal: () => null,
     calculateColor: calculateColor,
     // 添加更多 @react-three/fiber 可能需要的方法
+    activateTouchTools: () => {},
+    deactivateTouchTools: () => {},
+    configure: () => {},
+    update: () => {},
+    render: () => {},
+    dispose: () => {},
+    setSize: () => {},
+    setPixelRatio: () => {},
+    setPointerCapture: () => {},
+    releasePointerCapture: () => {},
+    pointerEvent: () => {},
+    wheelEvent: () => {},
+    touchEvent: () => {},
+    keyboardEvent: () => {},
+    mouseEvent: () => {},
   };
 }
 
@@ -89,3 +104,12 @@ export const useDeferredValue = (value) => value;
 export const useId = () => 'stub-id';
 export const useSyncExternalStore = () => null;
 export const useInsertionEffect = () => {};
+
+// 添加 @react-three/fiber 可能需要的其他导出
+export const unstable_getCurrentPriorityLevel = () => NormalPriority;
+export const unstable_runWithPriority = (priority, fn) => fn();
+export const unstable_ImmediatePriority = 1;
+export const unstable_UserBlockingPriority = 2;
+export const unstable_NormalPriority = 3;
+export const unstable_LowPriority = 4;
+export const unstable_IdlePriority = 5;

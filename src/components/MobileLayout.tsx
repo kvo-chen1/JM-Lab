@@ -107,14 +107,14 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
     const now = Date.now()
     // 默认通知数据
     return [
-      { id: 'n1', title: '新消息', description: '您有一条新的私信', time: '刚刚', read: false, type: 'info', category: 'message', timestamp: now },
-      { id: 'n2', title: '系统通知', description: '新功能已上线，快来体验', time: '1 小时前', read: false, type: 'success', category: 'system', timestamp: now - 3600000 },
-      { id: 'n3', title: '作品点赞', description: '您的作品获得了新的点赞', time: '2 小时前', read: false, type: 'success', category: 'like', timestamp: now - 7200000 },
-      { id: 'n4', title: '新成员加入', description: '张三加入了您的创作群', time: '30 分钟前', read: false, type: 'info', category: 'join', timestamp: now - 1800000 },
-      { id: 'n5', title: '@提及通知', description: '王五在评论中@了您', time: '3 小时前', read: true, type: 'info', category: 'mention', timestamp: now - 10800000 },
-      { id: 'n6', title: '任务完成', description: '您的创作任务已完成', time: '4 小时前', read: true, type: 'success', category: 'task', timestamp: now - 14400000 },
-      { id: 'n7', title: '积分增加', description: '您获得了50积分奖励', time: '5 小时前', read: false, type: 'success', category: 'points', timestamp: now - 18000000 },
-      { id: 'n8', title: '上传失败', description: '作品上传失败，请重试', time: '6 小时前', read: false, type: 'error', category: 'creation', timestamp: now - 21600000 },
+      { id: 'n1', title: t('notification.newMessage'), description: t('notification.newMessageDesc'), time: t('notification.justNow'), read: false, type: 'info', category: 'message', timestamp: now },
+      { id: 'n2', title: t('notification.systemNotification'), description: t('notification.systemNotificationDesc'), time: `1 ${t('notification.hoursAgo')}`, read: false, type: 'success', category: 'system', timestamp: now - 3600000 },
+      { id: 'n3', title: t('notification.workLiked'), description: t('notification.workLikedNewDesc'), time: `2 ${t('notification.hoursAgo')}`, read: false, type: 'success', category: 'like', timestamp: now - 7200000 },
+      { id: 'n4', title: t('notification.newMember'), description: t('notification.newMemberDesc'), time: `30 ${t('notification.minutesAgo')}`, read: false, type: 'info', category: 'join', timestamp: now - 1800000 },
+      { id: 'n5', title: t('notification.mention'), description: t('notification.mentionDesc'), time: `3 ${t('notification.hoursAgo')}`, read: true, type: 'info', category: 'mention', timestamp: now - 10800000 },
+      { id: 'n6', title: t('notification.taskCompleted'), description: t('notification.taskCompletedDesc'), time: `4 ${t('notification.hoursAgo')}`, read: true, type: 'success', category: 'task', timestamp: now - 14400000 },
+      { id: 'n7', title: t('notification.pointsAdded'), description: t('notification.pointsAddedDesc'), time: `5 ${t('notification.hoursAgo')}`, read: false, type: 'success', category: 'points', timestamp: now - 18000000 },
+      { id: 'n8', title: t('notification.uploadFailed'), description: t('notification.uploadFailedDesc'), time: `6 ${t('notification.hoursAgo')}`, read: false, type: 'error', category: 'creation', timestamp: now - 21600000 },
     ]
   })
   // 未读通知数量
@@ -163,7 +163,7 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
     return {
       background: isDark ? 'bg-gray-900 text-white' : theme === 'pink' ? 'bg-pink-50 text-pink-900' : 'bg-gray-50 text-gray-900',
       logoBackground: isDark ? 'bg-blue-600' : theme === 'pink' ? 'bg-pink-500' : 'bg-orange-500',
-      logoText: '坊',
+      logoText: t('common.logoText'),
       gradient: isDark ? 'from-blue-500 to-purple-600' : theme === 'pink' ? 'from-pink-500 to-rose-500' : 'from-red-500 to-orange-500'
     }
   }, [theme, isDark])
@@ -189,7 +189,7 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
         {showImage ? (
           <img
             src={user.avatar}
-            alt={user.username || '用户'}
+            alt={user.username || t('common.user')}
             className="w-full h-full object-cover"
             loading="lazy"
             onError={() => setImgError(true)}
@@ -231,37 +231,41 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
     setShowSearch(false)
   }, [location.pathname])
 
-  // 处理语音搜索
+  // 处理语音搜索：使用多语言提示文案
   const handleVoiceSearch = useCallback(() => {
     if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
-      toast.error('您的浏览器不支持语音搜索功能')
+      // 浏览器不支持语音识别时的错误提示
+      toast.error(t('toast.browserNotSupportVoice'))
       return
     }
 
     const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition
     const recognition = new SpeechRecognition()
-    recognition.lang = 'zh-CN'
+    recognition.lang = currentLanguage === 'en' ? 'en-US' : 'zh-CN'
     recognition.interimResults = false
     recognition.maxAlternatives = 1
 
     setIsListening(true)
 
     recognition.onstart = () => {
-      toast.info('正在倾听...')
+      // 开始监听语音时的提示
+      toast.info(t('toast.listening'))
     }
 
     recognition.onresult = (event: any) => {
       const transcript = event.results[0][0].transcript
       setSearch(transcript)
       setIsListening(false)
-      toast.success(`识别结果: ${transcript}`)
+      // 识别成功后展示识别结果
+      toast.success(t('toast.voiceResult', { result: transcript }))
     }
 
     recognition.onerror = (event: any) => {
       console.error('语音识别错误:', event.error)
       setIsListening(false)
       if (event.error !== 'no-speech') {
-        toast.error('语音识别失败，请重试')
+        // 非无语音错误时给出统一错误提示
+        toast.error(t('toast.voiceFailed'))
       }
     }
 
@@ -270,20 +274,21 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
     }
 
     recognition.start()
-  }, [])
+  }, [t])
 
-  // 处理搜索
+  // 处理搜索：为空时给出多语言提示
   const handleSearch = useCallback((e: React.FormEvent) => {
     e.preventDefault()
     if (!search.trim()) {
-      toast.warning('请输入搜索关键词')
+      // 搜索关键词为空时的提醒
+      toast.warning(t('toast.enterKeyword'))
       return
     }
     const encodedSearch = encodeURIComponent(search.trim())
     navigate(`/explore?search=${encodedSearch}`)
     setSearch('')
     setShowSearch(false)
-  }, [search, navigate])
+  }, [search, navigate, t])
 
   // 预取路由 - 使用防抖和空闲回调，避免阻塞点击事件
   const prefetchRoute = useCallback((path: string) => {
@@ -334,7 +339,7 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
                 theme === 'pink' ? 'text-pink-700 hover:bg-pink-200' : 
                 'text-gray-700 hover:bg-gray-200'
               )}
-              aria-label="关闭搜索"
+              aria-label={t('header.close')}
             >
               <i className="fas fa-times text-lg"></i>
             </button>
@@ -371,7 +376,7 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
                           ? (isDark ? 'bg-red-500 text-white shadow-lg animate-pulse' : theme === 'pink' ? 'bg-pink-500 text-white shadow-lg animate-pulse' : 'bg-orange-500 text-white shadow-lg animate-pulse')
                           : (isDark ? 'text-gray-300 hover:bg-gray-800' : theme === 'pink' ? 'text-pink-700 hover:bg-pink-200' : 'text-gray-700 hover:bg-gray-200')
                       )}
-                      aria-label="语音搜索"
+                      aria-label={t('mobile.voiceSearch')}
                     >
                       <i className={`fas ${isListening ? 'fa-microphone-slash' : 'fa-microphone'}`}></i>
                     </button>
@@ -398,7 +403,7 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
                   theme === 'pink' ? 'text-pink-700 hover:bg-pink-200' : 
                   'text-gray-700 hover:bg-gray-200'
                 )}
-                aria-label="打开侧边栏"
+                aria-label={t('sidebar.expandSidebar')}
               >
                 <i className="fas fa-bars text-base"></i>
               </button>
@@ -445,7 +450,7 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
                   theme === 'pink' ? 'text-pink-700 hover:bg-pink-200' : 
                   'text-gray-700 hover:bg-gray-200'
                 )}
-                aria-label="搜索"
+                aria-label={t('common.search')}
               >
                 <i className="fas fa-search text-base"></i>
               </button>
@@ -458,7 +463,7 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
                   theme === 'pink' ? 'text-pink-700 hover:bg-pink-200' : 
                   'text-gray-700 hover:bg-gray-200'
                 )}
-                aria-label="通知"
+                aria-label={t('header.notifications')}
                 onClick={() => setShowNotifications(!showNotifications)}
               >
                 <i className="fas fa-bell text-base"></i>
@@ -478,32 +483,32 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
                 <div className="fixed top-0 left-0 w-full h-full z-50 flex justify-end items-start pt-20 px-4 pointer-events-none">
                   {/* 点击外部关闭通知列表 */}
                   <div className="absolute inset-0 bg-black/10 pointer-events-auto" onClick={() => setShowNotifications(false)}></div>
-                  <div className={`relative w-full max-w-xs rounded-xl shadow-2xl ring-2 overflow-hidden pointer-events-auto ${isDark ? 'bg-gray-800 ring-gray-700' : theme === 'pink' ? 'bg-white ring-pink-300' : 'bg-white ring-gray-300'}`} role="dialog" aria-label="通知列表">
+                  <div className={`relative w-full max-w-xs rounded-xl shadow-2xl ring-2 overflow-hidden pointer-events-auto ${isDark ? 'bg-gray-800 ring-gray-700' : theme === 'pink' ? 'bg-white ring-pink-300' : 'bg-white ring-gray-300'}`} role="dialog" aria-label={t('header.viewNotifications')}>
                     {/* 通知列表头部 */}
                     <div className={`px-4 py-3 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'} flex items-center justify-between bg-gradient-to-r ${isDark ? 'from-gray-800 to-gray-900' : theme === 'pink' ? 'from-pink-50 to-white' : 'from-gray-50 to-white'}`}>
                       <h4 className="font-medium flex items-center">
                         <i className="fas fa-bell mr-2 text-blue-500"></i>
-                        通知
-                        <span className="ml-2 text-xs font-normal ${isDark ? 'text-gray-400' : 'text-gray-500'}">({unreadNotificationCount} 未读)</span>
+                        {t('header.notifications')}
+                        <span className="ml-2 text-xs font-normal ${isDark ? 'text-gray-400' : 'text-gray-500'}">({unreadNotificationCount} {t('notification.types.unread')})</span>
                       </h4>
                       <div className="flex items-center space-x-2">
                         <button
                           className={`text-xs px-3 py-1.5 rounded-lg transition-all duration-300 ${isDark ? 'bg-gray-700 text-white hover:bg-blue-900/50 hover:text-blue-400' : 'bg-gray-100 text-gray-900 hover:bg-blue-50 hover:text-blue-700'}`}
                           onClick={() => setNotifications(prev => prev.map(n => ({ ...n, read: true })))}>
                           <i className="fas fa-check-double mr-1"></i>
-                          全部已读
+                          {t('header.markAllAsRead')}
                         </button>
                         <button
                           className={`text-xs px-3 py-1.5 rounded-lg transition-all duration-300 ${isDark ? 'bg-gray-700 text-white hover:bg-red-900/50 hover:text-red-400' : 'bg-gray-100 text-gray-900 hover:bg-red-50 hover:text-red-700'}`}
                           onClick={() => setNotifications([])}>
                           <i className="fas fa-trash mr-1"></i>
-                          清空
+                          {t('header.clearAll')}
                         </button>
                         <button
                           className={`text-xs px-3 py-1.5 rounded-lg transition-all duration-300 ${isDark ? 'bg-gray-700 text-white hover:bg-purple-900/50 hover:text-purple-400' : 'bg-gray-100 text-gray-900 hover:bg-purple-50 hover:text-purple-700'}`}
                           onClick={() => setShowSettings(!showSettings)}>
                           <i className="fas fa-cog mr-1"></i>
-                          设置
+                          {t('header.settings')}
                         </button>
                       </div>
                     </div>
@@ -513,7 +518,7 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
                       <div className={`px-4 py-3 border-b ${isDark ? 'border-gray-700 bg-gray-800/50' : 'border-gray-200 bg-gray-50'}`}>
                         <h4 className="font-medium mb-3 flex items-center">
                           <i className="fas fa-sliders-h mr-2 text-purple-500"></i>
-                          通知设置
+                          {t('notification.settings')}
                         </h4>
                         
                         {/* 基本设置 */}
@@ -522,7 +527,7 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
                           <div className="flex items-center justify-between">
                             <label className="text-sm flex items-center">
                               <i className="fas fa-volume-up mr-2 text-gray-500"></i>
-                              声音提醒
+                              {t('notification.sound')}
                             </label>
                             <label className="relative inline-flex items-center cursor-pointer">
                               <input 
@@ -540,7 +545,7 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
                           <div className="flex items-center justify-between">
                             <label className="text-sm flex items-center">
                               <i className="fas fa-desktop mr-2 text-gray-500"></i>
-                              桌面通知
+                              {t('notification.desktop')}
                             </label>
                             <label className="relative inline-flex items-center cursor-pointer">
                               <input 
@@ -561,13 +566,13 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
                     <div className={`px-4 py-2 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'} overflow-x-auto whitespace-nowrap`}>
                       <div className="flex space-x-2">
                         {[
-                          { value: 'all', label: '全部', icon: 'fa-inbox' },
-                          { value: 'unread', label: '未读', icon: 'fa-envelope-open-text' },
-                          { value: 'like', label: '点赞', icon: 'fa-heart' },
-                          { value: 'message', label: '私信', icon: 'fa-envelope' },
-                          { value: 'mention', label: '@提及', icon: 'fa-at' },
-                          { value: 'task', label: '任务', icon: 'fa-tasks' },
-                          { value: 'points', label: '积分', icon: 'fa-coins' },
+                          { value: 'all', label: t('notification.types.all'), icon: 'fa-inbox' },
+                          { value: 'unread', label: t('notification.types.unread'), icon: 'fa-envelope-open-text' },
+                          { value: 'like', label: t('notification.types.like'), icon: 'fa-heart' },
+                          { value: 'message', label: t('notification.types.message'), icon: 'fa-envelope' },
+                          { value: 'mention', label: t('notification.types.mention'), icon: 'fa-at' },
+                          { value: 'task', label: t('notification.types.task'), icon: 'fa-tasks' },
+                          { value: 'points', label: t('notification.types.points'), icon: 'fa-coins' },
                         ].map(filter => (
                           <button
                             key={filter.value}
@@ -588,8 +593,8 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
                       {filteredNotifications.length === 0 ? (
                         <div className="p-4 text-center">
                           <i className="fas fa-bell-slash text-3xl text-gray-400 mb-2"></i>
-                          <p className="text-sm text-gray-500">暂无通知</p>
-                          <p className="text-xs text-gray-400 mt-1">当有新通知时，会在这里显示</p>
+                          <p className="text-sm text-gray-500">{t('notification.empty')}</p>
+                          <p className="text-xs text-gray-400 mt-1">{t('notification.emptyDesc')}</p>
                         </div>
                       ) : (
                         filteredNotifications.map((notification) => (
@@ -616,16 +621,16 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
                                 <p className={`text-xs ${isDark ? 'text-gray-300' : 'text-gray-700'} mt-1 line-clamp-2`}>{notification.description}</p>
                                 {/* 通知分类标签 */}
                                 <span className={`mt-1 inline-block px-2 py-0.5 rounded-full text-xs ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'}`}>
-                                  {notification.category === 'like' && '点赞'}
-                                  {notification.category === 'join' && '新成员'}
-                                  {notification.category === 'message' && '私信'}
-                                  {notification.category === 'mention' && '@提及'}
-                                  {notification.category === 'task' && '任务'}
-                                  {notification.category === 'points' && '积分'}
-                                  {notification.category === 'system' && '系统'}
-                                  {notification.category === 'learning' && '学习'}
-                                  {notification.category === 'creation' && '创作'}
-                                  {notification.category === 'social' && '社交'}
+                                  {notification.category === 'like' && t('notification.types.like')}
+                                  {notification.category === 'join' && t('notification.types.join')}
+                                  {notification.category === 'message' && t('notification.types.message')}
+                                  {notification.category === 'mention' && t('notification.types.mention')}
+                                  {notification.category === 'task' && t('notification.types.task')}
+                                  {notification.category === 'points' && t('notification.types.points')}
+                                  {notification.category === 'system' && t('notification.types.system')}
+                                  {notification.category === 'learning' && t('notification.types.learning')}
+                                  {notification.category === 'creation' && t('notification.types.creation')}
+                                  {notification.category === 'social' && t('notification.types.social')}
                                 </span>
                               </div>
                               {/* 未读指示器 */}
@@ -688,7 +693,8 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
                       )}
                     >
                       <i className="fas fa-chart-bar mr-3"></i>
-                      数据分析
+                      {/* 数据分析入口 */}
+                      {t('header.analytics')}
                     </NavLink>
                     <NavLink
                       to="/drafts"
@@ -701,7 +707,8 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
                       )}
                     >
                       <i className="fas fa-file-alt mr-3"></i>
-                      草稿箱
+                      {/* 草稿箱入口 */}
+                      {t('common.drafts')}
                     </NavLink>
                     <NavLink
                       to="/collections"
@@ -714,7 +721,8 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
                       )}
                     >
                       <i className="fas fa-heart mr-3"></i>
-                      我的收藏
+                      {/* 我的收藏入口 */}
+                      {t('header.myCollection')}
                     </NavLink>
                     <button
                       onClick={() => {
@@ -782,7 +790,7 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
                         onClick={() => {
                           logout()
                           navigate('/login')
-                          toast.success('退出登录成功')
+                          toast.success(t('toast.logoutSuccess'))
                         }}
                         className={clsx(
                           'w-full text-left px-4 py-3 text-sm transition-all duration-200 hover:translate-x-1',
@@ -862,7 +870,8 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
               )}>
                 {themeStyles.logoText}
               </div>
-              <span className="ml-2 text-lg font-bold">津脉智坊</span>
+              {/* 应用名称多语言显示 */}
+              <span className="ml-2 text-lg font-bold">{t('common.appName')}</span>
             </div>
             <button
               onClick={() => setShowSidebarDrawer(false)}
@@ -872,7 +881,8 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
                 theme === 'pink' ? 'text-pink-700 hover:bg-pink-200' : 
                 'text-gray-700 hover:bg-gray-200'
               )}
-              aria-label="关闭侧边栏"
+              // 关闭侧边栏的无障碍文本
+              aria-label={t('sidebar.collapseSidebar')}
             >
               <i className="fas fa-times text-sm"></i>
             </button>
@@ -887,7 +897,8 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
                   key={themeOption.value}
                   onClick={() => {
                     setTheme(themeOption.value);
-                    toast.success(`已切换到${themeOption.label}主题`);
+                    // 切换主题后的提示
+                    toast.success(t('toast.themeSwitched', { theme: themeOption.label }));
                   }}
                   className={`flex flex-col items-center justify-center p-3 rounded-lg transition-all duration-200 ${theme === themeOption.value ? (isDark ? 'bg-blue-600 text-white' : theme === 'pink' ? 'bg-pink-500 text-white' : 'bg-orange-500 text-white') : (isDark ? 'bg-gray-700 hover:bg-gray-600' : theme === 'pink' ? 'bg-pink-200 hover:bg-pink-300' : 'bg-gray-200 hover:bg-gray-300')}`}
                   title={themeOption.label}
@@ -908,7 +919,8 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
                   key={lang.code}
                   onClick={() => {
                     changeLanguage(lang.code);
-                    toast.success(`已切换到${lang.name}`);
+                    // 切换语言后的提示
+                    toast.success(t('toast.languageSwitched', { lang: lang.name }));
                   }}
                   className={`flex items-center justify-center p-3 rounded-lg transition-all duration-200 ${currentLanguage === lang.code ? (isDark ? 'bg-blue-600 text-white' : theme === 'pink' ? 'bg-pink-500 text-white' : 'bg-orange-500 text-white') : (isDark ? 'bg-gray-700 hover:bg-gray-600' : theme === 'pink' ? 'bg-pink-200 hover:bg-pink-300' : 'bg-gray-200 hover:bg-gray-300')}`}
                   title={lang.name}

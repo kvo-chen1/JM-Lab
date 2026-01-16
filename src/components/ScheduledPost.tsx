@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 
 interface ScheduledTask {
   id: string;
@@ -57,16 +58,18 @@ const ScheduledPost: React.FC<ScheduledPostProps> = ({
   threads,
   onThreadsChange
 }) => {
+  const { t } = useTranslation();
+
   // 格式化倒计时
   const formatRemain = (ms: number) => {
-    if (ms <= 0) return '已到期';
+    if (ms <= 0) return t('community.scheduled.expired');
     const m = Math.floor(ms / 60000);
     const d = Math.floor(m / 1440);
     const h = Math.floor((m % 1440) / 60);
     const mm = m % 60;
-    if (d > 0) return `${d}天${h}小时${mm}分钟`;
-    if (h > 0) return `${h}小时${mm}分钟`;
-    return `${mm}分钟`;
+    if (d > 0) return `${d}${t('community.scheduled.time.days')}${h}${t('community.scheduled.time.hours')}${mm}${t('community.scheduled.time.minutes')}`;
+    if (h > 0) return `${h}${t('community.scheduled.time.hours')}${mm}${t('community.scheduled.time.minutes')}`;
+    return `${mm}${t('community.scheduled.time.minutes')}`;
   };
 
   // 发布定时任务
@@ -162,14 +165,14 @@ const ScheduledPost: React.FC<ScheduledPostProps> = ({
             className={`${isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'} w-full px-3 py-2 rounded-lg border mb-2 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors`}
           />
           <div className="flex items-center gap-2 mb-2">
-            <span className="text-xs opacity-70">目标子社区：</span>
+            <span className="text-xs opacity-70">{t('community.scheduled.targetCommunity')}</span>
             <select 
               value={mode}
               onChange={e => onModeChange(e.target.value as 'style' | 'topic')}
               className={`${isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'} px-3 py-1 rounded-lg border text-xs`}
             >
-              <option value="style">风格</option>
-              <option value="topic">题材</option>
+              <option value="style">{t('community.discussion.mode.style')}</option>
+              <option value="topic">{t('community.discussion.mode.topic')}</option>
             </select>
             {mode === 'style' ? (
               <select 
@@ -178,7 +181,7 @@ const ScheduledPost: React.FC<ScheduledPostProps> = ({
                 className={`${isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'} px-3 py-1 rounded-lg border text-xs`}
               >
                 {STYLE_LIST.map(s => (
-                  <option key={s} value={s}>{s}</option>
+                  <option key={s} value={s}>{t(`community.styles.${s}`) || s}</option>
                 ))}
               </select>
             ) : (
@@ -188,7 +191,7 @@ const ScheduledPost: React.FC<ScheduledPostProps> = ({
                 className={`${isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'} px-3 py-1 rounded-lg border text-xs`}
               >
                 {TOPIC_LIST.map(s => (
-                  <option key={s} value={s}>{s}</option>
+                  <option key={s} value={s}>{t(`community.topics.${s}`) || s}</option>
                 ))}
               </select>
             )}
@@ -197,11 +200,11 @@ const ScheduledPost: React.FC<ScheduledPostProps> = ({
             onClick={schedulePost}
             className="bg-red-600 text-white px-3 py-2 rounded-lg w-full hover:bg-red-700 transition-colors shadow-sm"
           >
-            添加到定时
+            {t('community.scheduled.addButton')}
           </button>
         </div>
         <div className={`${isDark ? 'bg-gray-700 ring-1 ring-gray-700' : 'bg-gray-50 ring-1 ring-gray-200'} rounded-xl p-4 md:col-span-2`}>
-          <div className="font-medium mb-2">定时任务列表</div>
+          <div className="font-medium mb-2">{t('community.scheduled.listTitle')}</div>
           <ul className="space-y-2">
             {scheduled.map(it => (
               <li 
@@ -212,11 +215,11 @@ const ScheduledPost: React.FC<ScheduledPostProps> = ({
                   <div className="font-medium text-sm flex items-center gap-2">
                     <span>{it.title}</span>
                     <span className={`text-xs px-2 py-0.5 rounded-full ${it.published ? 'bg-green-600 text-white' : 'bg-yellow-500 text-white'}`}>
-                      {it.published ? '已发布' : '待发布'}
+                      {it.published ? t('community.scheduled.statusPublished') : t('community.scheduled.statusPending')}
                     </span>
                   </div>
                   <div className="text-xs opacity-70">
-                    {new Date(it.time).toLocaleString()} • 倒计时 {formatRemain(it.time - now)} • 目标 {it.targetValue}
+                    {new Date(it.time).toLocaleString()} • {t('community.scheduled.countdown')} {formatRemain(it.time - now)} • {t('community.scheduled.target')} {it.targetMode === 'style' ? (t(`community.styles.${it.targetValue}`) || it.targetValue) : (t(`community.topics.${it.targetValue}`) || it.targetValue)}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -226,20 +229,20 @@ const ScheduledPost: React.FC<ScheduledPostProps> = ({
                     aria-disabled={it.published}
                     className={`${it.published ? (isDark ? 'bg-gray-600 text-gray-300' : 'bg-gray-300 text-gray-600') : 'bg-red-600 text-white hover:bg-red-700'} px-3 py-1 rounded-lg text-xs transition-colors`}
                   >
-                    立即发布
+                    {t('community.scheduled.publishNow')}
                   </button>
                   <button 
                     onClick={() => removeScheduled(it.id)}
                     className={`${isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'} px-3 py-1 rounded-lg text-xs ring-1 ${isDark ? 'ring-gray-700' : 'ring-gray-200'}`}
                   >
-                    删除
+                    {t('community.scheduled.delete')}
                   </button>
                 </div>
               </li>
             ))}
             {scheduled.length === 0 && (
               <li className="text-sm opacity-60 rounded-lg border-2 border-dashed p-4 text-center">
-                暂无定时任务
+                {t('community.scheduled.noTasks')}
               </li>
             )}
           </ul>

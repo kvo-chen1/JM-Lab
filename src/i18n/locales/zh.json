@@ -38,6 +38,8 @@
     "aiGenerationEngine": "AI生成引擎",
     "adminConsole": "管理控制台",
     "appName": "津脉智坊",
+    "appNameBrand": "津脉",
+    "appNameProduct": "智坊",
     "particleArt": "粒子艺术",
     "creativeWorks": "创意作品",
     "materials": "素材",
@@ -283,5 +285,197 @@
       "考虑申请版权认证，保护原创权益",
       "在平台上探索商业对接机会"
     ]
+  },
+  "community": {
+    "title": "创作者社区",
+    "cocreationTitle": "共创社群",
+    "subtitle": "发现国潮与非遗的高质内容，结识优秀创作者，参与共创。",
+    "cocreationSubtitle": "管理我创建的社群，查看我加入的社群，一起共创。",
+    "stats": {
+      "viewing": "在看",
+      "heat": "热度",
+      "featured": "精选",
+      "selection": "优选",
+      "creators": "创作者",
+      "community": "社区",
+      "topics": "话题",
+      "tags": "标签"
+    },
+    "tabs": {
+      "recommended": "推荐社群",
+      "created": "我创建的社群",
+      "joined": "进入的社群",
+      "myJoined": "我加入的社群"
+    },
+    "search": {
+      "placeholder": "搜索社群关键词...",
+      "joinedPlaceholder": "搜索我加入的社群...",
+      "sortByMembers": "按人数",
+      "sortByName": "按名称",
+      "pinnedFirst": "置顶优先",
+      "defaultSort": "默认排序",
+      "hideMuted": "隐藏静音: 开",
+      "showMuted": "隐藏静音: 关"
+    },
+    "cards": {
+      "official": "官方",
+      "members": "人加入",
+      "join": "加入",
+      "joined": "已加入",
+      "viewDetails": "查看详情",
+      "pin": "置顶",
+      "unpin": "取消置顶",
+      "mute": "静音",
+      "unmute": "取消静音",
+      "exit": "退出",
+      "manage": "成员/公告",
+      "creator": "创建者",
+      "admin": "管理员"
+    },
+    "activeCreators": {
+      "title": "活跃创作者",
+      "live": "实时",
+      "follow": "关注",
+      "followed": "已关注"
+    },
+    "discussion": {
+      "title": "社群讨论区",
+      "placeholder": "发表你的看法...",
+      "send": "发送",
+      "pinned": "置顶",
+      "unpin": "取消置顶",
+      "delete": "删除",
+      "justNow": "刚刚",
+      "minutesAgo": "分钟前",
+      "hoursAgo": "小时前",
+      "daysAgo": "天前",
+      "noMessages": "暂无交流",
+      "joinToSpeak": "加入后可发言",
+      "sent": "已发送到社群",
+      "noMessagesPlaceholder": "暂无消息，快来发第一条消息吧！",
+      "postCreated": "帖子已发布",
+      "replyAdded": "回复已添加",
+      "alreadyUpvoted": "已点过赞",
+      "pinUpdated": "置顶状态已更新",
+      "postDeleted": "帖子已删除",
+      "replyDeleted": "回复已删除",
+      "hotTopics": "🔥 话题热榜",
+      "noData": "暂无数据",
+      "subCommunityDiscussion": "子社区讨论",
+      "searchDiscussion": "搜索讨论",
+      "randomIdea": "随机灵感",
+      "postTitlePlaceholder": "帖子标题（如：京剧角色设计打磨建议）",
+      "postSubmit": "发布新帖",
+      "draftDetected": "检测到草稿，可恢复上一编辑",
+      "restoreDraft": "恢复草稿",
+      "clearDraft": "清除草稿",
+      "postContentPlaceholder": "详细内容",
+      "newBadge": "新",
+      "favorite": "收藏",
+      "favorited": "已收藏",
+      "replyPlaceholder": "回复内容",
+      "reply": "回复",
+      "noThreadsPlaceholder": "暂无讨论，发布第一条吧～",
+      "sort": {
+        "new": "最新",
+        "reply": "最多回复",
+        "hot": "热度"
+      },
+      "filter": {
+        "favOnly": "只看收藏",
+        "all": "全部"
+      },
+      "mode": {
+        "style": "风格",
+        "topic": "题材"
+      }
+    },
+    "scheduled": {
+      "expired": "已到期",
+      "published": "定时任务已发布",
+      "deleted": "定时任务已删除",
+      "added": "已添加到定时任务",
+      "toolsTitle": "🛠️ 话题运营工具",
+      "createTitle": "⏰ 创建定时发布",
+      "titlePlaceholder": "标题",
+      "contentPlaceholder": "内容",
+      "targetCommunity": "目标子社区：",
+      "addButton": "添加到定时",
+      "listTitle": "定时任务列表",
+      "statusPublished": "已发布",
+      "statusPending": "待发布",
+      "countdown": "倒计时",
+      "target": "目标",
+      "publishNow": "立即发布",
+      "delete": "删除",
+      "noTasks": "暂无定时任务",
+      "time": {
+        "days": "天",
+        "hours": "小时",
+        "minutes": "分钟"
+      }
+    },
+    "announcement": {
+      "title": "社区公告",
+      "saved": "已保存",
+      "unsaved": "未保存",
+      "saveButton": "保存公告",
+      "placeholder": "输入公告内容",
+      "none": "暂无公告"
+    },
+    "relatedWorks": {
+      "title": "相关作品（本地）",
+      "likes": "点赞",
+      "comments": "评论",
+      "none": "暂无相关作品"
+    },
+    "styles": {
+      "国潮": "国潮",
+      "极简": "极简",
+      "复古": "复古",
+      "赛博朋克": "赛博朋克",
+      "手绘插画": "手绘插画",
+      "黑白线稿": "黑白线稿",
+      "蓝白瓷": "蓝白瓷"
+    },
+    "topics": {
+      "老字号": "老字号",
+      "非遗": "非遗",
+      "京剧": "京剧",
+      "景德镇": "景德镇",
+      "校园社团": "校园社团"
+    },
+    "roles": {
+      "视觉设计": "视觉设计",
+      "插画设计": "插画设计",
+      "品牌策略": "品牌策略",
+      "数字艺术": "数字艺术"
+    },
+    "management": {
+      "title": "社群管理",
+      "close": "关闭",
+      "members": "成员管理",
+      "memberEmail": "成员邮箱",
+      "add": "添加",
+      "noMembers": "暂无成员",
+      "noMembersDisplay": "暂无成员可显示",
+      "memberListReadOnly": "成员列表（只读）",
+      "collapse": "收起",
+      "removeAdmin": "取消管理员",
+      "makeAdmin": "设为管理员",
+      "remove": "移除",
+      "private": "私密",
+      "public": "公开",
+      "settings": "社群设置",
+      "privateCommunity": "私密社群",
+      "publicCommunity": "公开社群",
+      "setPublic": "设为公开",
+      "setPrivate": "设为私密",
+      "announcementSettings": "公告设置",
+      "privacySettings": "隐私设置",
+      "changeToPublic": "改为公开",
+      "changeToPrivate": "改为私密",
+      "autoSaveNote": "设置将自动保存到本地，不影响其他用户；非管理员仅可查看"
+    }
   }
 }

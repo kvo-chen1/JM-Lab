@@ -4,7 +4,7 @@ import fs from 'fs'
 import bcrypt from 'bcryptjs'
 import { WebSocketServer } from 'ws'
 import { generateToken, verifyToken } from './jwt.mjs'
-import { userDB, favoriteDB, videoTaskDB, getDBStatus } from './database.mjs'
+import { userDB, favoriteDB, videoTaskDB, leaderboardDB, getDBStatus } from './database.mjs'
 
 // Load .env.local for local development (non-production)
 try {
@@ -1276,8 +1276,39 @@ const server = http.createServer(async (req, res) => {
 
     // 中文注释：数据库状态与视频任务查询（本地存储）
     if (req.method === 'GET' && path === '/api/db/status') {
-      const stats = getDBStatus()
+      const stats = await getDBStatus()
       sendJson(res, 200, { ok: true, stats })
+      return
+    }
+
+    // Leaderboard APIs
+    if (req.method === 'GET' && path === '/api/leaderboard/posts') {
+      const u = new URL(req.url, `http://localhost:${PORT}`)
+      const timeRange = u.searchParams.get('timeRange') || 'all'
+      const sortBy = u.searchParams.get('sortBy') || 'likes_count'
+      const limit = parseInt(u.searchParams.get('limit') || '20')
+      
+      try {
+        const posts = await leaderboardDB.getPostsLeaderboard({ timeRange, sortBy, limit })
+        sendJson(res, 200, { ok: true, data: posts })
+      } catch (e) {
+        sendJson(res, 500, { error: 'DB_ERROR', message: e.message })
+      }
+      return
+    }
+
+    if (req.method === 'GET' && path === '/api/leaderboard/users') {
+      const u = new URL(req.url, `http://localhost:${PORT}`)
+      const timeRange = u.searchParams.get('timeRange') || 'all'
+      const sortBy = u.searchParams.get('sortBy') || 'posts_count'
+      const limit = parseInt(u.searchParams.get('limit') || '20')
+      
+      try {
+        const users = await leaderboardDB.getUsersLeaderboard({ timeRange, sortBy, limit })
+        sendJson(res, 200, { ok: true, data: users })
+      } catch (e) {
+        sendJson(res, 500, { error: 'DB_ERROR', message: e.message })
+      }
       return
     }
 

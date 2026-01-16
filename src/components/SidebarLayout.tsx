@@ -24,6 +24,7 @@ interface SidebarLayoutProps {
 export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
   const { theme = 'light', isDark = false, toggleTheme = () => {}, setTheme = () => {} } = useTheme()
   const { isAuthenticated, user, logout, updateUser } = useContext(AuthContext)
+  const { t } = useTranslation()
   const location = useLocation()
   const navigate = useNavigate()
   const [isMounted, setIsMounted] = useState(false)
@@ -237,16 +238,16 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
     } catch {}
     const now = Date.now()
     return [
-      { id: 'n1', title: '欢迎回来', description: '每日签到可领取奖励', time: '刚刚', read: false, type: 'success', category: 'system', timestamp: now },
-      { id: 'n2', title: '系统更新', description: '创作中心新增AI文案优化', time: '1 小时前', read: false, type: 'info', category: 'system', timestamp: now - 3600000 },
-      { id: 'n3', title: '新教程上线', description: '杨柳青年画入门视频', time: '昨天', read: true, type: 'info', category: 'learning', timestamp: now - 86400000 },
-      { id: 'n4', title: '作品点赞', description: '您的作品《天津之眼》获得了10个赞', time: '2 小时前', read: false, type: 'success', category: 'like', timestamp: now - 7200000 },
-      { id: 'n5', title: '新成员加入', description: '张三加入了您的创作群', time: '30 分钟前', read: false, type: 'info', category: 'join', timestamp: now - 1800000 },
-      { id: 'n6', title: '私信消息', description: '李四给您发了一条私信', time: '1 小时前', read: false, type: 'info', category: 'message', timestamp: now - 3600000 },
-      { id: 'n7', title: '@提及通知', description: '王五在评论中@了您', time: '2 小时前', read: false, type: 'info', category: 'mention', timestamp: now - 7200000 },
-      { id: 'n8', title: '任务完成', description: '您的创作任务已完成', time: '3 小时前', read: true, type: 'success', category: 'task', timestamp: now - 10800000 },
-      { id: 'n9', title: '积分增加', description: '您获得了50积分奖励', time: '4 小时前', read: false, type: 'success', category: 'points', timestamp: now - 14400000 },
-      { id: 'n10', title: '系统警告', description: '部分功能暂时不可用', time: '5 小时前', read: true, type: 'warning', category: 'system', timestamp: now - 18000000 },
+      { id: 'n1', title: t('notification.welcome'), description: t('notification.dailyReward'), time: t('notification.justNow'), read: false, type: 'success', category: 'system', timestamp: now },
+      { id: 'n2', title: t('notification.systemUpdate'), description: t('notification.systemUpdateDesc'), time: `1 ${t('notification.hoursAgo')}`, read: false, type: 'info', category: 'system', timestamp: now - 3600000 },
+      { id: 'n3', title: t('notification.newTutorial'), description: t('notification.newTutorialDesc'), time: t('notification.daysAgo'), read: true, type: 'info', category: 'learning', timestamp: now - 86400000 },
+      { id: 'n4', title: t('notification.workLiked'), description: t('notification.workLikedDesc'), time: `2 ${t('notification.hoursAgo')}`, read: false, type: 'success', category: 'like', timestamp: now - 7200000 },
+      { id: 'n5', title: t('notification.newMember'), description: t('notification.newMemberDesc'), time: `30 ${t('notification.minutesAgo')}`, read: false, type: 'info', category: 'join', timestamp: now - 1800000 },
+      { id: 'n6', title: t('notification.privateMessage'), description: t('notification.privateMessageDesc'), time: `1 ${t('notification.hoursAgo')}`, read: false, type: 'info', category: 'message', timestamp: now - 3600000 },
+      { id: 'n7', title: t('notification.mention'), description: t('notification.mentionDesc'), time: `2 ${t('notification.hoursAgo')}`, read: false, type: 'info', category: 'mention', timestamp: now - 7200000 },
+      { id: 'n8', title: t('notification.taskCompleted'), description: t('notification.taskCompletedDesc'), time: `3 ${t('notification.hoursAgo')}`, read: true, type: 'success', category: 'task', timestamp: now - 10800000 },
+      { id: 'n9', title: t('notification.pointsAdded'), description: t('notification.pointsAddedDesc'), time: `4 ${t('notification.hoursAgo')}`, read: false, type: 'success', category: 'points', timestamp: now - 14400000 },
+      { id: 'n10', title: t('notification.systemWarning'), description: t('notification.systemWarningDesc'), time: `5 ${t('notification.hoursAgo')}`, read: true, type: 'warning', category: 'system', timestamp: now - 18000000 },
     ]
   })
   
@@ -382,7 +383,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
       ...notification,
       id: `n${now}`,
       read: false,
-      time: '刚刚',
+      time: t('notification.justNow'),
       timestamp: now,
       sound: notification.sound ?? true,
     }
@@ -517,7 +518,6 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
     `${isDark ? 'bg-[var(--bg-tertiary)] text-white ring-1 ring-[var(--accent-red)] shadow-[var(--shadow-md)]' : 'bg-gradient-to-r from-red-50 to-red-100 text-[var(--text-primary)] border-b-2 border-red-600 font-semibold shadow-sm relative overflow-hidden group active-nav-item'} border-t border-transparent`
   ), [isDark])
 
-  const { t } = useTranslation()
   const { currentLanguage, changeLanguage, languages } = useLanguage()
   const [showLanguageDropdown, setShowLanguageDropdown] = useState(false)
 
@@ -667,8 +667,8 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
       >
         <div className={`px-4 py-3 flex items-center justify-between rounded-lg transition-colors group ${isDark ? 'hover:bg-gray-800/60' : theme === 'pink' ? 'hover:bg-pink-50' : 'hover:bg-gray-50'}`}>
           <div className="flex items-center space-x-2">
-            <span className={`font-extrabold bg-gradient-to-r ${isDark ? 'from-red-400 to-rose-500' : 'from-red-600 to-rose-500'} bg-clip-text text-transparent tracking-tight`}>津脉</span>
-            {(!collapsed || hovered) && <span className={`font-bold ${isDark ? 'text-white' : ''}`}>智坊</span>}
+            <span className={`font-extrabold bg-gradient-to-r ${isDark ? 'from-red-400 to-rose-500' : 'from-red-600 to-rose-500'} bg-clip-text text-transparent tracking-tight`}>{t('common.appNameBrand')}</span>
+            {(!collapsed || hovered) && <span className={`font-bold ${isDark ? 'text-white' : ''}`}>{t('common.appNameProduct')}</span>}
           </div>
           <div className="flex items-center space-x-1">
             {/* 固定/收缩按钮 */}
@@ -756,7 +756,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
               <button
                 className={`p-2 rounded-lg ${isDark ? 'hover:bg-gray-800 ring-1 ring-gray-700' : 'hover:bg-gray-50 ring-1 ring-gray-200'}`}
                 onClick={() => setCollapsed(!collapsed)}
-                aria-label="切换侧边栏"
+                aria-label={t('sidebar.toggle')}
               >
                 <i className="fas fa-bars"></i>
               </button>
@@ -824,10 +824,10 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
               <div className="relative" ref={shortcutsRef}>
                 <button
                   className={`p-2 rounded-lg ${isDark ? 'hover:bg-gray-800 ring-1 ring-gray-700' : 'hover:bg-gray-50 ring-1 ring-gray-200'}`}
-                  aria-label="查看快捷键"
+                  aria-label={t('header.viewShortcuts')}
                   aria-expanded={showShortcuts}
                   onClick={() => setShowShortcuts(v => !v)}
-                  title="快捷键提示"
+                  title={t('header.shortcuts')}
                 >
                   <i className="fas fa-keyboard"></i>
                 </button>
@@ -838,11 +838,11 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                       <button className={`text-xs px-2 py-1 rounded ${isDark ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-900'}`} onClick={() => setShowShortcuts(false)}>{t('header.close')}</button>
                     </div>
                     <ul className="px-4 py-2 text-sm space-y-1">
-                      <li className={`${isDark ? 'text-gray-300' : 'text-gray-700'}`}>/ 聚焦搜索</li>
-                      <li className={`${isDark ? 'text-gray-300' : 'text-gray-700'}`}>T 切换主题</li>
+                      <li className={`${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{t('header.shortcutsDetails.focusSearch')}</li>
+                      <li className={`${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{t('header.shortcutsDetails.toggleTheme')}</li>
 
-                      <li className={`${isDark ? 'text-gray-300' : 'text-gray-700'}`}>1–0 快速导航（首页至关于）</li>
-                      <li className={`${isDark ? 'text-gray-300' : 'text-gray-700'}`}>移动端：下滑隐藏底部导航</li>
+                      <li className={`${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{t('header.shortcutsDetails.quickNav')}</li>
+                      <li className={`${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{t('header.shortcutsDetails.mobileNav')}</li>
                     </ul>
                   </div>
                 )}
@@ -850,16 +850,16 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
               {/* 中文注释：问题反馈入口 */}
               <button
                 className={`p-2 rounded-lg ${isDark ? 'hover:bg-gray-800 ring-1 ring-gray-700' : 'hover:bg-gray-50 ring-1 ring-gray-200'}`}
-                aria-label="问题反馈"
-                title="问题反馈"
+                aria-label={t('header.feedback')}
+                title={t('header.feedback')}
                 onClick={() => setShowFeedback(true)}
               >
                 <i className="fas fa-bug"></i>
               </button>
 
               <button
-                title="分享"
-                aria-label="分享当前页面"
+                title={t('header.share')}
+                aria-label={t('header.sharePage')}
                 className={`p-2 rounded-lg ${isDark ? 'hover:bg-gray-800 ring-1 ring-gray-700' : 'hover:bg-gray-50 ring-1 ring-gray-200'}`}
                 onClick={() => {
                   try {
@@ -871,10 +871,12 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                       })
                     } else {
                       navigator.clipboard.writeText(url)
-                      toast.success('分享链接已复制到剪贴板')
+                      // 复制分享链接成功后的提示
+                      toast.success(t('toast.shareSuccess'))
                     }
                   } catch {
-                    toast.error('分享失败，请重试')
+                    // 分享失败时的错误提示
+                    toast.error(t('toast.shareFailed'))
                   }
                 }}
               >
@@ -883,10 +885,10 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
               <div className="relative" ref={notifRef}>
                 <button
                   className={`p-2 rounded-lg transition-all duration-300 hover:scale-110 ${isDark ? 'bg-gray-800/70 ring-1 ring-gray-700 hover:bg-gray-700 hover:ring-blue-500' : 'bg-white/70 ring-1 ring-gray-200 hover:bg-gray-50 hover:ring-blue-500'} hover:shadow-md relative`}
-                  aria-label="通知"
+                  aria-label={t('header.notifications')}
                   aria-expanded={showNotifications}
                   onClick={() => setShowNotifications(v => !v)}
-                  title={`${unreadCount > 0 ? `${unreadCount} 条未读通知` : '查看通知'}`}
+                  title={`${unreadCount > 0 ? t('notification.unreadCount', { count: unreadCount }) : t('notification.view')}`}
                 >
                   <i className="fas fa-bell transition-transform duration-300 hover:scale-110"></i>
                   {unreadCount > 0 && (

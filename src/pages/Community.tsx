@@ -1,24 +1,30 @@
 import { useEffect, useMemo, useState, useContext, lazy, Suspense } from 'react'
 import { useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
+import ErrorBoundary from '@/components/ErrorBoundary'
 import { TianjinImage, TianjinAvatar } from '@/components/TianjinStyleComponents'
 import GradientHero from '@/components/GradientHero'
 import { communityService, Message as ServiceMessage } from '@/services/communityService'
 import { ChatMessage } from '@/components/CommunityChat'
+import { useTheme } from '@/hooks/useTheme'
+import MobileComp from '@/components/MobileOptimizedComponents'
+import postsApi, { Post } from '@/services/postService'
+import { toast } from 'sonner'
+import { AuthContext } from '@/contexts/authContext'
 
 // 使用React.lazy实现子组件的延迟加载，优化初始加载速度
-const CommunityChat = lazy(() => import('@/components/CommunityChat'))
-const CommunityManagement = lazy(() => import('@/components/CommunityManagement'))
+const CommunityChat = lazy(() => import('@/components/CommunityChat.tsx'))
+const CommunityManagement = lazy(() => import('@/components/CommunityManagement.tsx'))
 // 对于有命名导出的组件，需要使用正确的动态导入语法
-const CommunityDiscussion = lazy(() => import('@/components/DiscussionSection').then(module => ({
+const CommunityDiscussion = lazy(() => import('@/components/DiscussionSection.tsx').then(module => ({
   default: module.CommunityDiscussion
 })))
-const DiscussionSection = lazy(() => import('@/components/DiscussionSection').then(module => ({
+const DiscussionSection = lazy(() => import('@/components/DiscussionSection.tsx').then(module => ({
   default: module.DiscussionSection
 })))
-const ScheduledPost = lazy(() => import('@/components/ScheduledPost'))
-const VirtualList = lazy(() => import('@/components/VirtualList'))
-const CulturalMatchingGame = lazy(() => import('@/components/CulturalMatchingGame'))
+const ScheduledPost = lazy(() => import('@/components/ScheduledPost.tsx'))
+const VirtualList = lazy(() => import('@/components/VirtualList.tsx'))
+const CulturalMatchingGame = lazy(() => import('@/components/CulturalMatchingGame.tsx'))
 
 
 // 优化：添加Suspense fallback，提升用户体验
@@ -27,11 +33,6 @@ const LoadingFallback = () => (
     <div className="w-8 h-8 border-4 border-t-blue-500 border-gray-300 rounded-full animate-spin"></div>
   </div>
 )
-import { useTheme } from '@/hooks/useTheme'
-import MobileComp from '@/components/MobileOptimizedComponents'
-import postsApi, { Post } from '@/services/postService'
-import { toast } from 'sonner'
-import { AuthContext } from '@/contexts/authContext'
 
 type Thread = {
   id: string
@@ -1426,21 +1427,23 @@ export default function Community() {
         )}
         {/* 中文注释：社群列表 + 聊天双栏布局（仅在共创社群“进入的社群”标签显示；置于页面上方便于发现） */}
         {communityContext === 'cocreation' && communityTab === 'joined' && (
-          <Suspense fallback={<LoadingFallback />}>
-            <CommunityChat
-              isDark={isDark}
-              joinedCommunities={joinedList}
-              activeChatCommunityId={activeChatCommunityId}
-              onActiveChatCommunityChange={setActiveChatCommunityId}
-              pinnedJoined={pinnedJoined}
-              onTogglePinJoined={togglePinJoined}
-              mutedCommunities={mutedCommunities}
-              onToggleMuteCommunity={toggleMuteCommunity}
-              messages={activeMessages}
-              onSendMessage={handleSendMessage}
-              currentUser={{ name: user?.username || '我', avatar: user?.avatar_url || defaultAvatar }}
-            />
-          </Suspense>
+          <ErrorBoundary variant="inline">
+            <Suspense fallback={<LoadingFallback />}>
+              <CommunityChat
+                isDark={isDark}
+                joinedCommunities={joinedList}
+                activeChatCommunityId={activeChatCommunityId}
+                onActiveChatCommunityChange={setActiveChatCommunityId}
+                pinnedJoined={pinnedJoined}
+                onTogglePinJoined={togglePinJoined}
+                mutedCommunities={mutedCommunities}
+                onToggleMuteCommunity={toggleMuteCommunity}
+                messages={activeMessages}
+                onSendMessage={handleSendMessage}
+                currentUser={{ name: user?.username || '我', avatar: user?.avatar_url || defaultAvatar }}
+              />
+            </Suspense>
+          </ErrorBoundary>
         )}
 
         {/* 中文注释：社群板块（推荐社群 / 我创建的社群 / 进入的社群），上下文配色区分 */}
@@ -1473,8 +1476,9 @@ export default function Community() {
                 </div>
               </div>
               <div className="rounded-xl overflow-hidden shadow-md">
-                <Suspense fallback={<LoadingFallback />}>
-                  <VirtualList
+                <ErrorBoundary variant="inline">
+                  <Suspense fallback={<LoadingFallback />}>
+                    <VirtualList
                     items={displayRecommended}
                     renderItem={(item, index: number) => {
                       const c = item as Community;
@@ -1509,12 +1513,14 @@ export default function Community() {
                     isDark={isDark}
                   />
                 </Suspense>
+              </ErrorBoundary>
               </div>
             </div>
           )}
           {communityTab === 'user' && (
-            <Suspense fallback={<LoadingFallback />}>
-              <CommunityManagement
+            <ErrorBoundary variant="inline">
+              <Suspense fallback={<LoadingFallback />}>
+                <CommunityManagement
                 isDark={isDark}
                 userCommunities={userCommunities}
                 onUserCommunitiesChange={setUserCommunities}
@@ -1533,6 +1539,7 @@ export default function Community() {
                 onCommunityTabChange={setCommunityTab}
               />
             </Suspense>
+          </ErrorBoundary>
           )}
           {communityTab === 'joined' && communityContext === 'cocreation' && (
             <div>
@@ -1718,14 +1725,16 @@ export default function Community() {
           transition={{ duration: 0.4 }}
         >
           <h3 className="font-medium mb-3">社群讨论区</h3>
-          <Suspense fallback={<LoadingFallback />}>
-            <DiscussionSection isDark={isDark} messages={messages} onSend={(text: string) => {
+          <ErrorBoundary variant="inline">
+            <Suspense fallback={<LoadingFallback />}>
+              <DiscussionSection isDark={isDark} messages={messages} onSend={(text: string) => {
               const user = mockCreators.find(c => c.online) || mockCreators[0]
               const next = { id: `m-${Date.now()}`, user: user.name, text, avatar: user.avatar, createdAt: Date.now(), pinned: false }
               setMessages(prev => [next, ...prev])
               toast.success('已发送到社群')
             }} showModeration onDelete={deleteMessage} onTogglePin={togglePinMessage} />
           </Suspense>
+          </ErrorBoundary>
         </motion.section>
         )}
         {/* 中文注释：公告栏 */}
@@ -1751,8 +1760,9 @@ export default function Community() {
 
         {/* 中文注释：社区讨论区（发帖+置顶+回复） */}
         {communityContext === 'cocreation' && (
-          <Suspense fallback={<LoadingFallback />}>
-            <CommunityDiscussion
+          <ErrorBoundary variant="inline">
+            <Suspense fallback={<LoadingFallback />}>
+              <CommunityDiscussion
               isDark={isDark}
               threads={threads}
               onThreadsChange={setThreads}
@@ -1786,12 +1796,14 @@ export default function Community() {
               onUpvoteGuardChange={setUpvoteGuard}
             />
           </Suspense>
+        </ErrorBoundary>
         )}
 
         {/* 中文注释：运营工具（公告、定时发布） */}
         {communityContext === 'cocreation' && (
-          <Suspense fallback={<LoadingFallback />}>
-            <ScheduledPost
+          <ErrorBoundary variant="inline">
+            <Suspense fallback={<LoadingFallback />}>
+              <ScheduledPost
               isDark={isDark}
               scheduled={scheduled}
               onScheduledChange={setScheduled}
@@ -1814,6 +1826,7 @@ export default function Community() {
               onThreadsChange={setThreads}
             />
           </Suspense>
+        </ErrorBoundary>
         )}
 
         {/* 中文注释：当前子社区相关作品（从本地帖子抽取） */}
@@ -1967,12 +1980,14 @@ export default function Community() {
         )}
 
         {/* 文化元素连连看游戏 */}
-        <Suspense fallback={<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div></div>}>
-          <CulturalMatchingGame
-            isOpen={gameOpen}
-            onClose={() => setGameOpen(false)}
-          />
-        </Suspense>
+        <ErrorBoundary variant="inline">
+          <Suspense fallback={<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div></div>}>
+            <CulturalMatchingGame
+              isOpen={gameOpen}
+              onClose={() => setGameOpen(false)}
+            />
+          </Suspense>
+        </ErrorBoundary>
       </main>
     )
 }

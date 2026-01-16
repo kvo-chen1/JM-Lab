@@ -1,5 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 export interface Notification {
   id: string;
@@ -42,6 +43,7 @@ export default function NotificationPanel({
   notificationSettings,
   setNotificationSettings
 }: NotificationPanelProps) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [showSettings, setShowSettings] = React.useState(false);
   const [notificationFilter, setNotificationFilter] = React.useState<'all' | 'unread' | 'info' | 'success' | 'warning' | 'error' | 'like' | 'join' | 'message' | 'mention' | 'task' | 'points'>('all');
@@ -64,20 +66,20 @@ export default function NotificationPanel({
   }, [notifications, notificationFilter]);
 
   const filterOptions = [
-    { value: 'all', label: '全部', icon: 'fa-home' }, // Changed to Home icon based on screenshot
-    { value: 'unread', label: '未读', icon: 'fa-folder' }, // Using Folder for "Unread" or similar concept? Or maybe fa-envelope-open-text
-    { value: 'success', label: '成功', icon: 'fa-check-circle' }, // Shield-check? fa-shield-check
-    { value: 'info', label: '信息', icon: 'fa-info-circle' },
-    { value: 'warning', label: '警告', icon: 'fa-exclamation-triangle' },
-    { value: 'like', label: '点赞', icon: 'fa-heart' },
-    { value: 'join', label: '新成员', icon: 'fa-user-plus' },
-    { value: 'message', label: '私信', icon: 'fa-envelope' },
-    { value: 'task', label: '任务', icon: 'fa-list-ul' },
-    { value: 'points', label: '积分', icon: 'fa-coins' },
+    { value: 'all', label: t('notification.types.all'), icon: 'fa-home' },
+    { value: 'unread', label: t('notification.types.unread'), icon: 'fa-folder' },
+    { value: 'success', label: t('notification.types.success'), icon: 'fa-check-circle' },
+    { value: 'info', label: t('notification.types.info'), icon: 'fa-info-circle' },
+    { value: 'warning', label: t('notification.types.warning'), icon: 'fa-exclamation-triangle' },
+    { value: 'like', label: t('notification.types.like'), icon: 'fa-heart' },
+    { value: 'join', label: t('notification.types.join'), icon: 'fa-user-plus' },
+    { value: 'message', label: t('notification.types.message'), icon: 'fa-envelope' },
+    { value: 'task', label: t('notification.types.task'), icon: 'fa-list-ul' },
+    { value: 'points', label: t('notification.types.points'), icon: 'fa-coins' },
   ];
 
   return (
-    <div className={`absolute right-0 mt-2 w-[380px] sm:w-[440px] rounded-2xl shadow-2xl ring-1 transition-all duration-300 transform origin-top-right ${isDark ? 'bg-[#1e232e] ring-gray-700' : 'bg-white ring-gray-200'} z-50`} role="dialog" aria-label="通知列表">
+    <div className={`absolute right-0 mt-2 w-[380px] sm:w-[440px] rounded-2xl shadow-2xl ring-1 transition-all duration-300 transform origin-top-right ${isDark ? 'bg-[#1e232e] ring-gray-700' : 'bg-white ring-gray-200'} z-50`} role="dialog" aria-label={t('header.viewNotifications')}>
       {/* Header */}
       <div className={`px-5 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-100'}`}>
         <div className="flex items-center justify-between mb-4">
@@ -87,15 +89,13 @@ export default function NotificationPanel({
             </div>
             <div>
               <h3 className={`font-bold text-lg flex items-center ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                通知
-                {unreadCount > 0 && (
-                  <span className={`ml-2 text-xs font-medium px-2 py-0.5 rounded-full ${isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-600'}`}>
-                    {unreadCount} 未读
-                  </span>
-                )}
+                {t('header.notifications')}
+                <span className={`ml-2 text-xs font-medium px-2 py-0.5 rounded-full ${isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-600'}`}>
+                  {unreadCount} {t('notification.types.unread')}
+                </span>
               </h3>
               <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'} mt-0.5`}>
-                共 {notifications.length} 条通知
+                {t('notification.totalCount', { count: notifications.length })}
               </p>
             </div>
           </div>
@@ -106,19 +106,19 @@ export default function NotificationPanel({
             className={`flex-1 text-xs px-3 py-2 rounded-xl font-medium transition-all duration-200 hover:scale-[1.02] active:scale-95 flex items-center justify-center ${isDark ? 'bg-blue-500/10 text-blue-400 hover:bg-blue-500/20' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}
             onClick={() => setNotifications(prev => prev.map(n => ({ ...n, read: true })))}>
             <i className="fas fa-check-double mr-1.5"></i>
-            全部已读
+            {t('header.markAllAsRead')}
           </button>
           <button
             className={`flex-1 text-xs px-3 py-2 rounded-xl font-medium transition-all duration-200 hover:scale-[1.02] active:scale-95 flex items-center justify-center ${isDark ? 'bg-red-500/10 text-red-400 hover:bg-red-500/20' : 'bg-red-50 text-red-600 hover:bg-red-100'}`}
             onClick={() => setNotifications([])}>
             <i className="fas fa-trash-alt mr-1.5"></i>
-            清空
+            {t('header.clearAll')}
           </button>
           <button
             className={`flex-1 text-xs px-3 py-2 rounded-xl font-medium transition-all duration-200 hover:scale-[1.02] active:scale-95 flex items-center justify-center ${isDark ? 'bg-purple-500/10 text-purple-400 hover:bg-purple-500/20' : 'bg-purple-50 text-purple-600 hover:bg-purple-100'}`}
             onClick={() => setShowSettings(!showSettings)}>
             <i className={`fas fa-cog mr-1.5 ${showSettings ? 'animate-spin' : ''}`}></i>
-            设置
+            {t('header.settings')}
           </button>
         </div>
       </div>
@@ -128,14 +128,14 @@ export default function NotificationPanel({
         <div className={`px-5 py-4 border-b ${isDark ? 'border-gray-700 bg-gray-800/50' : 'border-gray-100 bg-gray-50/80'} animate-fadeIn`}>
           <h4 className={`font-medium mb-3 flex items-center text-sm ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
             <i className="fas fa-sliders-h mr-2 text-purple-500"></i>
-            通知设置
+            {t('notification.settings')}
           </h4>
           
           <div className="space-y-3">
             <div className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-100/50 dark:hover:bg-gray-700/50 transition-colors">
               <label className={`text-sm flex items-center ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                 <i className="fas fa-volume-up mr-2 text-gray-400 w-5 text-center"></i>
-                声音提醒
+                {t('notification.sound')}
               </label>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input 
@@ -152,7 +152,7 @@ export default function NotificationPanel({
             <div className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-100/50 dark:hover:bg-gray-700/50 transition-colors">
               <label className={`text-sm flex items-center ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                 <i className="fas fa-desktop mr-2 text-gray-400 w-5 text-center"></i>
-                桌面通知
+                {t('notification.desktop')}
               </label>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input 
@@ -196,8 +196,8 @@ export default function NotificationPanel({
             <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 ${isDark ? 'bg-gray-800' : 'bg-gray-50'}`}>
               <i className="fas fa-bell-slash text-2xl opacity-50"></i>
             </div>
-            <p className="text-sm font-medium">暂无通知</p>
-            <p className="text-xs opacity-60 mt-1">当有新通知时，会在这里显示</p>
+            <p className="text-sm font-medium">{t('notification.empty')}</p>
+            <p className="text-xs opacity-60 mt-1">{t('notification.emptyDesc')}</p>
           </li>
         ) : (
           filteredNotifications.map(n => (
@@ -263,16 +263,16 @@ export default function NotificationPanel({
                     <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${
                       isDark ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-500'
                     }`}>
-                      {n.category === 'like' && '点赞'}
-                      {n.category === 'join' && '新成员'}
-                      {n.category === 'message' && '私信'}
-                      {n.category === 'mention' && '@提及'}
-                      {n.category === 'task' && '任务'}
-                      {n.category === 'points' && '积分'}
-                      {n.category === 'system' && '系统'}
-                      {n.category === 'learning' && '学习'}
-                      {n.category === 'creation' && '创作'}
-                      {n.category === 'social' && '社交'}
+                      {n.category === 'like' && t('notification.types.like')}
+                      {n.category === 'join' && t('notification.types.join')}
+                      {n.category === 'message' && t('notification.types.message')}
+                      {n.category === 'mention' && t('notification.types.mention')}
+                      {n.category === 'task' && t('notification.types.task')}
+                      {n.category === 'points' && t('notification.types.points')}
+                      {n.category === 'system' && t('notification.types.system')}
+                      {n.category === 'learning' && t('notification.types.learning')}
+                      {n.category === 'creation' && t('notification.types.creation')}
+                      {n.category === 'social' && t('notification.types.social')}
                     </span>
                     
                     {!n.read && (

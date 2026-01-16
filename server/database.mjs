@@ -3,7 +3,6 @@ import fs from 'fs'
 import path from 'path'
 import dotenv from 'dotenv'
 import Database from 'better-sqlite3'
-import { MongoClient } from 'mongodb'
 import { Pool } from 'pg'
 
 // 加载环境变量
@@ -17,7 +16,6 @@ if (fs.existsSync('.env.local')) {
 // 数据库类型枚举
 export const DB_TYPE = {
   SQLITE: 'sqlite',
-  MONGODB: 'mongodb',
   POSTGRESQL: 'postgresql',
   NEON_API: 'neon_api',
   SUPABASE: 'supabase' // Alias for POSTGRESQL with auto-config
@@ -84,18 +82,6 @@ const config = {
     dbName: process.env.NEON_DB_NAME || 'neondb',
     maxRetries: parseInt(process.env.DB_MAX_RETRIES || '3'),
     retryDelay: parseInt(process.env.DB_RETRY_DELAY || '1000')
-  },
-  
-  // MongoDB 配置
-  mongodb: {
-    uri: process.env.MONGODB_URI || 'mongodb://localhost:27017/jinmai_lab',
-    options: {
-      maxPoolSize: parseInt(process.env.MONGODB_MAX_POOL_SIZE || '10'),
-      serverSelectionTimeoutMS: parseInt(process.env.MONGODB_SERVER_SELECTION_TIMEOUT || '5000'),
-      socketTimeoutMS: parseInt(process.env.MONGODB_SOCKET_TIMEOUT || '45000'),
-      loggerLevel: 'error', 
-      monitorCommands: false
-    }
   },
   
   // PostgreSQL (Supabase/Neon/Standard) 配置

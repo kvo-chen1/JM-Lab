@@ -5,6 +5,7 @@ import { VitePWA } from 'vite-plugin-pwa'
 import { visualizer } from 'rollup-plugin-visualizer'
 import { ViteImageOptimizer } from 'vite-plugin-image-optimizer'
 import path from 'path'
+import { createRequire } from 'node:module'
 
 function getPlugins() {
   const plugins = [
@@ -411,9 +412,16 @@ export default defineConfig({
       'pg': '@/utils/databaseStub',
       '@neondatabase/serverless': '@/utils/databaseStub',
       'ws': '@/utils/databaseStub',
-      'react-reconciler/constants': '@/utils/reactReconcilerStub',
+      'react-reconciler/constants': '@/utils/reactReconcilerConstantsStub',
       'react-reconciler': '@/utils/reactReconcilerStub'
     }
+  },
+  define: {
+    // 定义Three.js 0.181+版本中缺失的编码常量
+    // 这些常量在新版本中已被移除，但@react-three/drei仍在使用
+    'THREE.LinearEncoding': '1',
+    'THREE.sRGBEncoding': '3',
+    'THREE.GammaEncoding': '2'
   },
   build: {
     // 优化构建输出
@@ -634,6 +642,49 @@ export default defineConfig({
       },
       // 优化插件配置
       plugins: [
+        // 自定义插件：处理@react-three/fiber和@react-three/drei对stub文件的导入问题
+        {
+          name: 'resolve-stub-files',
+          resolveId(source, importer) {
+            if (importer && (importer.includes('@react-three/fiber') || importer.includes('@react-three/drei'))) {
+              if (source === '@/utils/reactReconcilerStub') {
+                return path.resolve(__dirname, './src/utils/reactReconcilerStub.ts');
+              } else if (source === '@/utils/reactReconcilerConstantsStub') {
+                return path.resolve(__dirname, './src/utils/reactReconcilerConstantsStub.ts');
+              }
+            }
+            return null;
+          }
+        },
+        // 自定义插件：替换Three.js 0.181+版本中缺失的编码常量
+        {
+          name: 'replace-three-encoding-constants',
+          transform(code, id) {
+            // 只处理@react-three/drei和@react-three/fiber的文件
+            if (id.includes('@react-three/drei') || id.includes('@react-three/fiber')) {
+              // 处理从three导入编码常量的情况
+              // 匹配导入语句，如: import { Vector3, LinearEncoding } from 'three';
+              code = code.replace(/import\s+\{([^}]+)\}\s+from\s+['"]three['"];/g, (match, imports) => {
+                // 移除编码常量
+                const filteredImports = imports.split(',').map(imp => imp.trim())
+                  .filter(imp => !['LinearEncoding', 'sRGBEncoding', 'GammaEncoding'].includes(imp))
+                  .join(', ');
+                
+                // 重新构建导入语句
+                return `import { ${filteredImports} } from 'three';`;
+              });
+              
+              // 替换代码中使用的编码常量，但避免替换变量名
+              // 只替换作为常量使用的情况，如: texture.encoding = sRGBEncoding;
+              code = code
+                // 处理THREE.前缀的情况
+                .replace(/THREE\.LinearEncoding/g, '1')
+                .replace(/THREE\.sRGBEncoding/g, '3')
+                .replace(/THREE\.GammaEncoding/g, '2');
+            }
+            return code;
+          }
+        },
         // 只在ANALYZE模式下启用构建分析插件
         process.env.ANALYZE === 'true' && visualizer({
           filename: 'bundle-visualizer.html',
@@ -775,7 +826,7 @@ export default defineConfig({
         'pg': '@/utils/databaseStub',
         '@neondatabase/serverless': '@/utils/databaseStub',
         'ws': '@/utils/databaseStub',
-        'react-reconciler/constants': '@/utils/reactReconcilerStub',
+        'react-reconciler/constants': '@/utils/reactReconcilerConstantsStub',
         'react-reconciler': '@/utils/reactReconcilerStub',
       }
     }

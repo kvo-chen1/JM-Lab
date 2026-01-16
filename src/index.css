@@ -125,14 +125,14 @@ body {
 /* 移动端响应式字体大小调整 */
 @media (max-width: 768px) {
   html {
-    font-size: 14px; /* 移动端减小基础字体大小 */
+    font-size: 15px; /* 移动端适度减小基础字体大小，保持阅读体验 */
   }
 }
 
 /* 小屏移动端进一步调整 */
 @media (max-width: 480px) {
   html {
-    font-size: 13px; /* 小屏移动端进一步减小字体大小 */
+    font-size: 14.5px; /* 小屏移动端保持足够的大小，避免字体过小 */
   }
 }
 

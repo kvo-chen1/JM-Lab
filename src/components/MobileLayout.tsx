@@ -188,6 +188,7 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
       )}>
         {showImage ? (
           <img
+            key={user.avatar} // 添加 key 确保 URL 变化时重新渲染 img 标签
             src={user.avatar}
             alt={user.username || t('common.user')}
             className="w-full h-full object-cover"
@@ -325,7 +326,7 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
       {/* 顶部搜索栏 - 增强视觉层次感 */}
       {showSearch ? (
         <div className={clsx(
-          'sticky top-0 z-40 border-b py-1.5 px-3 transition-all duration-300 ease-in-out',
+          'sticky top-0 z-40 border-b py-1.5 px-2 transition-all duration-300 ease-in-out',
           isDark ? 'bg-gray-800/95 backdrop-blur-2xl border-gray-700 shadow-lg' : 
           theme === 'pink' ? 'bg-pink-100/95 backdrop-blur-2xl border-pink-200 shadow-lg' : 
           'bg-white/95 backdrop-blur-2xl border-gray-200 shadow-lg'
@@ -334,7 +335,7 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
             <button
               onClick={() => setShowSearch(false)}
               className={clsx(
-                'mr-3 p-2 rounded-full transition-all duration-300 hover:scale-110',
+                'mr-2 p-2 rounded-full transition-all duration-300 hover:scale-110',
                 isDark ? 'text-gray-300 hover:bg-gray-800' : 
                 theme === 'pink' ? 'text-pink-700 hover:bg-pink-200' : 
                 'text-gray-700 hover:bg-gray-200'
@@ -386,19 +387,19 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
         </div>
       ) : (
         <div className={clsx(
-          'sticky top-0 z-40 border-b py-1.5 px-3 transition-all duration-300 ease-in-out',
+          'sticky top-0 z-40 border-b py-1.5 px-2 transition-all duration-300 ease-in-out',
           isDark ? 'bg-gray-800/95 backdrop-blur-2xl border-gray-700 shadow-lg' : 
           theme === 'pink' ? 'bg-pink-100/95 backdrop-blur-2xl border-pink-200 shadow-lg' : 
           'bg-white/95 backdrop-blur-2xl border-gray-200 shadow-lg'
         )} style={{ paddingTop: 'env(safe-area-inset-top)' }}>
           <div className="flex items-center justify-between touch-none">
             {/* Logo 和菜单按钮 - 左侧紧凑布局 */}
-            <div className="flex items-center">
+            <div className="flex items-center flex-1 min-w-0 mr-1">
               {/* 菜单按钮 - 增强交互效果 */}
               <button
                 onClick={() => setShowSidebarDrawer(true)}
                 className={clsx(
-                  'w-9 h-9 flex items-center justify-center rounded-full transition-all duration-300 hover:scale-110 active:scale-95 mr-2',
+                  'w-9 h-9 flex items-center justify-center rounded-full transition-all duration-300 hover:scale-110 active:scale-95 mr-1 flex-shrink-0',
                   isDark ? 'text-gray-500 hover:bg-gray-700' : 
                   theme === 'pink' ? 'text-pink-700 hover:bg-pink-200' : 
                   'text-gray-700 hover:bg-gray-200'
@@ -411,14 +412,14 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
                 to="/"
                 onTouchStart={() => prefetchRoute('/')}
                 className={clsx(
-                  'flex items-center gap-1.5 transition-all duration-300 hover:scale-105 active:scale-95 group',
+                  'flex items-center gap-1.5 transition-all duration-300 hover:scale-105 active:scale-95 group min-w-0',
                   isDark ? 'text-white' : 
                   theme === 'pink' ? 'text-pink-900' : 
                   'text-gray-900'
                 )}
               >
                 <div className={clsx(
-                  'w-8 h-8 rounded-xl flex items-center justify-center text-white font-bold shadow-lg transition-all duration-300 hover:scale-110 group-hover:shadow-xl',
+                  'w-8 h-8 rounded-xl flex items-center justify-center text-white font-bold shadow-lg transition-all duration-300 hover:scale-110 group-hover:shadow-xl flex-shrink-0',
                   `bg-gradient-to-br ${themeStyles.logoBackground}`,
                   'relative overflow-hidden'
                 )}>
@@ -428,7 +429,7 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
                     `bg-gradient-to-tr from-white to-transparent`
                   )}></div>
                 </div>
-                <span className="ml-1 text-lg font-extrabold tracking-tight align-baseline bg-clip-text text-transparent bg-gradient-to-r"
+                <span className="ml-1 text-lg font-extrabold tracking-tight align-baseline bg-clip-text text-transparent bg-gradient-to-r truncate max-w-[140px] xs:max-w-none"
                   style={{ 
                     backgroundImage: isDark ? 'linear-gradient(to right, #60a5fa, #a78bfa)' : 
                                      theme === 'pink' ? 'linear-gradient(to right, #ec4899, #f472b6)' : 
@@ -440,7 +441,7 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
             </div>
             
             {/* 右侧按钮组 - 向右靠紧 */}
-            <div className="flex items-center space-x-1.5">
+            <div className="flex items-center space-x-1 flex-shrink-0">
               {/* 搜索按钮 */}
               <button
                 onClick={() => setShowSearch(true)}
@@ -648,7 +649,7 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
               
               {/* 用户菜单 - 增强视觉效果 */}
               {isAuthenticated ? (
-                <div className="relative group">
+                <div className="relative group flex-shrink-0">
                   <button
                     className={clsx(
                       'flex items-center justify-center w-9 h-9 rounded-full transition-all duration-300 hover:scale-110 active:scale-95',
@@ -1280,13 +1281,7 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
       {/* PWA状态指示器 - 暂时隐藏 */}
       {/* <PWAStatusIndicator position="bottom-right" /> */}
       
-      {/* PWA安装按钮 */}
-      <div className="fixed bottom-20 right-4 z-40">
-        <PWAInstallButton 
-          hideFixedButton={false}
-          forceShow={true}
-        />
-      </div>
+      {/* PWA安装按钮已移动到个人中心 */}
     </div>
     )
   })

@@ -4,15 +4,21 @@ import { useTheme } from '@/hooks/useTheme'
 import { llmService, Message, ConversationSession } from '@/services/llmService'
 import { toast } from 'sonner'
 import SpeechInput from './SpeechInput'
+import { useTranslation } from 'react-i18next'
 
 interface AICollaborationPanelProps {
   isOpen: boolean
   onClose: () => void
   onContentGenerated?: (content: string) => void
+  context?: {
+    page?: string
+    path?: string
+  }
 }
 
-export default function AICollaborationPanel({ isOpen, onClose, onContentGenerated }: AICollaborationPanelProps) {
+export default function AICollaborationPanel({ isOpen, onClose, onContentGenerated, context }: AICollaborationPanelProps) {
   const { isDark } = useTheme()
+  const { t, i18n } = useTranslation()
   const [sessions, setSessions] = useState<ConversationSession[]>([])
   const [currentSession, setCurrentSession] = useState<ConversationSession | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
@@ -25,41 +31,33 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
   const [editingSessionName, setEditingSessionName] = useState('')
   const [showTemplates, setShowTemplates] = useState(false)
   const [showExportOptions, setShowExportOptions] = useState(false)
+  const [serviceStatus, setServiceStatus] = useState<'unknown' | 'ok' | 'error'>('unknown')
+  const [llmHealth, setLlmHealth] = useState<any>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   
-  // 对话模板
-  const conversationTemplates = [
-    {
-      id: 'creative-writing',
-      name: '创意写作',
-      description: '帮助你完善创意写作内容',
-      prompt: '我需要写一篇关于[主题]的创意内容，请帮我完善这个创意。'
-    },
-    {
-      id: 'design-concept',
-      name: '设计概念',
-      description: '帮助你细化设计概念',
-      prompt: '我有一个设计概念：[概念描述]，请帮我细化这个概念，包括设计原则、色彩方案和实现思路。'
-    },
-    {
-      id: 'story-development',
-      name: '故事发展',
-      description: '帮助你发展故事情节',
-      prompt: '我正在写一个故事，主题是[主题]，请帮我扩展故事情节，包括角色、冲突和高潮。'
-    },
-    {
-      id: 'problem-solving',
-      name: '问题解决',
-      description: '帮助你解决创意过程中的问题',
-      prompt: '我在创作过程中遇到了一个问题：[问题描述]，请帮我分析并提供解决方案。'
-    },
-    {
-      id: 'marketing-idea',
-      name: '营销创意',
-      description: '帮助你生成营销创意',
-      prompt: '我需要为[产品/服务]生成营销创意，请帮我想出几个创新的营销方案。'
+  const presetQuestions = (() => {
+    const path = context?.path
+    const pathKeyMap: Record<string, string> = {
+      '/': 'home',
+      '/cultural-knowledge': 'culturalKnowledge',
+      '/creation-workshop': 'creationWorkshop',
+      '/marketplace': 'marketplace',
+      '/community': 'community',
+      '/my-works': 'myWorks',
+      '/explore': 'explore',
+      '/create': 'create',
+      '/dashboard': 'dashboard',
+      '/settings': 'settings'
     }
-  ]
+    const groupKey = (path && pathKeyMap[path]) || 'common'
+    const value = t(`aiCollab.quickQuestions.${groupKey}`, { returnObjects: true })
+    return Array.isArray(value) ? value : []
+  })()
+
+  const conversationTemplates = (() => {
+    const value = t('aiCollab.templates', { returnObjects: true })
+    return Array.isArray(value) ? value : []
+  })() as Array<{ id: string; name: string; description: string; prompt: string }>
 
   // 加载会话列表
   useEffect(() => {
@@ -74,6 +72,49 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
     }
   }, [isOpen])
 
+  const checkAIService = async (showToast = true) => {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 6000)
+    try {
+      const pingRes = await fetch('/api/health/ping', { signal: controller.signal })
+      if (!pingRes.ok) {
+        throw new Error(t('aiCollab.errors.serviceUnavailable', { status: pingRes.status, statusText: pingRes.statusText }))
+      }
+      const llmRes = await fetch('/api/health/llms', { signal: controller.signal })
+      const llmJson = await llmRes.json().catch(() => null)
+      setLlmHealth(llmJson)
+      setServiceStatus('ok')
+
+      if (showToast) {
+        const status = llmJson?.status
+        const unconfigured = status
+          ? Object.entries(status)
+              .filter(([, v]: any) => v && v.configured === false)
+              .map(([k]) => k)
+          : []
+        const separator = i18n.language.startsWith('zh') ? '、' : ', '
+        toast.success(
+          unconfigured.length
+            ? t('aiCollab.toasts.serviceConnectedWithMissing', { models: unconfigured.join(separator) })
+            : t('aiCollab.toasts.serviceConnected')
+        )
+      }
+    } catch (e) {
+      setServiceStatus('error')
+      if (showToast) {
+        const message = e instanceof Error ? e.message : t('aiCollab.errors.serviceConnectFailed')
+        toast.error(t('aiCollab.toasts.serviceConnectFailed', { message }))
+      }
+    } finally {
+      clearTimeout(timeoutId)
+    }
+  }
+
+  useEffect(() => {
+    if (!isOpen) return
+    checkAIService(false)
+  }, [isOpen])
+
   // 自动滚动到底部
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -82,7 +123,7 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
   // 创建新会话
   const createNewSession = () => {
     if (!newSessionName.trim()) {
-      toast.warning('请输入会话名称')
+      toast.warning(t('aiCollab.toasts.sessionNameRequired'))
       return
     }
     
@@ -153,6 +194,7 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
     try {
       // 调用LLM服务生成响应
       const response = await llmService.generateResponse(userInput, {
+        context,
         onDelta: (chunk) => {
           // 这里可以实现流式响应的实时更新
         }
@@ -172,7 +214,16 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
         onContentGenerated(response)
       }
     } catch (error) {
-      toast.error('AI响应生成失败，请稍后重试')
+      const message = error instanceof Error ? error.message : t('aiCollab.errors.generateFailed')
+      const hint =
+        serviceStatus === 'error' ||
+        /Failed to fetch|NetworkError|ECONNREFUSED|timeout|aborted/i.test(message)
+          ? t('aiCollab.hints.startProxy')
+          : /密钥|API.?key|unauthorized|401|403/i.test(message)
+            ? t('aiCollab.hints.configureKey')
+            : ''
+      const sep = i18n.language.startsWith('zh') ? '。' : '. '
+      toast.error(hint ? `${message}${sep}${hint}` : message)
       console.error('Error generating AI response:', error)
     } finally {
       setIsGenerating(false)
@@ -190,7 +241,7 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
       setCurrentSession(activeSession)
       setSessions(updatedSessions)
     }
-    toast.success('对话历史已清除')
+    toast.success(t('aiCollab.toasts.historyCleared'))
   }
   
   // 使用对话模板
@@ -209,7 +260,7 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
     switch (format) {
       case 'text':
         content = currentSession.messages.map(msg => {
-          return `${msg.role === 'user' ? '我' : 'AI'}: ${msg.content}`
+          return `${msg.role === 'user' ? t('aiCollab.roles.me') : t('aiCollab.roles.ai')}: ${msg.content}`
         }).join('\n\n')
         break
       case 'json':
@@ -218,7 +269,7 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
       case 'markdown':
         content = `# ${currentSession.name}\n\n`
         content += currentSession.messages.map(msg => {
-          return `## ${msg.role === 'user' ? '我' : 'AI'}\n\n${msg.content}`
+          return `## ${msg.role === 'user' ? t('aiCollab.roles.me') : t('aiCollab.roles.ai')}\n\n${msg.content}`
         }).join('\n\n')
         break
     }
@@ -234,14 +285,15 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
     
-    toast.success(`会话已导出为 ${format} 格式`)
+    toast.success(t('aiCollab.toasts.exported', { format }))
     setShowExportOptions(false)
   }
 
   // 格式化时间
   const formatTime = (timestamp: number) => {
     const date = new Date(timestamp)
-    return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+    const locale = i18n.language.startsWith('zh') ? 'zh-CN' : 'en-US'
+    return date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })
   }
 
   return (
@@ -274,15 +326,35 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
             <div className="p-4 border-b dark:border-gray-800">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <h2 className="text-xl font-bold">AI 协作模式</h2>
-                  <span className="text-sm text-gray-500 dark:text-gray-400">
-                    与 AI 进行多轮对话，完善你的创意
+                  <h2 className="text-xl font-bold">{t('aiCollab.title')}</h2>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">{t('aiCollab.subtitle')}</span>
+                  <span
+                    className={`text-xs px-2 py-1 rounded-full ${
+                      serviceStatus === 'ok'
+                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                        : serviceStatus === 'error'
+                          ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+                          : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'
+                    }`}
+                  >
+                    {serviceStatus === 'ok'
+                      ? t('aiCollab.status.ok')
+                      : serviceStatus === 'error'
+                        ? t('aiCollab.status.error')
+                        : t('aiCollab.status.unknown')}
                   </span>
                 </div>
                 <button
+                  onClick={() => checkAIService(true)}
+                  className={`p-2 rounded-full ${isDark ? 'hover:bg-gray-800 text-gray-300' : 'hover:bg-gray-100 text-gray-700'}`}
+                  aria-label={t('aiCollab.actions.checkService')}
+                >
+                  <i className="fas fa-heartbeat"></i>
+                </button>
+                <button
                   onClick={onClose}
                   className={`p-2 rounded-full ${isDark ? 'hover:bg-gray-800 text-gray-300' : 'hover:bg-gray-100 text-gray-700'}`}
-                  aria-label="关闭"
+                  aria-label={t('aiCollab.actions.close')}
                 >
                   <i className="fas fa-times"></i>
                 </button>
@@ -296,11 +368,11 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
                 {/* 会话列表头部 */}
                 <div className="p-3 border-b dark:border-gray-800">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-medium">会话</h3>
+                    <h3 className="text-sm font-medium">{t('aiCollab.labels.sessions')}</h3>
                     <button
                       onClick={() => setShowNewSessionModal(true)}
                       className={`p-1.5 rounded-full ${isDark ? 'bg-green-900/20 text-green-400 hover:bg-green-900/30' : 'bg-green-50 text-green-600 hover:bg-green-100'}`}
-                      aria-label="新建会话"
+                      aria-label={t('aiCollab.actions.newSession')}
                     >
                       <i className="fas fa-plus"></i>
                     </button>
@@ -320,7 +392,7 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium truncate">{session.name}</p>
                           <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                            {session.messages.length} 条消息
+                            {t('aiCollab.labels.messageCount', { count: session.messages.length })}
                           </p>
                         </div>
                         <div className="flex items-center gap-1 ml-2">
@@ -330,7 +402,7 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
                               deleteSession(session.id)
                             }}
                             className="p-1 rounded text-gray-400 hover:text-red-500 transition-colors"
-                            aria-label="删除会话"
+                            aria-label={t('aiCollab.actions.deleteSession')}
                           >
                             <i className="fas fa-trash text-xs"></i>
                           </button>
@@ -346,7 +418,7 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
                     onClick={clearCurrentSession}
                     className={`w-full text-xs py-2 rounded ${isDark ? 'bg-red-900/20 text-red-400 hover:bg-red-900/30' : 'bg-red-50 text-red-600 hover:bg-red-100'}`}
                   >
-                    清除当前会话历史
+                    {t('aiCollab.actions.clearCurrentSession')}
                   </button>
                 </div>
               </div>
@@ -370,7 +442,7 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
                         onClick={renameSession}
                         className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
                       >
-                        保存
+                        {t('aiCollab.actions.save')}
                       </button>
                       <button
                         onClick={() => {
@@ -379,7 +451,7 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
                         }}
                         className="text-xs px-2 py-1 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
                       >
-                        取消
+                        {t('aiCollab.actions.cancel')}
                       </button>
                     </div>
                   ) : (
@@ -401,7 +473,7 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
                         <button
                           onClick={() => setShowTemplates(!showTemplates)}
                           className={`p-1.5 rounded-full ${isDark ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-                          aria-label="使用模板"
+                          aria-label={t('aiCollab.actions.useTemplate')}
                         >
                           <i className="fas fa-file-alt"></i>
                         </button>
@@ -410,7 +482,7 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
                         <button
                           onClick={() => setShowExportOptions(!showExportOptions)}
                           className={`p-1.5 rounded-full ${isDark ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-                          aria-label="导出会话"
+                          aria-label={t('aiCollab.actions.export')}
                         >
                           <i className="fas fa-download"></i>
                         </button>
@@ -442,7 +514,7 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
                           exit={{ scale: 0.9, opacity: 0 }}
                           onClick={(e) => e.stopPropagation()}
                         >
-                          <h3 className="text-lg font-bold mb-3">选择对话模板</h3>
+                          <h3 className="text-lg font-bold mb-3">{t('aiCollab.templatesTitle')}</h3>
                           <div className="space-y-3 max-h-96 overflow-y-auto">
                             {conversationTemplates.map(template => (
                               <div
@@ -463,7 +535,7 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
                               onClick={() => setShowTemplates(false)}
                               className={`px-4 py-2 rounded-lg transition-colors ${isDark ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-black'}`}
                             >
-                              取消
+                              {t('aiCollab.actions.cancel')}
                             </button>
                           </div>
                         </motion.div>
@@ -488,14 +560,14 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
                           exit={{ scale: 0.9, opacity: 0 }}
                           onClick={(e) => e.stopPropagation()}
                         >
-                          <h3 className="text-lg font-bold mb-3">导出会话</h3>
+                          <h3 className="text-lg font-bold mb-3">{t('aiCollab.export.title')}</h3>
                           <div className="space-y-3">
                             <button
                               onClick={() => exportSession('text')}
                               className={`w-full p-3 rounded-lg transition-colors ${isDark ? 'bg-blue-900/30 hover:bg-blue-900/50 text-white' : 'bg-blue-100 hover:bg-blue-200 text-black'}`}
                             >
                               <div className="flex items-center justify-between">
-                                <span>纯文本格式 (.txt)</span>
+                                <span>{t('aiCollab.export.text')}</span>
                                 <i className="fas fa-file-alt"></i>
                               </div>
                             </button>
@@ -504,7 +576,7 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
                               className={`w-full p-3 rounded-lg transition-colors ${isDark ? 'bg-blue-900/30 hover:bg-blue-900/50 text-white' : 'bg-blue-100 hover:bg-blue-200 text-black'}`}
                             >
                               <div className="flex items-center justify-between">
-                                <span>Markdown格式 (.md)</span>
+                                <span>{t('aiCollab.export.markdown')}</span>
                                 <i className="fab fa-markdown"></i>
                               </div>
                             </button>
@@ -513,7 +585,7 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
                               className={`w-full p-3 rounded-lg transition-colors ${isDark ? 'bg-blue-900/30 hover:bg-blue-900/50 text-white' : 'bg-blue-100 hover:bg-blue-200 text-black'}`}
                             >
                               <div className="flex items-center justify-between">
-                                <span>JSON格式 (.json)</span>
+                                <span>{t('aiCollab.export.json')}</span>
                                 <i className="fas fa-code"></i>
                               </div>
                             </button>
@@ -523,7 +595,7 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
                               onClick={() => setShowExportOptions(false)}
                               className={`px-4 py-2 rounded-lg transition-colors ${isDark ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-black'}`}
                             >
-                              取消
+                              {t('aiCollab.actions.cancel')}
                             </button>
                           </div>
                         </motion.div>
@@ -536,14 +608,34 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
                     <div className="flex flex-col items-center justify-center h-full text-center">
                       <i className="fas fa-comments text-4xl text-gray-400 mb-2"></i>
                       <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                        开始与 AI 对话，完善你的创意
+                        {t('aiCollab.empty.title')}
                       </p>
+                      {(context?.page || context?.path) && (
+                        <p className="text-xs text-gray-400 dark:text-gray-500 mb-4">
+                          {t('aiCollab.empty.currentPage', { page: context?.page || context?.path })}
+                        </p>
+                      )}
+                      <div className="flex flex-wrap items-center justify-center gap-2 mb-4 px-6">
+                        {presetQuestions.slice(0, 5).map((q) => (
+                          <button
+                            key={q}
+                            onClick={() => setInput(q)}
+                            className={`px-3 py-1.5 rounded-full text-xs transition-colors ${
+                              isDark
+                                ? 'bg-gray-800 text-gray-200 hover:bg-gray-700 border border-gray-700'
+                                : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
+                            }`}
+                          >
+                            {q}
+                          </button>
+                        ))}
+                      </div>
                       <button
                         onClick={() => setShowTemplates(true)}
                         className={`px-4 py-2 rounded-lg transition-colors ${isDark ? 'bg-blue-900/30 hover:bg-blue-900/50 text-white' : 'bg-blue-100 hover:bg-blue-200 text-black'}`}
                       >
                         <i className="fas fa-file-alt mr-2"></i>
-                        使用对话模板
+                        {t('aiCollab.actions.openTemplates')}
                       </button>
                     </div>
                   ) : (
@@ -558,7 +650,7 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
                         <div className={`max-w-[75%] p-3 rounded-lg ${message.role === 'user' ? (isDark ? 'bg-blue-900/30 text-white' : 'bg-blue-100 text-black') : (isDark ? 'bg-gray-800 text-white' : 'bg-gray-100 text-black')}`}>
                           <div className="flex items-start gap-2">
                             <div className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${message.role === 'user' ? (isDark ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white') : (isDark ? 'bg-gray-700 text-white' : 'bg-gray-500 text-white')}`}>
-                              {message.role === 'user' ? '我' : 'AI'}
+                              {message.role === 'user' ? t('aiCollab.roles.me') : t('aiCollab.roles.ai')}
                             </div>
                             <div className="flex-1">
                               <p className="text-sm whitespace-pre-wrap">{message.content}</p>
@@ -580,14 +672,14 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                         onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
-                        placeholder="输入你的创意想法，与AI进行多轮对话..."
+                        placeholder={t('aiCollab.placeholders.input')}
                         className={`w-full min-h-[80px] p-3 rounded-lg border resize-none ${isDark ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-300 text-black'} focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300`}
                         disabled={isGenerating}
                       />
                       <div className="absolute right-3 bottom-3">
                         <SpeechInput 
                           onTextRecognized={(text) => setInput(prev => prev + text)} 
-                          language="zh-CN"
+                          language={i18n.language.startsWith('zh') ? 'zh-CN' : 'en-US'}
                         />
                       </div>
                     </div>
@@ -599,10 +691,10 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
                       {isGenerating ? (
                         <div className="flex items-center gap-1">
                           <i className="fas fa-spinner fa-spin"></i>
-                          <span>生成中...</span>
+                          <span>{t('aiCollab.actions.generating')}</span>
                         </div>
                       ) : (
-                        <span>发送</span>
+                        <span>{t('aiCollab.actions.send')}</span>
                       )}
                     </button>
                   </div>
@@ -625,16 +717,16 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
                     animate={{ scale: 1, opacity: 1 }}
                     exit={{ scale: 0.9, opacity: 0 }}
                   >
-                    <h3 className="text-lg font-bold mb-3">新建会话</h3>
+                    <h3 className="text-lg font-bold mb-3">{t('aiCollab.newSession.title')}</h3>
                     <div className="space-y-3">
                       <div>
-                        <label className="block text-sm font-medium mb-1">会话名称</label>
+                        <label className="block text-sm font-medium mb-1">{t('aiCollab.newSession.nameLabel')}</label>
                         <input
                           type="text"
                           value={newSessionName}
                           onChange={(e) => setNewSessionName(e.target.value)}
                           onKeyPress={(e) => e.key === 'Enter' && createNewSession()}
-                          placeholder="输入会话名称..."
+                          placeholder={t('aiCollab.newSession.namePlaceholder')}
                           className={`w-full p-3 rounded-lg border ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-black'} focus:outline-none focus:ring-2 focus:ring-blue-500`}
                           autoFocus
                         />
@@ -644,13 +736,13 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
                           onClick={() => setShowNewSessionModal(false)}
                           className={`px-4 py-2 rounded-lg transition-colors ${isDark ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-black'}`}
                         >
-                          取消
+                          {t('aiCollab.actions.cancel')}
                         </button>
                         <button
                           onClick={createNewSession}
                           className={`px-4 py-2 rounded-lg transition-colors ${isDark ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-green-600 hover:bg-green-700 text-white'}`}
                         >
-                          创建
+                          {t('aiCollab.actions.create')}
                         </button>
                       </div>
                     </div>

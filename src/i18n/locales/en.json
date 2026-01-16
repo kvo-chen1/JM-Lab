@@ -411,6 +411,144 @@
       "Explore commercial docking opportunities on the platform"
     ]
   },
+  "aiCollab": {
+    "title": "AI Collaboration",
+    "subtitle": "Chat with AI in multiple turns to refine your ideas",
+    "status": {
+      "ok": "Connected",
+      "error": "Disconnected",
+      "unknown": "Unchecked"
+    },
+    "roles": {
+      "me": "Me",
+      "ai": "AI"
+    },
+    "labels": {
+      "sessions": "Sessions",
+      "messageCount": "{{count}} messages"
+    },
+    "actions": {
+      "checkService": "Check AI service",
+      "close": "Close",
+      "newSession": "New session",
+      "deleteSession": "Delete session",
+      "clearCurrentSession": "Clear current session history",
+      "useTemplate": "Use template",
+      "openTemplates": "Use chat templates",
+      "export": "Export session",
+      "save": "Save",
+      "cancel": "Cancel",
+      "create": "Create",
+      "send": "Send",
+      "generating": "Generating..."
+    },
+    "placeholders": {
+      "input": "Type your idea and chat with AI..."
+    },
+    "empty": {
+      "title": "Start chatting with AI to refine your ideas",
+      "currentPage": "Current page: {{page}}"
+    },
+    "newSession": {
+      "title": "New session",
+      "nameLabel": "Session name",
+      "namePlaceholder": "Enter a session name..."
+    },
+    "templatesTitle": "Choose a template",
+    "templates": [
+      {
+        "id": "creative-writing",
+        "name": "Creative writing",
+        "description": "Help you improve creative writing",
+        "prompt": "I need to write creative content about [topic]. Please help me improve this idea."
+      },
+      {
+        "id": "design-concept",
+        "name": "Design concept",
+        "description": "Help you refine a design concept",
+        "prompt": "I have a design concept: [description]. Please refine it, including principles, color scheme, and implementation ideas."
+      },
+      {
+        "id": "story-development",
+        "name": "Story development",
+        "description": "Help you expand a story outline",
+        "prompt": "I'm writing a story about [topic]. Please expand the plot including characters, conflicts, and climax."
+      },
+      {
+        "id": "problem-solving",
+        "name": "Problem solving",
+        "description": "Help you solve issues during creation",
+        "prompt": "I encountered a problem during creation: [problem]. Please analyze it and propose solutions."
+      },
+      {
+        "id": "marketing-idea",
+        "name": "Marketing ideas",
+        "description": "Help you generate marketing ideas",
+        "prompt": "I need marketing ideas for [product/service]. Please propose a few innovative campaigns."
+      }
+    ],
+    "export": {
+      "title": "Export session",
+      "text": "Plain text (.txt)",
+      "markdown": "Markdown (.md)",
+      "json": "JSON (.json)"
+    },
+    "quickQuestions": {
+      "home": ["How do I start creating on the platform?", "How do I use AI generation?", "How do I share my work?", "What features does the platform have?", "How do I get inspiration?"],
+      "culturalKnowledge": ["How is cultural knowledge categorized?", "How do I search for specific content?", "How do I bookmark cultural knowledge?", "How do I join discussions?"],
+      "creationWorkshop": ["How do I start a creation?", "How do I use AI generation?", "How do I export my work?", "How do I use templates?"],
+      "marketplace": ["How do I buy products?", "How do I become a seller?", "How do I review products?", "How do I view orders?"],
+      "community": ["How do I join community activities?", "How do I follow other users?", "How do I create topics?", "How do I join interest groups?"],
+      "myWorks": ["How do I manage my works?", "How do I edit published works?", "How do I view stats?", "How do I set privacy?"],
+      "explore": ["How do I search works?", "How do I filter results?", "How do I like and bookmark?", "How do I follow popular creators?"],
+      "create": ["How do I use creation tools?", "How do I add assets?", "How do I use AI assistance?", "How do I save drafts?"],
+      "dashboard": ["How do I view creation analytics?", "How do I view earnings?", "How do I configure notifications?", "How do I view system messages?"],
+      "settings": ["How do I change password?", "How do I set privacy?", "How do I manage API keys?", "How do I clear cache?"],
+      "common": ["How do I start creating?", "What AI features are available?", "How do I get help?", "How do I report issues?"]
+    },
+    "toasts": {
+      "sessionNameRequired": "Please enter a session name",
+      "historyCleared": "Chat history cleared",
+      "exported": "Session exported as {{format}}",
+      "serviceConnected": "AI service connected",
+      "serviceConnectedWithMissing": "AI service connected (missing: {{models}})",
+      "serviceConnectFailed": "{{message}}. Please make sure the local proxy is running (pnpm dev or pnpm dev:server)"
+    },
+    "errors": {
+      "serviceUnavailable": "Service unavailable: {{status}} {{statusText}}",
+      "serviceConnectFailed": "Failed to connect to AI service",
+      "generateFailed": "Failed to generate AI response. Please try again later."
+    },
+    "hints": {
+      "startProxy": "Please make sure the local AI proxy is running (pnpm dev or pnpm dev:server)",
+      "configureKey": "Please configure the model API key in the local proxy / environment variables"
+    }
+  },
+  "aiAssistant": {
+    "aria": {
+      "floatingButton": "Jinmai"
+    },
+    "errors": {
+      "fallback": "AI assistant error"
+    },
+    "pages": {
+      "home": "Home",
+      "culturalKnowledge": "Cultural Knowledge",
+      "creationWorkshop": "Creation Workshop",
+      "marketplace": "Marketplace",
+      "community": "Community",
+      "myWorks": "My Works",
+      "explore": "Explore",
+      "create": "Create",
+      "dashboard": "Dashboard",
+      "settings": "Settings",
+      "neo": "Inspiration Engine",
+      "tools": "Tools",
+      "wizard": "Co-creation Wizard",
+      "square": "Co-creation Square",
+      "unknown": "Current page"
+    }
+  },
   "community": {
     "title": "Creator Community",
     "cocreationTitle": "Co-creation Community",

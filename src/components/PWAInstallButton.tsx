@@ -21,9 +21,17 @@ interface PWAInstallButtonProps {
   isDark?: boolean;
   hideFixedButton?: boolean;
   forceShow?: boolean;
+  variant?: 'default' | 'menu' | 'dashboard';
 }
 
-const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({ asMenuItem = false, isDark = false, hideFixedButton = false, forceShow = false }) => {
+const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({ 
+  asMenuItem = false, 
+  isDark = false, 
+  hideFixedButton = false, 
+  forceShow = false,
+  variant: propVariant
+}) => {
+  const variant = propVariant || (asMenuItem ? 'menu' : 'default');
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showInstallButton, setShowInstallButton] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
@@ -286,7 +294,7 @@ const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({ asMenuItem = false,
       )}
 
       {/* 安装按钮 */}
-      {asMenuItem ? (
+      {variant === 'menu' ? (
         /* 作为菜单项时，直接返回按钮本身 */
         <button
           onClick={handleInstallClick}
@@ -295,6 +303,22 @@ const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({ asMenuItem = false,
           <i className="fas fa-download mr-3"></i>
           <span>安装应用</span>
         </button>
+      ) : variant === 'dashboard' ? (
+        /* 个人中心按钮样式 */
+        showInstallButton && isPWASupported() && (
+          <button 
+            onClick={handleInstallClick}
+            className={`w-full px-4 py-3 rounded-lg min-h-[44px] ${
+              isDark 
+                ? 'bg-blue-600 hover:bg-blue-700' 
+                : 'bg-blue-500 hover:bg-blue-600'
+            } text-white transition-colors text-sm flex items-center justify-center`}
+            aria-label="安装应用"
+          >
+            <i className="fas fa-download mr-1.5"></i>
+            安装应用
+          </button>
+        )
       ) : (
         /* 否则，保持原来的固定定位，但可以通过hideFixedButton隐藏 */
         showInstallButton && isPWASupported() && !hideFixedButton && (

@@ -9,7 +9,7 @@ const TEST_CONFIG = {
   retryCount: 1, // 重试次数
   retryDelay: 1000, // 重试延迟（毫秒）
   // 本地代理服务基础URL
-  proxyBaseUrl: 'http://localhost:3008'
+  proxyBaseUrl: process.env.LOCAL_API_BASE_URL || `http://localhost:${process.env.LOCAL_API_PORT || '3020'}`
 };
 
 // 支持的API端点配置

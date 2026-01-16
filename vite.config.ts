@@ -8,6 +8,8 @@ import path from 'path'
 import { createRequire } from 'node:module'
 
 const require = createRequire(import.meta.url)
+const LOCAL_API_PORT = process.env.LOCAL_API_PORT || '3020'
+const LOCAL_API_TARGET = `http://localhost:${LOCAL_API_PORT}`
 
 function getPlugins() {
   const plugins = [
@@ -664,7 +666,7 @@ export default defineConfig({
     // 添加开发服务器代理配置
     proxy: {
       '/api/doubao': {
-        target: 'http://localhost:3010',
+        target: LOCAL_API_TARGET,
         changeOrigin: true,
         configure: (proxy, options) => {
           // 允许所有响应头通过
@@ -673,6 +675,46 @@ export default defineConfig({
             proxyRes.headers['Access-Control-Allow-Origin'] = '*';
           };
         },
+      },
+      '/api/health': {
+        target: LOCAL_API_TARGET,
+        changeOrigin: true
+      },
+      '/api/chat': {
+        target: LOCAL_API_TARGET,
+        changeOrigin: true
+      },
+      '/api/kimi': {
+        target: LOCAL_API_TARGET,
+        changeOrigin: true
+      },
+      '/api/deepseek': {
+        target: LOCAL_API_TARGET,
+        changeOrigin: true
+      },
+      '/api/qwen': {
+        target: LOCAL_API_TARGET,
+        changeOrigin: true
+      },
+      '/api/dashscope': {
+        target: LOCAL_API_TARGET,
+        changeOrigin: true
+      },
+      '/api/openai': {
+        target: LOCAL_API_TARGET,
+        changeOrigin: true
+      },
+      '/api/gemini': {
+        target: LOCAL_API_TARGET,
+        changeOrigin: true
+      },
+      '/api/zhipu': {
+        target: LOCAL_API_TARGET,
+        changeOrigin: true
+      },
+      '/api/anthropic': {
+        target: LOCAL_API_TARGET,
+        changeOrigin: true
       },
       '/api/proxy/trae-api': {
         target: 'https://trae-api-sg.mchost.guru',
@@ -708,6 +750,50 @@ export default defineConfig({
     port: 3000,
     // 添加预览服务器代理配置
     proxy: {
+      '/api/doubao': {
+        target: LOCAL_API_TARGET,
+        changeOrigin: true
+      },
+      '/api/health': {
+        target: LOCAL_API_TARGET,
+        changeOrigin: true
+      },
+      '/api/chat': {
+        target: LOCAL_API_TARGET,
+        changeOrigin: true
+      },
+      '/api/kimi': {
+        target: LOCAL_API_TARGET,
+        changeOrigin: true
+      },
+      '/api/deepseek': {
+        target: LOCAL_API_TARGET,
+        changeOrigin: true
+      },
+      '/api/qwen': {
+        target: LOCAL_API_TARGET,
+        changeOrigin: true
+      },
+      '/api/dashscope': {
+        target: LOCAL_API_TARGET,
+        changeOrigin: true
+      },
+      '/api/openai': {
+        target: LOCAL_API_TARGET,
+        changeOrigin: true
+      },
+      '/api/gemini': {
+        target: LOCAL_API_TARGET,
+        changeOrigin: true
+      },
+      '/api/zhipu': {
+        target: LOCAL_API_TARGET,
+        changeOrigin: true
+      },
+      '/api/anthropic': {
+        target: LOCAL_API_TARGET,
+        changeOrigin: true
+      },
       '/api/proxy/trae-api': {
         target: 'https://trae-api-sg.mchost.guru',
         changeOrigin: true,

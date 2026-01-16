@@ -51,7 +51,8 @@
     "cooperation": "合作",
     "satisfaction": "满意度",
     "on": "开",
-    "off": "关"
+    "off": "关",
+    "logoText": "智坊"
   },
   "sidebar": {
     "collapsibleSidebar": "折叠侧边栏",
@@ -107,6 +108,80 @@
     "login": "登录",
     "clear": "清除",
     "backToOfficialWebsite": "返回官网"
+  },
+  "toast": {
+    "shareSuccess": "链接已复制到剪贴板",
+    "shareFailed": "分享失败，请重试",
+    "browserNotSupportVoice": "您的浏览器不支持语音搜索",
+    "listening": "正在倾听...",
+    "voiceResult": "识别结果: {{result}}",
+    "voiceFailed": "语音识别失败，请重试",
+    "enterKeyword": "请输入搜索关键词",
+    "logoutSuccess": "退出登录成功",
+    "themeSwitched": "已切换到 {{theme}} 主题",
+    "languageSwitched": "已切换到 {{lang}}",
+    "shareExternal": "链接已复制，您可以分享到小红书/抖音",
+    "shareWork": "作品链接已复制",
+    "imported": "已导入 {{count}} 个精选作品"
+  },
+  "notification": {
+    "welcome": "欢迎回来",
+    "dailyReward": "每日签到领取奖励",
+    "systemUpdate": "系统更新",
+    "systemUpdateDesc": "创作中心新增AI文案优化功能",
+    "newTutorial": "新教程上线",
+    "newTutorialDesc": "杨柳青年画制作入门",
+    "workLiked": "作品获赞",
+    "workLikedDesc": "您的作品《天津之眼》收到了10个赞",
+    "newMember": "新成员加入",
+    "newMemberDesc": "张三加入您的创作小组",
+    "privateMessage": "私信消息",
+    "privateMessageDesc": "李四给您发送了一条私信",
+    "mention": "提到我的",
+    "mentionDesc": "王五在评论中提到了您",
+    "taskCompleted": "任务完成",
+    "taskCompletedDesc": "您的创作任务已完成",
+    "pointsAdded": "积分到账",
+    "pointsAddedDesc": "您获得了50积分奖励",
+    "systemWarning": "系统警告",
+    "systemWarningDesc": "部分功能暂时不可用",
+    "newMessage": "新消息",
+    "newMessageDesc": "您有一条新的私信消息",
+    "systemNotification": "系统通知",
+    "systemNotificationDesc": "新功能上线，快来体验吧",
+    "workLikedNewDesc": "您的作品收到了新的点赞",
+    "uploadFailed": "上传失败",
+    "uploadFailedDesc": "作品上传失败，请重试",
+    "justNow": "刚刚",
+    "hoursAgo": "小时前",
+    "minutesAgo": "分钟前",
+    "daysAgo": "昨天",
+    "settings": "通知设置",
+    "sound": "声音提醒",
+    "desktop": "桌面通知",
+    "types": {
+      "like": "收到的赞",
+      "join": "加入提醒",
+      "message": "私信",
+      "mention": "提及我的",
+      "task": "任务",
+      "points": "积分",
+      "system": "系统",
+      "learning": "学习",
+      "creation": "创作",
+      "social": "社交",
+      "all": "全部",
+      "unread": "未读",
+      "info": "消息",
+      "success": "成功",
+      "warning": "警告",
+      "error": "错误"
+    },
+    "empty": "暂无通知",
+    "emptyDesc": "新的通知将出现在这里",
+    "view": "查看通知",
+    "unreadCount": "{{count}} 条未读通知",
+    "totalCount": "共 {{count}} 条通知"
   },
   "mobile": {
     "menu": "菜单",
@@ -285,6 +360,144 @@
       "考虑申请版权认证，保护原创权益",
       "在平台上探索商业对接机会"
     ]
+  },
+  "aiCollab": {
+    "title": "AI 协作模式",
+    "subtitle": "与 AI 进行多轮对话，完善你的创意",
+    "status": {
+      "ok": "已连接",
+      "error": "未连接",
+      "unknown": "待检测"
+    },
+    "roles": {
+      "me": "我",
+      "ai": "AI"
+    },
+    "labels": {
+      "sessions": "会话",
+      "messageCount": "{{count}} 条消息"
+    },
+    "actions": {
+      "checkService": "检测AI服务",
+      "close": "关闭",
+      "newSession": "新建会话",
+      "deleteSession": "删除会话",
+      "clearCurrentSession": "清除当前会话历史",
+      "useTemplate": "使用模板",
+      "openTemplates": "使用对话模板",
+      "export": "导出会话",
+      "save": "保存",
+      "cancel": "取消",
+      "create": "创建",
+      "send": "发送",
+      "generating": "生成中..."
+    },
+    "placeholders": {
+      "input": "输入你的创意想法，与AI进行多轮对话..."
+    },
+    "empty": {
+      "title": "开始与 AI 对话，完善你的创意",
+      "currentPage": "当前页面：{{page}}"
+    },
+    "newSession": {
+      "title": "新建会话",
+      "nameLabel": "会话名称",
+      "namePlaceholder": "输入会话名称..."
+    },
+    "templatesTitle": "选择对话模板",
+    "templates": [
+      {
+        "id": "creative-writing",
+        "name": "创意写作",
+        "description": "帮助你完善创意写作内容",
+        "prompt": "我需要写一篇关于[主题]的创意内容，请帮我完善这个创意。"
+      },
+      {
+        "id": "design-concept",
+        "name": "设计概念",
+        "description": "帮助你细化设计概念",
+        "prompt": "我有一个设计概念：[概念描述]，请帮我细化这个概念，包括设计原则、色彩方案和实现思路。"
+      },
+      {
+        "id": "story-development",
+        "name": "故事发展",
+        "description": "帮助你发展故事情节",
+        "prompt": "我正在写一个故事，主题是[主题]，请帮我扩展故事情节，包括角色、冲突和高潮。"
+      },
+      {
+        "id": "problem-solving",
+        "name": "问题解决",
+        "description": "帮助你解决创意过程中的问题",
+        "prompt": "我在创作过程中遇到了一个问题：[问题描述]，请帮我分析并提供解决方案。"
+      },
+      {
+        "id": "marketing-idea",
+        "name": "营销创意",
+        "description": "帮助你生成营销创意",
+        "prompt": "我需要为[产品/服务]生成营销创意，请帮我想出几个创新的营销方案。"
+      }
+    ],
+    "export": {
+      "title": "导出会话",
+      "text": "纯文本格式 (.txt)",
+      "markdown": "Markdown格式 (.md)",
+      "json": "JSON格式 (.json)"
+    },
+    "quickQuestions": {
+      "home": ["平台上如何创作？", "如何使用AI生成功能？", "如何分享我的作品？", "平台有哪些功能？", "如何获取创作灵感？"],
+      "culturalKnowledge": ["文化知识如何分类？", "如何搜索特定文化内容？", "如何收藏文化知识？", "如何参与文化讨论？"],
+      "creationWorkshop": ["如何开始创作？", "AI生成功能怎么用？", "如何导出我的作品？", "如何使用创作模板？"],
+      "marketplace": ["如何购买文创产品？", "如何成为卖家？", "如何评价商品？", "如何查看订单？"],
+      "community": ["如何参与社区活动？", "如何关注其他用户？", "如何创建话题？", "如何加入兴趣小组？"],
+      "myWorks": ["如何管理我的作品？", "如何编辑已发布作品？", "如何查看作品统计？", "如何设置作品隐私？"],
+      "explore": ["如何搜索作品？", "如何筛选作品？", "如何点赞收藏？", "如何关注热门创作者？"],
+      "create": ["如何使用创作工具？", "如何添加素材？", "如何使用AI辅助创作？", "如何保存草稿？"],
+      "dashboard": ["如何查看创作数据？", "如何查看收益情况？", "如何设置通知？", "如何查看系统通知？"],
+      "settings": ["如何修改密码？", "如何设置隐私？", "如何管理API密钥？", "如何清除缓存？"],
+      "common": ["平台上如何创作？", "平台有哪些AI功能？", "如何获取帮助？", "如何反馈问题？"]
+    },
+    "toasts": {
+      "sessionNameRequired": "请输入会话名称",
+      "historyCleared": "对话历史已清除",
+      "exported": "会话已导出为 {{format}} 格式",
+      "serviceConnected": "AI服务已连接",
+      "serviceConnectedWithMissing": "AI服务已连接（未配置：{{models}}）",
+      "serviceConnectFailed": "{{message}}。请确认本地代理已启动（pnpm dev 或 pnpm dev:server）"
+    },
+    "errors": {
+      "serviceUnavailable": "服务不可用: {{status}} {{statusText}}",
+      "serviceConnectFailed": "AI服务连接失败",
+      "generateFailed": "AI响应生成失败，请稍后重试"
+    },
+    "hints": {
+      "startProxy": "请先确认本地AI代理是否已启动（pnpm dev 或 pnpm dev:server）",
+      "configureKey": "请先在本地代理/环境变量中配置对应模型的API密钥"
+    }
+  },
+  "aiAssistant": {
+    "aria": {
+      "floatingButton": "津小脉"
+    },
+    "errors": {
+      "fallback": "AI助手发生错误"
+    },
+    "pages": {
+      "home": "首页",
+      "culturalKnowledge": "文化知识",
+      "creationWorkshop": "创作工坊",
+      "marketplace": "文创市集",
+      "community": "社区",
+      "myWorks": "我的作品",
+      "explore": "探索页面",
+      "create": "创作中心",
+      "dashboard": "仪表盘",
+      "settings": "设置页面",
+      "neo": "灵感引擎",
+      "tools": "工具页面",
+      "wizard": "共创向导",
+      "square": "共创广场",
+      "unknown": "当前页面"
+    }
   },
   "community": {
     "title": "创作者社区",

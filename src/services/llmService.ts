@@ -7,6 +7,8 @@
 
 import { aiTaskQueueService, AITask, TaskPriority } from './aiTaskQueueService';
 import apiClient from '@/lib/apiClient';
+import { handleSseStreamingResponse } from './llm/streaming';
+import { callDeepseekChat, callKimiChat, callQwenChat } from './llm/chatProviders';
 
 // 模型类型定义
 export interface LLMModel {
@@ -2316,7 +2318,7 @@ class LLMService {
     
     if (options?.onDelta) {
       // 处理流式响应
-      return this.handleStreamingResponse(response, options.onDelta);
+      return handleSseStreamingResponse(response, options.onDelta);
     } else {
       // 处理非流式响应
       const data = await response.json();
@@ -2351,40 +2353,15 @@ class LLMService {
     onDelta?: (chunk: string) => void;
     signal?: AbortSignal;
   }): Promise<string> {
-    const apiKey = this.modelConfig.kimi_api_key;
-    if (!apiKey) {
-      throw new Error('Kimi API密钥未配置');
-    }
-    
-    const response = await fetch(`${this.modelConfig.kimi_base_url}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: this.modelConfig.kimi_model,
-        messages: messages.map(msg => ({ role: msg.role, content: msg.content })),
-        stream: !!options?.onDelta,
-        temperature: this.modelConfig.temperature,
-        top_p: this.modelConfig.top_p,
-        max_tokens: this.modelConfig.max_tokens,
-      }),
+    return callKimiChat({
+      model: this.modelConfig.kimi_model,
+      messages,
+      temperature: this.modelConfig.temperature,
+      top_p: this.modelConfig.top_p,
+      max_tokens: this.modelConfig.max_tokens,
       signal: options?.signal,
+      onDelta: options?.onDelta
     });
-    
-    if (!response.ok) {
-      throw new Error(`Kimi API请求失败: ${response.status} ${response.statusText}`);
-    }
-    
-    if (options?.onDelta) {
-      // 处理流式响应
-      return this.handleStreamingResponse(response, options.onDelta);
-    } else {
-      // 处理非流式响应
-      const data = await response.json();
-      return data.choices[0]?.message?.content || '未获取到响应';
-    }
   }
   
   /**
@@ -2394,40 +2371,15 @@ class LLMService {
     onDelta?: (chunk: string) => void;
     signal?: AbortSignal;
   }): Promise<string> {
-    const apiKey = this.modelConfig.deepseek_api_key;
-    if (!apiKey) {
-      throw new Error('Deepseek API密钥未配置');
-    }
-    
-    const response = await fetch(`${this.modelConfig.deepseek_base_url}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: this.modelConfig.deepseek_model,
-        messages: messages.map(msg => ({ role: msg.role, content: msg.content })),
-        stream: !!options?.onDelta,
-        temperature: this.modelConfig.temperature,
-        top_p: this.modelConfig.top_p,
-        max_tokens: this.modelConfig.max_tokens,
-      }),
+    return callDeepseekChat({
+      model: this.modelConfig.deepseek_model,
+      messages,
+      temperature: this.modelConfig.temperature,
+      top_p: this.modelConfig.top_p,
+      max_tokens: this.modelConfig.max_tokens,
       signal: options?.signal,
+      onDelta: options?.onDelta
     });
-    
-    if (!response.ok) {
-      throw new Error(`Deepseek API请求失败: ${response.status} ${response.statusText}`);
-    }
-    
-    if (options?.onDelta) {
-      // 处理流式响应
-      return this.handleStreamingResponse(response, options.onDelta);
-    } else {
-      // 处理非流式响应
-      const data = await response.json();
-      return data.choices[0]?.message?.content || '未获取到响应';
-    }
   }
   
   /**
@@ -2437,111 +2389,25 @@ class LLMService {
     onDelta?: (chunk: string) => void;
     signal?: AbortSignal;
   }): Promise<string> {
-    // 通过后端代理服务器调用通义千问API，避免CORS错误
-    // 不再需要前端API密钥，由后端从环境变量获取
-    
-    // 对于流式响应，暂时不使用apiClient，因为它不支持流式处理
-    if (options?.onDelta) {
-      try {
-        const response = await fetch(`/api/qwen/chat/completions`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: this.modelConfig.qwen_model,
-            messages: messages.map(msg => ({ role: msg.role, content: msg.content })),
-            stream: true,
-            temperature: this.modelConfig.temperature,
-            top_p: this.modelConfig.top_p,
-            max_tokens: this.modelConfig.max_tokens,
-          }),
-          signal: options?.signal,
-        });
-        
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(`通义千问API请求失败: ${response.status} ${response.statusText} - ${errorData.error || ''}`);
-        }
-        
-        // 处理流式响应
-        return this.handleStreamingResponse(response, options.onDelta);
-      } catch (error) {
-        console.error('通义千问流式API请求失败:', error);
-        throw new Error('通义千问服务暂时不可用，请稍后再试');
-      }
-    } else {
-      // 非流式响应使用apiClient，利用其错误处理和重试机制
-      const apiResponse = await apiClient.post<any>(`/api/qwen/chat/completions`, {
+    try {
+      return await callQwenChat({
         model: this.modelConfig.qwen_model,
-        messages: messages.map(msg => ({ role: msg.role, content: msg.content })),
-        stream: false,
+        messages,
         temperature: this.modelConfig.temperature,
         top_p: this.modelConfig.top_p,
         max_tokens: this.modelConfig.max_tokens,
-      }, {
-        timeoutMs: 30000,
-        retries: 2
+        signal: options?.signal,
+        onDelta: options?.onDelta
       });
-      
-      if (!apiResponse.ok) {
-        throw new Error(`通义千问API请求失败: ${apiResponse.error || '未知错误'}`);
+    } catch (error) {
+      if (options?.onDelta) {
+        console.error('通义千问流式API请求失败:', error);
+        throw new Error('通义千问服务暂时不可用，请稍后再试');
       }
-      
-      // 处理非流式响应
-      const data = apiResponse.data;
-      // 通义千问API返回格式不同，直接返回text字段
-      return data.data?.output?.text || data.output?.text || '未获取到响应';
+      throw error;
     }
   }
   
-  /**
-   * 处理流式响应
-   */
-  private async handleStreamingResponse(response: Response, onDelta: (chunk: string) => void): Promise<string> {
-    const reader = response.body?.getReader();
-    if (!reader) {
-      throw new Error('无法获取响应流');
-    }
-    
-    const decoder = new TextDecoder('utf-8');
-    let fullResponse = '';
-    
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n');
-        
-        for (const line of lines) {
-          const trimmedLine = line.trim();
-          if (trimmedLine === '') continue;
-          if (trimmedLine.startsWith('data: ')) {
-            const data = trimmedLine.slice(6);
-            if (data === '[DONE]') continue;
-            
-            try {
-              const jsonData = JSON.parse(data);
-              const content = jsonData.choices[0]?.delta?.content || '';
-              if (content) {
-                fullResponse += content;
-                onDelta(content);
-              }
-            } catch (error) {
-              console.error('解析流式响应失败:', error);
-            }
-          }
-        }
-      }
-    } finally {
-      reader.releaseLock();
-    }
-    
-    return fullResponse;
-  }
-
   /**
    * 检查API密钥是否有效
    */
@@ -2551,14 +2417,14 @@ class LLMService {
       return true;
     }
 
-    // 根据模型ID检查API密钥
+    // kimi/deepseek/qwen 默认走本地代理端点，不需要前端持有密钥
     switch (modelId) {
       case 'kimi':
-        return !!this.modelConfig.kimi_api_key;
+        return true;
       case 'deepseek':
-        return !!this.modelConfig.deepseek_api_key;
+        return true;
       case 'qwen':
-        return !!this.modelConfig.qwen_api_key;
+        return true;
       case 'chatgpt':
         return !!this.modelConfig.openai_api_key;
       case 'gemini':

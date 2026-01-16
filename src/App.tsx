@@ -1,8 +1,8 @@
-import React, { useState, useEffect, Suspense, lazy, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, Suspense, lazy, useRef } from 'react';
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
-import { useTheme } from '@/hooks/useTheme';
-import { Routes, Route, Outlet, useLocation, useNavigationType, Link, Navigate, useNavigate } from "react-router-dom";
+
+import { Routes, Route, Outlet, useLocation, useNavigationType, Link, Navigate } from "react-router-dom";
 // 导入mock数据和postService用于初始化
 import { mockWorks } from '@/mock/works';
 import postsApi from '@/services/postService';
@@ -13,6 +13,7 @@ import { createLazyComponent, ROUTE_PRIORITIES, performanceOptimizer } from '@/u
 
 
 import CommandPalette from '@/components/CommandPalette';
+import ErrorBoundary from '@/components/ErrorBoundary';
 
 // 核心页面 - 只保留最关键的页面进行同步加载，减少初始加载时间
 import Landing from "@/pages/Landing";
@@ -278,22 +279,14 @@ const FirstLaunchGuide = createLazyComponent(() => import(/* webpackChunkName: "
   priority: ROUTE_PRIORITIES.LOW
 });
 // 悬浮AI助手组件 - 懒加载
-const FloatingAIAssistant = createLazyComponent(() => import(/* webpackChunkName: "components-ai" */ '@/components/FloatingAIAssistant'), {
+const FloatingAIAssistant = createLazyComponent(() => import(/* webpackChunkName: "components-ai" */ '@/components/FloatingAIAssistantV2'), {
   priority: ROUTE_PRIORITIES.MEDIUM
 });
 // 用户反馈组件 - 懒加载
 const UserFeedback = createLazyComponent(() => import(/* webpackChunkName: "components-auxiliary" */ '@/components/UserFeedback'), {
   priority: ROUTE_PRIORITIES.MEDIUM
 });
-// 满意度调查组件 - 懒加载
-const SatisfactionSurvey = createLazyComponent(() => import(/* webpackChunkName: "components-auxiliary" */ '@/components/SatisfactionSurvey'), {
-  priority: ROUTE_PRIORITIES.LOW
-});
-// 满意度调查服务
-import surveyService from '@/services/surveyService';
-// 认证上下文
-import { useContext } from 'react';
-import { AuthContext } from './contexts/authContext.tsx';
+
 
 
 export default function App() {
@@ -490,187 +483,7 @@ export default function App() {
   // 右侧内容组件的延迟加载版本 - 仅在需要时加载
   const LazyRightContent = lazy(() => Promise.resolve({ default: RightContent }));
 
-  // 浮动按钮组件
-  const FloatingButtons = () => {
-    // 认证上下文
-    const { user } = useContext(AuthContext);
-    const { isDark } = useTheme(); // 获取当前主题状态
-    const navigate = useNavigate(); // 导入导航函数
-    // 使用外部App组件的isMobile状态，避免状态不一致
-    // 内部状态管理
-    const [showCommunityMessages, setShowCommunityMessages] = useState(false);
-    const [showSurvey, setShowSurvey] = useState(false);
-    const messagesRef = useRef<HTMLDivElement | null>(null);
 
-    // 社群消息数据结构
-    interface CommunityMessage {
-      id: string;
-      sender: string;
-      content: string;
-      time: string;
-      read: boolean;
-      avatar: string;
-    }
-    
-    // 社群消息状态
-    const [communityMessages, setCommunityMessages] = useState<CommunityMessage[]>(() => {
-      // 在SSR期间返回默认值，不访问localStorage
-      return [
-        { id: 'm1', sender: '创意达人', content: '分享一个新的创作技巧...', time: '刚刚', read: false, avatar: '👤' },
-        { id: 'm2', sender: '设计师小王', content: '大家觉得这个配色方案怎么样？', time: '1 小时前', read: false, avatar: '🎨' },
-        { id: 'm3', sender: '系统通知', content: '新活动：创意挑战赛开始了！', time: '昨天', read: true, avatar: '📢' },
-      ];
-    });
-    
-    // 在客户端挂载后从localStorage加载消息
-    useEffect(() => {
-      try {
-        const stored = localStorage.getItem('jmzf_community_messages');
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          // 确保返回的是数组
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setCommunityMessages(parsed);
-          }
-        }
-      } catch {}
-    }, []);
-    
-    // 未读消息计数
-    const unreadMessageCount = useMemo(() => 
-      communityMessages.filter(m => !m.read).length,
-      [communityMessages]
-    );
-    
-    // 保存消息到本地存储
-    useEffect(() => {
-      try {
-        localStorage.setItem('jmzf_community_messages', JSON.stringify(communityMessages));
-      } catch {}
-    }, [communityMessages]);
-    
-    // 点击外部关闭消息面板
-    useEffect(() => {
-      // 只在浏览器环境中添加事件监听
-      if (typeof document === 'undefined') return;
-      
-      const handler = (e: MouseEvent) => {
-        if (!messagesRef.current) return;
-        if (!messagesRef.current.contains(e.target as Node)) {
-          setShowCommunityMessages(false);
-        }
-      };
-      if (showCommunityMessages) {
-        document.addEventListener('mousedown', handler);
-      }
-      return () => document.removeEventListener('mousedown', handler);
-    }, [showCommunityMessages]);
-
-    return (
-      <>
-        {/* 底部浮动按钮组 */}
-        <div className="fixed right-4 top-[80%] transform -translate-y-1/2 flex flex-col gap-2 z-30">
-          {/* 社群消息提醒按钮 */}
-          <div className="relative" ref={messagesRef}>
-            <button
-              onClick={() => setShowCommunityMessages(v => !v)}
-              className="bg-blue-600 text-white p-2.5 rounded-full shadow-lg hover:bg-blue-700 transition-all duration-300 flex items-center justify-center relative"
-              aria-label="社群消息"
-              title="社群消息"
-            >
-              <i className="fas fa-comments text-base"></i>
-              {/* 消息提示红点 */}
-              {unreadMessageCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 inline-flex items-center justify-center min-w-6 h-6 rounded-full bg-red-600 text-white text-xs font-bold px-1">
-                  {unreadMessageCount}
-                </span>
-              )}
-            </button>
-            {/* 消息面板 */}
-            {showCommunityMessages && (
-              <div className="absolute right-0 bottom-full mb-2 w-80 rounded-xl shadow-lg ring-1 bg-white dark:bg-gray-800 ring-gray-200 dark:ring-gray-700 z-50">
-                <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                  <span className="font-medium text-gray-900 dark:text-white">社群消息</span>
-                  <div className="flex items-center space-x-2">
-                    <button
-                      className="text-xs px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                      onClick={() => setCommunityMessages(prev => prev.map(m => ({ ...m, read: true })))}>
-                      全部已读
-                    </button>
-                    <button
-                      className="text-xs px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors hover:underline focus:outline-none focus:ring-2 focus:ring-gray-300 focus:rounded"
-                      onClick={() => {
-                        setShowCommunityMessages(false);
-                        navigate('/community');
-                      }}
-                      aria-label="查看全部社区消息">
-                      查看全部
-                    </button>
-                  </div>
-                </div>
-                <ul className="max-h-80 overflow-auto">
-                  {communityMessages.length === 0 ? (
-                    <li className="text-gray-500 dark:text-gray-400 px-4 py-6 text-sm">暂无消息</li>
-                  ) : (
-                    communityMessages.map(m => (
-                      <li key={m.id}>
-                        <button
-                          className="w-full text-left px-4 py-3 flex items-start space-x-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                          onClick={() => {
-                            setCommunityMessages(prev => prev.map(x => 
-                              x.id === m.id ? { ...x, read: true } : x
-                            ));
-                          }}
-                        >
-                          <span className="text-2xl">{m.avatar}</span>
-                          <div className="flex-1">
-                            <div className="flex items-center justify-between">
-                              <span className="text-sm font-medium text-gray-900 dark:text-white">{m.sender}</span>
-                              <span className="text-xs text-gray-500 dark:text-gray-400">{m.time}</span>
-                            </div>
-                            <p className="mt-1 text-sm text-gray-600 dark:text-gray-400 line-clamp-1">{m.content}</p>
-                          </div>
-                          {!m.read && (
-                            <span className="mt-1 inline-flex items-center justify-center w-2 h-2 rounded-full bg-red-500"></span>
-                          )}
-                        </button>
-                      </li>
-                    ))
-                  )}
-                </ul>
-              </div>
-            )}
-          </div>
-          
-          {/* 满意度调查按钮 */}
-          <button
-              onClick={() => setShowSurvey(true)}
-              className="bg-yellow-500 text-white p-2.5 rounded-full shadow-lg hover:bg-yellow-600 transition-all duration-300 flex items-center justify-center"
-              aria-label="满意度调查"
-              title="满意度调查"
-            >
-              <i className="fas fa-star text-base"></i>
-            </button>
-        </div>
-        
-        {/* 满意度调查组件 */}
-        <SatisfactionSurvey 
-          isOpen={showSurvey} 
-          onClose={() => setShowSurvey(false)} 
-          onSubmit={(data) => {
-            // 使用调查服务提交数据
-            surveyService.submitSurvey(
-              data,
-              user?.id || `anonymous-${Date.now()}`,
-              user?.username || '匿名用户'
-            );
-          }} 
-        />
-      </>
-    );
-  }
-
-  FloatingButtons.displayName = 'FloatingButtons';
 
   // 优化全局加载骨架屏，实现更美观的品牌化加载体验
   const GlobalLoadingSkeleton = () => (
@@ -868,19 +681,18 @@ export default function App() {
       </LazyComponent>
       
       {/* 悬浮AI助手 - 懒加载 */}
-      <LazyComponent>
-        <FloatingAIAssistant />
-      </LazyComponent>
+      <ErrorBoundary fallback={null}>
+        <LazyComponent>
+          <FloatingAIAssistant />
+        </LazyComponent>
+      </ErrorBoundary>
       
       {/* 用户反馈组件 - 懒加载 */}
       <LazyComponent>
         <UserFeedback isOpen={showFeedback} onClose={() => setShowFeedback(false)} />
       </LazyComponent>
       
-      {/* 优化：使用独立的FloatingButtons组件，避免不必要的全局重新渲染 */}
-      <LazyComponent>
-        <FloatingButtons />
-      </LazyComponent>
+
 
       {/* 全局命令面板 */}
       <CommandPalette />

@@ -277,6 +277,9 @@ export default function Dashboard() {
                       会员中心
                     </Link>
                     
+                    {/* 安装应用按钮 - 仅在可安装时显示 */}
+                    <PWAInstallButton variant="dashboard" isDark={isDark} />
+                    
                     {/* 中文注释：移动端优化——详情切换按钮触控区统一至少44px，并增加无障碍属性 */}
                     <button 
                       onClick={() => setShowCreatorProfile(!showCreatorProfile)}

@@ -28,6 +28,7 @@ export const UserBlockingPriority = 2;
 export const NormalPriority = 3;
 export const LowPriority = 4;
 export const IdlePriority = 5;
+export const ConcurrentRoot = 1;
 
 // 导出一个简单的 react-reconciler 实现
 export default {

@@ -768,9 +768,9 @@ export default function App() {
           <RouteCache>
             <AnimatedPage>
               {isMobile ? (
-                <MobileLayout><Home /></MobileLayout>
+                <MobileLayout><PrivateRoute><Home /></PrivateRoute></MobileLayout>
               ) : (
-                <SidebarLayout><Home /></SidebarLayout>
+                <SidebarLayout><PrivateRoute><Home /></PrivateRoute></SidebarLayout>
               )}
             </AnimatedPage>
           </RouteCache>

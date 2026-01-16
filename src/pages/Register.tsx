@@ -38,9 +38,9 @@ export default function Register() {
   const [age, setAge] = useState('');
   const [tags, setTags] = useState<string[]>(['国潮爱好者']);
   
-  // 如果已登录，直接跳转到仪表板
+  // 如果已登录，直接跳转到首页
   if (isAuthenticated) {
-    navigate('/dashboard');
+    navigate('/');
   }
   
   const handleSubmit = async (e: React.FormEvent) => {
@@ -75,7 +75,7 @@ export default function Register() {
       
       if (result.success) {
         toast.success('注册成功！自动登录中...');
-        navigate('/dashboard');
+        navigate('/');
       } else {
         const errorMessage = result.error || '注册失败，请检查输入信息或稍后重试';
         toast.error(errorMessage);

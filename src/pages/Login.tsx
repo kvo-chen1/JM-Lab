@@ -21,7 +21,7 @@ export default function Login() {
   
   useEffect(() => {
     if (isAuthenticated) {
-      navigate('/dashboard');
+      navigate('/');
     }
   }, [isAuthenticated, navigate])
   
@@ -72,7 +72,7 @@ export default function Login() {
       
       if (success) {
         toast.success('登录成功！');
-        navigate('/dashboard');
+        navigate('/');
       } else {
         toast.error('邮箱或密码错误，请重试');
       }
@@ -266,7 +266,7 @@ export default function Login() {
                   const ok = await quickLogin(item.name as any)
                   if (ok) {
                     toast.success('登录成功！')
-                    navigate('/dashboard')
+                    navigate('/')
                   }
                 }}
               >
@@ -280,7 +280,7 @@ export default function Login() {
                 const ok = await quickLogin('phone')
                 if (ok) {
                   toast.success('手机号一键登录成功！')
-                  navigate('/dashboard')
+                  navigate('/')
                 }
               }}
               className={`w-full ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} text-gray-800 font-medium py-3 px-4 rounded-xl transition-colors`}

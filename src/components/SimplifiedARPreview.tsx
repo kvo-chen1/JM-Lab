@@ -29,6 +29,33 @@ const modelCache = new Map<string, ModelCacheItem>();
 const MAX_CACHE_SIZE = 5;
 const CACHE_TTL = 3600000; // 1小时
 
+// 简单的错误边界组件
+class ErrorBoundary extends React.Component<
+  { children: React.ReactNode; onError: (error: Error) => void },
+  { hasError: boolean }
+> {
+  constructor(props: { children: React.ReactNode; onError: (error: Error) => void }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(_error: Error) {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error) {
+    this.props.onError(error);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return null;
+    }
+
+    return this.props.children;
+  }
+};
+
 // 3D模型加载子组件 - 使用useGLTF钩子
 const GLTFModel: React.FC<{
   url: string;
@@ -112,33 +139,6 @@ const GLTFModel: React.FC<{
   );
 };
 
-// 预加载模型的函数
-export const preloadModel = async (url: string) => {
-  // 检查缓存
-  if (modelCache.has(url)) {
-    return;
-  }
-  
-  try {
-    // 简化预加载实现，只验证URL并添加到缓存
-    // 实际模型加载由useGLTF钩子处理
-    if (typeof url !== 'string' || !url) {
-      throw new Error('Invalid model URL');
-    }
-    
-    // 创建简单的缓存条目，实际gltf对象由useGLTF填充
-    modelCache.set(url, {
-      gltf: { scene: null },
-      timestamp: Date.now(),
-      usageCount: 0
-    });
-    
-    console.log(`Model preload scheduled: ${url}`);
-  } catch (error) {
-    console.error(`Failed to schedule model preload: ${url}`, error);
-  }
-};
-
 // 3D模型加载组件 - 使用错误边界处理加载错误
 const ModelViewer: React.FC<{
   url: string;
@@ -187,30 +187,32 @@ const ModelViewer: React.FC<{
   );
 };
 
-// 简单的错误边界组件
-class ErrorBoundary extends React.Component<
-  { children: React.ReactNode; onError: (error: Error) => void },
-  { hasError: boolean }
-> {
-  constructor(props: { children: React.ReactNode; onError: (error: Error) => void }) {
-    super(props);
-    this.state = { hasError: false };
-  }
 
-  static getDerivedStateFromError(_error: Error) {
-    return { hasError: true };
-  }
 
-  componentDidCatch(error: Error) {
-    this.props.onError(error);
+// 预加载模型的函数
+export const preloadModel = async (url: string) => {
+  // 检查缓存
+  if (modelCache.has(url)) {
+    return;
   }
-
-  render() {
-    if (this.state.hasError) {
-      return null;
+  
+  try {
+    // 简化预加载实现，只验证URL并添加到缓存
+    // 实际模型加载由useGLTF钩子处理
+    if (typeof url !== 'string' || !url) {
+      throw new Error('Invalid model URL');
     }
-
-    return this.props.children;
+    
+    // 创建简单的缓存条目，实际gltf对象由useGLTF填充
+    modelCache.set(url, {
+      gltf: { scene: null },
+      timestamp: Date.now(),
+      usageCount: 0
+    });
+    
+    console.log(`Model preload scheduled: ${url}`);
+  } catch (error) {
+    console.error(`Failed to schedule model preload: ${url}`, error);
   }
 };
 
@@ -360,9 +362,20 @@ const SimplifiedARPreview: React.FC<{
     // 验证imageUrl是否有效
     const isValidImageUrl = (url: string) => {
       try {
-        new URL(url);
-        // 允许使用https协议的图片URL，不限制特定域名
-        return url.startsWith('https://');
+        // 支持绝对URL（http:// 和 https://）
+        if (url.startsWith('http://') || url.startsWith('https://')) {
+          new URL(url);
+          return true;
+        }
+        // 支持相对路径（以 / 开头）
+        if (url.startsWith('/')) {
+          return true;
+        }
+        // 支持数据URI
+        if (url.startsWith('data:')) {
+          return true;
+        }
+        return false;
       } catch {
         return false;
       }
@@ -396,6 +409,8 @@ const SimplifiedARPreview: React.FC<{
                 console.log('AR Preview - Texture loaded successfully:', loadedTexture);
                 setTexture(loadedTexture);
                 setLoadingProgress(100);
+                setModelLoaded(true);
+                handleModelLoad();
                 resolve();
               },
               (progressEvent) => {
@@ -442,32 +457,29 @@ const SimplifiedARPreview: React.FC<{
       setLoadingProgress(0);
       setTexture(null);
       setModelLoaded(false);
+      // 直接调用loadResource
+      loadResource();
     }
-  }, [retryCount, maxRetries]);
+  }, [retryCount, maxRetries, loadResource]);
 
   // 加载资源的useEffect
   useEffect(() => {
     loadResource();
 
     // 清理函数
-      return () => {
-        // 清理纹理资源 - 确保dispose方法存在
-        if (texture && typeof texture.dispose === 'function') {
-          texture.dispose();
-        }
-        // 注意：THREE.TextureLoader没有cancel方法，所以移除这个调用
-        // if (textureLoaderRef.current) {
-        //   textureLoaderRef.current.cancel();
-        // }
-      };
-  }, [loadResource, texture]);
+    return () => {
+      // 清理纹理资源 - 确保dispose方法存在
+      if (texture && typeof texture.dispose === 'function') {
+        texture.dispose();
+      }
+      // 注意：THREE.TextureLoader没有cancel方法，所以移除这个调用
+      // if (textureLoaderRef.current) {
+      //   textureLoaderRef.current.cancel();
+      // }
+    };
+  }, [config.imageUrl, config.modelUrl, config.type]);
 
-  // 监听重试计数变化，重新加载
-  useEffect(() => {
-    if (retryCount > 0) {
-      loadResource();
-    }
-  }, [retryCount, loadResource]);
+
 
   // 3D模型加载完成处理
   const handleModelLoad = useCallback(() => {
@@ -536,7 +548,7 @@ const SimplifiedARPreview: React.FC<{
               }
             }}
           >
-            <i className="fas fa-vr-cardboard mr-2"></i>
+            <span className="mr-2">📱</span>
             进入AR模式
           </button>
           <button
@@ -705,7 +717,7 @@ const SimplifiedARPreview: React.FC<{
             <div className="flex flex-col gap-2">
               <div className="text-white text-sm bg-gray-800 bg-opacity-90 px-4 py-3 rounded-lg backdrop-blur-md shadow-lg">
                 <div className="flex items-center gap-2 mb-1">
-                  <i className="fas fa-spinner fa-spin text-blue-400"></i>
+                  <span className="text-blue-400">⏳</span>
                   <span className="font-medium">正在检测设备AR兼容性</span>
                 </div>
                 <p className="text-xs opacity-90">请稍候...</p>
@@ -717,7 +729,7 @@ const SimplifiedARPreview: React.FC<{
               {cameraPermission === false && (
                 <div className="text-white text-sm bg-red-900 bg-opacity-90 px-4 py-3 rounded-lg max-w-xs backdrop-blur-md shadow-lg">
                   <div className="font-medium mb-2 flex items-center gap-2">
-                    <i className="fas fa-camera text-red-400"></i>
+                    <span className="text-red-400">📷</span>
                     <span>需要相机权限</span>
                   </div>
                   <p className="text-xs opacity-90 mb-2">AR功能需要访问相机权限才能工作</p>
@@ -733,7 +745,7 @@ const SimplifiedARPreview: React.FC<{
               {/* AR功能说明 */}
               <div className="text-white text-sm bg-blue-900 bg-opacity-90 px-4 py-3 rounded-lg max-w-xs backdrop-blur-md shadow-lg">
                 <div className="font-medium mb-2 flex items-center gap-2">
-                  <i className="fas fa-vr-cardboard text-blue-400"></i>
+                  <span className="text-blue-400">📱</span>
                   <span>AR功能说明</span>
                 </div>
                 <div className="space-y-1 text-xs">
@@ -760,7 +772,7 @@ const SimplifiedARPreview: React.FC<{
             <div className="flex flex-col gap-2">
               <div className="text-white text-sm bg-gray-900 bg-opacity-90 px-4 py-3 rounded-lg max-w-xs backdrop-blur-md shadow-lg">
                 <div className="font-medium mb-2 flex items-center gap-2">
-                  <i className="fas fa-info-circle text-yellow-400"></i>
+                  <span className="text-yellow-400">ℹ️</span>
                   <span>设备不支持AR功能</span>
                 </div>
                 <p className="text-xs mb-2 opacity-90">当前设备暂不支持WebXR AR功能</p>
@@ -855,7 +867,7 @@ const SimplifiedARPreview: React.FC<{
           <div className="absolute top-4 left-4 z-10">
             <div className="text-white text-xs bg-blue-900 bg-opacity-70 px-3 py-2 rounded-lg backdrop-blur-md shadow-lg max-w-xs">
               <div className="font-medium mb-1 flex items-center gap-1">
-                <i className="fas fa-lightbulb text-yellow-400"></i>
+                <span className="text-yellow-400">💡</span>
                 <span>使用提示</span>
               </div>
               <ul className="space-y-1">

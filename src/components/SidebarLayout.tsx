@@ -1244,6 +1244,9 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                           <button className={`w-full text-left px-4 py-2 ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}`} onClick={() => { setShowUserMenu(false); navigate('/collection') }}>{t('header.myCollection')}</button>
                         </li>
                         <li>
+                          <button className={`w-full text-left px-4 py-2 ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}`} onClick={() => { setShowUserMenu(false); window.location.href = '/landing.html' }}>{t('header.backToOfficialWebsite')}</button>
+                        </li>
+                        <li>
                           <button className={`w-full text-left px-4 py-2 ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}`} onClick={() => { setShowUserMenu(false); navigate('/drafts') }}>{t('common.drafts')}</button>
                         </li>
                         <li>
@@ -1251,9 +1254,6 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                         </li>
                         <li>
                           <PWAInstallButton asMenuItem isDark={isDark} />
-                        </li>
-                        <li>
-                          <button className={`w-full text-left px-4 py-2 ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}`} onClick={() => { setShowUserMenu(false); window.location.href = '/landing.html' }}>{t('header.backToOfficialWebsite')}</button>
                         </li>
                         <li className="border-t ${isDark ? 'border-gray-700' : 'border-gray-200'} mt-2">
                           <button className={`w-full text-left px-4 py-2 text-red-600 ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}`} onClick={() => { setShowUserMenu(false); logout() }}>{t('header.logout')}</button>

@@ -104,7 +104,7 @@ const AICreativeAssistant: React.FC<AICreativeAssistantProps> = ({ isOpen, onClo
     >
       {/* 面板头部 */}
       <div className={`p-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'} flex justify-between items-center`}>
-        <h3 className="text-lg font-bold">AI创意助手</h3>
+        <h3 className="text-lg font-bold">津小脉</h3>
         <button
           onClick={onClose}
           className={`p-2 rounded-full ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} transition-colors`}

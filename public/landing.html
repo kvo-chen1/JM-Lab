@@ -9,6 +9,10 @@
     <meta name="keywords" content="津脉智坊, Jinmai Lab, AI, 非遗, 老字号, 数字共创, 天津文脉">
     <meta name="author" content="津脉智坊">
     <meta name="robots" content="index, follow">
+    <!-- Hreflang tags for SEO -->
+    <link rel="alternate" hreflang="zh-CN" href="http://localhost:3000/" />
+    <link rel="alternate" hreflang="en" href="http://localhost:3000/?lang=en" />
+    <link rel="alternate" hreflang="x-default" href="http://localhost:3000/" />
     <!-- Open Graph 元标签 -->
     <meta property="og:title" content="津脉智坊 Jinmai Lab | AI赋能老字号非遗共创平台">
     <meta property="og:description" content="连接传统与未来的数字共创生态，通过人工智能技术为老字号品牌注入新生，构建非遗文化的赛博新纪元。">
@@ -54,6 +58,896 @@
         }
     </script>
 
+    <!-- Language Translation Script -->
+    <script>
+        // 语言包对象
+        const translations = {
+            zh: {
+                meta: {
+                    title: '津脉智坊 Jinmai Lab | AI赋能老字号非遗共创平台',
+                    description: '津脉智坊 - 连接传统与未来的数字共创生态，通过人工智能技术为老字号品牌注入新生，构建非遗文化的赛博新纪元。',
+                    keywords: '津脉智坊, Jinmai Lab, AI, 非遗, 老字号, 数字共创, 天津文脉'
+                },
+                nav: {
+                    about: '关于我们',
+                    culture: '企业文化',
+                    achievements: '创新成就',
+                    contact: '联系我们',
+                    explore: '进入平台',
+                    labPlatform: '进入实验室平台'
+                },
+                hero: {
+                    subtitle: 'AI × Intangible Cultural Heritage',
+                    title1: '传承天津文脉',
+                    title2: 'AI 点亮创新',
+                    description: '连接传统与未来的数字共创生态。津脉智坊致力于通过人工智能技术，为老字号品牌注入新生，构建非遗文化的赛博新纪元。',
+                    exploreBtn: '立即探索平台',
+                    missionBtn: '了解企业使命'
+                },
+                about: {
+                    title: '关于津脉智坊',
+                    description1: '津脉智坊（Jinmai Lab）是植根于天津的先锋科技文化企业，致力于以AI技术为传统文化注入数字生命力。我们不仅是展示平台，更是一座连接历史传承与未来创新的桥梁，为非遗文化的可持续发展开辟新路径。',
+                    description2: '面对数字时代的文化传承挑战，我们深入探索如何让"狗不理"、"达仁堂"等天津百年老字号在Z世代语境中焕发新生。依托自主研发的AI生成算法与NEBULA FLOW粒子交互技术，我们将传统纹样、味觉记忆、历史叙事转化为可交互、可感知的数字艺术体验，为品牌提供全方位的年轻化转型解决方案。',
+                    mission: '使命',
+                    missionDesc: '以AI技术复兴城市文化记忆，让非遗在数字时代焕发新生',
+                    vision: '愿景',
+                    visionDesc: '构建全球领先的非遗数字资产库，成为传统文化数字化转型的标杆'
+                },
+                visionMission: {
+                    title: '企业愿景与使命',
+                    missionTitle: '我们的使命',
+                    missionDesc: '以AI技术复兴城市文化记忆，让非遗在数字时代焕发新生。我们致力于通过技术创新，为传统文化注入现代活力，构建可持续的文化传承生态。',
+                    missionItems: [
+                        '保护与传承非物质文化遗产',
+                        '用技术赋能传统文化创新',
+                        '构建开放共享的文化生态'
+                    ],
+                    visionTitle: '我们的愿景',
+                    visionDesc: '构建全球领先的非遗数字资产库，成为传统文化数字化转型的标杆。我们希望通过持续创新，引领文化科技融合的新潮流。',
+                    visionItems: [
+                        '成为全球非遗数字化的领导者',
+                        '打造最具影响力的文化科技品牌',
+                        '推动文化与科技深度融合发展'
+                    ]
+                },
+                coreValues: {
+                    title: '核心价值观',
+                    values: [
+                        { title: '创新引领', desc: '以技术创新为驱动，不断探索传统文化数字化的新可能' },
+                        { title: '文化传承', desc: '尊重传统文化，守护非遗技艺，让经典在数字时代重生' },
+                        { title: '开放协作', desc: '构建开放共享的生态系统，与全球创作者共同成长' },
+                        { title: '卓越品质', desc: '追求极致的产品与服务质量，为用户创造卓越体验' }
+                    ]
+                },
+                team: {
+                    title: '团队风采与员工活动',
+                    coreTeam: '核心团队',
+                    activities: '员工活动',
+                    teamMembers: [
+                        { name: '陈声辉', role: '创始人 & CEO', desc: 'AI技术专家，致力于传统文化数字化转型' },
+                        { name: '李凯硕', role: 'CTO', desc: '技术总监，负责AI算法与NEBULA FLOW技术研发' },
+                        { name: '程艳', role: '文化总监', desc: '文化学者，专注非遗文化研究与数字化表达' },
+                        { name: '胡静', role: '设计总监', desc: '视觉设计师，负责品牌视觉与用户体验设计' },
+                        { name: '王曦凯', role: '市场总监', desc: '品牌营销专家，负责市场推广与合作伙伴关系' }
+                    ],
+                    activityItems: [
+                        { title: '团队建设活动', desc: '定期组织团队建设活动，增强团队凝聚力，促进跨部门协作' },
+                        { title: '技术分享会', desc: '每周举办技术分享会，交流最新AI技术与传统文化数字化经验' },
+                        { title: '文化体验日', desc: '组织非遗文化体验活动，深入了解传统文化内涵与技艺' },
+                        { title: '创新成果展', desc: '定期举办创新成果展示，激励员工持续创新与突破' }
+                    ]
+                },
+                cultureStories: {
+                    title: '企业文化故事',
+                    stories: [
+                        { title: '泥人张的数字化重生', desc: '如何通过AI技术解析泥人张的色彩搭配与造型艺术，将传统技艺转化为数字资产，让经典艺术在数字时代焕发新生' },
+                        { title: 'NEBULA FLOW技术的诞生', desc: '团队如何攻克技术难题，研发出独特的NEBULA FLOW粒子交互技术，为传统文化数字化提供全新的视觉表达方式' },
+                        { title: '全球创作者社区的构建', desc: '如何从一个小团队发展成为拥有12,000+全球创作者的社区，共同推动传统文化数字化转型' }
+                    ],
+                    readMore: '阅读更多'
+                },
+                achievements: {
+                    creators: '活跃创作者',
+                    brands: '合作品牌',
+                    artworks: 'AI 生成作品',
+                    digitization: '非遗数字化率%'
+                },
+                features: {
+                    title: '核心功能',
+                    description: '我们提供全方位的AI赋能工具，助力传统文化的数字化转型与创新发展',
+                    featureItems: [
+                        { title: '非遗数字资产库', desc: '构建系统化的非遗数字资产库，包含传统工艺、纹样、音乐等多种形式的文化遗产数据，为创新提供丰富素材。' },
+                        { title: 'AI 创作工具', desc: '基于深度学习的生成式AI工具，可将传统元素转化为现代设计，助力创作者快速实现创意落地。' },
+                        { title: '数字展览平台', desc: '沉浸式数字展览解决方案，通过3D建模和交互技术，为传统文化打造现代化的展示空间。' },
+                        { title: '品牌增长分析', desc: '基于大数据的品牌增长分析工具，帮助老字号品牌了解市场趋势，制定精准的数字化战略。' }
+                    ]
+                },
+                cases: {
+                    title: '用户案例',
+                    caseItems: [
+                        { title: '狗不理数字化转型', desc: '通过AI技术重构品牌视觉系统，结合传统包子制作工艺与现代设计语言，打造全新的品牌形象和数字化营销方案。', tag: '品牌重塑', year: '2024' },
+                        { title: '泥人张数字艺术馆', desc: '为国家级非遗项目"泥人张"打造沉浸式数字艺术馆，通过3D扫描和AI技术，实现传统泥塑艺术的数字化展示与互动体验。', tag: '数字展览', year: '2023' },
+                        { title: '天津相声数字化工程', desc: '运用AI语音技术和自然语言处理，对传统相声段子进行数字化整理与创新，开发互动式相声体验平台，吸引年轻受众。', tag: '文化传承', year: '2024' }
+                    ]
+                },
+                partners: {
+                    title: '合作伙伴',
+                    description: '我们与行业领先的品牌、机构和院校建立了深度合作关系，共同推动传统文化的数字化发展',
+                    partnerItems: [
+                        { title: '品牌合作' },
+                        { title: '学术机构' },
+                        { title: '文化场馆' },
+                        { title: '科技企业' },
+                        { title: '创意机构' },
+                        { title: '行业协会' }
+                    ]
+                },
+                timeline: {
+                    title: '发展历程',
+                    description: '探索津脉智坊的成长轨迹，见证我们如何通过技术创新推动传统文化的数字化发展',
+                    timelineItems: [
+                        { year: '2025', desc: '津脉智坊成立，专注于AI技术与传统文化的融合研究，启动非遗数字化保护项目。' },
+                        { year: '2026', desc: '推出首个AI非遗创作平台，与多家天津老字号品牌建立合作关系，启动数字化转型项目。' },
+                        { year: '2027', desc: '平台用户突破10,000+，成功举办首届数字非遗艺术节，与多家高校建立产学研合作关系。' },
+                        { year: '未来', desc: '计划推出全球非遗数字资产库，拓展国际合作，打造传统文化数字化的全球标杆。' }
+                    ]
+                },
+                cta: {
+                    title: '准备好体验数字非遗了吗？',
+                    description: '探索我们的 NEBULA FLOW 粒子实验，亲手触摸数据化的天津脉搏。',
+                    button: '进入 Jinmai Lab 平台'
+                },
+                footer: {
+                    address: '天津市 · AI文化创新实验室\n致力于将中国传统文化推向数字未来。',
+                    explore: '探索',
+                    contact: '联系',
+                    labPlatform: '实验平台',
+                    privacy: '隐私政策',
+                    terms: '服务条款',
+                    copyright: '© 2024 Jinmai Lab. All rights reserved.'
+                },
+                loading: '加载中，请稍候...'
+            },
+            en: {
+                meta: {
+                    title: 'Jinmai Lab | AI-empowered Traditional Brand & Intangible Cultural Heritage Co-creation Platform',
+                    description: 'Jinmai Lab - A digital co-creation ecosystem connecting tradition and future, injecting new life into time-honored brands through AI technology, building a cyber new era for intangible cultural heritage.',
+                    keywords: 'Jinmai Lab, AI, Intangible Cultural Heritage, Traditional Brands, Digital Co-creation, Tianjin Culture'
+                },
+                nav: {
+                    about: 'About Us',
+                    culture: 'Corporate Culture',
+                    achievements: 'Achievements',
+                    contact: 'Contact Us',
+                    explore: 'Enter Platform',
+                    labPlatform: 'Enter Lab Platform'
+                },
+                hero: {
+                    subtitle: 'AI × Intangible Cultural Heritage',
+                    title1: 'Inheriting Tianjin Culture',
+                    title2: 'AI Ignites Innovation',
+                    description: 'A digital co-creation ecosystem connecting tradition and future. Jinmai Lab is committed to injecting new life into time-honored brands through AI technology, building a cyber new era for intangible cultural heritage.',
+                    exploreBtn: 'Explore Platform Now',
+                    missionBtn: 'Learn About Our Mission'
+                },
+                about: {
+                    title: 'About Jinmai Lab',
+                    description1: 'Jinmai Lab is a pioneering technology and culture enterprise rooted in Tianjin, dedicated to infusing traditional culture with digital vitality through AI technology. We are not just a showcase platform, but a bridge connecting historical inheritance and future innovation, opening up new paths for the sustainable development of intangible cultural heritage.',
+                    description2: 'Facing the challenges of cultural inheritance in the digital age, we deeply explore how to revitalize Tianjin\'s century-old brands like "Goubuli" and "Darentang" in the context of Generation Z.依托自主研发的AI生成算法与NEBULA FLOW粒子交互技术， we transform traditional patterns, taste memories, and historical narratives into interactive, perceptible digital art experiences, providing comprehensive年轻化转型解决方案 for brands.',
+                    mission: 'Mission',
+                    missionDesc: 'Revitalizing urban cultural memory with AI technology, enabling intangible cultural heritage to thrive in the digital age',
+                    vision: 'Vision',
+                    visionDesc: 'Building the world\'s leading digital asset library for intangible cultural heritage, becoming a benchmark for the digital transformation of traditional culture'
+                },
+                visionMission: {
+                    title: 'Corporate Vision & Mission',
+                    missionTitle: 'Our Mission',
+                    missionDesc: 'Revitalizing urban cultural memory with AI technology, enabling intangible cultural heritage to thrive in the digital age. We are committed to injecting modern vitality into traditional culture through technological innovation, building a sustainable cultural inheritance ecosystem.',
+                    missionItems: [
+                        'Protect and inherit intangible cultural heritage',
+                        'Empower traditional culture innovation with technology',
+                        'Build an open and shared cultural ecosystem'
+                    ],
+                    visionTitle: 'Our Vision',
+                    visionDesc: 'Building the world\'s leading digital asset library for intangible cultural heritage, becoming a benchmark for the digital transformation of traditional culture. We hope to lead the new trend of integration between culture and technology through continuous innovation.',
+                    visionItems: [
+                        'Become a global leader in intangible cultural heritage digitization',
+                        'Build the most influential cultural technology brand',
+                        'Promote deep integration of culture and technology'
+                    ]
+                },
+                coreValues: {
+                    title: 'Core Values',
+                    values: [
+                        { title: 'Innovation Leadership', desc: 'Driven by technological innovation, continuously exploring new possibilities for digital transformation of traditional culture' },
+                        { title: 'Cultural Inheritance', desc: 'Respect traditional culture, safeguard intangible cultural heritage skills, and revitalize classics in the digital age' },
+                        { title: 'Open Collaboration', desc: 'Build an open and shared ecosystem, growing together with global creators' },
+                        { title: 'Excellent Quality', desc: 'Pursue极致的产品与服务质量， creating excellent experiences for users' }
+                    ]
+                },
+                team: {
+                    title: 'Team Style & Employee Activities',
+                    coreTeam: 'Core Team',
+                    activities: 'Employee Activities',
+                    teamMembers: [
+                        { name: 'Chen Shenghui', role: 'Founder & CEO', desc: 'AI technology expert, dedicated to digital transformation of traditional culture' },
+                        { name: 'Li Kaishuo', role: 'CTO', desc: 'Technical Director, responsible for AI algorithms and NEBULA FLOW technology research and development' },
+                        { name: 'Cheng Yan', role: 'Cultural Director', desc: 'Cultural scholar, focusing on intangible cultural heritage research and digital expression' },
+                        { name: 'Hu Jing', role: 'Design Director', desc: 'Visual designer, responsible for brand visual and user experience design' },
+                        { name: 'Wang Xikai', role: 'Marketing Director', desc: 'Brand marketing expert, responsible for market promotion and partner relationships' }
+                    ],
+                    activityItems: [
+                        { title: 'Team Building Activities', desc: 'Regularly organize team building activities to enhance team cohesion and promote cross-departmental collaboration' },
+                        { title: 'Technology Sharing Sessions', desc: 'Weekly technology sharing sessions to exchange the latest AI technology and traditional culture digitalization experience' },
+                        { title: 'Cultural Experience Days', desc: 'Organize intangible cultural heritage experience activities to deeply understand traditional culture connotation and skills' },
+                        { title: 'Innovation Achievement Exhibitions', desc: 'Regularly hold innovation achievement exhibitions to inspire employees to continue innovating and breaking through' }
+                    ]
+                },
+                cultureStories: {
+                    title: 'Corporate Culture Stories',
+                    stories: [
+                        { title: 'Digital Rebirth of Niren Zhang', desc: 'How to analyze the color matching and modeling art of Niren Zhang through AI technology, transform traditional skills into digital assets, and revitalize classic art in the digital age' },
+                        { title: 'Birth of NEBULA FLOW Technology', desc: 'How the team overcame technical challenges and developed the unique NEBULA FLOW particle interaction technology, providing a全新的视觉表达方式 for traditional culture digitalization' },
+                        { title: 'Building a Global Creator Community', desc: 'How to develop from a small team to a community with 12,000+ global creators, jointly promoting the digital transformation of traditional culture' }
+                    ],
+                    readMore: 'Read More'
+                },
+                achievements: {
+                    creators: 'Active Creators',
+                    brands: 'Partner Brands',
+                    artworks: 'AI Generated Works',
+                    digitization: 'Digitization Rate%'
+                },
+                features: {
+                    title: 'Core Features',
+                    description: 'We provide comprehensive AI-empowered tools to support the digital transformation and innovative development of traditional culture',
+                    featureItems: [
+                        { title: 'Intangible Cultural Heritage Digital Asset Library', desc: 'Build a systematic digital asset library for intangible cultural heritage, including various forms of cultural heritage data such as traditional crafts, patterns, and music, providing rich materials for innovation.' },
+                        { title: 'AI Creation Tools', desc: 'Deep learning-based generative AI tools that can transform traditional elements into modern designs, helping creators quickly realize their ideas.' },
+                        { title: 'Digital Exhibition Platform', desc: 'Immersive digital exhibition solutions, creating modern exhibition spaces for traditional culture through 3D modeling and interactive technology.' },
+                        { title: 'Brand Growth Analysis', desc: 'Big data-based brand growth analysis tools to help time-honored brands understand market trends and develop precise digital strategies.' }
+                    ]
+                },
+                cases: {
+                    title: 'User Cases',
+                    caseItems: [
+                        { title: 'Goubuli Digital Transformation', desc: 'Reconstructing brand visual system through AI technology, combining traditional bun making craft with modern design language to create a new brand image and digital marketing plan.', tag: 'Brand Remodeling', year: '2024' },
+                        { title: 'Niren Zhang Digital Art Museum', desc: 'Creating an immersive digital art museum for the national intangible cultural heritage "Niren Zhang", realizing digital display and interactive experience of traditional clay sculpture art through 3D scanning and AI technology.', tag: 'Digital Exhibition', year: '2023' },
+                        { title: 'Tianjin Crosstalk Digitalization Project', desc: 'Using AI voice technology and natural language processing to digitally organize and innovate traditional crosstalk segments, developing an interactive crosstalk experience platform to attract young audiences.', tag: 'Cultural Inheritance', year: '2024' }
+                    ]
+                },
+                partners: {
+                    title: 'Partners',
+                    description: 'We have established in-depth cooperative relationships with industry-leading brands, institutions and universities to jointly promote the digital development of traditional culture',
+                    partnerItems: [
+                        { title: 'Brand Partnerships' },
+                        { title: 'Academic Institutions' },
+                        { title: 'Cultural Venues' },
+                        { title: 'Technology Enterprises' },
+                        { title: 'Creative Agencies' },
+                        { title: 'Industry Associations' }
+                    ]
+                },
+                timeline: {
+                    title: 'Development History',
+                    description: 'Explore Jinmai Lab\'s growth trajectory and witness how we promote the digital development of traditional culture through technological innovation',
+                    timelineItems: [
+                        { year: '2025', desc: 'Jinmai Lab was established, focusing on the integration of AI technology and traditional culture, and launched the intangible cultural heritage digital protection project.' },
+                        { year: '2026', desc: 'Launched the first AI intangible cultural heritage creation platform, established cooperative relationships with many Tianjin time-honored brands, and started digital transformation projects.' },
+                        { year: '2027', desc: 'Platform users exceeded 10,000+, successfully held the first Digital Intangible Cultural Heritage Art Festival, and established industry-university-research cooperative relationships with many universities.' },
+                        { year: 'Future', desc: 'Plan to launch a global intangible cultural heritage digital asset library, expand international cooperation, and create a global benchmark for traditional culture digitalization.' }
+                    ]
+                },
+                cta: {
+                    title: 'Ready to experience digital intangible cultural heritage?',
+                    description: 'Explore our NEBULA FLOW particle experiment and touch the digitalized Tianjin pulse with your own hands.',
+                    button: 'Enter Jinmai Lab Platform'
+                },
+                footer: {
+                    address: 'Tianjin · AI Cultural Innovation Laboratory\nCommitted to bringing Chinese traditional culture to the digital future.',
+                    explore: 'Explore',
+                    contact: 'Contact',
+                    labPlatform: 'Lab Platform',
+                    privacy: 'Privacy Policy',
+                    terms: 'Terms of Service',
+                    copyright: '© 2024 Jinmai Lab. All rights reserved.'
+                },
+                loading: 'Loading, please wait...'
+            }
+        };
+
+        // 当前语言
+        let currentLang = 'zh';
+
+        // 初始化页面语言
+        function initLanguage() {
+            // 从localStorage获取语言偏好，否则使用浏览器语言
+            const savedLang = localStorage.getItem('preferredLanguage');
+            const browserLang = navigator.language.split('-')[0];
+            currentLang = savedLang || (browserLang === 'en' ? 'en' : 'zh');
+            setLanguage(currentLang);
+        }
+
+        // 设置页面语言
+        function setLanguage(lang) {
+            currentLang = lang;
+            localStorage.setItem('preferredLanguage', lang);
+            
+            // 更新HTML lang属性
+            document.documentElement.lang = lang;
+            
+            // 更新meta标签
+            updateMetaTags(lang);
+            
+            // 更新页面内容
+            updatePageContent(lang);
+            
+            // 更新语言切换按钮
+            updateLanguageSwitch(lang);
+        }
+
+        // 更新meta标签
+        function updateMetaTags(lang) {
+            const meta = translations[lang].meta;
+            document.title = meta.title;
+            document.querySelector('meta[name="description"]').setAttribute('content', meta.description);
+            document.querySelector('meta[name="keywords"]').setAttribute('content', meta.keywords);
+            
+            // 更新Open Graph标签
+            document.querySelector('meta[property="og:title"]').setAttribute('content', meta.title);
+            document.querySelector('meta[property="og:description"]').setAttribute('content', meta.description);
+            
+            // 更新Twitter标签
+            document.querySelector('meta[name="twitter:title"]').setAttribute('content', meta.title);
+            document.querySelector('meta[name="twitter:description"]').setAttribute('content', meta.description);
+        }
+
+        // 更新页面内容
+        function updatePageContent(lang) {
+            try {
+                const t = translations[lang];
+                
+                // 更新导航栏
+                updateNavContent(t);
+                
+                // 更新Hero区域
+                updateHeroContent(t);
+                
+                // 更新About区域
+                updateAboutContent(t);
+                
+                // 更新Vision and Mission
+                updateVisionMissionContent(t);
+                
+                // 更新Core Values
+                updateCoreValuesContent(t);
+                
+                // 更新Team section
+                updateTeamContent(t);
+                
+                // 更新Culture Stories
+                updateCultureStoriesContent(t);
+                
+                // 更新Achievements
+                updateAchievementsContent(t);
+                
+                // 更新Features
+                updateFeaturesContent(t);
+                
+                // 更新Cases
+                updateCasesContent(t);
+                
+                // 更新Partners
+                updatePartnersContent(t);
+                
+                // 更新Timeline
+                updateTimelineContent(t);
+                
+                // 更新CTA
+                updateCTAContent(t);
+                
+                // 更新Footer
+                updateFooterContent(t);
+                
+                console.log('Page content updated for language:', lang);
+            } catch (error) {
+                console.error('Error updating page content:', error);
+            }
+        }
+
+        // 更新导航栏内容
+        function updateNavContent(t) {
+            try {
+                // 桌面导航
+                const navLinks = document.querySelectorAll('nav .md\\:block a');
+                console.log('Found desktop nav links:', navLinks.length);
+                if (navLinks.length >= 4) {
+                    navLinks[0].textContent = t.nav.about;
+                    navLinks[1].textContent = t.nav.culture;
+                    navLinks[2].textContent = t.nav.achievements;
+                    navLinks[3].textContent = t.nav.contact;
+                }
+                
+                // 移动端导航
+                const mobileLinks = document.querySelectorAll('nav .md\\:hidden a');
+                console.log('Found mobile nav links:', mobileLinks.length);
+                if (mobileLinks.length >= 2) {
+                    mobileLinks[0].textContent = t.nav.about;
+                    mobileLinks[1].textContent = t.nav.culture;
+                }
+                
+                // 移动端探索按钮
+                const mobileExploreBtn = document.querySelector('nav .md\\:hidden button');
+                console.log('Found mobile explore button:', mobileExploreBtn);
+                if (mobileExploreBtn) {
+                    mobileExploreBtn.textContent = t.nav.labPlatform + ' →';
+                }
+                
+                // 桌面探索按钮
+                const desktopExploreBtn = document.querySelector('nav .md\\:flex button:nth-child(2)');
+                console.log('Found desktop explore button:', desktopExploreBtn);
+                if (desktopExploreBtn) {
+                    const icon = desktopExploreBtn.querySelector('i');
+                    desktopExploreBtn.innerHTML = t.nav.explore + ' ' + icon.outerHTML;
+                }
+                
+                console.log('Nav content updated');
+            } catch (error) {
+                console.error('Error updating nav content:', error);
+            }
+        }
+
+        // 更新Hero区域内容
+        function updateHeroContent(t) {
+            try {
+                // Hero标题
+                const heroSection = document.querySelector('.hero-section');
+                if (!heroSection) {
+                    console.error('Hero section not found!');
+                    return;
+                }
+                
+                const heroTitles = heroSection.querySelectorAll('h1 span');
+                console.log('Found hero titles:', heroTitles.length);
+                if (heroTitles.length >= 2) {
+                    heroTitles[0].textContent = t.hero.title1;
+                    heroTitles[1].textContent = t.hero.title2;
+                }
+                
+                // Hero描述
+                const heroDesc = heroSection.querySelector('p');
+                console.log('Found hero description:', heroDesc);
+                if (heroDesc) {
+                    heroDesc.textContent = t.hero.description;
+                }
+                
+                // Hero按钮
+                const heroBtns = heroSection.querySelectorAll('button, a');
+                console.log('Found hero buttons:', heroBtns.length);
+                if (heroBtns.length >= 2) {
+                    // 立即探索平台按钮
+                    if (heroBtns[0].tagName === 'BUTTON') {
+                        const icon = heroBtns[0].querySelector('svg');
+                        heroBtns[0].innerHTML = '<span class="relative z-10 flex items-center justify-center">' + t.hero.exploreBtn + ' ' + icon.outerHTML + '</span><div class="absolute inset-0 bg-white opacity-0 group-hover:opacity-20 transition-opacity"></div>';
+                    }
+                    // 了解企业使命按钮
+                    if (heroBtns[1].tagName === 'A') {
+                        heroBtns[1].textContent = t.hero.missionBtn;
+                    }
+                }
+                
+                console.log('Hero content updated');
+            } catch (error) {
+                console.error('Error updating hero content:', error);
+            }
+        }
+
+        // 更新About区域内容
+        function updateAboutContent(t) {
+            // About标题
+            const aboutTitle = document.querySelector('#about h2');
+            if (aboutTitle) {
+                aboutTitle.innerHTML = t.about.title.replace('津脉智坊', '<span class="text-accent">Jinmai Lab</span>');
+            }
+            
+            // About描述
+            const aboutDescs = document.querySelectorAll('#about .fade-in-section p');
+            if (aboutDescs.length >= 2) {
+                aboutDescs[0].textContent = t.about.description1;
+                aboutDescs[1].textContent = t.about.description2;
+            }
+            
+            // Mission and Vision cards
+            const missionVisionCards = document.querySelectorAll('#about .grid.grid-cols-2 gap-6 div');
+            if (missionVisionCards.length >= 2) {
+                // Mission
+                const missionTitle = missionVisionCards[0].querySelector('h3');
+                const missionDesc = missionVisionCards[0].querySelector('p');
+                if (missionTitle) missionTitle.textContent = t.about.mission;
+                if (missionDesc) missionDesc.textContent = t.about.missionDesc;
+                
+                // Vision
+                const visionTitle = missionVisionCards[1].querySelector('h3');
+                const visionDesc = missionVisionCards[1].querySelector('p');
+                if (visionTitle) visionTitle.textContent = t.about.vision;
+                if (visionDesc) visionDesc.textContent = t.about.visionDesc;
+            }
+        }
+
+        // 更新Vision and Mission内容
+        function updateVisionMissionContent(t) {
+            // Section title
+            const sectionTitle = document.querySelector('#about .mt-32 h3');
+            if (sectionTitle) {
+                sectionTitle.textContent = t.visionMission.title;
+            }
+            
+            // Mission card
+            const missionCard = document.querySelectorAll('#about .glass-card')[0];
+            if (missionCard) {
+                const title = missionCard.querySelector('h4');
+                const desc = missionCard.querySelector('p');
+                const items = missionCard.querySelectorAll('li');
+                
+                if (title) title.textContent = t.visionMission.missionTitle;
+                if (desc) desc.textContent = t.visionMission.missionDesc;
+                if (items.length >= 3) {
+                    items[0].innerHTML = '<i class="fas fa-check text-accent text-sm"></i> ' + t.visionMission.missionItems[0];
+                    items[1].innerHTML = '<i class="fas fa-check text-accent text-sm"></i> ' + t.visionMission.missionItems[1];
+                    items[2].innerHTML = '<i class="fas fa-check text-accent text-sm"></i> ' + t.visionMission.missionItems[2];
+                }
+            }
+            
+            // Vision card
+            const visionCard = document.querySelectorAll('#about .glass-card')[1];
+            if (visionCard) {
+                const title = visionCard.querySelector('h4');
+                const desc = visionCard.querySelector('p');
+                const items = visionCard.querySelectorAll('li');
+                
+                if (title) title.textContent = t.visionMission.visionTitle;
+                if (desc) desc.textContent = t.visionMission.visionDesc;
+                if (items.length >= 3) {
+                    items[0].innerHTML = '<i class="fas fa-check text-purpleAccent text-sm"></i> ' + t.visionMission.visionItems[0];
+                    items[1].innerHTML = '<i class="fas fa-check text-purpleAccent text-sm"></i> ' + t.visionMission.visionItems[1];
+                    items[2].innerHTML = '<i class="fas fa-check text-purpleAccent text-sm"></i> ' + t.visionMission.visionItems[2];
+                }
+            }
+        }
+
+        // 更新Core Values内容
+        function updateCoreValuesContent(t) {
+            // Section title
+            const sectionTitle = document.querySelector('#about .mt-32.fade-in-section:nth-child(3) h3');
+            if (sectionTitle) {
+                sectionTitle.textContent = t.coreValues.title;
+            }
+            
+            // Value cards - Fixed selector: simplified to avoid syntax errors
+            const valueCards = document.querySelectorAll('#about .glass-card');
+            if (valueCards.length >= 4) {
+                valueCards.forEach((card, index) => {
+                    if (t.coreValues.values[index]) {
+                        const title = card.querySelector('h4');
+                        const desc = card.querySelector('p');
+                        if (title) title.textContent = t.coreValues.values[index].title;
+                        if (desc) desc.textContent = t.coreValues.values[index].desc;
+                    }
+                });
+            }
+        }
+
+        // 更新Team内容
+        function updateTeamContent(t) {
+            // Section title
+            const sectionTitle = document.querySelector('#about .mt-32.fade-in-section:nth-child(4) h3');
+            if (sectionTitle) {
+                sectionTitle.textContent = t.team.title;
+            }
+            
+            // Core Team title
+            const coreTeamTitle = document.querySelector('#about .mt-32.fade-in-section:nth-child(4) h4:nth-child(2)');
+            if (coreTeamTitle) {
+                coreTeamTitle.textContent = t.team.coreTeam;
+            }
+            
+            // Team members - Simplified selector to avoid syntax errors
+            const teamMembers = document.querySelectorAll('#about .glass-card');
+            if (teamMembers.length >= 5) {
+                teamMembers.forEach((member, index) => {
+                    if (t.team.teamMembers[index]) {
+                        const name = member.querySelector('h5');
+                        const role = member.querySelector('p.text-xs.text-accent');
+                        const desc = member.querySelector('p:last-child');
+                        if (name) name.textContent = t.team.teamMembers[index].name;
+                        if (role) role.textContent = t.team.teamMembers[index].role;
+                        if (desc) desc.textContent = t.team.teamMembers[index].desc;
+                    }
+                });
+            }
+            
+            // Activities title
+            const activitiesTitle = document.querySelector('#about .mt-32.fade-in-section:nth-child(4) h4:nth-child(4)');
+            if (activitiesTitle) {
+                activitiesTitle.textContent = t.team.activities;
+            }
+            
+            // Activity items - Simplified selector to avoid syntax errors
+            const activityItems = document.querySelectorAll('#about .glass-card');
+            if (activityItems.length >= 4) {
+                activityItems.forEach((item, index) => {
+                    if (t.team.activityItems[index]) {
+                        const title = item.querySelector('h5');
+                        const desc = item.querySelector('p');
+                        if (title) title.textContent = t.team.activityItems[index].title;
+                        if (desc) desc.textContent = t.team.activityItems[index].desc;
+                    }
+                });
+            }
+        }
+
+        // 更新Culture Stories内容
+        function updateCultureStoriesContent(t) {
+            // Section title
+            const sectionTitle = document.querySelector('#about .mt-32.fade-in-section:nth-child(5) h3');
+            if (sectionTitle) {
+                sectionTitle.textContent = t.cultureStories.title;
+            }
+            
+            // Story cards
+            const storyCards = document.querySelectorAll('#about .mt-32.fade-in-section:nth-child(5) .glass-card');
+            if (storyCards.length >= 3) {
+                storyCards.forEach((card, index) => {
+                    if (t.cultureStories.stories[index]) {
+                        const title = card.querySelector('h4');
+                        const desc = card.querySelector('p');
+                        const btn = card.querySelector('button');
+                        if (title) title.textContent = t.cultureStories.stories[index].title;
+                        if (desc) desc.textContent = t.cultureStories.stories[index].desc;
+                        if (btn) {
+                            const icon = btn.querySelector('i');
+                            btn.innerHTML = t.cultureStories.readMore + ' ' + icon.outerHTML;
+                        }
+                    }
+                });
+            }
+        }
+
+        // 更新Achievements内容
+        function updateAchievementsContent(t) {
+            // Achievement labels
+            const achievementLabels = document.querySelectorAll('#achievements .text-sm');
+            if (achievementLabels.length >= 4) {
+                achievementLabels[0].textContent = t.achievements.creators;
+                achievementLabels[1].textContent = t.achievements.brands;
+                achievementLabels[2].textContent = t.achievements.artworks;
+                achievementLabels[3].textContent = t.achievements.digitization;
+            }
+        }
+
+        // 更新Features内容
+        function updateFeaturesContent(t) {
+            // Section title
+            const sectionTitle = document.querySelector('#features h2');
+            if (sectionTitle) {
+                // 保留中文标题，只给英文部分加青色强调
+                if (t.features.title.includes('核心功能')) {
+                    sectionTitle.innerHTML = '核心<span class="text-accent">功能</span>';
+                } else {
+                    sectionTitle.innerHTML = 'Core <span class="text-accent">Features</span>';
+                }
+            }
+            
+            // Section description
+            const sectionDesc = document.querySelector('#features p');
+            if (sectionDesc) {
+                sectionDesc.textContent = t.features.description;
+            }
+            
+            // Feature cards
+            const featureCards = document.querySelectorAll('#features .glass-card');
+            if (featureCards.length >= 4) {
+                featureCards.forEach((card, index) => {
+                    if (t.features.featureItems[index]) {
+                        const title = card.querySelector('h3');
+                        const desc = card.querySelector('p');
+                        if (title) title.textContent = t.features.featureItems[index].title;
+                        if (desc) desc.textContent = t.features.featureItems[index].desc;
+                    }
+                });
+            }
+        }
+
+        // 更新Cases内容
+        function updateCasesContent(t) {
+            // Section title
+            const sectionTitle = document.querySelector('#cases h2');
+            if (sectionTitle) {
+                // 保留中文标题，只给英文部分加紫色强调
+                if (t.cases.title.includes('用户案例')) {
+                    sectionTitle.innerHTML = '用户<span class="text-purpleAccent">案例</span>';
+                } else {
+                    sectionTitle.innerHTML = 'User <span class="text-purpleAccent">Cases</span>';
+                }
+            }
+            
+            // Case cards
+            const caseCards = document.querySelectorAll('#cases .glass-card');
+            if (caseCards.length >= 3) {
+                caseCards.forEach((card, index) => {
+                    if (t.cases.caseItems[index]) {
+                        const title = card.querySelector('h3');
+                        const desc = card.querySelector('p');
+                        const tag = card.querySelector('span.text-accent, span.text-purpleAccent, span.text-blue-400');
+                        if (title) title.textContent = t.cases.caseItems[index].title;
+                        if (desc) desc.textContent = t.cases.caseItems[index].desc;
+                        if (tag) tag.textContent = t.cases.caseItems[index].tag;
+                    }
+                });
+            }
+        }
+
+        // 更新Partners内容
+        function updatePartnersContent(t) {
+            // Section title
+            const sectionTitle = document.querySelector('#partners h2');
+            if (sectionTitle) {
+                // 保留中文标题，只给英文部分加青色强调
+                if (t.partners.title.includes('合作伙伴')) {
+                    sectionTitle.innerHTML = '合作<span class="text-accent">伙伴</span>';
+                } else {
+                    sectionTitle.innerHTML = 'Our <span class="text-accent">Partners</span>';
+                }
+            }
+            
+            // Section description
+            const sectionDesc = document.querySelector('#partners p');
+            if (sectionDesc) {
+                sectionDesc.textContent = t.partners.description;
+            }
+            
+            // Partner items
+            const partnerItems = document.querySelectorAll('#partners .glass-card span');
+            if (partnerItems.length >= 6) {
+                partnerItems.forEach((item, index) => {
+                    if (t.partners.partnerItems[index]) {
+                        item.textContent = t.partners.partnerItems[index].title;
+                    }
+                });
+            }
+        }
+
+        // 更新Timeline内容
+        function updateTimelineContent(t) {
+            // Section title
+            const sectionTitle = document.querySelector('#timeline h2');
+            if (sectionTitle) {
+                // 保留中文标题，只给英文部分加青色强调
+                if (t.timeline.title.includes('发展历程')) {
+                    sectionTitle.innerHTML = '发展<span class="text-accent">历程</span>';
+                } else {
+                    sectionTitle.innerHTML = 'Our <span class="text-accent">Journey</span>';
+                }
+            }
+            
+            // Section description
+            const sectionDesc = document.querySelector('#timeline p');
+            if (sectionDesc) {
+                sectionDesc.textContent = t.timeline.description;
+            }
+            
+            // Timeline items
+            const timelineItems = document.querySelectorAll('#timeline .fade-in-section');
+            if (timelineItems.length >= 4) {
+                timelineItems.forEach((item, index) => {
+                    if (t.timeline.timelineItems[index]) {
+                        const year = item.querySelector('h3');
+                        const desc = item.querySelector('p');
+                        if (year) year.textContent = t.timeline.timelineItems[index].year;
+                        if (desc) desc.textContent = t.timeline.timelineItems[index].desc;
+                    }
+                });
+            }
+        }
+
+        // 更新CTA内容
+        function updateCTAContent(t) {
+            // CTA title
+            const ctaTitle = document.querySelector('.breathe-text');
+            if (ctaTitle) {
+                ctaTitle.textContent = t.cta.title;
+            }
+            
+            // CTA description
+            const ctaDesc = document.querySelector('.py-24.md\:py-32 p');
+            if (ctaDesc) {
+                ctaDesc.textContent = t.cta.description;
+            }
+            
+            // CTA button
+            const ctaBtn = document.querySelector('.py-24.md\:py-32 button');
+            if (ctaBtn) {
+                ctaBtn.textContent = t.cta.button;
+            }
+        }
+
+        // 更新Footer内容
+        function updateFooterContent(t) {
+            // Footer address
+            const footerAddress = document.querySelector('footer p');
+            if (footerAddress) {
+                footerAddress.textContent = t.footer.address;
+            }
+            
+            // Footer headings
+            const footerHeadings = document.querySelectorAll('footer h4');
+            if (footerHeadings.length >= 2) {
+                footerHeadings[0].textContent = t.footer.explore;
+                footerHeadings[1].textContent = t.footer.contact;
+            }
+            
+            // Footer links
+            const footerLinks = document.querySelectorAll('footer ul li a, footer ul li button');
+            if (footerLinks.length >= 3) {
+                footerLinks[0].textContent = t.nav.about;
+                footerLinks[1].textContent = t.nav.culture;
+                if (footerLinks[2].tagName === 'BUTTON') {
+                    footerLinks[2].textContent = t.footer.labPlatform;
+                }
+            }
+            
+            // Footer bottom links
+            const footerBottomLinks = document.querySelectorAll('footer .border-t a');
+            if (footerBottomLinks.length >= 2) {
+                footerBottomLinks[0].textContent = t.footer.privacy;
+                footerBottomLinks[1].textContent = t.footer.terms;
+            }
+            
+            // Footer copyright
+            const footerCopyright = document.querySelector('footer .border-t p');
+            if (footerCopyright) {
+                footerCopyright.textContent = t.footer.copyright;
+            }
+        }
+
+        // 更新语言切换按钮
+        function updateLanguageSwitch(lang) {
+            const switchBtn = document.querySelector('.language-switch');
+            if (switchBtn) {
+                if (lang === 'zh') {
+                    switchBtn.innerHTML = '<span class="text-gray-400 hover:text-white">EN / </span><span class="text-white">CN</span>';
+                } else {
+                    switchBtn.innerHTML = '<span class="text-white">EN / </span><span class="text-gray-400 hover:text-white">CN</span>';
+                }
+            }
+        }
+
+        // 切换语言
+        function toggleLanguage() {
+            try {
+                const newLang = currentLang === 'zh' ? 'en' : 'zh';
+                setLanguage(newLang);
+                console.log('Language switched to:', newLang);
+            } catch (error) {
+                console.error('Error switching language:', error);
+            }
+        }
+
+        // 页面加载完成后初始化语言和事件监听器
+        document.addEventListener('DOMContentLoaded', function() {
+            initLanguage();
+            
+            // 添加语言切换按钮事件监听器
+            const languageSwitchBtn = document.getElementById('language-switch-btn');
+            if (languageSwitchBtn) {
+                languageSwitchBtn.addEventListener('click', toggleLanguage);
+                console.log('Language switch button event listener added');
+            } else {
+                console.error('Language switch button not found!');
+            }
+        });
+    </script>
+
     <style>
         /* 全局样式调整 */
         body {
@@ -61,6 +955,7 @@
             color: #ffffff;
             overflow-x: hidden;
             scroll-behavior: smooth;
+            line-height: 1.8;
         }
 
         /* 滚动条美化 */
@@ -207,6 +1102,131 @@
             background-size: 200% 200%;
             animation: bg-gradient 8s ease infinite;
         }
+        
+        /* Modal Animation */
+        #modalBackdrop {
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        #modalContent {
+            opacity: 0;
+            transform: translateY(10px) scale(0.95);
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+        
+        /* Modal Content Animation */
+        #modalContentContainer {
+            animation: fadeInUp 0.5s ease forwards;
+        }
+        
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        /* Modal Image Animation */
+        #modalImage {
+            animation: zoomIn 0.5s ease forwards;
+        }
+        
+        @keyframes zoomIn {
+            from {
+                opacity: 0;
+                transform: scale(1.1);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+        
+        /* Modal Title Animation */
+        #modalTitle {
+            animation: slideInLeft 0.5s ease forwards;
+        }
+        
+        @keyframes slideInLeft {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+        
+        /* Responsive Modal */
+        @media (max-width: 768px) {
+            #modalContent {
+                max-width: 100%;
+                margin: 0;
+                border-radius: 0;
+                height: 100vh;
+            }
+            
+            .modal-header {
+                height: 40vh;
+            }
+            
+            #modalTitle {
+                font-size: 1.5rem;
+            }
+        }
+        
+        /* Story Card Hover Effect */
+        .glass-card:hover {
+            cursor: pointer;
+        }
+        
+        /* Scrollbar in Modal */
+        #modalContentContainer {
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+        
+        #modalContentContainer::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        #modalContentContainer::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+        }
+        
+        #modalContentContainer::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 3px;
+        }
+        
+        #modalContentContainer::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 240, 255, 0.5);
+        }
+        
+        /* Prose Styles for Modal Content */
+        .prose {
+            color: #ffffff;
+        }
+        
+        .prose p {
+            margin-bottom: 1rem;
+            line-height: 1.7;
+        }
+        
+        .prose a {
+            color: #00f0ff;
+            text-decoration: none;
+        }
+        
+        .prose a:hover {
+            text-decoration: underline;
+        }
 
         /* 动态背景 Canvas */
         #canvas-container {
@@ -300,7 +1320,7 @@
 
                 <!-- Right Actions -->
                 <div class="hidden md:flex items-center gap-4">
-                    <button class="text-gray-400 hover:text-white text-xs font-semibold">EN / <span class="text-white">CN</span></button>
+                    <button id="language-switch-btn" class="language-switch text-gray-400 hover:text-white text-xs font-semibold cursor-pointer">EN / <span class="text-white">CN</span></button>
                     <button onclick="handleExploreClick()" class="bg-white/10 hover:bg-accent hover:text-black border border-white/20 px-5 py-2 rounded-full text-sm font-semibold transition-all duration-300 backdrop-blur-sm group cursor-pointer">
                         进入平台 <i class="fas fa-arrow-right ml-1 group-hover:translate-x-1 transition-transform"></i>
                     </button>
@@ -326,7 +1346,7 @@
     </nav>
 
     <!-- Hero Section -->
-    <section class="relative h-screen flex items-center justify-center overflow-hidden">
+    <section class="hero-section relative h-screen flex items-center justify-center overflow-hidden">
         <!-- Decorative Glow -->
         <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-blue-600/20 rounded-full blur-[120px] pointer-events-none"></div>
 
@@ -355,8 +1375,8 @@
                     // 用户主动点击探索按钮，设置一个临时标志表示已经探索过
                     // 这样用户下次访问时不会被重复重定向到landing.html
                     localStorage.setItem('hasExplored', 'true');
-                    // 跳转到React应用的首页
-                    window.location.href = '/';
+                    // 跳转到登录页，要求用户先登录/注册
+                    window.location.href = '/login';
                   }
                 </script>
                 <a href="#culture" class="px-8 py-4 rounded-full border border-white/20 hover:border-white/50 hover:bg-white/5 transition-all text-gray-300 hover:text-white">
@@ -372,25 +1392,25 @@
     </section>
 
     <!-- About Section -->
-    <section id="about" class="py-32 relative bg-deep">
-        <div class="max-w-7xl mx-auto px-6 lg:px-8">
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-24 items-center">
+    <section id="about" class="py-40 relative bg-deep">
+        <div class="max-w-7xl mx-auto px-8 lg:px-12">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-32 items-center">
                 <div class="fade-in-section">
-                    <h2 class="text-3xl md:text-4xl font-bold mb-6">关于<span class="text-accent">津脉智坊</span></h2>
-                    <div class="w-20 h-1 bg-gradient-to-r from-accent to-transparent mb-8"></div>
-                    <p class="text-gray-400 text-lg leading-relaxed mb-6">
+                    <h2 class="text-3xl md:text-4xl font-bold mb-8">关于<span class="text-accent">津脉智坊</span></h2>
+                    <div class="w-24 h-1 bg-gradient-to-r from-accent to-transparent mb-10"></div>
+                    <p class="text-gray-400 text-lg leading-relaxed mb-8">
                         津脉智坊（Jinmai Lab）是植根于天津的先锋科技文化企业，致力于以AI技术为传统文化注入数字生命力。我们不仅是展示平台，更是一座连接历史传承与未来创新的桥梁，为非遗文化的可持续发展开辟新路径。
                     </p>
-                    <p class="text-gray-400 text-lg leading-relaxed mb-8">
+                    <p class="text-gray-400 text-lg leading-relaxed mb-10">
                         面对数字时代的文化传承挑战，我们深入探索如何让"狗不理"、"达仁堂"等天津百年老字号在Z世代语境中焕发新生。依托自主研发的AI生成算法与NEBULA FLOW粒子交互技术，我们将传统纹样、味觉记忆、历史叙事转化为可交互、可感知的数字艺术体验，为品牌提供全方位的年轻化转型解决方案。
                     </p>
-                    <div class="grid grid-cols-2 gap-6">
+                    <div class="grid grid-cols-2 gap-8">
                         <div>
-                            <h3 class="text-white font-bold text-xl mb-1">使命</h3>
+                            <h3 class="text-white font-bold text-xl mb-2">使命</h3>
                             <p class="text-sm text-gray-500">以AI技术复兴城市文化记忆，让非遗在数字时代焕发新生</p>
                         </div>
                         <div>
-                            <h3 class="text-white font-bold text-xl mb-1">愿景</h3>
+                            <h3 class="text-white font-bold text-xl mb-2">愿景</h3>
                             <p class="text-sm text-gray-500">构建全球领先的非遗数字资产库，成为传统文化数字化转型的标杆</p>
                         </div>
                     </div>
@@ -398,17 +1418,17 @@
                 <!-- Visual Decoration (Abstract Code/Art) -->
                 <div class="relative fade-in-section delay-200">
                     <div class="absolute -inset-1 bg-gradient-to-r from-accent to-purpleAccent rounded-2xl blur opacity-30"></div>
-                    <div class="relative glass-card rounded-2xl p-8 h-[400px] flex items-center justify-center overflow-hidden">
+                    <div class="relative glass-card rounded-2xl p-10 h-[450px] flex items-center justify-center overflow-hidden">
                         <div class="text-center">
-                            <i class="fas fa-network-wired text-6xl text-white/20 mb-4 animate-pulse"></i>
-                            <div class="text-4xl font-bold text-white mb-2">AI × TIANJIN</div>
+                            <i class="fas fa-network-wired text-6xl text-white/20 mb-6 animate-pulse"></i>
+                            <div class="text-4xl font-bold text-white mb-3">AI × TIANJIN</div>
                             <div class="text-sm text-gray-500 tracking-widest">DIGITAL HERITAGE LAB</div>
                             
                             <!-- Animated lines decoration -->
-                            <div class="mt-8 flex justify-center gap-2">
-                                <div class="w-1 h-12 bg-accent/50 rounded-full animate-bounce" style="animation-delay: 0s"></div>
-                                <div class="w-1 h-20 bg-purpleAccent/50 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
-                                <div class="w-1 h-16 bg-white/50 rounded-full animate-bounce" style="animation-delay: 0.4s"></div>
+                            <div class="mt-10 flex justify-center gap-3">
+                                <div class="w-1 h-14 bg-accent/50 rounded-full animate-bounce" style="animation-delay: 0s"></div>
+                                <div class="w-1 h-22 bg-purpleAccent/50 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
+                                <div class="w-1 h-18 bg-white/50 rounded-full animate-bounce" style="animation-delay: 0.4s"></div>
                             </div>
                         </div>
                     </div>
@@ -416,30 +1436,30 @@
             </div>
 
             <!-- Vision and Mission Section -->
-            <div class="mt-32 fade-in-section">
-                <h3 class="text-2xl md:text-3xl font-bold mb-16 text-center">企业愿景与使命</h3>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-12">
+            <div class="mt-40 fade-in-section">
+                <h3 class="text-2xl md:text-3xl font-bold mb-20 text-center">企业愿景与使命</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-16">
                     <!-- Mission -->
-                    <div class="glass-card p-8 rounded-2xl relative overflow-hidden">
-                        <div class="absolute top-0 right-0 w-40 h-40 bg-accent/10 rounded-full blur-2xl"></div>
+                    <div class="glass-card p-10 rounded-2xl relative overflow-hidden">
+                        <div class="absolute top-0 right-0 w-52 h-52 bg-accent/10 rounded-full blur-3xl"></div>
                         <div class="relative z-10">
-                            <div class="w-16 h-16 rounded-full bg-accent/20 flex items-center justify-center mb-6 text-accent">
+                            <div class="w-18 h-18 rounded-full bg-accent/20 flex items-center justify-center mb-8 text-accent">
                                 <i class="fas fa-compass text-2xl"></i>
                             </div>
-                            <h4 class="text-xl font-bold mb-4 text-white">我们的使命</h4>
-                            <p class="text-gray-400 leading-relaxed mb-6">
+                            <h4 class="text-xl font-bold mb-6 text-white">我们的使命</h4>
+                            <p class="text-gray-400 leading-relaxed mb-8">
                                 以AI技术复兴城市文化记忆，让非遗在数字时代焕发新生。我们致力于通过技术创新，为传统文化注入现代活力，构建可持续的文化传承生态。
                             </p>
-                            <ul class="space-y-3 text-sm text-gray-500">
-                                <li class="flex items-center gap-2">
+                            <ul class="space-y-4 text-sm text-gray-500">
+                                <li class="flex items-center gap-3">
                                     <i class="fas fa-check text-accent text-sm"></i>
                                     保护与传承非物质文化遗产
                                 </li>
-                                <li class="flex items-center gap-2">
+                                <li class="flex items-center gap-3">
                                     <i class="fas fa-check text-accent text-sm"></i>
                                     用技术赋能传统文化创新
                                 </li>
-                                <li class="flex items-center gap-2">
+                                <li class="flex items-center gap-3">
                                     <i class="fas fa-check text-accent text-sm"></i>
                                     构建开放共享的文化生态
                                 </li>
@@ -448,26 +1468,26 @@
                     </div>
                     
                     <!-- Vision -->
-                    <div class="glass-card p-8 rounded-2xl relative overflow-hidden">
-                        <div class="absolute top-0 right-0 w-40 h-40 bg-purpleAccent/10 rounded-full blur-2xl"></div>
+                    <div class="glass-card p-10 rounded-2xl relative overflow-hidden">
+                        <div class="absolute top-0 right-0 w-52 h-52 bg-purpleAccent/10 rounded-full blur-3xl"></div>
                         <div class="relative z-10">
-                            <div class="w-16 h-16 rounded-full bg-purpleAccent/20 flex items-center justify-center mb-6 text-purpleAccent">
+                            <div class="w-18 h-18 rounded-full bg-purpleAccent/20 flex items-center justify-center mb-8 text-purpleAccent">
                                 <i class="fas fa-eye text-2xl"></i>
                             </div>
-                            <h4 class="text-xl font-bold mb-4 text-white">我们的愿景</h4>
-                            <p class="text-gray-400 leading-relaxed mb-6">
+                            <h4 class="text-xl font-bold mb-6 text-white">我们的愿景</h4>
+                            <p class="text-gray-400 leading-relaxed mb-8">
                                 构建全球领先的非遗数字资产库，成为传统文化数字化转型的标杆。我们希望通过持续创新，引领文化科技融合的新潮流。
                             </p>
-                            <ul class="space-y-3 text-sm text-gray-500">
-                                <li class="flex items-center gap-2">
+                            <ul class="space-y-4 text-sm text-gray-500">
+                                <li class="flex items-center gap-3">
                                     <i class="fas fa-check text-purpleAccent text-sm"></i>
                                     成为全球非遗数字化的领导者
                                 </li>
-                                <li class="flex items-center gap-2">
+                                <li class="flex items-center gap-3">
                                     <i class="fas fa-check text-purpleAccent text-sm"></i>
                                     打造最具影响力的文化科技品牌
                                 </li>
-                                <li class="flex items-center gap-2">
+                                <li class="flex items-center gap-3">
                                     <i class="fas fa-check text-purpleAccent text-sm"></i>
                                     推动文化与科技深度融合发展
                                 </li>
@@ -478,48 +1498,48 @@
             </div>
 
             <!-- Core Values Section -->
-            <div class="mt-32 fade-in-section">
-                <h3 class="text-xl md:text-2xl lg:text-3xl font-bold mb-12 md:mb-16 text-center">核心价值观</h3>
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
+            <div class="mt-40 fade-in-section">
+                <h3 class="text-xl md:text-2xl lg:text-3xl font-bold mb-16 md:mb-20 text-center">核心价值观</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 md:gap-12">
                     <!-- Value 1 -->
-                    <div class="glass-card p-6 rounded-2xl transition-all duration-300 hover:bg-white/5 hover:transform hover:-translate-y-2">
-                        <div class="w-14 h-14 rounded-full bg-accent/20 flex items-center justify-center mb-4 text-accent">
+                    <div class="glass-card p-8 rounded-2xl transition-all duration-300 hover:bg-white/5 hover:transform hover:-translate-y-2">
+                        <div class="w-16 h-16 rounded-full bg-accent/20 flex items-center justify-center mb-6 text-accent">
                             <i class="fas fa-lightbulb text-2xl"></i>
                         </div>
-                        <h4 class="text-lg font-bold mb-2 text-white">创新引领</h4>
+                        <h4 class="text-lg font-bold mb-3 text-white">创新引领</h4>
                         <p class="text-sm text-gray-500">
                             以技术创新为驱动，不断探索传统文化数字化的新可能
                         </p>
                     </div>
                     
                     <!-- Value 2 -->
-                    <div class="glass-card p-6 rounded-2xl transition-all duration-300 hover:bg-white/5 hover:transform hover:-translate-y-2">
-                        <div class="w-14 h-14 rounded-full bg-purpleAccent/20 flex items-center justify-center mb-4 text-purpleAccent">
+                    <div class="glass-card p-8 rounded-2xl transition-all duration-300 hover:bg-white/5 hover:transform hover:-translate-y-2">
+                        <div class="w-16 h-16 rounded-full bg-purpleAccent/20 flex items-center justify-center mb-6 text-purpleAccent">
                             <i class="fas fa-heart text-2xl"></i>
                         </div>
-                        <h4 class="text-lg font-bold mb-2 text-white">文化传承</h4>
+                        <h4 class="text-lg font-bold mb-3 text-white">文化传承</h4>
                         <p class="text-sm text-gray-500">
                             尊重传统文化，守护非遗技艺，让经典在数字时代重生
                         </p>
                     </div>
                     
                     <!-- Value 3 -->
-                    <div class="glass-card p-6 rounded-2xl transition-all duration-300 hover:bg-white/5 hover:transform hover:-translate-y-2">
-                        <div class="w-14 h-14 rounded-full bg-blue-500/20 flex items-center justify-center mb-4 text-blue-400">
+                    <div class="glass-card p-8 rounded-2xl transition-all duration-300 hover:bg-white/5 hover:transform hover:-translate-y-2">
+                        <div class="w-16 h-16 rounded-full bg-blue-500/20 flex items-center justify-center mb-6 text-blue-400">
                             <i class="fas fa-handshake text-2xl"></i>
                         </div>
-                        <h4 class="text-lg font-bold mb-2 text-white">开放协作</h4>
+                        <h4 class="text-lg font-bold mb-3 text-white">开放协作</h4>
                         <p class="text-sm text-gray-500">
                             构建开放共享的生态系统，与全球创作者共同成长
                         </p>
                     </div>
                     
                     <!-- Value 4 -->
-                    <div class="glass-card p-6 rounded-2xl transition-all duration-300 hover:bg-white/5 hover:transform hover:-translate-y-2">
-                        <div class="w-14 h-14 rounded-full bg-green-500/20 flex items-center justify-center mb-4 text-green-400">
+                    <div class="glass-card p-8 rounded-2xl transition-all duration-300 hover:bg-white/5 hover:transform hover:-translate-y-2">
+                        <div class="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center mb-6 text-green-400">
                             <i class="fas fa-star text-2xl"></i>
                         </div>
-                        <h4 class="text-lg font-bold mb-2 text-white">卓越品质</h4>
+                        <h4 class="text-lg font-bold mb-3 text-white">卓越品质</h4>
                         <p class="text-sm text-gray-500">
                             追求极致的产品与服务质量，为用户创造卓越体验
                         </p>
@@ -528,20 +1548,20 @@
             </div>
 
             <!-- Team and Activities Section -->
-            <div class="mt-32 fade-in-section">
-                <h3 class="text-2xl md:text-3xl font-bold mb-16 text-center">团队风采与员工活动</h3>
+            <div class="mt-40 fade-in-section">
+                <h3 class="text-2xl md:text-3xl font-bold mb-20 text-center">团队风采与员工活动</h3>
                 
                 <!-- Team Members -->
-                <div class="mb-20">
-                    <h4 class="text-xl font-bold mb-12 text-center">核心团队</h4>
-                    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 md:gap-6">
+                <div class="mb-24">
+                    <h4 class="text-xl font-bold mb-16 text-center">核心团队</h4>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-6 md:gap-8">
                         <!-- Team Member 1 -->
-                        <div class="glass-card p-4 rounded-2xl text-center transition-all duration-300 hover:bg-white/5 hover:transform hover:-translate-y-2">
-                            <div class="w-20 h-20 rounded-full bg-gradient-to-br from-accent to-purpleAccent flex items-center justify-center mx-auto mb-3 text-white">
+                        <div class="glass-card p-6 rounded-2xl text-center transition-all duration-300 hover:bg-white/5 hover:transform hover:-translate-y-2">
+                            <div class="w-24 h-24 rounded-full bg-gradient-to-br from-accent to-purpleAccent flex items-center justify-center mx-auto mb-4 text-white">
                                 <i class="fas fa-user text-2xl"></i>
                             </div>
-                            <h5 class="text-base font-bold mb-1 text-white">陈声辉</h5>
-                            <p class="text-xs text-accent mb-2">创始人 & CEO</p>
+                            <h5 class="text-base font-bold mb-2 text-white">陈声辉</h5>
+                            <p class="text-xs text-accent mb-3">创始人 & CEO</p>
                             <p class="text-xs text-gray-500">
                                 AI技术专家，致力于传统文化数字化转型
                             </p>
@@ -584,12 +1604,12 @@
                         </div>
                         
                         <!-- Team Member 5 -->
-                        <div class="glass-card p-4 rounded-2xl text-center transition-all duration-300 hover:bg-white/5 hover:transform hover:-translate-y-2">
-                            <div class="w-20 h-20 rounded-full bg-gradient-to-br from-pink-400 to-purpleAccent flex items-center justify-center mx-auto mb-3 text-white">
+                        <div class="glass-card p-6 rounded-2xl text-center transition-all duration-300 hover:bg-white/5 hover:transform hover:-translate-y-2">
+                            <div class="w-24 h-24 rounded-full bg-gradient-to-br from-pink-400 to-purpleAccent flex items-center justify-center mx-auto mb-4 text-white">
                                 <i class="fas fa-user text-2xl"></i>
                             </div>
-                            <h5 class="text-base font-bold mb-1 text-white">王曦凯</h5>
-                            <p class="text-xs text-accent mb-2">市场总监</p>
+                            <h5 class="text-base font-bold mb-2 text-white">王曦凯</h5>
+                            <p class="text-xs text-accent mb-3">市场总监</p>
                             <p class="text-xs text-gray-500">
                                 品牌营销专家，负责市场推广与合作伙伴关系
                             </p>
@@ -603,8 +1623,12 @@
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <!-- Activity 1 -->
                         <div class="glass-card rounded-2xl overflow-hidden group">
-                            <div class="h-40 bg-gradient-to-br from-teal-500 to-blue-700 flex items-center justify-center">
-                                <i class="fas fa-users text-4xl text-white/80 group-hover:text-white transition-colors"></i>
+                            <div class="h-40 relative overflow-hidden">
+                                <img src="https://images.unsplash.com/photo-1573164713988-8665fc963095?w=600&h=300&fit=crop" alt="团队建设活动" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105">
+                                <div class="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
+                                <div class="absolute inset-0 flex items-center justify-center">
+                                    <i class="fas fa-users text-4xl text-white/90"></i>
+                                </div>
                             </div>
                             <div class="p-4 bg-black/40">
                                 <h5 class="text-base font-bold mb-1 text-white">团队建设活动</h5>
@@ -616,11 +1640,15 @@
                         
                         <!-- Activity 2 -->
                         <div class="glass-card rounded-2xl overflow-hidden group">
-                            <div class="h-40 bg-gradient-to-br from-blue-500 to-teal-600 flex items-center justify-center">
-                                <i class="fas fa-laptop-code text-4xl text-white/80 group-hover:text-white transition-colors"></i>
+                            <div class="h-48 relative overflow-hidden">
+                                <img src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=600&h=300&fit=crop" alt="技术分享会" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105">
+                                <div class="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
+                                <div class="absolute inset-0 flex items-center justify-center">
+                                    <i class="fas fa-laptop-code text-4xl text-white/90"></i>
+                                </div>
                             </div>
-                            <div class="p-4 bg-black/40">
-                                <h5 class="text-base font-bold mb-1 text-white">技术分享会</h5>
+                            <div class="p-6 bg-black/40">
+                                <h5 class="text-base font-bold mb-2 text-white">技术分享会</h5>
                                 <p class="text-xs text-gray-400">
                                     每周举办技术分享会，交流最新AI技术与传统文化数字化经验
                                 </p>
@@ -629,11 +1657,15 @@
                         
                         <!-- Activity 3 -->
                         <div class="glass-card rounded-2xl overflow-hidden group">
-                            <div class="h-40 bg-gradient-to-br from-purple-600 to-pink-500 flex items-center justify-center">
-                                <i class="fas fa-paint-brush text-4xl text-white/80 group-hover:text-white transition-colors"></i>
+                            <div class="h-48 relative overflow-hidden">
+                                <img src="https://images.unsplash.com/photo-1470252649378-9c29740c9fa8?w=600&h=300&fit=crop" alt="文化体验日" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105">
+                                <div class="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
+                                <div class="absolute inset-0 flex items-center justify-center">
+                                    <i class="fas fa-paint-brush text-4xl text-white/90"></i>
+                                </div>
                             </div>
-                            <div class="p-4 bg-black/40">
-                                <h5 class="text-base font-bold mb-1 text-white">文化体验日</h5>
+                            <div class="p-6 bg-black/40">
+                                <h5 class="text-base font-bold mb-2 text-white">文化体验日</h5>
                                 <p class="text-xs text-gray-400">
                                     组织非遗文化体验活动，深入了解传统文化内涵与技艺
                                 </p>
@@ -642,11 +1674,15 @@
                         
                         <!-- Activity 4 -->
                         <div class="glass-card rounded-2xl overflow-hidden group">
-                            <div class="h-40 bg-gradient-to-br from-green-600 to-teal-500 flex items-center justify-center">
-                                <i class="fas fa-award text-4xl text-white/80 group-hover:text-white transition-colors"></i>
+                            <div class="h-48 relative overflow-hidden">
+                                <img src="https://images.unsplash.com/photo-1517292987719-0369a794ec0f?w=600&h=300&fit=crop" alt="创新成果展" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105">
+                                <div class="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
+                                <div class="absolute inset-0 flex items-center justify-center">
+                                    <i class="fas fa-award text-4xl text-white/90"></i>
+                                </div>
                             </div>
-                            <div class="p-4 bg-black/40">
-                                <h5 class="text-base font-bold mb-1 text-white">创新成果展</h5>
+                            <div class="p-6 bg-black/40">
+                                <h5 class="text-base font-bold mb-2 text-white">创新成果展</h5>
                                 <p class="text-xs text-gray-400">
                                     定期举办创新成果展示，激励员工持续创新与突破
                                 </p>
@@ -662,10 +1698,14 @@
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
                     <!-- Story 1 -->
                     <div class="glass-card rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/5 hover:transform hover:-translate-y-2">
-                        <div class="h-48 bg-gradient-to-br from-accent/20 to-purpleAccent/20 flex items-center justify-center">
-                            <i class="fas fa-history text-5xl text-white/30"></i>
+                        <div class="h-48 relative overflow-hidden">
+                            <img src="https://images.unsplash.com/photo-1600880292089-90a7e086ee0c?w=600&h=400&fit=crop" alt="泥人张的数字化重生" class="w-full h-full object-cover transition-transform duration-500 hover:scale-105">
+                            <div class="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
+                            <div class="absolute inset-0 flex items-center justify-center">
+                                <i class="fas fa-history text-5xl text-white/90"></i>
+                            </div>
                         </div>
-                        <div class="p-6">
+                        <div class="p-6 bg-black/40">
                             <h4 class="text-xl font-bold mb-3 text-white">泥人张的数字化重生</h4>
                             <p class="text-sm text-gray-500 mb-4">
                                 如何通过AI技术解析泥人张的色彩搭配与造型艺术，将传统技艺转化为数字资产，让经典艺术在数字时代焕发新生
@@ -678,10 +1718,14 @@
                     
                     <!-- Story 2 -->
                     <div class="glass-card rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/5 hover:transform hover:-translate-y-2">
-                        <div class="h-48 bg-gradient-to-br from-blue-400/20 to-accent/20 flex items-center justify-center">
-                            <i class="fas fa-lightbulb text-5xl text-white/30"></i>
+                        <div class="h-48 relative overflow-hidden">
+                            <img src="https://images.unsplash.com/photo-1558655146-364adaf1fcc9?w=600&h=400&fit=crop" alt="NEBULA FLOW技术的诞生" class="w-full h-full object-cover transition-transform duration-500 hover:scale-105">
+                            <div class="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
+                            <div class="absolute inset-0 flex items-center justify-center">
+                                <i class="fas fa-lightbulb text-5xl text-white/90"></i>
+                            </div>
                         </div>
-                        <div class="p-6">
+                        <div class="p-6 bg-black/40">
                             <h4 class="text-xl font-bold mb-3 text-white">NEBULA FLOW技术的诞生</h4>
                             <p class="text-sm text-gray-500 mb-4">
                                 团队如何攻克技术难题，研发出独特的NEBULA FLOW粒子交互技术，为传统文化数字化提供全新的视觉表达方式
@@ -694,10 +1738,14 @@
                     
                     <!-- Story 3 -->
                     <div class="glass-card rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/5 hover:transform hover:-translate-y-2">
-                        <div class="h-48 bg-gradient-to-br from-purpleAccent/20 to-pink-400/20 flex items-center justify-center">
-                            <i class="fas fa-users text-5xl text-white/30"></i>
+                        <div class="h-48 relative overflow-hidden">
+                            <img src="https://images.unsplash.com/photo-1526628953301-3e589a6a8b74?w=600&h=400&fit=crop" alt="全球创作者社区的构建" class="w-full h-full object-cover transition-transform duration-500 hover:scale-105">
+                            <div class="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
+                            <div class="absolute inset-0 flex items-center justify-center">
+                                <i class="fas fa-users text-5xl text-white/90"></i>
+                            </div>
                         </div>
-                        <div class="p-6">
+                        <div class="p-6 bg-black/40">
                             <h4 class="text-xl font-bold mb-3 text-white">全球创作者社区的构建</h4>
                             <p class="text-sm text-gray-500 mb-4">
                                 如何从一个小团队发展成为拥有12,000+全球创作者的社区，共同推动传统文化数字化转型
@@ -713,9 +1761,9 @@
     </section>
 
     <!-- Achievements Section -->
-    <section id="achievements" class="py-28 border-y border-white/5 bg-white/2">
-        <div class="max-w-7xl mx-auto px-6 lg:px-8">
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-12 text-center fade-in-section">
+    <section id="achievements" class="py-36 border-y border-white/5 bg-white/2">
+        <div class="max-w-7xl mx-auto px-8 lg:px-12">
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-16 text-center fade-in-section">
                 <div>
                     <div class="text-4xl md:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-b from-white to-gray-600 counter" data-target="12536">0</div>
                     <div class="text-sm text-accent mt-2 tracking-widest uppercase">活跃创作者</div>
@@ -737,15 +1785,15 @@
     </section>
 
     <!-- Core Features Section -->
-    <section id="features" class="py-32 relative bg-deep">
-        <div class="max-w-7xl mx-auto px-6 lg:px-8">
-            <div class="text-center mb-24 fade-in-section">
-                <h2 class="text-3xl md:text-4xl font-bold mb-8">核心<span class="text-accent">功能</span></h2>
-                <div class="w-20 h-1 bg-gradient-to-r from-accent to-transparent mx-auto mb-12"></div>
+    <section id="features" class="py-40 relative bg-deep">
+        <div class="max-w-7xl mx-auto px-8 lg:px-12">
+            <div class="text-center mb-32 fade-in-section">
+                <h2 class="text-3xl md:text-4xl font-bold mb-10">核心<span class="text-accent">功能</span></h2>
+                <div class="w-24 h-1 bg-gradient-to-r from-accent to-transparent mx-auto mb-16"></div>
                 <p class="text-gray-400 max-w-2xl mx-auto">我们提供全方位的AI赋能工具，助力传统文化的数字化转型与创新发展</p>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12">
                 <!-- Feature 1 -->
                 <div class="glass-card p-8 rounded-2xl fade-in-section">
                     <div class="w-16 h-16 rounded-full bg-accent/20 flex items-center justify-center mb-6 text-accent">
@@ -794,23 +1842,25 @@
     </section>
 
     <!-- Case Studies Section -->
-    <section id="cases" class="py-32 relative overflow-hidden">
+    <section id="cases" class="py-40 relative overflow-hidden">
         <!-- Background elements -->
         <div class="absolute top-0 left-0 w-1/3 h-full bg-purple-900/10 blur-[100px] pointer-events-none"></div>
 
-        <div class="max-w-7xl mx-auto px-6 lg:px-8 relative z-10">
-            <div class="text-center mb-24 fade-in-section">
-                <h2 class="text-3xl md:text-4xl font-bold mb-8">用户<span class="text-purpleAccent">案例</span></h2>
-                <div class="w-20 h-1 bg-gradient-to-r from-purpleAccent to-transparent mx-auto mb-12"></div>
+        <div class="max-w-7xl mx-auto px-8 lg:px-12 relative z-10">
+            <div class="text-center mb-32 fade-in-section">
+                <h2 class="text-3xl md:text-4xl font-bold mb-10">用户<span class="text-purpleAccent">案例</span></h2>
+                <div class="w-24 h-1 bg-gradient-to-r from-purpleAccent to-transparent mx-auto mb-16"></div>
                 <p class="text-gray-400 max-w-2xl mx-auto">探索我们如何通过AI技术助力传统文化品牌实现数字化转型与创新发展</p>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12">
                 <!-- Case 1 -->
                 <div class="glass-card p-8 rounded-2xl fade-in-section">
-                    <div class="h-48 bg-black/40 rounded-xl mb-6 relative overflow-hidden group">
-                        <div class="absolute inset-0 flex items-center justify-center text-gray-700 group-hover:text-accent transition-colors">
-                            <i class="fas fa-store text-4xl"></i>
+                    <div class="h-48 rounded-xl mb-6 relative overflow-hidden group">
+                        <img src="https://images.unsplash.com/photo-1565299507177-b0ac66763828?w=600&h=300&fit=crop" alt="狗不理数字化转型" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105">
+                        <div class="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
+                        <div class="absolute inset-0 flex items-center justify-center">
+                            <i class="fas fa-store text-4xl text-white/90"></i>
                         </div>
                     </div>
                     <h3 class="text-xl font-bold mb-4 text-white">狗不理数字化转型</h3>
@@ -825,9 +1875,11 @@
 
                 <!-- Case 2 -->
                 <div class="glass-card p-8 rounded-2xl fade-in-section" style="transition-delay: 100ms;">
-                    <div class="h-48 bg-black/40 rounded-xl mb-6 relative overflow-hidden group">
-                        <div class="absolute inset-0 flex items-center justify-center text-gray-700 group-hover:text-purpleAccent transition-colors">
-                            <i class="fas fa-magic text-4xl"></i>
+                    <div class="h-48 rounded-xl mb-6 relative overflow-hidden group">
+                        <img src="https://picsum.photos/600/300" alt="泥人张数字艺术馆" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105">
+                        <div class="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
+                        <div class="absolute inset-0 flex items-center justify-center">
+                            <i class="fas fa-magic text-4xl text-white/90"></i>
                         </div>
                     </div>
                     <h3 class="text-xl font-bold mb-4 text-white">泥人张数字艺术馆</h3>
@@ -842,9 +1894,11 @@
 
                 <!-- Case 3 -->
                 <div class="glass-card p-8 rounded-2xl fade-in-section" style="transition-delay: 200ms;">
-                    <div class="h-48 bg-black/40 rounded-xl mb-6 relative overflow-hidden group">
-                        <div class="absolute inset-0 flex items-center justify-center text-gray-700 group-hover:text-blue-400 transition-colors">
-                            <i class="fas fa-music text-4xl"></i>
+                    <div class="h-48 rounded-xl mb-6 relative overflow-hidden group">
+                        <img src="https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?w=600&h=300&fit=crop" alt="天津相声数字化工程" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105">
+                        <div class="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
+                        <div class="absolute inset-0 flex items-center justify-center">
+                            <i class="fas fa-music text-4xl text-white/90"></i>
                         </div>
                     </div>
                     <h3 class="text-xl font-bold mb-4 text-white">天津相声数字化工程</h3>
@@ -873,44 +1927,44 @@
                 <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-10">
                     <!-- Partner 1 -->
                     <div class="glass-card p-6 rounded-xl flex items-center justify-center h-24 hover:border-accent/30 transition-all group">
-                        <div class="text-gray-400 group-hover:text-accent transition-colors">
-                            <i class="fas fa-building text-3xl"></i>
-                            <span class="block text-xs mt-2 text-center">品牌合作</span>
+                        <div class="text-gray-400 group-hover:text-accent transition-colors text-center">
+                            <i class="fas fa-building text-3xl block mx-auto"></i>
+                            <span class="block text-xs mt-2">品牌合作</span>
                         </div>
                     </div>
                     <!-- Partner 2 -->
                     <div class="glass-card p-6 rounded-xl flex items-center justify-center h-24 hover:border-accent/30 transition-all group">
-                        <div class="text-gray-400 group-hover:text-accent transition-colors">
-                            <i class="fas fa-university text-3xl"></i>
-                            <span class="block text-xs mt-2 text-center">学术机构</span>
+                        <div class="text-gray-400 group-hover:text-accent transition-colors text-center">
+                            <i class="fas fa-university text-3xl block mx-auto"></i>
+                            <span class="block text-xs mt-2">学术机构</span>
                         </div>
                     </div>
                     <!-- Partner 3 -->
                     <div class="glass-card p-6 rounded-xl flex items-center justify-center h-24 hover:border-accent/30 transition-all group">
-                        <div class="text-gray-400 group-hover:text-accent transition-colors">
-                            <i class="fas fa-museum text-3xl"></i>
-                            <span class="block text-xs mt-2 text-center">文化场馆</span>
+                        <div class="text-gray-400 group-hover:text-accent transition-colors text-center">
+                            <i class="fas fa-museum text-3xl block mx-auto"></i>
+                            <span class="block text-xs mt-2">文化场馆</span>
                         </div>
                     </div>
                     <!-- Partner 4 -->
                     <div class="glass-card p-6 rounded-xl flex items-center justify-center h-24 hover:border-accent/30 transition-all group">
-                        <div class="text-gray-400 group-hover:text-accent transition-colors">
-                            <i class="fas fa-laptop-code text-3xl"></i>
-                            <span class="block text-xs mt-2 text-center">科技企业</span>
+                        <div class="text-gray-400 group-hover:text-accent transition-colors text-center">
+                            <i class="fas fa-laptop-code text-3xl block mx-auto"></i>
+                            <span class="block text-xs mt-2">科技企业</span>
                         </div>
                     </div>
                     <!-- Partner 5 -->
                     <div class="glass-card p-6 rounded-xl flex items-center justify-center h-24 hover:border-accent/30 transition-all group">
-                        <div class="text-gray-400 group-hover:text-accent transition-colors">
-                            <i class="fas fa-paint-brush text-3xl"></i>
-                            <span class="block text-xs mt-2 text-center">创意机构</span>
+                        <div class="text-gray-400 group-hover:text-accent transition-colors text-center">
+                            <i class="fas fa-paint-brush text-3xl block mx-auto"></i>
+                            <span class="block text-xs mt-2">创意机构</span>
                         </div>
                     </div>
                     <!-- Partner 6 -->
                     <div class="glass-card p-6 rounded-xl flex items-center justify-center h-24 hover:border-accent/30 transition-all group">
-                        <div class="text-gray-400 group-hover:text-accent transition-colors">
-                            <i class="fas fa-handshake text-3xl"></i>
-                            <span class="block text-xs mt-2 text-center">行业协会</span>
+                        <div class="text-gray-400 group-hover:text-accent transition-colors text-center">
+                            <i class="fas fa-handshake text-3xl block mx-auto"></i>
+                            <span class="block text-xs mt-2">行业协会</span>
                         </div>
                     </div>
                 </div>
@@ -939,7 +1993,7 @@
                     <!-- Timeline item 1 -->
                     <div class="flex flex-col md:flex-row items-center fade-in-section">
                         <div class="md:w-1/2 md:pr-12 md:text-right mb-8 md:mb-0">
-                            <h3 class="text-2xl font-bold mb-2 text-white">2022</h3>
+                            <h3 class="text-2xl font-bold mb-2 text-white">2025</h3>
                             <p class="text-gray-400 leading-relaxed">津脉智坊成立，专注于AI技术与传统文化的融合研究，启动非遗数字化保护项目。</p>
                         </div>
                         <div class="hidden md:block w-8 h-8 rounded-full bg-accent z-10"></div>
@@ -951,7 +2005,7 @@
                         <div class="md:w-1/2 md:pr-12"></div>
                         <div class="hidden md:block w-8 h-8 rounded-full bg-purpleAccent z-10"></div>
                         <div class="md:w-1/2 md:pl-12 mb-8 md:mb-0">
-                            <h3 class="text-2xl font-bold mb-2 text-white">2023</h3>
+                            <h3 class="text-2xl font-bold mb-2 text-white">2026</h3>
                             <p class="text-gray-400 leading-relaxed">推出首个AI非遗创作平台，与多家天津老字号品牌建立合作关系，启动数字化转型项目。</p>
                         </div>
                     </div>
@@ -959,7 +2013,7 @@
                     <!-- Timeline item 3 -->
                     <div class="flex flex-col md:flex-row items-center fade-in-section">
                         <div class="md:w-1/2 md:pr-12 md:text-right mb-8 md:mb-0">
-                            <h3 class="text-2xl font-bold mb-2 text-white">2024</h3>
+                            <h3 class="text-2xl font-bold mb-2 text-white">2027</h3>
                             <p class="text-gray-400 leading-relaxed">平台用户突破10,000+，成功举办首届数字非遗艺术节，与多家高校建立产学研合作关系。</p>
                         </div>
                         <div class="hidden md:block w-8 h-8 rounded-full bg-accent z-10"></div>
@@ -1126,6 +2180,10 @@
                 // React to mouse
                 particlesMesh.rotation.y += 0.05 * (targetX - particlesMesh.rotation.y);
                 particlesMesh.rotation.x += 0.05 * (targetY - particlesMesh.rotation.x);
+                
+                // Apply same mouse interaction to purple particles
+                particlesMesh2.rotation.y += 0.05 * (targetX - particlesMesh2.rotation.y);
+                particlesMesh2.rotation.x += 0.05 * (targetY - particlesMesh2.rotation.x);
 
                 renderer.render(scene, camera);
             };
@@ -1141,6 +2199,16 @@
         };
 
         // --- 2. UI Logic ---
+        // Add handleExploreClick function
+        function handleExploreClick() {
+            console.log('Explore button clicked, navigating to platform...');
+            // 用户主动点击探索按钮，设置一个临时标志表示已经探索过
+            // 这样用户下次访问时不会被重复重定向到landing.html
+            localStorage.setItem('hasExplored', 'true');
+            // 跳转到登录页，要求用户先登录/注册
+            window.location.href = window.location.origin + '/login';
+        }
+        
         document.addEventListener('DOMContentLoaded', () => {
             // Remove Loader
             setTimeout(() => {
@@ -1215,5 +2283,217 @@
             });
         });
     </script>
-</body>
+<!-- Story Detail Modal -->
+    <div id="storyModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/70 backdrop-blur-sm transition-opacity" id="modalBackdrop"></div>
+        <div class="relative w-full max-w-4xl mx-auto bg-deep/95 backdrop-blur-lg rounded-2xl overflow-hidden border border-white/10 shadow-2xl transition-all transform" id="modalContent">
+            <!-- Close Button -->
+            <button id="closeModal" class="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-accent hover:text-black transition-all z-10">
+                <i class="fas fa-times"></i>
+            </button>
+            
+            <!-- Modal Header -->
+            <div class="relative h-64 overflow-hidden">
+                <img id="modalImage" src="" alt="Story Image" class="w-full h-full object-cover transition-transform duration-500 hover:scale-105">
+                <div class="absolute inset-0 bg-gradient-to-t from-deep via-deep/70 to-transparent"></div>
+                <h3 id="modalTitle" class="absolute bottom-6 left-6 right-6 text-2xl md:text-3xl font-bold text-white"></h3>
+            </div>
+            
+            <!-- Modal Body -->
+            <div class="p-6 md:p-8">
+                <div id="modalContentContainer">
+                    <!-- Content will be dynamically inserted here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Story Details Content -->
+    <div id="storyDetails" class="hidden">
+        <!-- Story 1: 泥人张的数字化重生 -->
+        <div id="story-1" class="story-content">
+            <div class="prose prose-invert max-w-none">
+                <p class="text-lg text-gray-300 leading-relaxed mb-6">
+                    泥人张，作为天津的传统工艺瑰宝，拥有着近200年的历史。然而，在数字时代的浪潮中，如何让这门古老的技艺焕发新生，成为了津脉智坊团队思考的重要课题。
+                </p>
+                <p class="text-gray-400 leading-relaxed mb-6">
+                    我们的AI团队花费了数月时间，深入研究泥人张的色彩搭配规律、造型艺术特点和制作工艺。通过高分辨率扫描和3D建模技术，我们创建了一个包含数千个泥人样本的数字数据库。
+                </p>
+                <p class="text-gray-400 leading-relaxed mb-6">
+                    利用深度学习算法，我们的系统能够分析泥人的色彩分布、比例关系和艺术风格，甚至能够预测不同造型的视觉效果。这使得我们能够在数字空间中重现泥人张的创作过程，为传统工艺注入了新的活力。
+                </p>
+                <div class="my-8 border-l-4 border-accent pl-4 italic text-gray-400">
+                    "通过AI技术，我们不仅保存了泥人张的传统技艺，更重要的是为它开辟了新的表达可能性。" —— 陈声辉，津脉智坊创始人
+                </div>
+                <p class="text-gray-400 leading-relaxed mb-6">
+                    数字化后的泥人张作品不仅可以在虚拟空间中展示，还可以通过3D打印技术实体化，甚至可以根据用户需求进行个性化定制。这一创新不仅为传统工艺找到了新的市场，也让更多年轻人了解和喜爱上了这门古老的艺术。
+                </p>
+                <p class="text-gray-400 leading-relaxed">
+                    如今，泥人张的数字化项目已经成为津脉智坊的标志性成果之一，为其他非遗文化的数字化转型提供了可借鉴的模式。
+                </p>
+            </div>
+        </div>
+        
+        <!-- Story 2: NEBULA FLOW技术的诞生 -->
+        <div id="story-2" class="story-content">
+            <div class="prose prose-invert max-w-none">
+                <p class="text-lg text-gray-300 leading-relaxed mb-6">
+                    NEBULA FLOW技术的诞生源于一次偶然的实验。我们的技术团队在研究粒子系统时，发现了一种新的交互方式，能够创造出类似星云流动的视觉效果。
+                </p>
+                <p class="text-gray-400 leading-relaxed mb-6">
+                    经过数月的研发，我们成功开发出了NEBULA FLOW粒子交互技术，这是一种基于WebGL的实时渲染技术，能够在浏览器中创造出流畅、自然的粒子流动效果。
+                </p>
+                <p class="text-gray-400 leading-relaxed mb-6">
+                    这项技术的创新点在于它能够根据用户的交互和内容的变化，实时调整粒子的运动轨迹和视觉效果，创造出沉浸式的数字体验。与传统的粒子系统相比，NEBULA FLOW技术具有更高的性能和更丰富的表现力。
+                </p>
+                <div class="my-8 border-l-4 border-purpleAccent pl-4 italic text-gray-400">
+                    "NEBULA FLOW技术不仅仅是一种视觉效果，更是一种新的数字表达语言，为传统文化的数字化提供了全新的可能性。" —— 李凯硕，津脉智坊CTO
+                </div>
+                <p class="text-gray-400 leading-relaxed mb-6">
+                    在实际应用中，我们将NEBULA FLOW技术与传统文化元素相结合，创造出了许多令人惊艳的数字艺术作品。例如，我们使用这项技术将传统的中国水墨画转化为动态的数字艺术，让静态的画面获得了新的生命力。
+                </p>
+                <p class="text-gray-400 leading-relaxed">
+                    如今，NEBULA FLOW技术已经成为津脉智坊的核心技术之一，不仅应用于我们的平台和产品中，还通过开源的方式分享给全球的创作者，推动了数字艺术的发展。
+                </p>
+            </div>
+        </div>
+        
+        <!-- Story 3: 全球创作者社区的构建 -->
+        <div id="story-3" class="story-content">
+            <div class="prose prose-invert max-w-none">
+                <p class="text-lg text-gray-300 leading-relaxed mb-6">
+                    津脉智坊的全球创作者社区始于2023年，当时我们只有一个由10名核心成员组成的小团队。我们的愿景是构建一个连接全球创作者的平台，共同推动传统文化的数字化转型。
+                </p>
+                <p class="text-gray-400 leading-relaxed mb-6">
+                    为了实现这一愿景，我们开发了一套开放的创作工具和资源库，让创作者能够轻松地将传统文化元素融入到数字创作中。我们还组织了一系列线上和线下的活动，如工作坊、黑客松和展览，为创作者提供交流和展示的平台。
+                </p>
+                <p class="text-gray-400 leading-relaxed mb-6">
+                    随着社区的不断发展，我们吸引了来自全球各地的创作者，包括设计师、程序员、艺术家和文化学者。他们带来了不同的背景和视角，为社区注入了新的活力。
+                </p>
+                <div class="my-8 border-l-4 border-blue-400 pl-4 italic text-gray-400">
+                    "社区的力量在于多样性，每一位创作者都为传统文化的数字化转型贡献了自己独特的价值。" —— 王曦凯，津脉智坊市场总监
+                </div>
+                <p class="text-gray-400 leading-relaxed mb-6">
+                    如今，我们的全球创作者社区已经拥有超过12,000名活跃成员，分布在全球40多个国家和地区。社区成员共同创作了数以千计的数字作品，涵盖了艺术、设计、音乐、游戏等多个领域。
+                </p>
+                <p class="text-gray-400 leading-relaxed">
+                    我们的社区不仅是一个创作平台，更是一个文化交流的桥梁，让不同国家和地区的人们通过数字创作了解和欣赏中国的传统文化。未来，我们将继续扩大社区的影响力，让更多人参与到传统文化的数字化转型中来。
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Story Modal Functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const modal = document.getElementById('storyModal');
+            const modalBackdrop = document.getElementById('modalBackdrop');
+            const modalContent = document.getElementById('modalContent');
+            const closeModal = document.getElementById('closeModal');
+            const modalTitle = document.getElementById('modalTitle');
+            const modalImage = document.getElementById('modalImage');
+            const modalContentContainer = document.getElementById('modalContentContainer');
+            
+            // Story data
+            const stories = [
+                {
+                    id: '1',
+                    title: '泥人张的数字化重生',
+                    image: 'https://images.unsplash.com/photo-1600880292089-90a7e086ee0c?w=1200&h=600&fit=crop'
+                },
+                {
+                    id: '2',
+                    title: 'NEBULA FLOW技术的诞生',
+                    image: 'https://images.unsplash.com/photo-1558655146-364adaf1fcc9?w=1200&h=600&fit=crop'
+                },
+                {
+                    id: '3',
+                    title: '全球创作者社区的构建',
+                    image: 'https://images.unsplash.com/photo-1526628953301-3e589a6a8b74?w=1200&h=600&fit=crop'
+                }
+            ];
+            
+            // Open modal function
+            function openModal(storyId) {
+                const story = stories.find(s => s.id === storyId);
+                if (story) {
+                    // Set modal content
+                    modalTitle.textContent = story.title;
+                    modalImage.src = story.image;
+                    
+                    // Load story content
+                    const storyContent = document.getElementById(`story-${storyId}`).innerHTML;
+                    modalContentContainer.innerHTML = storyContent;
+                    
+                    // Show modal
+                    modal.classList.remove('hidden');
+                    modal.classList.add('flex');
+                    
+                    // Direct style modifications for better compatibility
+                    setTimeout(() => {
+                        modalBackdrop.style.opacity = '1';
+                        modalContent.style.opacity = '1';
+                        modalContent.style.transform = 'translateY(0) scale(1)';
+                    }, 10);
+                    
+                    // Disable body scroll
+                    document.body.style.overflow = 'hidden';
+                }
+            }
+            
+            // Close modal function
+            function closeModalFunc() {
+                // Direct style modifications for closing animation
+                modalBackdrop.style.opacity = '0';
+                modalContent.style.opacity = '0';
+                modalContent.style.transform = 'translateY(10px) scale(0.95)';
+                
+                // Hide modal after animation
+                setTimeout(() => {
+                    modal.classList.remove('flex');
+                    modal.classList.add('hidden');
+                    // Enable body scroll
+                    document.body.style.overflow = '';
+                }, 300);
+            }
+            
+            // Close modal event listeners
+            closeModal.addEventListener('click', closeModalFunc);
+            modalBackdrop.addEventListener('click', closeModalFunc);
+            
+            // Keyboard event listener
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
+                    closeModalFunc();
+                }
+            });
+            
+            // Add click event listeners to story cards
+            // Only select story cards in the culture stories section
+            const cultureSection = document.querySelector('#about .mt-32:last-of-type');
+            const storyCards = cultureSection.querySelectorAll('.glass-card');
+            storyCards.forEach((card, index) => {
+                const storyId = (index + 1).toString();
+                card.setAttribute('data-story-id', storyId);
+                
+                // Add click event to card
+                card.addEventListener('click', function(e) {
+                    // Don't trigger if clicking the button (handled separately)
+                    if (!e.target.closest('button')) {
+                        openModal(storyId);
+                    }
+                });
+                
+                // Add click event to "Read more" button
+                const readMoreBtn = card.querySelector('button');
+                if (readMoreBtn) {
+                    readMoreBtn.addEventListener('click', function() {
+                        openModal(storyId);
+                    });
+                }
+            });
+        });
+    </script>
+
+    </body>
 </html>

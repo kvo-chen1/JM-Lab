@@ -633,7 +633,10 @@ export default defineConfig(({ command, mode }) => {
         'mongodb': path.resolve(__dirname, './src/utils/browserMocks/database.ts'),
         'pg': path.resolve(__dirname, './src/utils/browserMocks/database.ts'),
         '@neondatabase/serverless': path.resolve(__dirname, './src/utils/browserMocks/database.ts'),
-        'ws': path.resolve(__dirname, './src/utils/browserMocks/websocket.ts')
+        'ws': path.resolve(__dirname, './src/utils/browserMocks/websocket.ts'),
+        // react-reconciler别名，解决AR预览功能的导入问题
+        'react-reconciler/constants': '@/utils/reactReconcilerStub',
+        'react-reconciler': '@/utils/reactReconcilerStub'
       },
       
       // 扩展名解析
@@ -809,7 +812,6 @@ export default defineConfig(({ command, mode }) => {
         'three',
         '@react-three/fiber',
         '@react-three/drei',
-        '@react-three/xr',
         'three-stdlib'
       ],
       

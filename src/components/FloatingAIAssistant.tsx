@@ -268,20 +268,20 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
   // 生成上下文相关的初始欢迎消息
   const getWelcomeMessage = () => {
     const welcomeMessages: Record<string, string> = {
-      '/': `你好！我是你的AI助手，欢迎来到津脉智坊平台首页。这里是探索和创作的起点，你可以浏览热门作品、参与社区活动或开始你的创作之旅。有什么可以帮助你的吗？`,
-      '/cultural-knowledge': `你好！我是你的AI助手，欢迎来到文化知识页面。在这里你可以探索丰富的非遗文化内容，学习传统技艺知识。有什么文化方面的问题需要解答吗？`,
-      '/creation-workshop': `你好！我是你的AI助手，欢迎来到创作工坊。这里是你的创意实验室，你可以尝试各种数字化创作工具和AI生成功能。需要我帮你了解创作流程吗？`,
-      '/marketplace': `你好！我是你的AI助手，欢迎来到文创市集。在这里你可以购买精美的文创产品，或成为卖家展示你的作品。有什么购物或销售方面的问题吗？`,
-      '/community': `你好！我是你的AI助手，欢迎来到社区。这里是创作者的聚集地，你可以参与讨论、分享作品或参与活动。需要我帮你了解社区功能吗？`,
-      '/my-works': `你好！我是你的AI助手，欢迎来到我的作品页面。在这里你可以管理和查看你的创作成果。需要我帮你了解作品管理功能吗？`,
-      '/explore': `你好！我是你的AI助手，欢迎来到探索页面。在这里你可以发现各类优秀作品，按照不同维度筛选内容。需要我帮你了解搜索和筛选功能吗？`,
-      '/create': `你好！我是你的AI助手，欢迎来到创作中心。现在你可以开始你的创作之旅，使用各种AI辅助工具和素材。需要我帮你了解创作工具的使用方法吗？`,
-      '/dashboard': `你好！我是你的AI助手，欢迎来到仪表盘。这里展示了你的创作数据和平台动态。需要我帮你解读数据或了解平台动态吗？`,
-      '/neo': `你好！我是你的AI助手，欢迎来到灵感引擎。在这里你可以获得创作灵感和AI辅助建议。需要我帮你激发创意吗？`,
-      '/tools': `你好！我是你的AI助手，欢迎来到工具页面。这里汇聚了各种创作辅助工具。需要我帮你了解工具的使用方法吗？`
+      '/': `你好！我是津小脉，欢迎来到津脉智坊平台首页。这里是探索和创作的起点，你可以浏览热门作品、参与社区活动或开始你的创作之旅。有什么可以帮助你的吗？`,
+      '/cultural-knowledge': `你好！我是津小脉，欢迎来到文化知识页面。在这里你可以探索丰富的非遗文化内容，学习传统技艺知识。有什么文化方面的问题需要解答吗？`,
+      '/creation-workshop': `你好！我是津小脉，欢迎来到创作工坊。这里是你的创意实验室，你可以尝试各种数字化创作工具和AI生成功能。需要我帮你了解创作流程吗？`,
+      '/marketplace': `你好！我是津小脉，欢迎来到文创市集。在这里你可以购买精美的文创产品，或成为卖家展示你的作品。有什么购物或销售方面的问题吗？`,
+      '/community': `你好！我是津小脉，欢迎来到社区。这里是创作者的聚集地，你可以参与讨论、分享作品或参与活动。需要我帮你了解社区功能吗？`,
+      '/my-works': `你好！我是津小脉，欢迎来到我的作品页面。在这里你可以管理和查看你的创作成果。需要我帮你了解作品管理功能吗？`,
+      '/explore': `你好！我是津小脉，欢迎来到探索页面。在这里你可以发现各类优秀作品，按照不同维度筛选内容。需要我帮你了解搜索和筛选功能吗？`,
+      '/create': `你好！我是津小脉，欢迎来到创作中心。现在你可以开始你的创作之旅，使用各种AI辅助工具和素材。需要我帮你了解创作工具的使用方法吗？`,
+      '/dashboard': `你好！我是津小脉，欢迎来到仪表盘。这里展示了你的创作数据和平台动态。需要我帮你解读数据或了解平台动态吗？`,
+      '/neo': `你好！我是津小脉，欢迎来到灵感引擎。在这里你可以获得创作灵感和AI辅助建议。需要我帮你激发创意吗？`,
+      '/tools': `你好！我是津小脉，欢迎来到工具页面。这里汇聚了各种创作辅助工具。需要我帮你了解工具的使用方法吗？`
     };
     
-    return welcomeMessages[currentPath] || `你好！我是你的AI助手，当前你正在浏览「${currentPage}」页面，有什么可以帮助你的吗？`;
+    return welcomeMessages[currentPath] || `你好！我是津小脉，当前你正在浏览「${currentPage}」页面，有什么可以帮助你的吗？`;
   };
 
   // 添加初始欢迎消息 - 上下文感知
@@ -447,7 +447,7 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
       for (const greeting of greetings) {
         if (message.includes(greeting)) {
           isGreeting = true;
-          response = `你好！我是你的AI助手，很高兴为你服务。你现在在「${currentPage}」页面，有什么可以帮助你的吗？你可以问我关于平台使用、创作技巧、文化知识等方面的问题，我会尽力为你解答。`;
+          response = `你好！我是津小脉，很高兴为你服务。你现在在「${currentPage}」页面，有什么可以帮助你的吗？你可以问我关于平台使用、创作技巧、文化知识等方面的问题，我会尽力为你解答。`;
           break;
         }
       }
@@ -797,7 +797,7 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
                 <div className={`w-7 h-7 rounded-full flex items-center justify-center ${isDark ? 'bg-gradient-to-br from-blue-600 to-purple-600' : 'bg-gradient-to-br from-blue-500 to-purple-500'} text-white shadow-md`}>
                   <i className="fas fa-robot text-base"></i>
                 </div>
-                <h3 className="font-bold text-base sm:text-lg bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">AI助手</h3>
+                <h3 className="font-bold text-base sm:text-lg bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">津小脉</h3>
               </div>
               <div className="flex gap-1">
                 {/* 设置按钮 */}
@@ -1183,7 +1183,7 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
         onMouseDown={handleDragStart}
         onTouchStart={handleDragStart}
         className={`w-16 h-16 rounded-full flex items-center justify-center shadow-2xl z-[100] transition-all duration-300 transform hover:scale-125 ${isDark ? 'bg-gradient-to-br from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700' : 'bg-gradient-to-br from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600'} text-white cursor-${isDragging ? 'grabbing' : 'grab'}`}
-        aria-label="AI助手"
+        aria-label="津小脉"
         whileHover={{
           scale: 1.25, 
           boxShadow: isDark ? 

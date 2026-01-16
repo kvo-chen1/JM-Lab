@@ -161,7 +161,7 @@ export default function Help() {
   return (
     <main className="container mx-auto px-4 py-8">
       {/* 帮助中心首页结构 */}
-      <h1 className="text-3xl font-bold mb-3">帮助中心</h1>
+      <h1 className="text-2xl font-bold mb-3">帮助中心</h1>
       <p className={`${isDark ? 'text-gray-400' : 'text-gray-600'} mb-8 text-sm`}>
         常见问题与使用指南，帮助你快速上手并高效创作。
       </p>
@@ -226,7 +226,7 @@ export default function Help() {
                     onClick={() => toggleFAQ(item.id)}
                     className={`w-full px-4 py-4 text-left flex justify-between items-center focus:outline-none transition-all duration-200 ${isExpanded ? (isDark ? 'bg-gray-800' : 'bg-gray-100') : ''}`}
                   >
-                    <h2 className="font-medium text-left">{item.question}</h2>
+                    <h2 className="font-medium text-lg text-left">{item.question}</h2>
                     <motion.div
                       animate={{ rotate: isExpanded ? 180 : 0 }}
                       transition={{ duration: 0.3 }}
@@ -264,7 +264,7 @@ export default function Help() {
           <div className={`inline-flex items-center justify-center w-12 h-12 rounded-full mb-4 ${isDark ? 'bg-blue-900' : 'bg-blue-100'}`}>
             <i className={`fas fa-comment-dots text-xl ${isDark ? 'text-blue-300' : 'text-blue-600'}`}></i>
           </div>
-          <h2 className="font-medium mb-2">在线反馈</h2>
+          <h2 className="font-medium text-base mb-2">在线反馈</h2>
           <p className={`${isDark ? 'text-gray-400' : 'text-gray-600'} text-sm mb-4`}>
             提交你的问题或建议，我们会尽快回复
           </p>
@@ -289,7 +289,7 @@ export default function Help() {
           <div className={`inline-flex items-center justify-center w-12 h-12 rounded-full mb-4 ${isDark ? 'bg-green-900' : 'bg-green-100'}`}>
             <i className={`fas fa-envelope text-xl ${isDark ? 'text-green-300' : 'text-green-600'}`}></i>
           </div>
-          <h2 className="font-medium mb-2">邮件支持</h2>
+          <h2 className="font-medium text-base mb-2">邮件支持</h2>
           <p className={`${isDark ? 'text-gray-400' : 'text-gray-600'} text-sm mb-4`}>
             发送邮件到我们的支持邮箱
           </p>
@@ -310,7 +310,7 @@ export default function Help() {
           <div className={`inline-flex items-center justify-center w-12 h-12 rounded-full mb-4 ${isDark ? 'bg-purple-900' : 'bg-purple-100'}`}>
             <i className={`fas fa-phone text-xl ${isDark ? 'text-purple-300' : 'text-purple-600'}`}></i>
           </div>
-          <h2 className="font-medium mb-2">电话支持</h2>
+          <h2 className="font-medium text-base mb-2">电话支持</h2>
           <p className={`${isDark ? 'text-gray-400' : 'text-gray-600'} text-sm mb-4`}>
             工作日 9:00-18:00 提供电话支持
           </p>

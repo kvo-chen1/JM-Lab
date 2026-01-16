@@ -717,6 +717,23 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
                       <i className="fas fa-heart mr-3"></i>
                       我的收藏
                     </NavLink>
+                    <button
+                      onClick={() => {
+                        window.location.href = '/landing.html';
+                      }}
+                      onTouchStart={() => {
+                        window.location.href = '/landing.html';
+                      }}
+                      className={clsx(
+                        'block px-4 py-3 text-sm transition-all duration-200 hover:translate-x-1 w-full text-left',
+                        isDark ? 'text-gray-300 hover:bg-gray-700' : 
+                        theme === 'pink' ? 'text-pink-900 hover:bg-pink-200' : 
+                        'text-gray-900 hover:bg-gray-100'
+                      )}
+                    >
+                      <i className="fas fa-home mr-3"></i>
+                      {t('header.backToOfficialWebsite')}
+                    </button>
                     <NavLink
                       to="/membership"
                       onTouchStart={() => prefetchRoute('/membership')}

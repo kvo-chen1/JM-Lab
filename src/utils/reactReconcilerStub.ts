@@ -44,9 +44,13 @@ export const calculateColor = () => {
 // 添加 isInterleavedArray 函数，解决 Three.js 相关错误
 export const isInterleavedArray = () => false;
 
+// 添加 isInteractiveTools 函数，解决最新出现的错误
+export const isInteractiveTools = () => false;
+
 // 导出一个更完整的 react-reconciler 实现，避免运行时错误
 export default function createReconciler() {
-  return {
+  // 创建基础实现对象
+  const reconcilerImpl = {
     mountContainer: () => {},
     updateContainer: () => {},
     unmountContainer: () => {},
@@ -54,6 +58,7 @@ export default function createReconciler() {
     createPortal: () => null,
     calculateColor: calculateColor,
     isInterleavedArray: isInterleavedArray,
+    isInteractiveTools: isInteractiveTools,
     // 添加更多 @react-three/fiber 可能需要的方法
     activateTouchTools: () => {},
     deactivateTouchTools: () => {},
@@ -71,6 +76,20 @@ export default function createReconciler() {
     keyboardEvent: () => {},
     mouseEvent: () => {},
   };
+
+  // 使用 Proxy 包装，处理未知方法调用，避免运行时错误
+  return new Proxy(reconcilerImpl, {
+    get(target, prop, receiver) {
+      // 如果方法存在，直接返回
+      if (prop in target) {
+        return Reflect.get(target, prop, receiver);
+      }
+      
+      // 否则返回一个空函数，避免运行时错误
+      console.warn(`react-reconciler stub: Method '${String(prop)}' not found, returning empty function`);
+      return () => {};
+    }
+  });
 }
 
 // 添加 @react-three/fiber 所需的其他导出

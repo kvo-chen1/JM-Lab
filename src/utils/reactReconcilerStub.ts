@@ -41,6 +41,9 @@ export const calculateColor = () => {
   return [0, 0, 0, 1];
 };
 
+// 添加 isInterleavedArray 函数，解决 Three.js 相关错误
+export const isInterleavedArray = () => false;
+
 // 导出一个更完整的 react-reconciler 实现，避免运行时错误
 export default function createReconciler() {
   return {
@@ -50,6 +53,7 @@ export default function createReconciler() {
     flushSync: (fn) => fn(),
     createPortal: () => null,
     calculateColor: calculateColor,
+    isInterleavedArray: isInterleavedArray,
     // 添加更多 @react-three/fiber 可能需要的方法
     activateTouchTools: () => {},
     deactivateTouchTools: () => {},
@@ -113,3 +117,169 @@ export const unstable_UserBlockingPriority = 2;
 export const unstable_NormalPriority = 3;
 export const unstable_LowPriority = 4;
 export const unstable_IdlePriority = 5;
+
+// 添加 Three.js 相关函数，解决可能的运行时错误
+export const createGeometry = () => ({
+  computeBoundingBox: () => {},
+  computeBoundingSphere: () => {},
+  computeVertexNormals: () => {},
+  computeFaceNormals: () => {},
+  normalizeNormals: () => {},
+  applyMatrix4: () => {},
+  applyQuaternion: () => {},
+  applyPosition: () => {},
+  applyRotation: () => {},
+  applyScale: () => {},
+  center: () => {},
+  translate: () => {},
+  rotateX: () => {},
+  rotateY: () => {},
+  rotateZ: () => {},
+  scale: () => {},
+  clone: () => ({}),
+  toJSON: () => ({}),
+  dispose: () => {},
+});
+
+export const createBufferGeometry = () => ({
+  computeBoundingBox: () => {},
+  computeBoundingSphere: () => {},
+  computeVertexNormals: () => {},
+  setAttribute: () => {},
+  getAttribute: () => ({
+    array: new Float32Array(),
+    itemSize: 3,
+    count: 0,
+    normalized: false,
+    dynamic: false,
+    updateRange: { offset: 0, count: 0 },
+    version: 0,
+  }),
+  hasAttribute: () => false,
+  removeAttribute: () => {},
+  attributes: {},
+  index: null,
+  groups: [],
+  boundsTree: null,
+  dispose: () => {},
+});
+
+export const createMaterial = () => ({
+  setValues: () => {},
+  clone: () => ({}),
+  toJSON: () => ({}),
+  dispose: () => {},
+});
+
+export const createMesh = () => ({
+  geometry: null,
+  material: null,
+  position: { x: 0, y: 0, z: 0 },
+  rotation: { x: 0, y: 0, z: 0 },
+  scale: { x: 1, y: 1, z: 1 },
+  visible: true,
+  castShadow: false,
+  receiveShadow: false,
+  matrix: new Float32Array(16),
+  matrixAutoUpdate: true,
+  updateMatrix: () => {},
+  updateMatrixWorld: () => {},
+  add: () => {},
+  remove: () => {},
+  dispose: () => {},
+});
+
+// 添加更多可能需要的 Three.js 相关函数
+export const Vector2 = class Vector2 {
+  constructor(x = 0, y = 0) {
+    this.x = x;
+    this.y = y;
+  }
+  set() { return this; }
+  clone() { return new Vector2(this.x, this.y); }
+  add() { return this; }
+  sub() { return this; }
+  multiplyScalar() { return this; }
+  divideScalar() { return this; }
+  normalize() { return this; }
+  length() { return 0; }
+  distanceTo() { return 0; }
+  dot() { return 0; }
+};
+
+export const Vector3 = class Vector3 {
+  constructor(x = 0, y = 0, z = 0) {
+    this.x = x;
+    this.y = y;
+    this.z = z;
+  }
+  set() { return this; }
+  clone() { return new Vector3(this.x, this.y, this.z); }
+  add() { return this; }
+  sub() { return this; }
+  multiplyScalar() { return this; }
+  divideScalar() { return this; }
+  normalize() { return this; }
+  length() { return 0; }
+  distanceTo() { return 0; }
+  dot() { return 0; }
+  cross() { return this; }
+  applyMatrix4() { return this; }
+  applyQuaternion() { return this; }
+  project() { return this; }
+  unproject() { return this; }
+};
+
+export const Matrix4 = class Matrix4 {
+  constructor() {
+    this.elements = new Float32Array(16);
+  }
+  identity() { return this; }
+  clone() { return new Matrix4(); }
+  multiply() { return this; }
+  multiplyMatrices() { return this; }
+  makeTranslation() { return this; }
+  makeRotationX() { return this; }
+  makeRotationY() { return this; }
+  makeRotationZ() { return this; }
+  makeScale() { return this; }
+  lookAt() { return this; }
+  invert() { return this; }
+  transpose() { return this; }
+  getInverse() { return this; }
+};
+
+export const Quaternion = class Quaternion {
+  constructor(x = 0, y = 0, z = 0, w = 1) {
+    this.x = x;
+    this.y = y;
+    this.z = z;
+    this.w = w;
+  }
+  set() { return this; }
+  clone() { return new Quaternion(this.x, this.y, this.z, this.w); }
+  setFromAxisAngle() { return this; }
+  setFromEuler() { return this; }
+  normalize() { return this; }
+  multiply() { return this; }
+  invert() { return this; }
+  conjugate() { return this; }
+  dot() { return 0; }
+  length() { return 0; }
+  slerp() { return this; }
+};
+
+export const Euler = class Euler {
+  constructor(x = 0, y = 0, z = 0, order = 'XYZ') {
+    this.x = x;
+    this.y = y;
+    this.z = z;
+    this.order = order;
+  }
+  set() { return this; }
+  clone() { return new Euler(this.x, this.y, this.z, this.order); }
+  setFromRotationMatrix() { return this; }
+  setFromQuaternion() { return this; }
+  toQuaternion() { return new Quaternion(); }
+  toRotationMatrix() { return new Matrix4(); }
+};

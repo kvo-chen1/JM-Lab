@@ -130,18 +130,18 @@ const CommunityChat: React.FC<CommunityChatProps> = ({
         <h3 className="font-medium">社群列表与聊天</h3>
         <span className={`text-xs px-2 py-1 rounded-full ${isDark ? 'bg-gray-700 text-gray-200' : 'bg-gray-100 text-gray-700'}`}>实时</span>
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 h-[calc(100vh-140px)] md:h-auto">
         {/* 左侧社群列表 */}
-        <div className="lg:col-span-1">
+        <div className={`lg:col-span-1 h-full flex flex-col ${activeChatCommunityId ? 'hidden lg:flex' : 'flex'}`}>
           <div className="flex items-center gap-2 mb-2">
             <input 
               value={chatSearch} 
               onChange={e => setChatSearch(e.target.value)} 
               placeholder="搜索已加入社群..." 
-              className={`${isDark ? 'bg-gray-800 text-white ring-1 ring-gray-700' : 'bg-white text-gray-900 ring-1 ring-gray-300'} px-3 py-2 rounded-lg flex-1 focus:outline-none focus:ring-2 ${isDark ? 'focus:ring-purple-500' : 'focus:ring-pink-300'}`} 
+              className={`${isDark ? 'bg-gray-800 text-white ring-1 ring-gray-700' : 'bg-white text-gray-900 ring-1 ring-gray-300'} px-3 py-2 h-12 rounded-lg flex-1 focus:outline-none focus:ring-2 ${isDark ? 'focus:ring-purple-500' : 'focus:ring-pink-300'}`} 
             />
           </div>
-          <ul className="space-y-2 max-h-[38vh] overflow-y-auto sm:max-h-[50vh]">
+          <ul className="space-y-2 flex-1 overflow-y-auto">
             {chatJoinedList.length === 0 ? (
               <li className="text-sm opacity-60">暂无已加入社群</li>
             ) : (
@@ -149,12 +149,12 @@ const CommunityChat: React.FC<CommunityChatProps> = ({
                 <li key={`chatlist-top-${c.id}`}>
                   <button 
                     onClick={() => onActiveChatCommunityChange(c.id)} 
-                    className={`w-full text-left p-2 rounded-lg text-sm ring-1 transition-colors ${activeChatCommunityId === c.id ? (isDark ? 'bg-indigo-600 text-white ring-indigo-600' : 'bg-indigo-600 text-white ring-indigo-600') : (isDark ? 'bg-gray-700 text-white ring-gray-700' : 'bg-gray-100 text-gray-900 ring-gray-200')}`}
+                    className={`w-full text-left p-3 rounded-lg text-sm ring-1 transition-colors min-h-[60px] flex flex-col justify-center ${activeChatCommunityId === c.id ? (isDark ? 'bg-indigo-600 text-white ring-indigo-600' : 'bg-indigo-600 text-white ring-indigo-600') : (isDark ? 'bg-gray-700 text-white ring-gray-700' : 'bg-gray-100 text-gray-900 ring-gray-200')}`}
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="font-medium truncate mr-2">{c.name}</div>
+                    <div className="flex items-center justify-between w-full">
+                      <div className="font-medium truncate mr-2 text-base">{c.name}</div>
                     </div>
-                    <div className="text-xs opacity-70 mt-1 text-gray-300">{c.tags.slice(0, 2).join(' · ')}</div>
+                    <div className={`text-xs opacity-70 mt-1 ${activeChatCommunityId === c.id ? 'text-indigo-100' : 'text-gray-500'}`}>{c.tags.slice(0, 2).join(' · ')}</div>
                   </button>
                 </li>
               ))
@@ -163,27 +163,35 @@ const CommunityChat: React.FC<CommunityChatProps> = ({
         </div>
 
         {/* 右侧聊天区域 */}
-        <div className="lg:col-span-2">
+        <div className={`lg:col-span-2 h-full flex flex-col ${!activeChatCommunityId ? 'hidden lg:flex' : 'flex'}`}>
           {activeCommunity ? (
-            <div>
+            <div className="flex flex-col h-full">
               <div className="flex items-center justify-between mb-2">
-                <div className="font-medium">{activeCommunity.name}</div>
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => onActiveChatCommunityChange(null)}
+                    className={`lg:hidden p-2 rounded-full ${isDark ? 'bg-gray-700 text-white' : 'bg-gray-200 text-gray-800'}`}
+                  >
+                    <i className="fas fa-arrow-left"></i>
+                  </button>
+                  <div className="font-medium text-lg">{activeCommunity.name}</div>
+                </div>
                 <div className="flex items-center gap-2">
                   <button 
                     onClick={() => onTogglePinJoined(activeCommunity.id)} 
-                    className={`${isDark ? 'bg-gray-700 text-white' : 'bg-gray-200 text-gray-800'} text-xs px-3 py-1 rounded-full transition-colors`}
+                    className={`${isDark ? 'bg-gray-700 text-white' : 'bg-gray-200 text-gray-800'} text-xs px-3 py-2 rounded-full transition-colors`}
                   >
                     {pinnedJoined.includes(activeCommunity.id) ? '取消置顶' : '置顶'}
                   </button>
                   <button 
                     onClick={() => onToggleMuteCommunity(activeCommunity.id)} 
-                    className={`${isDark ? 'bg-gray-700 text-white' : 'bg-gray-200 text-gray-800'} text-xs px-3 py-1 rounded-full transition-colors`}
+                    className={`${isDark ? 'bg-gray-700 text-white' : 'bg-gray-200 text-gray-800'} text-xs px-3 py-2 rounded-full transition-colors`}
                   >
                     {mutedCommunities.includes(activeCommunity.id) ? '取消静音' : '静音'}
                   </button>
                 </div>
               </div>
-              <div className="space-y-3 mb-4 max-h-[40vh] sm:max-h-[50vh] overflow-y-auto pr-1">
+              <div className="space-y-3 mb-4 flex-1 overflow-y-auto pr-1">
                 {messages.length === 0 ? (
                   <div className="text-sm opacity-60 text-center py-4">暂无消息，快来发第一条消息吧！</div>
                 ) : (

@@ -363,7 +363,7 @@ export const CommunityDiscussion: React.FC<CommunityDiscussionProps> = ({
             whileHover={{ scale: 1.03 }} 
             whileTap={{ scale: 0.97 }} 
             onClick={() => onModeChange('style')} 
-            className={`${mode === 'style' ? 'bg-red-600 text-white' : (isDark ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-900')} px-3 py-1 rounded-full text-sm transition-colors hover:opacity-90`}
+            className={`${mode === 'style' ? 'bg-red-600 text-white' : (isDark ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-900')} px-4 py-2 rounded-full text-sm transition-colors hover:opacity-90`}
           >
             风格
           </motion.button>
@@ -371,7 +371,7 @@ export const CommunityDiscussion: React.FC<CommunityDiscussionProps> = ({
             whileHover={{ scale: 1.03 }} 
             whileTap={{ scale: 0.97 }} 
             onClick={() => onModeChange('topic')} 
-            className={`${mode === 'topic' ? 'bg-red-600 text-white' : (isDark ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-900')} px-3 py-1 rounded-full text-sm transition-colors hover:opacity-90`}
+            className={`${mode === 'topic' ? 'bg-red-600 text-white' : (isDark ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-900')} px-4 py-2 rounded-full text-sm transition-colors hover:opacity-90`}
           >
             题材
           </motion.button>
@@ -387,7 +387,7 @@ export const CommunityDiscussion: React.FC<CommunityDiscussionProps> = ({
                   whileHover={{ scale: 1.03 }}
                   whileTap={{ scale: 0.97 }}
                   onClick={() => onSelectedStyleChange(s)}
-                  className={`${selectedStyle === s ? 'bg-red-600 text-white' : (isDark ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-900')} px-3 py-1 rounded-full text-sm flex items-center gap-2 transition-colors hover:opacity-90`}
+                  className={`${selectedStyle === s ? 'bg-red-600 text-white' : (isDark ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-900')} px-4 py-2 rounded-full text-sm flex items-center gap-2 transition-colors hover:opacity-90`}
                 >
                   <span>{s}</span>
                   <span className={`${selectedStyle === s ? 'bg-white text-red-600 ring-1 ring-red-200' : (isDark ? 'bg-gray-600 text-white ring-1 ring-gray-700' : 'bg-gray-300 text-gray-900 ring-1 ring-gray-300')} text-xs px-2 py-0.5 rounded-full`}>
@@ -407,7 +407,7 @@ export const CommunityDiscussion: React.FC<CommunityDiscussionProps> = ({
                   whileHover={{ scale: 1.03 }}
                   whileTap={{ scale: 0.97 }}
                   onClick={() => onSelectedTopicChange(s)}
-                  className={`${selectedTopic === s ? 'bg-red-600 text-white' : (isDark ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-900')} px-3 py-1 rounded-full text-sm flex items-center gap-2 transition-colors hover:opacity-90`}
+                  className={`${selectedTopic === s ? 'bg-red-600 text-white' : (isDark ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-900')} px-4 py-2 rounded-full text-sm flex items-center gap-2 transition-colors hover:opacity-90`}
                 >
                   <span>{s}</span>
                   <span className={`${selectedTopic === s ? 'bg-white text-red-600 ring-1 ring-red-200' : (isDark ? 'bg-gray-600 text-white ring-1 ring-gray-700' : 'bg-gray-300 text-gray-900 ring-1 ring-gray-300')} text-xs px-2 py-0.5 rounded-full`}>
@@ -461,14 +461,14 @@ export const CommunityDiscussion: React.FC<CommunityDiscussionProps> = ({
               <input 
                 value={threadSearch} 
                 onChange={e => onThreadSearchChange(e.target.value)}
-                className={`${isDark ? 'bg-gray-700 text-white' : 'bg-gray-50 text-gray-900'} px-3 py-1 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors`}
+                className={`${isDark ? 'bg-gray-700 text-white' : 'bg-gray-50 text-gray-900'} px-3 py-2 h-12 md:h-10 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors`}
                 placeholder="搜索讨论"
                 aria-label="搜索讨论"
               />
               <select 
                 value={threadSort}
                 onChange={e => onThreadSortChange(e.target.value as 'new' | 'reply' | 'hot')}
-                className={`${isDark ? 'bg-gray-700 text-white' : 'bg-gray-50 text-gray-900'} px-3 py-1 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors`}
+                className={`${isDark ? 'bg-gray-700 text-white' : 'bg-gray-50 text-gray-900'} px-3 py-2 h-12 md:h-10 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors`}
               >
                 <option value="new">最新</option>
                 <option value="reply">最多回复</option>
@@ -476,13 +476,13 @@ export const CommunityDiscussion: React.FC<CommunityDiscussionProps> = ({
               </select>
               <button 
                 onClick={() => onFavOnlyChange(!favOnly)}
-                className={`${favOnly ? 'bg-red-600 text-white' : (isDark ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-900')} px-3 py-1 rounded-lg text-sm transition-colors`}
+                className={`${favOnly ? 'bg-red-600 text-white' : (isDark ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-900')} px-4 py-2 h-12 md:h-10 rounded-lg text-sm transition-colors`}
               >
                 {favOnly ? '只看收藏' : '全部'}
               </button>
               <button 
                 onClick={onInsertRandomIdea}
-                className={`${isDark ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-900'} px-3 py-1 rounded-lg text-sm transition-colors`}
+                className={`${isDark ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-900'} px-4 py-2 h-12 md:h-10 rounded-lg text-sm transition-colors`}
               >
                 随机灵感
               </button>
@@ -493,7 +493,7 @@ export const CommunityDiscussion: React.FC<CommunityDiscussionProps> = ({
             <input 
               value={newTitle}
               onChange={e => onNewTitleChange(e.target.value)}
-              className={`${isDark ? 'bg-gray-700 text-white' : 'bg-gray-50 text-gray-900'} px-3 py-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors`}
+              className={`${isDark ? 'bg-gray-700 text-white' : 'bg-gray-50 text-gray-900'} px-3 py-2 h-12 rounded-lg border focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors`}
               placeholder="帖子标题（如：京剧角色设计打磨建议）"
               aria-label="帖子标题"
             />
@@ -501,7 +501,7 @@ export const CommunityDiscussion: React.FC<CommunityDiscussionProps> = ({
               onClick={submitThread}
               disabled={!newTitle.trim() || !newContent.trim()}
               aria-disabled={!newTitle.trim() || !newContent.trim()}
-              className={`px-3 py-2 rounded-lg transition-colors ${(!newTitle.trim() || !newContent.trim()) ? (isDark ? 'bg-gray-600 text-gray-300' : 'bg-gray-300 text-gray-600') : 'bg-red-600 text-white hover:bg-red-700 shadow-sm'}`}
+              className={`px-3 py-2 h-12 rounded-lg transition-colors ${(!newTitle.trim() || !newContent.trim()) ? (isDark ? 'bg-gray-600 text-gray-300' : 'bg-gray-300 text-gray-600') : 'bg-red-600 text-white hover:bg-red-700 shadow-sm'}`}
             >
               发布新帖
             </button>

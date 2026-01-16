@@ -168,6 +168,46 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
     }
   }, [theme, isDark])
 
+  // 导航栏头像组件 - 处理图片加载错误
+  const NavAvatar = memo(({ user, isDark, theme }: { user: any, isDark: boolean, theme: string }) => {
+    const [imgError, setImgError] = useState(false);
+    
+    // 当头像URL变化时重置错误状态
+    useEffect(() => {
+      setImgError(false);
+    }, [user?.avatar]);
+
+    const showImage = user?.avatar && user.avatar.trim() && !imgError;
+
+    return (
+      <div className={clsx(
+        'w-8 h-8 rounded-full overflow-hidden border-2 shadow-md transition-all duration-300 hover:ring-2',
+        isDark ? 'border-gray-700 hover:ring-blue-500' : 
+        theme === 'pink' ? 'border-pink-300 hover:ring-pink-500' : 
+        'border-gray-300 hover:ring-orange-500'
+      )}>
+        {showImage ? (
+          <img
+            src={user.avatar}
+            alt={user.username || '用户'}
+            className="w-full h-full object-cover"
+            loading="lazy"
+            onError={() => setImgError(true)}
+          />
+        ) : (
+          <div className={clsx(
+            'w-full h-full flex items-center justify-center text-white font-bold text-base',
+            isDark ? 'bg-blue-600' : 
+            theme === 'pink' ? 'bg-pink-500' : 
+            'bg-orange-500'
+          )}>
+            {user?.username?.charAt(0) || 'U'}
+          </div>
+        )}
+      </div>
+    );
+  });
+
   // 使用节流优化滚动事件处理
   const handleScroll = useCallback(
     throttle(() => {
@@ -613,48 +653,7 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
                     )}
                     aria-label="用户菜单"
                   >
-                    <div className={clsx(
-                      'w-8 h-8 rounded-full overflow-hidden border-2 shadow-md transition-all duration-300 hover:ring-2',
-                      isDark ? 'border-gray-700 hover:ring-blue-500' : 
-                      theme === 'pink' ? 'border-pink-300 hover:ring-pink-500' : 
-                      'border-gray-300 hover:ring-orange-500'
-                    )}>
-                      {user?.avatar && user.avatar.trim() ? (
-                        <div className="relative w-full h-full">
-                          <img
-                            src={user.avatar}
-                            alt={user.username}
-                            className="w-full h-full object-cover"
-                            loading="lazy"
-                            onError={(e) => {
-                              const target = e.target as HTMLImageElement;
-                              target.style.display = 'none';
-                              const parent = target.parentElement;
-                              if (parent) {
-                                const defaultAvatar = document.createElement('div');
-                                defaultAvatar.className = clsx(
-                                  'absolute inset-0 flex items-center justify-center text-white font-bold text-base',
-                                  isDark ? 'bg-blue-600' : 
-                                  theme === 'pink' ? 'bg-pink-500' : 
-                                  'bg-orange-500'
-                                );
-                                defaultAvatar.textContent = user?.username?.charAt(0) || 'U';
-                                parent.appendChild(defaultAvatar);
-                              }
-                            }}
-                          />
-                        </div>
-                      ) : (
-                        <div className={clsx(
-                          'w-full h-full flex items-center justify-center text-white font-bold text-base',
-                          isDark ? 'bg-blue-600' : 
-                          theme === 'pink' ? 'bg-pink-500' : 
-                          'bg-orange-500'
-                        )}>
-                          {user?.username?.charAt(0) || 'U'}
-                        </div>
-                      )}
-                    </div>
+                    <NavAvatar user={user} isDark={isDark} theme={theme} />
                   </button>
                   
                   {/* 下拉菜单 - 优化动画效果 */}
@@ -1049,9 +1048,9 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
       {/* 底部导航 - 优化交互体验 */}
       <nav className={clsx(
         'fixed bottom-0 inset-x-0 md:hidden z-20 transform transition-all duration-300 ease-in-out',
-        isDark ? 'bg-gray-900/95 backdrop-blur-xl ring-1 ring-gray-800/70 py-1 shadow-xl' : 
-        theme === 'pink' ? 'bg-gradient-to-t from-white/98 to-white/80 backdrop-blur-2xl ring-1 ring-pink-300/80 py-1.5 shadow-[0_-2px_20px_rgba(236,72,153,0.15),0_0_30px_rgba(236,72,153,0.1)]' : 
-        'bg-white/95 backdrop-blur-xl ring-1 ring-gray-200/70 py-1.5 shadow-2xl'
+        isDark ? 'bg-gray-900/95 backdrop-blur-xl ring-1 ring-gray-800/70 py-2 shadow-xl' : 
+        theme === 'pink' ? 'bg-gradient-to-t from-white/98 to-white/80 backdrop-blur-2xl ring-1 ring-pink-300/80 py-2 shadow-[0_-2px_20px_rgba(236,72,153,0.15),0_0_30px_rgba(236,72,153,0.1)]' : 
+        'bg-white/95 backdrop-blur-xl ring-1 ring-gray-200/70 py-2 shadow-2xl'
       )} style={{ paddingBottom: 'env(safe-area-inset-bottom)', transform: showMobileNav ? 'translateY(0)' : 'translateY(100%)' }}>
         <ul className={clsx(
           'grid grid-cols-5',

@@ -386,25 +386,25 @@ const CommunityManagement: React.FC<CommunityManagementProps> = ({
               value={newCommunityName} 
               onChange={e => setNewCommunityName(e.target.value)} 
               placeholder="社群名称" 
-              className={`${isDark ? 'bg-gray-800 text-white ring-1 ring-gray-700' : 'bg-white text-gray-900 ring-1 ring-gray-300'} px-3 py-2 rounded-lg focus:outline-none focus:ring-2 ${isDark ? 'focus:ring-purple-500' : 'focus:ring-pink-300'}`} 
+              className={`${isDark ? 'bg-gray-800 text-white ring-1 ring-gray-700' : 'bg-white text-gray-900 ring-1 ring-gray-300'} px-3 py-2 h-12 rounded-lg focus:outline-none focus:ring-2 ${isDark ? 'focus:ring-purple-500' : 'focus:ring-pink-300'}`} 
             />
             <input 
               value={newCommunityDesc} 
               onChange={e => setNewCommunityDesc(e.target.value)} 
               placeholder="社群简介" 
-              className={`${isDark ? 'bg-gray-800 text-white ring-1 ring-gray-700' : 'bg-white text-gray-900 ring-1 ring-gray-300'} px-3 py-2 rounded-lg focus:outline-none focus:ring-2 ${isDark ? 'focus:ring-purple-500' : 'focus:ring-pink-300'}`} 
+              className={`${isDark ? 'bg-gray-800 text-white ring-1 ring-gray-700' : 'bg-white text-gray-900 ring-1 ring-gray-300'} px-3 py-2 h-12 rounded-lg focus:outline-none focus:ring-2 ${isDark ? 'focus:ring-purple-500' : 'focus:ring-pink-300'}`} 
             />
             <input 
               value={newCommunityTags} 
               onChange={e => setNewCommunityTags(e.target.value)} 
               placeholder="标签（逗号分隔）" 
-              className={`${isDark ? 'bg-gray-800 text-white ring-1 ring-gray-700' : 'bg-white text-gray-900 ring-1 ring-gray-300'} px-3 py-2 rounded-lg focus:outline-none focus:ring-2 ${isDark ? 'focus:ring-purple-500' : 'focus:ring-pink-300'}`} 
+              className={`${isDark ? 'bg-gray-800 text-white ring-1 ring-gray-700' : 'bg-white text-gray-900 ring-1 ring-gray-300'} px-3 py-2 h-12 rounded-lg focus:outline-none focus:ring-2 ${isDark ? 'focus:ring-purple-500' : 'focus:ring-pink-300'}`} 
             />
           </div>
           <div className="mt-3 flex justify-end">
             <button 
               onClick={createCommunity} 
-              className="px-4 py-2 rounded-lg bg-gradient-to-r from-red-600 to-pink-600 text-white transition-colors hover:opacity-90"
+              className="px-6 py-3 rounded-lg bg-gradient-to-r from-red-600 to-pink-600 text-white transition-colors hover:opacity-90 min-h-[48px] font-medium"
             >
               创建
             </button>
@@ -494,9 +494,9 @@ const CommunityManagement: React.FC<CommunityManagementProps> = ({
 
       {/* 管理面板 */}
       {manageCommunityId && (
-        <div className={`fixed inset-0 z-50 ${isDark ? 'bg-black/70' : 'bg-black/50'} backdrop-blur-sm flex items-center justify-center p-4`}>
+        <div className={`fixed inset-0 z-50 ${isDark ? 'bg-black/70' : 'bg-black/50'} backdrop-blur-sm flex items-center justify-center p-0 md:p-4`}>
           <motion.div 
-            className={`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-lg p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto`}
+            className={`${isDark ? 'bg-gray-800' : 'bg-white'} shadow-lg p-6 max-w-2xl w-full h-full md:h-auto md:max-h-[80vh] overflow-y-auto rounded-none md:rounded-2xl`}
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.9 }}

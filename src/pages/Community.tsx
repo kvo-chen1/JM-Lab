@@ -28,6 +28,7 @@ const LoadingFallback = () => (
   </div>
 )
 import { useTheme } from '@/hooks/useTheme'
+import MobileComp from '@/components/MobileOptimizedComponents'
 import postsApi, { Post } from '@/services/postService'
 import { toast } from 'sonner'
 import { AuthContext } from '@/contexts/authContext'
@@ -1450,25 +1451,25 @@ export default function Community() {
           transition={{ duration: 0.4 }}
         >
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-medium">社群</h3>
+            <h3 className="font-medium text-lg md:text-base">社群</h3>
             {communityContext === 'creator' ? (
               <div className="flex gap-2">
-                <button onClick={() => setCommunityTab('recommended')} className={`text-xs px-3 py-1 rounded-full ring-1 ${communityTab === 'recommended' ? 'bg-purple-600 text-white ring-purple-600' : (isDark ? 'bg-gray-800 text-gray-300 ring-gray-700' : 'bg-white text-gray-700 ring-gray-200')}`}>推荐社群</button>
+                <button onClick={() => setCommunityTab('recommended')} className={`text-sm md:text-xs px-4 py-2 md:px-3 md:py-1 rounded-full ring-1 transition-all active:scale-95 ${communityTab === 'recommended' ? 'bg-purple-600 text-white ring-purple-600' : (isDark ? 'bg-gray-800 text-gray-300 ring-gray-700' : 'bg-white text-gray-700 ring-gray-200')}`}>推荐社群</button>
               </div>
             ) : (
               <div className="flex gap-2">
-                <button onClick={() => setCommunityTab('user')} className={`text-xs px-3 py-1 rounded-full ring-1 ${communityTab === 'user' ? 'bg-purple-600 text-white ring-purple-600' : (isDark ? 'bg-gray-800 text-gray-300 ring-gray-700' : 'bg-white text-gray-700 ring-gray-200')}`}>我创建的社群</button>
-                <button onClick={() => setCommunityTab('joined')} className={`text-xs px-3 py-1 rounded-full ring-1 ${communityTab === 'joined' ? 'bg-purple-600 text-white ring-purple-600' : (isDark ? 'bg-gray-800 text-gray-300 ring-gray-700' : 'bg-white text-gray-700 ring-gray-200')}`}>进入的社群</button>
+                <button onClick={() => setCommunityTab('user')} className={`text-sm md:text-xs px-4 py-2 md:px-3 md:py-1 rounded-full ring-1 transition-all active:scale-95 ${communityTab === 'user' ? 'bg-purple-600 text-white ring-purple-600' : (isDark ? 'bg-gray-800 text-gray-300 ring-gray-700' : 'bg-white text-gray-700 ring-gray-200')}`}>我创建的社群</button>
+                <button onClick={() => setCommunityTab('joined')} className={`text-sm md:text-xs px-4 py-2 md:px-3 md:py-1 rounded-full ring-1 transition-all active:scale-95 ${communityTab === 'joined' ? 'bg-purple-600 text-white ring-purple-600' : (isDark ? 'bg-gray-800 text-gray-300 ring-gray-700' : 'bg-white text-gray-700 ring-gray-200')}`}>进入的社群</button>
               </div>
             )}
           </div>
           {communityTab === 'recommended' && communityContext === 'creator' && (
             <div className="space-y-4">
               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-                <input value={communitySearch} onChange={e => setCommunitySearch(e.target.value)} placeholder="搜索社群关键词..." className={`${isDark ? 'bg-gray-800 text-white ring-1 ring-gray-700' : 'bg-white text-gray-900 ring-1 ring-gray-300'} px-3 py-2 rounded-lg flex-1 focus:outline-none focus:ring-2 ${isDark ? 'focus:ring-purple-500' : 'focus:ring-pink-300'}`} />
+                <input value={communitySearch} onChange={e => setCommunitySearch(e.target.value)} placeholder="搜索社群关键词..." className={`${isDark ? 'bg-gray-800 text-white ring-1 ring-gray-700' : 'bg-white text-gray-900 ring-1 ring-gray-300'} px-4 py-3 md:px-3 md:py-2 text-base md:text-sm rounded-lg flex-1 focus:outline-none focus:ring-2 ${isDark ? 'focus:ring-purple-500' : 'focus:ring-pink-300'}`} />
                 <div className="flex gap-2 w-full sm:w-auto">
-                  <button onClick={() => setCommunitySort('members')} className={`text-xs px-3 py-2 rounded-lg ring-1 ${communitySort === 'members' ? 'bg-purple-600 text-white ring-purple-600' : (isDark ? 'bg-gray-800 text-gray-300 ring-gray-700' : 'bg-white text-gray-700 ring-gray-200')}`}>按人数</button>
-                  <button onClick={() => setCommunitySort('alphabet')} className={`text-xs px-3 py-2 rounded-lg ring-1 ${communitySort === 'alphabet' ? 'bg-purple-600 text-white ring-purple-600' : (isDark ? 'bg-gray-800 text-gray-300 ring-gray-700' : 'bg-white text-gray-700 ring-gray-200')}`}>按名称</button>
+                  <button onClick={() => setCommunitySort('members')} className={`text-sm md:text-xs px-4 py-3 md:px-3 md:py-2 rounded-lg ring-1 flex-1 sm:flex-none justify-center flex ${communitySort === 'members' ? 'bg-purple-600 text-white ring-purple-600' : (isDark ? 'bg-gray-800 text-gray-300 ring-gray-700' : 'bg-white text-gray-700 ring-gray-200')}`}>按人数</button>
+                  <button onClick={() => setCommunitySort('alphabet')} className={`text-sm md:text-xs px-4 py-3 md:px-3 md:py-2 rounded-lg ring-1 flex-1 sm:flex-none justify-center flex ${communitySort === 'alphabet' ? 'bg-purple-600 text-white ring-purple-600' : (isDark ? 'bg-gray-800 text-gray-300 ring-gray-700' : 'bg-white text-gray-700 ring-gray-200')}`}>按名称</button>
                 </div>
               </div>
               <div className="rounded-xl overflow-hidden shadow-md">

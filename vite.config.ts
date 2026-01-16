@@ -312,8 +312,8 @@ export default defineConfig({
         // 添加skipWaiting和clientsClaim选项
         skipWaiting: true,
         clientsClaim: true,
-        // 忽略带有no-store头的请求
-        globIgnores: ['**/*.map', '**/node_modules/**'],
+        cleanupOutdatedCaches: true,
+        globIgnores: ['**/*.map', '**/node_modules/**', '**/public/**', '**/icons/*.svg'],
         runtimeCaching: [
           // API请求缓存 - 使用NetworkFirst策略
           {
@@ -481,160 +481,14 @@ export default defineConfig({
       // 优化输入选项
       input: {
         main: 'index.html',
-        landing: 'public/landing.html',
       },
       output: {
         // 优化资产输出
         assetFileNames: 'assets/[name]-[hash:8][extname]',
         chunkFileNames: 'chunks/[name]-[hash:8].js',
         entryFileNames: 'entries/[name]-[hash:8].js',
-        // 优化chunk大小
-        experimentalMinChunkSize: 5000, // 减小最小chunk大小，增加代码分割粒度
         // 启用动态导入支持
-        dynamicImportInCjs: true,
-        // 优化代码分割策略
-        manualChunks(id) {
-          // 第三方库优化分割
-          if (id.includes('node_modules')) {
-            // React核心库 - 合并为一个chunk
-            // 包含所有React核心依赖，防止循环依赖
-            // 将 zustand, framer-motion, react-router 等核心库也放入 vendor-react，避免初始化顺序问题
-            if (/[\\/]node_modules[\\/](react|react-dom|react-router-dom|react-router|scheduler|react-is|prop-types|zustand|framer-motion|clsx|tailwind-merge)[\\/]/.test(id)) {
-              return 'vendor-react';
-            }
-            
-            // Three.js核心库
-            if (/[\\/]node_modules[\\/]three[\\/]/.test(id)) {
-              return 'three-core';
-            }
-            
-            // React Three Fiber相关库
-            if (id.includes('@react-three')) {
-              return 'three-react';
-            }
-            
-            // Three.js扩展库
-            if (id.includes('three-stdlib')) {
-              return 'three-stdlib';
-            }
-            
-            // 图表库
-            if (id.includes('recharts')) {
-              return 'charts-recharts';
-            }
-            
-            // UI库
-            if (id.includes('sonner')) {
-              return 'ui-sonner';
-            }
-            
-            // 手势识别库
-            if (id.includes('@mediapipe') || id.includes('@tensorflow')) {
-              return 'gesture-ml';
-            }
-            
-            // 图标库
-            if (id.includes('@fortawesome')) {
-              return 'icons-fontawesome';
-            }
-            
-            // 国际化库
-            if (id.includes('i18next') || id.includes('react-i18next')) {
-              return 'i18n';
-            }
-            
-            // 数据库相关库
-            if (id.includes('@supabase') || id.includes('@neondatabase')) {
-              return 'db-libs';
-            }
-            
-            // 其他第三方库合并为一个chunk
-            return 'vendor-other';
-          }
-          
-          // 按页面功能模块分割代码
-          if (id.includes('src/pages/')) {
-            if (id.includes('Admin') || id.includes('admin')) {
-              return 'pages-admin';
-            }
-            if (id.includes('Create') || id.includes('create')) {
-              return 'pages-create';
-            }
-            if (id.includes('Explore') || id.includes('explore')) {
-              return 'pages-explore';
-            }
-            if (id.includes('Community') || id.includes('community')) {
-              return 'pages-community';
-            }
-            if (id.includes('Dashboard') || id.includes('dashboard')) {
-              return 'pages-dashboard';
-            }
-            if (id.includes('Cultural') || id.includes('cultural')) {
-              return 'pages-cultural';
-            }
-            if (id.includes('Lab') || id.includes('lab')) {
-              return 'pages-experimental';
-            }
-            if (id.includes('Test') || id.includes('test')) {
-              return 'pages-test';
-            }
-            if (id.includes('Membership') || id.includes('membership')) {
-              return 'pages-membership';
-            }
-            // 拆分TianjinMap页面到单独chunk
-            if (id.includes('TianjinMap')) {
-              return 'pages-tianjin-map';
-            }
-            return 'pages-other';
-          }
-          
-          // 按组件功能模块分割代码
-          if (id.includes('src/components/')) {
-            if (id.includes('VirtualMap')) {
-              return 'components-virtual-map';
-            }
-            if (id.includes('AR')) {
-              return 'components-ar';
-            }
-            if (id.includes('Game') || id.includes('game')) {
-              return 'components-game';
-            }
-            if (id.includes('Admin')) {
-              return 'components-admin';
-            }
-            if (id.includes('Analytics')) {
-              return 'components-analytics';
-            }
-            if (id.includes('Community')) {
-              return 'components-community';
-            }
-            if (id.includes('Creator') || id.includes('creator')) {
-              return 'components-core';
-            }
-            if (id.includes('PWA') || id.includes('pwa')) {
-              return 'components-auxiliary';
-            }
-            if (id.includes('Floating') || id.includes('floating')) {
-              return 'components-ui';
-            }
-            if (id.includes('UserFeedback') || id.includes('feedback')) {
-              return 'components-auxiliary';
-            }
-            if (id.includes('FirstLaunchGuide')) {
-              return 'components-auxiliary';
-            }
-            if (id.includes('LazyImage') || id.includes('OptimizedImage')) {
-              return 'components-media';
-            }
-            if (id.includes('Skeleton')) {
-              return 'components-ui';
-            }
-            if (id.includes('MobileLayout') || id.includes('SidebarLayout')) {
-              return 'components-layout';
-            }
-            return 'components-other';
-          }
-        },
+        dynamicImportInCjs: true
       },
       // 优化插件配置
       plugins: [

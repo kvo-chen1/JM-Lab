@@ -24,12 +24,10 @@ import Register from "@/pages/Register";
 
 // 1. 高频访问页面 - 懒加载，添加预加载提示
 const Dashboard = createLazyComponent(() => import(/* webpackChunkName: "pages-dashboard" */ "@/pages/Dashboard"), {
-  priority: ROUTE_PRIORITIES.HIGH,
-  preload: true
+  priority: ROUTE_PRIORITIES.MEDIUM
 });
 const Explore = createLazyComponent(() => import(/* webpackChunkName: "pages-explore" */ "@/pages/Explore"), {
-  priority: ROUTE_PRIORITIES.HIGH,
-  preload: true
+  priority: ROUTE_PRIORITIES.MEDIUM
 });
 const WorkDetail = createLazyComponent(() => import(/* webpackChunkName: "pages-explore" */ "@/pages/WorkDetail"), {
   priority: ROUTE_PRIORITIES.MEDIUM

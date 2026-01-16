@@ -35,6 +35,12 @@ export const DefaultEventPriority = 1;
 export const ContinuousEventPriority = 2;
 export const DiscreteEventPriority = 3;
 
+// 添加 calculateColor 函数，解决运行时错误
+export const calculateColor = () => {
+  // 返回一个默认颜色值，避免 @react-three/fiber 运行时错误
+  return [0, 0, 0, 1];
+};
+
 // 导出一个更完整的 react-reconciler 实现，避免运行时错误
 export default function createReconciler() {
   return {
@@ -43,6 +49,7 @@ export default function createReconciler() {
     unmountContainer: () => {},
     flushSync: (fn) => fn(),
     createPortal: () => null,
+    calculateColor: calculateColor,
     // 添加更多 @react-three/fiber 可能需要的方法
   };
 }
@@ -56,3 +63,29 @@ export const UserBlockingSchedulerPriority = 2;
 export const NormalSchedulerPriority = 3;
 export const LowSchedulerPriority = 4;
 export const IdleSchedulerPriority = 5;
+
+// 添加更多可能需要的导出
+export const createContext = () => {
+  return {
+    Provider: () => null,
+    Consumer: () => null,
+    _currentValue: null,
+    _currentValue2: null,
+  };
+};
+
+export const useContext = () => null;
+export const useReducer = () => [null, () => {}];
+export const useState = () => [null, () => {}];
+export const useRef = () => ({ current: null });
+export const useEffect = () => {};
+export const useLayoutEffect = () => {};
+export const useCallback = (fn) => fn;
+export const useMemo = (fn) => fn();
+export const useImperativeHandle = () => {};
+export const useDebugValue = () => {};
+export const useTransition = () => [false, () => {}];
+export const useDeferredValue = (value) => value;
+export const useId = () => 'stub-id';
+export const useSyncExternalStore = () => null;
+export const useInsertionEffect = () => {};

@@ -1011,9 +1011,17 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
                   <i className="fas fa-window-restore text-xl mb-1"></i>
                   <span className="text-xs">{t('sidebar.newWindowLab')}</span>
                 </NavLink>
-                <NavLink to="/brand" title="品牌合作" onTouchStart={() => prefetchRoute('/brand')} className={({ isActive }) => `${isDark ? 'text-gray-300' : theme === 'pink' ? 'text-pink-900' : 'text-gray-900'} flex flex-col items-center justify-center p-4 rounded-lg transition-all duration-200 ${isActive ? (isDark ? 'bg-gray-800 text-white' : theme === 'pink' ? 'bg-pink-100 font-semibold' : 'bg-gray-100 font-semibold') : (isDark ? 'hover:bg-gray-800' : theme === 'pink' ? 'hover:bg-pink-100' : 'hover:bg-gray-100')}`} onClick={() => setShowSidebarDrawer(false)}>
+                <NavLink to="/points-mall" title="积分商城" onTouchStart={() => prefetchRoute('/points-mall')} className={({ isActive }) => `${isDark ? 'text-gray-300' : theme === 'pink' ? 'text-pink-900' : 'text-gray-900'} flex flex-col items-center justify-center p-4 rounded-lg transition-all duration-200 ${isActive ? (isDark ? 'bg-gray-800 text-white' : theme === 'pink' ? 'bg-pink-100 font-semibold' : 'bg-gray-100 font-semibold') : (isDark ? 'hover:bg-gray-800' : theme === 'pink' ? 'hover:bg-pink-100' : 'hover:bg-gray-100')}`} onClick={() => setShowSidebarDrawer(false)}>
+                  <i className="fas fa-gift text-xl mb-1"></i>
+                  <span className="text-xs">{t('sidebar.pointsMall')}</span>
+                </NavLink>
+                <NavLink to="/business" title="商业合作" onTouchStart={() => prefetchRoute('/business')} className={({ isActive }) => `${isDark ? 'text-gray-300' : theme === 'pink' ? 'text-pink-900' : 'text-gray-900'} flex flex-col items-center justify-center p-4 rounded-lg transition-all duration-200 ${isActive ? (isDark ? 'bg-gray-800 text-white' : theme === 'pink' ? 'bg-pink-100 font-semibold' : 'bg-gray-100 font-semibold') : (isDark ? 'hover:bg-gray-800' : theme === 'pink' ? 'hover:bg-pink-100' : 'hover:bg-gray-100')}`} onClick={() => setShowSidebarDrawer(false)}>
                   <i className="fas fa-handshake text-xl mb-1"></i>
-                  <span className="text-xs">{t('sidebar.brandCooperation')}</span>
+                  <span className="text-xs">{t('sidebar.businessCooperation')}</span>
+                </NavLink>
+                <NavLink to="/developers" title="开发者" onTouchStart={() => prefetchRoute('/developers')} className={({ isActive }) => `${isDark ? 'text-gray-300' : theme === 'pink' ? 'text-pink-900' : 'text-gray-900'} flex flex-col items-center justify-center p-4 rounded-lg transition-all duration-200 ${isActive ? (isDark ? 'bg-gray-800 text-white' : theme === 'pink' ? 'bg-pink-100 font-semibold' : 'bg-gray-100 font-semibold') : (isDark ? 'hover:bg-gray-800' : theme === 'pink' ? 'hover:bg-pink-100' : 'hover:bg-gray-100')}`} onClick={() => setShowSidebarDrawer(false)}>
+                  <i className="fas fa-code text-xl mb-1"></i>
+                  <span className="text-xs">{t('sidebar.developers')}</span>
                 </NavLink>
                 <NavLink to="/membership" title="会员中心" onTouchStart={() => prefetchRoute('/membership')} className={({ isActive }) => `${isDark ? 'text-gray-300' : theme === 'pink' ? 'text-pink-900' : 'text-gray-900'} flex flex-col items-center justify-center p-4 rounded-lg transition-all duration-200 ${isActive ? (isDark ? 'bg-gray-800 text-white' : theme === 'pink' ? 'bg-pink-100 font-semibold' : 'bg-gray-100 font-semibold') : (isDark ? 'hover:bg-gray-800' : theme === 'pink' ? 'hover:bg-pink-100' : 'hover:bg-gray-100')}`} onClick={() => setShowSidebarDrawer(false)}>
                   <i className="fas fa-crown text-xl mb-1"></i>

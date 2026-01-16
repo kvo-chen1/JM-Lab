@@ -1237,6 +1237,7 @@
             height: 100%;
             z-index: -1;
             opacity: 0.8;
+            pointer-events: none;
         }
 
         /* 加载动画 */
@@ -1282,7 +1283,7 @@
         }
     </style>
 </head>
-<body class="antialiased">
+<body class="antialiased bg-deep text-white">
 
     <!-- Loading Screen with accessibility support -->
     <div class="loader-overlay" id="loader" role="status" aria-live="polite">
@@ -1392,7 +1393,7 @@
     </section>
 
     <!-- About Section -->
-    <section id="about" class="py-40 relative bg-deep">
+    <section id="about" class="py-40 relative">
         <div class="max-w-7xl mx-auto px-8 lg:px-12">
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-32 items-center">
                 <div class="fade-in-section">
@@ -1785,7 +1786,7 @@
     </section>
 
     <!-- Core Features Section -->
-    <section id="features" class="py-40 relative bg-deep">
+    <section id="features" class="py-40 relative">
         <div class="max-w-7xl mx-auto px-8 lg:px-12">
             <div class="text-center mb-32 fade-in-section">
                 <h2 class="text-3xl md:text-4xl font-bold mb-10">核心<span class="text-accent">功能</span></h2>
@@ -1915,7 +1916,7 @@
     </section>
 
     <!-- Partners Section -->
-    <section id="partners" class="py-32 relative bg-deep">
+    <section id="partners" class="py-32 relative">
         <div class="max-w-7xl mx-auto px-6 lg:px-8">
             <div class="text-center mb-24 fade-in-section">
                 <h2 class="text-3xl md:text-4xl font-bold mb-8">合作<span class="text-accent">伙伴</span></h2>
@@ -2047,7 +2048,7 @@
     </section>
 
     <!-- Footer -->
-    <footer id="contact" class="bg-black py-16 border-t border-white/10 text-sm">
+    <footer id="contact" class="bg-black/80 backdrop-blur-md py-16 border-t border-white/10 text-sm">
         <div class="max-w-7xl mx-auto px-6 lg:px-8">
             <div class="grid grid-cols-1 md:grid-cols-4 gap-16 mb-16">
                 <div class="col-span-1 md:col-span-2">
@@ -2109,22 +2110,22 @@
 
             // Create Particles
             const geometry = new THREE.BufferGeometry();
-            const particlesCount = 2000;
+            const particlesCount = 4000;
             const posArray = new Float32Array(particlesCount * 3);
 
             for(let i = 0; i < particlesCount * 3; i++) {
                 // Spread particles in a wide area
-                posArray[i] = (Math.random() - 0.5) * 150;
+                posArray[i] = (Math.random() - 0.5) * 250;
             }
 
             geometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
 
             // Material - Cyan/Blue glow
             const material = new THREE.PointsMaterial({
-                size: 0.2,
+                size: 0.3,
                 color: 0x00f0ff,
                 transparent: true,
-                opacity: 0.8,
+                opacity: 0.4,
                 blending: THREE.AdditiveBlending
             });
 
@@ -2133,17 +2134,17 @@
 
             // Secondary Particles - Purple
             const geometry2 = new THREE.BufferGeometry();
-            const particlesCount2 = 1000;
+            const particlesCount2 = 2000;
             const posArray2 = new Float32Array(particlesCount2 * 3);
             for(let i = 0; i < particlesCount2 * 3; i++) {
-                posArray2[i] = (Math.random() - 0.5) * 120;
+                posArray2[i] = (Math.random() - 0.5) * 200;
             }
             geometry2.setAttribute('position', new THREE.BufferAttribute(posArray2, 3));
             const material2 = new THREE.PointsMaterial({
-                size: 0.25,
+                size: 0.4,
                 color: 0x7000ff,
                 transparent: true,
-                opacity: 0.6,
+                opacity: 0.3,
                 blending: THREE.AdditiveBlending
             });
             const particlesMesh2 = new THREE.Points(geometry2, material2);

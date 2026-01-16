@@ -3,6 +3,9 @@ import { useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { TianjinImage, TianjinAvatar } from '@/components/TianjinStyleComponents'
 import GradientHero from '@/components/GradientHero'
+import { communityService, Message as ServiceMessage } from '@/services/communityService'
+import { ChatMessage } from '@/components/CommunityChat'
+
 // 使用React.lazy实现子组件的延迟加载，优化初始加载速度
 const CommunityChat = lazy(() => import('@/components/CommunityChat'))
 const CommunityManagement = lazy(() => import('@/components/CommunityManagement'))
@@ -88,7 +91,7 @@ type Community = {
   members: number;
 };
 // 中文注释：社群交流消息（包含唯一ID、时间戳与置顶状态）
-type ChatMessage = { id?: string; user: string; text: string; avatar: string; createdAt?: number; pinned?: boolean; time?: string };
+// type ChatMessage = { id?: string; user: string; text: string; avatar: string; createdAt?: number; pinned?: boolean; time?: string };
 const recommendedCommunities: Community[] = [
   {
     id: 'c-guochao',
@@ -633,6 +636,8 @@ const recommendedCommunities: Community[] = [
 
 export default function Community() {
   const { isDark } = useTheme()
+  const { user } = useContext(AuthContext)
+  const currentEmail = user?.email || ''
   const [posts, setPosts] = useState<Post[]>([])
   const [mode, setMode] = useState<'style' | 'topic'>('style') // 中文注释：子社区模式（风格/题材）
   const STYLE_LIST = ['国潮', '极简', '复古', '赛博朋克', '手绘插画', '黑白线稿', '蓝白瓷']
@@ -662,13 +667,13 @@ export default function Community() {
   const [followedCreators, setFollowedCreators] = useState<string[]>([])
   const [profileOpen, setProfileOpen] = useState(false)
   const [activeCreator, setActiveCreator] = useState<Creator | null>(null)
-  // 中文注释：社群消息（简易讨论）与社群分栏
+  
+  // Global discussion messages (Lobby)
   const [messages, setMessages] = useState<ChatMessage[]>([
     { id: 'm-1', user: '设计师小明', text: '欢迎加入国潮社群，分享你的配色方案！', avatar: mockCreators[0].avatar, createdAt: Date.now() - 60_000 },
     { id: 'm-2', user: '插画师小陈', text: '杨柳青年画数字化插画风格讨论，欢迎交流～', avatar: mockCreators[1].avatar, createdAt: Date.now() - 120_000 },
   ])
-  const [communityMessages, setCommunityMessages] = useState<Record<string, ChatMessage[]>>({})
-  const COMMUNITY_MSG_KEY = 'jmzf_community_messages'
+
   // 中文注释：社群页标签状态，新增“进入的社群”用于展示用户已加入的社群
   const [communityTab, setCommunityTab] = useState<'recommended' | 'user' | 'joined'>('recommended')
   const [userCommunities, setUserCommunities] = useState<Community[]>([])
@@ -703,8 +708,7 @@ export default function Community() {
   // 中文注释：进入的社群卡片内成员列表展开的目标社群ID（只读）
   const [expandedMembersId, setExpandedMembersId] = useState<string | null>(null)
   // 中文注释：当前登录用户（用于权限判断）
-  const { user } = useContext(AuthContext)
-  const currentEmail = user?.email || ''
+  // Moved to top
   // 中文注释：根据 URL 查询参数决定当前上下文（创作者/共创）与默认标签
   const location = useLocation()
   const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search])
@@ -730,9 +734,91 @@ export default function Community() {
   const [communitySort, setCommunitySort] = useState<'members' | 'alphabet'>('members')
   const [communityOpen, setCommunityOpen] = useState(false)
   const [activeCommunity, setActiveCommunity] = useState<Community | null>(null)
-  
+  const [modalMessages, setModalMessages] = useState<ChatMessage[]>([])
 
-  
+  // Active community chat messages
+  const [activeMessages, setActiveMessages] = useState<ChatMessage[]>([])
+  const [supabaseJoinedCommunities, setSupabaseJoinedCommunities] = useState<Community[]>([])
+
+  // Fetch joined communities from Supabase
+  useEffect(() => {
+    if (user?.id) {
+      communityService.getJoinedCommunities(user.id).then(list => {
+        const mapped = list.map(c => ({
+          id: c.id,
+          name: c.name,
+          description: c.description,
+          cover: c.cover,
+          tags: c.tags,
+          members: c.members_count
+        }))
+        setSupabaseJoinedCommunities(mapped)
+      })
+    }
+  }, [user?.id])
+
+  // Fetch messages for active community
+  useEffect(() => {
+    if (!activeChatCommunityId) {
+      setActiveMessages([])
+      return
+    }
+
+    // Initial fetch
+    const fetchMessages = async () => {
+      const msgs = await communityService.getMessages(activeChatCommunityId)
+      const mapped: ChatMessage[] = msgs.map(m => ({
+        ...m,
+        user: m.username || 'Unknown',
+        createdAt: new Date(m.created_at).getTime(),
+        replyTo: m.reply_to ? { id: m.reply_to.id, user: m.reply_to.username, text: m.reply_to.text } : undefined,
+        pinned: m.is_pinned
+      }))
+      setActiveMessages(mapped)
+    }
+    fetchMessages()
+
+    // Subscribe to new messages
+    const channel = communityService.subscribeToMessages(activeChatCommunityId, (newMsg) => {
+      const mapped: ChatMessage = {
+        ...newMsg,
+        user: newMsg.username || 'Unknown',
+        createdAt: new Date(newMsg.created_at).getTime(),
+        replyTo: newMsg.reply_to ? { id: newMsg.reply_to.id, user: newMsg.reply_to.username, text: newMsg.reply_to.text } : undefined,
+        pinned: newMsg.is_pinned
+      }
+      setActiveMessages(prev => [mapped, ...prev])
+    })
+
+    return () => {
+      if (channel) channel.unsubscribe()
+    }
+  }, [activeChatCommunityId])
+
+  const handleSendMessage = async (text: string) => {
+    if (!activeChatCommunityId || !user?.id) {
+      if (!user?.id) toast.error('请先登录')
+      return
+    }
+    await communityService.sendMessage(activeChatCommunityId, user.id, text)
+  }
+
+  useEffect(() => {
+    if (activeCommunity) {
+      communityService.getMessages(activeCommunity.id, 5).then(msgs => {
+        const mapped = msgs.map(m => ({
+          ...m,
+          user: m.username || 'Unknown',
+          createdAt: new Date(m.created_at).getTime(),
+          replyTo: m.reply_to ? { id: m.reply_to.id, user: m.reply_to.username, text: m.reply_to.text } : undefined,
+          pinned: m.is_pinned
+        }))
+        setModalMessages(mapped)
+      })
+    } else {
+      setModalMessages([])
+    }
+  }, [activeCommunity])
 
   useEffect(() => {
     const current = postsApi.getPosts()
@@ -779,13 +865,7 @@ export default function Community() {
       const fav = localStorage.getItem(THREAD_FAV_KEY)
       setFavoriteThreads(fav ? JSON.parse(fav) : [])
     } catch {}
-    try {
-      const rawMsg = localStorage.getItem(COMMUNITY_MSG_KEY)
-      const base: Record<string, ChatMessage[]> = rawMsg ? JSON.parse(rawMsg) : {}
-      recommendedCommunities.forEach(c => { if (!base[c.id]) base[c.id] = [{ id: `sys-${c.id}`, user: '系统提示', text: `欢迎加入「${c.name}」`, avatar: mockCreators[0].avatar, createdAt: Date.now() }] })
-      setCommunityMessages(base)
-      localStorage.setItem(COMMUNITY_MSG_KEY, JSON.stringify(base))
-    } catch {}
+    // Removed communityMessages local storage logic
     try {
       const p = localStorage.getItem(PIN_KEY)
       setPinnedJoined(p ? JSON.parse(p) : [])
@@ -1179,8 +1259,34 @@ export default function Community() {
   }
   const openProfile = (creator: Creator) => { setActiveCreator(creator); setProfileOpen(true) }
   const closeProfile = () => setProfileOpen(false)
-  const toggleJoinCommunity = (id: string) => {
-    setJoinedCommunities(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+  const toggleJoinCommunity = async (id: string) => {
+    if (!user?.id) {
+      // Fallback for non-logged in users (local only)
+      setJoinedCommunities(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+      if (!user?.id) toast.info('登录后可同步加入状态')
+      return
+    }
+
+    const isJoined = joinedCommunities.includes(id)
+    try {
+      if (isJoined) {
+        await communityService.leaveCommunity(id, user.id)
+        setJoinedCommunities(prev => prev.filter(x => x !== id))
+        setSupabaseJoinedCommunities(prev => prev.filter(c => c.id !== id))
+        toast.success('已退出社群')
+      } else {
+        await communityService.joinCommunity(id, user.id)
+        setJoinedCommunities(prev => [...prev, id])
+        const comm = recommendedCommunities.find(c => c.id === id) || userCommunities.find(c => c.id === id)
+        if (comm) {
+             setSupabaseJoinedCommunities(prev => [...prev, comm]) 
+        }
+        toast.success('已加入社群')
+      }
+    } catch (error) {
+      console.error('Failed to toggle join:', error)
+      toast.error('操作失败')
+    }
   }
   const createCommunity = () => {
     const name = newCommunityName.trim()
@@ -1200,40 +1306,26 @@ export default function Community() {
   }
   const openCommunity = (c: Community) => { setActiveCommunity(c); setCommunityOpen(true) }
   const closeCommunity = () => setCommunityOpen(false)
-  const sendCommunityMessage = (communityId: string, text: string) => {
-    const t = text.trim(); if (!t) return
-    if (!joinedCommunities.includes(communityId)) { toast.warning('请先加入该社群再发言'); return }
-    const user = mockCreators.find(c => c.online) || mockCreators[0]
-    const next: ChatMessage = { id: `cm-${Date.now()}`, user: user.name, text: t, avatar: user.avatar, createdAt: Date.now() }
-    setCommunityMessages(prev => {
-      const arr = prev[communityId] || []
-      const nextArr = [next, ...arr]
-      const nextMap = { ...prev, [communityId]: nextArr }
-      localStorage.setItem(COMMUNITY_MSG_KEY, JSON.stringify(nextMap))
-      return nextMap
-    })
-    toast.success('已发送到该社群')
+  
+  const handleModalSendMessage = async (text: string) => {
+    if (!activeCommunity || !user?.id) {
+        if (!user?.id) toast.error('请先登录')
+        return
+    }
+    await communityService.sendMessage(activeCommunity.id, user.id, text)
+    // Refresh modal messages
+    const msgs = await communityService.getMessages(activeCommunity.id, 5)
+    const mapped = msgs.map(m => ({
+        ...m,
+        user: m.username || 'Unknown',
+        createdAt: new Date(m.created_at).getTime(),
+        replyTo: m.reply_to ? { id: m.reply_to.id, user: m.reply_to.username, text: m.reply_to.text } : undefined,
+        pinned: m.is_pinned
+    }))
+    setModalMessages(mapped)
+    toast.success('已发送')
   }
-  const deleteCommunityMessage = (communityId: string, id: string) => {
-    setCommunityMessages(prev => {
-      const arr = prev[communityId] || []
-      const nextArr = arr.filter(m => m.id !== id)
-      const nextMap = { ...prev, [communityId]: nextArr }
-      localStorage.setItem(COMMUNITY_MSG_KEY, JSON.stringify(nextMap))
-      return nextMap
-    })
-    toast.success('消息已删除')
-  }
-  const togglePinCommunityMessage = (communityId: string, id: string) => {
-    setCommunityMessages(prev => {
-      const arr = prev[communityId] || []
-      const nextArr = arr.map(m => m.id === id ? { ...m, pinned: !m.pinned } : m)
-      const nextMap = { ...prev, [communityId]: nextArr }
-      localStorage.setItem(COMMUNITY_MSG_KEY, JSON.stringify(nextMap))
-      return nextMap
-    })
-    toast.success('置顶状态已更新')
-  }
+
   const deleteCommunity = (id: string) => {
     setUserCommunities(prev => prev.filter(c => c.id !== id))
     setJoinedCommunities(prev => prev.filter(x => x !== id))
@@ -1254,11 +1346,18 @@ export default function Community() {
     }
     return list
   }, [communitySearch, communitySort])
-  // 中文注释：已加入社群（包含官方推荐与用户自建两类）
+  // 中文注释：已加入社群（包含官方推荐、用户自建、以及Supabase同步的社群）
   const joinedList = useMemo(() => {
-    const all = [...recommendedCommunities, ...userCommunities]
-    return all.filter(c => joinedCommunities.includes(c.id))
-  }, [joinedCommunities, userCommunities])
+    const localAll = [...recommendedCommunities, ...userCommunities]
+    const localJoined = localAll.filter(c => joinedCommunities.includes(c.id))
+    
+    // Merge unique by ID
+    const map = new Map<string, Community>()
+    localJoined.forEach(c => map.set(c.id, c))
+    supabaseJoinedCommunities.forEach(c => map.set(c.id, c))
+    
+    return Array.from(map.values())
+  }, [joinedCommunities, userCommunities, supabaseJoinedCommunities])
   // 中文注释：用于左侧“社群列表”栏的搜索过滤（只作用于已加入社群）
   const chatJoinedList = useMemo(() => {
     const q = chatSearch.trim().toLowerCase()
@@ -1326,21 +1425,21 @@ export default function Community() {
         )}
         {/* 中文注释：社群列表 + 聊天双栏布局（仅在共创社群“进入的社群”标签显示；置于页面上方便于发现） */}
         {communityContext === 'cocreation' && communityTab === 'joined' && (
-          <CommunityChat
-            isDark={isDark}
-            joinedCommunities={joinedCommunities}
-            recommendedCommunities={recommendedCommunities}
-            userCommunities={userCommunities}
-            activeChatCommunityId={activeChatCommunityId}
-            onActiveChatCommunityChange={setActiveChatCommunityId}
-            pinnedJoined={pinnedJoined}
-            onTogglePinJoined={togglePinJoined}
-            mutedCommunities={mutedCommunities}
-            onToggleMuteCommunity={toggleMuteCommunity}
-            communityMessages={communityMessages}
-            onCommunityMessagesChange={setCommunityMessages}
-            mockCreators={mockCreators}
-          />
+          <Suspense fallback={<LoadingFallback />}>
+            <CommunityChat
+              isDark={isDark}
+              joinedCommunities={joinedList}
+              activeChatCommunityId={activeChatCommunityId}
+              onActiveChatCommunityChange={setActiveChatCommunityId}
+              pinnedJoined={pinnedJoined}
+              onTogglePinJoined={togglePinJoined}
+              mutedCommunities={mutedCommunities}
+              onToggleMuteCommunity={toggleMuteCommunity}
+              messages={activeMessages}
+              onSendMessage={handleSendMessage}
+              currentUser={{ name: user?.username || '我', avatar: user?.avatar_url || defaultAvatar }}
+            />
+          </Suspense>
         )}
 
         {/* 中文注释：社群板块（推荐社群 / 我创建的社群 / 进入的社群），上下文配色区分 */}
@@ -1373,62 +1472,66 @@ export default function Community() {
                 </div>
               </div>
               <div className="rounded-xl overflow-hidden shadow-md">
-                <VirtualList
-                  items={displayRecommended}
-                  renderItem={(item, index: number) => {
-                    const c = item as Community;
-                    return (
-                    <div key={c.id} className={`${isDark ? 'bg-gray-800' : 'bg-white'} ring-1 ${isDark ? 'ring-gray-700' : 'ring-gray-200'} rounded-xl overflow-hidden shadow-sm transition-all duration-300 hover:-translate-y-2 hover:shadow-lg cursor-pointer`} onClick={() => openCommunity(c)}>
-                      <div className="relative">
-                        <TianjinImage src={c.cover} alt={c.name} className="w-full object-cover transition-transform duration-500 hover:scale-105" ratio="landscape" />
-                        <div className="absolute top-3 right-3">
-                          <span className={`text-xs px-2 py-1 rounded-full ${isDark ? 'bg-black/40 text-gray-200' : 'bg-white/70 text-gray-700'} ring-1 ${isDark ? 'ring-gray-700' : 'ring-gray-200'}`}>官方</span>
+                <Suspense fallback={<LoadingFallback />}>
+                  <VirtualList
+                    items={displayRecommended}
+                    renderItem={(item, index: number) => {
+                      const c = item as Community;
+                      return (
+                      <div key={c.id} className={`${isDark ? 'bg-gray-800' : 'bg-white'} ring-1 ${isDark ? 'ring-gray-700' : 'ring-gray-200'} rounded-xl overflow-hidden shadow-sm transition-all duration-300 hover:-translate-y-2 hover:shadow-lg cursor-pointer`} onClick={() => openCommunity(c)}>
+                        <div className="relative">
+                          <TianjinImage src={c.cover} alt={c.name} className="w-full object-cover transition-transform duration-500 hover:scale-105" ratio="landscape" />
+                          <div className="absolute top-3 right-3">
+                            <span className={`text-xs px-2 py-1 rounded-full ${isDark ? 'bg-black/40 text-gray-200' : 'bg-white/70 text-gray-700'} ring-1 ${isDark ? 'ring-gray-700' : 'ring-gray-200'}`}>官方</span>
+                          </div>
+                        </div>
+                        <div className="p-4">
+                          <div className="font-medium mb-1 line-clamp-1">{c.name}</div>
+                          <div className={`text-sm mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'} line-clamp-2`}>{c.description}</div>
+                          <div className="flex flex-wrap gap-2 mb-3">
+                            {c.tags.map((t: string, i: number) => (
+                              <button key={i} onClick={(e) => { e.stopPropagation(); setSelectedStyle(t); }} className={`text-xs px-2 py-1 rounded-full ${isDark ? 'bg-gray-700 text-gray-200' : 'bg-gray-100 text-gray-700'} transition-colors hover:opacity-80`}>#{t}</button>
+                            ))}
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{c.members + (joinedCommunities.includes(c.id) ? 1 : 0)} 人加入</div>
+                            <button onClick={(e) => { e.stopPropagation(); toggleJoinCommunity(c.id); }} className={`text-xs px-3 py-1 rounded-full transition-all ${joinedCommunities.includes(c.id) ? 'bg-blue-600 text-white hover:bg-blue-700' : (isDark ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200')}`}>{joinedCommunities.includes(c.id) ? '已加入' : '加入'}</button>
+                          </div>
+                          <div className="mt-3 flex justify-end">
+                            <button onClick={(e) => { e.stopPropagation(); openCommunity(c); }} className={`${isDark ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-gray-100 text-gray-800 hover:bg-gray-200'} text-xs px-3 py-1 rounded-lg transition-colors`}>查看详情</button>
+                          </div>
                         </div>
                       </div>
-                      <div className="p-4">
-                        <div className="font-medium mb-1 line-clamp-1">{c.name}</div>
-                        <div className={`text-sm mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'} line-clamp-2`}>{c.description}</div>
-                        <div className="flex flex-wrap gap-2 mb-3">
-                          {c.tags.map((t: string, i: number) => (
-                            <button key={i} onClick={(e) => { e.stopPropagation(); setSelectedStyle(t); }} className={`text-xs px-2 py-1 rounded-full ${isDark ? 'bg-gray-700 text-gray-200' : 'bg-gray-100 text-gray-700'} transition-colors hover:opacity-80`}>#{t}</button>
-                          ))}
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{c.members + (joinedCommunities.includes(c.id) ? 1 : 0)} 人加入</div>
-                          <button onClick={(e) => { e.stopPropagation(); toggleJoinCommunity(c.id); }} className={`text-xs px-3 py-1 rounded-full transition-all ${joinedCommunities.includes(c.id) ? 'bg-blue-600 text-white hover:bg-blue-700' : (isDark ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200')}`}>{joinedCommunities.includes(c.id) ? '已加入' : '加入'}</button>
-                        </div>
-                        <div className="mt-3 flex justify-end">
-                          <button onClick={(e) => { e.stopPropagation(); openCommunity(c); }} className={`${isDark ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-gray-100 text-gray-800 hover:bg-gray-200'} text-xs px-3 py-1 rounded-lg transition-colors`}>查看详情</button>
-                        </div>
-                      </div>
-                    </div>
-                    );
-                  }}
-                  columns={3} // 根据屏幕尺寸动态调整列数（组件内部会自动响应式处理）
-                  isDark={isDark}
-                />
+                      );
+                    }}
+                    columns={3} // 根据屏幕尺寸动态调整列数（组件内部会自动响应式处理）
+                    isDark={isDark}
+                  />
+                </Suspense>
               </div>
             </div>
           )}
           {communityTab === 'user' && (
-            <CommunityManagement
-              isDark={isDark}
-              userCommunities={userCommunities}
-              onUserCommunitiesChange={setUserCommunities}
-              joinedCommunities={joinedCommunities}
-              onJoinedCommunitiesChange={setJoinedCommunities}
-              adminStore={adminStore}
-              onAdminStoreChange={setAdminStore}
-              memberStore={memberStore}
-              onMemberStoreChange={setMemberStore}
-              announceStore={announceStore}
-              onAnnounceStoreChange={setAnnounceStore}
-              privacyStore={privacyStore}
-              onPrivacyStoreChange={setPrivacyStore}
-              currentEmail={currentEmail}
-              communityTab={communityTab}
-              onCommunityTabChange={setCommunityTab}
-            />
+            <Suspense fallback={<LoadingFallback />}>
+              <CommunityManagement
+                isDark={isDark}
+                userCommunities={userCommunities}
+                onUserCommunitiesChange={setUserCommunities}
+                joinedCommunities={joinedCommunities}
+                onJoinedCommunitiesChange={setJoinedCommunities}
+                adminStore={adminStore}
+                onAdminStoreChange={setAdminStore}
+                memberStore={memberStore}
+                onMemberStoreChange={setMemberStore}
+                announceStore={announceStore}
+                onAnnounceStoreChange={setAnnounceStore}
+                privacyStore={privacyStore}
+                onPrivacyStoreChange={setPrivacyStore}
+                currentEmail={currentEmail}
+                communityTab={communityTab}
+                onCommunityTabChange={setCommunityTab}
+              />
+            </Suspense>
           )}
           {communityTab === 'joined' && communityContext === 'cocreation' && (
             <div>
@@ -1614,12 +1717,14 @@ export default function Community() {
           transition={{ duration: 0.4 }}
         >
           <h3 className="font-medium mb-3">社群讨论区</h3>
-          <DiscussionSection isDark={isDark} messages={messages} onSend={(text: string) => {
-            const user = mockCreators.find(c => c.online) || mockCreators[0]
-            const next = { id: `m-${Date.now()}`, user: user.name, text, avatar: user.avatar, createdAt: Date.now(), pinned: false }
-            setMessages(prev => [next, ...prev])
-            toast.success('已发送到社群')
-          }} showModeration onDelete={deleteMessage} onTogglePin={togglePinMessage} />
+          <Suspense fallback={<LoadingFallback />}>
+            <DiscussionSection isDark={isDark} messages={messages} onSend={(text: string) => {
+              const user = mockCreators.find(c => c.online) || mockCreators[0]
+              const next = { id: `m-${Date.now()}`, user: user.name, text, avatar: user.avatar, createdAt: Date.now(), pinned: false }
+              setMessages(prev => [next, ...prev])
+              toast.success('已发送到社群')
+            }} showModeration onDelete={deleteMessage} onTogglePin={togglePinMessage} />
+          </Suspense>
         </motion.section>
         )}
         {/* 中文注释：公告栏 */}
@@ -1645,65 +1750,69 @@ export default function Community() {
 
         {/* 中文注释：社区讨论区（发帖+置顶+回复） */}
         {communityContext === 'cocreation' && (
-          <CommunityDiscussion
-            isDark={isDark}
-            threads={threads}
-            onThreadsChange={setThreads}
-            mode={mode}
-            selectedStyle={selectedStyle}
-            selectedTopic={selectedTopic}
-            newTitle={newTitle}
-            onNewTitleChange={setNewTitle}
-            newContent={newContent}
-            onNewContentChange={setNewContent}
-            threadSearch={threadSearch}
-            onThreadSearchChange={setThreadSearch}
-            threadSort={threadSort}
-            onThreadSortChange={setThreadSort}
-            favOnly={favOnly}
-            onFavOnlyChange={setFavOnly}
-            favoriteThreads={favoriteThreads}
-            onFavoriteThreadsChange={setFavoriteThreads}
-            replyText={replyText}
-            onReplyTextChange={setReplyText}
-            threadDraft={threadDraft}
-            onThreadDraftChange={setThreadDraft}
-            hotTopics={hotTopics}
-            STYLE_LIST={STYLE_LIST}
-            TOPIC_LIST={TOPIC_LIST}
-            onModeChange={setMode}
-            onSelectedStyleChange={setSelectedStyle}
-            onSelectedTopicChange={setSelectedTopic}
-            onInsertRandomIdea={insertRandomIdea}
-            upvoteGuard={upvoteGuard}
-            onUpvoteGuardChange={setUpvoteGuard}
-          />
+          <Suspense fallback={<LoadingFallback />}>
+            <CommunityDiscussion
+              isDark={isDark}
+              threads={threads}
+              onThreadsChange={setThreads}
+              mode={mode}
+              selectedStyle={selectedStyle}
+              selectedTopic={selectedTopic}
+              newTitle={newTitle}
+              onNewTitleChange={setNewTitle}
+              newContent={newContent}
+              onNewContentChange={setNewContent}
+              threadSearch={threadSearch}
+              onThreadSearchChange={setThreadSearch}
+              threadSort={threadSort}
+              onThreadSortChange={setThreadSort}
+              favOnly={favOnly}
+              onFavOnlyChange={setFavOnly}
+              favoriteThreads={favoriteThreads}
+              onFavoriteThreadsChange={setFavoriteThreads}
+              replyText={replyText}
+              onReplyTextChange={setReplyText}
+              threadDraft={threadDraft}
+              onThreadDraftChange={setThreadDraft}
+              hotTopics={hotTopics}
+              STYLE_LIST={STYLE_LIST}
+              TOPIC_LIST={TOPIC_LIST}
+              onModeChange={setMode}
+              onSelectedStyleChange={setSelectedStyle}
+              onSelectedTopicChange={setSelectedTopic}
+              onInsertRandomIdea={insertRandomIdea}
+              upvoteGuard={upvoteGuard}
+              onUpvoteGuardChange={setUpvoteGuard}
+            />
+          </Suspense>
         )}
 
         {/* 中文注释：运营工具（公告、定时发布） */}
         {communityContext === 'cocreation' && (
-          <ScheduledPost
-            isDark={isDark}
-            scheduled={scheduled}
-            onScheduledChange={setScheduled}
-            scheduledTitle={scheduledTitle}
-            onScheduledTitleChange={setScheduledTitle}
-            scheduledContent={scheduledContent}
-            onScheduledContentChange={setScheduledContent}
-            scheduledTime={scheduledTime}
-            onScheduledTimeChange={setScheduledTime}
-            mode={mode}
-            onModeChange={setMode}
-            selectedStyle={selectedStyle}
-            onSelectedStyleChange={setSelectedStyle}
-            selectedTopic={selectedTopic}
-            onSelectedTopicChange={setSelectedTopic}
-            STYLE_LIST={STYLE_LIST}
-            TOPIC_LIST={TOPIC_LIST}
-            now={now}
-            threads={threads}
-            onThreadsChange={setThreads}
-          />
+          <Suspense fallback={<LoadingFallback />}>
+            <ScheduledPost
+              isDark={isDark}
+              scheduled={scheduled}
+              onScheduledChange={setScheduled}
+              scheduledTitle={scheduledTitle}
+              onScheduledTitleChange={setScheduledTitle}
+              scheduledContent={scheduledContent}
+              onScheduledContentChange={setScheduledContent}
+              scheduledTime={scheduledTime}
+              onScheduledTimeChange={setScheduledTime}
+              mode={mode}
+              onModeChange={setMode}
+              selectedStyle={selectedStyle}
+              onSelectedStyleChange={setSelectedStyle}
+              selectedTopic={selectedTopic}
+              onSelectedTopicChange={setSelectedTopic}
+              STYLE_LIST={STYLE_LIST}
+              TOPIC_LIST={TOPIC_LIST}
+              now={now}
+              threads={threads}
+              onThreadsChange={setThreads}
+            />
+          </Suspense>
         )}
 
         {/* 中文注释：当前子社区相关作品（从本地帖子抽取） */}
@@ -1813,8 +1922,7 @@ export default function Community() {
                 <div className="mt-4">
                   <div className="text-sm opacity-70 mb-2">近期讨论预览</div>
                   <div className="space-y-3 max-h-64 overflow-y-auto pr-1">
-                    {[...(communityMessages[activeCommunity.id] || [])]
-                      .sort((a,b) => (Number(b.pinned) - Number(a.pinned)) || ((b.createdAt ?? 0) - (a.createdAt ?? 0)))
+                    {modalMessages
                       .slice(0, 3)
                       .map((m, idx) => (
                         <div key={idx} className={`${isDark ? 'bg-gray-700' : 'bg-white'} p-4 rounded-lg ring-1 ${isDark ? 'ring-gray-600' : 'ring-gray-200'}`}>
@@ -1832,7 +1940,7 @@ export default function Community() {
                           </div>
                         </div>
                       ))}
-                    {((communityMessages[activeCommunity.id] || []).length === 0) && (
+                    {modalMessages.length === 0 && (
                       <div className={`${isDark ? 'bg-gray-700' : 'bg-white'} p-4 rounded-lg ring-1 ${isDark ? 'ring-gray-600' : 'ring-gray-200'} text-sm opacity-70`}>暂无交流</div>
                     )}
                   </div>
@@ -1845,12 +1953,10 @@ export default function Community() {
                     </div>
                     <CommunityDiscussionSection
                       isDark={isDark}
-                      messages={communityMessages[activeCommunity.id] || []}
-                      onSend={(t: string) => sendCommunityMessage(activeCommunity.id, t)}
+                      messages={modalMessages}
+                      onSend={handleModalSendMessage}
                       canSend={joinedCommunities.includes(activeCommunity.id)}
-                      showModeration={joinedCommunities.includes(activeCommunity.id)}
-                      onDelete={(id: string) => deleteCommunityMessage(activeCommunity.id, id)}
-                      onTogglePin={(id: string) => togglePinCommunityMessage(activeCommunity.id, id)}
+                      showModeration={false}
                     />
                   </div>
                 </div>

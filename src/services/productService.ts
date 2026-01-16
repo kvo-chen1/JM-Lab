@@ -333,6 +333,45 @@ class ProductService {
             imageUrl: '/images/限定头像.svg',
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
+          },
+          {
+            id: 21,
+            name: 'AI生成加速卡(1小时)',
+            description: '200积分兑换1小时极速生成通道，减少等待时间',
+            points: 200,
+            stock: 999,
+            status: 'active',
+            category: 'service',
+            tags: ['AI', '加速', '工具'],
+            imageUrl: '/images/AI工具包.svg',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          },
+          {
+            id: 22,
+            name: '高级风格模型解锁',
+            description: '1500积分解锁一款Pro级艺术风格模型',
+            points: 1500,
+            stock: 999,
+            status: 'active',
+            category: 'virtual',
+            tags: ['AI', '模型', '权益'],
+            imageUrl: '/images/限定皮肤.svg',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          },
+          {
+            id: 23,
+            name: '单次商业授权证书',
+            description: '5000积分兑换单次作品商业使用授权',
+            points: 5000,
+            stock: 100,
+            status: 'active',
+            category: 'rights',
+            tags: ['版权', '商用', '证书'],
+            imageUrl: '/images/成就徽章.svg',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
           }
         ];
         this.saveProducts();

@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import apiClient from '@/lib/apiClient';
 import GradientHero from '@/components/GradientHero';
 import LazyImage from '@/components/LazyImage';
+import { useTheme } from '@/hooks/useTheme';
 
 interface Post {
   id: number;
@@ -269,6 +270,7 @@ const sortMockData = <T extends Post | User>(data: T[], sortBy: SortBy): T[] => 
 };
 
 const Leaderboard: React.FC = () => {
+  const { theme } = useTheme();
   const [leaderboardType, setLeaderboardType] = useState<LeaderboardType>('users');
   const [timeRange, setTimeRange] = useState<TimeRange>('week');
   const [sortBy, setSortBy] = useState<SortBy>('likes_count');
@@ -281,6 +283,27 @@ const Leaderboard: React.FC = () => {
   const [isLoadingDetail, setIsLoadingDetail] = useState<boolean>(false);
   const [userPosts, setUserPosts] = useState<Post[]>([]);
   const navigate = useNavigate();
+
+  // 动态颜色类
+  const activeBtnClass = theme === 'pink' 
+    ? 'bg-pink-100 dark:bg-pink-900/30 text-pink-800 dark:text-pink-300 hover:bg-pink-200 dark:hover:bg-pink-900/40'
+    : 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/40';
+  
+  const primaryBtnClass = theme === 'pink'
+    ? 'bg-pink-600 hover:bg-pink-700'
+    : 'bg-blue-600 hover:bg-blue-700';
+    
+  const textHoverClass = theme === 'pink'
+    ? 'group-hover:text-pink-600 dark:group-hover:text-pink-400'
+    : 'group-hover:text-blue-600 dark:group-hover:text-blue-400';
+
+  const focusRingClass = theme === 'pink'
+    ? 'focus:ring-pink-500'
+    : 'focus:ring-blue-500';
+
+  const gradientText = theme === 'pink'
+    ? 'from-pink-600 to-purple-600'
+    : 'from-blue-600 to-cyan-600';
 
   useEffect(() => {
     fetchLeaderboard();
@@ -405,564 +428,489 @@ const Leaderboard: React.FC = () => {
     }, 300);
   };
 
-  const getRankColor = (index: number) => {
-    if (index === 0) return 'text-amber-600 dark:text-amber-400 font-bold';
-    if (index === 1) return 'text-gray-600 dark:text-gray-300 font-bold';
-    if (index === 2) return 'text-amber-700 dark:text-amber-500 font-bold';
-    return 'text-gray-500 dark:text-gray-400 font-medium';
-  };
-
   const getRankBadge = (index: number) => {
     if (index === 0) {
       return (
-        <div className="flex items-center justify-center w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/30">
-          <span className="text-xl font-bold text-amber-600 dark:text-amber-400">
-            {index + 1}
-          </span>
+        <div className="relative">
+          <div className="absolute inset-0 bg-yellow-400 blur-sm opacity-50 rounded-full"></div>
+          <div className="relative flex items-center justify-center w-8 h-8 md:w-10 md:h-10 rounded-full bg-gradient-to-br from-yellow-300 to-amber-500 shadow-lg border-2 border-white dark:border-gray-800">
+            <span className="text-white font-bold text-sm md:text-lg">1</span>
+          </div>
+          <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+            <i className="fas fa-crown text-yellow-500 text-sm md:text-base drop-shadow-sm"></i>
+          </div>
         </div>
       );
     }
     if (index === 1) {
       return (
-        <div className="flex items-center justify-center w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-700">
-          <span className="text-xl font-bold text-gray-600 dark:text-gray-300">
-            {index + 1}
-          </span>
+        <div className="relative">
+          <div className="relative flex items-center justify-center w-8 h-8 md:w-10 md:h-10 rounded-full bg-gradient-to-br from-gray-300 to-gray-400 shadow-lg border-2 border-white dark:border-gray-800">
+            <span className="text-white font-bold text-sm md:text-lg">2</span>
+          </div>
         </div>
       );
     }
     if (index === 2) {
       return (
-        <div className="flex items-center justify-center w-10 h-10 rounded-full bg-amber-50 dark:bg-amber-800/30">
-          <span className="text-xl font-bold text-amber-700 dark:text-amber-500">
-            {index + 1}
-          </span>
+        <div className="relative">
+          <div className="relative flex items-center justify-center w-8 h-8 md:w-10 md:h-10 rounded-full bg-gradient-to-br from-orange-300 to-amber-600 shadow-lg border-2 border-white dark:border-gray-800">
+            <span className="text-white font-bold text-sm md:text-lg">3</span>
+          </div>
         </div>
       );
     }
     return (
-      <div className="flex items-center justify-center w-10 h-10 rounded-full bg-gray-50 dark:bg-gray-800">
-        <span className={`text-lg font-medium ${getRankColor(index)}`}>
-          {index + 1}
-        </span>
+      <div className="flex items-center justify-center w-8 h-8 md:w-10 md:h-10 rounded-full bg-gray-100 dark:bg-gray-700/50 font-bold text-gray-500 dark:text-gray-400 text-sm md:text-lg">
+        {index + 1}
       </div>
     );
   };
 
   return (
-    <div className="container mx-auto px-4 py-6 md:py-8">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">设计师排行榜</h1>
-        <p className="text-gray-600 dark:text-gray-400 mb-6">发现平台上最受欢迎的设计师和作品</p>
+    <div className="min-h-screen bg-gray-50/50 dark:bg-gray-900/50">
+      {/* 顶部 Hero 区域 */}
+      <div className="relative overflow-hidden bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-800 pb-8 pt-6 md:pt-10">
+        <div className="absolute top-0 right-0 -mr-20 -mt-20 w-96 h-96 rounded-full bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-900/10 dark:to-purple-900/10 blur-3xl opacity-60"></div>
+        <div className="absolute bottom-0 left-0 -ml-20 -mb-20 w-80 h-80 rounded-full bg-gradient-to-tr from-cyan-50 to-blue-50 dark:from-cyan-900/10 dark:to-blue-900/10 blur-3xl opacity-60"></div>
         
-        <div className="flex flex-wrap gap-3 text-sm">
-          <span className="bg-gray-100 dark:bg-gray-700/50 px-3 py-1 rounded-full text-gray-700 dark:text-gray-300">
-            <span className="font-medium">类型:</span> {leaderboardType === 'posts' ? '热门帖子' : '热门创作者'}
-          </span>
-          <span className="bg-gray-100 dark:bg-gray-700/50 px-3 py-1 rounded-full text-gray-700 dark:text-gray-300">
-            <span className="font-medium">时间:</span> {timeRange === 'day' ? '今日' : timeRange === 'week' ? '本周' : timeRange === 'month' ? '本月' : '总榜'}
-          </span>
-          <span className="bg-gray-100 dark:bg-gray-700/50 px-3 py-1 rounded-full text-gray-700 dark:text-gray-300">
-            <span className="font-medium">排序:</span> {sortBy === 'likes_count' ? '点赞数' : sortBy === 'views' ? '浏览量' : sortBy === 'comments_count' ? '评论数' : '作品数量'}
-          </span>
-          <span className="bg-gray-100 dark:bg-gray-700/50 px-3 py-1 rounded-full text-gray-700 dark:text-gray-300">
-            <span className="font-medium">数据:</span> {(leaderboardType === 'posts' ? posts.length : users.length).toString()}
-          </span>
+        <div className="container mx-auto px-4 relative z-10">
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
+            <div>
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.5 }}
+              >
+                <h1 className="text-3xl md:text-4xl font-black text-gray-900 dark:text-white mb-3 flex items-center gap-3">
+                  <span className={`bg-clip-text text-transparent bg-gradient-to-r ${gradientText}`}>
+                    排行榜
+                  </span>
+                  <span className="text-2xl">🏆</span>
+                </h1>
+                <p className="text-gray-600 dark:text-gray-400 max-w-lg text-lg">
+                  发现社区中最具影响力的创作者和最受欢迎的创意作品
+                </p>
+              </motion.div>
+            </div>
+            
+            {/* 统计数据 */}
+            <motion.div 
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.5, delay: 0.1 }}
+              className="flex gap-4 md:gap-8"
+            >
+              <div className="text-center">
+                <p className="text-sm text-gray-500 dark:text-gray-400 uppercase tracking-wider font-semibold">作品总数</p>
+                <p className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">{posts.length > 0 ? '12.5k+' : '-'}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-sm text-gray-500 dark:text-gray-400 uppercase tracking-wider font-semibold">创作者</p>
+                <p className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">{users.length > 0 ? '8.2k+' : '-'}</p>
+              </div>
+            </motion.div>
+          </div>
+
+          {/* 筛选控制栏 */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.2 }}
+            className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-md rounded-2xl p-2 shadow-sm border border-gray-200/50 dark:border-gray-700/50 flex flex-col lg:flex-row gap-4 justify-between items-center"
+          >
+            {/* 左侧：类型切换 */}
+            <div className="flex bg-gray-100 dark:bg-gray-700/50 p-1 rounded-xl w-full lg:w-auto">
+              <button
+                onClick={() => setLeaderboardType('users')}
+                className={`flex-1 lg:flex-none px-6 py-2.5 rounded-lg text-sm font-bold transition-all duration-300 flex items-center justify-center gap-2 ${
+                  leaderboardType === 'users'
+                    ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                }`}
+              >
+                <i className="fas fa-users"></i>
+                热门创作者
+              </button>
+              <button
+                onClick={() => setLeaderboardType('posts')}
+                className={`flex-1 lg:flex-none px-6 py-2.5 rounded-lg text-sm font-bold transition-all duration-300 flex items-center justify-center gap-2 ${
+                  leaderboardType === 'posts'
+                    ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                }`}
+              >
+                <i className="fas fa-image"></i>
+                热门作品
+              </button>
+            </div>
+
+            {/* 右侧：筛选和排序 */}
+            <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+              {/* 时间范围 */}
+              <div className="flex bg-gray-100 dark:bg-gray-700/50 p-1 rounded-xl overflow-x-auto">
+                {(['day', 'week', 'month', 'all'] as TimeRange[]).map((range) => (
+                  <button
+                    key={range}
+                    onClick={() => setTimeRange(range)}
+                    className={`flex-1 min-w-[60px] px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+                      timeRange === range
+                        ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm'
+                        : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                    }`}
+                  >
+                    {range === 'day' && '今日'}
+                    {range === 'week' && '本周'}
+                    {range === 'month' && '本月'}
+                    {range === 'all' && '总榜'}
+                  </button>
+                ))}
+              </div>
+
+              {/* 排序下拉框 */}
+              <div className="relative min-w-[140px]">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <i className="fas fa-sort-amount-down text-gray-400 text-xs"></i>
+                </div>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as SortBy)}
+                  className="w-full pl-9 pr-8 py-2.5 bg-gray-100 dark:bg-gray-700/50 border-transparent focus:bg-white dark:focus:bg-gray-800 text-gray-900 dark:text-white text-sm rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 block appearance-none transition-all cursor-pointer font-medium"
+                >
+                  {leaderboardType === 'posts' ? (
+                    <>
+                      <option value="likes_count">按点赞数</option>
+                      <option value="views">按浏览量</option>
+                      <option value="comments_count">按评论数</option>
+                    </>
+                  ) : (
+                    <>
+                      <option value="posts_count">按作品数</option>
+                      <option value="likes_count">按总获赞</option>
+                      <option value="views">按总浏览</option>
+                    </>
+                  )}
+                </select>
+                <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                  <i className="fas fa-chevron-down text-gray-400 text-xs"></i>
+                </div>
+              </div>
+            </div>
+          </motion.div>
         </div>
       </div>
 
-      {/* 筛选选项 */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
-        className="bg-white dark:bg-gray-800 rounded-lg p-5 mb-8 shadow-sm border border-gray-200 dark:border-gray-700"
-      >
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 md:gap-8">
-          {/* 排行榜类型 */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">排行榜类型</label>
-            <div className="flex space-x-2 flex-wrap">
+      <div className="container mx-auto px-4 py-8">
+        {/* 内容展示区 */}
+        <AnimatePresence mode="wait">
+          {loading ? (
+            <motion.div
+              key="loading"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="flex flex-col items-center justify-center py-20 min-h-[400px]"
+            >
+              <div className="relative">
+                <div className="w-16 h-16 border-4 border-gray-200 dark:border-gray-700 border-t-blue-500 rounded-full animate-spin"></div>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="w-8 h-8 bg-white dark:bg-gray-800 rounded-full"></div>
+                </div>
+              </div>
+              <p className="mt-6 text-gray-500 dark:text-gray-400 font-medium animate-pulse">正在生成榜单数据...</p>
+            </motion.div>
+          ) : error ? (
+            <motion.div
+              key="error"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="max-w-md mx-auto bg-white dark:bg-gray-800 rounded-2xl p-8 text-center shadow-lg border border-red-100 dark:border-red-900/30"
+            >
+              <div className="w-16 h-16 bg-red-50 dark:bg-red-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i className="fas fa-exclamation-triangle text-2xl text-red-500"></i>
+              </div>
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">数据加载失败</h3>
+              <p className="text-gray-500 dark:text-gray-400 mb-6">{error}</p>
               <button
-                onClick={() => setLeaderboardType('posts')}
-                className={`flex-1 min-w-[120px] px-3 py-2 text-sm rounded-lg font-medium transition-all ${leaderboardType === 'posts' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/40' : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+                onClick={fetchLeaderboard}
+                className="bg-gray-900 dark:bg-white text-white dark:text-gray-900 px-6 py-2.5 rounded-xl font-medium hover:opacity-90 transition-opacity"
               >
-                热门帖子
+                重试加载
               </button>
-              <button
-                onClick={() => setLeaderboardType('users')}
-                className={`flex-1 min-w-[120px] px-3 py-2 text-sm rounded-lg font-medium transition-all ${leaderboardType === 'users' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/40' : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
-              >
-                热门创作者
-              </button>
-            </div>
-          </div>
-
-          {/* 时间范围 */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">时间范围</label>
-            <div className="flex space-x-2 flex-wrap gap-y-2">
-              {(['day', 'week', 'month', 'all'] as TimeRange[]).map((range) => (
-                <button
-                  key={range}
-                  onClick={() => setTimeRange(range)}
-                  className={`flex-1 min-w-[70px] px-3 py-1.5 rounded-full text-sm font-medium transition-all ${timeRange === range ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/40' : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
-                >
-                  {range === 'day' && '今日'}
-                  {range === 'week' && '本周'}
-                  {range === 'month' && '本月'}
-                  {range === 'all' && '总榜'}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* 排序方式 */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">排序方式</label>
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as SortBy)}
-              className="w-full px-3 py-2.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+            </motion.div>
+          ) : (
+            <motion.div
+              key="content"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
             >
               {leaderboardType === 'posts' ? (
-                <>
-                  <option value="likes_count">点赞数</option>
-                  <option value="views">浏览量</option>
-                  <option value="comments_count">评论数</option>
-                </>
-              ) : (
-                <>
-                  <option value="posts_count">作品数量</option>
-                  <option value="likes_count">总点赞数</option>
-                  <option value="views">总浏览量</option>
-                </>
-              )}
-            </select>
-          </div>
-        </div>
-      </motion.div>
-
-      {/* 加载状态 */}
-      {loading ? (
-        <div className="flex flex-col items-center justify-center py-20">
-          <div className="relative">
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
-              className="rounded-full h-16 w-16 border-4 border-blue-200 dark:border-blue-800 border-t-blue-600 dark:border-t-blue-400"
-            ></motion.div>
-          </div>
-          <p className="mt-6 text-gray-600 dark:text-gray-400">正在加载排行榜数据...</p>
-        </div>
-      ) : error ? (
-        <div className="bg-gradient-to-r from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/20 border border-red-200 dark:border-red-800 rounded-xl p-6 text-red-700 dark:text-red-300 shadow-sm">
-          <div className="flex items-center mb-3">
-            <i className="fas fa-exclamation-circle text-xl mr-3"></i>
-            <h3 className="text-lg font-medium">获取数据失败</h3>
-          </div>
-          <p>{error}</p>
-          <button
-            onClick={fetchLeaderboard}
-            className="mt-4 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors text-sm"
-          >
-            重试
-          </button>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {leaderboardType === 'posts' ? (
-            posts.map((post, index) => (
-              <motion.div 
-              key={post.id} 
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ 
-                duration: 0.4, 
-                ease: "easeOut",
-                delay: index * 0.02
-              }}
-              whileHover={{ 
-                y: -2, 
-                transition: { duration: 0.2 }
-              }}
-                className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-md transition-all duration-300 cursor-pointer"
-                onClick={() => handlePostClick(post.id)}
-              >
-                <div className="p-6">
-                  <div className="flex items-start gap-4 mb-6">
-                    <div className="relative flex-shrink-0">
-                      <div className="relative z-10">
-                        {getRankBadge(index)}
-                      </div>
-                      {/* 移除复杂的脉冲动画背景 */}
-                    </div>
-                    
-                    <div className="flex-1">
-                      <h3 className="font-bold text-xl text-gray-900 dark:text-white mb-3 line-clamp-2 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
-                        {post.title}
-                      </h3>
-                      
-                      <div className="flex items-center gap-3 mb-4">
-                        {post.username && (
-                          <img
-                            src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(post.username)}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf&size=32`}
-                            alt={post.username}
-                            className="w-8 h-8 rounded-full border border-gray-200 dark:border-gray-600 object-cover"
-                            width={32}
-                            height={32}
-                            loading="lazy"
-                          />
-                        )}
-                        <span className="text-sm text-gray-500 dark:text-gray-400">{post.username || '未知用户'}</span>
-                        <span className="text-gray-400 dark:text-gray-600">•</span>
-                        <span className="text-sm text-gray-500 dark:text-gray-400">{new Date(post.created_at).toLocaleDateString()}</span>
-                      </div>
-                      
-                      <p className="text-gray-600 dark:text-gray-400 text-sm mb-6 line-clamp-3 leading-relaxed">
-                        {post.content}
-                      </p>
-                      
-                      <div className="flex justify-between items-center text-sm pt-4 border-t border-gray-200 dark:border-gray-700">
-                        <div className="flex space-x-5">
-                          <span className="flex items-center text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer transition-colors">
-                            <svg className="w-4 h-4 mr-1.5" fill="currentColor" viewBox="0 0 20 20">
-                              <path d="M10 12a2 2 0 100-4 2 2 0 000 4z"></path>
-                              <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd"></path>
-                            </svg>
-                            {post.views}
-                          </span>
-                          
-                          <span className="flex items-center text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 cursor-pointer transition-colors">
-                            <svg className="w-4 h-4 mr-1.5" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd"></path>
-                            </svg>
-                            {post.likes_count}
-                          </span>
-                          
-                          <span className="flex items-center text-gray-600 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 cursor-pointer transition-colors">
-                            <svg className="w-4 h-4 mr-1.5" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd"></path>
-                            </svg>
-                            {post.comments_count}
-                          </span>
-                        </div>
-                        
-                        <div className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-pointer transition-colors">
-                          <i className="fas fa-arrow-right text-sm"></i>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            ))
-          ) : (
-            users.map((user, index) => (
-              <motion.div 
-                key={user.id} 
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ 
-                  duration: 0.4, 
-                  ease: "easeOut",
-                  delay: index * 0.02
-                }}
-                whileHover={{ 
-                  y: -2, 
-                  transition: { duration: 0.2 }
-                }}
-                className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-md transition-all duration-300 cursor-pointer"
-                onClick={() => handleUserClick(user)}
-              >
-                <div className="p-6">
-                  <div className="flex items-center gap-4">
-                    <div className="relative">
-                      <div className="relative z-10">
-                        {getRankBadge(index)}
-                      </div>
-                      {/* 移除复杂的脉冲动画背景 */}
-                    </div>
-                    
-                    {/* 使用DiceBear生成美观的头像 */}
-                    <div className="relative">
-                      <img
-                        src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.username)}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`}
-                        alt={user.username}
-                        className="w-16 h-16 rounded-full border-2 border-gray-200 dark:border-gray-600 object-cover"
-                        width={64}
-                        height={64}
-                        loading="lazy"
-                      />
-                    </div>
-                    
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-bold text-lg text-gray-900 dark:text-white truncate">{user.username}</h3>
-                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-1 truncate">
-                        <i className="fas fa-envelope text-xs opacity-70"></i>
-                        {user.email}
-                      </p>
-                    </div>
-                  </div>
-                  
-                  <div className="mt-4 grid grid-cols-2 gap-3">
-                    <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-                      <div className="flex items-center justify-between mb-2">
-                        <p className="text-xs text-gray-600 dark:text-gray-400 font-medium flex items-center gap-1.5">
-                          <i className="fas fa-image text-xs opacity-80"></i>
-                          作品数量
-                        </p>
-                      </div>
-                      <p className="text-lg font-semibold text-gray-900 dark:text-white">{user.posts_count || 0}</p>
-                    </div>
-                    
-                    <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-                      <div className="flex items-center justify-between mb-2">
-                        <p className="text-xs text-gray-600 dark:text-gray-400 font-medium flex items-center gap-1.5">
-                          <i className="fas fa-heart text-xs opacity-80"></i>
-                          总点赞数
-                        </p>
-                      </div>
-                      <p className="text-lg font-semibold text-gray-900 dark:text-white">{user.total_likes || 0}</p>
-                    </div>
-                    
-                    <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-                      <div className="flex items-center justify-between mb-2">
-                        <p className="text-xs text-gray-600 dark:text-gray-400 font-medium flex items-center gap-1.5">
-                          <i className="fas fa-eye text-xs opacity-80"></i>
-                          总浏览量
-                        </p>
-                      </div>
-                      <p className="text-lg font-semibold text-gray-900 dark:text-white">{user.total_views || 0}</p>
-                    </div>
-                    
-                    <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-                      <div className="flex items-center justify-between mb-2">
-                        <p className="text-xs text-gray-600 dark:text-gray-400 font-medium flex items-center gap-1.5">
-                          <i className="fas fa-calendar-alt text-xs opacity-80"></i>
-                          加入时间
-                        </p>
-                      </div>
-                      <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                        {new Date(user.created_at).toLocaleDateString()}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            ))
-          )}
-        </div>
-      )}
-
-      {/* 创作者详情弹窗 */}
-      {isDetailOpen && selectedUser && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.2 }}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
-          onClick={handleCloseDetail}
-        >
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            className="bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 max-w-2xl w-full max-h-[90vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* 弹窗头部 */}
-            <div className="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white">创作者详情</h2>
-              <button
-                onClick={handleCloseDetail}
-                className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            {/* 弹窗内容 */}
-            <div className="p-6">
-              {/* 用户基本信息 */}
-              <div className="flex flex-col md:flex-row items-center gap-6 mb-8">
-                <div className="relative">
-                  <img
-                    src={selectedUser.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(selectedUser.username)}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`}
-                    alt={selectedUser.username}
-                    className="w-24 h-24 rounded-full border-4 border-gray-200 dark:border-gray-600 object-cover"
-                    width={96}
-                    height={96}
-                  />
-                </div>
-                
-                <div className="flex-1 text-center md:text-left">
-                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{selectedUser.username}</h3>
-                  <p className="text-gray-600 dark:text-gray-400 mb-3 flex items-center justify-center md:justify-start gap-1">
-                    <i className="fas fa-envelope text-sm opacity-70"></i>
-                    {selectedUser.email}
-                  </p>
-                  <p className="text-sm text-gray-500 dark:text-gray-500 flex items-center justify-center md:justify-start gap-1">
-                    <i className="fas fa-calendar-alt text-sm opacity-70"></i>
-                    加入时间：{new Date(selectedUser.created_at).toLocaleDateString()}
-                  </p>
-                </div>
-              </div>
-
-              {/* 作品统计 */}
-              <div className="grid grid-cols-3 gap-4 mb-8">
-                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 text-center">
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">作品数量</p>
-                  <p className="text-2xl font-bold text-gray-900 dark:text-white">{selectedUser.posts_count || 0}</p>
-                </div>
-                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 text-center">
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">总点赞数</p>
-                  <p className="text-2xl font-bold text-gray-900 dark:text-white">{selectedUser.total_likes || 0}</p>
-                </div>
-                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 text-center">
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">总浏览量</p>
-                  <p className="text-2xl font-bold text-gray-900 dark:text-white">{selectedUser.total_views || 0}</p>
-                </div>
-              </div>
-
-              {/* 热门作品 */}
-              <div className="mb-6">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">热门作品</h3>
-                
-                {isLoadingDetail ? (
-                  /* 加载状态 */
-                  <div className="space-y-4 animate-pulse">
-                    {[1, 2, 3].map((i) => (
-                      <div key={i} className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
-                        <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 bg-gray-300 dark:bg-gray-600 rounded"></div>
-                          <div className="flex-1">
-                            <div className="h-4 bg-gray-300 dark:bg-gray-600 rounded mb-2 max-w-md"></div>
-                            <div className="h-3 bg-gray-300 dark:bg-gray-600 rounded max-w-xs"></div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : userPosts.length > 0 ? (
-                  /* 作品列表 */
-                  <div className="space-y-4">
-                    {userPosts.map((post) => (
-                      <div 
-                        key={post.id} 
-                        className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 hover:shadow-sm transition-shadow cursor-pointer"
-                        onClick={() => {
-                          handleCloseDetail();
-                          setTimeout(() => handlePostClick(post.id), 300);
-                        }}
-                      >
-                        <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded flex items-center justify-center flex-shrink-0">
-                            <i className="fas fa-image text-blue-600 dark:text-blue-400"></i>
-                          </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {posts.map((post, index) => (
+                    <motion.div 
+                      key={post.id} 
+                      layoutId={`post-${post.id}`}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.4, delay: index * 0.05 }}
+                      whileHover={{ y: -5, transition: { duration: 0.2 } }}
+                      className="group bg-white dark:bg-gray-800 rounded-2xl shadow-sm hover:shadow-xl border border-gray-100 dark:border-gray-700/50 overflow-hidden cursor-pointer transition-all duration-300"
+                      onClick={() => handlePostClick(post.id)}
+                    >
+                      <div className="p-5 flex flex-col h-full">
+                        <div className="flex items-start justify-between gap-4 mb-4">
                           <div className="flex-1 min-w-0">
-                            <h4 className="font-medium text-gray-900 dark:text-white truncate mb-1">{post.title}</h4>
-                            <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2">{post.content}</p>
-                            <div className="flex items-center gap-4 mt-2 text-xs text-gray-500 dark:text-gray-500">
-                              <span className="flex items-center gap-1">
-                                <i className="fas fa-eye"></i>
-                                {post.views}
+                            <h3 className={`font-bold text-lg text-gray-900 dark:text-white line-clamp-2 ${textHoverClass} transition-colors mb-2`}>
+                              {post.title}
+                            </h3>
+                            <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                              <span className="bg-gray-100 dark:bg-gray-700/50 px-2 py-0.5 rounded text-gray-600 dark:text-gray-300">
+                                {post.category_id === 1 ? '插画' : '设计'}
                               </span>
-                              <span className="flex items-center gap-1">
-                                <i className="fas fa-heart"></i>
-                                {post.likes_count}
-                              </span>
-                              <span className="flex items-center gap-1">
-                                <i className="fas fa-comment"></i>
-                                {post.comments_count}
-                              </span>
+                              <span>•</span>
+                              <span>{new Date(post.created_at).toLocaleDateString()}</span>
                             </div>
                           </div>
-                          <div className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
-                            <i className="fas fa-arrow-right text-sm"></i>
+                          <div className="flex-shrink-0 -mt-2 -mr-2 scale-90">
+                            {getRankBadge(index)}
+                          </div>
+                        </div>
+                        
+                        {/* 缩略图 (如果有) */}
+                        {post.thumbnail && (
+                          <div className="mb-4 rounded-xl overflow-hidden h-32 w-full">
+                             <img src={post.thumbnail} alt={post.title} className="w-full h-full object-cover" />
+                          </div>
+                        )}
+
+                        <p className="text-gray-600 dark:text-gray-400 text-sm mb-6 line-clamp-3 leading-relaxed flex-1">
+                          {post.content}
+                        </p>
+                        
+                        <div className="flex items-center justify-between pt-4 border-t border-gray-100 dark:border-gray-700/50 mt-auto">
+                          <div className="flex items-center gap-2">
+                            {post.username && (
+                              <img
+                                src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(post.username)}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf&size=24`}
+                                alt={post.username}
+                                className="w-6 h-6 rounded-full border border-gray-200 dark:border-gray-600 object-cover"
+                              />
+                            )}
+                            <span className="text-xs font-medium text-gray-600 dark:text-gray-300 truncate max-w-[80px]">
+                              {post.username || '用户'}
+                            </span>
+                          </div>
+                          
+                          <div className="flex items-center gap-4 text-xs font-medium text-gray-500 dark:text-gray-400">
+                            <span className="flex items-center gap-1 group-hover:text-blue-500 transition-colors">
+                              <i className="fas fa-eye"></i>
+                              {post.views > 1000 ? `${(post.views / 1000).toFixed(1)}k` : post.views}
+                            </span>
+                            <span className="flex items-center gap-1 group-hover:text-pink-500 transition-colors">
+                              <i className="fas fa-heart"></i>
+                              {post.likes_count}
+                            </span>
                           </div>
                         </div>
                       </div>
+                    </motion.div>
+                  ))}
+                </div>
+              ) : (
+                <div className="w-full">
+                  <div className="flex overflow-x-auto md:grid md:grid-cols-3 lg:grid-cols-4 gap-6 pb-8 md:pb-0 px-1 snap-x snap-mandatory scrollbar-thin scrollbar-thumb-gray-200 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent">
+                    {users.map((user, index) => (
+                      <motion.div 
+                        key={user.id} 
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ duration: 0.4, delay: index * 0.05 }}
+                        whileHover={{ y: -8, transition: { duration: 0.2 } }}
+                        className="min-w-[260px] md:min-w-0 bg-white dark:bg-gray-800 rounded-2xl shadow-sm hover:shadow-xl border border-gray-100 dark:border-gray-700/50 overflow-hidden transition-all duration-300 cursor-pointer snap-center group relative flex flex-col"
+                        onClick={() => handleUserClick(user)}
+                      >
+                        {/* 装饰背景 */}
+                        <div className={`h-24 w-full absolute top-0 left-0 z-0 ${theme === 'pink' ? 'bg-gradient-to-br from-pink-50 via-purple-50 to-white dark:from-pink-900/20 dark:via-purple-900/20 dark:to-gray-800' : 'bg-gradient-to-br from-blue-50 via-cyan-50 to-white dark:from-blue-900/20 dark:via-cyan-900/20 dark:to-gray-800'}`}></div>
+                        
+                        <div className="p-6 relative z-10 flex flex-col items-center flex-1">
+                          <div className="absolute top-3 left-3">
+                            {getRankBadge(index)}
+                          </div>
+
+                          {/* 头像 */}
+                          <div className="mt-6 mb-4 relative">
+                            <div className="absolute inset-0 bg-white dark:bg-gray-800 rounded-full transform scale-110 shadow-sm opacity-50"></div>
+                            <img
+                              src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.username)}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`}
+                              alt={user.username}
+                              className="w-24 h-24 rounded-full border-[3px] border-white dark:border-gray-800 shadow-md object-cover relative z-10 group-hover:scale-105 transition-transform duration-300"
+                              loading="lazy"
+                            />
+                            {index < 3 && (
+                              <div className="absolute -bottom-1 -right-1 bg-yellow-400 text-white text-xs font-bold px-2 py-0.5 rounded-full border-2 border-white dark:border-gray-800 shadow-sm">
+                                TOP {index + 1}
+                              </div>
+                            )}
+                          </div>
+                          
+                          <h3 className={`font-bold text-lg text-gray-900 dark:text-white truncate max-w-full mb-1 text-center ${textHoverClass} transition-colors`}>
+                            {user.username}
+                          </h3>
+                          
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-6 flex items-center gap-1 bg-gray-100 dark:bg-gray-700/50 px-2 py-1 rounded-full">
+                            <i className="fas fa-calendar-alt text-xs opacity-70"></i>
+                            加入于 {new Date(user.created_at).toLocaleDateString()}
+                          </p>
+                          
+                          <div className="grid grid-cols-2 gap-3 w-full mt-auto">
+                            <div className="bg-gray-50 dark:bg-gray-700/30 rounded-xl p-3 text-center border border-gray-100 dark:border-gray-700/50 group-hover:border-blue-200 dark:group-hover:border-blue-800/30 transition-colors">
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wide scale-90">作品</p>
+                              <p className="text-lg font-bold text-gray-900 dark:text-white">{user.posts_count || 0}</p>
+                            </div>
+                            <div className="bg-gray-50 dark:bg-gray-700/30 rounded-xl p-3 text-center border border-gray-100 dark:border-gray-700/50 group-hover:border-pink-200 dark:group-hover:border-pink-800/30 transition-colors">
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wide scale-90">获赞</p>
+                              <p className="text-lg font-bold text-gray-900 dark:text-white">{user.total_likes ? (user.total_likes > 1000 ? `${(user.total_likes/1000).toFixed(1)}k` : user.total_likes) : 0}</p>
+                            </div>
+                          </div>
+                        </div>
+                      </motion.div>
                     ))}
                   </div>
-                ) : (
-                  /* 无作品状态 */
-                  <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-6 text-center">
-                    <i className="fas fa-images text-4xl text-gray-400 dark:text-gray-600 mb-3"></i>
-                    <p className="text-gray-600 dark:text-gray-400">该用户暂无作品</p>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* 弹窗底部 */}
-            <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex justify-end">
-              <button
-                onClick={handleCloseDetail}
-                className="px-6 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-900 dark:text-white rounded-lg transition-colors"
-              >
-                关闭
-              </button>
-            </div>
-          </motion.div>
-        </motion.div>
-      )}
-
-      {loading && (
-        <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800/50 dark:to-gray-700/50 border border-gray-200 dark:border-gray-700 rounded-xl p-10 text-center shadow-sm animate-pulse">
-          <div className="w-20 h-20 mx-auto bg-gray-300 dark:bg-gray-600 rounded-full flex items-center justify-center mb-6">
-            <div className="w-10 h-10 bg-gray-400 dark:bg-gray-500 rounded-full"></div>
-          </div>
-          <div className="h-6 bg-gray-300 dark:bg-gray-600 rounded mb-3 max-w-xs mx-auto"></div>
-          <div className="h-4 bg-gray-300 dark:bg-gray-600 rounded mb-6 max-w-md mx-auto"></div>
-          <div className="h-10 bg-gray-300 dark:bg-gray-600 rounded-lg max-w-xs mx-auto"></div>
-        </div>
-      )}
-      
-      {(!posts.length && !users.length && !loading && !error) && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ 
-            duration: 0.3,
-            ease: "easeOut"
-          }}
-          className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800/50 dark:to-gray-700/50 border border-gray-200 dark:border-gray-700 rounded-xl p-10 text-center shadow-sm"
-          style={{ willChange: 'transform, opacity' }}
-        >
-          <div className="w-20 h-20 mx-auto bg-gradient-to-br from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-600 rounded-full flex items-center justify-center mb-6">
-            <svg 
-              className="w-10 h-10 text-gray-500 dark:text-gray-400" 
-              fill="none" 
-              stroke="currentColor" 
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-              focusable="false"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
-            </svg>
-          </div>
-          <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-3">暂无数据</h3>
-          <p className="text-gray-600 dark:text-gray-400 mb-6 max-w-md mx-auto">
-            {leaderboardType === 'posts' 
-              ? '还没有足够的帖子数据，快来发布你的第一个作品吧！' 
-              : '还没有足够的用户数据，邀请更多创作者加入吧！'}
-          </p>
-          {leaderboardType === 'posts' && (
-            <button
-              onClick={() => navigate('/create')}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg transition-colors flex items-center justify-center mx-auto"
-            >
-              <i className="fas fa-plus mr-2"></i>
-              发布作品
-            </button>
+                </div>
+              )}
+            </motion.div>
           )}
-        </motion.div>
-      )}
+        </AnimatePresence>
+      </div>
+
+      {/* 创作者详情弹窗 */}
+      <AnimatePresence>
+        {isDetailOpen && selectedUser && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+            onClick={handleCloseDetail}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl border border-gray-200 dark:border-gray-700 max-w-2xl w-full max-h-[85vh] overflow-y-auto scrollbar-hide"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* 弹窗头部 */}
+              <div className="relative h-32 bg-gradient-to-r from-blue-500 to-purple-600">
+                <button
+                  onClick={handleCloseDetail}
+                  className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center bg-black/20 hover:bg-black/40 text-white rounded-full backdrop-blur-sm transition-colors z-10"
+                >
+                  <i className="fas fa-times"></i>
+                </button>
+              </div>
+
+              {/* 弹窗内容 */}
+              <div className="px-8 pb-8 -mt-16 relative">
+                <div className="flex flex-col items-center mb-6">
+                  <div className="w-32 h-32 p-1 bg-white dark:bg-gray-800 rounded-full shadow-lg">
+                    <img
+                      src={selectedUser.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(selectedUser.username)}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`}
+                      alt={selectedUser.username}
+                      className="w-full h-full rounded-full object-cover border-4 border-white dark:border-gray-800"
+                    />
+                  </div>
+                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white mt-4 mb-1">{selectedUser.username}</h3>
+                  <p className="text-gray-500 dark:text-gray-400 flex items-center gap-2 text-sm">
+                    <i className="fas fa-envelope opacity-70"></i>
+                    {selectedUser.email}
+                  </p>
+                </div>
+
+                {/* 统计数据 */}
+                <div className="grid grid-cols-3 gap-4 mb-8">
+                  <div className="bg-gray-50 dark:bg-gray-700/50 rounded-2xl p-4 text-center border border-gray-100 dark:border-gray-700/50">
+                    <div className="w-10 h-10 mx-auto bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center text-blue-600 dark:text-blue-400 mb-2">
+                      <i className="fas fa-image"></i>
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">作品数量</p>
+                    <p className="text-xl font-bold text-gray-900 dark:text-white">{selectedUser.posts_count || 0}</p>
+                  </div>
+                  <div className="bg-gray-50 dark:bg-gray-700/50 rounded-2xl p-4 text-center border border-gray-100 dark:border-gray-700/50">
+                    <div className="w-10 h-10 mx-auto bg-pink-100 dark:bg-pink-900/30 rounded-full flex items-center justify-center text-pink-600 dark:text-pink-400 mb-2">
+                      <i className="fas fa-heart"></i>
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">总点赞数</p>
+                    <p className="text-xl font-bold text-gray-900 dark:text-white">{selectedUser.total_likes || 0}</p>
+                  </div>
+                  <div className="bg-gray-50 dark:bg-gray-700/50 rounded-2xl p-4 text-center border border-gray-100 dark:border-gray-700/50">
+                    <div className="w-10 h-10 mx-auto bg-purple-100 dark:bg-purple-900/30 rounded-full flex items-center justify-center text-purple-600 dark:text-purple-400 mb-2">
+                      <i className="fas fa-eye"></i>
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">总浏览量</p>
+                    <p className="text-xl font-bold text-gray-900 dark:text-white">{selectedUser.total_views || 0}</p>
+                  </div>
+                </div>
+
+                {/* 热门作品 */}
+                <div>
+                  <h4 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                    <i className="fas fa-fire text-red-500"></i>
+                    热门作品
+                  </h4>
+                  
+                  {isLoadingDetail ? (
+                    <div className="space-y-3">
+                      {[1, 2].map((i) => (
+                        <div key={i} className="bg-gray-50 dark:bg-gray-700/30 rounded-xl p-4 animate-pulse flex gap-4">
+                          <div className="w-16 h-16 bg-gray-200 dark:bg-gray-600 rounded-lg"></div>
+                          <div className="flex-1 space-y-2">
+                            <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-3/4"></div>
+                            <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-1/2"></div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : userPosts.length > 0 ? (
+                    <div className="space-y-3">
+                      {userPosts.map((post) => (
+                        <div 
+                          key={post.id} 
+                          className="group bg-white dark:bg-gray-700/30 rounded-xl p-4 border border-gray-100 dark:border-gray-700/50 hover:border-blue-200 dark:hover:border-blue-500/30 transition-all cursor-pointer flex gap-4 items-center"
+                          onClick={() => {
+                            handleCloseDetail();
+                            setTimeout(() => handlePostClick(post.id), 300);
+                          }}
+                        >
+                          <div className="w-16 h-16 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-600 rounded-lg flex items-center justify-center text-gray-400">
+                            <i className="fas fa-image text-xl"></i>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h5 className="font-bold text-gray-900 dark:text-white truncate mb-1 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{post.title}</h5>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-1 mb-2">{post.content}</p>
+                            <div className="flex gap-3 text-xs text-gray-400">
+                              <span className="flex items-center gap-1"><i className="fas fa-eye"></i> {post.views}</span>
+                              <span className="flex items-center gap-1"><i className="fas fa-heart"></i> {post.likes_count}</span>
+                            </div>
+                          </div>
+                          <i className="fas fa-chevron-right text-gray-300 dark:text-gray-600 group-hover:translate-x-1 transition-transform"></i>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/30 rounded-xl border border-dashed border-gray-200 dark:border-gray-700">
+                      <p>暂无公开作品</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

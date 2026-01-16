@@ -1,276 +1,105 @@
-/* 粉色主题 - 基于白色主题框架 */
+/* 粉色主题 - 柔和浪漫风格 */
 .pink {
-  /* 优化后的粉色主色调层次 - 专业和谐 */
-  --color-primary: #db2777;
-  --color-secondary: #ec4899;
-  --color-accent: #f472b6;
+  /* 色彩方案 - 柔和粉色系 */
+  --color-primary: #ec4899; /* 较深的粉色用于主要操作，保证对比度 */
+  --color-secondary: #ffd1dc; /* 用户指定的柔和粉色，用于辅助元素 */
+  --color-accent: #fbcfe8; /* 浅粉色强调 */
   --color-success: #10b981;
   --color-warning: #f59e0b;
   --color-error: #ef4444;
   --color-info: #3b82f6;
   
-  /* 优化后的粉色背景层次 - 基于白色主题框架 */
+  /* 背景层次 - 保持清透感 */
   --bg-primary: #ffffff;
-  --bg-secondary: #fdf2f8;
-  --bg-tertiary: #fce7f3;
-  --bg-hover: #fbcfe8;
-  --bg-active: #f9a8d4;
-  --bg-muted: #fef2f2;
+  --bg-secondary: #fff5f7; /* 极淡的粉色背景 */
+  --bg-tertiary: #ffe4e9; /* 稍深的粉色背景 */
+  --bg-hover: #ffd1dc; /* 悬停状态使用主色调 */
+  --bg-active: #fbcfe8;
+  --bg-muted: #fdf2f8;
   
-  /* 优化后的粉色文字层次 - 温暖柔和 */
-  --text-primary: #831843;
-  --text-secondary: #9d174d;
-  --text-tertiary: #be185d;
-  --text-muted: #db2777;
+  /* 文字层次 - 确保可读性 (WCAG AA) */
+  --text-primary: #831843; /* 深紫红色，与粉色背景形成良好对比 */
+  --text-secondary: #be185d;
+  --text-tertiary: #db2777;
+  --text-muted: #f472b6;
   --text-inverse: #ffffff;
   
-  /* 优化后的粉色边框层次 - 柔和过渡 */
-  --border-primary: #e5e7eb;
-  --border-secondary: #fbcfe8;
-  --border-tertiary: #f9a8d4;
-  --border-muted: #fee2e2;
+  /* 边框层次 */
+  --border-primary: #fbcfe8;
+  --border-secondary: #f9a8d4;
+  --border-tertiary: #f472b6;
+  --border-muted: #fce7f3;
   
-  /* 优化后的粉色主题阴影 - 柔和可爱 */
-  --shadow-sm: 0 2px 4px 0 rgba(236, 72, 153, 0.1), 0 1px 2px 0 rgba(236, 72, 153, 0.05);
-  --shadow-md: 0 6px 12px -2px rgba(236, 72, 153, 0.12), 0 3px 6px -1px rgba(236, 72, 153, 0.08);
-  --shadow-lg: 0 15px 25px -5px rgba(236, 72, 153, 0.15), 0 8px 10px -6px rgba(236, 72, 153, 0.1);
-  --shadow-xl: 0 25px 50px -12px rgba(236, 72, 153, 0.2), 0 12px 24px -8px rgba(236, 72, 153, 0.15);
+  /* 阴影效果 - 柔和的粉色光晕 */
+  --shadow-sm: 0 2px 4px 0 rgba(236, 72, 153, 0.08), 0 1px 2px 0 rgba(236, 72, 153, 0.04);
+  --shadow-md: 0 4px 8px -2px rgba(236, 72, 153, 0.12), 0 2px 4px -1px rgba(236, 72, 153, 0.08);
+  --shadow-lg: 0 12px 20px -5px rgba(236, 72, 153, 0.15), 0 6px 10px -4px rgba(236, 72, 153, 0.1);
+  --shadow-xl: 0 20px 30px -10px rgba(236, 72, 153, 0.2), 0 10px 15px -5px rgba(236, 72, 153, 0.15);
   
-  /* 优化后的粉色主题发光效果 - 柔和梦幻 */
-  --glow-primary: 0 0 12px rgba(236, 72, 153, 0.25);
-  --glow-secondary: 0 0 18px rgba(219, 39, 119, 0.2);
-  --glow-accent: 0 0 24px rgba(251, 113, 133, 0.2);
+  /* 发光效果 */
+  --glow-primary: 0 0 15px rgba(236, 72, 153, 0.3);
+  --glow-secondary: 0 0 20px rgba(255, 209, 220, 0.4);
+  --glow-accent: 0 0 25px rgba(251, 113, 133, 0.3);
   
-  /* 优化后的粉色主题渐变 - 基于白色主题框架 */
-  --gradient-primary: linear-gradient(135deg, #ffffff 0%, #fdf2f8 100%);
-  --gradient-secondary: linear-gradient(135deg, #fdf2f8 0%, #fce7f3 100%);
-  --gradient-accent: linear-gradient(135deg, #f472b6 0%, #ec4899 100%);
-  --gradient-button: linear-gradient(135deg, #ec4899 0%, #f472b6 100%);
-  --gradient-card: linear-gradient(135deg, #ffffff 0%, #fdf2f8 100%);
+  /* 渐变效果 */
+  --gradient-primary: linear-gradient(135deg, #ffffff 0%, #fff0f5 100%);
+  --gradient-secondary: linear-gradient(135deg, #fff5f7 0%, #ffe4e9 100%);
+  --gradient-accent: linear-gradient(135deg, #ffd1dc 0%, #fbcfe8 100%);
+  --gradient-button: linear-gradient(135deg, #ec4899 0%, #db2777 100%);
+  --gradient-card: linear-gradient(135deg, #ffffff 0%, #fff5f7 100%);
   
-  /* 圆角设计 - 现代圆润 */
-  --radius-sm: 0.5rem;
-  --radius-md: 0.75rem;
-  --radius-lg: 1rem;
-  --radius-xl: 1.25rem;
+  /* 圆角设计 - 统一 8px 倍数 */
+  --radius-sm: 0.5rem;   /* 8px */
+  --radius-md: 0.75rem;  /* 12px */
+  --radius-lg: 1rem;     /* 16px */
+  --radius-xl: 1.5rem;   /* 24px */
   --radius-full: 9999px;
   
-  /* 字体选择 - 现代专业 */
+  /* 字体 */
   --font-main: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
 }
 
-/* 粉色主题全局样式 */
+/* 全局样式应用 */
 .pink body {
-  background: var(--bg-primary);
+  background: var(--bg-secondary); /* 使用柔和背景 */
   font-family: var(--font-main);
   color: var(--text-primary);
-  transition: all 0.3s ease;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-/* 粉色主题卡片高级样式 - 现代专业 */
+/* 卡片样式优化 */
 .pink .card {
-  background: var(--gradient-card);
+  background: var(--bg-primary);
   border: 1px solid var(--border-primary);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-md);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-  overflow: hidden;
-  padding: 1.5rem;
-  transform: translateY(0);
-}
-
-.pink .card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 4px;
-  background: var(--gradient-accent);
-  opacity: 0.8;
-  animation: shimmer 3s ease-in-out infinite;
-}
-
-.pink .card::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, transparent 0%, rgba(236, 72, 153, 0.03) 100%);
-  pointer-events: none;
-  border-radius: var(--radius-lg);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease;
+  padding: 1.5rem; /* 24px */
 }
 
 .pink .card:hover {
+  transform: translateY(-4px);
   box-shadow: var(--shadow-lg);
-  transform: translateY(-2px);
   border-color: var(--border-secondary);
 }
 
-.pink .card:active {
-  transform: translateY(-2px) scale(0.99);
-}
-
-/* 粉色主题按钮高级样式 - 现代专业 */
-.pink button {
+/* 按钮样式优化 */
+.pink .btn-primary {
   background: var(--gradient-button);
-  color: white;
-  border: none;
-  border-radius: var(--radius-full);
-  padding: 0.75rem 1.75rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: var(--shadow-sm);
-  position: relative;
-  overflow: hidden;
-  font-family: var(--font-main);
-  font-size: 1rem;
-  line-height: 1.5;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
+  color: var(--text-inverse);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem 1.5rem;
+  box-shadow: 0 4px 6px rgba(236, 72, 153, 0.25);
+  transition: all 0.2s ease;
 }
 
-.pink button::before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 0;
-  height: 0;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.4);
-  transform: translate(-50%, -50%);
-  transition: width 0.6s, height 0.6s;
+.pink .btn-primary:hover {
+  filter: brightness(1.05);
+  box-shadow: 0 6px 8px rgba(236, 72, 153, 0.35);
+  transform: translateY(-1px);
 }
 
-.pink button:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
-}
-
-.pink button:active {
-  transform: translateY(0) scale(0.98);
-  box-shadow: var(--shadow-sm);
-}
-
-.pink button:active::before {
-  width: 300px;
-  height: 300px;
-}
-
-.pink button:focus {
-  outline: none;
-  box-shadow: var(--shadow-md), 0 0 0 4px rgba(236, 72, 153, 0.15), var(--glow-primary);
-}
-
-/* 粉色主题次要按钮 */
-.pink button.secondary {
-  background: var(--bg-secondary);
-  color: var(--text-primary);
-  border: 1px solid var(--border-primary);
-}
-
-.pink button.secondary:hover {
-  background: var(--bg-hover);
-  border-color: var(--border-secondary);
-}
-
-/* 粉色主题输入框高级样式 - 现代专业 */
-.pink input, .pink textarea, .pink select {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-primary);
-  color: var(--text-primary);
-  box-shadow: inset 0 1px 2px rgba(236, 72, 153, 0.08);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  border-radius: var(--radius-md);
-  padding: 0.75rem 1rem;
-  font-size: 1rem;
-  line-height: 1.5;
-  width: 100%;
-  font-family: var(--font-main);
-}
-
-.pink input::placeholder, .pink textarea::placeholder, .pink select::placeholder {
-  color: var(--text-muted);
-  opacity: 0.8;
-  transition: color 0.3s ease;
-  font-style: italic;
-}
-
-.pink input:hover::placeholder, .pink textarea:hover::placeholder, .pink select:hover::placeholder {
-  color: var(--text-tertiary);
-}
-
-.pink input:focus, .pink textarea:focus, .pink select:focus {
-  box-shadow: 0 0 0 3px rgba(236, 72, 153, 0.15), inset 0 1px 2px rgba(236, 72, 153, 0.1);
-  border-color: var(--color-accent);
-  transform: translateY(0);
-  outline: none;
-  background: var(--bg-primary);
-}
-
-.pink input:hover, .pink textarea:hover, .pink select:hover {
-  border-color: var(--border-secondary);
-  box-shadow: inset 0 1px 2px rgba(236, 72, 153, 0.1);
-  transform: translateY(0);
-}
-
-.pink input:disabled, .pink textarea:disabled, .pink select:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  background: var(--bg-secondary);
-  border-color: var(--border-primary);
-  box-shadow: inset 0 2px 4px rgba(236, 72, 153, 0.08);
-}
-
-.pink input:read-only, .pink textarea:read-only {
-  background: var(--bg-secondary);
-  border-color: var(--border-primary);
-  box-shadow: inset 0 2px 4px rgba(236, 72, 153, 0.08);
-}
-
-.pink input[type="file"] {
-  padding: 1rem;
-  border: 2px dashed var(--border-primary);
-  background: var(--bg-secondary);
-  cursor: pointer;
-  border-radius: var(--radius-lg);
-  text-align: center;
-}
-
-.pink input[type="file"]:hover {
-  border-color: var(--color-accent);
-  background: var(--bg-tertiary);
-  transform: translateY(-2px);
-}
-
-.pink textarea {
-  resize: vertical;
-  min-height: 120px;
-}
-
-.pink select {
-  cursor: pointer;
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23ec4899' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
-  background-position: right 0.75rem center;
-  background-repeat: no-repeat;
-  background-size: 1.5em 1.5em;
-  padding-right: 2.75rem;
-}
-
-.pink select:hover {
-  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23f472b6' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
-}
-
-.pink select:focus {
-  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23db2777' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
-}
-
-/* 粉色主题滚动条美化 - 现代专业 */
+/* 滚动条美化 */
 .pink ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -278,428 +107,13 @@
 
 .pink ::-webkit-scrollbar-track {
   background: var(--bg-secondary);
-  border-radius: var(--radius-full);
-  box-shadow: inset 0 0 4px rgba(236, 72, 153, 0.1);
 }
 
 .pink ::-webkit-scrollbar-thumb {
-  background: var(--gradient-accent);
-  box-shadow: 0 2px 4px rgba(236, 72, 153, 0.2);
-  border-radius: var(--radius-full);
-  border: 2px solid var(--bg-secondary);
-  transition: all 0.3s ease;
-  min-height: 20px;
+  background: var(--color-secondary);
+  border-radius: 4px;
 }
 
 .pink ::-webkit-scrollbar-thumb:hover {
-  background: var(--gradient-button);
-  box-shadow: 0 3px 6px rgba(236, 72, 153, 0.3);
-}
-
-.pink ::-webkit-scrollbar-thumb:active {
-  background: var(--gradient-accent);
-  box-shadow: 0 1px 3px rgba(236, 72, 153, 0.4);
-}
-
-/* 粉色主题文本选中颜色 */
-.pink ::selection {
-  background: var(--color-accent);
-  color: #fff;
-}
-
-/* 粉色主题导航样式 - 现代专业 */
-.pink nav {
-  background: rgba(255, 255, 255, 0.95);
-  border-bottom: 1px solid var(--border-primary);
-  padding: 0.75rem 1.5rem;
-  box-shadow: var(--shadow-md);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  backdrop-filter: blur(15px);
-}
-
-.pink nav:hover {
-  box-shadow: var(--shadow-lg);
-}
-
-.pink nav ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  gap: 1.25rem;
-  align-items: center;
-}
-
-.pink nav li {
-  margin: 0;
-  position: relative;
-}
-
-.pink nav a {
-  color: var(--text-primary);
-  text-decoration: none;
-  padding: 0.75rem 1.5rem;
-  border-radius: var(--radius-full);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  font-weight: 500;
-  position: relative;
-  overflow: hidden;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: transparent;
-  border: 1px solid transparent;
-}
-
-.pink nav a::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: var(--gradient-accent);
-  opacity: 0;
-  transition: opacity 0.3s ease;
-  pointer-events: none;
-  border-radius: var(--radius-full);
-}
-
-.pink nav a:hover {
-  background: var(--gradient-button);
-  color: white;
-  box-shadow: var(--shadow-md);
-  transform: translateY(-1px);
-  border-color: var(--border-secondary);
-}
-
-.pink nav a:hover::before {
-  opacity: 0.1;
-}
-
-.pink nav a.active {
-  background: var(--gradient-button);
-  color: white;
-  box-shadow: var(--shadow-md), 0 0 20px rgba(236, 72, 153, 0.25);
-  transform: translateY(-2px);
-}
-
-.pink nav a.active::before {
-  opacity: 0.2;
-}
-
-/* 粉色主题按钮动画效果 */
-@keyframes bounce {
-  0%, 100% {
-    transform: translateY(0) scale(1.02);
-  }
-  50% {
-    transform: translateY(-3px) scale(1.02);
-  }
-}
-
-@keyframes float {
-  0%, 100% {
-    transform: translateY(0) scale(1);
-  }
-  50% {
-    transform: translateY(-3px) scale(1);
-  }
-}
-
-@keyframes shimmer {
-  0%, 100% {
-    background-position: -100% 0;
-  }
-  50% {
-    background-position: 100% 0;
-  }
-}
-
-/* 粉色主题模态框样式 - 现代专业 */
-.pink .modal {
-  background: var(--gradient-card);
-  border: 1px solid var(--border-primary);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-xl);
-  backdrop-filter: blur(20px);
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-  overflow: hidden;
-  max-width: 90vw;
-  width: 500px;
-}
-
-.pink .modal::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 6px;
-  background: var(--gradient-accent);
-  animation: shimmer 3s ease-in-out infinite;
-}
-
-.pink .modal-header {
-  border-bottom: 1px solid var(--border-primary);
-  padding: 1.5rem;
-  background: rgba(255, 255, 255, 0.8);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
-}
-
-.pink .modal-title {
-  color: var(--text-primary);
-  font-size: 1.5rem;
-  font-weight: 700;
-  margin: 0;
-  text-shadow: 0 0 10px rgba(236, 72, 153, 0.15);
-  transition: all 0.3s ease;
-  font-family: var(--font-main);
-}
-
-.pink .modal-body {
-  padding: 1.5rem;
-  color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.5);
-}
-
-.pink .modal-footer {
-  border-top: 1px solid var(--border-primary);
-  padding: 1.5rem;
-  display: flex;
-  gap: 1rem;
-  justify-content: flex-end;
-  background: rgba(255, 255, 255, 0.8);
-  border-radius: 0 0 var(--radius-xl) var(--radius-xl);
-  flex-wrap: wrap;
-}
-
-.pink .modal-footer button {
-  flex: 1;
-  min-width: 120px;
-}
-
-/* 粉色主题通知样式 - 现代专业 */
-.pink .notification {
-  background: var(--gradient-card);
-  border: 1px solid var(--border-primary);
-  border-radius: var(--radius-lg);
-  padding: 1.5rem;
-  margin-bottom: 1rem;
-  box-shadow: var(--shadow-md);
-  color: var(--text-primary);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-  overflow: hidden;
-}
-
-.pink .notification::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 6px;
-  height: 100%;
-  background: var(--gradient-accent);
-  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
-}
-
-.pink .notification:hover {
-  box-shadow: var(--shadow-lg);
-  transform: translateY(-2px);
-  border-color: var(--border-secondary);
-}
-
-/* 粉色主题标题样式 - 现代专业 */
-.pink h1, .pink h2, .pink h3, .pink h4, .pink h5, .pink h6 {
-  font-family: var(--font-main);
-  color: var(--text-primary);
-  text-shadow: 0 1px 2px rgba(236, 72, 153, 0.1);
-  transition: all 0.3s ease;
-  margin-bottom: 1rem;
-}
-
-.pink h1:hover, .pink h2:hover, .pink h3:hover, .pink h4:hover, .pink h5:hover, .pink h6:hover {
-  text-shadow: 0 2px 4px rgba(236, 72, 153, 0.2);
-  transform: translateY(0);
-}
-
-.pink h1 {
-  font-size: 2.5rem;
-  font-weight: 800;
-  background: var(--gradient-accent);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  text-align: center;
-  margin-bottom: 1.5rem;
-}
-
-.pink h2 {
-  font-size: 2rem;
-  font-weight: 700;
-  border-bottom: 3px solid var(--border-primary);
-  padding-bottom: 0.5rem;
-  border-radius: var(--radius-sm);
-}
-
-.pink h3 {
-  font-size: 1.5rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-}
-
-/* 粉色主题链接样式 - 现代专业 */
-.pink a {
-  color: var(--text-secondary);
-  text-decoration: none;
-  transition: all 0.3s ease;
-  position: relative;
-  display: inline-block;
-  font-weight: 500;
-}
-
-.pink a::after {
-  content: '';
-  position: absolute;
-  bottom: -2px;
-  left: 0;
-  width: 0;
-  height: 3px;
-  background: var(--gradient-accent);
-  border-radius: var(--radius-full);
-  transition: width 0.3s ease;
-  box-shadow: var(--glow-accent);
-}
-
-.pink a:hover {
-  color: var(--color-accent);
-  transform: translateY(0);
-}
-
-.pink a:hover::after {
-  width: 100%;
-}
-
-/* 粉色主题列表样式 - 现代专业 */
-.pink ul, .pink ol {
-  margin-bottom: 1.5rem;
-  padding-left: 1.5rem;
-}
-
-.pink li {
-  margin-bottom: 0.75rem;
-  line-height: 1.7;
-  color: var(--text-primary);
-  transition: all 0.3s ease;
-  position: relative;
-  padding-left: 0.5rem;
-}
-
-.pink li::marker {
-  color: var(--color-accent);
-  font-size: 1.1rem;
-  font-weight: bold;
-}
-
-.pink li:hover {
-  color: var(--color-primary);
-  transform: translateX(4px);
-}
-
-/* 粉色主题图标样式 - 现代风格 */
-.pink i {
-  transition: all 0.3s ease;
-  display: inline-block;
-}
-
-.pink i:hover {
-  transform: scale(1.1);
-  color: var(--color-accent);
-}
-
-/* 粉色主题分隔线样式 - 现代专业 */
-.pink hr {
-  border: none;
-  height: 2px;
-  background: var(--gradient-accent);
-  margin: 2rem 0;
-  border-radius: var(--radius-full);
-  box-shadow: 0 0 5px rgba(236, 72, 153, 0.15);
-}
-
-/* 粉色主题表单标签样式 - 现代专业 */
-.pink label {
-  color: var(--text-primary);
-  font-weight: 600;
-  margin-bottom: 0.75rem;
-  display: inline-block;
-  transition: all 0.3s ease;
-  font-family: var(--font-main);
-  font-size: 1rem;
-}
-
-.pink label:hover {
-  color: var(--color-accent);
-  transform: translateX(0);
-}
-
-/* 粉色主题复选框和单选按钮样式 - 现代专业 */
-.pink input[type="checkbox"], .pink input[type="radio"] {
-  accent-color: var(--color-accent);
-  transition: all 0.2s ease;
-  box-shadow: 0 0 0 2px var(--bg-secondary);
-  width: 1.1rem;
-  height: 1.1rem;
-}
-
-.pink input[type="checkbox"]:hover, .pink input[type="radio"]:hover {
-  scale: 1.1;
-  box-shadow: 0 0 0 3px rgba(236, 72, 153, 0.15);
-}
-
-/* 粉色主题滑块样式 - 现代专业 */
-.pink input[type="range"] {
-  accent-color: var(--color-accent);
-  height: 6px;
-  border-radius: var(--radius-full);
-  background: var(--bg-secondary);
-  outline: none;
-  transition: all 0.3s ease;
-}
-
-.pink input[type="range"]:hover {
-  background: var(--bg-tertiary);
-}
-
-.pink input[type="range"]::-webkit-slider-thumb {
-  appearance: none;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: var(--gradient-accent);
-  cursor: pointer;
-  box-shadow: 0 2px 4px rgba(236, 72, 153, 0.3);
-  transition: all 0.3s ease;
-}
-
-.pink input[type="range"]::-webkit-slider-thumb:hover {
-  scale: 1.2;
-  box-shadow: 0 3px 8px rgba(236, 72, 153, 0.4);
-}
-
-/* 粉色主题页脚样式 - 现代专业 */
-.pink footer {
-  background: rgba(255, 255, 255, 0.95);
-  border-top: 1px solid var(--border-primary);
-  padding: 1.5rem;
-  text-align: center;
-  color: var(--text-secondary);
-  box-shadow: 0 -2px 10px rgba(236, 72, 153, 0.08);
-  backdrop-filter: blur(15px);
-  margin-top: 2rem;
+  background: var(--color-primary);
 }

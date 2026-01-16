@@ -12,6 +12,8 @@ import { Post } from '@/services/postService';
 import { createLazyComponent, ROUTE_PRIORITIES, performanceOptimizer } from '@/utils/performanceOptimization';
 
 
+import CommandPalette from '@/components/CommandPalette';
+
 // 核心页面 - 只保留最关键的页面进行同步加载，减少初始加载时间
 import Landing from "@/pages/Landing";
 import Home from "@/pages/Home";
@@ -190,6 +192,9 @@ const Privacy = createLazyComponent(() => import(/* webpackChunkName: "pages-oth
 const BrandGuide = createLazyComponent(() => import(/* webpackChunkName: "pages-other" */ "@/pages/BrandGuide"), {
   priority: ROUTE_PRIORITIES.LOW
 });
+const BusinessCooperation = createLazyComponent(() => import(/* webpackChunkName: "pages-business" */ "@/pages/BusinessCooperation"), {
+  priority: ROUTE_PRIORITIES.MEDIUM
+});
 const Authenticity = createLazyComponent(() => import(/* webpackChunkName: "pages-other" */ "@/pages/Authenticity"), {
   priority: ROUTE_PRIORITIES.LOW
 });
@@ -201,6 +206,9 @@ const AnalyticsPage = createLazyComponent(() => import(/* webpackChunkName: "pag
 });
 const UserCollection = createLazyComponent(() => import(/* webpackChunkName: "pages-other" */ "@/pages/UserCollection"), {
   priority: ROUTE_PRIORITIES.MEDIUM
+});
+const Developers = createLazyComponent(() => import(/* webpackChunkName: "pages-other" */ "@/pages/Developers"), {
+  priority: ROUTE_PRIORITIES.LOW
 });
 
 // 特殊功能组件 - 懒加载
@@ -214,43 +222,8 @@ const BlindBoxShop = createLazyComponent(() => import(/* webpackChunkName: "comp
   priority: ROUTE_PRIORITIES.LOW
 });
 
-// 优化LazyComponent和LoadingSkeleton
-// 改进LoadingSkeleton，添加更多视觉反馈
-const SimpleLoadingSkeleton = React.memo(() => (
-  <div className="min-h-[200px] p-6">
-    <div className="space-y-6">
-      {/* 标题骨架 */}
-      <div className="flex items-center space-x-3">
-        <div className="h-10 w-10 rounded-full bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 dark:from-gray-800 dark:via-gray-700 dark:to-gray-800 animate-pulse"></div>
-        <div className="flex-1 space-y-2">
-          <div className="h-4 w-3/4 bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 dark:from-gray-800 dark:via-gray-700 dark:to-gray-800 animate-pulse rounded"></div>
-          <div className="h-3 w-1/2 bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 dark:from-gray-800 dark:via-gray-700 dark:to-gray-800 animate-pulse rounded"></div>
-        </div>
-      </div>
-      
-      {/* 内容骨架 */}
-      <div className="space-y-3">
-        <div className="h-4 w-full bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 dark:from-gray-800 dark:via-gray-700 dark:to-gray-800 animate-pulse rounded"></div>
-        <div className="h-4 w-5/6 bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 dark:from-gray-800 dark:via-gray-700 dark:to-gray-800 animate-pulse rounded"></div>
-        <div className="h-4 w-3/4 bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 dark:from-gray-800 dark:via-gray-700 dark:to-gray-800 animate-pulse rounded"></div>
-      </div>
-      
-      {/* 卡片骨架 */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="h-32 bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 dark:from-gray-800 dark:via-gray-700 dark:to-gray-800 animate-pulse rounded-lg"></div>
-        <div className="h-32 bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 dark:from-gray-800 dark:via-gray-700 dark:to-gray-800 animate-pulse rounded-lg"></div>
-      </div>
-      
-      {/* 行动按钮骨架 */}
-      <div className="flex space-x-3">
-        <div className="h-10 w-24 bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 dark:from-gray-800 dark:via-gray-700 dark:to-gray-800 animate-pulse rounded-lg"></div>
-        <div className="h-10 w-24 bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 dark:from-gray-800 dark:via-gray-700 dark:to-gray-800 animate-pulse rounded-lg"></div>
-      </div>
-    </div>
-  </div>
-));
-
-SimpleLoadingSkeleton.displayName = 'SimpleLoadingSkeleton';
+// 导入新的骨架屏组件
+import { DashboardSkeleton, WorkDetailSkeleton, ProfileSkeleton, SimpleLoadingSkeleton } from '@/components/skeletons/PageSkeletons';
 
 // 优化LazyComponent，添加延迟加载和错误处理
 const LazyComponent = React.memo(({ 
@@ -809,15 +782,15 @@ export default function App() {
           </AnimatedPage>
         }>
           <Route path="/explore" element={<RouteCache><LazyComponent><Explore /></LazyComponent></RouteCache>} />
-          <Route path="/explore/:id" element={<LazyComponent><WorkDetail /></LazyComponent>} />
-          <Route path="/works/:id" element={<LazyComponent><WorkDetail /></LazyComponent>} />
+          <Route path="/explore/:id" element={<LazyComponent fallback={<WorkDetailSkeleton />}><WorkDetail /></LazyComponent>} />
+          <Route path="/works/:id" element={<LazyComponent fallback={<WorkDetailSkeleton />}><WorkDetail /></LazyComponent>} />
           <Route path="/tools" element={<RouteCache><LazyComponent><Tools /></LazyComponent></RouteCache>} />
           <Route path="/about" element={<RouteCache><LazyComponent><About /></LazyComponent></RouteCache>} />
           <Route path="/neo" element={<LazyComponent><Neo /></LazyComponent>} />
           <Route path="/square" element={<LazyComponent><PrivateRoute><Square /></PrivateRoute></LazyComponent>} />
           <Route path="/square/:id" element={<LazyComponent><PrivateRoute><Square /></PrivateRoute></LazyComponent>} />
           <Route path="/community" element={<LazyComponent><PrivateRoute><Community /></PrivateRoute></LazyComponent>} />          <Route path="/friends" element={<LazyComponent><PrivateRoute><Friends /></PrivateRoute></LazyComponent>} />
-          <Route path="/dashboard" element={<RouteCache><LazyComponent><PrivateRoute><Dashboard /></PrivateRoute></LazyComponent></RouteCache>} />
+          <Route path="/dashboard" element={<RouteCache><LazyComponent fallback={<DashboardSkeleton />}><PrivateRoute><Dashboard /></PrivateRoute></LazyComponent></RouteCache>} />
           <Route path="/create" element={<LazyComponent><PrivateRoute><Create /></PrivateRoute></LazyComponent>} />
           <Route path="/creates" element={<Navigate to="/create" replace />} />
           
@@ -834,6 +807,10 @@ export default function App() {
           <Route path="/github-image-test" element={<LazyComponent><GitHubImageTestPage /></LazyComponent>} />
           <Route path="/wizard" element={<LazyComponent><PrivateRoute><Wizard /></PrivateRoute></LazyComponent>} />
           <Route path="/brand" element={<LazyComponent><PrivateRoute><BrandGuide /></PrivateRoute></LazyComponent>} />
+          <Route path="/business" element={<LazyComponent><BusinessCooperation /></LazyComponent>} />
+          <Route path="/business-cooperation" element={<LazyComponent><BusinessCooperation /></LazyComponent>} />
+          <Route path="/developers" element={<LazyComponent><Developers /></LazyComponent>} />
+          <Route path="/api" element={<LazyComponent><Developers /></LazyComponent>} />
           <Route path="/input" element={<LazyComponent><PrivateRoute><InputHub /></PrivateRoute></LazyComponent>} />
           <Route path="/generate" element={<LazyComponent><PrivateRoute><Generation /></PrivateRoute></LazyComponent>} />
           <Route path="/authenticity" element={<LazyComponent><PrivateRoute><Authenticity /></PrivateRoute></LazyComponent>} />
@@ -841,7 +818,7 @@ export default function App() {
           <Route path="/drafts" element={<LazyComponent><PrivateRoute><Drafts /></PrivateRoute></LazyComponent>} />
           <Route path="/settings" element={<LazyComponent><PrivateRoute><Settings /></PrivateRoute></LazyComponent>} />
           {/* 账户设置相关路由 */}
-          <Route path="/profile/edit" element={<LazyComponent><PrivateRoute><ProfileEdit /></PrivateRoute></LazyComponent>} />
+          <Route path="/profile/edit" element={<LazyComponent fallback={<ProfileSkeleton />}><PrivateRoute><ProfileEdit /></PrivateRoute></LazyComponent>} />
           <Route path="/password/change" element={<LazyComponent><PrivateRoute><ChangePassword /></PrivateRoute></LazyComponent>} />
           <Route path="/account/security" element={<LazyComponent><PrivateRoute><AccountSecurity /></PrivateRoute></LazyComponent>} />
           <Route path="/analytics" element={<LazyComponent><PrivateRoute><AnalyticsPage /></PrivateRoute></LazyComponent>} />
@@ -906,8 +883,10 @@ export default function App() {
       <LazyComponent>
         <FloatingButtons />
       </LazyComponent>
-      
 
+      {/* 全局命令面板 */}
+      <CommandPalette />
+      
     </div>
 );
 }

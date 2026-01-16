@@ -206,20 +206,38 @@ const MembershipPayment: React.FC = () => {
                   {error}
                 </div>
               )}
-              <button
-                className="w-full bg-gradient-to-r from-primary to-secondary text-white py-5 rounded-full font-semibold text-xl hover:shadow-lg hover:scale-105 transition-all duration-300 disabled:opacity-70 disabled:cursor-not-allowed disabled:scale-100"
-                onClick={handlePayment}
-                disabled={loading}
-              >
-                {loading ? (
-                  <div className="flex items-center justify-center">
-                    <div className="animate-spin mr-3 w-6 h-6 border-2 border-white border-t-transparent rounded-full"></div>
-                    处理中...
+
+              {qrCode ? (
+                <div className="text-center py-6 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
+                  <p className="mb-4 text-gray-600 dark:text-gray-300">请使用{paymentMethod === 'wechat' ? '微信' : '支付宝'}扫码支付</p>
+                  <img src={qrCode} alt="Payment QR Code" className="mx-auto w-48 h-48 rounded-lg shadow-sm mb-4" />
+                  <div className="flex items-center justify-center text-primary animate-pulse">
+                    <i className="fas fa-spinner fa-spin mr-2"></i>
+                    正在检测支付结果...
                   </div>
-                ) : (
-                  `确认支付 ¥${selectedPlan.price}`
-                )}
-              </button>
+                  <button 
+                    onClick={() => setQrCode(null)}
+                    className="mt-4 text-sm text-gray-500 underline"
+                  >
+                    取消支付
+                  </button>
+                </div>
+              ) : (
+                <button
+                  className="w-full bg-gradient-to-r from-primary to-secondary text-white py-5 rounded-full font-semibold text-xl hover:shadow-lg hover:scale-105 transition-all duration-300 disabled:opacity-70 disabled:cursor-not-allowed disabled:scale-100"
+                  onClick={handlePayment}
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <div className="flex items-center justify-center">
+                      <div className="animate-spin mr-3 w-6 h-6 border-2 border-white border-t-transparent rounded-full"></div>
+                      正在创建订单...
+                    </div>
+                  ) : (
+                    `确认支付 ¥${selectedPlan.price}`
+                  )}
+                </button>
+              )}
               <div className="text-center text-gray-500 dark:text-[var(--text-tertiary)] pink:text-[var(--text-tertiary)] mt-5 text-sm">
                 点击支付即表示您同意
                 <a href="/terms" className="text-primary hover:underline ml-1 font-medium">

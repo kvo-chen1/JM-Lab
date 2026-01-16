@@ -544,9 +544,18 @@ export const CommunityDiscussion: React.FC<CommunityDiscussionProps> = ({
                 className={`${isDark ? 'bg-gray-700 ring-1 ring-gray-700' : 'bg-gray-50 ring-1 ring-gray-200'} rounded-xl p-4`}
               >
                 <div className="flex justify-between items-center">
-                  <div className="font-medium">
+                  <div className="font-medium flex items-center gap-2">
                     {t.title}
-                    {t.pinned && <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-red-600 text-white">置顶</span>}
+                    {t.topic && (
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full ring-1 ${isDark ? 'bg-gray-800 text-gray-300 ring-gray-600' : 'bg-gray-100 text-gray-600 ring-gray-200'}`}>
+                        #{t.topic}
+                      </span>
+                    )}
+                    {t.pinned && <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-600 text-white">置顶</span>}
+                    {/* New Badge: 24小时内的新帖 */}
+                    {(Date.now() - t.createdAt) < 24 * 60 * 60 * 1000 && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-500 text-white">新</span>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     <button 

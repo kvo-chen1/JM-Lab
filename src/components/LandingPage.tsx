@@ -36,21 +36,21 @@ const LandingPage = () => {
 
       // Create Particles
       const geometry = new THREE.BufferGeometry();
-      const particlesCount = 2000;
+      const particlesCount = 4000;
       const posArray = new Float32Array(particlesCount * 3);
 
       for(let i = 0; i < particlesCount * 3; i++) {
-        posArray[i] = (Math.random() - 0.5) * 150;
+        posArray[i] = (Math.random() - 0.5) * 250;
       }
 
       geometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
 
       // Material - Cyan/Blue glow
       const material = new THREE.PointsMaterial({
-        size: 0.2,
+        size: 0.3,
         color: 0x00f0ff,
         transparent: true,
-        opacity: 0.8,
+        opacity: 0.4,
         blending: THREE.AdditiveBlending
       });
 
@@ -59,17 +59,17 @@ const LandingPage = () => {
 
       // Secondary Particles - Purple
       const geometry2 = new THREE.BufferGeometry();
-      const particlesCount2 = 1000;
+      const particlesCount2 = 2000;
       const posArray2 = new Float32Array(particlesCount2 * 3);
       for(let i = 0; i < particlesCount2 * 3; i++) {
-        posArray2[i] = (Math.random() - 0.5) * 120;
+        posArray2[i] = (Math.random() - 0.5) * 200;
       }
       geometry2.setAttribute('position', new THREE.BufferAttribute(posArray2, 3));
       const material2 = new THREE.PointsMaterial({
-        size: 0.25,
+        size: 0.4,
         color: 0x7000ff,
         transparent: true,
-        opacity: 0.6,
+        opacity: 0.3,
         blending: THREE.AdditiveBlending
       });
       const particlesMesh2 = new THREE.Points(geometry2, material2);
@@ -334,7 +334,7 @@ const LandingPage = () => {
       </section>
 
       {/* About Section */}
-      <section id="about" className="py-24 relative bg-deep">
+      <section id="about" className="py-24 relative">
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
             <div className="fade-in-section">
@@ -485,7 +485,7 @@ const LandingPage = () => {
       </section>
 
       {/* Footer */}
-      <footer id="contact" className="bg-black py-12 border-t border-white/10 text-sm">
+      <footer id="contact" className="bg-black/80 backdrop-blur-md py-12 border-t border-white/10 text-sm">
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-12">
             <div className="col-span-1 md:col-span-2">

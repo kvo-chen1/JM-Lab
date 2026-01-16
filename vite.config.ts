@@ -7,6 +7,8 @@ import { ViteImageOptimizer } from 'vite-plugin-image-optimizer'
 import path from 'path'
 import { createRequire } from 'node:module'
 
+const require = createRequire(import.meta.url)
+
 function getPlugins() {
   const plugins = [
     react(), 
@@ -412,8 +414,10 @@ export default defineConfig({
       'pg': '@/utils/databaseStub',
       '@neondatabase/serverless': '@/utils/databaseStub',
       'ws': '@/utils/databaseStub',
-      'react-reconciler/constants': '@/utils/reactReconcilerConstantsStub',
-      'react-reconciler': '@/utils/reactReconcilerStub'
+      // Fix: point to actual file in node_modules to avoid export map issues
+      'react-reconciler/constants': 'react-reconciler/constants.js', 
+      // Fix: ensure scheduler resolves to the correct entry point
+      scheduler: require.resolve('scheduler')
     }
   },
   define: {
@@ -661,10 +665,12 @@ export default defineConfig({
           name: 'replace-three-encoding-constants',
           transform(code, id) {
             // 只处理@react-three/drei和@react-three/fiber的文件
-            if (id.includes('@react-three/drei') || id.includes('@react-three/fiber')) {
+            // Also handle pre-bundled deps if they contain drei code (though unlikely to be caught here if optimized)
+            if (id.includes('@react-three/drei') || id.includes('@react-three/fiber') || id.includes('three-stdlib')) {
               // 处理从three导入编码常量的情况
               // 匹配导入语句，如: import { Vector3, LinearEncoding } from 'three';
-              code = code.replace(/import\s+\{([^}]+)\}\s+from\s+['"]three['"];/g, (match, imports) => {
+              // 使用 [\s\S]+? 匹配多行内容
+              code = code.replace(/import\s+\{([\s\S]+?)\}\s+from\s+['"]three['"];/g, (match, imports) => {
                 // 移除编码常量
                 const filteredImports = imports.split(',').map(imp => imp.trim())
                   .filter(imp => !['LinearEncoding', 'sRGBEncoding', 'GammaEncoding'].includes(imp))
@@ -678,9 +684,15 @@ export default defineConfig({
               // 只替换作为常量使用的情况，如: texture.encoding = sRGBEncoding;
               code = code
                 // 处理THREE.前缀的情况
-                .replace(/THREE\.LinearEncoding/g, '1')
-                .replace(/THREE\.sRGBEncoding/g, '3')
-                .replace(/THREE\.GammaEncoding/g, '2');
+                .replace(/THREE\.LinearEncoding/g, '3000') // 1 -> 3000 (LinearSRGBColorSpace)
+                .replace(/THREE\.sRGBEncoding/g, '3001') // 3 -> 3001 (SRGBColorSpace)
+                .replace(/THREE\.GammaEncoding/g, '3007'); // 2 -> 3007 (NoColorSpace/Gamma is deprecated)
+                
+               // 处理直接使用的情况 (LinearEncoding) -> 3000
+               code = code
+                .replace(/\bLinearEncoding\b/g, '3000')
+                .replace(/\bsRGBEncoding\b/g, '3001')
+                .replace(/\bGammaEncoding\b/g, '3007');
             }
             return code;
           }
@@ -702,13 +714,15 @@ export default defineConfig({
     include: [
       'react', 'react-dom', 'react-router-dom', 
       'clsx', 'tailwind-merge', 
-      'framer-motion'
+      'framer-motion',
+      'react-reconciler', 'scheduler'
     ],
     // 禁用预构建的依赖，包括数据库依赖和可能存在兼容性问题的库
     exclude: [
       'better-sqlite3', 'mongodb', 'pg', '@neondatabase/serverless',
       '@mediapipe/hands', '@tensorflow/tfjs-core', '@tensorflow/tfjs-backend-webgl',
-      'three', '@react-three/fiber', '@react-three/drei' // Three.js相关库不预构建
+      'three', '@react-three/fiber'
+      // '@react-three/drei' should be optimized to handle its CJS deps like stats.js
     ],
     // 优化依赖构建，增加并发数
     esbuildOptions: {
@@ -722,6 +736,61 @@ export default defineConfig({
       minifyWhitespace: false,
       // 启用更严格的 tree-shaking
       pure: process.env.NODE_ENV === 'production' ? ['console.log', 'console.warn', 'console.error'] : [],
+      plugins: [
+        {
+          name: 'three-stdlib-encoding-fix',
+          setup(build) {
+            build.onLoad({ filter: /three-stdlib/ }, async (args) => {
+              const fs = require('fs/promises');
+              let code = await fs.readFile(args.path, 'utf8');
+              
+              // Remove LinearEncoding, sRGBEncoding, GammaEncoding from 'three' imports
+              // Match pattern: import { ... } from 'three'; or "three"
+              code = code.replace(/import\s+\{([^}]+)\}\s+from\s+['"]three['"]/g, (match, imports) => {
+                const filtered = imports.split(',')
+                  .map(i => i.trim())
+                  .filter(i => !['LinearEncoding', 'sRGBEncoding', 'GammaEncoding'].includes(i))
+                  .join(',');
+                // If filtered is empty, we might leave "import { } from 'three'" which is valid but useless.
+                return `import { ${filtered} } from 'three'`;
+              });
+              
+              // Replace usages with numeric constants, but be careful not to replace const declarations
+              // Wrong: const LinearEncoding = 3000; -> const 3000 = 3000; (Syntax Error)
+              // We should only replace usage, not definition if it happens to be defined locally.
+              // However, three-stdlib usually defines them by importing or just using them.
+              // In KTX2Loader.js: const LinearEncoding = 3000; might exist if they are polyfilling.
+              
+              // Improved regex: Negative lookbehind to avoid replacing variable declarations? 
+              // JS doesn't support variable lookbehind well in all envs, but we can match context.
+              // Or better: Remove the declaration lines if they exist?
+              
+              // Strategy: 
+              // 1. Remove "const LinearEncoding = ..." lines if they are just re-exports or polyfills matching standard values.
+              // 2. Replace other usages.
+              
+              // Let's try to just replace "LinearEncoding" where it is NOT preceded by "const ", "let ", "var ", "function ", "class ".
+              // But esbuild regex is limited? No, we are in node.js here.
+              
+              code = code.replace(/(?<!(const|let|var|function|class|import)\s+)\bLinearEncoding\b/g, '3000')
+                         .replace(/(?<!(const|let|var|function|class|import)\s+)\bsRGBEncoding\b/g, '3001')
+                         .replace(/(?<!(const|let|var|function|class|import)\s+)\bGammaEncoding\b/g, '3007');
+              
+              // Also handle cases where they might be properties of an object but not the key definition?
+              // e.g. { LinearEncoding: 3000 } -> { 3000: 3000 } is valid JS object literal but maybe not what we want.
+              // But usually it's used as value: encoding: LinearEncoding
+              
+              // Special case for KTX2Loader which seems to define: const LinearEncoding = 3000;
+              // We can just remove those lines if they match known patterns.
+              code = code.replace(/const\s+LinearEncoding\s*=\s*3000\s*;/g, '')
+                         .replace(/const\s+sRGBEncoding\s*=\s*3001\s*;/g, '')
+                         .replace(/const\s+GammaEncoding\s*=\s*3007\s*;/g, '');
+                         
+              return { contents: code, loader: 'js' };
+            });
+          }
+        }
+      ]
     },
   },
   // 开发服务器配置
@@ -826,8 +895,8 @@ export default defineConfig({
         'pg': '@/utils/databaseStub',
         '@neondatabase/serverless': '@/utils/databaseStub',
         'ws': '@/utils/databaseStub',
-        'react-reconciler/constants': '@/utils/reactReconcilerConstantsStub',
-        'react-reconciler': '@/utils/reactReconcilerStub',
+        'react-reconciler/constants': 'react-reconciler/constants.js',
+        scheduler: require.resolve('scheduler')
       }
     }
   },

@@ -64,12 +64,12 @@ const ThemePreviewModal: React.FC<ThemePreviewModalProps> = ({
         secondary: '#a78bfa'
       },
       pink: {
-        bg: '#fdf2f8',
+        bg: '#fff5f7',
         text: '#831843',
-        textSecondary: '#be185d',
-        cardBg: '#fce7f3',
-        primary: '#be185d',
-        secondary: '#db2777'
+        textSecondary: '#db2777',
+        cardBg: '#ffffff',
+        primary: '#ec4899',
+        secondary: '#f472b6'
       },
       blue: {
         bg: '#f0f9ff',

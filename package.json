@@ -22,13 +22,16 @@
     "@amap/amap-jsapi-loader": "1.0.1",
     "@bufbuild/protobuf": "2.10.2",
     "@fortawesome/fontawesome-free": "7.1.0",
+    "@headlessui/react": "^2.2.0",
     "@mediapipe/camera_utils": "0.3.1675466862",
     "@mediapipe/hands": "0.4.1675469240",
     "@neondatabase/neon-js": "0.1.0-beta.19",
     "@neondatabase/serverless": "1.0.2",
     "@react-three/drei": "9.99.1",
     "@react-three/fiber": "8.17.14",
+    "@react-three/xr": "^6.6.29",
     "@supabase/supabase-js": "2.89.0",
+    "@use-gesture/react": "^10.3.1",
     "@vercel/analytics": "1.6.1",
     "@vercel/speed-insights": "1.3.1",
     "clsx": "2.1.1",
@@ -40,10 +43,10 @@
     "react-dom": "18.2.0",
     "react-i18next": "16.5.0",
     "react-markdown": "10.1.0",
-    "react-reconciler": "0.29.0",
     "react-router-dom": "7.3.0",
     "react-window": "2.2.3",
     "recharts": "2.15.1",
+    "scheduler": "^0.27.0",
     "sonner": "2.0.7",
     "tailwind-merge": "3.4.0",
     "three": "0.181.2",
@@ -97,10 +100,5 @@
   },
   "engines": {
     "node": ">=18.0.0"
-  },
-  "pnpm": {
-    "overrides": {
-      "react-reconciler": "0.26.2"
-    }
   }
 }

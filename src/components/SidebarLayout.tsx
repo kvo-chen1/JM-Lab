@@ -596,6 +596,8 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
     'lab': 'sidebar.newWindowLab',
     'points-mall': 'sidebar.pointsMall',
     'brand': 'sidebar.brandCooperation',
+    'business': 'sidebar.businessCooperation',
+    'developers': 'sidebar.developers',
     'about': 'sidebar.aboutUs'
   }
 

@@ -4,8 +4,10 @@ import { motion } from 'framer-motion'
 import { useNavigate, useParams } from 'react-router-dom'
 // 使用更简洁的懒加载方式
 const ARPreview = lazy(() => import('@/components/SimplifiedARPreview'))
+const ProductMockupPreview = lazy(() => import('@/components/ProductMockupPreview'))
 import postsApi from '@/services/postService'
 import exportService, { ExportOptions, ExportFormat } from '@/services/exportService'
+import { toast } from 'sonner'
 import type { SimplifiedARPreviewConfig as ARPreviewConfig } from '@/components/SimplifiedARPreview'
 import LazyImage from '@/components/LazyImage'
 // 导入mock数据
@@ -97,6 +99,7 @@ export default function WorkDetail() {
   })
   const [work, setWork] = useState<any>(null)
   const [related, setRelated] = useState<any[]>([])
+  const [showMockup, setShowMockup] = useState(false)
 
   // 从统一数据源获取作品详情
   useEffect(() => {
@@ -163,6 +166,12 @@ export default function WorkDetail() {
       }
       setBookmarked(!bookmarked)
     }
+  }
+
+  const handleBuyLicense = () => {
+    toast.success('已跳转至授权购买页面')
+    // 实际项目中跳转到支付/授权页面
+    // navigate(`/license/buy/${work.id}`)
   }
 
   // 处理导出功能
@@ -280,6 +289,21 @@ export default function WorkDetail() {
                     <i className="fas fa-download"></i>
                     导出作品
                   </button>
+                  <button 
+                    onClick={() => setShowMockup(true)}
+                    className="px-4 py-2 rounded-lg bg-pink-600 text-white flex items-center gap-2 text-sm font-medium transition-all hover:shadow-md"
+                  >
+                    <i className="fas fa-tshirt"></i>
+                    制作周边
+                  </button>
+                  <button 
+                    onClick={handleBuyLicense}
+                    className={`px-4 py-2 rounded-lg ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} text-sm font-medium transition-all hover:shadow-md`}
+                    title="购买商用授权"
+                  >
+                    <i className="fas fa-file-contract mr-1"></i>
+                    商用授权
+                  </button>
                 </div>
               </div>
               <div className="order-1 lg:order-2 lg:col-span-3">
@@ -357,6 +381,23 @@ export default function WorkDetail() {
                 />
               </Suspense>
             </ARPreviewErrorBoundary>
+          )}
+
+          {/* 周边定制预览弹窗 */}
+          {showMockup && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70 p-4" onClick={() => setShowMockup(false)}>
+              <div className="w-full max-w-md" onClick={e => e.stopPropagation()}>
+                <Suspense fallback={<div className="text-white text-center">加载预览中...</div>}>
+                  <ProductMockupPreview imageUrl={work.thumbnail} onCustomize={() => setShowMockup(false)} />
+                </Suspense>
+                <button 
+                  className="mt-4 mx-auto block text-white text-sm opacity-80 hover:opacity-100"
+                  onClick={() => setShowMockup(false)}
+                >
+                  关闭预览
+                </button>
+              </div>
+            </div>
           )}
 
           {/* 导出选项对话框 */}

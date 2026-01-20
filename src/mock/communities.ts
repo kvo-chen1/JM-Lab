@@ -116,3 +116,6 @@ export const getCommunitiesByTopic = (topic: string): Community[] => {
 export const getUserCommunities = (): Community[] => {
   return mockCommunities.filter(community => userJoinedCommunities.includes(community.id));
 };
+
+// 推荐社群
+export const recommendedCommunities = mockCommunities;

@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Community } from '@/data/mockCommunities';
+import { Community } from '@/mock/communities';
 import { TianjinImage } from '@/components/TianjinStyleComponents';
 
 interface DiscoverySectionProps {

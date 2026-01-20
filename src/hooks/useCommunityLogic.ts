@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
 import { AuthContext } from '@/contexts/authContext';
 import type { Thread, ChatMessage } from '@/pages/Community';
-import { Community, recommendedCommunities } from '@/data/mockCommunities';
+import { Community, recommendedCommunities } from '@/mock/communities';
 
 // Mock Data for Discovery
 const RECOMMENDED_TAGS = ['国潮', '非遗', '极简', '赛博朋克', '3D艺术', '插画', 'UI设计'];

@@ -64,7 +64,7 @@ export type ChatMessage = {
 };
 
 // Re-export Community type from mock data for compatibility
-export type { Community } from '@/data/mockCommunities';
+export type { Community } from '@/mock/communities';
 
 const LoadingFallback = () => (
   <div className="flex items-center justify-center h-full w-full">

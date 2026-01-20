@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { TianjinAvatar } from '@/components/TianjinStyleComponents';
-import type { Community } from '@/data/mockCommunities';
+import type { Community } from '@/mock/communities';
 
 interface CommunitySidebarProps {
   isDark: boolean;

@@ -1,5 +1,5 @@
 import React from 'react';
-import type { Community } from '@/data/mockCommunities';
+import type { Community } from '@/mock/communities';
 import { TianjinAvatar } from '@/components/TianjinStyleComponents';
 
 interface CommunityInfoSidebarProps {

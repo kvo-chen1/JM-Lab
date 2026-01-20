@@ -71,7 +71,12 @@ export default memo(function TianjinCreativeActivities({ search: propSearch = ''
   const closeBrandDetail = useCallback(() => setSelectedBrand(null), []);
   const brandSentinelRef = useRef<HTMLDivElement | null>(null); // 中文注释：品牌区无限滚动哨兵引用
   const [brandPage, setBrandPage] = useState<number>(1); // 中文注释：品牌区当前分页
-  const brandPageSize = 24; // 中文注释：品牌区每页数量，减少为24以提高初始加载性能
+  const brandPageSize = 12; // 中文注释：品牌区每页数量，进一步减少为12以提高滚动性能
+  // 新增：模板和线下体验的分页
+  const [templatePage, setTemplatePage] = useState<number>(1);
+  const templatePageSize = 12;
+  const [experiencePage, setExperiencePage] = useState<number>(1);
+  const experiencePageSize = 12;
   
   // 当外部搜索属性变化时，更新内部搜索状态
   useEffect(() => {
@@ -776,9 +781,29 @@ export default memo(function TianjinCreativeActivities({ search: propSearch = ''
     if (!Array.isArray(filteredBrands)) return [];
     return filteredBrands.slice(0, brandPage * brandPageSize);
   }, [filteredBrands, brandPage, brandPageSize]);
+  
+  // 模板分页
+  const pagedTemplates = useMemo(() => {
+    if (!Array.isArray(filteredTemplates)) return [];
+    return filteredTemplates.slice(0, templatePage * templatePageSize);
+  }, [filteredTemplates, templatePage, templatePageSize]);
+  
+  // 线下体验分页
+  const pagedExperiences = useMemo(() => {
+    if (!Array.isArray(filteredExperiences)) return [];
+    return filteredExperiences.slice(0, experiencePage * experiencePageSize);
+  }, [filteredExperiences, experiencePage, experiencePageSize]);
+  
+  // 新增：模板和线下体验的哨兵引用
+  const templateSentinelRef = useRef<HTMLDivElement | null>(null);
+  const experienceSentinelRef = useRef<HTMLDivElement | null>(null);
 
-  // 中文注释：进入“老字号联名”或搜索变化时重置分页
-  useEffect(() => { if (activeTab === 'brands') setBrandPage(1); }, [activeTab, search]);
+  // 中文注释：切换标签或搜索变化时重置对应分页
+  useEffect(() => {
+    setBrandPage(1);
+    setTemplatePage(1);
+    setExperiencePage(1);
+  }, [activeTab, search]);
   // 中文注释：品牌区无限滚动（IntersectionObserver）
   useEffect(() => {
     if (activeTab !== 'brands') return;
@@ -799,6 +824,48 @@ export default memo(function TianjinCreativeActivities({ search: propSearch = ''
       console.error('IntersectionObserver error:', error);
     }
   }, [activeTab, filteredBrands.length, brandPageSize]);
+  
+  // 中文注释：模板区无限滚动
+  useEffect(() => {
+    if (activeTab !== 'templates') return;
+    const el = templateSentinelRef.current;
+    if (!el) return;
+    
+    try {
+      const maxPages = Math.ceil(filteredTemplates.length / templatePageSize);
+      const observer = new IntersectionObserver((entries) => {
+        const entry = entries[0];
+        if (entry.isIntersecting) {
+          setTemplatePage((prev) => (prev < maxPages ? prev + 1 : prev));
+        }
+      }, { rootMargin: '500px' });
+      observer.observe(el);
+      return () => observer.disconnect();
+    } catch (error) {
+      console.error('IntersectionObserver error:', error);
+    }
+  }, [activeTab, filteredTemplates.length, templatePageSize]);
+  
+  // 中文注释：线下体验区无限滚动
+  useEffect(() => {
+    if (activeTab !== 'offline') return;
+    const el = experienceSentinelRef.current;
+    if (!el) return;
+    
+    try {
+      const maxPages = Math.ceil(filteredExperiences.length / experiencePageSize);
+      const observer = new IntersectionObserver((entries) => {
+        const entry = entries[0];
+        if (entry.isIntersecting) {
+          setExperiencePage((prev) => (prev < maxPages ? prev + 1 : prev));
+        }
+      }, { rootMargin: '500px' });
+      observer.observe(el);
+      return () => observer.disconnect();
+    } catch (error) {
+      console.error('IntersectionObserver error:', error);
+    }
+  }, [activeTab, filteredExperiences.length, experiencePageSize]);
   
   // 骨架屏加载状态
   if (isLoading) {
@@ -900,10 +967,10 @@ export default memo(function TianjinCreativeActivities({ search: propSearch = ''
       {/* 地域模板内容 */}
       {activeTab === 'templates' && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4">
-          {filteredTemplates.map((template) => (
+          {pagedTemplates.map((template) => (
             <div
               key={template.id}
-              className={`rounded-xl overflow-hidden shadow-md border transition-transform duration-300 hover:-translate-y-1 ${
+              className={`rounded-xl overflow-hidden shadow-md border transition-shadow duration-300 hover:shadow-lg ${
                 isDark ? 'border-gray-700' : 'border-gray-200'
               }`}
             >
@@ -948,16 +1015,24 @@ export default memo(function TianjinCreativeActivities({ search: propSearch = ''
               </div>
             </div>
           ))}
+          {/* 模板区无限滚动哨兵 */}
+          <div className="text-center mt-6" ref={templateSentinelRef}>
+            {templatePage * templatePageSize < filteredTemplates.length ? (
+              <div className="h-10"></div>
+            ) : (
+              <span className={`${isDark ? 'text-gray-400' : 'text-gray-600'}`}>已加载全部</span>
+            )}
+          </div>
         </div>
       )}
       
       {/* 线下体验内容 */}
       {activeTab === 'offline' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {filteredExperiences.map((experience) => (
+          {pagedExperiences.map((experience) => (
             <div
               key={experience.id}
-              className={`rounded-xl overflow-hidden shadow-md border transition-transform duration-300 hover:-translate-y-1 ${
+              className={`rounded-xl overflow-hidden shadow-md border transition-shadow duration-300 hover:shadow-lg ${
                 isDark ? 'border-gray-700' : 'border-gray-200'
               }`}
             >
@@ -1013,6 +1088,14 @@ export default memo(function TianjinCreativeActivities({ search: propSearch = ''
               </div>
             </div>
           ))}
+          {/* 线下体验区无限滚动哨兵 */}
+          <div className="text-center mt-6" ref={experienceSentinelRef}>
+            {experiencePage * experiencePageSize < filteredExperiences.length ? (
+              <div className="h-10"></div>
+            ) : (
+              <span className={`${isDark ? 'text-gray-400' : 'text-gray-600'}`}>已加载全部</span>
+            )}
+          </div>
         </div>
       )}
       
@@ -1022,7 +1105,7 @@ export default memo(function TianjinCreativeActivities({ search: propSearch = ''
           {pagedBrands.map((brand) => (
             <div
               key={brand.id}
-              className={`p-4 rounded-xl shadow-md border transition-all duration-300 hover:-translate-y-1 hover:shadow-lg ${
+              className={`p-4 rounded-xl shadow-md border transition-shadow duration-300 hover:shadow-lg ${
                 isDark ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-200'
               } group`}
             >

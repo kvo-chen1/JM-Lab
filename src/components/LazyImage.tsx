@@ -241,6 +241,9 @@ const LazyImage: React.FC<LazyImageProps> = React.memo(({
       setIsError(true);
       setIsLoaded(false);
     }
+    
+    // 阻止事件冒泡，避免影响父组件
+    event.stopPropagation();
   };
   
   // 当src变化时重置加载状态
@@ -268,40 +271,18 @@ const LazyImage: React.FC<LazyImageProps> = React.memo(({
     if (containerRef.current) {
       // 检查图片是否已经在视口中
       const rect = containerRef.current.getBoundingClientRect();
-      const isInViewport = rect.top < window.innerHeight + 500 && rect.bottom > -500;
+      const isInViewport = rect.top < window.innerHeight + 300 && rect.bottom > -300;
       
       if (isInViewport) {
         setIsVisible(true);
       } else if (sharedObserver) {
-        // 添加到共享observer，增加预加载距离
+        // 添加到共享observer，减少预加载距离以节省资源
         observerTargets.set(containerRef.current, () => setIsVisible(true));
         sharedObserver.observe(containerRef.current);
       } else {
         // 降级方案：直接加载图片
         setIsVisible(true);
       }
-    } else {
-      // 如果containerRef还没有设置，延迟一点再检查
-      const timer = setTimeout(() => {
-        // 如果容器已经存在，再次检查可见性
-        if (containerRef.current) {
-          const rect = containerRef.current.getBoundingClientRect();
-          const isInViewport = rect.top < window.innerHeight + 500 && rect.bottom > -500;
-          
-          if (isInViewport || !sharedObserver) {
-            setIsVisible(true);
-          } else {
-            observerTargets.set(containerRef.current, () => setIsVisible(true));
-            sharedObserver.observe(containerRef.current);
-          }
-        } else {
-          // 如果仍然没有containerRef，直接设置为可见
-          setIsVisible(true);
-        }
-      }, 100);
-      
-      // 清理定时器
-      return () => clearTimeout(timer);
     }
     
     // 清理函数
@@ -421,17 +402,16 @@ const LazyImage: React.FC<LazyImageProps> = React.memo(({
         className="relative overflow-hidden"
         style={{
           width: '100%',
-          height: '100%',
-          // 只有当没有父级固定宽高时才使用aspectRatio
-          ...(!rest.width && !rest.height && {
-            aspectRatio: ratio === 'square' 
-              ? '1 / 1' 
-              : ratio === 'landscape' 
-                ? '16 / 9' 
-                : ratio === 'portrait' 
-                  ? '4 / 5' 
-                  : undefined // 当ratio为auto时，不强制设置宽高比，让图片根据自身比例显示
-          })
+          // 始终设置宽高比，确保容器尺寸稳定，减少布局偏移
+          aspectRatio: ratio === 'square' 
+            ? '1 / 1' 
+            : ratio === 'landscape' 
+              ? '16 / 9' 
+              : ratio === 'portrait' 
+                ? '4 / 5' 
+                : 'auto',
+          // 为auto比例添加最小高度，避免布局塌陷
+          ...(ratio === 'auto' && { minHeight: '200px' })
         }}
       >
         {/* 内置占位符 - 仅当disableFallback为false时显示 */}
@@ -453,48 +433,21 @@ const LazyImage: React.FC<LazyImageProps> = React.memo(({
           />
         )}
         
-        {/* 加载状态指示器 - 仅当图片可见且正在加载时显示 */}
+        {/* 简化的加载状态指示器 - 仅显示旋转动画，减少DOM节点 */}
         {isVisible && !isLoaded && !isError && !disableFallback && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center bg-gradient-to-br from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800">
-            <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+          <div className="absolute inset-0 z-10 flex items-center justify-center">
+            <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
           </div>
         )}
         
-        {/* 加载失败状态 - 仅当disableFallback为false时显示 */}
+        {/* 简化的加载失败状态 - 减少DOM节点和渲染开销 */}
         {isError && !disableFallback && (
-          <div className="absolute inset-0 z-20 w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900">
+          <div className="absolute inset-0 z-20 w-full h-full flex items-center justify-center bg-gray-100 dark:bg-gray-800">
             <div className="text-center p-4">
-              <div className="mb-3">
-                <svg className="w-16 h-16 mx-auto text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
-                </svg>
-              </div>
-              <p className="mb-4 text-sm text-gray-600 dark:text-gray-300">图片加载失败</p>
-              <button 
-                onClick={() => {
-                  setIsLoaded(false);
-                  setIsError(false);
-                  setRetryCount(0);
-                  const img = imgRef.current;
-                  if (img) {
-                    // 重置图片src，触发重新加载
-                    img.src = '';
-                    setTimeout(() => {
-                      img.src = currentSrc;
-                    }, 0);
-                  }
-                }} 
-                className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors flex items-center justify-center gap-2 mx-auto"
-                aria-label="重新加载图片"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                <span>重新加载</span>
-              </button>
-              {retryCount >= 3 && (
-                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">已自动重试3次，请检查网络连接</p>
-              )}
+              <svg className="w-10 h-10 mx-auto text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+              </svg>
+              <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">图片加载失败</p>
             </div>
           </div>
         )}

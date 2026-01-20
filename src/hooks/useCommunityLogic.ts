@@ -53,19 +53,22 @@ export const useCommunityLogic = () => {
   useEffect(() => {
     // Load data from localStorage
     const loadData = () => {
+      // 使用安全的recommendedCommunities，确保它不是undefined
+      const safeRecommendedCommunities = recommendedCommunities || [];
+      
       // Load joined communities
       const savedJoinedCommunities = localStorage.getItem(STORAGE_KEYS.JOINED_COMMUNITIES);
       if (savedJoinedCommunities) {
         setJoinedCommunities(JSON.parse(savedJoinedCommunities));
       } else {
         // Initialize with some communities for the sidebar
-        const initialCommunities = recommendedCommunities.slice(0, 5);
+        const initialCommunities = safeRecommendedCommunities.slice(0, 5);
         setJoinedCommunities(initialCommunities);
         localStorage.setItem(STORAGE_KEYS.JOINED_COMMUNITIES, JSON.stringify(initialCommunities));
       }
       
       // Load all communities for discovery
-      setAllCommunities(recommendedCommunities);
+      setAllCommunities(safeRecommendedCommunities);
       
       // Load Threads with comments
       const savedThreads = localStorage.getItem(STORAGE_KEYS.THREADS);
@@ -561,9 +564,10 @@ export const useCommunityLogic = () => {
           id: `c-${Date.now()}`,
           name: data.name,
           description: data.description,
-          tags: data.tags,
-          cover: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1920x1080&prompt=Abstract%20community%20banner',
-          members: 1
+          memberCount: 1,
+          topic: data.tags[0] || '其他',
+          avatar: 'https://picsum.photos/seed/community/200/200',
+          isActive: true
       };
       setJoinedCommunities(prev => [newCommunity, ...prev]);
       toast.success('社群创建成功！');

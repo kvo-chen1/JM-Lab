@@ -59,7 +59,10 @@ const SearchResults = createLazyComponent(() => import(/* webpackChunkName: "pag
 });
 
 // 2. 高频访问但较大的页面 - 懒加载，优先加载
-const Create = createLazyComponent(() => import(/* webpackChunkName: "pages-create" */ "@/pages/Create"), {
+const Create = createLazyComponent(() => import(/* webpackChunkName: "pages-create" */ "@/pages/create/index"), {
+  priority: ROUTE_PRIORITIES.HIGH
+});
+const Studio = createLazyComponent(() => import(/* webpackChunkName: "pages-create" */ "@/pages/create/Studio"), {
   priority: ROUTE_PRIORITIES.HIGH
 });
 const Tools = createLazyComponent(() => import(/* webpackChunkName: "pages-create" */ "@/pages/Tools"), {
@@ -94,9 +97,8 @@ const Drafts = createLazyComponent(() => import(/* webpackChunkName: "pages-crea
 const CulturalKnowledge = createLazyComponent(() => import(/* webpackChunkName: "pages-cultural" */ "@/pages/CulturalKnowledge"), {
   priority: ROUTE_PRIORITIES.MEDIUM
 });
-const Tianjin = createLazyComponent(() => import(/* webpackChunkName: "pages-cultural" */ "@/pages/Tianjin"), {
-  priority: ROUTE_PRIORITIES.MEDIUM
-});
+// 直接导入 Tianjin 组件，避免动态导入问题
+import Tianjin from "@/pages/Tianjin";
 const TianjinMap = createLazyComponent(() => import(/* webpackChunkName: "pages-cultural" */ "@/pages/TianjinMap"), {
   priority: ROUTE_PRIORITIES.MEDIUM
 });
@@ -106,6 +108,12 @@ const CulturalEvents = createLazyComponent(() => import(/* webpackChunkName: "pa
 const CulturalNewsPage = createLazyComponent(() => import(/* webpackChunkName: "pages-cultural" */ "@/pages/CulturalNewsPage"), {
   priority: ROUTE_PRIORITIES.MEDIUM
 });
+
+// 活动相关 - 静态导入
+import CreateActivity from "@/pages/CreateActivity";
+import ActivityList from "@/pages/ActivityList";
+import ActivityDetail from "@/pages/ActivityDetail";
+import EditActivity from "@/pages/EditActivity";
 
 // 管理相关 - 懒加载
 const Admin = createLazyComponent(() => import(/* webpackChunkName: "pages-admin" */ "@/pages/admin/Admin"), {
@@ -206,9 +214,6 @@ const AnalyticsPage = createLazyComponent(() => import(/* webpackChunkName: "pag
 const UserCollection = createLazyComponent(() => import(/* webpackChunkName: "pages-other" */ "@/pages/UserCollection"), {
   priority: ROUTE_PRIORITIES.MEDIUM
 });
-const Developers = createLazyComponent(() => import(/* webpackChunkName: "pages-other" */ "@/pages/Developers"), {
-  priority: ROUTE_PRIORITIES.LOW
-});
 
 // 特殊功能组件 - 懒加载
 const IPIncubationCenter = createLazyComponent(() => import(/* webpackChunkName: "components-other" */ "@/components/IPIncubationCenter"), {
@@ -302,39 +307,40 @@ export default function App() {
     performanceOptimizer.initialize();
     
     // 设置延迟，在应用启动后一段时间再初始化数据
-    const initTimer = setTimeout(() => {
-      // 检查localStorage中是否已有数据
-      const existingPosts = postsApi.getPosts();
-      if (existingPosts.length === 0) {
-        // 优化：只初始化部分核心数据，减少一次性处理量
-        const coreWorks = mockWorks.slice(0, 10); // 只初始化前10个作品
+    const initTimer = setTimeout(async () => {
+      try {
+        // 检查localStorage中是否已有数据
+        const storedPosts = localStorage.getItem('posts');
+        const existingPosts = storedPosts ? JSON.parse(storedPosts) : [];
         
-        // 批量添加到localStorage，减少localStorage操作次数
-        const postDataArray = coreWorks.map(work => ({
-          title: work.title,
-          thumbnail: work.thumbnail,
-          category: work.category as any,
-          tags: work.tags,
-          description: work.description || '',
-          creativeDirection: '',
-          culturalElements: [],
-          colorScheme: [],
-          toolsUsed: [],
-          resolution: undefined,
-          fileSize: undefined,
-          downloadCount: 0,
-          license: undefined
-        }));
-        
-        // 使用postsApi的批量添加方法（如果有）或自定义批量添加逻辑
-        // 这里假设postsApi有批量添加方法，如果没有则需要实现
-        try {
-          // 优化：直接操作localStorage，减少函数调用开销
-          const existingPosts = JSON.parse(localStorage.getItem('posts') || '[]');
+        if (existingPosts.length === 0) {
+          // 优化：只初始化部分核心数据，减少一次性处理量
+          const coreWorks = mockWorks.slice(0, 10); // 只初始化前10个作品
+          
+          // 批量添加到localStorage，减少localStorage操作次数
+          const postDataArray = coreWorks.map(work => ({
+            title: work.title,
+            thumbnail: work.thumbnail,
+            category: work.category as any,
+            tags: work.tags,
+            description: work.description || '',
+            creativeDirection: '',
+            culturalElements: [],
+            colorScheme: [],
+            toolsUsed: [],
+            resolution: undefined,
+            fileSize: undefined,
+            downloadCount: 0,
+            license: undefined
+          }));
+          
+          // 使用postsApi的批量添加方法（如果有）或自定义批量添加逻辑
+          // 直接操作localStorage，减少函数调用开销
           const updatedPosts = [...existingPosts, ...postDataArray];
           localStorage.setItem('posts', JSON.stringify(updatedPosts));
-        } catch (error) {
         }
+      } catch (error) {
+        console.error('初始化数据失败:', error);
       }
     }, 1000); // 延迟1秒执行，让应用先完成基本渲染
     
@@ -368,65 +374,72 @@ export default function App() {
     const originalError = console.error;
     const originalInfo = console.info;
     
-    // 过滤内存地址日志的通用函数
-    const filterMemoryAddressLog = (args: unknown[]) => {
-      // 检查每个参数
-      for (const arg of args) {
-        // 如果参数是数组，检查是否包含多个内存地址
-        if (Array.isArray(arg)) {
-          // 检查数组中是否包含多个内存地址
-          const memoryAddresses = arg.filter(item => {
-            const str = String(item);
-            return /0x[0-9a-fA-F]{8,}/i.test(str);
-          });
-          if (memoryAddresses.length >= 2) {
-            return true;
-          }
-        } 
-        // 如果参数是字符串，检查是否是内存地址数组
-        else if (typeof arg === 'string') {
-          // 检查是否包含多个内存地址
-          const memoryAddressCount = (arg.match(/0x[0-9a-fA-F]{8,}/gi) || []).length;
-          if (memoryAddressCount >= 2) {
-            return true;
-          }
-          // 检查是否是括号包裹的内存地址数组
-          if (/\[(\s*0x[0-9a-fA-F]{8,}\s*[,\s]*)+\]/i.test(arg)) {
-            return true;
-          }
-        }
-      }
+    // 替换所有console方法，过滤内存地址日志
+    const filteredLog = function(...args: unknown[]) {
+      // 检查是否包含多个内存地址
+      const hasMultipleMemoryAddresses = args.some(arg => {
+        const str = String(arg);
+        // 检查是否有2个或更多内存地址
+        const matches = str.match(/0x[0-9a-fA-F]{8,}/gi);
+        return matches && matches.length >= 2;
+      });
       
-      return false;
-    };
-    
-    // 替换全局console.log
-    console.log = function(...args) {
-      if (!filterMemoryAddressLog(args)) {
+      // 如果不包含多个内存地址，则调用原始方法
+      if (!hasMultipleMemoryAddresses) {
         originalLog.apply(console, args);
       }
     };
     
-    // 替换全局console.warn
-    console.warn = function(...args) {
-      if (!filterMemoryAddressLog(args)) {
+    const filteredWarn = function(...args: unknown[]) {
+      // 检查是否包含多个内存地址
+      const hasMultipleMemoryAddresses = args.some(arg => {
+        const str = String(arg);
+        // 检查是否有2个或更多内存地址
+        const matches = str.match(/0x[0-9a-fA-F]{8,}/gi);
+        return matches && matches.length >= 2;
+      });
+      
+      // 如果不包含多个内存地址，则调用原始方法
+      if (!hasMultipleMemoryAddresses) {
         originalWarn.apply(console, args);
       }
     };
     
-    // 替换全局console.error
-    console.error = function(...args) {
-      if (!filterMemoryAddressLog(args)) {
+    const filteredError = function(...args: unknown[]) {
+      // 检查是否包含多个内存地址
+      const hasMultipleMemoryAddresses = args.some(arg => {
+        const str = String(arg);
+        // 检查是否有2个或更多内存地址
+        const matches = str.match(/0x[0-9a-fA-F]{8,}/gi);
+        return matches && matches.length >= 2;
+      });
+      
+      // 如果不包含多个内存地址，则调用原始方法
+      if (!hasMultipleMemoryAddresses) {
         originalError.apply(console, args);
       }
     };
     
-    // 替换全局console.info
-    console.info = function(...args) {
-      if (!filterMemoryAddressLog(args)) {
+    const filteredInfo = function(...args: unknown[]) {
+      // 检查是否包含多个内存地址
+      const hasMultipleMemoryAddresses = args.some(arg => {
+        const str = String(arg);
+        // 检查是否有2个或更多内存地址
+        const matches = str.match(/0x[0-9a-fA-F]{8,}/gi);
+        return matches && matches.length >= 2;
+      });
+      
+      // 如果不包含多个内存地址，则调用原始方法
+      if (!hasMultipleMemoryAddresses) {
         originalInfo.apply(console, args);
       }
     };
+    
+    // 替换所有console方法
+    console.log = filteredLog;
+    console.warn = filteredWarn;
+    console.error = filteredError;
+    console.info = filteredInfo;
     
     // 清理函数，恢复原始console方法
     return () => {
@@ -595,15 +608,22 @@ export default function App() {
           <Route path="/explore" element={<RouteCache><LazyComponent><Explore /></LazyComponent></RouteCache>} />
           <Route path="/explore/:id" element={<LazyComponent fallback={<WorkDetailSkeleton />}><WorkDetail /></LazyComponent>} />
           <Route path="/works/:id" element={<LazyComponent fallback={<WorkDetailSkeleton />}><WorkDetail /></LazyComponent>} />
-          <Route path="/tools" element={<RouteCache><LazyComponent><Tools /></LazyComponent></RouteCache>} />
           <Route path="/about" element={<RouteCache><LazyComponent><About /></LazyComponent></RouteCache>} />
-          <Route path="/neo" element={<LazyComponent><Neo /></LazyComponent>} />
+          <Route path="/neo" element={<Navigate to="/create/inspiration" replace />} />
           <Route path="/square" element={<LazyComponent><PrivateRoute><Square /></PrivateRoute></LazyComponent>} />
           <Route path="/square/:id" element={<LazyComponent><PrivateRoute><Square /></PrivateRoute></LazyComponent>} />
           <Route path="/community" element={<LazyComponent><PrivateRoute><Community /></PrivateRoute></LazyComponent>} />          <Route path="/friends" element={<LazyComponent><PrivateRoute><Friends /></PrivateRoute></LazyComponent>} />
           <Route path="/dashboard" element={<RouteCache><LazyComponent fallback={<DashboardSkeleton />}><PrivateRoute><Dashboard /></PrivateRoute></LazyComponent></RouteCache>} />
-          <Route path="/create" element={<LazyComponent><PrivateRoute><Create /></PrivateRoute></LazyComponent>} />
+          <Route path="/create" element={<LazyComponent><PrivateRoute><Create /></PrivateRoute></LazyComponent>}>
+            <Route index element={<LazyComponent><Studio /></LazyComponent>} />
+            <Route path="inspiration" element={<LazyComponent><Neo /></LazyComponent>} />
+            <Route path="wizard" element={<LazyComponent><Wizard /></LazyComponent>} />
+          </Route>
+          <Route path="/create-activity" element={<LazyComponent><PrivateRoute><Create /></PrivateRoute></LazyComponent>}>
+            <Route index element={<LazyComponent><CreateActivity /></LazyComponent>} />
+          </Route>
           <Route path="/creates" element={<Navigate to="/create" replace />} />
+          <Route path="/wizard" element={<Navigate to="/create/wizard" replace />} />
           
           {/* 大型组件和低频访问页面使用懒加载 */}
           <Route path="/particle-art" element={<LazyComponent><ParticleArt /></LazyComponent>} />
@@ -616,12 +636,10 @@ export default function App() {
           <Route path="/lab" element={<LazyComponent><PrivateRoute><Lab /></PrivateRoute></LazyComponent>} />
           <Route path="/image-test" element={<LazyComponent><ImageTest /></LazyComponent>} />
           <Route path="/github-image-test" element={<LazyComponent><GitHubImageTestPage /></LazyComponent>} />
-          <Route path="/wizard" element={<LazyComponent><PrivateRoute><Wizard /></PrivateRoute></LazyComponent>} />
+
           <Route path="/brand" element={<LazyComponent><PrivateRoute><BrandGuide /></PrivateRoute></LazyComponent>} />
           <Route path="/business" element={<LazyComponent><BusinessCooperation /></LazyComponent>} />
           <Route path="/business-cooperation" element={<LazyComponent><BusinessCooperation /></LazyComponent>} />
-          <Route path="/developers" element={<LazyComponent><Developers /></LazyComponent>} />
-          <Route path="/api" element={<LazyComponent><Developers /></LazyComponent>} />
           <Route path="/input" element={<LazyComponent><PrivateRoute><InputHub /></PrivateRoute></LazyComponent>} />
           <Route path="/generate" element={<LazyComponent><PrivateRoute><Generation /></PrivateRoute></LazyComponent>} />
           <Route path="/authenticity" element={<LazyComponent><PrivateRoute><Authenticity /></PrivateRoute></LazyComponent>} />
@@ -647,6 +665,11 @@ export default function App() {
           <Route path="/events" element={<LazyComponent><CulturalEvents /></LazyComponent>} />
           <Route path="/events/:id" element={<LazyComponent><EventDetail /></LazyComponent>} />
           <Route path="/cultural-events" element={<LazyComponent><CulturalEvents /></LazyComponent>} />
+          
+          {/* 活动管理相关路由 */}
+          <Route path="/activities" element={<LazyComponent><PrivateRoute><ActivityList /></PrivateRoute></LazyComponent>} />
+          <Route path="/activities/:id" element={<LazyComponent><PrivateRoute><ActivityDetail /></PrivateRoute></LazyComponent>} />
+          <Route path="/edit-activity/:id" element={<LazyComponent><PrivateRoute><EditActivity /></PrivateRoute></LazyComponent>} />
           
           {/* 创新功能路由 - 懒加载 */}
           <Route path="/daily-checkin" element={<LazyComponent><PrivateRoute><DailyCheckin /></PrivateRoute></LazyComponent>} />
@@ -680,12 +703,14 @@ export default function App() {
         <FirstLaunchGuide />
       </LazyComponent>
       
-      {/* 悬浮AI助手 - 懒加载 */}
-      <ErrorBoundary fallback={null}>
-        <LazyComponent>
-          <FloatingAIAssistant />
-        </LazyComponent>
-      </ErrorBoundary>
+      {/* 悬浮AI助手按钮 - 用于打开侧边栏AI助手，登录页面不显示 */}
+      {location.pathname !== '/login' && (
+        <ErrorBoundary fallback={null}>
+          <LazyComponent>
+            <FloatingAIAssistant />
+          </LazyComponent>
+        </ErrorBoundary>
+      )}
       
       {/* 用户反馈组件 - 懒加载 */}
       <LazyComponent>

@@ -195,7 +195,7 @@ export default function Generation() {
       const zhChars = (base.match(/[\u4e00-\u9fa5]/g) || []).length
       const isEnglish = enLetters > zhChars && enLetters > 0
       const promptWithPolicy = isEnglish ? base : `${zhPolicy}\n\n${base}`
-      const final = await llmService.generateResponse(promptWithPolicy, { onDelta: (chunk: string) => setAiText((prev) => prev + chunk) })
+      const final = await llmService.directGenerateResponse(promptWithPolicy, { onDelta: (chunk: string) => setAiText((prev) => prev + chunk) })
       setAiText((prev) => final || prev)
       const text = final || aiText || base
       const r = await voiceService.synthesize(text, { format: 'mp3' })

@@ -1,73 +1,92 @@
 import { useState, useRef, useEffect, lazy, Suspense, useMemo, useCallback } from 'react';
-import { motion } from 'framer-motion';
+import { motion, useScroll, useTransform } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '@/contexts/authContext';
 import { useContext } from 'react';
 import { toast } from 'sonner';
-import { TianjinImage } from '@/components/TianjinStyleComponents';
+import { TianjinImage, TianjinButton, TianjinTag, TianjinAvatar } from '@/components/TianjinStyleComponents';
 import { llmService } from '@/services/llmService'
 import voiceService from '@/services/voiceService'
 import { mockWorks } from '@/mock/works'
 import { useTranslation } from 'react-i18next'
-import SearchBar, { SearchResultType, SearchSuggestion } from '@/components/SearchBar'
-import searchService from '@/services/searchService'
 import PromptInput from '@/components/PromptInput'
+import eventBus from '@/lib/eventBus' // 导入事件总线
 
 export default function Home() {
-  const { theme, isDark, toggleTheme } = useTheme();
+  const { isDark } = useTheme();
   useContext(AuthContext);
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const { scrollY } = useScroll();
   
-  // 添加响应式布局状态 - 初始值为false，确保服务器端和客户端渲染一致
-  const [isMobile, setIsMobile] = useState(false);
+  // Parallax effects
+  const heroY = useTransform(scrollY, [0, 500], [0, 200]);
+  const heroOpacity = useTransform(scrollY, [0, 400], [1, 0]);
+  
+  // 响应式状态
   const [isMounted, setIsMounted] = useState(false);
   
-  // 监听窗口大小变化
   useEffect(() => {
-    // 只在客户端环境中执行
-    if (typeof window === 'undefined') return;
-    
     setIsMounted(true);
     
-    const checkIsMobile = () => {
-      setIsMobile(window.innerWidth < 768);
+    // 添加事件监听器
+    const loginListener = eventBus.subscribe('auth:login', (data) => {
+      console.log('Home page received login event:', data);
+      toast.success(`欢迎回来，${data.user.username}!`);
+    });
+    
+    const logoutListener = eventBus.subscribe('auth:logout', () => {
+      console.log('Home page received logout event');
+      toast.info('您已成功登出');
+    });
+    
+    const workCreatedListener = eventBus.subscribe('作品:创建', (data) => {
+      console.log('Home page received work created event:', data);
+      toast.success('作品创建成功！');
+    });
+    
+    const workPublishedListener = eventBus.subscribe('作品:发布', (data) => {
+      console.log('Home page received work published event:', data);
+      toast.success('作品发布成功！');
+    });
+    
+    const dataRefreshListener = eventBus.subscribe('数据:刷新', (data) => {
+      console.log('Home page received data refresh event:', data);
+      // 这里可以添加数据刷新逻辑
+    });
+    
+    // 清理事件监听器
+    return () => {
+      eventBus.unsubscribe('auth:login', loginListener);
+      eventBus.unsubscribe('auth:logout', logoutListener);
+      eventBus.unsubscribe('作品:创建', workCreatedListener);
+      eventBus.unsubscribe('作品:发布', workPublishedListener);
+      eventBus.unsubscribe('数据:刷新', dataRefreshListener);
     };
-    
-    // 初始化检查
-    checkIsMobile();
-    
-    // 添加 resize 事件监听
-    window.addEventListener('resize', checkIsMobile);
-    
-    // 清理事件监听
-    return () => window.removeEventListener('resize', checkIsMobile);
-  }, []);
-  
-  const handleExplore = useCallback(() => {
-    window.location.href = '/landing.html';
   }, []);
   
   // 创作提示词输入状态
   const [search, setSearch] = useState('');
   
-  // 其他状态
+  // 状态管理
   const [inspireOn, setInspireOn] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  
+  // 防抖定时器引用
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [creativeDirections] = useState<string[]>([]);
   const [generatedText] = useState('');
   const [isGenerating] = useState(false);
   const [diagnosedIssues, setDiagnosedIssues] = useState<string[]>([]);
-  const [optimizationSummary, setOptimizationSummary] = useState(''); // AI优化说明（语言大模型流式生成）
+  const [optimizationSummary, setOptimizationSummary] = useState('');
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [optimizeAudioUrl, setOptimizeAudioUrl] = useState('');
   
-  // 页面内功能区定位引用（用于平滑滚动到对应区域）
-  const creativeRef = useRef<HTMLDivElement | null>(null); // 创意方向区
-  const generatedRef = useRef<HTMLDivElement | null>(null); // AI生成区
-  const optimizedRef = useRef<HTMLDivElement | null>(null); // 优化建议区
-  const galleryRef = useRef<HTMLDivElement | null>(null); // 为你推荐作品区
-  const tianjinRef = useRef<HTMLDivElement | null>(null); // 天津特色专区
+  // 页面内功能区定位引用
+  const creativeRef = useRef<HTMLDivElement | null>(null);
+  const generatedRef = useRef<HTMLDivElement | null>(null);
+  const optimizedRef = useRef<HTMLDivElement | null>(null);
   
   const ensurePrompt = (): string | null => {
     const base = search.trim();
@@ -81,1408 +100,748 @@ export default function Home() {
   const handleInspireClick = useCallback(() => {
     const p = ensurePrompt();
     if (!p) return;
+    
+    // 发布创作灵感事件
+    eventBus.publish('请求:开始', {
+      url: '/neo',
+      method: 'GET',
+      options: { query: p, from: 'home' }
+    });
+    
     navigate(`/neo?from=home&query=${encodeURIComponent(p)}`);
   }, [navigate]);
   
   const handleGenerateClick = useCallback(() => {
     const p = ensurePrompt();
     if (!p) return;
+    
+    // 发布创作生成事件
+    eventBus.publish('请求:开始', {
+      url: '/tools',
+      method: 'GET',
+      options: { query: p, from: 'home' }
+    });
+    
     navigate(`/tools?from=home&query=${encodeURIComponent(p)}`);
   }, [navigate]);
   
   const handleOptimizeClick = async () => {
     const p = ensurePrompt();
     if (!p) return;
+    
+    // 发布优化开始事件
+    eventBus.publish('请求:开始', {
+      url: '/optimize',
+      method: 'POST',
+      options: { prompt: p }
+    });
+    
     setIsOptimizing(true);
     setOptimizeAudioUrl('');
     setOptimizationSummary('');
     try {
-      // 使用 Kimi 作为默认优化模型（中文对话与创意更友好）
       llmService.setCurrentModel('kimi');
-      // 代理模式下不启用流式，避免SSE被浏览器或代理拦截
       llmService.updateConfig({
         stream: false,
-        system_prompt: '你是资深创作优化助手，请针对用户的创作问题进行结构化诊断与优化。输出格式包含：\n1) 问题诊断\n2) 优化方向\n3) 落地步骤\n4) 参考素材/风格\n语言简洁、可执行。'
+        system_prompt: '你是资深创作优化助手，请针对用户的创作问题进行结构化诊断与优化。'
       });
-      const issues = llmService.diagnoseCreationIssues(p); // 规则诊断（同步）
+      const issues = llmService.diagnoseCreationIssues(p);
       setDiagnosedIssues(issues);
-      // 生成优化说明：流式关闭时直接使用最终结果填充
       const summary = await llmService.generateResponse(`${p}（请输出结构化的优化说明与下一步行动）`);
       if (summary && !/接口不可用|未返回内容/.test(summary)) {
         setOptimizationSummary(summary);
       }
-      // 同步生成“优化后的提示词”并填充到输入框
       const optimized = await llmService.generateResponse(
-        `请将以下创作问题提炼为可直接用于AI生成的中文提示词（不超过60字，包含核心意象与风格约束），只输出提示词本句，不要额外说明：\n${p}`
+        `请将以下创作问题提炼为可直接用于AI生成的中文提示词，只输出提示词本句：\n${p}`
       );
       const oneLine = optimized.split(/\r?\n/).find(s => s.trim()) || optimized;
-      const cleaned = oneLine
-        .replace(/^"|"$/g, '')
-        .replace(/^“|”$/g, '')
-        .replace(/^【|】$/g, '')
-        .replace(/^提示词[:：]\s*/, '')
-        .trim();
+      const cleaned = oneLine.replace(/^"|"$/g, '').replace(/^“|”$/g, '').replace(/^提示词[:：]\s*/, '').trim();
       if (cleaned && !/接口不可用|未返回内容/.test(cleaned)) {
         setSearch(cleaned);
-        toast.success('已生成优化提示词，并填入输入框');
+        toast.success('已生成优化提示词');
       }
       toast.success(`发现${issues.length}条优化建议`);
+      
+      // 发布优化成功事件
+      eventBus.publish('请求:成功', {
+        url: '/optimize',
+        method: 'POST',
+        data: { issues, optimized: cleaned, summary }
+      });
+    } catch (error) {
+      console.error('优化失败:', error);
+      
+      // 发布优化失败事件
+      eventBus.publish('请求:失败', {
+        url: '/optimize',
+        method: 'POST',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      
+      toast.error('优化失败，请稍后重试');
     } finally {
       setIsOptimizing(false);
-    }
-  };
-  
-  const speakOptimizations = async () => {
-    const text = optimizationSummary.trim() || diagnosedIssues.join('；'); // 优先朗读AI优化说明
-    if (!text) { toast.warning('暂无建议可朗读'); return }
-    try {
-      const r = await voiceService.synthesize(text, { format: 'mp3' });
-      setOptimizeAudioUrl(r.audioUrl);
-    } catch (e: any) {
-      toast.error(e?.message || '朗读失败');
-    }
-  };
-  
-  const copyOptimizations = async () => {
-    const text = optimizationSummary.trim() || diagnosedIssues.join('\n'); // 优先复制AI优化说明
-    if (!text) { toast.warning('暂无建议可复制'); return }
-    try {
-      await navigator.clipboard.writeText(text);
-      toast.success('建议已复制');
-    } catch {
-      toast.error('复制失败');
     }
   };
   
   const toggleInspire = () => {
     const next = !inspireOn;
     setInspireOn(next);
-    // 只在客户端环境中访问localStorage
-    if (typeof localStorage !== 'undefined') {
-      try { localStorage.setItem('inspireOn', String(next)); } catch {}
-    }
     toast.info(next ? '灵感加持已开启' : '灵感加持已关闭');
   };
   
-  useEffect(() => {
-    // 只在客户端环境中访问localStorage
-    if (typeof localStorage === 'undefined') return;
-    
-    try {
-      const saved = localStorage.getItem('inspireOn');
-      if (saved) setInspireOn(saved === 'true');
-    } catch {}
-  }, []);
-  
-  // 将标签追加到搜索（避免重复）
-  // 快速标签常量
-  const quickTags = ['国潮风格','适用人群','文献灵感','科创思维','地域素材','非遗元素'];
-  // 选中标签集合
+  // 快速标签
+  const quickTags = ['国潮风格','非遗元素','科创思维','地域素材','节日庆典','文创产品'];
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   
-  const appendTagToSearch = (s: string, tag: string) => {
-    const has = s.includes(tag);
-    return has ? s : (s ? `${s} ${tag}` : tag);
-  };
-  // 从搜索中移除标签（并清理多余空格）
-  const removeTagFromSearch = (s: string, tag: string) => {
-    const next = s.replace(new RegExp(tag, 'g'), '').replace(/\s+/g, ' ').trim();
-    return next;
-  };
-  // 切换标签选中状态
   const toggleTag = (tag: string) => {
     setSelectedTags((prev) => {
       const exists = prev.includes(tag);
       const next = exists ? prev.filter(t => t !== tag) : [...prev, tag];
-      // 同步更新搜索框内容
-      setSearch((s) => exists ? removeTagFromSearch(s, tag) : appendTagToSearch(s, tag));
+      
+      // 使用防抖更新搜索文本，防止频繁更新导致的性能问题
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      
+      debounceTimerRef.current = setTimeout(() => {
+        setSearch((s) => exists ? s.replace(tag, '').trim() : (s ? `${s} ${tag}` : tag));
+        debounceTimerRef.current = null;
+      }, 300);
+      
       return next;
     });
   };
-  // 英雄区变体 - 初始值为'A'，确保服务器端和客户端渲染一致
-  const [heroVariant, setHeroVariant] = useState<'A' | 'B'>('A');
-  
-  // 在客户端挂载后，从localStorage读取heroVariant或生成随机值
-  useEffect(() => {
-    // 只在客户端环境中执行
-    if (typeof localStorage === 'undefined') return;
-    
+
+  const clearAllTags = () => {
+    setSelectedTags([]);
+    setSearch('');
+  };
+
+  const handleVoiceInput = async () => {
     try {
-      const v = localStorage.getItem('heroVariant');
-      if (v === 'A' || v === 'B') {
-        setHeroVariant(v as 'A' | 'B');
-      } else {
-        // 生成随机值
-        const randomVariant = Math.random() > 0.5 ? 'A' : 'B';
-        setHeroVariant(randomVariant);
-        localStorage.setItem('heroVariant', randomVariant);
+      setIsListening(true);
+      const result = await voiceService.startListening();
+      if (result && result.text) {
+        setSearch((prev) => prev ? `${prev} ${result.text}` : result.text);
+        toast.success('语音输入成功');
       }
-    } catch {
-      // 如果发生错误，使用默认值
-      setHeroVariant('A');
+    } catch (error) {
+      console.error('语音输入失败:', error);
+      toast.error('语音输入失败，请重试');
+    } finally {
+      setIsListening(false);
     }
-  }, []);
-  
-  // 保存heroVariant到localStorage
-  useEffect(() => {
-    // 只在客户端环境中访问localStorage
-    if (typeof localStorage === 'undefined') return;
-    
-    try { localStorage.setItem('heroVariant', heroVariant); } catch {}
-  }, [heroVariant])
-  
-  // 使用固定的原始作品，确保首页显示内容一致
-  // 推荐作品 - 从originalWorks中获取前12个作品
-  const gallery = useMemo(() => 
-    mockWorks.slice(0, 12).filter(item => item.id <= 12), 
-    []
-  );
-  
-  // 热门创作者 - 基于作品的likes来推荐创作者（去重并排序）
+  };
+
+  // 数据Memo
+  const gallery = useMemo(() => mockWorks.slice(0, 12), []);
   const popularCreators = useMemo(() => 
-    Array.from(
-      mockWorks
-        .filter(item => item.id <= 12) // 只使用原始作品
-        .reduce((acc, work) => {
-          const creator = acc.get(work.creator) || { name: work.creator, avatar: work.creatorAvatar, likes: 0, works: [] };
-          creator.likes += work.likes;
-          creator.works.push(work);
-          acc.set(work.creator, creator);
-          return acc;
-        }, new Map<string, { name: string; avatar: string; likes: number; works: typeof mockWorks }>())
-        .values()
-    )
-    .sort((a, b) => b.likes - a.likes)
-    .slice(0, 6),
-    []
-  );
-  
-  // 最新作品 - 基于id排序，只使用原始作品
-  const latestWorks = useMemo(() => 
-    [...mockWorks]
-      .filter(item => item.id <= 8) // 只使用前8个原始作品
-      .sort((a, b) => b.id - a.id),
-    []
-  );
-  
-  // 热门标签 - 统计标签出现次数并排序，只使用原始作品
-  const popularTags = useMemo(() => {
-    const tagCounts = mockWorks
-      .filter(item => item.id <= 12) // 只使用原始作品
-      .flatMap(work => work.tags)
-      .reduce((acc, tag) => {
-        acc[tag] = (acc[tag] || 0) + 1;
-        return acc;
-      }, {} as Record<string, number>);
-    
-    return Object.entries(tagCounts)
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 20)
-      .map(([tag]) => tag);
-  }, []);
-  
-  // 推荐问题 - 使用useMemo缓存
-  const recommended = useMemo(() => [
-    '国潮风格的品牌包装如何设计',
-    '杨柳青年画如何现代化表达',
-    '非遗元素适合哪些商业场景',
-    '天津传统色彩的应用指南',
-    '品牌与老字号共创的最佳实践'
-  ], []);
-  
+    Array.from(new Set(mockWorks.map(w => w.creator))).slice(0, 5).map(name => {
+      const w = mockWorks.find(work => work.creator === name);
+      return { name, avatar: w?.creatorAvatar || '', likes: 1000 + Math.floor(Math.random() * 500) };
+    })
+  , []);
 
-  
-  // 预取首页常用页面的代码分片（在组件挂载后触发）
-  useEffect(() => {
-    const t = setTimeout(() => {
-      ;
-      ;
-      ;
-    }, 800);
-    return () => clearTimeout(t);
-  }, []);
-  
-  // 预取函数：提前加载常用页面的代码分片
-  
-  
-  
-  
-  // 处理推荐问题点击
-  const handleRecommendedClick = (text: string) => {
-    const map: Record<string, { q?: string; tags?: string[]; tagMode?: 'AND' | 'OR' }> = {
-      '国潮风格的品牌包装如何设计': { q: '国潮', tags: ['礼盒', '联名'], tagMode: 'OR' },
-      '杨柳青年画如何现代化表达': { q: '杨柳青年画' },
-      '非遗元素适合哪些商业场景': { q: '非遗' },
-      '天津传统色彩的应用指南': { q: '传统色' },
-      '品牌与老字号共创的最佳实践': { q: '品牌', tags: ['联名'], tagMode: 'OR' },
-    };
-    let cfg = map[text] || { q: text };
-    if (!map[text]) {
-      const s = text;
-      const checks: Array<{ match: string[]; q?: string; tags?: string[]; tagMode?: 'AND' | 'OR' }> = [
-        { match: ['国潮', '国潮风格'], q: '国潮', tags: ['联名', '礼盒'], tagMode: 'OR' },
-        { match: ['杨柳青年画', '杨柳青'], q: '杨柳青年画' },
-        { match: ['非遗'], q: '非遗' },
-        { match: ['传统色', '传统色彩', '中国红'], q: '传统色' },
-        { match: ['联名'], q: (cfg.q || '品牌'), tags: ['联名'], tagMode: 'OR' },
-        { match: ['礼盒'], q: (cfg.q || '包装'), tags: ['礼盒'], tagMode: 'OR' },
-        { match: ['京剧'], q: '京剧', tags: ['戏曲'] },
-        { match: ['海河'], q: '海河' },
-        { match: ['同仁堂'], q: '同仁堂' },
-        { match: ['景德镇'], q: '景德镇' },
-      ];
-      let q = cfg.q;
-      const tags: string[] = [];
-      let mode: 'AND' | 'OR' | undefined = undefined;
-      for (const rule of checks) {
-        if (rule.match.some((m) => s.includes(m))) {
-          if (rule.q) q = rule.q;
-          if (rule.tags) tags.push(...rule.tags);
-          if (rule.tagMode) mode = rule.tagMode;
-        }
-      }
-      cfg = { q, tags: Array.from(new Set(tags)), tagMode: mode };
-    }
-    let params = new URLSearchParams();
-    if (cfg.q) params.set('q', cfg.q);
-    if (cfg.tags && cfg.tags.length) params.set('tags', cfg.tags.join(','));
-    if (cfg.tagMode) params.set('tagMode', cfg.tagMode);
-    setSearch(cfg.q || text);
-    navigate(`/explore?${params.toString()}`);
-  };
-  
-  // 简易Markdown渲染（仅支持 ### 标题、- 列表、数字序号、**加粗**）
-  const renderOptimizationSummary = (text: string) => {
-    if (!text.trim()) return null;
-    const lines = text.split(/\r?\n/);
-    const elements: JSX.Element[] = [];
-    let ul: string[] = [];
-    let ol: string[] = [];
-
-    const flushLists = () => {
-      if (ul.length) {
-        elements.push(
-          <ul key={`ul-${elements.length}`} className="list-disc pl-5 space-y-1">
-            {ul.map((item, idx) => (
-              <li key={idx} dangerouslySetInnerHTML={{ __html: item.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
-            ))}
-          </ul>
-        );
-        ul = [];
-      }
-      if (ol.length) {
-        elements.push(
-          <ol key={`ol-${elements.length}`} className="list-decimal pl-5 space-y-1">
-            {ol.map((item, idx) => (
-              <li key={idx} dangerouslySetInnerHTML={{ __html: item.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
-            ))}
-          </ol>
-        );
-        ol = [];
-      }
-    };
-
-    for (const raw of lines) {
-      const line = raw.trimEnd();
-      if (!line.trim()) { continue; }
-      if (line.startsWith('###')) {
-        flushLists();
-        const title = line.replace(/^###\s*/, '');
-        elements.push(<h3 key={`h-${elements.length}`} className="text-base font-semibold mb-2">{title}</h3>);
-        continue;
-      }
-      if (/^\d+\./.test(line)) { ol.push(line.replace(/^\d+\.\s*/, '')); continue; }
-      if (line.startsWith('- ')) { ul.push(line.replace(/^-\s*/, '')); continue; }
-      flushLists();
-      elements.push(
-        <p key={`p-${elements.length}`} dangerouslySetInnerHTML={{ __html: line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
-      );
-    }
-    flushLists();
-
-    return (
-      <div className="space-y-2 leading-relaxed">
-        {elements}
+  // Section Component
+  const Section = ({ title, children, className = '' }: { title: string, children: React.ReactNode, className?: string }) => (
+    <div className={`max-w-7xl mx-auto px-4 md:px-6 mb-24 ${className}`}>
+      <div className="flex items-center justify-between mb-10">
+        <h2 className={`text-3xl md:text-4xl font-bold ${isDark ? 'text-white' : 'text-gray-900'} tracking-tight`}>
+          {title}
+        </h2>
+        <div className="h-px flex-grow mx-6 bg-gradient-to-r from-gray-200 to-transparent dark:from-gray-700"></div>
       </div>
-    );
-  };
-  
-  // 骨架屏组件
-  const Skeleton = ({ className }: { className?: string }) => (
-    <div className={`w-full h-4 bg-gray-200 dark:bg-gray-700 rounded-full animate-pulse ${className}`}></div>
+      {children}
+    </div>
   );
+
+  // Hero Image Loading State
+  const [heroLoaded, setHeroLoaded] = useState(false);
 
   return (
-    <section 
-        className={`relative w-full pt-12 px-4 md:px-6 pb-20 ${isDark ? 'bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900' : 'bg-gradient-to-b from-gray-50 via-white to-gray-50'} animate-fade-in`}
-      >
-
+    <div className={`relative min-h-screen w-full overflow-hidden ${isDark ? 'bg-gray-950' : 'bg-white'}`}>
       
-      {/* 首页主标题区域 */}
-      <Suspense fallback={
-        <div className="max-w-7xl mx-auto mb-8">
-          <Skeleton className="h-12 md:h-16 mb-4" />
-          <Skeleton className="h-4 md:h-6 mb-8" />
-          <div className="h-64 rounded-3xl bg-gray-200 dark:bg-gray-700 animate-pulse"></div>
-        </div>
-      }>
-        <div className="max-w-7xl mx-auto mb-8">
-          {/* 首页主标题：采用渐变文字与阴影效果，提升视觉吸引力 */}
-          <h1 className={`text-2xl sm:text-3xl md:text-5xl font-bold tracking-tight leading-tight mb-4 text-center drop-shadow-md animate-gradient-text ${isDark ? 'text-white' : 'text-black'}`}>
-            {t('common.welcome')}
-          </h1>
-          {/* 首页副标题：提升可读性，限制最大宽度，并根据主题切换不同灰度 */}
-          <p className={`text-sm sm:text-base md:text-lg leading-relaxed opacity-90 max-w-2xl text-center mx-auto ${isDark ? 'text-gray-200' : 'text-gray-600'} mb-8`}>
-            {/* 服务器端和客户端初始渲染使用相同的文本，避免hydration错误 */}
-            {isMounted ? (
-              heroVariant === 'A' 
-                ? t('home.exploreTianjinCulture') 
-                : t('home.aiPoweredCreativity')
-            ) : (
-              t('home.exploreTianjinCulture')
-            )}
-          </p>
+      {/* Hero Section - Immersive Background */}
+      <div className="relative h-[85vh] w-full flex flex-col justify-center items-center overflow-hidden bg-gray-900">
+        {/* Placeholder Gradient (Visible until image loads) */}
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-900 via-indigo-900 to-purple-900 z-0"></div>
         
-        {/* 搜索与功能按钮区域 - 增强版 */}
-        <div className={`rounded-3xl shadow-lg ring-2 ${isDark ? 'bg-gradient-to-br from-gray-900 to-gray-800 backdrop-blur-sm ring-gray-700 hover:ring-gray-600 hover:shadow-2xl hover:shadow-primary/10' : 'bg-gradient-to-br from-white/90 to-gray-50/90 backdrop-blur-sm ring-gray-200 hover:ring-gray-300 hover:shadow-xl'} p-4 md:p-6 transition-all duration-300 transform hover:-translate-y-1`}> 
-          <div className="flex flex-col md:flex-row md:items-center md:space-x-4 space-y-4 md:space-y-0">
-            <div className="relative flex-1">
-              <PromptInput
-                value={search}
-                onChange={setSearch}
-                isDark={isDark}
-                placeholder="输入创作提示词..."
-              />
-            </div>
-            
-            {/* 功能按钮组 - 增强版 */}
-            <div className="flex flex-wrap items-center justify-center gap-3 w-full sm:w-auto">
-              <motion.button 
-                onClick={handleInspireClick}
-                whileHover={{ scale: 1.03, y: -2 }}
-                whileTap={{ scale: 0.98 }}
-                className={`px-5 py-3.5 rounded-xl text-sm sm:text-base font-semibold ${isDark ? 'bg-gradient-to-r from-gray-700 to-gray-600 text-white shadow-lg shadow-gray-500/30' : 'bg-gradient-to-r from-white to-gray-50 text-gray-900 shadow-lg shadow-gray-200'} ring-2 ${isDark ? 'ring-gray-600 hover:ring-primary' : 'ring-gray-300 hover:ring-primary'} transition-all duration-300 flex items-center justify-center gap-2 hover:shadow-xl flex-1 sm:flex-none`}
-              >
-                <i className="fas fa-bolt transition-transform duration-300 hover:scale-110"></i>
-                {t('home.inspire')}
-              </motion.button>
-              <motion.button 
-                onClick={handleGenerateClick}
-                whileHover={{ scale: 1.03, y: -2 }}
-                whileTap={{ scale: 0.98 }}
-                className={`px-5 py-3.5 rounded-xl text-sm sm:text-base font-semibold ${isDark ? 'bg-gradient-to-r from-primary to-primary/90 text-white shadow-xl shadow-primary/30' : 'bg-gradient-to-r from-black to-gray-800 text-white shadow-xl shadow-black/20'} ring-2 ${isDark ? 'ring-primary/50 hover:ring-primary' : 'ring-black/50 hover:ring-black'} transition-all duration-300 flex items-center justify-center gap-2 hover:shadow-2xl flex-1 sm:flex-none`}
-              >
-                <i className="fas fa-wand-magic-sparkles transition-transform duration-300 hover:scale-110"></i>
-                {t('home.generate')}
-              </motion.button>
-            </div>
-          </div>
+        {/* Background Image with Parallax */}
+        <motion.div 
+          style={{ y: heroY, opacity: heroOpacity }}
+          className="absolute inset-0 z-0"
+        >
+          <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-transparent z-10"></div>
+          <div className={`absolute inset-0 bg-gradient-to-t ${isDark ? 'from-gray-950' : 'from-white'} to-transparent z-10 h-32 bottom-0`}></div>
           
-          {/* 功能按钮组 - 第二行 - 增强版 */}
-          <div className="flex flex-wrap items-center justify-center gap-3 w-full mt-3">
-            <motion.button 
-              onClick={handleOptimizeClick}
-              disabled={isOptimizing}
-              whileHover={{ scale: 1.03, y: -2 }}
-              whileTap={{ scale: 0.98 }}
-              className={`px-5 py-3.5 rounded-xl text-sm sm:text-base font-semibold ${isDark ? 'bg-gradient-to-r from-gray-700 to-gray-600 text-white shadow-lg shadow-gray-500/30' : 'bg-gradient-to-r from-white to-gray-50 text-gray-900 shadow-lg shadow-gray-200'} ring-2 ${isDark ? 'ring-gray-600 hover:ring-primary' : 'ring-gray-300 hover:ring-primary'} transition-all duration-300 flex items-center justify-center gap-2 hover:shadow-xl ${isOptimizing ? 'opacity-60 cursor-not-allowed hover:shadow-none hover:-translate-y-0' : ''} flex-1 sm:flex-none`}
-            >
-              <i className="fas fa-adjust transition-transform duration-300 hover:scale-110"></i>
-              {isOptimizing ? t('home.optimizing') : t('home.optimize')}
-            </motion.button>
-            <motion.button 
-              onClick={toggleInspire}
-              whileHover={{ scale: 1.03, y: -2 }}
-              whileTap={{ scale: 0.98 }}
-              className={`px-5 py-3.5 rounded-xl text-sm sm:text-base font-semibold ${inspireOn ? 'bg-gradient-to-r from-primary to-primary/90 text-white shadow-xl shadow-primary/30' : isDark ? 'bg-gradient-to-r from-gray-700 to-gray-600 text-white shadow-lg shadow-gray-500/30' : 'bg-gradient-to-r from-white to-gray-50 text-gray-900 shadow-lg shadow-gray-200'} ring-2 ${inspireOn ? 'ring-primary hover:ring-primary/80' : isDark ? 'ring-gray-600 hover:ring-primary' : 'ring-gray-300 hover:ring-primary'} transition-all duration-300 flex items-center justify-center gap-2 hover:shadow-xl flex-1 sm:flex-none`}
-            >
-              {t('home.inspirationBoost')} {inspireOn ? t('common.on') : t('common.off')}
-            </motion.button>
-          </div>
-          
-          {/* 快速标签 */}
-          <div className="mt-5 flex flex-wrap justify-center gap-3 scroll-mt-24">
-            {quickTags.map((t, i) => {
-              const active = selectedTags.includes(t);
-              const base = 'ring-2 text-sm px-4 py-2 rounded-xl transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 transform hover:-translate-y-0.5';
-              const activeCls = isDark ? 'bg-primary text-white ring-primary/70 shadow-lg shadow-primary/30' : 'bg-primary/10 text-primary ring-primary font-medium shadow-md shadow-primary/10';
-              const normalCls = isDark ? 'bg-gray-900 text-gray-300 ring-gray-700 hover:bg-gray-800 hover:ring-primary/50 font-medium' : 'bg-white text-gray-800 ring-gray-300 hover:bg-gray-50 hover:ring-primary/50 font-medium';
-              return (
+          <img 
+            src="https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=1600&q=80" 
+            alt="Tianjin Skyline" 
+            className={`w-full h-full object-cover transition-opacity duration-1000 ${heroLoaded ? 'opacity-100' : 'opacity-0'}`}
+            onLoad={() => setHeroLoaded(true)}
+            onError={(e) => {
+              const target = e.target as HTMLImageElement;
+              target.onerror = null; // Prevent infinite loop
+              target.src = 'https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=1600&q=80'; 
+            }}
+          />
+        </motion.div>
+
+        {/* Hero Content */}
+        <div className="relative z-20 max-w-5xl w-full px-4 text-center">
+          <motion.h1 
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ duration: 0.8, ease: "easeOut" }}
+            className="text-5xl md:text-7xl lg:text-8xl font-black text-white mb-6 drop-shadow-2xl tracking-tight"
+          >
+            {t('common.welcome')}
+          </motion.h1>
+          <motion.p 
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ duration: 0.8, delay: 0.2, ease: "easeOut" }}
+            className="text-lg md:text-2xl text-white/90 mb-12 font-light tracking-wide max-w-2xl mx-auto"
+          >
+            {t('home.exploreTianjinCulture')}
+          </motion.p>
+
+          {/* Search Bar - Glassmorphism */}
+          <motion.div 
+            initial={{ y: 30, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ duration: 0.8, delay: 0.4 }}
+            className="w-full max-w-3xl mx-auto backdrop-blur-xl bg-white/10 border border-white/20 rounded-3xl p-2 shadow-2xl transition-all duration-300 hover:bg-white/15 focus-within:bg-white/15 focus-within:border-white/30 focus-within:shadow-3xl"
+          >
+            <div className="flex flex-col md:flex-row gap-2">
+              <div className="flex-grow relative">
+                <input 
+                  type="text" 
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleGenerateClick()}
+                  placeholder="输入灵感，开启创作之旅..." 
+                  className="w-full h-14 bg-transparent text-white placeholder-white/60 px-6 text-lg outline-none"
+                />
+                <div className="absolute right-4 top-1/2 transform -translate-y-1/2 flex items-center gap-3">
+                  <button 
+                    onClick={handleVoiceInput}
+                    className={`transition-colors ${isListening ? 'text-red-500 animate-pulse' : 'text-white/60 hover:text-white'}`}
+                    aria-label={isListening ? "停止语音输入" : "开始语音输入"}
+                  >
+                    <i className="fas fa-microphone text-xl"></i>
+                  </button>
+                  {search && (
+                    <button 
+                      onClick={clearAllTags}
+                      className="text-white/60 hover:text-white transition-colors"
+                      aria-label="清除所有内容"
+                    >
+                      <i className="fas fa-times-circle text-xl"></i>
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div className="flex gap-2 p-1">
+                <button 
+                  onClick={handleInspireClick}
+                  className="h-12 px-6 rounded-2xl bg-white/20 hover:bg-white/30 text-white font-medium transition-all backdrop-blur-sm flex items-center gap-2"
+                >
+                  <i className="fas fa-bolt"></i> 灵感
+                </button>
+                <button 
+                  onClick={handleGenerateClick}
+                  className="h-12 px-8 rounded-2xl bg-white text-black hover:bg-gray-100 font-bold transition-all shadow-lg flex items-center gap-2"
+                >
+                  <i className="fas fa-wand-magic-sparkles"></i> 生成
+                </button>
+              </div>
+            </div>
+            {/* Quick Tags inside search bar area */}
+            <div className="flex gap-2 px-6 pb-3 mt-2 overflow-x-auto scrollbar-hide">
+              {quickTags.map((tag, i) => (
                 <button
                   key={i}
-                  type="button"
-                  aria-pressed={active}
-                  onClick={() => toggleTag(t)}
-                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleTag(t); } }}
-                  className={`${base} ${active ? activeCls : normalCls}`}
-                >{t}</button>
-              )
-            })}
-          </div>
-          
-          {/* 社会证明与CTA按钮 */}
-          <div className="mt-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div className="flex flex-wrap items-center gap-3 w-full justify-center md:justify-start">
-              <span className={`text-sm px-4 py-2.5 rounded-xl ${isDark ? 'bg-gradient-to-r from-gray-700 to-gray-800 text-gray-200' : 'bg-gradient-to-r from-white to-gray-50 text-gray-700'} ring-1 ${isDark ? 'ring-gray-600' : 'ring-gray-200'} shadow-md transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5`}>
-                <i className="fas fa-users mr-1.5"></i> <strong>12,536</strong> {t('common.creators')}
-              </span>
-              <span className={`text-sm px-4 py-2.5 rounded-xl ${isDark ? 'bg-gradient-to-r from-gray-700 to-gray-800 text-gray-200' : 'bg-gradient-to-r from-white to-gray-50 text-gray-700'} ring-1 ${isDark ? 'ring-gray-600' : 'ring-gray-200'} shadow-md transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5`}>
-                <i className="fas fa-image mr-1.5"></i> <strong>2,148</strong> {t('common.works')}
-              </span>
-              <span className={`text-sm px-4 py-2.5 rounded-xl ${isDark ? 'bg-gradient-to-r from-gray-700 to-gray-800 text-gray-200' : 'bg-gradient-to-r from-white to-gray-50 text-gray-700'} ring-1 ${isDark ? 'ring-gray-600' : 'ring-gray-200'} shadow-md transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5`}>
-                <i className="fas fa-handshake mr-1.5"></i> <strong>36</strong> {t('common.cooperation')}
-              </span>
-              <span className={`text-sm px-4 py-2.5 rounded-xl ${isDark ? 'bg-gradient-to-r from-primary/20 to-primary/10 text-primary' : 'bg-gradient-to-r from-primary/5 to-primary/10 text-primary'} ring-1 ${isDark ? 'ring-primary/50' : 'ring-primary/30'} shadow-md transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5`}>
-                <i className="fas fa-star mr-1.5 text-yellow-400"></i> <strong>96%</strong> {t('common.satisfaction')}
-              </span>
-            </div>
-            <div className="flex flex-row items-center gap-3 w-full">
-              <button
-                onClick={handleGenerateClick}
-                className={`px-4 py-3 rounded-xl font-semibold ${isDark ? 'bg-gradient-to-r from-primary to-primary/90 text-white ring-2 ring-primary/50 shadow-xl shadow-primary/20' : 'bg-gradient-to-r from-black to-gray-800 text-white ring-2 ring-black/20 shadow-xl shadow-black/10'} transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 flex-1 justify-center text-center text-sm sm:text-base`}
-              >
-                <i className="fas fa-wand-magic-sparkles mr-1 sm:mr-2"></i> {t('common.startCreating')}
-              </button>
-              <button
-                onClick={handleExplore}
-                className={`px-4 py-3 rounded-xl font-semibold ${isDark ? 'bg-gradient-to-r from-gray-700 to-gray-800 text-white ring-2 ring-gray-600 shadow-lg shadow-gray-500/20' : 'bg-gradient-to-r from-white to-gray-50 text-gray-900 ring-2 ring-gray-300 shadow-lg shadow-gray-200'} transition-all duration-300 hover:shadow-xl hover:-translate-y-1 flex-1 justify-center text-center text-sm sm:text-base`}
-              >
-                <i className="fas fa-compass mr-1 sm:mr-2"></i> {t('common.browseWorks')}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-      </Suspense>
-      
-      {/* 推荐问题区域 */}
-      <Suspense fallback={
-        <div className="max-w-7xl mx-auto mb-10">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {Array(5).fill(0).map((_, idx) => (
-              <div key={idx} className={`p-4 rounded-xl ${isDark ? 'bg-gray-800 ring-1 ring-gray-700' : 'bg-white ring-1 ring-gray-200'} flex items-center justify-between`}>
-                <Skeleton className="w-3/4" />
-                <Skeleton className="w-16" />
-              </div>
-            ))}
-          </div>
-        </div>
-      }>
-        <div className="max-w-7xl mx-auto mb-10">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {recommended.map((r, idx) => (
-              <div key={idx} className={`p-5 rounded-2xl ${isDark ? 'bg-gradient-to-r from-gray-800 to-gray-800/90 ring-1 ring-gray-700 hover:ring-primary/50' : 'bg-gradient-to-r from-white to-gray-50 ring-1 ring-gray-200 hover:ring-primary/50'} flex items-center justify-between transition-all duration-300 hover:shadow-lg hover:-translate-y-1 animate-slide-up-${idx + 1}`}>
-                <span className={`${isDark ? 'text-gray-100' : 'text-gray-800'} text-sm md:text-base font-medium`}>{r}</span>
-                <button onClick={() => handleRecommendedClick(r)} className={`px-4 py-2 rounded-xl font-medium text-sm ${isDark ? 'bg-primary/10 text-primary hover:bg-primary/20' : 'bg-primary/5 text-primary hover:bg-primary/10'} transition-all duration-300 hover:shadow-md`}>
-                  <i className="fas fa-arrow-right ml-1"></i>
+                  onClick={() => toggleTag(tag)}
+                  className={`text-xs px-3 py-1 rounded-full border transition-all ${
+                    selectedTags.includes(tag) 
+                      ? 'bg-white text-black border-white' 
+                      : 'bg-transparent text-white/70 border-white/20 hover:bg-white/10'
+                  }`}
+                >
+                  {tag}
                 </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      </Suspense>
-      
-      {/* 优化建议区域 */}
-      <div className="max-w-7xl mx-auto mb-10 animate-slide-up">
-        {creativeDirections.length > 0 && (
-          <div ref={creativeRef} className={`p-4 rounded-xl scroll-mt-24 ${isDark ? 'bg-gray-800 ring-1 ring-gray-700' : 'bg-white ring-1 ring-gray-200'} mb-3 transition-all duration-300 hover:shadow-md`}>
-            <div className="font-medium mb-2 text-primary">创意方向</div>
-            <div className="flex flex-wrap gap-2">
-              {creativeDirections.map((d, i) => (
-                <span key={i} className={`${isDark ? 'bg-gray-700 text-gray-200' : 'bg-gray-100 text-gray-800'} text-xs px-3 py-1 rounded-full transition-all duration-200 hover:bg-primary/10`}>{d}</span>
               ))}
             </div>
-          </div>
-        )}
-        {generatedText && (
-          <div ref={generatedRef} className={`p-4 rounded-xl scroll-mt-24 ${isDark ? 'bg-gray-800 ring-1 ring-gray-700' : 'bg-white ring-1 ring-gray-200'} mb-3 transition-all duration-300 hover:shadow-md`}>
-            <div className="font-medium mb-2 text-primary">AI生成</div>
-            <div className={`${isDark ? 'text-gray-300' : 'text-gray-700'} text-sm whitespace-pre-wrap`}>{generatedText}</div>
-            {isGenerating && (<div className={`${isDark ? 'text-gray-500' : 'text-gray-400'} text-xs mt-2`}>生成中…</div>)}
-          </div>
-        )}
-        {(diagnosedIssues.length > 0 || optimizationSummary || isOptimizing) && (
-          <div ref={optimizedRef} className={`p-4 rounded-xl scroll-mt-24 ${isDark ? 'bg-gray-800 ring-1 ring-gray-700' : 'bg-white ring-1 ring-gray-200'} transition-all duration-300 hover:shadow-md`}>
-            <div className="font-medium mb-2 text-primary">优化建议</div>
-            {isOptimizing && (
-              <div className={`mb-3 p-4 rounded-lg ${isDark ? 'bg-gray-700 ring-1 ring-gray-600' : 'bg-gray-50 ring-1 ring-gray-200'} `}>
-                <div className="flex items-center justify-center">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mr-2"></div>
-                  <div className="text-sm font-semibold text-primary">正在生成优化建议...</div>
-                </div>
-              </div>
-            )}
-            {optimizationSummary && (
-              <div className={`mb-3 p-4 rounded-lg ${isDark ? 'bg-gray-700 ring-1 ring-gray-600' : 'bg-gray-50 ring-1 ring-gray-200'} `}>
-                <div className="text-sm font-semibold mb-2 text-primary">AI优化说明</div>
-                <div aria-live="polite" className={`${isDark ? 'text-gray-200' : 'text-gray-800'} text-sm`}>
-                  {renderOptimizationSummary(optimizationSummary)}
-                </div>
-              </div>
-            )}
-            {diagnosedIssues.length > 0 && (
-              <ul className="list-disc pl-5 text-sm">
-                {diagnosedIssues.map((d, i) => (
-                  <li key={i} className={`${isDark ? 'text-gray-300' : 'text-gray-700'} transition-all duration-200 hover:text-primary`}>{d}</li>
-                ))}
-              </ul>
-            )}
-            <div className="mt-2 flex items-center gap-2 flex-wrap">
-              <button onClick={speakOptimizations} className={`text-xs px-3 py-1 rounded ${isDark ? 'bg-accent hover:bg-accent/90 text-white' : 'bg-accent hover:bg-accent/90 text-white'} transition-all duration-300 hover:shadow-sm`}>朗读建议</button>
-              <button onClick={copyOptimizations} className={`text-xs px-3 py-1 rounded ${isDark ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-900 ring-1 ring-gray-300'} transition-all duration-300 hover:shadow-sm`}>复制建议</button>
-              <button onClick={() => { navigate(`/create?from=home&query=${encodeURIComponent(optimizationSummary || search)}`) }} className={`text-xs px-3 py-1 rounded ${isDark ? 'bg-primary hover:bg-primary/90 text-white' : 'bg-primary hover:bg-primary/90 text-white'} transition-all duration-300 hover:shadow-sm`}>应用到创作中心</button>
-            </div>
-            {optimizeAudioUrl && (<audio controls src={optimizeAudioUrl} className={`mt-2 w-full rounded-lg ring-1 ${isDark ? 'ring-gray-700' : 'ring-gray-200'}`} />)}
-          </div>
-        )}
-      </div>
-      
-      {/* 为你推荐作品区域 */}
-      <div className="max-w-7xl mx-auto mb-8">
-        <div className="flex items-center justify-between mb-6 animate-slide-up">
-          <h2 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">{t('home.recommendedForYou')}</h2>
-          <button onClick={handleExplore} className="px-3 py-1.5 rounded-lg text-sm font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-all duration-300">{t('home.viewPortfolio')}</button>
-        </div>
-        <div ref={galleryRef} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 scroll-mt-24">
-          {gallery.map((item, idx) => (
-            <motion.div 
-              key={item.id} 
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6, delay: idx * 0.1 }}
-              whileHover={{ 
-                y: -8, 
-                boxShadow: isDark ? '0 25px 50px -12px rgba(245, 158, 11, 0.25)' : '0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 10px 10px -5px rgba(0, 0, 0, 0.05)' 
-              }}
-              className={`rounded-2xl overflow-hidden shadow-md transition-all duration-300 ${isDark ? 'bg-gradient-to-b from-gray-800 to-gray-900 ring-1 ring-gray-700 hover:ring-primary/50' : 'bg-gradient-to-b from-white to-gray-50 ring-1 ring-gray-200 hover:ring-primary/50'} cursor-pointer group`}
-              role="button"
-              tabIndex={0}
-              onClick={() => {
-                navigate(`/explore?q=${encodeURIComponent(item.title)}`)
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  navigate(`/explore?q=${encodeURIComponent(item.title)}`)
-                }
-              }}
-            >
-              <div className="relative aspect-video overflow-hidden rounded-t-2xl">
-                <motion.div 
-                  whileHover={{ scale: 1.1 }}
-                  transition={{ type: "spring", stiffness: 300 }}
-                >
-                  <TianjinImage 
-                    src={item.thumbnail} 
-                    alt={item.title} 
-                    ratio="landscape" 
-                    rounded="2xl" 
-                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" 
-                    disableFallback={false} 
-                  />
-                </motion.div>
-                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                <motion.span 
-                  whileHover={{ scale: 1.1, y: -2 }}
-                  className={`absolute top-4 right-4 text-sm px-4 py-2 rounded-full backdrop-blur-md ${isDark ? 'bg-gray-800/90 ring-1 ring-gray-700 text-gray-200' : 'bg-white/95 ring-1 ring-gray-200 text-gray-800'} shadow-lg transition-all duration-300 hover:shadow-xl`}
-                >
-                  <i className="far fa-heart mr-1 group-hover:text-red-500 transition-colors duration-300"></i>{item.likes}
-                </motion.span>
-                <motion.div 
-                  initial={{ opacity: 0, y: 10 }}
-                  whileHover={{ opacity: 1, y: 0 }}
-                  className={`absolute bottom-0 left-0 right-0 p-4 transform translate-y-full group-hover:translate-y-0 transition-all duration-300`}
-                >
-                  <span className={`inline-block px-3 py-1.5 rounded-full text-xs font-medium ${isDark ? 'bg-primary/90 text-white' : 'bg-primary text-white'} shadow-md`}>
-                    {item.category}
-                  </span>
-                </motion.div>
-              </div>
-              <div className={`p-6 ${isDark ? 'bg-gray-800' : 'bg-white'} transition-all duration-300`}>
-                <h3 className={`font-semibold text-lg md:text-xl transition-all duration-200 hover:text-primary ${isDark ? 'text-gray-100' : 'text-gray-900'} line-clamp-2 mb-3`}>{item.title}</h3>
-                <div className="flex items-center justify-between">
-                  <div className={`${isDark ? 'text-gray-300' : 'text-gray-600'} text-sm flex items-center`}>
-                    <i className="fas fa-star text-yellow-400 mr-1.5"></i>
-                    <span>精选创作 · 高质量示例</span>
-                  </div>
-                  <motion.button 
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.95 }}
-                    className={`px-3 py-1.5 rounded-lg text-sm font-medium ${isDark ? 'bg-primary/10 text-primary hover:bg-primary/20' : 'bg-primary/5 text-primary hover:bg-primary/10'} transition-all duration-300`}
-                  >
-                    查看详情
-                  </motion.button>
-                </div>
-              </div>
-            </motion.div>
-          ))}
-        </div>
-      </div>
-      
-      {/* 天津特色区域 */}
-      <div 
-        ref={tianjinRef}
-        className="container mx-auto w-full relative z-10 mb-12 scroll-mt-24"
-      >
-        <div className="flex justify-between items-center mb-8 animate-slide-up">
-          <h3 className="text-2xl font-bold flex items-center bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">
-            <i className="fas fa-landmark text-primary mr-2"></i>
-            {t('sidebar.tianjinFeatures')}
-          </h3>
-         <button 
-           onClick={() => navigate('/tianjin')}
-           className="flex items-center px-4 py-2 rounded-lg text-sm font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-all duration-300 hover:shadow-md"
-         >
-            {t('home.viewMore')}
-            <i className="fas fa-arrow-right ml-2"></i>
-          </button>
-        </div>
-        <div className="grid grid-cols-1 gap-6">
-         <div
-           className={`rounded-2xl overflow-hidden shadow-lg border ${isDark ? 'border-gray-700 hover:border-primary/50 bg-gradient-to-b from-gray-800 to-gray-800/90' : 'border-gray-200 hover:border-primary/50 bg-gradient-to-b from-white to-gray-50'} transition-all duration-300 hover:shadow-xl hover:-translate-y-2 cursor-pointer animate-slide-up-1 group`}
-           onClick={() => navigate('/tianjin')}
-           role="button"
-           tabIndex={0}
-           onKeyDown={(e) => {
-             if (e.key === 'Enter') {
-               navigate('/tianjin')
-             }
-           }}
-         >
-           <div className="relative aspect-video overflow-hidden rounded-t-2xl">
-             <TianjinImage
-                src="https://images.unsplash.com/photo-1571091718767-18b5b1457add?w=1920&h=1080&fit=crop"
-                alt="天津文化知识库封面"
-                ratio="landscape"
-                fit="cover"
-                className="transition-transform duration-700 group-hover:scale-110"
-                disableFallback={false}
-              />
-             <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-             <div className="absolute bottom-0 left-0 right-0 p-5 transform translate-y-full group-hover:translate-y-0 transition-transform duration-300">
-               <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium mb-2 ${isDark ? 'bg-primary/80 text-white' : 'bg-primary text-white'}`}>
-                 文化传承
-               </span>
-             </div>
-           </div>
-           <div className={`p-6 ${isDark ? 'bg-gray-800' : 'bg-white'} transition-all duration-300`}>
-             <h4 className={`font-bold mb-3 text-lg md:text-xl transition-colors duration-200 hover:text-primary ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>天津文化知识库</h4>
-             <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'} leading-relaxed`}>
-                探索天津独特的历史文化、非遗技艺和地方特色，感受津门文化的深厚底蕴。
-              </p>
-              <div className="mt-4 flex items-center text-primary text-sm font-medium group-hover:translate-x-1 transition-transform duration-300">
-                <span>立即探索</span>
-                <i className="fas fa-arrow-right ml-2"></i>
-              </div>
-           </div>
-         </div>
-         <div
-           className={`rounded-2xl overflow-hidden shadow-lg border ${isDark ? 'border-gray-700 hover:border-primary/50 bg-gradient-to-b from-gray-800 to-gray-800/90' : 'border-gray-200 hover:border-primary/50 bg-gradient-to-b from-white to-gray-50'} transition-all duration-300 hover:shadow-xl hover:-translate-y-2 cursor-pointer animate-slide-up-2 group`}
-           onClick={() => navigate('/tianjin')}
-           role="button"
-           tabIndex={0}
-           onKeyDown={(e) => {
-             if (e.key === 'Enter') {
-               navigate('/tianjin')
-             }
-           }}
-         >
-           <div className="relative aspect-video overflow-hidden rounded-t-2xl">
-             <TianjinImage
-                src="https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=1920&h=1080&fit=crop"
-                alt="津味共创活动封面"
-                ratio="landscape"
-                fit="cover"
-                className="transition-transform duration-700 group-hover:scale-110"
-                disableFallback={false}
-              />
-             <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-             <div className="absolute bottom-0 left-0 right-0 p-5 transform translate-y-full group-hover:translate-y-0 transition-transform duration-300">
-               <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium mb-2 ${isDark ? 'bg-primary/80 text-white' : 'bg-primary text-white'}`}>
-                 创作活动
-               </span>
-             </div>
-           </div>
-           <div className={`p-6 ${isDark ? 'bg-gray-800' : 'bg-white'} transition-all duration-300`}>
-             <h4 className={`font-bold mb-3 text-lg md:text-xl transition-colors duration-200 hover:text-primary ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>津味共创活动</h4>
-             <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'} leading-relaxed`}>
-                参与天津特色主题创作活动，展示津门文化魅力，与创作者们一起交流分享。
-              </p>
-              <div className="mt-4 flex items-center text-primary text-sm font-medium group-hover:translate-x-1 transition-transform duration-300">
-                <span>参与活动</span>
-                <i className="fas fa-arrow-right ml-2"></i>
-              </div>
-           </div>
-         </div>
-         <div
-           className={`rounded-2xl overflow-hidden shadow-lg border ${isDark ? 'border-gray-700 hover:border-primary/50 bg-gradient-to-b from-gray-800 to-gray-800/90' : 'border-gray-200 hover:border-primary/50 bg-gradient-to-b from-white to-gray-50'} transition-all duration-300 hover:shadow-xl hover:-translate-y-2 cursor-pointer animate-slide-up-3 group`}
-           onClick={() => navigate('/create')}
-           role="button"
-           tabIndex={0}
-           onKeyDown={(e) => {
-             if (e.key === 'Enter') {
-               navigate('/create')
-             }
-           }}
-         >
-           <div className="relative aspect-video overflow-hidden rounded-t-2xl">
-             <TianjinImage
-                src="https://images.unsplash.com/photo-1531297484001-80022131f5a1?w=1920&h=1080&fit=crop"
-                alt="方言指令创作封面"
-                ratio="landscape"
-                fit="cover"
-                className="transition-transform duration-700 group-hover:scale-110"
-                disableFallback={false}
-              />
-             <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-             <div className="absolute bottom-0 left-0 right-0 p-5 transform translate-y-full group-hover:translate-y-0 transition-transform duration-300">
-               <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium mb-2 ${isDark ? 'bg-primary/80 text-white' : 'bg-primary text-white'}`}>
-                 AI创作
-               </span>
-             </div>
-           </div>
-           <div className={`p-6 ${isDark ? 'bg-gray-800' : 'bg-white'} transition-all duration-300`}>
-             <h4 className={`font-bold mb-3 text-lg md:text-xl transition-colors duration-200 hover:text-primary ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>方言指令创作</h4>
-             <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'} leading-relaxed`}>
-                使用天津方言指令进行AI创作，体验独特的交互方式，生成具有天津特色的创意作品。
-              </p>
-              <div className="mt-4 flex items-center text-primary text-sm font-medium group-hover:translate-x-1 transition-transform duration-300">
-                <span>开始创作</span>
-                <i className="fas fa-arrow-right ml-2"></i>
-              </div>
-           </div>
-         </div>
-        </div>
-      </div>
-      
-      {/* 热门创作者推荐 */}
-      <div className="max-w-7xl mx-auto mb-16 scroll-mt-24">
-        <div className="flex items-center justify-between mb-8 animate-slide-up">
-          <h2 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">热门创作者</h2>
-          <button   onClick={handleExplore} className="px-3 py-1.5 rounded-lg text-sm font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-all duration-300 hover:shadow-md">查看全部创作者</button>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-5">
-          {popularCreators.map((creator, idx) => (
-            <motion.div 
-              key={idx}
-              initial={{ opacity: 0, scale: 0.9 }}
-              whileInView={{ opacity: 1, scale: 1 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.4, delay: idx * 0.08 }}
-              whileHover={{ 
-                y: -8, 
-                boxShadow: isDark ? '0 25px 50px -12px rgba(245, 158, 11, 0.25)' : '0 25px 50px -12px rgba(0, 0, 0, 0.25)' 
-              }}
-              className={`flex flex-col items-center p-5 rounded-2xl ${isDark ? 'bg-gradient-to-b from-gray-800 to-gray-800/90 ring-1 ring-gray-700 hover:ring-primary/50' : 'bg-gradient-to-b from-white to-gray-50 ring-1 ring-gray-200 hover:ring-primary/50'} transition-all duration-300 hover:shadow-xl cursor-pointer group`}
-              role="button"
-              tabIndex={0}
-              onClick={() => {
-                navigate(`/explore?creator=${encodeURIComponent(creator.name)}`)
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  navigate(`/explore?creator=${encodeURIComponent(creator.name)}`)
-                }
-              }}
-            >
-              <div className="relative w-24 h-24 mb-4 overflow-hidden rounded-full border-4 border-primary/20 group-hover:border-primary transition-all duration-300">
-                <div className="absolute inset-0 bg-gradient-to-r from-primary/50 to-primary/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                <motion.div 
-                  whileHover={{ scale: 1.1 }}
-                  transition={{ type: "spring", stiffness: 300 }}
-                >
-                  <TianjinImage 
-                    src={creator.avatar} 
-                    alt={creator.name} 
-                    rounded="full" 
-                    className="w-full h-full object-cover object-center"
-                    ratio="square"
-                    fit="cover"
-                    disableFallback={false}
-                  />
-                </motion.div>
-              </div>
-              <h3 className={`font-semibold text-base text-center ${isDark ? 'text-gray-100' : 'text-gray-900'} group-hover:text-primary transition-colors duration-300`}>{creator.name}</h3>
-              <motion.div 
-                whileHover={{ scale: 1.1, translateY: 1 }}
-                className="flex items-center gap-1 text-sm text-primary mt-2"
-              >
-                <i className="far fa-heart group-hover:text-red-500 transition-colors duration-300"></i>
-                <span>{creator.likes.toLocaleString()}</span>
-              </motion.div>
-              <motion.div 
-                whileHover={{ scale: 1.1, translateY: 1 }}
-                className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
-              >
-                {creator.works.length} 件作品
-              </motion.div>
-            </motion.div>
-          ))}
-        </div>
-      </div>
-      
-      {/* 最新作品展示 */}
-      <div className="max-w-7xl mx-auto mb-16 scroll-mt-24">
-        <div className="flex items-center justify-between mb-8 animate-slide-up">
-          <h2 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">最新作品</h2>
-          <button   onClick={handleExplore} className="px-3 py-1.5 rounded-lg text-sm font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-all duration-300 hover:shadow-md">查看全部作品</button>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-5">
-          {latestWorks.map((work, idx) => (
-            <motion.div 
-              key={work.id}
-              initial={{ opacity: 0, scale: 0.9 }}
-              whileInView={{ opacity: 1, scale: 1 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: idx * 0.08 }}
-              whileHover={{ 
-                y: -5, 
-                boxShadow: isDark ? '0 20px 25px -5px rgba(245, 158, 11, 0.2), 0 10px 10px -5px rgba(245, 158, 11, 0.1)' : '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)' 
-              }}
-              className={`rounded-2xl overflow-hidden shadow-lg transition-all duration-300 ${isDark ? 'bg-gradient-to-b from-gray-800 to-gray-800/90 ring-1 ring-gray-700 hover:ring-primary/50' : 'bg-gradient-to-b from-white to-gray-50 ring-1 ring-gray-200 hover:ring-primary/50'} cursor-pointer group`}
-              role="button"
-              tabIndex={0}
-              onClick={() => {
-                navigate(`/explore?q=${encodeURIComponent(work.title)}`)
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  navigate(`/explore?q=${encodeURIComponent(work.title)}`)
-                }
-              }}
-            >
-              <div className="relative aspect-video overflow-hidden rounded-t-2xl">
-                <motion.div 
-                  whileHover={{ scale: 1.1 }}
-                  transition={{ type: "spring", stiffness: 300 }}
-                >
-                  <TianjinImage 
-                    src={work.thumbnail} 
-                    alt={work.title} 
-                    ratio="landscape" 
-                    className="w-full h-full object-cover"
-                    disableFallback={false}
-                  />
-                </motion.div>
-                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                <motion.span 
-                  whileHover={{ scale: 1.1 }}
-                  className={`absolute top-3 right-3 text-sm px-3 py-1.5 rounded-full backdrop-blur-md ${isDark ? 'bg-gray-800/80 ring-1 ring-gray-700 text-gray-200' : 'bg-white/90 ring-1 ring-gray-200 text-gray-800'} shadow-md transition-all duration-300 group-hover:shadow-lg`}
-                >
-                  <i className="far fa-heart mr-1 group-hover:text-red-500 transition-colors duration-300"></i>{work.likes}
-                </motion.span>
-              </div>
-              <div className={`p-5 ${isDark ? 'bg-gray-800' : 'bg-white'} transition-all duration-300`}>
-                <h3 className={`font-semibold text-base transition-all duration-200 hover:text-primary ${isDark ? 'text-gray-100' : 'text-gray-900'} line-clamp-1`}>{work.title}</h3>
-                <span className={`text-xs px-3 py-1 rounded-full mt-2 inline-block ${isDark ? 'bg-primary/20 text-primary' : 'bg-primary/10 text-primary'} transition-all duration-300 hover:bg-primary/30`}>{work.category}</span>
-              </div>
-            </motion.div>
-          ))}
-        </div>
-      </div>
-      
-      {/* 热门标签云 */}
-      <div className="max-w-7xl mx-auto mb-16 scroll-mt-24">
-        <div className="flex items-center justify-between mb-8 animate-slide-up">
-          <h2 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">热门标签</h2>
-          <button onClick={handleExplore} className="px-3 py-1.5 rounded-lg text-sm font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-all duration-300 hover:shadow-md">查看全部标签</button>
-        </div>
-        <div className={`flex flex-wrap gap-4 p-8 rounded-2xl ${isDark ? 'bg-gradient-to-br from-gray-800 to-gray-900 ring-1 ring-gray-700' : 'bg-gradient-to-br from-white to-gray-50 ring-1 ring-gray-200'} shadow-sm hover:shadow-md transition-all duration-500`}>
-          {popularTags.map((tag, idx) => (
-            <motion.button
-              key={idx}
-              type="button"
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: idx * 0.05 }}
-              whileHover={{ 
-                scale: 1.08, 
-                y: -2, 
-                boxShadow: "0 10px 25px -5px rgba(59, 130, 246, 0.2)"
-              }}
-              whileTap={{ scale: 0.98 }}
-              className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 ${isDark ? 'bg-gray-700 text-gray-200 hover:bg-primary hover:text-white' : 'bg-gray-100 text-gray-800 hover:bg-primary hover:text-white'} border border-transparent hover:border-primary/30`}
-              onClick={() => {
-                navigate(`/explore?tags=${encodeURIComponent(tag)}`)
-              }}
-            >
-              <span className="relative inline-block">
-                <span className="absolute inset-0 bg-gradient-to-r from-primary/10 to-primary/5 rounded-xl opacity-0 hover:opacity-100 transition-opacity duration-300"></span>
-                <span className="relative z-10">{tag}</span>
-              </span>
-            </motion.button>
-          ))}
-        </div>
-      </div>
-      
-      {/* 核心功能介绍板块 */}
-      <div className="max-w-7xl mx-auto mb-16 scroll-mt-24">
-        <div className="flex items-center justify-between mb-8 animate-slide-up">
-          <h2 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">核心功能</h2>
-          <button onClick={() => navigate('/tools')} className="px-3 py-1.5 rounded-lg text-sm font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-all duration-300 hover:shadow-md">了解更多功能</button>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          <motion.div 
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6, delay: 0.1 }}
-            whileHover={{ 
-              y: -8, 
-              boxShadow: isDark ? '0 25px 50px -12px rgba(245, 158, 11, 0.25)' : '0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 10px 10px -5px rgba(0, 0, 0, 0.05)' 
-            }}
-            className={`rounded-2xl overflow-hidden shadow-lg transition-all duration-300 ${isDark ? 'bg-gradient-to-b from-gray-800 to-gray-800/90 ring-1 ring-gray-700 hover:ring-primary/50' : 'bg-gradient-to-b from-white to-gray-50 ring-1 ring-gray-200 hover:ring-primary/50'}`}
-          >
-            <div className="relative aspect-video overflow-hidden rounded-t-2xl">
-              <TianjinImage 
-                src="https://images.unsplash.com/photo-1633356122102-3fe601e05bd2?w=1920&h=1080&fit=crop"
-                alt="AI创意生成"
-                ratio="landscape" 
-                className="w-full h-full object-cover transition-transform duration-700 hover:scale-110" 
-                disableFallback={false} 
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent"></div>
-              <div className="absolute bottom-4 left-4">
-                <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${isDark ? 'bg-primary/80 text-white' : 'bg-primary text-white'}`}>
-                  AI 技术
-                </span>
-              </div>
-            </div>
-            <div className={`p-6 ${isDark ? 'bg-gray-800' : 'bg-white'} transition-all duration-300`}>
-              <h3 className={`font-bold text-lg mb-3 transition-colors duration-200 hover:text-primary ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>AI 创意生成</h3>
-              <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'} leading-relaxed mb-4`}>
-                利用先进的人工智能技术，快速生成符合天津文化特色的创意作品，支持多种风格和形式的创作。
-              </p>
-              <div className="flex items-center justify-between">
-                <div className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                  <i className="fas fa-magic mr-1"></i> 智能创作
-                </div>
-                <button onClick={() => navigate('/neo')} className={`px-3 py-1.5 rounded-lg text-sm font-medium ${isDark ? 'bg-primary/10 text-primary hover:bg-primary/20' : 'bg-primary/5 text-primary hover:bg-primary/10'} transition-all duration-300`}>
-                  立即体验
-                </button>
-              </div>
-            </div>
-          </motion.div>
-          
-          <motion.div 
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-            whileHover={{ 
-              y: -8, 
-              boxShadow: isDark ? '0 25px 50px -12px rgba(245, 158, 11, 0.25)' : '0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 10px 10px -5px rgba(0, 0, 0, 0.05)' 
-            }}
-            className={`rounded-2xl overflow-hidden shadow-lg transition-all duration-300 ${isDark ? 'bg-gradient-to-b from-gray-800 to-gray-800/90 ring-1 ring-gray-700 hover:ring-primary/50' : 'bg-gradient-to-b from-white to-gray-50 ring-1 ring-gray-200 hover:ring-primary/50'}`}
-          >
-            <div className="relative aspect-video overflow-hidden rounded-t-2xl">
-              <TianjinImage 
-                src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=1920&h=1080&fit=crop"
-                alt="共创社区"
-                ratio="landscape" 
-                className="w-full h-full object-cover transition-transform duration-700 hover:scale-110" 
-                disableFallback={false} 
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent"></div>
-              <div className="absolute bottom-4 left-4">
-                <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${isDark ? 'bg-primary/80 text-white' : 'bg-primary text-white'}`}>
-                  社区互动
-                </span>
-              </div>
-            </div>
-            <div className={`p-6 ${isDark ? 'bg-gray-800' : 'bg-white'} transition-all duration-300`}>
-              <h3 className={`font-bold text-lg mb-3 transition-colors duration-200 hover:text-primary ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>共创社区</h3>
-              <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'} leading-relaxed mb-4`}>
-                连接创作者、品牌和文化机构，构建开放的共创生态，促进天津文化的传承与创新。
-              </p>
-              <div className="flex items-center justify-between">
-                <div className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                  <i className="fas fa-users mr-1"></i> 协同创作
-                </div>
-                <button onClick={() => navigate('/community')} className={`px-3 py-1.5 rounded-lg text-sm font-medium ${isDark ? 'bg-primary/10 text-primary hover:bg-primary/20' : 'bg-primary/5 text-primary hover:bg-primary/10'} transition-all duration-300`}>
-                  加入社区
-                </button>
-              </div>
-            </div>
-          </motion.div>
-          
-          <motion.div 
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6, delay: 0.3 }}
-            whileHover={{ 
-              y: -8, 
-              boxShadow: isDark ? '0 25px 50px -12px rgba(245, 158, 11, 0.25)' : '0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 10px 10px -5px rgba(0, 0, 0, 0.05)' 
-            }}
-            className={`rounded-2xl overflow-hidden shadow-lg transition-all duration-300 ${isDark ? 'bg-gradient-to-b from-gray-800 to-gray-800/90 ring-1 ring-gray-700 hover:ring-primary/50' : 'bg-gradient-to-b from-white to-gray-50 ring-1 ring-gray-200 hover:ring-primary/50'}`}
-          >
-            <div className="relative aspect-video overflow-hidden rounded-t-2xl">
-              <TianjinImage 
-                src="https://images.unsplash.com/photo-1512820790803-83ca734da794?w=1920&h=1080&fit=crop"
-                alt="文化知识库"
-                ratio="landscape" 
-                className="w-full h-full object-cover transition-transform duration-700 hover:scale-110" 
-                disableFallback={false} 
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent"></div>
-              <div className="absolute bottom-4 left-4">
-                <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${isDark ? 'bg-primary/80 text-white' : 'bg-primary text-white'}`}>
-                  文化资源
-                </span>
-              </div>
-            </div>
-            <div className={`p-6 ${isDark ? 'bg-gray-800' : 'bg-white'} transition-all duration-300`}>
-              <h3 className={`font-bold text-lg mb-3 transition-colors duration-200 hover:text-primary ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>文化知识库</h3>
-              <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'} leading-relaxed mb-4`}>
-                整合天津历史文化资源，建立系统化的文化知识库，为创作者提供丰富的文化素材和灵感来源。
-              </p>
-              <div className="flex items-center justify-between">
-                <div className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                  <i className="fas fa-book mr-1"></i> 知识储备
-                </div>
-                <button onClick={() => navigate('/cultural-knowledge')} className={`px-3 py-1.5 rounded-lg text-sm font-medium ${isDark ? 'bg-primary/10 text-primary hover:bg-primary/20' : 'bg-primary/5 text-primary hover:bg-primary/10'} transition-all duration-300`}>
-                  探索知识
-                </button>
-              </div>
-            </div>
-          </motion.div>
-          
-          <motion.div 
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6, delay: 0.4 }}
-            whileHover={{ 
-              y: -8, 
-              boxShadow: isDark ? '0 25px 50px -12px rgba(245, 158, 11, 0.25)' : '0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 10px 10px -5px rgba(0, 0, 0, 0.05)' 
-            }}
-            className={`rounded-2xl overflow-hidden shadow-lg transition-all duration-300 ${isDark ? 'bg-gradient-to-b from-gray-800 to-gray-800/90 ring-1 ring-gray-700 hover:ring-primary/50' : 'bg-gradient-to-b from-white to-gray-50 ring-1 ring-gray-200 hover:ring-primary/50'}`}
-          >
-            <div className="relative aspect-video overflow-hidden rounded-t-2xl">
-              <TianjinImage 
-                src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=1920&h=1080&fit=crop"
-                alt="数据分析"
-                ratio="landscape" 
-                className="w-full h-full object-cover transition-transform duration-700 hover:scale-110" 
-                disableFallback={false} 
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent"></div>
-              <div className="absolute bottom-4 left-4">
-                <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${isDark ? 'bg-primary/80 text-white' : 'bg-primary text-white'}`}>
-                  数据驱动
-                </span>
-              </div>
-            </div>
-            <div className={`p-6 ${isDark ? 'bg-gray-800' : 'bg-white'} transition-all duration-300`}>
-              <h3 className={`font-bold text-lg mb-3 transition-colors duration-200 hover:text-primary ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>数据分析</h3>
-              <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'} leading-relaxed mb-4`}>
-                提供详细的创作数据和市场分析，帮助创作者了解作品表现，优化创作策略，提升创作效果。
-              </p>
-              <div className="flex items-center justify-between">
-                <div className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                  <i className="fas fa-chart-line mr-1"></i> 数据洞察
-                </div>
-                <button onClick={() => navigate('/analytics')} className={`px-3 py-1.5 rounded-lg text-sm font-medium ${isDark ? 'bg-primary/10 text-primary hover:bg-primary/20' : 'bg-primary/5 text-primary hover:bg-primary/10'} transition-all duration-300`}>
-                  查看数据
-                </button>
-              </div>
-            </div>
           </motion.div>
         </div>
       </div>
-      
-      {/* 功能介绍板块 */}
-      <div className="max-w-7xl mx-auto mb-16 scroll-mt-24">
-        <div className="flex items-center justify-between mb-8 animate-slide-up">
-          <h2 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">特色功能</h2>
-          <button onClick={() => navigate('/tools')} className="px-3 py-1.5 rounded-lg text-sm font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-all duration-300 hover:shadow-md">查看全部功能</button>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <motion.div 
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6, delay: 0.1 }}
-            whileHover={{ 
-              y: -8, 
-              boxShadow: isDark ? '0 25px 50px -12px rgba(245, 158, 11, 0.25)' : '0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 10px 10px -5px rgba(0, 0, 0, 0.05)' 
-            }}
-            className={`rounded-2xl overflow-hidden shadow-lg transition-all duration-300 ${isDark ? 'bg-gradient-to-b from-gray-800 to-gray-800/90 ring-1 ring-gray-700 hover:ring-primary/50' : 'bg-gradient-to-b from-white to-gray-50 ring-1 ring-gray-200 hover:ring-primary/50'}`}
-          >
-            <div className="relative aspect-video overflow-hidden rounded-t-2xl">
-              <TianjinImage 
-                src="https://images.unsplash.com/photo-1551107696-a4b0c5a0d9a2?w=1920&h=1080&fit=crop"
-                alt="方言指令创作"
-                ratio="landscape" 
-                className="w-full h-full object-cover transition-transform duration-700 hover:scale-110" 
-                disableFallback={false} 
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent"></div>
-              <div className="absolute bottom-4 left-4">
-                <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${isDark ? 'bg-primary/80 text-white' : 'bg-primary text-white'}`}>
-                  语音交互
-                </span>
-              </div>
-            </div>
-            <div className={`p-6 ${isDark ? 'bg-gray-800' : 'bg-white'} transition-all duration-300`}>
-              <h3 className={`font-bold text-lg mb-3 transition-colors duration-200 hover:text-primary ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>方言指令创作</h3>
-              <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'} leading-relaxed mb-4`}>
-                使用天津方言指令进行AI创作，体验独特的交互方式，生成具有天津特色的创意作品。
-              </p>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                    <i className="fas fa-microphone mr-1"></i> 语音输入
-                  </div>
-                  <div className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                    <i className="fas fa-language mr-1"></i> 方言识别
-                  </div>
-                </div>
-                <button onClick={() => navigate('/tools?feature=dialect')} className={`px-3 py-1.5 rounded-lg text-sm font-medium ${isDark ? 'bg-primary/10 text-primary hover:bg-primary/20' : 'bg-primary/5 text-primary hover:bg-primary/10'} transition-all duration-300`}>
-                  立即体验
-                </button>
-              </div>
-            </div>
-          </motion.div>
-          
-          <motion.div 
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-            whileHover={{ 
-              y: -8, 
-              boxShadow: isDark ? '0 25px 50px -12px rgba(245, 158, 11, 0.25)' : '0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 10px 10px -5px rgba(0, 0, 0, 0.05)' 
-            }}
-            className={`rounded-2xl overflow-hidden shadow-lg transition-all duration-300 ${isDark ? 'bg-gradient-to-b from-gray-800 to-gray-800/90 ring-1 ring-gray-700 hover:ring-primary/50' : 'bg-gradient-to-b from-white to-gray-50 ring-1 ring-gray-200 hover:ring-primary/50'}`}
-          >
-            <div className="relative aspect-video overflow-hidden rounded-t-2xl">
-              <TianjinImage 
-                src="https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=1920&h=1080&fit=crop"
-                alt="津味共创活动"
-                ratio="landscape" 
-                className="w-full h-full object-cover transition-transform duration-700 hover:scale-110" 
-                disableFallback={false} 
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent"></div>
-              <div className="absolute bottom-4 left-4">
-                <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${isDark ? 'bg-primary/80 text-white' : 'bg-primary text-white'}`}>
-                  社区活动
-                </span>
-              </div>
-            </div>
-            <div className={`p-6 ${isDark ? 'bg-gray-800' : 'bg-white'} transition-all duration-300`}>
-              <h3 className={`font-bold text-lg mb-3 transition-colors duration-200 hover:text-primary ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>津味共创活动</h3>
-              <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'} leading-relaxed mb-4`}>
-                参与天津特色主题创作活动，展示津门文化魅力，与创作者们一起交流分享，赢取丰厚奖励。
-              </p>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                    <i className="fas fa-calendar-alt mr-1"></i> 定期活动
-                  </div>
-                  <div className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                    <i className="fas fa-award mr-1"></i> 丰厚奖励
-                  </div>
-                </div>
-                <button onClick={() => navigate('/events')} className={`px-3 py-1.5 rounded-lg text-sm font-medium ${isDark ? 'bg-primary/10 text-primary hover:bg-primary/20' : 'bg-primary/5 text-primary hover:bg-primary/10'} transition-all duration-300`}>
-                  参与活动
-                </button>
-              </div>
-            </div>
-          </motion.div>
-          
-          <motion.div 
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6, delay: 0.3 }}
-            whileHover={{ 
-              y: -8, 
-              boxShadow: isDark ? '0 25px 50px -12px rgba(245, 158, 11, 0.25)' : '0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 10px 10px -5px rgba(0, 0, 0, 0.05)' 
-            }}
-            className={`rounded-2xl overflow-hidden shadow-lg transition-all duration-300 ${isDark ? 'bg-gradient-to-b from-gray-800 to-gray-800/90 ring-1 ring-gray-700 hover:ring-primary/50' : 'bg-gradient-to-b from-white to-gray-50 ring-1 ring-gray-200 hover:ring-primary/50'}`}
-          >
-            <div className="relative aspect-video overflow-hidden rounded-t-2xl">
-              <TianjinImage 
-                src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=1920&h=1080&fit=crop"
-                alt="文化知识图谱"
-                ratio="landscape" 
-                className="w-full h-full object-cover transition-transform duration-700 hover:scale-110" 
-                disableFallback={false} 
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent"></div>
-              <div className="absolute bottom-4 left-4">
-                <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${isDark ? 'bg-primary/80 text-white' : 'bg-primary text-white'}`}>
-                  知识可视化
-                </span>
-              </div>
-            </div>
-            <div className={`p-6 ${isDark ? 'bg-gray-800' : 'bg-white'} transition-all duration-300`}>
-              <h3 className={`font-bold text-lg mb-3 transition-colors duration-200 hover:text-primary ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>文化知识图谱</h3>
-              <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'} leading-relaxed mb-4`}>
-                可视化展示天津文化知识网络，探索文化元素之间的关联，为创作提供丰富的灵感来源和知识支撑。
-              </p>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                    <i className="fas fa-project-diagram mr-1"></i> 知识网络
-                  </div>
-                  <div className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                    <i className="fas fa-lightbulb mr-1"></i> 灵感启发
-                  </div>
-                </div>
-                <button onClick={() => navigate('/cultural-knowledge?feature=graph')} className={`px-3 py-1.5 rounded-lg text-sm font-medium ${isDark ? 'bg-primary/10 text-primary hover:bg-primary/20' : 'bg-primary/5 text-primary hover:bg-primary/10'} transition-all duration-300`}>
-                  探索图谱
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        </div>
-      </div>
-      
-      {/* 合作伙伴信息板块 */}
-      <div className="max-w-7xl mx-auto mb-16 scroll-mt-24">
-        <div className="flex items-center justify-between mb-8 animate-slide-up">
-          <h2 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">合作伙伴</h2>
-          <button onClick={() => navigate('/community')} className="px-3 py-1.5 rounded-lg text-sm font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-all duration-300 hover:shadow-md">了解合作方式</button>
-        </div>
-        <div className={`rounded-2xl p-8 ${isDark ? 'bg-gradient-to-br from-gray-800 to-gray-800/90 ring-1 ring-gray-700' : 'bg-gradient-to-br from-white to-gray-50 ring-1 ring-gray-200'}`}>
-          <p className={`text-center ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-8`}>
-            我们与众多知名品牌、文化机构和教育院校建立了长期稳定的合作关系，共同推动天津文化的数字化传承与创新。
-          </p>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
-            {['杨柳青年画社', '泥人张世家', '天津博物馆', '南开大学', '天津大学', '天津文化旅游局'].map((partner, idx) => (
+
+      {/* Main Content Area - Overlapping the Hero */}
+      <div className="relative z-30 -mt-20 pb-20">
+        
+        {/* 1. 创作中心 (Creative Hub) - Highlighted Cards */}
+        <div className="max-w-7xl mx-auto px-4 md:px-6 mb-32">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {[
+              { title: '创作工具', desc: 'AI辅助文案与图像生成', icon: 'tools', path: '/create', img: 'https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=800&q=80' },
+              { title: '灵感引擎', desc: '基于文化大数据的创意推荐', icon: 'bolt', path: '/neo', img: 'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?w=800&q=80' },
+              { title: '共创向导', desc: '新手友好的全流程引导', icon: 'hat-wizard', path: '/wizard', img: 'https://images.unsplash.com/photo-1596496050827-8299e0220de1?w=800&q=80' }
+            ].map((item, idx) => (
               <motion.div 
                 key={idx}
-                initial={{ opacity: 0, scale: 0.9 }}
-                whileInView={{ opacity: 1, scale: 1 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.4, delay: idx * 0.08 }}
-                whileHover={{ 
-                  y: -4, 
-                  boxShadow: isDark ? '0 10px 25px -5px rgba(245, 158, 11, 0.25)' : '0 10px 25px -5px rgba(0, 0, 0, 0.15)' 
-                }}
-                className={`p-6 rounded-xl text-center ${isDark ? 'bg-gray-700/50 hover:bg-gray-700' : 'bg-white/50 hover:bg-white'} transition-all duration-300`}
+                whileHover={{ y: -10 }}
+                className={`relative h-80 rounded-3xl overflow-hidden cursor-pointer group shadow-2xl ${isDark ? 'bg-gray-900' : 'bg-white'}`}
+                onClick={() => navigate(item.path)}
               >
-                <div className={`text-lg font-medium ${isDark ? 'text-gray-200 hover:text-primary' : 'text-gray-800 hover:text-primary'} transition-colors duration-300`}>
-                  {partner}
+                <TianjinImage 
+                  src={item.img} 
+                  alt={item.title} 
+                  className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 opacity-80 group-hover:opacity-100" 
+                  fallbackSrc="/images/placeholder-image.jpg"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-8 flex flex-col justify-end">
+                  <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center mb-4 text-white">
+                    <i className={`fas fa-${item.icon} text-xl`}></i>
+                  </div>
+                  <h3 className="text-2xl font-bold text-white mb-2">{item.title}</h3>
+                  <p className="text-white/70 text-sm font-medium">{item.desc}</p>
                 </div>
               </motion.div>
             ))}
           </div>
         </div>
-      </div>
-      
-      {/* 平台发展历程板块 */}
-      <div className="max-w-7xl mx-auto mb-16 scroll-mt-24">
-        <div className="flex items-center justify-between mb-8 animate-slide-up">
-          <h2 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">发展历程</h2>
-          <button onClick={() => navigate('/about')} className="px-3 py-1.5 rounded-lg text-sm font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-all duration-300 hover:shadow-md">了解更多历史</button>
-        </div>
-        <div className={`rounded-2xl p-8 ${isDark ? 'bg-gradient-to-br from-gray-800 to-gray-800/90 ring-1 ring-gray-700' : 'bg-gradient-to-br from-white to-gray-50 ring-1 ring-gray-200'}`}>
-          <div className="relative">
-            {/* 时间线 */}
-            <div className={`absolute left-0 md:left-1/2 top-0 bottom-0 w-0.5 ${isDark ? 'bg-gray-600' : 'bg-gray-300'} transform md:translate-x-[-50%]`}></div>
+
+        {/* 2. 发现天津 (Discovery) - Magazine Layout */}
+        <Section title="发现天津">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-auto lg:h-[500px]">
+            {/* Feature Article - Takes 7 cols */}
+            <div className="lg:col-span-7 h-full relative rounded-3xl overflow-hidden cursor-pointer group shadow-xl" onClick={() => navigate('/cultural-knowledge')}>
+               <TianjinImage 
+                 src="https://images.unsplash.com/photo-1512413914633-b5043f4041ea?w=800&q=80" 
+                 alt="文化知识" 
+                 className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" 
+                 fallbackSrc="/images/placeholder-image.jpg"
+               />
+               {/* Enhanced Overlay with Glassmorphism */}
+               <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-8 md:p-12 flex flex-col justify-end">
+                 <div className="transform transition-transform duration-500 group-hover:-translate-y-2">
+                   <TianjinTag color="red" className="mb-4 bg-red-600/90 border-none text-white shadow-lg backdrop-blur-md">
+                     <i className="fas fa-fire mr-1"></i> FEATURED
+                   </TianjinTag>
+                   <h3 className="text-3xl md:text-4xl font-bold text-white mb-4 leading-tight drop-shadow-lg">
+                     探寻津门非遗的<span className="text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-amber-600">现代新生</span>
+                   </h3>
+                   <p className="text-white/90 text-lg max-w-xl font-medium drop-shadow-md border-l-4 border-yellow-500 pl-4">
+                     深度解读天津历史、民俗与非遗文化，为创作提供严谨的文化背书。
+                   </p>
+                 </div>
+               </div>
+            </div>
             
-            {/* 时间点 1 */}
-            <motion.div 
-              initial={{ opacity: 0, x: -50 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6, delay: 0.1 }}
-              className="relative mb-12 md:mb-24"
-            >
-              <div className="flex flex-col md:flex-row items-center">
-                <div className="md:w-1/2 md:pr-12 md:text-right mb-6 md:mb-0">
-                  <div className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${isDark ? 'bg-primary/20 text-primary' : 'bg-primary/10 text-primary'} mb-3`}>
-                    2022 年 6 月
-                  </div>
-                  <h3 className={`text-xl font-bold mb-2 ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>平台正式启动</h3>
-                  <p className={`${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                    津脉智坊平台正式启动，致力于通过AI技术推动天津文化的数字化传承与创新。
-                  </p>
+            {/* Side Articles - Takes 5 cols */}
+            <div className="lg:col-span-5 flex flex-col gap-6 h-full">
+              {/* Tianjin Cultural Map Card */}
+              <div className={`flex-1 rounded-3xl p-8 relative overflow-hidden cursor-pointer group transition-all duration-300 hover:shadow-xl hover:-translate-y-1 ${isDark ? 'bg-gray-900' : 'bg-white border border-gray-100'}`} onClick={() => navigate('/tianjin-map')}>
+                {/* Background Image Overlay */}
+                <div className="absolute inset-0 opacity-[0.08] group-hover:opacity-[0.15] transition-opacity duration-500 bg-[url('https://images.unsplash.com/photo-1524661135-423995f22d0b?w=800&q=80')] bg-cover bg-center"></div>
+                
+                <div className="relative z-10 h-full flex flex-col justify-center">
+                   <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-100 to-blue-50 text-blue-600 flex items-center justify-center mb-4 shadow-sm group-hover:scale-110 transition-transform duration-300">
+                     <i className="fas fa-map-marked-alt text-xl"></i>
+                   </div>
+                   <h4 className={`text-2xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'} group-hover:text-blue-600 transition-colors`}>天津文化地图</h4>
+                   <p className={`text-base ${isDark ? 'text-gray-400' : 'text-gray-600'} group-hover:text-gray-900 dark:group-hover:text-gray-300 transition-colors`}>
+                     可视化探索文化地标，寻找身边的灵感。
+                   </p>
                 </div>
-                <div className={`z-10 w-6 h-6 rounded-full ${isDark ? 'bg-primary' : 'bg-primary'} border-4 ${isDark ? 'border-gray-800' : 'border-white'} shadow-lg`}></div>
-                <div className="md:w-1/2 md:pl-12 hidden md:block"></div>
-              </div>
-            </motion.div>
-            
-            {/* 时间点 2 */}
-            <motion.div 
-              initial={{ opacity: 0, x: 50 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-              className="relative mb-12 md:mb-24"
-            >
-              <div className="flex flex-col md:flex-row items-center">
-                <div className="md:w-1/2 md:pr-12 hidden md:block"></div>
-                <div className={`z-10 w-6 h-6 rounded-full ${isDark ? 'bg-primary' : 'bg-primary'} border-4 ${isDark ? 'border-gray-800' : 'border-white'} shadow-lg`}></div>
-                <div className="md:w-1/2 md:pl-12 mb-6 md:mb-0">
-                  <div className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${isDark ? 'bg-primary/20 text-primary' : 'bg-primary/10 text-primary'} mb-3`}>
-                    2023 年 3 月
-                  </div>
-                  <h3 className={`text-xl font-bold mb-2 ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>杨柳青年画数字化项目启动</h3>
-                  <p className={`${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                    与杨柳青年画社合作，启动传统年画数字化项目，利用AI技术将传统元素现代化。
-                  </p>
+                <div className="absolute -right-4 -bottom-4 opacity-5 transform rotate-12 group-hover:scale-110 group-hover:rotate-0 transition-all duration-700">
+                   <i className="fas fa-map-marked-alt text-9xl text-blue-600"></i>
                 </div>
               </div>
-            </motion.div>
-            
-            {/* 时间点 3 */}
-            <motion.div 
-              initial={{ opacity: 0, x: -50 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6, delay: 0.3 }}
-              className="relative mb-12 md:mb-24"
-            >
-              <div className="flex flex-col md:flex-row items-center">
-                <div className="md:w-1/2 md:pr-12 md:text-right mb-6 md:mb-0">
-                  <div className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${isDark ? 'bg-primary/20 text-primary' : 'bg-primary/10 text-primary'} mb-3`}>
-                    2023 年 10 月
-                  </div>
-                  <h3 className={`text-xl font-bold mb-2 ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>AI创意生成功能上线</h3>
-                  <p className={`${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                    平台上线AI创意生成功能，支持用户通过提示词生成符合天津文化特色的创意作品。
-                  </p>
+              
+              {/* Cultural News Card */}
+              <div className={`flex-1 rounded-3xl p-8 relative overflow-hidden cursor-pointer group transition-all duration-300 hover:shadow-xl hover:-translate-y-1 ${isDark ? 'bg-gray-900' : 'bg-white border border-gray-100'}`} onClick={() => navigate('/cultural-news')}>
+                {/* Background Image Overlay */}
+                <div className="absolute inset-0 opacity-[0.08] group-hover:opacity-[0.15] transition-opacity duration-500 bg-[url('https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=800&q=80')] bg-cover bg-center"></div>
+                
+                <div className="relative z-10 h-full flex flex-col justify-center">
+                   <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-purple-100 to-purple-50 text-purple-600 flex items-center justify-center mb-4 shadow-sm group-hover:scale-110 transition-transform duration-300">
+                     <i className="fas fa-newspaper text-xl"></i>
+                   </div>
+                   <h4 className={`text-2xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'} group-hover:text-purple-600 transition-colors`}>文化资讯速递</h4>
+                   <p className={`text-base ${isDark ? 'text-gray-400' : 'text-gray-600'} group-hover:text-gray-900 dark:group-hover:text-gray-300 transition-colors`}>
+                     获取最新的老字号动态与展览信息。
+                   </p>
                 </div>
-                <div className={`z-10 w-6 h-6 rounded-full ${isDark ? 'bg-primary' : 'bg-primary'} border-4 ${isDark ? 'border-gray-800' : 'border-white'} shadow-lg`}></div>
-                <div className="md:w-1/2 md:pl-12 hidden md:block"></div>
-              </div>
-            </motion.div>
-            
-            {/* 时间点 4 */}
-            <motion.div 
-              initial={{ opacity: 0, x: 50 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6, delay: 0.4 }}
-              className="relative"
-            >
-              <div className="flex flex-col md:flex-row items-center">
-                <div className="md:w-1/2 md:pr-12 hidden md:block"></div>
-                <div className={`z-10 w-6 h-6 rounded-full ${isDark ? 'bg-primary' : 'bg-primary'} border-4 ${isDark ? 'border-gray-800' : 'border-white'} shadow-lg`}></div>
-                <div className="md:w-1/2 md:pl-12 mb-6 md:mb-0">
-                  <div className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${isDark ? 'bg-primary/20 text-primary' : 'bg-primary/10 text-primary'} mb-3`}>
-                    2024 年 5 月
-                  </div>
-                  <h3 className={`text-xl font-bold mb-2 ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>文化旅游地图发布</h3>
-                  <p className={`${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                    发布交互式天津文化旅游地图，整合天津各区域文化资源，为游客提供个性化的文化旅游体验。
-                  </p>
+                <div className="absolute -right-4 -bottom-4 opacity-5 transform -rotate-12 group-hover:scale-110 group-hover:rotate-0 transition-all duration-700">
+                   <i className="fas fa-newspaper text-9xl text-purple-600"></i>
                 </div>
               </div>
-            </motion.div>
+            </div>
+          </div>
+        </Section>
+
+        {/* 3. 活动与挑战 (Events) - Horizontal Scroll */}
+        <Section title="活动与挑战">
+           <div className="flex gap-6 overflow-x-auto pb-8 snap-x snap-mandatory scrollbar-hide px-2">
+              {[
+                { 
+                  title: '津门老字号设计赛', 
+                  sub: '赢取万元大奖', 
+                  img: 'https://images.unsplash.com/photo-1576085898323-218337e3e43c?w=800&q=80', 
+                  tag: 'HOT', 
+                  tagColor: 'red',
+                  link: '/tianjin',
+                  icon: 'trophy',
+                  date: '进行中'
+                },
+                { 
+                  title: '商业品牌联名挑战', 
+                  sub: '连接商业价值', 
+                  img: 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=800&q=80', 
+                  tag: 'BUSINESS', 
+                  tagColor: 'blue',
+                  link: '/business',
+                  icon: 'handshake',
+                  date: '剩余12天'
+                },
+                { 
+                  title: '非遗数字藏品展', 
+                  sub: '作品征集中', 
+                  img: 'https://images.unsplash.com/photo-1550948537-130a1ce83314?w=800&q=80', 
+                  tag: 'NEW', 
+                  tagColor: 'green',
+                  link: '/events',
+                  icon: 'vr-cardboard',
+                  date: '即将开始'
+                }
+              ].map((item, idx) => (
+                <motion.div 
+                  key={idx}
+                  whileHover={{ y: -8 }}
+                  className="min-w-[320px] md:min-w-[420px] snap-center cursor-pointer group"
+                  onClick={() => navigate(item.link)}
+                >
+                   <div className="aspect-[16/9] rounded-3xl overflow-hidden relative mb-5 shadow-lg group-hover:shadow-2xl transition-all duration-300">
+                      <TianjinImage src={item.img} alt={item.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" fallbackSrc="/images/placeholder-image.jpg" />
+                      
+                      {/* Gradient Overlay */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-80"></div>
+                      
+                      {/* Tag */}
+                      <div className="absolute top-4 left-4">
+                        <TianjinTag color={item.tagColor as any} className="backdrop-blur-md shadow-lg border-white/20 text-white font-bold tracking-wider">
+                          {item.tag}
+                        </TianjinTag>
+                      </div>
+                      
+                      {/* Status/Date Badge */}
+                      <div className="absolute top-4 right-4 bg-black/40 backdrop-blur-md text-white/90 text-xs font-medium px-3 py-1.5 rounded-full border border-white/10 flex items-center gap-1.5">
+                        <span className={`w-1.5 h-1.5 rounded-full ${item.date === '进行中' ? 'bg-green-500 animate-pulse' : 'bg-yellow-500'}`}></span>
+                        {item.date}
+                      </div>
+
+                      {/* Content Overlay */}
+                      <div className="absolute bottom-0 left-0 w-full p-6 transform translate-y-2 group-hover:translate-y-0 transition-transform duration-300">
+                        <div className="flex items-center gap-3 mb-2">
+                           <div className={`w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-md bg-white/20 text-white border border-white/20`}>
+                             <i className={`fas fa-${item.icon}`}></i>
+                           </div>
+                           <h3 className="text-2xl font-bold text-white tracking-tight">{item.title}</h3>
+                        </div>
+                        <div className="flex justify-between items-center pl-1">
+                          <p className="text-white/80 text-sm font-medium">{item.sub}</p>
+                          <span className="w-8 h-8 rounded-full bg-white text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 transform scale-50 group-hover:scale-100 rotate-45 group-hover:rotate-0">
+                            <i className="fas fa-arrow-right text-sm"></i>
+                          </span>
+                        </div>
+                      </div>
+                   </div>
+                </motion.div>
+              ))}
+           </div>
+        </Section>
+
+        {/* 4. 灵感社区 (Community Hub) - Creators & Works */}
+        <Section title="灵感社区">
+          
+          {/* Active Creators Strip */}
+          <div className="mb-12">
+            <div className="flex items-center justify-between mb-6 px-2">
+               <h3 className={`text-lg font-bold flex items-center gap-2 ${isDark ? 'text-white' : 'text-gray-800'}`}>
+                 <span className="w-1.5 h-6 bg-gradient-to-b from-blue-500 to-purple-600 rounded-full"></span>
+                 活跃创作者
+               </h3>
+              <button
+                onClick={() => navigate('/community?context=creator')}
+                className="text-sm font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1 transition-colors"
+              >
+                 查看全部 <i className="fas fa-chevron-right text-xs"></i>
+               </button>
+            </div>
+            <div className="flex gap-6 overflow-x-auto pb-4 px-2 snap-x scrollbar-hide">
+               {popularCreators.map((creator, idx) => (
+                 <motion.div 
+                   key={idx}
+                   whileHover={{ y: -5 }}
+                   className="flex flex-col items-center min-w-[100px] snap-center cursor-pointer group"
+                 >
+                    <div className="relative mb-3">
+                      <TianjinAvatar 
+                        src={creator.avatar} 
+                        alt={creator.name} 
+                        size="xl" 
+                        variant="gradient"
+                        online={idx < 3}
+                        className="shadow-lg group-hover:shadow-xl transition-all"
+                      />
+                      <div className="absolute -bottom-2 -right-2 bg-white dark:bg-gray-800 rounded-full p-1 shadow-sm">
+                        <div className="bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 w-5 h-5 rounded-full flex items-center justify-center text-[10px]">
+                          <i className="fas fa-check"></i>
+                        </div>
+                      </div>
+                    </div>
+                    <span className={`text-sm font-medium mb-1 truncate max-w-[100px] ${isDark ? 'text-white' : 'text-gray-800'}`}>{creator.name}</span>
+                    <span className="text-xs text-gray-500 flex items-center gap-1">
+                      <i className="fas fa-heart text-red-400 text-[10px]"></i> {(creator.likes / 1000).toFixed(1)}k
+                    </span>
+                 </motion.div>
+               ))}
+               <motion.div 
+                 whileHover={{ scale: 1.05 }}
+                 className="flex flex-col items-center justify-center min-w-[100px] snap-center cursor-pointer"
+               >
+                  <div className={`w-16 h-16 rounded-full border-2 border-dashed flex items-center justify-center mb-3 ${isDark ? 'border-gray-700 bg-gray-800 text-gray-400' : 'border-gray-300 bg-gray-50 text-gray-500'}`}>
+                    <i className="fas fa-plus text-xl"></i>
+                  </div>
+                  <span className="text-sm font-medium text-gray-500">加入社区</span>
+               </motion.div>
+            </div>
+           </div>
+ 
+           {/* Popular Community Groups - Masonry Style */}
+           <div className="mb-12">
+             <div className="flex items-center justify-between mb-6 px-2">
+                <h3 className={`text-lg font-bold flex items-center gap-2 ${isDark ? 'text-white' : 'text-gray-800'}`}>
+                  <span className="w-1.5 h-6 bg-gradient-to-b from-yellow-400 to-orange-500 rounded-full"></span>
+                  热门社群
+                </h3>
+                <button className="text-sm font-medium text-orange-500 hover:text-orange-600 flex items-center gap-1 transition-colors">
+                  浏览更多 <i className="fas fa-arrow-right text-xs"></i>
+                </button>
+             </div>
+             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 px-2 auto-rows-[180px]">
+                {[
+                  { 
+                    title: '国潮设计社群', 
+                    desc: '国潮视觉与品牌体系',
+                    tags: ['国潮', '设计'],
+                    members: 1286,
+                    img: 'https://images.unsplash.com/photo-1558655146-d09347e92766?w=800&q=80',
+                  },
+                  { 
+                    title: '高校社团联名', 
+                    desc: '企划与视觉讨论',
+                    tags: ['高校', '联名'],
+                    members: 1014,
+                    img: 'https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=800&q=80',
+                  },
+                  { 
+                    title: 'AI艺术生成', 
+                    desc: '提示词与实战案例',
+                    tags: ['AI', '艺术'],
+                    members: 1542,
+                    img: 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=800&q=80',
+                  },
+                  { 
+                    title: '非遗数字化', 
+                    desc: '数字化案例传播',
+                    tags: ['非遗', '数字'],
+                    members: 892,
+                    img: 'https://images.unsplash.com/photo-1542744173-8e7e53415bb0?w=800&q=80',
+                  },
+                  { 
+                    title: '校园IP联名', 
+                    desc: '跨界合作交流',
+                    tags: ['IP', '校园'],
+                    members: 1002,
+                    img: 'https://images.unsplash.com/photo-1556761175-5973dc0f32e7?w=800&q=80',
+                  },
+                  { 
+                    title: '老字号企划', 
+                    desc: '商业合作讨论',
+                    tags: ['老字号', '企划'],
+                    members: 756,
+                    img: 'https://images.unsplash.com/photo-1504280390367-361c6d9f38f4?w=800&q=80',
+                  }
+                ].map((group, idx) => (
+                  <motion.div 
+                    key={idx}
+                    whileHover={{ y: -5 }}
+                    className={`relative rounded-2xl overflow-hidden cursor-pointer group shadow-md hover:shadow-xl transition-all duration-300 ${idx % 3 === 0 ? 'md:col-span-2 md:row-span-2' : 'md:col-span-1 md:row-span-2'}`}
+                  >
+                    <TianjinImage src={group.img} alt={group.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" fallbackSrc="/images/placeholder-image.jpg" />
+                    
+                    {/* Gradient Overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-90"></div>
+                    
+                    {/* Official Badge */}
+                    <div className="absolute top-3 right-3 bg-white/20 backdrop-blur-md border border-white/30 text-white text-[10px] px-2 py-0.5 rounded-full">
+                      官方认证
+                    </div>
+
+                    {/* Content */}
+                    <div className="absolute bottom-0 left-0 w-full p-5 flex flex-col justify-end h-full">
+                       <div className="transform translate-y-2 group-hover:translate-y-0 transition-transform duration-300">
+                         <div className="flex flex-wrap gap-2 mb-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                           {group.tags.map((tag, i) => (
+                             <span key={i} className="text-[10px] px-2 py-0.5 rounded-full bg-white/20 backdrop-blur-md text-white">
+                               #{tag}
+                             </span>
+                           ))}
+                         </div>
+                         <h4 className={`font-bold text-white mb-1 ${idx % 3 === 0 ? 'text-2xl' : 'text-lg'}`}>{group.title}</h4>
+                         <p className="text-white/80 text-xs mb-3 line-clamp-1">{group.desc}</p>
+                         
+                         <div className="flex items-center justify-between border-t border-white/20 pt-3">
+                            <span className="text-white/70 text-xs flex items-center gap-1">
+                              <i className="fas fa-user-friends"></i> {group.members}
+                            </span>
+                            <button className="bg-white text-black text-xs px-3 py-1 rounded-full font-bold opacity-0 group-hover:opacity-100 transition-opacity duration-300 transform translate-x-4 group-hover:translate-x-0">
+                              加入
+                            </button>
+                         </div>
+                       </div>
+                    </div>
+                  </motion.div>
+                ))}
+             </div>
+           </div>
+
+           {/* Community Moments - New Section */}
+           <div className="mb-12">
+             <div className="flex items-center justify-between mb-6 px-2">
+                <h3 className={`text-lg font-bold flex items-center gap-2 ${isDark ? 'text-white' : 'text-gray-800'}`}>
+                  <span className="w-1.5 h-6 bg-gradient-to-b from-green-500 to-teal-600 rounded-full"></span>
+                  社区动态
+                </h3>
+             </div>
+             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 px-2">
+                {[
+                  { img: 'https://images.unsplash.com/photo-1531482615713-2afd69097998?w=800&q=80', title: '线下创作者沙龙', date: '2023.10.15', loc: '意风区·钟书阁' },
+                  { img: 'https://images.unsplash.com/photo-1545989253-02cc26577f88?w=800&q=80', title: '非遗数字艺术展', date: '2023.11.02', loc: '天津美术馆' },
+                  { img: 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=800&q=80', title: '周末共创工坊', date: '每周末', loc: '智慧山艺术中心' }
+                ].map((moment, idx) => (
+                  <motion.div 
+                    key={idx}
+                    whileHover={{ y: -5 }}
+                    className="relative h-48 rounded-2xl overflow-hidden cursor-pointer group"
+                  >
+                    <TianjinImage src={moment.img} alt={moment.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" fallbackSrc="/images/placeholder-image.jpg" />
+                    <div className="absolute inset-0 bg-black/40 group-hover:bg-black/20 transition-colors duration-300"></div>
+                    <div className="absolute bottom-0 left-0 w-full p-4">
+                      <div className="flex justify-between items-end">
+                        <div>
+                          <h4 className="text-white font-bold text-lg mb-1">{moment.title}</h4>
+                          <p className="text-white/80 text-xs flex items-center gap-1">
+                            <i className="fas fa-map-marker-alt"></i> {moment.loc}
+                          </p>
+                        </div>
+                        <span className="text-white/60 text-xs bg-black/30 px-2 py-1 rounded backdrop-blur-sm">
+                          {moment.date}
+                        </span>
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+             </div>
+           </div>
+
+           {/* Featured Works Grid with Community Stats */}
+          <div className="mb-6 px-2">
+             <h3 className={`text-lg font-bold flex items-center gap-2 ${isDark ? 'text-white' : 'text-gray-800'}`}>
+               <span className="w-1.5 h-6 bg-gradient-to-b from-red-500 to-orange-600 rounded-full"></span>
+               精选作品
+             </h3>
+          </div>
+          
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+            {gallery.map((item, idx) => (
+              <motion.div 
+                key={item.id}
+                whileHover={{ y: -5 }}
+                className={`rounded-2xl overflow-hidden cursor-pointer group relative ${idx % 2 === 0 ? 'md:row-span-2' : ''} ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-md hover:shadow-xl transition-all duration-300`}
+                onClick={() => navigate(`/explore?q=${encodeURIComponent(item.title)}`)}
+              >
+                 <div className="relative w-full h-full min-h-[200px]">
+                    <TianjinImage src={item.thumbnail} alt={item.title} className="w-full h-full object-cover" fallbackSrc="/images/placeholder-image.jpg" />
+                    
+                    {/* Top Right Badges */}
+                    <div className="absolute top-3 right-3 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 translate-x-4 group-hover:translate-x-0">
+                       <span className="bg-black/60 backdrop-blur-md text-white text-xs px-2 py-1 rounded-lg flex items-center gap-1">
+                         <i className="fas fa-heart text-red-400"></i> {item.likes}
+                       </span>
+                       <span className="bg-black/60 backdrop-blur-md text-white text-xs px-2 py-1 rounded-lg flex items-center gap-1">
+                         <i className="fas fa-comment text-blue-400"></i> {item.comments}
+                       </span>
+                    </div>
+
+                    {/* Bottom Info Gradient */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4">
+                       <div className="transform translate-y-4 group-hover:translate-y-0 transition-transform duration-300">
+                         <h4 className="text-white font-bold truncate text-lg mb-1">{item.title}</h4>
+                         <div className="flex items-center justify-between">
+                           <div className="flex items-center gap-2">
+                              <TianjinAvatar src={item.creatorAvatar} alt={item.creator} size="xs" withBorder={false} />
+                              <span className="text-white/90 text-xs font-medium">{item.creator}</span>
+                           </div>
+                           <span className="text-white/70 text-[10px] bg-white/10 px-1.5 py-0.5 rounded">
+                             {item.category}
+                           </span>
+                         </div>
+                       </div>
+                    </div>
+                 </div>
+              </motion.div>
+            ))}
+          </div>
+          <div className="mt-12 text-center">
+            <button onClick={() => navigate('/explore')} className={`px-8 py-3 rounded-full font-medium transition-all shadow-lg hover:shadow-xl hover:-translate-y-1 ${isDark ? 'bg-white text-black hover:bg-gray-200' : 'bg-black text-white hover:bg-gray-800'}`}>
+              探索更多作品 <i className="fas fa-arrow-right ml-2"></i>
+            </button>
+          </div>
+        </Section>
+
+        {/* 5. 趣味互动 (Fun) - Minimalist Cards */}
+        <div className={`py-20 ${isDark ? 'bg-gray-950' : 'bg-gray-50'}`}>
+          <div className="max-w-7xl mx-auto px-4 md:px-6">
+             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                {[
+                  { title: '粒子艺术', icon: 'palette', color: 'text-pink-500', bg: 'bg-pink-100 dark:bg-pink-900/30', link: '/particle-art' },
+                  { title: '趣味游戏', icon: 'gamepad', color: 'text-purple-500', bg: 'bg-purple-100 dark:bg-purple-900/30', link: '/games' },
+                  { title: '积分商城', icon: 'gift', color: 'text-orange-500', bg: 'bg-orange-100 dark:bg-orange-900/30', link: '/points-mall' },
+                  { title: '人气榜单', icon: 'chart-line', color: 'text-blue-500', bg: 'bg-blue-100 dark:bg-blue-900/30', link: '/leaderboard' }
+                ].map((item, idx) => (
+                  <motion.div 
+                    key={idx}
+                    whileHover={{ y: -8, shadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)" }}
+                    className={`rounded-[2rem] p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-300 ${isDark ? 'bg-gray-900 border border-gray-800' : 'bg-white border border-gray-100'} shadow-sm`}
+                    onClick={() => navigate(item.link)}
+                  >
+                     <div className={`w-16 h-16 rounded-[1.2rem] ${item.bg} ${item.color} flex items-center justify-center text-3xl mb-6 shadow-sm`}>
+                       <i className={`fas fa-${item.icon}`}></i>
+                     </div>
+                     <h4 className={`text-lg font-bold ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>{item.title}</h4>
+                     <p className={`text-xs mt-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>点击探索</p>
+                  </motion.div>
+                ))}
+             </div>
           </div>
         </div>
+
       </div>
-
-
-    </section>
+    </div>
   );
 }

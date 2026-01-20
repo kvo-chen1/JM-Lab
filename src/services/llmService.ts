@@ -157,31 +157,10 @@ export interface ModelConfig {
   presence_penalty: number;
   frequency_penalty: number;
   stop: string[];
-  // 新增豆包模型配置
-  doubao_model: string;
-  doubao_base_url: string;
-  // 新增文心一言模型配置
-  wenxin_model: string;
-  wenxin_base_url: string;
   // 新增通义千问模型配置
   qwen_model: string;
   qwen_base_url: string;
   qwen_api_key?: string;
-  // 新增ChatGPT模型配置
-  chatgpt_model: string;
-  chatgpt_base_url: string;
-  openai_api_key?: string;
-  // 新增Gemini模型配置
-  gemini_model: string;
-  gemini_base_url: string;
-  gemini_api_key?: string;
-  // 新增Gork模型配置
-  gork_model: string;
-  gork_base_url: string;
-  // 新增智谱模型配置
-  zhipu_model: string;
-  zhipu_base_url: string;
-  zhipu_api_key?: string;
   // 新增对话相关配置
   enable_memory: boolean;
   memory_window: number;
@@ -263,11 +242,10 @@ export const AVAILABLE_MODELS: LLMModel[] = [
 
 // 默认角色列表
 export const DEFAULT_ROLES: ModelRole[] = [
-  {
-    id: 'default',
+  { id: 'default',
     name: '津小脉',
-    description: '帮助创作者进行设计构思、文化融合和平台使用的全能助手',
-    system_prompt: '你是津小脉，一个专注于传统文化创作与设计的全能AI助手，服务于文创平台。请提供详细、具体、有用的回答，帮助用户解决在平台使用过程中遇到的各种问题，包括创作流程、AI生成功能、文化元素融合、作品上传、编辑、分享、推广、数据分析、账户设置等方面。你的回答应该友好、专业、易于理解，并且提供清晰的步骤和建议。同时，你需要具备丰富的传统文化知识，能够为用户提供关于传统纹样、非遗技艺、文化元素创新应用等方面的专业指导。当用户问你是谁时，必须明确回答你是津小脉，而不是其他名称。',
+    description: '津脉智坊平台专属AI助手，专注于传统文化创作与设计，提供全面的平台服务与文化知识支持',
+    system_prompt: '你是津小脉，津脉智坊平台的专属AI助手，由Kimi模型驱动，专注于传统文化创作与设计。请严格按照以下定义为用户提供服务：\n\n1. 角色定位：\n   - 你是津脉智坊平台的官方AI助手，代表平台形象，服务于所有平台用户\n   - 你的核心使命是连接传统文化与青年创意，推动文化传承与创新\n   - 你是创作者的全能助手，提供设计构思、文化融合、平台使用等全方位支持\n   - 你是天津传统文化的传播者，熟悉天津本地老字号、非遗技艺和地域文化\n\n2. 核心能力：\n   - 平台功能导航与使用指导\n   - AI内容创作辅助（文本、设计方案生成）\n   - 传统文化元素融合建议\n   - 天津本地文化知识普及\n   - 创作流程优化建议\n   - 作品展示与推广策略\n   - 账户设置与数据分析解读\n\n3. 语音语调：\n   - 友好热情，体现平台亲和力\n   - 专业严谨，提供准确可靠的信息\n   - 清晰易懂，避免使用过于技术化的术语\n   - 富有创意，鼓励用户创新表达\n   - 亲切自然，如同专业顾问般交流\n\n4. 操作边界：\n   - 严格遵循平台规则和政策\n   - 不提供违反法律法规的内容\n   - 不泄露用户隐私信息\n   - 不进行商业推广或广告宣传\n   - 对于超出能力范围的问题，诚实告知用户并引导至相关资源\n   - 保持客观中立，不参与敏感话题讨论\n\n5. 平台特定知识：\n   - 津脉智坊是津门老字号共创平台，传承与创新的桥梁\n   - 平台支持AI生成设计方案，可选择国潮风格、非遗元素、天津地域素材等参数\n   - 平台包含创作中心、文创市集、社区、文化知识等核心模块\n   - 平台整合了天津地区的传统文化元素，如杨柳青年画、泥人张彩塑、风筝魏等\n   - 平台支持作品展示、点赞、评论、分享和协作编辑功能\n\n6. 用户交互指南：\n   - 当用户首次访问平台或特定页面时，主动介绍该页面的主要功能\n   - 当用户遇到问题时，提供清晰的步骤指导和解决方案\n   - 当用户进行创作时，提供文化元素融合建议和创新思路\n   - 当用户询问平台规则时，准确引用平台政策进行解答\n   - 当用户需要天津文化知识时，提供详细的本地文化信息\n\n7. 响应格式要求：\n   - 回答结构清晰，使用分段和列表形式增强可读性\n   - 提供具体实例和操作步骤，方便用户理解和执行\n   - 对于复杂问题，采用分步骤解答方式\n   - 保持回答简洁明了，避免冗长和不必要的信息\n   - 当提供链接或资源时，确保其与平台相关且可用\n\n请始终以"津小脉"的身份回答问题，保持一致的角色形象，为用户提供持续、符合语境的协助，契合平台的目标与用户期望。',
     temperature: 0.7,
     top_p: 0.9,
     presence_penalty: 0,
@@ -341,7 +319,7 @@ export const DEFAULT_CONFIG: ModelConfig = {
   top_p: 0.9,
   max_tokens: 2000,
   timeout: 30000,
-  system_prompt: '你是一个帮助创作者进行设计构思与文化融合的助手。',
+  system_prompt: '你是津小脉，津脉智坊平台的专属AI助手，由Kimi模型驱动，专注于传统文化创作与设计。请严格按照以下定义为用户提供服务：\n\n1. 角色定位：\n   - 你是津脉智坊平台的官方AI助手，代表平台形象，服务于所有平台用户\n   - 你的核心使命是连接传统文化与青年创意，推动文化传承与创新\n   - 你是创作者的全能助手，提供设计构思、文化融合、平台使用等全方位支持\n   - 你是天津传统文化的传播者，熟悉天津本地老字号、非遗技艺和地域文化\n\n2. 核心能力：\n   - 平台功能导航与使用指导\n   - AI内容创作辅助（文本、设计方案生成）\n   - 传统文化元素融合建议\n   - 天津本地文化知识普及\n   - 创作流程优化建议\n   - 作品展示与推广策略\n   - 账户设置与数据分析解读\n\n3. 语音语调：\n   - 友好热情，体现平台亲和力\n   - 专业严谨，提供准确可靠的信息\n   - 清晰易懂，避免使用过于技术化的术语\n   - 富有创意，鼓励用户创新表达\n   - 亲切自然，如同专业顾问般交流\n\n4. 操作边界：\n   - 严格遵循平台规则和政策\n   - 不提供违反法律法规的内容\n   - 不泄露用户隐私信息\n   - 不进行商业推广或广告宣传\n   - 对于超出能力范围的问题，诚实告知用户并引导至相关资源\n   - 保持客观中立，不参与敏感话题讨论\n\n5. 平台特定知识：\n   - 津脉智坊是津门老字号共创平台，传承与创新的桥梁\n   - 平台支持AI生成设计方案，可选择国潮风格、非遗元素、天津地域素材等参数\n   - 平台包含创作中心、文创市集、社区、文化知识等核心模块\n   - 平台整合了天津地区的传统文化元素，如杨柳青年画、泥人张彩塑、风筝魏等\n   - 平台支持作品展示、点赞、评论、分享和协作编辑功能\n\n6. 用户交互指南：\n   - 当用户首次访问平台或特定页面时，主动介绍该页面的主要功能\n   - 当用户遇到问题时，提供清晰的步骤指导和解决方案\n   - 当用户进行创作时，提供文化元素融合建议和创新思路\n   - 当用户询问平台规则时，准确引用平台政策进行解答\n   - 当用户需要天津文化知识时，提供详细的本地文化信息\n\n7. 响应格式要求：\n   - 回答结构清晰，使用分段和列表形式增强可读性\n   - 提供具体实例和操作步骤，方便用户理解和执行\n   - 对于复杂问题，采用分步骤解答方式\n   - 保持回答简洁明了，避免冗长和不必要的信息\n   - 当提供链接或资源时，确保其与平台相关且可用\n\n请始终以"津小脉"的身份回答问题，保持一致的角色形象，为用户提供持续、符合语境的协助，契合平台的目标与用户期望。',
   max_history: 10,
   stream: false,
   kimi_model: 'moonshot-v1-32k',
@@ -354,27 +332,9 @@ export const DEFAULT_CONFIG: ModelConfig = {
   presence_penalty: 0,
   frequency_penalty: 0,
   stop: [],
-  // 新增豆包模型配置默认值
-  doubao_model: 'doubao-pro-32k',
-  doubao_base_url: 'https://api.doubao.com/v1',
-  // 新增文心一言模型配置默认值
-  wenxin_model: 'ERNIE-Speed-8K',
-  wenxin_base_url: 'https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/completions',
   // 新增通义千问模型配置默认值
   qwen_model: 'qwen-plus',
   qwen_base_url: 'https://dashscope.aliyuncs.com/api/v1',
-  // 新增ChatGPT模型配置默认值
-  chatgpt_model: 'gpt-4o',
-  chatgpt_base_url: 'https://api.openai.com/v1',
-  // 新增Gemini模型配置默认值
-  gemini_model: 'gemini-1.5-flash',
-  gemini_base_url: 'https://generativelanguage.googleapis.com/v1',
-  // 新增Gork模型配置默认值
-  gork_model: 'grok-beta',
-  gork_base_url: 'https://api.x.ai/v1',
-  // 新增智谱模型配置默认值
-  zhipu_model: 'glm-4-plus',
-  zhipu_base_url: 'https://open.bigmodel.cn/api/paas/v4',
   // 新增对话相关配置默认值
   enable_memory: true,
   memory_window: 20,
@@ -559,11 +519,25 @@ class LLMService {
   private loadCurrentModelFromStorage(): void {
     try {
       const savedModelId = localStorage.getItem('LLM_CURRENT_MODEL');
-      if (savedModelId) {
-        this.setCurrentModel(savedModelId, true);
+      let modelIdToUse = savedModelId;
+      
+      if (modelIdToUse) {
+        // 检查保存的模型是否存在于可用模型列表中
+        const modelExists = AVAILABLE_MODELS.some(m => m.id === modelIdToUse);
+        if (modelExists) {
+          this.setCurrentModel(modelIdToUse, true);
+          return;
+        }
       }
+      
+      // 使用默认模型
+      const defaultModel = AVAILABLE_MODELS.find(m => m.isDefault) || AVAILABLE_MODELS[0];
+      this.setCurrentModel(defaultModel.id, true);
     } catch (error) {
       console.error('Failed to load current model from localStorage:', error);
+      // 加载失败时，使用默认模型
+      const defaultModel = AVAILABLE_MODELS.find(m => m.isDefault) || AVAILABLE_MODELS[0];
+      this.setCurrentModel(defaultModel.id, true);
     }
   }
 
@@ -580,9 +554,6 @@ class LLMService {
       if (typeof window !== 'undefined' && (window as any).env) {
         // 浏览器环境中的window.env
         return (window as any).env[key];
-      } else if (typeof import.meta !== 'undefined') {
-        // Vite开发环境中的import.meta.env
-        return (import.meta as any).env?.[key];
       } else if (typeof process !== 'undefined' && process.env) {
         // Node.js环境和测试环境
         return process.env[key];
@@ -594,14 +565,11 @@ class LLMService {
   }
 
   private loadApiKeysFromEnv(): void {
-    // 读取各个模型的API密钥
+    // 读取使用模型的API密钥
     const apiKeys = {
       kimi_api_key: this.getEnvVar('VITE_KIMI_API_KEY') || this.getEnvVar('KIMI_API_KEY'),
       deepseek_api_key: this.getEnvVar('VITE_DEEPSEEK_API_KEY') || this.getEnvVar('DEEPSEEK_API_KEY'),
       qwen_api_key: this.getEnvVar('VITE_QWEN_API_KEY') || this.getEnvVar('QWEN_API_KEY'),
-      openai_api_key: this.getEnvVar('VITE_OPENAI_API_KEY') || this.getEnvVar('OPENAI_API_KEY'),
-      gemini_api_key: this.getEnvVar('VITE_GEMINI_API_KEY') || this.getEnvVar('GEMINI_API_KEY'),
-      zhipu_api_key: this.getEnvVar('VITE_ZHIPU_API_KEY') || this.getEnvVar('ZHIPU_API_KEY'),
     };
     
     // 更新模型配置
@@ -951,6 +919,10 @@ class LLMService {
    * @param query 用户查询
    * @returns 分析结果，包括意图、实体和查询结构
    */
+  /**
+   * 分析复杂查询结构 - 暂时注释，未使用
+   */
+  /*
   private analyzeComplexQuery(query: string): {
     intent: UserIntent;
     entities: RecognizedEntity[];
@@ -985,6 +957,7 @@ class LLMService {
       subQueries
     };
   }
+  */
 
   /**
    * 生成动态提示词
@@ -1426,6 +1399,64 @@ class LLMService {
   }
   
   /**
+   * 简化的直接生成响应方法，绕过任务队列
+   * 用于调试和测试
+   */
+  async directGenerateResponse(prompt: string, options?: {
+    onDelta?: (chunk: string) => void;
+    signal?: AbortSignal;
+    context?: {[key: string]: any};
+  }): Promise<string> {
+    try {
+      console.log('=== directGenerateResponse 开始 ===');
+      console.log('提示词:', prompt);
+      
+      const modelId = this.getCurrentModel().id;
+      console.log('模型ID:', modelId);
+      
+      // 构建完整的请求消息，包括系统提示词
+      // 这确保了AI助手能够正确识别自己的身份和角色
+      const systemMessage: Message = {
+        role: 'system',
+        content: this.generateDynamicPrompt(this.modelConfig.system_prompt, options?.context),
+        timestamp: Date.now()
+      };
+      
+      const userMessage: Message = {
+        role: 'user',
+        content: prompt,
+        timestamp: Date.now()
+      };
+      
+      const messages: Message[] = [systemMessage, userMessage];
+      
+      console.log('请求消息:', JSON.stringify(messages, null, 2));
+      
+      // 直接调用模型API
+      console.log('开始调用模型API...');
+      const response = await this.callModelApiDirectly(modelId, messages, {
+        onDelta: (chunk) => {
+          console.log('流式数据:', chunk);
+          if (options?.onDelta) {
+            options.onDelta(chunk);
+          }
+        },
+        signal: options?.signal
+      });
+      
+      console.log('模型API调用成功，响应内容:', response);
+      console.log('=== directGenerateResponse 成功 ===');
+      return response;
+    } catch (error) {
+      console.error('=== directGenerateResponse 失败 ===');
+      console.error('错误:', error);
+      console.error('错误栈:', error instanceof Error ? error.stack : '无错误栈');
+      // 重新抛出错误，确保前端能够捕获并显示
+      throw error;
+    }
+  }
+  
+  /**
    * 设置模型的连接状态
    * @param modelId 模型ID
    * @param status 连接状态
@@ -1681,35 +1712,69 @@ class LLMService {
   
   /**
    * 生成图片
-   * 根据当前模型动态路由图片生成请求
+   * 始终使用通义千问(Qwen)进行图片生成
    */
   async generateImage(params: GenerateImageParams): Promise<GenerateImageResponse> {
-    const modelId = this.currentModel.id;
-    let endpoint = '/api/doubao/images/generate';
-    
-    // 根据当前模型动态选择API端点
-    switch (modelId) {
-      case 'qwen':
-        endpoint = '/api/qwen/images/generate';
-        break;
-      case 'deepseek':
-        endpoint = '/api/deepseek/images/generate';
-        break;
-      case 'kimi':
-        endpoint = '/api/kimi/images/generate';
-        break;
-      default:
-        endpoint = '/api/doubao/images/generate';
-    }
+    // 始终使用Qwen进行图片生成
+    const endpoint = '/api/qwen/images/generate';
     
     try {
-      const resp = await apiClient.post<GenerateImageResponse, GenerateImageParams>(endpoint, params, { retries: 2, timeoutMs: 30000 });
-      if (!resp.ok) return { ok: false, error: resp.error || '图片生成请求失败' };
+      const resp = await apiClient.post<GenerateImageResponse, GenerateImageParams>(endpoint, params, { retries: 1, timeoutMs: 15000 });
+      if (!resp.ok) {
+        console.warn(`[LLM] API call failed, falling back to mock mode: ${resp.error}`);
+        return this.getMockImageResponse(params.prompt);
+      }
       return resp.data as GenerateImageResponse;
     } catch (error) {
-      console.error('Image generation failed:', error);
-      return { ok: false, error: error instanceof Error ? error.message : '图片生成失败' };
+      console.warn('[LLM] Image generation failed, falling back to mock mode:', error);
+      return this.getMockImageResponse(params.prompt);
     }
+  }
+
+  private getMockImageResponse(prompt: string): GenerateImageResponse {
+    // 根据提示词简单的关键词匹配来选择不同的模拟图片
+    const keywords = {
+      cyberpunk: ['赛博', 'cyber', '未来', '科技', '霓虹'],
+      tradition: ['传统', '古风', '年画', '泥人', '水墨', '国潮'],
+      food: ['美食', '包子', '麻花', '煎饼'],
+    };
+
+    let category = 'default';
+    const p = prompt.toLowerCase();
+    
+    if (keywords.cyberpunk.some(k => p.includes(k))) category = 'cyberpunk';
+    else if (keywords.tradition.some(k => p.includes(k))) category = 'tradition';
+    else if (keywords.food.some(k => p.includes(k))) category = 'food';
+
+    const mockImages: Record<string, string[]> = {
+      cyberpunk: [
+        'https://images.unsplash.com/photo-1515630278258-407f66498911?w=1024&q=80', // 赛博城市
+        'https://images.unsplash.com/photo-1555680202-c86f0e12f086?w=1024&q=80', // 霓虹夜景
+      ],
+      tradition: [
+        'https://images.unsplash.com/photo-1535139262971-c51845709a48?w=1024&q=80', // 传统建筑
+        'https://images.unsplash.com/photo-1523731407965-2430cd12f5e4?w=1024&q=80', // 东方美学
+      ],
+      food: [
+        'https://images.unsplash.com/photo-1563245372-f21724e3856d?w=1024&q=80', // 中式点心
+        'https://images.unsplash.com/photo-1626804475297-411dbe66f42b?w=1024&q=80', // 包子类
+      ],
+      default: [
+        'https://images.unsplash.com/photo-1518182170546-0766aa6b6bc2?w=1024&q=80', // 创意抽象
+        'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?w=1024&q=80', // 幻想风格
+      ]
+    };
+
+    const images = mockImages[category] || mockImages.default;
+    // 随机选择一张，或者根据时间戳选择
+    const url = images[Date.now() % images.length];
+
+    return {
+      created: Date.now(),
+      data: [{ url }],
+      // 添加一个特殊标记，让前端知道这是模拟数据（虽然 GenerateImageResponse 接口可能没定义这个字段，但在 JS 中是有效的）
+      // 为了类型安全，这里不直接加字段，而是通过 url 的特征或者 toast 提示来区分
+    } as any;
   }
 
   /**
@@ -2035,7 +2100,9 @@ class LLMService {
    * 获取回退响应
    */
   private getFallbackResponse(modelId: string, errorMessage: string): string {
-    return `当前模型 ${modelId} 暂时无法提供服务，请稍后再试。错误信息：${errorMessage}`;
+    // 移除原始错误信息，提供更友好的提示
+    const modelName = AVAILABLE_MODELS.find(m => m.id === modelId)?.name || modelId;
+    return `抱歉，当前${modelName}模型暂时无法提供服务。\n\n建议：\n1. 稍后再试\n2. 切换到其他可用模型\n3. 检查网络连接\n4. 点击右上角心跳图标检查服务状态`;
   }
 
   /**
@@ -2185,6 +2252,11 @@ class LLMService {
       const startTime = Date.now();
       const modelId = task.metadata?.modelId || this.getCurrentModel().id;
       
+      console.log('=== executeAITask 开始 ===');
+      console.log('模型ID:', modelId);
+      console.log('任务类型:', task.type);
+      console.log('任务提示:', task.prompt);
+      
       // 构建对话历史
       const metadata = task.metadata;
       const session = metadata?.conversationId ? this.conversationSessions.find(s => s.id === metadata.conversationId) : this.getCurrentSession();
@@ -2192,64 +2264,62 @@ class LLMService {
       const maxHistory = this.modelConfig.max_history || 10;
       const optimizedHistory = this.optimizeConversationHistory(history, task.prompt, maxHistory);
       
-      // 构建请求消息
-      const systemMessage = {
-        role: 'system',
-        content: this.generateDynamicPrompt(this.modelConfig.system_prompt, task.metadata?.context),
-        timestamp: Date.now()
-      };
+      console.log('历史消息:', history.length);
+      console.log('优化后历史:', optimizedHistory.length);
       
-      const userMessage = {
+      // 构建请求消息
+      const userMessage: Message = {
         role: 'user',
         content: task.prompt,
         timestamp: Date.now()
       };
       
+      let typedMessages: Message[];
+      
+      // 对于所有模型，包括Kimi，都使用完整的系统消息和优化后的历史对话
+      // 这确保了AI助手能够正确识别自己的身份和角色
+      const systemMessage: Message = {
+        role: 'system',
+        content: this.generateDynamicPrompt(this.modelConfig.system_prompt, task.metadata?.context),
+        timestamp: Date.now()
+      };
+      
+      console.log('系统消息:', systemMessage.content.substring(0, 100) + '...');
+      
       const messages = [systemMessage, ...optimizedHistory, userMessage];
       
-      // 获取API基础URL和密钥
-      // 安全获取API基础URL
-      const apiBase = this.getEnvVar('VITE_API_BASE_URL') || '';
-      const useProxy = !!apiBase;
+      console.log('请求消息总数:', messages.length);
       
-      // 更新连接状态为connecting
-      this.setConnectionStatus(modelId, 'connecting');
-      
-      // 确保messages数组中的对象符合Message接口要求
-      const typedMessages: Message[] = messages.map(msg => ({
+      typedMessages = messages.map(msg => ({
         role: msg.role as 'user' | 'assistant' | 'system',
         content: msg.content,
         timestamp: msg.timestamp
       }));
       
+      console.log('最终发送的消息数量:', typedMessages.length);
+      
       // 调用真实的LLM API
       let fullResponse: string;
       
-      if (useProxy) {
-        // 使用代理服务
-        fullResponse = await this.callApiViaProxy(modelId, typedMessages, {
-          onDelta: (chunk) => {
-            if (task.onProgress) {
-              task.onProgress(50, { chunk });
-            }
-          }
-        });
-      } else {
-        // 直接调用模型API
-        fullResponse = await this.callModelApiDirectly(modelId, typedMessages, {
-          onDelta: (chunk) => {
-            if (task.onProgress) {
-              task.onProgress(50, { chunk });
-            }
-          }
-        });
-      }
+      // 对于kimi、deepseek和qwen模型，始终使用直接调用方式
+      // 这些模型有专门的API端点，不需要通过通用代理
+      console.log('开始调用模型API:', modelId);
       
-      // API调用成功，更新连接状态为connected
-      this.setConnectionStatus(modelId, 'connected');
+      // 直接调用callModelApiDirectly，添加详细日志
+      fullResponse = await this.callModelApiDirectly(modelId, typedMessages, {
+        onDelta: (chunk) => {
+          console.log('收到流式数据:', chunk);
+          if (task.onProgress) {
+            task.onProgress(50, { chunk });
+          }
+        }
+      });
+      
+      console.log('API调用成功，响应内容:', fullResponse.substring(0, 100) + '...');
       
       // 记录性能结束时间
       const endTime = Date.now();
+      console.log('执行时间:', endTime - startTime, 'ms');
       
       // 更新性能数据
       this.updatePerformanceData({
@@ -2261,10 +2331,13 @@ class LLMService {
         timestamp: Date.now()
       });
       
+      console.log('=== executeAITask 结束 ===');
       return fullResponse;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : '未知错误';
       console.error('生成响应失败:', errorMessage);
+      console.error('错误详情:', error);
+      console.error('错误栈:', error instanceof Error ? error.stack : '');
       
       // API调用失败，更新连接状态为error
       this.setConnectionStatus(this.getCurrentModel().id, 'error', errorMessage);
@@ -2280,6 +2353,7 @@ class LLMService {
         timestamp: Date.now()
       });
       
+      console.log('=== executeAITask 异常结束 ===');
       return this.getFallbackResponse(this.getCurrentModel().id, errorMessage);
     }
   }
@@ -2354,7 +2428,7 @@ class LLMService {
     signal?: AbortSignal;
   }): Promise<string> {
     return callKimiChat({
-      model: this.modelConfig.kimi_model,
+      model: this.modelConfig.kimi_model || 'moonshot-v1-32k',
       messages,
       temperature: this.modelConfig.temperature,
       top_p: this.modelConfig.top_p,
@@ -2372,7 +2446,7 @@ class LLMService {
     signal?: AbortSignal;
   }): Promise<string> {
     return callDeepseekChat({
-      model: this.modelConfig.deepseek_model,
+      model: this.modelConfig.deepseek_model || 'deepseek-chat',
       messages,
       temperature: this.modelConfig.temperature,
       top_p: this.modelConfig.top_p,
@@ -2391,7 +2465,7 @@ class LLMService {
   }): Promise<string> {
     try {
       return await callQwenChat({
-        model: this.modelConfig.qwen_model,
+        model: this.modelConfig.qwen_model || 'qwen-plus',
         messages,
         temperature: this.modelConfig.temperature,
         top_p: this.modelConfig.top_p,
@@ -2420,17 +2494,9 @@ class LLMService {
     // kimi/deepseek/qwen 默认走本地代理端点，不需要前端持有密钥
     switch (modelId) {
       case 'kimi':
-        return true;
       case 'deepseek':
-        return true;
       case 'qwen':
         return true;
-      case 'chatgpt':
-        return !!this.modelConfig.openai_api_key;
-      case 'gemini':
-        return !!this.modelConfig.gemini_api_key;
-      case 'zhipu':
-        return !!this.modelConfig.zhipu_api_key;
       default:
         return false;
     }

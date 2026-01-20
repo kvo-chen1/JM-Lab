@@ -2,6 +2,7 @@
 import errorService from '../services/errorService';
 import securityService from '../services/securityService';
 import { recordNetworkRequest } from '../utils/performanceMonitor';
+import eventBus from './eventBus'; // 导入事件总线
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 
@@ -320,8 +321,9 @@ const debounceStore: Map<string, NodeJS.Timeout> = new Map()
 const throttleStore: Map<string, { lastRan: number; inThrottle: boolean }> = new Map()
 
 const getBaseUrl = () => {
-  // 硬编码返回后端服务器地址，确保API请求发送到正确的端口
-  return 'http://localhost:3010'
+  // 在开发环境下使用相对路径，让请求通过Vite代理
+  // 在生产环境下可以配置为真实的API地址
+  return ''
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
@@ -465,6 +467,12 @@ export async function apiRequest<TResp, TBody = unknown>(
       // 记录缓存命中
       console.log(`API Cache Hit: ${method} ${path} (stale: ${cachedResult.isStale})`);
       
+      // 发布缓存命中事件
+      eventBus.publish('数据:刷新', { 
+        type: 'api-cache-hit', 
+        payload: { path, method, stale: cachedResult.isStale } 
+      });
+      
       // 如果数据过期但未失效，返回缓存数据并在后台重新验证
       if (cachedResult.isStale) {
         // 在后台重新验证缓存
@@ -473,6 +481,11 @@ export async function apiRequest<TResp, TBody = unknown>(
             console.warn('Cache revalidation failed:', error);
             // 记录缓存重新验证错误
             console.error(`Cache Revalidation Failed: ${method} ${path}`, error);
+            // 发布缓存重新验证失败事件
+            eventBus.publish('数据:刷新', { 
+              type: 'api-cache-revalidation-failed', 
+              payload: { path, method, error: error.message } 
+            });
           });
       }
       
@@ -512,6 +525,12 @@ export async function apiRequest<TResp, TBody = unknown>(
         const startTime = performance.now()
         const timestamp = Date.now()
         
+        // 发布请求开始事件
+        eventBus.publish('数据:刷新', { 
+          type: 'api-request-start', 
+          payload: { path, method, url: target, body: options.body, timestamp } 
+        });
+        
         console.log(`API Client: 开始请求 ${method} ${target}`)
         console.log(`API Client: 请求参数`, options.body)
         
@@ -549,14 +568,23 @@ export async function apiRequest<TResp, TBody = unknown>(
         const contentLength = res.headers.get('content-length')
         const size = contentLength ? parseInt(contentLength, 10) : 0
         
-        // 记录请求日志
-        console.log(`API Request: ${method} ${path} ${res.status} (${duration.toFixed(2)}ms)`)
+        console.log(`API Client: 收到响应 ${method} ${target} ${res.status} (${duration.toFixed(2)}ms)`)
         
         // 解析响应
         const contentType = res.headers.get('content-type')
         let data: any
         if (contentType?.includes('application/json')) {
-          data = await res.json()
+          try {
+            data = await res.json()
+          } catch (jsonError) {
+            // 捕获JSON解析错误，提供友好的中文提示
+            const errorMessage = jsonError instanceof Error ? jsonError.message : 'JSON解析错误'
+            if (errorMessage.includes('Unexpected end of JSON input')) {
+              data = { error: '服务器返回的JSON格式无效，缺少必要内容', originalError: errorMessage }
+            } else {
+              data = { error: '服务器返回的JSON格式无效', originalError: errorMessage }
+            }
+          }
         } else {
           // 非JSON响应作为文本处理
           data = await res.text()
@@ -582,6 +610,11 @@ export async function apiRequest<TResp, TBody = unknown>(
               ttl: cacheOptions.ttl,
               staleTtl: cacheOptions.staleTtl
             })
+            // 发布缓存更新事件
+            eventBus.publish('数据:刷新', { 
+              type: 'api-cache-updated', 
+              payload: { path, method, cacheKey: requestKey } 
+            });
           }
           
           // 记录网络请求性能数据
@@ -595,6 +628,12 @@ export async function apiRequest<TResp, TBody = unknown>(
             fromCache: false,
             retries: 0,
           })
+          
+          // 发布请求成功事件
+          eventBus.publish('数据:刷新', { 
+            type: 'api-request-success', 
+            payload: { path, method, url: target, status: res.status, data: responseData, duration } 
+          });
           
           // 返回统一格式的响应
           return { ok: true, status: res.status, data: responseData as TResp, fromCache: false }
@@ -650,6 +689,12 @@ export async function apiRequest<TResp, TBody = unknown>(
           error: errorMessage,
         })
         
+        // 发布请求失败事件
+        eventBus.publish('数据:刷新', { 
+          type: 'api-request-error', 
+          payload: { path, method, url: target, status: res.status, error: errorMessage, data: errorData, duration } 
+        });
+        
         // 抛出错误
         throw error
       } catch (error) {
@@ -671,6 +716,13 @@ export async function apiRequest<TResp, TBody = unknown>(
           error: error instanceof Error ? error.message : 'Unknown error',
         })
         
+        // 发布请求重试事件
+        const errorObj = error as Error
+        eventBus.publish('数据:刷新', { 
+          type: 'api-request-retry', 
+          payload: { path, method, attempt, retries, error: errorObj.message, timeoutMs } 
+        });
+        
         // 如果是最后一次尝试，或者错误不可重试，抛出错误
         if (attempt > retries || !retryableErrors.some(code => error instanceof Error && error.message.includes(code))) {
           // 如果未使用回退URL，尝试使用回退URL
@@ -682,10 +734,18 @@ export async function apiRequest<TResp, TBody = unknown>(
           
           // 回退URL也失败了，返回统一格式的错误响应
           const finalError = error as Error
+          const finalErrorMessage = finalError.message || 'Unknown error'
+          
+          // 发布请求最终失败事件
+          eventBus.publish('数据:刷新', { 
+            type: 'api-request-failed', 
+            payload: { path, method, url: useFallback ? altUrl : url, error: finalErrorMessage, retries: attempt - 1 } 
+          });
+          
           return {
             ok: false,
             status: 500,
-            error: finalError.message || 'Unknown error',
+            error: finalErrorMessage,
             data: null as any,
             fromCache: false
           }
@@ -700,10 +760,16 @@ export async function apiRequest<TResp, TBody = unknown>(
     }
     
     // 这个return语句理论上不会被执行，因为while循环中已经处理了所有情况
+    const finalErrorMessage = 'Max retries exceeded'
+    eventBus.publish('数据:刷新', { 
+      type: 'api-request-failed', 
+      payload: { path, method, url: useFallback ? altUrl : url, error: finalErrorMessage, retries: retries } 
+    });
+    
     return {
       ok: false,
       status: 500,
-      error: 'Max retries exceeded',
+      error: finalErrorMessage,
       data: null as any,
       fromCache: false
     }

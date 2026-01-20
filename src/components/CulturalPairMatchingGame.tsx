@@ -28,6 +28,7 @@ const CulturalPairMatchingGame: React.FC<CulturalPairMatchingGameProps> = ({ isO
   const [isLoading, setIsLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState(0);
   const [showHint, setShowHint] = useState(false);
+  const [hintItemIds, setHintItemIds] = useState<string[]>([]); // 当前高亮提示的配对项ID
   
   // 加载游戏数据
   useEffect(() => {
@@ -159,10 +160,13 @@ const CulturalPairMatchingGame: React.FC<CulturalPairMatchingGameProps> = ({ isO
       
       if (unmatchedPairs.length > 0) {
         const hintPair = unmatchedPairs[0];
+        const hintIds = [hintPair.item1.id, hintPair.item2.id]; // 需要高亮的这对配对项ID
+        setHintItemIds(hintIds); // 记录当前提示的配对项
         setShowHint(true);
         
         // 高亮显示提示的配对项
         setTimeout(() => {
+          setHintItemIds([]); // 提示结束后清空高亮
           setShowHint(false);
         }, 2000);
         
@@ -446,10 +450,7 @@ const CulturalPairMatchingGame: React.FC<CulturalPairMatchingGameProps> = ({ isO
                   {allItems.map((item) => {
                     const isSelected = selectedItems.includes(item.id);
                     const isMatched = matchedPairs.has(item.id);
-                    const isHinted = showHint && selectedLevel.pairs.some((pair: Pair) => 
-                      (pair.item1.id === item.id || pair.item2.id === item.id) && 
-                      !matchedPairs.has(item.id)
-                    );
+                    const isHinted = showHint && hintItemIds.includes(item.id); // 仅高亮当前提示的那一对配对项
                     
                     return (
                       <motion.div

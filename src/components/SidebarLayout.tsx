@@ -461,8 +461,8 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
           '1': '/',
           '2': '/explore',
           '3': '/create',
-          '4': '/neo',
-          '5': '/wizard',
+          '4': '/create/inspiration',
+          '5': '/create/wizard',
           '6': '/square',
           '7': '/knowledge',
           '8': '/tianjin',
@@ -506,16 +506,16 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
     };
   };
 
-  // 中文注释：暗色主题下的导航项采用白色文字，提升对比度和可读性
+  // 中文注释：暗色主题下的导航项悬停时变白，背景使用透明度白色
   // 统一导航项高度和内边距，避免激活时布局变化
   const navItemClass = useMemo(() => (
-    `${isDark ? 'text-white hover:bg-[var(--bg-hover)]' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'} flex items-center px-3 py-2 rounded-lg transition-all duration-200`
+    `${isDark ? 'hover:text-white hover:bg-white/10 text-[13px]' : 'hover:bg-[var(--bg-hover)]'} flex items-center px-3 py-2 rounded-lg transition-all duration-200`
   ), [isDark])
 
   // 中文注释：主题激活态使用CSS变量，确保主题变化时样式同步更新
   // 优化激活状态样式，确保不影响整体布局
   const activeClass = useMemo(() => (
-    `${isDark ? 'bg-[var(--bg-tertiary)] text-white ring-1 ring-[var(--accent-red)] shadow-[var(--shadow-md)]' : 'bg-gradient-to-r from-red-50 to-red-100 text-[var(--text-primary)] border-b-2 border-red-600 font-semibold shadow-sm relative overflow-hidden group active-nav-item'} border-t border-transparent`
+    `${isDark ? 'bg-gradient-to-r from-red-900/30 to-transparent text-white border-l-2 border-red-500 font-medium shadow-md' : 'bg-gradient-to-r from-red-50 to-red-100 text-[var(--text-primary)] border-b-2 border-red-600 font-semibold shadow-sm relative overflow-hidden group active-nav-item'} border-t border-transparent`
   ), [isDark])
 
   const { currentLanguage, changeLanguage, languages } = useLanguage()
@@ -553,15 +553,17 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
     'points-mall': 'sidebar.pointsMall',
     'brand': 'sidebar.brandCooperation',
     'business': 'sidebar.businessCooperation',
-    'developers': 'sidebar.developers',
     'about': 'sidebar.aboutUs'
   }
 
   // 导航分组ID到翻译键名的映射
   const navGroupIdToTranslationKey: Record<string, string> = {
-    'core': 'sidebar.commonFunctions',
-    'cocreation': 'sidebar.coCreation',
-    'tianjin': 'sidebar.tianjinFeatures',
+    'platform': 'sidebar.platform',
+    'creation': 'sidebar.creationCenter', // Reusing existing key if possible or new one
+    'community': 'sidebar.community',
+    'events': 'sidebar.events',
+    'discovery': 'sidebar.discovery',
+    'entertainment': 'sidebar.entertainment',
     'more': 'sidebar.moreServices'
   }
 
@@ -585,7 +587,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
     if (p.startsWith('/create')) return t('sidebar.creationCenter')
     if (p.startsWith('/drafts')) return t('common.drafts')
     if (p.startsWith('/generate')) return t('common.aiGenerationEngine')
-    if (p.startsWith('/neo')) return t('sidebar.inspirationEngine')
+    if (p.startsWith('/create/inspiration')) return t('sidebar.inspirationEngine')
     if (p.startsWith('/lab')) return t('sidebar.newWindowLab')
     if (p.startsWith('/wizard')) return t('sidebar.coCreationGuide')
     if (p.startsWith('/admin')) return t('common.adminConsole')
@@ -666,9 +668,9 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
         style={{ width: (collapsed && !hovered && !isPinned) ? 72 : width, transition: 'width 0.2s ease-in-out' }}
       >
         <div className={`px-4 py-3 flex items-center justify-between rounded-lg transition-colors group ${isDark ? 'hover:bg-gray-800/60' : theme === 'pink' ? 'hover:bg-pink-50' : 'hover:bg-gray-50'}`}>
-          <div className="flex items-center space-x-2">
-            <span className={`font-extrabold bg-gradient-to-r ${isDark ? 'from-red-400 to-rose-500' : 'from-red-600 to-rose-500'} bg-clip-text text-transparent tracking-tight`}>{t('common.appNameBrand')}</span>
-            {(!collapsed || hovered) && <span className={`font-bold ${isDark ? 'text-white' : ''}`}>{t('common.appNameProduct')}</span>}
+          <div className="flex items-center space-x-2 overflow-hidden">
+            {(!collapsed || hovered || isPinned) && <span className={`font-extrabold bg-gradient-to-r ${isDark ? 'from-red-400 to-rose-500' : 'from-red-600 to-rose-500'} bg-clip-text text-transparent tracking-tight whitespace-nowrap`}>{t('common.appNameBrand')}</span>}
+            {(!collapsed || hovered || isPinned) && <span className={`font-bold ${isDark ? 'text-white' : ''} whitespace-nowrap`}>{t('common.appNameProduct')}</span>}
           </div>
           <div className="flex items-center space-x-1">
             {/* 固定/收缩按钮 */}
@@ -701,9 +703,9 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
 
         <nav className="px-2 pt-2 pb-4 space-y-4">
           {navigationGroups.map((group) => (
-            <div key={group.id} className={`rounded-lg ${isDark ? 'bg-[#1a1f2e]/50 backdrop-blur-sm' : 'bg-gray-50'} p-3 transition-all duration-300`}>
-              {(!collapsed || hovered || isPinned) && (
-                <h3 className={`text-xs font-semibold mb-2 uppercase tracking-wider ${isDark ? 'text-blue-400' : 'text-blue-600'} flex items-center transition-all duration-300 ease-in-out opacity-100`}>
+            <div key={group.id} className={`rounded-lg ${isDark ? 'bg-white/5 backdrop-blur-sm border border-white/5' : 'bg-gray-50'} p-3 transition-all duration-300`}>
+              {(!collapsed || hovered || isPinned) && group.id !== 'platform' && group.id !== 'creation' && (
+                <h3 className={`${isDark ? 'text-[8px] text-gray-400' : 'text-[11px] text-blue-600'} font-medium mb-1 uppercase tracking-wide flex items-center transition-all duration-300 ease-in-out opacity-100`}>
                   <span className="mr-2 w-1.5 h-1.5 rounded-full bg-current"></span>
                   {t(navGroupIdToTranslationKey[group.id] || group.id)}
                 </h3>
@@ -715,7 +717,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                     to={`${item.path}${item.search || ''}`}
                     title={collapsed && !hovered && !isPinned ? t(navItemIdToTranslationKey[item.id] || item.id) : undefined} 
                     onMouseEnter={() => debouncedPrefetch(item.path)} 
-                    className={({ isActive }) => `${navItemClass} ${isActive ? activeClass : ''} relative overflow-hidden group ${(collapsed && !hovered && !isPinned) ? 'justify-center px-2 py-2.5' : ''}`}
+                    className={({ isActive }) => `${navItemClass} ${isActive ? activeClass : (isDark ? 'text-gray-400' : 'text-[var(--text-secondary)]')} relative overflow-hidden group ${(collapsed && !hovered && !isPinned) ? 'justify-center px-2 py-2.5' : ''}`}
                   > 
                     <i className={`fas ${item.icon} ${(collapsed && !hovered && !isPinned) ? 'mr-0' : 'mr-2'} transition-all duration-300 group-hover:scale-110 group-hover:rotate-5`}></i>
                     {(!collapsed || hovered || isPinned) && <span className="transition-all duration-300 ease-in-out opacity-100">{t(navItemIdToTranslationKey[item.id] || item.id)}</span>}
@@ -752,7 +754,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
         {/* 中文注释：暗色头部采用半透明背景与毛玻璃，弱化硬边 */}
         <header className={`sticky top-0 z-40 ${isDark ? 'bg-[#0b0e13]/80 backdrop-blur-sm' : theme === 'pink' ? 'bg-white/80 backdrop-blur-sm' : 'bg-white'} border-b ${isDark ? 'border-gray-800' : theme === 'pink' ? 'border-pink-200' : 'border-gray-200'} px-4 py-3`}>
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-3 flex-shrink-0">
               <button
                 className={`p-2 rounded-lg ${isDark ? 'hover:bg-gray-800 ring-1 ring-gray-700' : 'hover:bg-gray-50 ring-1 ring-gray-200'}`}
                 onClick={() => setCollapsed(!collapsed)}
@@ -760,11 +762,11 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
               >
                 <i className="fas fa-bars"></i>
               </button>
-              <h2 className="text-lg font-bold">{title}</h2>
+              <h2 className="text-lg font-bold whitespace-nowrap">{title}</h2>
             </div>
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-3 flex-1 justify-end min-w-0">
               {/* 中文注释：搜索框 - 使用增强的SearchBar组件 */}
-              <div className="relative search-container max-w-md flex-shrink-0">
+              <div className="relative search-container max-w-md w-full">
                 <SearchBar
                   search={search}
                   setSearch={handleSearchChange}
@@ -968,6 +970,9 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                         </li>
                         <li>
                           <button className={`w-full text-left px-4 py-2 ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}`} onClick={() => { setShowUserMenu(false); navigate('/analytics') }}>{t('header.analytics')}</button>
+                        </li>
+                        <li>
+                          <button className={`w-full text-left px-4 py-2 ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}`} onClick={() => { setShowUserMenu(false); navigate('/activities') }}>{t('sidebar.activityManagement')}</button>
                         </li>
                         <li>
                           <button className={`w-full text-left px-4 py-2 ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}`} onClick={() => { setShowUserMenu(false); navigate('/membership') }}>{t('header.membershipCenter')}</button>

@@ -72,7 +72,7 @@ class EventCalendarService {
       startTime: '00:00',
       endTime: '23:59',
       organizer: '津脉智坊',
-      image: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1920x1080&prompt=Guochao%20cultural%20creative%20design%20competition%20banner',
+      image: 'https://images.pexels.com/photos/2379005/pexels-photo-2379005.jpeg?auto=compress&cs=tinysrgb&w=800',
       tags: ['国潮', '设计', '大赛'],
       culturalElements: ['中国传统纹样', '中国传统色彩', '传统工艺'],
       participantCount: 128,

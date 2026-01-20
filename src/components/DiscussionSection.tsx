@@ -206,17 +206,17 @@ export const CommunityDiscussion: React.FC<CommunityDiscussionProps> = ({
 
   // 提交新帖子
   const submitThread = () => {
-    const t = newTitle.trim();
-    const c = newContent.trim();
+    const title = newTitle.trim();
+    const content = newContent.trim();
     const BANNED = ['广告', '违规'];
     
-    if (!t || !c) return;
-    if (BANNED.some(w => t.includes(w) || c.includes(w))) return;
+    if (!title || !content) return;
+    if (BANNED.some(w => title.includes(w) || content.includes(w))) return;
     
     const thread: Thread = {
       id: `t-${Date.now()}`,
-      title: t,
-      content: c,
+      title,
+      content,
       createdAt: Date.now(),
       replies: [],
       topic: mode === 'style' ? selectedStyle : selectedTopic,
@@ -229,7 +229,7 @@ export const CommunityDiscussion: React.FC<CommunityDiscussionProps> = ({
     
     onNewTitleChange('');
     onNewContentChange('');
-    toast.success(t('community.discussion.postCreated'));
+    toast.success(String(t('community.discussion.postCreated')));
   };
 
   // 恢复草稿
@@ -540,50 +540,50 @@ export const CommunityDiscussion: React.FC<CommunityDiscussionProps> = ({
           />
           
           <div className="space-y-3">
-            {filteredThreads.map(t => (
+            {filteredThreads.map(thread => (
               <motion.div 
-                key={t.id} 
+                key={thread.id} 
                 whileHover={{ y: -2 }} 
                 className={`${isDark ? 'bg-gray-700 ring-1 ring-gray-700' : 'bg-gray-50 ring-1 ring-gray-200'} rounded-xl p-4`}
               >
                 <div className="flex justify-between items-center">
                   <div className="font-medium flex items-center gap-2">
-                    {t.title}
-                    {t.topic && (
+                    {thread.title}
+                    {thread.topic && (
                       <span className={`text-[10px] px-2 py-0.5 rounded-full ring-1 ${isDark ? 'bg-gray-800 text-gray-300 ring-gray-600' : 'bg-gray-100 text-gray-600 ring-gray-200'}`}>
-                        #{t.topic}
+                        #{thread.topic}
                       </span>
                     )}
-                    {t.pinned && <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-600 text-white">置顶</span>}
+                    {thread.pinned && <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-600 text-white">置顶</span>}
                     {/* New Badge: 24小时内的新帖 */}
-                    {(Date.now() - t.createdAt) < 24 * 60 * 60 * 1000 && (
+                    {(Date.now() - thread.createdAt) < 24 * 60 * 60 * 1000 && (
                       <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-500 text-white">新</span>
                     )}
                   </div>
                   <div className="flex items-center gap-2">
                     <button 
-                      onClick={() => upvote(t.id)}
+                      onClick={() => upvote(thread.id)}
                       aria-label="点赞帖子"
                       className="px-3 py-1 rounded-lg text-xs bg-red-600 text-white hover:bg-red-700 transition-colors"
                     >
-                      点赞 {t.upvotes || 0}
+                      点赞 {thread.upvotes || 0}
                     </button>
                     <button 
-                      onClick={() => toggleFavoriteThread(t.id)}
+                      onClick={() => toggleFavoriteThread(thread.id)}
                       aria-label="收藏帖子"
-                      className={`${favoriteThreads.includes(t.id) ? 'bg-blue-600 text-white' : (isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-900')} px-3 py-1 rounded-lg text-xs ring-1 ${isDark ? 'ring-gray-700' : 'ring-gray-200'} transition-colors`}
+                      className={`${favoriteThreads.includes(thread.id) ? 'bg-blue-600 text-white' : (isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-900')} px-3 py-1 rounded-lg text-xs ring-1 ${isDark ? 'ring-gray-700' : 'ring-gray-200'} transition-colors`}
                     >
-                      {favoriteThreads.includes(t.id) ? '已收藏' : '收藏'}
+                      {favoriteThreads.includes(thread.id) ? '已收藏' : '收藏'}
                     </button>
                     <button 
-                      onClick={() => togglePin(t.id)}
-                      aria-label={t.pinned ? '取消置顶' : '置顶'}
+                      onClick={() => togglePin(thread.id)}
+                      aria-label={thread.pinned ? '取消置顶' : '置顶'}
                       className={`${isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'} px-3 py-1 rounded-lg text-xs ring-1 ${isDark ? 'ring-gray-700' : 'ring-gray-200'} transition-colors`}
                     >
-                      {t.pinned ? '取消置顶' : '置顶'}
+                      {thread.pinned ? '取消置顶' : '置顶'}
                     </button>
                     <button 
-                      onClick={() => removeThread(t.id)}
+                      onClick={() => removeThread(thread.id)}
                       aria-label="删除帖子"
                       className={`${isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'} px-3 py-1 rounded-lg text-xs ring-1 ${isDark ? 'ring-gray-700' : 'ring-gray-200'} transition-colors`}
                     >
@@ -592,16 +592,16 @@ export const CommunityDiscussion: React.FC<CommunityDiscussionProps> = ({
                   </div>
                 </div>
                 <div className={`text-sm opacity-80 mt-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                  {t.content}
+                  {thread.content}
                 </div>
                 <div className="mt-3 flex items-center gap-2">
                   <input 
-                    value={replyText[t.id] || ''}
-                    onChange={e => onReplyTextChange({ ...replyText, [t.id]: e.target.value })}
+                    value={replyText[thread.id] || ''}
+                    onChange={e => onReplyTextChange({ ...replyText, [thread.id]: e.target.value })}
                     onKeyDown={e => {
                       if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault();
-                        addReply(t.id);
+                        addReply(thread.id);
                       }
                     }}
                     className={`${isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'} flex-1 px-3 py-1 rounded-lg border focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors`}
@@ -609,23 +609,23 @@ export const CommunityDiscussion: React.FC<CommunityDiscussionProps> = ({
                     aria-label="回复内容"
                   />
                   <button 
-                    onClick={() => addReply(t.id)}
+                    onClick={() => addReply(thread.id)}
                     aria-label="添加回复"
                     className={`${isDark ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-900'} px-3 py-1 rounded-lg text-xs hover:opacity-90 transition-colors`}
                   >
                     {t('community.discussion.reply')}
                   </button>
                 </div>
-                {t.replies.length > 0 && (
+                {thread.replies.length > 0 && (
                   <div className="mt-3 text-sm">
-                    {t.replies.map(r => (
+                    {thread.replies.map(r => (
                       <div 
                         key={r.id} 
                         className={`${isDark ? 'border-gray-700' : 'border-gray-200'} border-t py-2 flex items-center justify-between`}
                       >
                         <span>{r.content}</span>
                         <button 
-                          onClick={() => removeReply(t.id, r.id)}
+                          onClick={() => removeReply(thread.id, r.id)}
                           aria-label="删除回复"
                           className={`${isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'} px-2 py-0.5 rounded-lg text-xs ring-1 ${isDark ? 'ring-gray-700' : 'ring-gray-200'} transition-colors`}
                         >

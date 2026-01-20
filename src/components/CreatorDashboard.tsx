@@ -203,7 +203,7 @@ const CreatorDashboard: React.FC = () => {
       <button
         ref={toggleBtnRef}
         onClick={() => setIsVisible(!isVisible)}
-        className={`p-2 rounded-lg ${isDark ? 'hover:bg-gray-800 ring-1 ring-gray-700' : 'hover:bg-gray-50 ring-1 ring-gray-200'}`}
+        className={`p-2 rounded-lg transition-all duration-300 transform hover:scale-105 ${isDark ? 'hover:bg-gray-800 ring-1 ring-gray-700 text-gray-300 hover:text-white' : 'hover:bg-primary/5 ring-1 ring-gray-200 hover:ring-primary/20 text-gray-600 hover:text-primary'}`}
         title="查看创作者仪表盘"
       >
         <i className="fas fa-chart-line"></i>
@@ -213,7 +213,7 @@ const CreatorDashboard: React.FC = () => {
       {isVisible && (
         <div 
           ref={dashboardRef}
-          className="absolute right-0 mt-2 p-4 bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl shadow-2xl shadow-primary/10 border-2 border-gray-700 dark:border-gray-600 w-full sm:w-80 md:w-96 z-50 overflow-hidden"
+          className={`absolute right-0 mt-2 p-4 ${isDark ? 'bg-gradient-to-br from-gray-900 to-gray-800 border-2 border-gray-700 dark:border-gray-600 shadow-primary/10' : 'bg-gradient-to-br from-white to-gray-50 border-2 border-gray-200 shadow-primary/5'} rounded-xl shadow-2xl w-full sm:w-80 md:w-96 z-50 overflow-hidden`}
           style={{ 
             animation: 'slideInRight 0.3s ease-out forwards',
             opacity: 0,
@@ -345,7 +345,7 @@ const CreatorDashboard: React.FC = () => {
                       navigate(`/explore/${activity.workId}`);
                       setIsVisible(false); // 关闭面板
                     } else if (activity.type === 'follow') {
-                      navigate('/dashboard/followers');
+                      navigate('/dashboard/followers'); // 跳转到关注者页面
                       setIsVisible(false); // 关闭面板
                     }
                   }}
@@ -455,7 +455,7 @@ const CreatorDashboard: React.FC = () => {
               </button>
               <button
                 onClick={() => {
-                  navigate('/dashboard');
+                  navigate('/dashboard'); // 跳转到仪表盘
                   setIsVisible(false); // 关闭面板
                 }}
                 className="group px-3 py-2.5 bg-white dark:bg-gray-900 text-gray-800 dark:text-white text-sm font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-300 flex items-center justify-center gap-1 hover:shadow-xl hover:shadow-primary/10 transform hover:-translate-y-0.5 active:scale-95 border border-gray-100 dark:border-gray-700"
@@ -466,7 +466,7 @@ const CreatorDashboard: React.FC = () => {
               </button>
               <button
                 onClick={() => {
-                  navigate('/dashboard/stats');
+                  navigate('/dashboard/stats'); // 跳转到统计页面
                   setIsVisible(false); // 关闭面板
                 }}
                 className="group px-3 py-2.5 bg-white dark:bg-gray-900 text-gray-800 dark:text-white text-sm font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-300 flex items-center justify-center gap-1 hover:shadow-xl hover:shadow-primary/10 transform hover:-translate-y-0.5 active:scale-95 border border-gray-100 dark:border-gray-700"

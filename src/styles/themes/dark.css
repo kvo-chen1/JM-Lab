@@ -8,10 +8,10 @@
   --bg-active: #64748b;         /* 雾蓝灰 - 激活背景 */
   
   /* 深色文字层次 */
-  --text-primary: #f1f5f9;       /* 亮月光白 - 主文字 */
-  --text-secondary: #cbd5e1;     /* 银灰蓝 - 次文字 */
-  --text-tertiary: #94a3b8;      /* 钢蓝灰 - 辅助文字 */
-  --text-muted: #64748b;         /* 深灰蓝 - 禁用文字 */
+  --text-primary: #f8fafc;       /* 更亮的月光白 - 主文字，提高对比度 */
+  --text-secondary: #e2e8f0;     /* 更亮的银灰蓝 - 次文字，提高对比度 */
+  --text-tertiary: #a1a1aa;      /* 更亮的钢蓝灰 - 辅助文字，提高对比度 */
+  --text-muted: #94a3b8;         /* 深灰蓝 - 禁用文字，提高对比度 */
   
   /* 深色边框层次 */
   --border-primary: #334155;     /* 岩石灰蓝 - 主边框 */
@@ -201,6 +201,7 @@
   font-size: 0.9375rem;
   line-height: 1.5;
   width: 100%;
+  outline: none;
 }
 
 .dark input::placeholder, .dark textarea::placeholder, .dark select::placeholder {

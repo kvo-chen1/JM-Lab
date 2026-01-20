@@ -380,7 +380,7 @@ const LandingPage = () => {
       </section>
 
       {/* Culture Section */}
-      <section id="culture" className="py-24 relative overflow-hidden">
+      <section id="culture" className="py-24 relative overflow-hidden bg-cover bg-center" style={{ backgroundImage: "url('images/cultural-bg.jpg')", backgroundBlendMode: "overlay", backgroundColor: "rgba(3, 3, 8, 0.5)" }}>
         {/* Background elements */}
         <div className="absolute top-0 right-0 w-1/3 h-full bg-blue-900/10 blur-[100px] pointer-events-none"></div>
 

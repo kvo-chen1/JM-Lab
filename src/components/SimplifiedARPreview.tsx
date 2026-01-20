@@ -8,7 +8,7 @@ import * as THREE from 'three';
 // Create XR store globally
 const store = createXRStore({
   features: ['hit-test', 'dom-overlay'],
-});
+} as any);
 
 // Types
 export interface SimplifiedARPreviewConfig {
@@ -71,7 +71,7 @@ const Reticle: React.FC<{ onPlace: (position: THREE.Vector3) => void; visible: b
   useXRHitTest((results, getWorldMatrix) => {
     if (ref.current && visible && results.length > 0) {
       getWorldMatrix(matrixHelper, results[0]);
-      matrixHelper.decompose(ref.current.position, ref.current.rotation, ref.current.scale);
+      matrixHelper.decompose(ref.current.position, ref.current.quaternion, ref.current.scale);
       setHitDetected(true);
     } else {
       setHitDetected(false);
@@ -249,9 +249,7 @@ const SimplifiedARPreview: React.FC<{
       {/* Main Canvas Area */}
       <div className="flex-1 relative bg-gradient-to-b from-gray-800 to-gray-900">
         <Canvas
-          onCreated={({ gl }) => {
-            gl.preserveDrawingBuffer = true;
-          }}
+          gl={{ preserveDrawingBuffer: true }}
           style={{ width: '100%', height: '100%' }}
           shadows
         >

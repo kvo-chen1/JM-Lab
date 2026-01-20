@@ -142,6 +142,7 @@ export default function BusinessCooperation() {
             { label: '覆盖城市', value: '天津' }
           ]}
           size="lg"
+          backgroundImage="https://picsum.photos/id/1051/1600/800"
         />
 
         {/* 营销价值板块 */}

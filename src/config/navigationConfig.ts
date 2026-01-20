@@ -20,60 +20,81 @@ export interface NavGroup {
   description?: string;
 }
 
-// 核心导航项
-export const coreNavItems: NavItem[] = [
+// 平台首页导航项
+export const platformNavItems: NavItem[] = [
   { id: 'home', path: '/', label: '首页', icon: 'fas fa-home' },
-  { id: 'explore', path: '/explore', label: '探索作品', icon: 'fas fa-compass' },
-  { id: 'create', path: '/create', label: '创作中心', icon: 'fas fa-tools' },
-  { id: 'tools', path: '/tools', label: '创作工具', icon: 'fas fa-wand-magic-sparkles' },
-  { id: 'inspiration', path: '/neo', label: '灵感引擎', icon: 'fas fa-bolt' },
-  { id: 'knowledge', path: '/cultural-knowledge', label: '文化知识', icon: 'fas fa-book' }
+  { id: 'create', path: '/create', label: '创作中心', icon: 'fas fa-tools' }
 ];
 
-// 共创功能导航项
-export const cocreationNavItems: NavItem[] = [
-  { id: 'guide', path: '/wizard', label: '共创向导', icon: 'fas fa-hat-wizard' },
+// 创作中心导航项 (已合并至平台首页)
+export const creationNavItems: NavItem[] = [
+];
+
+// 作品与社区导航项
+export const communityNavItems: NavItem[] = [
+  { id: 'explore', path: '/explore', label: '探索作品', icon: 'fas fa-compass' },
   { id: 'square', path: '/square', label: '共创广场', icon: 'fas fa-th-large' },
-  { id: 'community', path: '/community', label: '共创社群', icon: 'fas fa-user-friends', search: '?context=cocreation&tab=joined' },
   { id: 'creator-community', path: '/community', label: '创作者社群', icon: 'fas fa-users', search: '?context=creator' }
 ];
 
-// 天津特色导航项
-export const tianjinNavItems: NavItem[] = [
-  { id: 'tianjin', path: '/tianjin', label: '天津专区', icon: 'fas fa-landmark' },
-  { id: 'tianjin-map', path: '/tianjin-map', label: '天津地图', icon: 'fas fa-map-marked-alt' },
-  { id: 'events', path: '/cultural-events', label: '文化活动', icon: 'fas fa-calendar-alt' },
-  { id: 'news', path: '/cultural-news', label: '文化资讯', icon: 'fas fa-newspaper' }
+// 活动与挑战导航项
+export const eventsNavItems: NavItem[] = [
 ];
 
-// 更多服务导航项
-export const moreNavItems: NavItem[] = [
+// 发现天津导航项
+export const discoveryNavItems: NavItem[] = [
+  { id: 'tianjin', path: '/tianjin', label: '天津专区', icon: 'fas fa-landmark' },
+  { id: 'events', path: '/cultural-events', label: '天津文化活动', icon: 'fas fa-calendar-alt' },
+  { id: 'tianjin-map', path: '/tianjin/map', label: '天津老字号地图', icon: 'fas fa-map-marked-alt' },
+  { id: 'knowledge', path: '/cultural-knowledge', label: '天津文化知识', icon: 'fas fa-book' }
+];
+
+// 趣味与激励导航项
+export const entertainmentNavItems: NavItem[] = [
   { id: 'particle-art', path: '/particle-art', label: '粒子艺术', icon: 'fas fa-palette' },
-  { id: 'leaderboard', path: '/leaderboard', label: '人气排行', icon: 'fas fa-chart-line' },
   { id: 'games', path: '/games', label: '趣味游戏', icon: 'fas fa-gamepad' },
-  { id: 'lab', path: '/lab', label: '新窗实验室', icon: 'fas fa-window-restore' },
   { id: 'points-mall', path: '/points-mall', label: '积分商城', icon: 'fas fa-gift' },
+  { id: 'leaderboard', path: '/leaderboard', label: '人气排行', icon: 'fas fa-chart-line' }
+];
+
+// 更多服务导航项 (Updated)
+export const moreNavItems: NavItem[] = [
   { id: 'business', path: '/business', label: '商业合作', icon: 'fas fa-handshake' },
-  { id: 'developers', path: '/developers', label: '开发者API', icon: 'fas fa-code' },
+  { id: 'news', path: '/cultural-news', label: '文化资讯', icon: 'fas fa-newspaper' },
   { id: 'about', path: '/about', label: '关于我们', icon: 'fas fa-info-circle' }
 ];
 
 // 完整导航分组列表
 export const navigationGroups: NavGroup[] = [
   {
-    id: 'core',
-    title: '常用功能',
-    items: coreNavItems
+    id: 'platform',
+    title: '平台首页',
+    items: platformNavItems
+  },
+  // {
+  //   id: 'creation',
+  //   title: '创作中心',
+  //   items: creationNavItems
+  // },
+  {
+    id: 'community',
+    title: '作品与社区',
+    items: communityNavItems
+  },
+  // {
+  //   id: 'events',
+  //   title: '活动与挑战',
+  //   items: eventsNavItems
+  // },
+  {
+    id: 'discovery',
+    title: '发现天津',
+    items: discoveryNavItems
   },
   {
-    id: 'cocreation',
-    title: '共创功能',
-    items: cocreationNavItems
-  },
-  {
-    id: 'tianjin',
-    title: '天津特色',
-    items: tianjinNavItems
+    id: 'entertainment',
+    title: '趣味与激励',
+    items: entertainmentNavItems
   },
   {
     id: 'more',

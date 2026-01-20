@@ -903,6 +903,8 @@ export default function CulturalKnowledge() {
           theme={isTianjin ? "red" : "indigo"}
           size="lg"
           pattern
+          // 中文注释：使用可靠的图片服务确保背景图显示
+          backgroundImage="https://picsum.photos/seed/culture/1920/1080"
           stats={isTianjin ? [
             { label: '津门老字号', value: '精选' },
             { label: '天津元素', value: '资产' },
@@ -988,11 +990,11 @@ export default function CulturalKnowledge() {
                       </div>
                       
                       {/* 正文内容 */}
-                      <div className={`prose ${isDark ? 'prose-invert' : ''} max-w-none prose-xl ${isDark ? 'prose-headings:text-white' : 'prose-headings:text-gray-900'} prose-p:leading-relaxed prose-p:mb-8`}>
-                        <p className="text-2xl leading-relaxed tracking-wide mb-8">{selectedStory.content}</p>
-                        <p className="text-xl leading-relaxed tracking-wide mb-8">{selectedStory.content}</p>
-                        <p className="text-xl leading-relaxed tracking-wide mb-8">{selectedStory.content}</p>
-                        <p className="text-xl leading-relaxed tracking-wide">{selectedStory.content}</p>
+                      <div className={`prose ${isDark ? 'prose-invert' : ''} max-w-none prose-xl ${isDark ? 'prose-headings:text-white' : 'prose-headings:text-gray-900'} prose-p:text-xl prose-p:leading-relaxed prose-p:tracking-wide prose-p:mb-8`}>
+                        <p>{selectedStory.content}</p>
+                        <p>{selectedStory.content}</p>
+                        <p>{selectedStory.content}</p>
+                        <p className="mb-0">{selectedStory.content}</p>
                       </div>
                     </div>
                     

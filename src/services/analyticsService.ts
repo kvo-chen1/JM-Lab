@@ -282,7 +282,7 @@ class AnalyticsService {
       {
         workId: '1',
         title: '国潮IP设计',
-        thumbnail: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1024x1024&prompt=chinese%20trend%20IP%20design',
+        thumbnail: '/images/cultural-bg.jpg',
         category: '国潮设计',
         metrics: {
           likes: 1234,
@@ -297,7 +297,7 @@ class AnalyticsService {
       {
         workId: '2',
         title: '非遗传承插画',
-        thumbnail: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1024x1024&prompt=intangible%20heritage%20illustration',
+        thumbnail: '/images/placeholder-image.jpg',
         category: '非遗传承',
         metrics: {
           likes: 987,
@@ -312,7 +312,7 @@ class AnalyticsService {
       {
         workId: '3',
         title: '老字号品牌升级',
-        thumbnail: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1024x1024&prompt=time-honored%20brand%20upgrade',
+        thumbnail: '/images/placeholder-image.jpg',
         category: '老字号品牌',
         metrics: {
           likes: 876,
@@ -323,36 +323,6 @@ class AnalyticsService {
         },
         trend: 'stable',
         ranking: 3
-      },
-      {
-        workId: '4',
-        title: '京剧主题IP设计',
-        thumbnail: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1024x1024&prompt=peking%20opera%20IP%20design',
-        category: 'IP设计',
-        metrics: {
-          likes: 765,
-          views: 6543,
-          comments: 123,
-          shares: 432,
-          engagementRate: 0.15
-        },
-        trend: 'down',
-        ranking: 4
-      },
-      {
-        workId: '5',
-        title: '天津文化插画',
-        thumbnail: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1024x1024&prompt=tianjin%20cultural%20illustration',
-        category: '插画设计',
-        metrics: {
-          likes: 654,
-          views: 5432,
-          comments: 111,
-          shares: 321,
-          engagementRate: 0.13
-        },
-        trend: 'up',
-        ranking: 5
       }
     ];
 

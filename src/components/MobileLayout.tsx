@@ -9,6 +9,7 @@ import clsx from 'clsx'
 import { TianjinImage } from './TianjinStyleComponents'
 import useLanguage from '@/contexts/LanguageContext'
 import { useTranslation } from 'react-i18next'
+import { navigationGroups } from '@/config/navigationConfig'
 
 import PWAInstallButton from './PWAInstallButton'
 
@@ -50,6 +51,7 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
   const [showNotifications, setShowNotifications] = useState(false)
   const [notificationFilter, setNotificationFilter] = useState<'all' | 'unread' | 'info' | 'success' | 'warning' | 'error' | 'like' | 'join' | 'message' | 'mention' | 'task' | 'points' | 'system' | 'learning' | 'creation' | 'social'>('all')
   const [showSettings, setShowSettings] = useState(false)
+  const [expandedGroup, setExpandedGroup] = useState<string | null>(null)
 
   // 通知设置状态
   interface NotificationSettings {
@@ -394,42 +396,42 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
         )} style={{ paddingTop: 'env(safe-area-inset-top)' }}>
           <div className="flex items-center justify-between touch-none">
             {/* Logo 和菜单按钮 - 左侧紧凑布局 */}
-            <div className="flex items-center flex-1 min-w-0 mr-1">
+            <div className="flex items-center flex-1 min-w-0 mr-0.5">
               {/* 菜单按钮 - 增强交互效果 */}
               <button
                 onClick={() => setShowSidebarDrawer(true)}
                 className={clsx(
-                  'w-9 h-9 flex items-center justify-center rounded-full transition-all duration-300 hover:scale-110 active:scale-95 mr-1 flex-shrink-0',
+                  'w-8 h-8 flex items-center justify-center rounded-full transition-all duration-300 hover:scale-110 active:scale-95 mr-0.5 flex-shrink-0',
                   isDark ? 'text-gray-500 hover:bg-gray-700' : 
                   theme === 'pink' ? 'text-pink-700 hover:bg-pink-200' : 
                   'text-gray-700 hover:bg-gray-200'
                 )}
                 aria-label={t('sidebar.expandSidebar')}
               >
-                <i className="fas fa-bars text-base"></i>
+                <i className="fas fa-bars text-sm"></i>
               </button>
               <NavLink
                 to="/"
                 onTouchStart={() => prefetchRoute('/')}
                 className={clsx(
-                  'flex items-center gap-1.5 transition-all duration-300 hover:scale-105 active:scale-95 group min-w-0',
+                  'flex items-center gap-1 transition-all duration-300 hover:scale-105 active:scale-95 group min-w-0',
                   isDark ? 'text-white' : 
                   theme === 'pink' ? 'text-pink-900' : 
                   'text-gray-900'
                 )}
               >
                 <div className={clsx(
-                  'w-8 h-8 rounded-xl flex items-center justify-center text-white font-bold shadow-lg transition-all duration-300 hover:scale-110 group-hover:shadow-xl flex-shrink-0',
+                  'w-7 h-7 rounded-lg flex items-center justify-center text-white font-bold shadow-md transition-all duration-300 hover:scale-110 group-hover:shadow-lg flex-shrink-0',
                   `bg-gradient-to-br ${themeStyles.logoBackground}`,
                   'relative overflow-hidden'
                 )}>
-                  <span className="text-base font-extrabold z-10 transform transition-transform duration-300 group-hover:scale-125">{themeStyles.logoText}</span>
+                  <span className="text-sm font-extrabold z-10 transform transition-transform duration-300 group-hover:scale-125">{themeStyles.logoText}</span>
                   <div className={clsx(
                     'absolute inset-0 opacity-0 group-hover:opacity-30 transition-opacity duration-300',
                     `bg-gradient-to-tr from-white to-transparent`
                   )}></div>
                 </div>
-                <span className="ml-1 text-lg font-extrabold tracking-tight align-baseline bg-clip-text text-transparent bg-gradient-to-r truncate max-w-[140px] xs:max-w-none"
+                <span className="ml-0.5 text-sm font-bold tracking-tight align-baseline bg-clip-text text-transparent bg-gradient-to-r truncate max-w-[120px] xs:max-w-none"
                   style={{ 
                     backgroundImage: isDark ? 'linear-gradient(to right, #60a5fa, #a78bfa)' : 
                                      theme === 'pink' ? 'linear-gradient(to right, #ec4899, #f472b6)' : 
@@ -441,25 +443,25 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
             </div>
             
             {/* 右侧按钮组 - 向右靠紧 */}
-            <div className="flex items-center space-x-1 flex-shrink-0">
+            <div className="flex items-center space-x-0.5 flex-shrink-0">
               {/* 搜索按钮 */}
               <button
                 onClick={() => setShowSearch(true)}
                 className={clsx(
-                  'w-9 h-9 flex items-center justify-center rounded-full transition-all duration-300 hover:scale-110 active:scale-95',
+                  'w-8 h-8 flex items-center justify-center rounded-full transition-all duration-300 hover:scale-110 active:scale-95',
                   isDark ? 'text-gray-500 hover:bg-gray-700' : 
                   theme === 'pink' ? 'text-pink-700 hover:bg-pink-200' : 
                   'text-gray-700 hover:bg-gray-200'
                 )}
                 aria-label={t('common.search')}
               >
-                <i className="fas fa-search text-base"></i>
+                <i className="fas fa-search text-sm"></i>
               </button>
               
               {/* 通知按钮 - 优化通知徽章 */}
               <button
                 className={clsx(
-                  'w-9 h-9 flex items-center justify-center rounded-full relative transition-all duration-300 hover:scale-110 active:scale-95',
+                  'w-8 h-8 flex items-center justify-center rounded-full relative transition-all duration-300 hover:scale-110 active:scale-95',
                   isDark ? 'text-gray-500 hover:bg-gray-700' : 
                   theme === 'pink' ? 'text-pink-700 hover:bg-pink-200' : 
                   'text-gray-700 hover:bg-gray-200'
@@ -467,13 +469,13 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
                 aria-label={t('header.notifications')}
                 onClick={() => setShowNotifications(!showNotifications)}
               >
-                <i className="fas fa-bell text-base"></i>
+                <i className="fas fa-bell text-sm"></i>
                 {unreadNotificationCount > 0 && (
                   <span className={clsx(
-                    'absolute -top-1 -right-1 w-4.5 h-4.5 rounded-full flex items-center justify-center text-white text-[10px] font-bold transition-all duration-300 animate-bounce',
-                    isDark ? 'bg-blue-500 shadow-lg' : 
-                    theme === 'pink' ? 'bg-pink-500 shadow-lg' : 
-                    'bg-orange-500 shadow-lg'
+                    'absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full flex items-center justify-center text-white text-[9px] font-bold transition-all duration-300 animate-bounce',
+                    isDark ? 'bg-blue-500 shadow-md' : 
+                    theme === 'pink' ? 'bg-pink-500 shadow-md' : 
+                    'bg-orange-500 shadow-md'
                   )}>
                     {unreadNotificationCount > 9 ? '9+' : unreadNotificationCount}
                   </span>
@@ -486,29 +488,29 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
                   <div className="absolute inset-0 bg-black/10 pointer-events-auto" onClick={() => setShowNotifications(false)}></div>
                   <div className={`relative w-full max-w-xs rounded-xl shadow-2xl ring-2 overflow-hidden pointer-events-auto ${isDark ? 'bg-gray-800 ring-gray-700' : theme === 'pink' ? 'bg-white ring-pink-300' : 'bg-white ring-gray-300'}`} role="dialog" aria-label={t('header.viewNotifications')}>
                     {/* 通知列表头部 */}
-                    <div className={`px-4 py-3 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'} flex items-center justify-between bg-gradient-to-r ${isDark ? 'from-gray-800 to-gray-900' : theme === 'pink' ? 'from-pink-50 to-white' : 'from-gray-50 to-white'}`}>
-                      <h4 className="font-medium flex items-center">
-                        <i className="fas fa-bell mr-2 text-blue-500"></i>
+                    <div className={`px-3 py-2.5 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'} flex items-center justify-between bg-gradient-to-r ${isDark ? 'from-gray-800 to-gray-900' : theme === 'pink' ? 'from-pink-50 to-white' : 'from-gray-50 to-white'}`}>
+                      <h4 className="font-medium flex items-center text-sm">
+                        <i className="fas fa-bell mr-1.5 text-blue-500 text-sm"></i>
                         {t('header.notifications')}
-                        <span className="ml-2 text-xs font-normal ${isDark ? 'text-gray-400' : 'text-gray-500'}">({unreadNotificationCount} {t('notification.types.unread')})</span>
+                        <span className="ml-1.5 text-[10px] font-normal ${isDark ? 'text-gray-400' : 'text-gray-500'}">({unreadNotificationCount} {t('notification.types.unread')})</span>
                       </h4>
-                      <div className="flex items-center space-x-2">
+                      <div className="flex items-center space-x-1.5">
                         <button
-                          className={`text-xs px-3 py-1.5 rounded-lg transition-all duration-300 ${isDark ? 'bg-gray-700 text-white hover:bg-blue-900/50 hover:text-blue-400' : 'bg-gray-100 text-gray-900 hover:bg-blue-50 hover:text-blue-700'}`}
+                          className={`text-[10px] px-2.5 py-1 rounded-md transition-all duration-300 ${isDark ? 'bg-gray-700 text-white hover:bg-blue-900/50 hover:text-blue-400' : 'bg-gray-100 text-gray-900 hover:bg-blue-50 hover:text-blue-700'}`}
                           onClick={() => setNotifications(prev => prev.map(n => ({ ...n, read: true })))}>
-                          <i className="fas fa-check-double mr-1"></i>
+                          <i className="fas fa-check-double mr-0.5 text-xs"></i>
                           {t('header.markAllAsRead')}
                         </button>
                         <button
-                          className={`text-xs px-3 py-1.5 rounded-lg transition-all duration-300 ${isDark ? 'bg-gray-700 text-white hover:bg-red-900/50 hover:text-red-400' : 'bg-gray-100 text-gray-900 hover:bg-red-50 hover:text-red-700'}`}
+                          className={`text-[10px] px-2.5 py-1 rounded-md transition-all duration-300 ${isDark ? 'bg-gray-700 text-white hover:bg-red-900/50 hover:text-red-400' : 'bg-gray-100 text-gray-900 hover:bg-red-50 hover:text-red-700'}`}
                           onClick={() => setNotifications([])}>
-                          <i className="fas fa-trash mr-1"></i>
+                          <i className="fas fa-trash mr-0.5 text-xs"></i>
                           {t('header.clearAll')}
                         </button>
                         <button
-                          className={`text-xs px-3 py-1.5 rounded-lg transition-all duration-300 ${isDark ? 'bg-gray-700 text-white hover:bg-purple-900/50 hover:text-purple-400' : 'bg-gray-100 text-gray-900 hover:bg-purple-50 hover:text-purple-700'}`}
+                          className={`text-[10px] px-2.5 py-1 rounded-md transition-all duration-300 ${isDark ? 'bg-gray-700 text-white hover:bg-purple-900/50 hover:text-purple-400' : 'bg-gray-100 text-gray-900 hover:bg-purple-50 hover:text-purple-700'}`}
                           onClick={() => setShowSettings(!showSettings)}>
-                          <i className="fas fa-cog mr-1"></i>
+                          <i className="fas fa-cog mr-0.5 text-xs"></i>
                           {t('header.settings')}
                         </button>
                       </div>
@@ -516,18 +518,18 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
 
                     {/* 通知设置面板 */}
                     {showSettings && (
-                      <div className={`px-4 py-3 border-b ${isDark ? 'border-gray-700 bg-gray-800/50' : 'border-gray-200 bg-gray-50'}`}>
-                        <h4 className="font-medium mb-3 flex items-center">
-                          <i className="fas fa-sliders-h mr-2 text-purple-500"></i>
+                      <div className={`px-3 py-2.5 border-b ${isDark ? 'border-gray-700 bg-gray-800/50' : 'border-gray-200 bg-gray-50'}`}>
+                        <h4 className="font-medium mb-2.5 flex items-center text-sm">
+                          <i className="fas fa-sliders-h mr-1.5 text-purple-500 text-sm"></i>
                           {t('notification.settings')}
                         </h4>
                         
                         {/* 基本设置 */}
-                        <div className="space-y-4">
+                        <div className="space-y-3">
                           {/* 声音提醒 */}
                           <div className="flex items-center justify-between">
                             <label className="text-sm flex items-center">
-                              <i className="fas fa-volume-up mr-2 text-gray-500"></i>
+                              <i className="fas fa-volume-up mr-1.5 text-gray-500 text-sm"></i>
                               {t('notification.sound')}
                             </label>
                             <label className="relative inline-flex items-center cursor-pointer">
@@ -537,15 +539,15 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
                                 onChange={(e) => setNotificationSettings(prev => ({ ...prev, enableSound: e.target.checked }))}
                                 className="sr-only peer"
                               />
-                              <div className={`w-11 h-6 rounded-full transition-all duration-300 peer ${notificationSettings.enableSound ? 'bg-blue-500' : 'bg-gray-400'}`}></div>
-                              <span className={`absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-all duration-300 peer-checked:translate-x-5`}></span>
+                              <div className={`w-10 h-5 rounded-full transition-all duration-300 peer ${notificationSettings.enableSound ? 'bg-blue-500' : 'bg-gray-400'}`}></div>
+                              <span className={`absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition-all duration-300 peer-checked:translate-x-5`}></span>
                             </label>
                           </div>
                           
                           {/* 桌面通知 */}
                           <div className="flex items-center justify-between">
                             <label className="text-sm flex items-center">
-                              <i className="fas fa-desktop mr-2 text-gray-500"></i>
+                              <i className="fas fa-desktop mr-1.5 text-gray-500 text-sm"></i>
                               {t('notification.desktop')}
                             </label>
                             <label className="relative inline-flex items-center cursor-pointer">
@@ -555,8 +557,8 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
                                 onChange={(e) => setNotificationSettings(prev => ({ ...prev, enableDesktop: e.target.checked }))}
                                 className="sr-only peer"
                               />
-                              <div className={`w-11 h-6 rounded-full transition-all duration-300 peer ${notificationSettings.enableDesktop ? 'bg-blue-500' : 'bg-gray-400'}`}></div>
-                              <span className={`absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-all duration-300 peer-checked:translate-x-5`}></span>
+                              <div className={`w-10 h-5 rounded-full transition-all duration-300 peer ${notificationSettings.enableDesktop ? 'bg-blue-500' : 'bg-gray-400'}`}></div>
+                              <span className={`absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition-all duration-300 peer-checked:translate-x-5`}></span>
                             </label>
                           </div>
                         </div>
@@ -564,8 +566,8 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
                     )}
 
                     {/* 通知过滤标签 */}
-                    <div className={`px-4 py-2 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'} overflow-x-auto whitespace-nowrap`}>
-                      <div className="flex space-x-2">
+                    <div className={`px-3 py-1.5 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'} overflow-x-auto whitespace-nowrap`}>
+                      <div className="flex space-x-1.5">
                         {[
                           { value: 'all', label: t('notification.types.all'), icon: 'fa-inbox' },
                           { value: 'unread', label: t('notification.types.unread'), icon: 'fa-envelope-open-text' },
@@ -578,11 +580,11 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
                           <button
                             key={filter.value}
                             onClick={() => setNotificationFilter(filter.value as any)}
-                            className={`px-3 py-1 rounded-full text-xs font-medium flex items-center transition-all duration-300 ${notificationFilter === filter.value ? 
+                            className={`px-2.5 py-0.75 rounded-full text-[10px] font-medium flex items-center transition-all duration-300 ${notificationFilter === filter.value ? 
                               (isDark ? 'bg-blue-900/50 text-blue-400 border border-blue-700' : 'bg-blue-100 text-blue-700 border border-blue-300') : 
                               (isDark ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200')}`}
                           >
-                            <i className={`fas ${filter.icon} mr-1.5 text-xs`}></i>
+                            <i className={`fas ${filter.icon} mr-1 text-[9px]`}></i>
                             {filter.label}
                           </button>
                         ))}
@@ -590,19 +592,19 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
                     </div>
 
                     {/* 通知列表内容 */}
-                    <div className="max-h-[300px] overflow-y-auto">
+                    <div className="max-h-[280px] overflow-y-auto">
                       {filteredNotifications.length === 0 ? (
-                        <div className="p-4 text-center">
-                          <i className="fas fa-bell-slash text-3xl text-gray-400 mb-2"></i>
+                        <div className="p-3 text-center">
+                          <i className="fas fa-bell-slash text-2xl text-gray-400 mb-1.5"></i>
                           <p className="text-sm text-gray-500">{t('notification.empty')}</p>
-                          <p className="text-xs text-gray-400 mt-1">{t('notification.emptyDesc')}</p>
+                          <p className="text-[10px] text-gray-400 mt-0.5">{t('notification.emptyDesc')}</p>
                         </div>
                       ) : (
                         filteredNotifications.map((notification) => (
-                          <div key={notification.id} className={`p-4 border-b last:border-b-0 transition-all duration-200 hover:bg-opacity-90 ${isDark ? 'border-gray-700 hover:bg-gray-700/50' : 'border-gray-100 hover:bg-gray-50'} ${!notification.read ? (isDark ? 'bg-blue-900/20' : 'bg-blue-50') : ''}`}>
-                            <div className="flex items-start gap-3">
+                          <div key={notification.id} className={`p-3 border-b last:border-b-0 transition-all duration-200 hover:bg-opacity-90 ${isDark ? 'border-gray-700 hover:bg-gray-700/50' : 'border-gray-100 hover:bg-gray-50'} ${!notification.read ? (isDark ? 'bg-blue-900/20' : 'bg-blue-50') : ''}`}>
+                            <div className="flex items-start gap-2.5">
                               {/* 通知图标 - 根据分类显示不同图标 */}
-                              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-lg transition-all duration-300 ${isDark ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-base transition-all duration-300 ${isDark ? 'bg-gray-700' : 'bg-gray-100'}`}>
                                 <i className={`fas ${notification.category === 'like' ? 'fa-heart text-red-500' : 
                                                 notification.category === 'join' ? 'fa-user-plus text-green-500' : 
                                                 notification.category === 'message' ? 'fa-envelope text-blue-500' : 
@@ -617,11 +619,11 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-start justify-between">
                                   <h4 className={`text-sm font-medium truncate ${!notification.read ? 'font-semibold' : ''}`}>{notification.title}</h4>
-                                  <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'} mt-1`}>{notification.time}</span>
+                                  <span className={`text-[10px] ${isDark ? 'text-gray-400' : 'text-gray-500'} mt-0.5`}>{notification.time}</span>
                                 </div>
-                                <p className={`text-xs ${isDark ? 'text-gray-300' : 'text-gray-700'} mt-1 line-clamp-2`}>{notification.description}</p>
+                                <p className={`text-[10px] ${isDark ? 'text-gray-300' : 'text-gray-700'} mt-0.5 line-clamp-2`}>{notification.description}</p>
                                 {/* 通知分类标签 */}
-                                <span className={`mt-1 inline-block px-2 py-0.5 rounded-full text-xs ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'}`}>
+                                <span className={`mt-0.5 inline-block px-1.5 py-0.25 rounded-full text-[10px] ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'}`}>
                                   {notification.category === 'like' && t('notification.types.like')}
                                   {notification.category === 'join' && t('notification.types.join')}
                                   {notification.category === 'message' && t('notification.types.message')}
@@ -636,7 +638,7 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
                               </div>
                               {/* 未读指示器 */}
                               {!notification.read && (
-                                <span className={`w-2 h-2 rounded-full ${isDark ? 'bg-blue-400' : 'bg-blue-500'} mt-1.5 animate-ping`}></span>
+                                <span className={`w-1.5 h-1.5 rounded-full ${isDark ? 'bg-blue-400' : 'bg-blue-500'} mt-1.5 animate-ping`}></span>
                               )}
                             </div>
                           </div>
@@ -849,14 +851,16 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
           onClick={() => setShowSidebarDrawer(false)}
         />
         {/* 抽屉内容 */}
-        <aside className={clsx(
-          'absolute left-0 top-0 bottom-0 w-[85.71%] overflow-y-auto transform transition-transform duration-300 ease-in-out',
-          showSidebarDrawer ? 'translate-x-0' : '-translate-x-full',
-          isDark ? 'bg-[#0b0e13] text-white' : 
-          theme === 'pink' ? 'bg-pink-50 text-pink-900' : 
-          'bg-white text-gray-900',
-          'z-50 shadow-2xl'
-        )} style={{ width: '85.71%' }}>
+          <aside className={clsx(
+            'absolute left-0 top-0 bottom-0 overflow-y-auto transform transition-transform duration-300 ease-in-out',
+            showSidebarDrawer ? 'translate-x-0' : '-translate-x-full',
+            isDark ? 'bg-[#0b0e13] text-white' : 
+            theme === 'pink' ? 'bg-pink-50 text-pink-900' : 
+            'bg-white text-gray-900',
+            'z-50 shadow-2xl',
+            // 响应式宽度设计
+            'w-[90%] sm:w-[80%] md:w-[70%] lg:w-[60%] xl:w-[50%]'
+          )}>
           {/* 抽屉头部 */}
           <div className={clsx(
             'p-3 flex items-center justify-between border-b',
@@ -890,9 +894,9 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
           </div>
           
           {/* 主题切换快捷入口 */}
-          <div className={clsx('p-3 rounded-lg transition-all duration-300', isDark ? 'bg-gray-800' : theme === 'pink' ? 'bg-pink-100' : 'bg-gray-100')}>
-            <h3 className={clsx('text-xs font-semibold mb-2 uppercase tracking-wider', isDark ? 'text-gray-300' : theme === 'pink' ? 'text-pink-700' : 'text-gray-600')}>{t('header.toggleTheme')}</h3>
-            <div className="grid grid-cols-4 gap-2">
+          <div className={clsx('p-2.5 rounded-lg transition-all duration-300', isDark ? 'bg-gray-800' : theme === 'pink' ? 'bg-pink-100' : 'bg-gray-100')}>
+            <h3 className={clsx('text-[10px] font-semibold mb-1.5 uppercase tracking-wider', isDark ? 'text-gray-300' : theme === 'pink' ? 'text-pink-700' : 'text-gray-600')}>{t('header.toggleTheme')}</h3>
+            <div className="grid grid-cols-4 gap-1.5">
               {availableThemes.map((themeOption) => (
                 <button
                   key={themeOption.value}
@@ -901,20 +905,20 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
                     // 切换主题后的提示
                     toast.success(t('toast.themeSwitched', { theme: themeOption.label }));
                   }}
-                  className={`flex flex-col items-center justify-center p-3 rounded-lg transition-all duration-200 ${theme === themeOption.value ? (isDark ? 'bg-blue-600 text-white' : theme === 'pink' ? 'bg-pink-500 text-white' : 'bg-orange-500 text-white') : (isDark ? 'bg-gray-700 hover:bg-gray-600' : theme === 'pink' ? 'bg-pink-200 hover:bg-pink-300' : 'bg-gray-200 hover:bg-gray-300')}`}
+                  className={`flex flex-col items-center justify-center p-2 rounded-lg transition-all duration-200 ${theme === themeOption.value ? (isDark ? 'bg-blue-600 text-white' : theme === 'pink' ? 'bg-pink-500 text-white' : 'bg-orange-500 text-white') : (isDark ? 'bg-gray-700 hover:bg-gray-600' : theme === 'pink' ? 'bg-pink-200 hover:bg-pink-300' : 'bg-gray-200 hover:bg-gray-300')}`}
                   title={themeOption.label}
                 >
-                  <i className={`${themeOption.icon} text-lg mb-1`}></i>
-                  <span className="text-xs">{themeOption.label}</span>
+                  <i className={`${themeOption.icon} text-base mb-0.5`}></i>
+                  <span className="text-[9px]">{themeOption.label}</span>
                 </button>
               ))}
             </div>
           </div>
           
           {/* 语言切换快捷入口 */}
-          <div className={clsx('p-3 rounded-lg transition-all duration-300', isDark ? 'bg-gray-800' : theme === 'pink' ? 'bg-pink-100' : 'bg-gray-100')}>
-            <h3 className={clsx('text-xs font-semibold mb-2 uppercase tracking-wider', isDark ? 'text-gray-300' : theme === 'pink' ? 'text-pink-700' : 'text-gray-600')}>{t('common.language')}</h3>
-            <div className="grid grid-cols-2 gap-2">
+          <div className={clsx('p-2.5 rounded-lg transition-all duration-300', isDark ? 'bg-gray-800' : theme === 'pink' ? 'bg-pink-100' : 'bg-gray-100')}>
+            <h3 className={clsx('text-[10px] font-semibold mb-1.5 uppercase tracking-wider', isDark ? 'text-gray-300' : theme === 'pink' ? 'text-pink-700' : 'text-gray-600')}>{t('common.language')}</h3>
+            <div className="grid grid-cols-2 gap-1.5">
               {languages.map((lang) => (
                 <button
                   key={lang.code}
@@ -923,128 +927,83 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
                     // 切换语言后的提示
                     toast.success(t('toast.languageSwitched', { lang: lang.name }));
                   }}
-                  className={`flex items-center justify-center p-3 rounded-lg transition-all duration-200 ${currentLanguage === lang.code ? (isDark ? 'bg-blue-600 text-white' : theme === 'pink' ? 'bg-pink-500 text-white' : 'bg-orange-500 text-white') : (isDark ? 'bg-gray-700 hover:bg-gray-600' : theme === 'pink' ? 'bg-pink-200 hover:bg-pink-300' : 'bg-gray-200 hover:bg-gray-300')}`}
+                  className={`flex items-center justify-center p-2 rounded-lg transition-all duration-200 ${currentLanguage === lang.code ? (isDark ? 'bg-blue-600 text-white' : theme === 'pink' ? 'bg-pink-500 text-white' : 'bg-orange-500 text-white') : (isDark ? 'bg-gray-700 hover:bg-gray-600' : theme === 'pink' ? 'bg-pink-200 hover:bg-pink-300' : 'bg-gray-200 hover:bg-gray-300')}`}
                   title={lang.name}
                 >
-                  <span className="text-xs">{lang.name}</span>
+                  <span className="text-[9px]">{lang.name}</span>
                 </button>
               ))}
             </div>
           </div>
           
           {/* 导航菜单 */}
-          <nav className="p-3 space-y-4">
-            {/* 常用功能 */}
-            <div>
-              <h3 className={clsx('text-xs font-semibold mb-2 uppercase tracking-wider', isDark ? 'text-gray-300' : theme === 'pink' ? 'text-pink-700' : 'text-gray-600')}>{t('sidebar.commonFunctions')}</h3>
-              <div className="grid grid-cols-3 gap-2">
-                <NavLink to="/" title="首页" onTouchStart={() => prefetchRoute('/')} className={({ isActive }) => `${isDark ? 'text-gray-300' : theme === 'pink' ? 'text-pink-900' : 'text-gray-900'} flex flex-col items-center justify-center p-3 rounded-lg transition-all duration-200 ${isActive ? (isDark ? 'bg-gray-800 text-white' : theme === 'pink' ? 'bg-pink-100 font-semibold' : 'bg-gray-100 font-semibold') : (isDark ? 'hover:bg-gray-800' : theme === 'pink' ? 'hover:bg-pink-100' : 'hover:bg-gray-100')}`} onClick={() => setShowSidebarDrawer(false)}>
-                  <i className="fas fa-home text-lg mb-1"></i>
-                  <span className="text-xs">{t('common.home')}</span>
-                </NavLink>
-                <NavLink to="/explore" title="探索作品" onTouchStart={() => prefetchRoute('/explore')} className={({ isActive }) => `${isDark ? 'text-gray-300' : theme === 'pink' ? 'text-pink-900' : 'text-gray-900'} flex flex-col items-center justify-center p-3 rounded-lg transition-all duration-200 ${isActive ? (isDark ? 'bg-gray-800 text-white' : theme === 'pink' ? 'bg-pink-100 font-semibold' : 'bg-gray-100 font-semibold') : (isDark ? 'hover:bg-gray-800' : theme === 'pink' ? 'hover:bg-pink-100' : 'hover:bg-gray-100')}`} onClick={() => setShowSidebarDrawer(false)}>
-                  <i className="fas fa-compass text-lg mb-1"></i>
-                  <span className="text-xs">{t('common.explore')}</span>
-                </NavLink>
-                <NavLink to="/particle-art" title="粒子艺术" onTouchStart={() => prefetchRoute('/particle-art')} className={({ isActive }) => `${isDark ? 'text-gray-300' : theme === 'pink' ? 'text-pink-900' : 'text-gray-900'} flex flex-col items-center justify-center p-3 rounded-lg transition-all duration-200 ${isActive ? (isDark ? 'bg-gray-800 text-white' : theme === 'pink' ? 'bg-pink-100 font-semibold' : 'bg-gray-100 font-semibold') : (isDark ? 'hover:bg-gray-800' : theme === 'pink' ? 'hover:bg-pink-100' : 'hover:bg-gray-100')}`} onClick={() => setShowSidebarDrawer(false)}>
-                  <i className="fas fa-palette text-lg mb-1"></i>
-                  <span className="text-xs">{t('common.particleArt')}</span>
-                </NavLink>
-                <NavLink to="/create" title="创作中心" onTouchStart={() => prefetchRoute('/create')} className={({ isActive }) => `${isDark ? 'text-gray-300' : theme === 'pink' ? 'text-pink-900' : 'text-gray-900'} flex flex-col items-center justify-center p-3 rounded-lg transition-all duration-200 ${isActive ? (isDark ? 'bg-gray-800 text-white' : theme === 'pink' ? 'bg-pink-100 font-semibold' : 'bg-gray-100 font-semibold') : (isDark ? 'hover:bg-gray-800' : theme === 'pink' ? 'hover:bg-pink-100' : 'hover:bg-gray-100')}`} onClick={() => setShowSidebarDrawer(false)}>
-                  <i className="fas fa-tools text-lg mb-1"></i>
-                  <span className="text-xs">{t('common.create')}</span>
-                </NavLink>
-                <NavLink to="/neo" title="灵感引擎" onTouchStart={() => prefetchRoute('/neo')} className={({ isActive }) => `${isDark ? 'text-gray-300' : theme === 'pink' ? 'text-pink-900' : 'text-gray-900'} flex flex-col items-center justify-center p-3 rounded-lg transition-all duration-200 ${isActive ? (isDark ? 'bg-gray-800 text-white' : theme === 'pink' ? 'bg-pink-100 font-semibold' : 'bg-gray-100 font-semibold') : (isDark ? 'hover:bg-gray-800' : theme === 'pink' ? 'hover:bg-pink-100' : 'hover:bg-gray-100')}`} onClick={() => setShowSidebarDrawer(false)}>
-                  <i className="fas fa-bolt text-lg mb-1"></i>
-                  <span className="text-xs">{t('common.neo')}</span>
-                </NavLink>
+          <nav className="p-2.5 space-y-3">
+            {/* 从导航配置导入分组 */}
+            {navigationGroups.map(group => (
+              <div key={group.id} className="rounded-lg overflow-hidden">
+                {/* 分组标题 - 可点击展开/折叠 */}
+                <button
+                  className={clsx(
+                    'w-full flex items-center justify-between px-3 py-2.5 transition-all duration-200',
+                    'min-h-[44px]', // 确保触摸目标尺寸不小于44px
+                    isDark ? 'bg-gray-800/50 hover:bg-gray-800' : 
+                    theme === 'pink' ? 'bg-pink-50 hover:bg-pink-100' : 
+                    'bg-gray-50 hover:bg-gray-100'
+                  )}
+                  onClick={() => setExpandedGroup(expandedGroup === group.id ? null : group.id)}
+                >
+                  <h3 className={clsx('text-sm font-semibold uppercase tracking-wider flex items-center', 
+                    isDark ? 'text-gray-300' : theme === 'pink' ? 'text-pink-700' : 'text-gray-600')}>
+                    <i className={`fas fa-chevron-down mr-1.5 text-xs transition-transform duration-300 ${expandedGroup === group.id ? 'transform rotate-180' : ''}`}></i>
+                    {group.title}
+                  </h3>
+                  <span className={clsx(
+                    'text-[10px] px-1.5 py-0.5 rounded-full',
+                    isDark ? 'bg-gray-700 text-gray-300' : 
+                    theme === 'pink' ? 'bg-pink-200 text-pink-800' : 
+                    'bg-gray-200 text-gray-700'
+                  )}>
+                    {group.items.length}
+                  </span>
+                </button>
+                
+                {/* 分组内容 - 展开/折叠动画 */}
+                {expandedGroup === group.id && (
+                  <div className="overflow-hidden transition-all duration-300 ease-in-out">
+                    <div className="space-y-1 p-1.5">
+                      {group.items.map(item => (
+                        <NavLink
+                          key={item.id}
+                          to={item.path + (item.search || '')}
+                          title={item.label}
+                          onTouchStart={() => prefetchRoute(item.path)}
+                          className={({ isActive }) => clsx(
+                            'flex items-center px-3 py-2.5 rounded-lg transition-all duration-200',
+                            'min-h-[44px]', // 确保触摸目标尺寸不小于44px
+                            isActive ? (
+                              isDark ? 'bg-blue-900/30 text-blue-400 font-medium' : 
+                              theme === 'pink' ? 'bg-pink-100 text-pink-700 font-medium' : 
+                              'bg-blue-50 text-blue-700 font-medium'
+                            ) : (
+                              isDark ? 'text-gray-300 hover:bg-gray-800' : 
+                              theme === 'pink' ? 'text-pink-900 hover:bg-pink-50' : 
+                              'text-gray-900 hover:bg-gray-50'
+                            )
+                          )}
+                          onClick={() => setShowSidebarDrawer(false)}
+                        >
+                          <i className={`${item.icon} mr-2.5 text-base transition-transform duration-200 hover:scale-110`}></i>
+                          <span className="flex-1 transition-all duration-200 text-sm">{item.label}</span>
+                          {item.external && (
+                            <i className="fas fa-external-link-alt text-[10px] opacity-50"></i>
+                          )}
+                        </NavLink>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-
-            {/* 共创功能 */}
-            <div>
-              <h3 className={clsx('text-sm font-semibold mb-3 uppercase tracking-wider', isDark ? 'text-gray-300' : theme === 'pink' ? 'text-pink-700' : 'text-gray-600')}>{t('sidebar.coCreation')}</h3>
-              <div className="grid grid-cols-3 gap-3">
-                <NavLink to="/wizard" title="共创向导" onTouchStart={() => prefetchRoute('/wizard')} className={({ isActive }) => `${isDark ? 'text-gray-300' : theme === 'pink' ? 'text-pink-900' : 'text-gray-900'} flex flex-col items-center justify-center p-4 rounded-lg transition-all duration-200 ${isActive ? (isDark ? 'bg-gray-800 text-white' : theme === 'pink' ? 'bg-pink-100 font-semibold' : 'bg-gray-100 font-semibold') : (isDark ? 'hover:bg-gray-800' : theme === 'pink' ? 'hover:bg-pink-100' : 'hover:bg-gray-100')}`} onClick={() => setShowSidebarDrawer(false)}>
-                  <i className="fas fa-hat-wizard text-xl mb-1"></i>
-                  <span className="text-xs">{t('sidebar.coCreationGuide')}</span>
-                </NavLink>
-                <NavLink to="/square" title="共创广场" onTouchStart={() => prefetchRoute('/square')} className={({ isActive }) => `${isDark ? 'text-gray-300' : theme === 'pink' ? 'text-pink-900' : 'text-gray-900'} flex flex-col items-center justify-center p-4 rounded-lg transition-all duration-200 ${isActive ? (isDark ? 'bg-gray-800 text-white' : theme === 'pink' ? 'bg-pink-100 font-semibold' : 'bg-gray-100 font-semibold') : (isDark ? 'hover:bg-gray-800' : theme === 'pink' ? 'hover:bg-pink-100' : 'hover:bg-gray-100')}`} onClick={() => setShowSidebarDrawer(false)}>
-                  <i className="fas fa-th-large text-xl mb-1"></i>
-                  <span className="text-xs">{t('sidebar.coCreationSquare')}</span>
-                </NavLink>
-                <NavLink to="/community?context=cocreation&tab=joined" title="共创社群" onTouchStart={() => prefetchRoute('/community')} className={({ isActive }) => `${isDark ? 'text-gray-300' : theme === 'pink' ? 'text-pink-900' : 'text-gray-900'} flex flex-col items-center justify-center p-4 rounded-lg transition-all duration-200 ${isActive ? (isDark ? 'bg-gray-800 text-white' : theme === 'pink' ? 'bg-pink-100 font-semibold' : 'bg-gray-100 font-semibold') : (isDark ? 'hover:bg-gray-800' : theme === 'pink' ? 'hover:bg-pink-100' : 'hover:bg-gray-100')}`} onClick={() => setShowSidebarDrawer(false)}>
-                  <i className="fas fa-user-friends text-xl mb-1"></i>
-                  <span className="text-xs">{t('sidebar.coCreationCommunity')}</span>
-                </NavLink>
-                <NavLink to="/community?context=creator" title="创作者社区" onTouchStart={() => prefetchRoute('/community')} className={({ isActive }) => `${isDark ? 'text-gray-300' : theme === 'pink' ? 'text-pink-900' : 'text-gray-900'} flex flex-col items-center justify-center p-4 rounded-lg transition-all duration-200 ${isActive ? (isDark ? 'bg-gray-800 text-white' : theme === 'pink' ? 'bg-pink-100 font-semibold' : 'bg-gray-100 font-semibold') : (isDark ? 'hover:bg-gray-800' : theme === 'pink' ? 'hover:bg-pink-100' : 'hover:bg-gray-100')}`} onClick={() => setShowSidebarDrawer(false)}>
-                  <i className="fas fa-users text-xl mb-1"></i>
-                  <span className="text-xs">{t('sidebar.creatorCommunity')}</span>
-                </NavLink>
-              </div>
-            </div>
-
-            {/* 天津特色 */}
-            <div>
-              <h3 className={clsx('text-sm font-semibold mb-3 uppercase tracking-wider', isDark ? 'text-gray-300' : theme === 'pink' ? 'text-pink-700' : 'text-gray-600')}>{t('sidebar.tianjinFeatures')}</h3>
-              <div className="grid grid-cols-3 gap-3">
-                <NavLink to="/tianjin" end title="天津特色专区" onTouchStart={() => prefetchRoute('/tianjin')} className={({ isActive }) => `${isDark ? 'text-gray-300' : theme === 'pink' ? 'text-pink-900' : 'text-gray-900'} flex flex-col items-center justify-center p-4 rounded-lg transition-all duration-200 ${isActive ? (isDark ? 'bg-gray-800 text-white' : theme === 'pink' ? 'bg-pink-100 font-semibold' : 'bg-gray-100 font-semibold') : (isDark ? 'hover:bg-gray-800' : theme === 'pink' ? 'hover:bg-pink-100' : 'hover:bg-gray-100')}`} onClick={() => setShowSidebarDrawer(false)}>
-                  <i className="fas fa-landmark text-xl mb-1"></i>
-                  <span className="text-xs">{t('sidebar.tianjinSpecialZone')}</span>
-                </NavLink>
-                <NavLink to="/tianjin/map" title="天津地图" onTouchStart={() => prefetchRoute('/tianjin/map')} className={({ isActive }) => `${isDark ? 'text-gray-300' : theme === 'pink' ? 'text-pink-900' : 'text-gray-900'} flex flex-col items-center justify-center p-4 rounded-lg transition-all duration-200 ${isActive ? (isDark ? 'bg-gray-800 text-white' : theme === 'pink' ? 'bg-pink-100 font-semibold' : 'bg-gray-100 font-semibold') : (isDark ? 'hover:bg-gray-800' : theme === 'pink' ? 'hover:bg-pink-100' : 'hover:bg-gray-100')}`} onClick={() => setShowSidebarDrawer(false)}>
-                  <i className="fas fa-map-marked-alt text-xl mb-1"></i>
-                  <span className="text-xs">{t('sidebar.tianjinMap')}</span>
-                </NavLink>
-                <NavLink to="/events" title="文化活动" onTouchStart={() => prefetchRoute('/events')} className={({ isActive }) => `${isDark ? 'text-gray-300' : theme === 'pink' ? 'text-pink-900' : 'text-gray-900'} flex flex-col items-center justify-center p-4 rounded-lg transition-all duration-200 ${isActive ? (isDark ? 'bg-gray-800 text-white' : theme === 'pink' ? 'bg-pink-100 font-semibold' : 'bg-gray-100 font-semibold') : (isDark ? 'hover:bg-gray-800' : theme === 'pink' ? 'hover:bg-pink-100' : 'hover:bg-gray-100')}`} onClick={() => setShowSidebarDrawer(false)}>
-                  <i className="fas fa-calendar-alt text-xl mb-1"></i>
-                  <span className="text-xs">{t('sidebar.culturalActivities')}</span>
-                </NavLink>
-              </div>
-            </div>
-
-            {/* 更多服务 */}
-            <div>
-              <h3 className={clsx('text-sm font-semibold mb-3 uppercase tracking-wider', isDark ? 'text-gray-300' : theme === 'pink' ? 'text-pink-700' : 'text-gray-600')}>{t('sidebar.moreServices')}</h3>
-              <div className="grid grid-cols-3 gap-3">
-                <NavLink to="/leaderboard" title="人气榜" onTouchStart={() => prefetchRoute('/leaderboard')} className={({ isActive }) => `${isDark ? 'text-gray-300' : theme === 'pink' ? 'text-pink-900' : 'text-gray-900'} flex flex-col items-center justify-center p-4 rounded-lg transition-all duration-200 ${isActive ? (isDark ? 'bg-gray-800 text-white' : theme === 'pink' ? 'bg-pink-100 font-semibold' : 'bg-gray-100 font-semibold') : (isDark ? 'hover:bg-gray-800' : theme === 'pink' ? 'hover:bg-pink-100' : 'hover:bg-gray-100')}`} onClick={() => setShowSidebarDrawer(false)}>
-                  <i className="fas fa-chart-line text-xl mb-1"></i>
-                  <span className="text-xs">{t('sidebar.popularityRanking')}</span>
-                </NavLink>
-                <NavLink to="/games" title="趣味游戏" onTouchStart={() => prefetchRoute('/games')} className={({ isActive }) => `${isDark ? 'text-gray-300' : theme === 'pink' ? 'text-pink-900' : 'text-gray-900'} flex flex-col items-center justify-center p-4 rounded-lg transition-all duration-200 ${isActive ? (isDark ? 'bg-gray-800 text-white' : theme === 'pink' ? 'bg-pink-100 font-semibold' : 'bg-gray-100 font-semibold') : (isDark ? 'hover:bg-gray-800' : theme === 'pink' ? 'hover:bg-pink-100' : 'hover:bg-gray-100')}`} onClick={() => setShowSidebarDrawer(false)}>
-                  <i className="fas fa-gamepad text-xl mb-1"></i>
-                  <span className="text-xs">{t('sidebar.funGames')}</span>
-                </NavLink>
-                <NavLink to="/knowledge" title="文化知识库" onTouchStart={() => prefetchRoute('/knowledge')} className={({ isActive }) => `${isDark ? 'text-gray-300' : theme === 'pink' ? 'text-pink-900' : 'text-gray-900'} flex flex-col items-center justify-center p-4 rounded-lg transition-all duration-200 ${isActive ? (isDark ? 'bg-gray-800 text-white' : theme === 'pink' ? 'bg-pink-100 font-semibold' : 'bg-gray-100 font-semibold') : (isDark ? 'hover:bg-gray-800' : theme === 'pink' ? 'hover:bg-pink-100' : 'hover:bg-gray-100')}`} onClick={() => setShowSidebarDrawer(false)}>
-                  <i className="fas fa-book text-xl mb-1"></i>
-                  <span className="text-xs">{t('sidebar.culturalKnowledge')}</span>
-                </NavLink>
-                <NavLink to="/lab" title="新窗口实验室" onTouchStart={() => prefetchRoute('/lab')} className={({ isActive }) => `${isDark ? 'text-gray-300' : theme === 'pink' ? 'text-pink-900' : 'text-gray-900'} flex flex-col items-center justify-center p-4 rounded-lg transition-all duration-200 ${isActive ? (isDark ? 'bg-gray-800 text-white' : theme === 'pink' ? 'bg-pink-100 font-semibold' : 'bg-gray-100 font-semibold') : (isDark ? 'hover:bg-gray-800' : theme === 'pink' ? 'hover:bg-pink-100' : 'hover:bg-gray-100')}`} onClick={() => setShowSidebarDrawer(false)}>
-                  <i className="fas fa-window-restore text-xl mb-1"></i>
-                  <span className="text-xs">{t('sidebar.newWindowLab')}</span>
-                </NavLink>
-                <NavLink to="/points-mall" title="积分商城" onTouchStart={() => prefetchRoute('/points-mall')} className={({ isActive }) => `${isDark ? 'text-gray-300' : theme === 'pink' ? 'text-pink-900' : 'text-gray-900'} flex flex-col items-center justify-center p-4 rounded-lg transition-all duration-200 ${isActive ? (isDark ? 'bg-gray-800 text-white' : theme === 'pink' ? 'bg-pink-100 font-semibold' : 'bg-gray-100 font-semibold') : (isDark ? 'hover:bg-gray-800' : theme === 'pink' ? 'hover:bg-pink-100' : 'hover:bg-gray-100')}`} onClick={() => setShowSidebarDrawer(false)}>
-                  <i className="fas fa-gift text-xl mb-1"></i>
-                  <span className="text-xs">{t('sidebar.pointsMall')}</span>
-                </NavLink>
-                <NavLink to="/business" title="商业合作" onTouchStart={() => prefetchRoute('/business')} className={({ isActive }) => `${isDark ? 'text-gray-300' : theme === 'pink' ? 'text-pink-900' : 'text-gray-900'} flex flex-col items-center justify-center p-4 rounded-lg transition-all duration-200 ${isActive ? (isDark ? 'bg-gray-800 text-white' : theme === 'pink' ? 'bg-pink-100 font-semibold' : 'bg-gray-100 font-semibold') : (isDark ? 'hover:bg-gray-800' : theme === 'pink' ? 'hover:bg-pink-100' : 'hover:bg-gray-100')}`} onClick={() => setShowSidebarDrawer(false)}>
-                  <i className="fas fa-handshake text-xl mb-1"></i>
-                  <span className="text-xs">{t('sidebar.businessCooperation')}</span>
-                </NavLink>
-                <NavLink to="/developers" title="开发者" onTouchStart={() => prefetchRoute('/developers')} className={({ isActive }) => `${isDark ? 'text-gray-300' : theme === 'pink' ? 'text-pink-900' : 'text-gray-900'} flex flex-col items-center justify-center p-4 rounded-lg transition-all duration-200 ${isActive ? (isDark ? 'bg-gray-800 text-white' : theme === 'pink' ? 'bg-pink-100 font-semibold' : 'bg-gray-100 font-semibold') : (isDark ? 'hover:bg-gray-800' : theme === 'pink' ? 'hover:bg-pink-100' : 'hover:bg-gray-100')}`} onClick={() => setShowSidebarDrawer(false)}>
-                  <i className="fas fa-code text-xl mb-1"></i>
-                  <span className="text-xs">{t('sidebar.developers')}</span>
-                </NavLink>
-                <NavLink to="/membership" title="会员中心" onTouchStart={() => prefetchRoute('/membership')} className={({ isActive }) => `${isDark ? 'text-gray-300' : theme === 'pink' ? 'text-pink-900' : 'text-gray-900'} flex flex-col items-center justify-center p-4 rounded-lg transition-all duration-200 ${isActive ? (isDark ? 'bg-gray-800 text-white' : theme === 'pink' ? 'bg-pink-100 font-semibold' : 'bg-gray-100 font-semibold') : (isDark ? 'hover:bg-gray-800' : theme === 'pink' ? 'hover:bg-pink-100' : 'hover:bg-gray-100')}`} onClick={() => setShowSidebarDrawer(false)}>
-                  <i className="fas fa-crown text-xl mb-1"></i>
-                  <span className="text-xs">{t('header.membershipCenter')}</span>
-                </NavLink>
-                <NavLink to="/about" title="关于我们" onTouchStart={() => prefetchRoute('/about')} className={({ isActive }) => `${isDark ? 'text-gray-300' : theme === 'pink' ? 'text-pink-900' : 'text-gray-900'} flex flex-col items-center justify-center p-4 rounded-lg transition-all duration-200 ${isActive ? (isDark ? 'bg-gray-800 text-white' : theme === 'pink' ? 'bg-pink-100 font-semibold' : 'bg-gray-100 font-semibold') : (isDark ? 'hover:bg-gray-800' : theme === 'pink' ? 'hover:bg-pink-100' : 'hover:bg-gray-100')}`} onClick={() => setShowSidebarDrawer(false)}>
-                  <i className="fas fa-info-circle text-xl mb-1"></i>
-                  <span className="text-xs">{t('sidebar.aboutUs')}</span>
-                </NavLink>
-              </div>
-            </div>
+            ))}
           </nav>
         </aside>
       </div>
@@ -1061,46 +1020,47 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
       {/* 底部导航 - 优化交互体验 */}
       <nav className={clsx(
         'fixed bottom-0 inset-x-0 md:hidden z-20 transform transition-all duration-300 ease-in-out',
-        isDark ? 'bg-gray-900/95 backdrop-blur-xl ring-1 ring-gray-800/70 py-2 shadow-xl' : 
-        theme === 'pink' ? 'bg-gradient-to-t from-white/98 to-white/80 backdrop-blur-2xl ring-1 ring-pink-300/80 py-2 shadow-[0_-2px_20px_rgba(236,72,153,0.15),0_0_30px_rgba(236,72,153,0.1)]' : 
-        'bg-white/95 backdrop-blur-xl ring-1 ring-gray-200/70 py-2 shadow-2xl'
+        isDark ? 'bg-gray-900/95 backdrop-blur-xl ring-1 ring-gray-800/70 py-0 shadow-xl' : 
+        theme === 'pink' ? 'bg-gradient-to-t from-white/98 to-white/80 backdrop-blur-2xl ring-1 ring-pink-300/80 py-0 shadow-[0_-2px_20px_rgba(236,72,153,0.15),0_0_30px_rgba(236,72,153,0.1)]' : 
+        'bg-white/95 backdrop-blur-xl ring-1 ring-gray-200/70 py-0 shadow-2xl'
       )} style={{ paddingBottom: 'env(safe-area-inset-bottom)', transform: showMobileNav ? 'translateY(0)' : 'translateY(100%)' }}>
         <ul className={clsx(
           'grid grid-cols-5',
-          isDark ? 'text-xs px-1 py-1' : 'text-xs px-1 py-1'
+          'py-0 px-0' // 减少内边距，减小导航栏视觉体积
         )}>
           <li className="flex items-center justify-center">
             <NavLink 
               to="/" 
               onTouchStart={() => prefetchRoute('/')}
               aria-label="首页"
-              className="flex-1"
+              className="flex-1 flex items-center justify-center"
               end
             >
               {({ isActive }) => {
                 const baseClass = clsx(
                   'flex flex-col items-center justify-center transition-all duration-300 ease-in-out relative group transform-gpu',
-                  isDark ? 'py-0' : 'py-0.5'
+                  'min-h-[44px] px-0', // 确保触摸目标尺寸不小于44px，减少内边距
+                  'py-0' // 统一上下内边距
                 );
                 const iconColor = isActive ? (isDark ? 'text-white' : theme === 'pink' ? 'text-pink-700' : 'text-gray-900') : (isDark ? 'text-gray-400' : theme === 'pink' ? 'text-pink-400' : 'text-gray-600');
-                const textColor = isActive ? (isDark ? 'text-white font-semibold' : theme === 'pink' ? 'text-pink-800 font-bold' : 'text-gray-900 font-semibold') : (isDark ? 'text-gray-400' : theme === 'pink' ? 'text-pink-500' : 'text-gray-600');
-                const iconClass = isActive ? 'scale-125 text-opacity-100' : 'scale-100 text-opacity-70';
-                const textClass = isActive ? 'font-semibold opacity-100 scale-105' : 'opacity-60 scale-95';
+                const textColor = isActive ? (isDark ? 'text-white font-medium' : theme === 'pink' ? 'text-pink-800 font-semibold' : 'text-gray-900 font-medium') : (isDark ? 'text-gray-400' : theme === 'pink' ? 'text-pink-500' : 'text-gray-600');
+                const iconClass = isActive ? 'scale-115 text-opacity-100' : 'scale-100 text-opacity-70';
+                const textClass = isActive ? 'font-medium opacity-100 scale-100' : 'opacity-60 scale-95';
                 const gradientClass = isDark ? 'from-blue-400 to-purple-500' : theme === 'pink' ? 'from-pink-400 via-pink-500 to-rose-500' : 'from-red-500 to-orange-500';
                 
                 return (
-                  <div className={clsx(baseClass)}>
-                    <div className={clsx('relative transition-all duration-400 cubic-bezier(0.4, 0, 0.2, 1) transform', iconClass, 'group-hover:scale-125 active:scale-95')}>
-                      <i className={clsx("fas fa-home transition-all duration-300", isDark ? "text-sm" : "text-lg")} style={{ color: iconColor, textShadow: isActive && theme === 'pink' ? '0 0 10px rgba(236, 72, 153, 0.3)' : 'none' }}></i>
+                  <div className={clsx(baseClass, 'cursor-pointer')}>
+                    <div className={clsx('relative transition-all duration-400 cubic-bezier(0.4, 0, 0.2, 1) transform', iconClass, 'group-hover:scale-115 active:scale-95')}>
+                      <i className={clsx("fas fa-home transition-all duration-300", "text-xs")} style={{ color: iconColor, textShadow: isActive && theme === 'pink' ? '0 0 6px rgba(236, 72, 153, 0.15)' : 'none' }}></i>
                       {isActive && (
                         <>
-                          <span className={clsx('absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-full h-0.5 rounded-full', `bg-gradient-to-r ${gradientClass}`, theme === 'pink' ? 'shadow-md shadow-pink-300/50' : '')}></span>
-                          <div className={clsx('absolute -bottom-2 left-1/2 transform -translate-x-1/2 w-1.5 h-1.5 rounded-full animate-ping', 
+                          <span className={clsx('absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-full h-0.5 rounded-full', `bg-gradient-to-r ${gradientClass}`, theme === 'pink' ? 'shadow-sm shadow-pink-300/30' : '')}></span>
+                          <div className={clsx('absolute -bottom-2 left-1/2 transform -translate-x-1/2 w-1.25 h-1.25 rounded-full animate-ping', 
                             isDark ? 'bg-blue-400' : theme === 'pink' ? 'bg-pink-500/70' : 'bg-orange-500')}></div>
                         </>
                       )}
                     </div>
-                    <span className={clsx('mt-[-2px] font-medium transition-all duration-400 cubic-bezier(0.4, 0, 0.2, 1)', textClass)} style={{ color: textColor, textShadow: isActive && theme === 'pink' ? '0 0 6px rgba(236, 72, 153, 0.2)' : 'none', writingMode: 'horizontal-tb', textOrientation: 'initial' }}>{t('common.home')}</span>
+                    <span className={clsx('mt-[-2px] text-[10px] transition-all duration-400 cubic-bezier(0.4, 0, 0.2, 1)', textClass)} style={{ color: textColor, textShadow: isActive && theme === 'pink' ? '0 0 4px rgba(236, 72, 153, 0.15)' : 'none', writingMode: 'horizontal-tb', textOrientation: 'initial' }}>{t('common.home')}</span>
                   </div>
                 );
               }}
@@ -1111,32 +1071,33 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
               to="/explore"
               onTouchStart={() => prefetchRoute('/explore')}
               aria-label="探索"
-              className="flex-1"
+              className="flex-1 flex items-center justify-center"
             >
               {({ isActive }) => {
                 const baseClass = clsx(
                   'flex flex-col items-center justify-center transition-all duration-300 ease-in-out relative group transform-gpu',
-                  isDark ? 'py-0' : 'py-0.5'
+                  'min-h-[44px] px-0', // 确保触摸目标尺寸不小于44px，减少内边距
+                  'py-0' // 统一上下内边距
                 );
                 const iconColor = isActive ? (isDark ? 'text-white' : theme === 'pink' ? 'text-pink-700' : 'text-gray-900') : (isDark ? 'text-gray-400' : theme === 'pink' ? 'text-pink-400' : 'text-gray-600');
-                const textColor = isActive ? (isDark ? 'text-white font-semibold' : theme === 'pink' ? 'text-pink-800 font-bold' : 'text-gray-900 font-semibold') : (isDark ? 'text-gray-400' : theme === 'pink' ? 'text-pink-500' : 'text-gray-600');
-                const iconClass = isActive ? 'scale-125 text-opacity-100' : 'scale-100 text-opacity-70';
-                const textClass = isActive ? 'font-semibold opacity-100 scale-105' : 'opacity-60 scale-95';
+                const textColor = isActive ? (isDark ? 'text-white font-medium' : theme === 'pink' ? 'text-pink-800 font-semibold' : 'text-gray-900 font-medium') : (isDark ? 'text-gray-400' : theme === 'pink' ? 'text-pink-500' : 'text-gray-600');
+                const iconClass = isActive ? 'scale-115 text-opacity-100' : 'scale-100 text-opacity-70';
+                const textClass = isActive ? 'font-medium opacity-100 scale-100' : 'opacity-60 scale-95';
                 const gradientClass = isDark ? 'from-blue-400 to-purple-500' : theme === 'pink' ? 'from-pink-400 via-pink-500 to-rose-500' : 'from-red-500 to-orange-500';
                 
                 return (
-                  <div className={clsx(baseClass)}>
-                    <div className={clsx('relative transition-all duration-400 cubic-bezier(0.4, 0, 0.2, 1) transform', iconClass, 'group-hover:scale-125 active:scale-95')}>
-                      <i className={clsx("fas fa-compass transition-all duration-300", isDark ? "text-sm" : "text-lg")} style={{ color: iconColor, textShadow: isActive && theme === 'pink' ? '0 0 10px rgba(236, 72, 153, 0.3)' : 'none' }}></i>
+                  <div className={clsx(baseClass, 'cursor-pointer')}>
+                    <div className={clsx('relative transition-all duration-400 cubic-bezier(0.4, 0, 0.2, 1) transform', iconClass, 'group-hover:scale-115 active:scale-95')}>
+                      <i className={clsx("fas fa-compass transition-all duration-300", "text-xs")} style={{ color: iconColor, textShadow: isActive && theme === 'pink' ? '0 0 6px rgba(236, 72, 153, 0.15)' : 'none' }}></i>
                       {isActive && (
                         <>
-                          <span className={clsx('absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-full h-0.5 rounded-full', `bg-gradient-to-r ${gradientClass}`, theme === 'pink' ? 'shadow-md shadow-pink-300/50' : '')}></span>
-                          <div className={clsx('absolute -bottom-2 left-1/2 transform -translate-x-1/2 w-1.5 h-1.5 rounded-full animate-ping', 
+                          <span className={clsx('absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-full h-0.5 rounded-full', `bg-gradient-to-r ${gradientClass}`, theme === 'pink' ? 'shadow-sm shadow-pink-300/30' : '')}></span>
+                          <div className={clsx('absolute -bottom-2 left-1/2 transform -translate-x-1/2 w-1.25 h-1.25 rounded-full animate-ping', 
                             isDark ? 'bg-blue-400' : theme === 'pink' ? 'bg-pink-500/70' : 'bg-orange-500')}></div>
                         </>
                       )}
                     </div>
-                    <span className={clsx('mt-[-2px] font-medium transition-all duration-400 cubic-bezier(0.4, 0, 0.2, 1)', textClass)} style={{ color: textColor, textShadow: isActive && theme === 'pink' ? '0 0 6px rgba(236, 72, 153, 0.2)' : 'none', writingMode: 'horizontal-tb', textOrientation: 'initial' }}>{t('common.explore')}</span>
+                    <span className={clsx('mt-[-2px] text-[10px] transition-all duration-400 cubic-bezier(0.4, 0, 0.2, 1)', textClass)} style={{ color: textColor, textShadow: isActive && theme === 'pink' ? '0 0 4px rgba(236, 72, 153, 0.15)' : 'none', writingMode: 'horizontal-tb', textOrientation: 'initial' }}>{t('common.explore')}</span>
                   </div>
                 );
               }}
@@ -1147,14 +1108,15 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
               to="/create"
               onTouchStart={() => prefetchRoute('/create')}
               aria-label="创作"
-              className="flex-1"
+              className="flex-1 flex items-center justify-center"
             >
               {({ isActive }) => {
                 const baseClass = clsx(
                   'flex flex-col items-center justify-center transition-all duration-300 ease-in-out relative group transform-gpu',
-                  isDark ? 'py-0' : 'py-0.5'
+                  'min-h-[44px] px-0', // 确保触摸目标尺寸不小于44px，减少内边距
+                  'py-0' // 统一上下内边距
                 );
-                const iconClass = isActive ? 'scale-130 text-opacity-100' : 'scale-120 text-opacity-100';
+                const iconClass = isActive ? 'scale-120 text-opacity-100' : 'scale-110 text-opacity-100';
                 const textClass = isActive ? 'font-bold opacity-100 scale-105' : 'font-bold opacity-100 scale-100';
                 const gradientClass = isDark ? 'from-blue-400 to-purple-500' : theme === 'pink' ? 'from-pink-400 via-pink-500 to-rose-500' : 'from-red-500 to-orange-500';
                 const bgColor = isDark ? 'bg-blue-600' : theme === 'pink' ? 'bg-gradient-to-br from-pink-500 to-rose-500' : 'bg-orange-600';
@@ -1163,7 +1125,7 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
                 const glowColor = isDark ? 'bg-blue-600/20' : theme === 'pink' ? 'bg-pink-500/30' : 'bg-orange-600/20';
                 
                 return (
-                  <div className={clsx(baseClass)}>
+                  <div className={clsx(baseClass, 'cursor-pointer')}>
                     <div className={clsx('relative transition-all duration-400 cubic-bezier(0.4, 0, 0.2, 1) transform', iconClass, 'group-hover:scale-140 active:scale-115')}>
                       {/* 创作按钮特殊效果 - 持续脉动背景 */}
                       <div className={clsx(
@@ -1177,11 +1139,11 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
                       )}></div>
                       <div className={clsx(
                         'rounded-full flex items-center justify-center transition-all duration-400 transform-gpu',
-                        isDark ? 'w-8 h-8 -mt-1' : 'w-10 h-10',
+                        isDark ? 'w-6 h-6 -mt-0.5' : 'w-7 h-7', // 进一步减小圆形按钮尺寸
                         `${bgColor} ${hoverBgColor}`,
-                        theme === 'pink' ? 'shadow-xl shadow-pink-300/50 ring-2 ring-pink-400/30' : 'shadow-lg'
+                        theme === 'pink' ? 'shadow-md shadow-pink-300/30 ring-1 ring-pink-400/20' : 'shadow-sm' // 进一步减小阴影效果
                       )}>
-                        <i className={clsx("fas fa-plus font-bold text-white transition-all duration-300", isDark ? "text-sm" : "text-lg")} style={{ textShadow: theme === 'pink' ? '0 0 15px rgba(255, 255, 255, 0.5)' : 'none' }}></i>
+                        <i className={clsx("fas fa-plus font-bold text-white transition-all duration-300", "text-xs")} style={{ textShadow: theme === 'pink' ? '0 0 8px rgba(255, 255, 255, 0.3)' : 'none' }}></i>
                       </div>
                       {isActive && (
                         <>
@@ -1191,7 +1153,7 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
                         </>
                       )}
                     </div>
-                    <span className={clsx('mt-[-2px] font-bold transition-all duration-400 cubic-bezier(0.4, 0, 0.2, 1)', textClass)} style={{ color: isDark ? 'text-white' : theme === 'pink' ? 'text-pink-800' : 'text-gray-900', textShadow: isActive && theme === 'pink' ? '0 0 6px rgba(236, 72, 153, 0.2)' : 'none', writingMode: 'horizontal-tb', textOrientation: 'initial' }}>{t('common.create')}</span>
+                    <span className={clsx('mt-[-2px] text-[10px] font-bold transition-all duration-400 cubic-bezier(0.4, 0, 0.2, 1)', textClass)} style={{ color: isDark ? 'text-white' : theme === 'pink' ? 'text-pink-800' : 'text-gray-900', textShadow: isActive && theme === 'pink' ? '0 0 4px rgba(236, 72, 153, 0.15)' : 'none', writingMode: 'horizontal-tb', textOrientation: 'initial' }}>{t('common.create')}</span>
                   </div>
                 );
               }}
@@ -1202,38 +1164,39 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
               to="/community?context=cocreation&tab=joined"
               onTouchStart={() => prefetchRoute('/community')}
               aria-label="社群"
-              className="flex-1"
+              className="flex-1 flex items-center justify-center"
             >
               {({ isActive }) => {
                 const baseClass = clsx(
                   'flex flex-col items-center justify-center transition-all duration-300 ease-in-out relative group transform-gpu',
-                  isDark ? 'py-0' : 'py-0.5'
+                  'min-h-[44px] px-0', // 确保触摸目标尺寸不小于44px，减少内边距
+                  'py-0' // 统一上下内边距
                 );
                 const iconColor = isActive ? (isDark ? 'text-white' : theme === 'pink' ? 'text-pink-700' : 'text-gray-900') : (isDark ? 'text-gray-400' : theme === 'pink' ? 'text-pink-400' : 'text-gray-600');
-                const textColor = isActive ? (isDark ? 'text-white font-semibold' : theme === 'pink' ? 'text-pink-800 font-bold' : 'text-gray-900 font-semibold') : (isDark ? 'text-gray-400' : theme === 'pink' ? 'text-pink-500' : 'text-gray-600');
-                const iconClass = isActive ? 'scale-125 text-opacity-100' : 'scale-100 text-opacity-70';
-                const textClass = isActive ? 'font-semibold opacity-100 scale-105' : 'opacity-60 scale-95';
+                const textColor = isActive ? (isDark ? 'text-white font-medium' : theme === 'pink' ? 'text-pink-800 font-semibold' : 'text-gray-900 font-medium') : (isDark ? 'text-gray-400' : theme === 'pink' ? 'text-pink-500' : 'text-gray-600');
+                const iconClass = isActive ? 'scale-115 text-opacity-100' : 'scale-100 text-opacity-70';
+                const textClass = isActive ? 'font-medium opacity-100 scale-100' : 'opacity-60 scale-95';
                 const gradientClass = isDark ? 'from-blue-400 to-purple-500' : theme === 'pink' ? 'from-pink-500 to-rose-500' : 'from-red-500 to-orange-500';
                 
                 return (
-                  <div className={clsx(baseClass)}>
-                    <div className={clsx('relative transition-all duration-400 cubic-bezier(0.4, 0, 0.2, 1) transform', iconClass, 'group-hover:scale-125 active:scale-95')}>
-                      <i className={clsx("fas fa-comments transition-all duration-300", isDark ? "text-sm" : "text-lg")} style={{ color: iconColor, textShadow: isActive && theme === 'pink' ? '0 0 10px rgba(236, 72, 153, 0.3)' : 'none' }}></i>
+                  <div className={clsx(baseClass, 'cursor-pointer')}>
+                    <div className={clsx('relative transition-all duration-400 cubic-bezier(0.4, 0, 0.2, 1) transform', iconClass, 'group-hover:scale-115 active:scale-95')}>
+                      <i className={clsx("fas fa-comments transition-all duration-300", "text-xs")} style={{ color: iconColor, textShadow: isActive && theme === 'pink' ? '0 0 6px rgba(236, 72, 153, 0.15)' : 'none' }}></i>
                       {/* 未读消息指示器 */}
                       {unreadCount > 0 && (
-                        <span className="absolute -top-1 -right-2 w-4 h-4 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center font-bold z-10">
+                        <span className="absolute -top-0.5 -right-1.5 w-3.5 h-3.5 bg-red-500 text-white text-[9px] rounded-full flex items-center justify-center font-bold z-10">
                           {unreadCount > 9 ? '9+' : unreadCount}
                         </span>
                       )}
                       {isActive && (
                         <>
                           <span className={clsx('absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-full h-0.5 rounded-full', `bg-gradient-to-r ${gradientClass}`)}></span>
-                          <div className={clsx('absolute -bottom-2 left-1/2 transform -translate-x-1/2 w-1.5 h-1.5 rounded-full animate-ping', 
+                          <div className={clsx('absolute -bottom-2 left-1/2 transform -translate-x-1/2 w-1.25 h-1.25 rounded-full animate-ping', 
                             isDark ? 'bg-blue-400' : theme === 'pink' ? 'bg-pink-500' : 'bg-orange-500')}></div>
                         </>
                       )}
                     </div>
-                    <span className={clsx('mt-[-2px] font-medium transition-all duration-400 cubic-bezier(0.4, 0, 0.2, 1)', textClass)} style={{ color: textColor, textShadow: isActive && theme === 'pink' ? '0 0 6px rgba(236, 72, 153, 0.2)' : 'none', writingMode: 'horizontal-tb', textOrientation: 'initial' }}>{t('common.community')}</span>
+                    <span className={clsx('mt-[-2px] text-[10px] font-medium transition-all duration-400 cubic-bezier(0.4, 0, 0.2, 1)', textClass)} style={{ color: textColor, textShadow: isActive && theme === 'pink' ? '0 0 4px rgba(236, 72, 153, 0.15)' : 'none', writingMode: 'horizontal-tb', textOrientation: 'initial' }}>{t('common.community')}</span>
                   </div>
                 );
               }}
@@ -1244,32 +1207,33 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
               to="/tianjin"
               onTouchStart={() => prefetchRoute('/tianjin')}
               aria-label="天津特色专区"
-              className="flex-1"
+              className="flex-1 flex items-center justify-center"
             >
               {({ isActive }) => {
                 const baseClass = clsx(
                   'flex flex-col items-center justify-center transition-all duration-300 ease-in-out relative group transform-gpu',
-                  isDark ? 'py-0' : 'py-0.5'
+                  'min-h-[44px] px-0', // 确保触摸目标尺寸不小于44px，减少内边距
+                  'py-0' // 统一上下内边距
                 );
                 const iconColor = isActive ? (isDark ? 'text-white' : theme === 'pink' ? 'text-pink-700' : 'text-gray-900') : (isDark ? 'text-gray-400' : theme === 'pink' ? 'text-pink-400' : 'text-gray-600');
-                const textColor = isActive ? (isDark ? 'text-white font-semibold' : theme === 'pink' ? 'text-pink-900 font-semibold' : 'text-gray-900 font-semibold') : (isDark ? 'text-gray-400' : theme === 'pink' ? 'text-gray-500' : 'text-gray-600');
-                const iconClass = isActive ? 'scale-125 text-opacity-100' : 'scale-100 text-opacity-70';
-                const textClass = isActive ? 'font-semibold opacity-100 scale-105' : 'opacity-60 scale-95';
+                const textColor = isActive ? (isDark ? 'text-white font-medium' : theme === 'pink' ? 'text-pink-900 font-medium' : 'text-gray-900 font-medium') : (isDark ? 'text-gray-400' : theme === 'pink' ? 'text-gray-500' : 'text-gray-600');
+                const iconClass = isActive ? 'scale-115 text-opacity-100' : 'scale-100 text-opacity-70';
+                const textClass = isActive ? 'font-medium opacity-100 scale-100' : 'opacity-60 scale-95';
                 const gradientClass = isDark ? 'from-blue-400 to-purple-500' : theme === 'pink' ? 'from-pink-500 to-rose-500' : 'from-red-500 to-orange-500';
                 
                 return (
-                  <div className={clsx(baseClass)}>
-                    <div className={clsx('relative transition-all duration-400 cubic-bezier(0.4, 0, 0.2, 1) transform', iconClass, 'group-hover:scale-125 active:scale-95')}>
-                      <i className={clsx("fas fa-landmark transition-all duration-300", isDark ? "text-sm" : "text-lg")} style={{ color: iconColor, textShadow: isActive && theme === 'pink' ? '0 0 10px rgba(236, 72, 153, 0.3)' : 'none' }}></i>
+                  <div className={clsx(baseClass, 'cursor-pointer')}>
+                    <div className={clsx('relative transition-all duration-400 cubic-bezier(0.4, 0, 0.2, 1) transform', iconClass, 'group-hover:scale-115 active:scale-95')}>
+                      <i className={clsx("fas fa-landmark transition-all duration-300", "text-xs")} style={{ color: iconColor, textShadow: isActive && theme === 'pink' ? '0 0 6px rgba(236, 72, 153, 0.15)' : 'none' }}></i>
                       {isActive && (
                         <>
                           <span className={clsx('absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-full h-0.5 rounded-full', `bg-gradient-to-r ${gradientClass}`)}></span>
-                          <div className={clsx('absolute -bottom-2 left-1/2 transform -translate-x-1/2 w-1.5 h-1.5 rounded-full animate-ping', 
+                          <div className={clsx('absolute -bottom-2 left-1/2 transform -translate-x-1/2 w-1.25 h-1.25 rounded-full animate-ping', 
                             isDark ? 'bg-blue-400' : theme === 'pink' ? 'bg-pink-500' : 'bg-orange-500')}></div>
                         </>
                       )}
                     </div>
-                    <span className={clsx('mt-[-2px] font-medium transition-all duration-400 cubic-bezier(0.4, 0, 0.2, 1)', textClass)} style={{ color: textColor, textShadow: isActive && theme === 'pink' ? '0 0 6px rgba(236, 72, 153, 0.2)' : 'none', writingMode: 'horizontal-tb', textOrientation: 'initial' }}>天津特色专区</span>
+                    <span className={clsx('mt-[-2px] text-[10px] font-medium transition-all duration-400 cubic-bezier(0.4, 0, 0.2, 1)', textClass)} style={{ color: textColor, textShadow: isActive && theme === 'pink' ? '0 0 4px rgba(236, 72, 153, 0.15)' : 'none', writingMode: 'horizontal-tb', textOrientation: 'initial' }}>天津特色专区</span>
                   </div>
                 );
               }}

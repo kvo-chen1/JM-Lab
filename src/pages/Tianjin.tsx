@@ -1,11 +1,11 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useNavigate } from 'react-router-dom';
 import GradientHero from '@/components/GradientHero';
-
-// 动态导入，实现代码分割
-const TianjinCreativeActivities = lazy(() => import('@/components/TianjinCreativeActivities'));
+import eventCalendarService, { CulturalEvent } from '@/services/eventCalendarService';
+import TianjinCreativeActivities from '@/components/TianjinCreativeActivities';
+import ErrorBoundary from '@/components/ErrorBoundary';
 
 // 主题类型定义
 type ThemeType = 'light' | 'dark';
@@ -14,8 +14,69 @@ export default function Tianjin() {
   const { isDark, theme } = useTheme();
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
-  
-  
+  const [upcomingEvents, setUpcomingEvents] = useState<CulturalEvent[]>([]);
+
+  useEffect(() => {
+    // 使用专门针对"近期津城热点"的定制数据，而非通用的活动数据
+    const tianjinHotspots: CulturalEvent[] = [
+      {
+        id: 'hotspot-001',
+        title: '津湾广场灯光秀',
+        description: '海河畔的璀璨明珠，光影交织的视觉盛宴，展现天津现代与历史的交融之美。',
+        type: 'theme',
+        status: 'ongoing',
+        startDate: '每周五-周日',
+        endDate: '长期',
+        organizer: '天津市文旅局',
+        // 替换为Pexels高清实景图：城市夜景（更稳定的图源）
+        image: 'https://images.pexels.com/photos/169190/pexels-photo-169190.jpeg?auto=compress&cs=tinysrgb&w=800',
+        tags: ['灯光秀', '夜游', '打卡'],
+        culturalElements: ['海河文化', '现代光影'],
+        participantCount: 9999,
+        hasPrize: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      },
+      {
+        id: 'hotspot-002',
+        title: '五大道海棠节',
+        description: '漫步万国建筑博览群，共赴一场春日花约，感受"万国建筑博览会"的独特魅力。',
+        type: 'theme',
+        status: 'upcoming',
+        startDate: '2025-04-01',
+        endDate: '2025-04-10',
+        organizer: '和平区旅游局',
+        // 替换为Pexels高清实景图：春日花卉（更稳定的图源）
+        image: 'https://images.pexels.com/photos/2058498/pexels-photo-2058498.jpeg?auto=compress&cs=tinysrgb&w=800',
+        tags: ['赏花', '摄影', '历史街区'],
+        culturalElements: ['洋楼文化', '海棠花'],
+        participantCount: 5000,
+        hasPrize: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      },
+      {
+        id: 'hotspot-003',
+        title: '西北角早点美食节',
+        description: '碳水快乐星球，寻找最地道的天津老味，体验"津门第一早"的烟火气。',
+        type: 'theme',
+        status: 'ongoing',
+        startDate: '长期开放',
+        endDate: '长期',
+        organizer: '红桥区商务局',
+        // 替换为Pexels高清实景图：中式面点（更稳定的图源）
+        image: 'https://images.pexels.com/photos/2291599/pexels-photo-2291599.jpeg?auto=compress&cs=tinysrgb&w=800',
+        tags: ['美食', '早点', '老味'],
+        culturalElements: ['津味美食', '市井文化'],
+        participantCount: 8888,
+        hasPrize: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }
+    ];
+    setUpcomingEvents(tianjinHotspots);
+  }, []);
+
   return (
     <div className={`min-h-screen ${isDark ? 'bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white' : 'bg-gradient-to-br from-gray-50 via-white to-gray-100 text-gray-900'}`}>
 
@@ -35,7 +96,73 @@ export default function Tianjin() {
           ]}
           pattern={true}
           size="lg"
+          // 中文注释：使用Pexels高清"红灯笼夜景"作为背景图，替代原AI生成图片，营造沉浸式氛围
+          backgroundImage="https://images.pexels.com/photos/6688844/pexels-photo-6688844.jpeg?auto=compress&cs=tinysrgb&w=1920"
+          actions={[
+            {
+              label: '探索老字号地图',
+              onClick: () => navigate('/tianjin/map'),
+              primary: true
+            }
+          ]}
         />
+
+        {/* 近期热门活动预览 - 导流模块 */}
+        <section className="mt-8">
+          <div className="flex justify-between items-center mb-4 px-2">
+            <h2 className="text-xl font-bold flex items-center">
+              <i className="fas fa-fire text-red-500 mr-2"></i>
+              近期津城热点
+            </h2>
+            <button 
+              onClick={() => navigate('/events')}
+              className={`text-sm font-medium transition-colors ${isDark ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-red-600'}`}
+            >
+              查看更多活动 <i className="fas fa-arrow-right ml-1"></i>
+            </button>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {upcomingEvents.map((event) => (
+              <motion.div
+                key={event.id}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                whileHover={{ y: -5 }}
+                className={`group cursor-pointer rounded-xl overflow-hidden shadow-md border ${
+                  isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'
+                }`}
+                onClick={() => navigate(`/events/${event.id}`)}
+              >
+                <div className="relative h-32 overflow-hidden">
+                  <img 
+                    src={event.image} 
+                    alt={event.title} 
+                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                  />
+                  <div className="absolute top-2 left-2">
+                    <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-600 text-white shadow-sm">
+                      即将开始
+                    </span>
+                  </div>
+                </div>
+                <div className="p-4">
+                  <h3 className="font-bold text-base mb-1 line-clamp-1 group-hover:text-red-500 transition-colors">
+                    {event.title}
+                  </h3>
+                  <div className="flex items-center text-xs text-gray-500 mb-2">
+                    <i className="far fa-calendar-alt mr-1.5"></i>
+                    {event.startDate}
+                  </div>
+                  <p className={`text-xs line-clamp-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                    {event.description}
+                  </p>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </section>
         
         {/* 津味共创活动 */}
         <section className="mt-8 mb-12">
@@ -51,7 +178,7 @@ export default function Tianjin() {
               >
                 <input
                   type="text"
-                  placeholder="搜索活动、模板、体验或品牌"
+                  placeholder="搜索地域模板、线下体验或老字号"
                   className={`w-full px-5 py-2.5 rounded-full text-sm font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all duration-300 ${isDark ? 'bg-gray-700 border border-gray-600 text-white placeholder-gray-400 focus:ring-red-500 focus:ring-offset-gray-800 hover:bg-gray-650' : 'bg-gray-100 border border-gray-200 text-gray-900 placeholder-gray-500 focus:ring-red-500 focus:ring-offset-white hover:bg-gray-150'}`}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -85,19 +212,15 @@ export default function Tianjin() {
             </motion.div>
 
             {/* 活动内容 */}
-            <Suspense fallback={
-              <div className="flex justify-center items-center h-32">
-                <div className="animate-spin rounded-full h-8 w-8 border-2 border-t-red-600 border-gray-700"></div>
-              </div>
-            }>
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.3 }}
-              >
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.3 }}
+            >
+              <ErrorBoundary>
                 <TianjinCreativeActivities search={searchTerm} />
-              </motion.div>
-            </Suspense>
+              </ErrorBoundary>
+            </motion.div>
           </div>
         </section>
       </main>

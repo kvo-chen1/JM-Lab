@@ -98,6 +98,8 @@ const Games: React.FC = () => {
             ]}
             pattern={true}
             size="lg"
+            // 中文注释：使用可靠的图片服务确保背景图显示
+            backgroundImage="https://picsum.photos/seed/games/1920/1080"
           />
 
           {/* 游戏列表 */}

@@ -103,11 +103,21 @@ const AICreativeAssistant: React.FC<AICreativeAssistantProps> = ({ isOpen, onClo
       className={`fixed top-0 right-0 w-full max-w-md h-full ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-2xl z-50 flex flex-col`}
     >
       {/* 面板头部 */}
-      <div className={`p-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'} flex justify-between items-center`}>
-        <h3 className="text-lg font-bold">津小脉</h3>
+      <div className={`p-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'} bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white flex justify-between items-center shadow-lg relative overflow-hidden`}>
+        {/* 装饰性背景元素 */}
+        <div className="absolute top-0 left-0 w-full h-full opacity-10">
+          <div className="absolute top-[-50%] left-[-50%] w-40 h-40 rounded-full bg-white blur-2xl"></div>
+          <div className="absolute bottom-[-50%] right-[-50%] w-40 h-40 rounded-full bg-white blur-2xl"></div>
+        </div>
+        <div className="flex items-center gap-3 relative">
+          <div className={`w-9 h-9 rounded-full bg-gradient-to-br from-white/30 to-white/10 backdrop-blur-sm flex items-center justify-center shadow-md border border-white/20 hover:shadow-xl transition-all duration-300 hover:scale-105`}>
+            <i className="fas fa-robot text-white text-lg animate-pulse-slow"></i>
+          </div>
+          <h3 className="text-lg font-bold text-white tracking-tight">津小脉</h3>
+        </div>
         <button
           onClick={onClose}
-          className={`p-2 rounded-full ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} transition-colors`}
+          className={`p-2 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 transition-all duration-300 hover:scale-110 hover:shadow-lg text-white`}
           aria-label="关闭"
         >
           <i className="fas fa-times"></i>

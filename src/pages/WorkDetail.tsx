@@ -5,6 +5,8 @@ import { useNavigate, useParams } from 'react-router-dom'
 // 使用更简洁的懒加载方式
 const ARPreview = lazy(() => import('@/components/SimplifiedARPreview'))
 const ProductMockupPreview = lazy(() => import('@/components/ProductMockupPreview'))
+// 使用默认导入包装命名导出
+const CreatePostModal = lazy(() => import('@/components/Community/Modals/CreatePostModal').then(module => ({ default: module.CreatePostModal })))
 import postsApi from '@/services/postService'
 import exportService, { ExportOptions, ExportFormat } from '@/services/exportService'
 import { toast } from 'sonner'
@@ -87,6 +89,8 @@ export default function WorkDetail() {
   const [isARPreviewOpen, setIsARPreviewOpen] = useState(false)
   const [arRetryCount, setArRetryCount] = useState(0) // 用于处理AR预览重试
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false)
+  const [isShareDialogOpen, setIsShareDialogOpen] = useState(false)
+  const [isShareToCommunityOpen, setIsShareToCommunityOpen] = useState(false)
   const [exportOptions, setExportOptions] = useState<ExportOptions>({
     format: 'png',
     resolution: 'medium',
@@ -100,6 +104,8 @@ export default function WorkDetail() {
   const [work, setWork] = useState<any>(null)
   const [related, setRelated] = useState<any[]>([])
   const [showMockup, setShowMockup] = useState(false)
+  const [shareSuccess, setShareSuccess] = useState(false)
+  const [communityTopics, setCommunityTopics] = useState<string[]>(['国潮', '非遗', '极简', '赛博朋克', '传统文化', '数字艺术', '工艺创新'])
 
   // 从统一数据源获取作品详情
   useEffect(() => {
@@ -172,6 +178,71 @@ export default function WorkDetail() {
     toast.success('已跳转至授权购买页面')
     // 实际项目中跳转到支付/授权页面
     // navigate(`/license/buy/${work.id}`)
+  }
+
+  // 处理分享功能
+  const handleShare = () => {
+    setIsShareDialogOpen(true)
+  }
+
+  // 分享到具体平台
+  const shareToPlatform = (platform: string) => {
+    const shareUrl = `${window.location.origin}/explore/${work.id}`
+    const shareTitle = work.title
+    const shareDesc = `${work.title} - 来自津脉智坊的精彩作品`
+    const shareImage = work.thumbnail
+    
+    let shareLink = ''
+    
+    switch (platform) {
+      case 'weixin':
+        // 微信分享通常需要专门的SDK，这里只是示例
+        toast.info('请使用微信扫一扫分享')
+        break
+      case 'weibo':
+        shareLink = `https://service.weibo.com/share/share.php?url=${encodeURIComponent(shareUrl)}&title=${encodeURIComponent(shareTitle)}&pic=${encodeURIComponent(shareImage)}`
+        window.open(shareLink, '_blank')
+        break
+      case 'qq':
+        shareLink = `https://connect.qq.com/widget/shareqq/index.html?url=${encodeURIComponent(shareUrl)}&title=${encodeURIComponent(shareTitle)}&pics=${encodeURIComponent(shareImage)}&summary=${encodeURIComponent(shareDesc)}`
+        window.open(shareLink, '_blank')
+        break
+      case 'copy':
+        navigator.clipboard.writeText(shareUrl)
+          .then(() => {
+            setShareSuccess(true)
+            setTimeout(() => {
+              setShareSuccess(false)
+              setIsShareDialogOpen(false)
+            }, 2000)
+          })
+          .catch(() => {
+            toast.error('复制链接失败，请手动复制')
+          })
+        break
+      case 'community':
+        // 打开分享到社群的模态框
+        setIsShareDialogOpen(false)
+        setIsShareToCommunityOpen(true)
+        break
+      default:
+        break
+    }
+  }
+
+  // 分享到社群
+  const handleShareToCommunity = (data: { title: string; content: string; topic: string; communityIds: string[] }) => {
+    // 使用社群服务创建帖子
+    import('@/services/communityService').then(({ createPost }) => {
+      createPost({
+        title: data.title,
+        content: data.content,
+        topic: data.topic,
+        communityIds: data.communityIds,
+        workId: work.id.toString()
+      })
+    })
+    setIsShareToCommunityOpen(false)
   }
 
   // 处理导出功能
@@ -303,6 +374,14 @@ export default function WorkDetail() {
                   >
                     <i className="fas fa-file-contract mr-1"></i>
                     商用授权
+                  </button>
+                  <button 
+                    onClick={() => handleShare()}
+                    className="px-4 py-2 rounded-lg bg-teal-600 text-white flex items-center gap-2 text-sm font-medium transition-all hover:shadow-md"
+                    title="分享作品"
+                  >
+                    <i className="fas fa-share-alt"></i>
+                    分享
                   </button>
                 </div>
               </div>
@@ -495,6 +574,104 @@ export default function WorkDetail() {
                     导出
                   </button>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* 分享对话框 */}
+          {isShareDialogOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70 p-4">
+              <div className={`${isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'} rounded-xl p-6 w-full max-w-md`}>
+                <h2 className="text-xl font-bold mb-4">分享作品</h2>
+                
+                <div className="space-y-4">
+                  {/* 分享链接预览 */}
+                  <div className="p-3 rounded-lg bg-gray-100 dark:bg-gray-700">
+                    <p className="text-sm opacity-70 mb-1">分享链接</p>
+                    <p className="text-sm font-medium break-all">{window.location.origin}/explore/{work.id}</p>
+                  </div>
+                  
+                  {/* 分享平台选择 */}
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+                    <button 
+                      onClick={() => shareToPlatform('weixin')}
+                      className={`flex flex-col items-center justify-center p-3 rounded-lg transition-all hover:shadow-md ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}
+                    >
+                      <i className="fab fa-weixin text-2xl text-green-500 mb-1"></i>
+                      <span className="text-xs">微信</span>
+                    </button>
+                    <button 
+                      onClick={() => shareToPlatform('weibo')}
+                      className={`flex flex-col items-center justify-center p-3 rounded-lg transition-all hover:shadow-md ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}
+                    >
+                      <i className="fab fa-weibo text-2xl text-red-500 mb-1"></i>
+                      <span className="text-xs">微博</span>
+                    </button>
+                    <button 
+                      onClick={() => shareToPlatform('qq')}
+                      className={`flex flex-col items-center justify-center p-3 rounded-lg transition-all hover:shadow-md ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}
+                    >
+                      <i className="fab fa-qq text-2xl text-blue-500 mb-1"></i>
+                      <span className="text-xs">QQ</span>
+                    </button>
+                    <button 
+                      onClick={() => shareToPlatform('community')}
+                      className={`flex flex-col items-center justify-center p-3 rounded-lg transition-all hover:shadow-md ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}
+                    >
+                      <i className="fas fa-users text-2xl text-orange-500 mb-1"></i>
+                      <span className="text-xs">创作者社群</span>
+                    </button>
+                    <button 
+                      onClick={() => shareToPlatform('copy')}
+                      className={`flex flex-col items-center justify-center p-3 rounded-lg transition-all hover:shadow-md ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}
+                    >
+                      {shareSuccess ? (
+                        <>
+                          <i className="fas fa-check-circle text-2xl text-green-500 mb-1"></i>
+                          <span className="text-xs">已复制</span>
+                        </>
+                      ) : (
+                        <>
+                          <i className="fas fa-link text-2xl text-purple-500 mb-1"></i>
+                          <span className="text-xs">复制链接</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* 按钮组 */}
+                <div className="flex justify-end mt-6">
+                  <button 
+                    onClick={() => setIsShareDialogOpen(false)}
+                    className={`px-4 py-2 rounded-lg ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} transition-colors`}
+                  >
+                    关闭
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 分享到创作者社群对话框 */}
+          {isShareToCommunityOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70 p-4">
+              <div className={`${isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'} rounded-xl p-6 w-full max-w-md`}>
+                <h2 className="text-xl font-bold mb-4">分享到创作者社群</h2>
+                
+                <Suspense fallback={
+                  <div className="flex items-center justify-center py-8">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+                  </div>
+                }>
+                  <CreatePostModal
+                    isOpen={isShareToCommunityOpen}
+                    onClose={() => setIsShareToCommunityOpen(false)}
+                    onSubmit={handleShareToCommunity}
+                    isDark={isDark}
+                    topics={communityTopics}
+                  />
+                </Suspense>
               </div>
             </div>
           )}

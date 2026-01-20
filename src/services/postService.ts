@@ -1,7 +1,8 @@
 // 评论反应类型
 export type CommentReaction = 'like' | 'love' | 'laugh' | 'surprise' | 'sad' | 'angry';
 
-// 导入mock数据
+// 导入统一API服务
+import { workService, commentService } from './apiService';
 import { mockWorks } from '@/mock/works';
 
 // 评论接口
@@ -148,79 +149,166 @@ function invalidateRelatedCaches(): void {
 /**
  * 获取所有帖子
  */
-export function getPosts(): Post[] {
+export async function getPosts(): Promise<Post[]> {
   const cached = getCache(postCache, 'all');
   if (cached) {
     return cached;
   }
   
-  const raw = safeLocalStorageGet(KEY);
-  const posts = raw ? JSON.parse(raw) : [];
-  setCache(postCache, 'all', posts);
-  return posts;
-}
-
-/**
- * 添加作品
- */
-export function addPost(p: Omit<Post, 'id' | 'likes' | 'comments' | 'date' | 'isLiked' | 'isBookmarked' | 'views' | 'shares' | 'isFeatured' | 'isDraft' | 'completionStatus'>): Post {
-  const post: Post = {
-    id: `p-${Date.now()}`,
-    likes: 0,
-    comments: [],
-    date: new Date().toISOString().slice(0, 10),
-    isLiked: false,
-    isBookmarked: false,
-    views: 0,
-    shares: 0,
-    isFeatured: false,
-    isDraft: false,
-    completionStatus: 'completed',
-    ...p
-  };
-  const posts = getPosts();
-  posts.unshift(post);
-  scheduleBatchUpdate(KEY, posts);
-  setCache(postCache, 'all', posts);
-  return post;
-}
-
-/**
- * 点赞帖子
- */
-export function likePost(id: string): Post | undefined {
-  const userLikes = getUserLikes();
-  if (!userLikes.includes(id)) {
-    userLikes.push(id);
-    scheduleBatchUpdate(USER_LIKES_KEY, userLikes);
-    setCache(likeCache, 'user', userLikes);
-  }
-  
-  const work = mockWorks.find(w => w.id.toString() === id);
-  if (work) {
-    return {
+  try {
+    // 使用统一API服务获取作品数据
+    const works = await workService.getWorks();
+    
+    // 将Work类型转换为Post类型
+    const posts = works.map(work => ({
       id: work.id.toString(),
       title: work.title,
       thumbnail: work.thumbnail,
-      likes: work.likes + 1,
+      likes: work.likes,
       comments: [],
       date: new Date().toISOString().slice(0, 10),
-      isLiked: true,
+      isLiked: false,
       isBookmarked: false,
-      category: 'design' as PostCategory,
+      category: work.category as PostCategory,
       tags: work.tags,
       description: work.description || '',
       views: work.views,
       shares: 0,
       isFeatured: work.featured,
       isDraft: false,
-      completionStatus: 'published' as const,
+      completionStatus: 'published',
       creativeDirection: '',
       culturalElements: [],
       colorScheme: [],
       toolsUsed: [],
       downloadCount: 0
+    }));
+    
+    setCache(postCache, 'all', posts);
+    return posts;
+  } catch (error) {
+    console.error('获取帖子失败:', error);
+    // 失败时返回空数组
+    return [];
+  }
+}
+
+/**
+ * 添加作品
+ */
+export async function addPost(p: Omit<Post, 'id' | 'likes' | 'comments' | 'date' | 'isLiked' | 'isBookmarked' | 'views' | 'shares' | 'isFeatured' | 'isDraft' | 'completionStatus'>): Promise<Post> {
+  try {
+    // 使用统一API服务创建作品
+    const createdWork = await workService.createWork({
+      title: p.title,
+      thumbnail: p.thumbnail,
+      category: p.category,
+      tags: p.tags,
+      description: p.description,
+      views: 0,
+      likes: 0,
+      featured: false,
+      user_id: '1' // 假设当前用户ID为1，实际应从认证上下文中获取
+    });
+    
+    // 转换为Post类型
+    const post: Post = {
+      id: createdWork.id.toString(),
+      likes: createdWork.likes,
+      comments: [],
+      date: new Date().toISOString().slice(0, 10),
+      isLiked: false,
+      isBookmarked: false,
+      views: createdWork.views,
+      shares: 0,
+      isFeatured: createdWork.featured,
+      isDraft: false,
+      completionStatus: 'completed',
+      ...p
     };
+    
+    // 更新缓存
+    const posts = await getPosts();
+    posts.unshift(post);
+    setCache(postCache, 'all', posts);
+    
+    return post;
+  } catch (error) {
+    console.error('添加作品失败:', error);
+    // 失败时返回本地创建的post
+    const post: Post = {
+      id: `p-${Date.now()}`,
+      likes: 0,
+      comments: [],
+      date: new Date().toISOString().slice(0, 10),
+      isLiked: false,
+      isBookmarked: false,
+      views: 0,
+      shares: 0,
+      isFeatured: false,
+      isDraft: false,
+      completionStatus: 'completed',
+      ...p
+    };
+    return post;
+  }
+}
+
+/**
+ * 点赞帖子
+ */
+export async function likePost(id: string): Promise<Post | undefined> {
+  try {
+    // 使用统一API服务点赞作品
+    await workService.likeWork(parseInt(id));
+    
+    // 更新本地缓存
+    const userLikes = getUserLikes();
+    if (!userLikes.includes(id)) {
+      userLikes.push(id);
+      scheduleBatchUpdate(USER_LIKES_KEY, userLikes);
+      setCache(likeCache, 'user', userLikes);
+    }
+    
+    // 更新帖子缓存
+    const posts = await getPosts();
+    const postIndex = posts.findIndex(p => p.id === id);
+    if (postIndex >= 0) {
+      posts[postIndex].likes++;
+      posts[postIndex].isLiked = true;
+      setCache(postCache, 'all', posts);
+      return posts[postIndex];
+    }
+    
+    // 如果缓存中没有，从mock数据获取
+    const work = mockWorks.find(w => w.id.toString() === id);
+    if (work) {
+      return {
+        id: work.id.toString(),
+        title: work.title,
+        thumbnail: work.thumbnail,
+        likes: work.likes + 1,
+        comments: [],
+        date: new Date().toISOString().slice(0, 10),
+        isLiked: true,
+        isBookmarked: false,
+        category: 'design' as PostCategory,
+        tags: work.tags,
+        description: work.description || '',
+        views: work.views,
+        shares: 0,
+        isFeatured: work.featured,
+        isDraft: false,
+        completionStatus: 'published' as const,
+        creativeDirection: '',
+        culturalElements: [],
+        colorScheme: [],
+        toolsUsed: [],
+        downloadCount: 0
+      };
+    }
+  } catch (error) {
+    console.error('点赞帖子失败:', error);
   }
   return undefined;
 }
@@ -228,37 +316,56 @@ export function likePost(id: string): Post | undefined {
 /**
  * 取消点赞帖子
  */
-export function unlikePost(id: string): Post | undefined {
-  const userLikes = getUserLikes();
-  const updatedLikes = userLikes.filter(postId => postId !== id);
-  scheduleBatchUpdate(USER_LIKES_KEY, updatedLikes);
-  setCache(likeCache, 'user', updatedLikes);
-  
-  const work = mockWorks.find(w => w.id.toString() === id);
-  if (work) {
-    return {
-      id: work.id.toString(),
-      title: work.title,
-      thumbnail: work.thumbnail,
-      likes: Math.max(0, work.likes - 1),
-      comments: [],
-      date: new Date().toISOString().slice(0, 10),
-      isLiked: false,
-      isBookmarked: false,
-      category: 'design' as PostCategory,
-      tags: work.tags,
-      description: work.description || '',
-      views: work.views,
-      shares: 0,
-      isFeatured: work.featured,
-      isDraft: false,
-      completionStatus: 'published' as const,
-      creativeDirection: '',
-      culturalElements: [],
-      colorScheme: [],
-      toolsUsed: [],
-      downloadCount: 0
-    };
+export async function unlikePost(id: string): Promise<Post | undefined> {
+  try {
+    // 使用统一API服务取消点赞作品
+    await workService.unlikeWork(parseInt(id));
+    
+    // 更新本地缓存
+    const userLikes = getUserLikes();
+    const updatedLikes = userLikes.filter(postId => postId !== id);
+    scheduleBatchUpdate(USER_LIKES_KEY, updatedLikes);
+    setCache(likeCache, 'user', updatedLikes);
+    
+    // 更新帖子缓存
+    const posts = await getPosts();
+    const postIndex = posts.findIndex(p => p.id === id);
+    if (postIndex >= 0) {
+      posts[postIndex].likes = Math.max(0, posts[postIndex].likes - 1);
+      posts[postIndex].isLiked = false;
+      setCache(postCache, 'all', posts);
+      return posts[postIndex];
+    }
+    
+    // 如果缓存中没有，从mock数据获取
+    const work = mockWorks.find(w => w.id.toString() === id);
+    if (work) {
+      return {
+        id: work.id.toString(),
+        title: work.title,
+        thumbnail: work.thumbnail,
+        likes: Math.max(0, work.likes - 1),
+        comments: [],
+        date: new Date().toISOString().slice(0, 10),
+        isLiked: false,
+        isBookmarked: false,
+        category: 'design' as PostCategory,
+        tags: work.tags,
+        description: work.description || '',
+        views: work.views,
+        shares: 0,
+        isFeatured: work.featured,
+        isDraft: false,
+        completionStatus: 'published' as const,
+        creativeDirection: '',
+        culturalElements: [],
+        colorScheme: [],
+        toolsUsed: [],
+        downloadCount: 0
+      };
+    }
+  } catch (error) {
+    console.error('取消点赞帖子失败:', error);
   }
   return undefined;
 }
@@ -344,30 +451,34 @@ export function unbookmarkPost(id: string): Post | undefined {
 /**
  * 获取用户收藏的帖子ID列表
  */
-export function getUserBookmarks(): string[] {
-  const cached = getCache(bookmarkCache, 'user');
+export function getUserBookmarks(userId: string): string[] {
+  const cacheKey = `user_${userId}`;
+  const cached = getCache(bookmarkCache, cacheKey);
   if (cached) {
     return cached;
   }
   
-  const raw = safeLocalStorageGet(USER_BOOKMARKS_KEY);
+  const userBookmarksKey = `${USER_BOOKMARKS_KEY}_${userId}`;
+  const raw = safeLocalStorageGet(userBookmarksKey);
   const bookmarks = raw ? JSON.parse(raw) : [];
-  setCache(bookmarkCache, 'user', bookmarks);
+  setCache(bookmarkCache, cacheKey, bookmarks);
   return bookmarks;
 }
 
 /**
  * 获取用户点赞的帖子ID列表
  */
-export function getUserLikes(): string[] {
-  const cached = getCache(likeCache, 'user');
+export function getUserLikes(userId: string): string[] {
+  const cacheKey = `user_${userId}`;
+  const cached = getCache(likeCache, cacheKey);
   if (cached) {
     return cached;
   }
   
-  const raw = safeLocalStorageGet(USER_LIKES_KEY);
+  const userLikesKey = `${USER_LIKES_KEY}_${userId}`;
+  const raw = safeLocalStorageGet(userLikesKey);
   const likes = raw ? JSON.parse(raw) : [];
-  setCache(likeCache, 'user', likes);
+  setCache(likeCache, cacheKey, likes);
   return likes;
 }
 
@@ -470,8 +581,8 @@ function findComment(comments: Comment[], commentId: string): { comment: Comment
 /**
  * 添加评论
  */
-export function addComment(postId: string, content: string, parentId?: string): Post | undefined {
-  const posts = getPosts();
+export async function addComment(postId: string, content: string, parentId?: string): Promise<Post | undefined> {
+  const posts = await getPosts();
   const postIdx = posts.findIndex(p => p.id === postId);
   if (postIdx >= 0) {
     const newComment: Comment = {
@@ -510,8 +621,8 @@ export function addComment(postId: string, content: string, parentId?: string): 
 /**
  * 点赞评论
  */
-export function likeComment(postId: string, commentId: string): Post | undefined {
-  const posts = getPosts();
+export async function likeComment(postId: string, commentId: string): Promise<Post | undefined> {
+  const posts = await getPosts();
   const postIdx = posts.findIndex(p => p.id === postId);
   if (postIdx >= 0) {
     const result = findComment(posts[postIdx].comments, commentId);
@@ -526,8 +637,8 @@ export function likeComment(postId: string, commentId: string): Post | undefined
   return undefined;
 }
 
-export function unlikeComment(postId: string, commentId: string): Post | undefined {
-  const posts = getPosts();
+export async function unlikeComment(postId: string, commentId: string): Promise<Post | undefined> {
+  const posts = await getPosts();
   const postIdx = posts.findIndex(p => p.id === postId);
   if (postIdx >= 0) {
     const result = findComment(posts[postIdx].comments, commentId);
@@ -542,8 +653,8 @@ export function unlikeComment(postId: string, commentId: string): Post | undefin
   return undefined;
 }
 
-export function addCommentReaction(postId: string, commentId: string, reaction: CommentReaction): Post | undefined {
-  const posts = getPosts();
+export async function addCommentReaction(postId: string, commentId: string, reaction: CommentReaction): Promise<Post | undefined> {
+  const posts = await getPosts();
   const postIdx = posts.findIndex(p => p.id === postId);
   if (postIdx >= 0) {
     const result = findComment(posts[postIdx].comments, commentId);
@@ -564,8 +675,8 @@ export function addCommentReaction(postId: string, commentId: string, reaction: 
   return undefined;
 }
 
-export function deleteComment(postId: string, commentId: string): Post | undefined {
-  const posts = getPosts();
+export async function deleteComment(postId: string, commentId: string): Promise<Post | undefined> {
+  const posts = await getPosts();
   const postIdx = posts.findIndex(p => p.id === postId);
   if (postIdx >= 0) {
     const removeComment = (comments: Comment[]): boolean => {

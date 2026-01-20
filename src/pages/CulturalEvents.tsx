@@ -44,6 +44,8 @@ export default function CulturalEvents() {
           { label: '即将开始', value: `${eventCalendarService.getEventsByStatus('upcoming').length}` }
         ]}
         pattern={true}
+        // 中文注释：使用在线图片测试背景图显示
+        backgroundImage="https://images.unsplash.com/photo-1511919884226-fd3cad34687c?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80"
       />
         {/* 活动统计卡片 */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">

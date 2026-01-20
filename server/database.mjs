@@ -186,19 +186,24 @@ async function initSQLite() {
 function createSQLiteTables(db) {
   try {
     // 创建用户表
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT UNIQUE NOT NULL,
-        email TEXT UNIQUE NOT NULL,
-        password_hash TEXT NOT NULL,
-        phone TEXT,
-        avatar_url TEXT,
-        interests TEXT,
-        created_at INTEGER NOT NULL,
-        updated_at INTEGER NOT NULL
-      );
-    `)
+        db.exec(`
+          CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            phone TEXT,
+            avatar_url TEXT,
+            interests TEXT,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL,
+            email_verified INTEGER DEFAULT 0,
+            email_verification_token TEXT,
+            email_verification_expires INTEGER,
+            sms_verification_code TEXT,
+            sms_verification_expires INTEGER
+          );
+        `)
     
     // 尝试添加新列 (兼容旧数据库)
     const columns = [
@@ -363,7 +368,14 @@ async function initPostgreSQL() {
     
     const pool = new Pool({
       connectionString,
-      ...options
+      ...options,
+      // 配置日志级别，避免输出连接内存地址
+      log: (msg) => {
+        // 只记录错误级别的日志，忽略调试信息
+        if (msg.includes('error') || msg.includes('Error')) {
+          log(`PostgreSQL Pool: ${msg}`, 'ERROR')
+        }
+      }
     })
     
     // 连接池事件监控
@@ -447,15 +459,26 @@ async function createPostgreSQLTables(pool) {
           interests TEXT,
           age INTEGER,
           tags TEXT,
-          created_at BIGINT NOT NULL,
-          updated_at BIGINT NOT NULL,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          -- 验证相关字段
+          email_verified BOOLEAN DEFAULT FALSE,
+          email_verification_token VARCHAR(255),
+          email_verification_expires TIMESTAMP WITH TIME ZONE,
+          sms_verification_code VARCHAR(10),
+          sms_verification_expires TIMESTAMP WITH TIME ZONE,
           -- 会员相关字段
           membership_level VARCHAR(20) DEFAULT 'free',
           membership_status VARCHAR(20) DEFAULT 'active',
-          membership_start BIGINT,
-          membership_end BIGINT
+          membership_start TIMESTAMP WITH TIME ZONE,
+          membership_end TIMESTAMP WITH TIME ZONE
         );
       `)
+      
+      // 确保必要的列存在，即使表已经存在
+      await client.query(`ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS sms_verification_code VARCHAR(10);`)
+      await client.query(`ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS sms_verification_expires TIMESTAMP WITH TIME ZONE;`)
+      await client.query(`ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS email_verification_expires TIMESTAMP WITH TIME ZONE;`)
       
       // 创建收藏表
       await client.query(`
@@ -944,6 +967,86 @@ export const userDB = {
       case DB_TYPE.MONGODB: return db.collection('users').findOne({ username })
       case DB_TYPE.POSTGRESQL: return (await db.query('SELECT * FROM users WHERE username = $1', [username])).rows[0]
       case DB_TYPE.NEON_API: return (await db.query('SELECT * FROM users WHERE username = $1', [username])).result.rows[0]
+      default: throw new Error(`Unsupported DB Type: ${config.dbType}`)
+    }
+  },
+
+  async findByPhone(phone) {
+    const db = await getDB()
+    const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
+    switch (typeKey) {
+      case DB_TYPE.SQLITE: return db.prepare('SELECT * FROM users WHERE phone = ?').get(phone)
+      case DB_TYPE.MONGODB: return db.collection('users').findOne({ phone: phone })
+      case DB_TYPE.POSTGRESQL: return (await db.query('SELECT * FROM users WHERE phone = $1', [phone])).rows[0]
+      case DB_TYPE.NEON_API: return (await db.query('SELECT * FROM users WHERE phone = $1', [phone])).result.rows[0]
+      default: throw new Error(`Unsupported DB Type: ${config.dbType}`)
+    }
+  },
+
+  async updateSmsVerificationCode(phone, code, expiresAt) {
+    const db = await getDB()
+    const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
+    switch (typeKey) {
+      case DB_TYPE.SQLITE:
+        // 检查用户是否存在，如果不存在则创建一个临时记录
+        const existing = db.prepare('SELECT * FROM users WHERE email = ?').get(phone)
+        if (existing) {
+          db.prepare('UPDATE users SET sms_verification_code = ?, sms_verification_expires = ? WHERE email = ?').run(code, expiresAt, phone)
+        } else {
+          db.prepare('INSERT INTO users (email, sms_verification_code, sms_verification_expires, created_at, updated_at) VALUES (?, ?, ?, ?, ?)').run(phone, code, expiresAt, Date.now(), Date.now())
+        }
+        return true
+      case DB_TYPE.MONGODB:
+        await db.collection('users').updateOne(
+          { email: phone },
+          { $set: { sms_verification_code: code, sms_verification_expires: expiresAt, updated_at: Date.now() } },
+          { upsert: true }
+        )
+        return true
+      case DB_TYPE.POSTGRESQL:
+        // 对于PostgreSQL，将毫秒级时间戳转换为TIMESTAMP WITH TIME ZONE
+        await db.query(
+          'INSERT INTO users (email, sms_verification_code, sms_verification_expires, created_at, updated_at) VALUES ($1, $2, to_timestamp($3 / 1000), NOW(), NOW()) ON CONFLICT (email) DO UPDATE SET sms_verification_code = $2, sms_verification_expires = to_timestamp($3 / 1000), updated_at = NOW()',
+          [phone, code, expiresAt]
+        )
+        return true
+      case DB_TYPE.NEON_API:
+        // Neon API也使用PostgreSQL语法
+        await db.query(
+          'INSERT INTO users (email, sms_verification_code, sms_verification_expires, created_at, updated_at) VALUES ($1, $2, to_timestamp($3 / 1000), NOW(), NOW()) ON CONFLICT (email) DO UPDATE SET sms_verification_code = $2, sms_verification_expires = to_timestamp($3 / 1000), updated_at = NOW()',
+          [phone, code, expiresAt]
+        )
+        return true
+      default: throw new Error(`Unsupported DB Type: ${config.dbType}`)
+    }
+  },
+
+  async getSmsVerificationCode(phone) {
+    const db = await getDB()
+    const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
+    switch (typeKey) {
+      case DB_TYPE.SQLITE: {
+        const user = db.prepare('SELECT sms_verification_code, sms_verification_expires FROM users WHERE email = ?').get(phone)
+        return user || { sms_verification_code: null, sms_verification_expires: null }
+      }
+      case DB_TYPE.MONGODB: {
+        const user = await db.collection('users').findOne({ email: phone }, { projection: { sms_verification_code: 1, sms_verification_expires: 1 } })
+        return user || { sms_verification_code: null, sms_verification_expires: null }
+      }
+      case DB_TYPE.POSTGRESQL: {
+        const { rows } = await db.query(
+          'SELECT sms_verification_code, EXTRACT(EPOCH FROM sms_verification_expires) * 1000 AS sms_verification_expires FROM users WHERE email = $1', 
+          [phone]
+        )
+        return rows[0] || { sms_verification_code: null, sms_verification_expires: null }
+      }
+      case DB_TYPE.NEON_API: {
+        const result = await db.query(
+          'SELECT sms_verification_code, EXTRACT(EPOCH FROM sms_verification_expires) * 1000 AS sms_verification_expires FROM users WHERE email = $1', 
+          [phone]
+        )
+        return result.result.rows[0] || { sms_verification_code: null, sms_verification_expires: null }
+      }
       default: throw new Error(`Unsupported DB Type: ${config.dbType}`)
     }
   },

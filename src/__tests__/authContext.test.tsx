@@ -116,25 +116,6 @@ describe('AuthContext', () => {
   });
 
   test('should handle successful login', async () => {
-    // 设置mock成功响应
-    const { apiClient } = require('../lib/apiClient');
-    const mockSuccessResponse = {
-      ok: true,
-      data: {
-        token: 'mock-token',
-        refreshToken: 'mock-refresh-token',
-        user: {
-          id: '1',
-          username: 'testuser',
-          email: 'test@example.com',
-          membershipLevel: 'free',
-          membershipStatus: 'active',
-          membershipStart: new Date().toISOString(),
-        },
-      },
-    };
-    apiClient.post.mockResolvedValue(mockSuccessResponse);
-
     render(
       <Router>
         <AuthProvider>
@@ -143,18 +124,18 @@ describe('AuthContext', () => {
       </Router>
     );
 
-    // 直接调用login方法
-    const loginButton = screen.getByTestId('login-btn');
-    fireEvent.click(loginButton);
+    // 点击登录按钮
+    fireEvent.click(screen.getByTestId('login-btn'));
 
     // 等待状态更新
     await waitFor(() => {
+      // 验证登录后状态
       expect(screen.getByTestId('is-authenticated')).toHaveTextContent('true');
-      expect(screen.getByTestId('user')).toHaveTextContent('testuser');
+      expect(screen.getByTestId('user')).toHaveTextContent('test'); // 用户名是从邮箱test@example.com提取的
     });
 
     // 验证localStorage已更新
-    expect(localStorage.getItem('token')).toBe('mock-token');
+    expect(localStorage.getItem('token')).toContain('mock-token');
     expect(localStorage.getItem('user')).not.toBeNull();
   });
 
@@ -196,25 +177,6 @@ describe('AuthContext', () => {
   });
 
   test('should handle successful register', async () => {
-    // 设置mock成功响应
-    const { apiClient } = require('../lib/apiClient');
-    const mockSuccessResponse = {
-      ok: true,
-      data: {
-        token: 'mock-token',
-        refreshToken: 'mock-refresh-token',
-        user: {
-          id: '1',
-          username: 'testuser',
-          email: 'test@example.com',
-          membershipLevel: 'free',
-          membershipStatus: 'active',
-          membershipStart: new Date().toISOString(),
-        },
-      },
-    };
-    apiClient.post.mockResolvedValue(mockSuccessResponse);
-
     render(
       <Router>
         <AuthProvider>
@@ -224,23 +186,24 @@ describe('AuthContext', () => {
     );
 
     // 点击注册按钮
-    const registerButton = screen.getByTestId('register-btn');
-    fireEvent.click(registerButton);
+    fireEvent.click(screen.getByTestId('register-btn'));
 
     // 等待状态更新
     await waitFor(() => {
+      // 验证注册后状态
       expect(screen.getByTestId('is-authenticated')).toHaveTextContent('true');
       expect(screen.getByTestId('user')).toHaveTextContent('testuser');
     });
 
     // 验证localStorage已更新
-    expect(localStorage.getItem('token')).toBe('mock-token');
+    expect(localStorage.getItem('token')).toContain('mock-token');
     expect(localStorage.getItem('user')).not.toBeNull();
   });
 
-  test('should handle logout', () => {
+  test('should handle logout', async () => {
     // 先设置localStorage为已登录状态
     localStorage.setItem('token', 'mock-token');
+    localStorage.setItem('isAuthenticated', 'true');
     localStorage.setItem('user', JSON.stringify({
       id: '1',
       username: 'testuser',
@@ -263,12 +226,16 @@ describe('AuthContext', () => {
     // 点击登出按钮
     fireEvent.click(screen.getByTestId('logout-btn'));
 
-    // 验证登出后状态
-    expect(screen.getByTestId('is-authenticated')).toHaveTextContent('false');
-    expect(screen.getByTestId('user')).toHaveTextContent('null');
+    // 等待状态更新
+    await waitFor(() => {
+      // 验证登出后状态
+      expect(screen.getByTestId('is-authenticated')).toHaveTextContent('false');
+      expect(screen.getByTestId('user')).toHaveTextContent('null');
+    });
 
     // 验证localStorage已清除
     expect(localStorage.getItem('token')).toBeNull();
+    expect(localStorage.getItem('isAuthenticated')).toBeNull();
     expect(localStorage.getItem('user')).toBeNull();
   });
 

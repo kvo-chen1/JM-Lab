@@ -833,6 +833,8 @@ export default function TianjinMap() {
         ]}
         pattern={true}
         size="lg"
+        // 中文注释：使用Unsplash高清"复古地图纹理"作为背景图，替代原AI生成图片，营造沉浸式历史氛围
+        backgroundImage="https://images.unsplash.com/photo-1524661135-423995f22d0b?auto=format&fit=crop&w=1920&q=80"
       />
 
       {/* 主内容区 */}
@@ -1182,6 +1184,31 @@ export default function TianjinMap() {
                   </button>
                   <button 
                     className={`flex-1 py-2 rounded-lg transition-all duration-300 ${isDark ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'} font-medium text-sm flex items-center justify-center gap-1 shadow-md hover:shadow-lg transform hover:-translate-y-0.5`}
+                    onClick={() => {
+                      try {
+                        const url = window.location.href;
+                        // 根据当前选中的POI自定义分享内容
+                        const shareTitle = selectedBrand 
+                          ? `${selectedBrand.name} - 天津老字号历史地图` 
+                          : '天津老字号历史地图';
+                        
+                        if (navigator.share && window.isSecureContext) {
+                          // 使用Web Share API调用系统分享功能
+                          navigator.share({
+                            title: shareTitle,
+                            url: url
+                          });
+                        } else {
+                          // 不支持Web Share API时，复制链接到剪贴板
+                          navigator.clipboard.writeText(url);
+                          // 添加简单的提示
+                          alert('分享链接已复制到剪贴板');
+                        }
+                      } catch (error) {
+                        console.error('分享失败:', error);
+                        alert('分享失败，请稍后重试');
+                      }
+                    }}
                   >
                     <i className="fas fa-share-alt"></i>
                     分享

@@ -104,6 +104,7 @@ const LazyImage: React.FC<LazyImageProps> = React.memo(({
   formats = ['webp', 'avif'],
   responsiveSizes = [320, 640, 1024, 1600, 2048],
   processingOptions = {},
+  loading = 'lazy',
   ...rest 
 }) => {
   const [isLoaded, setIsLoaded] = useState(false);
@@ -180,6 +181,13 @@ const LazyImage: React.FC<LazyImageProps> = React.memo(({
     if (!responsive || disableFallback) {
       return undefined;
     }
+    // src 为空或非字符串时不生成 srcSet
+    if (!src || typeof src !== 'string') {
+      return undefined;
+    }
+    if (src.startsWith('/') || src.startsWith('data:')) {
+      return undefined;
+    }
     
     // 构建srcset
     const result = buildSrcSet(src, responsiveWidths, quality);
@@ -199,35 +207,12 @@ const LazyImage: React.FC<LazyImageProps> = React.memo(({
   
   // 对于SVG数据URL，立即设置为已加载，因为它们是内联的，会立即加载
   const isSvgDataUrl = useMemo(() => {
+    // src 为空时不视为 SVG data URL
+    if (!src || typeof src !== 'string') {
+      return false;
+    }
     return src.startsWith('data:image/svg+xml');
   }, [src]);
-  
-  // 性能监控：记录图片加载开始时间
-  const loadStartTime = useRef<number | null>(null);
-  
-  // 性能监控：记录图片加载统计
-  const logImagePerformance = (status: 'success' | 'error' | 'load') => {
-    if (typeof window !== 'undefined' && window.performance) {
-      const endTime = performance.now();
-      const loadTime = loadStartTime.current ? endTime - loadStartTime.current : 0;
-      
-      // 只在开发环境或性能监控模式下记录
-      if (import.meta.env.MODE === 'development') {
-        console.log(`[ImagePerformance] ${status}: ${alt}`, {
-          url: currentSrc,
-          loadTime: `${loadTime.toFixed(2)}ms`,
-          status,
-          priority,
-          quality,
-          responsive,
-          isVisible
-        });
-      }
-      
-      // 可以发送到监控服务
-      // 例如：sendToMonitoringService({ url: currentSrc, loadTime, status, priority });
-    }
-  };
   
   // 图片加载完成处理
   const handleLoad = () => {
@@ -240,7 +225,6 @@ const LazyImage: React.FC<LazyImageProps> = React.memo(({
     
     setIsLoaded(true);
     setIsError(false);
-    logImagePerformance('success');
     if (onLoad) {
       onLoad();
     }
@@ -248,9 +232,6 @@ const LazyImage: React.FC<LazyImageProps> = React.memo(({
   
   // 图片加载失败处理
   const handleError = (event: React.SyntheticEvent<HTMLImageElement, Event>) => {
-    logImagePerformance('error');
-    console.warn(`Image failed to load: ${currentSrc}`, event);
-    
     if (onError) {
       onError();
     }
@@ -259,40 +240,8 @@ const LazyImage: React.FC<LazyImageProps> = React.memo(({
     if (!disableFallback) {
       setIsError(true);
       setIsLoaded(false);
-      
-      // 自动重试机制，最多重试5次，增加重试次数提高成功率
-      if (retryCount < 5) {
-        // 指数退避 + 随机抖动，避免所有请求同时重试
-        const baseDelay = Math.pow(2, retryCount) * 1000; // 增加基础延迟
-        const jitter = Math.random() * 500;
-        const retryDelay = baseDelay + jitter;
-        
-        console.log(`Retrying image load (${retryCount + 1}/5) in ${retryDelay}ms: ${currentSrc}`);
-        
-        setTimeout(() => {
-          setRetryCount(prev => prev + 1);
-          setIsError(false);
-          setIsLoaded(false);
-          const img = imgRef.current;
-          if (img) {
-            img.src = '';
-            setTimeout(() => {
-              img.src = currentSrc;
-              loadStartTime.current = performance.now();
-            }, 0);
-          }
-        }, retryDelay);
-      }
     }
   };
-  
-  // 监控图片加载开始时间
-  useEffect(() => {
-    if (isVisible) {
-      loadStartTime.current = performance.now();
-      logImagePerformance('load');
-    }
-  }, [isVisible]);
   
   // 当src变化时重置加载状态
   useEffect(() => {
@@ -302,44 +251,7 @@ const LazyImage: React.FC<LazyImageProps> = React.memo(({
     setRetryCount(0); // 重置重试计数器
   }, [src, isSvgDataUrl]);
 
-  // 网络状态监听：当网络恢复时自动重试加载失败的图片
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const handleOnline = () => {
-      // 网络恢复时，如果图片加载失败且可见，重置状态并重试
-      if (isError) {
-        setIsLoaded(false);
-        setIsError(false);
-        setRetryCount(0);
-        
-        // 如果图片可见，立即重试
-        if (isVisible) {
-          const img = imgRef.current;
-          if (img) {
-            img.src = '';
-            setTimeout(() => {
-              img.src = currentSrc;
-              // 重置加载开始时间
-              loadStartTime.current = performance.now();
-            }, 0);
-          }
-        }
-      }
-    };
-
-    // 监听网络恢复事件
-    window.addEventListener('online', handleOnline);
-
-    // 初始检查网络状态
-    if (navigator.onLine && isError) {
-      handleOnline();
-    }
-
-    return () => {
-      window.removeEventListener('online', handleOnline);
-    };
-  }, [isError, isVisible, currentSrc]);
+  // 移除了网络状态监听，减少不必要的性能开销
 
   // 观察图片是否进入视口
   useEffect(() => {
@@ -401,45 +313,19 @@ const LazyImage: React.FC<LazyImageProps> = React.memo(({
     };
   }, [priority]);
 
-  // 预加载关键图片，优化初始加载体验
+  // 修复：检查图片是否已经加载完成（例如从缓存加载）
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    // 高优先级图片立即预加载
-    if (priority) {
-      // 使用图片缓存管理器进行预加载
-      imageCacheManager.preloadImage(currentSrc, 'critical', (success) => {
-        if (success) {
-          console.log(`[ImageCache] Preloaded: ${alt}`);
-        } else {
-          console.warn(`[ImageCache] Failed to preload: ${alt}`);
+    if (isVisible && imgRef.current && imgRef.current.complete) {
+      if (imgRef.current.naturalWidth > 0) {
+        // 图片已加载且有效
+        if (!isLoaded) {
+          handleLoad();
         }
-      });
-      
-      // 创建图片对象进行预加载
-      const preloadImage = () => {
-        const img = new Image();
-        img.src = currentSrc;
-        if (srcSet) {
-          img.srcset = srcSet;
-        }
-        return img;
-      };
-      
-      // 立即预加载
-      preloadImage();
-      
-      // 对于特别重要的图片，使用fetch进行预加载，支持缓存控制
-      if (typeof fetch !== 'undefined') {
-        fetch(currentSrc, {
-          mode: 'no-cors',
-          cache: 'force-cache'
-        }).catch(() => {
-          // 忽略fetch错误，仍会使用img标签加载
-        });
       }
     }
-  }, [priority, currentSrc, srcSet, alt]);
+  }, [isVisible, displaySrc, isLoaded]);
+
+  // 移除了预加载逻辑，减少不必要的性能开销
   
   // 加载动画样式
   const getLoadingAnimationClasses = () => {
@@ -560,7 +446,7 @@ const LazyImage: React.FC<LazyImageProps> = React.memo(({
             className={getImageClasses()}
             onLoad={handleLoad}
             onError={handleError}
-            loading={priority ? 'eager' : 'lazy'}
+            loading="eager"
             srcSet={srcSet}
             sizes={sizes}
             {...rest}

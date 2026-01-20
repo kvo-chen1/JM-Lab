@@ -25,7 +25,7 @@ export default function CommandPalette() {
     { id: 'nav-home', title: '首页', description: '返回首页', icon: 'fas fa-home', category: '导航', action: () => navigate('/') },
     { id: 'nav-explore', title: '探索', description: '浏览作品', icon: 'fas fa-compass', category: '导航', action: () => navigate('/explore') },
     { id: 'nav-create', title: '创作', description: '开始新的创作', icon: 'fas fa-plus', category: '导航', action: () => navigate('/create') },
-    { id: 'nav-dashboard', title: '仪表盘', description: '查看个人数据', icon: 'fas fa-chart-line', category: '导航', action: () => navigate('/dashboard') },
+    { id: 'nav-dashboard', title: '个人中心', description: '查看个人数据', icon: 'fas fa-chart-line', category: '导航', action: () => navigate('/dashboard') },
     
     // 系统
     { id: 'sys-theme', title: '切换主题', description: isDark ? '切换到亮色模式' : '切换到暗色模式', icon: 'fas fa-adjust', category: '系统', action: () => toggleTheme() },

@@ -277,7 +277,7 @@ export default function NewsDetail() {
         
         {/* 描述 */}
         <motion.div 
-          className={`mb-8 text-lg ${isDark ? 'text-gray-300' : 'text-gray-700'}`}
+          className={`mb-8 text-lg leading-relaxed ${isDark ? 'text-gray-300' : 'text-gray-700'}`}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.5, delay: 0.3 }}
@@ -287,7 +287,7 @@ export default function NewsDetail() {
         
         {/* 内容 */}
         <motion.div 
-          className={`${isDark ? 'text-gray-300' : 'text-gray-700'} space-y-4`}
+          className={`text-lg leading-relaxed ${isDark ? 'text-gray-300' : 'text-gray-700'} space-y-4`}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.5, delay: 0.4 }}

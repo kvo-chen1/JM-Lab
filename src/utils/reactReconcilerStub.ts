@@ -54,7 +54,7 @@ export default function createReconciler() {
     mountContainer: () => {},
     updateContainer: () => {},
     unmountContainer: () => {},
-    flushSync: (fn) => fn(),
+    flushSync: (fn: () => void) => fn(),
     createPortal: () => null,
     calculateColor: calculateColor,
     isInterleavedArray: isInterleavedArray,
@@ -118,19 +118,19 @@ export const useState = () => [null, () => {}];
 export const useRef = () => ({ current: null });
 export const useEffect = () => {};
 export const useLayoutEffect = () => {};
-export const useCallback = (fn) => fn;
-export const useMemo = (fn) => fn();
+export const useCallback = <T extends (...args: any[]) => any>(fn: T) => fn;
+export const useMemo = <T>(fn: () => T) => fn();
 export const useImperativeHandle = () => {};
 export const useDebugValue = () => {};
 export const useTransition = () => [false, () => {}];
-export const useDeferredValue = (value) => value;
+export const useDeferredValue = <T>(value: T) => value;
 export const useId = () => 'stub-id';
 export const useSyncExternalStore = () => null;
 export const useInsertionEffect = () => {};
 
 // 添加 @react-three/fiber 可能需要的其他导出
 export const unstable_getCurrentPriorityLevel = () => NormalPriority;
-export const unstable_runWithPriority = (priority, fn) => fn();
+export const unstable_runWithPriority = (priority: number, fn: () => void) => fn();
 export const unstable_ImmediatePriority = 1;
 export const unstable_UserBlockingPriority = 2;
 export const unstable_NormalPriority = 3;
@@ -210,6 +210,8 @@ export const createMesh = () => ({
 
 // 添加更多可能需要的 Three.js 相关函数
 export const Vector2 = class Vector2 {
+  x: number;
+  y: number;
   constructor(x = 0, y = 0) {
     this.x = x;
     this.y = y;
@@ -227,6 +229,9 @@ export const Vector2 = class Vector2 {
 };
 
 export const Vector3 = class Vector3 {
+  x: number;
+  y: number;
+  z: number;
   constructor(x = 0, y = 0, z = 0) {
     this.x = x;
     this.y = y;
@@ -250,6 +255,7 @@ export const Vector3 = class Vector3 {
 };
 
 export const Matrix4 = class Matrix4 {
+  elements: Float32Array;
   constructor() {
     this.elements = new Float32Array(16);
   }
@@ -269,6 +275,10 @@ export const Matrix4 = class Matrix4 {
 };
 
 export const Quaternion = class Quaternion {
+  x: number;
+  y: number;
+  z: number;
+  w: number;
   constructor(x = 0, y = 0, z = 0, w = 1) {
     this.x = x;
     this.y = y;
@@ -289,6 +299,10 @@ export const Quaternion = class Quaternion {
 };
 
 export const Euler = class Euler {
+  x: number;
+  y: number;
+  z: number;
+  order: string;
   constructor(x = 0, y = 0, z = 0, order = 'XYZ') {
     this.x = x;
     this.y = y;

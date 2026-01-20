@@ -11,6 +11,7 @@ const MembershipPayment: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('wechat');
+  const [qrCode, setQrCode] = useState<string | null>(null);
   
   // 获取从会员中心传递过来的套餐信息
   const plan = (location.state as any)?.plan || 'premium';

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { llmService, Message, AssistantPersonality, AssistantTheme } from '@/services/llmService';
+import { llmService, Message, AssistantPersonality, AssistantTheme, ConnectionStatus } from '@/services/llmService';
 
 interface FloatingAIAssistantProps {
   // 可以添加一些自定义配置属性
@@ -35,12 +35,35 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
   const [feedbackVisible, setFeedbackVisible] = useState<{[key: number]: boolean}>({});
   const [feedbackRatings, setFeedbackRatings] = useState<{[key: number]: number}>({});
   const [feedbackComments, setFeedbackComments] = useState<{[key: number]: string}>({});
+  const [windowWidth, setWindowWidth] = useState<number>(0);
+  // 连接状态相关状态
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
+  const [connectionError, setConnectionError] = useState<string>('');
+  const [isTestingConnection, setIsTestingConnection] = useState(false);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const location = useLocation();
+
+  // 安全获取窗口宽度，避免hydration mismatch
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowWidth(window.innerWidth);
+    };
+    
+    // 初始设置宽度
+    handleResize();
+    
+    // 添加窗口大小变化监听
+    window.addEventListener('resize', handleResize);
+    
+    // 清理监听器
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, []);
 
   // 快捷操作类型定义
   interface ShortcutAction {
@@ -199,6 +222,68 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
     });
   };
 
+  // 测试连接功能
+  const testConnection = async () => {
+    setIsTestingConnection(true);
+    setConnectionStatus('connecting');
+    setConnectionError('');
+    
+    try {
+      // 使用简单的请求测试连接
+      const response = await fetch('/api/ping', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        setConnectionStatus('connected');
+      } else {
+        setConnectionStatus('error');
+        setConnectionError('连接测试失败，服务器返回错误');
+      }
+    } catch (error) {
+      setConnectionStatus('error');
+      setConnectionError(error instanceof Error ? error.message : '连接测试失败，网络错误');
+    } finally {
+      setIsTestingConnection(false);
+    }
+  };
+
+  // 监听连接状态变化
+  useEffect(() => {
+    // 定期检查连接状态
+    const checkConnection = () => {
+      const currentModel = llmService.getCurrentModel();
+      const status = llmService.getConnectionStatus(currentModel.id);
+      setConnectionStatus(status);
+    };
+
+    // 初始检查
+    checkConnection();
+    
+    // 每分钟检查一次连接状态
+    const intervalId = setInterval(checkConnection, 60000);
+    
+    // 监听自定义连接状态变化事件
+    const handleConnectionStatusChange = (event: CustomEvent) => {
+      const { modelId, status, error } = event.detail;
+      setConnectionStatus(status);
+      if (error) {
+        setConnectionError(error);
+      }
+    };
+
+    // 注册事件监听器
+    window.addEventListener('llm-connection-status-changed', handleConnectionStatusChange as EventListener);
+    
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener('llm-connection-status-changed', handleConnectionStatusChange as EventListener);
+    };
+  }, []);
+
   // 处理设置变更
   const handleSettingChange = (setting: string, value: any) => {
     switch (setting) {
@@ -284,18 +369,27 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
     return welcomeMessages[currentPath] || `你好！我是津小脉，当前你正在浏览「${currentPage}」页面，有什么可以帮助你的吗？`;
   };
 
-  // 添加初始欢迎消息 - 上下文感知
+  // 过滤掉Gemini相关的错误消息和默认对话
   useEffect(() => {
-    const initialMessage: Message = {
-      role: 'assistant',
-      content: getWelcomeMessage(),
-      timestamp: Date.now()
-    };
-    // 只有当没有对话历史时才设置初始消息
-    if (messages.length <= 1) {
-      setMessages([initialMessage]);
+    if (messages.length > 0) {
+      const filteredMessages = messages.filter(msg => {
+        // 移除包含Gemini错误的消息
+        const isGeminiError = !msg.content.includes('Gemini接口不可用') && 
+                              !msg.content.includes('gemini接口不可用') &&
+                              !msg.content.includes('Gemini API');
+        
+        // 移除默认的ping消息和Gemini相关错误
+        const isNotDefaultPing = msg.content !== 'ping';
+        
+        return isGeminiError && isNotDefaultPing;
+      });
+      
+      // 如果过滤后消息数量变化，更新messages状态
+      if (filteredMessages.length !== messages.length) {
+        setMessages(filteredMessages);
+      }
     }
-  }, [currentPage, messages.length]);
+  }, [messages]);
 
   // 检测手动滚动，当用户手动滚动时禁用autoScroll，滚动到底部时重新启用
   const handleScroll = () => {
@@ -441,7 +535,7 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
       let response = '';
       const message = inputMessage.trim();
       
-      // 处理常见问候语
+      // 处理常见问候语和身份问题
       const greetings = ['你好', '您好', 'hi', 'hello', '嗨', '早上好', '下午好', '晚上好'];
       let isGreeting = false;
       for (const greeting of greetings) {
@@ -452,12 +546,19 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
         }
       }
       
+      // 处理身份问题
+      if (!isGreeting && (message.includes('你是谁') || message.includes('你是什么') || message.includes('你的名字'))) {
+        isGreeting = true;
+        response = `你好！我是津小脉，津脉智坊平台的专属AI助手，由Kimi模型驱动。我专注于传统文化创作与设计，能够为你提供平台功能导航、创作辅助、文化知识普及等全方位支持。我的使命是连接传统文化与青年创意，推动文化传承与创新。`;
+      }
+      
       if (!isGreeting) {
         // 检查页面跳转关键词
         const navigationKeywords: Record<string, { path: string; name: string }> = {
           '首页': { path: '/', name: '首页' },
           '文化知识': { path: '/cultural-knowledge', name: '文化知识' },
-          '创作工坊': { path: '/creation-workshop', name: '创作工坊' },
+          '创作中心': { path: '/create', name: '创作中心' },
+          '创作工坊': { path: '/create', name: '创作工坊' },
           '文创市集': { path: '/marketplace', name: '文创市集' },
           '社区': { path: '/community', name: '社区' },
           '我的作品': { path: '/my-works', name: '我的作品' }
@@ -510,12 +611,15 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
           response = numberResponses[num] || `你输入的数字是 ${num}。在我们的平台上，每个数字都可以成为创作的灵感来源。你可以尝试将数字元素融入你的作品中，创造出独特的视觉效果。`;
         } else {
           // 调用LLM服务生成响应，传递当前页面上下文
-          response = await llmService.generateResponse(userMessage.content, {
+          // 使用简化的直接生成响应方法，绕过任务队列
+          console.log('调用llmService.directGenerateResponse，提示词:', userMessage.content);
+          response = await llmService.directGenerateResponse(userMessage.content, {
             context: {
               page: currentPage,
               path: currentPath
             }
           });
+          console.log('llmService.directGenerateResponse返回:', response);
         }
       }
       
@@ -529,9 +633,19 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
     } catch (error) {
       console.error('Failed to generate response:', error);
       
+      // 根据连接状态生成详细的错误信息
+      let errorContent = '';
+      if (connectionStatus === 'error') {
+        errorContent = `抱歉，AI服务连接出现问题：${connectionError || '未知错误'}。\n\n建议：\n1. 检查网络连接是否正常\n2. 点击右上角设置按钮，使用"测试连接"功能检查AI服务状态\n3. 稍后再试或尝试其他问题`;
+      } else if (connectionStatus === 'disconnected') {
+        errorContent = `抱歉，AI服务当前未连接。\n\n建议：\n1. 检查网络连接是否正常\n2. 点击右上角设置按钮，使用"测试连接"功能重新连接\n3. 稍后再试`;
+      } else {
+        errorContent = `抱歉，我暂时无法回答你的问题。\n\n建议：\n1. 检查网络连接是否正常\n2. 稍后再试或尝试其他问题\n3. 点击右上角设置按钮，使用"测试连接"功能检查AI服务状态`;
+      }
+      
       const errorMessage: Message = {
         role: 'assistant',
-        content: '抱歉，我暂时无法回答你的问题。请稍后再试。',
+        content: errorContent,
         timestamp: Date.now()
       };
 
@@ -557,19 +671,34 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
 
   // 初始化位置，从localStorage读取保存的位置，如果没有则使用默认位置
   useEffect(() => {
-    const savedPosition = localStorage.getItem('aiAssistantPosition');
-    if (savedPosition) {
-      try {
-        const { x, y } = JSON.parse(savedPosition);
-        setPositionStyle({ x, y });
-        return;
-      } catch (error) {
-        console.error('Failed to parse saved position:', error);
+    const initializePosition = () => {
+      const buttonWidth = 64; // w-16 = 64px
+      const buttonHeight = 64;
+      
+      let newX = 20;
+      let newY = window.innerHeight - 100;
+      
+      const savedPosition = localStorage.getItem('aiAssistantPosition');
+      if (savedPosition) {
+        try {
+          const { x, y } = JSON.parse(savedPosition);
+          // 验证并调整位置，确保按钮不会超出视口
+          newX = Math.max(0, Math.min(x, window.innerWidth - buttonWidth));
+          newY = Math.max(0, Math.min(y, window.innerHeight - buttonHeight));
+        } catch (error) {
+          console.error('Failed to parse saved position:', error);
+          // 使用默认位置
+          newX = 20;
+          newY = window.innerHeight - 100;
+        }
       }
-    }
-    // 使用默认位置
-    setPositionStyle({ x: 20, y: window.innerHeight - 100 });
-  }, []);
+      
+      setPositionStyle({ x: newX, y: newY });
+    };
+    
+    // 初始设置位置
+    initializePosition();
+  }, [windowWidth]);
 
   // 智能定位算法，根据视口位置动态调整AI助手位置
   // 只在聊天窗口打开且确实需要调整时才调整位置
@@ -592,8 +721,8 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
     
     // 聊天窗口的实际高度（考虑响应式设计）
     const getChatWindowHeight = () => {
-      const isMobile = window.innerWidth < 768;
-      const isTablet = window.innerWidth >= 768 && window.innerWidth < 1024;
+      const isMobile = windowWidth < 768;
+      const isTablet = windowWidth >= 768 && windowWidth < 1024;
       if (isMobile) return 400;
       if (isTablet) return 500;
       return 700; // 桌面设备使用最大高度
@@ -615,8 +744,8 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
     // 注意：移除了正常位置的调整逻辑，这样不会在打开时重置位置
 
     // 确保AI助手不会超出视口左边界
-    const chatWindowWidth = window.innerWidth < 768 ? 320 : 384;
-    const newX = Math.max(20, Math.min(positionStyle.x, window.innerWidth - chatWindowWidth - 20));
+    const chatWindowWidth = windowWidth < 768 ? 320 : 384;
+    const newX = Math.max(20, Math.min(positionStyle.x, windowWidth - chatWindowWidth - 20));
     if (newX !== positionStyle.x) {
       newPosition.x = newX;
       shouldUpdate = true;
@@ -688,7 +817,7 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
     let newY = clientY - dragOffset.y;
     
     // 边界检查，考虑到按钮尺寸
-    newX = Math.max(0, Math.min(newX, window.innerWidth - buttonWidth));
+    newX = Math.max(0, Math.min(newX, windowWidth - buttonWidth));
     newY = Math.max(0, Math.min(newY, window.innerHeight - buttonHeight));
     
     setPositionStyle({ x: newX, y: newY });
@@ -757,15 +886,16 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
             }}
             exit={{ opacity: 0, scale: 0.9, y: 20, x: 0 }}
             transition={{
-              duration: 0.2
+              duration: 0.3,
+              ease: [0.4, 0, 0.2, 1] // 更平滑的缓动曲线
             }}
-            className={`rounded-2xl shadow-2xl flex flex-col ${isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'} overflow-hidden`}
+            className={`rounded-3xl shadow-2xl flex flex-col ${isDark ? 'bg-gray-800/95 border border-gray-700/50' : 'bg-white/95 border border-gray-200/50'} overflow-hidden`}
             style={{
               // 响应式宽度 - 手机端更小
-              width: window.innerWidth < 768 ? '85vw' : (window.innerWidth < 1024 ? '75vw' : '384px'),
+              width: windowWidth < 768 ? '90vw' : (windowWidth < 1024 ? '75vw' : '420px'),
               // 响应式高度 - 调整为更大的值，确保输入区域可见
-              minHeight: window.innerWidth < 768 ? '300px' : (window.innerWidth < 1024 ? '400px' : '450px'),
-              maxHeight: window.innerWidth < 768 ? '80vh' : '70vh',
+              minHeight: windowWidth < 768 ? '350px' : (windowWidth < 1024 ? '450px' : '500px'),
+              maxHeight: windowWidth < 768 ? '85vh' : '75vh',
               // 悬浮效果：显示在按钮上方
               position: 'absolute',
               bottom: '100%',
@@ -773,16 +903,14 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
               transform: 'translateX(-50%) translateY(-10px) translateZ(10)',
               // 增强悬浮感的多层次阴影
               boxShadow: isDark ? 
-                '0 10px 30px rgba(0, 0, 0, 0.5), 0 4px 15px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.1)' : 
-                '0 10px 30px rgba(0, 0, 0, 0.2), 0 4px 15px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.05)',
+                '0 20px 60px rgba(0, 0, 0, 0.6), 0 8px 30px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1)' : 
+                '0 20px 60px rgba(0, 0, 0, 0.15), 0 8px 30px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.05)',
               // 确保不会超出视口
-              maxWidth: '85vw',
+              maxWidth: '90vw',
               // 确保在最顶层显示
               zIndex: 999,
-              // 高DPI屏幕优化
-              imageRendering: 'pixelated',
               // 添加背景模糊效果，增强漂浮感
-              backdropFilter: 'blur(10px)',
+              backdropFilter: 'blur(15px)',
               backgroundBlendMode: 'overlay',
               // 确保内容不会溢出
               overflow: 'hidden',
@@ -792,30 +920,53 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
             }}
           >
             {/* 聊天头部 - 手机端优化 */}
-            <div className={`p-2 border-b ${isDark ? 'border-gray-700 bg-gray-900' : 'border-gray-200 bg-white'} flex justify-between items-center shadow-sm`}>
-              <div className="flex items-center gap-2">
-                <div className={`w-7 h-7 rounded-full flex items-center justify-center ${isDark ? 'bg-gradient-to-br from-blue-600 to-purple-600' : 'bg-gradient-to-br from-blue-500 to-purple-500'} text-white shadow-md`}>
-                  <i className="fas fa-robot text-base"></i>
-                </div>
-                <h3 className="font-bold text-base sm:text-lg bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">津小脉</h3>
+            <div className={`p-3.5 border-b ${isDark ? 'border-gray-700/50' : 'border-gray-200/50'} bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-600 text-white flex justify-between items-center shadow-lg relative overflow-hidden rounded-t-3xl`}>
+              {/* 装饰性背景元素 */}
+              <div className="absolute top-0 left-0 w-full h-full opacity-15">
+                <div className="absolute top-[-30%] left-[-30%] w-60 h-60 rounded-full bg-white blur-3xl"></div>
+                <div className="absolute bottom-[-30%] right-[-30%] w-60 h-60 rounded-full bg-white blur-3xl"></div>
+                <div className="absolute top-1/2 left-1/2 w-80 h-80 rounded-full bg-white opacity-5 blur-3xl transform -translate-x-1/2 -translate-y-1/2"></div>
               </div>
-              <div className="flex gap-1">
+              <div className="flex items-center gap-3 relative z-10">
+                <motion.div 
+                  className={`w-10 h-10 rounded-full bg-gradient-to-br from-white/40 to-white/20 backdrop-blur-md flex items-center justify-center shadow-lg border border-white/30`}
+                  whileHover={{ scale: 1.1, boxShadow: '0 0 20px rgba(255, 255, 255, 0.4)' }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 10 }}
+                >
+                  <i className="fas fa-robot text-white text-lg animate-pulse-slow"></i>
+                </motion.div>
+                <div className="flex items-center gap-1.5">
+                  <h3 className="font-bold text-base sm:text-lg text-white tracking-tight">津小脉</h3>
+                  {/* 连接状态指示器 */}
+                  <motion.div 
+                    className={`w-3.5 h-3.5 rounded-full ring-2 ring-white/60 ${connectionStatus === 'connected' ? 'bg-green-400' : connectionStatus === 'connecting' ? 'bg-yellow-400' : 'bg-red-400'}`}
+                    title={`AI连接状态: ${connectionStatus === 'connected' ? '已连接' : connectionStatus === 'connecting' ? '连接中' : connectionStatus === 'error' ? `连接错误: ${connectionError}` : '未连接'}`}
+                    animate={connectionStatus === 'connecting' ? { scale: [1, 1.2, 1] } : {}}
+                    transition={connectionStatus === 'connecting' ? { repeat: Infinity, duration: 1 } : {}}
+                  ></motion.div>
+                </div>
+              </div>
+              <div className="flex gap-1.5 relative z-10">
                 {/* 设置按钮 */}
-                <button
+                <motion.button
                   onClick={() => setShowSettings(!showSettings)}
-                  className={`p-1.5 rounded-full transition-all ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} transform`}
+                  className={`p-2 rounded-full ${isDark ? 'hover:bg-white/15' : 'hover:bg-white/20'} transform`}
                   aria-label="设置"
+                  whileHover={{ scale: 1.15, backgroundColor: 'rgba(255, 255, 255, 0.2)' }}
+                  whileTap={{ scale: 0.95 }}
                 >
-                  <i className={`fas fa-cog text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}></i>
-                </button>
+                  <i className="fas fa-cog text-sm text-white"></i>
+                </motion.button>
                 {/* 关闭按钮 */}
-                <button
+                <motion.button
                   onClick={toggleAssistant}
-                  className={`p-1.5 rounded-full transition-all ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} transform`}
+                  className={`p-2 rounded-full ${isDark ? 'hover:bg-white/15' : 'hover:bg-white/20'} transform`}
                   aria-label="关闭"
+                  whileHover={{ scale: 1.15, backgroundColor: 'rgba(255, 255, 255, 0.2)' }}
+                  whileTap={{ scale: 0.95 }}
                 >
-                  <i className={`fas fa-times text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}></i>
-                </button>
+                  <i className="fas fa-times text-sm text-white"></i>
+                </motion.button>
               </div>
             </div>
 
@@ -829,7 +980,7 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
                   initial={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -20 }}
                   transition={{ duration: 0.2 }}
-                  className={`flex-1 p-2 sm:p-3 space-y-3 ${window.innerWidth < 768 ? 'space-y-3' : 'space-y-4'} overflow-auto`}
+                  className={`flex-1 p-2 sm:p-3 space-y-3 ${windowWidth < 768 ? 'space-y-3' : 'space-y-4'} overflow-auto`}
                   style={{
                     scrollbarWidth: 'thin',
                     scrollbarColor: isDark ? '#4B5563 #1F2937' : '#9CA3AF #F3F4F6',
@@ -842,22 +993,25 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
                   ref={chatContainerRef}
                 >
                     {messages.map((message, index) => (
-                      <div
+                      <motion.div
                         key={index}
-                        className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'} ${window.innerWidth < 768 ? 'mb-3' : 'mb-4'} opacity-0 animate-fade-in`}
-                        style={{ animationDelay: `${index * 0.1}s`, animationDuration: '0.3s', animationFillMode: 'forwards' }}
+                        className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'} ${windowWidth < 768 ? 'mb-3' : 'mb-4'}`}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.1, duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
                       >
-                        <div className="max-w-[85%]">
-                          <div
-                            className={`${window.innerWidth < 768 ? 'p-3' : 'p-4'} rounded-xl ${message.role === 'user' ? 
+                        <div className="max-w-[88%]">
+                          <motion.div
+                            className={`${windowWidth < 768 ? 'p-3.5' : 'p-4.5'} rounded-2xl ${message.role === 'user' ? 
                               (isDark ? 'bg-gradient-to-br from-blue-600 to-purple-600 text-white shadow-lg' : 'bg-gradient-to-br from-blue-500 to-purple-500 text-white shadow-lg') : 
-                              (isDark ? 'bg-gray-700 text-gray-200 border border-gray-600' : 'bg-gray-100 text-gray-800 border border-gray-200')
-                            } transition-all hover:shadow-xl`}
+                              (isDark ? 'bg-gray-700/90 text-gray-200 border border-gray-600/50' : 'bg-gray-100/90 text-gray-800 border border-gray-200/50')
+                            } transition-all`}
+                            whileHover={{ scale: 1.01, boxShadow: message.role === 'user' ? '0 10px 25px rgba(99, 102, 241, 0.3)' : isDark ? '0 10px 25px rgba(0, 0, 0, 0.3)' : '0 10px 25px rgba(0, 0, 0, 0.1)' }}
                           >
                             <div className="text-sm whitespace-pre-wrap leading-relaxed">
                               {message.content}
                             </div>
-                          </div>
+                          </motion.div>
                           
                           {/* 只有AI回复显示评分功能 */}
                           {message.role === 'assistant' && (
@@ -949,27 +1103,32 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
 
                     {/* 正在生成指示器 */}
                     {isGenerating && (
-                      <div className="flex justify-start">
-                        <div className={`max-w-[85%] p-4 rounded-xl ${isDark ? 'bg-gray-700 text-gray-200 border border-gray-600' : 'bg-gray-100 text-gray-800 border border-gray-200'}`}>
-                          <div className="flex items-center gap-2">
+                      <motion.div
+                        className="flex justify-start"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ duration: 0.3 }}
+                      >
+                        <div className={`max-w-[88%] p-4.5 rounded-2xl ${isDark ? 'bg-gray-700/90 text-gray-200 border border-gray-600/50' : 'bg-gray-100/90 text-gray-800 border border-gray-200/50'}`}>
+                          <div className="flex items-center gap-2.5">
                             <motion.div
-                              className="w-2 h-2 rounded-full bg-blue-500"
-                              animate={{ y: [-5, 5, -5] }}
+                              className="w-2.5 h-2.5 rounded-full bg-blue-500"
+                              animate={{ y: [-6, 6, -6] }}
                               transition={{ repeat: Infinity, duration: 0.6, delay: 0 }}
                             ></motion.div>
                             <motion.div
-                              className="w-2 h-2 rounded-full bg-purple-500"
-                              animate={{ y: [-5, 5, -5] }}
+                              className="w-2.5 h-2.5 rounded-full bg-purple-500"
+                              animate={{ y: [-6, 6, -6] }}
                               transition={{ repeat: Infinity, duration: 0.6, delay: 0.2 }}
                             ></motion.div>
                             <motion.div
-                              className="w-2 h-2 rounded-full bg-pink-500"
-                              animate={{ y: [-5, 5, -5] }}
+                              className="w-2.5 h-2.5 rounded-full bg-pink-500"
+                              animate={{ y: [-6, 6, -6] }}
                               transition={{ repeat: Infinity, duration: 0.6, delay: 0.4 }}
                             ></motion.div>
                           </div>
                         </div>
-                      </div>
+                      </motion.div>
                     )}
                   </motion.div>
                 ) : (
@@ -977,60 +1136,64 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
                     key="settings"
                     initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.2 }}
-                    className="flex-1 overflow-y-auto p-4"
+                    transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
+                    className="flex-1 overflow-y-auto p-5"
                   >
-                    <h3 className="text-lg font-bold mb-4 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">设置</h3>
+                    <h3 className="text-lg font-bold mb-5 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">设置</h3>
                     
                     {/* 助手性格设置 */}
-                    <div className="mb-6">
-                      <label className="block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}">助手性格</label>
-                      <div className="grid grid-cols-2 gap-2">
+                    <div className="mb-6 bg-gradient-to-br from-transparent to-gray-100 dark:to-gray-800 p-4 rounded-2xl border border-gray-200/50 dark:border-gray-700/50">
+                      <h4 className="text-sm font-medium mb-3 ${isDark ? 'text-gray-200' : 'text-gray-800'}">助手性格</h4>
+                      <div className="grid grid-cols-2 gap-2.5">
                         {(['friendly', 'professional', 'creative', 'humorous', 'concise'] as AssistantPersonality[]).map(persona => (
-                          <button
+                          <motion.button
                             key={persona}
                             onClick={() => handleSettingChange('personality', persona)}
-                            className={`p-2 rounded-lg transition-all ${personality === persona ? 
+                            className={`p-2.5 rounded-xl transition-all ${personality === persona ? 
                               (isDark ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white') : 
                               (isDark ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-100 hover:bg-gray-200 text-gray-700')
                             }`}
+                            whileHover={{ scale: 1.03 }}
+                            whileTap={{ scale: 0.98 }}
                           >
                             {persona === 'friendly' && '友好'}
                             {persona === 'professional' && '专业'}
                             {persona === 'creative' && '创意'}
                             {persona === 'humorous' && '幽默'}
                             {persona === 'concise' && '简洁'}
-                          </button>
+                          </motion.button>
                         ))}
                       </div>
                     </div>
                     
                     {/* 主题设置 */}
-                    <div className="mb-6">
-                      <label className="block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}">主题</label>
-                      <div className="grid grid-cols-3 gap-2">
+                    <div className="mb-6 bg-gradient-to-br from-transparent to-gray-100 dark:to-gray-800 p-4 rounded-2xl border border-gray-200/50 dark:border-gray-700/50">
+                      <h4 className="text-sm font-medium mb-3 ${isDark ? 'text-gray-200' : 'text-gray-800'}">主题</h4>
+                      <div className="grid grid-cols-3 gap-2.5">
                         {(['light', 'dark', 'auto'] as AssistantTheme[]).map(themeOption => (
-                          <button
+                          <motion.button
                             key={themeOption}
                             onClick={() => handleSettingChange('theme', themeOption)}
-                            className={`p-2 rounded-lg transition-all ${theme === themeOption ? 
+                            className={`p-2.5 rounded-xl transition-all ${theme === themeOption ? 
                               (isDark ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white') : 
                               (isDark ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-100 hover:bg-gray-200 text-gray-700')
                             }`}
+                            whileHover={{ scale: 1.03 }}
+                            whileTap={{ scale: 0.98 }}
                           >
                             {themeOption === 'light' && '浅色'}
                             {themeOption === 'dark' && '深色'}
                             {themeOption === 'auto' && '自动'}
-                          </button>
+                          </motion.button>
                         ))}
                       </div>
                     </div>
                     
                     {/* 显示预设问题 */}
-                    <div className="mb-4">
+                    <div className="mb-3 bg-gradient-to-br from-transparent to-gray-100 dark:to-gray-800 p-4 rounded-2xl border border-gray-200/50 dark:border-gray-700/50">
                       <label className="flex items-center justify-between cursor-pointer">
-                        <span className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>显示预设问题</span>
-                        <div className={`relative inline-block w-10 h-5 transition-all ${showPresetQuestions ? 
+                        <span className={`text-sm font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>显示预设问题</span>
+                        <div className={`relative inline-block w-11 h-6 transition-all duration-300 ${showPresetQuestions ? 
                           (isDark ? 'bg-blue-600' : 'bg-blue-500') : 
                           (isDark ? 'bg-gray-600' : 'bg-gray-300')
                         } rounded-full`}>
@@ -1040,16 +1203,19 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
                             onChange={(e) => handleSettingChange('showPresetQuestions', e.target.checked)}
                             className="sr-only"
                           />
-                          <span className={`absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition-transform ${showPresetQuestions ? 'transform translate-x-5' : ''}`}></span>
+                          <motion.span 
+                            className={`absolute left-0.5 top-0.5 bg-white w-5 h-5 rounded-full transition-transform duration-300`}
+                            animate={{ x: showPresetQuestions ? 20 : 0 }}
+                          ></motion.span>
                         </div>
                       </label>
                     </div>
                     
                     {/* 启用打字效果 */}
-                    <div className="mb-4">
+                    <div className="mb-3 bg-gradient-to-br from-transparent to-gray-100 dark:to-gray-800 p-4 rounded-2xl border border-gray-200/50 dark:border-gray-700/50">
                       <label className="flex items-center justify-between cursor-pointer">
-                        <span className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>启用打字效果</span>
-                        <div className={`relative inline-block w-10 h-5 transition-all ${enableTypingEffect ? 
+                        <span className={`text-sm font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>启用打字效果</span>
+                        <div className={`relative inline-block w-11 h-6 transition-all duration-300 ${enableTypingEffect ? 
                           (isDark ? 'bg-blue-600' : 'bg-blue-500') : 
                           (isDark ? 'bg-gray-600' : 'bg-gray-300')
                         } rounded-full`}>
@@ -1059,16 +1225,19 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
                             onChange={(e) => handleSettingChange('enableTypingEffect', e.target.checked)}
                             className="sr-only"
                           />
-                          <span className={`absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition-transform ${enableTypingEffect ? 'transform translate-x-5' : ''}`}></span>
+                          <motion.span 
+                            className={`absolute left-0.5 top-0.5 bg-white w-5 h-5 rounded-full transition-transform duration-300`}
+                            animate={{ x: enableTypingEffect ? 20 : 0 }}
+                          ></motion.span>
                         </div>
                       </label>
                     </div>
                     
                     {/* 自动滚动 */}
-                    <div className="mb-4">
+                    <div className="mb-6 bg-gradient-to-br from-transparent to-gray-100 dark:to-gray-800 p-4 rounded-2xl border border-gray-200/50 dark:border-gray-700/50">
                       <label className="flex items-center justify-between cursor-pointer">
-                        <span className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>自动滚动</span>
-                        <div className={`relative inline-block w-10 h-5 transition-all ${autoScroll ? 
+                        <span className={`text-sm font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>自动滚动</span>
+                        <div className={`relative inline-block w-11 h-6 transition-all duration-300 ${autoScroll ? 
                           (isDark ? 'bg-blue-600' : 'bg-blue-500') : 
                           (isDark ? 'bg-gray-600' : 'bg-gray-300')
                         } rounded-full`}>
@@ -1078,9 +1247,49 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
                             onChange={(e) => handleSettingChange('autoScroll', e.target.checked)}
                             className="sr-only"
                           />
-                          <span className={`absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition-transform ${autoScroll ? 'transform translate-x-5' : ''}`}></span>
+                          <motion.span 
+                            className={`absolute left-0.5 top-0.5 bg-white w-5 h-5 rounded-full transition-transform duration-300`}
+                            animate={{ x: autoScroll ? 20 : 0 }}
+                          ></motion.span>
                         </div>
                       </label>
+                    </div>
+                    
+                    {/* 连接状态和测试 */}
+                    <div className="mt-6 bg-gradient-to-br from-transparent to-gray-100 dark:to-gray-800 p-4 rounded-2xl border border-gray-200/50 dark:border-gray-700/50">
+                      <h4 className="text-sm font-medium mb-3 ${isDark ? 'text-gray-200' : 'text-gray-800'}">AI连接状态</h4>
+                      <div className="flex items-center gap-2 mb-4">
+                        <motion.div 
+                          className={`w-3.5 h-3.5 rounded-full ${isDark ? 
+                            (connectionStatus === 'connected' ? 'bg-green-400' : connectionStatus === 'connecting' ? 'bg-yellow-400' : 'bg-red-400') : 
+                            (connectionStatus === 'connected' ? 'bg-green-500' : connectionStatus === 'connecting' ? 'bg-yellow-500' : 'bg-red-500')
+                          }`}
+                          animate={connectionStatus === 'connecting' ? { scale: [1, 1.2, 1] } : {}}
+                          transition={connectionStatus === 'connecting' ? { repeat: Infinity, duration: 1 } : {}}
+                        ></motion.div>
+                        <span className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                          {connectionStatus === 'connected' ? '已连接' : connectionStatus === 'connecting' ? '连接中' : connectionStatus === 'error' ? `连接错误: ${connectionError}` : '未连接'}
+                        </span>
+                      </div>
+                      <motion.button
+                        onClick={testConnection}
+                        disabled={isTestingConnection}
+                        className={`w-full px-4 py-2.5 rounded-xl transition-all ${isDark ? 
+                          (isTestingConnection ? 'bg-gray-700 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500') : 
+                          (isTestingConnection ? 'bg-gray-200 cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-600')
+                        } text-white text-sm font-medium`}
+                        whileHover={!isTestingConnection ? { scale: 1.02 } : {}}
+                        whileTap={!isTestingConnection ? { scale: 0.98 } : {}}
+                      >
+                        {isTestingConnection ? (
+                          <div className="flex items-center justify-center gap-2">
+                            <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                            <span>测试中...</span>
+                          </div>
+                        ) : (
+                          '测试连接'
+                        )}
+                      </motion.button>
                     </div>
                   </motion.div>
                 )}
@@ -1089,19 +1298,22 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
 
             {/* 快捷操作 */}
             {messages.length <= 1 && !isGenerating && (
-              <div className={`px-3 py-2 ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
-                <p className={`text-xs mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'} font-medium`}>快捷操作</p>
-                <div className="flex flex-wrap gap-1.5">
+              <div className={`px-4 py-3 ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
+                <p className={`text-xs mb-3 ${isDark ? 'text-gray-400' : 'text-gray-500'} font-medium`}>快捷操作</p>
+                <div className="flex flex-wrap gap-2">
                   {getShortcutActions().map((action, index) => (
                     <motion.button
                       key={index}
                       onClick={action.action}
-                      className={`px-2.5 py-1.25 text-xs rounded-full ${isDark ? 'bg-gray-700 hover:bg-gray-600 text-gray-200 border border-gray-600' : 'bg-gray-100 hover:bg-gray-200 text-gray-800 border border-gray-200'} transition-all transform hover:scale-105`}
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
+                      className={`px-3 py-1.75 text-xs rounded-xl ${isDark ? 'bg-gray-700 hover:bg-gray-600 text-gray-200 border border-gray-600/50' : 'bg-gray-100 hover:bg-gray-200 text-gray-800 border border-gray-200'} transition-all shadow-sm`}
+                      whileHover={{ scale: 1.05, boxShadow: isDark ? '0 4px 12px rgba(0, 0, 0, 0.3)' : '0 4px 12px rgba(0, 0, 0, 0.1)' }}
+                      whileTap={{ scale: 0.98 }}
                       title={action.label}
+                      initial={{ opacity: 0, y: 5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.05, duration: 0.2 }}
                     >
-                      <span className="mr-1">{action.icon}</span>
+                      <span className="mr-1.5">{action.icon}</span>
                       <span>{action.label}</span>
                     </motion.button>
                   ))}
@@ -1111,16 +1323,19 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
 
             {/* 预设问题 */}
             {messages.length <= 1 && !isGenerating && (
-              <div className={`px-3 pb-2 ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
-                <p className={`text-xs mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'} font-medium`}>快速提问</p>
-                <div className="flex flex-wrap gap-1.5">
+              <div className={`px-4 pb-3 ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
+                <p className={`text-xs mb-3 ${isDark ? 'text-gray-400' : 'text-gray-500'} font-medium`}>快速提问</p>
+                <div className="flex flex-wrap gap-2">
                   {presetQuestions.map((question, index) => (
                     <motion.button
                       key={index}
                       onClick={() => handlePresetQuestionClick(question)}
-                      className={`px-2.5 py-1.25 text-xs rounded-full ${isDark ? 'bg-gray-700 hover:bg-gray-600 text-gray-200 border border-gray-600' : 'bg-gray-100 hover:bg-gray-200 text-gray-800 border border-gray-200'} transition-all transform hover:scale-105`}
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
+                      className={`px-3 py-1.75 text-xs rounded-xl ${isDark ? 'bg-gradient-to-r from-gray-700 to-gray-800 hover:from-gray-600 hover:to-gray-700 text-gray-200 border border-gray-600/50' : 'bg-gradient-to-r from-gray-100 to-gray-50 hover:from-gray-200 hover:to-gray-100 text-gray-800 border border-gray-200'} transition-all shadow-sm`}
+                      whileHover={{ scale: 1.05, boxShadow: isDark ? '0 4px 12px rgba(0, 0, 0, 0.3)' : '0 4px 12px rgba(0, 0, 0, 0.1)' }}
+                      whileTap={{ scale: 0.98 }}
+                      initial={{ opacity: 0, y: 5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.05, duration: 0.2 }}
                     >
                       {question}
                     </motion.button>
@@ -1130,7 +1345,7 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
             )}
 
             {/* 输入区域 - 手机端优化 */}
-            <div className={`${window.innerWidth < 768 ? 'p-2' : 'p-3'} border-t ${isDark ? 'border-gray-700 bg-gray-900' : 'border-gray-200 bg-white'} shadow-inner`}>
+            <div className={`${windowWidth < 768 ? 'p-2' : 'p-3'} border-t ${isDark ? 'border-gray-700 bg-gray-900' : 'border-gray-200 bg-white'} shadow-inner`}>
               <div className="flex gap-1 items-center">
                 <input
                   ref={inputRef}
@@ -1145,7 +1360,7 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
                 <motion.button
                   onClick={handleSendMessage}
                   disabled={isGenerating || !inputMessage.trim()}
-                  className={`${window.innerWidth < 768 ? 'p-2' : 'p-2.5'} rounded-full transition-all shadow-md ${isGenerating || !inputMessage.trim() ? 
+                  className={`${windowWidth < 768 ? 'p-2' : 'p-2.5'} rounded-full transition-all shadow-md ${isGenerating || !inputMessage.trim() ? 
                     (isDark ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-300 text-gray-500 cursor-not-allowed') : 
                     (isDark ? 'bg-gradient-to-br from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white' : 'bg-gradient-to-br from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white')
                   }`}

@@ -1,0 +1,46 @@
+-- 添加2026年4月至12月的登录日志分区表
+
+-- 创建2026年4月的分区
+CREATE TABLE IF NOT EXISTS login_logs_2026_04
+PARTITION OF login_logs_partitioned
+FOR VALUES FROM ('2026-04-01') TO ('2026-05-01');
+
+-- 创建2026年5月的分区
+CREATE TABLE IF NOT EXISTS login_logs_2026_05
+PARTITION OF login_logs_partitioned
+FOR VALUES FROM ('2026-05-01') TO ('2026-06-01');
+
+-- 创建2026年6月的分区
+CREATE TABLE IF NOT EXISTS login_logs_2026_06
+PARTITION OF login_logs_partitioned
+FOR VALUES FROM ('2026-06-01') TO ('2026-07-01');
+
+-- 创建2026年7月的分区
+CREATE TABLE IF NOT EXISTS login_logs_2026_07
+PARTITION OF login_logs_partitioned
+FOR VALUES FROM ('2026-07-01') TO ('2026-08-01');
+
+-- 创建2026年8月的分区
+CREATE TABLE IF NOT EXISTS login_logs_2026_08
+PARTITION OF login_logs_partitioned
+FOR VALUES FROM ('2026-08-01') TO ('2026-09-01');
+
+-- 创建2026年9月的分区
+CREATE TABLE IF NOT EXISTS login_logs_2026_09
+PARTITION OF login_logs_partitioned
+FOR VALUES FROM ('2026-09-01') TO ('2026-10-01');
+
+-- 创建2026年10月的分区
+CREATE TABLE IF NOT EXISTS login_logs_2026_10
+PARTITION OF login_logs_partitioned
+FOR VALUES FROM ('2026-10-01') TO ('2026-11-01');
+
+-- 创建2026年11月的分区
+CREATE TABLE IF NOT EXISTS login_logs_2026_11
+PARTITION OF login_logs_partitioned
+FOR VALUES FROM ('2026-11-01') TO ('2026-12-01');
+
+-- 创建2026年12月的分区
+CREATE TABLE IF NOT EXISTS login_logs_2026_12
+PARTITION OF login_logs_partitioned
+FOR VALUES FROM ('2026-12-01') TO ('2027-01-01');

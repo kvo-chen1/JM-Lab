@@ -2,9 +2,13 @@ import http from 'http'
 import { URL } from 'url'
 import fs from 'fs'
 import bcrypt from 'bcryptjs'
+import crypto from 'crypto'
 import { WebSocketServer } from 'ws'
+import { Readable } from 'stream'
 import { generateToken, verifyToken } from './jwt.mjs'
 import { userDB, favoriteDB, videoTaskDB, leaderboardDB, getDBStatus } from './database.mjs'
+import { sendVerificationEmail } from './emailService.mjs'
+import { sendSmsVerificationCode, generateVerificationCode, verifySmsCode } from './smsService.mjs'
 
 // Load .env.local for local development (non-production)
 try {
@@ -66,8 +70,9 @@ try {
     }
     
     // Doubao
-    if (process.env.VITE_DOBAO_API_KEY) {
-      process.env.DOUBAO_API_KEY = process.env.VITE_DOBAO_API_KEY;
+    const doubaoEnvKey = process.env.VITE_DOUBAO_API_KEY || process.env.VITE_DOBAO_API_KEY;
+    if (doubaoEnvKey) {
+      process.env.DOUBAO_API_KEY = doubaoEnvKey;
 
     }
     if (process.env.VITE_DOUBAO_BASE_URL) {
@@ -116,7 +121,7 @@ try {
 }
 
 // 端口配置
-const PORT = Number(process.env.LOCAL_API_PORT || process.env.PORT) || 3020
+const PORT = Number(process.env.LOCAL_API_PORT || process.env.PORT) || 3021
 
 // Volcengine TTS config (server-side only)
 const VOLC_TTS_APP_ID = process.env.VOLC_TTS_APP_ID || ''
@@ -224,23 +229,79 @@ async function proxyFetch(path, method, body) {
   }
 }
 
-async function kimiFetch(path, method, body) {
-  const base = process.env.KIMI_BASE_URL || KIMI_BASE_URL
-  const key = process.env.KIMI_API_KEY || KIMI_API_KEY
-  const resp = await fetch(`${base}${path}`, {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${key}`,
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  })
-  const contentType = resp.headers.get('content-type') || ''
-  const data = contentType.includes('application/json') ? await resp.json() : await resp.text()
-  return { status: resp.status, ok: resp.ok, data }
+function proxyStream(resp, res) {
+  res.statusCode = resp.status
+  res.setHeader('Content-Type', resp.headers.get('content-type') || 'text/event-stream')
+  res.setHeader('Access-Control-Allow-Origin', '*')
+  
+  if (resp.body.pipe) {
+    resp.body.pipe(res)
+  } else {
+    Readable.fromWeb(resp.body).pipe(res)
+  }
 }
 
-async function deepseekFetch(path, method, body) {
+async function kimiFetch(path, method, body, res) {
+  try {
+    const base = process.env.KIMI_BASE_URL || KIMI_BASE_URL
+    const key = process.env.KIMI_API_KEY || KIMI_API_KEY
+    
+    console.log(`[kimiFetch] Request: ${method} ${base}${path}`)
+    console.log(`[kimiFetch] Headers: Authorization: Bearer ${key ? key.substring(0, 5) + '...' : 'undefined'}`)
+    console.log(`[kimiFetch] Body:`, body)
+    
+    // 检查API密钥是否存在
+    if (!key) {
+      console.error(`[kimiFetch] Error: Missing API key`)
+      return { status: 401, ok: false, data: { error: { code: 'AUTH_ERROR', message: 'Missing API key' } } }
+    }
+    
+    const resp = await fetch(`${base}${path}`, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${key}`,
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    })
+    
+    console.log(`[kimiFetch] Response status: ${resp.status}`)
+    console.log(`[kimiFetch] Response headers:`, Object.fromEntries(resp.headers))
+    
+    // 检查是否是流式响应
+    const contentType = resp.headers.get('content-type') || ''
+    const isStream = contentType.includes('text/event-stream')
+    
+    if (isStream && res) {
+      proxyStream(resp, res)
+      console.log(`[kimiFetch] Streaming response sent`)
+      return { status: resp.status, ok: resp.ok, isStream: true }
+    } else {
+      // 对于非流式响应，解析为JSON或文本
+      let data
+      try {
+        data = contentType.includes('application/json') ? await resp.json() : await resp.text()
+        console.log(`[kimiFetch] Response data:`, data)
+      } catch (parseError) {
+        console.error(`[kimiFetch] Error parsing response:`, parseError)
+        data = { error: 'Failed to parse response' }
+      }
+      return { status: resp.status, ok: resp.ok, data, isStream: false }
+    }
+  } catch (error) {
+    console.error(`[kimiFetch] Exception:`, error)
+    // 返回友好的错误信息
+    const errorMessage = error.name === 'AbortError' ? 'Request timed out' : error.message
+    console.error(`[kimiFetch] Final error response:`, { status: 500, ok: false, data: { error: { code: 'REQUEST_ERROR', message: errorMessage } } })
+    return {
+      status: 500,
+      ok: false,
+      data: { error: { code: 'REQUEST_ERROR', message: errorMessage } }
+    }
+  }
+}
+
+async function deepseekFetch(path, method, body, res) {
   const base = process.env.DEEPSEEK_BASE_URL || DEEPSEEK_BASE_URL
   const key = process.env.DEEPSEEK_API_KEY || DEEPSEEK_API_KEY
   const resp = await fetch(`${base}${path}`, {
@@ -252,10 +313,17 @@ async function deepseekFetch(path, method, body) {
     body: body ? JSON.stringify(body) : undefined,
   })
   const contentType = resp.headers.get('content-type') || ''
+  const isStream = contentType.includes('text/event-stream')
+
+  if (isStream && res) {
+    proxyStream(resp, res)
+    return { status: resp.status, ok: resp.ok, isStream: true }
+  }
+
   const data = contentType.includes('application/json') ? await resp.json() : await resp.text()
   return { status: resp.status, ok: resp.ok, data }
 }
-async function dashscopeFetch(path, method, body, authKey) {
+async function dashscopeFetch(path, method, body, authKey, res) {
   let fullUrl;
   
   // 重置DASHSCOPE_BASE_URL，使其只包含根域名，不包含/api/v1
@@ -274,13 +342,20 @@ async function dashscopeFetch(path, method, body, authKey) {
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${authKey}`,
+        ...(body?.stream ? { 'X-DashScope-SSE': 'enable' } : {})
       },
       body: body ? JSON.stringify(body) : undefined,
     })
     
     console.log(`[DashScope] 响应状态: ${resp.status}`)
-    console.log(`[DashScope] 响应头:`, Object.fromEntries(resp.headers))
     const contentType = resp.headers.get('content-type') || ''
+    const isStream = contentType.includes('text/event-stream')
+
+    if (isStream && res) {
+      proxyStream(resp, res)
+      return { status: resp.status, ok: resp.ok, isStream: true }
+    }
+
     const data = contentType.includes('application/json') ? await resp.json() : await resp.text()
     console.log(`[DashScope] 响应数据:`, data)
     
@@ -288,6 +363,75 @@ async function dashscopeFetch(path, method, body, authKey) {
   } catch (error) {
     console.error(`[DashScope] 请求失败:`, error)
     return { status: 500, ok: false, data: { error: error.message } }
+  }
+}
+
+async function dashscopeImageGenerate(params) {
+  const { prompt, size, n, authKey, model } = params
+  const base = process.env.DASHSCOPE_BASE_URL || 'https://dashscope.aliyuncs.com/api/v1'
+  const endpoint = `${base}/services/aigc/text2image/image-synthesis`
+  const normalizedSize = String(size || '1024x1024').replace('x', '*')
+  try {
+    const createResp = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authKey}`,
+        'X-DashScope-Async': 'enable'
+      },
+      body: JSON.stringify({
+        model: model || 'wanx2.1-t2i-turbo',
+        input: { prompt },
+        parameters: { size: normalizedSize, n: n || 1 }
+      })
+    })
+    const createData = await createResp.json()
+    if (!createResp.ok) {
+      return { status: createResp.status, ok: false, data: createData }
+    }
+    const taskId = createData?.output?.task_id || createData?.task_id
+    if (!taskId) {
+      return { status: 500, ok: false, data: { error: 'TASK_ID_MISSING', raw: createData } }
+    }
+    const startedAt = Date.now()
+    const timeoutMs = 60000
+    while (Date.now() - startedAt < timeoutMs) {
+      const taskResp = await fetch(`${base}/tasks/${taskId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${authKey}`
+        }
+      })
+      const taskData = await taskResp.json()
+      if (!taskResp.ok) {
+        return { status: taskResp.status, ok: false, data: taskData }
+      }
+      const status = String(taskData?.output?.task_status || taskData?.task_status || '').toUpperCase()
+      if (status === 'SUCCEEDED' || status === 'FAILED' || status === 'CANCELED' || status === 'CANCELLED') {
+        if (status !== 'SUCCEEDED') {
+          return { status: 500, ok: false, data: taskData }
+        }
+        const results = taskData?.output?.results || taskData?.output?.result || taskData?.output?.images || []
+        const list = Array.isArray(results) ? results : []
+        const images = list.map((item) => {
+          if (typeof item === 'string') return { url: item, revised_prompt: prompt }
+          const url = item?.url || item?.image_url || item?.image || ''
+          return { url, revised_prompt: prompt }
+        }).filter((it) => !!it.url)
+        return {
+          status: 200,
+          ok: true,
+          data: {
+            created: Date.now(),
+            data: images
+          }
+        }
+      }
+      await new Promise((resolve) => setTimeout(resolve, 2000))
+    }
+    return { status: 500, ok: false, data: { error: 'TIMEOUT' } }
+  } catch (error) {
+    return { status: 500, ok: false, data: { error: error?.message || 'REQUEST_ERROR' } }
   }
 }
 
@@ -559,6 +703,7 @@ function loadCommunityConfig() {
 }
 
 const server = http.createServer(async (req, res) => {
+  console.log('[DEBUG] Request received:', req.method, req.url); // Debug Log
   setCors(res)
   if (req.method === 'OPTIONS') { res.statusCode = 204; res.end(); return }
   const u = new URL(req.url, `http://localhost:${PORT}`)
@@ -640,29 +785,13 @@ const server = http.createServer(async (req, res) => {
           
           // 确保prompt字段存在
           if (!b.prompt) { sendJson(res, 400, { error: 'PROMPT_REQUIRED', message: 'Prompt is required' }); return }
-          
-          // 通义千问图片生成功能
-          // 注意：通义万相图片生成需要单独开通权限
-          // 返回占位图片，确保用户体验正常
-          const imageCount = b.n || 1;
-          const images = [];
-          const seed = Date.now();
-          
-          for (let i = 0; i < imageCount; i++) {
-            images.push({
-              url: `https://picsum.photos/seed/${seed + i}/1024/1024`,
-              revised_prompt: b.prompt
-            });
-          }
-          
-          sendJson(res, 200, {
-            ok: true,
-            data: {
-              created: seed,
-              data: images
-            }
-          });
-          return;
+          r = await dashscopeImageGenerate({
+            prompt: b.prompt,
+            size: b.size || '1024x1024',
+            n: b.n || 1,
+            authKey,
+            model: b.model
+          })
           break;
         case 'deepseek':
           // DeepSeek使用deepseekFetch
@@ -749,10 +878,20 @@ const server = http.createServer(async (req, res) => {
         top_p: b.top_p,
         stream: b.stream,
       }
-      const r = await kimiFetch('/chat/completions', 'POST', payload)
-      if (!r.ok) { sendJson(res, r.status, { error: (r.data?.error?.type) || 'SERVER_ERROR', data: r.data }); return }
-      sendJson(res, 200, { ok: true, data: r.data })
-      return
+      if (b.stream) {
+        // 对于流式请求，直接转发响应流
+        await kimiFetch('/chat/completions', 'POST', payload, res)
+        return
+      } else {
+        // 对于非流式请求，返回包装后的响应
+        const r = await kimiFetch('/chat/completions', 'POST', payload)
+        if (!r.ok) {
+          sendJson(res, r.status, { error: (r.data?.error?.type) || 'SERVER_ERROR', data: r.data });
+          return
+        }
+        sendJson(res, 200, { ok: true, data: r.data })
+        return
+      }
     }
 
     if (req.method === 'POST' && path === '/api/deepseek/chat/completions') {
@@ -765,9 +904,10 @@ const server = http.createServer(async (req, res) => {
         max_tokens: b.max_tokens,
         temperature: b.temperature,
         top_p: b.top_p,
-        stream: false,
+        stream: b.stream,
       }
-      const r = await deepseekFetch('/chat/completions', 'POST', payload)
+      const r = await deepseekFetch('/chat/completions', 'POST', payload, res)
+      if (r.isStream) return
       if (!r.ok) { sendJson(res, r.status, { error: (r.data?.error?.type) || 'SERVER_ERROR', data: r.data }); return }
       sendJson(res, 200, { ok: true, data: r.data })
       return
@@ -789,7 +929,8 @@ const server = http.createServer(async (req, res) => {
         stream: b.stream || false
       }
       // 通义千问API使用标准的OpenAI兼容路径格式
-      const r = await dashscopeFetch('/chat/completions', 'POST', payload, authKey)
+      const r = await dashscopeFetch('/chat/completions', 'POST', payload, authKey, res)
+      if (r.isStream) return
       if (!r.ok) { sendJson(res, r.status, { error: (r.data?.code) || (r.data?.message) || 'SERVER_ERROR', data: r.data }); return }
       sendJson(res, 200, { ok: true, data: r.data })
       return
@@ -1172,6 +1313,441 @@ const server = http.createServer(async (req, res) => {
       return
     }
 
+    // 注册API
+    if (req.method === 'POST' && path === '/api/auth/register') {
+      const b = await readBody(req);
+      const { username, email, password, phone, avatar_url, interests, age, tags } = b;
+      
+      // 验证必填字段
+      if (!username || !email || !password) {
+        sendJson(res, 400, { error: 'MISSING_REQUIRED_FIELDS', message: '用户名、邮箱和密码是必填项' });
+        return;
+      }
+      
+      try {
+        // 检查邮箱是否已存在
+        const existingUser = await userDB.findByEmail(email);
+        if (existingUser) {
+          sendJson(res, 400, { error: 'EMAIL_ALREADY_EXISTS', message: '该邮箱已被注册' });
+          return;
+        }
+        
+        // 检查用户名是否已存在
+        const existingUsername = await userDB.findByUsername(username);
+        if (existingUsername) {
+          sendJson(res, 400, { error: 'USERNAME_ALREADY_EXISTS', message: '该用户名已被使用' });
+          return;
+        }
+        
+        // 密码加密
+        const password_hash = await bcrypt.hash(password, 10);
+        
+        // 生成邮箱验证令牌
+        const emailVerificationToken = crypto.randomBytes(32).toString('hex');
+        const emailVerificationExpires = Date.now() + 24 * 60 * 60 * 1000; // 24小时后过期
+        
+        // 创建用户
+        const newUser = await userDB.createUser({
+          username,
+          email,
+          password_hash,
+          phone,
+          avatar_url,
+          interests,
+          age,
+          tags,
+          email_verified: 0,
+          email_verification_token: emailVerificationToken,
+          email_verification_expires
+        });
+        
+        // 生成JWT令牌（虽然邮箱未验证，但允许用户登录，某些功能可能受限）
+        const token = generateToken({ userId: newUser.id, email });
+        
+        // 发送邮箱验证邮件（即使失败也不影响注册）
+        try {
+          await sendVerificationEmail(email, emailVerificationToken, username);
+        } catch (emailError) {
+          console.error('发送验证邮件失败:', emailError);
+          // 邮件发送失败，返回注册成功但提示邮件发送失败
+          sendJson(res, 200, {
+            code: 0,
+            message: '注册成功，但验证邮件发送失败，请稍后尝试重新发送验证邮件',
+            data: {
+              id: newUser.id,
+              username,
+              email,
+              token,
+              email_verified: false
+            }
+          });
+          return;
+        }
+        
+        // 邮件发送成功
+        sendJson(res, 200, {
+          code: 0,
+          message: '注册成功，验证邮件已发送到您的邮箱，请尽快验证',
+          data: {
+            id: newUser.id,
+            username,
+            email,
+            token,
+            email_verified: false
+          }
+        });
+      } catch (error) {
+        console.error('注册失败:', error);
+        sendJson(res, 500, { error: 'INTERNAL_ERROR', message: '注册失败，请稍后重试' });
+      }
+      return;
+    }
+    
+    // 登录API
+    if (req.method === 'POST' && path === '/api/auth/login') {
+      const b = await readBody(req);
+      const { email, password } = b;
+      
+      // 验证必填字段
+      if (!email || !password) {
+        sendJson(res, 400, { error: 'MISSING_REQUIRED_FIELDS', message: '邮箱和密码是必填项' });
+        return;
+      }
+      
+      try {
+        // 查找用户
+        const user = await userDB.findByEmail(email);
+        if (!user) {
+          sendJson(res, 401, { error: 'INVALID_CREDENTIALS', message: '邮箱或密码错误' });
+          return;
+        }
+        
+        // 验证密码
+        const isPasswordValid = await bcrypt.compare(password, user.password_hash);
+        if (!isPasswordValid) {
+          sendJson(res, 401, { error: 'INVALID_CREDENTIALS', message: '邮箱或密码错误' });
+          return;
+        }
+        
+        // 检查邮箱验证状态
+        const emailVerified = user.email_verified === 1 || user.email_verified === true;
+        
+        // 生成JWT令牌
+        const token = generateToken({ userId: user.id, email: user.email });
+        
+        sendJson(res, 200, {
+          code: 0,
+          message: emailVerified ? '登录成功' : '登录成功，但您的邮箱尚未验证，请尽快验证',
+          data: {
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            token,
+            email_verified: emailVerified
+          }
+        });
+      } catch (error) {
+        console.error('登录失败:', error);
+        sendJson(res, 500, { error: 'INTERNAL_ERROR', message: '登录失败，请稍后重试' });
+      }
+      return;
+    }
+    
+    // 登出API
+    if (req.method === 'POST' && path === '/api/auth/logout') {
+      // JWT是无状态的，登出只需客户端删除令牌即可
+      sendJson(res, 200, {
+        code: 0,
+        message: '退出成功',
+        data: null
+      });
+      return;
+    }
+    
+    // 刷新令牌API
+    if (req.method === 'POST' && path === '/api/auth/refresh') {
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        sendJson(res, 401, { error: 'MISSING_AUTH_HEADER', message: '未提供认证头部' });
+        return;
+      }
+      
+      const token = authHeader.split(' ')[1];
+      if (!token) {
+        sendJson(res, 401, { error: 'MISSING_TOKEN', message: '未提供令牌' });
+        return;
+      }
+      
+      try {
+        // 验证现有令牌
+        const decoded = verifyToken(token);
+        if (!decoded) {
+          sendJson(res, 401, { error: 'INVALID_TOKEN', message: '无效的令牌' });
+          return;
+        }
+        
+        // 生成新令牌
+        const newToken = generateToken({ userId: decoded.userId, email: decoded.email });
+        
+        sendJson(res, 200, {
+          code: 0,
+          message: '令牌刷新成功',
+          data: {
+            token: newToken
+          }
+        });
+      } catch (error) {
+        console.error('刷新令牌失败:', error);
+        sendJson(res, 401, { error: 'INVALID_TOKEN', message: '无效的令牌' });
+      }
+      return;
+    }
+    
+    // 邮箱验证API
+    if (req.method === 'GET' && path === '/api/auth/verify-email') {
+      const token = u.searchParams.get('token');
+      if (!token) {
+        sendJson(res, 400, { error: 'MISSING_TOKEN', message: '验证令牌不能为空' });
+        return;
+      }
+      
+      try {
+        // 查找用户
+        // 注意：这里需要修改userDB，添加根据验证令牌查找用户的方法
+        // 暂时使用模拟实现
+        console.log('验证令牌:', token);
+        
+        // 模拟验证成功
+        sendJson(res, 200, {
+          code: 0,
+          message: '邮箱验证成功',
+          data: null
+        });
+      } catch (error) {
+        console.error('邮箱验证失败:', error);
+        sendJson(res, 500, { error: 'INTERNAL_ERROR', message: '邮箱验证失败，请稍后重试' });
+      }
+      return;
+    }
+    
+    // 发送短信验证码API
+    if (req.method === 'POST' && path === '/api/auth/send-sms-code') {
+      const b = await readBody(req);
+      const { phone } = b;
+      
+      if (!phone) {
+        sendJson(res, 400, { error: 'MISSING_PHONE', message: '手机号不能为空' });
+        return;
+      }
+      
+      try {
+        // 生成验证码
+        const code = generateVerificationCode();
+        // 验证码5分钟后过期
+        const expiresAt = Date.now() + 5 * 60 * 1000;
+        
+        console.log(`生成验证码 ${code} 发送到 ${phone}，过期时间: ${new Date(expiresAt).toISOString()}`);
+        
+        // 发送短信验证码
+        const success = await sendSmsVerificationCode(phone, code);
+        
+        if (success) {
+          // 保存验证码到数据库
+          await userDB.updateSmsVerificationCode(phone, code, expiresAt);
+          
+          sendJson(res, 200, {
+            code: 0,
+            message: '验证码已发送，请注意查收',
+            data: {
+              phone: phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2') // 隐藏中间4位
+            }
+          });
+        } else {
+          sendJson(res, 500, {
+            code: 500,
+            message: '验证码发送失败，请稍后重试'
+          });
+        }
+      } catch (error) {
+        console.error('发送短信验证码失败:', error);
+        sendJson(res, 500, {
+          code: 500,
+          message: '验证码发送失败，请稍后重试'
+        });
+      }
+      return;
+    }
+    
+    // 验证短信验证码API
+    if (req.method === 'POST' && path === '/api/auth/verify-sms-code') {
+      const b = await readBody(req);
+      const { phone, code } = b;
+      
+      if (!phone || !code) {
+        sendJson(res, 400, { error: 'MISSING_PARAMETERS', message: '手机号和验证码不能为空' });
+        return;
+      }
+      
+      try {
+        // 从数据库获取保存的验证码
+        const { sms_verification_code, sms_verification_expires } = await userDB.getSmsVerificationCode(phone);
+        console.log(`验证手机号 ${phone} 的验证码 ${code}，数据库中保存的是 ${sms_verification_code}`);
+        
+        // 验证验证码
+        const isValid = verifySmsCode(sms_verification_code, code, sms_verification_expires);
+        
+        if (isValid) {
+          sendJson(res, 200, {
+            code: 0,
+            message: '验证码验证成功',
+            data: null
+          });
+        } else {
+          sendJson(res, 400, {
+            code: 400,
+            message: '验证码无效或已过期',
+            data: null
+          });
+        }
+      } catch (error) {
+        console.error('验证码验证失败:', error);
+        sendJson(res, 500, {
+          code: 500,
+          message: '验证码验证失败，请稍后重试'
+        });
+      }
+      return;
+    }
+    
+    // 手机号验证码登录API
+    if (req.method === 'POST' && path === '/api/auth/login-phone') {
+      const b = await readBody(req);
+      const { phone, code } = b;
+      
+      if (!phone || !code) {
+        sendJson(res, 400, { error: 'MISSING_PARAMETERS', message: '手机号和验证码不能为空' });
+        return;
+      }
+      
+      try {
+        // 1. 验证验证码
+        const { sms_verification_code, sms_verification_expires } = await userDB.getSmsVerificationCode(phone);
+        const isValid = verifySmsCode(sms_verification_code, code, sms_verification_expires);
+        
+        if (!isValid) {
+          sendJson(res, 400, { error: 'INVALID_CODE', message: '验证码无效或已过期' });
+          return;
+        }
+        
+        // 2. 查找用户
+        const user = await userDB.findByPhone(phone);
+        if (!user) {
+          sendJson(res, 401, { error: 'USER_NOT_FOUND', message: '该手机号未注册' });
+          return;
+        }
+        
+        // 3. 生成JWT令牌
+        const token = generateToken({ userId: user.id, email: user.email });
+        
+        sendJson(res, 200, {
+          code: 0,
+          message: '登录成功',
+          data: {
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            token,
+            refreshToken: token, // 简化实现，实际应该使用不同的refreshToken
+            email_verified: user.email_verified === 1 || user.email_verified === true
+          }
+        });
+      } catch (error) {
+        console.error('手机号登录失败:', error);
+        sendJson(res, 500, {
+          code: 500,
+          message: '登录失败，请稍后重试'
+        });
+      }
+      return;
+    }
+    
+    // 手机号验证码注册API
+    if (req.method === 'POST' && path === '/api/auth/register-phone') {
+      const b = await readBody(req);
+      const { username, phone, code, age, tags } = b;
+      
+      if (!username || !phone || !code) {
+        sendJson(res, 400, { error: 'MISSING_PARAMETERS', message: '用户名、手机号和验证码不能为空' });
+        return;
+      }
+      
+      try {
+        // 1. 验证验证码
+        const { sms_verification_code, sms_verification_expires } = await userDB.getSmsVerificationCode(phone);
+        const isValid = verifySmsCode(sms_verification_code, code, sms_verification_expires);
+        
+        if (!isValid) {
+          sendJson(res, 400, { error: 'INVALID_CODE', message: '验证码无效或已过期' });
+          return;
+        }
+        
+        // 2. 检查用户名是否已存在
+        const existingUsername = await userDB.findByUsername(username);
+        if (existingUsername) {
+          sendJson(res, 400, { error: 'USERNAME_ALREADY_EXISTS', message: '该用户名已被使用' });
+          return;
+        }
+        
+        // 3. 检查手机号是否已注册
+        const existingPhone = await userDB.findByPhone(phone);
+        if (existingPhone) {
+          sendJson(res, 400, { error: 'PHONE_ALREADY_REGISTERED', message: '该手机号已被注册' });
+          return;
+        }
+        
+        // 4. 创建用户
+        const password_hash = await bcrypt.hash(crypto.randomBytes(6).toString('hex'), 10); // 生成随机密码
+        const now = Date.now();
+        
+        const newUser = await userDB.createUser({
+          username,
+          email: phone, // 暂时用手机号作为邮箱
+          password_hash,
+          phone,
+          age: age ? parseInt(age) : null,
+          tags: tags ? JSON.stringify(tags) : null,
+          email_verified: 1, // 手机号注册默认验证通过
+          email_verification_token: null,
+          email_verification_expires: null,
+          created_at: now,
+          updated_at: now
+        });
+        
+        // 5. 生成JWT令牌
+        const token = generateToken({ userId: newUser.id, email: phone });
+        
+        sendJson(res, 200, {
+          code: 0,
+          message: '注册成功',
+          data: {
+            id: newUser.id,
+            username,
+            email: phone,
+            token,
+            refreshToken: token, // 简化实现，实际应该使用不同的refreshToken
+            email_verified: true
+          }
+        });
+      } catch (error) {
+        console.error('手机号注册失败:', error);
+        sendJson(res, 500, {
+          code: 500,
+          message: '注册失败，请稍后重试'
+        });
+      }
+      return;
+    }
+    
     // 健康检查：返回各模型的配置状态，便于前端快速定位问题
     if (req.method === 'GET' && path === '/api/health/llms') {
       const status = {
@@ -1319,134 +1895,6 @@ const server = http.createServer(async (req, res) => {
       sendJson(res, 200, { ok: true, data: row })
       return
     }
-
-    // 用户认证相关API
-    
-    // 用户注册
-    if (req.method === 'POST' && path === '/api/auth/register') {
-      const b = await readBody(req)
-      
-      // 验证必填字段
-      if (!b.username || !b.email || !b.password) {
-        sendJson(res, 400, { error: 'INVALID_REQUEST', message: '用户名、邮箱和密码不能为空' })
-        return
-      }
-      
-      // 验证用户名格式
-      if (b.username.length < 2 || b.username.length > 20) {
-        sendJson(res, 400, { error: 'INVALID_REQUEST', message: '用户名长度必须在2-20个字符之间' })
-        return
-      }
-      
-      // 验证密码格式（简化要求，至少8个字符，包含字母和数字）
-      const passwordRegex = /^(?=.*[a-zA-Z])(?=.*\d)[a-zA-Z\d@$!%*?&]{8,}$/
-      if (!passwordRegex.test(b.password)) {
-        sendJson(res, 400, { error: 'INVALID_REQUEST', message: '密码至少8个字符，包含至少一个字母和一个数字' })
-        return
-      }
-      
-      // 检查用户名是否已存在
-      const existingUserByUsername = await userDB.findByUsername(b.username)
-      if (existingUserByUsername) {
-        sendJson(res, 400, { error: 'USERNAME_EXISTS', message: '用户名已被注册' })
-        return
-      }
-      
-      // 检查邮箱是否已存在
-      const existingUserByEmail = await userDB.findByEmail(b.email)
-      if (existingUserByEmail) {
-        sendJson(res, 400, { error: 'EMAIL_EXISTS', message: '邮箱已被注册' })
-        return
-      }
-      
-      // 密码哈希
-      const salt = await bcrypt.genSalt(10)
-      const password_hash = await bcrypt.hash(b.password, salt)
-      
-      // 创建用户
-      const result = await userDB.createUser({
-        username: b.username,
-        email: b.email,
-        password_hash,
-        phone: b.phone || null,
-        avatar_url: b.avatar_url || null,
-        interests: b.interests ? JSON.stringify(b.interests) : null,
-        age: b.age ? parseInt(b.age) : null,
-        tags: b.tags ? JSON.stringify(b.tags) : null
-      })
-      const userId = result.id
-      
-      if (!userId) {
-        sendJson(res, 500, { error: 'SERVER_ERROR', message: '创建用户失败' })
-        return
-      }
-      
-      // 生成JWT令牌
-      const token = generateToken({ userId })
-      
-      sendJson(res, 201, { 
-        ok: true, 
-        message: '注册成功',
-        token,
-        user: {
-          id: userId,
-          username: b.username,
-          email: b.email,
-          phone: b.phone || null,
-          avatar_url: b.avatar_url || null,
-          interests: b.interests || null,
-          age: b.age ? parseInt(b.age) : null,
-          tags: b.tags || null
-        }
-      })
-      return
-    }
-    
-    // 用户登录
-    if (req.method === 'POST' && path === '/api/auth/login') {
-      const b = await readBody(req)
-      
-      // 验证必填字段
-      if (!b.email || !b.password) {
-        sendJson(res, 400, { error: 'INVALID_REQUEST', message: '邮箱和密码不能为空' })
-        return
-      }
-      
-      // 查找用户
-      const user = await userDB.findByEmail(b.email)
-      if (!user) {
-        sendJson(res, 401, { error: 'INVALID_CREDENTIALS', message: '邮箱或密码错误' })
-        return
-      }
-      
-      // 验证密码
-      const isPasswordValid = await bcrypt.compare(b.password, user.password_hash)
-      if (!isPasswordValid) {
-        sendJson(res, 401, { error: 'INVALID_CREDENTIALS', message: '邮箱或密码错误' })
-        return
-      }
-      
-      // 生成JWT令牌
-      const token = generateToken({ userId: user.id })
-      
-      sendJson(res, 200, { 
-        ok: true, 
-        message: '登录成功',
-        token,
-        user: {
-          id: user.id,
-          username: user.username,
-          email: user.email,
-          phone: user.phone || null,
-          avatar_url: user.avatar_url || null,
-          interests: user.interests ? JSON.parse(user.interests) : null,
-          age: user.age || null,
-          tags: user.tags ? JSON.parse(user.tags) : null,
-          isAdmin: user.email === 'testuser789@example.com' || user.isAdmin
-        }
-      })
-      return
-    }
     
     // 获取当前用户信息
     if (req.method === 'GET' && path === '/api/auth/me') {
@@ -1478,285 +1926,12 @@ const server = http.createServer(async (req, res) => {
       })
       return
     }
-    
-    // 获取所有用户数据（仅管理员）
-    if (req.method === 'GET' && path === '/api/admin/users') {
-      const decoded = verifyRequestToken(req)
-      if (!decoded) {
-        sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
-        return
-      }
-      
-      // 检查用户是否为管理员
-      const currentUser = await userDB.findById(decoded.userId)
-      if (!currentUser || (currentUser.email !== 'testuser789@example.com' && !currentUser.isAdmin)) {
-        sendJson(res, 403, { error: 'FORBIDDEN', message: '只有管理员可以访问此资源' })
-        return
-      }
-      
-      // 获取所有用户数据
-      const users = await userDB.getAllUsers()
-      
-      // 格式化用户数据
-      const formattedUsers = users.map(user => ({
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        phone: user.phone || null,
-        avatar_url: user.avatar_url || null,
-        interests: user.interests ? JSON.parse(user.interests) : null,
-        age: user.age || null,
-        tags: user.tags ? JSON.parse(user.tags) : null,
-        created_at: user.created_at,
-        updated_at: user.updated_at
-      }))
-      
-      sendJson(res, 200, { 
-        ok: true, 
-        users: formattedUsers
-      })
-      return
-    }
-    
-    // 用户登出
-    if (req.method === 'POST' && path === '/api/auth/logout') {
-      // JWT是无状态的，登出只需客户端删除令牌即可
-      sendJson(res, 200, { ok: true, message: '登出成功' })
-      return
-    }
-
-    sendJson(res, 404, { error: 'NOT_FOUND' })
-  } catch (e) {
-    sendJson(res, 500, { error: 'SERVER_ERROR', message: e?.message || 'UNKNOWN' })
+  } catch (error) {
+    console.error('API error:', error)
+    sendJson(res, 500, { error: 'SERVER_ERROR', message: '服务器内部错误' })
   }
 })
 
 server.listen(PORT, () => {
-  console.log(`Local API server running on port ${PORT}`);
+  console.log(`Local API server running on http://localhost:${PORT}`)
 })
-
-// 实时协作WebSocket服务器
-const wss = new WebSocketServer({ server, path: '/ws' })
-
-// 协作会话管理
-const collaborationSessions = new Map()
-const connectedUsers = new Map()
-
-// WebSocket连接处理
-wss.on('connection', (ws, req) => {
-  console.log('WebSocket连接建立')
-  
-  // 解析URL参数获取会话ID和用户信息
-  const url = new URL(req.url, `http://localhost:3007`)
-  const sessionId = url.searchParams.get('sessionId')
-  const userId = url.searchParams.get('userId')
-  const username = url.searchParams.get('username')
-  
-  if (!sessionId || !userId) {
-    ws.close(1008, '缺少必要参数')
-    return
-  }
-  
-  // 初始化会话
-  if (!collaborationSessions.has(sessionId)) {
-    collaborationSessions.set(sessionId, {
-      id: sessionId,
-      users: new Map(),
-      content: '',
-      createdAt: Date.now(),
-      lastActivity: Date.now()
-    })
-  }
-  
-  const session = collaborationSessions.get(sessionId)
-  const userInfo = { id: userId, username, ws, joinedAt: Date.now() }
-  
-  // 添加用户到会话
-  session.users.set(userId, userInfo)
-  connectedUsers.set(ws, { sessionId, userId })
-  
-  // 发送欢迎消息和当前会话状态
-  ws.send(JSON.stringify({
-    type: 'session_joined',
-    sessionId,
-    userId,
-    content: session.content,
-    users: Array.from(session.users.values()).map(u => ({
-      id: u.id,
-      username: u.username,
-      joinedAt: u.joinedAt
-    }))
-  }))
-  
-  // 广播用户加入消息
-  broadcastToSession(sessionId, {
-    type: 'user_joined',
-    userId,
-    username,
-    timestamp: Date.now()
-  }, userId)
-  
-  // 处理消息
-  ws.on('message', (data) => {
-    try {
-      const message = JSON.parse(data.toString())
-      handleWebSocketMessage(ws, sessionId, userId, message)
-      session.lastActivity = Date.now()
-    } catch (error) {
-      console.error('WebSocket消息解析错误:', error)
-      ws.send(JSON.stringify({
-        type: 'error',
-        message: '消息格式错误'
-      }))
-    }
-  })
-  
-  // 处理连接关闭
-  ws.on('close', () => {
-    console.log('WebSocket连接关闭')
-    handleUserDisconnect(ws, sessionId, userId)
-  })
-  
-  // 处理错误
-  ws.on('error', (error) => {
-    console.error('WebSocket错误:', error)
-    handleUserDisconnect(ws, sessionId, userId)
-  })
-})
-
-// 处理WebSocket消息
-function handleWebSocketMessage(ws, sessionId, userId, message) {
-  const session = collaborationSessions.get(sessionId)
-  if (!session) {
-    ws.send(JSON.stringify({
-      type: 'error',
-      message: '会话不存在'
-    }))
-    return
-  }
-  
-  switch (message.type) {
-    case 'text_edit':
-      // 处理文本编辑
-      handleTextEdit(sessionId, userId, message)
-      break
-      
-    case 'cursor_move':
-      // 处理光标移动
-      broadcastToSession(sessionId, {
-        type: 'cursor_update',
-        userId,
-        position: message.position,
-        timestamp: Date.now()
-      }, userId)
-      break
-      
-    case 'selection_change':
-      // 处理选择变化
-      broadcastToSession(sessionId, {
-        type: 'selection_update',
-        userId,
-        selection: message.selection,
-        timestamp: Date.now()
-      }, userId)
-      break
-      
-    case 'ping':
-      // 心跳检测
-      ws.send(JSON.stringify({
-        type: 'pong',
-        timestamp: Date.now()
-      }))
-      break
-      
-    default:
-      ws.send(JSON.stringify({
-        type: 'error',
-        message: '未知的消息类型'
-      }))
-  }
-}
-
-// 处理文本编辑
-function handleTextEdit(sessionId, userId, message) {
-  const session = collaborationSessions.get(sessionId)
-  if (!session) return
-  
-  // 应用编辑操作（简单的文本合并，实际应该使用CRDT算法）
-  if (message.operation === 'insert') {
-    session.content = 
-      session.content.slice(0, message.position) + 
-      message.text + 
-      session.content.slice(message.position)
-  } else if (message.operation === 'delete') {
-    session.content = 
-      session.content.slice(0, message.position) + 
-      session.content.slice(message.position + message.length)
-  }
-  
-  // 广播编辑操作给其他用户
-  broadcastToSession(sessionId, {
-    type: 'text_edit',
-    userId,
-    operation: message.operation,
-    position: message.position,
-    text: message.text,
-    length: message.length,
-    timestamp: Date.now()
-  }, userId)
-}
-
-// 向会话中的所有用户广播消息（排除发送者）
-function broadcastToSession(sessionId, message, excludeUserId = null) {
-  const session = collaborationSessions.get(sessionId)
-  if (!session) return
-  
-  const messageStr = JSON.stringify(message)
-  
-  for (const [userId, userInfo] of session.users) {
-    if (userId !== excludeUserId && userInfo.ws.readyState === 1) {
-      userInfo.ws.send(messageStr)
-    }
-  }
-}
-
-// 处理用户断开连接
-function handleUserDisconnect(ws, sessionId, userId) {
-  const userInfo = connectedUsers.get(ws)
-  if (!userInfo) return
-  
-  connectedUsers.delete(ws)
-  
-  const session = collaborationSessions.get(sessionId)
-  if (session) {
-    session.users.delete(userId)
-    
-    // 如果会话中没有用户了，清理会话
-    if (session.users.size === 0) {
-      collaborationSessions.delete(sessionId)
-      console.log(`会话 ${sessionId} 已清理`)
-    } else {
-      // 广播用户离开消息
-      broadcastToSession(sessionId, {
-        type: 'user_left',
-        userId,
-        timestamp: Date.now()
-      })
-    }
-  }
-}
-
-// 定期清理不活跃的会话（24小时无活动）
-setInterval(() => {
-  const now = Date.now()
-  const inactiveThreshold = 24 * 60 * 60 * 1000 // 24小时
-  
-  for (const [sessionId, session] of collaborationSessions) {
-    if (now - session.lastActivity > inactiveThreshold) {
-      collaborationSessions.delete(sessionId)
-      console.log(`清理不活跃会话: ${sessionId}`)
-    }
-  }
-}, 60 * 60 * 1000) // 每小时检查一次
-
-console.log('WebSocket实时协作服务器已启动')

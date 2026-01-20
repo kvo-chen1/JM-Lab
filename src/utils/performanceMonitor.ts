@@ -116,7 +116,7 @@ class PerformanceMonitor {
     if (this.isInitialized) return;
 
     // 优化：只在开发环境启用完整的性能监控
-    const isDev = import.meta.env.DEV;
+    const isDev = this.isDevelopmentEnvironment();
     
     // 监听核心 Web Vitals - 始终启用，开销较小
     this.setupWebVitalsObserver();
@@ -130,6 +130,35 @@ class PerformanceMonitor {
     }
     
     this.isInitialized = true;
+  }
+
+  /**
+   * 检测当前是否为开发环境，兼容Node.js和浏览器环境
+   */
+  private isDevelopmentEnvironment(): boolean {
+    try {
+      // 检查Node.js环境
+      if (typeof process !== 'undefined' && process.env) {
+        return process.env.NODE_ENV === 'development';
+      }
+      
+      // 检查浏览器环境
+      if (typeof window !== 'undefined') {
+        // 检查import.meta.env.DEV（Vite环境）
+        const windowWithEnv = window as any;
+        if (windowWithEnv.import && windowWithEnv.import.meta?.env?.DEV) {
+          return windowWithEnv.import.meta.env.DEV;
+        }
+        // 检查全局变量
+        return windowWithEnv.DEV || windowWithEnv.__DEV__;
+      }
+      
+      // 默认返回false（生产环境）
+      return false;
+    } catch (error) {
+      // 发生错误时，默认返回false（生产环境）
+      return false;
+    }
   }
 
   /**
@@ -451,7 +480,7 @@ class PerformanceMonitor {
    */
   recordMetric(metric: PerformanceMetric) {
     // 优化：只在开发环境记录完整指标，生产环境只记录核心Web Vitals
-    const isDev = import.meta.env.DEV;
+    const isDev = this.isDevelopmentEnvironment();
     if (!isDev && !this.isWebVital(metric.name)) {
       return;
     }
@@ -469,7 +498,7 @@ class PerformanceMonitor {
    */
   recordNetworkRequest(metric: NetworkRequestMetric) {
     // 优化：只在开发环境记录完整的网络请求指标
-    const isDev = import.meta.env.DEV;
+    const isDev = this.isDevelopmentEnvironment();
     if (!isDev) return;
     
     this.networkRequests.push(metric);
@@ -503,7 +532,7 @@ class PerformanceMonitor {
    */
   recordComponentRender(metric: ComponentRenderMetric) {
     // 优化：只在开发环境记录完整的组件渲染指标
-    const isDev = import.meta.env.DEV;
+    const isDev = this.isDevelopmentEnvironment();
     if (!isDev) return;
     
     // 更新组件渲染计数

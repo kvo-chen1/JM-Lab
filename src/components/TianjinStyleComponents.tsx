@@ -352,7 +352,7 @@ export const TianjinEmptyState: React.FC = () => {
     <div className="flex flex-col items-center justify-center py-12 px-4 text-center sm:py-16 md:py-20">
       <div className="mb-6 relative w-full max-w-xs sm:max-w-sm md:max-w-md">
         <img 
-          src="https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=landscape_4_3&prompt=Tianjin%20ancient%20city%20scenery%20traditional%20Chinese%20painting%20style" 
+          src="https://images.unsplash.com/photo-1599644869800-47d3c5240211?w=800&q=80" 
           alt="天津卫历史场景" 
           className="w-full h-auto max-w-full rounded-xl shadow-lg border-4 border-double border-blue-600 sm:w-64 sm:h-48 md:w-80 md:h-60 object-cover"
         />
@@ -405,7 +405,10 @@ export const TianjinTag: React.FC<{
   
   // 缓存最终className
   const combinedClassName = useMemo(() => {
-    return `inline-flex items-center px-3 py-1 text-sm font-medium rounded-full border transform rotate-1 ${colorMap[color]} ${className}`;
+    // 检查是否已经包含了border类，避免冲突
+    const hasBorderClass = className.includes('border-none') || className.includes('border-0');
+    const borderClass = hasBorderClass ? '' : 'border';
+    return `inline-flex items-center px-3 py-1 text-sm font-medium rounded-full ${borderClass} transform rotate-1 ${colorMap[color]} ${className}`;
   }, [colorMap, color, className]);
   
   return (

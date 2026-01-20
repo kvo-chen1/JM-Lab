@@ -74,7 +74,6 @@ export default function Footer({ variant = 'full', simpleText }: FooterProps) {
               <li><Link to="/explore" className="hover:text-red-600 transition-colors">{t('footer.workExhibition')}</Link></li>
               <li><Link to="/square" className="hover:text-red-600 transition-colors">{t('footer.creatorCommunity')}</Link></li>
               <li><Link to="/business" className="hover:text-red-600 transition-colors">{t('footer.brandCooperation')}</Link></li>
-              <li><Link to="/developers" className="hover:text-red-600 transition-colors">API 开发者</Link></li>
             </ul>
           </div>
 

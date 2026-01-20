@@ -1,409 +1,285 @@
-// src/components/ui/Form.tsx
+import React from 'react';
 
-import { ReactNode, FormHTMLAttributes, forwardRef, useState, useEffect } from 'react';
-import { clsx } from 'clsx';
-
-// 验证规则选项
-interface ValidateOptions {
-  required?: string | boolean;
-  minLength?: { value: number; message: string };
-  maxLength?: { value: number; message: string };
-  pattern?: { value: RegExp; message: string };
-  validate?: (value: any) => string | boolean;
-  email?: string | boolean;
-  password?: { 
-    value: boolean;
-    message?: string;
-    minLength?: number;
-    requireUppercase?: boolean;
-    requireLowercase?: boolean;
-    requireNumber?: boolean;
-    requireSpecialChar?: boolean;
-  };
+// Input组件
+interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
+  label?: string;
+  error?: string;
+  helperText?: string;
 }
 
-// 表单字段注册选项
-interface RegisterOptions {
-  validate?: ValidateOptions;
-  [key: string]: any;
-}
-
-// 表单属性接口
-interface FormProps extends FormHTMLAttributes<HTMLFormElement> {
-  children: ReactNode;
-  onSubmit: (values: Record<string, any>) => Promise<void> | void;
-  initialValues?: Record<string, any>;
-  validateOnBlur?: boolean;
-  validateOnChange?: boolean;
-  className?: string;
-}
-
-// 表单上下文接口
-interface FormContextType {
-  values: Record<string, any>;
-  errors: Record<string, string>;
-  touched: Record<string, boolean>;
-  setValues: React.Dispatch<React.SetStateAction<Record<string, any>>>;
-  setErrors: React.Dispatch<React.SetStateAction<Record<string, string>>>;
-  setTouched: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
-  register: (name: string, options?: RegisterOptions) => any;
-  validateField: (name: string) => Promise<boolean>;
-  validateForm: () => Promise<boolean>;
-  reset: () => void;
-  submitting: boolean;
-}
-
-// 创建表单上下文
-import { createContext, useContext } from 'react';
-const FormContext = createContext<FormContextType>({
-  values: {},
-  errors: {},
-  touched: {},
-  setValues: () => {},
-  setErrors: () => {},
-  setTouched: () => {},
-  register: () => {},
-  validateField: async () => false,
-  validateForm: async () => false,
-  reset: () => {},
-  submitting: false
-});
-
-// 表单项属性接口
-interface FormItemProps {
-  children: ReactNode;
-  label?: ReactNode;
-  name: string;
-  required?: boolean;
-  className?: string;
-  labelClassName?: string;
-}
-
-// 表单控制属性接口
-interface FormControlProps {
-  children: ReactNode;
-  className?: string;
-}
-
-// 表单错误提示属性接口
-interface FormErrorMessageProps {
-  name: string;
-  className?: string;
-}
-
-// 表单验证工具函数
-const validateFieldValue = (value: any, validateOptions?: ValidateOptions): string | null => {
-  if (!validateOptions) return null;
-
-  // 必填验证
-  if (validateOptions.required) {
-    const isEmpty = value === undefined || value === null || value === '';
-    if (isEmpty) {
-      return typeof validateOptions.required === 'string' ? validateOptions.required : '此字段为必填项';
-    }
-  }
-
-  // 邮箱验证
-  if (validateOptions.email) {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(value)) {
-      return typeof validateOptions.email === 'string' ? validateOptions.email : '请输入有效的邮箱地址';
-    }
-  }
-
-  // 最小长度验证
-  if (validateOptions.minLength) {
-    if (value.length < validateOptions.minLength.value) {
-      return validateOptions.minLength.message;
-    }
-  }
-
-  // 最大长度验证
-  if (validateOptions.maxLength) {
-    if (value.length > validateOptions.maxLength.value) {
-      return validateOptions.maxLength.message;
-    }
-  }
-
-  // 正则表达式验证
-  if (validateOptions.pattern) {
-    if (!validateOptions.pattern.value.test(value)) {
-      return validateOptions.pattern.message;
-    }
-  }
-
-  // 密码强度验证
-  if (validateOptions.password?.value) {
-    const passwordOptions = validateOptions.password;
-    const minLength = passwordOptions.minLength || 8;
-    
-    if (value.length < minLength) {
-      return passwordOptions.message || `密码长度不能少于${minLength}个字符`;
-    }
-    
-    if (passwordOptions.requireUppercase && !/[A-Z]/.test(value)) {
-      return passwordOptions.message || '密码必须包含至少一个大写字母';
-    }
-    
-    if (passwordOptions.requireLowercase && !/[a-z]/.test(value)) {
-      return passwordOptions.message || '密码必须包含至少一个小写字母';
-    }
-    
-    if (passwordOptions.requireNumber && !/\d/.test(value)) {
-      return passwordOptions.message || '密码必须包含至少一个数字';
-    }
-    
-    if (passwordOptions.requireSpecialChar && !/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(value)) {
-      return passwordOptions.message || '密码必须包含至少一个特殊字符';
-    }
-  }
-
-  // 自定义验证函数
-  if (validateOptions.validate) {
-    const result = validateOptions.validate(value);
-    if (typeof result === 'string') {
-      return result;
-    }
-    if (result === false) {
-      return '验证失败';
-    }
-  }
-
-  return null;
-};
-
-// 表单组件
-const Form = forwardRef<HTMLFormElement, FormProps>(({
-  children,
-  onSubmit,
-  initialValues = {},
-  validateOnBlur = true,
-  validateOnChange = true, // 默认开启实时验证
-  className,
-  ...props
-}, ref) => {
-  const [values, setValues] = useState<Record<string, any>>(initialValues);
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [touched, setTouched] = useState<Record<string, boolean>>({});
-  const [submitting, setSubmitting] = useState<boolean>(false);
-  // 存储每个字段的验证规则
-  const [validationRules, setValidationRules] = useState<Record<string, ValidateOptions>>({});
-
-  // 重置表单
-  const reset = () => {
-    setValues(initialValues);
-    setErrors({});
-    setTouched({});
-  };
-
-  // 注册表单字段
-  const register = (name: string, options: RegisterOptions = {}) => {
-    // 保存验证规则
-    if (options.validate) {
-      setValidationRules(prev => ({
-        ...prev,
-        [name]: options.validate as ValidateOptions
-      }));
-    }
-
-    return {
-      name,
-      value: values[name] || '',
-      onChange: (e: React.ChangeEvent<any>) => {
-        const newValue = e.target.value;
-        setValues(prev => ({ ...prev, [name]: newValue }));
-        
-        // 实时验证
-        if (validateOnChange && options.validate) {
-          const error = validateFieldValue(newValue, options.validate);
-          setErrors(prev => ({ ...prev, [name]: error || '' }));
-        }
-      },
-      onBlur: () => {
-        setTouched(prev => ({ ...prev, [name]: true }));
-        
-        // 失焦验证
-        if (validateOnBlur && options.validate) {
-          const error = validateFieldValue(values[name], options.validate);
-          setErrors(prev => ({ ...prev, [name]: error || '' }));
-        }
-      },
-      ...options
-    };
-  };
-
-  // 验证单个字段
-  const validateField = async (name: string) => {
-    const value = values[name];
-    const rules = validationRules[name];
-    
-    if (!rules) return true;
-    
-    const error = validateFieldValue(value, rules);
-    setErrors(prev => ({ ...prev, [name]: error || '' }));
-    return !error;
-  };
-
-  // 验证整个表单
-  const validateForm = async () => {
-    const newErrors: Record<string, string> = {};
-    let isValid = true;
-    
-    // 验证所有有规则的字段
-    Object.keys(validationRules).forEach(name => {
-      const value = values[name];
-      const rules = validationRules[name];
-      const error = validateFieldValue(value, rules);
-      
-      if (error) {
-        newErrors[name] = error;
-        isValid = false;
-      }
-    });
-    
-    setErrors(newErrors);
-    // 标记所有字段为已触摸
-    setTouched(prev => {
-      const newTouched: Record<string, boolean> = { ...prev };
-      Object.keys(validationRules).forEach(key => {
-        newTouched[key] = true;
-      });
-      return newTouched;
-    });
-    
-    return isValid;
-  };
-
-  // 处理表单提交
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitting(true);
-    
-    try {
-      // 验证表单
-      const isValid = await validateForm();
-      if (isValid) {
-        await onSubmit(values);
-      }
-    } catch (error) {
-      console.error('Form submission error:', error);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  // 提供表单上下文
-  const contextValue: FormContextType = {
-    values,
-    errors,
-    touched,
-    setValues,
-    setErrors,
-    setTouched,
-    register,
-    validateField,
-    validateForm,
-    reset,
-    submitting
-  };
-
+export const Input: React.FC<InputProps> = ({ 
+  label, 
+  error, 
+  helperText, 
+  className = '',
+  ...props 
+}) => {
   return (
-    <FormContext.Provider value={contextValue}>
-      <form
-        ref={ref}
-        onSubmit={handleSubmit}
-        className={clsx('space-y-4', className)}
-        {...props}
-      >
-        {children}
-      </form>
-    </FormContext.Provider>
-  );
-});
-
-Form.displayName = 'Form';
-
-// 表单项组件
-const FormItem = ({ children, label, name, required = false, className, labelClassName }: FormItemProps) => {
-  const { errors, touched } = useContext(FormContext);
-  const hasError = touched[name] && errors[name];
-
-  return (
-    <div className={clsx('space-y-2', className)}>
+    <div className="space-y-1">
       {label && (
-        <label className={clsx('block text-sm font-medium text-gray-700 dark:text-gray-300', labelClassName)}>
+        <label className="block text-sm font-medium">
           {label}
-          {required && <span className="text-danger ml-1">*</span>}
         </label>
       )}
-      <div className={clsx(hasError && 'has-error')}>
-        {children}
+      <input
+        className={`w-full px-3 py-2 border rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 ${error 
+          ? 'border-red-500 bg-red-50' 
+          : 'border-gray-300 focus:border-blue-500'}`}
+        {...props}
+      />
+      {helperText && (
+        <p className="text-xs text-gray-500">{helperText}</p>
+      )}
+      {error && (
+        <p className="text-xs text-red-500">{error}</p>
+      )}
+    </div>
+  );
+};
+
+// Textarea组件
+interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
+  label?: string;
+  error?: string;
+  helperText?: string;
+}
+
+export const Textarea: React.FC<TextareaProps> = ({ 
+  label, 
+  error, 
+  helperText, 
+  className = '',
+  rows = 4,
+  ...props 
+}) => {
+  return (
+    <div className="space-y-1">
+      {label && (
+        <label className="block text-sm font-medium">
+          {label}
+        </label>
+      )}
+      <textarea
+        rows={rows}
+        className={`w-full px-3 py-2 border rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y ${error 
+          ? 'border-red-500 bg-red-50' 
+          : 'border-gray-300 focus:border-blue-500'}`}
+        {...props}
+      />
+      {helperText && (
+        <p className="text-xs text-gray-500">{helperText}</p>
+      )}
+      {error && (
+        <p className="text-xs text-red-500">{error}</p>
+      )}
+    </div>
+  );
+};
+
+// Select组件
+interface SelectOption {
+  value: string;
+  label: string;
+}
+
+interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
+  label?: string;
+  error?: string;
+  helperText?: string;
+  options: SelectOption[];
+}
+
+export const Select: React.FC<SelectProps> = ({ 
+  label, 
+  error, 
+  helperText, 
+  options,
+  className = '',
+  ...props 
+}) => {
+  return (
+    <div className="space-y-1">
+      {label && (
+        <label className="block text-sm font-medium">
+          {label}
+        </label>
+      )}
+      <select
+        className={`w-full px-3 py-2 border rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 ${error 
+          ? 'border-red-500 bg-red-50' 
+          : 'border-gray-300 focus:border-blue-500'}`}
+        {...props}
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+      {helperText && (
+        <p className="text-xs text-gray-500">{helperText}</p>
+      )}
+      {error && (
+        <p className="text-xs text-red-500">{error}</p>
+      )}
+    </div>
+  );
+};
+
+// DatePicker组件
+interface DatePickerProps {
+  label?: string;
+  value: Date;
+  onChange: (date: Date) => void;
+  error?: string;
+  helperText?: string;
+  showTime?: boolean;
+  required?: boolean;
+}
+
+export const DatePicker: React.FC<DatePickerProps> = ({ 
+  label, 
+  value, 
+  onChange, 
+  error, 
+  helperText, 
+  showTime = false,
+  required = false,
+}) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const date = new Date(e.target.value);
+    if (!isNaN(date.getTime())) {
+      onChange(date);
+    }
+  };
+  
+  return (
+    <div className="space-y-1">
+      {label && (
+        <label className="block text-sm font-medium">
+          {label}
+        </label>
+      )}
+      <input
+        type={showTime ? 'datetime-local' : 'date'}
+        value={value.toISOString().slice(0, showTime ? 16 : 10)}
+        onChange={handleChange}
+        required={required}
+        className={`w-full px-3 py-2 border rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 ${error 
+          ? 'border-red-500 bg-red-50' 
+          : 'border-gray-300 focus:border-blue-500'}`}
+      />
+      {helperText && (
+        <p className="text-xs text-gray-500">{helperText}</p>
+      )}
+      {error && (
+        <p className="text-xs text-red-500">{error}</p>
+      )}
+    </div>
+  );
+};
+
+// Checkbox组件
+interface CheckboxProps extends React.InputHTMLAttributes<HTMLInputElement> {
+  label?: string;
+  error?: string;
+  helperText?: string;
+}
+
+export const Checkbox: React.FC<CheckboxProps> = ({ 
+  label, 
+  error, 
+  helperText, 
+  className = '',
+  ...props 
+}) => {
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center space-x-2">
+        <input
+          type="checkbox"
+          className={`h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500`}
+          {...props}
+        />
+        {label && (
+          <label className="text-sm font-medium">
+            {label}
+          </label>
+        )}
       </div>
+      {helperText && (
+        <p className="text-xs text-gray-500 ml-6">{helperText}</p>
+      )}
+      {error && (
+        <p className="text-xs text-red-500 ml-6">{error}</p>
+      )}
     </div>
   );
 };
 
-// 表单控制组件
-const FormControl = ({ children, className }: FormControlProps) => {
+// FileUpload组件
+interface FileUploadProps {
+  label?: string;
+  error?: string;
+  helperText?: string;
+  multiple?: boolean;
+  accept?: string;
+  onChange: (files: FileList | null) => void;
+  disabled?: boolean;
+}
+
+export const FileUpload: React.FC<FileUploadProps> = ({ 
+  label, 
+  error, 
+  helperText, 
+  multiple = false,
+  accept = '*/*',
+  onChange,
+  disabled = false,
+}) => {
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  
+  const handleButtonClick = () => {
+    if (fileInputRef.current && !disabled) {
+      fileInputRef.current.click();
+    }
+  };
+  
   return (
-    <div className={className}>
-      {children}
+    <div className="space-y-1">
+      {label && (
+        <label className="block text-sm font-medium">
+          {label}
+        </label>
+      )}
+      <div className="flex space-x-2">
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple={multiple}
+          accept={accept}
+          onChange={(e) => onChange(e.target.files)}
+          className="hidden"
+          disabled={disabled}
+        />
+        <button
+          type="button"
+          onClick={handleButtonClick}
+          disabled={disabled}
+          className={`px-4 py-2 rounded-lg transition-colors duration-200 ${disabled 
+            ? 'opacity-50 cursor-not-allowed' 
+            : 'bg-blue-600 hover:bg-blue-700 text-white'}`}
+        >
+          <i className="fas fa-file-upload mr-2"></i>
+          选择文件
+        </button>
+      </div>
+      {helperText && (
+        <p className="text-xs text-gray-500">{helperText}</p>
+      )}
+      {error && (
+        <p className="text-xs text-red-500">{error}</p>
+      )}
     </div>
   );
 };
-
-// 表单错误提示组件
-const FormErrorMessage = ({ name, className }: FormErrorMessageProps) => {
-  const { errors, touched } = useContext(FormContext);
-  const hasError = touched[name] || (errors[name] !== undefined);
-  const errorMessage = errors[name];
-
-  if (!hasError || !errorMessage) return null;
-
-  return (
-    <p className={clsx('text-xs text-danger mt-1 flex items-center', className)}>
-      <i className="fas fa-exclamation-circle mr-1 text-xs"></i>
-      {errorMessage}
-    </p>
-  );
-};
-
-// 使用表单上下文的钩子
-export const useFormContext = () => useContext(FormContext);
-
-// 常用验证规则
-export const validationRules = {
-  required: (message: string = '此字段为必填项') => ({ required: message }),
-  email: (message: string = '请输入有效的邮箱地址') => ({ email: message }),
-  minLength: (value: number, message: string) => ({ minLength: { value, message } }),
-  maxLength: (value: number, message: string) => ({ maxLength: { value, message } }),
-  password: (options?: {
-    minLength?: number;
-    requireUppercase?: boolean;
-    requireLowercase?: boolean;
-    requireNumber?: boolean;
-    requireSpecialChar?: boolean;
-    message?: string;
-  }) => {
-    const defaults = {
-      minLength: 8,
-      requireUppercase: true,
-      requireLowercase: true,
-      requireNumber: true,
-      requireSpecialChar: true,
-      message: '密码必须包含至少8个字符，包括大小写字母、数字和特殊字符'
-    };
-    
-    const config = { ...defaults, ...options };
-    
-    return {
-      password: {
-        value: true,
-        ...config
-      }
-    };
-  },
-  pattern: (value: RegExp, message: string) => ({ pattern: { value, message } })
-};
-
-export { Form, FormItem, FormControl, FormErrorMessage };

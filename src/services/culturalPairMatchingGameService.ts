@@ -69,7 +69,7 @@ class CulturalPairMatchingGameService {
         text: '狗不理包子',
         category: '天津美食',
         culturalTheme: '天津地方文化',
-        imageUrl: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1024x768&prompt=Goubuli%20baozi%20Tianjin%20food'
+        imageUrl: 'https://picsum.photos/seed/goubuli-baozi/800/600'
       },
       {
         id: `item-${this.nextItemId++}`,
@@ -82,7 +82,7 @@ class CulturalPairMatchingGameService {
         text: '杨柳青年画',
         category: '天津民间艺术',
         culturalTheme: '天津地方文化',
-        imageUrl: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1024x768&prompt=Yangliuqing%20New%20Year%20paintings'
+        imageUrl: 'https://picsum.photos/seed/yangliuqing-year-painting/800/600'
       },
       {
         id: `item-${this.nextItemId++}`,
@@ -95,7 +95,7 @@ class CulturalPairMatchingGameService {
         text: '泥人张彩塑',
         category: '天津民间艺术',
         culturalTheme: '天津地方文化',
-        imageUrl: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1024x768&prompt=Niren%20Zhang%20clay%20sculptures'
+        imageUrl: 'https://picsum.photos/seed/niren-zhang-clay/800/600'
       },
       {
         id: `item-${this.nextItemId++}`,
@@ -108,7 +108,7 @@ class CulturalPairMatchingGameService {
         text: '天津之眼',
         category: '天津地标',
         culturalTheme: '天津地方文化',
-        imageUrl: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1024x768&prompt=Tianjin%20Eye%20ferris%20wheel'
+        imageUrl: 'https://picsum.photos/seed/tianjin-eye/800/600'
       },
       {
         id: `item-${this.nextItemId++}`,
@@ -123,7 +123,7 @@ class CulturalPairMatchingGameService {
         text: '春节',
         category: '传统节日',
         culturalTheme: '中国传统文化',
-        imageUrl: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1024x768&prompt=Chinese%20Spring%20Festival%20celebration'
+        imageUrl: 'https://picsum.photos/seed/spring-festival/800/600'
       },
       {
         id: `item-${this.nextItemId++}`,
@@ -136,7 +136,7 @@ class CulturalPairMatchingGameService {
         text: '孔子',
         category: '历史人物',
         culturalTheme: '中国传统文化',
-        imageUrl: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1024x768&prompt=Confucius%20ancient%20Chinese%20philosopher'
+        imageUrl: 'https://picsum.photos/seed/confucius/800/600'
       },
       {
         id: `item-${this.nextItemId++}`,
@@ -149,7 +149,7 @@ class CulturalPairMatchingGameService {
         text: '造纸术',
         category: '中国科技',
         culturalTheme: '中国传统文化',
-        imageUrl: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1024x768&prompt=Papermaking%20ancient%20Chinese%20invention'
+        imageUrl: 'https://picsum.photos/seed/paper-making/800/600'
       },
       {
         id: `item-${this.nextItemId++}`,
@@ -162,7 +162,7 @@ class CulturalPairMatchingGameService {
         text: '京剧',
         category: '传统艺术',
         culturalTheme: '中国传统文化',
-        imageUrl: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1024x768&prompt=Beijing%20Opera%20performance'
+        imageUrl: 'https://picsum.photos/seed/beijing-opera/800/600'
       },
       {
         id: `item-${this.nextItemId++}`,
@@ -175,7 +175,7 @@ class CulturalPairMatchingGameService {
         text: '中秋节',
         category: '传统节日',
         culturalTheme: '中国传统文化',
-        imageUrl: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1024x768&prompt=Mid-Autumn%20Festival%20with%20mooncakes'
+        imageUrl: 'https://picsum.photos/seed/mid-autumn-festival/800/600'
       },
       {
         id: `item-${this.nextItemId++}`,
@@ -259,7 +259,7 @@ class CulturalPairMatchingGameService {
         difficulty: 'easy',
         reward: '解锁天津文化配对素材包',
         culturalTheme: '天津地方文化',
-        imageUrl: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Tianjin%20cultural%20pair%20matching%20game'
+        imageUrl: 'https://picsum.photos/seed/tianjin-culture-level/1024/768'
       },
       {
         id: `level-${this.nextLevelId++}`,
@@ -270,7 +270,7 @@ class CulturalPairMatchingGameService {
         unlockCondition: { type: 'level', value: 1 },
         reward: '解锁中国传统文化配对素材包',
         culturalTheme: '中国传统文化',
-        imageUrl: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Chinese%20cultural%20pair%20matching%20game'
+        imageUrl: 'https://picsum.photos/seed/chinese-culture-level/1024/768'
       },
       {
         id: `level-${this.nextLevelId++}`,
@@ -282,7 +282,7 @@ class CulturalPairMatchingGameService {
         timeLimit: 300,
         reward: '解锁高级文化配对素材包',
         culturalTheme: '综合文化知识',
-        imageUrl: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Cultural%20pair%20matching%20challenge'
+        imageUrl: 'https://picsum.photos/seed/culture-challenge-level/1024/768'
       }
     ];
   }

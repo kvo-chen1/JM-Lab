@@ -12,13 +12,44 @@ export interface EncryptedData {
 
 // 安全服务类
 class SecurityService {
-  private readonly ENCRYPTION_KEY = import.meta.env.VITE_ENCRYPTION_KEY || 'j9kL2pQ5rT8wZ1cV4xY7mU3tR6nH9bE2'; // 加密密钥（生产环境应使用环境变量）
+  private readonly ENCRYPTION_KEY = this.getEncryptionKey(); // 加密密钥（生产环境应使用环境变量）
   private readonly SALT = 'f3s6v9yB2e5h8k0n3q6t9w2z5C8r1V4x7'; // 盐值
   private readonly MAX_CACHE_AGE = 3600000; // 缓存最大年龄（1小时）
   private cryptoKey: CryptoKey | null = null;
 
   constructor() {
-    this.initializeCryptoKey();
+    // 只有在浏览器环境中才初始化加密密钥
+    if (typeof window !== 'undefined') {
+      this.initializeCryptoKey();
+    }
+  }
+
+  /**
+   * 获取加密密钥，兼容Node.js和浏览器环境
+   */
+  private getEncryptionKey(): string {
+    try {
+      // 尝试获取环境变量
+      let envKey: string | undefined;
+      
+      // 检查Node.js环境
+      if (typeof process !== 'undefined' && process.env) {
+        envKey = process.env.VITE_ENCRYPTION_KEY;
+      }
+      
+      // 检查浏览器环境中的全局变量（如果Vite注入了环境变量）
+      else if (typeof window !== 'undefined') {
+        const windowWithEnv = window as any;
+        envKey = windowWithEnv.VITE_ENCRYPTION_KEY || 
+                windowWithEnv.__VITE_ENCRYPTION_KEY__ ||
+                (windowWithEnv.import && windowWithEnv.import.meta?.env?.VITE_ENCRYPTION_KEY);
+      }
+      
+      return envKey || 'j9kL2pQ5rT8wZ1cV4xY7mU3tR6nH9bE2';
+    } catch (e) {
+      // 忽略错误，使用默认密钥
+      return 'j9kL2pQ5rT8wZ1cV4xY7mU3tR6nH9bE2';
+    }
   }
 
   /**
@@ -210,37 +241,40 @@ class SecurityService {
   detectCheating(userId: string): boolean {
     // 检查本地存储数据是否被篡改
     try {
-      // 验证积分记录
-      const pointsRecords = localStorage.getItem('POINTS_RECORDS');
-      if (pointsRecords) {
-        const parsedRecords = JSON.parse(pointsRecords);
-        if (!Array.isArray(parsedRecords)) {
-          return true;
+      // 只在浏览器环境中检测
+      if (typeof localStorage !== 'undefined') {
+        // 验证积分记录
+        const pointsRecords = localStorage.getItem('POINTS_RECORDS');
+        if (pointsRecords) {
+          const parsedRecords = JSON.parse(pointsRecords);
+          if (!Array.isArray(parsedRecords)) {
+            return true;
+          }
+          
+          // 验证每条记录的完整性
+          for (const record of parsedRecords) {
+            if (!record.id || !record.source || !record.type || record.points === undefined) {
+              return true;
+            }
+          }
         }
         
-        // 验证每条记录的完整性
-        for (const record of parsedRecords) {
-          if (!record.id || !record.source || !record.type || record.points === undefined) {
+        // 验证任务记录
+        const tasks = localStorage.getItem('CREATIVE_TASKS');
+        if (tasks) {
+          const parsedTasks = JSON.parse(tasks);
+          if (!Array.isArray(parsedTasks)) {
             return true;
           }
         }
-      }
-      
-      // 验证任务记录
-      const tasks = localStorage.getItem('CREATIVE_TASKS');
-      if (tasks) {
-        const parsedTasks = JSON.parse(tasks);
-        if (!Array.isArray(parsedTasks)) {
-          return true;
-        }
-      }
-      
-      // 验证签到记录
-      const checkinRecords = localStorage.getItem('CHECKIN_RECORDS');
-      if (checkinRecords) {
-        const parsedCheckins = JSON.parse(checkinRecords);
-        if (!Array.isArray(parsedCheckins)) {
-          return true;
+        
+        // 验证签到记录
+        const checkinRecords = localStorage.getItem('CHECKIN_RECORDS');
+        if (checkinRecords) {
+          const parsedCheckins = JSON.parse(checkinRecords);
+          if (!Array.isArray(parsedCheckins)) {
+            return true;
+          }
         }
       }
       
@@ -256,15 +290,19 @@ class SecurityService {
    */
   async getSecureItem(key: string): Promise<any | null> {
     try {
-      const stored = localStorage.getItem(key);
-      if (stored) {
-        const encryptedData: EncryptedData = JSON.parse(stored);
-        return await this.decrypt(encryptedData);
+      if (typeof localStorage !== 'undefined') {
+        const stored = localStorage.getItem(key);
+        if (stored) {
+          const encryptedData: EncryptedData = JSON.parse(stored);
+          return await this.decrypt(encryptedData);
+        }
       }
       return null;
     } catch (error) {
       console.error('Failed to get secure item:', error);
-      localStorage.removeItem(key);
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem(key);
+      }
       return null;
     }
   }
@@ -274,8 +312,10 @@ class SecurityService {
    */
   async setSecureItem(key: string, data: any): Promise<void> {
     try {
-      const encryptedData = await this.encrypt(data);
-      localStorage.setItem(key, JSON.stringify(encryptedData));
+      if (typeof localStorage !== 'undefined') {
+        const encryptedData = await this.encrypt(data);
+        localStorage.setItem(key, JSON.stringify(encryptedData));
+      }
     } catch (error) {
       console.error('Failed to set secure item:', error);
     }
@@ -287,20 +327,23 @@ class SecurityService {
   cleanupExpiredCache(): void {
     const now = Date.now();
     
-    // 清理所有安全存储项
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && (key.includes('SECURE_') || key.includes('_SECURE'))) {
-        try {
-          const stored = localStorage.getItem(key);
-          if (stored) {
-            const encryptedData: EncryptedData = JSON.parse(stored);
-            if (now - encryptedData.timestamp > this.MAX_CACHE_AGE) {
-              localStorage.removeItem(key);
+    // 只在浏览器环境中清理
+    if (typeof localStorage !== 'undefined') {
+      // 清理所有安全存储项
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (key.includes('SECURE_') || key.includes('_SECURE'))) {
+          try {
+            const stored = localStorage.getItem(key);
+            if (stored) {
+              const encryptedData: EncryptedData = JSON.parse(stored);
+              if (now - encryptedData.timestamp > this.MAX_CACHE_AGE) {
+                localStorage.removeItem(key);
+              }
             }
+          } catch (error) {
+            localStorage.removeItem(key); // 删除损坏的数据
           }
-        } catch (error) {
-          localStorage.removeItem(key); // 删除损坏的数据
         }
       }
     }

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTheme } from '@/hooks/useTheme'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useEffect, useRef } from 'react'
 
@@ -28,6 +28,7 @@ export default function Tools() {
   const abortRef = useRef<AbortController | null>(null)
   const [ttsOpts, setTtsOpts] = useState<{ voice: string; speed: number; pitch: number }>({ voice: 'female', speed: 1, pitch: 0 })
   const [savedPlans, setSavedPlans] = useState<Array<{ id: string; title: string; query: string; aiText: string; ts: number }>>([])
+  const [showAudioSettings, setShowAudioSettings] = useState(false)
 
   const tools = [
     { id: 'sketch', title: '一键国潮设计', description: '自动生成国潮风格设计方案', icon: 'palette', color: 'purple' },
@@ -299,7 +300,7 @@ export default function Tools() {
 
   return (
     <>
-      <main className="relative container mx-auto px-6 md:px-8 py-12">
+      <main className="relative container mx-auto px-6 md:px-8 py-8">
         <div className={`pointer-events-none absolute -top-10 -left-10 w-64 h-64 bg-gradient-to-br ${fusionMode ? 'from-indigo-500/20 via-fuchsia-500/20 to-amber-400/20' : 'from-blue-500/20 via-red-500/20 to-yellow-500/20'} blur-3xl rounded-full`}></div>
         <div className={`pointer-events-none absolute -bottom-10 -right-10 w-72 h-72 bg-gradient-to-tr ${fusionMode ? 'from-cyan-500/15 via-indigo-500/15 to-fuchsia-500/15' : 'from-red-500/15 via-yellow-500/15 to-blue-500/15'} blur-3xl rounded-full`}></div>
         {fusionMode && (
@@ -311,7 +312,7 @@ export default function Tools() {
             }}
           ></div>
         )}
-        {/* 中文注释：统一使用通用渐变英雄组件，增强视觉一致性 */}
+        
         <GradientHero
           title="创作工具"
           subtitle="面向传统文化创新的低门槛 AI 工具集"
@@ -328,70 +329,126 @@ export default function Tools() {
           ]}
         />
 
-        <div className={`rounded-2xl p-[1px] bg-gradient-to-br ${fusionMode ? 'from-indigo-500/25 via-fuchsia-500/25 to-cyan-500/25' : 'from-blue-500/25 via-red-500/25 to-yellow-500/25'} mb-8`}>
-          {/* 中文注释：将内部容器改为 <section>，增强语义与可访问性 */}
-          <section
+        {/* AI Assistant Section - Optimized */}
+        <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            className={`relative overflow-hidden rounded-3xl border shadow-2xl transition-all mb-12 group ${
+                isDark 
+                    ? 'bg-gray-900/80 border-gray-800 backdrop-blur-xl' 
+                    : 'bg-white/80 border-white/40 backdrop-blur-xl shadow-red-500/5'
+            }`}
+        >
+          {/* Header */}
+          <div className={`flex items-center justify-between px-6 py-5 border-b ${
+             isDark ? 'border-gray-800' : 'border-gray-100 bg-white/50'
+          }`}>
+             <div className="flex items-center gap-4">
+               <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg ${
+                  fusionMode 
+                    ? 'bg-gradient-to-tr from-indigo-500 to-purple-500 text-white' 
+                    : 'bg-gradient-to-tr from-[#C02C38] to-[#E60012] text-white'
+               }`}>
+                 <i className={`fas ${fusionMode ? 'fa-bolt' : 'fa-sparkles'} text-xl`}></i>
+               </div>
+               <div>
+                 <h2 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    AI 创意助手
+                 </h2>
+                 <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                    {fusionMode ? '多模态融合引擎已激活' : '智能匹配最佳创作工具与方案'}
+                 </p>
+               </div>
+             </div>
+
+             <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => setFusionMode(!fusionMode)}
+                  className={`p-2 rounded-xl transition-all ${
+                     fusionMode 
+                       ? 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400' 
+                       : 'bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400'
+                  }`}
+                  title="切换融合模式"
+                >
+                  <i className="fas fa-random"></i>
+                </button>
+                <button 
+                   onClick={randomInspiration}
+                   className={`px-3 py-2 rounded-xl text-sm font-medium transition-all flex items-center gap-2 ${
+                      isDark 
+                        ? 'bg-gray-800 hover:bg-gray-700 text-gray-200' 
+                        : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                   }`}
+                >
+                   <i className="fas fa-dice"></i>
+                   <span className="hidden sm:inline">随机灵感</span>
+                </button>
+                <button 
+                   onClick={restoreLast}
+                   className={`p-2 rounded-xl transition-all ${
+                      isDark 
+                        ? 'bg-gray-800 hover:bg-gray-700 text-gray-400' 
+                        : 'bg-white hover:bg-gray-50 text-gray-400 border border-gray-200'
+                   }`}
+                   title="恢复上次记录"
+                >
+                   <i className="fas fa-history"></i>
+                </button>
+             </div>
+          </div>
+
+          <div 
             ref={helperRef}
-            aria-labelledby="tools-helper-title"
-            aria-busy={isGenerating}
+            className="p-6 md:p-8"
             onDragOver={(e) => { e.preventDefault() }}
             onDrop={async (e) => { e.preventDefault(); const files = Array.from(e.dataTransfer.files || []); const audio = files.find(f => f.type.startsWith('audio/')); if (!audio) return; try { const t = await voiceService.transcribeAudio(audio as File); setQuery(t); await generateSuggestions() } catch (err: any) { toast.error(err?.message || '语音识别失败') } }}
-            className={`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl p-6 shadow-sm backdrop-blur-sm`}
           >
-            <h2 id="tools-helper-title" className="font-bold mb-3 text-lg">AI工具助手</h2>
-            {/* 中文注释：新增控制区，支持融合模式切换、随机灵感与恢复 */}
-            <div className="flex flex-wrap items-center gap-2 mb-3">
-              <motion.button type="button" whileHover={{ scale: 1.03 }} onClick={() => setFusionMode(v => !v)} className={`px-3 py-1.5 rounded-lg ${fusionMode ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : (isDark ? 'bg-gray-700 text-white hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200')} focus:outline-none focus:ring-2 ${fusionMode ? 'focus:ring-indigo-500' : (isDark ? 'focus:ring-gray-500' : 'focus:ring-gray-400')} focus:ring-offset-2`}>{fusionMode ? '融合模式：开' : '融合模式：关'}</motion.button>
-              <motion.button type="button" whileHover={{ scale: 1.03 }} onClick={randomInspiration} className={`${isDark ? 'bg-gray-700 text-white hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} px-3 py-1.5 rounded-lg focus:outline-none focus:ring-2 ${isDark ? 'focus:ring-gray-500' : 'focus:ring-gray-400'} focus:ring-offset-2`}>随机灵感</motion.button>
-              <motion.button type="button" whileHover={{ scale: 1.03 }} onClick={restoreLast} className={`${isDark ? 'bg-gray-700 text-white hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} px-3 py-1.5 rounded-lg focus:outline-none focus:ring-2 ${isDark ? 'focus:ring-gray-500' : 'focus:ring-gray-400'} focus:ring-offset-2`}>恢复上次推荐</motion.button>
-            </div>
-            {/* 中文注释：使用 form 以支持 Enter 提交并触发智能推荐 */}
-            <form
-              onSubmit={(e) => { e.preventDefault(); generateSuggestions() }}
-              className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4"
-              aria-describedby="query-helper"
-            >
-              <label htmlFor="query-input" className="sr-only">创作需求或风格</label>
-              <input
-                id="query-input"
-                name="query"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={(e) => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); generateSuggestions() } }}
-                placeholder="输入创作需求或风格，智能推荐合适工具"
-                aria-label="创作需求或风格"
-                className={`w-full px-3 py-2 rounded-lg border ${isDark ? 'bg-gray-700 border-gray-600 text-white focus:ring-offset-gray-800' : 'bg-white border-gray-300'} focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 min-h-[44px] text-base`}
-                autoCapitalize="none"
-                autoCorrect="off"
-                enterKeyHint="search"
-                inputMode="text"
-              />
-              <p id="query-helper" className="sr-only">输入您的创作需求或风格以获得智能推荐</p>
-              <div className="md:col-span-2 flex flex-wrap items-center gap-2">
-                {/* 中文注释：将按钮设为 submit，配合 form 支持键盘回车 */}
-                <motion.button
-                  type="submit"
-                  whileHover={{ scale: 1.03 }}
-                  aria-controls="ai-output"
-                  disabled={isGenerating}
-                  className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px] flex-1 md:flex-none"
-                >
-                  智能推荐
-                </motion.button>
-                {isGenerating && (
-                  <motion.button type="button" whileHover={{ scale: 1.03 }} onClick={() => { abortRef.current?.abort(); setIsGenerating(false) }} className={`${isDark ? 'bg-gray-700 text-white hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} px-4 py-2 rounded-lg focus:outline-none focus:ring-2 ${isDark ? 'focus:ring-gray-500' : 'focus:ring-gray-400'} focus:ring-offset-2 min-h-[44px] flex-1 md:flex-none`}>停止生成</motion.button>
-                )}
-                {activeFilters.length > 0 && (
-                  <motion.button type="button" whileHover={{ scale: 1.03 }} onClick={clearFilters} className={`${isDark ? 'bg-gray-700 text-white hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} px-4 py-2 rounded-lg focus:outline-none focus:ring-2 ${isDark ? 'focus:ring-gray-500' : 'focus:ring-gray-400'} focus:ring-offset-2 min-h-[44px] flex-1 md:flex-none`}>清除筛选</motion.button>
-                )}
-                <motion.button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className={`${isDark ? 'bg-gray-700 text-white hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} px-4 py-2 rounded-lg focus:outline-none focus:ring-2 ${isDark ? 'focus:ring-gray-500' : 'focus:ring-gray-400'} focus:ring-offset-2 min-h-[44px] flex-1 md:flex-none`}
-                  aria-label="上传音频识别"
-                >
-                  上传音频识别
-                </motion.button>
+            {/* Input Area */}
+            <div className="relative group mb-6">
+                <textarea
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    onKeyDown={(e) => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); generateSuggestions() } }}
+                    placeholder="描述您的创意需求，例如：'为杨柳青年画设计一个现代国潮风格的咖啡包装'..."
+                    className={`w-full p-5 pr-32 rounded-3xl h-36 text-base resize-none transition-all shadow-sm focus:shadow-md outline-none border-2 ${
+                        isDark 
+                          ? 'bg-gray-900/50 border-gray-700 text-white placeholder-gray-600 focus:border-indigo-500' 
+                          : 'bg-white border-gray-100 text-gray-800 placeholder-gray-400 focus:border-red-100'
+                    }`}
+                />
+                
+                <div className="absolute bottom-4 right-4 flex items-center gap-2">
+                   <button 
+                      onClick={() => fileInputRef.current?.click()}
+                      className={`p-3 rounded-full transition-all ${
+                         isDark 
+                           ? 'bg-gray-800 hover:bg-gray-700 text-gray-400' 
+                           : 'bg-gray-100 hover:bg-gray-200 text-gray-500'
+                      }`}
+                      title="语音输入"
+                   >
+                      <i className="fas fa-microphone"></i>
+                   </button>
+                   <button 
+                      onClick={generateSuggestions}
+                      disabled={isGenerating || !query.trim()}
+                      className={`px-6 py-3 rounded-full font-bold text-white shadow-lg transition-all flex items-center gap-2 ${
+                          isGenerating 
+                            ? 'bg-gray-400 cursor-not-allowed' 
+                            : fusionMode 
+                                ? 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:shadow-indigo-500/30 hover:scale-105'
+                                : 'bg-gradient-to-r from-[#C02C38] to-[#E60012] hover:shadow-red-500/30 hover:scale-105'
+                      }`}
+                   >
+                      {isGenerating ? (
+                        <><i className="fas fa-spinner fa-spin"></i> 思考中</>
+                      ) : (
+                        <><i className="fas fa-magic"></i> 智能推荐</>
+                      )}
+                   </button>
+                </div>
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -399,81 +456,234 @@ export default function Tools() {
                   className="hidden"
                   onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; try { const t = await voiceService.transcribeAudio(f); setQuery(t); await generateSuggestions() } catch (err: any) { toast.error(err?.message || '语音识别失败') } }}
                 />
-              </div>
-            </form>
-            {aiDirections.length > 0 ? (
-              <div className="flex flex-wrap gap-2 mb-4">
-                {aiDirections.map((d, i) => (
-                  <button key={i} onClick={() => toggleFilter(d)} className={`text-xs px-3 py-1 rounded-full border ${isDark ? 'border-gray-600 text-gray-300 hover:border-gray-500' : 'border-gray-300 text-gray-700 hover:border-gray-400'}`}>{d}</button>
-                ))}
-              </div>
-            ) : (
-              <div className={`${isDark ? 'text-gray-500' : 'text-gray-400'} text-sm`}>点击“智能推荐”获得建议与筛选词</div>
-            )}
-            {culturalElements.length > 0 && (
-              <div className="flex flex-wrap gap-2 mb-4">
-                {culturalElements.map((d, i) => (
-                  <button key={i} onClick={() => toggleFilter(d)} className={`text-xs px-3 py-1 rounded-full border ${isDark ? 'border-gray-600 text-gray-300 hover:border-gray-500' : 'border-gray-300 text-gray-700 hover:border-gray-400'}`}>{d}</button>
-                ))}
-              </div>
-            )}
-            <div className="font-bold mb-2">AI建议</div>
-            {/* 中文注释：用 output + role=status，指定 id 以供按钮 aria-controls 关联 */}
-            <output id="ai-output" role="status" aria-live="polite" className={`${isDark ? 'text-gray-300' : 'text-gray-700'} text-sm whitespace-pre-wrap min-h-[5rem]`}>{aiText || (isGenerating ? '' : '暂无AI建议，请点击“智能推荐”或输入您的创作需求')}</output>
-            <div className="mt-2 flex items-center gap-2">
-              {/* 中文注释：增加朗读控制选项，支持语音、语速、音调设置 */}
-              <motion.button whileHover={{ scale: 1.03 }} disabled={ttsLoading || !aiText.trim()} onClick={async () => { if (!aiText.trim()) { toast.warning('暂无可朗读内容'); return } try { setTtsLoading(true); const r = await voiceService.synthesize(aiText, { voice: ttsOpts.voice, speed: ttsOpts.speed, pitch: ttsOpts.pitch, format: 'mp3' }); setTtsUrl(r.audioUrl) } catch (e: any) { toast.error(e?.message || '朗读失败') } finally { setTtsLoading(false) } }} className="px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]">{ttsLoading ? '朗读中…' : '朗读建议'}</motion.button>
-              <motion.button whileHover={{ scale: 1.03 }} disabled={!aiText.trim()} onClick={async () => { try { await navigator.clipboard.writeText(aiText); toast.success('建议已复制') } catch { toast.error('复制失败') } }} className={`${isDark ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-900'} px-3 py-1.5 rounded-lg text-sm focus:outline-none focus:ring-2 ${isDark ? 'focus:ring-gray-500' : 'focus:ring-gray-400'} focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]`}>复制建议</motion.button>
-              {/* 中文注释：清空建议与音频，便于重新生成 */}
-              <motion.button whileHover={{ scale: 1.03 }} type="button" disabled={!aiText.trim() && !ttsUrl} onClick={() => { setAiText(''); setTtsUrl(''); toast.success('已清空建议') }} className={`${isDark ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-900'} px-3 py-1.5 rounded-lg text-sm focus:outline-none focus:ring-2 ${isDark ? 'focus:ring-gray-500' : 'focus:ring-gray-400'} focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]`}>清空建议</motion.button>
-              <motion.button whileHover={{ scale: 1.03 }} type="button" onClick={sharePlan} className="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 min-h-[44px]">分享方案</motion.button>
-              <motion.button whileHover={{ scale: 1.03 }} type="button" onClick={saveCurrentPlan} className={`${isDark ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-900'} px-3 py-1.5 rounded-lg text-sm focus:outline-none focus:ring-2 ${isDark ? 'focus:ring-gray-500' : 'focus:ring-gray-400'} focus:ring-offset-2 min-h-[44px]`}>保存为我的方案</motion.button>
-              <motion.button whileHover={{ scale: 1.03 }} onClick={() => navigate(`/create?from=tools&prompt=${encodeURIComponent(aiText || query)}`)} className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 min-h-[44px]">应用到创作中心</motion.button>
             </div>
-            {/* 中文注释：朗读控制面板，调节语音/语速/音调，并记住设置 */}
-            <div className="mt-2 grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
-              <label className="flex items-center gap-2">语音
-                <select value={ttsOpts.voice} onChange={(e) => { const v = e.target.value; const next = { ...ttsOpts, voice: v }; setTtsOpts(next); try { localStorage.setItem('TOOLS_TTS_OPTS', JSON.stringify(next)) } catch {} }} className={`${isDark ? 'bg-gray-700 text-white' : 'bg-white text-gray-900'} border rounded px-2 py-1 flex-1`}>
-                  <option value="female">女声</option>
-                  <option value="male">男声</option>
-                </select>
-              </label>
-              <label className="flex items-center gap-2">语速
-                <input type="range" min={0.6} max={1.4} step={0.05} value={ttsOpts.speed} onChange={(e) => { const s = Number(e.target.value); const next = { ...ttsOpts, speed: s }; setTtsOpts(next); try { localStorage.setItem('TOOLS_TTS_OPTS', JSON.stringify(next)) } catch {} }} className="flex-1" />
-                <span>{ttsOpts.speed.toFixed(2)}</span>
-              </label>
-              <label className="flex items-center gap-2">音调
-                <input type="range" min={-4} max={4} step={1} value={ttsOpts.pitch} onChange={(e) => { const p = Number(e.target.value); const next = { ...ttsOpts, pitch: p }; setTtsOpts(next); try { localStorage.setItem('TOOLS_TTS_OPTS', JSON.stringify(next)) } catch {} }} className="flex-1" />
-                <span>{ttsOpts.pitch}</span>
-              </label>
-            </div>
-            {/* 中文注释：我的方案列表，支持应用、复制与删除管理 */}
-            {savedPlans.length > 0 && (
-              <div className="mt-4">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="font-bold">我的方案</div>
-                  <button onClick={clearPlans} className={`${isDark ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-900'} px-2 py-1 rounded text-xs`}>清空</button>
-                </div>
-                <ul className="space-y-2">
-                  {savedPlans.map(p => (
-                    <li key={p.id} className={`${isDark ? 'bg-gray-800' : 'bg-gray-50'} border ${isDark ? 'border-gray-700' : 'border-gray-200'} rounded p-2`}> 
-                      <div className="text-sm font-medium mb-1">{p.title}</div>
-                      <div className="flex gap-2">
-                        <button onClick={() => applyPlanToCreate(p.id)} className="px-2 py-1 rounded text-xs bg-blue-600 text-white">应用到创作中心</button>
-                        <button onClick={async () => { try { await navigator.clipboard.writeText(p.aiText || p.query); toast.success('方案已复制') } catch { toast.error('复制失败') } }} className={`${isDark ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-900'} px-2 py-1 rounded text-xs`}>复制</button>
-                        <button onClick={() => removePlan(p.id)} className="px-2 py-1 rounded text-xs bg-red-600 text-white">删除</button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            {ttsUrl && (<audio controls src={ttsUrl} className="mt-2 w-full" />)}
-            {isGenerating && (<div role="status" aria-live="polite" className={`${isDark ? 'text-gray-500' : 'text-gray-400'} text-xs mt-2`}>生成中…</div>)}
-          </section>
-        </div>
 
-        <h2 className="text-xl font-bold mb-6">推荐创作工具</h2>
+            {/* Tags / Suggestions */}
+            <AnimatePresence>
+                {(aiDirections.length > 0 || culturalElements.length > 0) && (
+                    <motion.div 
+                       initial={{ opacity: 0, height: 0 }}
+                       animate={{ opacity: 1, height: 'auto' }}
+                       exit={{ opacity: 0, height: 0 }}
+                       className="flex flex-wrap gap-2 mb-6"
+                    >
+                        {aiDirections.map((d, i) => (
+                           <button 
+                              key={`dir-${i}`} 
+                              onClick={() => toggleFilter(d)} 
+                              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all border ${
+                                 activeFilters.includes(d)
+                                   ? 'bg-red-50 border-red-200 text-red-600 dark:bg-red-900/20 dark:border-red-800 dark:text-red-400'
+                                   : isDark 
+                                     ? 'bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700' 
+                                     : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+                              }`}
+                           >
+                             <i className="fas fa-compass mr-1.5 opacity-60"></i>{d}
+                           </button>
+                        ))}
+                        {culturalElements.map((d, i) => (
+                           <button 
+                              key={`elem-${i}`} 
+                              onClick={() => toggleFilter(d)} 
+                              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all border ${
+                                 activeFilters.includes(d)
+                                   ? 'bg-yellow-50 border-yellow-200 text-yellow-700 dark:bg-yellow-900/20 dark:border-yellow-800 dark:text-yellow-400'
+                                   : isDark 
+                                     ? 'bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700' 
+                                     : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+                              }`}
+                           >
+                             <i className="fas fa-dragon mr-1.5 opacity-60"></i>{d}
+                           </button>
+                        ))}
+                         {activeFilters.length > 0 && (
+                            <button onClick={clearFilters} className="px-3 py-1.5 rounded-full text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                               清除筛选
+                            </button>
+                         )}
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* AI Result Card */}
+            <AnimatePresence mode="wait">
+                {aiText ? (
+                    <motion.div
+                       key="result"
+                       initial={{ opacity: 0, y: 10 }}
+                       animate={{ opacity: 1, y: 0 }}
+                       exit={{ opacity: 0, y: -10 }}
+                       className={`relative rounded-2xl p-6 border ${
+                          isDark 
+                            ? 'bg-gray-800/50 border-gray-700' 
+                            : 'bg-gradient-to-br from-gray-50 to-white border-gray-100'
+                       }`}
+                    >
+                        <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-red-500 to-transparent rounded-l-2xl opacity-50"></div>
+                        
+                        <div className="flex items-center gap-2 mb-4">
+                           <span className="text-xs font-bold uppercase tracking-wider text-red-500">AI Suggestion</span>
+                           <div className="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
+                        </div>
+
+                        <output 
+                           id="ai-output" 
+                           role="status" 
+                           className={`block whitespace-pre-wrap leading-relaxed text-sm md:text-base ${
+                              isDark ? 'text-gray-200' : 'text-gray-800'
+                           }`}
+                        >
+                           {aiText}
+                        </output>
+
+                        {/* Action Bar */}
+                        <div className="flex flex-wrap items-center justify-between gap-4 mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+                           <div className="flex items-center gap-2">
+                              {/* TTS Button with Settings Trigger */}
+                              <div className="relative flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+                                  <button 
+                                     onClick={async () => { if (!aiText.trim()) return; try { setTtsLoading(true); const r = await voiceService.synthesize(aiText, { voice: ttsOpts.voice, speed: ttsOpts.speed, pitch: ttsOpts.pitch, format: 'mp3' }); setTtsUrl(r.audioUrl) } catch (e: any) { toast.error(e?.message || '朗读失败') } finally { setTtsLoading(false) } }}
+                                     disabled={ttsLoading}
+                                     className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center gap-2 ${
+                                        ttsLoading 
+                                          ? 'bg-green-100 text-green-700 cursor-wait' 
+                                          : 'hover:bg-white dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 shadow-sm'
+                                     }`}
+                                  >
+                                     <i className={`fas ${ttsLoading ? 'fa-circle-notch fa-spin' : 'fa-volume-up'}`}></i>
+                                     {ttsLoading ? '生成中' : '朗读'}
+                                  </button>
+                                  <div className="w-px h-4 bg-gray-300 dark:bg-gray-600 mx-1"></div>
+                                  <button 
+                                     onClick={() => setShowAudioSettings(!showAudioSettings)}
+                                     className={`p-1.5 rounded-md text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 transition-colors ${showAudioSettings ? 'bg-gray-200 dark:bg-gray-600' : ''}`}
+                                  >
+                                     <i className="fas fa-sliders-h text-xs"></i>
+                                  </button>
+                              </div>
+
+                              {/* Audio Settings Popover */}
+                              <AnimatePresence>
+                                 {showAudioSettings && (
+                                    <motion.div 
+                                       initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                       animate={{ opacity: 1, y: 0, scale: 1 }}
+                                       exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                                       className={`absolute bottom-full left-0 mb-2 p-4 rounded-xl shadow-xl border w-64 z-10 ${
+                                          isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+                                       }`}
+                                    >
+                                       <div className="space-y-3">
+                                          <div className="flex items-center justify-between text-xs">
+                                             <span className="font-medium">语音设置</span>
+                                             <button onClick={() => setShowAudioSettings(false)}><i className="fas fa-times"></i></button>
+                                          </div>
+                                          <div className="space-y-2">
+                                             <div className="flex items-center justify-between text-xs">
+                                                <span>音色</span>
+                                                <select 
+                                                   value={ttsOpts.voice} 
+                                                   onChange={(e) => setTtsOpts({...ttsOpts, voice: e.target.value})}
+                                                   className={`rounded border p-1 ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'}`}
+                                                >
+                                                   <option value="female">女声 (默认)</option>
+                                                   <option value="male">男声</option>
+                                                </select>
+                                             </div>
+                                             <div className="space-y-1">
+                                                <div className="flex justify-between text-xs text-gray-500"><span>语速</span><span>{ttsOpts.speed}x</span></div>
+                                                <input type="range" min="0.5" max="2" step="0.1" value={ttsOpts.speed} onChange={(e) => setTtsOpts({...ttsOpts, speed: parseFloat(e.target.value)})} className="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
+                                             </div>
+                                          </div>
+                                       </div>
+                                    </motion.div>
+                                 )}
+                              </AnimatePresence>
+
+                              <button 
+                                 onClick={async () => { try { await navigator.clipboard.writeText(aiText); toast.success('建议已复制') } catch { toast.error('复制失败') } }}
+                                 className={`p-2 rounded-lg transition-colors text-gray-500 hover:text-gray-900 dark:hover:text-white ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
+                                 title="复制"
+                              >
+                                 <i className="far fa-copy"></i>
+                              </button>
+                              
+                              <button 
+                                 onClick={saveCurrentPlan}
+                                 className={`p-2 rounded-lg transition-colors text-gray-500 hover:text-gray-900 dark:hover:text-white ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
+                                 title="保存到方案库"
+                              >
+                                 <i className="far fa-bookmark"></i>
+                              </button>
+                           </div>
+
+                           <div className="flex gap-3">
+                              <button 
+                                 onClick={() => setAiText('')} 
+                                 className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
+                                    isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'
+                                 }`}
+                              >
+                                 清空
+                              </button>
+                              <button 
+                                 onClick={() => navigate(`/create?from=tools&prompt=${encodeURIComponent(aiText || query)}`)}
+                                 className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium shadow-lg shadow-blue-500/30 transition-all hover:scale-105"
+                              >
+                                 应用到创作
+                                 <i className="fas fa-arrow-right ml-2 text-xs"></i>
+                              </button>
+                           </div>
+                        </div>
+                        {ttsUrl && (<audio controls src={ttsUrl} className="mt-4 w-full h-8 opacity-80 hover:opacity-100 transition-opacity" />)}
+                    </motion.div>
+                ) : (
+                    <div className="flex flex-col items-center justify-center py-12 opacity-50 border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-2xl">
+                       <i className="fas fa-lightbulb text-4xl mb-3 text-gray-300 dark:text-gray-700"></i>
+                       <p className="text-sm">输入需求或点击“随机灵感”，AI将为您提供专业建议</p>
+                    </div>
+                )}
+            </AnimatePresence>
+          </div>
+        </motion.div>
+
+        {/* My Plans Section - Integrated nicely */}
+        <AnimatePresence>
+            {savedPlans.length > 0 && (
+                <motion.div 
+                   initial={{ opacity: 0 }}
+                   animate={{ opacity: 1 }}
+                   className="mb-12"
+                >
+                   <div className="flex items-center justify-between mb-4 px-2">
+                      <h3 className="font-bold text-lg">我的方案库 ({savedPlans.length})</h3>
+                      <button onClick={clearPlans} className="text-xs text-red-500 hover:underline">清空全部</button>
+                   </div>
+                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {savedPlans.map(p => (
+                         <div key={p.id} className={`p-4 rounded-2xl border transition-all hover:shadow-md ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
+                             <div className="flex justify-between items-start mb-2">
+                                <h4 className="font-bold text-sm line-clamp-1">{p.title}</h4>
+                                <span className="text-[10px] opacity-50">{new Date(p.ts).toLocaleDateString()}</span>
+                             </div>
+                             <p className="text-xs opacity-60 line-clamp-2 mb-3 h-8">{p.aiText || p.query}</p>
+                             <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100 dark:border-gray-700">
+                                <div className="flex gap-2">
+                                   <button onClick={() => removePlan(p.id)} className="text-gray-400 hover:text-red-500 text-xs"><i className="fas fa-trash"></i></button>
+                                   <button onClick={async () => { try { await navigator.clipboard.writeText(p.aiText || p.query); toast.success('已复制') } catch {} }} className="text-gray-400 hover:text-blue-500 text-xs"><i className="far fa-copy"></i></button>
+                                </div>
+                                <button onClick={() => applyPlanToCreate(p.id)} className="text-xs font-medium text-blue-600 hover:underline">应用</button>
+                             </div>
+                         </div>
+                      ))}
+                   </div>
+                </motion.div>
+            )}
+        </AnimatePresence>
+
+        {/* 工具列表主标题：PC端适当缩小字号 */}
+        <h2 className="text-lg md:text-xl font-semibold mb-6">推荐创作工具</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 will-change-transform">
           {displayTools.map((tool, index) => (
             <motion.div
@@ -503,7 +713,8 @@ export default function Tools() {
                     </div>
                     <span className={`${isDark ? 'text-gray-500' : 'text-gray-400'} text-xs`}>精选工具</span>
                   </div>
-                  <h3 id={`tool-${tool.id}-title`} className="font-bold mb-2">{tool.title}</h3>
+                  {/* 工具标题：统一为中等字号，兼顾可读性与层级 */}
+                  <h3 id={`tool-${tool.id}-title`} className="text-base md:text-lg font-semibold mb-2">{tool.title}</h3>
                   <p id={`tool-${tool.id}-desc`} className={`text-sm mb-4 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{tool.description}</p>
                   <div className={`${isDark ? 'text-gray-500' : 'text-gray-500'} text-xs mb-4 flex items-center gap-1`}>
                     <i className="far fa-user"></i>
@@ -607,7 +818,6 @@ export default function Tools() {
         </div>
         <TianjinDivider />
       </main>
-      <Footer variant="simple" simpleText="© 2025 AI共创平台" />
     </>
   )
 }

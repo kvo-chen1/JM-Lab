@@ -434,7 +434,7 @@ class ProductService {
   /**
    * 获取用户兑换记录
    */
-  getUserExchangeRecords(userId: string = 'current-user'): ExchangeRecord[] {
+  getUserExchangeRecords(userId: string): ExchangeRecord[] {
     return [...this.exchangeRecords].filter(record => record.userId === userId)
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }
@@ -442,7 +442,7 @@ class ProductService {
   /**
    * 兑换商品
    */
-  exchangeProduct(productId: number, userId: string = 'current-user'): ExchangeRecord {
+  exchangeProduct(productId: number, userId: string): ExchangeRecord {
     // 查找商品
     const product = this.products.find(p => p.id === productId);
     if (!product) {

@@ -34,7 +34,13 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ isOpen, onClose }) => {
     localStorage.setItem(keyName, encodedKey);
   };
 
-  const [selectedModel, setSelectedModel] = useState<LLMModel>(llmService.getCurrentModel());
+  // 初始化时确保使用默认模型，如果localStorage中没有有效模型
+  const initialModel = llmService.getCurrentModel();
+  // 确保当前模型是可用模型，如果不是则使用默认模型
+  const defaultModel = AVAILABLE_MODELS.find(m => m.isDefault) || AVAILABLE_MODELS[0];
+  const currentValidModel = AVAILABLE_MODELS.some(m => m.id === initialModel.id) ? initialModel : defaultModel;
+  
+  const [selectedModel, setSelectedModel] = useState<LLMModel>(currentValidModel);
   const [modelConfig, setModelConfig] = useState<ModelConfig>(llmService.getConfig());
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -46,7 +52,7 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ isOpen, onClose }) => {
   const roleConfigRef = useRef<HTMLDivElement>(null);
   // 多模型选择相关状态
   const [isMultiModelMode, setIsMultiModelMode] = useState(false);
-  const [selectedModels, setSelectedModels] = useState<string[]>([llmService.getCurrentModel().id]);
+  const [selectedModels, setSelectedModels] = useState<string[]>([currentValidModel.id]);
   const [kimiKey, setKimiKey] = useState<string>(() => {
     const envKey = (typeof import.meta !== 'undefined' && (import.meta as any).env && (import.meta as any).env.VITE_KIMI_API_KEY) || '';
     const stored = getApiKey('KIMI_API_KEY');
@@ -62,24 +68,6 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ isOpen, onClose }) => {
   const [deepseekBase, setDeepseekBase] = useState<string>('https://api.deepseek.com');
   const [deepseekVariant, setDeepseekVariant] = useState<string>('deepseek-chat');
   
-  // 豆包模型配置
-  const [doubaoKey, setDoubaoKey] = useState<string>(() => {
-    const envKey = (typeof import.meta !== 'undefined' && (import.meta as any).env && (import.meta as any).env.VITE_DOBAO_API_KEY) || '';
-    const stored = getApiKey('DOUBAO_API_KEY');
-    return stored || envKey;
-  });
-  const [doubaoBase, setDoubaoBase] = useState<string>('https://api.doubao.com/v1');
-  const [doubaoVariant, setDoubaoVariant] = useState<string>('doubao-pro-32k');
-  
-  // 文心一言模型配置
-  const [wenxinKey, setWenxinKey] = useState<string>(() => {
-    const envKey = (typeof import.meta !== 'undefined' && (import.meta as any).env && (import.meta as any).env.VITE_WENXIN_API_KEY) || '';
-    const stored = getApiKey('WENXIN_API_KEY');
-    return stored || envKey;
-  });
-  const [wenxinBase, setWenxinBase] = useState<string>('https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/completions');
-  const [wenxinVariant, setWenxinVariant] = useState<string>('ERNIE-Speed-8K');
-  
   // 通义千问模型配置
   const [qwenKey, setQwenKey] = useState<string>(() => {
     const envKey = (typeof import.meta !== 'undefined' && (import.meta as any).env && (import.meta as any).env.VITE_QWEN_API_KEY) || '';
@@ -89,47 +77,20 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ isOpen, onClose }) => {
   const [qwenBase, setQwenBase] = useState<string>('https://dashscope.aliyuncs.com/api/v1');
   const [qwenVariant, setQwenVariant] = useState<string>('qwen-plus');
   
-  // ChatGPT模型配置
-  const [chatgptKey, setChatgptKey] = useState<string>(() => {
-    const envKey = (typeof import.meta !== 'undefined' && (import.meta as any).env && (import.meta as any).env.VITE_CHATGPT_API_KEY) || '';
-    const stored = getApiKey('CHATGPT_API_KEY');
-    return stored || envKey;
-  });
-  const [chatgptBase, setChatgptBase] = useState<string>('https://api.openai.com/v1');
-  const [chatgptVariant, setChatgptVariant] = useState<string>('gpt-4o');
-  
-  // Gemini模型配置
-  const [geminiKey, setGeminiKey] = useState<string>(() => {
-    const envKey = (typeof import.meta !== 'undefined' && (import.meta as any).env && (import.meta as any).env.VITE_GEMINI_API_KEY) || '';
-    const stored = getApiKey('GEMINI_API_KEY');
-    return stored || envKey;
-  });
-  const [geminiBase, setGeminiBase] = useState<string>('https://generativelanguage.googleapis.com/v1');
-  const [geminiVariant, setGeminiVariant] = useState<string>('gemini-1.5-flash');
-  
-  // Gork模型配置
-  const [gorkKey, setGorkKey] = useState<string>(() => {
-    const envKey = (typeof import.meta !== 'undefined' && (import.meta as any).env && (import.meta as any).env.VITE_GORK_API_KEY) || '';
-    const stored = getApiKey('GORK_API_KEY');
-    return stored || envKey;
-  });
-  const [gorkBase, setGorkBase] = useState<string>('https://api.x.ai/v1');
-  const [gorkVariant, setGorkVariant] = useState<string>('grok-beta');
-  
-  // 智谱模型配置
-  const [zhipuKey, setZhipuKey] = useState<string>(() => {
-    const envKey = (typeof import.meta !== 'undefined' && (import.meta as any).env && (import.meta as any).env.VITE_ZHIPU_API_KEY) || '';
-    const stored = getApiKey('ZHIPU_API_KEY');
-    return stored || envKey;
-  });
-  const [zhipuBase, setZhipuBase] = useState<string>('https://open.bigmodel.cn/api/paas/v4');
-  const [zhipuVariant, setZhipuVariant] = useState<string>('glm-4-plus');
-  
   const configRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (isOpen) {
-      const currentModel = llmService.getCurrentModel();
+      // 获取当前模型并确保其有效性
+      let currentModel = llmService.getCurrentModel();
+      const defaultModel = AVAILABLE_MODELS.find(m => m.isDefault) || AVAILABLE_MODELS[0];
+      
+      // 检查当前模型是否有效，如果无效则切换到默认模型
+      if (!AVAILABLE_MODELS.some(m => m.id === currentModel.id)) {
+        currentModel = defaultModel;
+        llmService.setCurrentModel(defaultModel.id);
+      }
+      
       setSelectedModel(currentModel);
       setModelConfig(llmService.getConfig());
       // 获取角色列表
@@ -194,34 +155,10 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ isOpen, onClose }) => {
         setDeepseekKey(getApiKey('DEEPSEEK_API_KEY'));
         setDeepseekBase(modelConfig.deepseek_base_url || 'https://api.deepseek.com');
         setDeepseekVariant(modelConfig.deepseek_model || 'deepseek-chat');
-      } else if (modelId === 'doubao') {
-        setDoubaoKey(getApiKey('DOUBAO_API_KEY'));
-        setDoubaoBase(modelConfig.doubao_base_url);
-        setDoubaoVariant(modelConfig.doubao_model);
-      } else if (modelId === 'wenxinyiyan') {
-        setWenxinKey(getApiKey('WENXIN_API_KEY'));
-        setWenxinBase(modelConfig.wenxin_base_url);
-        setWenxinVariant(modelConfig.wenxin_model);
       } else if (modelId === 'qwen') {
         setQwenKey(getApiKey('QWEN_API_KEY'));
         setQwenBase(modelConfig.qwen_base_url);
         setQwenVariant(modelConfig.qwen_model);
-      } else if (modelId === 'chatgpt') {
-        setChatgptKey(getApiKey('CHATGPT_API_KEY'));
-        setChatgptBase(modelConfig.chatgpt_base_url);
-        setChatgptVariant(modelConfig.chatgpt_model);
-      } else if (modelId === 'gemini') {
-        setGeminiKey(getApiKey('GEMINI_API_KEY'));
-        setGeminiBase(modelConfig.gemini_base_url);
-        setGeminiVariant(modelConfig.gemini_model);
-      } else if (modelId === 'gork') {
-        setGorkKey(getApiKey('GORK_API_KEY'));
-        setGorkBase(modelConfig.gork_base_url);
-        setGorkVariant(modelConfig.gork_model);
-      } else if (modelId === 'zhipu') {
-        setZhipuKey(getApiKey('ZHIPU_API_KEY'));
-        setZhipuBase(modelConfig.zhipu_base_url);
-        setZhipuVariant(modelConfig.zhipu_model);
       }
       setTimeout(() => {
         if (configRef.current) {
@@ -257,29 +194,12 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ isOpen, onClose }) => {
     
     switch (modelId) {
       case 'kimi':
-        // Kimi密钥格式：通常是sk-开头，但允许其他格式
+      case 'qwen':
+        // Kimi和通义千问密钥格式：通常是sk-开头，但允许其他格式
         return /^[a-zA-Z0-9_-]+$/.test(key);
       case 'deepseek':
-      case 'chatgpt':
+        // DeepSeek密钥格式：通常是sk-开头
         return key.startsWith('sk-');
-      case 'qwen':
-        // 通义千问密钥格式：通常是sk-开头，但允许其他格式
-        return /^[a-zA-Z0-9_-]+$/.test(key);
-      case 'doubao':
-        // 豆包密钥格式：通常是字母数字组合
-        return /^[a-zA-Z0-9_-]+$/.test(key);
-      case 'wenxinyiyan':
-        // 文心一言密钥格式：通常是字母数字组合，包含斜杠和等号
-        return /^[a-zA-Z0-9_/.-=]+$/.test(key);
-      case 'gemini':
-        // Gemini密钥格式：通常是AIzaSy开头
-        return key.startsWith('AIzaSy');
-      case 'gork':
-        // Gork密钥格式：通常是xai-开头
-        return key.startsWith('xai-');
-      case 'zhipu':
-        // 智谱密钥格式：通常是字母数字组合，包含点号
-        return /^[a-zA-Z0-9_.]+$/.test(key);
       default:
         return true;
     }
@@ -320,30 +240,6 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ isOpen, onClose }) => {
             saveApiKey('DEEPSEEK_API_KEY', '');
           }
           setModelConfig(prev => ({ ...prev, deepseek_base_url: deepseekBase, deepseek_model: deepseekVariant }));
-        } else if (selectedModel.id === 'doubao') {
-          if (doubaoKey) {
-            if (!validateApiKey('doubao', doubaoKey)) {
-              keyValid = false;
-              errorMessage = '豆包 密钥格式不正确';
-            } else {
-              saveApiKey('DOUBAO_API_KEY', doubaoKey);
-            }
-          } else {
-            saveApiKey('DOUBAO_API_KEY', '');
-          }
-          setModelConfig(prev => ({ ...prev, doubao_base_url: doubaoBase, doubao_model: doubaoVariant }));
-        } else if (selectedModel.id === 'wenxinyiyan') {
-          if (wenxinKey) {
-            if (!validateApiKey('wenxinyiyan', wenxinKey)) {
-              keyValid = false;
-              errorMessage = '文心一言 密钥格式不正确';
-            } else {
-              saveApiKey('WENXIN_API_KEY', wenxinKey);
-            }
-          } else {
-            saveApiKey('WENXIN_API_KEY', '');
-          }
-          setModelConfig(prev => ({ ...prev, wenxin_base_url: wenxinBase, wenxin_model: wenxinVariant }));
         } else if (selectedModel.id === 'qwen') {
           if (qwenKey) {
             if (!validateApiKey('qwen', qwenKey)) {
@@ -356,54 +252,6 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ isOpen, onClose }) => {
             saveApiKey('QWEN_API_KEY', '');
           }
           setModelConfig(prev => ({ ...prev, qwen_base_url: qwenBase, qwen_model: qwenVariant }));
-        } else if (selectedModel.id === 'chatgpt') {
-          if (chatgptKey) {
-            if (!validateApiKey('chatgpt', chatgptKey)) {
-              keyValid = false;
-              errorMessage = 'ChatGPT 密钥格式不正确，应为 sk- 开头';
-            } else {
-              saveApiKey('CHATGPT_API_KEY', chatgptKey);
-            }
-          } else {
-            saveApiKey('CHATGPT_API_KEY', '');
-          }
-          setModelConfig(prev => ({ ...prev, chatgpt_base_url: chatgptBase, chatgpt_model: chatgptVariant }));
-        } else if (selectedModel.id === 'gemini') {
-          if (geminiKey) {
-            if (!validateApiKey('gemini', geminiKey)) {
-              keyValid = false;
-              errorMessage = 'Gemini 密钥格式不正确';
-            } else {
-              saveApiKey('GEMINI_API_KEY', geminiKey);
-            }
-          } else {
-            saveApiKey('GEMINI_API_KEY', '');
-          }
-          setModelConfig(prev => ({ ...prev, gemini_base_url: geminiBase, gemini_model: geminiVariant }));
-        } else if (selectedModel.id === 'gork') {
-          if (gorkKey) {
-            if (!validateApiKey('gork', gorkKey)) {
-              keyValid = false;
-              errorMessage = 'Gork 密钥格式不正确，应为 xai- 开头';
-            } else {
-              saveApiKey('GORK_API_KEY', gorkKey);
-            }
-          } else {
-            saveApiKey('GORK_API_KEY', '');
-          }
-          setModelConfig(prev => ({ ...prev, gork_base_url: gorkBase, gork_model: gorkVariant }));
-        } else if (selectedModel.id === 'zhipu') {
-          if (zhipuKey) {
-            if (!validateApiKey('zhipu', zhipuKey)) {
-              keyValid = false;
-              errorMessage = '智谱 密钥格式不正确';
-            } else {
-              saveApiKey('ZHIPU_API_KEY', zhipuKey);
-            }
-          } else {
-            saveApiKey('ZHIPU_API_KEY', '');
-          }
-          setModelConfig(prev => ({ ...prev, zhipu_base_url: zhipuBase, zhipu_model: zhipuVariant }));
         }
         
         if (!keyValid) {

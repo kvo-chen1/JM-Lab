@@ -44,13 +44,14 @@ export const MobileCard: React.FC<MobileBaseProps & { onClick?: () => void }> = 
 };
 
 // 3. 移动端按钮：最小点击区域 48x48dp
-interface MobileButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+type MobileButtonProps = Omit<HTMLMotionProps<'button'>, 'children'> & {
   variant?: 'primary' | 'secondary' | 'outline' | 'ghost';
   size?: 'sm' | 'md' | 'lg';
   isDark?: boolean;
   isLoading?: boolean;
   block?: boolean;
-}
+  children?: React.ReactNode;
+};
 
 export const MobileButton: React.FC<MobileButtonProps> = ({
   children,

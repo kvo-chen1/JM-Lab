@@ -51,7 +51,7 @@ interface StylePreset {
   brand: string;
   tags: string[];
   prompt: string;
-  engine: 'sdxl' | 'doubao';
+  engine: 'sdxl' | 'qwen';
   textStyle: 'formal' | 'humorous' | 'creative' | 'poetic';
   videoParams: {
     duration: number;
@@ -84,6 +84,10 @@ export default function Neo() {
   // 获取主题信息
   const { isDark } = useTheme()
   const location = useLocation()
+  
+  // 检查是否在创作中心内
+  const isEmbedded = location.pathname.startsWith('/create')
+  
   const apiBase = ((import.meta as any).env?.VITE_API_BASE_URL as string | undefined)?.trim() || (typeof window !== 'undefined' && /localhost:3000$/.test(window.location.host) ? 'http://localhost:3001' : '')
   const shortenUrl = (u: string) => {
     try {
@@ -755,7 +759,7 @@ export default function Neo() {
   const [optPreview, setOptPreview] = useState('')
   const [lastUserPrompt, setLastUserPrompt] = useState('')
   const [lastOptimizedPrompt, setLastOptimizedPrompt] = useState('')
-  const [engine, setEngine] = useState<'sdxl' | 'doubao'>('sdxl')
+  const [engine, setEngine] = useState<'sdxl' | 'qwen'>('sdxl')
   const [qaAnswer, setQaAnswer] = useState('')
   const [qaLoading, setQaLoading] = useState(false)
   const [videoByIndex, setVideoByIndex] = useState<string[]>([])
@@ -793,13 +797,14 @@ export default function Neo() {
   const [stylePresets, setStylePresets] = useState<StylePreset[]>([])
   const [showPresetModal, setShowPresetModal] = useState(false)
   const [editingPresetId, setEditingPresetId] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<'create' | 'results' | 'history'>('create')
   const [presetForm, setPresetForm] = useState({
     name: '',
     description: '',
     brand: '',
     tags: [] as string[],
     prompt: '',
-    engine: 'sdxl' as 'sdxl' | 'doubao',
+    engine: 'sdxl' as 'sdxl' | 'qwen',
     textStyle: 'creative' as 'formal' | 'humorous' | 'creative' | 'poetic',
     videoParams: {
       duration: 5,
@@ -1136,6 +1141,7 @@ export default function Neo() {
 
   const startGeneration = () => {
     setShowOutput(true)
+    setActiveTab('results')
     setImages([])
     setProgress(0)
     setAiText('')
@@ -1186,13 +1192,22 @@ export default function Neo() {
           setImages(genImages(final))
           setVideoByIndex(new Array(3).fill(''))
         } else {
+          const isMock = urls.some(u => u.includes('unsplash.com'));
           setImages(urls)
           setVideoByIndex(new Array(urls.length).fill(''))
-          toast.success(`${currentModel.name}生图完成`)
+          if (isMock) {
+            toast.success(`${currentModel.name} (演示模式) 生图完成`);
+          } else {
+            toast.success(`${currentModel.name}生图完成`);
+          }
         }
         setGenerationStatus('')
       }).catch((e) => {
         errorService.logError(e instanceof Error ? e : 'SERVER_ERROR', { scope: 'neo-doubao', prompt: final || input })
+        // 如果 catch 到错误，通常是因为网络完全不通，或者 llmService 内部抛出了未捕获的异常
+        // 但我们在 llmService.generateImage 中已经捕获了异常并返回 Mock 数据
+        // 所以这里的 catch 更多是兜底未知错误
+        console.error('Neo generation error:', e);
         toast.error(`${currentModel.name}生图失败，已回退为占位图`)
         setImages(genImages(final))
         setVideoByIndex(new Array(3).fill(''))
@@ -1352,174 +1367,120 @@ export default function Neo() {
   }
 
   return (
-    <>
-      <main className="relative container mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-6 sm:py-8 md:py-12">
-        <div className="pointer-events-none absolute -top-10 -left-10 w-48 h-48 sm:w-64 sm:h-64 bg-gradient-to-br from-blue-500/20 via-red-500/20 to-yellow-500/20 blur-3xl rounded-full"></div>
-        <div className="pointer-events-none absolute -bottom-10 -right-10 w-56 h-56 sm:w-72 sm:h-72 bg-gradient-to-tr from-red-500/15 via-yellow-500/15 to-blue-500/15 blur-3xl rounded-full"></div>
-        <div className="max-w-7xl mx-auto space-y-6 sm:space-y-8">
-          {/* 通知图标 */}
-          <div className="absolute top-4 right-4 z-40">
-            <button
-              onClick={() => setShowNotificationCenter(!showNotificationCenter)}
-              className={`relative p-2 rounded-full transition-all duration-200 hover:scale-110 ${isDark ? 'bg-gray-800 hover:bg-gray-700 text-white' : 'bg-white hover:bg-gray-100 text-gray-900'} shadow-lg`}
-              aria-label="通知"
-            >
-              <i className="fas fa-bell"></i>
-              {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-white text-xs">
-                  {unreadCount > 99 ? '99+' : unreadCount}
-                </span>
-              )}
-            </button>
+    <div className={`flex flex-col h-full ${isDark ? 'bg-gray-950 text-white' : 'bg-gray-50 text-gray-900'}`}>
+      
+      {/* Hero Section */}
+      {!isEmbedded && (
+        <div className={`relative overflow-hidden px-6 flex-shrink-0 pt-32 pb-16`}>
+          <div className="pointer-events-none absolute -top-10 -left-10 w-48 h-48 sm:w-64 sm:h-64 bg-gradient-to-br from-blue-500/20 via-red-500/20 to-yellow-500/20 blur-3xl rounded-full"></div>
+          <div className="pointer-events-none absolute -bottom-10 -right-10 w-56 h-56 sm:w-72 sm:h-72 bg-gradient-to-tr from-red-500/15 via-yellow-500/15 to-blue-500/15 blur-3xl rounded-full"></div>
+          <div className="max-w-7xl mx-auto space-y-6 sm:space-y-8">
+            <GradientHero 
+              title="津门 · 灵感引擎"
+              subtitle="面向传统文化创新的AI创作助手"
+              theme="red"
+              stats={[
+                { label: '引擎', value: engine === 'sdxl' ? 'SDXL绘画' : '通义千问' },
+                { label: '风格', value: stylePresets.length.toString() },
+                { label: '模式', value: '普通' },
+                { label: '状态', value: isGenerating ? '生成中' : '就绪' }
+              ]}
+              pattern={true}
+              size="lg"
+            />
+          </div>
+        </div>
+      )}
+
+      <div className={`max-w-7xl mx-auto ${isEmbedded ? 'p-6' : 'px-6 pb-12'}`}>
+        
+        {/* Top Header for Embedded */}
+        {isEmbedded && (
+           <div className="flex items-center justify-between mb-8">
+              <div>
+                <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-red-600 to-amber-600">
+                  津门 · 灵感引擎
+                </h1>
+                <p className={`text-sm mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                  面向传统文化创新的AI创作助手
+                </p>
+              </div>
+              <div className="flex gap-3">
+                 <div className={`flex p-1 rounded-lg ${isDark ? 'bg-gray-800' : 'bg-gray-200'}`}>
+                    <button onClick={() => setEngine('sdxl')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${engine==='sdxl' ? 'bg-white text-red-600 shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}>SDXL绘画</button>
+                    <button onClick={() => setEngine('qwen')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${engine==='qwen' ? 'bg-white text-red-600 shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}>通义千问</button>
+                 </div>
+              </div>
+           </div>
+        )}
+
+        <div ref={engineCardRef} className={`rounded-2xl shadow-sm ${isDark ? 'bg-gray-800' : 'bg-white'} border ${isDark ? 'border-gray-700' : 'border-gray-200'} p-6 transition-all duration-300 min-h-[600px]`}>
+           {/* Tab Navigation */}
+           <div className="flex border-b border-gray-200 dark:border-gray-700 mb-6">
+              <button onClick={() => setActiveTab('create')} className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'create' ? 'border-red-600 text-red-600' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 hover:dark:text-gray-200'}`}>灵感创作</button>
+              <button onClick={() => setActiveTab('results')} className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'results' ? 'border-red-600 text-red-600' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 hover:dark:text-gray-200'}`}>生成结果</button>
+              <button onClick={() => setActiveTab('history')} className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'history' ? 'border-red-600 text-red-600' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 hover:dark:text-gray-200'}`}>历史记录</button>
+           </div>
             
-            {/* 通知中心面板 */}
-            {showNotificationCenter && (
-              <div className={`absolute right-0 mt-2 w-80 rounded-2xl shadow-xl ${isDark ? 'bg-gray-800' : 'bg-white'} border ${isDark ? 'border-gray-700' : 'border-gray-200'} p-3 max-h-96 overflow-y-auto transition-all duration-300 transform scale-100 opacity-100`}>
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-bold">通知中心</h3>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={markAllAsRead}
-                      className={`text-xs px-2 py-1 rounded text-blue-600 hover:text-blue-700 ${isDark ? 'bg-blue-900 bg-opacity-20 hover:bg-opacity-30' : 'bg-blue-50 hover:bg-blue-100'}`}
-                    >
-                      全部标为已读
-                    </button>
-                    <button
-                      onClick={clearAllNotifications}
-                      className={`text-xs px-2 py-1 rounded text-red-600 hover:text-red-700 ${isDark ? 'bg-red-900 bg-opacity-20 hover:bg-opacity-30' : 'bg-red-50 hover:bg-red-100'}`}
-                    >
-                      清空
-                    </button>
-                  </div>
-                </div>
+            {activeTab === 'create' && (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+              {/* Left Column */}
+              <div className="lg:col-span-4 space-y-6">
                 
-                {notifications.length === 0 ? (
-                  <div className={`text-xs py-6 text-center ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                    <i className="fas fa-bell-slash text-2xl mb-2 block"></i>
-                    暂无通知
+                {/* Presets Card */}
+                <div className={`p-5 rounded-2xl border ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} shadow-sm`}>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-semibold flex items-center gap-2">
+                      <i className="fas fa-magic text-purple-500"></i> 风格预设
+                    </h3>
+                    <button 
+                      onClick={() => openPresetModal()}
+                      className={`text-xs px-3 py-1.5 rounded-lg transition-all duration-200 ${isDark ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-green-600 hover:bg-green-700 text-white'} active:scale-98`}
+                    >
+                      + 保存
+                    </button>
                   </div>
-                ) : (
-                  <div className="space-y-2">
-                    {notifications.map(notification => (
-                      <div 
-                        key={notification.id} 
-                        className={`p-3 rounded-lg transition-all duration-200 hover:bg-opacity-80 cursor-pointer ${isDark ? `bg-gray-700 hover:bg-gray-600 ${!notification.read && 'ring-1 ring-blue-500'}` : `bg-gray-50 hover:bg-gray-100 ${!notification.read && 'ring-1 ring-blue-500'}`}`}
-                        onClick={() => {
-                          markAsRead(notification.id);
-                          if (notification.url) {
-                            window.open(notification.url, '_blank');
-                          }
-                        }}
-                      >
-                        <div className="flex items-start gap-3">
-                          <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${notification.type === 'success' ? 'bg-green-100 text-green-600 dark:bg-green-900 dark:text-green-400' : notification.type === 'warning' ? 'bg-yellow-100 text-yellow-600 dark:bg-yellow-900 dark:text-yellow-400' : notification.type === 'error' ? 'bg-red-100 text-red-600 dark:bg-red-900 dark:text-red-400' : 'bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-400'}`}>
-                            <i className={`fas fa-${notification.type === 'success' ? 'check-circle' : notification.type === 'warning' ? 'exclamation-triangle' : notification.type === 'error' ? 'times-circle' : 'info-circle'}`}></i>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-start justify-between gap-2">
-                              <h4 className="text-sm font-medium truncate">{notification.title}</h4>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  deleteNotification(notification.id);
-                                }}
-                                className={`text-xs text-gray-400 hover:text-red-600 transition-colors`}
-                                aria-label="删除"
-                              >
-                                <i className="fas fa-times"></i>
-                              </button>
-                            </div>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{notification.message}</p>
-                            <div className="mt-1 text-xs text-gray-400 dark:text-gray-500">
-                              {new Date(notification.timestamp).toLocaleString()}
-                            </div>
+                  
+                  {stylePresets.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {stylePresets.map(preset => (
+                        <div key={preset.id} className="relative group">
+                          <button
+                            onClick={() => applyPreset(preset)}
+                            className={`text-xs px-3 py-2 rounded-xl border transition-all duration-200 transform hover:scale-105 active:scale-95 ${isDark ? 'border-purple-500 text-purple-400 bg-purple-900 bg-opacity-20 hover:bg-opacity-30' : 'border-purple-500 text-purple-600 bg-purple-50 hover:bg-purple-100'}`}
+                            style={{ minWidth: '80px', textAlign: 'center' }}
+                            title={preset.description}
+                          >
+                            {preset.name}
+                          </button>
+                          <div className="absolute right-0 -top-1 -translate-x-full group-hover:flex hidden flex-col gap-1 ml-1 bg-white dark:bg-gray-800 p-1 rounded-lg shadow-lg border dark:border-gray-700 z-10">
+                            <button
+                              onClick={() => openPresetModal(preset)}
+                              className="text-xs px-3 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors flex items-center justify-center"
+                              style={{ minWidth: '45px' }}
+                            >
+                              编辑
+                            </button>
+                            <button
+                              onClick={() => deletePreset(preset.id)}
+                              className="text-xs px-3 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition-colors flex items-center justify-center"
+                              style={{ minWidth: '45px' }}
+                            >
+                              删除
+                            </button>
                           </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-          {/* 灵感引擎渐变英雄区 */}
-          <GradientHero 
-            title="津门 · 灵感引擎"
-            subtitle="面向传统文化创新的AI创作助手"
-            theme="red"
-            stats={[
-              { label: '引擎', value: engine },
-              { label: '风格', value: stylePresets.length.toString() },
-              { label: '模式', value: '普通' },
-              { label: '状态', value: isGenerating ? '生成中' : '就绪' }
-            ]}
-            pattern={true}
-            size="lg"
-          />
-          
-          <div ref={engineCardRef} className={`mt-6 rounded-2xl shadow-md ${isDark ? 'bg-gray-800/95 backdrop-blur-sm' : 'bg-white/95 backdrop-blur-sm'} p-4 sm:p-6 mb-6 transition-all duration-300 hover:shadow-lg`} style={{ borderRadius: '24px' }}>
-            <h1 className="text-2xl font-bold mb-2">津门 · 灵感引擎</h1>
-            <div className="w-20 h-1 rounded-full bg-gradient-to-r from-blue-600 via-red-500 to-yellow-500 mb-4"></div>
-            <div className="flex items-center gap-3 mb-4">
-              <span className="text-sm">生成引擎</span>
-              <div className="flex gap-2">
-                <button onClick={() => setEngine('sdxl')} className={`px-3 py-1.5 rounded-full text-sm transition-colors ${engine==='sdxl' ? 'bg-red-600 hover:bg-red-700 text-white' : (isDark ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-100 hover:bg-gray-200 text-gray-700')}`}>SDXL</button>
-                <button onClick={() => setEngine('doubao')} className={`px-3 py-1.5 rounded-full text-sm transition-colors ${engine==='doubao' ? 'bg-red-600 hover:bg-red-700 text-white' : (isDark ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-100 hover:bg-gray-200 text-gray-700')}`}>Doubao</button>
-              </div>
-            </div>
-            
-            {/* 风格预设 */}
-            <div className="mb-4">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-sm font-medium">风格预设</span>
-                <button 
-                  onClick={() => openPresetModal()}
-                  className={`text-xs px-3 py-2 rounded-md transition-all duration-200 ${isDark ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-green-600 hover:bg-green-700 text-white'} active:scale-98`}
-                >
-                  + 保存当前设置为预设
-                </button>
-              </div>
-              
-              {/* 预设列表 */}
-              {stylePresets.length > 0 ? (
-                <div className="flex flex-wrap gap-2 mb-3">
-                  {stylePresets.map(preset => (
-                    <div key={preset.id} className="relative group">
-                      <button
-                        onClick={() => applyPreset(preset)}
-                        className={`text-xs px-3 py-2 rounded-xl border transition-all duration-200 transform hover:scale-105 active:scale-95 ${isDark ? 'border-purple-500 text-purple-400 bg-purple-900 bg-opacity-20 hover:bg-opacity-30' : 'border-purple-500 text-purple-600 bg-purple-50 hover:bg-purple-100'}`}
-                        style={{ minWidth: '80px', textAlign: 'center' }}
-                        title={preset.description}
-                      >
-                        {preset.name}
-                      </button>
-                      <div className="absolute right-0 -top-1 -translate-x-full group-hover:flex hidden flex-col gap-1 ml-1 bg-white dark:bg-gray-800 p-1 rounded-lg shadow-lg border dark:border-gray-700 z-10">
-                        <button
-                          onClick={() => openPresetModal(preset)}
-                          className="text-xs px-3 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors flex items-center justify-center"
-                          style={{ minWidth: '45px' }}
-                        >
-                          编辑
-                        </button>
-                        <button
-                          onClick={() => deletePreset(preset.id)}
-                          className="text-xs px-3 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition-colors flex items-center justify-center"
-                          style={{ minWidth: '45px' }}
-                        >
-                          删除
-                        </button>
-                      </div>
+                      ))}
                     </div>
-                  ))}
+                  ) : (
+                    <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                      暂无预设
+                    </div>
+                  )}
                 </div>
-              ) : (
-                <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'} mb-3`}>
-                  暂无预设，点击"+ 保存当前设置为预设"创建您的第一个预设
-                </div>
-              )}
-            </div>
 
-            <div className="space-y-4 mb-4">
+                {/* Brand & Tags Card */}
+                <div className={`p-5 rounded-2xl border ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} shadow-sm space-y-6`}>
               <div>
                 <label className="text-sm mb-2 block">选择品牌</label>
                 <select
@@ -1666,19 +1627,26 @@ export default function Neo() {
                   )}
                 </div>
               </div>
-            </div>
+            </div> {/* Close Brand & Tags Card */}
+            </div> {/* Close Left Column */}
 
-          <div className={`text-sm p-3 rounded-lg mb-4 ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-50 text-gray-700'}`}>
-            {story}
-          </div>
+            {/* Right Column */}
+             <div className="lg:col-span-8 space-y-6">
+               {/* Create Tab Content */}
+               <div className="block space-y-6">
+               {/* Story Context */}
+               <div className={`text-sm p-4 rounded-xl border ${isDark ? 'bg-blue-900/40 border-blue-800 text-blue-100' : 'bg-blue-50 border-blue-100 text-blue-800'} flex items-start gap-3`}>
+                  <i className="fas fa-info-circle mt-0.5"></i>
+                  <div>{story}</div>
+               </div>
 
             <div className="relative mb-4">
               <textarea
                 value={prompt}
                 onChange={(e) => { const v = e.target.value; setPrompt(v); if (optTimerRef.current) clearTimeout(optTimerRef.current); optTimerRef.current = setTimeout(() => { if (v.trim() && !optimizing && v.trim() !== lastOptimizedPrompt.trim()) optimizePrompt() }, 2000) }}
                 onBlur={() => { if (prompt.trim() && !optimizing) optimizePrompt() }}
-                placeholder="[AI引导]：掌柜的，您想怎么改？(输入语音或文字)"
-                className={`w-full h-32 px-3 py-3 rounded-lg border focus:ring-2 focus:ring-red-500 transition-all duration-300 ${isDark ? 'bg-gray-700 border-gray-600 text-white focus:border-red-500' : 'bg-white border-gray-300 focus:border-red-500'} resize-y`}
+                placeholder="描述你想要的画面，例如：一只拿着糖葫芦的赛博朋克风格醒狮... (支持语音输入)"
+                className={`w-full h-32 px-4 py-3 rounded-xl border focus:ring-2 focus:ring-red-500 transition-all duration-300 ${isDark ? 'bg-gray-700 border-gray-600 text-white focus:border-red-500 placeholder-gray-400' : 'bg-white border-gray-300 focus:border-red-500 placeholder-gray-400'} resize-y text-base`}
                 autoCapitalize="none"
                 autoCorrect="off"
                 enterKeyHint="send"
@@ -1728,16 +1696,26 @@ export default function Neo() {
 
             <button
               onClick={startGeneration}
-              className="w-full bg-red-600 hover:bg-red-700 text-white px-4 py-3 rounded-lg font-medium transition-all duration-200 min-h-[44px] active:scale-98"
+              disabled={isGenerating}
+              className={`w-full bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white px-4 py-3 rounded-xl font-bold shadow-lg shadow-red-500/30 transition-all duration-200 min-h-[48px] active:scale-95 flex items-center justify-center gap-2 ${isGenerating ? 'opacity-70 cursor-wait' : ''}`}
             >
-              注入灵感
+              {isGenerating ? (
+                <>
+                  <i className="fas fa-spinner fa-spin"></i> 正在注入灵感...
+                </>
+              ) : (
+                <>
+                  <i className="fas fa-sparkles"></i> 注入灵感
+                </>
+              )}
             </button>
             <div className="mt-3">
               <button
                 onClick={optimizePrompt}
                 disabled={optimizing || isGenerating}
-                className={`w-full ${isDark ? 'bg-green-700 hover:bg-green-600 text-white' : 'bg-green-600 hover:bg-green-700 text-white'} px-4 py-2 rounded-lg font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed active:scale-98`}
+                className={`w-full border-2 ${isDark ? 'border-green-600 text-green-500 hover:bg-green-900/20' : 'border-green-600 text-green-600 hover:bg-green-50'} px-4 py-2 rounded-xl font-bold transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed active:scale-98 flex items-center justify-center gap-2`}
               >
+                <i className="fas fa-magic"></i>
                 {optimizing ? 'DeepSeek优化中…' : '优化提示词（DeepSeek）'}
               </button>
               {lastUserPrompt && lastOptimizedPrompt && (
@@ -1749,23 +1727,83 @@ export default function Neo() {
                 </div>
               )}
             </div>
-            {engine === 'doubao' && (
-              <div className="mt-4">
-                <button
-                  onClick={testDoubaoVQA}
-                  className={`w-full ${isDark ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-900'} px-4 py-2 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed active:scale-98`}
-                  disabled={qaLoading}
-                >
-                  {qaLoading ? '豆包图文问答测试中…' : '豆包图文问答测试'}
-                </button>
-                {qaAnswer && (
-                  <div className={`mt-2 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{qaAnswer}</div>
-                )}
+
+            <div className={`mt-6 rounded-2xl ${isDark ? 'bg-gray-800/50 border-gray-700' : 'bg-white border-gray-200'} border p-5 shadow-sm`}>
+            <div className="font-bold mb-4 flex items-center justify-between">
+              <span className="flex items-center gap-2"><i className="fas fa-lightbulb text-yellow-500"></i> AI建议</span>
+              <button onClick={regenerateDirections} className={`text-xs px-3 py-1.5 rounded-lg ${isDark ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'} transition-all duration-200 active:scale-95`}>
+                <i className="fas fa-sync-alt mr-1"></i>换一换
+              </button>
+            </div>
+            {aiDirections.length > 0 ? (
+              <div className="flex flex-wrap gap-2 mb-6">
+                {aiDirections.map((d, i) => (
+                  <button key={i} onClick={() => applyDirection(d)} className={`text-sm px-4 py-2 rounded-xl border transition-all duration-200 ${isDark ? 'border-gray-600 text-gray-300 hover:border-gray-500 hover:bg-gray-700' : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'} active:scale-95`}>
+                    {d}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className={`text-sm flex flex-col items-center justify-center py-8 border-2 border-dashed rounded-xl ${isDark ? 'border-gray-700 text-gray-500' : 'border-gray-200 text-gray-400'} mb-6`}>
+                <i className="fas fa-sparkles text-2xl mb-2 opacity-50"></i>
+                <span>点击“注入灵感”以获取建议</span>
               </div>
             )}
+            
+            <div className="flex flex-col gap-3 mb-3">
+              <div className="flex items-center justify-between">
+                <div className="font-bold flex items-center gap-2"><i className="fas fa-pen-fancy text-purple-500"></i> AI文案</div>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={textStyle}
+                    onChange={(e) => setTextStyle(e.target.value as any)}
+                    className={`text-xs px-3 py-1.5 rounded-lg border focus:outline-none focus:border-red-500 transition-all duration-300 ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-200 text-gray-700'}`}
+                  >
+                    <option value="creative">✨ 创意风格</option>
+                    <option value="formal">👔 正式风格</option>
+                    <option value="humorous">😄 幽默风格</option>
+                    <option value="poetic">📜 诗意风格</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div className={`text-sm whitespace-pre-wrap min-h-[100px] p-4 rounded-xl ${isDark ? 'bg-gray-900/50 border-gray-700 text-gray-300' : 'bg-gray-50 border-gray-200 text-gray-700'} border mb-4 leading-relaxed`}>
+              {aiText || <span className="opacity-50 italic">等待生成文案...</span>}
+            </div>
+            
+            <div className="grid grid-cols-2 gap-3">
+               <button onClick={async () => { const base = aiText.trim() ? aiText : prompt.trim(); if (!base) { toast.warning('请先生成文案或填写提示'); return } try { const r = await voiceService.synthesize(base, { format: 'mp3' }); setTtsUrl(r.audioUrl) } catch (e: any) { toast.error(e?.message || '朗读失败') } }} className={`flex items-center justify-center gap-2 text-sm px-4 py-2.5 rounded-xl transition-all duration-200 border ${isDark ? 'border-gray-600 hover:bg-gray-700 text-gray-300' : 'border-gray-200 hover:bg-gray-50 text-gray-600'} active:scale-95`}>
+                 <i className="fas fa-volume-up"></i> 朗读
+               </button>
+               <button onClick={() => { const text = aiText.trim(); if (!text) { toast.warning('暂无可复制的文案'); return } try { navigator.clipboard.writeText(text); toast.success('已复制文案'); } catch { toast.error('复制失败'); } }} className={`flex items-center justify-center gap-2 text-sm px-4 py-2.5 rounded-xl transition-all duration-200 border ${isDark ? 'border-gray-600 hover:bg-gray-700 text-gray-300' : 'border-gray-200 hover:bg-gray-50 text-gray-600'} active:scale-95`}>
+                 <i className="fas fa-copy"></i> 复制
+               </button>
+               <button onClick={() => { const text = aiText.trim(); if (!text) { toast.warning('暂无文案可插入'); return } setPrompt(text); toast.success('已插入到输入框'); }} className={`flex items-center justify-center gap-2 text-sm px-4 py-2.5 rounded-xl transition-all duration-200 border ${isDark ? 'border-gray-600 hover:bg-gray-700 text-gray-300' : 'border-gray-200 hover:bg-gray-50 text-gray-600'} active:scale-95`}>
+                 <i className="fas fa-arrow-up"></i> 插入
+               </button>
+               <button onClick={() => { if (!aiText.trim()) { toast.warning('暂无文案可保存'); return } try { const raw = localStorage.getItem('NEO_COPY_HISTORY'); const arr = raw ? JSON.parse(raw) : []; const entry = { id: Date.now(), text: aiText.trim() }; const next = [entry, ...arr].slice(0, 50); localStorage.setItem('NEO_COPY_HISTORY', JSON.stringify(next)); toast.success('已保存到本地'); } catch { toast.error('保存失败'); } }} className={`flex items-center justify-center gap-2 text-sm px-4 py-2.5 rounded-xl transition-all duration-200 border ${isDark ? 'border-gray-600 hover:bg-gray-700 text-gray-300' : 'border-gray-200 hover:bg-gray-50 text-gray-600'} active:scale-95`}>
+                 <i className="fas fa-save"></i> 保存
+               </button>
+               <button onClick={() => { setAiText(''); toast.success('已清空文案'); }} className={`col-span-2 flex items-center justify-center gap-2 text-sm px-4 py-2.5 rounded-xl transition-all duration-200 border border-dashed ${isDark ? 'border-gray-700 hover:bg-gray-800 text-gray-400' : 'border-gray-300 hover:bg-gray-50 text-gray-500'} active:scale-95`}>
+                 <i className="fas fa-trash-alt"></i> 清空文案
+               </button>
+            </div>
+            {ttsUrl && (
+              <div className="mt-4">
+                <audio controls src={ttsUrl} className={`w-full rounded-md border ${isDark ? 'border-gray-600' : 'border-gray-200'}`} />
+              </div>
+            )}
+            {isGenerating && (<div className={`${isDark ? 'text-gray-500' : 'text-gray-400'} text-sm mt-2`}>生成中…</div>)}
           </div>
+        </div>
+      </div>
+    </div>
+  )}
 
-          {showOutput && (
+          {/* Results Tab */}
+          {activeTab === 'results' && (
+          <div className="space-y-6">
+          {showOutput ? (
             <div className={`rounded-2xl shadow-md ${isDark ? 'bg-gray-800' : 'bg-white'} p-6`}>
               <div className="mb-6">
                 <div className="flex items-center justify-between mb-2">
@@ -1846,22 +1884,22 @@ export default function Neo() {
                 </div>
               </div>
               
-              <div className="grid grid-cols-1 gap-4 mb-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
                 {images.map((src, i) => {
                   const val = videoByIndex[i] || ''
                   const processing = val === '生成中...'
                   const hasUrl = val.startsWith('http')
                   return (
-                    <div key={i} className={`rounded-xl overflow-hidden ${isDark ? 'bg-gray-700' : 'bg-gray-50'} border ${isDark ? 'border-gray-600' : 'border-gray-200'} transition-all duration-300 hover:shadow-lg`}>
-                      <div className="relative">
-                        <TianjinImage src={src} alt="result" ratio="landscape" rounded="xl" className="cursor-pointer transition-transform duration-300 hover:scale-105 w-full" onClick={() => (!processing ? genVideoAt(i) : undefined)} />
+                    <div key={i} className={`rounded-xl overflow-hidden ${isDark ? 'bg-gray-700' : 'bg-gray-50'} border ${isDark ? 'border-gray-600' : 'border-gray-200'} transition-all duration-300 hover:shadow-lg flex flex-col`}>
+                      <div className="relative aspect-video">
+                        <TianjinImage src={src} alt="result" ratio="landscape" rounded="none" className="w-full h-full object-cover cursor-pointer transition-transform duration-300 hover:scale-105" onClick={() => (!processing ? genVideoAt(i) : undefined)} />
                         {processing && (
                           <div className="absolute top-2 left-2 text-xs px-2 py-1 rounded-full bg-blue-600 text-white shadow-md">生成中…</div>
                         )}
                       </div>
-                      <div className="p-4 space-y-3">
-                        <div className="grid grid-cols-2 gap-3">
-                    <button onClick={() => genVideoAt(i)} disabled={processing} className={`text-sm px-3 py-3 rounded-md transition-all duration-200 ${isDark ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'} disabled:opacity-60 disabled:cursor-not-allowed active:scale-98 font-medium`}>{processing ? '生成中…' : '生成视频'}</button>
+                      <div className="p-3 space-y-2 flex-1 flex flex-col justify-between">
+                        <div className="grid grid-cols-2 gap-2">
+                    <button onClick={() => genVideoAt(i)} disabled={processing} className={`text-xs px-2 py-2 rounded-md transition-all duration-200 ${isDark ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'} disabled:opacity-60 disabled:cursor-not-allowed active:scale-98 font-medium`}>{processing ? '生成中…' : '生成视频'}</button>
                     <button 
                       onClick={async () => {
                         try {
@@ -1890,49 +1928,49 @@ export default function Neo() {
                           }
                         }
                       }}
-                      className={`text-sm px-3 py-3 rounded-md transition-all duration-200 ${isDark ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-green-600 hover:bg-green-700 text-white'} active:scale-98 flex items-center justify-center gap-1 font-medium`}
+                      className={`text-xs px-2 py-2 rounded-md transition-all duration-200 ${isDark ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-green-600 hover:bg-green-700 text-white'} active:scale-98 flex items-center justify-center gap-1 font-medium`}
                     >
                       <i className="fas fa-share-alt"></i> 分享
                     </button>
                     <button 
                       onClick={() => openImageEditor(i)}
-                      className={`text-sm px-3 py-3 rounded-md transition-all duration-200 ${isDark ? 'bg-purple-600 hover:bg-purple-700 text-white' : 'bg-purple-600 hover:bg-purple-700 text-white'} active:scale-98 font-medium col-span-1`}
+                      className={`text-xs px-2 py-2 rounded-md transition-all duration-200 ${isDark ? 'bg-purple-600 hover:bg-purple-700 text-white' : 'bg-purple-600 hover:bg-purple-700 text-white'} active:scale-98 font-medium col-span-1`}
                     >
-                      <i className="fas fa-edit mr-1"></i> 编辑图片
+                      <i className="fas fa-edit mr-1"></i> 编辑
                     </button>
                     <button 
                       onClick={() => exportImage(i)}
-                      className={`text-sm px-3 py-3 rounded-md transition-all duration-200 ${isDark ? 'bg-teal-600 hover:bg-teal-700 text-white' : 'bg-teal-600 hover:bg-teal-700 text-white'} active:scale-98 font-medium col-span-1`}
+                      className={`text-xs px-2 py-2 rounded-md transition-all duration-200 ${isDark ? 'bg-teal-600 hover:bg-teal-700 text-white' : 'bg-teal-600 hover:bg-teal-700 text-white'} active:scale-98 font-medium col-span-1`}
                     >
-                      <i className="fas fa-download mr-1"></i> 高级导出
+                      <i className="fas fa-download mr-1"></i> 导出
                     </button>
                   </div>
-                        <div className="flex justify-between items-center">
+                        <div className={`flex justify-between items-center pt-2 border-t ${isDark ? 'border-gray-600' : 'border-gray-200'}`}>
                           <button
                             onClick={() => setShowFeedback(`result-${i}`)}
-                            className={`text-sm px-3 py-2 rounded-md transition-colors ${isDark ? 'bg-gray-600 hover:bg-gray-500 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-900'} active:scale-98`}
+                            className={`text-xs px-2 py-1.5 rounded-md transition-colors ${isDark ? 'bg-gray-600 hover:bg-gray-500 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-900'} active:scale-98`}
                           >
-                            {feedbacks[`result-${i}`] ? '查看/修改反馈' : '提交反馈'}
+                            {feedbacks[`result-${i}`] ? '修改反馈' : '提交反馈'}
                           </button>
                           
                           {/* 显示已提交的评分 */}
                           {feedbacks[`result-${i}`] && (
-                            <div className="flex items-center gap-2">
-                              <span className="text-yellow-500 text-lg">{'★'.repeat(feedbacks[`result-${i}`]!.rating)}{'☆'.repeat(5 - feedbacks[`result-${i}`]!.rating)}</span>
-                              <span className="text-sm text-gray-500">({feedbacks[`result-${i}`]!.rating}/5)</span>
+                            <div className="flex items-center gap-1">
+                              <span className="text-yellow-500 text-sm">{'★'.repeat(feedbacks[`result-${i}`]!.rating)}</span>
+                              <span className="text-xs text-gray-500">({feedbacks[`result-${i}`]!.rating})</span>
                             </div>
                           )}
                         </div>
                         
                         {/* 反馈弹窗 */}
                         {showFeedback === `result-${i}` && (
-                          <div className={`mt-3 p-4 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'} border ${isDark ? 'border-gray-600' : 'border-gray-200'} shadow-md`}>
-                            <h4 className="text-sm font-medium mb-3">提交反馈</h4>
+                          <div className={`mt-2 p-3 rounded-lg ${isDark ? 'bg-gray-800' : 'bg-white'} border ${isDark ? 'border-gray-600' : 'border-gray-200'} shadow-md text-xs absolute z-10 w-64`}>
+                            <h4 className="font-medium mb-2">提交反馈</h4>
                             
                             {/* 评分 */}
-                            <div className="mb-4">
-                              <label className="text-sm text-gray-500 dark:text-gray-400 mb-2 block">评分：</label>
-                              <div className="flex gap-2">
+                            <div className="mb-2">
+                              <label className="text-gray-500 dark:text-gray-400 mb-1 block">评分：</label>
+                              <div className="flex gap-1">
                                 {[1, 2, 3, 4, 5].map(star => (
                                   <button
                                     key={star}
@@ -1940,7 +1978,7 @@ export default function Neo() {
                                       const current = feedbacks[`result-${i}`] || { rating: 0, comment: '' }
                                       saveFeedback(`result-${i}`, star, current.comment)
                                     }}
-                                    className={`text-2xl transition-all duration-200 ${(feedbacks[`result-${i}`]?.rating || 0) >= star ? 'text-yellow-500 transform scale-110' : 'text-gray-400 hover:text-yellow-500'}`}
+                                    className={`text-lg transition-all duration-200 ${(feedbacks[`result-${i}`]?.rating || 0) >= star ? 'text-yellow-500 transform scale-110' : 'text-gray-400 hover:text-yellow-500'}`}
                                   >
                                     ★
                                   </button>
@@ -1949,17 +1987,17 @@ export default function Neo() {
                             </div>
                             
                             {/* 文字反馈 */}
-                            <div className="mb-4">
-                              <label className="text-sm text-gray-500 dark:text-gray-400 mb-2 block">反馈意见：</label>
+                            <div className="mb-2">
+                              <label className="text-gray-500 dark:text-gray-400 mb-1 block">反馈意见：</label>
                               <textarea
                                 value={feedbacks[`result-${i}`]?.comment || ''}
                                 onChange={(e) => {
                                   const current = feedbacks[`result-${i}`] || { rating: 0, comment: '' }
                                   saveFeedback(`result-${i}`, current.rating, e.target.value)
                                 }}
-                                placeholder="请输入您的反馈意见..."
-                                className={`w-full text-sm px-3 py-3 rounded border focus:ring-2 focus:ring-red-500 transition-all duration-300 ${isDark ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
-                                rows={4}
+                                placeholder="请输入..."
+                                className={`w-full px-2 py-1 rounded border focus:ring-1 focus:ring-red-500 transition-all duration-300 ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-300 text-gray-900'}`}
+                                rows={2}
                               />
                             </div>
                             
@@ -1967,7 +2005,7 @@ export default function Neo() {
                             <div className="flex justify-end">
                               <button
                                 onClick={() => setShowFeedback(null)}
-                                className={`text-sm px-4 py-2 rounded-md transition-colors ${isDark ? 'bg-gray-800 hover:bg-gray-700 text-white' : 'bg-white hover:bg-gray-100 text-gray-900 border border-gray-300'} active:scale-98 font-medium`}
+                                className={`px-3 py-1 rounded-md transition-colors ${isDark ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-900 border border-gray-300'} active:scale-98`}
                               >
                                 关闭
                               </button>
@@ -1984,60 +2022,20 @@ export default function Neo() {
                 <div className={`${isDark ? 'text-gray-300' : 'text-gray-600'} text-sm`}>{feedback.join('；')}</div>
               )}
             </div>
+          ) : (
+             <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+                <i className="fas fa-paint-brush text-4xl mb-4 opacity-50"></i>
+                <p>暂无生成结果，请在“灵感创作”页签开始创作</p>
+                <button onClick={() => setActiveTab('create')} className="mt-4 px-4 py-2 text-red-600 border border-red-600 rounded-lg text-sm hover:bg-red-50 dark:hover:bg-red-900/20">去创作</button>
+             </div>
           )}
-          <div className={`rounded-2xl shadow-md ${isDark ? 'bg-gray-800' : 'bg-white'} p-4 mt-6`}>
-            <div className="font-bold mb-3 flex items-center justify-between">
-              <span>AI建议</span>
-              <button onClick={regenerateDirections} className={`text-xs px-2 py-1 rounded ${isDark ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-900'} transition-all duration-200 hover:scale-105`}>刷新建议</button>
-            </div>
-            {aiDirections.length > 0 ? (
-              <div className="flex flex-wrap gap-2 mb-4">
-                {aiDirections.map((d, i) => (
-                  <button key={i} onClick={() => applyDirection(d)} className={`text-sm px-4 py-2.5 rounded-full border transition-all duration-200 ${isDark ? 'border-gray-600 text-gray-300 hover:border-gray-500 hover:bg-gray-700' : 'border-gray-300 text-gray-700 hover:border-gray-400 hover:bg-gray-100'}`}>
-                    {d}
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <div className={`${isDark ? 'text-gray-500' : 'text-gray-400'} text-sm flex flex-col items-start gap-2 mb-4`}>
-                <span>点击“注入灵感”以获取建议</span>
-                <button onClick={startGeneration} className={`text-xs px-3 py-2 rounded ${isDark ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-900'} transition-all duration-200 hover:scale-105`}>快速注入灵感</button>
-              </div>
-            )}
-            <div className="flex flex-col gap-3 mb-2">
-              <div className="flex items-center justify-between">
-                <div className="font-bold">AI文案</div>
-              </div>
-              <div className="flex items-center gap-2">
-                <label className="text-xs text-gray-500 dark:text-gray-400">风格：</label>
-                <select
-                  value={textStyle}
-                  onChange={(e) => setTextStyle(e.target.value as any)}
-                  className={`text-sm px-3 py-2 rounded border focus:ring-2 focus:ring-red-500 transition-all duration-300 ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
-                >
-                  <option value="creative">创意</option>
-                  <option value="formal">正式</option>
-                  <option value="humorous">幽默</option>
-                  <option value="poetic">诗意</option>
-                </select>
-              </div>
-            </div>
-            <div className={`${isDark ? 'text-gray-300' : 'text-gray-700'} text-sm whitespace-pre-wrap min-h-24 p-4 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'} border ${isDark ? 'border-gray-600' : 'border-gray-200'}`}>{aiText}</div>
-            <div className="mt-3 grid grid-cols-2 gap-3">
-              <button onClick={async () => { const base = aiText.trim() ? aiText : prompt.trim(); if (!base) { toast.warning('请先生成文案或填写提示'); return } try { const r = await voiceService.synthesize(base, { format: 'mp3' }); setTtsUrl(r.audioUrl) } catch (e: any) { toast.error(e?.message || '朗读失败') } }} className="text-sm px-3 py-3 rounded-md bg-green-600 text-white transition-all duration-200 hover:bg-green-700 active:scale-98 font-medium">朗读</button>
-              <button onClick={() => { const text = aiText.trim(); if (!text) { toast.warning('暂无可复制的文案'); return } try { navigator.clipboard.writeText(text); toast.success('已复制文案'); } catch { toast.error('复制失败'); } }} className={`text-sm px-3 py-3 rounded-md ${isDark ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-900'} transition-all duration-200 hover:bg-opacity-80 active:scale-98 font-medium`}>复制文案</button>
-              <button onClick={() => { const text = aiText.trim(); if (!text) { toast.warning('暂无文案可插入'); return } setPrompt(text); toast.success('已插入到输入框'); }} className={`text-sm px-3 py-3 rounded-md ${isDark ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-900'} transition-all duration-200 hover:bg-opacity-80 active:scale-98 font-medium`}>插入到输入框</button>
-              <button onClick={() => { if (!aiText.trim()) { toast.warning('暂无文案可保存'); return } try { const raw = localStorage.getItem('NEO_COPY_HISTORY'); const arr = raw ? JSON.parse(raw) : []; const entry = { id: Date.now(), text: aiText.trim() }; const next = [entry, ...arr].slice(0, 50); localStorage.setItem('NEO_COPY_HISTORY', JSON.stringify(next)); toast.success('已保存到本地'); } catch { toast.error('保存失败'); } }} className={`text-sm px-3 py-3 rounded-md ${isDark ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-900'} transition-all duration-200 hover:bg-opacity-80 active:scale-98 font-medium`}>保存文案</button>
-              <button onClick={() => { setAiText(''); toast.success('已清空文案'); }} className={`text-sm px-3 py-3 rounded-md ${isDark ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-900'} transition-all duration-200 hover:bg-opacity-80 active:scale-98 font-medium col-span-2`}>清空文案</button>
-            </div>
-            {ttsUrl && (
-              <div className="mt-4">
-                <audio controls src={ttsUrl} className="w-full rounded-md border ${isDark ? 'border-gray-600' : 'border-gray-200'}" />
-              </div>
-            )}
-            {isGenerating && (<div className={`${isDark ? 'text-gray-500' : 'text-gray-400'} text-sm mt-2`}>生成中…</div>)}
           </div>
-          {videoHistory.length > 0 && (
+          )}
+
+          {/* History Tab */}
+          {activeTab === 'history' && (
+          <div className="space-y-6">
+          {videoHistory.length > 0 ? (
             <div className={`rounded-2xl shadow-md ${isDark ? 'bg-gray-800' : 'bg-white'} p-4 mt-6`}>
               <div className="font-bold mb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                 <span>视频历史</span>
@@ -2067,7 +2065,9 @@ export default function Neo() {
                     <label className="text-xs text-gray-500 dark:text-gray-400">筛选：</label>
                     <select
                       value={historyFilter}
-                      onChange={(e) => setHistoryFilter(e.target.value as any)}
+                      onChange={(e) => {
+                        setHistoryFilter(e.target.value as any);
+                      }}
                       className={`text-sm px-3 py-2 rounded border focus:ring-2 focus:ring-red-500 transition-all duration-300 ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
                     >
                       <option value="all">全部</option>
@@ -2081,7 +2081,9 @@ export default function Neo() {
                     <label className="text-xs text-gray-500 dark:text-gray-400">排序：</label>
                     <select
                       value={historySort}
-                      onChange={(e) => setHistorySort(e.target.value as any)}
+                      onChange={(e) => {
+                        setHistorySort(e.target.value as any);
+                      }}
                       className={`text-sm px-3 py-2 rounded border focus:ring-2 focus:ring-red-500 transition-all duration-300 ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
                     >
                       <option value="latest">最新</option>
@@ -2226,65 +2228,62 @@ export default function Neo() {
                     <span className="text-xs font-medium">全选/取消全选</span>
                   </div>
                   
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                   {filteredHistory.map((h, idx) => (
-                    <div key={idx} className="flex flex-col gap-3">
-                      <div className="flex flex-col gap-3">
-                        <div className="flex items-start gap-3">
-                          {/* 复选框 */}
-                          <input
-                            type="checkbox"
-                            checked={selectedHistory.includes(h.url)}
-                            onChange={() => toggleSelectHistory(h.url)}
-                            className="mt-1 text-red-600 h-4 w-4"
-                          />
+                    <div key={idx} className={`group relative rounded-lg overflow-hidden border ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-200'} shadow-sm hover:shadow-md transition-all duration-300`}>
+                      <div className="relative aspect-square bg-gray-100 dark:bg-gray-800">
+                        <img src={h.thumb || h.image} alt="thumb" className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                        
+                        {/* 悬浮覆盖层 */}
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col justify-between p-2">
+                          <div className="flex justify-between items-start">
+                            <input
+                              type="checkbox"
+                              checked={selectedHistory.includes(h.url)}
+                              onChange={(e) => { e.stopPropagation(); toggleSelectHistory(h.url) }}
+                              className="text-red-600 h-4 w-4 cursor-pointer"
+                            />
+                            <button
+                              onClick={(e) => { e.stopPropagation(); toggleFavorite(h.url) }}
+                              className={`p-1 rounded-full ${h.isFavorite ? 'text-yellow-400' : 'text-white hover:text-yellow-400'}`}
+                            >
+                              {h.isFavorite ? '★' : '☆'}
+                            </button>
+                          </div>
                           
-                          <div className="w-20 h-12 rounded overflow-hidden bg-gray-100 flex-shrink-0 shadow-sm">
-                            <img src={h.thumb || h.image} alt="thumb" className="w-full h-full object-cover transition-transform duration-300 hover:scale-110" />
+                          <div className="flex gap-1 justify-center">
+                             <button 
+                               className="p-1.5 bg-white/20 backdrop-blur-sm rounded-full text-white hover:bg-white/40 transition-colors"
+                               onClick={(e) => { e.stopPropagation(); try { window.open(h.url, '_blank') } catch {} }}
+                               title="打开"
+                             >
+                               <i className="fas fa-external-link-alt text-xs"></i>
+                             </button>
+                             <a 
+                               className="p-1.5 bg-white/20 backdrop-blur-sm rounded-full text-white hover:bg-white/40 transition-colors flex items-center justify-center"
+                               href={`${apiBase ? `${apiBase}` : ''}/api/proxy/video?url=${encodeURIComponent(h.url)}`} 
+                               download 
+                               onClick={(e) => e.stopPropagation()}
+                               title="下载"
+                             >
+                               <i className="fas fa-download text-xs"></i>
+                             </a>
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="text-xs break-all text-blue-600 flex-1">
-                                <a href={h.url} target="_blank" rel="noreferrer" className="underline hover:text-blue-800 transition-colors" title={h.url}>{shortenUrl(h.url)}</a>
-                              </div>
-                              {/* 收藏按钮 */}
-                              <button
-                                onClick={() => toggleFavorite(h.url)}
-                                className={`p-1 rounded-full transition-all duration-200 ${h.isFavorite ? 'text-yellow-500 transform scale-110' : 'text-gray-400 hover:text-yellow-500'}`}
-                                title={h.isFavorite ? '取消收藏' : '收藏'}
-                              >
-                                {h.isFavorite ? '★' : '☆'}
-                              </button>
-                            </div>
-                            <div className={`text-xs ${isDark ? 'text-gray-300' : 'text-gray-600'} flex flex-wrap gap-x-2 gap-y-1 mt-1`}>
-                              {formatResolution(h.width, h.height) && <span>分辨率：{formatResolution(h.width, h.height)}</span>}
-                              {formatDuration(h.duration) && <span>时长：{formatDuration(h.duration)}</span>}
-                              {formatTime(h.createdAt) && <span>生成时间：{formatTime(h.createdAt)}</span>}
-                              {h.isFavorite && <span className="text-yellow-500">已收藏</span>}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <button className={`px-3 py-2 rounded-md transition-all duration-200 ${isDark ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-900'} active:scale-98 text-sm`} onClick={() => { try { navigator.clipboard.writeText(h.url); toast.success('已复制链接') } catch {} }} aria-label="复制">
-                            <i className="fas fa-copy mr-1"></i> 复制
-                          </button>
-                          <button className={`px-3 py-2 rounded-md transition-all duration-200 ${isDark ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-900'} active:scale-98 text-sm`} onClick={() => { try { window.open(h.url, '_blank') } catch {} }} aria-label="打开">
-                            <i className="fas fa-external-link-alt mr-1"></i> 打开
-                          </button>
-                          <a className={`px-3 py-2 rounded-md transition-all duration-200 ${isDark ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-900'} active:scale-98 text-sm`} href={`${apiBase ? `${apiBase}` : ''}/api/proxy/video?url=${encodeURIComponent(h.url)}`} download aria-label="下载">
-                            <i className="fas fa-download mr-1"></i> 下载
-                          </a>
-                          <button className={`px-3 py-2 rounded-md transition-all duration-200 ${isDark ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-900'} active:scale-98 text-sm`} onClick={() => setHistoryPreviewOpen(prev => ({ ...prev, [h.url]: !prev[h.url] }))} aria-label={historyPreviewOpen[h.url] ? '收起预览' : '预览'}>
-                            <i className={`fas fa-${historyPreviewOpen[h.url] ? 'chevron-up' : 'chevron-down'} mr-1`}></i> {historyPreviewOpen[h.url] ? '收起' : '预览'}
-                          </button>
                         </div>
                       </div>
-                      {historyPreviewOpen[h.url] && (
-                        <div className="mt-2 w-full">
-                          <video controls src={`${apiBase ? `${apiBase}` : ''}/api/proxy/video?url=${encodeURIComponent(h.url)}`} className="w-full rounded-lg shadow-md border ${isDark ? 'border-gray-600' : 'border-gray-200'}" />
+                      
+                      <div className="p-2 text-xs">
+                        <div className={`truncate mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`} title={formatTime(h.createdAt)}>
+                          {formatTime(h.createdAt).split(' ')[0]}
                         </div>
-                      )}
+                        <div className="flex justify-between text-gray-500 dark:text-gray-400 scale-90 origin-left">
+                          <span>{formatResolution(h.width, h.height)}</span>
+                          <span>{formatDuration(h.duration)}</span>
+                        </div>
+                      </div>
                     </div>
                   ))}
+                  </div>
                 </div>
               ) : (
                 <div className={`${isDark ? 'text-gray-500' : 'text-gray-400'} text-sm text-center py-6`}>
@@ -2292,170 +2291,54 @@ export default function Neo() {
                 </div>
               )}
             </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+              <i className="fas fa-history text-4xl mb-4 opacity-50"></i>
+              <p>暂无历史记录</p>
+            </div>
           )}
-        </div>
-      </main>
-      
+          </div>
+          )}
+
+          </div> {/* Close engineCardRef */}
+      </div>
+
+
       {/* 风格预设模态框 */}
       {showPresetModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
           <div className={`rounded-2xl shadow-2xl ${isDark ? 'bg-gray-800' : 'bg-white'} p-6 max-w-md w-full max-h-[90vh] overflow-y-auto transition-all duration-300 transform scale-100 opacity-100`}>
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold">{editingPresetId ? '编辑风格预设' : '创建风格预设'}</h2>
-              <button 
-                onClick={closePresetModal}
-                className={`p-2 rounded-full ${isDark ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'} transition-all duration-200 hover:scale-110`}
-                aria-label="关闭"
-              >
-                <i className="fas fa-times"></i>
-              </button>
-            </div>
-            
-            <div className="space-y-4">
-              {/* 预设名称 */}
-              <div>
-                <label className="text-sm font-medium mb-2 block">预设名称 *</label>
-                <input
-                  type="text"
-                  value={presetForm.name}
-                  onChange={(e) => setPresetForm(prev => ({ ...prev, name: e.target.value }))}
-                  placeholder="输入预设名称"
-                  className={`w-full text-sm px-3 py-3 rounded-lg border focus:ring-2 focus:ring-red-500 transition-all duration-300 ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
-                />
-              </div>
-              
-              {/* 预设描述 */}
-              <div>
-                <label className="text-sm font-medium mb-2 block">预设描述</label>
-                <textarea
-                  value={presetForm.description}
-                  onChange={(e) => setPresetForm(prev => ({ ...prev, description: e.target.value }))}
-                  placeholder="输入预设描述（可选）"
-                  className={`w-full text-sm px-3 py-3 rounded-lg border focus:ring-2 focus:ring-red-500 transition-all duration-300 ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'} resize-y`}
-                  rows={2}
-                />
-              </div>
-              
-              {/* 品牌 */}
-              <div>
-                <label className="text-sm font-medium mb-2 block">品牌</label>
-                <input
-                  type="text"
-                  value={presetForm.brand}
-                  onChange={(e) => setPresetForm(prev => ({ ...prev, brand: e.target.value }))}
-                  placeholder="输入品牌名称"
-                  className={`w-full text-sm px-3 py-3 rounded-lg border focus:ring-2 focus:ring-red-500 transition-all duration-300 ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
-                />
-              </div>
-              
-              {/* 提示词 */}
-              <div>
-                <label className="text-sm font-medium mb-2 block">提示词</label>
-                <textarea
-                  value={presetForm.prompt}
-                  onChange={(e) => setPresetForm(prev => ({ ...prev, prompt: e.target.value }))}
-                  placeholder="输入提示词"
-                  className={`w-full text-sm px-3 py-3 rounded-lg border focus:ring-2 focus:ring-red-500 transition-all duration-300 ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'} resize-y`}
-                  rows={3}
-                />
-              </div>
-              
-              {/* 引擎选择 */}
-              <div>
-                <label className="text-sm font-medium mb-2 block">生成引擎</label>
-                <div className="flex gap-2">
-                  <button onClick={() => setPresetForm(prev => ({ ...prev, engine: 'sdxl' }))} className={`px-3 py-2 rounded-full text-sm transition-colors ${presetForm.engine==='sdxl' ? 'bg-red-600 hover:bg-red-700 text-white' : (isDark ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-100 hover:bg-gray-200 text-gray-700')}`}>SDXL</button>
-                  <button onClick={() => setPresetForm(prev => ({ ...prev, engine: 'doubao' }))} className={`px-3 py-2 rounded-full text-sm transition-colors ${presetForm.engine==='doubao' ? 'bg-red-600 hover:bg-red-700 text-white' : (isDark ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-100 hover:bg-gray-200 text-gray-700')}`}>Doubao</button>
-                </div>
-              </div>
-              
-              {/* 文本风格 */}
-              <div>
-                <label className="text-sm font-medium mb-2 block">文本风格</label>
-                <select
-                  value={presetForm.textStyle}
-                  onChange={(e) => setPresetForm(prev => ({ ...prev, textStyle: e.target.value as any }))}
-                  className={`w-full text-sm px-3 py-3 rounded-lg border focus:ring-2 focus:ring-red-500 transition-all duration-300 ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
-                >
-                  <option value="creative">创意</option>
-                  <option value="formal">正式</option>
-                  <option value="humorous">幽默</option>
-                  <option value="poetic">诗意</option>
-                </select>
-              </div>
-              
-              {/* 视频参数 */}
-              <div>
-                <label className="text-sm font-medium mb-2 block">视频参数</label>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">时长（秒）</label>
-                    <input
-                      type="number"
-                      min="3"
-                      max="30"
-                      value={presetForm.videoParams.duration}
-                      onChange={(e) => setPresetForm(prev => ({ ...prev, videoParams: { ...prev.videoParams, duration: parseInt(e.target.value) || 5 } }))}
-                      className={`w-full text-sm px-3 py-2 rounded border focus:ring-2 focus:ring-red-500 transition-all duration-300 ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">分辨率</label>
-                    <select
-                      value={presetForm.videoParams.resolution}
-                      onChange={(e) => setPresetForm(prev => ({ ...prev, videoParams: { ...prev.videoParams, resolution: e.target.value as any } }))}
-                      className={`w-full text-sm px-3 py-2 rounded border focus:ring-2 focus:ring-red-500 transition-all duration-300 ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
-                    >
-                      <option value="480p">480p</option>
-                      <option value="720p">720p</option>
-                      <option value="1080p">1080p</option>
-                    </select>
-                  </div>
-                </div>
-                <div className="mt-3">
-                  <label className="text-xs text-gray-500 dark:text-gray-400 mb-2 block">相机模式</label>
-                  <div className="flex items-center gap-4">
-                    <label className="flex items-center gap-2 cursor-pointer text-sm">
-                      <input
-                        type="radio"
-                        name="presetCameraMode"
-                        value="false"
-                        checked={!presetForm.videoParams.cameraFixed}
-                        onChange={() => setPresetForm(prev => ({ ...prev, videoParams: { ...prev.videoParams, cameraFixed: false } }))}
-                        className="text-red-600 h-4 w-4"
-                      />
-                      <span>动态</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer text-sm">
-                      <input
-                        type="radio"
-                        name="presetCameraMode"
-                        value="true"
-                        checked={presetForm.videoParams.cameraFixed}
-                        onChange={() => setPresetForm(prev => ({ ...prev, videoParams: { ...prev.videoParams, cameraFixed: true } }))}
-                        className="text-red-600 h-4 w-4"
-                      />
-                      <span>固定</span>
-                    </label>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            <div className="flex gap-3 mt-6">
-              <button 
-                onClick={savePreset}
-                className={`flex-1 bg-red-600 hover:bg-red-700 text-white px-4 py-3 rounded-lg font-medium transition-all duration-200 min-h-[44px] active:scale-98`}
-              >
-                {editingPresetId ? '更新预设' : '保存预设'}
-              </button>
-              <button 
-                onClick={closePresetModal}
-                className={`px-4 py-3 rounded-lg font-medium transition-all duration-200 min-h-[44px] active:scale-98 ${isDark ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
-              >
-                取消
-              </button>
-            </div>
+             <div className="flex items-center justify-between mb-6">
+               <h2 className="text-xl font-bold">{editingPresetId ? '编辑风格预设' : '创建风格预设'}</h2>
+               <button onClick={closePresetModal} className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"><i className="fas fa-times"></i></button>
+             </div>
+             
+             <div className="space-y-4">
+               <div>
+                  <label className="block mb-2 text-sm font-medium">预设名称</label>
+                  <input type="text" value={presetForm.name} onChange={e => setPresetForm(prev => ({...prev, name: e.target.value}))} className={`w-full p-2 border rounded ${isDark ? 'bg-gray-700 border-gray-600' : ''}`} />
+               </div>
+               
+               <div>
+                  <label className="block mb-2 text-sm font-medium">预设描述</label>
+                  <textarea value={presetForm.description} onChange={e => setPresetForm(prev => ({...prev, description: e.target.value}))} className={`w-full p-2 border rounded ${isDark ? 'bg-gray-700 border-gray-600' : ''}`} />
+               </div>
+
+               <div>
+                  <label className="block mb-2 text-sm font-medium">品牌</label>
+                  <input type="text" value={presetForm.brand} onChange={e => setPresetForm(prev => ({...prev, brand: e.target.value}))} className={`w-full p-2 border rounded ${isDark ? 'bg-gray-700 border-gray-600' : ''}`} />
+               </div>
+
+               <div>
+                  <label className="block mb-2 text-sm font-medium">提示词</label>
+                  <textarea value={presetForm.prompt} onChange={e => setPresetForm(prev => ({...prev, prompt: e.target.value}))} className={`w-full p-2 border rounded ${isDark ? 'bg-gray-700 border-gray-600' : ''}`} />
+               </div>
+             </div>
+             
+             <div className="flex gap-3 mt-6">
+                <button onClick={savePreset} className="flex-1 bg-red-600 text-white py-2 rounded">保存</button>
+                <button onClick={closePresetModal} className="px-4 py-2 bg-gray-200 rounded text-black">取消</button>
+             </div>
           </div>
         </div>
       )}
@@ -2776,17 +2659,6 @@ export default function Neo() {
         </div>
       )}
       
-      <footer className={`border-t ${isDark ? 'border-gray-800 bg-gray-900' : 'border-gray-200 bg-white'} py-6 px-4 z-10 relative`}>
-        <div className="container mx-auto flex justify-between items-center">
-          <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>© 2025 AI共创平台. 保留所有权利</p>
-          <div className="flex space-x-6">
-            <a href="/privacy" className={`text-sm ${isDark ? 'text-gray-400 hover:text-gray-300' : 'text-gray-600 hover:text-gray-900'} transition-colors`}>隐私政策</a>
-            <a href="/terms" className={`text-sm ${isDark ? 'text-gray-400 hover:text-gray-300' : 'text-gray-600 hover:text-gray-900'} transition-colors`}>服务条款</a>
-            <a href="/help" className={`text-sm ${isDark ? 'text-gray-400 hover:text-gray-300' : 'text-gray-600 hover:text-gray-900'} transition-colors`}>帮助中心</a>
-          </div>
-        </div>
-      </footer>
-      
       {/* 交互式教程 */}
       {showTutorial && currentTutorialStep < tutorialSteps.length && (
         <div className="fixed inset-0 z-50 pointer-events-none">
@@ -2842,18 +2714,18 @@ export default function Neo() {
         </div>
       )}
       
-      {/* 开始教程按钮 - 已隐藏 */}
-      {/* {!tutorialCompleted && !showTutorial && (
-        <div className="fixed bottom-4 right-4 z-40">
-          <button
-            onClick={startTutorial}
-            className={`flex items-center gap-2 px-4 py-2 rounded-full shadow-lg ${isDark ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'} transition-all duration-200 hover:scale-105`}
-          >
-            <i className="fas fa-play"></i>
-            开始教程
-          </button>
-        </div>
-      )} */}
-    </>
+      {!isEmbedded && (
+        <footer className={`border-t ${isDark ? 'border-gray-800 bg-gray-900' : 'border-gray-200 bg-white'} py-6 px-4 z-10 relative`}>
+          <div className="container mx-auto flex justify-between items-center">
+            <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>© 2025 AI共创平台. 保留所有权利</p>
+            <div className="flex space-x-6">
+              <a href="/privacy" className={`text-sm ${isDark ? 'text-gray-400 hover:text-gray-300' : 'text-gray-600 hover:text-gray-900'} transition-colors`}>隐私政策</a>
+              <a href="/terms" className={`text-sm ${isDark ? 'text-gray-400 hover:text-gray-300' : 'text-gray-600 hover:text-gray-900'} transition-colors`}>服务条款</a>
+              <a href="/help" className={`text-sm ${isDark ? 'text-gray-400 hover:text-gray-300' : 'text-gray-600 hover:text-gray-900'} transition-colors`}>帮助中心</a>
+            </div>
+          </div>
+        </footer>
+      )}
+    </div>
   )
 }

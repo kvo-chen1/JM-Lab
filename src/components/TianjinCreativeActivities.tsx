@@ -2,16 +2,11 @@ import { useState, useEffect, useContext, useRef, useMemo, useCallback, memo } f
 import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 
-import { isPrefetched } from '@/services/prefetch';
 import { toast } from 'sonner';
-import { TianjinImage, TianjinButton, YangliuqingCard } from './TianjinStyleComponents';
+import { TianjinImage, TianjinButton } from './TianjinStyleComponents';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '@/contexts/authContext';
 import { BRANDS } from '@/lib/brands';
-import eventCalendarService, { CulturalEvent } from '@/services/eventCalendarService';
-
-// 活动类型定义
-type Activity = CulturalEvent;
 
 // 模板类型定义
 interface Template {
@@ -55,31 +50,28 @@ export default memo(function TianjinCreativeActivities({ search: propSearch = ''
   const { isDark } = useTheme();
   const navigate = useNavigate();
   const { isAuthenticated } = useContext(AuthContext);
-  const [activeTab, setActiveTab] = useState<'activities' | 'templates' | 'offline' | 'brands'>('activities');
+  const [activeTab, setActiveTab] = useState<'templates' | 'offline' | 'brands'>('offline');
   const isLoading = false; // 直接设置为false，移除模拟加载
   const tabListRef = useRef<HTMLDivElement | null>(null);
   const [atStart, setAtStart] = useState(true);
   const [atEnd, setAtEnd] = useState(false);
   const [hasOverflow, setHasOverflow] = useState(false);
   const [search, setSearch] = useState(propSearch);
-  const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
-  const openActivityDetail = (a: Activity) => navigate(`/events/${a.id}`);
-  const closeActivityDetail = () => setSelectedActivity(null);
   // 中文注释：地域模板详情弹层状态
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
-  const openTemplateDetail = (t: Template) => setSelectedTemplate(t);
-  const closeTemplateDetail = () => setSelectedTemplate(null);
+  const openTemplateDetail = useCallback((t: Template) => setSelectedTemplate(t), []);
+  const closeTemplateDetail = useCallback(() => setSelectedTemplate(null), []);
   // 中文注释：线下体验详情弹层状态
   const [selectedExperience, setSelectedExperience] = useState<OfflineExperience | null>(null);
-  const openExperienceDetail = (e: OfflineExperience) => setSelectedExperience(e);
-  const closeExperienceDetail = () => setSelectedExperience(null);
+  const openExperienceDetail = useCallback((e: OfflineExperience) => setSelectedExperience(e), []);
+  const closeExperienceDetail = useCallback(() => setSelectedExperience(null), []);
   // 中文注释：老字号品牌详情弹层状态
   const [selectedBrand, setSelectedBrand] = useState<TraditionalBrand | null>(null);
-  const openBrandDetail = (b: TraditionalBrand) => setSelectedBrand(b);
-  const closeBrandDetail = () => setSelectedBrand(null);
+  const openBrandDetail = useCallback((b: TraditionalBrand) => setSelectedBrand(b), []);
+  const closeBrandDetail = useCallback(() => setSelectedBrand(null), []);
   const brandSentinelRef = useRef<HTMLDivElement | null>(null); // 中文注释：品牌区无限滚动哨兵引用
   const [brandPage, setBrandPage] = useState<number>(1); // 中文注释：品牌区当前分页
-  const brandPageSize = 36; // 中文注释：品牌区每页数量
+  const brandPageSize = 24; // 中文注释：品牌区每页数量，减少为24以提高初始加载性能
   
   // 当外部搜索属性变化时，更新内部搜索状态
   useEffect(() => {
@@ -121,30 +113,6 @@ export default memo(function TianjinCreativeActivities({ search: propSearch = ''
     const activeEl = el.querySelector('[aria-selected="true"]') as HTMLElement | null;
     if (activeEl) activeEl.scrollIntoView({ behavior: 'smooth', inline: 'nearest', block: 'nearest' });
   }, [activeTab]);
-  
-  // 使用eventCalendarService中的活动数据
-  const activities: Activity[] = useMemo(() => {
-    return eventCalendarService.getAllEvents().map(event => ({
-      ...event,
-      participants: event.participantCount
-    }));
-  }, []);
-
-  const [joinedActivities, setJoinedActivities] = useState<string[]>([]);
-
-  const handleParticipate = (a: Activity) => {
-    if (!isAuthenticated) {
-      toast.warning('请先登录后再参与活动');
-      setTimeout(() => navigate('/login'), 800);
-      return;
-    }
-    setJoinedActivities(prev => (prev.includes(a.id) ? prev : [...prev, a.id]));
-    const params = new URLSearchParams();
-    params.set('prompt', a.title);
-    params.set('activity', a.id);
-    toast.success('已为你创建活动草稿，进入创作页面');
-    navigate(`/create?${params.toString()}`);
-  };
   
   // 模拟模板数据
   const templates: Template[] = useMemo(() => [
@@ -773,24 +741,17 @@ export default memo(function TianjinCreativeActivities({ search: propSearch = ''
   })), []);
   const allBrands: TraditionalBrand[] = useMemo(() => ([...traditionalBrands, ...extraBrands]), [traditionalBrands, extraBrands]);
   
-  const handleApplyTemplate = (templateId: number) => {
+  const handleApplyTemplate = useCallback((templateId: number) => {
     void templateId;
     toast.success('已应用模板到您的创作空间');
-  };
+  }, []);
   
-  const handleBookExperience = (experienceId: number) => {
+  const handleBookExperience = useCallback((experienceId: number) => {
     void experienceId;
     toast.success('预约成功！我们会尽快与您联系确认详情');
-  };
+  }, []);
   
   const searchLower = typeof search === 'string' ? search.trim().toLowerCase() : '';
-  
-  // 使用useMemo缓存过滤结果，减少不必要的重复计算
-  const filteredActivities = useMemo(() => {
-    return searchLower
-      ? activities.filter((a) => [a.title, a.description].some((s) => typeof s === 'string' && s.toLowerCase().includes(searchLower)))
-      : activities;
-  }, [searchLower, activities]);
   
   const filteredTemplates = useMemo(() => {
     return searchLower
@@ -831,45 +792,11 @@ export default memo(function TianjinCreativeActivities({ search: propSearch = ''
         if (entry.isIntersecting) {
           setBrandPage((prev) => (prev < maxPages ? prev + 1 : prev));
         }
-      }, { rootMargin: '200px' });
+      }, { rootMargin: '500px' });
       observer.observe(el);
       return () => observer.disconnect();
     } catch (error) {
       console.error('IntersectionObserver error:', error);
-    }
-  }, [activeTab, filteredBrands.length, brandPageSize]);
-  
-  // 中文注释：品牌区无限滚动降级方案（滚动到页面底部触发）
-  useEffect(() => {
-    if (activeTab !== 'brands') return;
-    
-    try {
-      const maxPages = Math.ceil(filteredBrands.length / brandPageSize);
-      let ticking = false;
-      const onScroll = () => {
-        if (ticking) return;
-        ticking = true;
-        requestAnimationFrame(() => {
-          ticking = false;
-          const doc = document.documentElement;
-          if (!doc) return;
-          
-          const scrollBottom = (window.scrollY || doc.scrollTop) + window.innerHeight;
-          const docHeight = Math.max(
-            doc.scrollHeight || 0,
-            doc.offsetHeight || 0,
-            document.body?.scrollHeight || 0,
-            document.body?.offsetHeight || 0
-          );
-          if (scrollBottom >= docHeight - 300) {
-            setBrandPage((prev) => (prev < maxPages ? prev + 1 : prev));
-          }
-        });
-      };
-      window.addEventListener('scroll', onScroll, { passive: true });
-      return () => window.removeEventListener('scroll', onScroll);
-    } catch (error) {
-      console.error('Scroll event listener error:', error);
     }
   }, [activeTab, filteredBrands.length, brandPageSize]);
   
@@ -899,16 +826,15 @@ export default memo(function TianjinCreativeActivities({ search: propSearch = ''
   }
   
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.5 }}
+    <div
       className={`p-4 md:p-6 rounded-xl ${isDark ? 'bg-gray-800/50 backdrop-blur-sm border border-gray-700' : 'bg-white/80 backdrop-blur-sm border border-gray-100'} shadow-lg flex-1 flex flex-col md:flex-row gap-6`}
     >
       {/* 左侧主内容区 */}
       <div className="w-full md:w-2/3">
         {/* 标签页切换 */}
-        <div className="relative mb-6">
+        <div className={`relative mb-6 sticky top-0 z-20 py-2 -mx-2 px-2 transition-colors duration-300 ${
+          isDark ? 'bg-gray-800/95 backdrop-blur-md' : 'bg-white/95 backdrop-blur-md'
+        }`}>
         <div
           className={`pointer-events-none absolute left-0 top-0 bottom-0 w-8 ${
             isDark ? 'bg-gradient-to-r from-gray-800/50 to-transparent' : 'bg-gradient-to-r from-white/80 to-transparent'
@@ -926,14 +852,13 @@ export default memo(function TianjinCreativeActivities({ search: propSearch = ''
           }}
         >
           {[
-            { id: 'activities', name: '主题活动' },
-            { id: 'templates', name: '地域模板' },
             { id: 'offline', name: '线下体验' },
+            { id: 'templates', name: '地域模板' },
             { id: 'brands', name: '老字号联名' }
           ].map((tab) => (
-            <motion.button
+            <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id as 'activities' | 'templates' | 'offline' | 'brands')}
+              onClick={() => setActiveTab(tab.id as 'templates' | 'offline' | 'brands')}
               role="tab"
               aria-selected={activeTab === tab.id}
               title={tab.name}
@@ -944,11 +869,9 @@ export default memo(function TianjinCreativeActivities({ search: propSearch = ''
                     ? 'bg-gray-700/80 hover:bg-gray-700/100 hover:text-red-400' 
                     : 'bg-gray-100 hover:bg-gray-200 hover:text-red-600'
               } ${isDark ? 'focus-visible:ring-offset-2 focus-visible:ring-offset-gray-800' : 'focus-visible:ring-offset-2 focus-visible:ring-offset-white'}`}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.98 }}
             >
               {tab.name}
-            </motion.button>
+            </button>
           ))}
         </div>
         <div
@@ -972,111 +895,17 @@ export default memo(function TianjinCreativeActivities({ search: propSearch = ''
         </button>
       </div>
       
-      {/* 主题活动内容 */}
-      {activeTab === 'activities' && (
-        <div className="grid grid-cols-1 gap-6">
-          {filteredActivities.map((activity) => (
-            <motion.div
-              key={activity.id}
-              className={`rounded-2xl overflow-hidden shadow-lg border transition-all duration-300 ${
-                isDark ? 'border-gray-700 bg-gray-800 hover:shadow-xl' : 'border-gray-200 bg-white hover:shadow-xl'
-              }`}
-              whileHover={{ y: -5 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <div className="relative">
-                <TianjinImage 
-                  src={activity.image} 
-                  alt={activity.title} 
-                  className="cursor-pointer w-full aspect-[16/9] object-cover transition-transform duration-500 hover:scale-105"
-                  ratio="landscape"
-                  rounded="none"
-                  onClick={() => openActivityDetail(activity)}
-                />
-                <div className="absolute top-4 left-4">
-                  <span className={`text-xs font-medium px-3 py-1.5 rounded-full ${
-                    activity.status === 'ongoing' 
-                      ? 'bg-green-600 text-white shadow-lg shadow-green-600/30' 
-                      : activity.status === 'upcoming'
-                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30'
-                        : 'bg-gray-600 text-white shadow-lg'
-                  }`}>
-                    {activity.status === 'ongoing' ? '进行中' : 
-                     activity.status === 'upcoming' ? '即将开始' : '已结束'}
-                  </span>
-                </div>
-                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
-                  <div className="flex items-center bg-black/30 backdrop-blur-sm px-3 py-1.5 rounded-full inline-block">
-                    <i className="fas fa-user-friends text-white mr-1.5"></i>
-                    <span className="text-white text-sm font-medium">{activity.participantCount + (joinedActivities.includes(activity.id) ? 1 : 0)}人参与</span>
-                  </div>
-                </div>
-              </div>
-              <div className={`p-5 ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
-                <h4 className="font-bold text-lg mb-3 line-clamp-2 leading-tight">{activity.title}</h4>
-                <p className={`text-sm mb-4 line-clamp-3 leading-relaxed ${
-                  isDark ? 'text-gray-300' : 'text-gray-600'
-                }`}>
-                  {activity.description}
-                </p>
-                <div className="flex flex-col gap-3 mb-5">
-                  <div className="flex items-center text-sm">
-                    <span className={`${isDark ? 'text-gray-300' : 'text-gray-700'} flex-1`}>
-                      <i className="far fa-calendar-alt mr-2"></i>
-                      {activity.startDate} - {activity.endDate}
-                    </span>
-                  </div>
-                  <div className="flex gap-2 flex-wrap">
-                    <span className={`px-3 py-1.5 rounded-full text-xs font-medium ${
-                      isDark ? 'bg-gray-700 text-gray-200' : 'bg-gray-100 text-gray-800'
-                    }`}>
-                      <i className="fas fa-map-marker-alt mr-1.5"></i>
-                      线上
-                    </span>
-                    <span className={`px-3 py-1.5 rounded-full text-xs font-medium ${
-                      isDark ? 'bg-gray-700 text-gray-200' : 'bg-gray-100 text-gray-800'
-                    }`}>
-                      <i className="fas fa-tag mr-1.5"></i>
-                      设计
-                    </span>
-                  </div>
-                </div>
-                <div className="space-y-3">
-                  <TianjinButton
-                    onClick={() => handleParticipate(activity)}
-                    variant="primary"
-                    fullWidth
-                    disabled={activity.status !== 'ongoing' || joinedActivities.includes(activity.id)}
-                    loading={false}
-                    className="rounded-xl py-3.5 text-sm font-semibold"
-                  >
-                    {activity.status !== 'ongoing' ? '活动已结束' : joinedActivities.includes(activity.id) ? '已参与' : '立即参与'}
-                  </TianjinButton>
-                  <TianjinButton 
-                    onClick={() => openActivityDetail(activity)}
-                    variant="secondary"
-                    fullWidth
-                    className="rounded-xl py-3.5 text-sm font-semibold"
-                  >
-                    查看详情
-                  </TianjinButton>
-                </div>
-              </div>
-            </motion.div>
-          ))}
-        </div>
-      )}
+      {/* 主题活动内容 - 已移除，功能迁移至文化活动页 */}
       
       {/* 地域模板内容 */}
       {activeTab === 'templates' && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4">
           {filteredTemplates.map((template) => (
-            <motion.div
+            <div
               key={template.id}
-              className={`rounded-xl overflow-hidden shadow-md border ${
+              className={`rounded-xl overflow-hidden shadow-md border transition-transform duration-300 hover:-translate-y-1 ${
                 isDark ? 'border-gray-700' : 'border-gray-200'
               }`}
-              whileHover={{ y: -5 }}
             >
               <TianjinImage 
                 src={template.thumbnail} 
@@ -1117,7 +946,7 @@ export default memo(function TianjinCreativeActivities({ search: propSearch = ''
                   查看详情
                 </button>
               </div>
-            </motion.div>
+            </div>
           ))}
         </div>
       )}
@@ -1126,12 +955,11 @@ export default memo(function TianjinCreativeActivities({ search: propSearch = ''
       {activeTab === 'offline' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {filteredExperiences.map((experience) => (
-            <motion.div
+            <div
               key={experience.id}
-              className={`rounded-xl overflow-hidden shadow-md border ${
+              className={`rounded-xl overflow-hidden shadow-md border transition-transform duration-300 hover:-translate-y-1 ${
                 isDark ? 'border-gray-700' : 'border-gray-200'
               }`}
-              whileHover={{ y: -5 }}
             >
               <TianjinImage src={experience.image} alt={experience.name} ratio="landscape" rounded="xl" onClick={() => openExperienceDetail(experience)} />
               <div className={`p-4 ${isDark ? 'bg-gray-700' : 'bg-white'}`}>
@@ -1140,12 +968,16 @@ export default memo(function TianjinCreativeActivities({ search: propSearch = ''
                   <div className="flex items-center">
                     <i className="fas fa-star text-yellow-500 text-xs mr-1"></i>
                     <span className="text-sm">{experience.rating}</span>
-                    <span className={`text-xs ml-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                    <span className={`text-xs ml-1 ${
+                      isDark ? 'text-gray-400' : 'text-gray-600'
+                    }`}>
                       ({experience.reviewCount})
                     </span>
                   </div>
                 </div>
-                <p className={`text-sm mb-3 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                <p className={`text-sm mb-3 ${
+                  isDark ? 'text-gray-400' : 'text-gray-600'
+                }`}>
                   {experience.description}
                 </p>
                 <div className="mb-3">
@@ -1172,12 +1004,14 @@ export default memo(function TianjinCreativeActivities({ search: propSearch = ''
                 </button>
                 <button 
                   onClick={() => openExperienceDetail(experience)}
-                  className={`mt-2 w-full py-2 rounded-lg ${isDark ? 'bg-gray-600 hover:bg-gray-500 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-800'}`}
+                  className={`mt-2 w-full py-2 rounded-lg ${
+                    isDark ? 'bg-gray-600 hover:bg-gray-500 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-800'
+                  }`}
                 >
                   查看详情
                 </button>
               </div>
-            </motion.div>
+            </div>
           ))}
         </div>
       )}
@@ -1186,12 +1020,11 @@ export default memo(function TianjinCreativeActivities({ search: propSearch = ''
       {activeTab === 'brands' && (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 gap-6">
           {pagedBrands.map((brand) => (
-            <motion.div
+            <div
               key={brand.id}
-              className={`p-4 rounded-xl shadow-md border transition-shadow ${
+              className={`p-4 rounded-xl shadow-md border transition-all duration-300 hover:-translate-y-1 hover:shadow-lg ${
                 isDark ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-200'
-              } group hover:shadow-lg`}
-              whileHover={{ y: -5 }}
+              } group`}
             >
               <div className="flex items-center mb-4">
                 <div
@@ -1205,19 +1038,25 @@ export default memo(function TianjinCreativeActivities({ search: propSearch = ''
                 </div>
                 <div>
                   <h4 className="font-bold">{brand.name}</h4>
-                  <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                  <p className={`text-sm ${
+                    isDark ? 'text-gray-400' : 'text-gray-600'
+                  }`}>
                     创立于 {brand.establishedYear}年
                   </p>
                 </div>
               </div>
-              <p className={`text-sm mb-4 ${isDark ? 'text-gray-400' : 'text-gray-600'} line-clamp-2`}>
+              <p className={`text-sm mb-4 ${
+                isDark ? 'text-gray-400' : 'text-gray-600'
+              } line-clamp-2`}>
                 {brand.description}
               </p>
               <div className="grid grid-cols-2 gap-3 mb-4">
                 <div className={`p-2 rounded-lg ${
                   isDark ? 'bg-gray-600' : 'bg-gray-100'
                 } text-center`}>
-                  <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'} mb-1`}>
+                  <p className={`text-xs ${
+                    isDark ? 'text-gray-400' : 'text-gray-600'
+                  } mb-1`}>
                     定制工具
                   </p>
                   <p className="font-bold">{brand.collaborationTools}</p>
@@ -1225,7 +1064,9 @@ export default memo(function TianjinCreativeActivities({ search: propSearch = ''
                 <div className={`p-2 rounded-lg ${
                   isDark ? 'bg-gray-600' : 'bg-gray-100'
                 } text-center`}>
-                  <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'} mb-1`}>
+                  <p className={`text-xs ${
+                    isDark ? 'text-gray-400' : 'text-gray-600'
+                  } mb-1`}>
                     热度指数
                   </p>
                   <p className="font-bold">{brand.popularity}</p>
@@ -1242,7 +1083,7 @@ export default memo(function TianjinCreativeActivities({ search: propSearch = ''
                   查看详情
                 </TianjinButton>
               </div>
-            </motion.div>
+            </div>
           ))}
         </div>
       )}
@@ -1258,7 +1099,7 @@ export default memo(function TianjinCreativeActivities({ search: propSearch = ''
       </div>
       
       {/* 右侧补充内容区 */}
-      <div className="w-full md:w-1/3 space-y-6">
+      <div className="w-full md:w-1/3 space-y-6 sticky top-24 self-start">
         {/* 热门话题 */}
         <div className={`p-4 rounded-xl shadow-md ${isDark ? 'bg-gray-700' : 'bg-white'}`}>
           <h3 className="font-bold text-lg mb-4">热门话题</h3>
@@ -1281,52 +1122,12 @@ export default memo(function TianjinCreativeActivities({ search: propSearch = ''
           </div>
         </div>
         
-        {/* 活动推荐 */}
-        <div className={`p-4 rounded-xl shadow-md ${isDark ? 'bg-gray-700' : 'bg-white'}`}>
-          <h3 className="font-bold text-lg mb-4">活动推荐</h3>
-          <div className="space-y-3">
-            {filteredActivities.slice(0, 2).map((activity) => (
-              <div key={activity.id} className="flex gap-3">
-                <TianjinImage 
-                  src={activity.image} 
-                  alt={activity.title} 
-                  className="w-20 h-20 object-cover rounded-lg"
-                  ratio="square"
-                />
-                <div className="flex-1 min-w-0">
-                  <h4 className="font-medium text-sm truncate">{activity.title}</h4>
-                  <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'} mt-1`}>
-                    <i className="far fa-calendar-alt mr-1"></i>
-                    {activity.startDate}
-                  </p>
-                  <span className={`inline-block mt-1 px-1.5 py-0.5 rounded-full text-xs ${
-                    activity.status === 'ongoing' 
-                      ? 'bg-green-600 text-white' 
-                      : activity.status === 'upcoming'
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-600 text-white'
-                  }`}>
-                    {activity.status === 'ongoing' ? '进行中' : 
-                     activity.status === 'upcoming' ? '即将开始' : '已结束'}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+        {/* 活动推荐 - 已移除，功能迁移至文化活动页 */}
         
         {/* 数据统计 */}
         <div className={`p-4 rounded-xl shadow-md ${isDark ? 'bg-gray-700' : 'bg-white'}`}>
           <h3 className="font-bold text-lg mb-4">数据统计</h3>
           <div className="grid grid-cols-2 gap-3">
-            <div className={`p-3 rounded-lg ${
-              isDark ? 'bg-gray-600' : 'bg-gray-100'
-            } text-center`}>
-              <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'} mb-1`}>
-                总活动数
-              </p>
-              <p className="font-bold text-xl">{filteredActivities.length}</p>
-            </div>
             <div className={`p-3 rounded-lg ${
               isDark ? 'bg-gray-600' : 'bg-gray-100'
             } text-center`}>
@@ -1354,99 +1155,7 @@ export default memo(function TianjinCreativeActivities({ search: propSearch = ''
           </div>
         </div>
       </div>
-        {/* 活动详情弹层 */}
-        {selectedActivity && (
-          <div className="fixed inset-0 z-40 flex items-center justify-center">
-            <div className="absolute inset-0 bg-black/50" onClick={closeActivityDetail}></div>
-            <motion.div 
-              initial={{ scale: 0.95, opacity: 0 }} 
-              animate={{ scale: 1, opacity: 1 }} 
-              exit={{ scale: 0.95, opacity: 0 }} 
-              transition={{ duration: 0.2 }}
-              className={`relative z-50 w-full max-w-5xl mx-4 rounded-2xl overflow-hidden shadow-2xl ${isDark ? 'bg-gray-800' : 'bg-white'}`}
-            >
-              <div className={`flex justify-between items-center px-6 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
-                <h4 className="text-lg font-bold">{selectedActivity.title}</h4>
-                <button 
-                  onClick={closeActivityDetail}
-                  className={`px-3 py-1 rounded-lg ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}
-                  aria-label="关闭详情"
-                >
-                  关闭
-                </button>
-              </div>
-              <div className="px-6 py-4 grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div>
-                  <TianjinImage src={selectedActivity.image} alt={selectedActivity.title} className="w-full" ratio="landscape" rounded="xl" />
-                  <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
-                    <span className={`px-2 py-1 rounded ${
-                      selectedActivity.status === 'ongoing' ? 'bg-green-600 text-white' : selectedActivity.status === 'upcoming' ? 'bg-blue-600 text-white' : 'bg-gray-600 text-white'}`}>
-                      {selectedActivity.status === 'ongoing' ? '进行中' : selectedActivity.status === 'upcoming' ? '即将开始' : '已结束'}</span>
-                    <span className={`${isDark ? 'bg-gray-700 text-gray-200' : 'bg-gray-100 text-gray-700'} px-2 py-1 rounded`}>参与 {selectedActivity.participantCount}</span>
-                    <span className={`${isDark ? 'bg-gray-700 text-gray-200' : 'bg-gray-100 text-gray-700'} px-2 py-1 rounded`}>{selectedActivity.startDate} - {selectedActivity.endDate}</span>
-                  </div>
-                </div>
-                <div>
-                  <p className={`${isDark ? 'text-gray-300' : 'text-gray-700'} text-sm mb-3`}>{selectedActivity.description}</p>
-                  <div className="grid grid-cols-2 gap-3 text-sm mb-3">
-                    <div className={`${isDark ? 'bg-gray-700' : 'bg-gray-100'} rounded-lg p-3`}>
-                      <p className={`${isDark ? 'text-gray-400' : 'text-gray-600'} mb-1`}>活动地点</p>
-                      <p className="font-medium">{selectedActivity.title.includes('海河') ? '海河沿线' : selectedActivity.title.includes('静海') ? '静海区' : '天津市区'}</p>
-                    </div>
-                    <div className={`${isDark ? 'bg-gray-700' : 'bg-gray-100'} rounded-lg p-3`}>
-                      <p className={`${isDark ? 'text-gray-400' : 'text-gray-600'} mb-1`}>主办单位</p>
-                      <p className="font-medium">天津市文化和旅游局（联合主办）</p>
-                    </div>
-                  </div>
-                  <div className={`rounded-lg p-3 ${isDark ? 'bg-gray-700' : 'bg-gray-50'} mb-3`}>
-                    <p className="font-medium mb-2">参赛要求</p>
-                    <ul className={`${isDark ? 'text-gray-300' : 'text-gray-700'} text-sm space-y-1 list-disc pl-5`}>
-                      <li>围绕主题原创设计，保证作品版权归属清晰</li>
-                      <li>提交源文件与展示稿，标注主要创意与元素来源</li>
-                      <li>允许团队或个人参赛，跨学科协作加分</li>
-                    </ul>
-                  </div>
-                  <div className={`rounded-lg p-3 ${isDark ? 'bg-gray-700' : 'bg-gray-50'} mb-3`}>
-                    <p className="font-medium mb-2">奖项设置</p>
-                    <div className="grid grid-cols-3 gap-2 text-center">
-                      <div className={`${isDark ? 'bg-gray-600' : 'bg-white'} rounded-lg p-2 shadow-sm`}>
-                        <p className="text-xs">金奖</p>
-                        <p className="font-bold">1</p>
-                      </div>
-                      <div className={`${isDark ? 'bg-gray-600' : 'bg-white'} rounded-lg p-2 shadow-sm`}>
-                        <p className="text-xs">银奖</p>
-                        <p className="font-bold">2</p>
-                      </div>
-                      <div className={`${isDark ? 'bg-gray-600' : 'bg-white'} rounded-lg p-2 shadow-sm`}>
-                        <p className="text-xs">优秀奖</p>
-                        <p className="font-bold">5</p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex gap-3">
-                    <button
-                      onClick={() => selectedActivity && handleParticipate(selectedActivity)}
-                      className={`flex-1 py-2 rounded-lg ${selectedActivity.status !== 'ongoing'
-                        ? (isDark ? 'bg-gray-600 text-white cursor-not-allowed' : 'bg-gray-300 text-gray-700 cursor-not-allowed')
-                        : joinedActivities.includes(selectedActivity.id)
-                          ? 'bg-green-600 text-white cursor-default'
-                          : 'bg-red-600 hover:bg-red-700 text-white'}`}
-                      disabled={selectedActivity.status !== 'ongoing' || joinedActivities.includes(selectedActivity.id)}
-                    >
-                      {selectedActivity.status !== 'ongoing' ? '活动已结束' : joinedActivities.includes(selectedActivity.id) ? '已参与' : '立即参与'}
-                    </button>
-                    <button 
-                      className={`flex-1 py-2 rounded-lg ${isDark ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-800'}`}
-                      onClick={closeActivityDetail}
-                    >
-                      关闭
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
+        {/* 活动详情弹层 - 已移除 */}
 
         {/* 中文注释：地域模板详情弹层 */}
         {selectedTemplate && (
@@ -1604,7 +1313,6 @@ export default memo(function TianjinCreativeActivities({ search: propSearch = ''
             </motion.div>
           </div>
         )}
-
-      </motion.div>
+    </div>
   );
 });

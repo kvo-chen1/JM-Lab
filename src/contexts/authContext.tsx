@@ -1,6 +1,9 @@
 import { createContext, useState, ReactNode, useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import securityService from "../services/securityService";
+import eventBus from '../lib/eventBus'; // 导入事件总线
+import { toast } from 'sonner';
+import userStatsService from '../services/userStatsService';
 
 // 用户类型定义
 export interface User {
@@ -13,6 +16,13 @@ export interface User {
   isAdmin?: boolean;
   age?: number;
   tags?: string[];
+  // 新用户标记
+  isNewUser?: boolean;
+  // 统计数据
+  worksCount?: number;
+  followersCount?: number;
+  followingCount?: number;
+  favoritesCount?: number;
   // 会员相关字段
   membershipLevel: 'free' | 'premium' | 'vip';
   membershipStart?: string;
@@ -25,10 +35,11 @@ interface AuthContextType {
   isAuthenticated: boolean;
   user: User | null;
   login: (email: string, password: string) => Promise<boolean>;
+  loginWithCode: (type: 'email' | 'phone', identifier: string, code: string) => Promise<boolean>;
   register: (username: string, email: string, password: string, age?: string, tags?: string[]) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   setIsAuthenticated: (value: boolean) => void;
-  quickLogin: (provider: 'wechat' | 'phone' | 'alipay' | 'qq' | 'weibo') => Promise<boolean>;
+  quickLogin: (provider: 'wechat' | 'phone' | 'alipay' | 'qq' | 'weibo' | 'google' | 'github' | 'twitter' | 'discord') => Promise<boolean>;
   // 中文注释：更新用户信息（例如更换头像），会自动持久化
   updateUser: (partial: Partial<User>) => void;
   // 会员相关方法
@@ -52,6 +63,7 @@ export const AuthContext = createContext<AuthContextType>({
   isAuthenticated: false,
   user: null,
   login: async () => false,
+  loginWithCode: async () => false,
   register: async () => ({ success: false, error: '默认注册方法未实现' }),
   logout: () => {},
   setIsAuthenticated: () => {},
@@ -67,9 +79,17 @@ export const AuthContext = createContext<AuthContextType>({
 
 // AuthProvider 组件
 export const AuthProvider = ({ children }: AuthProviderProps) => {
-  // 检查是否为开发环境
+  // 检查是否为开发环境或测试环境
   const isDevelopment = () => {
-    return import.meta.env?.MODE === 'development' || import.meta.env?.DEV === true;
+    try {
+      // 先检查process是否存在，再检查NODE_ENV
+      return typeof process !== 'undefined' && 
+             process.env && 
+             (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test');
+    } catch (error) {
+      // 如果process不可用，返回true作为默认值
+      return true;
+    }
   };
   
   // 从本地存储获取用户认证状态
@@ -88,10 +108,17 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           ? parsedUser.avatar 
           : 'https://picsum.photos/id/1005/200/200';
         
-        // 添加默认会员信息
+        // 添加默认会员信息和统计数据
         return {
           ...parsedUser,
           avatar: avatarUrl,
+          // 确保新用户标记有值
+          isNewUser: parsedUser.isNewUser || false,
+          // 确保统计数据有默认值
+          worksCount: parsedUser.worksCount || 0,
+          followersCount: parsedUser.followersCount || 0,
+          followingCount: parsedUser.followingCount || 0,
+          favoritesCount: parsedUser.favoritesCount || 0,
           membershipLevel: parsedUser.membershipLevel || 'free',
           membershipStatus: parsedUser.membershipStatus || 'active',
           membershipStart: parsedUser.membershipStart || new Date().toISOString(),
@@ -119,16 +146,106 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   }, [isAuthenticated, user]);
 
+  // 检查用户统计数据完整性
+  useEffect(() => {
+    if (isAuthenticated && user && user.id) {
+      const checkStats = async () => {
+        try {
+          const isComplete = await userStatsService.checkStatsIntegrity(user.id);
+          if (!isComplete) {
+            console.log('用户统计数据不完整，已自动修复');
+          }
+        } catch (error) {
+          console.error('检查用户统计数据完整性失败:', error);
+        }
+      };
+      checkStats();
+    }
+  }, [isAuthenticated, user]);
+
   // 检查用户认证状态
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        // 只有在supabase有效时才尝试获取会话
+        // 检查是否为开发环境或测试环境
+        if (isDevelopment()) {
+          // 开发/测试环境：检查 URL 中是否有 OAuth 重定向参数
+          const hashParams = new URLSearchParams(window.location.hash.substring(1));
+          const searchParams = new URLSearchParams(window.location.search);
+          const hasOAuthParams = hashParams.has('access_token') || searchParams.has('code') || hashParams.has('session_state');
+
+          if (hasOAuthParams) {
+            // 有 OAuth 重定向参数，尝试从 Supabase 获取 session
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session && session.user) {
+              const avatarUrl = 'https://picsum.photos/id/1005/200/200';
+              const userWithMembership = {
+            id: session.user.id,
+            username: session.user.user_metadata?.username || session.user.email?.split('@')[0] || '用户',
+            email: session.user.email || '',
+            avatar: avatarUrl,
+            phone: session.user.user_metadata?.phone || '',
+            interests: session.user.user_metadata?.interests || [],
+            isAdmin: session.user.user_metadata?.isAdmin || false,
+            age: session.user.user_metadata?.age || 0,
+            tags: session.user.user_metadata?.tags || [],
+            // 标记为新用户（如果是首次登录）
+            isNewUser: session.user.user_metadata?.isNewUser || false,
+            // 初始化统计数据
+            worksCount: session.user.user_metadata?.worksCount || 0,
+            followersCount: session.user.user_metadata?.followersCount || 0,
+            followingCount: session.user.user_metadata?.followingCount || 0,
+            favoritesCount: session.user.user_metadata?.favoritesCount || 0,
+            membershipLevel: session.user.user_metadata?.membershipLevel || 'free',
+            membershipStart: session.user.user_metadata?.membershipStart || new Date().toISOString(),
+            membershipEnd: session.user.user_metadata?.membershipEnd,
+            membershipStatus: session.user.user_metadata?.membershipStatus || 'active',
+          };
+              localStorage.setItem('user', JSON.stringify(userWithMembership));
+              localStorage.setItem('isAuthenticated', 'true');
+              setUser(userWithMembership);
+              setIsAuthenticated(true);
+              // 清理 URL 中的 OAuth 参数
+              window.history.replaceState({}, document.title, window.location.pathname);
+              return;
+            }
+          }
+
+          // 没有 OAuth 参数，检查本地存储
+          const userData = localStorage.getItem('user');
+          const isAuthenticatedFlag = localStorage.getItem('isAuthenticated');
+          
+          if (userData && isAuthenticatedFlag === 'true') {
+            try {
+              const parsedUser = JSON.parse(userData);
+              const fixedAvatarUser = {
+                ...parsedUser,
+                avatar: 'https://picsum.photos/id/1005/200/200'
+              };
+              localStorage.setItem('user', JSON.stringify(fixedAvatarUser));
+              setUser(fixedAvatarUser);
+              setIsAuthenticated(true);
+            } catch (error) {
+              console.error('Failed to parse user data:', error);
+              localStorage.removeItem('user');
+              localStorage.removeItem('isAuthenticated');
+              setIsAuthenticated(false);
+              setUser(null);
+            }
+          } else {
+            setIsAuthenticated(false);
+            setUser(null);
+          }
+          return;
+        }
+        
+        // 生产环境：检查supabase
         if (supabase) {
           // 使用 Supabase 获取当前会话
           const { data: { session } } = await supabase.auth.getSession();
           
           if (session && session.user) {
+            // 有会话，更新用户信息和状态
             // 强制使用固定的头像URL
             const avatarUrl = 'https://picsum.photos/id/1005/200/200';
             
@@ -142,6 +259,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
               isAdmin: session.user.user_metadata?.isAdmin || false,
               age: session.user.user_metadata?.age || 0,
               tags: session.user.user_metadata?.tags || [],
+              // 标记为新用户（如果是首次登录）
+              isNewUser: session.user.user_metadata?.isNewUser || false,
+              // 初始化统计数据
+              worksCount: session.user.user_metadata?.worksCount || 0,
+              followersCount: session.user.user_metadata?.followersCount || 0,
+              followingCount: session.user.user_metadata?.followingCount || 0,
+              favoritesCount: session.user.user_metadata?.favoritesCount || 0,
               membershipLevel: session.user.user_metadata?.membershipLevel || 'free',
               membershipStart: session.user.user_metadata?.membershipStart || new Date().toISOString(),
               membershipEnd: session.user.user_metadata?.membershipEnd,
@@ -150,6 +274,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             
             // 存储用户信息到本地
             localStorage.setItem('user', JSON.stringify(userWithMembership));
+            localStorage.setItem('isAuthenticated', 'true');
             
             // 更新状态
             setUser(userWithMembership);
@@ -159,13 +284,16 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             localStorage.removeItem('token');
             localStorage.removeItem('refreshToken');
             localStorage.removeItem('user');
+            localStorage.removeItem('isAuthenticated');
             setIsAuthenticated(false);
             setUser(null);
           }
         } else {
           // supabase未配置，检查本地存储
           const userData = localStorage.getItem('user');
-          if (userData) {
+          const isAuthenticatedFlag = localStorage.getItem('isAuthenticated');
+          
+          if (userData && isAuthenticatedFlag === 'true') {
             try {
               const parsedUser = JSON.parse(userData);
               // 强制使用固定的头像URL
@@ -180,6 +308,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             } catch (error) {
               console.error('Failed to parse user data:', error);
               localStorage.removeItem('user');
+              localStorage.removeItem('isAuthenticated');
               setIsAuthenticated(false);
               setUser(null);
             }
@@ -194,6 +323,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         localStorage.removeItem('token');
         localStorage.removeItem('refreshToken');
         localStorage.removeItem('user');
+        localStorage.removeItem('isAuthenticated');
         setIsAuthenticated(false);
         setUser(null);
       }
@@ -201,7 +331,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     
     checkAuth();
     
-    // 只有在supabase有效时才监听认证状态变化
+    // 监听认证状态变化（包括开发环境）
     let subscription: any = null;
     if (supabase) {
       const { data } = supabase.auth.onAuthStateChange((event, session) => {
@@ -219,6 +349,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             isAdmin: session.user.user_metadata?.isAdmin || false,
             age: session.user.user_metadata?.age || 0,
             tags: session.user.user_metadata?.tags || [],
+            // 标记为新用户（如果是首次登录）
+            isNewUser: session.user.user_metadata?.isNewUser || false,
+            // 初始化统计数据
+            worksCount: session.user.user_metadata?.worksCount || 0,
+            followersCount: session.user.user_metadata?.followersCount || 0,
+            followingCount: session.user.user_metadata?.followingCount || 0,
+            favoritesCount: session.user.user_metadata?.favoritesCount || 0,
             membershipLevel: session.user.user_metadata?.membershipLevel || 'free',
             membershipStart: session.user.user_metadata?.membershipStart || new Date().toISOString(),
             membershipEnd: session.user.user_metadata?.membershipEnd,
@@ -227,15 +364,23 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           
           // 存储用户信息到本地
           localStorage.setItem('user', JSON.stringify(userWithMembership));
+          localStorage.setItem('isAuthenticated', 'true');
           
           // 更新状态
           setUser(userWithMembership);
           setIsAuthenticated(true);
+          
+          // 发布登录成功事件
+          eventBus.publish('auth:login', { 
+            userId: userWithMembership.id, 
+            user: userWithMembership 
+          });
         } else if (event === 'SIGNED_OUT') {
           // 用户登出
           localStorage.removeItem('token');
           localStorage.removeItem('refreshToken');
           localStorage.removeItem('user');
+          localStorage.removeItem('isAuthenticated');
           setIsAuthenticated(false);
           setUser(null);
         }
@@ -254,98 +399,138 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   // 登录方法
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
-      // 密码格式验证（与注册时保持一致）
-      const passwordRegex = /^(?=.*[a-zA-Z])(?=.*\d)[A-Za-z\d@$!%*?&]{8,}$/;
-      if (!passwordRegex.test(password)) {
-        console.error('密码格式不符合要求：至少8个字符，包含至少一个字母和一个数字');
+      // 使用自定义API登录，与验证码登录保持一致
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      });
+      
+      const data = await response.json();
+      
+      if (data.code === 0 && data.data) {
+        console.log('登录成功');
+        // 强制使用固定的头像URL
+        const avatarUrl = 'https://picsum.photos/id/1005/200/200';
+        
+        const userWithMembership = {
+          id: data.data.id,
+          username: data.data.username,
+          email: data.data.email,
+          avatar: avatarUrl,
+          phone: data.data.phone || '',
+          interests: [],
+          isAdmin: false,
+          age: 0,
+          tags: [],
+          // 标记为新用户（如果是首次登录）
+          isNewUser: data.data.isNewUser || false,
+          // 初始化统计数据
+          worksCount: data.data.worksCount || 0,
+          followersCount: data.data.followersCount || 0,
+          followingCount: data.data.followingCount || 0,
+          favoritesCount: data.data.favoritesCount || 0,
+          membershipLevel: 'free' as const,
+          membershipStart: new Date().toISOString(),
+          membershipEnd: undefined,
+          membershipStatus: 'active' as const,
+        };
+        
+        // 存储用户信息和token到本地
+        localStorage.setItem('token', data.data.token);
+        localStorage.setItem('user', JSON.stringify(userWithMembership));
+        localStorage.setItem('isAuthenticated', 'true');
+        
+        // 更新状态
+        setUser(userWithMembership);
+        setIsAuthenticated(true);
+        
+        // 发布登录成功事件
+        eventBus.publish('auth:login', { 
+          userId: userWithMembership.id, 
+          user: userWithMembership 
+        });
+        
+        return true;
+      } else {
+        console.error('登录失败:', data.message || '邮箱或密码错误');
         return false;
       }
-
-      if (supabase) {
-        try {
-          const { data, error } = await supabase.auth.signInWithPassword({
-            email,
-            password
-          });
-          
-          if (error) {
-            console.error('Supabase登录失败:', error);
-            // Supabase登录失败时，使用模拟登录
-            if (isDevelopment()) {
-              console.log('Supabase登录失败，尝试使用模拟登录');
-            }
-          } else if (data.user) {
-            // 强制使用固定的头像URL
-            const avatarUrl = 'https://picsum.photos/id/1005/200/200';
-            
-            const userWithMembership = {
-              id: data.user.id,
-              username: data.user.user_metadata?.username || data.user.email?.split('@')[0] || '用户',
-              email: data.user.email || '',
-              avatar: avatarUrl,
-              phone: data.user.user_metadata?.phone || '',
-              interests: data.user.user_metadata?.interests || [],
-              isAdmin: data.user.user_metadata?.isAdmin || false,
-              age: data.user.user_metadata?.age || 0,
-              tags: data.user.user_metadata?.tags || [],
-              membershipLevel: data.user.user_metadata?.membershipLevel || 'free',
-              membershipStart: data.user.user_metadata?.membershipStart || new Date().toISOString(),
-              membershipEnd: data.user.user_metadata?.membershipEnd,
-              membershipStatus: data.user.user_metadata?.membershipStatus || 'active',
-            };
-            
-            // 存储用户信息到本地
-            localStorage.setItem('user', JSON.stringify(userWithMembership));
-            
-            // 更新状态
-            setIsAuthenticated(true);
-            setUser(userWithMembership);
-            
-            return true;
-          }
-        } catch (supabaseError) {
-          console.error('Supabase登录异常:', supabaseError);
-        }
-      }
-
-      // 模拟登录功能（当Supabase不可用或登录失败时）
-      if (isDevelopment()) {
-        console.log('使用模拟登录功能');
-      }
-      
-      // 简单的模拟登录逻辑：只要邮箱和密码格式正确就允许登录
-      // 生成一个模拟用户
-      const mockUser: User = {
-        id: `mock-${Date.now()}`,
-        username: email.split('@')[0] || '用户',
-        email: email,
-        avatar: 'https://picsum.photos/id/1005/200/200',
-        phone: '',
-        interests: [],
-        isAdmin: false,
-        age: 0,
-        tags: [],
-        membershipLevel: 'free',
-        membershipStart: new Date().toISOString(),
-        membershipEnd: undefined,
-        membershipStatus: 'active',
-      };
-      
-      // 存储到本地
-      localStorage.setItem('user', JSON.stringify(mockUser));
-      localStorage.setItem('token', `mock-token-${Date.now()}`);
-      localStorage.setItem('isAuthenticated', 'true');
-      
-      // 更新状态
-      setIsAuthenticated(true);
-      setUser(mockUser);
-      
-      if (isDevelopment()) {
-        console.log('模拟登录成功');
-      }
-      return true;
     } catch (error) {
       console.error('登录失败:', error);
+      return false;
+    }
+  };
+
+  // 验证码登录方法
+  const loginWithCode = async (type: 'email' | 'phone', identifier: string, code: string): Promise<boolean> => {
+    try {
+      // 调用验证码登录API
+      const endpoint = type === 'email' ? '/api/auth/login-with-email-code' : '/api/auth/login-with-sms-code';
+      const payload = type === 'email' ? { email: identifier, code } : { phone: identifier, code };
+      
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+      
+      const data = await response.json();
+      
+      if (data.code === 0 && data.data) {
+        console.log('验证码登录成功');
+        // 强制使用固定的头像URL
+        const avatarUrl = 'https://picsum.photos/id/1005/200/200';
+        
+        const userWithMembership = {
+          id: data.data.id,
+          username: data.data.username,
+          email: data.data.email,
+          avatar: avatarUrl,
+          phone: data.data.phone || '',
+          interests: [],
+          isAdmin: false,
+          age: 0,
+          tags: [],
+          // 标记为新用户（如果是首次登录）
+          isNewUser: data.data.isNewUser || false,
+          // 初始化统计数据
+          worksCount: data.data.worksCount || 0,
+          followersCount: data.data.followersCount || 0,
+          followingCount: data.data.followingCount || 0,
+          favoritesCount: data.data.favoritesCount || 0,
+          membershipLevel: 'free' as const,
+          membershipStart: new Date().toISOString(),
+          membershipEnd: undefined,
+          membershipStatus: 'active' as const,
+        };
+        
+        // 存储用户信息和token到本地
+        localStorage.setItem('token', data.data.token);
+        localStorage.setItem('user', JSON.stringify(userWithMembership));
+        localStorage.setItem('isAuthenticated', 'true');
+        
+        // 更新状态
+        setUser(userWithMembership);
+        setIsAuthenticated(true);
+        
+        // 发布登录成功事件
+        eventBus.publish('auth:login', { 
+          userId: userWithMembership.id, 
+          user: userWithMembership 
+        });
+        
+        return true;
+      } else {
+        console.error('验证码登录失败:', data.message || '验证码错误或已过期');
+        return false;
+      }
+    } catch (error) {
+      console.error('验证码登录失败:', error);
       return false;
     }
   };
@@ -353,9 +538,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   // 注册方法
   const register = async (username: string, email: string, password: string, age?: string, tags?: string[]): Promise<{ success: boolean; error?: string }> => {
     try {
-      if (isDevelopment()) {
-        console.log('Register function called with:', { username, email, password: '****', age, tags });
-      }
+      console.log('Register function called with:', { username, email, password: '****', age, tags });
       
       // 密码格式验证（与前端zod验证规则保持一致）
       const passwordRegex = /^(?=.*[a-zA-Z])(?=.*\d)[A-Za-z\d@$!%*?&]{8,}$/;
@@ -365,230 +548,166 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         return { success: false, error: errorMsg };
       }
       
-      if (isDevelopment()) {
-        console.log('Password validation passed');
-      }
+      console.log('Password validation passed');
       
-      if (supabase) {
-        if (isDevelopment()) {
-          console.log('Supabase client is available, calling signUp...');
-        }
+      // 使用自定义API注册
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          username,
+          email,
+          password,
+          age: age ? parseInt(age) : 0,
+          tags: tags || [],
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (data.code === 0) {
+        console.log('注册成功');
         
-        try {
-          // 使用Supabase真实注册功能，现在有了secret key应该可以正常工作
-          const { data, error } = await supabase.auth.signUp({
-            email,
-            password,
-            options: {
-              data: {
-                username,
-                age: age ? parseInt(age) : null,
-                tags,
-                membershipLevel: 'free',
-                membershipStatus: 'active',
-                membershipStart: new Date().toISOString(),
-                avatar: 'https://picsum.photos/id/1005/200/200'
-              },
-              emailRedirectTo: window.location.origin
-            }
-          });
-          
-          if (isDevelopment()) {
-            console.log('Supabase signUp response received:', { data: { ...data, user: data.user ? { id: data.user.id, email: data.user.email } : null }, error });
-          }
-          
-          if (error) {
-            console.error('注册失败:', error);
-            console.error('错误代码:', error.code);
-            console.error('错误信息:', error.message);
-            // 根据错误代码返回更友好的错误信息
-            let errorMsg = error.message;
-            if (error.code === 'user_already_registered') {
-              errorMsg = '该邮箱已被注册';
-            } else if (error.code === 'invalid_password') {
-              errorMsg = '密码格式不符合要求';
-            } else if (error.code === 'invalid_email') {
-              errorMsg = '请输入有效的邮箱地址';
-            }
-            return { success: false, error: errorMsg };
-          }
-          
-          // 检查data是否存在
-          if (!data) {
-            const errorMsg = '注册失败: 服务器返回无效数据';
-            console.error(errorMsg);
-            return { success: false, error: errorMsg };
-          }
-          
-          // 检查user是否存在
-          if (data.user) {
-            if (isDevelopment()) {
-              console.log('User created successfully:', data.user.id);
-            }
-            
-            // 添加默认会员信息
-            const avatarUrl = data.user.user_metadata?.avatar && data.user.user_metadata?.avatar.trim() 
-              ? data.user.user_metadata?.avatar 
-              : 'https://picsum.photos/id/1005/200/200';
-            
-            const userWithMembership = {
-              id: data.user.id,
-              username: data.user.user_metadata?.username || username,
-              email: data.user.email || '',
-              avatar: avatarUrl,
-              phone: data.user.user_metadata?.phone || '',
-              interests: data.user.user_metadata?.interests || [],
-              isAdmin: data.user.user_metadata?.isAdmin || false,
-              age: data.user.user_metadata?.age || (age ? parseInt(age) : 0),
-              tags: data.user.user_metadata?.tags || (tags || []),
-              membershipLevel: data.user.user_metadata?.membershipLevel || 'free',
-              membershipStart: data.user.user_metadata?.membershipStart || new Date().toISOString(),
-              membershipEnd: data.user.user_metadata?.membershipEnd,
-              membershipStatus: data.user.user_metadata?.membershipStatus || 'active',
-            };
-            
-            // 将用户信息保存到数据库
-            try {
-              // 现在数据库表结构已经与代码匹配，可以正常保存用户信息
-              // 注意：移除created_at和updated_at，让数据库使用默认值
-              // 因为数据库中这些字段可能是bigint类型，而不是timestamp
-              const userForDb = {
-                id: data.user.id,
-                username: data.user.user_metadata?.username || username,
-                email: data.user.email || '',
-                avatar: avatarUrl,
-                phone: data.user.user_metadata?.phone || '',
-                interests: data.user.user_metadata?.interests || [],
-                is_admin: data.user.user_metadata?.isAdmin || false,
-                age: data.user.user_metadata?.age || (age ? parseInt(age) : 0),
-                tags: data.user.user_metadata?.tags || (tags || []),
-                membership_level: data.user.user_metadata?.membershipLevel || 'free',
-                membership_status: data.user.user_metadata?.membershipStatus || 'active',
-                membership_start: data.user.user_metadata?.membershipStart || new Date().toISOString(),
-                membership_end: data.user.user_metadata?.membershipEnd
-              };
-              
-              if (isDevelopment()) {
-                console.log('Attempting to save user to database...');
-              }
-              
-              // 尝试直接插入，如果失败则使用update
-              // 这是为了解决外键约束问题，因为auth.users记录可能还没有完全提交
-              if (supabase) {
-                // 先尝试插入
-                const { error: insertError } = await (supabase as any).from('users').insert([userForDb]);
-                
-                if (insertError) {
-                  if (isDevelopment()) {
-                    console.log('插入用户信息失败，尝试更新:', insertError.message);
-                  }
-                  
-                  // 如果插入失败，尝试更新
-                  const { error: updateError } = await (supabase as any).from('users').update(userForDb).eq('id', data.user.id);
-                  
-                  if (updateError) {
-                    console.error('将用户信息保存到数据库失败:', updateError);
-                  } else if (isDevelopment()) {
-                    console.log('用户信息已成功更新到数据库');
-                  }
-                } else if (isDevelopment()) {
-                  console.log('用户信息已成功保存到数据库');
-                }
-              }
-            } catch (dbException: any) {
-              console.error('保存用户信息到数据库时发生异常:', dbException);
-              if (isDevelopment() && dbException && typeof dbException === 'object' && 'stack' in dbException) {
-                console.error('异常堆栈:', dbException.stack);
-              }
-            }
-            
-            // 存储用户信息到本地
-            localStorage.setItem('user', JSON.stringify(userWithMembership));
-            localStorage.setItem('isAuthenticated', 'true');
-            
-            // 更新状态
-            setIsAuthenticated(true);
-            setUser(userWithMembership);
-            
-            return { success: true };
-          } else if (data.session) {
-            if (isDevelopment()) {
-              console.log('Session created but no user object returned');
-            }
-            return { success: true };
-          } else {
-            if (isDevelopment()) {
-              console.log('Sign up initiated, user needs to confirm email');
-            }
-            // 如果需要邮箱确认，我们仍然返回成功，让用户去确认邮箱
-            return { success: true };
-          }
-        } catch (error: any) {
-          console.error('Supabase signUp call failed with exception:', error);
-          if (isDevelopment()) {
-            console.error('Exception message:', error.message);
-            console.error('Exception stack:', error.stack);
-          }
-          return { success: false, error: error.message || '注册失败，请稍后重试' };
-        }
+        // 创建用户对象
+        const newUser = {
+          id: data.data.id,
+          username: data.data.username,
+          email: data.data.email,
+          // 标记为新用户
+          isNewUser: true,
+          // 初始化统计数据
+          worksCount: 0,
+          followersCount: 0,
+          followingCount: 0,
+          favoritesCount: 0,
+          // 会员信息
+          membershipLevel: 'free' as const,
+          membershipStatus: 'active' as const,
+          membershipStart: new Date().toISOString(),
+        };
+        
+        // 发布注册成功事件
+        eventBus.publish('auth:register', { 
+          userId: newUser.id, 
+          user: newUser 
+        });
+        
+        return { success: true };
       } else {
-        const errorMsg = 'Supabase客户端未配置，无法注册';
-        console.error(errorMsg);
-        return { success: false, error: errorMsg };
+        console.error('注册失败:', data.message);
+        return { success: false, error: data.message || '注册失败，请稍后重试' };
       }
     } catch (error: any) {
       console.error('注册函数执行失败:', error);
-      if (isDevelopment()) {
-        console.error('错误信息:', error.message);
-        console.error('错误堆栈:', error.stack);
-      }
+      console.error('错误信息:', error.message);
       return { success: false, error: error.message || '注册失败，请稍后重试' };
     }
   };
 
-  const quickLogin = async (provider: 'wechat' | 'phone' | 'alipay' | 'qq' | 'weibo'): Promise<boolean> => {
-    // 暂时保持模拟，后续可以扩展为真实的第三方登录
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const username = provider === 'wechat' ? '微信用户' : provider === 'phone' ? '手机号用户' : '第三方用户';
-        // 使用固定的头像URL
-        const baseUser: User = {
-          id: `quick-${provider}-${Date.now()}`,
-          username: username,
-          email: `${provider}-${Date.now()}@example.com`,
-          avatar: 'https://picsum.photos/id/1005/200/200', // 使用固定的目标头像
-          tags: ['国潮爱好者'],
-          // 初始会员信息
-          membershipLevel: 'free',
+  const quickLogin = async (provider: 'wechat' | 'phone' | 'alipay' | 'qq' | 'weibo' | 'google' | 'github' | 'twitter' | 'discord'): Promise<boolean> => {
+    try {
+      // 处理手机号一键登录
+      if (provider === 'phone') {
+        // 手机号一键登录功能暂时开放，不需要验证
+        // 创建模拟用户对象
+        const userWithMembership = {
+          id: `phone_user_${Date.now()}`,
+          username: '手机用户',
+          email: '',
+          avatar: 'https://picsum.photos/id/1005/200/200',
+          phone: '',
+          interests: [],
+          isAdmin: false,
+          age: 0,
+          tags: [],
+          // 标记为新用户
+          isNewUser: true,
+          // 初始化统计数据
+          worksCount: 0,
+          followersCount: 0,
+          followingCount: 0,
+          favoritesCount: 0,
+          membershipLevel: 'free' as const,
           membershipStart: new Date().toISOString(),
-          membershipStatus: 'active',
+          membershipEnd: undefined,
+          membershipStatus: 'active' as const,
         };
         
-        // 生成模拟的token和refreshToken
-        const mockToken = `mock-token-${provider}-${Date.now()}`;
-        const mockRefreshToken = `mock-refresh-token-${provider}-${Date.now()}`;
-        
-        // 安全存储令牌和用户信息
-        securityService.setSecureItem('SECURE_TOKEN', mockToken);
-        securityService.setSecureItem('SECURE_REFRESH_TOKEN', mockRefreshToken);
-        localStorage.setItem('token', mockToken);
-        localStorage.setItem('refreshToken', mockRefreshToken);
+        // 存储用户信息到本地
+        localStorage.setItem('user', JSON.stringify(userWithMembership));
         localStorage.setItem('isAuthenticated', 'true');
-        localStorage.setItem('user', JSON.stringify(baseUser));
         
+        // 更新状态
+        setUser(userWithMembership);
         setIsAuthenticated(true);
-        setUser(baseUser);
-        resolve(true);
-      }, 500);
-    });
+        
+        // 发布登录成功事件
+        eventBus.publish('auth:login', { 
+          userId: userWithMembership.id, 
+          user: userWithMembership 
+        });
+        
+        // 显示成功提示
+        toast.success('手机号一键登录成功！');
+        return true;
+      }
+      
+      // 检查是否为Supabase支持的提供商
+      const unsupportedProviders = ['wechat', 'alipay', 'qq', 'weibo'];
+      
+      if (unsupportedProviders.includes(provider)) {
+        // 对于Supabase不支持的提供商，显示提示信息
+        const providerNames: Record<string, string> = {
+          wechat: '微信',
+          alipay: '支付宝',
+          qq: 'QQ',
+          weibo: '微博'
+        };
+        toast.error(`${providerNames[provider]}登录功能正在开发中，请使用其他方式登录`);
+        console.error(`${provider}登录功能尚未实现，Supabase不直接支持该提供商`);
+        return false;
+      }
+      
+      // 使用Supabase的OAuth登录
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: provider as any,
+        options: {
+          redirectTo: `${window.location.origin}/`,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent'  // 强制每次都要求授权
+          }
+        }
+      });
+      
+      if (error) {
+        console.error('第三方登录失败:', error);
+        toast.error('第三方登录失败，请稍后重试');
+        return false;
+      }
+      
+      // OAuth登录是异步流程，返回true表示已成功发起登录请求
+      // 实际登录状态由onAuthStateChange处理
+      return true;
+    } catch (error) {
+      console.error('第三方登录异常:', error);
+      toast.error('第三方登录异常，请稍后重试');
+      return false;
+    }
   };
 
   // 登出方法
   const logout = async () => {
     try {
-      if (supabase) {
-        await supabase.auth.signOut();
-      }
+      // 调用真实的登出API
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
     } catch (error) {
       console.error('登出失败:', error);
     }
@@ -607,6 +726,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     securityService.setSecureItem('SECURE_TOKEN', '');
     securityService.setSecureItem('SECURE_REFRESH_TOKEN', '');
     securityService.setSecureItem('SECURE_USER', null);
+    
+    // 发布登出成功事件
+    eventBus.publish('auth:logout', undefined);
   };
 
   // 中文注释：更新用户信息并写入本地存储
@@ -617,6 +739,30 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         localStorage.setItem('user', JSON.stringify(next));
         // 同时更新安全存储
         securityService.setSecureItem('SECURE_USER', next);
+        
+        // 发布用户信息更新事件
+      eventBus.publish('auth:update', { isAuthenticated: true, user: next });
+      eventBus.publish('数据:刷新', {
+        type: 'user:update',
+        payload: { user: next, changes: partial }
+      });
+      
+      // 如果是新用户，初始化统计数据
+      if (next.isNewUser && !partial.isNewUser) {
+        eventBus.publish('auth:register', { 
+          userId: next.id, 
+          user: next 
+        });
+        // 初始化后不再标记为新用户
+        setUser(prev => {
+          if (prev) {
+            const updatedUser = { ...prev, isNewUser: false };
+            localStorage.setItem('user', JSON.stringify(updatedUser));
+            return updatedUser;
+          }
+          return prev;
+        });
+      }
       } catch (error) {
         console.error('Failed to update user information:', error);
       }
@@ -664,17 +810,38 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           
           // 更新本地用户信息
           updateUser(updatedUser);
+          
+          // 发布会员信息更新事件
+          eventBus.publish('数据:刷新', {
+            type: 'user:membership',
+            payload: { membership: updatedUser, changes: membershipData }
+          });
+          
           return true;
         }
       }
       
       // 如果supabase未配置，直接更新本地信息
       updateUser(membershipData);
+      
+      // 发布会员信息更新事件
+      eventBus.publish('数据:刷新', {
+        type: 'user:membership',
+        payload: { membership: { ...user, ...membershipData }, changes: membershipData }
+      });
+      
       return true;
     } catch (error) {
       console.error('更新会员信息失败:', error);
       // 即使API调用失败，也尝试更新本地信息
       updateUser(membershipData);
+      
+      // 发布会员信息更新失败事件
+      eventBus.publish('错误:发生', {
+        error,
+        context: { membershipData, user }
+      });
+      
       return false;
     }
   };
@@ -736,23 +903,33 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   // 新增：刷新令牌方法
-  // Supabase 会自动处理令牌刷新，这里简化实现
   const refreshToken = async (): Promise<boolean> => {
     try {
-      if (supabase) {
-        const { data, error } = await supabase.auth.refreshSession();
-        
-        if (error) {
-          console.error('刷新令牌失败:', error);
-          logout();
-          return false;
-        }
-        
-        return data.session !== null;
+      // 使用自定义API刷新令牌
+      const response = await fetch('/api/auth/refresh', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          token: localStorage.getItem('token'),
+          refreshToken: localStorage.getItem('refreshToken'),
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (data.code === 0 && data.data) {
+        // 刷新成功，更新令牌
+        localStorage.setItem('token', data.data.token);
+        localStorage.setItem('refreshToken', data.data.refreshToken);
+        securityService.setSecureItem('SECURE_TOKEN', data.data.token);
+        securityService.setSecureItem('SECURE_REFRESH_TOKEN', data.data.refreshToken);
+        return true;
       } else {
-        if (isDevelopment()) {
-          console.warn('Supabase客户端未配置，无法刷新令牌');
-        }
+        // 刷新失败，登出用户
+        console.error('刷新令牌失败:', data.message);
+        logout();
         return false;
       }
     } catch (error) {
@@ -761,6 +938,112 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       return false;
     }
   };
+
+  // 自动登录检查
+  useEffect(() => {
+    const autoLogin = async () => {
+      try {
+        // 检查是否已经登录
+        if (isAuthenticated) {
+          return;
+        }
+        
+        // 检查本地存储中是否有token
+        const token = localStorage.getItem('token');
+        const refreshTokenFromStorage = localStorage.getItem('refreshToken');
+        const userData = localStorage.getItem('user');
+        
+        if (token && refreshTokenFromStorage && userData) {
+          // 尝试使用token获取用户信息
+          const response = await fetch('/api/auth/me', {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+            },
+          });
+          
+          if (response.ok) {
+            // token有效，更新用户信息
+            const data = await response.json();
+            if (data.code === 0 && data.data) {
+              // 强制使用固定的头像URL
+              const avatarUrl = 'https://picsum.photos/id/1005/200/200';
+              
+              const userWithMembership = {
+                ...JSON.parse(userData),
+                avatar: avatarUrl,
+                // 标记为新用户（如果是首次登录）
+                isNewUser: data.data.isNewUser || false,
+                // 初始化统计数据
+                worksCount: data.data.worksCount || 0,
+                followersCount: data.data.followersCount || 0,
+                followingCount: data.data.followingCount || 0,
+                favoritesCount: data.data.favoritesCount || 0,
+                membershipLevel: (data.data.membershipLevel || 'free') as 'free' | 'premium' | 'vip',
+                membershipStatus: data.data.membershipStatus || 'active',
+              };
+              
+              localStorage.setItem('user', JSON.stringify(userWithMembership));
+              setUser(userWithMembership);
+              setIsAuthenticated(true);
+            }
+          } else if (response.status === 401) {
+            // token过期，尝试刷新token
+            const refreshSuccess = await refreshToken();
+            if (refreshSuccess) {
+              // 刷新成功，重新获取用户信息
+              const newToken = localStorage.getItem('token');
+              const refreshResponse = await fetch('/api/auth/me', {
+                method: 'GET',
+                headers: {
+                  'Authorization': `Bearer ${newToken}`,
+                },
+              });
+              
+              if (refreshResponse.ok) {
+                const data = await refreshResponse.json();
+                if (data.code === 0 && data.data) {
+                  // 强制使用固定的头像URL
+                  const avatarUrl = 'https://picsum.photos/id/1005/200/200';
+                  
+                  const userWithMembership = {
+                    ...JSON.parse(userData),
+                    avatar: avatarUrl,
+                    // 标记为新用户（如果是首次登录）
+                    isNewUser: data.data.isNewUser || false,
+                    // 初始化统计数据
+                    worksCount: data.data.worksCount || 0,
+                    followersCount: data.data.followersCount || 0,
+                    followingCount: data.data.followingCount || 0,
+                    favoritesCount: data.data.favoritesCount || 0,
+                    membershipLevel: data.data.membershipLevel || 'free',
+                    membershipStatus: data.data.membershipStatus || 'active',
+                  };
+                  
+                  localStorage.setItem('user', JSON.stringify(userWithMembership));
+                  setUser(userWithMembership);
+                  setIsAuthenticated(true);
+                }
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error('自动登录失败:', error);
+        // 发生错误，清除本地存储
+        localStorage.removeItem('token');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('user');
+        localStorage.removeItem('isAuthenticated');
+        securityService.setSecureItem('SECURE_TOKEN', '');
+        securityService.setSecureItem('SECURE_REFRESH_TOKEN', '');
+        setIsAuthenticated(false);
+        setUser(null);
+      }
+    };
+    
+    autoLogin();
+  }, [isAuthenticated, supabase]);
 
   // 新增：启用双因素认证
   const enableTwoFactorAuth = async (): Promise<boolean> => {
@@ -795,6 +1078,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     isAuthenticated,
     user,
     login,
+    loginWithCode,
     register,
     logout,
     setIsAuthenticated,

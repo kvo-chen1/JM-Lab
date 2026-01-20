@@ -13,9 +13,10 @@ export interface GradientHeroProps {
   showDecor?: boolean
   size?: 'sm' | 'md' | 'lg'
   pattern?: boolean
+  backgroundImage?: string
 }
 
-export default function GradientHero({ title, subtitle, badgeText, theme = 'red', stats = [], className, variant = 'center', showDecor = true, size = 'md', pattern = false }: GradientHeroProps) {
+export default function GradientHero({ title, subtitle, badgeText, theme = 'red', stats = [], className, variant = 'center', showDecor = true, size = 'md', pattern = false, backgroundImage }: GradientHeroProps) {
   const { isDark } = useTheme()
   // 中文注释：根据主题选择不同的渐变配色，满足多页面风格统一
   const gradient = useMemo(() => {
@@ -34,48 +35,67 @@ export default function GradientHero({ title, subtitle, badgeText, theme = 'red'
   const paddings = size === 'lg' ? 'px-8 py-12' : size === 'sm' ? 'px-4 py-6' : 'px-6 py-10'
   const titleClass = size === 'lg' ? 'text-3xl md:text-4xl' : size === 'sm' ? 'text-xl md:text-2xl' : 'text-2xl md:text-3xl'
   const subtitleClass = size === 'lg' ? 'mt-3 text-base' : size === 'sm' ? 'mt-2 text-sm' : 'mt-2 text-sm'
+  
   return (
     <motion.section
-      className={`relative overflow-hidden rounded-3xl mb-8 text-white bg-gradient-to-r ${gradient} ${className || ''} container mx-auto`}
+      className={`relative overflow-hidden rounded-3xl mb-8 text-white ${className || ''}`}
+      style={{
+        minHeight: '300px',
+        ...(backgroundImage ? {
+          background: `url(${backgroundImage}) center/cover no-repeat`
+        } : {
+          background: `linear-gradient(to right, ${gradient})`
+        })
+      }}
       aria-label={title}
       initial={{ opacity: 0, y: -12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
     >
+      {/* 图片背景遮罩层 - 优化为更通透的渐变，模仿共创广场的质感 */}
+      {backgroundImage && (
+        <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/30 to-black/10 backdrop-blur-[1px] z-0"></div>
+      )}
+      
       {pattern && (
         <div
-          className="pointer-events-none absolute inset-0 opacity-10"
+          className="pointer-events-none absolute inset-0 opacity-10 z-10"
           style={{
-            backgroundImage: 'linear-gradient(to right, rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.08) 1px, transparent 1px)',
+            backgroundImage: 'linear-gradient(to right, rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.1) 1px, transparent 1px)',
             backgroundSize: '20px 20px'
           }}
         ></div>
       )}
-      {variant === 'center' ? (
-        <div className={`container mx-auto ${paddings}`}>
-          <div className="flex items-center justify-between">
-            <h1 className={`${titleClass} font-bold tracking-tight`}>{title}</h1>
-            {badgeText && (
-              <span className={`text-xs px-2 py-1 rounded-full ${isDark ? 'bg-black/30 ring-1 ring-gray-600' : 'bg-white/20 ring-1 ring-white/50'} backdrop-blur`}>{badgeText}</span>
+      
+      <div className="relative z-10 h-full flex flex-col justify-center">
+        {variant === 'center' ? (
+          <div className={`container mx-auto ${paddings}`}>
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 mb-4">
+              <div>
+                <h1 className={`${titleClass} font-bold tracking-tight mb-2 drop-shadow-lg`}>{title}</h1>
+                {subtitle && (
+                  <p className={`${isDark || backgroundImage ? 'text-gray-200' : 'text-white/90'} ${subtitleClass} font-light tracking-wide`}>{subtitle}</p>
+                )}
+              </div>
+              {badgeText && (
+                <span className={`text-xs px-3 py-1 rounded-full ${isDark || backgroundImage ? 'bg-white/10 ring-1 ring-white/30 text-white' : 'bg-white/20 ring-1 ring-white/50'} backdrop-blur self-start md:self-center`}>{badgeText}</span>
+              )}
+            </div>
+            
+            {stats.length > 0 && (
+              <div className="mt-8 grid grid-cols-2 sm:grid-cols-4 gap-4">
+                {stats.map((s, idx) => (
+                  <div
+                    key={idx}
+                    className={`${isDark || backgroundImage ? 'bg-black/30 ring-1 ring-white/10 hover:bg-black/40' : 'bg-white/15 ring-1 ring-white/40'} rounded-2xl px-5 py-4 backdrop-blur-md transition-all duration-300 group`}
+                  >
+                    <div className="text-xs opacity-70 mb-1 tracking-wider uppercase">{s.label}</div>
+                    <div className="text-xl font-bold tracking-tight group-hover:scale-105 transition-transform origin-left">{s.value}</div>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
-          {subtitle && (
-            <p className={`${isDark ? 'text-gray-200' : 'text-white/90'} ${subtitleClass}`}>{subtitle}</p>
-          )}
-          {stats.length > 0 && (
-            <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-4">
-              {stats.map((s, idx) => (
-                <div
-                  key={idx}
-                  className={`${isDark ? 'bg-black/20 ring-1 ring-gray-700' : 'bg-white/15 ring-1 ring-white/40'} rounded-xl px-4 py-3 backdrop-blur`}
-                >
-                  <div className="text-xs opacity-80">{s.label}</div>
-                  <div className="text-base font-semibold">{s.value}</div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
       ) : (
         <div className={`container mx-auto ${paddings}`}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
@@ -83,11 +103,11 @@ export default function GradientHero({ title, subtitle, badgeText, theme = 'red'
               <div className="flex items-center justify-between">
                 <h1 className={`${titleClass} font-bold tracking-tight`}>{title}</h1>
                 {badgeText && (
-                  <span className={`text-xs px-2 py-1 rounded-full ${isDark ? 'bg-black/30 ring-1 ring-gray-600' : 'bg-white/20 ring-1 ring-white/50'} backdrop-blur`}>{badgeText}</span>
+                  <span className={`text-xs px-2 py-1 rounded-full ${isDark || backgroundImage ? 'bg-black/30 ring-1 ring-gray-600' : 'bg-white/20 ring-1 ring-white/50'} backdrop-blur`}>{badgeText}</span>
                 )}
               </div>
               {subtitle && (
-                <p className={`${isDark ? 'text-gray-200' : 'text-white/90'} ${subtitleClass}`}>{subtitle}</p>
+                <p className={`${isDark || backgroundImage ? 'text-gray-200' : 'text-white/90'} ${subtitleClass}`}>{subtitle}</p>
               )}
             </div>
             <div className="relative">
@@ -99,7 +119,7 @@ export default function GradientHero({ title, subtitle, badgeText, theme = 'red'
                   {stats.map((s, idx) => (
                     <div
                       key={idx}
-                      className={`${isDark ? 'bg-black/20 ring-1 ring-gray-700' : 'bg-white/15 ring-1 ring-white/40'} rounded-xl px-4 py-3 backdrop-blur`}
+                      className={`${isDark || backgroundImage ? 'bg-black/20 ring-1 ring-gray-700' : 'bg-white/15 ring-1 ring-white/40'} rounded-xl px-4 py-3 backdrop-blur`}
                     >
                       <div className="text-xs opacity-80">{s.label}</div>
                       <div className="text-base font-semibold">{s.value}</div>
@@ -111,6 +131,7 @@ export default function GradientHero({ title, subtitle, badgeText, theme = 'red'
           </div>
         </div>
       )}
+      </div>
     </motion.section>
   )
 }

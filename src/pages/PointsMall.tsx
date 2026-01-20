@@ -125,6 +125,11 @@ const PointsMall: React.FC = () => {
                   src={product.imageUrl}
                   alt={product.name}
                   className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
+                  onError={(e) => {
+                    console.error('Image failed to load:', product.imageUrl);
+                    const target = e.target as HTMLImageElement;
+                    target.src = '/images/placeholder-image.svg'; // 使用占位图片
+                  }}
                 />
               </div>
               

@@ -35,9 +35,35 @@ export default function FloatingAIAssistantV2({ defaultOpen = false }: FloatingA
   const draggedRef = useRef(false)
 
   const [isOpen, setIsOpen] = useState(defaultOpen)
-  const [positionStyle, setPositionStyle] = useState({ x: 20, y: window.innerHeight - 100 })
+  const [positionStyle, setPositionStyle] = useState({ x: 20, y: 0 })
   const [isDragging, setIsDragging] = useState(false)
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
+  const [windowHeight, setWindowHeight] = useState(0)
+  const [windowWidth, setWindowWidth] = useState(0)
+
+  // 安全获取窗口尺寸，避免hydration mismatch
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowWidth(window.innerWidth)
+      setWindowHeight(window.innerHeight)
+      // 更新按钮位置
+      setPositionStyle(prev => ({
+        ...prev,
+        y: window.innerHeight - 100
+      }))
+    }
+    
+    // 初始设置尺寸
+    handleResize()
+    
+    // 添加窗口大小变化监听
+    window.addEventListener('resize', handleResize)
+    
+    // 清理监听器
+    return () => {
+      window.removeEventListener('resize', handleResize)
+    }
+  }, [])
 
   const currentPath = location.pathname
   const currentPage = useMemo(() => {
@@ -69,8 +95,8 @@ export default function FloatingAIAssistantV2({ defaultOpen = false }: FloatingA
       const buttonHeight = 64
       let newX = point.clientX - dragOffset.x
       let newY = point.clientY - dragOffset.y
-      newX = Math.max(0, Math.min(newX, window.innerWidth - buttonWidth))
-      newY = Math.max(0, Math.min(newY, window.innerHeight - buttonHeight))
+      newX = Math.max(0, Math.min(newX, windowWidth - buttonWidth))
+      newY = Math.max(0, Math.min(newY, windowHeight - buttonHeight))
 
       draggedRef.current = true
       setPositionStyle({ x: newX, y: newY })

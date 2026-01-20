@@ -120,11 +120,13 @@ const DIVERSITY_SETTINGS = {
 };
 
 /**
- * 获取所有用户行为记录
+ * 获取用户行为记录
+ * @param userId 可选，指定用户ID，不提供则返回所有用户的行为记录
  */
-export function getUserActions(): UserAction[] {
+export function getUserActions(userId?: string): UserAction[] {
   const raw = localStorage.getItem(USER_ACTIONS_KEY);
-  return raw ? JSON.parse(raw) : [];
+  const allActions = raw ? JSON.parse(raw) as UserAction[] : [];
+  return userId ? allActions.filter((action: UserAction) => action.userId === userId) : allActions;
 }
 
 /**

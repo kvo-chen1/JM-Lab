@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
+import { toast } from 'sonner';
 import { useTheme } from '@/hooks/useTheme';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 
@@ -570,45 +571,53 @@ export default function Explore() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-neutral-100 to-neutral-200 dark:from-neutral-900 dark:to-neutral-800">
       {/* 顶部红色框 - 优化版 */}
-      <div className="relative overflow-hidden bg-gradient-to-r from-red-600 via-pink-600 to-red-700 py-6 px-4 sm:py-8 sm:px-6 rounded-3xl mx-4 mt-4 shadow-2xl max-w-[90vw] mx-auto max-w-9xl">
-        {/* 静态装饰性背景元素 */}
-        <div className="absolute top-0 right-0 w-32 h-32 sm:w-48 sm:h-48 bg-white/15 rounded-full blur-3xl -mr-16 -mt-16 sm:-mr-24 sm:-mt-24"></div>
-        <div className="absolute bottom-0 left-0 w-24 h-24 sm:w-36 sm:h-36 bg-white/15 rounded-full blur-3xl -ml-12 -mb-12 sm:-ml-18 sm:-mb-18"></div>
-        {/* 中心装饰元素 */}
-        <div className="absolute top-1/2 left-1/2 w-[150%] h-[150%] bg-gradient-to-r from-red-500/20 to-pink-500/20 blur-3xl -translate-x-1/2 -translate-y-1/2 rotate-45"></div>
+      <div 
+        className="relative overflow-hidden py-6 px-4 sm:py-10 md:py-16 sm:px-8 rounded-3xl mx-2 sm:mx-4 mt-2 sm:mt-4 shadow-2xl max-w-[95vw] mx-auto max-w-9xl group"
+        style={{
+          backgroundImage: 'url(https://picsum.photos/id/1048/2000/1000)', // 使用picsum提供的可靠图片，ID为1048是中国传统建筑图片
+          backgroundSize: 'cover',
+          backgroundPosition: 'center 40%',
+          backgroundRepeat: 'no-repeat'
+        }}
+      >
+        {/* 背景遮罩层 - 优化渐变，保证左侧文字可读性 */}
+        <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/40 to-transparent z-0"></div>
         
-        <div className="relative z-10">
-          {/* 标题和副标题 - 简化动画 */}
-          <div className="mb-6 sm:mb-10 text-center md:text-left">
+        <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8 md:gap-12">
+          {/* 标题和副标题 */}
+          <div className="text-center md:text-left flex-1">
             <h1 
-              className="text-2xl sm:text-3xl md:text-5xl font-bold text-white drop-shadow-lg leading-tight"
+              className="text-2xl sm:text-3xl md:text-4xl lg:text-6xl font-bold text-white drop-shadow-xl leading-tight tracking-tight mb-3 sm:mb-4"
             >
-              探索中国传统品牌新创意
+              探索中国传统品牌<br/><span className="text-transparent bg-clip-text bg-gradient-to-r from-red-200 to-amber-200">新创意</span>
             </h1>
             <p 
-              className="text-white/95 mt-3 text-sm sm:text-base md:text-lg max-w-2xl mx-auto md:mx-0 leading-relaxed"
+              className="text-gray-200 text-sm sm:text-base md:text-lg lg:text-xl max-w-2xl mx-auto md:mx-0 leading-relaxed font-light"
             >
-              发现来自全国各地的品牌设计作品，感受传统与现代的完美融合
+              汇聚全国品牌设计佳作，感受传统美学与现代设计的完美融合
             </p>
           </div>
           
-          {/* 标签区 - 简化动画 */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-6">
+          {/* 标签区 - 玻璃拟态卡片 */}
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 w-full md:w-auto md:min-w-[350px] lg:min-w-[400px]">
             {categoryButtonsData.map((item, index) => (
               <button
                 key={index}
-                className="px-4 py-3 sm:px-6 sm:py-5 bg-gradient-to-r from-red-700/95 to-red-800/95 text-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-400 border border-red-900/30 hover:border-red-800/50 hover:bg-red-600/90 backdrop-blur-sm group relative overflow-hidden"
+                className="relative overflow-hidden px-4 py-3 sm:px-6 sm:py-5 bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl text-left transition-all duration-300 hover:bg-white/20 hover:border-white/40 hover:scale-[1.02] hover:shadow-2xl group/card"
                 onClick={() => handleCategorySelect(item.category)}
                 aria-label={`查看${item.category}作品`}
               >
-                {/* 图标 */}
-                <div className="text-lg sm:text-xl mb-1 sm:mb-2">
-                  {item.icon}
+                <div className="flex items-center gap-4">
+                  <div className="text-3xl filter drop-shadow-lg group-hover/card:scale-110 transition-transform duration-300">
+                    {item.icon}
+                  </div>
+                  <div>
+                    <div className="font-bold text-lg text-white tracking-wide">{item.title}</div>
+                    <div className="text-xs text-gray-300 font-light mt-0.5 tracking-wider uppercase opacity-80 group-hover/card:opacity-100 transition-opacity">{item.subtitle}</div>
+                  </div>
                 </div>
-                <div className="font-semibold text-base sm:text-lg">{item.title}</div>
-                <div className="text-xs opacity-90 mt-0.5 sm:mt-1">{item.subtitle}</div>
-                {/* 底部渐变光效 */}
-                <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-red-400/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                {/* 悬停光效 */}
+                <div className="absolute -inset-full top-0 block h-full w-1/2 -skew-x-12 bg-gradient-to-r from-transparent to-white opacity-20 group-hover/card:animate-shine" />
               </button>
             ))}
             </div>
@@ -616,8 +625,8 @@ export default function Explore() {
       </div>
 
       {/* 搜索区 */}
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex flex-col md:flex-row gap-4 items-center justify-between mb-8">
+        <div className="container mx-auto px-4 py-4 sm:py-6">
+          <div className="flex flex-col md:flex-row gap-3 sm:gap-4 items-center justify-between mb-6 sm:mb-8">
           <div className="flex-1 max-w-3xl">
             <div className="relative search-container">
               {showSearchBar ? (
@@ -863,11 +872,11 @@ export default function Explore() {
           
           {/* 轮播容器 */}
           <div className="relative overflow-hidden">
-            <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide">
+            <div className="flex gap-3 sm:gap-4 overflow-x-auto pb-3 sm:pb-4 scrollbar-hide">
               {featuredWorks.map((work, index) => (
                 <div
                 key={work.id}
-                className="flex-shrink-0 w-full sm:w-96 bg-white dark:bg-gray-800 rounded-xl overflow-hidden shadow-md dark:shadow-gray-700 hover:shadow-lg dark:hover:shadow-gray-600 transition-all cursor-pointer"
+                className="flex-shrink-0 w-full sm:w-80 md:w-96 bg-white dark:bg-gray-800 rounded-xl overflow-hidden shadow-md dark:shadow-gray-700 hover:shadow-lg dark:hover:shadow-gray-600 transition-all cursor-pointer"
                 onClick={() => navigate(`/explore/${work.id}`)}
               >
                   <div className="relative">
@@ -969,15 +978,15 @@ export default function Explore() {
         </div>
 
         {/* 分类筛选 */}
-        <div className="mb-8 overflow-x-auto">
-          <div className="flex gap-3 min-w-max pb-2">
+        <div className="mb-6 sm:mb-8 overflow-x-auto">
+          <div className="flex gap-2 sm:gap-3 min-w-max pb-1 sm:pb-2">
             {categories.map((category) => (
               <motion.button
                 key={category}
                 onClick={() => handleCategorySelect(category)}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                className={`px-4 py-2 rounded-full whitespace-nowrap transition-all duration-300 font-medium ${selectedCategory === category
+                className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-full whitespace-nowrap transition-all duration-300 text-sm sm:text-base font-medium ${selectedCategory === category
                     ? 'bg-blue-600 text-white shadow-lg dark:shadow-blue-900/50'
                     : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:border-blue-400 dark:hover:border-blue-500'}`}
               >
@@ -986,11 +995,32 @@ export default function Explore() {
             ))}
           </div>
         </div>
+
+        {/* 热门分类 */}
+        <div className="mb-6 sm:mb-8">
+            <h3 className="text-base sm:text-lg font-semibold text-gray-800 dark:text-white mb-3 sm:mb-4">热门分类</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-7 gap-2 sm:gap-3 md:gap-4">
+              {['国潮', '非遗', '极简', '赛博朋克', '3D艺术', '插画', 'UI设计'].map((category) => (
+                <motion.button
+                  key={category}
+                  onClick={() => handleCategorySelect(category)}
+                  whileHover={{ scale: 1.05, y: -2 }}
+                  whileTap={{ scale: 0.95 }}
+                  className={`px-3 py-2 sm:px-4 sm:py-3 rounded-xl text-xs sm:text-sm font-medium transition-all duration-300 flex items-center justify-center gap-1.5 shadow-md hover:shadow-xl ${theme === 'dark'
+                    ? 'bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700'
+                    : 'bg-white hover:bg-gray-50 text-gray-800 border border-gray-200'}`}
+                >
+                  <span className="text-red-600 mr-1.5">#</span>
+                  {category}
+                </motion.button>
+              ))}
+            </div>
+          </div>
         
         {/* 标签筛选按钮 */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-800 dark:text-white">标签筛选</h3>
+        <div className="mb-6 sm:mb-8">
+          <div className="flex items-center justify-between mb-3 sm:mb-4">
+            <h3 className="text-base sm:text-lg font-semibold text-gray-800 dark:text-white">标签筛选</h3>
             <motion.button
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.98 }}
@@ -998,9 +1028,7 @@ export default function Explore() {
               className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
             >
               {tagsOpen ? '收起标签' : '展开标签'}
-              <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 transition-transform ${
-                tagsOpen ? 'rotate-180' : ''
-              }`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 transition-transform ${tagsOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
               </svg>
             </motion.button>
@@ -1008,15 +1036,15 @@ export default function Explore() {
           
           {/* 已选择标签 */}
           {selectedTags.length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-4">
+            <div className="flex flex-wrap gap-1.5 sm:gap-2 mb-3 sm:mb-4">
               {selectedTags.map((tag) => (
-                <div key={tag} className="flex items-center gap-1 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 px-3 py-1 rounded-full text-sm">
+                <div key={tag} className="flex items-center gap-1 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 px-2.5 py-1 rounded-full text-xs sm:text-sm">
                   <span>{tag}</span>
                   <button
                     onClick={() => handleTagSelect(tag)}
                     className="text-blue-800 dark:text-blue-200 hover:text-blue-900 dark:hover:text-blue-100"
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 sm:h-4 sm:w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
                   </button>
@@ -1028,35 +1056,35 @@ export default function Explore() {
           {/* 标签筛选面板 */}
           {tagsOpen && (
             <div
-              className="bg-white dark:bg-gray-800 rounded-xl shadow-md dark:shadow-gray-700 p-4 border border-gray-300 dark:border-gray-700"
+              className="bg-white dark:bg-gray-800 rounded-xl shadow-md dark:shadow-gray-700 p-3 sm:p-4 border border-gray-300 dark:border-gray-700"
               ref={tagsContainerRef}
             >
               {/* 标签搜索 */}
-              <div className="mb-4">
+              <div className="mb-3 sm:mb-4">
                 <input
                   type="text"
                   placeholder="搜索标签..."
                   value={tagQuery}
                   onChange={(e) => setTagQuery(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-2.5 py-1.5 sm:px-3 sm:py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                 />
               </div>
               
               {/* 收藏标签 */}
               {favoriteTags.length > 0 && (
-                <div className="mb-4">
-                  <div className="flex items-center justify-between mb-2">
+                <div className="mb-3 sm:mb-4">
+                  <div className="flex items-center justify-between mb-1.5 sm:mb-2">
                     <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300">收藏的标签</h4>
                     <button onClick={() => setFavoriteTags([])} className="text-xs text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 transition-colors">
                       清空收藏
                     </button>
                   </div>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-1.5 sm:gap-2">
                     {favoriteTags.map((tag) => (
                       <div key={tag} className="inline-flex items-center gap-1">
                         <button
                           onClick={() => handleTagSelect(tag)}
-                          className={`px-3 py-1 rounded-full text-sm transition-colors ${
+                          className={`px-2.5 py-1 rounded-full text-xs sm:text-sm transition-colors ${
                             selectedTags.includes(tag)
                               ? 'bg-blue-600 text-white'
                               : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
@@ -1078,14 +1106,14 @@ export default function Explore() {
               )}
               
               {/* 热门标签 */}
-              <div className="mb-4">
-                <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">热门标签</h4>
-                <div className="flex flex-wrap gap-2">
+              <div className="mb-3 sm:mb-4">
+                <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5 sm:mb-2">热门标签</h4>
+                <div className="flex flex-wrap gap-1.5 sm:gap-2">
                   {filteredTags.map(tag => (
                     <div key={`pop-${tag}`} className="inline-flex items-center gap-1">
                       <button
                         onClick={() => handleTagSelect(tag)}
-                        className={`px-3 py-1 rounded-full text-sm transition-colors ${
+                        className={`px-2.5 py-1 rounded-full text-xs sm:text-sm transition-colors ${
                           selectedTags.includes(tag)
                             ? 'bg-blue-600 text-white'
                             : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
@@ -1103,14 +1131,14 @@ export default function Explore() {
               
               {/* AI标签推荐 */}
               {(aiTagRecommendations.hits.length > 0 || aiTagRecommendations.novel.length > 0) && (
-                <div className="mb-4">
-                  <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">AI标签推荐</h4>
+                <div className="mb-3 sm:mb-4">
+                  <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5 sm:mb-2">AI标签推荐</h4>
                   {aiTagRecommendations.hits.length > 0 && (
-                    <div className="mb-2">
+                    <div className="mb-1.5 sm:mb-2">
                       <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">命中已有标签</div>
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-wrap gap-1.5 sm:gap-2">
                         {aiTagRecommendations.hits.map(tag => (
-                          <button key={`ai-hit-${tag}`} onClick={() => setSelectedTags(prev => prev.includes(tag) ? prev : [...prev, tag])} className={`px-3 py-1 rounded-full text-sm bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-800 transition-colors`}>
+                          <button key={`ai-hit-${tag}`} onClick={() => setSelectedTags(prev => prev.includes(tag) ? prev : [...prev, tag])} className={`px-2.5 py-1 rounded-full text-xs sm:text-sm bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-800 transition-colors`}>
                             {tag}
                           </button>
                         ))}
@@ -1120,9 +1148,9 @@ export default function Explore() {
                   {aiTagRecommendations.novel.length > 0 && (
                     <div>
                       <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">推荐新标签</div>
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-wrap gap-1.5 sm:gap-2">
                         {aiTagRecommendations.novel.map(tag => (
-                          <button key={`ai-novel-${tag}`} onClick={() => setSelectedTags(prev => prev.includes(tag) ? prev : [...prev, tag])} className={`px-3 py-1 rounded-full text-sm bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 hover:bg-purple-200 dark:hover:bg-purple-800 transition-colors`}>
+                          <button key={`ai-novel-${tag}`} onClick={() => setSelectedTags(prev => prev.includes(tag) ? prev : [...prev, tag])} className={`px-2.5 py-1 rounded-full text-xs sm:text-sm bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 hover:bg-purple-200 dark:hover:bg-purple-800 transition-colors`}>
                             {tag}
                           </button>
                         ))}
@@ -1134,14 +1162,14 @@ export default function Explore() {
               
               {/* 所有标签 */}
               <div>
-                <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">所有标签</h4>
+                <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5 sm:mb-2">所有标签</h4>
                 <div className="max-h-48 overflow-y-auto pr-2">
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-1.5 sm:gap-2">
                     {filteredTags.map(tag => (
                     <div key={`all-${tag}`} className="inline-flex items-center gap-1">
                       <button
                         onClick={() => handleTagSelect(tag)}
-                        className={`px-3 py-1 rounded-full text-sm transition-colors ${
+                        className={`px-2.5 py-1 rounded-full text-xs sm:text-sm transition-colors ${
                           selectedTags.includes(tag)
                             ? 'bg-blue-600 text-white'
                             : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
@@ -1158,16 +1186,16 @@ export default function Explore() {
                 </div>
               </div>
               
-              <div className="flex justify-end gap-2 mt-4">
+              <div className="flex justify-end gap-2 mt-3 sm:mt-4">
                 <button
                   onClick={handleClearTags}
-                  className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-sm"
+                  className="px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-xs sm:text-sm"
                 >
                   清空
                 </button>
                 <button
                   onClick={() => setTagsOpen(false)}
-                  className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors text-sm font-medium"
+                  className="px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors text-xs sm:text-sm font-medium"
                 >
                   完成
                 </button>
@@ -1177,7 +1205,7 @@ export default function Explore() {
           </div>
 
         {/* 作品网格 */}
-        <div id="works-grid" className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+        <div id="works-grid" className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 md:gap-6">
           {isLoading ? (
             // 加载状态
             Array.from({ length: 12 }).map((_, index) => (
@@ -1375,11 +1403,22 @@ export default function Explore() {
                       <motion.button 
                         whileHover={{ scale: 1.1 }}
                         whileTap={{ scale: 0.9 }}
+                        onClick={(e) => { 
+                          e.stopPropagation(); 
+                          // 分享功能实现
+                          const shareUrl = `${window.location.origin}/explore/${work.id}`;
+                          navigator.clipboard.writeText(shareUrl)
+                            .then(() => {
+                              toast.success('分享链接已复制到剪贴板');
+                            })
+                            .catch(() => {
+                              toast.error('复制链接失败，请手动复制');
+                            });
+                        }}
                         className="p-2 bg-white bg-opacity-90 rounded-full hover:bg-opacity-100 transition-colors shadow-md hover:shadow-lg"
-                        onClick={(e) => e.stopPropagation()}
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14v6m-3-3h6M6 10h2a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v2a2 2 0 002 2zm10 0h2a2 2 0 002-2V6a2 2 0 00-2-2h-2a2 2 0 00-2 2v2a2 2 0 002 2zM6 20h2a2 2 0 002-2v-2a2 2 0 00-2-2H6a2 2 0 00-2 2v2a2 2 0 002 2z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
                         </svg>
                       </motion.button>
                     </div>

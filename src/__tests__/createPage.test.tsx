@@ -36,7 +36,7 @@ import * as React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { BrowserRouter as Router } from 'react-router-dom';
 import { AuthProvider } from '../contexts/authContext';
-import Create from '../pages/Create';
+import Create from '../pages/create';
 import { toast } from 'sonner';
 import '@testing-library/jest-dom';
 

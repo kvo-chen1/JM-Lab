@@ -62,19 +62,25 @@
     "coCreation": "共创功能",
     "tianjinFeatures": "天津特色",
     "moreServices": "更多服务",
+    "platform": "平台首页",
+    "creation": "创作中心",
+    "community": "作品与社区",
+    "events": "活动与挑战",
+    "discovery": "发现天津",
+    "entertainment": "趣味与激励",
     "home": "首页",
     "exploreWorks": "探索作品",
     "creationCenter": "创作中心",
     "creativeTools": "创作工具",
     "inspirationEngine": "灵感引擎",
-    "culturalKnowledge": "文化知识库",
+    "culturalKnowledge": "天津文化知识库",
     "coCreationGuide": "共创向导",
     "coCreationSquare": "共创广场",
     "coCreationCommunity": "共创社群",
     "creatorCommunity": "创作者社区",
     "tianjinSpecialZone": "天津特色专区",
-    "tianjinMap": "天津地图",
-    "culturalActivities": "文化活动",
+    "tianjinMap": "天津老字号地图",
+    "culturalActivities": "天津文化活动",
     "culturalNews": "文化资讯",
     "particleArt": "粒子艺术",
     "popularityRanking": "人气榜",
@@ -83,8 +89,9 @@
     "pointsMall": "积分商城",
     "brandCooperation": "品牌指南",
     "businessCooperation": "商业合作",
-    "developers": "开发者API",
-    "aboutUs": "关于我们"
+    "aboutUs": "关于我们",
+    "activityManagement": "活动管理",
+    "createActivity": "创建活动"
   },
   "header": {
     "searchPlaceholder": "搜索作品、素材或用户",
@@ -107,7 +114,13 @@
     "logout": "退出登录",
     "login": "登录",
     "clear": "清除",
-    "backToOfficialWebsite": "返回官网"
+    "backToOfficialWebsite": "返回官网",
+    "shortcutsDetails": {
+      "focusSearch": "/ 聚焦搜索",
+      "toggleTheme": "T 切换主题",
+      "quickNav": "1–0 快速导航（首页到关于我们）",
+      "mobileNav": "移动端：向下滑动隐藏导航"
+    }
   },
   "toast": {
     "shareSuccess": "链接已复制到剪贴板",

@@ -19,6 +19,8 @@ export default function Analytics() {
         ]}
         pattern={true}
         size="md"
+        // 中文注释：使用数据分析主题的背景图片
+        backgroundImage="https://picsum.photos/id/3/2000/1000"
       />
 
       <div className="mt-8">

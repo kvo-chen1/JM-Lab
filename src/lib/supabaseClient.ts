@@ -1,7 +1,10 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+// 使用process.env代替import.meta.env，以支持Jest测试环境
+const env = typeof process !== 'undefined' && process.env ? process.env : {} as any
+const supabaseUrl = env.VITE_SUPABASE_URL || ''
+const supabaseKey = env.VITE_SUPABASE_ANON_KEY || ''
+const shouldLogDetails = env.NODE_ENV === 'development'
 
 if (!supabaseUrl || !supabaseKey) {
   console.warn('⚠️ Supabase environment variables are missing. Please check your .env file.')

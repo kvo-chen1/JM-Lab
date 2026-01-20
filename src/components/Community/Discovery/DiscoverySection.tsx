@@ -41,26 +41,26 @@ export const DiscoverySection: React.FC<DiscoverySectionProps> = ({
     let result = communities.filter(c => 
       c.name.toLowerCase().includes(search.toLowerCase()) || 
       c.description.toLowerCase().includes(search.toLowerCase()) ||
-      c.tags.some(t => t.toLowerCase().includes(search.toLowerCase()))
+      c.topic.toLowerCase().includes(search.toLowerCase())
     );
 
     // 2. 分类筛选
     if (category === 'popular') {
-      result = result.filter(c => c.members > 1000);
+      result = result.filter(c => c.memberCount > 1000);
     } else if (category === 'new') {
       // 模拟最新社群（实际项目中应该使用createdAt字段）
       result = result.slice(-5);
     } else if (category === 'creative') {
       result = result.filter(c => 
-        c.tags.some(tag => ['设计', '创意', '插画', 'UI', 'UX'].includes(tag))
+        ['设计', '创意', '插画', 'UI', 'UX'].includes(c.topic)
       );
     } else if (category === 'cultural') {
       result = result.filter(c => 
-        c.tags.some(tag => ['文化', '艺术', '非遗', '国潮', '传统'].includes(tag))
+        ['文化', '艺术', '非遗', '国潮', '传统'].includes(c.topic)
       );
     } else if (category === 'tech') {
       result = result.filter(c => 
-        c.tags.some(tag => ['科技', 'AI', '编程', '3D', 'VR'].includes(tag))
+        ['科技', 'AI', '编程', '3D', 'VR'].includes(c.topic)
       );
     }
 
@@ -70,15 +70,15 @@ export const DiscoverySection: React.FC<DiscoverySectionProps> = ({
       result = [...result].sort((a, b) => {
         // 计算社群与用户兴趣的匹配度
         const calculateMatchScore = (community: Community) => {
-          if (userTags.length === 0) return community.members;
+          if (userTags.length === 0) return community.memberCount;
           
-          // 标签匹配度
+          // 标签匹配度（使用topic进行匹配）
           const tagMatches = userTags.filter(tag => 
-            community.tags.includes(tag)
+            community.topic.includes(tag)
           ).length;
           
           // 活跃度权重
-          const activityScore = community.members / 1000;
+          const activityScore = community.memberCount / 1000;
           
           // 综合得分：标签匹配度 * 2 + 活跃度得分
           return (tagMatches * 2) + activityScore;
@@ -90,12 +90,12 @@ export const DiscoverySection: React.FC<DiscoverySectionProps> = ({
         return scoreB - scoreA;
       });
     } else if (sort === 'members') {
-      result.sort((a, b) => b.members - a.members);
+      result.sort((a, b) => b.memberCount - a.memberCount);
     } else if (sort === 'name') {
       result.sort((a, b) => a.name.localeCompare(b.name));
     } else if (sort === 'newest') {
       // 模拟最新排序（实际项目中应该使用createdAt字段）
-      result.sort((a, b) => b.members - a.members); // 临时使用members作为替代
+      result.sort((a, b) => b.memberCount - a.memberCount); // 临时使用memberCount作为替代
     }
 
     return result;
@@ -180,7 +180,7 @@ export const DiscoverySection: React.FC<DiscoverySectionProps> = ({
             {/* Cover Image */}
             <div className="relative h-36 md:h-48 overflow-hidden">
               <TianjinImage 
-                src={community.cover} 
+                src={community.avatar} 
                 alt={community.name}
                 className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                 ratio="landscape"
@@ -203,20 +203,17 @@ export const DiscoverySection: React.FC<DiscoverySectionProps> = ({
 
               {/* Tags */}
               <div className="flex flex-wrap gap-1.5 mb-3">
-                {community.tags.slice(0, 3).map(tag => (
-                  <span 
-                    key={tag}
-                    className={`text-xs px-2 py-0.5 rounded-md ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}
-                  >
-                    #{tag}
-                  </span>
-                ))}
+                <span 
+                  className={`text-xs px-2 py-0.5 rounded-md ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}
+                >
+                  #{community.topic}
+                </span>
               </div>
 
               {/* Footer */}
               <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-gray-700/50">
                 <span className={`text-xs font-medium ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
-                  {community.members} 人加入
+                  {community.memberCount} 人加入
                 </span>
                 
                 <div className="flex gap-2">

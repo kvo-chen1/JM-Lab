@@ -146,23 +146,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   }, [isAuthenticated, user]);
 
-  // 检查用户统计数据完整性
-  useEffect(() => {
-    if (isAuthenticated && user && user.id) {
-      const checkStats = async () => {
-        try {
-          const isComplete = await userStatsService.checkStatsIntegrity(user.id);
-          if (!isComplete) {
-            console.log('用户统计数据不完整，已自动修复');
-          }
-        } catch (error) {
-          console.error('检查用户统计数据完整性失败:', error);
-        }
-      };
-      checkStats();
-    }
-  }, [isAuthenticated, user]);
-
   // 检查用户认证状态
   useEffect(() => {
     const checkAuth = async () => {

@@ -47,7 +47,8 @@ export const useCommunityLogic = () => {
   const [selectedTag, setSelectedTag] = useState<string>('国潮');
   const [favoritedThreads, setFavoritedThreads] = useState<string[]>([]); // 收藏的帖子ID列表
 
-  const [allCommunities, setAllCommunities] = useState<Community[]>([]); // For Discovery
+  // 直接使用mock数据作为初始值，确保每次刷新都能获取最新的社群列表
+  const [allCommunities, setAllCommunities] = useState<Community[]>(JSON.parse(JSON.stringify(recommendedCommunities))); // For Discovery
 
   // --- Data Loading and Persistence ---
   useEffect(() => {
@@ -67,8 +68,8 @@ export const useCommunityLogic = () => {
         localStorage.setItem(STORAGE_KEYS.JOINED_COMMUNITIES, JSON.stringify(initialCommunities));
       }
       
-      // Load all communities for discovery
-      setAllCommunities(safeRecommendedCommunities);
+      // Load all communities for discovery - 使用深拷贝确保数据独立性
+      setAllCommunities(JSON.parse(JSON.stringify(safeRecommendedCommunities)));
       
       // Load Threads with comments
       const savedThreads = localStorage.getItem(STORAGE_KEYS.THREADS);

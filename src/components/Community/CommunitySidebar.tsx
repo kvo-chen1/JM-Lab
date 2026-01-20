@@ -51,7 +51,7 @@ export const CommunitySidebar: React.FC<CommunitySidebarProps> = ({
             >
               <div className={`absolute inset-0 rounded-inherit overflow-hidden border-2 transition-all ${activeCommunityId === community.id ? 'border-blue-600' : 'border-transparent group-hover:border-blue-400'}`}>
                 <img 
-                    src={community.cover} 
+                    src={community.avatar} 
                     alt={community.name} 
                     className="w-full h-full object-cover"
                 />

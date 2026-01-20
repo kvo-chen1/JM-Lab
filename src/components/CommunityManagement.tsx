@@ -426,7 +426,7 @@ const CommunityManagement: React.FC<CommunityManagementProps> = ({
                   whileHover={{ y: -4 }}
                 >
                   <TianjinImage 
-                    src={c.cover} 
+                    src={c.cover || c.avatar} 
                     alt={c.name} 
                     className="w-full aspect-[4/3] object-cover" 
                   />

@@ -5,7 +5,7 @@ import SidebarLayout from '@/components/SidebarLayout'
 import GradientHero from '@/components/GradientHero'
 import CommunityChat from '@/components/CommunityChat'
 import CommunityManagement from '@/components/CommunityManagement'
-import { CommunityDiscussion } from '@/components/DiscussionSection'
+import { CommunityDiscussion, DiscussionSection } from '@/components/DiscussionSection'
 import ScheduledPost from '@/components/ScheduledPost'
 import VirtualList from '@/components/VirtualList'
 import { useTheme } from '@/hooks/useTheme'
@@ -1544,7 +1544,7 @@ export default function Community() {
           transition={{ duration: 0.4 }}
         >
           <h3 className="font-medium mb-3">社群讨论区</h3>
-          <CommunityDiscussionSection isDark={isDark} messages={messages} onSend={(text: string) => {
+          <DiscussionSection isDark={isDark} messages={messages} onSend={(text: string) => {
             const user = mockCreators.find(c => c.online) || mockCreators[0]
             const next = { id: `m-${Date.now()}`, user: user.name, text, avatar: user.avatar, createdAt: Date.now(), pinned: false }
             setMessages(prev => [next, ...prev])
@@ -1774,15 +1774,14 @@ export default function Community() {
                         <span className={`text-xs px-2 py-0.5 rounded-full ${isDark ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-900'}`}>加入后可发言</span>
                       )}
                     </div>
-                    <CommunityDiscussionSection
-                      isDark={isDark}
-                      messages={communityMessages[activeCommunity.id] || []}
-                      onSend={(t: string) => sendCommunityMessage(activeCommunity.id, t)}
-                      canSend={joinedCommunities.includes(activeCommunity.id)}
-                      showModeration={joinedCommunities.includes(activeCommunity.id)}
-                      onDelete={(id: string) => deleteCommunityMessage(activeCommunity.id, id)}
-                      onTogglePin={(id: string) => togglePinCommunityMessage(activeCommunity.id, id)}
-                    />
+                    <DiscussionSection
+                        isDark={isDark}
+                        messages={communityMessages[activeCommunity.id] || []}
+                        onSend={(t: string) => sendCommunityMessage(activeCommunity.id, t)}
+                        showModeration={joinedCommunities.includes(activeCommunity.id)}
+                        onDelete={(id: string) => deleteCommunityMessage(activeCommunity.id, id)}
+                        onTogglePin={(id: string) => togglePinCommunityMessage(activeCommunity.id, id)}
+                      />
                   </div>
                 </div>
               </div>

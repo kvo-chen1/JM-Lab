@@ -52,16 +52,19 @@ export const DiscoverySection: React.FC<DiscoverySectionProps> = ({
       result = result.slice(-5);
     } else if (category === 'creative') {
       result = result.filter(c => 
-        ['设计', '创意', '插画', 'UI', 'UX'].includes(c.topic)
+        ['设计', '创意', '插画', 'UI', 'UX', 'UI设计', '数字艺术', '工艺创新', '极简'].includes(c.topic)
       );
     } else if (category === 'cultural') {
       result = result.filter(c => 
-        ['文化', '艺术', '非遗', '国潮', '传统'].includes(c.topic)
+        ['文化', '艺术', '非遗', '国潮', '传统', '传统文化'].includes(c.topic)
       );
     } else if (category === 'tech') {
       result = result.filter(c => 
-        ['科技', 'AI', '编程', '3D', 'VR'].includes(c.topic)
+        ['科技', 'AI', '编程', '3D', 'VR', '3D艺术', '赛博朋克'].includes(c.topic)
       );
+    } else if (category === 'recommended' || category === 'all') {
+      // 推荐分类和全部分类不需要额外过滤，依赖排序算法
+      result = result;
     }
 
     // 3. 排序和推荐算法
@@ -166,7 +169,7 @@ export const DiscoverySection: React.FC<DiscoverySectionProps> = ({
       </div>
 
       {/* Grid */}
-      <div className="grid grid-cols-1 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredCommunities.map((community) => (
           <motion.div
             key={community.id}
@@ -178,12 +181,15 @@ export const DiscoverySection: React.FC<DiscoverySectionProps> = ({
             onClick={() => onOpen(community)}
           >
             {/* Cover Image */}
-            <div className="relative h-36 md:h-48 overflow-hidden">
+            <div className="relative h-36 md:h-40 overflow-hidden">
               <TianjinImage 
                 src={community.avatar} 
                 alt={community.name}
-                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                className="w-full h-full object-contain transition-transform duration-500 group-hover:scale-105"
                 ratio="landscape"
+                fit="contain"
+                priority
+                disableFallback={true}
               />
               <div className="absolute top-2 right-2">
                  <span className="bg-white/90 backdrop-blur text-xs font-bold px-2 py-1 rounded-md text-gray-800 shadow-sm">

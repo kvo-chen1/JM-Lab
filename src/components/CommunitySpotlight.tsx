@@ -131,7 +131,7 @@ const CommunitySpotlight: React.FC<CommunitySpotlightProps> = ({ tags, featuredC
               <div className="flex items-start gap-4 relative z-10">
                 <div className="relative">
                   <TianjinAvatar
-                    src={community.cover || getCommunityImage(community.name)}
+                    src={community.avatar || getCommunityImage(community.name)}
                     alt={community.name}
                     size="lg"
                     variant="gradient"

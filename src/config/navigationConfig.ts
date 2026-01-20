@@ -10,6 +10,7 @@ export interface NavItem {
   children?: NavItem[];
   external?: boolean;
   search?: string;
+  image?: string; // 对应的社群图片URL
 }
 
 // 导航分组类型定义

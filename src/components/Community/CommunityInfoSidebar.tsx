@@ -23,11 +23,9 @@ export const CommunityInfoSidebar: React.FC<CommunityInfoSidebarProps> = ({
         <h3 className={`font-bold text-lg mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>关于社群</h3>
         <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{community.description}</p>
         <div className="flex flex-wrap gap-2 mt-3">
-            {community.tags.map(tag => (
-                <span key={tag} className={`text-xs px-2 py-1 rounded-full ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}>
-                    #{tag}
-                </span>
-            ))}
+            <span className={`text-xs px-2 py-1 rounded-full ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}>
+                #{community.topic}
+            </span>
         </div>
       </div>
 
@@ -51,7 +49,7 @@ export const CommunityInfoSidebar: React.FC<CommunityInfoSidebarProps> = ({
 
       <div>
           <h3 className={`font-bold text-sm uppercase tracking-wider mb-3 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-              离线成员 — {community.members}
+              离线成员 — {community.memberCount - onlineCount}
           </h3>
           <div className="space-y-3 opacity-60">
                {/* Mock Offline Members */}

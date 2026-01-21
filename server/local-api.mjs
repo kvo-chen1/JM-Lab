@@ -2435,8 +2435,8 @@ const server = http.createServer(async (req, res) => {
       return
     }
     
-    // 获取当前用户信息
-    if (req.method === 'GET' && path === '/api/auth/me') {
+    // 获取当前用户信息 - 支持 /api/auth/me 和 /api/users/me
+    if ((req.method === 'GET' && path === '/api/auth/me') || (req.method === 'GET' && path === '/api/users/me')) {
       const decoded = verifyRequestToken(req)
       if (!decoded) {
         sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
@@ -2450,7 +2450,7 @@ const server = http.createServer(async (req, res) => {
       }
       
       // 统一响应格式：前端 authContext 期望 { code: 0, data: ... }
-      sendJson(res, 200, { 
+      sendJson(res, 200, {
         code: 0,
         message: 'ok',
         ok: true, // 保持向后兼容
@@ -2478,6 +2478,71 @@ const server = http.createServer(async (req, res) => {
         }
       })
       return
+    }
+    
+    // 用户注册 - 支持 /api/auth/register 和 /api/users/register
+    if ((req.method === 'POST' && path === '/api/auth/register') || (req.method === 'POST' && path === '/api/users/register')) {
+      const b = await readBody(req);
+      const { username, email, password, phone, avatar_url, interests, age, tags } = b;
+      
+      // 验证必填字段
+      if (!username || !email || !password) {
+        sendJson(res, 400, { error: 'MISSING_REQUIRED_FIELDS', message: '用户名、邮箱和密码是必填项' });
+        return;
+      }
+      
+      try {
+        // 检查邮箱是否已存在
+        const existingUser = await userDB.findByEmail(email);
+        if (existingUser) {
+          sendJson(res, 400, { error: 'EMAIL_ALREADY_EXISTS', message: '该邮箱已被注册' });
+          return;
+        }
+        
+        // 检查用户名是否已存在
+        const existingUsername = await userDB.findByUsername(username);
+        if (existingUsername) {
+          sendJson(res, 400, { error: 'USERNAME_ALREADY_EXISTS', message: '该用户名已被使用' });
+          return;
+        }
+        
+        // 密码加密
+        const password_hash = await bcrypt.hash(password, 10);
+        
+        // 创建用户，暂时移除所有可能导致问题的字段
+        const newUser = await userDB.createUser({
+          username,
+          email,
+          password_hash,
+          phone: null,
+          avatar_url: null,
+          interests: null,
+          age: null,
+          tags: null,
+          github_id: null,
+          github_username: null,
+          auth_provider: 'local'
+        });
+        
+        // 生成JWT令牌
+        const token = generateToken({ userId: newUser.id, email });
+        
+        // 直接返回注册成功，暂时不发送验证邮件
+        sendJson(res, 200, {
+          code: 0,
+          message: '注册成功',
+          data: {
+            id: newUser.id,
+            username,
+            email,
+            token
+          }
+        });
+      } catch (error) {
+        console.error('注册失败:', error);
+        sendJson(res, 500, { error: 'INTERNAL_ERROR', message: '注册失败，请稍后重试' });
+      }
+      return;
     }
   } catch (error) {
     console.error('API error:', error)

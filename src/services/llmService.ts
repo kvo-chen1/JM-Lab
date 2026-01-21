@@ -1709,37 +1709,27 @@ class LLMService {
    * 始终使用通义千问(Qwen)进行图片生成
    */
   async generateImage(params: GenerateImageParams): Promise<GenerateImageResponse> {
-    // 直接调用通义千问API，不通过本地代理
-    const endpoint = 'https://dashscope.aliyuncs.com/api/v1/services/aigc/text2image/image-synthesis';
+    // 调用本地代理端点，由服务器处理API调用
+    const endpoint = '/api/qwen/images/generate';
     
     try {
-      const apiKey = this.modelConfig.qwen_api_key;
-      if (!apiKey) {
-        console.warn('[LLM] Qwen API key not found, falling back to mock mode');
-        return this.getMockImageResponse(params.prompt);
-      }
-      
       // 确保prompt字段存在
       if (!params.prompt) {
         console.warn('[LLM] Prompt is required for image generation');
         return this.getMockImageResponse(params.prompt);
       }
       
-      // 调用通义千问图片生成API
+      // 调用本地代理的图片生成API
       const resp = await fetch(endpoint, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
-          'X-DashScope-Async': 'enable'
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          model: 'wanx2.1-t2i-turbo',
-          input: { prompt: params.prompt },
-          parameters: {
-            size: params.size || '1024x1024',
-            n: params.n || 1
-          }
+          prompt: params.prompt,
+          size: params.size || '1024x1024',
+          n: params.n || 1,
+          model: 'wanx2.1-t2i-turbo'
         }),
         signal: AbortSignal.timeout(60000) // 60秒超时
       });
@@ -1749,62 +1739,23 @@ class LLMService {
         return this.getMockImageResponse(params.prompt);
       }
       
-      const createData = await resp.json();
-      if (!createData.output?.task_id && !createData.task_id) {
-        console.warn('[LLM] Task ID missing from response, falling back to mock mode');
+      const data = await resp.json();
+      
+      // 处理代理返回的结果
+      if (data.ok && data.data) {
+        const images = Array.isArray(data.data.data) ? data.data.data.map((result: any) => {
+          const url = result?.url || result?.image_url || result?.image || '';
+          return { url, revised_prompt: params.prompt };
+        }).filter((it: any) => !!it.url) : [];
+        
+        return {
+          created: Date.now(),
+          data: images
+        };
+      } else {
+        console.warn(`[LLM] Unexpected response format, falling back to mock mode:`, data);
         return this.getMockImageResponse(params.prompt);
       }
-      
-      const taskId = createData.output?.task_id || createData.task_id;
-      const taskEndpoint = `https://dashscope.aliyuncs.com/api/v1/tasks/${taskId}`;
-      
-      // 轮询获取任务结果
-      const startedAt = Date.now();
-      const timeoutMs = 60000;
-      while (Date.now() - startedAt < timeoutMs) {
-        await new Promise(resolve => setTimeout(resolve, 2000)); // 每2秒轮询一次
-        
-        const taskResp = await fetch(taskEndpoint, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${apiKey}`
-          },
-          signal: AbortSignal.timeout(30000) // 30秒超时
-        });
-        
-        if (!taskResp.ok) {
-          console.warn(`[LLM] Task poll failed, falling back to mock mode: ${taskResp.status} ${taskResp.statusText}`);
-          return this.getMockImageResponse(params.prompt);
-        }
-        
-        const taskData = await taskResp.json();
-        
-        // 检查任务状态（注意：正确字段是task_status，不是status）
-        const status = String(taskData?.output?.task_status || taskData?.task_status || '').toUpperCase();
-        
-        if (status === 'SUCCEEDED') {
-          // 任务成功，返回结果
-          const results = taskData?.output?.results || taskData?.output?.result || taskData?.output?.images || [];
-          const images = Array.isArray(results) ? results.map((result: any) => {
-            const url = result?.url || result?.image_url || result?.image || '';
-            return { url, revised_prompt: params.prompt };
-          }).filter((it: any) => !!it.url) : [];
-          
-          return {
-            created: Date.now(),
-            data: images
-          };
-        } else if (status === 'FAILED' || status === 'CANCELED' || status === 'CANCELLED') {
-          // 任务失败，返回mock结果
-          console.warn(`[LLM] Image generation task failed, falling back to mock mode: ${status}`);
-          return this.getMockImageResponse(params.prompt);
-        }
-        // 任务进行中，继续轮询
-      }
-      
-      // 超时，返回mock结果
-      console.warn('[LLM] Image generation timed out, falling back to mock mode');
-      return this.getMockImageResponse(params.prompt);
     } catch (error) {
       console.warn('[LLM] Image generation failed, falling back to mock mode:', error);
       return this.getMockImageResponse(params.prompt);

@@ -1779,19 +1779,24 @@ class LLMService {
         
         const taskData = await taskResp.json();
         
-        if (taskData?.output?.status === 'SUCCEEDED') {
+        // 检查任务状态（注意：正确字段是task_status，不是status）
+        const status = String(taskData?.output?.task_status || taskData?.task_status || '').toUpperCase();
+        
+        if (status === 'SUCCEEDED') {
           // 任务成功，返回结果
-          const images = taskData.output.results.map((result: any) => ({
-            url: result.url
-          }));
+          const results = taskData?.output?.results || taskData?.output?.result || taskData?.output?.images || [];
+          const images = Array.isArray(results) ? results.map((result: any) => {
+            const url = result?.url || result?.image_url || result?.image || '';
+            return { url, revised_prompt: params.prompt };
+          }).filter((it: any) => !!it.url) : [];
           
           return {
             created: Date.now(),
             data: images
           };
-        } else if (taskData?.output?.status === 'FAILED') {
+        } else if (status === 'FAILED' || status === 'CANCELED' || status === 'CANCELLED') {
           // 任务失败，返回mock结果
-          console.warn(`[LLM] Image generation task failed, falling back to mock mode: ${taskData.output?.error?.message}`);
+          console.warn(`[LLM] Image generation task failed, falling back to mock mode: ${status}`);
           return this.getMockImageResponse(params.prompt);
         }
         // 任务进行中，继续轮询

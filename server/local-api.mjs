@@ -330,8 +330,14 @@ async function dashscopeFetch(path, method, body, authKey, res) {
   // 重置DASHSCOPE_BASE_URL，使其只包含根域名，不包含/api/v1
   const base = 'https://dashscope.aliyuncs.com';
   
-  // 使用兼容模式路径，确保URL格式正确
-  fullUrl = `${base}/compatible-mode/v1/chat/completions`;
+  // 根据路径判断使用哪种API端点
+  if (path === '/chat/completions') {
+    // 聊天补全使用兼容模式路径
+    fullUrl = `${base}/compatible-mode/v1/chat/completions`;
+  } else {
+    // 其他请求（如图片生成）使用标准API路径
+    fullUrl = `${base}${path}`;
+  }
   
   console.log(`[DashScope] 发送请求: ${method} ${fullUrl}`)
   console.log(`[DashScope] 请求体:`, body)
@@ -1553,6 +1559,13 @@ const server = http.createServer(async (req, res) => {
         return;
       }
       
+      // 验证邮箱格式
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        sendJson(res, 400, { error: 'INVALID_EMAIL_FORMAT', message: '请输入有效的邮箱地址' });
+        return;
+      }
+      
       try {
         // 检查邮箱是否已存在
         const existingUser = await userDB.findByEmail(email);
@@ -1589,15 +1602,23 @@ const server = http.createServer(async (req, res) => {
         // 生成JWT令牌
         const token = generateToken({ userId: newUser.id, email });
         
-        // 直接返回注册成功，暂时不发送验证邮件
+        // 生成邮箱验证令牌
+        const verificationToken = generateToken({ userId: newUser.id, email }, '24h');
+        
+        // 发送验证邮件
+        const emailSent = await sendVerificationEmail(email, verificationToken, username);
+        
+        console.log(`[用户注册] 成功 - 用户ID: ${newUser.id}, 邮箱: ${email}, 验证邮件发送: ${emailSent}`);
+        
         sendJson(res, 200, {
           code: 0,
-          message: '注册成功',
+          message: '注册成功，验证邮件已发送，请查收',
           data: {
             id: newUser.id,
             username,
             email,
-            token
+            token,
+            email_verified: false
           }
         });
       } catch (error) {
@@ -1783,10 +1804,19 @@ const server = http.createServer(async (req, res) => {
         return;
       }
       
+      // 验证邮箱格式
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        sendJson(res, 400, { error: 'INVALID_EMAIL_FORMAT', message: '请输入有效的邮箱地址' });
+        return;
+      }
+      
       try {
         // 查找用户
+        console.log(`[用户登录] 尝试登录 - 邮箱: ${email}`);
         const user = await userDB.findByEmail(email);
         if (!user) {
+          console.warn(`[用户登录] 失败 - 邮箱不存在: ${email}`);
           sendJson(res, 401, { error: 'INVALID_CREDENTIALS', message: '邮箱或密码错误' });
           return;
         }
@@ -1794,6 +1824,7 @@ const server = http.createServer(async (req, res) => {
         // 验证密码
         const isPasswordValid = await bcrypt.compare(password, user.password_hash);
         if (!isPasswordValid) {
+          console.warn(`[用户登录] 失败 - 密码错误: ${email}`);
           sendJson(res, 401, { error: 'INVALID_CREDENTIALS', message: '邮箱或密码错误' });
           return;
         }
@@ -1803,6 +1834,8 @@ const server = http.createServer(async (req, res) => {
         
         // 生成JWT令牌
         const token = generateToken({ userId: user.id, email: user.email });
+        
+        console.log(`[用户登录] 成功 - 用户ID: ${user.id}, 邮箱: ${email}, 邮箱已验证: ${emailVerified}`);
         
         sendJson(res, 200, {
           code: 0,
@@ -1816,7 +1849,7 @@ const server = http.createServer(async (req, res) => {
           }
         });
       } catch (error) {
-        console.error('登录失败:', error);
+        console.error(`[用户登录] 异常 - 邮箱: ${email}, 错误:`, error);
         sendJson(res, 500, { error: 'INTERNAL_ERROR', message: '登录失败，请稍后重试' });
       }
       return;
@@ -1891,16 +1924,34 @@ const server = http.createServer(async (req, res) => {
       }
       
       try {
-        // 查找用户
-        // 注意：这里需要修改userDB，添加根据验证令牌查找用户的方法
-        // 暂时使用模拟实现
-        console.log('验证令牌:', token);
+        // 验证令牌
+        const decoded = verifyToken(token);
+        if (!decoded) {
+          sendJson(res, 401, { error: 'INVALID_TOKEN', message: '无效的验证令牌' });
+          return;
+        }
         
-        // 模拟验证成功
+        // 从令牌中获取用户信息
+        const { userId, email } = decoded;
+        
+        // 查找用户
+        const user = await userDB.findById(userId);
+        if (!user || user.email !== email) {
+          sendJson(res, 404, { error: 'USER_NOT_FOUND', message: '用户不存在' });
+          return;
+        }
+        
+        // 更新用户的邮箱验证状态
+        await userDB.updateById(userId, { email_verified: 1 });
+        
         sendJson(res, 200, {
           code: 0,
           message: '邮箱验证成功',
-          data: null
+          data: {
+            id: user.id,
+            email: user.email,
+            email_verified: true
+          }
         });
       } catch (error) {
         console.error('邮箱验证失败:', error);
@@ -2167,8 +2218,8 @@ const server = http.createServer(async (req, res) => {
 
         const success = await sendLoginEmailCode(email, code);
         if (success) {
-          // 跳过数据库更新，因为Supabase表中没有相关字段
-          // await userDB.updateEmailLoginCode(email, code, expiresAt);
+          // 更新数据库中的邮箱验证码
+          await userDB.updateEmailLoginCode(email, code, expiresAt);
           sendJson(res, 200, {
             code: 0,
             message: '验证码已发送，请注意查收',
@@ -2229,21 +2280,26 @@ const server = http.createServer(async (req, res) => {
       }
 
       try {
+        console.log(`[邮箱验证码登录] 尝试登录 - 邮箱: ${email}`);
         const { email_login_code, email_login_expires } = await userDB.getEmailLoginCode(email);
         const isValid = verifySmsCode(email_login_code, code, email_login_expires);
         if (!isValid) {
+          console.warn(`[邮箱验证码登录] 失败 - 验证码无效或已过期: ${email}`);
           sendJson(res, 400, { error: 'INVALID_CODE', message: '验证码无效或已过期' });
           return;
         }
 
         const user = await userDB.findByEmail(email);
         if (!user) {
+          console.warn(`[邮箱验证码登录] 失败 - 邮箱未注册: ${email}`);
           sendJson(res, 401, { error: 'USER_NOT_FOUND', message: '该邮箱未注册' });
           return;
         }
 
         const token = generateToken({ userId: user.id, email: user.email });
         const emailVerified = user.email_verified === 1 || user.email_verified === true;
+
+        console.log(`[邮箱验证码登录] 成功 - 用户ID: ${user.id}, 邮箱: ${email}, 邮箱已验证: ${emailVerified}`);
 
         sendJson(res, 200, {
           code: 0,
@@ -2258,7 +2314,7 @@ const server = http.createServer(async (req, res) => {
           }
         });
       } catch (error) {
-        console.error('邮箱验证码登录失败:', error);
+        console.error(`[邮箱验证码登录] 异常 - 邮箱: ${email}, 错误:`, error);
         sendJson(res, 500, { code: 500, message: '登录失败，请稍后重试' });
       }
       return;
@@ -2480,70 +2536,7 @@ const server = http.createServer(async (req, res) => {
       return
     }
     
-    // 用户注册 - 支持 /api/auth/register 和 /api/users/register
-    if ((req.method === 'POST' && path === '/api/auth/register') || (req.method === 'POST' && path === '/api/users/register')) {
-      const b = await readBody(req);
-      const { username, email, password, phone, avatar_url, interests, age, tags } = b;
-      
-      // 验证必填字段
-      if (!username || !email || !password) {
-        sendJson(res, 400, { error: 'MISSING_REQUIRED_FIELDS', message: '用户名、邮箱和密码是必填项' });
-        return;
-      }
-      
-      try {
-        // 检查邮箱是否已存在
-        const existingUser = await userDB.findByEmail(email);
-        if (existingUser) {
-          sendJson(res, 400, { error: 'EMAIL_ALREADY_EXISTS', message: '该邮箱已被注册' });
-          return;
-        }
-        
-        // 检查用户名是否已存在
-        const existingUsername = await userDB.findByUsername(username);
-        if (existingUsername) {
-          sendJson(res, 400, { error: 'USERNAME_ALREADY_EXISTS', message: '该用户名已被使用' });
-          return;
-        }
-        
-        // 密码加密
-        const password_hash = await bcrypt.hash(password, 10);
-        
-        // 创建用户，暂时移除所有可能导致问题的字段
-        const newUser = await userDB.createUser({
-          username,
-          email,
-          password_hash,
-          phone: null,
-          avatar_url: null,
-          interests: null,
-          age: null,
-          tags: null,
-          github_id: null,
-          github_username: null,
-          auth_provider: 'local'
-        });
-        
-        // 生成JWT令牌
-        const token = generateToken({ userId: newUser.id, email });
-        
-        // 直接返回注册成功，暂时不发送验证邮件
-        sendJson(res, 200, {
-          code: 0,
-          message: '注册成功',
-          data: {
-            id: newUser.id,
-            username,
-            email,
-            token
-          }
-        });
-      } catch (error) {
-        console.error('注册失败:', error);
-        sendJson(res, 500, { error: 'INTERNAL_ERROR', message: '注册失败，请稍后重试' });
-      }
-      return;
-    }
+
   } catch (error) {
     console.error('API error:', error)
     sendJson(res, 500, { error: 'SERVER_ERROR', message: '服务器内部错误' })

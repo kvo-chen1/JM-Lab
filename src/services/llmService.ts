@@ -2488,13 +2488,29 @@ class LLMService {
     signal?: AbortSignal;
   }): Promise<string> {
     // 根据不同模型构建请求
-    switch (modelId) {
-      case 'kimi':
-        return this.callKimiApi(messages, options);
-      case 'qwen':
-        return this.callQwenApi(messages, options);
-      default:
-        throw new Error(`不支持的模型类型: ${modelId}`);
+    try {
+      switch (modelId) {
+        case 'kimi':
+          return await this.callKimiApi(messages, options);
+        case 'qwen':
+          return await this.callQwenApi(messages, options);
+        default:
+          throw new Error(`不支持的模型类型: ${modelId}`);
+      }
+    } catch (error) {
+      console.warn(`[LLM] 模型 ${modelId} 调用失败，尝试切换到 Qwen 模型:`, error);
+      
+      // 当 Kimi 模型调用失败时，自动切换到 Qwen 模型
+      if (modelId === 'kimi') {
+        try {
+          return await this.callQwenApi(messages, options);
+        } catch (qwenError) {
+          console.error(`[LLM] Qwen 模型调用也失败:`, qwenError);
+          throw new Error('所有可用模型均调用失败，请稍后再试');
+        }
+      }
+      
+      throw error;
     }
   }
   

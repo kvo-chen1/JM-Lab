@@ -45,7 +45,10 @@ export default function Studio() {
   
   return (
     <div className={`flex h-full overflow-hidden ${isDark ? 'bg-gray-950' : 'bg-gray-50'}`}>
-      <ToolSidebar />
+      {/* 电脑端左侧工具栏 */}
+      <div className="hidden lg:flex">
+        <ToolSidebar />
+      </div>
       
       {/* Inspiration Panel Drawer - 灵感面板抽屉 */}
       <AnimatePresence>
@@ -55,9 +58,7 @@ export default function Studio() {
             animate={{ width: 320, opacity: 1 }}
             exit={{ width: 0, opacity: 0 }}
             transition={{ duration: 0.3, ease: 'easeInOut' }}
-            className={`border-r h-full overflow-hidden relative z-10 ${
-              isDark ? 'border-gray-800 bg-gray-900 shadow-2xl' : 'border-gray-200 bg-white shadow-xl'
-            }`}
+            className={`border-r h-full overflow-hidden relative z-10 ${isDark ? 'border-gray-800 bg-gray-900 shadow-2xl' : 'border-gray-200 bg-white shadow-xl'}`}
           >
             <div className="w-80 h-full">
               <InspirationPanel 
@@ -76,11 +77,19 @@ export default function Studio() {
       </AnimatePresence>
 
       {/* Main Canvas Area - 主画布区域 */}
-      <div className="flex-1 relative flex flex-col min-w-0 overflow-hidden">
+      <div className="flex-1 relative flex flex-col min-w-0 overflow-hidden lg:mb-0 mb-24">
         <CanvasArea />
       </div>
 
-      <PropertiesPanel />
+      {/* 电脑端右侧属性面板 */}
+      <div className="hidden lg:flex">
+        <PropertiesPanel />
+      </div>
+
+      {/* 移动端底部工具栏 */}
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50">
+        <ToolSidebar />
+      </div>
 
       {/* Modals / Overlays */}
       <AnimatePresence>

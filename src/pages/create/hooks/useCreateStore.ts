@@ -38,6 +38,7 @@ const initialState: CreateState = {
   showAIReview: false,
   showModelSelector: false,
   showInspirationPanel: false,
+  showPropertiesPanel: true, // 控制属性面板显示
   isPrecheckEnabled: true,
   precheckResult: null,
   aiExplanation: '',

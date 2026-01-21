@@ -21,12 +21,8 @@ export default function CreateLayout() {
   return (
     <div className={`flex flex-col h-[calc(100vh-64px)] ${isDark ? 'bg-gray-950' : 'bg-gray-50'}`}>
       {/* Top Navigation Bar - 顶部导航栏 */}
-      <div className={`flex items-center justify-between px-6 py-3 border-b flex-shrink-0 z-30 transition-colors duration-300 ${
-        isDark ? 'border-gray-800 bg-gray-900/95 backdrop-blur-sm' : 'border-gray-200 bg-white/95 backdrop-blur-sm'
-      }`}>
-        <div className={`flex space-x-1 p-1 rounded-xl border ${
-          isDark ? 'bg-gray-800/50 border-gray-700' : 'bg-gray-100/80 border-gray-200'
-        }`}>
+      <div className={`flex items-center justify-between px-6 py-3 border-b flex-shrink-0 z-30 transition-colors duration-300 ${isDark ? 'border-gray-800 bg-gray-900/95 backdrop-blur-sm' : 'border-gray-200 bg-white/95 backdrop-blur-sm'}`}>
+        <div className={`flex space-x-1 p-1 rounded-xl border ${isDark ? 'bg-gray-800/50 border-gray-700' : 'bg-gray-100/80 border-gray-200'}`}>
           {navItems.map((item) => {
             const isActive = item.exact 
               ? location.pathname === item.path
@@ -47,10 +43,17 @@ export default function CreateLayout() {
                         ? 'text-gray-400 hover:text-gray-100 hover:bg-gray-700/50' 
                         : 'text-gray-500 hover:text-gray-900 hover:bg-gray-200/50')
                   }
+                  /* 移动端优化：增加触控区域 */
+                  sm:px-3 sm:py-2
+                  /* 平板端优化 */
+                  md:px-4 md:py-2
+                  /* 电脑端优化 */
+                  lg:px-4 lg:py-2
                 `}
               >
                 <i className={`fas fa-${item.icon} ${isActive ? 'animate-pulse-slow' : ''} text-xs`}></i>
-                <span>{item.label}</span>
+                {/* 移动端隐藏文字，仅显示图标 */}
+                <span className="hidden sm:inline">{item.label}</span>
               </NavLink>
             );
           })}

@@ -148,17 +148,16 @@ export const MobileWaterfallWorks: React.FC<MobileWaterfallWorksProps> = ({
             return (
             <motion.div
               key={work.id}
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 1, y: 0 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: '100px' }}
-              whileHover={{ scale: 1.05, y: [0, -5, 0], boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)" }}
-              whileTap={{ scale: 0.95 }}
+              whileHover={{ scale: 1.02, boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)" }}
+              whileTap={{ scale: 0.98 }}
               transition={{
-                duration: 0.35,
-                delay: (wi % 6) * 0.04,
-                hover: { duration: 0.8, repeat: Infinity, ease: "easeInOut" }
+                duration: 0.1,
+                hover: { duration: 0.1, ease: "easeInOut" }
               }}
-              className="bg-white dark:bg-gray-800 rounded-lg shadow-sm hover:shadow-xl overflow-hidden transition-all duration-300"
+              className="bg-white dark:bg-gray-800 rounded-lg shadow-sm hover:shadow-lg overflow-hidden transition-all duration-150"
               onClick={() => onClick?.(work.id)}
             >
               <div className="relative overflow-hidden">
@@ -166,15 +165,15 @@ export const MobileWaterfallWorks: React.FC<MobileWaterfallWorksProps> = ({
                   src={work.thumbnail}
                   alt={work.title}
                   className="w-full object-cover align-bottom"
-                  // Using style to enforce aspect ratio visualization
-                  style={{ aspectRatio: `${ratio}` }}
+                  rounded="lg"
                   imageTag={work.imageTag}
                   disableFallback={false}
                   loading="lazy"
                   quality="medium"
+                  priority={false}
+                  // 确保固定尺寸，避免布局跳动
+                  style={{ aspectRatio: `${ratio}` }}
                 />
-                
-                {/* Optional: Add a subtle gradient overlay at bottom for text legibility if we wanted overlay text */}
               </div>
               
               <div className="p-2.5">

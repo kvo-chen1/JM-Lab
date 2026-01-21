@@ -632,7 +632,7 @@ export default function Home() {
                   浏览更多 <i className="fas fa-arrow-right text-xs"></i>
                 </button>
              </div>
-             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 px-2 auto-rows-[180px]">
+             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 px-2">
                 {[
                   { 
                     title: '国潮设计社群', 
@@ -678,14 +678,21 @@ export default function Home() {
                   }
                 ].map((group, idx) => (
                   <motion.div 
-                    key={idx}
-                    whileHover={{ y: -5 }}
-                    className={`relative rounded-2xl overflow-hidden cursor-pointer group shadow-md hover:shadow-xl transition-all duration-300 ${idx % 3 === 0 ? 'md:col-span-2 md:row-span-2' : 'md:col-span-1 md:row-span-2'}`}
-                  >
-                    <TianjinImage src={group.img} alt={group.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" fallbackSrc="/images/placeholder-image.jpg" />
+                  key={idx}
+                  whileHover={{ y: -5 }}
+                  className={`relative rounded-2xl overflow-hidden cursor-pointer group shadow-md hover:shadow-xl transition-all duration-300 ${idx % 3 === 0 ? 'md:col-span-2 md:row-span-2 aspect-square' : 'md:col-span-1 md:row-span-1 aspect-square'}`}
+                >
+                  <div className="absolute inset-0 overflow-hidden">
+                    <img 
+                      src={group.img} 
+                      alt={group.title} 
+                      className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                      loading="lazy"
+                    />
+                  </div>
                     
                     {/* Gradient Overlay */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-90"></div>
+                    <div className="absolute bottom-0 left-0 right-0 h-28 bg-gradient-to-t from-black/80 via-black/40 to-transparent opacity-90"></div>
                     
                     {/* Official Badge */}
                     <div className="absolute top-3 right-3 bg-white/20 backdrop-blur-md border border-white/30 text-white text-[10px] px-2 py-0.5 rounded-full">
@@ -693,7 +700,7 @@ export default function Home() {
                     </div>
 
                     {/* Content */}
-                    <div className="absolute bottom-0 left-0 w-full p-5 flex flex-col justify-end h-full">
+                    <div className="absolute bottom-0 left-0 w-full p-5">
                        <div className="transform translate-y-2 group-hover:translate-y-0 transition-transform duration-300">
                          <div className="flex flex-wrap gap-2 mb-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                            {group.tags.map((tag, i) => (
@@ -767,74 +774,173 @@ export default function Home() {
              </h3>
           </div>
           
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 md:gap-6">
             {gallery.map((item, idx) => (
               <motion.div 
                 key={item.id}
-                whileHover={{ y: -5 }}
-                className={`rounded-2xl overflow-hidden cursor-pointer group relative ${idx % 2 === 0 ? 'md:row-span-2' : ''} ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-md hover:shadow-xl transition-all duration-300`}
+                whileHover={{ y: -8 }}
+                className={`relative rounded-2xl overflow-hidden cursor-pointer group shadow-md hover:shadow-2xl transition-all duration-300 bg-white dark:bg-gray-800 mb-0`}
                 onClick={() => navigate(`/explore?q=${encodeURIComponent(item.title)}`)}
               >
-                 <div className="relative w-full h-full min-h-[200px]">
-                    <TianjinImage src={item.thumbnail} alt={item.title} className="w-full h-full object-cover" fallbackSrc="/images/placeholder-image.jpg" />
+                 {/* Image Section */}
+                 <div className="relative w-full aspect-square overflow-hidden">
+                    <img 
+                      src={item.thumbnail} 
+                      alt={item.title} 
+                      className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                      loading="lazy"
+                    />
                     
                     {/* Top Right Badges */}
-                    <div className="absolute top-3 right-3 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 translate-x-4 group-hover:translate-x-0">
-                       <span className="bg-black/60 backdrop-blur-md text-white text-xs px-2 py-1 rounded-lg flex items-center gap-1">
+                    <div className="absolute top-3 right-3 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-x-4 group-hover:translate-x-0">
+                       <span className="bg-black/70 backdrop-blur-md text-white text-xs px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-lg">
                          <i className="fas fa-heart text-red-400"></i> {item.likes}
                        </span>
-                       <span className="bg-black/60 backdrop-blur-md text-white text-xs px-2 py-1 rounded-lg flex items-center gap-1">
+                       <span className="bg-black/70 backdrop-blur-md text-white text-xs px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-lg">
                          <i className="fas fa-comment text-blue-400"></i> {item.comments}
                        </span>
                     </div>
 
-                    {/* Bottom Info Gradient */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4">
-                       <div className="transform translate-y-4 group-hover:translate-y-0 transition-transform duration-300">
-                         <h4 className="text-white font-bold truncate text-lg mb-1">{item.title}</h4>
+                    {/* Bottom Info with Smooth Gradient */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-400 flex flex-col justify-end p-4">
+                       <div className="transform translate-y-4 group-hover:translate-y-0 transition-transform duration-400">
+                         <h4 className="text-white font-bold truncate text-lg mb-2 drop-shadow-lg">{item.title}</h4>
                          <div className="flex items-center justify-between">
                            <div className="flex items-center gap-2">
                               <TianjinAvatar src={item.creatorAvatar} alt={item.creator} size="xs" withBorder={false} />
                               <span className="text-white/90 text-xs font-medium">{item.creator}</span>
                            </div>
-                           <span className="text-white/70 text-[10px] bg-white/10 px-1.5 py-0.5 rounded">
+                           <span className="text-white/70 text-xs bg-white/20 backdrop-blur-sm px-2 py-1 rounded-full">
                              {item.category}
                            </span>
                          </div>
                        </div>
                     </div>
                  </div>
+                 
+                 {/* Category Tag at Bottom */}
+                 <div className="absolute bottom-3 left-4 z-10">
+                   <span className="bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm text-xs font-medium px-3 py-1 rounded-full shadow-md text-gray-800 dark:text-gray-200">
+                     {item.category}
+                   </span>
+                 </div>
               </motion.div>
             ))}
           </div>
-          <div className="mt-12 text-center">
-            <button onClick={() => navigate('/explore')} className={`px-8 py-3 rounded-full font-medium transition-all shadow-lg hover:shadow-xl hover:-translate-y-1 ${isDark ? 'bg-white text-black hover:bg-gray-200' : 'bg-black text-white hover:bg-gray-800'}`}>
+          
+          {/* Explore More Button */}
+          <div className="mt-16 text-center">
+            <motion.button 
+              onClick={() => navigate('/explore')}
+              whileHover={{ scale: 1.05, y: -3 }}
+              whileTap={{ scale: 0.98 }}
+              className={`px-10 py-4 rounded-full font-semibold transition-all shadow-lg hover:shadow-2xl ${isDark ? 'bg-white text-black hover:bg-gray-100' : 'bg-black text-white hover:bg-gray-800'}`}
+            >
               探索更多作品 <i className="fas fa-arrow-right ml-2"></i>
-            </button>
+            </motion.button>
           </div>
         </Section>
 
         {/* 5. 趣味互动 (Fun) - Minimalist Cards */}
         <div className={`py-20 ${isDark ? 'bg-gray-950' : 'bg-gray-50'}`}>
           <div className="max-w-7xl mx-auto px-4 md:px-6">
-             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 md:gap-6">
                 {[
-                  { title: '粒子艺术', icon: 'palette', color: 'text-pink-500', bg: 'bg-pink-100 dark:bg-pink-900/30', link: '/particle-art' },
-                  { title: '趣味游戏', icon: 'gamepad', color: 'text-purple-500', bg: 'bg-purple-100 dark:bg-purple-900/30', link: '/games' },
-                  { title: '积分商城', icon: 'gift', color: 'text-orange-500', bg: 'bg-orange-100 dark:bg-orange-900/30', link: '/points-mall' },
-                  { title: '人气榜单', icon: 'chart-line', color: 'text-blue-500', bg: 'bg-blue-100 dark:bg-blue-900/30', link: '/leaderboard' }
+                  { 
+                    title: '粒子艺术', 
+                    icon: 'palette', 
+                    color: 'text-pink-500', 
+                    bg: 'bg-pink-100 dark:bg-pink-900/40', 
+                    link: '/particle-art',
+                    img: 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=800&q=80',
+                    gradient: 'from-pink-500/20 to-purple-500/20'
+                  },
+                  { 
+                    title: '趣味游戏', 
+                    icon: 'gamepad', 
+                    color: 'text-purple-500', 
+                    bg: 'bg-purple-100 dark:bg-purple-900/40', 
+                    link: '/games',
+                    img: 'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?w=800&q=80',
+                    gradient: 'from-purple-500/20 to-blue-500/20'
+                  },
+                  { 
+                    title: '积分商城', 
+                    icon: 'gift', 
+                    color: 'text-orange-500', 
+                    bg: 'bg-orange-100 dark:bg-orange-900/40', 
+                    link: '/points-mall',
+                    img: 'https://images.unsplash.com/photo-1592417817098-8fd3d9eb14a5?w=800&q=80',
+                    gradient: 'from-orange-500/20 to-yellow-500/20'
+                  },
+                  { 
+                    title: '人气榜单', 
+                    icon: 'chart-line', 
+                    color: 'text-blue-500', 
+                    bg: 'bg-blue-100 dark:bg-blue-900/40', 
+                    link: '/leaderboard',
+                    img: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&q=80',
+                    gradient: 'from-blue-500/20 to-teal-500/20'
+                  }
                 ].map((item, idx) => (
                   <motion.div 
                     key={idx}
-                    whileHover={{ y: -8, shadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)" }}
-                    className={`rounded-[2rem] p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-300 ${isDark ? 'bg-gray-900 border border-gray-800' : 'bg-white border border-gray-100'} shadow-sm`}
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ duration: 0.5, delay: idx * 0.1 }}
+                    whileHover={{ 
+                      y: -12, 
+                      shadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)" 
+                    }}
+                    className={`relative rounded-2xl overflow-hidden cursor-pointer group transition-all duration-500 ${isDark ? 'bg-gray-900/80 border border-gray-700/50' : 'bg-white/80 border border-gray-200'} shadow-lg hover:shadow-2xl backdrop-blur-sm`}
                     onClick={() => navigate(item.link)}
                   >
-                     <div className={`w-16 h-16 rounded-[1.2rem] ${item.bg} ${item.color} flex items-center justify-center text-3xl mb-6 shadow-sm`}>
-                       <i className={`fas fa-${item.icon}`}></i>
-                     </div>
-                     <h4 className={`text-lg font-bold ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>{item.title}</h4>
-                     <p className={`text-xs mt-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>点击探索</p>
+                    {/* Background Image with Enhanced Effect */}
+                    <div className="absolute inset-0 overflow-hidden">
+                      <img 
+                        src={item.img} 
+                        alt={item.title} 
+                        className="absolute inset-0 w-full h-full object-cover transition-transform duration-1000 group-hover:scale-115 opacity-40 mix-blend-overlay"
+                        loading="lazy"
+                      />
+                      
+                      {/* Color Gradient Overlay */}
+                      <div className={`absolute inset-0 bg-gradient-to-br ${item.gradient} opacity-80`}></div>
+                      
+                      {/* Dark Overlay for Deeper Background */}
+                      <div className="absolute inset-0 bg-black/30 opacity-60"></div>
+                      
+                      {/* Subtle Grid Pattern */}
+                      <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxwYXRoIGZpbGw9IiMwMDAiIGQ9Ik0wIDBoNjB2NjBIMHoiLz48cGF0aCBkPSJNMzAgMzBoMzB2MzBIMzB6Ii8+PHBhdGggZD0iTTMwIDBoMzB2MzBIMzB6TTAgMzBoMzB2MzBIMHoiLz48cGF0aCBkPSJNMCAwaDMwdjMwSDB6Ii8+PHBhdGggZmlsbD0id2hpdGUiIGQ9Ik0zMCAwaDMwdjMwSDMweiIvPjxwYXRoIGZpbGw9IndoaXRlIiBkPSJNMzAgMzBoMzB2MzBIMzB6Ii8+PHBhdGggZmlsbD0id2hpdGUiIGQ9Ik0wIDMwSDMwdjMwSDB6Ii8+PHBhdGggZmlsbD0id2hpdGUiIGQ9Ik0wIDBoMzB2MzBIMHoiLz48L2c+PC9zdmc+')] opacity-10 dark:opacity-20"></div>
+                    </div>
+                    
+                    {/* Card Content with Enhanced Styling */}
+                    <div className="relative z-10 p-6 flex flex-col items-center justify-center text-center h-full">
+                      {/* Icon with Glow Effect */}
+                      <div className={`w-14 h-14 rounded-full ${item.bg} ${item.color} flex items-center justify-center text-2xl mb-4 shadow-xl transition-all duration-500 group-hover:scale-125 group-hover:shadow-2xl`}>
+                        <i className={`fas fa-${item.icon}`}></i>
+                      </div>
+                      
+                      {/* Title with Better Typography */}
+                      <h4 className={`text-lg font-bold mb-2 bg-gradient-to-r from-white to-white/80 bg-clip-text text-transparent drop-shadow-lg transition-transform duration-300 group-hover:scale-105`}>
+                        {item.title}
+                      </h4>
+                      
+                      {/* Subtitle with Arrow Animation */}
+                      <p className={`text-xs text-white/80 flex items-center gap-1.5 transition-all duration-300 group-hover:text-white/95`}>
+                        <span>探索更多</span>
+                        <motion.i 
+                          className="fas fa-arrow-right text-sm" 
+                          animate={{ x: [0, 3, 0] }} 
+                          transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                        ></motion.i>
+                      </p>
+                    </div>
+                    
+                    {/* Decorative Corner Elements */}
+                    <div className="absolute top-0 left-0 w-12 h-12 border-t-2 border-l-2 border-white/30 rounded-tl-2xl opacity-50 group-hover:opacity-80 transition-opacity duration-300"></div>
+                    <div className="absolute bottom-0 right-0 w-12 h-12 border-b-2 border-r-2 border-white/30 rounded-br-2xl opacity-50 group-hover:opacity-80 transition-opacity duration-300"></div>
                   </motion.div>
                 ))}
              </div>

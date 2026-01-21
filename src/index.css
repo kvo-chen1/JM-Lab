@@ -1312,6 +1312,20 @@ details p {
   }
 }
 
+/* 悬停跳动动画 */
+@keyframes hover-bounce {
+  0%, 100% {
+    transform: scale(1.05) translateY(0);
+  }
+  50% {
+    transform: scale(1.05) translateY(-5px);
+  }
+}
+
+.hover:animate-bounce {
+  animation: hover-bounce 0.8s ease-in-out infinite;
+}
+
 /* 闪烁动画 */
 @keyframes blink {
   0%, 100% {

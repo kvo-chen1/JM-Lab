@@ -717,7 +717,8 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                     to={`${item.path}${item.search || ''}`}
                     title={collapsed && !hovered && !isPinned ? t(navItemIdToTranslationKey[item.id] || item.id) : undefined} 
                     onMouseEnter={() => debouncedPrefetch(item.path)} 
-                    className={({ isActive }) => `${navItemClass} ${isActive ? activeClass : (isDark ? 'text-gray-400' : 'text-[var(--text-secondary)]')} relative overflow-hidden group ${(collapsed && !hovered && !isPinned) ? 'justify-center px-2 py-2.5' : ''}`}
+                    className={({ isActive }) => `${navItemClass} ${isActive ? activeClass : (isDark ? 'text-gray-300' : 'text-gray-700')} relative overflow-hidden group ${(collapsed && !hovered && !isPinned) ? 'justify-center px-2 py-2.5' : ''}`}
+                    end
                   > 
                     <i className={`fas ${item.icon} ${(collapsed && !hovered && !isPinned) ? 'mr-0' : 'mr-2'} transition-all duration-300 group-hover:scale-110 group-hover:rotate-5`}></i>
                     {(!collapsed || hovered || isPinned) && <span className="transition-all duration-300 ease-in-out opacity-100">{t(navItemIdToTranslationKey[item.id] || item.id)}</span>}

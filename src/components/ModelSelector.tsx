@@ -53,6 +53,7 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ isOpen, onClose }) => {
   // 多模型选择相关状态
   const [isMultiModelMode, setIsMultiModelMode] = useState(false);
   const [selectedModels, setSelectedModels] = useState<string[]>([currentValidModel.id]);
+  // Kimi模型配置
   const [kimiKey, setKimiKey] = useState<string>(() => {
     const envKey = (typeof import.meta !== 'undefined' && (import.meta as any).env && (import.meta as any).env.VITE_KIMI_API_KEY) || '';
     const stored = getApiKey('KIMI_API_KEY');
@@ -60,22 +61,6 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ isOpen, onClose }) => {
   });
   const [kimiBase, setKimiBase] = useState<string>('https://api.moonshot.cn/v1');
   const [kimiVariant, setKimiVariant] = useState<string>('moonshot-v1-32k');
-  const [deepseekKey, setDeepseekKey] = useState<string>(() => {
-    const envKey = (typeof import.meta !== 'undefined' && (import.meta as any).env && (import.meta as any).env.VITE_DEEPSEEK_API_KEY) || '';
-    const stored = getApiKey('DEEPSEEK_API_KEY');
-    return stored || envKey;
-  });
-  const [deepseekBase, setDeepseekBase] = useState<string>('https://api.deepseek.com');
-  const [deepseekVariant, setDeepseekVariant] = useState<string>('deepseek-chat');
-  
-  // 通义千问模型配置
-  const [qwenKey, setQwenKey] = useState<string>(() => {
-    const envKey = (typeof import.meta !== 'undefined' && (import.meta as any).env && (import.meta as any).env.VITE_QWEN_API_KEY) || '';
-    const stored = getApiKey('QWEN_API_KEY');
-    return stored || envKey;
-  });
-  const [qwenBase, setQwenBase] = useState<string>('https://dashscope.aliyuncs.com/api/v1');
-  const [qwenVariant, setQwenVariant] = useState<string>('qwen-plus');
   
   const configRef = useRef<HTMLDivElement>(null);
 
@@ -147,19 +132,9 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ isOpen, onClose }) => {
     if (model) {
       setSelectedModel(model);
       // 更新对应模型的配置状态
-      if (modelId === 'kimi') {
-        setKimiKey(getApiKey('KIMI_API_KEY'));
-        setKimiBase(modelConfig.kimi_base_url);
-        setKimiVariant(modelConfig.kimi_model);
-      } else if (modelId === 'deepseek') {
-        setDeepseekKey(getApiKey('DEEPSEEK_API_KEY'));
-        setDeepseekBase(modelConfig.deepseek_base_url || 'https://api.deepseek.com');
-        setDeepseekVariant(modelConfig.deepseek_model || 'deepseek-chat');
-      } else if (modelId === 'qwen') {
-        setQwenKey(getApiKey('QWEN_API_KEY'));
-        setQwenBase(modelConfig.qwen_base_url);
-        setQwenVariant(modelConfig.qwen_model);
-      }
+      setKimiKey(getApiKey('KIMI_API_KEY'));
+      setKimiBase(modelConfig.kimi_base_url);
+      setKimiVariant(modelConfig.kimi_model);
       setTimeout(() => {
         if (configRef.current) {
           configRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -192,17 +167,8 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ isOpen, onClose }) => {
   const validateApiKey = (modelId: string, key: string): boolean => {
     if (!key) return true; // 允许空密钥（使用代理时）
     
-    switch (modelId) {
-      case 'kimi':
-      case 'qwen':
-        // Kimi和通义千问密钥格式：通常是sk-开头，但允许其他格式
-        return /^[a-zA-Z0-9_-]+$/.test(key);
-      case 'deepseek':
-        // DeepSeek密钥格式：通常是sk-开头
-        return key.startsWith('sk-');
-      default:
-        return true;
-    }
+    // 只验证Kimi模型密钥
+    return /^[a-zA-Z0-9_-]+$/.test(key);
   };
 
   const handleSave = () => {
@@ -215,44 +181,19 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ isOpen, onClose }) => {
         let keyValid = true;
         let errorMessage = '';
         
-        // 验证并保存API密钥
-        if (selectedModel.id === 'kimi') {
-          if (kimiKey) {
-            if (!validateApiKey('kimi', kimiKey)) {
-              keyValid = false;
-              errorMessage = 'Kimi 密钥格式不正确，应为 sk- 开头';
-            } else {
-              saveApiKey('KIMI_API_KEY', kimiKey);
-            }
+        // 验证并保存API密钥（只处理Kimi模型）
+        if (kimiKey) {
+          if (!validateApiKey('kimi', kimiKey)) {
+            keyValid = false;
+            errorMessage = 'Kimi 密钥格式不正确，应为 sk- 开头';
           } else {
-            saveApiKey('KIMI_API_KEY', '');
+            saveApiKey('KIMI_API_KEY', kimiKey);
           }
-          setModelConfig(prev => ({ ...prev, kimi_base_url: kimiBase, kimi_model: kimiVariant }));
-        } else if (selectedModel.id === 'deepseek') {
-          if (deepseekKey) {
-            if (!validateApiKey('deepseek', deepseekKey)) {
-              keyValid = false;
-              errorMessage = 'DeepSeek 密钥格式不正确，应为 sk- 开头';
-            } else {
-              saveApiKey('DEEPSEEK_API_KEY', deepseekKey);
-            }
-          } else {
-            saveApiKey('DEEPSEEK_API_KEY', '');
-          }
-          setModelConfig(prev => ({ ...prev, deepseek_base_url: deepseekBase, deepseek_model: deepseekVariant }));
-        } else if (selectedModel.id === 'qwen') {
-          if (qwenKey) {
-            if (!validateApiKey('qwen', qwenKey)) {
-              keyValid = false;
-              errorMessage = '通义千问 密钥格式不正确';
-            } else {
-              saveApiKey('QWEN_API_KEY', qwenKey);
-            }
-          } else {
-            saveApiKey('QWEN_API_KEY', '');
-          }
-          setModelConfig(prev => ({ ...prev, qwen_base_url: qwenBase, qwen_model: qwenVariant }));
+        } else {
+          saveApiKey('KIMI_API_KEY', '');
         }
+        
+        setModelConfig(prev => ({ ...prev, kimi_base_url: kimiBase, kimi_model: kimiVariant }));
         
         if (!keyValid) {
           setError(errorMessage);

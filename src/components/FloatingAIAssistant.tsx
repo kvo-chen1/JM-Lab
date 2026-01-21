@@ -611,6 +611,8 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
           response = numberResponses[num] || `你输入的数字是 ${num}。在我们的平台上，每个数字都可以成为创作的灵感来源。你可以尝试将数字元素融入你的作品中，创造出独特的视觉效果。`;
         } else {
           // 调用LLM服务生成响应，传递当前页面上下文
+          // 始终使用Kimi模型
+          llmService.setCurrentModel('kimi');
           // 使用简化的直接生成响应方法，绕过任务队列
           console.log('调用llmService.directGenerateResponse，提示词:', userMessage.content);
           response = await llmService.directGenerateResponse(userMessage.content, {
@@ -976,22 +978,22 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
               <AnimatePresence mode="wait">
                 {!showSettings ? (
                   <motion.div
-                  key="chat"
-                  initial={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  transition={{ duration: 0.2 }}
-                  className={`flex-1 p-2 sm:p-3 space-y-3 ${windowWidth < 768 ? 'space-y-3' : 'space-y-4'} overflow-auto`}
-                  style={{
-                    scrollbarWidth: 'thin',
-                    scrollbarColor: isDark ? '#4B5563 #1F2937' : '#9CA3AF #F3F4F6',
-                    // 强制显示滚动条
-                    msOverflowStyle: 'auto',
-                    // 确保在各种浏览器中都能正常工作
-                    WebkitOverflowScrolling: 'touch',
-                    boxSizing: 'border-box'
-                  }}
-                  ref={chatContainerRef}
-                >
+                    key="chat"
+                    initial={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    transition={{ duration: 0.2 }}
+                    className={`flex-1 p-2 sm:p-3 space-y-3 ${windowWidth < 768 ? 'space-y-3' : 'space-y-4'} overflow-auto`}
+                    style={{
+                      scrollbarWidth: 'thin',
+                      scrollbarColor: isDark ? '#4B5563 #1F2937' : '#9CA3AF #F3F4F6',
+                      // 强制显示滚动条
+                      msOverflowStyle: 'auto',
+                      // 确保在各种浏览器中都能正常工作
+                      WebkitOverflowScrolling: 'touch',
+                      boxSizing: 'border-box'
+                    }}
+                    ref={chatContainerRef}
+                  >
                     {messages.map((message, index) => (
                       <motion.div
                         key={index}

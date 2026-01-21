@@ -7,6 +7,7 @@ interface CommunityLayoutProps {
   sidebar: ReactNode;
   navigation: ReactNode;
   infoSidebar?: ReactNode;
+  activeCommunity?: any; // 添加活跃社群信息，用于自定义风格
 }
 
 export const CommunityLayout: React.FC<CommunityLayoutProps> = ({
@@ -15,15 +16,32 @@ export const CommunityLayout: React.FC<CommunityLayoutProps> = ({
   sidebar,
   navigation,
   infoSidebar,
+  activeCommunity
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [mobileInfoSidebarOpen, setMobileInfoSidebarOpen] = useState(false);
 
   return (
-    <div className={`min-h-screen w-full flex flex-col md:flex-row ${isDark ? 'bg-gray-700' : 'bg-white'}`}>
+    <div 
+      className={`min-h-screen w-full flex flex-col md:flex-row ${isDark ? 'bg-gray-700' : 'bg-white'}`}
+      style={{
+        '--primary-color': activeCommunity?.theme?.primaryColor || (isDark ? '#3B82F6' : '#3B82F6'),
+        '--secondary-color': activeCommunity?.theme?.secondaryColor || (isDark ? '#60A5FA' : '#60A5FA')
+      } as React.CSSProperties}
+    >
       
       {/* Mobile Header */}
       <div className={`md:hidden h-16 flex items-center justify-between px-4 border-b z-50 sticky top-0 ${isDark ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-200 text-gray-900'} shadow-sm`}>
+        {/* 如果有社群主题色，应用到移动端头部 */}
+        {activeCommunity?.theme?.primaryColor && (
+          <style jsx>{`
+            .mobile-header-button.active {
+              background-color: ${activeCommunity.theme.primaryColor} !important;
+              color: white !important;
+            }
+          `}</style>
+        )}
         <div className="flex items-center gap-3">
             <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-2 -ml-2 rounded-lg hover:bg-gray-200/20 dark:hover:bg-gray-700/50 transition-colors">
                 <i className={`fas ${mobileMenuOpen ? 'fa-times' : 'fa-bars'} text-lg`}></i>
@@ -34,6 +52,12 @@ export const CommunityLayout: React.FC<CommunityLayoutProps> = ({
              <button className="p-2 rounded-lg hover:bg-gray-200/20 dark:hover:bg-gray-700/50 transition-colors">
                <i className="fas fa-search text-base"></i>
              </button>
+             {/* 移动端信息侧边栏切换按钮 */}
+             {infoSidebar && (
+               <button onClick={() => setMobileInfoSidebarOpen(!mobileInfoSidebarOpen)} className="p-2 rounded-lg hover:bg-gray-200/20 dark:hover:bg-gray-700/50 transition-colors">
+                 <i className="fas fa-info-circle text-base"></i>
+               </button>
+             )}
              <div className="w-9 h-9 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center text-sm font-medium">
                {""}
              </div>
@@ -60,6 +84,15 @@ export const CommunityLayout: React.FC<CommunityLayoutProps> = ({
                 className="md:hidden fixed inset-0 bg-black/50 z-40"
             />
         )}
+        {mobileInfoSidebarOpen && (
+            <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setMobileInfoSidebarOpen(false)}
+                className="md:hidden fixed inset-0 bg-black/50 z-40"
+            />
+        )}
       </AnimatePresence>
 
       {/* 1. Far Left Sidebar (Servers) */}
@@ -74,9 +107,15 @@ export const CommunityLayout: React.FC<CommunityLayoutProps> = ({
 
       {/* 3. Main Content Area */}
       <main 
-        className={`flex-1 min-h-screen transition-all duration-200 w-full lg:w-auto ${infoSidebar ? 'lg:mr-60' : ''}`}
+        className={`flex-1 min-h-screen transition-all duration-300 w-full lg:w-auto flex`}
       >
-        <div className={`h-full ${isDark ? 'bg-gray-700' : 'bg-white'} min-h-[calc(100vh-64px)] lg:min-h-screen`}>
+        <motion.div 
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          transition={{ duration: 0.3 }}
+          className={`h-full ${isDark ? 'bg-gray-700' : 'bg-white'} min-h-[calc(100vh-64px)] lg:min-h-screen flex-1`}
+        >
              {/* Mobile Navigation Toggle */}
              <div className="md:hidden h-14 flex items-center px-4 border-b dark:border-gray-700 border-gray-200">
                <button 
@@ -88,15 +127,22 @@ export const CommunityLayout: React.FC<CommunityLayoutProps> = ({
                </button>
              </div>
              {children}
-        </div>
-      </main>
+        </motion.div>
 
-      {/* 4. Right Info Sidebar (Optional) - Hidden on Mobile */}
-      {infoSidebar && (
-          <div className="hidden lg:block">
-              {infoSidebar}
-          </div>
-      )}
+        {/* 4. Right Info Sidebar (Optional) - Responsive Design */}
+        {infoSidebar && (
+            <>
+                {/* Desktop Sidebar */}
+                <div className="hidden lg:block">
+                    {infoSidebar}
+                </div>
+                {/* Mobile Sidebar */}
+                <div className={`fixed inset-y-0 right-0 top-16 z-50 transform transition-transform duration-300 ease-in-out md:hidden ${mobileInfoSidebarOpen ? 'translate-x-0' : 'translate-x-full'}`} style={{ width: '90vw', maxWidth: '400px' }}>
+                    {infoSidebar}
+                </div>
+            </>
+        )}
+      </main>
     </div>
   );
 };

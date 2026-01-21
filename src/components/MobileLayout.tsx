@@ -604,7 +604,7 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
                           <div key={notification.id} className={`p-3 border-b last:border-b-0 transition-all duration-200 hover:bg-opacity-90 ${isDark ? 'border-gray-700 hover:bg-gray-700/50' : 'border-gray-100 hover:bg-gray-50'} ${!notification.read ? (isDark ? 'bg-blue-900/20' : 'bg-blue-50') : ''}`}>
                             <div className="flex items-start gap-2.5">
                               {/* 通知图标 - 根据分类显示不同图标 */}
-                              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-base transition-all duration-300 ${isDark ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-base transition-all duration-300 mt-0.5 ${isDark ? 'bg-gray-700' : 'bg-gray-100'}`}>
                                 <i className={`fas ${notification.category === 'like' ? 'fa-heart text-red-500' : 
                                                 notification.category === 'join' ? 'fa-user-plus text-green-500' : 
                                                 notification.category === 'message' ? 'fa-envelope text-blue-500' : 
@@ -619,11 +619,11 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-start justify-between">
                                   <h4 className={`text-sm font-medium truncate ${!notification.read ? 'font-semibold' : ''}`}>{notification.title}</h4>
-                                  <span className={`text-[10px] ${isDark ? 'text-gray-400' : 'text-gray-500'} mt-0.5`}>{notification.time}</span>
+                                  <span className={`text-[10px] ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{notification.time}</span>
                                 </div>
-                                <p className={`text-[10px] ${isDark ? 'text-gray-300' : 'text-gray-700'} mt-0.5 line-clamp-2`}>{notification.description}</p>
+                                <p className={`text-[10px] ${isDark ? 'text-gray-300' : 'text-gray-700'} mt-1 line-clamp-2`}>{notification.description}</p>
                                 {/* 通知分类标签 */}
-                                <span className={`mt-0.5 inline-block px-1.5 py-0.25 rounded-full text-[10px] ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'}`}>
+                                <span className={`mt-1 inline-block px-1.5 py-0.25 rounded-full text-[10px] ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'}`}>
                                   {notification.category === 'like' && t('notification.types.like')}
                                   {notification.category === 'join' && t('notification.types.join')}
                                   {notification.category === 'message' && t('notification.types.message')}
@@ -638,7 +638,7 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
                               </div>
                               {/* 未读指示器 */}
                               {!notification.read && (
-                                <span className={`w-1.5 h-1.5 rounded-full ${isDark ? 'bg-blue-400' : 'bg-blue-500'} mt-1.5 animate-ping`}></span>
+                                <span className={`w-1.5 h-1.5 rounded-full ${isDark ? 'bg-blue-400' : 'bg-blue-500'} mt-2 animate-ping`}></span>
                               )}
                             </div>
                           </div>

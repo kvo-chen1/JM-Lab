@@ -654,6 +654,32 @@ export const TianjinImage: React.FC<{
     return `relative overflow-hidden ${roundedMap[rounded]} ${className} ${withBorder ? (isDark ? 'ring-1 ring-gray-700' : 'ring-1 ring-gray-200') : ''} cursor-pointer sm:max-w-full md:max-w-full lg:max-w-full`;
   }, [roundedMap, rounded, className, withBorder, isDark]);
   
+  // 当 ratio 为 auto 且没有 badge/imageTag 时，移除外层 div 包装，直接返回 LazyImage (bare模式)
+  // 这解决了瀑布流布局中多余 div 导致的间隙和对齐问题
+  if (ratio === 'auto' && !badge && !imageTag) {
+    return (
+      <LazyImage
+        src={src}
+        alt={alt}
+        // 将 combinedClassName 传递给 LazyImage，确保样式（圆角、边框等）被应用到 img 标签上
+        // 显式添加 w-full h-auto 确保覆盖可能存在的默认样式
+        className={`${combinedClassName} w-full h-auto`}
+        ratio={ratio}
+        fit={fit}
+        position={position}
+        loading={loading}
+        priority={priority}
+        quality={quality}
+        onLoad={onLoad}
+        onError={onError}
+        disableFallback={disableFallback}
+        bare={true}
+        onClick={onClick}
+        fallbackSrc={fallbackSrc || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDIwMCAyMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxjaXJjbGUgY3g9IjEwMCIgY3k9IjEwMCIgcj0iMTAwIiBmaWxsPSIjZmZmZmZmIi8+CjxjaXJjbGUgY3g9IjEwMCIgY3k9IjEwMCIgcj0iNzAiIGZpbGw9IiM2NjY2NjYiLz4KPHN2ZyB4PSI3MCIgeT0iNzAiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgZmlsbD0ibm9uZSI+CjxyZWN0IHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgZmlsbD0id2hpdGUiLz4KPHJlY3QgeD0iODAiIHk9IjgwIiB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIGZpbGw9IiNkY2RjZGMiLz4KPHJlY3QgeD0iOTAuNSIgeT0iOTEiIHdpZHRoPSIxOSIgaGVpZ2h0PSIxOCIgc3Ryb2tlPSIjNzc3Nzc3IiBzdHJva2Utb3BhY2l0eT0iMC41IiBzdHJva2Utd2lkdGg9IjIiLz4KPC9zdmc+Cjwvc3ZnPg=='}
+      />
+    );
+  }
+
   return (
     <div
       className={combinedClassName}
@@ -662,7 +688,7 @@ export const TianjinImage: React.FC<{
       <LazyImage
           src={src}
           alt={alt}
-          className={`w-full h-full`}
+          className={ratio === 'auto' ? 'w-full h-auto' : 'w-full h-full'}
           ratio={ratio}
           fit={fit}
           position={position}
@@ -672,6 +698,8 @@ export const TianjinImage: React.FC<{
           onLoad={onLoad}
           onError={onError}
           disableFallback={disableFallback} // 使用父组件传入的值
+          // 当 ratio 为 auto 时使用 bare 模式，避免多余的 wrapper 导致布局问题（如瀑布流中的高度计算）
+          bare={ratio === 'auto'}
           // 为所有图片添加默认的fallbackSrc，确保在图片加载失败时能显示占位符
           fallbackSrc={fallbackSrc || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDIwMCAyMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxjaXJjbGUgY3g9IjEwMCIgY3k9IjEwMCIgcj0iMTAwIiBmaWxsPSIjZmZmZmZmIi8+CjxjaXJjbGUgY3g9IjEwMCIgY3k9IjEwMCIgcj0iNzAiIGZpbGw9IiM2NjY2NjYiLz4KPHN2ZyB4PSI3MCIgeT0iNzAiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgZmlsbD0ibm9uZSI+CjxyZWN0IHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgZmlsbD0id2hpdGUiLz4KPHJlY3QgeD0iODAiIHk9IjgwIiB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIGZpbGw9IiNkY2RjZGMiLz4KPHJlY3QgeD0iOTAuNSIgeT0iOTEiIHdpZHRoPSIxOSIgaGVpZ2h0PSIxOCIgc3Ryb2tlPSIjNzc3Nzc3IiBzdHJva2Utb3BhY2l0eT0iMC41IiBzdHJva2Utd2lkdGg9IjIiLz4KPC9zdmc+Cjwvc3ZnPg=='}
         />
@@ -743,6 +771,24 @@ export const TianjinAvatar: React.FC<{
     };
   }, [withBorder, isDark]);
   
+  // 生成基于用户名的默认头像URL
+  const getDefaultAvatarUrl = (username: string) => {
+    // 使用DiceBear API生成基于用户名的头像
+    const seed = encodeURIComponent(username.trim() || 'user');
+    // 支持多种风格，根据主题选择不同风格
+    const style = isDark ? 'avataaars' : 'avataaars';
+    return `https://api.dicebear.com/7.x/${style}/svg?seed=${seed}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`;
+  };
+  
+  // 确定最终使用的头像URL
+  const finalAvatarUrl = useMemo(() => {
+    // 如果src为空或无效，使用默认头像
+    if (!src || src.trim() === '' || src === 'undefined' || src === 'null') {
+      return getDefaultAvatarUrl(alt);
+    }
+    return src;
+  }, [src, alt, isDark]);
+  
   // 缓存最终className
   const combinedClassName = useMemo(() => {
     return `relative ${sizeMap[size]} ${className} cursor-pointer group transition-all duration-300`;
@@ -788,13 +834,17 @@ export const TianjinAvatar: React.FC<{
         transition={{ type: 'spring', stiffness: 300, damping: 15 }}
       >
         <LazyImage
-          src={src}
+          src={finalAvatarUrl}
           alt={alt}
           className="w-full h-full object-cover object-center transition-transform duration-300 group-hover:scale-105"
           ratio="square"
           fit="cover"
           position={position}
           loading="lazy"
+          // 添加默认头像作为fallback
+          fallbackSrc={getDefaultAvatarUrl(alt)}
+          // 启用高质量渲染
+          quality="high"
         />
         
         {/* 添加轻微的发光效果 */}

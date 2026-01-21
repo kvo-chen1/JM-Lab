@@ -123,9 +123,17 @@ const CulturalSortingGame: React.FC<CulturalSortingGameProps> = ({ isOpen, onClo
     }
   }, [user]);
 
+  // 触摸状态管理
+  const [touchState, setTouchState] = useState({
+    isDragging: false,
+    draggedItem: null as SortItem | null,
+    touchStart: { x: 0, y: 0 }
+  });
+
   // 处理拖拽开始
   const handleDragStart = useCallback((e: React.DragEvent, item: SortItem) => {
     e.dataTransfer.setData('itemId', item.id);
+    e.dataTransfer.effectAllowed = 'move';
   }, []);
 
   // 处理拖拽结束
@@ -141,6 +149,7 @@ const CulturalSortingGame: React.FC<CulturalSortingGameProps> = ({ isOpen, onClo
   // 处理拖拽覆盖
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
   }, []);
 
   // 处理拖拽放置
@@ -185,6 +194,69 @@ const CulturalSortingGame: React.FC<CulturalSortingGameProps> = ({ isOpen, onClo
       setSourceItems(prev => [...prev, item]);
     }
   }, [sourceItems]);
+
+  // 处理触摸开始（移动端优化）
+  const handleTouchStart = useCallback((e: React.TouchEvent, item: SortItem, isSourceItem: boolean) => {
+    e.preventDefault();
+    setTouchState({
+      isDragging: true,
+      draggedItem: item,
+      touchStart: {
+        x: e.touches[0].clientX,
+        y: e.touches[0].clientY
+      }
+    });
+  }, []);
+
+  // 处理触摸移动（移动端优化）
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!touchState.isDragging) return;
+    
+    const currentX = e.touches[0].clientX;
+    const currentY = e.touches[0].clientY;
+    
+    // 计算移动距离
+    const deltaX = currentX - touchState.touchStart.x;
+    const deltaY = currentY - touchState.touchStart.y;
+    
+    // 可以在这里添加拖拽视觉反馈
+  }, [touchState]);
+
+  // 处理触摸结束（移动端优化）
+  const handleTouchEnd = useCallback((e: React.TouchEvent, targetIndex?: number, isTargetList?: boolean) => {
+    if (!touchState.isDragging || !touchState.draggedItem) return;
+    
+    if (isTargetList && targetIndex !== undefined) {
+      // 触摸结束在目标列表
+      const draggedItem = touchState.draggedItem;
+      
+      if (sourceItems.includes(draggedItem)) {
+        // 从源列表添加到目标列表指定位置
+        setSourceItems(prev => prev.filter(item => item.id !== draggedItem.id));
+        setTargetItems(prev => {
+          const newTarget = [...prev];
+          newTarget.splice(targetIndex, 0, draggedItem);
+          return newTarget;
+        });
+      }
+    } else if (!isTargetList && targetIndex === undefined) {
+      // 触摸结束在源列表
+      const draggedItem = touchState.draggedItem;
+      
+      if (!sourceItems.includes(draggedItem)) {
+        // 从目标列表添加回源列表
+        setTargetItems(prev => prev.filter(item => item.id !== draggedItem.id));
+        setSourceItems(prev => [...prev, draggedItem]);
+      }
+    }
+    
+    // 重置触摸状态
+    setTouchState({
+      isDragging: false,
+      draggedItem: null,
+      touchStart: { x: 0, y: 0 }
+    });
+  }, [touchState, sourceItems]);
 
   // 提交排序结果
   const handleSubmitSort = useCallback(() => {
@@ -535,18 +607,26 @@ const CulturalSortingGame: React.FC<CulturalSortingGameProps> = ({ isOpen, onClo
                           <div className="space-y-3">
                             {sourceItems.map((item) => (
                               <div
-                                key={item.id}
-                                className={`p-3 rounded-lg cursor-move transition-all ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-white hover:bg-gray-50'} border ${isDark ? 'border-gray-600' : 'border-gray-200'} hover:shadow-md`}
-                                draggable
-                                onClick={() => handleItemClick(item)}
-                                onDragStart={(e) => handleDragStart(e, item)}
-                                onDragEnd={handleDragEnd}
-                              >
-                                <h6 className="font-medium">{item.name}</h6>
-                                <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                  {item.content}
-                                </p>
+                              key={item.id}
+                              className={`p-4 rounded-lg cursor-move transition-all ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-white hover:bg-gray-50'} border ${isDark ? 'border-gray-600' : 'border-gray-200'} hover:shadow-md active:scale-98 touch-manipulation`}
+                              draggable
+                              onClick={() => handleItemClick(item)}
+                              onDragStart={(e) => handleDragStart(e, item)}
+                              onDragEnd={handleDragEnd}
+                              onTouchStart={(e) => handleTouchStart(e, item, true)}
+                              onTouchMove={handleTouchMove}
+                              onTouchEnd={(e) => handleTouchEnd(e, undefined, false)}
+                              style={{ touchAction: 'none', userSelect: 'none' }}
+                            >
+                              <h6 className="font-medium">{item.name}</h6>
+                              <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                {item.content}
+                              </p>
+                              {/* 触摸提示 */}
+                              <div className="mt-2 text-xs text-center ${isDark ? 'text-gray-500' : 'text-gray-400'}">
+                                <i className="fas fa-hand-pointer"></i> 点击或拖拽到右侧排序
                               </div>
+                            </div>
                             ))}
                           </div>
                         )}
@@ -565,28 +645,36 @@ const CulturalSortingGame: React.FC<CulturalSortingGameProps> = ({ isOpen, onClo
                           <div className="space-y-3">
                             {targetItems.map((item, index) => (
                               <div
-                                key={item.id}
-                                className={`p-3 rounded-lg cursor-move transition-all ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-white hover:bg-gray-50'} border ${isDark ? 'border-gray-600' : 'border-gray-200'} hover:shadow-md`}
-                                draggable
-                                onDragStart={(e) => handleDragStart(e, item)}
-                                onDragEnd={handleDragEnd}
-                                onDragOver={handleDragOver}
-                                onDragEnter={handleDragEnter}
-                                onDrop={(e) => handleDrop(e, index)}
-                                onClick={() => handleItemClick(item)}
-                              >
-                                <div className="flex items-center justify-between">
-                                  <div>
-                                    <h6 className="font-medium">{item.name}</h6>
-                                    <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                      {item.content}
-                                    </p>
-                                  </div>
-                                  <div className={`w-6 h-6 rounded-full flex items-center justify-center ${isDark ? 'bg-gray-600' : 'bg-gray-200'}`}>
-                                    {index + 1}
-                                  </div>
+                              key={item.id}
+                              className={`p-4 rounded-lg cursor-move transition-all ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-white hover:bg-gray-50'} border ${isDark ? 'border-gray-600' : 'border-gray-200'} hover:shadow-md active:scale-98 touch-manipulation`}
+                              draggable
+                              onDragStart={(e) => handleDragStart(e, item)}
+                              onDragEnd={handleDragEnd}
+                              onDragOver={handleDragOver}
+                              onDragEnter={handleDragEnter}
+                              onDrop={(e) => handleDrop(e, index)}
+                              onClick={() => handleItemClick(item)}
+                              onTouchStart={(e) => handleTouchStart(e, item, false)}
+                              onTouchMove={handleTouchMove}
+                              onTouchEnd={(e) => handleTouchEnd(e, index, true)}
+                              style={{ touchAction: 'none', userSelect: 'none' }}
+                            >
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <h6 className="font-medium">{item.name}</h6>
+                                  <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                    {item.content}
+                                  </p>
+                                </div>
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isDark ? 'bg-blue-600' : 'bg-blue-500'} text-white font-medium`}>
+                                  {index + 1}
                                 </div>
                               </div>
+                              {/* 触摸提示 */}
+                              <div className="mt-2 text-xs text-center ${isDark ? 'text-gray-500' : 'text-gray-400'}">
+                                <i className="fas fa-arrows-alt"></i> 可拖拽调整位置
+                              </div>
+                            </div>
                             ))}
                           </div>
                         )}
@@ -679,18 +767,18 @@ const CulturalSortingGame: React.FC<CulturalSortingGameProps> = ({ isOpen, onClo
                 </div>
 
                 {/* 游戏控制 */}
-                <div className="flex flex-wrap justify-center gap-3">
+                <div className="flex flex-wrap justify-center gap-4 mt-8">
                   <button
                     onClick={handleRestartLevel}
-                    className={`px-4 py-2 rounded-lg transition-colors ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}
+                    className={`px-6 py-3 rounded-lg text-lg font-medium transition-all shadow-md hover:shadow-lg active:scale-98 ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}
                   >
-                    重新挑战
+                    <i className="fas fa-redo mr-2"></i> 重新挑战
                   </button>
                   <button
                     onClick={handleBackToMenu}
-                    className={`px-4 py-2 rounded-lg transition-colors ${isDark ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-500 hover:bg-blue-600'} text-white`}
+                    className={`px-6 py-3 rounded-lg text-lg font-medium transition-all shadow-md hover:shadow-lg active:scale-98 ${isDark ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-500 hover:bg-blue-600'} text-white`}
                   >
-                    返回关卡选择
+                    <i className="fas fa-home mr-2"></i> 返回关卡选择
                   </button>
                 </div>
               </motion.div>

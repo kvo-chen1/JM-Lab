@@ -8,7 +8,7 @@
 import { aiTaskQueueService, AITask, TaskPriority } from './aiTaskQueueService';
 import apiClient from '@/lib/apiClient';
 import { handleSseStreamingResponse } from './llm/streaming';
-import { callDeepseekChat, callKimiChat, callQwenChat } from './llm/chatProviders';
+import { callKimiChat, callQwenChat } from './llm/chatProviders';
 
 // 模型类型定义
 export interface LLMModel {
@@ -225,13 +225,6 @@ export const AVAILABLE_MODELS: LLMModel[] = [
     isDefault: true
   },
   {
-    id: 'deepseek',
-    name: 'DeepSeek',
-    description: '擅长传统纹样生成和文化元素融合',
-    strengths: ['中文对话', '文化元素融合', '设计创意'],
-    isDefault: false
-  },
-  {
     id: 'qwen',
     name: '通义千问',
     description: '阿里云DashScope，中文对话与综合任务表现优秀，支持图像生成',
@@ -239,6 +232,7 @@ export const AVAILABLE_MODELS: LLMModel[] = [
     isDefault: false
   }
 ];
+
 
 // 默认角色列表
 export const DEFAULT_ROLES: ModelRole[] = [
@@ -2411,8 +2405,6 @@ class LLMService {
     switch (modelId) {
       case 'kimi':
         return this.callKimiApi(messages, options);
-      case 'deepseek':
-        return this.callDeepseekApi(messages, options);
       case 'qwen':
         return this.callQwenApi(messages, options);
       default:

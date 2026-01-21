@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useFriendContext } from '../contexts/friendContext';
+import { useChatContext } from '../contexts/chatContext';
+import PrivateChatWindow from '@/components/Chat/PrivateChatWindow';
 import { Card, Input, Button, LoadingSpinner } from '@/components/ui';
+import { MessageSquare } from 'lucide-react';
 
 const FriendsPage: React.FC = () => {
   const { 
@@ -16,6 +19,8 @@ const FriendsPage: React.FC = () => {
     setFriendNote,
     loading 
   } = useFriendContext();
+  
+  const { setCurrentChatFriendId, unreadCounts } = useChatContext();
   
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -383,6 +388,7 @@ const FriendsPage: React.FC = () => {
           )}
         </div>
       </div>
+      <PrivateChatWindow />
     </div>
   );
 };

@@ -38,6 +38,13 @@ const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
   const [installStatus, setInstallStatus] = useState<'idle' | 'installing' | 'installed' | 'dismissed'>('idle');
 
   useEffect(() => {
+    // 如果强制显示，直接显示安装引导
+    if (forceShow) {
+      setShowInstallButton(true);
+      setShowGuide(true);
+      return;
+    }
+
     const handleBeforeInstallPrompt = (e: Event) => {
       // 阻止 Chrome 67 及更早版本自动显示安装提示
       e.preventDefault();
@@ -113,7 +120,7 @@ const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
       window.removeEventListener('appinstalled', handleAppInstalled);
       clearInterval(interval);
     };
-  }, [deferredPrompt]);
+  }, [deferredPrompt, forceShow]);
 
   const handleInstallClick = async () => {
     console.log('🔄 开始安装流程...');

@@ -31,26 +31,19 @@ const PostItem = memo(({ post, index, onPostClick, onLike, isDark }: PostItemPro
     : 'bg-white hover:bg-gray-50'
 
   return (
-    <div 
-      className={`${cardClassName} rounded-lg shadow-md overflow-hidden cursor-pointer transition-all duration-300 transform hover:scale-105`}
+    <div
+      className={`${cardClassName} rounded-lg shadow-md hover:shadow-xl overflow-hidden cursor-pointer transition-all duration-300 transform hover:scale-105 hover:animate-bounce active:scale-95 mb-4 break-inside-avoid`}
       onClick={handlePostClick}
     >
-      <div className="relative aspect-square">
-        <LazyImage 
-          src={post.thumbnail} 
-          alt={post.title}
-          className="w-full h-full object-cover"
-          priority={index < 3} // 前3张图片优先加载
-          quality={index < 6 ? 'high' : 'medium'} // 前6张图片使用高质量
-          ratio="square"
-          fit="cover"
-          loading="lazy"
-          sizes="(max-width: 640px) 100vw, (max-width: 768px) 50vw, (max-width: 1024px) 33vw, (max-width: 1280px) 25vw, 20vw"
-        />
-        <div className="absolute top-2 right-2 bg-black bg-opacity-50 text-white px-2 py-1 rounded text-sm">
-          {post.likes} ❤️
-        </div>
-      </div>
+      <LazyImage 
+        src={post.thumbnail}  
+        alt={post.title}
+        className="w-full h-auto"
+        priority={index < 3}
+        quality={index < 6 ? 'high' : 'medium'}
+        ratio="auto"
+        bare
+      />
       
       <div className="p-2 sm:p-3">
         <h3 className="font-semibold text-sm sm:text-base mb-1 line-clamp-2">{post.title}</h3>
@@ -121,10 +114,10 @@ const PostGrid: React.FC<PostGridProps> = ({
   ), [handlePostClick, isDark, onLike])
 
   // 如果帖子数量较少，直接渲染，避免虚拟滚动的复杂性
-  if (posts.length < 20) {
+  if (posts.length < 100) {
     return (
       <div className="w-full">
-        <div className="grid gap-4 p-2" style={{ gridTemplateColumns: `repeat(${columns}, 1fr)` }}>
+        <div className="gap-4 p-2 columns-1 sm:columns-2 lg:columns-3 xl:columns-4 2xl:columns-5 space-y-4">
           {posts.map((post, index) => (
             <PostItem 
               key={post.id} 

@@ -7,7 +7,11 @@ interface LeaderboardItem {
   userId: string;
   username: string;
   score: number;
+  level: number;
+  winRate: number;
   time: number;
+  rankChange: number;
+  avatar: string;
   levelId?: string;
   completedAt: Date;
 }
@@ -34,7 +38,7 @@ const GameLeaderboard: React.FC<GameLeaderboardProps> = ({
   const { isDark } = useTheme();
   const [leaderboard, setLeaderboard] = useState<LeaderboardItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [sortBy, setSortBy] = useState<'score' | 'time'>('score');
+  const [sortBy, setSortBy] = useState<'score' | 'time' | 'level' | 'winRate'>('score');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   // 模拟加载排行榜数据
@@ -45,16 +49,16 @@ const GameLeaderboard: React.FC<GameLeaderboardProps> = ({
         // 这里应该从API或localStorage加载真实数据
         // 目前使用模拟数据
         const mockData: LeaderboardItem[] = [
-          { userId: '1', username: '玩家1', score: 980, time: 120, completedAt: new Date(Date.now() - 3600000) },
-          { userId: '2', username: '玩家2', score: 950, time: 135, completedAt: new Date(Date.now() - 7200000) },
-          { userId: '3', username: '玩家3', score: 920, time: 150, completedAt: new Date(Date.now() - 10800000) },
-          { userId: '4', username: '玩家4', score: 890, time: 165, completedAt: new Date(Date.now() - 14400000) },
-          { userId: '5', username: '玩家5', score: 860, time: 180, completedAt: new Date(Date.now() - 18000000) },
-          { userId: '6', username: '玩家6', score: 830, time: 195, completedAt: new Date(Date.now() - 21600000) },
-          { userId: '7', username: '玩家7', score: 800, time: 210, completedAt: new Date(Date.now() - 25200000) },
-          { userId: '8', username: '玩家8', score: 770, time: 225, completedAt: new Date(Date.now() - 28800000) },
-          { userId: '9', username: '玩家9', score: 740, time: 240, completedAt: new Date(Date.now() - 32400000) },
-          { userId: '10', username: '玩家10', score: 710, time: 255, completedAt: new Date(Date.now() - 36000000) }
+          { userId: '1', username: '玩家1', score: 980, level: 25, winRate: 0.92, time: 120, rankChange: 0, avatar: 'https://i.pravatar.cc/150?img=1', completedAt: new Date(Date.now() - 3600000) },
+          { userId: '2', username: '玩家2', score: 950, level: 24, winRate: 0.88, time: 135, rankChange: -1, avatar: 'https://i.pravatar.cc/150?img=2', completedAt: new Date(Date.now() - 7200000) },
+          { userId: '3', username: '玩家3', score: 920, level: 23, winRate: 0.85, time: 150, rankChange: 2, avatar: 'https://i.pravatar.cc/150?img=3', completedAt: new Date(Date.now() - 10800000) },
+          { userId: '4', username: '玩家4', score: 890, level: 22, winRate: 0.82, time: 165, rankChange: 1, avatar: 'https://i.pravatar.cc/150?img=4', completedAt: new Date(Date.now() - 14400000) },
+          { userId: '5', username: '玩家5', score: 860, level: 21, winRate: 0.79, time: 180, rankChange: -2, avatar: 'https://i.pravatar.cc/150?img=5', completedAt: new Date(Date.now() - 18000000) },
+          { userId: '6', username: '玩家6', score: 830, level: 20, winRate: 0.76, time: 195, rankChange: 0, avatar: 'https://i.pravatar.cc/150?img=6', completedAt: new Date(Date.now() - 21600000) },
+          { userId: '7', username: '玩家7', score: 800, level: 19, winRate: 0.73, time: 210, rankChange: 3, avatar: 'https://i.pravatar.cc/150?img=7', completedAt: new Date(Date.now() - 25200000) },
+          { userId: '8', username: '玩家8', score: 770, level: 18, winRate: 0.70, time: 225, rankChange: -1, avatar: 'https://i.pravatar.cc/150?img=8', completedAt: new Date(Date.now() - 28800000) },
+          { userId: '9', username: '玩家9', score: 740, level: 17, winRate: 0.67, time: 240, rankChange: 0, avatar: 'https://i.pravatar.cc/150?img=9', completedAt: new Date(Date.now() - 32400000) },
+          { userId: '10', username: '玩家10', score: 710, level: 16, winRate: 0.64, time: 255, rankChange: 1, avatar: 'https://i.pravatar.cc/150?img=10', completedAt: new Date(Date.now() - 36000000) }
         ];
 
         // 模拟网络延迟
@@ -62,8 +66,30 @@ const GameLeaderboard: React.FC<GameLeaderboardProps> = ({
         
         // 根据排序条件排序
         const sortedData = [...mockData].sort((a, b) => {
-          const aValue = sortBy === 'score' ? a.score : a.time;
-          const bValue = sortBy === 'score' ? b.score : b.time;
+          let aValue: number;
+          let bValue: number;
+          
+          switch (sortBy) {
+            case 'score':
+              aValue = a.score;
+              bValue = b.score;
+              break;
+            case 'level':
+              aValue = a.level;
+              bValue = b.level;
+              break;
+            case 'winRate':
+              aValue = a.winRate;
+              bValue = b.winRate;
+              break;
+            case 'time':
+              aValue = a.time;
+              bValue = b.time;
+              break;
+            default:
+              aValue = a.score;
+              bValue = b.score;
+          }
           
           if (sortOrder === 'asc') {
             return aValue - bValue;
@@ -84,14 +110,15 @@ const GameLeaderboard: React.FC<GameLeaderboardProps> = ({
   }, [gameType, levelId, limit, sortBy, sortOrder]);
 
   // 切换排序方式
-  const toggleSort = (newSortBy: 'score' | 'time') => {
+  const toggleSort = (newSortBy: 'score' | 'time' | 'level' | 'winRate') => {
     if (sortBy === newSortBy) {
       // 切换排序顺序
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
     } else {
       // 新的排序字段，默认降序
       setSortBy(newSortBy);
-      setSortOrder(newSortBy === 'score' ? 'desc' : 'asc');
+      // 时间默认升序，其他默认降序
+      setSortOrder(newSortBy === 'time' ? 'asc' : 'desc');
     }
   };
 
@@ -140,12 +167,24 @@ const GameLeaderboard: React.FC<GameLeaderboardProps> = ({
         {/* 排行榜内容 */}
         <div className="p-4">
           {/* 排序控制 */}
-          <div className="flex justify-end gap-2 mb-4">
+          <div className="flex justify-end gap-2 mb-4 flex-wrap">
             <button
               onClick={() => toggleSort('score')}
               className={`px-3 py-1 rounded-lg text-sm transition-colors ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} ${sortBy === 'score' ? `${isDark ? 'bg-blue-600' : 'bg-blue-500'} text-white` : ''}`}
             >
               得分 {sortBy === 'score' && (sortOrder === 'asc' ? '↑' : '↓')}
+            </button>
+            <button
+              onClick={() => toggleSort('level')}
+              className={`px-3 py-1 rounded-lg text-sm transition-colors ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} ${sortBy === 'level' ? `${isDark ? 'bg-blue-600' : 'bg-blue-500'} text-white` : ''}`}
+            >
+              等级 {sortBy === 'level' && (sortOrder === 'asc' ? '↑' : '↓')}
+            </button>
+            <button
+              onClick={() => toggleSort('winRate')}
+              className={`px-3 py-1 rounded-lg text-sm transition-colors ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} ${sortBy === 'winRate' ? `${isDark ? 'bg-blue-600' : 'bg-blue-500'} text-white` : ''}`}
+            >
+              胜率 {sortBy === 'winRate' && (sortOrder === 'asc' ? '↑' : '↓')}
             </button>
             <button
               onClick={() => toggleSort('time')}
@@ -169,8 +208,11 @@ const GameLeaderboard: React.FC<GameLeaderboardProps> = ({
                   <tr className={`${isDark ? 'bg-gray-700' : 'bg-gray-100'}`}>
                     <th className="p-3 text-left border-b border-r ${isDark ? 'border-gray-600' : 'border-gray-200'} w-16">排名</th>
                     <th className="p-3 text-left border-b border-r ${isDark ? 'border-gray-600' : 'border-gray-200'}">玩家</th>
+                    <th className="p-3 text-left border-b border-r ${isDark ? 'border-gray-600' : 'border-gray-200'}">等级</th>
+                    <th className="p-3 text-left border-b border-r ${isDark ? 'border-gray-600' : 'border-gray-200'}">胜率</th>
                     <th className="p-3 text-left border-b border-r ${isDark ? 'border-gray-600' : 'border-gray-200'}">得分</th>
                     <th className="p-3 text-left border-b border-r ${isDark ? 'border-gray-600' : 'border-gray-200'}">用时</th>
+                    <th className="p-3 text-left border-b border-r ${isDark ? 'border-gray-600' : 'border-gray-200'}">排名变化</th>
                     <th className="p-3 text-left border-b ${isDark ? 'border-gray-600' : 'border-gray-200'}">完成时间</th>
                   </tr>
                 </thead>
@@ -188,14 +230,33 @@ const GameLeaderboard: React.FC<GameLeaderboardProps> = ({
                         <td className={`p-3 border-b border-r ${isDark ? 'border-gray-600' : 'border-gray-200'} font-medium`}>
                           {index + 1}
                         </td>
+                        <td className={`p-3 border-b border-r ${isDark ? 'border-gray-600' : 'border-gray-200'} flex items-center gap-3`}>
+                          <img 
+                            src={item.avatar} 
+                            alt={item.username} 
+                            className="w-10 h-10 rounded-full object-cover"
+                          />
+                          <span>{item.username}</span>
+                        </td>
                         <td className={`p-3 border-b border-r ${isDark ? 'border-gray-600' : 'border-gray-200'}`}>
-                          {item.username}
+                          {item.level}
+                        </td>
+                        <td className={`p-3 border-b border-r ${isDark ? 'border-gray-600' : 'border-gray-200'}`}>
+                          {(item.winRate * 100).toFixed(0)}%
                         </td>
                         <td className={`p-3 border-b border-r ${isDark ? 'border-gray-600' : 'border-gray-200'} font-medium`}>
                           {item.score}
                         </td>
                         <td className={`p-3 border-b border-r ${isDark ? 'border-gray-600' : 'border-gray-200'}`}>
                           {formatTime(item.time)}
+                        </td>
+                        <td className={`p-3 border-b border-r ${isDark ? 'border-gray-600' : 'border-gray-200'}`}>
+                          <span className={`inline-flex items-center ${item.rankChange > 0 ? 'text-green-500' : item.rankChange < 0 ? 'text-red-500' : 'text-gray-500'}`}>
+                            {item.rankChange > 0 && <i className="fas fa-arrow-up mr-1 text-sm"></i>}
+                            {item.rankChange < 0 && <i className="fas fa-arrow-down mr-1 text-sm"></i>}
+                            {item.rankChange === 0 && <i className="fas fa-minus mr-1 text-sm"></i>}
+                            {Math.abs(item.rankChange)}
+                          </span>
                         </td>
                         <td className={`p-3 border-b ${isDark ? 'border-gray-600' : 'border-gray-200'} text-sm`}>
                           {formatDate(item.completedAt)}

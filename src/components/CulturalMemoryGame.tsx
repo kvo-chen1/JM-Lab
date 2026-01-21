@@ -163,6 +163,22 @@ const CulturalMemoryGame: React.FC<CulturalMemoryGameProps> = ({ isOpen, onClose
     });
   }, [gameState, isChecking]);
 
+  // 处理触摸开始（移动端优化）
+  const handleTouchStart = useCallback((e: React.TouchEvent, card: MemoryCard) => {
+    e.preventDefault();
+    handleCardClick(card);
+  }, [handleCardClick]);
+
+  // 处理触摸移动（移动端优化，防止误触）
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    // 可以在这里添加拖拽检测逻辑
+  }, []);
+
+  // 处理触摸结束（移动端优化）
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    // 可以在这里添加触摸结束逻辑
+  }, []);
+
   // 完成关卡
   const handleCompleteLevel = useCallback(() => {
     if (!user || !selectedLevel) return;
@@ -430,11 +446,15 @@ const CulturalMemoryGame: React.FC<CulturalMemoryGameProps> = ({ isOpen, onClose
                   {cards.map((card) => (
                     <motion.div
                       key={card.id}
-                      className="aspect-square perspective-1000"
+                      className="aspect-square perspective-1000 touch-manipulation"
                       onClick={() => handleCardClick(card)}
+                      onTouchStart={(e) => handleTouchStart(e, card)}
+                      onTouchMove={handleTouchMove}
+                      onTouchEnd={handleTouchEnd}
+                      style={{ touchAction: 'none', userSelect: 'none' }}
                     >
                       <motion.div
-                        className="relative w-full h-full cursor-pointer"
+                        className="relative w-full h-full cursor-pointer transition-all active:scale-95"
                         style={{
                           transformStyle: 'preserve-3d',
                           transition: 'transform 0.6s'

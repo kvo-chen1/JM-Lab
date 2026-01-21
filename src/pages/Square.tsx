@@ -21,7 +21,7 @@ export default function Square() {
   const [posts, setPosts] = useState<Post[]>([])
   
   // 中文注释：热门话题标签（支持按点击热度排序）
-  const DEFAULT_TAGS = ['国潮设计', '非遗传承', '品牌联名', '校园活动', '文旅推广']
+  const DEFAULT_TAGS = ['国潮设计', '非遗传承', '品牌联名', '校园活动', '文旅推广', '纹样设计', '插画设计', '工艺创新', '老字号品牌', 'IP设计', '包装设计', '共创设计', '数字艺术', '3D设计', 'AI设计']
   const TAG_KEY = 'jmzf_tag_clicks'
   const TAGS_CACHE_KEY = 'jmzf_tags_cache'
   const TAGS_CACHE_TIMEOUT = 5 * 60 * 1000 // 5分钟缓存

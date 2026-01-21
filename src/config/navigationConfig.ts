@@ -35,7 +35,7 @@ export const creationNavItems: NavItem[] = [
 export const communityNavItems: NavItem[] = [
   { id: 'explore', path: '/explore', label: '探索作品', icon: 'fas fa-compass' },
   { id: 'square', path: '/square', label: '共创广场', icon: 'fas fa-th-large' },
-  { id: 'creator-community', path: '/community', label: '创作者社群', icon: 'fas fa-users', search: '?context=creator' }
+  { id: 'community', path: '/community', label: '创作者社群', icon: 'fas fa-users' }
 ];
 
 // 活动与挑战导航项

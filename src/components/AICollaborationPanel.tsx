@@ -7,6 +7,8 @@ import SpeechInput from './SpeechInput'
 import { useTranslation } from 'react-i18next'
 import { AuthContext } from '../contexts/authContext'
 import AICollaborationMessage from './AICollaborationMessage'
+import localServices from '@/services/localServices'
+import { getRecommendations, RecommendedItem, recordRecommendationClick } from '@/services/recommendationService'
 
 interface AICollaborationPanelProps {
   isOpen: boolean
@@ -26,6 +28,7 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
   const [currentSession, setCurrentSession] = useState<ConversationSession | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
+  const [recs, setRecs] = useState<RecommendedItem[]>([])
   const [isGenerating, setIsGenerating] = useState(false)
   const [isTyping, setIsTyping] = useState(false)
   const [newSessionName, setNewSessionName] = useState('')
@@ -131,6 +134,12 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
     if (!isOpen) return
     checkAIService(false)
   }, [isOpen])
+  useEffect(() => {
+    if (isOpen && user?.id) {
+      const items = getRecommendations(user.id, { limit: 6, strategy: 'hybrid', includeDiverse: true })
+      setRecs(items)
+    }
+  }, [isOpen, user])
 
   // 加载个性化设置
   useEffect(() => {
@@ -355,6 +364,55 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
       }
       
       if (!isGreeting) {
+        const trafficKeywords = ['交通', '路线', '怎么去', '怎么走', '公交', '地铁', '步行', '驾车']
+        const isTrafficQuery = trafficKeywords.some(k => message.includes(k))
+        if (isTrafficQuery) {
+          const mode = message.includes('公交') || message.includes('地铁')
+            ? 'transit'
+            : message.includes('步行')
+            ? 'walk'
+            : 'drive'
+          const routeRegex = /从(.+?)到(.+?)(怎么去|怎么走)?/
+          const m = message.match(routeRegex)
+          let origin = ''
+          let destination = ''
+          if (m && m[1] && m[2]) {
+            origin = m[1].trim()
+            destination = m[2].trim()
+          } else {
+            const parts = message.replace(/[，。,.]/g, ' ').split(' ').filter(Boolean)
+            const idxFrom = parts.findIndex(p => p.includes('从'))
+            const idxTo = parts.findIndex(p => p.includes('到'))
+            if (idxFrom !== -1 && idxTo !== -1 && idxTo > idxFrom) {
+              origin = parts[idxFrom].replace('从', '')
+              destination = parts[idxTo].replace('到', '')
+            }
+          }
+          if (origin && destination) {
+            const route = await localServices.getTrafficRoute({ origin, destination, mode: mode as any })
+            response = `为你查询到从「${origin}」到「${destination}」的${mode === 'transit' ? '公共交通' : mode === 'walk' ? '步行' : '驾车'}路线：\n\n预计距离：${(route.distance / 1000).toFixed(1)} km\n预计耗时：${Math.round(route.duration / 60)} 分钟\n提供方：${route.provider === 'amap' ? '高德地图' : '本地快速查询'}\n\n步骤：\n${route.steps.map((s, i) => `${i + 1}. ${s.instruction}`).join('\n')}`
+            setMessages(prev => [...prev, { role: 'assistant', content: response, timestamp: Date.now() }])
+            return
+          } else {
+            response = '请提供完整的出发地与目的地，例如：“从天津站到鼓楼怎么去”。'
+            setMessages(prev => [...prev, { role: 'assistant', content: response, timestamp: Date.now() }])
+            return
+          }
+        }
+        const govKeywords = ['政务', '办理', '业务', '证', '居住证', '身份证', '社保', '公积金']
+        const isGovQuery = govKeywords.some(k => message.includes(k))
+        if (isGovQuery) {
+          const serviceMap: Record<string, string> = {
+            '身份证': '身份证办理',
+            '居住证': '居住证办理'
+          }
+          const matched = Object.keys(serviceMap).find(k => message.includes(k))
+          const service = matched ? serviceMap[matched] : '线上办理指南'
+          const guide = await localServices.getGovServiceGuide({ service, city: '天津' })
+          response = `为你整理了「${guide.service}」的办理指引：\n\n步骤：\n${guide.steps.map((s, i) => `${i + 1}. ${s}`).join('\n')}\n\n网上办事大厅：${guide.onlinePortal || '—'}\n咨询热线：${guide.hotline || '—'}\n提供方：${guide.provider === 'local' ? '天津政务服务' : '本地指南'}`
+          setMessages(prev => [...prev, { role: 'assistant', content: response, timestamp: Date.now() }])
+          return
+        }
         // 检查页面跳转关键词
         const navigationKeywords: Record<string, { path: string; name: string }> = {
           '首页': { path: '/', name: '首页' },
@@ -1049,6 +1107,40 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
                         <i className="fas fa-file-alt mr-2"></i>
                         {t('aiCollab.actions.openTemplates')}
                       </button>
+                      {recs.length > 0 && (
+                        <div className="mt-6 w-full max-w-2xl">
+                          <h4 className={`text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>为你推荐</h4>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {recs.slice(0, 6).map(item => (
+                              <button
+                                key={`${item.type}_${item.id}`}
+                                onClick={() => {
+                                  recordRecommendationClick(user!.id, item)
+                                  setInput(`请介绍一下「${item.title}」相关内容，并给我适合的创作灵感。`)
+                                }}
+                                className={`flex items-center gap-3 p-3 rounded-xl transition-colors border ${
+                                  isDark ? 'bg-gray-800 border-gray-700 hover:bg-gray-700' : 'bg-white border-gray-200 hover:bg-gray-50'
+                                }`}
+                              >
+                                <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-200">
+                                  {item.thumbnail ? (
+                                    <img src={item.thumbnail} alt={item.title} className="w-full h-full object-cover" />
+                                  ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-gray-400">
+                                      <i className="fas fa-image"></i>
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="flex-1 min-w-0 text-left">
+                                  <div className={`text-sm font-medium truncate ${isDark ? 'text-white' : 'text-black'}`}>{item.title}</div>
+                                  <div className="text-xs text-gray-500 truncate">{item.reason || '个性化推荐'}</div>
+                                </div>
+                                <div className="text-[10px] px-2 py-0.5 rounded-full border text-gray-500">{item.type}</div>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     messages.map((message, index) => (

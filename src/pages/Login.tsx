@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 
 export default function Login() {
   const { toggleTheme, isDark } = useTheme();
-  const { login, loginWithCode, isAuthenticated, quickLogin } = useContext(AuthContext);
+  const { login, loginWithCode, sendEmailOtp, sendSmsOtp, isAuthenticated, quickLogin } = useContext(AuthContext);
   const navigate = useNavigate();
   
   // 登录方式：email - 邮箱登录，phone - 手机号验证码登录
@@ -67,24 +67,24 @@ export default function Login() {
     
     setIsSendingCode(true);
     try {
-      // 调用发送验证码API
-      const endpoint = type === 'phone' ? '/api/auth/send-sms-code' : '/api/auth/send-email-code';
-      const payload = type === 'phone' ? { phone } : { email };
-      
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
-      
-      const data = await response.json();
-      if (data.code === 0) {
-        toast.success(`${type === 'phone' ? '短信' : '邮箱'}验证码发送成功`);
-        setCountdown(60); // 60秒倒计时
+      if (type === 'email') {
+        // 使用Supabase内置的邮箱验证码发送功能
+        const result = await sendEmailOtp(email);
+        if (result.success) {
+          toast.success('邮箱验证码发送成功，请注意查收');
+          setCountdown(60); // 60秒倒计时
+        } else {
+          toast.error(result.error || '邮箱验证码发送失败');
+        }
       } else {
-        toast.error(data.message || `${type === 'phone' ? '短信' : '邮箱'}验证码发送失败`);
+        // 使用Supabase内置的手机验证码发送功能
+        const result = await sendSmsOtp(phone);
+        if (result.success) {
+          toast.success('短信验证码发送成功');
+          setCountdown(60); // 60秒倒计时
+        } else {
+          toast.error(result.error || '短信验证码发送失败');
+        }
       }
     } catch (error) {
       toast.error(`${type === 'phone' ? '短信' : '邮箱'}验证码发送失败，请稍后重试`);
@@ -302,7 +302,7 @@ export default function Login() {
         
         {/* 登录方式切换 */}
         <div className="mb-6">
-          <div className="flex rounded-xl overflow-hidden border ${isDark ? 'border-gray-700' : 'border-gray-200'}">
+          <div className={`flex rounded-xl overflow-hidden border ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
             <button
               type="button"
               onClick={() => setLoginMethod('email')}
@@ -360,7 +360,7 @@ export default function Login() {
               </div>
               
               {/* 邮箱登录类型切换 */}
-              <div className="flex rounded-lg overflow-hidden border ${isDark ? 'border-gray-700' : 'border-gray-200'}">
+              <div className={`flex rounded-lg overflow-hidden border ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
                 <button
                   type="button"
                   onClick={() => setEmailLoginType('password')}
@@ -582,13 +582,11 @@ export default function Login() {
                   whileTap={{ scale: 0.95 }}
                   aria-label={`使用${item.name}登录`}
                   onClick={async () => {
-                    // 对于OAuth登录，只需要触发登录流程，不需要立即处理结果
-                    // 登录状态变化由authContext的onAuthStateChange处理
+                    // 所有第三方登录都使用 quickLogin（包括GitHub）
                     const ok = await quickLogin(item.name as any)
                     if (!ok) {
-                      toast.error('登录流程启动失败，请稍后重试')
+                      toast.error(`${item.name} 登录暂未开放`)
                     }
-                    // 成功触发登录流程后，不需要立即跳转，等待OAuth重定向和状态更新
                   }}
                 >
                   <i className={`fab ${item.icon} text-xl`}></i>

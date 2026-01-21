@@ -51,7 +51,7 @@ const AICreativeAssistant: React.FC<AICreativeAssistantProps> = ({ isOpen, onClo
   };
 
   // 生成创意方案
-  const generateCreativePlan = () => {
+  const generateCreativePlan = async () => {
     if (!promptInput.trim()) {
       toast.error('请输入创作提示');
       return;
@@ -64,7 +64,7 @@ const AICreativeAssistant: React.FC<AICreativeAssistantProps> = ({ isOpen, onClo
 
     setIsGenerating(true);
     try {
-      const plan = aiCreativeAssistantService.generateCreativePlan(promptInput, selectedDirection);
+      const plan = await aiCreativeAssistantService.generateCreativePlan(promptInput, selectedDirection);
       setCreativePlan(plan);
       toast.success('已生成创意方案');
     } catch (error) {

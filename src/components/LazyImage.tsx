@@ -36,10 +36,12 @@ interface LazyImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
   alt: string;
   placeholder?: React.ReactNode | 'blur' | 'color' | 'skeleton';
   className?: string;
-  onLoad?: () => void;
-  onError?: () => void;
+  onLoad?: (e: React.SyntheticEvent<HTMLImageElement, Event>) => void;
+  onError?: (e: React.SyntheticEvent<HTMLImageElement, Event>) => void;
   // 支持的宽高比
   ratio?: 'auto' | 'square' | 'landscape' | 'portrait';
+  // 极简渲染模式：不使用任何容器或占位元素，直接输出<img>
+  bare?: boolean;
   // 图片优先级
   priority?: boolean;
   // 图片质量
@@ -89,6 +91,7 @@ const LazyImage: React.FC<LazyImageProps> = React.memo(({
   onError,
   ratio = 'auto',
   fit = 'cover',
+  bare = false,
   position,
   priority = false,
   quality = 'medium',
@@ -109,7 +112,7 @@ const LazyImage: React.FC<LazyImageProps> = React.memo(({
 }) => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isError, setIsError] = useState(false);
-  const [isVisible, setIsVisible] = useState(false); // 初始化为false，等待进入视口后加载
+  const [isVisible, setIsVisible] = useState(bare ? true : false); // bare模式下直接可见
   const [retryCount, setRetryCount] = useState(0); // 重试次数计数器
   const imgRef = useRef<HTMLImageElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -215,7 +218,7 @@ const LazyImage: React.FC<LazyImageProps> = React.memo(({
   }, [src]);
   
   // 图片加载完成处理
-  const handleLoad = () => {
+  const handleLoad = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
     // 检查图片是否有效（naturalWidth为0表示加载的内容不是图片）
     if (imgRef.current && imgRef.current.naturalWidth === 0) {
       // 内容不是有效的图片，触发错误处理
@@ -226,7 +229,7 @@ const LazyImage: React.FC<LazyImageProps> = React.memo(({
     setIsLoaded(true);
     setIsError(false);
     if (onLoad) {
-      onLoad();
+      onLoad(e);
     }
   };
   
@@ -258,6 +261,11 @@ const LazyImage: React.FC<LazyImageProps> = React.memo(({
 
   // 观察图片是否进入视口
   useEffect(() => {
+    if (bare) {
+      // 极简模式不做懒加载观察
+      setIsVisible(true);
+      return;
+    }
     // 优先级高的图片立即加载，不使用懒加载
     if (priority) {
       setIsVisible(true);
@@ -300,7 +308,11 @@ const LazyImage: React.FC<LazyImageProps> = React.memo(({
       if (imgRef.current.naturalWidth > 0) {
         // 图片已加载且有效
         if (!isLoaded) {
-          handleLoad();
+          // 从缓存加载时，手动创建一个合成事件对象
+          const syntheticEvent = {
+            target: imgRef.current
+          } as unknown as React.SyntheticEvent<HTMLImageElement, Event>;
+          handleLoad(syntheticEvent);
         }
       }
     }
@@ -323,7 +335,10 @@ const LazyImage: React.FC<LazyImageProps> = React.memo(({
   // 图片容器样式
   const getImageClasses = () => {
     const positionClass = position ? `object-${position}` : '';
-    const baseClasses = `w-full h-full object-${fit} ${positionClass} ${getLoadingAnimationClasses()}`;
+    // 如果 ratio 是 auto，使用 h-auto 让图片自然撑开高度，否则使用 h-full 填充容器
+    const heightClass = ratio === 'auto' ? 'h-auto' : 'h-full';
+    // 添加 block 类以消除 img 标签底部的默认间隙
+    const baseClasses = `block w-full ${heightClass} object-${fit} ${positionClass} ${!disableFallback ? getLoadingAnimationClasses() : ''}`;
     
     // 当disableFallback为true时，始终显示图片，不使用动画效果
     if (disableFallback) {
@@ -395,6 +410,25 @@ const LazyImage: React.FC<LazyImageProps> = React.memo(({
     </div>
   );
   
+  // bare模式：直接输出<img>，不包裹额外div，避免任何额外的布局影响
+  if (bare) {
+    return (
+      <img
+        ref={imgRef}
+        src={displaySrc}
+        alt={alt}
+        className={getImageClasses()}
+        onLoad={handleLoad}
+        onError={handleError}
+        loading={loading}
+        srcSet={srcSet}
+        sizes={sizes}
+        {...rest}
+      />
+    );
+  }
+
+  // 默认模式：带容器与占位渲染
   return (
     <div className={`relative ${className}`} ref={containerRef}>
       {/* 图片容器，保持宽高比 */}
@@ -410,8 +444,8 @@ const LazyImage: React.FC<LazyImageProps> = React.memo(({
               : ratio === 'portrait' 
                 ? '4 / 5' 
                 : 'auto',
-          // 为auto比例添加最小高度，避免布局塌陷
-          ...(ratio === 'auto' && { minHeight: '200px' })
+          // 为auto比例添加最小高度，仅在加载前占位，加载完成后由图片撑开
+          ...(ratio === 'auto' && !isLoaded && { minHeight: '50px' })
         }}
       >
         {/* 内置占位符 - 仅当disableFallback为false时显示 */}
@@ -435,7 +469,7 @@ const LazyImage: React.FC<LazyImageProps> = React.memo(({
         
         {/* 简化的加载状态指示器 - 仅显示旋转动画，减少DOM节点 */}
         {isVisible && !isLoaded && !isError && !disableFallback && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center">
+          <div className="absolute inset-0 z-10 flex items中心 justify-center">
             <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
           </div>
         )}

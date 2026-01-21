@@ -1,4 +1,5 @@
 // AI创意助手服务，用于生成创意建议
+import { llmService } from './llmService';
 
 // 创意建议类型定义
 export interface CreativeSuggestion {
@@ -554,7 +555,41 @@ class AICreativeAssistantService {
   }
 
   // 生成创意方案
-  generateCreativePlan(prompt: string, direction: string): string {
+  async generateCreativePlan(prompt: string, direction: string): Promise<string> {
+    // 获取创意方向对象
+    const directionObj = this.getCreativeDirectionById(direction);
+    const directionName = directionObj?.name || '通用';
+    
+    // 构建AI提示词
+    const aiPrompt = `请基于以下创作提示和创意方向，生成一个详细的创意设计方案：
+
+创作提示：${prompt}
+创意方向：${directionName}
+方向描述：${directionObj?.description || ''}
+
+请按照以下结构生成创意方案：
+1. 创意方向 - 包含方向名称、描述、核心概念和相关标签
+2. 设计建议 - 具体的设计思路和建议
+3. 预期效果 - 实施后的预期效果
+4. 实施步骤 - 具体的实施步骤
+5. 资源建议 - 需要的资源和工具
+6. 优化建议 - 后续优化的方向
+
+请确保方案详细、具体、可实施，并且符合创意方向的要求。`;
+    
+    try {
+      // 调用AI API生成创意方案
+      const result = await llmService.directGenerateResponse(aiPrompt);
+      return result;
+    } catch (error) {
+      console.error('生成创意方案失败:', error);
+      // 生成失败时，返回本地生成的方案作为备选
+      return this.generateLocalCreativePlan(prompt, direction);
+    }
+  }
+  
+  // 本地生成创意方案的备选方法
+  private generateLocalCreativePlan(prompt: string, direction: string): string {
     // 生成更详细、更相关的创意方案
     const directionObj = this.getCreativeDirectionById(direction);
     const examples = directionObj?.examples || [];

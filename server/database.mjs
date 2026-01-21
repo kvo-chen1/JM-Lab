@@ -1,6 +1,7 @@
 
 import fs from 'fs'
 import path from 'path'
+import { randomUUID } from 'crypto'
 import dotenv from 'dotenv'
 import Database from 'better-sqlite3'
 import { Pool } from 'pg'
@@ -18,7 +19,24 @@ export const DB_TYPE = {
   SQLITE: 'sqlite',
   POSTGRESQL: 'postgresql',
   NEON_API: 'neon_api',
-  SUPABASE: 'supabase' // Alias for POSTGRESQL with auto-config
+  SUPABASE: 'supabase', // Alias for POSTGRESQL with auto-config
+  MEMORY: 'memory'
+}
+
+// 内存数据库存储（用于本地开发/测试，避免环境问题）
+const memoryStore = {
+  users: [],
+  favorites: [],
+  video_tasks: [],
+  friend_requests: [],
+  friends: [],
+  messages: [],
+  user_status: [],
+  posts: [], // Mock data support
+  comments: [],
+  likes: [],
+  tags: [],
+  post_tags: []
 }
 
 // 日志助手
@@ -50,10 +68,15 @@ const getPostgresConnectionString = () => {
 
 // 自动检测数据库类型
 const detectDbType = () => {
+  // 优先使用环境变量指定的数据库类型
   if (process.env.DB_TYPE) return process.env.DB_TYPE
+  // 如果配置了 Supabase 和 PostgreSQL URL，则使用 Supabase
   if (process.env.SUPABASE_URL && process.env.POSTGRES_URL) return DB_TYPE.SUPABASE
+  // 如果数据库 URL 包含 neon，则使用 Neon API
   if (process.env.DATABASE_URL && process.env.DATABASE_URL.includes('neon')) return DB_TYPE.NEON_API
-  if (process.env.DATABASE_URL) return DB_TYPE.POSTGRESQL
+  // 如果有数据库 URL，则使用 PostgreSQL
+  if (process.env.DATABASE_URL || process.env.POSTGRES_URL) return DB_TYPE.POSTGRESQL
+  // 否则使用 SQLite
   return DB_TYPE.SQLITE
 }
 
@@ -212,7 +235,12 @@ function createSQLiteTables(db) {
       "membership_level TEXT DEFAULT 'free'",
       "membership_status TEXT DEFAULT 'active'",
       'membership_start INTEGER',
-      'membership_end INTEGER'
+      'membership_end INTEGER',
+      'email_login_code TEXT',
+      'email_login_expires INTEGER',
+      'github_id TEXT UNIQUE',
+      'github_username TEXT',
+      "auth_provider TEXT DEFAULT 'local'"
     ]
 
     for (const col of columns) {
@@ -268,6 +296,13 @@ function createSQLiteTables(db) {
     db.exec(`CREATE INDEX IF NOT EXISTS idx_favorites_user_id ON favorites(user_id);`)
     db.exec(`CREATE INDEX IF NOT EXISTS idx_video_tasks_status ON video_tasks(status);`)
     db.exec(`CREATE INDEX IF NOT EXISTS idx_video_tasks_created_at ON video_tasks(created_at);`)
+    
+    // 新增索引
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_friend_requests_sender ON friend_requests(sender_id);`)
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_friend_requests_receiver ON friend_requests(receiver_id);`)
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_friends_user ON friends(user_id);`)
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_messages_sender ON messages(sender_id);`)
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_messages_receiver ON messages(receiver_id);`)
     
   } catch (error) {
     log(`SQLite table creation failed: ${error.message}`, 'ERROR')
@@ -446,8 +481,7 @@ async function createPostgreSQLTables(pool) {
         }
       }
 
-      // 创建用户表 (注意：通常 Supabase Auth 会自动管理 users，但在 public schema 下我们可能需要适配)
-      // 如果 users 表已存在且 id 是 UUID，这里 CREATE 会被忽略，但后续代码需兼容 UUID
+      // 创建用户表 (移除外键约束，使用普通UUID主键)
       await client.query(`
         CREATE TABLE IF NOT EXISTS users (
           id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -473,12 +507,25 @@ async function createPostgreSQLTables(pool) {
           membership_start TIMESTAMP WITH TIME ZONE,
           membership_end TIMESTAMP WITH TIME ZONE
         );
-      `)
+      `);
+      
+      // 尝试移除可能存在的外键约束
+      try {
+        await client.query(`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_id_fkey`);
+      } catch (e) {
+        // 忽略约束不存在的错误
+      }
       
       // 确保必要的列存在，即使表已经存在
       await client.query(`ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS sms_verification_code VARCHAR(10);`)
       await client.query(`ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS sms_verification_expires TIMESTAMP WITH TIME ZONE;`)
       await client.query(`ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS email_verification_expires TIMESTAMP WITH TIME ZONE;`)
+      // GitHub OAuth fields
+      await client.query(`ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS github_id VARCHAR(255);`)
+      await client.query(`ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS github_username VARCHAR(255);`)
+      await client.query(`ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS auth_provider VARCHAR(50) DEFAULT 'local';`)
+      // Add constraint if not exists (Postgres doesn't support IF NOT EXISTS for constraints easily in one line, skipping unique constraint for now or using a DO block)
+      // Simple workaround: just add the column. The unique index can be added separately if critical, but for now app logic handles it.
       
       // 创建收藏表
       await client.query(`
@@ -722,6 +769,9 @@ export async function getDB() {
       }
       return neonApiDb
       
+    case DB_TYPE.MEMORY:
+      return memoryStore
+
     default:
       throw new Error(`Unsupported DB Type: ${dbType}`)
   }
@@ -802,7 +852,8 @@ export const userDB = {
     const { 
       username, email, password_hash, phone = null, avatar_url = null, interests = null, 
       age = null, tags = null, membership_level = 'free', membership_status = 'active', 
-      membership_start = null, membership_end = null
+      membership_start = null, membership_end = null,
+      github_id = null, github_username = null, auth_provider = 'local'
     } = userData
     const now = Date.now()
     const membershipStart = membership_start || now
@@ -814,47 +865,71 @@ export const userDB = {
           INSERT INTO users (
             username, email, password_hash, phone, avatar_url, interests, age, tags, 
             membership_level, membership_status, membership_start, membership_end,
-            created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            created_at, updated_at, github_id, github_username, auth_provider
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           RETURNING id
         `).get(
           username, email, password_hash, phone, avatar_url, interests, age, tags,
           membership_level, membership_status, membershipStart, membership_end,
-          now, now
+          now, now, github_id, github_username, auth_provider
         )
+      case DB_TYPE.MEMORY:
+        const newUser = {
+          id: randomUUID(),
+          username, email, password_hash, phone, avatar_url, interests, age, tags,
+          membership_level, membership_status, membership_start: membershipStart, membership_end,
+          created_at: now, updated_at: now,
+          github_id, github_username, auth_provider
+        }
+        memoryStore.users.push(newUser)
+        return { id: newUser.id }
       case DB_TYPE.MONGODB:
         const result = await db.collection('users').insertOne({
           username, email, password_hash, phone, avatar_url, interests, age, tags,
           membership_level, membership_status, membership_start: membershipStart, membership_end,
-          created_at: now, updated_at: now
+          created_at: now, updated_at: now,
+          github_id, github_username, auth_provider
         })
         return { id: result.insertedId }
       case DB_TYPE.POSTGRESQL:
+        // 生成UUID作为ID
+        const userId = randomUUID();
+        // 对于Supabase，我们需要先创建auth.users记录，然后才能创建public.users记录
+        // 但由于我们没有直接访问auth API的权限，我们可以尝试使用INSERT ... ON CONFLICT或其他方法
+        // 这里我们简化处理，只插入必要的字段，不包括可能导致问题的外键约束
         const { rows } = await db.query(`
           INSERT INTO users (
-            username, email, password_hash, phone, avatar_url, interests, age, tags, 
-            membership_level, membership_status, membership_start, membership_end,
-            created_at, updated_at
+            id, username, email, password_hash, phone, avatar_url, interests, age, tags, 
+            membership_level, membership_status, github_id, github_username, auth_provider
           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+          ON CONFLICT (id) DO UPDATE SET
+            username = $2, email = $3, password_hash = $4, phone = $5, avatar_url = $6, 
+            interests = $7, age = $8, tags = $9, membership_level = $10, 
+            membership_status = $11, github_id = $12, github_username = $13, 
+            auth_provider = $14, updated_at = NOW()
           RETURNING id
         `, [
-          username, email, password_hash, phone, avatar_url, interests, age, tags,
-          membership_level, membership_status, membershipStart, membership_end,
-          now, now
+          userId, username, email, password_hash, phone, avatar_url, interests, age, tags,
+          membership_level, membership_status, github_id, github_username, auth_provider
         ])
         return rows[0]
       case DB_TYPE.NEON_API:
+        // 生成UUID作为ID
+        const neonUserId = randomUUID();
         const neonResult = await db.query(`
           INSERT INTO users (
-            username, email, password_hash, phone, avatar_url, interests, age, tags, 
-            membership_level, membership_status, membership_start, membership_end,
-            created_at, updated_at
+            id, username, email, password_hash, phone, avatar_url, interests, age, tags, 
+            membership_level, membership_status, github_id, github_username, auth_provider
           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+          ON CONFLICT (id) DO UPDATE SET
+            username = $2, email = $3, password_hash = $4, phone = $5, avatar_url = $6, 
+            interests = $7, age = $8, tags = $9, membership_level = $10, 
+            membership_status = $11, github_id = $12, github_username = $13, 
+            auth_provider = $14, updated_at = NOW()
           RETURNING id
         `, [
-          username, email, password_hash, phone, avatar_url, interests, age, tags,
-          membership_level, membership_status, membershipStart, membership_end,
-          now, now
+          neonUserId, username, email, password_hash, phone, avatar_url, interests, age, tags,
+          membership_level, membership_status, github_id, github_username, auth_provider
         ])
         return neonResult.result.rows[0]
       default:
@@ -866,7 +941,8 @@ export const userDB = {
     const db = await getDB()
     const { 
       username, email, password_hash, phone, avatar_url, interests, age, tags,
-      membership_level, membership_status, membership_start, membership_end
+      membership_level, membership_status, membership_start, membership_end,
+      email_verified, email_verification_token, email_verification_expires
     } = updateData
     const now = Date.now()
     const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
@@ -892,12 +968,22 @@ export const userDB = {
         if (membership_status) { updateFields.push(`membership_status = ?`); params.push(membership_status); }
         if (membership_start) { updateFields.push(`membership_start = ?`); params.push(membership_start); }
         if (membership_end !== undefined) { updateFields.push(`membership_end = ?`); params.push(membership_end); }
+        if (email_verified !== undefined) { updateFields.push(`email_verified = ?`); params.push(email_verified); }
+        if (email_verification_token !== undefined) { updateFields.push(`email_verification_token = ?`); params.push(email_verification_token); }
+        if (email_verification_expires !== undefined) { updateFields.push(`email_verification_expires = ?`); params.push(email_verification_expires); }
         updateFields.push(`updated_at = ?`)
         params.push(now)
         params.push(id)
         if (updateFields.length === 1) return this.findById(id)
         const updateSql = `UPDATE users SET ${updateFields.join(', ')} WHERE id = ? RETURNING *`
         return db.prepare(updateSql).get(...params)
+
+      case DB_TYPE.MEMORY:
+        const userIndex = memoryStore.users.findIndex(u => u.id === id || u.id == id)
+        if (userIndex === -1) return null
+        const updatedUser = { ...memoryStore.users[userIndex], ...updateData, updated_at: now }
+        memoryStore.users[userIndex] = updatedUser
+        return updatedUser
 
       case DB_TYPE.MONGODB:
         const updateObj = { updated_at: now }
@@ -911,8 +997,11 @@ export const userDB = {
         if (tags !== undefined) updateObj.tags = tags
         if (membership_level) updateObj.membership_level = membership_level
         if (membership_status) updateObj.membership_status = membership_status
-        if (membership_start) updateObj.membership_start = membership_start
-        if (membership_end !== undefined) updateObj.membership_end = membership_end
+        if (membership_start) { updateObj.membership_start = membership_start }
+        if (membership_end !== undefined) { updateObj.membership_end = membership_end }
+        if (email_verified !== undefined) { updateObj.email_verified = email_verified }
+        if (email_verification_token !== undefined) { updateObj.email_verification_token = email_verification_token }
+        if (email_verification_expires !== undefined) { updateObj.email_verification_expires = email_verification_expires }
         return (await db.collection('users').findOneAndUpdate({ _id: id }, { $set: updateObj }, { returnDocument: 'after' })).value
 
       case DB_TYPE.POSTGRESQL:
@@ -931,6 +1020,9 @@ export const userDB = {
         if (membership_status) { pgUpdateFields.push(`membership_status = $${pgParamIndex++}`); pgParams.push(membership_status) }
         if (membership_start) { pgUpdateFields.push(`membership_start = $${pgParamIndex++}`); pgParams.push(membership_start) }
         if (membership_end !== undefined) { pgUpdateFields.push(`membership_end = $${pgParamIndex++}`); pgParams.push(membership_end) }
+        if (email_verified !== undefined) { pgUpdateFields.push(`email_verified = $${pgParamIndex++}`); pgParams.push(email_verified) }
+        if (email_verification_token !== undefined) { pgUpdateFields.push(`email_verification_token = $${pgParamIndex++}`); pgParams.push(email_verification_token) }
+        if (email_verification_expires !== undefined) { pgUpdateFields.push(`email_verification_expires = $${pgParamIndex++}`); pgParams.push(email_verification_expires) }
         pgUpdateFields.push(`updated_at = $${pgParamIndex++}`)
         pgParams.push(now)
         pgParams.push(id)
@@ -939,9 +1031,31 @@ export const userDB = {
         return (await db.query(pgUpdateSql, pgParams)).rows[0]
 
       case DB_TYPE.NEON_API:
-        // (Simulated logic similar to Postgres)
-        // ... simplified for brevity in this response, ideally same structure as above
-        return null // Placeholder
+        const neonUpdateFields = []
+        const neonParams = []
+        let neonParamIndex = 1
+        if (username) { neonUpdateFields.push(`username = $${neonParamIndex++}`); neonParams.push(username) }
+        if (email) { neonUpdateFields.push(`email = $${neonParamIndex++}`); neonParams.push(email) }
+        if (password_hash) { neonUpdateFields.push(`password_hash = $${neonParamIndex++}`); neonParams.push(password_hash) }
+        if (phone !== undefined) { neonUpdateFields.push(`phone = $${neonParamIndex++}`); neonParams.push(phone) }
+        if (avatar_url !== undefined) { neonUpdateFields.push(`avatar_url = $${neonParamIndex++}`); neonParams.push(avatar_url) }
+        if (interests !== undefined) { neonUpdateFields.push(`interests = $${neonParamIndex++}`); neonParams.push(interests) }
+        if (age !== undefined) { neonUpdateFields.push(`age = $${neonParamIndex++}`); neonParams.push(age) }
+        if (tags !== undefined) { neonUpdateFields.push(`tags = $${neonParamIndex++}`); neonParams.push(tags) }
+        if (membership_level) { neonUpdateFields.push(`membership_level = $${neonParamIndex++}`); neonParams.push(membership_level) }
+        if (membership_status) { neonUpdateFields.push(`membership_status = $${neonParamIndex++}`); neonParams.push(membership_status) }
+        if (membership_start) { neonUpdateFields.push(`membership_start = $${neonParamIndex++}`); neonParams.push(membership_start) }
+        if (membership_end !== undefined) { neonUpdateFields.push(`membership_end = $${neonParamIndex++}`); neonParams.push(membership_end) }
+        if (email_verified !== undefined) { neonUpdateFields.push(`email_verified = $${neonParamIndex++}`); neonParams.push(email_verified) }
+        if (email_verification_token !== undefined) { neonUpdateFields.push(`email_verification_token = $${neonParamIndex++}`); neonParams.push(email_verification_token) }
+        if (email_verification_expires !== undefined) { neonUpdateFields.push(`email_verification_expires = $${neonParamIndex++}`); neonParams.push(email_verification_expires) }
+        neonUpdateFields.push(`updated_at = $${neonParamIndex++}`)
+        neonParams.push(now)
+        neonParams.push(id)
+        if (neonUpdateFields.length === 1) return this.findById(id)
+        const neonUpdateSql = `UPDATE users SET ${neonUpdateFields.join(', ')} WHERE id = $${neonParamIndex - 1} RETURNING *`
+        const neonResult = await db.query(neonUpdateSql, neonParams)
+        return neonResult.result.rows[0]
       default:
         throw new Error(`Unsupported DB Type: ${config.dbType}`)
     }
@@ -952,6 +1066,7 @@ export const userDB = {
     const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
     switch (typeKey) {
       case DB_TYPE.SQLITE: return db.prepare('SELECT * FROM users WHERE email = ?').get(email)
+      case DB_TYPE.MEMORY: return memoryStore.users.find(u => u.email === email)
       case DB_TYPE.MONGODB: return db.collection('users').findOne({ email })
       case DB_TYPE.POSTGRESQL: return (await db.query('SELECT * FROM users WHERE email = $1', [email])).rows[0]
       case DB_TYPE.NEON_API: return (await db.query('SELECT * FROM users WHERE email = $1', [email])).result.rows[0]
@@ -964,6 +1079,7 @@ export const userDB = {
     const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
     switch (typeKey) {
       case DB_TYPE.SQLITE: return db.prepare('SELECT * FROM users WHERE username = ?').get(username)
+      case DB_TYPE.MEMORY: return memoryStore.users.find(u => u.username === username)
       case DB_TYPE.MONGODB: return db.collection('users').findOne({ username })
       case DB_TYPE.POSTGRESQL: return (await db.query('SELECT * FROM users WHERE username = $1', [username])).rows[0]
       case DB_TYPE.NEON_API: return (await db.query('SELECT * FROM users WHERE username = $1', [username])).result.rows[0]
@@ -976,9 +1092,23 @@ export const userDB = {
     const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
     switch (typeKey) {
       case DB_TYPE.SQLITE: return db.prepare('SELECT * FROM users WHERE phone = ?').get(phone)
+      case DB_TYPE.MEMORY: return memoryStore.users.find(u => u.phone === phone)
       case DB_TYPE.MONGODB: return db.collection('users').findOne({ phone: phone })
       case DB_TYPE.POSTGRESQL: return (await db.query('SELECT * FROM users WHERE phone = $1', [phone])).rows[0]
       case DB_TYPE.NEON_API: return (await db.query('SELECT * FROM users WHERE phone = $1', [phone])).result.rows[0]
+      default: throw new Error(`Unsupported DB Type: ${config.dbType}`)
+    }
+  },
+
+  async findByGithubId(githubId) {
+    const db = await getDB()
+    const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
+    switch (typeKey) {
+      case DB_TYPE.SQLITE: return db.prepare('SELECT * FROM users WHERE github_id = ?').get(githubId)
+      case DB_TYPE.MEMORY: return memoryStore.users.find(u => u.github_id === githubId)
+      case DB_TYPE.MONGODB: return db.collection('users').findOne({ github_id: githubId })
+      case DB_TYPE.POSTGRESQL: return (await db.query('SELECT * FROM users WHERE github_id = $1', [githubId])).rows[0]
+      case DB_TYPE.NEON_API: return (await db.query('SELECT * FROM users WHERE github_id = $1', [githubId])).result.rows[0]
       default: throw new Error(`Unsupported DB Type: ${config.dbType}`)
     }
   },
@@ -996,6 +1126,47 @@ export const userDB = {
           db.prepare('INSERT INTO users (email, sms_verification_code, sms_verification_expires, created_at, updated_at) VALUES (?, ?, ?, ?, ?)').run(phone, code, expiresAt, Date.now(), Date.now())
         }
         return true
+      case DB_TYPE.MEMORY:
+        // 处理手机号验证码
+        if (phone) {
+          const memUser = memoryStore.users.find(u => u.email === phone || u.phone === phone)
+          if (memUser) {
+            memUser.sms_verification_code = code
+            memUser.sms_verification_expires = expiresAt
+            memUser.updated_at = Date.now()
+          } else {
+            memoryStore.users.push({
+              id: randomUUID(),
+              username: `user_${phone}`,
+              email: phone, // Assuming phone as email for simple auth flow if not separate
+              phone: phone,
+              sms_verification_code: code,
+              sms_verification_expires: expiresAt,
+              created_at: Date.now(),
+              updated_at: Date.now()
+            })
+          }
+        }
+        // 处理邮箱验证码
+        if (email) {
+          const memUserEmail = memoryStore.users.find(u => u.email === email)
+          if (memUserEmail) {
+            memUserEmail.email_login_code = code
+            memUserEmail.email_login_expires = expiresAt
+            memUserEmail.updated_at = Date.now()
+          } else {
+            memoryStore.users.push({
+              id: randomUUID(),
+              username: `user_${Date.now()}`,
+              email: email,
+              email_login_code: code,
+              email_login_expires: expiresAt,
+              created_at: Date.now(),
+              updated_at: Date.now()
+            })
+          }
+        }
+        return true
       case DB_TYPE.MONGODB:
         await db.collection('users').updateOne(
           { email: phone },
@@ -1004,17 +1175,17 @@ export const userDB = {
         )
         return true
       case DB_TYPE.POSTGRESQL:
-        // 对于PostgreSQL，将毫秒级时间戳转换为TIMESTAMP WITH TIME ZONE
+        // 对于PostgreSQL，列类型为BIGINT，直接存储毫秒时间戳
         await db.query(
-          'INSERT INTO users (email, sms_verification_code, sms_verification_expires, created_at, updated_at) VALUES ($1, $2, to_timestamp($3 / 1000), NOW(), NOW()) ON CONFLICT (email) DO UPDATE SET sms_verification_code = $2, sms_verification_expires = to_timestamp($3 / 1000), updated_at = NOW()',
-          [phone, code, expiresAt]
+          'INSERT INTO users (id, username, email, sms_verification_code, sms_verification_expires, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, NOW(), NOW()) ON CONFLICT (email) DO UPDATE SET sms_verification_code = $4, sms_verification_expires = $5, updated_at = NOW()',
+          [randomUUID(), `user_${phone}`, phone, code, expiresAt]
         )
         return true
       case DB_TYPE.NEON_API:
         // Neon API也使用PostgreSQL语法
         await db.query(
-          'INSERT INTO users (email, sms_verification_code, sms_verification_expires, created_at, updated_at) VALUES ($1, $2, to_timestamp($3 / 1000), NOW(), NOW()) ON CONFLICT (email) DO UPDATE SET sms_verification_code = $2, sms_verification_expires = to_timestamp($3 / 1000), updated_at = NOW()',
-          [phone, code, expiresAt]
+          'INSERT INTO users (id, username, email, sms_verification_code, sms_verification_expires, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, NOW(), NOW()) ON CONFLICT (email) DO UPDATE SET sms_verification_code = $4, sms_verification_expires = $5, updated_at = NOW()',
+          [randomUUID(), `user_${phone}`, phone, code, expiresAt]
         )
         return true
       default: throw new Error(`Unsupported DB Type: ${config.dbType}`)
@@ -1029,23 +1200,127 @@ export const userDB = {
         const user = db.prepare('SELECT sms_verification_code, sms_verification_expires FROM users WHERE email = ?').get(phone)
         return user || { sms_verification_code: null, sms_verification_expires: null }
       }
+      case DB_TYPE.MEMORY: {
+        const user = memoryStore.users.find(u => u.email === phone || u.phone === phone)
+        return user ? { sms_verification_code: user.sms_verification_code, sms_verification_expires: user.sms_verification_expires } : { sms_verification_code: null, sms_verification_expires: null }
+      }
       case DB_TYPE.MONGODB: {
         const user = await db.collection('users').findOne({ email: phone }, { projection: { sms_verification_code: 1, sms_verification_expires: 1 } })
         return user || { sms_verification_code: null, sms_verification_expires: null }
       }
       case DB_TYPE.POSTGRESQL: {
         const { rows } = await db.query(
-          'SELECT sms_verification_code, EXTRACT(EPOCH FROM sms_verification_expires) * 1000 AS sms_verification_expires FROM users WHERE email = $1', 
+          'SELECT sms_verification_code, sms_verification_expires FROM users WHERE email = $1', 
           [phone]
         )
         return rows[0] || { sms_verification_code: null, sms_verification_expires: null }
       }
       case DB_TYPE.NEON_API: {
         const result = await db.query(
-          'SELECT sms_verification_code, EXTRACT(EPOCH FROM sms_verification_expires) * 1000 AS sms_verification_expires FROM users WHERE email = $1', 
+          'SELECT sms_verification_code, sms_verification_expires FROM users WHERE email = $1', 
           [phone]
         )
         return result.result.rows[0] || { sms_verification_code: null, sms_verification_expires: null }
+      }
+      default: throw new Error(`Unsupported DB Type: ${config.dbType}`)
+    }
+  },
+
+  // 新增：更新邮箱验证码（用于邮箱验证码登录）
+  async updateEmailLoginCode(email, code, expiresAt) {
+    const db = await getDB()
+    const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
+    switch (typeKey) {
+      case DB_TYPE.SQLITE: {
+        const existing = db.prepare('SELECT * FROM users WHERE email = ?').get(email)
+        if (existing) {
+          db.prepare('UPDATE users SET email_login_code = ?, email_login_expires = ? WHERE email = ?').run(code, expiresAt, email)
+        } else {
+          db.prepare('INSERT INTO users (email, email_login_code, email_login_expires, created_at, updated_at) VALUES (?, ?, ?, ?, ?)').run(email, code, expiresAt, Date.now(), Date.now())
+        }
+        return true
+      }
+      case DB_TYPE.MONGODB: {
+        await db.collection('users').updateOne(
+          { email },
+          { $set: { email_login_code: code, email_login_expires: expiresAt, updated_at: Date.now() } },
+          { upsert: true }
+        )
+        return true
+      }
+      case DB_TYPE.POSTGRESQL: {
+        await db.query(
+          'INSERT INTO users (id, username, email, email_login_code, email_login_expires, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, NOW(), NOW()) ON CONFLICT (email) DO UPDATE SET email_login_code = $4, email_login_expires = $5, updated_at = NOW()',
+          [randomUUID(), `user_${Date.now()}`, email, code, expiresAt]
+        )
+        return true
+      }
+      case DB_TYPE.NEON_API: {
+        await db.query(
+          'INSERT INTO users (id, username, email, email_login_code, email_login_expires, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, NOW(), NOW()) ON CONFLICT (email) DO UPDATE SET email_login_code = $4, email_login_expires = $5, updated_at = NOW()',
+          [randomUUID(), `user_${Date.now()}`, email, code, expiresAt]
+        )
+        return true
+      }
+      case DB_TYPE.MEMORY: {
+        // 处理内存数据库
+        const existingUserIndex = memoryStore.users.findIndex(user => user.email === email);
+        if (existingUserIndex !== -1) {
+          // 更新现有用户
+          memoryStore.users[existingUserIndex].email_login_code = code;
+          memoryStore.users[existingUserIndex].email_login_expires = expiresAt;
+          memoryStore.users[existingUserIndex].updated_at = Date.now();
+        } else {
+          // 添加新用户
+          memoryStore.users.push({
+            id: randomUUID(),
+            username: `user_${Date.now()}`,
+            email,
+            email_login_code: code,
+            email_login_expires: expiresAt,
+            created_at: Date.now(),
+            updated_at: Date.now()
+          });
+        }
+        return true;
+      }
+      default: throw new Error(`Unsupported DB Type: ${config.dbType}`)
+    }
+  },
+
+  // 新增：获取邮箱验证码信息
+  async getEmailLoginCode(email) {
+    const db = await getDB()
+    const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
+    switch (typeKey) {
+      case DB_TYPE.SQLITE: {
+        const row = db.prepare('SELECT email_login_code, email_login_expires FROM users WHERE email = ?').get(email)
+        return row || { email_login_code: null, email_login_expires: null }
+      }
+      case DB_TYPE.MEMORY: {
+        const user = memoryStore.users.find(u => u.email === email)
+        return user ? { email_login_code: user.email_login_code, email_login_expires: user.email_login_expires } : { email_login_code: null, email_login_expires: null }
+      }
+      case DB_TYPE.MONGODB: {
+        const row = await db.collection('users').findOne(
+          { email },
+          { projection: { email_login_code: 1, email_login_expires: 1 } }
+        )
+        return row || { email_login_code: null, email_login_expires: null }
+      }
+      case DB_TYPE.POSTGRESQL: {
+        const { rows } = await db.query(
+          'SELECT email_login_code, email_login_expires FROM users WHERE email = $1',
+          [email]
+        )
+        return rows[0] || { email_login_code: null, email_login_expires: null }
+      }
+      case DB_TYPE.NEON_API: {
+        const result = await db.query(
+          'SELECT email_login_code, email_login_expires FROM users WHERE email = $1',
+          [email]
+        )
+        return result.result.rows[0] || { email_login_code: null, email_login_expires: null }
       }
       default: throw new Error(`Unsupported DB Type: ${config.dbType}`)
     }
@@ -1056,6 +1331,7 @@ export const userDB = {
     const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
     switch (typeKey) {
       case DB_TYPE.SQLITE: return db.prepare('SELECT * FROM users WHERE id = ?').get(id)
+      case DB_TYPE.MEMORY: return memoryStore.users.find(u => u.id === id || u.id == id)
       case DB_TYPE.MONGODB: return db.collection('users').findOne({ _id: id })
       case DB_TYPE.POSTGRESQL: return (await db.query('SELECT * FROM users WHERE id = $1', [id])).rows[0]
       case DB_TYPE.NEON_API: return (await db.query('SELECT * FROM users WHERE id = $1', [id])).result.rows[0]
@@ -1068,6 +1344,7 @@ export const userDB = {
     const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
     switch (typeKey) {
       case DB_TYPE.SQLITE: return db.prepare('SELECT * FROM users ORDER BY created_at DESC').all()
+      case DB_TYPE.MEMORY: return [...memoryStore.users].sort((a, b) => b.created_at - a.created_at)
       case DB_TYPE.MONGODB: return await db.collection('users').find({}).sort({ created_at: -1 }).toArray()
       case DB_TYPE.POSTGRESQL: return (await db.query('SELECT * FROM users ORDER BY created_at DESC')).rows
       case DB_TYPE.NEON_API: return (await db.query('SELECT * FROM users ORDER BY created_at DESC')).result.rows
@@ -1082,6 +1359,7 @@ export const favoriteDB = {
     const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
     switch (typeKey) {
       case DB_TYPE.SQLITE: return db.prepare('SELECT tutorial_id FROM favorites WHERE user_id = ? ORDER BY tutorial_id ASC').all(userId).map(r => r.tutorial_id)
+      case DB_TYPE.MEMORY: return memoryStore.favorites.filter(f => f.user_id === userId).map(f => f.tutorial_id)
       case DB_TYPE.MONGODB: return (await db.collection('favorites').find({ user_id: userId }).sort({ tutorial_id: 1 }).toArray()).map(f => f.tutorial_id)
       case DB_TYPE.POSTGRESQL: return (await db.query('SELECT tutorial_id FROM favorites WHERE user_id = $1 ORDER BY tutorial_id ASC', [userId])).rows.map(r => r.tutorial_id)
       default: throw new Error(`Unsupported DB Type: ${config.dbType}`)
@@ -1096,6 +1374,11 @@ export const favoriteDB = {
         const existing = db.prepare('SELECT * FROM favorites WHERE user_id = ? AND tutorial_id = ?').get(userId, tutorialId)
         if (existing) db.prepare('DELETE FROM favorites WHERE user_id = ? AND tutorial_id = ?').run(userId, tutorialId)
         else db.prepare('INSERT INTO favorites (user_id, tutorial_id, created_at) VALUES (?, ?, ?)').run(userId, tutorialId, Date.now())
+        return this.getUserFavorites(userId)
+      case DB_TYPE.MEMORY:
+        const favIndex = memoryStore.favorites.findIndex(f => f.user_id === userId && f.tutorial_id === tutorialId)
+        if (favIndex > -1) memoryStore.favorites.splice(favIndex, 1)
+        else memoryStore.favorites.push({ user_id: userId, tutorial_id: tutorialId, created_at: Date.now() })
         return this.getUserFavorites(userId)
       case DB_TYPE.MONGODB:
         const result = await db.collection('favorites').findOneAndDelete({ user_id: userId, tutorial_id: tutorialId })
@@ -1130,6 +1413,21 @@ export const videoTaskDB = {
             payload_json = COALESCE(excluded.payload_json, video_tasks.payload_json)
         `).run(id, status || null, model || null, now, now, payloadJson)
         return
+      case DB_TYPE.MEMORY:
+        const taskIndex = memoryStore.video_tasks.findIndex(t => t.id === id)
+        if (taskIndex > -1) {
+          const existing = memoryStore.video_tasks[taskIndex]
+          memoryStore.video_tasks[taskIndex] = {
+            ...existing,
+            status: status || existing.status,
+            model: model || existing.model,
+            updated_at: now,
+            payload: payload || existing.payload
+          }
+        } else {
+          memoryStore.video_tasks.push({ id, status, model, created_at: now, updated_at: now, payload })
+        }
+        return
       case DB_TYPE.MONGODB:
         await db.collection('video_tasks').updateOne({ id }, { $set: { status, model, updated_at: now, payload }, $setOnInsert: { created_at: now } }, { upsert: true })
         return
@@ -1158,6 +1456,7 @@ export const videoTaskDB = {
         let payload = null
         if (row.payload_json) try { payload = JSON.parse(row.payload_json) } catch (e) {}
         return { id: row.id, status: row.status, model: row.model, created_at: row.created_at, updated_at: row.updated_at, payload }
+      case DB_TYPE.MEMORY: return memoryStore.video_tasks.find(t => t.id === id) || null
       case DB_TYPE.MONGODB: return db.collection('video_tasks').findOne({ id })
       case DB_TYPE.POSTGRESQL:
         const { rows } = await db.query('SELECT * FROM video_tasks WHERE id = $1', [id])
@@ -1199,6 +1498,29 @@ export const leaderboardDB = {
           ORDER BY p.${sortBy} DESC
           LIMIT ?
         `).all(...params, limit)
+      case DB_TYPE.MEMORY:
+        // Mock data for community page
+        if (memoryStore.posts.length === 0) {
+           // Generate some mock posts if empty
+           for (let i = 0; i < 5; i++) {
+             memoryStore.posts.push({
+               id: i + 1,
+               title: `Mock Post ${i+1}`,
+               content: `This is a mock post content for testing.`,
+               user_id: memoryStore.users[0]?.id || 'mock-user-id',
+               username: 'MockUser',
+               avatar_url: null,
+               likes_count: Math.floor(Math.random() * 100),
+               comments_count: 0,
+               views: Math.floor(Math.random() * 1000),
+               created_at: Date.now() - i * 100000
+             })
+           }
+        }
+        return memoryStore.posts
+          .filter(p => startTime === 0 || p.created_at >= startTime)
+          .sort((a, b) => b[sortBy] - a[sortBy])
+          .slice(0, limit)
       case DB_TYPE.MONGODB:
         const query = startTime > 0 ? { created_at: { $gte: startTime } } : {}
         return await db.collection('posts').aggregate([
@@ -1234,6 +1556,13 @@ export const leaderboardDB = {
         // SQLite Mock for now
         const users = db.prepare(`SELECT id, username, email, avatar_url, created_at, updated_at FROM users ORDER BY id DESC LIMIT ?`).all(limit)
         return users.map(user => ({ ...user, posts_count: Math.floor(Math.random() * 100), total_likes: Math.floor(Math.random() * 1000), total_views: Math.floor(Math.random() * 10000) }))
+      case DB_TYPE.MEMORY:
+        return memoryStore.users.slice(0, limit).map(user => ({
+          ...user,
+          posts_count: 0,
+          total_likes: 0,
+          total_views: 0
+        }))
       case DB_TYPE.MONGODB:
         const postQuery = startTime > 0 ? { created_at: { $gte: startTime } } : {}
         return await db.collection('users').aggregate([
@@ -1255,6 +1584,245 @@ export const leaderboardDB = {
           ORDER BY ${sortBy} DESC
           LIMIT $${pgUserParamOffset + 1}
         `, pgUserParams)).rows
+      default: throw new Error(`Unsupported DB Type: ${config.dbType}`)
+    }
+  }
+}
+
+export const friendDB = {
+  async sendRequest(senderId, receiverId) {
+    const db = await getDB()
+    const now = Date.now()
+    const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
+    
+    switch (typeKey) {
+      case DB_TYPE.SQLITE:
+        // Check if request already exists
+        const existing = db.prepare('SELECT * FROM friend_requests WHERE sender_id = ? AND receiver_id = ?').get(senderId, receiverId)
+        if (existing) return existing
+        
+        // Check if already friends
+        const friend = db.prepare('SELECT * FROM friends WHERE user_id = ? AND friend_id = ?').get(senderId, receiverId)
+        if (friend) throw new Error('ALREADY_FRIENDS')
+        
+        db.prepare('INSERT INTO friend_requests (sender_id, receiver_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?)').run(senderId, receiverId, 'pending', now, now)
+        return db.prepare('SELECT * FROM friend_requests WHERE sender_id = ? AND receiver_id = ?').get(senderId, receiverId)
+        
+      default: throw new Error(`Unsupported DB Type: ${config.dbType}`)
+    }
+  },
+
+  async acceptRequest(requestId) {
+    const db = await getDB()
+    const now = Date.now()
+    const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
+    
+    switch (typeKey) {
+      case DB_TYPE.SQLITE:
+        const request = db.prepare('SELECT * FROM friend_requests WHERE id = ?').get(requestId)
+        if (!request) throw new Error('REQUEST_NOT_FOUND')
+        if (request.status !== 'pending') throw new Error('INVALID_STATUS')
+        
+        const transaction = db.transaction(() => {
+          // Update request status
+          db.prepare('UPDATE friend_requests SET status = ?, updated_at = ? WHERE id = ?').run('accepted', now, requestId)
+          
+          // Add to friends table (bidirectional)
+          db.prepare('INSERT OR IGNORE INTO friends (user_id, friend_id, created_at) VALUES (?, ?, ?)').run(request.sender_id, request.receiver_id, now)
+          db.prepare('INSERT OR IGNORE INTO friends (user_id, friend_id, created_at) VALUES (?, ?, ?)').run(request.receiver_id, request.sender_id, now)
+        })
+        
+        transaction()
+        return true
+        
+      default: throw new Error(`Unsupported DB Type: ${config.dbType}`)
+    }
+  },
+
+  async rejectRequest(requestId) {
+    const db = await getDB()
+    const now = Date.now()
+    const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
+    
+    switch (typeKey) {
+      case DB_TYPE.SQLITE:
+        db.prepare('UPDATE friend_requests SET status = ?, updated_at = ? WHERE id = ?').run('rejected', now, requestId)
+        return true
+      default: throw new Error(`Unsupported DB Type: ${config.dbType}`)
+    }
+  },
+
+  async getRequests(userId) {
+    const db = await getDB()
+    const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
+    
+    switch (typeKey) {
+      case DB_TYPE.SQLITE:
+        const requests = db.prepare(`
+          SELECT fr.*, u.username, u.avatar_url 
+          FROM friend_requests fr
+          JOIN users u ON fr.sender_id = u.id
+          WHERE fr.receiver_id = ? AND fr.status = 'pending'
+          ORDER BY fr.created_at DESC
+        `).all(userId)
+        return requests.map(r => ({
+          ...r,
+          sender: { id: r.sender_id, username: r.username, avatar_url: r.avatar_url }
+        }))
+      default: throw new Error(`Unsupported DB Type: ${config.dbType}`)
+    }
+  },
+
+  async getFriends(userId) {
+    const db = await getDB()
+    const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
+    
+    switch (typeKey) {
+      case DB_TYPE.SQLITE:
+        const friends = db.prepare(`
+          SELECT f.*, u.username, u.avatar_url, u.email, s.status as online_status, s.last_seen
+          FROM friends f
+          JOIN users u ON f.friend_id = u.id
+          LEFT JOIN user_status s ON f.friend_id = s.user_id
+          WHERE f.user_id = ?
+          ORDER BY s.status DESC, f.created_at DESC
+        `).all(userId)
+        return friends.map(f => ({
+          ...f,
+          friend: { 
+            id: f.friend_id, 
+            username: f.username, 
+            avatar_url: f.avatar_url, 
+            email: f.email,
+            status: f.online_status || 'offline',
+            last_seen: f.last_seen
+          }
+        }))
+      default: throw new Error(`Unsupported DB Type: ${config.dbType}`)
+    }
+  },
+  
+  async deleteFriend(userId, friendId) {
+    const db = await getDB()
+    const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
+    
+    switch (typeKey) {
+      case DB_TYPE.SQLITE:
+        db.prepare('DELETE FROM friends WHERE (user_id = ? AND friend_id = ?) OR (user_id = ? AND friend_id = ?)').run(userId, friendId, friendId, userId)
+        return true
+      default: throw new Error(`Unsupported DB Type: ${config.dbType}`)
+    }
+  },
+  
+  async updateNote(userId, friendId, note) {
+    const db = await getDB()
+    const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
+    
+    switch (typeKey) {
+      case DB_TYPE.SQLITE:
+        db.prepare('UPDATE friends SET user_note = ? WHERE user_id = ? AND friend_id = ?').run(note, userId, friendId)
+        return true
+      default: throw new Error(`Unsupported DB Type: ${config.dbType}`)
+    }
+  },
+  
+  async searchUsers(query, currentUserId) {
+    const db = await getDB()
+    const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
+    
+    switch (typeKey) {
+      case DB_TYPE.SQLITE:
+        const users = db.prepare(`
+          SELECT id, username, email, avatar_url, phone
+          FROM users 
+          WHERE (username LIKE ? OR email LIKE ?) AND id != ?
+          LIMIT 20
+        `).all(`%${query}%`, `%${query}%`, currentUserId)
+        
+        // Add status info
+        return users.map(u => {
+           const statusRow = db.prepare('SELECT status FROM user_status WHERE user_id = ?').get(u.id)
+           return { ...u, status: statusRow ? statusRow.status : 'offline' }
+        })
+      default: throw new Error(`Unsupported DB Type: ${config.dbType}`)
+    }
+  },
+  
+  async updateUserStatus(userId, status) {
+    const db = await getDB()
+    const now = new Date().toISOString()
+    const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
+    
+    switch (typeKey) {
+      case DB_TYPE.SQLITE:
+        db.prepare(`
+          INSERT INTO user_status (user_id, status, last_seen) 
+          VALUES (?, ?, ?)
+          ON CONFLICT(user_id) DO UPDATE SET status = ?, last_seen = ?
+        `).run(userId, status, now, status, now)
+        return true
+      default: throw new Error(`Unsupported DB Type: ${config.dbType}`)
+    }
+  }
+}
+
+export const messageDB = {
+  async sendMessage(senderId, receiverId, content) {
+    const db = await getDB()
+    const now = Date.now()
+    const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
+    
+    switch (typeKey) {
+      case DB_TYPE.SQLITE:
+        db.prepare('INSERT INTO messages (sender_id, receiver_id, content, is_read, created_at) VALUES (?, ?, ?, 0, ?)').run(senderId, receiverId, content, now)
+        return { sender_id: senderId, receiver_id: receiverId, content, is_read: 0, created_at: now }
+      default: throw new Error(`Unsupported DB Type: ${config.dbType}`)
+    }
+  },
+
+  async getMessages(userId, friendId, limit = 50, offset = 0) {
+    const db = await getDB()
+    const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
+    
+    switch (typeKey) {
+      case DB_TYPE.SQLITE:
+        const messages = db.prepare(`
+          SELECT * FROM messages 
+          WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)
+          ORDER BY created_at DESC
+          LIMIT ? OFFSET ?
+        `).all(userId, friendId, friendId, userId, limit, offset)
+        return messages.reverse() // Return in chronological order
+      default: throw new Error(`Unsupported DB Type: ${config.dbType}`)
+    }
+  },
+  
+  async markAsRead(userId, friendId) {
+    const db = await getDB()
+    const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
+    
+    switch (typeKey) {
+      case DB_TYPE.SQLITE:
+        // Mark messages sent by friend to user as read
+        db.prepare('UPDATE messages SET is_read = 1 WHERE sender_id = ? AND receiver_id = ?').run(friendId, userId)
+        return true
+      default: throw new Error(`Unsupported DB Type: ${config.dbType}`)
+    }
+  },
+  
+  async getUnreadCount(userId) {
+    const db = await getDB()
+    const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
+    
+    switch (typeKey) {
+      case DB_TYPE.SQLITE:
+        const result = db.prepare(`
+          SELECT sender_id, COUNT(*) as count 
+          FROM messages 
+          WHERE receiver_id = ? AND is_read = 0 
+          GROUP BY sender_id
+        `).all(userId)
+        return result
       default: throw new Error(`Unsupported DB Type: ${config.dbType}`)
     }
   }

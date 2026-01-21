@@ -226,8 +226,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         
         {/* Text Content */}
         {message.text && (
-          <div className={`text-base leading-relaxed whitespace-pre-wrap ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-              {message.text}
+          <div className={`whitespace-pre-wrap rounded-xl px-4 py-3 text-sm ${isDark ? (isMe ? 'bg-blue-900/30 text-blue-100' : 'bg-gray-800 text-gray-200') : (isMe ? 'bg-blue-50 text-blue-900' : 'bg-gray-100 text-gray-800')}`}>
+            {message.text}
           </div>
         )}
         

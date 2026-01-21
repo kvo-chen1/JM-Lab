@@ -473,16 +473,18 @@ const CulturalQuizGame: React.FC<CulturalQuizGameProps> = ({ isOpen, onClose }) 
                     {currentQuestion.options?.map((option: string, index: number) => (
                       <motion.button
                         key={index}
-                        className={`w-full p-3 rounded-lg text-left transition-all ${isDark ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:bg-gray-50'} border ${isDark ? 'border-gray-700' : 'border-gray-200'} ${selectedAnswers.includes(index) ? (showAnswer ? (isCorrect ? 'border-green-500 bg-green-500 bg-opacity-10' : 'border-red-500 bg-red-500 bg-opacity-10') : 'border-blue-500 bg-blue-500 bg-opacity-10') : ''} ${showAnswer && currentQuestion.correctAnswers.includes(index) ? 'border-green-500 bg-green-500 bg-opacity-10' : ''}`}
+                        className={`w-full p-4 rounded-lg text-left transition-all touch-manipulation ${isDark ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:bg-gray-50'} border ${isDark ? 'border-gray-700' : 'border-gray-200'} ${selectedAnswers.includes(index) ? (showAnswer ? (isCorrect ? 'border-green-500 bg-green-500 bg-opacity-10' : 'border-red-500 bg-red-500 bg-opacity-10') : 'border-blue-500 bg-blue-500 bg-opacity-10') : ''} ${showAnswer && currentQuestion.correctAnswers.includes(index) ? 'border-green-500 bg-green-500 bg-opacity-10' : ''}`}
                         whileHover={selectedAnswers.length === 0 ? { scale: 1.02 } : {}}
+                        whileTap={{ scale: 0.98 }}
                         onClick={() => handleOptionSelect(index)}
                         disabled={showAnswer}
+                        style={{ touchAction: 'none', userSelect: 'none' }}
                       >
                         <div className="flex items-center">
-                          <div className={`w-6 h-6 rounded-full flex items-center justify-center mr-3 border ${selectedAnswers.includes(index) ? (showAnswer ? (isCorrect ? 'border-green-500 bg-green-500 text-white' : 'border-red-500 bg-red-500 text-white') : 'border-blue-500 bg-blue-500 text-white') : (showAnswer && currentQuestion.correctAnswers.includes(index) ? 'border-green-500 bg-green-500 text-white' : (isDark ? 'border-gray-600' : 'border-gray-300'))}`}>
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center mr-3 border ${selectedAnswers.includes(index) ? (showAnswer ? (isCorrect ? 'border-green-500 bg-green-500 text-white' : 'border-red-500 bg-red-500 text-white') : 'border-blue-500 bg-blue-500 text-white') : (showAnswer && currentQuestion.correctAnswers.includes(index) ? 'border-green-500 bg-green-500 text-white' : (isDark ? 'border-gray-600' : 'border-gray-300'))}`}>
                             {String.fromCharCode(65 + index)}
                           </div>
-                          <span>{option}</span>
+                          <span className="text-base">{option}</span>
                         </div>
                       </motion.button>
                     ))}

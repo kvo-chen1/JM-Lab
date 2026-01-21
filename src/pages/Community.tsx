@@ -1,4 +1,4 @@
-import React, { lazy, Suspense } from 'react';
+import React, { lazy, Suspense, useMemo } from 'react';
 import { useTheme } from '@/hooks/useTheme';
 import { CommunityLayout } from '@/components/Community/CommunityLayout';
 import { CommunitySidebar } from '@/components/Community/CommunitySidebar';
@@ -9,7 +9,10 @@ import { ChatSection } from '@/components/Community/Chat/ChatSection';
 import { CreatePostModal } from '@/components/Community/Modals/CreatePostModal';
 import { CreateCommunityModal } from '@/components/Community/Modals/CreateCommunityModal';
 import { DiscoverySection } from '@/components/Community/Discovery/DiscoverySection';
-import { useCommunityLogic } from '@/hooks/useCommunityLogic';
+import { useCommunityLogic, CREATOR_COMMUNITY_ID } from '@/hooks/useCommunityLogic';
+import { motion } from 'framer-motion';
+
+const CreatorSection = lazy(() => import('@/components/Community/Creator/CreatorSection'));
 
 // Export types used in other files
 export type Thread = {
@@ -21,6 +24,8 @@ export type Thread = {
   pinned?: boolean;
   topic?: string;
   upvotes?: number;
+  images?: Array<string>;
+  communityId: string; // 添加社群ID字段，关联到所属社群
 };
 
 export type ChatMessage = {
@@ -67,45 +72,88 @@ export type ChatMessage = {
 export type { Community } from '@/mock/communities';
 
 const LoadingFallback = () => (
-  <div className="flex items-center justify-center h-full w-full">
-    <div className="w-8 h-8 border-4 border-t-blue-500 border-gray-300 rounded-full animate-spin"></div>
+  <div className="flex items-center justify-center h-full w-full min-h-[500px]">
+    <div className="w-10 h-10 border-4 border-t-blue-500 border-gray-300 rounded-full animate-spin"></div>
   </div>
+);
+
+// 页面过渡动画组件
+const PageTransition = ({ children }: { children: React.ReactNode }) => (
+  <motion.div
+    initial={{ opacity: 0, y: 10 }}
+    animate={{ opacity: 1, y: 0 }}
+    exit={{ opacity: 0, y: -10 }}
+    transition={{ duration: 0.2 }}
+  >
+    {children}
+  </motion.div>
 );
 
 export default function CommunityPage() {
   const { isDark } = useTheme();
   const {
-    user,
-    activeCommunityId,
-    activeChannel,
-    mode,
-    joinedCommunities,
-    allCommunities,
-    threads,
-    messages,
-    selectedTag,
-    setSelectedTag,
-    tags,
-    onSelectCommunity,
-    onSelectChannel,
-    onCreateCommunity,
-    onJoinCommunity,
-    submitCreateCommunity,
-    onUpvote,
-    onToggleFavorite,
-    onSendMessage,
-    retrySendMessage,
-    onAddReaction,
-    onReplyToMessage,
-    isThreadFavorited,
-    onCreateThread,
-    submitCreateThread,
-    activeCommunity,
-    isCreatePostOpen,
-    setIsCreatePostOpen,
-    isCreateCommunityOpen,
-    setIsCreateCommunityOpen
-  } = useCommunityLogic();
+      user,
+      activeCommunityId,
+      activeChannel,
+      mode,
+      joinedCommunities,
+      allCommunities,
+      threads,
+      messages,
+      selectedTag,
+      setSelectedTag,
+      tags,
+      onSelectCommunity,
+      onSelectChannel,
+      onCreateCommunity,
+      onJoinCommunity,
+      submitCreateCommunity,
+      onUpvote,
+      onToggleFavorite,
+      onSendMessage,
+      retrySendMessage,
+      onAddReaction,
+      onReplyToMessage,
+      isThreadFavorited,
+      onCreateThread,
+      submitCreateThread,
+      onAddComment,
+      onCommentUpvote,
+      activeCommunity,
+      isCreatePostOpen,
+      setIsCreatePostOpen,
+      isCreateCommunityOpen,
+      setIsCreateCommunityOpen
+    } = useCommunityLogic();
+
+  // 使用useMemo优化性能，减少不必要的计算
+  const filteredThreads = useMemo(() => {
+    // 根据当前模式和频道筛选帖子
+    if (mode === 'discovery') {
+      if (selectedTag) {
+        if (selectedTag.startsWith('category:')) {
+          // 处理分类筛选
+          const category = selectedTag.replace('category:', '');
+          // 根据分类名称匹配对应的话题
+          const categoryToTopicsMap: Record<string, string[]> = {
+            '设计相关': ['设计', 'UI', 'UX', '插画', '3D', '赛博朋克', '极简', '国潮', '非遗'],
+            '艺术文化': ['艺术', '文化', '音乐', '摄影', '写作'],
+            '科技数码': ['科技', '数码', 'AI', '编程', '互联网'],
+            '生活方式': ['生活', '美食', '旅行', '时尚', '健康'],
+            '其他': []
+          };
+          
+          const topicsInCategory = categoryToTopicsMap[category] || [];
+          return threads.filter(thread => topicsInCategory.includes(thread.topic || ''));
+        } else {
+          // 单个话题筛选
+          return threads.filter(thread => thread.topic === selectedTag);
+        }
+      }
+    }
+    // 在社群模式下，threads已经通过useCommunityLogic中的activeThreads筛选过了
+    return threads;
+  }, [threads, mode, selectedTag]);
 
   return (
     <>
@@ -133,62 +181,73 @@ export default function CommunityPage() {
         />
       }
       infoSidebar={
-        activeCommunity ? (
+        activeCommunity && activeCommunityId !== CREATOR_COMMUNITY_ID ? (
             <CommunityInfoSidebar
             isDark={isDark}
             community={activeCommunity}
             onlineCount={12} // Mock
+            isJoined={joinedCommunities.some(c => c.id === activeCommunityId)}
+            onJoinCommunity={onJoinCommunity}
             />
         ) : undefined
       }
+      activeCommunity={activeCommunity} // 传递活跃社群信息，用于自定义风格
     >
       <Suspense fallback={<LoadingFallback />}>
-        {mode === 'discovery' ? (
-          activeChannel === 'communities' ? (
-            <DiscoverySection 
-                isDark={isDark}
-                communities={allCommunities}
-                joinedIds={joinedCommunities.map(c => c.id)}
-                onJoin={onJoinCommunity}
-                onOpen={(c) => onSelectCommunity(c.id)} // Or maybe show details modal first
-                userTags={selectedTag ? [selectedTag] : []} // 使用当前选中的标签作为用户兴趣标签
+        <PageTransition>
+          {activeCommunityId === CREATOR_COMMUNITY_ID ? (
+             <CreatorSection currentUser={user} />
+          ) : mode === 'discovery' ? (
+            activeChannel === 'communities' ? (
+              <DiscoverySection 
+                  isDark={isDark}
+                  communities={allCommunities}
+                  joinedIds={joinedCommunities.map(c => c.id)}
+                  onJoin={onJoinCommunity}
+                  onOpen={onSelectCommunity}
+                  userTags={selectedTag ? [selectedTag] : []}
+              />
+            ) : (
+            <FeedSection
+              isDark={isDark}
+              threads={filteredThreads}
+              onUpvote={onUpvote}
+              onToggleFavorite={onToggleFavorite}
+              onAddComment={onAddComment}
+              onOpenThread={(id) => console.log('Open thread', id)}
+              onCreateThread={onCreateThread}
+              isThreadFavorited={isThreadFavorited}
+              activeCommunity={activeCommunity} // 传递活跃社群信息，用于自定义风格
             />
+            )
           ) : (
-          <FeedSection
-            isDark={isDark}
-            threads={threads}
-            onUpvote={onUpvote}
-            onToggleFavorite={onToggleFavorite}
-            onOpenThread={(id) => console.log('Open thread', id)}
-            onCreateThread={onCreateThread}
-            isThreadFavorited={isThreadFavorited}
-          />
-          )
-        ) : (
-           activeChannel === 'general' || activeChannel === 'chat' ? (
-                <ChatSection
-                    isDark={isDark}
-                    channelName={activeChannel}
-                    messages={messages}
-                    onSendMessage={onSendMessage}
-                    retrySendMessage={retrySendMessage}
-                    onAddReaction={onAddReaction}
-                    onReplyToMessage={onReplyToMessage}
-                    currentUser={{ name: user?.username || 'Guest' }}
-                />
-           ) : (
-               /* Default to Feed for other channels for now, or specific components */
-               <FeedSection
-                    isDark={isDark}
-                    threads={threads}
-                    onUpvote={onUpvote}
-                    onToggleFavorite={onToggleFavorite}
-                    onOpenThread={(id) => console.log('Open thread', id)}
-                    onCreateThread={onCreateThread}
-                    isThreadFavorited={isThreadFavorited}
-               />
-           )
-        )}
+             activeChannel === 'chat' ? (
+                  <ChatSection
+                      isDark={isDark}
+                      channelName={activeChannel}
+                      messages={messages}
+                      onSendMessage={onSendMessage}
+                      retrySendMessage={retrySendMessage}
+                      onAddReaction={onAddReaction}
+                      onReplyToMessage={onReplyToMessage}
+                      currentUser={{ name: user?.username || 'Guest' }}
+                  />
+             ) : (
+                 /* Default to Feed for other channels for now, or specific components */
+                 <FeedSection
+                      isDark={isDark}
+                      threads={filteredThreads}
+                      onUpvote={onUpvote}
+                      onToggleFavorite={onToggleFavorite}
+                      onAddComment={onAddComment}
+                      onOpenThread={(id) => console.log('Open thread', id)}
+                      onCreateThread={onCreateThread}
+                      isThreadFavorited={isThreadFavorited}
+                      activeCommunity={activeCommunity} // 传递活跃社群信息，用于自定义风格
+                 />
+             )
+          )}
+        </PageTransition>
       </Suspense>
     </CommunityLayout>
 
@@ -198,6 +257,9 @@ export default function CommunityPage() {
         onClose={() => setIsCreatePostOpen(false)}
         onSubmit={submitCreateThread}
         isDark={isDark}
+        topics={tags}
+        joinedCommunities={joinedCommunities}
+        activeCommunityId={activeCommunityId}
     />
     <CreateCommunityModal
         isOpen={isCreateCommunityOpen}

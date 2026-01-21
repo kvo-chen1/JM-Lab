@@ -1,12 +1,6 @@
-import React from 'react';
-import { createContext, useState, ReactNode, useEffect, useContext } from 'react';
-import { supabase } from '@/lib/supabaseClient';
+import React, { createContext, useState, ReactNode, useEffect, useContext } from 'react';
 import { AuthContext, User as AuthUser } from './authContext';
-
-// 检查是否为开发环境
-const isDevelopment = (): boolean => {
-  return import.meta.env?.MODE === 'development' || import.meta.env?.DEV === true;
-};
+import apiClient from '@/lib/apiClient';
 
 // 好友请求状态类型
 export type FriendRequestStatus = 'pending' | 'accepted' | 'rejected';
@@ -35,13 +29,13 @@ export interface FriendRequest {
 
 // 好友关系类型
 export interface Friend {
-  id: string;
+  id: string; // 实际上可能是 (user_id, friend_id) 组合键，但在前端我们主要用 friend_id 来操作
   user_id: string;
   friend_id: string;
   user_note?: string;
   friend_note?: string;
   created_at: string;
-  updated_at: string;
+  updated_at?: string;
   // 扩展字段，用于存储好友的用户信息
   friend?: User;
 }
@@ -77,10 +71,6 @@ export interface FriendContextType {
 
 // 创建好友上下文
 const FriendContext = createContext<FriendContextType | undefined>(undefined);
-
-// 导出上下文
-// 注意：仅导出上下文和钩子，不导出内部实现细节
-// 这是为了确保 Vite Fast Refresh 能正常工作
 
 // 好友提供者组件
 export const FriendProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -130,45 +120,12 @@ export const FriendProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setError(null);
     
     try {
-      if (supabase) {
-        // 使用Supabase搜索用户
-        const { data, error } = await supabase
-          .from('users')
-          .select('*')
-          .ilike('username', `%${query}%`)
-          .or(`email.ilike.%${query}%,id.eq.${query}`)
-          .neq('id', currentUser.id)
-          .limit(20);
-        
-        if (error) {
-          // 忽略表不存在的错误，这是正常的开发环境状态
-          // PGRST205: relation does not exist (in some versions)
-          // 42P01: undefined_table (standard Postgres)
-          // 404: Not Found (REST API)
-          if (error.code === 'PGRST205' || error.code === '42P01' || error.code === '404' || error.message?.includes('Not Found')) {
-              if (isDevelopment()) {
-                console.warn('搜索用户时表不存在，这是正常的开发环境状态');
-              }
-              return [];
-            }
-          throw error;
-        }
-        
-        // 获取用户状态
-        const usersWithStatus = await Promise.all((data || []).map(async (user: any) => {
-          const status = await getUserStatus(user.id);
-          return {
-            ...user,
-            status
-          };
-        }));
-        
-        return usersWithStatus;
-      } else {
-        // 模拟搜索结果
-        return [];
+      const response = await apiClient.get(`/api/friends/search?q=${encodeURIComponent(query)}`);
+      if (response.data?.ok) {
+        return response.data.data;
       }
-    } catch (err) {
+      return [];
+    } catch (err: any) {
       setError('搜索用户失败');
       console.error('搜索用户失败:', err);
       return [];
@@ -185,59 +142,17 @@ export const FriendProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setError(null);
     
     try {
-      if (supabase) {
-        // 检查是否已经发送过请求
-        let existingRequest;
-        try {
-          const { data } = await supabase
-            .from('friend_requests')
-            .select('*')
-            .eq('sender_id', currentUser.id)
-            .eq('receiver_id', userId)
-            .single();
-          existingRequest = data;
-        } catch (checkErr: any) {
-          // 忽略表不存在的错误，继续执行
-            if (checkErr.code === 'PGRST205' || checkErr.code === '42P01' || checkErr.code === '404' || checkErr.message?.includes('Not Found')) {
-              if (isDevelopment()) {
-                console.warn('好友请求表尚未创建，这是正常的开发环境状态');
-              }
-            } else {
-              throw checkErr;
-            }
-        }
-        
-        if (existingRequest) {
-          setError('已经发送过好友请求');
-          return false;
-        }
-        
-        // 发送好友请求
-        const { error } = await (supabase as any)
-          .from('friend_requests')
-          .insert({
-            sender_id: currentUser.id,
-            receiver_id: userId,
-            status: 'pending'
-          });
-        
-        if (error) {
-          // 忽略表不存在的错误，这是正常的开发环境状态
-          if (error.code === 'PGRST205' || error.code === '42P01' || error.code === '404' || error.message?.includes('Not Found')) {
-              if (isDevelopment()) {
-                console.warn('发送好友请求时表不存在，这是正常的开发环境状态');
-              }
-              return true;
-            }
-          throw error;
-        }
-        
-        return true;
-      } else {
-        // 模拟发送请求
+      const response = await apiClient.post('/api/friends/request', { userId });
+      if (response.data?.ok) {
         return true;
       }
-    } catch (err) {
+      if (response.data?.error === 'ALREADY_FRIENDS') {
+        setError('已经是好友了');
+      } else {
+        setError(response.data?.message || '发送请求失败');
+      }
+      return false;
+    } catch (err: any) {
       setError('发送好友请求失败');
       console.error('发送好友请求失败:', err);
       return false;
@@ -254,89 +169,14 @@ export const FriendProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setError(null);
     
     try {
-      if (supabase) {
-        // 获取请求信息
-        let request;
-        try {
-          const { data, error: requestError } = await supabase
-            .from('friend_requests')
-            .select('*')
-            .eq('id', requestId)
-            .single();
-          
-          if (requestError) throw requestError;
-          request = data;
-        } catch (getErr: any) {
-          // 忽略表不存在的错误，模拟成功
-            if (getErr.code === 'PGRST205' || getErr.code === '42P01' || getErr.code === '404' || getErr.message?.includes('Not Found')) {
-              if (isDevelopment()) {
-                console.warn('好友请求表尚未创建，这是正常的开发环境状态');
-              }
-              // 更新本地状态
-              setFriendRequests(prev => prev.filter(r => r.id !== requestId));
-              getFriends();
-              return true;
-            }
-          throw getErr;
-        }
-        
-        if (!request) {
-          setError('好友请求不存在');
-          return false;
-        }
-        
-        // 更新请求状态为已接受
-        try {
-          const { error: updateError } = await (supabase as any)
-            .from('friend_requests')
-            .update({ status: 'accepted' })
-            .eq('id', requestId);
-          
-          if (updateError) throw updateError;
-        } catch (updateErr: any) {
-          // 忽略表不存在的错误，继续执行
-            if (updateErr.code === 'PGRST205' || updateErr.code === '42P01' || updateErr.code === '404' || updateErr.message?.includes('Not Found')) {
-              if (isDevelopment()) {
-                console.warn('好友请求表尚未创建，这是正常的开发环境状态');
-              }
-            } else {
-              throw updateErr;
-            }
-        }
-        
-        // 创建双向好友关系
-        try {
-          await (supabase as any).from('friends').insert([
-            {
-              user_id: (request as any).sender_id,
-              friend_id: (request as any).receiver_id
-            },
-            {
-              user_id: (request as any).receiver_id,
-              friend_id: (request as any).sender_id
-            }
-          ]);
-        } catch (insertErr: any) {
-          // 忽略表不存在的错误，继续执行
-            if (insertErr.code === 'PGRST205' || insertErr.code === '42P01' || insertErr.code === '404' || insertErr.message?.includes('Not Found')) {
-              if (isDevelopment()) {
-                console.warn('好友表尚未创建，这是正常的开发环境状态');
-              }
-            } else {
-              throw insertErr;
-            }
-        }
-        
+      const response = await apiClient.post('/api/friends/accept', { requestId });
+      if (response.data?.ok) {
         // 更新本地状态
         setFriendRequests(prev => prev.filter(r => r.id !== requestId));
         getFriends();
-        
-        return true;
-      } else {
-        // 模拟接受请求
-        setFriendRequests(prev => prev.filter(r => r.id !== requestId));
         return true;
       }
+      return false;
     } catch (err) {
       setError('接受好友请求失败');
       console.error('接受好友请求失败:', err);
@@ -354,40 +194,12 @@ export const FriendProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setError(null);
     
     try {
-      if (supabase) {
-        // 更新请求状态为已拒绝
-        try {
-          const { error } = await (supabase as any)
-            .from('friend_requests')
-            .update({ status: 'rejected' })
-            .eq('id', requestId);
-          
-          if (error) {
-            // 忽略表不存在的错误，这是正常的开发环境状态
-            if (error.code === 'PGRST205' || error.code === '42P01' || error.code === '404' || error.message?.includes('Not Found')) {
-              if (isDevelopment()) {
-                console.warn('好友请求表尚未创建，这是正常的开发环境状态');
-              }
-            } else {
-              throw error;
-            }
-          }
-        } catch (updateErr: any) {
-          // 只忽略表不存在的错误
-          if (updateErr.code !== 'PGRST205' && updateErr.code !== '42P01' && updateErr.code !== '404' && !updateErr.message?.includes('Not Found')) {
-            throw updateErr;
-          }
-        }
-        
-        // 更新本地状态
-        setFriendRequests(prev => prev.filter(r => r.id !== requestId));
-        
-        return true;
-      } else {
-        // 模拟拒绝请求
+      const response = await apiClient.post('/api/friends/reject', { requestId });
+      if (response.data?.ok) {
         setFriendRequests(prev => prev.filter(r => r.id !== requestId));
         return true;
       }
+      return false;
     } catch (err) {
       setError('拒绝好友请求失败');
       console.error('拒绝好友请求失败:', err);
@@ -405,72 +217,13 @@ export const FriendProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setError(null);
     
     try {
-      if (supabase) {
-        // 获取当前用户收到的好友请求
-        let data: any[] = [];
-        try {
-          const result = await supabase
-            .from('friend_requests')
-            .select('*')
-            .eq('receiver_id', currentUser.id)
-            .eq('status', 'pending')
-            .order('created_at', { ascending: false });
-          
-          if (result.error) {
-            // 忽略表不存在的错误，返回空数组
-          if (result.error.code === 'PGRST205' || result.error.code === '42P01' || result.error.code === '404' || result.error.message?.includes('Not Found')) {
-            if (isDevelopment()) {
-              console.warn('好友请求表尚未创建，这是正常的开发环境状态');
-            }
-            data = [];
-          } else {
-            throw result.error;
-          }
-          } else {
-            data = result.data;
-          }
-        } catch (fetchErr: any) {
-          // 忽略表不存在的错误，返回空数组
-        if (fetchErr.code === 'PGRST205' || fetchErr.code === '42P01' || fetchErr.code === '404' || fetchErr.message?.includes('Not Found')) {
-          if (isDevelopment()) {
-            console.warn('好友请求表尚未创建，这是正常的开发环境状态');
-          }
-          data = [];
-        } else {
-          throw fetchErr;
-        }
-        }
-        
-        // 获取发送者信息
-        const requestsWithSender = await Promise.all((data || []).map(async (request: any) => {
-          let sender;
-          try {
-            const { data: senderData } = await (supabase as any)
-              .from('users')
-              .select('*')
-              .eq('id', request.sender_id)
-              .single();
-            sender = senderData;
-          } catch (userErr: any) {
-            // 忽略表不存在的错误，继续执行
-            if (userErr.code !== 'PGRST205' && userErr.code !== '42P01' && userErr.code !== '404' && !userErr.message?.includes('Not Found')) {
-              console.error('获取发送者信息失败:', userErr);
-            }
-          }
-          
-          return {
-            ...request,
-            sender
-          };
-        }));
-        
-        setFriendRequests(requestsWithSender);
-        return requestsWithSender;
-      } else {
-        // 模拟好友请求
-        setFriendRequests([]);
-        return [];
+      const response = await apiClient.get('/api/friends/requests');
+      if (response.data?.ok) {
+        const requests = response.data.data;
+        setFriendRequests(requests);
+        return requests;
       }
+      return [];
     } catch (err) {
       setError('获取好友请求失败');
       console.error('获取好友请求失败:', err);
@@ -488,76 +241,13 @@ export const FriendProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setError(null);
     
     try {
-      if (supabase) {
-        // 获取当前用户的好友列表
-        let data: any[] = [];
-        try {
-          const result = await supabase
-            .from('friends')
-            .select('*')
-            .eq('user_id', currentUser.id)
-            .order('created_at', { ascending: false });
-          
-          if (result.error) {
-            // 忽略表不存在的错误，返回空数组
-          if (result.error.code === 'PGRST205' || result.error.code === '42P01' || result.error.code === '404' || result.error.message?.includes('Not Found')) {
-            if (isDevelopment()) {
-              console.warn('好友表尚未创建，这是正常的开发环境状态');
-            }
-            data = [];
-          } else {
-            throw result.error;
-          }
-          } else {
-            data = result.data;
-          }
-        } catch (fetchErr: any) {
-          // 忽略表不存在的错误，返回空数组
-        if (fetchErr.code === 'PGRST205' || fetchErr.code === '42P01' || fetchErr.code === '404' || fetchErr.message?.includes('Not Found')) {
-          if (isDevelopment()) {
-            console.warn('好友表尚未创建，这是正常的开发环境状态');
-          }
-          data = [];
-        } else {
-          throw fetchErr;
-        }
-        }
-        
-        // 获取好友详细信息和状态
-        const friendsWithDetails = await Promise.all((data || []).map(async (friendship: any) => {
-          let friend;
-          try {
-            const { data: friendData } = await (supabase as any)
-              .from('users')
-              .select('*')
-              .eq('id', friendship.friend_id)
-              .single();
-            friend = friendData;
-          } catch (userErr: any) {
-            // 忽略表不存在的错误，继续执行
-            if (userErr.code !== 'PGRST205' && userErr.code !== '42P01' && userErr.code !== '404' && !userErr.message?.includes('Not Found')) {
-              console.error('获取好友信息失败:', userErr);
-            }
-          }
-          
-          const status = await getUserStatus(friendship.friend_id);
-          
-          return {
-          ...friendship,
-          friend: friend ? {
-            ...friend,
-            status
-          } : undefined
-        };
-        }));
-        
-        setFriends(friendsWithDetails);
-        return friendsWithDetails;
-      } else {
-        // 模拟好友列表
-        setFriends([]);
-        return [];
+      const response = await apiClient.get('/api/friends/list');
+      if (response.data?.ok) {
+        const friendList = response.data.data;
+        setFriends(friendList);
+        return friendList;
       }
+      return [];
     } catch (err) {
       setError('获取好友列表失败');
       console.error('获取好友列表失败:', err);
@@ -567,52 +257,13 @@ export const FriendProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
   };
 
-  // 获取用户状态
-  const getUserStatus = async (userId: string): Promise<UserStatus> => {
-    if (supabase) {
-      const { data, error } = await (supabase as any)
-        .from('user_status')
-        .select('status')
-        .eq('user_id', userId)
-        .single();
-      
-      if (error || !data) {
-        return 'offline';
-      }
-      
-      return (data as any).status as UserStatus;
-    }
-    
-    return 'offline';
-  };
-
   // 更新用户状态
   const updateUserStatus = async (status: UserStatus): Promise<boolean> => {
     if (!currentUser) return false;
     
     try {
-      if (supabase) {
-        // 更新用户状态
-        const { error } = await (supabase as any)
-          .from('user_status')
-          .upsert({
-            user_id: currentUser.id,
-            status,
-            last_seen: new Date().toISOString()
-          });
-        
-        if (error) {
-          // 忽略表不存在的错误，因为这可能是开发环境中的临时状态
-          if (error.code === 'PGRST205' || error.code === '42P01' || error.code === '404' || error.message?.includes('Not Found')) {
-            if (isDevelopment()) {
-              console.warn('用户状态表尚未创建，这是正常的开发环境状态');
-            }
-            return true;
-          }
-          throw error;
-        }
-      }
-      
+      // 我们可以静默更新，不显示loading
+      await apiClient.post('/api/friends/status', { status });
       return true;
     } catch (err) {
       console.error('更新用户状态失败:', err);
@@ -622,26 +273,13 @@ export const FriendProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   // 订阅好友状态变化
   const subscribeToFriendStatuses = (): (() => void) | undefined => {
-    if (supabase) {
-      // 这里可以实现实时状态更新，例如使用Supabase的realtime功能
-      // 由于当前环境限制，我们暂时不实现实时更新，而是定期轮询
-      const interval = setInterval(() => {
-        // 更新好友状态
-        friends.forEach(async (friend) => {
-          if (friend.friend?.id) {
-            const friendId = friend.friend.id;
-            const status = await getUserStatus(friendId);
-            setFriendStatuses(prev => ({
-              ...prev,
-              [friendId]: status
-            }));
-          }
-        });
-      }, 30000); // 每30秒更新一次
-      
-      return () => clearInterval(interval);
-    }
-    return undefined;
+    // 简单轮询
+    const interval = setInterval(() => {
+      // 重新获取好友列表以更新状态
+      getFriends();
+    }, 30000); // 每30秒更新一次
+    
+    return () => clearInterval(interval);
   };
 
   // 删除好友
@@ -652,40 +290,12 @@ export const FriendProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setError(null);
     
     try {
-      if (supabase) {
-        // 删除双向好友关系
-        try {
-          const { error } = await supabase
-            .from('friends')
-            .delete()
-            .or(`and(user_id.eq.${currentUser.id},friend_id.eq.${friendId}),and(user_id.eq.${friendId},friend_id.eq.${currentUser.id})`);
-          
-          if (error) {
-            // 忽略表不存在的错误，这是正常的开发环境状态
-            if (error.code === 'PGRST205' || error.code === '42P01' || error.code === '404' || error.message?.includes('Not Found')) {
-              if (isDevelopment()) {
-                console.warn('好友表尚未创建，这是正常的开发环境状态');
-              }
-            } else {
-              throw error;
-            }
-          }
-        } catch (deleteErr: any) {
-          // 只忽略表不存在的错误
-          if (deleteErr.code !== 'PGRST205' && deleteErr.code !== '42P01' && deleteErr.code !== '404' && !deleteErr.message?.includes('Not Found')) {
-            throw deleteErr;
-          }
-        }
-        
-        // 更新本地状态
-        setFriends(prev => prev.filter(f => f.friend_id !== friendId));
-        
-        return true;
-      } else {
-        // 模拟删除好友
+      const response = await apiClient.delete(`/api/friends/${friendId}`);
+      if (response.data?.ok) {
         setFriends(prev => prev.filter(f => f.friend_id !== friendId));
         return true;
       }
+      return false;
     } catch (err) {
       setError('删除好友失败');
       console.error('删除好友失败:', err);
@@ -703,45 +313,14 @@ export const FriendProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setError(null);
     
     try {
-      if (supabase) {
-        // 更新好友备注
-        try {
-          const { error } = await (supabase as any)
-            .from('friends')
-            .update({ user_note: note })
-            .eq('user_id', currentUser.id)
-            .eq('friend_id', friendId);
-          
-          if (error) {
-            // 忽略表不存在的错误，这是正常的开发环境状态
-            if (error.code === 'PGRST205' || error.code === '42P01' || error.code === '404' || error.message?.includes('Not Found')) {
-              if (isDevelopment()) {
-                console.warn('好友表尚未创建，这是正常的开发环境状态');
-              }
-            } else {
-              throw error;
-            }
-          }
-        } catch (updateErr: any) {
-          // 只忽略表不存在的错误
-          if (updateErr.code !== 'PGRST205' && updateErr.code !== '42P01' && updateErr.code !== '404' && !updateErr.message?.includes('Not Found')) {
-            throw updateErr;
-          }
-        }
-        
-        // 更新本地状态
-        setFriends(prev => prev.map(f => 
-          f.friend_id === friendId ? { ...f, user_note: note } : f
-        ));
-        
-        return true;
-      } else {
-        // 模拟设置备注
+      const response = await apiClient.post('/api/friends/note', { friendId, note });
+      if (response.data?.ok) {
         setFriends(prev => prev.map(f => 
           f.friend_id === friendId ? { ...f, user_note: note } : f
         ));
         return true;
       }
+      return false;
     } catch (err) {
       setError('设置好友备注失败');
       console.error('设置好友备注失败:', err);

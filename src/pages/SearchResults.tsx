@@ -108,7 +108,7 @@ export default function SearchResults() {
                       src={work.creatorAvatar}
                       alt={work.creator}
                       className="w-full h-full object-cover"
-                      disableFallback={true}
+                      disableFallback={false}
                     />
                   </div>
                   <div className="flex-1 min-w-0">

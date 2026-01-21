@@ -26,6 +26,9 @@ export default function SketchPanel() {
     updateState({ streamStatus: 'running' });
     
     try {
+        // 创作中心始终使用千问模型
+        llmService.setCurrentModel('qwen');
+        
         const inputBase = (prompt || '天津文化设计灵感').trim();
         const input = stylePreset ? `${inputBase}；风格：${stylePreset}` : inputBase;
         const currentModel = llmService.getCurrentModel();
@@ -38,8 +41,9 @@ export default function SketchPanel() {
             watermark: true 
         });
 
-        const list = (r as any)?.data?.data || [];
-        const urls = list.map((d: any) => d.url || (d.b64_json ? `data:image/png;base64,${d.b64_json}` : '')).filter(Boolean);
+        // 处理数据格式，兼容API返回和模拟数据
+        const dataArray = (r as any)?.data?.data || (r as any)?.data || [];
+        const urls = dataArray.map((d: any) => d.url || (d.b64_json ? `data:image/png;base64,${d.b64_json}` : '')).filter(Boolean);
 
         if (urls.length) {
             const mapped = urls.map((u: string, idx: number) => ({ id: Date.now() + idx, thumbnail: u, score: 80 }));
@@ -116,7 +120,11 @@ export default function SketchPanel() {
                 
                 // 添加优化提示词功能
                 try {
-                  const instruction = `请将下面的创作提示优化为更清晰的中文指令，保留原意，突出关键元素（主题、风格、色彩、素材）。用1-3个短句表达，避免礼貌语或解释，只输出优化后的文本：\n\n${prompt}`;
+                  // 创作中心始终使用千问模型
+                  llmService.setCurrentModel('qwen');
+                  const instruction = `请将下面的创作提示优化为更清晰的中文指令，保留原意，突出关键元素（主题、风格、色彩、素材）。用1-3个短句表达，避免礼貌语或解释，只输出优化后的文本：
+
+${prompt}`;
                   const result = await llmService.generateResponse(instruction);
                   const polished = String(result || '').trim();
                   if (polished) {

@@ -894,10 +894,10 @@ export default memo(function TianjinCreativeActivities({ search: propSearch = ''
   
   return (
     <div
-      className={`p-4 md:p-6 rounded-xl ${isDark ? 'bg-gray-800/50 backdrop-blur-sm border border-gray-700' : 'bg-white/80 backdrop-blur-sm border border-gray-100'} shadow-lg flex-1 flex flex-col md:flex-row gap-6`}
+      className={`p-4 md:p-6 rounded-xl ${isDark ? 'bg-gray-800/50 backdrop-blur-sm border border-gray-700' : 'bg-white/80 backdrop-blur-sm border border-gray-100'} shadow-lg flex-1 flex flex-col gap-6`}
     >
       {/* 左侧主内容区 */}
-      <div className="w-full md:w-2/3">
+      <div className="w-full">
         {/* 标签页切换 */}
         <div className={`relative mb-6 sticky top-0 z-20 py-2 -mx-2 px-2 transition-colors duration-300 ${
           isDark ? 'bg-gray-800/95 backdrop-blur-md' : 'bg-white/95 backdrop-blur-md'
@@ -966,227 +966,273 @@ export default memo(function TianjinCreativeActivities({ search: propSearch = ''
       
       {/* 地域模板内容 */}
       {activeTab === 'templates' && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4">
-          {pagedTemplates.map((template) => (
-            <div
-              key={template.id}
-              className={`rounded-xl overflow-hidden shadow-md border transition-shadow duration-300 hover:shadow-lg ${
-                isDark ? 'border-gray-700' : 'border-gray-200'
-              }`}
-            >
-              <TianjinImage 
-                src={template.thumbnail} 
-                alt={template.name} 
-                className="cursor-pointer"
-                ratio="landscape"
-                rounded="none"
-                onClick={() => openTemplateDetail(template)}
-              />
-              <div className={`p-3 ${isDark ? 'bg-gray-700' : 'bg-white'}`}>
-                <div className="flex justify-between items-start mb-1">
-                  <h4 className="font-medium">{template.name}</h4>
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${
-                    isDark ? 'bg-gray-600' : 'bg-gray-100'
-                  }`}>
-                    {template.category}
-                  </span>
+        <>
+          <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-4">
+            {pagedTemplates.map((template) => (
+              <div
+                key={template.id}
+                className={`break-inside-avoid mb-4 rounded-xl overflow-hidden shadow-md border transition-all duration-300 hover:shadow-xl hover:-translate-y-1 ${
+                  isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'
+                }`}
+              >
+                <div className="relative group">
+                  <TianjinImage 
+                    src={template.thumbnail} 
+                    alt={template.name} 
+                    className="cursor-pointer"
+                    ratio="auto"
+                    rounded="none"
+                    onClick={() => openTemplateDetail(template)}
+                  />
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300" />
                 </div>
-                <p className={`text-xs mb-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                  {template.description}
-                </p>
-                <div className="flex justify-between items-center text-xs mb-3">
-                  <span className={`${isDark ? 'text-gray-400' : 'text-gray-600'} flex items-center`}>
-                    <i className="fas fa-download mr-1"></i>
-                    {template.usageCount}次使用
-                  </span>
+                <div className={`p-4 ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
+                  <div className="flex justify-between items-start mb-2">
+                    <h4 className="font-bold text-lg leading-tight">{template.name}</h4>
+                  </div>
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    <span className={`text-xs px-2 py-0.5 rounded-full border ${
+                      isDark ? 'bg-gray-700 border-gray-600 text-gray-300' : 'bg-red-50 border-red-100 text-red-600'
+                    }`}>
+                      {template.category}
+                    </span>
+                  </div>
+                  <p className={`text-sm mb-4 line-clamp-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                    {template.description}
+                  </p>
+                  <div className="flex justify-between items-center text-xs mb-4">
+                    <span className={`${isDark ? 'text-gray-400' : 'text-gray-500'} flex items-center`}>
+                      <i className="fas fa-fire-alt mr-1 text-red-500"></i>
+                      {template.usageCount}次使用
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button 
+                      onClick={() => handleApplyTemplate(template.id)}
+                      className="py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-medium transition-colors shadow-sm"
+                    >
+                      立即应用
+                    </button>
+                    <button 
+                      onClick={() => openTemplateDetail(template)}
+                      className={`py-2 rounded-lg text-sm font-medium transition-colors border ${
+                        isDark ? 'border-gray-600 hover:bg-gray-700 text-gray-300' : 'border-gray-200 hover:bg-gray-50 text-gray-700'
+                      }`}
+                    >
+                      查看详情
+                    </button>
+                  </div>
                 </div>
-                <button 
-                  onClick={() => handleApplyTemplate(template.id)}
-                  className="w-full py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm transition-colors"
-                >
-                  应用模板
-                </button>
-                <button 
-                  onClick={() => openTemplateDetail(template)}
-                  className={`mt-2 w-full py-1.5 rounded-lg text-sm transition-colors ${isDark ? 'bg-gray-600 hover:bg-gray-500 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-800'}`}
-                >
-                  查看详情
-                </button>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
           {/* 模板区无限滚动哨兵 */}
-          <div className="text-center mt-6" ref={templateSentinelRef}>
+          <div className="text-center mt-8 pb-4" ref={templateSentinelRef}>
             {templatePage * templatePageSize < filteredTemplates.length ? (
-              <div className="h-10"></div>
+              <div className="flex justify-center items-center space-x-2 text-gray-500">
+                <i className="fas fa-circle-notch fa-spin"></i>
+                <span>加载更多模板...</span>
+              </div>
             ) : (
-              <span className={`${isDark ? 'text-gray-400' : 'text-gray-600'}`}>已加载全部</span>
+              <span className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>- 已加载全部内容 -</span>
             )}
           </div>
-        </div>
+        </>
       )}
       
       {/* 线下体验内容 */}
       {activeTab === 'offline' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {pagedExperiences.map((experience) => (
-            <div
-              key={experience.id}
-              className={`rounded-xl overflow-hidden shadow-md border transition-shadow duration-300 hover:shadow-lg ${
-                isDark ? 'border-gray-700' : 'border-gray-200'
-              }`}
-            >
-              <TianjinImage src={experience.image} alt={experience.name} ratio="landscape" rounded="xl" onClick={() => openExperienceDetail(experience)} />
-              <div className={`p-4 ${isDark ? 'bg-gray-700' : 'bg-white'}`}>
-                <div className="flex justify-between items-start mb-2">
-                  <h4 className="font-bold">{experience.name}</h4>
-                  <div className="flex items-center">
-                    <i className="fas fa-star text-yellow-500 text-xs mr-1"></i>
-                    <span className="text-sm">{experience.rating}</span>
-                    <span className={`text-xs ml-1 ${
-                      isDark ? 'text-gray-400' : 'text-gray-600'
-                    }`}>
-                      ({experience.reviewCount})
+          <>
+            <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-4">
+              {pagedExperiences.map((experience) => (
+              <div
+                key={experience.id}
+                className={`break-inside-avoid mb-4 rounded-xl overflow-hidden shadow-md border transition-all duration-300 hover:shadow-xl hover:-translate-y-1 ${
+                  isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'
+                }`}
+              >
+                <div className="relative">
+                  <TianjinImage src={experience.image} alt={experience.name} ratio="auto" rounded="none" onClick={() => openExperienceDetail(experience)} />
+                  <div className="absolute top-2 right-2">
+                    <span className="px-2 py-1 bg-white/90 backdrop-blur-sm rounded-lg text-xs font-bold text-red-600 shadow-sm border border-red-100">
+                      {experience.price}
                     </span>
                   </div>
+                  {experience.rating >= 4.8 && (
+                    <div className="absolute top-2 left-2">
+                      <span className="px-2 py-1 bg-yellow-400 text-yellow-900 rounded-lg text-xs font-bold shadow-sm flex items-center gap-1">
+                        <i className="fas fa-fire"></i>
+                        高分推荐
+                      </span>
+                    </div>
+                  )}
                 </div>
-                <p className={`text-sm mb-3 ${
-                  isDark ? 'text-gray-400' : 'text-gray-600'
-                }`}>
-                  {experience.description}
-                </p>
-                <div className="mb-3">
-                  <div className="flex items-center text-sm mb-1">
-                    <i className="fas fa-map-marker-alt mr-1.5 text-red-600"></i>
-                    <span className="truncate">{experience.location}</span>
+                <div className={`p-4 ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
+                  <div className="flex justify-between items-start mb-2">
+                    <h4 className="font-bold text-lg leading-tight">{experience.name}</h4>
                   </div>
-                  <div className="flex items-center text-sm">
-                    <i className="fas fa-tag mr-1.5 text-green-600"></i>
-                    <span>{experience.price}</span>
+                  <div className="flex items-center mb-3 text-yellow-500 text-sm">
+                    {[...Array(5)].map((_, i) => (
+                      <i key={i} className={`fas fa-star ${i < Math.floor(experience.rating) ? '' : 'text-gray-300'}`}></i>
+                    ))}
+                    <span className={`ml-2 text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                      {experience.rating} ({experience.reviewCount}条评价)
+                    </span>
+                  </div>
+                  <p className={`text-sm mb-4 line-clamp-2 ${
+                    isDark ? 'text-gray-400' : 'text-gray-600'
+                  }`}>
+                    {experience.description}
+                  </p>
+                  
+                  <div className={`mb-4 p-3 rounded-lg ${isDark ? 'bg-gray-700/50' : 'bg-gray-50'} space-y-2`}>
+                    <div className="flex items-start text-xs">
+                      <i className="fas fa-map-marker-alt mt-0.5 mr-2 text-red-500 w-3"></i>
+                      <span className={`${isDark ? 'text-gray-300' : 'text-gray-600'} line-clamp-1`}>{experience.location}</span>
+                    </div>
+                    <div className="flex items-center text-xs justify-between">
+                      <div className="flex items-center">
+                        <i className="fas fa-users mr-2 text-blue-500 w-3"></i>
+                        <span className={`${isDark ? 'text-gray-300' : 'text-gray-600'}`}>剩余名额: <span className="font-bold text-red-500">{experience.availableSlots}</span></span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <button 
+                      onClick={() => handleBookExperience(experience.id)}
+                      className="py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-medium transition-colors shadow-sm"
+                    >
+                      立即预约
+                    </button>
+                    <button 
+                      onClick={() => openExperienceDetail(experience)}
+                      className={`py-2 rounded-lg text-sm font-medium transition-colors border ${
+                        isDark ? 'border-gray-600 hover:bg-gray-700 text-gray-300' : 'border-gray-200 hover:bg-gray-50 text-gray-700'
+                      }`}
+                    >
+                      查看详情
+                    </button>
                   </div>
                 </div>
-                <div className={`mb-3 p-2 rounded-lg ${
-                  isDark ? 'bg-gray-600' : 'bg-gray-100'
-                } text-sm flex justify-between items-center`}>
-                  <span>可预约名额</span>
-                  <span className="font-medium">{experience.availableSlots}人</span>
-                </div>
-                <button 
-                  onClick={() => handleBookExperience(experience.id)}
-                  className="w-full py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white transition-colors"
-                >
-                  立即预约
-                </button>
-                <button 
-                  onClick={() => openExperienceDetail(experience)}
-                  className={`mt-2 w-full py-2 rounded-lg ${
-                    isDark ? 'bg-gray-600 hover:bg-gray-500 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-800'
-                  }`}
-                >
-                  查看详情
-                </button>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
           {/* 线下体验区无限滚动哨兵 */}
-          <div className="text-center mt-6" ref={experienceSentinelRef}>
+          <div className="text-center mt-8 pb-4" ref={experienceSentinelRef}>
             {experiencePage * experiencePageSize < filteredExperiences.length ? (
-              <div className="h-10"></div>
+              <div className="flex justify-center items-center space-x-2 text-gray-500">
+                <i className="fas fa-circle-notch fa-spin"></i>
+                <span>加载更多体验...</span>
+              </div>
             ) : (
-              <span className={`${isDark ? 'text-gray-400' : 'text-gray-600'}`}>已加载全部</span>
+              <span className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>- 已加载全部内容 -</span>
             )}
           </div>
-        </div>
+        </>
       )}
       
       {/* 老字号联名内容 */}
       {activeTab === 'brands' && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 gap-6">
-          {pagedBrands.map((brand) => (
-            <div
-              key={brand.id}
-              className={`p-4 rounded-xl shadow-md border transition-shadow duration-300 hover:shadow-lg ${
-                isDark ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-200'
-              } group`}
-            >
-              <div className="flex items-center mb-4">
-                <div
-                  className={`w-16 h-16 rounded-lg overflow-hidden p-2 mr-4 flex items-center justify-center border transition-colors ${
-                    isDark ? 'bg-gray-800 border-gray-600' : 'bg-white border-gray-200'
-                  } group-hover:border-blue-400`}
-                >
-                  <div className="w-full h-full">
-                    <TianjinImage src={brand.logo} alt={brand.name} className="w-full h-full" ratio="square" fit="contain" />
+          <>
+            <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-4">
+              {pagedBrands.map((brand) => (
+              <div
+                key={brand.id}
+                className={`break-inside-avoid mb-4 p-5 rounded-xl shadow-md border transition-all duration-300 hover:shadow-xl hover:-translate-y-1 ${
+                  isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'
+                } group relative overflow-hidden`}
+              >
+                {/* 装饰背景图案 */}
+                <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-red-500/10 to-transparent rounded-bl-full -mr-8 -mt-8 pointer-events-none"></div>
+                
+                <div className="flex items-start mb-4 relative z-10">
+                  <div
+                    className={`w-20 h-20 rounded-xl overflow-hidden p-2 mr-4 flex-shrink-0 flex items-center justify-center border transition-colors ${
+                      isDark ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-100'
+                    } shadow-sm group-hover:border-red-200`}
+                  >
+                    <div className="w-full h-full">
+                      <TianjinImage src={brand.logo} alt={brand.name} className="w-full h-full" ratio="square" fit="contain" rounded="lg" />
+                    </div>
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-lg mb-1">{brand.name}</h4>
+                    <div className="flex items-center text-xs space-x-2 mb-2">
+                      <span className={`px-2 py-0.5 rounded text-white bg-red-600`}>
+                        {brand.establishedYear}年创立
+                      </span>
+                    </div>
+                    <div className="flex items-center text-xs text-yellow-600">
+                      <i className="fas fa-fire mr-1"></i>
+                      <span>热度 {brand.popularity}</span>
+                    </div>
                   </div>
                 </div>
-                <div>
-                  <h4 className="font-bold">{brand.name}</h4>
-                  <p className={`text-sm ${
-                    isDark ? 'text-gray-400' : 'text-gray-600'
-                  }`}>
-                    创立于 {brand.establishedYear}年
-                  </p>
+                
+                <p className={`text-sm mb-5 leading-relaxed ${
+                  isDark ? 'text-gray-400' : 'text-gray-600'
+                } line-clamp-3`}>
+                  {brand.description}
+                </p>
+                
+                <div className={`grid grid-cols-2 gap-3 mb-5 p-3 rounded-lg ${
+                  isDark ? 'bg-gray-700/50' : 'bg-gray-50'
+                }`}>
+                  <div className="text-center">
+                    <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'} mb-1`}>定制工具</p>
+                    <p className="font-bold text-lg">{brand.collaborationTools}</p>
+                  </div>
+                  <div className="text-center border-l border-gray-200 dark:border-gray-600">
+                    <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'} mb-1`}>热度指数</p>
+                    <p className="font-bold text-lg">{brand.popularity}</p>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-3">
+                  {/* 中文注释：使用天津特色按钮，提供细腻的悬浮与点击反馈 */}
+                  <TianjinButton 
+                    ariaLabel={`查看${brand.name}联名工具`} 
+                    className="w-full justify-center" 
+                    variant="primary"
+                    onClick={() => navigate(`/tools?from=tianjin&query=${encodeURIComponent(brand.name + ' 联名 工具')}&mode=inspire`)}
+                  >
+                    <i className="fas fa-tools mr-2"></i>
+                    联名工具
+                  </TianjinButton>
+                  <button 
+                    onClick={() => openBrandDetail(brand)}
+                    className={`w-full py-2 rounded-lg text-sm font-medium transition-colors border ${
+                      isDark ? 'border-gray-600 hover:bg-gray-700 text-gray-300' : 'border-gray-200 hover:bg-gray-50 text-gray-700'
+                    }`}
+                  >
+                    <i className="fas fa-info-circle mr-1"></i>
+                    详情
+                  </button>
                 </div>
               </div>
-              <p className={`text-sm mb-4 ${
-                isDark ? 'text-gray-400' : 'text-gray-600'
-              } line-clamp-2`}>
-                {brand.description}
-              </p>
-              <div className="grid grid-cols-2 gap-3 mb-4">
-                <div className={`p-2 rounded-lg ${
-                  isDark ? 'bg-gray-600' : 'bg-gray-100'
-                } text-center`}>
-                  <p className={`text-xs ${
-                    isDark ? 'text-gray-400' : 'text-gray-600'
-                  } mb-1`}>
-                    定制工具
-                  </p>
-                  <p className="font-bold">{brand.collaborationTools}</p>
-                </div>
-                <div className={`p-2 rounded-lg ${
-                  isDark ? 'bg-gray-600' : 'bg-gray-100'
-                } text-center`}>
-                  <p className={`text-xs ${
-                    isDark ? 'text-gray-400' : 'text-gray-600'
-                  } mb-1`}>
-                    热度指数
-                  </p>
-                  <p className="font-bold">{brand.popularity}</p>
-                </div>
+            ))}
+          </div>
+          <div className="text-center mt-8 pb-4">
+            {brandPage * brandPageSize < filteredBrands.length ? (
+              <div ref={brandSentinelRef} className="flex justify-center items-center space-x-2 text-gray-500">
+                 <i className="fas fa-circle-notch fa-spin"></i>
+                 <span>加载更多品牌...</span>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                {/* 中文注释：使用天津特色按钮，提供细腻的悬浮与点击反馈 */}
-                <TianjinButton ariaLabel={`查看${brand.name}联名工具`} className="w-full" onClick={() => navigate(`/tools?from=tianjin&query=${encodeURIComponent(brand.name + ' 联名 工具')}&mode=inspire`)}>
-                  <i className="fas fa-tools mr-2"></i>
-                  查看联名工具
-                </TianjinButton>
-                <TianjinButton ariaLabel={`查看${brand.name}详情`} className="w-full" onClick={() => openBrandDetail(brand)}>
-                  <i className="fas fa-info-circle mr-2"></i>
-                  查看详情
-                </TianjinButton>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-      {activeTab === 'brands' && (
-        <div className="text-center mt-6">
-          {brandPage * brandPageSize < filteredBrands.length ? (
-            <div ref={brandSentinelRef} className="h-10"></div>
-          ) : (
-            <span className={`${isDark ? 'text-gray-400' : 'text-gray-600'}`}>已加载全部</span>
-          )}
-        </div>
+            ) : (
+              <span className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>- 已加载全部内容 -</span>
+            )}
+          </div>
+        </>
       )}
       </div>
       
-      {/* 右侧补充内容区 */}
-      <div className="w-full md:w-1/3 space-y-6 sticky top-24 self-start">
+      {/* 右侧补充内容区 - 改为横向排列 */}
+      <div className="w-full flex flex-col md:flex-row gap-4">
         {/* 热门话题 */}
-        <div className={`p-4 rounded-xl shadow-md ${isDark ? 'bg-gray-700' : 'bg-white'}`}>
-          <h3 className="font-bold text-lg mb-4">热门话题</h3>
-          <div className="space-y-3">
+        <div className="w-full md:w-1/2 p-3 rounded-xl shadow-md ${isDark ? 'bg-gray-700' : 'bg-white'}">
+          <h3 className="font-bold text-base mb-3">热门话题</h3>
+          <div className="space-y-2">
             {[
               { tag: '#国潮设计', count: 234 },
               { tag: '#天津老字号', count: 189 },
@@ -1205,35 +1251,39 @@ export default memo(function TianjinCreativeActivities({ search: propSearch = ''
           </div>
         </div>
         
-        {/* 活动推荐 - 已移除，功能迁移至文化活动页 */}
-        
         {/* 数据统计 */}
-        <div className={`p-4 rounded-xl shadow-md ${isDark ? 'bg-gray-700' : 'bg-white'}`}>
-          <h3 className="font-bold text-lg mb-4">数据统计</h3>
-          <div className="grid grid-cols-2 gap-3">
-            <div className={`p-3 rounded-lg ${
+        <div className="w-full md:w-1/2 p-3 rounded-xl shadow-md ${isDark ? 'bg-gray-700' : 'bg-white'}">
+          <h3 className="font-bold text-base mb-3">数据统计</h3>
+          <div className="grid grid-cols-3 gap-2">
+            <div className={`p-2.5 rounded-lg ${
               isDark ? 'bg-gray-600' : 'bg-gray-100'
             } text-center`}>
-              <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'} mb-1`}>
+              <p className={`text-xs ${
+                isDark ? 'text-gray-400' : 'text-gray-600'
+              } mb-1`}>
                 总模板数
               </p>
-              <p className="font-bold text-xl">{filteredTemplates.length}</p>
+              <p className="font-bold text-lg">{filteredTemplates.length}</p>
             </div>
-            <div className={`p-3 rounded-lg ${
+            <div className={`p-2.5 rounded-lg ${
               isDark ? 'bg-gray-600' : 'bg-gray-100'
             } text-center`}>
-              <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'} mb-1`}>
+              <p className={`text-xs ${
+                isDark ? 'text-gray-400' : 'text-gray-600'
+              } mb-1`}>
                 线下体验
               </p>
-              <p className="font-bold text-xl">{filteredExperiences.length}</p>
+              <p className="font-bold text-lg">{filteredExperiences.length}</p>
             </div>
-            <div className={`p-3 rounded-lg ${
+            <div className={`p-2.5 rounded-lg ${
               isDark ? 'bg-gray-600' : 'bg-gray-100'
             } text-center`}>
-              <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'} mb-1`}>
+              <p className={`text-xs ${
+                isDark ? 'text-gray-400' : 'text-gray-600'
+              } mb-1`}>
                 老字号品牌
               </p>
-              <p className="font-bold text-xl">{filteredBrands.length}</p>
+              <p className="font-bold text-lg">{filteredBrands.length}</p>
             </div>
           </div>
         </div>

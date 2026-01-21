@@ -589,6 +589,110 @@ const localPOIData: POIData = {
       "historicalSignificance": "天津奥林匹克中心始建于2008年，为北京奥运会足球预选赛而建，成为天津体育事业的重要组成部分和现代化体育场馆。",
       "culturalHeritageLevel": "无",
       "relatedPois": [8, 13]
+    },
+    {
+      "id": 21,
+      "name": "海鸥表",
+      "category": "retail",
+      "description": "天津制造的经典机械表品牌，以机芯工艺著称，是中国第一只国产手表的诞生地。",
+      "address": "天津市和平区常德道20号",
+      "position": { 
+        "x": 46, 
+        "y": 56, 
+        "lng": MOCK_COORDINATES[1][0] + 0.02, 
+        "lat": MOCK_COORDINATES[1][1] - 0.01 
+      },
+      "year": 1955,
+      "images": [
+        `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='600' viewBox='0 0 800 600'%3E%3Crect width='800' height='600' fill='%23f5f5f5'/%3E%3Ctext x='400' y='300' font-family='Arial' font-size='24' fill='%23333' text-anchor='middle' dy='0.3em'%3E海鸥表%3C/text%3E%3Ctext x='400' y='340' font-family='Arial' font-size='16' fill='%23666' text-anchor='middle' dy='0.3em'%3E中华老字号%3C/text%3E%3C/svg%3E`
+      ],
+      "openingHours": "10:00-21:00",
+      "phone": "022-23125391",
+      "importance": 5,
+      "tags": ["中华老字号", "机械表", "工业制造"],
+      "featuredProducts": ["机械手表", "陀飞轮表", "复刻系列"],
+      "honors": ["中华老字号", "中国名牌产品"],
+      "historicalSignificance": "1955年，中国第一只手表在天津诞生，海鸥表见证了中国钟表工业从无到有的发展历程。",
+      "culturalHeritageLevel": "国家级",
+      "relatedPois": [4, 9]
+    },
+    {
+      "id": 22,
+      "name": "谦祥益",
+      "category": "retail",
+      "description": "天津著名的老字号绸布店，现已转型为相声茶馆，是体验天津相声文化的重要场所。",
+      "address": "天津市红桥区陆家嘴中心",
+      "position": { 
+        "x": 44, 
+        "y": 51, 
+        "lng": MOCK_COORDINATES[3][0] - 0.02, 
+        "lat": MOCK_COORDINATES[3][1] + 0.01 
+      },
+      "year": 1906,
+      "images": [
+        `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='600' viewBox='0 0 800 600'%3E%3Crect width='800' height='600' fill='%23f5f5f5'/%3E%3Ctext x='400' y='300' font-family='Arial' font-size='24' fill='%23333' text-anchor='middle' dy='0.3em'%3E谦祥益%3C/text%3E%3Ctext x='400' y='340' font-family='Arial' font-size='16' fill='%23666' text-anchor='middle' dy='0.3em'%3E老字号绸布店%3C/text%3E%3C/svg%3E`
+      ],
+      "openingHours": "10:00-22:00",
+      "phone": "022-27053206",
+      "importance": 4,
+      "tags": ["中华老字号", "相声茶馆", "传统绸布"],
+      "featuredProducts": ["相声演出", "传统绸缎", "中式服装"],
+      "honors": ["中华老字号", "国家级非物质文化遗产"],
+      "historicalSignificance": "谦祥益始建于1906年，原为绸布店，后转型为相声茶馆，被誉为“津门相声第一家”。",
+      "culturalHeritageLevel": "市级",
+      "relatedPois": [11, 12]
+    },
+    {
+      "id": 23,
+      "name": "隆顺榆酱园",
+      "category": "food",
+      "description": "天津著名的酱园老字号，以酱香浓郁、风味地道而闻名，传承了传统的酿造工艺。",
+      "address": "天津市南开区古文化街",
+      "position": { 
+        "x": 45, 
+        "y": 52.5, 
+        "lng": MOCK_COORDINATES[3][0] + 0.005, 
+        "lat": MOCK_COORDINATES[3][1] - 0.005 
+      },
+      "year": 1833,
+      "images": [
+        `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='600' viewBox='0 0 800 600'%3E%3Crect width='800' height='600' fill='%23f5f5f5'/%3E%3Ctext x='400' y='300' font-family='Arial' font-size='24' fill='%23333' text-anchor='middle' dy='0.3em'%3E隆顺榆酱园%3C/text%3E%3Ctext x='400' y='340' font-family='Arial' font-size='16' fill='%23666' text-anchor='middle' dy='0.3em'%3E传统酱园%3C/text%3E%3C/svg%3E`
+      ],
+      "openingHours": "09:00-18:00",
+      "phone": "暂无",
+      "importance": 3,
+      "tags": ["传统酱菜", "酿造工艺", "老字号"],
+      "featuredProducts": ["甜面酱", "酱菜", "调味品"],
+      "honors": ["天津老字号"],
+      "historicalSignificance": "隆顺榆酱园保留了天津传统的酱菜制作工艺，是天津饮食文化的重要组成部分。",
+      "culturalHeritageLevel": "区级",
+      "relatedPois": [10, 11]
+    },
+    {
+      "id": 24,
+      "name": "鸿顺德",
+      "category": "food",
+      "description": "天津著名的清真酱货老字号，以制作精细、口味独特而著称。",
+      "address": "天津市红桥区大胡同",
+      "position": { 
+        "x": 43, 
+        "y": 50, 
+        "lng": MOCK_COORDINATES[7][0] - 0.02, 
+        "lat": MOCK_COORDINATES[7][1] + 0.01 
+      },
+      "year": 1920,
+      "images": [
+        `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='600' viewBox='0 0 800 600'%3E%3Crect width='800' height='600' fill='%23f5f5f5'/%3E%3Ctext x='400' y='300' font-family='Arial' font-size='24' fill='%23333' text-anchor='middle' dy='0.3em'%3E鸿顺德%3C/text%3E%3Ctext x='400' y='340' font-family='Arial' font-size='16' fill='%23666' text-anchor='middle' dy='0.3em'%3E清真老字号%3C/text%3E%3C/svg%3E`
+      ],
+      "openingHours": "08:00-19:00",
+      "phone": "暂无",
+      "importance": 3,
+      "tags": ["清真食品", "酱货", "老字号"],
+      "featuredProducts": ["酱牛肉", "酱羊肉", "熏鸡"],
+      "honors": ["天津老字号"],
+      "historicalSignificance": "鸿顺德是天津清真饮食文化的代表之一，其独特的制作技艺深受市民喜爱。",
+      "culturalHeritageLevel": "区级",
+      "relatedPois": [3, 7]
     }
   ]
 };
@@ -655,6 +759,26 @@ export default function TianjinMap() {
   const [searchQuery, setSearchQuery] = useState('');
   // 区域筛选状态
   const [selectedRegion, setSelectedRegion] = useState<string>('all');
+  
+  // 天津主要区域列表
+  const regions = [
+    '和平区',
+    '河西区',
+    '南开区',
+    '河东区',
+    '河北区',
+    '红桥区',
+    '东丽区',
+    '西青区',
+    '津南区',
+    '北辰区',
+    '武清区',
+    '宝坻区',
+    '滨海新区',
+    '宁河区',
+    '静海区',
+    '蓟州区'
+  ];
   
   // 筛选数据 - 使用useMemo缓存筛选结果，避免在每次渲染时重复计算
   const filteredBrands = useMemo(() => {
@@ -864,15 +988,15 @@ export default function TianjinMap() {
               )}
             </div>
 
-            {/* 分类筛选和缩放控制 */}
-            <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+            {/* 分类筛选和区域筛选 */}
+            <div className="flex flex-col gap-3 pt-1">
               {/* 分类筛选 - 移动端紧凑布局 */}
               <div className="flex flex-wrap gap-2">
                 <button 
                   className={`px-3 py-1.5 rounded-full text-xs md:text-sm font-medium transition-all duration-300 ease-in-out transform hover:scale-105 shadow-md hover:shadow-lg ${selectedCategory === 'all' ? (isDark ? 'bg-gradient-to-r from-red-600 to-red-700 text-white' : 'bg-gradient-to-r from-red-500 to-red-600 text-white') : (isDark ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300')} border border-transparent hover:border-opacity-50`}
                   onClick={() => setSelectedCategory('all')}
                 >
-                  全部
+                  全部分类
                 </button>
                 {Object.entries(categories).map(([key, category]) => {
                   const colorClass = category.color.replace('bg-', '');
@@ -886,6 +1010,26 @@ export default function TianjinMap() {
                   </button>
                   );
                 })}
+              </div>
+              
+              {/* 区域筛选 */}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={`text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>区域:</span>
+                <button 
+                  className={`px-3 py-1 rounded-md text-xs transition-all duration-300 ${selectedRegion === 'all' ? (isDark ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white') : (isDark ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300')}`}
+                  onClick={() => setSelectedRegion('all')}
+                >
+                  全部
+                </button>
+                {regions.filter(r => r !== 'all').map(region => (
+                  <button 
+                    key={region}
+                    className={`px-3 py-1 rounded-md text-xs transition-all duration-300 ${selectedRegion === region ? (isDark ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white') : (isDark ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300')}`}
+                    onClick={() => setSelectedRegion(region)}
+                  >
+                    {region}
+                  </button>
+                ))}
               </div>
             </div>
           </div>
@@ -1242,8 +1386,8 @@ export default function TianjinMap() {
             <div className="flex items-start gap-2">
               <i className="fas fa-filter text-blue-500 mt-1"></i>
               <div>
-                <h4 className="font-semibold">分类筛选</h4>
-                <p className="text-sm dark:text-gray-400">使用顶部分类按钮筛选不同类型的老字号</p>
+                <h4 className="font-semibold">分类与区域筛选</h4>
+                <p className="text-sm dark:text-gray-400">支持按品牌类型和行政区域进行组合筛选</p>
               </div>
             </div>
             <div className="flex items-start gap-2">

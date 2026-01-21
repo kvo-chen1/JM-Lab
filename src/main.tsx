@@ -4,6 +4,10 @@
 
 // 导入国际化配置
 import './i18n/i18n';
+import { setupApi } from './lib/setupApi';
+
+// Initialize API middleware
+setupApi();
 
 import { StrictMode } from "react";
 import "./styles/tianjin.css";
@@ -16,6 +20,7 @@ import { AuthProvider } from './contexts/authContext.tsx';
 import { WorkflowProvider } from './contexts/workflowContext.tsx';
 import { FriendProvider } from './contexts/friendContext.tsx';
 import { LanguageProvider } from './contexts/LanguageContext';
+import { ChatProvider } from './contexts/chatContext.tsx';
 import "./index.css";
 // 恢复全局Font Awesome CSS，解决图标不显示问题
 import '@fortawesome/fontawesome-free/css/all.min.css';
@@ -44,10 +49,11 @@ if (root) {
             <BrowserRouter>
                 <AuthProvider>
                   <FriendProvider>
-                    <WorkflowProvider>
-                      <App />
-                      <Toaster />
-                    </WorkflowProvider>
+                    <ChatProvider>
+                      <WorkflowProvider>
+                        <App />
+                      </WorkflowProvider>
+                    </ChatProvider>
                   </FriendProvider>
                 </AuthProvider>
               </BrowserRouter>

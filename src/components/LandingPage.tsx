@@ -380,14 +380,25 @@ const LandingPage = () => {
       </section>
 
       {/* Culture Section */}
-      <section id="culture" className="py-24 relative overflow-hidden bg-cover bg-center" style={{ backgroundImage: "url('images/cultural-bg.jpg')", backgroundBlendMode: "overlay", backgroundColor: "rgba(3, 3, 8, 0.5)" }}>
-        {/* Background elements */}
-        <div className="absolute top-0 right-0 w-1/3 h-full bg-blue-900/10 blur-[100px] pointer-events-none"></div>
+      <section id="culture" className="py-24 relative overflow-hidden bg-[#030308]">
+        {/* Background Image Layer - Desaturated and darkened */}
+        <div 
+          className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-30 mix-blend-luminosity" 
+          style={{ backgroundImage: "url('images/cultural-bg.jpg')" }}
+        ></div>
+        
+        {/* Dark Gradient Overlay */}
+        <div className="absolute inset-0 bg-gradient-to-b from-[#030308] via-[#030308]/90 to-[#030308]"></div>
+        
+        {/* Decorative elements */}
+        <div className="absolute top-0 right-0 w-1/3 h-full bg-blue-900/10 blur-[120px] pointer-events-none"></div>
+        <div className="absolute bottom-0 left-0 w-1/3 h-full bg-purple-900/10 blur-[120px] pointer-events-none"></div>
 
         <div className="max-w-7xl mx-auto px-6 lg:px-8 relative z-10">
           <div className="text-center mb-20 fade-in-section">
-            <h2 className="text-3xl md:text-5xl font-bold mb-4">文化与精神</h2>
-            <p className="text-gray-400 max-w-2xl mx-auto">以天津为原点，以技术为半径，绘制文化创新的无限可能</p>
+            <h2 className="text-3xl md:text-5xl font-bold mb-6">文化与精神</h2>
+            <div className="w-24 h-1 bg-gradient-to-r from-accent to-transparent mx-auto mb-8"></div>
+            <p className="text-gray-400 max-w-2xl mx-auto text-lg">以天津为原点，以技术为半径，绘制文化创新的无限可能</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">

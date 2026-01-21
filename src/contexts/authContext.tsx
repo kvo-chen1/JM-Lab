@@ -1,5 +1,5 @@
 import { createContext, useState, ReactNode, useEffect } from "react";
-import { supabase } from "@/lib/supabaseClient";
+import { supabase } from "@/lib/supabase";
 import securityService from "../services/securityService";
 import eventBus from '../lib/eventBus'; // 导入事件总线
 import { toast } from 'sonner';
@@ -36,6 +36,8 @@ interface AuthContextType {
   user: User | null;
   login: (email: string, password: string) => Promise<boolean>;
   loginWithCode: (type: 'email' | 'phone', identifier: string, code: string) => Promise<boolean>;
+  sendEmailOtp: (email: string) => Promise<{ success: boolean; error?: string }>;
+  sendSmsOtp: (phone: string) => Promise<{ success: boolean; error?: string }>;
   register: (username: string, email: string, password: string, age?: string, tags?: string[]) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   setIsAuthenticated: (value: boolean) => void;
@@ -64,6 +66,8 @@ export const AuthContext = createContext<AuthContextType>({
   user: null,
   login: async () => false,
   loginWithCode: async () => false,
+  sendEmailOtp: async () => ({ success: false, error: '默认发送邮箱验证码方法未实现' }),
+  sendSmsOtp: async () => ({ success: false, error: '默认发送短信验证码方法未实现' }),
   register: async () => ({ success: false, error: '默认注册方法未实现' }),
   logout: () => {},
   setIsAuthenticated: () => {},
@@ -222,7 +226,120 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           return;
         }
         
-        // 生产环境：检查supabase
+        // 生产环境：先检查本地存储是否有自定义API的token
+        const token = localStorage.getItem('token');
+        const userData = localStorage.getItem('user');
+        const isAuthenticatedFlag = localStorage.getItem('isAuthenticated');
+        
+        if (token && userData && isAuthenticatedFlag === 'true') {
+          // 本地存储有认证信息
+          try {
+            // 强制使用固定的头像URL
+            const avatarUrl = 'https://picsum.photos/id/1005/200/200';
+            
+            const parsedUser = JSON.parse(userData);
+            const userWithMembership = {
+              ...parsedUser,
+              avatar: avatarUrl,
+              membershipLevel: parsedUser.membershipLevel || 'free',
+              membershipStatus: parsedUser.membershipStatus || 'active',
+            };
+            
+            // 尝试使用token获取用户信息，失败时不清除本地存储，保持现有状态
+            try {
+              const response = await fetch('/api/auth/me', {
+                method: 'GET',
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                },
+              });
+              
+              if (response.ok) {
+                // token有效，更新用户信息
+                const data = await response.json();
+                if (data.code === 0 && data.data) {
+                  Object.assign(userWithMembership, {
+                    // 标记为新用户（如果是首次登录）
+                    isNewUser: data.data.isNewUser || false,
+                    // 初始化统计数据
+                    worksCount: data.data.worksCount || 0,
+                    followersCount: data.data.followersCount || 0,
+                    followingCount: data.data.followingCount || 0,
+                    favoritesCount: data.data.favoritesCount || 0,
+                    membershipLevel: (data.data.membershipLevel || 'free') as 'free' | 'premium' | 'vip',
+                    membershipStatus: data.data.membershipStatus || 'active',
+                  });
+                }
+              } else if (response.status === 401) {
+                // token过期，尝试刷新token
+                const refreshTokenFromStorage = localStorage.getItem('refreshToken');
+                if (refreshTokenFromStorage) {
+                  const refreshResponse = await fetch('/api/auth/refresh', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                      token,
+                      refreshToken: refreshTokenFromStorage,
+                    }),
+                  });
+                  
+                  const refreshData = await refreshResponse.json();
+                  if (refreshData.code === 0 && refreshData.data) {
+                    // 刷新成功，更新令牌
+                    localStorage.setItem('token', refreshData.data.token);
+                    localStorage.setItem('refreshToken', refreshData.data.refreshToken);
+                    
+                    // 重新获取用户信息
+                    const meResponse = await fetch('/api/auth/me', {
+                      method: 'GET',
+                      headers: {
+                        'Authorization': `Bearer ${refreshData.data.token}`,
+                      },
+                    });
+                    
+                    if (meResponse.ok) {
+                      const meData = await meResponse.json();
+                      if (meData.code === 0 && meData.data) {
+                        Object.assign(userWithMembership, {
+                          isNewUser: meData.data.isNewUser || false,
+                          worksCount: meData.data.worksCount || 0,
+                          followersCount: meData.data.followersCount || 0,
+                          followingCount: meData.data.followingCount || 0,
+                          favoritesCount: meData.data.favoritesCount || 0,
+                          membershipLevel: meData.data.membershipLevel || 'free',
+                          membershipStatus: meData.data.membershipStatus || 'active',
+                        });
+                      }
+                    }
+                  }
+                }
+              }
+            } catch (error) {
+              console.error('自定义API认证失败，使用本地存储的用户信息:', error);
+              // 不清除本地存储，保持现有状态
+            }
+            
+            // 更新本地存储和状态
+            localStorage.setItem('user', JSON.stringify(userWithMembership));
+            setUser(userWithMembership);
+            setIsAuthenticated(true);
+            return;
+          } catch (error) {
+            console.error('解析用户数据失败:', error);
+            // 清除本地存储
+            localStorage.removeItem('token');
+            localStorage.removeItem('refreshToken');
+            localStorage.removeItem('user');
+            localStorage.removeItem('isAuthenticated');
+            setIsAuthenticated(false);
+            setUser(null);
+            return;
+          }
+        }
+        
+        // 然后检查supabase
         if (supabase) {
           // 使用 Supabase 获取当前会话
           const { data: { session } } = await supabase.auth.getSession();
@@ -263,13 +380,15 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             setUser(userWithMembership);
             setIsAuthenticated(true);
           } else {
-            // 没有有效会话，清除本地存储
-            localStorage.removeItem('token');
-            localStorage.removeItem('refreshToken');
-            localStorage.removeItem('user');
-            localStorage.removeItem('isAuthenticated');
-            setIsAuthenticated(false);
-            setUser(null);
+            // 没有有效会话，且没有自定义API的token，清除本地存储
+            if (!token) {
+              localStorage.removeItem('token');
+              localStorage.removeItem('refreshToken');
+              localStorage.removeItem('user');
+              localStorage.removeItem('isAuthenticated');
+              setIsAuthenticated(false);
+              setUser(null);
+            }
           }
         } else {
           // supabase未配置，检查本地存储
@@ -423,6 +542,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         
         // 存储用户信息和token到本地
         localStorage.setItem('token', data.data.token);
+        localStorage.setItem('refreshToken', data.data.refreshToken || data.data.token);
         localStorage.setItem('user', JSON.stringify(userWithMembership));
         localStorage.setItem('isAuthenticated', 'true');
         
@@ -447,73 +567,87 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   };
 
+  // 发送邮箱验证码方法（使用Supabase内置功能）
+  const sendEmailOtp = async (email: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      console.log('发送邮箱验证码到:', email);
+      console.log('Supabase auth对象:', !!supabase.auth);
+      console.log('Supabase auth.signInWithOtp方法:', typeof supabase.auth.signInWithOtp);
+      
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          emailRedirectTo: `${window.location.origin}/login`,
+        },
+      });
+      
+      if (error) {
+        console.error('发送邮箱验证码失败:', error);
+        return { success: false, error: error.message };
+      }
+      
+      console.log('邮箱验证码发送成功');
+      return { success: true };
+    } catch (error) {
+      console.error('发送邮箱验证码失败:', error);
+      return { success: false, error: '发送邮箱验证码失败，请稍后重试' };
+    }
+  };
+
+  // 发送短信验证码方法（使用Supabase内置功能）
+  const sendSmsOtp = async (phone: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const { error } = await supabase.auth.signInWithOtp({
+        phone,
+      });
+      
+      if (error) {
+        console.error('发送短信验证码失败:', error.message);
+        return { success: false, error: error.message };
+      }
+      
+      console.log('短信验证码发送成功');
+      return { success: true };
+    } catch (error) {
+      console.error('发送短信验证码失败:', error);
+      return { success: false, error: '发送短信验证码失败，请稍后重试' };
+    }
+  };
+
   // 验证码登录方法
   const loginWithCode = async (type: 'email' | 'phone', identifier: string, code: string): Promise<boolean> => {
     try {
-      // 调用验证码登录API
-      const endpoint = type === 'email' ? '/api/auth/login-with-email-code' : '/api/auth/login-with-sms-code';
-      const payload = type === 'email' ? { email: identifier, code } : { phone: identifier, code };
-      
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
-      
-      const data = await response.json();
-      
-      if (data.code === 0 && data.data) {
-        console.log('验证码登录成功');
-        // 强制使用固定的头像URL
-        const avatarUrl = 'https://picsum.photos/id/1005/200/200';
-        
-        const userWithMembership = {
-          id: data.data.id,
-          username: data.data.username,
-          email: data.data.email,
-          avatar: avatarUrl,
-          phone: data.data.phone || '',
-          interests: [],
-          isAdmin: false,
-          age: 0,
-          tags: [],
-          // 标记为新用户（如果是首次登录）
-          isNewUser: data.data.isNewUser || false,
-          // 初始化统计数据
-          worksCount: data.data.worksCount || 0,
-          followersCount: data.data.followersCount || 0,
-          followingCount: data.data.followingCount || 0,
-          favoritesCount: data.data.favoritesCount || 0,
-          membershipLevel: 'free' as const,
-          membershipStart: new Date().toISOString(),
-          membershipEnd: undefined,
-          membershipStatus: 'active' as const,
-        };
-        
-        // 存储用户信息和token到本地
-        localStorage.setItem('token', data.data.token);
-        localStorage.setItem('user', JSON.stringify(userWithMembership));
-        localStorage.setItem('isAuthenticated', 'true');
-        
-        // 更新状态
-        setUser(userWithMembership);
-        setIsAuthenticated(true);
-        
-        // 发布登录成功事件
-        eventBus.publish('auth:login', { 
-          userId: userWithMembership.id, 
-          user: userWithMembership 
+      if (type === 'email') {
+        // 使用Supabase的邮箱验证码登录
+        const { error } = await supabase.auth.verifyOtp({
+          email: identifier,
+          token: code,
+          type: 'email',
         });
         
-        return true;
+        if (error) {
+          console.error('邮箱验证码登录失败:', error.message);
+          return false;
+        }
       } else {
-        console.error('验证码登录失败:', data.message || '验证码错误或已过期');
-        return false;
+        // 使用Supabase的手机验证码登录
+        const { error } = await supabase.auth.verifyOtp({
+          phone: identifier,
+          token: code,
+          type: 'sms',
+        });
+        
+        if (error) {
+          console.error('手机验证码登录失败:', error.message);
+          return false;
+        }
       }
+      
+      console.log(`${type === 'email' ? '邮箱' : '手机'}验证码登录成功`);
+      // 登录成功后，authStateChange事件会处理用户信息
+      return true;
     } catch (error) {
-      console.error('验证码登录失败:', error);
+      console.error(`${type === 'email' ? '邮箱' : '手机'}验证码登录失败:`, error);
       return false;
     }
   };
@@ -653,11 +787,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         return false;
       }
       
-      // 使用Supabase的OAuth登录
+      // 使用Supabase的OAuth登录，redirectTo应该是应用的URL
       const { error } = await supabase.auth.signInWithOAuth({
         provider: provider as any,
         options: {
-          redirectTo: `${window.location.origin}/`,
+          redirectTo: 'http://localhost:3004/',
           queryParams: {
             access_type: 'offline',
             prompt: 'consent'  // 强制每次都要求授权
@@ -1062,6 +1196,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     user,
     login,
     loginWithCode,
+    sendEmailOtp,
+    sendSmsOtp,
     register,
     logout,
     setIsAuthenticated,

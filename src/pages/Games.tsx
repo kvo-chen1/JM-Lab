@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import GradientHero from '@/components/GradientHero';
+import ShareButton from '@/components/ShareButton';
 
 // 直接导入游戏组件，避免懒加载可能带来的问题
 import CulturalQuizGame from '@/components/CulturalQuizGame';
@@ -101,6 +102,16 @@ const Games: React.FC = () => {
             // 中文注释：使用可靠的图片服务确保背景图显示
             backgroundImage="https://picsum.photos/seed/games/1920/1080"
           />
+
+          {/* 分享按钮 */}
+          <div className="flex justify-end mt-4 mb-8">
+            <ShareButton 
+              title="分享游戏" 
+              description="通过游戏学习天津地方文化和中国传统文化，快来加入吧！"
+              url="/games"
+              imageUrl="https://picsum.photos/seed/games/1920/1080"
+            />
+          </div>
 
           {/* 游戏列表 */}
           <motion.div

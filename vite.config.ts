@@ -316,7 +316,7 @@ export default defineConfig({
         skipWaiting: true,
         clientsClaim: true,
         cleanupOutdatedCaches: true,
-        globIgnores: ['**/*.map', '**/node_modules/**', '**/public/**', '**/icons/*.svg'],
+        globIgnores: ['**/*.map', '**/node_modules/**', '**/public/**'],
         runtimeCaching: [
           // API请求缓存 - 使用NetworkFirst策略
           {
@@ -670,6 +670,14 @@ export default defineConfig({
         target: LOCAL_API_TARGET,
         changeOrigin: true
       },
+      '/api/friends': {
+        target: LOCAL_API_TARGET,
+        changeOrigin: true
+      },
+      '/api/messages': {
+        target: LOCAL_API_TARGET,
+        changeOrigin: true
+      },
       '/api/doubao': {
         target: LOCAL_API_TARGET,
         changeOrigin: true,
@@ -756,6 +764,14 @@ export default defineConfig({
     // 添加预览服务器代理配置
     proxy: {
       '/api/auth': {
+        target: LOCAL_API_TARGET,
+        changeOrigin: true
+      },
+      '/api/friends': {
+        target: LOCAL_API_TARGET,
+        changeOrigin: true
+      },
+      '/api/messages': {
         target: LOCAL_API_TARGET,
         changeOrigin: true
       },

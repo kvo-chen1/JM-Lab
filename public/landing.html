@@ -1602,55 +1602,116 @@
     </nav>
 
     <!-- Left Navigation -->
-    <div id="left-navigation" class="fixed left-10 top-1/2 -translate-y-1/2 z-40 hidden lg:block">
-        <div class="relative">
-            <!-- Vertical Line -->
-            <div class="absolute left-4 top-0 bottom-0 w-0.5 bg-gradient-to-b from-accent via-accent/50 to-transparent opacity-80 transition-all duration-500"></div>
-            
-            <!-- Navigation Points -->
-            <div class="space-y-16">
-                <a href="#hero" class="nav-point flex items-center group relative">
-                    <div class="w-9 h-9 rounded-full bg-deep border border-white/20 flex items-center justify-center text-white/90 group-hover:border-accent group-hover:text-accent transition-all duration-300 relative z-10">
-                        <i class="fas fa-home text-xs mr-1"></i>01
-                    </div>
-                </a>
-                <a href="#about" class="nav-point flex items-center group relative">
-                    <div class="w-9 h-9 rounded-full bg-deep border border-white/20 flex items-center justify-center text-white/90 group-hover:border-accent group-hover:text-accent transition-all duration-300 relative z-10">
-                        <i class="fas fa-info-circle text-xs mr-1"></i>02
-                    </div>
-                </a>
-                <a href="#culture" class="nav-point flex items-center group relative">
-                    <div class="w-9 h-9 rounded-full bg-deep border border-white/20 flex items-center justify-center text-white/90 group-hover:border-accent group-hover:text-accent transition-all duration-300 relative z-10">
-                        <i class="fas fa-heart text-xs mr-1"></i>03
-                    </div>
-                </a>
-                <a href="#achievements" class="nav-point flex items-center group relative">
-                    <div class="w-9 h-9 rounded-full bg-deep border border-white/20 flex items-center justify-center text-white/90 group-hover:border-accent group-hover:text-accent transition-all duration-300 relative z-10">
-                        <i class="fas fa-trophy text-xs mr-1"></i>04
-                    </div>
-                </a>
-                <a href="#features" class="nav-point flex items-center group relative">
-                    <div class="w-9 h-9 rounded-full bg-deep border border-white/20 flex items-center justify-center text-white/90 group-hover:border-accent group-hover:text-accent transition-all duration-300 relative z-10">
-                        <i class="fas fa-cogs text-xs mr-1"></i>05
-                    </div>
-                </a>
-                <a href="#cases" class="nav-point flex items-center group relative">
-                    <div class="w-9 h-9 rounded-full bg-deep border border-white/20 flex items-center justify-center text-white/90 group-hover:border-accent group-hover:text-accent transition-all duration-300 relative z-10">
-                        <i class="fas fa-briefcase text-xs mr-1"></i>06
-                    </div>
-                </a>
-                <a href="#partners" class="nav-point flex items-center group relative">
-                    <div class="w-9 h-9 rounded-full bg-deep border border-white/20 flex items-center justify-center text-white/90 group-hover:border-accent group-hover:text-accent transition-all duration-300 relative z-10">
-                        <i class="fas fa-handshake text-xs mr-1"></i>07
-                    </div>
-                </a>
-                <a href="#timeline" class="nav-point flex items-center group relative">
-                    <div class="w-9 h-9 rounded-full bg-deep border border-white/20 flex items-center justify-center text-white/90 group-hover:border-accent group-hover:text-accent transition-all duration-300 relative z-10">
-                        <i class="fas fa-history text-xs mr-1"></i>08
-                    </div>
-                </a>
+    <div id="left-navigation" class="fixed left-8 top-1/2 -translate-y-1/2 z-40 hidden lg:flex flex-col gap-8 items-center">
+        <!-- Connecting Line -->
+        <div class="absolute top-0 bottom-0 w-[1px] bg-gradient-to-b from-transparent via-white/10 to-transparent pointer-events-none"></div>
+        
+        <!-- Navigation Items -->
+        <!-- 01 Hero -->
+        <a href="#hero" class="nav-item group relative z-10 block" aria-label="首页">
+            <div class="nav-circle w-10 h-10 rounded-full bg-deep border border-white/20 flex items-center justify-center transition-all duration-500 group-hover:border-accent group-hover:shadow-[0_0_15px_rgba(0,240,255,0.4)] group-hover:scale-110 relative overflow-hidden">
+                <i class="fas fa-home text-xs text-gray-500 group-hover:text-accent transition-colors duration-300 relative z-10"></i>
+                <div class="absolute inset-0 bg-accent/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
             </div>
-        </div>
+            <!-- Number -->
+            <span class="absolute left-full ml-4 top-1/2 -translate-y-1/2 text-[10px] font-mono text-accent/50 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300 pointer-events-none">01</span>
+            <!-- Label tooltip -->
+            <div class="absolute left-full ml-10 top-1/2 -translate-y-1/2 px-3 py-1 bg-black/60 backdrop-blur border border-white/10 rounded text-xs text-white opacity-0 translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300 whitespace-nowrap">
+                首页
+                <div class="absolute left-0 top-1/2 -translate-x-1 -translate-y-1/2 w-2 h-2 bg-black/60 border-l border-b border-white/10 transform rotate-45"></div>
+            </div>
+        </a>
+
+        <!-- 02 About -->
+        <a href="#about" class="nav-item group relative z-10 block" aria-label="关于我们">
+            <div class="nav-circle w-10 h-10 rounded-full bg-deep border border-white/20 flex items-center justify-center transition-all duration-500 group-hover:border-accent group-hover:shadow-[0_0_15px_rgba(0,240,255,0.4)] group-hover:scale-110 relative overflow-hidden">
+                <i class="fas fa-info text-xs text-gray-500 group-hover:text-accent transition-colors duration-300 relative z-10"></i>
+                <div class="absolute inset-0 bg-accent/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            </div>
+            <span class="absolute left-full ml-4 top-1/2 -translate-y-1/2 text-[10px] font-mono text-accent/50 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300 pointer-events-none">02</span>
+            <div class="absolute left-full ml-10 top-1/2 -translate-y-1/2 px-3 py-1 bg-black/60 backdrop-blur border border-white/10 rounded text-xs text-white opacity-0 translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300 whitespace-nowrap">
+                关于我们
+                <div class="absolute left-0 top-1/2 -translate-x-1 -translate-y-1/2 w-2 h-2 bg-black/60 border-l border-b border-white/10 transform rotate-45"></div>
+            </div>
+        </a>
+
+        <!-- 03 Culture -->
+        <a href="#culture" class="nav-item group relative z-10 block" aria-label="企业文化">
+            <div class="nav-circle w-10 h-10 rounded-full bg-deep border border-white/20 flex items-center justify-center transition-all duration-500 group-hover:border-accent group-hover:shadow-[0_0_15px_rgba(0,240,255,0.4)] group-hover:scale-110 relative overflow-hidden">
+                <i class="fas fa-heart text-xs text-gray-500 group-hover:text-accent transition-colors duration-300 relative z-10"></i>
+                <div class="absolute inset-0 bg-accent/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            </div>
+            <span class="absolute left-full ml-4 top-1/2 -translate-y-1/2 text-[10px] font-mono text-accent/50 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300 pointer-events-none">03</span>
+            <div class="absolute left-full ml-10 top-1/2 -translate-y-1/2 px-3 py-1 bg-black/60 backdrop-blur border border-white/10 rounded text-xs text-white opacity-0 translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300 whitespace-nowrap">
+                企业文化
+                <div class="absolute left-0 top-1/2 -translate-x-1 -translate-y-1/2 w-2 h-2 bg-black/60 border-l border-b border-white/10 transform rotate-45"></div>
+            </div>
+        </a>
+
+        <!-- 04 Achievements -->
+        <a href="#achievements" class="nav-item group relative z-10 block" aria-label="创新成就">
+            <div class="nav-circle w-10 h-10 rounded-full bg-deep border border-white/20 flex items-center justify-center transition-all duration-500 group-hover:border-accent group-hover:shadow-[0_0_15px_rgba(0,240,255,0.4)] group-hover:scale-110 relative overflow-hidden">
+                <i class="fas fa-trophy text-xs text-gray-500 group-hover:text-accent transition-colors duration-300 relative z-10"></i>
+                <div class="absolute inset-0 bg-accent/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            </div>
+            <span class="absolute left-full ml-4 top-1/2 -translate-y-1/2 text-[10px] font-mono text-accent/50 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300 pointer-events-none">04</span>
+            <div class="absolute left-full ml-10 top-1/2 -translate-y-1/2 px-3 py-1 bg-black/60 backdrop-blur border border-white/10 rounded text-xs text-white opacity-0 translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300 whitespace-nowrap">
+                创新成就
+                <div class="absolute left-0 top-1/2 -translate-x-1 -translate-y-1/2 w-2 h-2 bg-black/60 border-l border-b border-white/10 transform rotate-45"></div>
+            </div>
+        </a>
+
+        <!-- 05 Features -->
+        <a href="#features" class="nav-item group relative z-10 block" aria-label="核心功能">
+            <div class="nav-circle w-10 h-10 rounded-full bg-deep border border-white/20 flex items-center justify-center transition-all duration-500 group-hover:border-accent group-hover:shadow-[0_0_15px_rgba(0,240,255,0.4)] group-hover:scale-110 relative overflow-hidden">
+                <i class="fas fa-cogs text-xs text-gray-500 group-hover:text-accent transition-colors duration-300 relative z-10"></i>
+                <div class="absolute inset-0 bg-accent/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            </div>
+            <span class="absolute left-full ml-4 top-1/2 -translate-y-1/2 text-[10px] font-mono text-accent/50 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300 pointer-events-none">05</span>
+            <div class="absolute left-full ml-10 top-1/2 -translate-y-1/2 px-3 py-1 bg-black/60 backdrop-blur border border-white/10 rounded text-xs text-white opacity-0 translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300 whitespace-nowrap">
+                核心功能
+                <div class="absolute left-0 top-1/2 -translate-x-1 -translate-y-1/2 w-2 h-2 bg-black/60 border-l border-b border-white/10 transform rotate-45"></div>
+            </div>
+        </a>
+
+        <!-- 06 Cases -->
+        <a href="#cases" class="nav-item group relative z-10 block" aria-label="用户案例">
+            <div class="nav-circle w-10 h-10 rounded-full bg-deep border border-white/20 flex items-center justify-center transition-all duration-500 group-hover:border-accent group-hover:shadow-[0_0_15px_rgba(0,240,255,0.4)] group-hover:scale-110 relative overflow-hidden">
+                <i class="fas fa-briefcase text-xs text-gray-500 group-hover:text-accent transition-colors duration-300 relative z-10"></i>
+                <div class="absolute inset-0 bg-accent/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            </div>
+            <span class="absolute left-full ml-4 top-1/2 -translate-y-1/2 text-[10px] font-mono text-accent/50 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300 pointer-events-none">06</span>
+            <div class="absolute left-full ml-10 top-1/2 -translate-y-1/2 px-3 py-1 bg-black/60 backdrop-blur border border-white/10 rounded text-xs text-white opacity-0 translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300 whitespace-nowrap">
+                用户案例
+                <div class="absolute left-0 top-1/2 -translate-x-1 -translate-y-1/2 w-2 h-2 bg-black/60 border-l border-b border-white/10 transform rotate-45"></div>
+            </div>
+        </a>
+
+        <!-- 07 Partners -->
+        <a href="#partners" class="nav-item group relative z-10 block" aria-label="合作伙伴">
+            <div class="nav-circle w-10 h-10 rounded-full bg-deep border border-white/20 flex items-center justify-center transition-all duration-500 group-hover:border-accent group-hover:shadow-[0_0_15px_rgba(0,240,255,0.4)] group-hover:scale-110 relative overflow-hidden">
+                <i class="fas fa-handshake text-xs text-gray-500 group-hover:text-accent transition-colors duration-300 relative z-10"></i>
+                <div class="absolute inset-0 bg-accent/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            </div>
+            <span class="absolute left-full ml-4 top-1/2 -translate-y-1/2 text-[10px] font-mono text-accent/50 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300 pointer-events-none">07</span>
+            <div class="absolute left-full ml-10 top-1/2 -translate-y-1/2 px-3 py-1 bg-black/60 backdrop-blur border border-white/10 rounded text-xs text-white opacity-0 translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300 whitespace-nowrap">
+                合作伙伴
+                <div class="absolute left-0 top-1/2 -translate-x-1 -translate-y-1/2 w-2 h-2 bg-black/60 border-l border-b border-white/10 transform rotate-45"></div>
+            </div>
+        </a>
+
+        <!-- 08 Timeline -->
+        <a href="#timeline" class="nav-item group relative z-10 block" aria-label="发展历程">
+            <div class="nav-circle w-10 h-10 rounded-full bg-deep border border-white/20 flex items-center justify-center transition-all duration-500 group-hover:border-accent group-hover:shadow-[0_0_15px_rgba(0,240,255,0.4)] group-hover:scale-110 relative overflow-hidden">
+                <i class="fas fa-history text-xs text-gray-500 group-hover:text-accent transition-colors duration-300 relative z-10"></i>
+                <div class="absolute inset-0 bg-accent/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            </div>
+            <span class="absolute left-full ml-4 top-1/2 -translate-y-1/2 text-[10px] font-mono text-accent/50 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300 pointer-events-none">08</span>
+            <div class="absolute left-full ml-10 top-1/2 -translate-y-1/2 px-3 py-1 bg-black/60 backdrop-blur border border-white/10 rounded text-xs text-white opacity-0 translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300 whitespace-nowrap">
+                发展历程
+                <div class="absolute left-0 top-1/2 -translate-x-1 -translate-y-1/2 w-2 h-2 bg-black/60 border-l border-b border-white/10 transform rotate-45"></div>
+            </div>
+        </a>
     </div>
 
     <!-- Hero Section -->
@@ -2180,9 +2241,16 @@
     </section>
 
     <!-- Culture Section -->
-    <section id="culture" class="py-40 relative overflow-hidden bg-cover bg-center" style="background-image: url('images/cultural-bg.jpg'); background-blend-mode: overlay; background-color: rgba(3, 3, 8, 0.5);">
-        <!-- Background elements -->
-        <div class="absolute top-0 right-0 w-1/3 h-full bg-blue-900/10 blur-[100px] pointer-events-none"></div>
+    <section id="culture" class="py-40 relative overflow-hidden bg-[#030308]">
+        <!-- Background Image Layer - Desaturated and darkened -->
+        <div class="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-30 mix-blend-luminosity" style="background-image: url('images/cultural-bg.jpg')"></div>
+        
+        <!-- Dark Gradient Overlay -->
+        <div class="absolute inset-0 bg-gradient-to-b from-[#030308] via-[#030308]/90 to-[#030308]"></div>
+
+        <!-- Decorative elements -->
+        <div class="absolute top-0 right-0 w-1/3 h-full bg-blue-900/10 blur-[120px] pointer-events-none"></div>
+        <div class="absolute bottom-0 left-0 w-1/3 h-full bg-purple-900/10 blur-[120px] pointer-events-none"></div>
 
         <div class="max-w-7xl mx-auto px-8 lg:px-12 relative z-10">
             <div class="text-center mb-32 fade-in-section">
@@ -2766,6 +2834,49 @@
 
             document.querySelectorAll('.counter').forEach(counter => {
                 counterObserver.observe(counter);
+            });
+
+            // Scroll Spy for Left Navigation
+            const navItems = document.querySelectorAll('.nav-item');
+            const sections = Array.from(navItems).map(link => {
+                const id = link.getAttribute('href').substring(1);
+                return document.getElementById(id);
+            }).filter(section => section !== null);
+
+            const navObserver = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        const id = entry.target.id;
+                        // Update Navigation State
+                        navItems.forEach(item => {
+                            const circle = item.querySelector('.nav-circle');
+                            const icon = item.querySelector('i');
+                            const number = item.querySelector('span'); // The number span
+
+                            if (item.getAttribute('href') === `#${id}`) {
+                                // Activate
+                                circle.classList.remove('bg-deep', 'border-white/20');
+                                circle.classList.add('bg-accent', 'border-accent', 'shadow-[0_0_20px_rgba(0,240,255,0.6)]', 'scale-110');
+                                icon.classList.remove('text-gray-500');
+                                icon.classList.add('text-black');
+                                number.classList.remove('text-accent/50', 'opacity-0', '-translate-x-2');
+                                number.classList.add('text-accent', 'opacity-100', 'translate-x-0');
+                            } else {
+                                // Deactivate
+                                circle.classList.add('bg-deep', 'border-white/20');
+                                circle.classList.remove('bg-accent', 'border-accent', 'shadow-[0_0_20px_rgba(0,240,255,0.6)]', 'scale-110');
+                                icon.classList.add('text-gray-500');
+                                icon.classList.remove('text-black');
+                                number.classList.add('text-accent/50', 'opacity-0', '-translate-x-2');
+                                number.classList.remove('text-accent', 'opacity-100', 'translate-x-0');
+                            }
+                        });
+                    }
+                });
+            }, { threshold: 0.2, rootMargin: "-20% 0px -20% 0px" });
+
+            sections.forEach(section => {
+                navObserver.observe(section);
             });
         });
     </script>

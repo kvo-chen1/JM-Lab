@@ -9,6 +9,32 @@ export interface Community {
   avatar: string;
   cover?: string; // 兼容旧代码使用的 cover 字段
   isActive: boolean;
+  // 社群标签
+  tags: string[];
+  // 社区书签
+  bookmarks: Array<{
+    id: string;
+    name: string;
+    icon: string;
+  }>;
+  // 自定义风格配置
+  theme?: {
+    primaryColor?: string;
+    secondaryColor?: string;
+    backgroundColor?: string;
+    textColor?: string;
+  };
+  // 布局配置
+  layoutType?: 'standard' | 'compact' | 'expanded';
+  // 功能模块配置
+  enabledModules?: {
+    posts?: boolean;
+    chat?: boolean;
+    members?: boolean;
+    announcements?: boolean;
+  };
+  // 特殊标记
+  isSpecial?: boolean;
 }
 
 // 创作者社群列表
@@ -20,7 +46,13 @@ export const mockCommunities: Community[] = [
     memberCount: 1286,
     topic: '国潮',
     avatar: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=landscape_4_3&prompt=Guochao%20design%20community%20banner',
-    isActive: true
+    isActive: true,
+    tags: ['国潮', '设计', '品牌', '配色', '联名'],
+    bookmarks: [
+      { id: 'bm-1', name: '规则', icon: 'fas fa-book' },
+      { id: 'bm-2', name: '资源库', icon: 'fas fa-layer-group' },
+      { id: 'bm-3', name: '官方网站', icon: 'fas fa-globe' }
+    ]
   },
   {
     id: 'c-heritage',
@@ -29,7 +61,12 @@ export const mockCommunities: Community[] = [
     memberCount: 986,
     topic: '非遗',
     avatar: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=landscape_4_3&prompt=Intangible%20heritage%20digital%20community%20banner',
-    isActive: true
+    isActive: true,
+    tags: ['非遗', '数字化', '教育', '传播', '文化'],
+    bookmarks: [
+      { id: 'bm-4', name: '非遗资源', icon: 'fas fa-book' },
+      { id: 'bm-5', name: '案例库', icon: 'fas fa-layer-group' }
+    ]
   },
   {
     id: 'c-ip',
@@ -38,7 +75,13 @@ export const mockCommunities: Community[] = [
     memberCount: 742,
     topic: 'IP',
     avatar: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=landscape_4_3&prompt=IP%20collaboration%20and%20licensing%20community%20banner',
-    isActive: true
+    isActive: true,
+    tags: ['IP', '授权', '联名', '品牌', '案例'],
+    bookmarks: [
+      { id: 'bm-6', name: 'IP库', icon: 'fas fa-database' },
+      { id: 'bm-7', name: '授权规则', icon: 'fas fa-shield-alt' },
+      { id: 'bm-8', name: '成功案例', icon: 'fas fa-trophy' }
+    ]
   },
   {
     id: 'c-peking-opera',

@@ -1,6 +1,8 @@
 import React, { useState, useEffect, Suspense, lazy, useRef } from 'react';
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
+import { Toaster } from "sonner";
+import { motion, AnimatePresence } from "framer-motion";
 
 import { Routes, Route, Outlet, useLocation, useNavigationType, Link, Navigate } from "react-router-dom";
 // 导入mock数据和postService用于初始化
@@ -10,6 +12,8 @@ import { addPost } from '@/services/postService';
 import { Post } from '@/services/postService';
 // 导入性能优化工具
 import { createLazyComponent, ROUTE_PRIORITIES, performanceOptimizer } from '@/utils/performanceOptimization';
+// 导入通知上下文
+import { NotificationProvider } from '@/contexts/NotificationContext';
 
 
 import CommandPalette from '@/components/CommandPalette';
@@ -59,7 +63,7 @@ const SearchResults = createLazyComponent(() => import(/* webpackChunkName: "pag
 });
 
 // 2. 高频访问但较大的页面 - 懒加载，优先加载
-const Create = createLazyComponent(() => import(/* webpackChunkName: "pages-create" */ "@/pages/create/index"), {
+const Create = createLazyComponent(() => import(/* webpackChunkName: "pages-create" */ "@/pages/create/index.tsx"), {
   priority: ROUTE_PRIORITIES.HIGH
 });
 const Studio = createLazyComponent(() => import(/* webpackChunkName: "pages-create" */ "@/pages/create/Studio"), {
@@ -156,8 +160,17 @@ const CreativeMatchmaking = createLazyComponent(() => import(/* webpackChunkName
 const AchievementMuseum = createLazyComponent(() => import(/* webpackChunkName: "components-community" */ "@/components/AchievementMuseum"), {
   priority: ROUTE_PRIORITIES.MEDIUM
 });
+const PostDetail = createLazyComponent(() => import(/* webpackChunkName: "pages-community" */ "@/pages/PostDetail"), {
+  priority: ROUTE_PRIORITIES.MEDIUM
+});
+
 // 好友系统相关 - 懒加载
 const Friends = createLazyComponent(() => import(/* webpackChunkName: "pages-community" */ "@/pages/Friends"), {
+  priority: ROUTE_PRIORITIES.MEDIUM
+});
+
+// 作者个人资料页面 - 懒加载
+const AuthorProfile = createLazyComponent(() => import(/* webpackChunkName: "pages-community" */ "@/pages/AuthorProfile"), {
   priority: ROUTE_PRIORITIES.MEDIUM
 });
 
@@ -555,10 +568,11 @@ export default function App() {
   AnimatedPage.displayName = 'AnimatedPage';
   
   return (
-    <div className="relative min-h-screen bg-white dark:bg-[var(--bg-primary)]">
-      <Analytics />
-      <SpeedInsights />
-      <Routes>
+    <NotificationProvider>
+      <div className="relative min-h-screen bg-white dark:bg-[var(--bg-primary)]">
+        <Analytics />
+        <SpeedInsights />
+        <Routes>
         {/* 核心页面直接渲染，无需懒加载，添加缓存和动画 */}
         {/* 确保根路径是第一个路由，提高匹配优先级 */}
         <Route path="/" element={
@@ -612,8 +626,11 @@ export default function App() {
           <Route path="/neo" element={<Navigate to="/create/inspiration" replace />} />
           <Route path="/square" element={<LazyComponent><PrivateRoute><Square /></PrivateRoute></LazyComponent>} />
           <Route path="/square/:id" element={<LazyComponent><PrivateRoute><Square /></PrivateRoute></LazyComponent>} />
-          <Route path="/community" element={<LazyComponent><PrivateRoute><Community /></PrivateRoute></LazyComponent>} />          <Route path="/friends" element={<LazyComponent><PrivateRoute><Friends /></PrivateRoute></LazyComponent>} />
-          <Route path="/dashboard" element={<RouteCache><LazyComponent fallback={<DashboardSkeleton />}><PrivateRoute><Dashboard /></PrivateRoute></LazyComponent></RouteCache>} />
+          <Route path="/community" element={<LazyComponent><PrivateRoute><Community /></PrivateRoute></LazyComponent>} />
+          <Route path="/friends" element={<LazyComponent><PrivateRoute><Friends /></PrivateRoute></LazyComponent>} />
+          <Route path="/post/:id" element={<LazyComponent><PostDetail /></LazyComponent>} />
+          <Route path="/creator-community" element={<Navigate to="/community" replace />} />
+          <Route path="/dashboard" element={<RouteCache><LazyComponent fallback={<DashboardSkeleton />}><PrivateRoute><Dashboard /></PrivateRoute></LazyComponent></RouteCache>} />          <Route path="/profile" element={<Navigate to="/dashboard" replace />} />
           <Route path="/create" element={<LazyComponent><PrivateRoute><Create /></PrivateRoute></LazyComponent>}>
             <Route index element={<LazyComponent><Studio /></LazyComponent>} />
             <Route path="inspiration" element={<LazyComponent><Neo /></LazyComponent>} />
@@ -636,6 +653,7 @@ export default function App() {
           <Route path="/lab" element={<LazyComponent><PrivateRoute><Lab /></PrivateRoute></LazyComponent>} />
           <Route path="/image-test" element={<LazyComponent><ImageTest /></LazyComponent>} />
           <Route path="/github-image-test" element={<LazyComponent><GitHubImageTestPage /></LazyComponent>} />
+          <Route path="/author/:id" element={<LazyComponent><AuthorProfile /></LazyComponent>} />
 
           <Route path="/brand" element={<LazyComponent><PrivateRoute><BrandGuide /></PrivateRoute></LazyComponent>} />
           <Route path="/business" element={<LazyComponent><BusinessCooperation /></LazyComponent>} />
@@ -696,7 +714,7 @@ export default function App() {
       
       {/* PWA 安装按钮 - 懒加载，隐藏固定按钮，只在个人菜单中显示 */}
       <LazyComponent>
-        <PWAInstallButton hideFixedButton={true} />
+        <PWAInstallButton hideFixedButton={true} forceShow={true} />
       </LazyComponent>
       {/* 恢复FirstLaunchGuide组件，优化首次启动体验 - 懒加载 */}
       <LazyComponent>
@@ -722,6 +740,10 @@ export default function App() {
       {/* 全局命令面板 */}
       <CommandPalette />
       
+      {/* 全局 Toast 通知 */}
+      <Toaster position="top-center" richColors closeButton />
+      
     </div>
+    </NotificationProvider>
 );
 }

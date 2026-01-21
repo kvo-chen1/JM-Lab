@@ -539,12 +539,16 @@ export async function apiRequest<TResp, TBody = unknown>(
         const signatureData = `${method}:${target}:${timestamp}:${bodyString}`
         const signature = await securityService.generateSignature(signatureData, timestamp)
         
-        // 添加安全头
+        // 获取认证令牌
+        const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+        
+        // 添加安全头和认证头
         const secureHeaders = {
           ...headers,
           'X-Request-Timestamp': timestamp.toString(),
           'X-Request-Signature': signature,
           'X-Request-Id': securityService.generateUUID(),
+          ...(token && { 'Authorization': `Bearer ${token}` }),
         }
         
         // 记录请求开始
@@ -645,14 +649,14 @@ export async function apiRequest<TResp, TBody = unknown>(
         
         // 统一错误信息格式
         if (typeof data === 'object' && data !== null) {
-          // 如果是ApiResponse格式的错误
-          if ('error' in data) {
-            errorMessage = String(data.error || `Request failed with status ${res.status}`)
-          } 
-          // 如果是包含message字段的错误
-          else if ('message' in data) {
+          // 如果是ApiResponse格式的错误，优先使用message字段（中文提示），如果没有则使用error字段
+          if ('message' in data) {
             errorMessage = String(data.message || `Request failed with status ${res.status}`)
           } 
+          // 如果没有message字段，再使用error字段
+          else if ('error' in data) {
+            errorMessage = String(data.error || `Request failed with status ${res.status}`)
+          }
           // 如果是包含errors字段的错误（例如表单验证错误）
           else if ('errors' in data) {
             errorMessage = Array.isArray(data.errors) ? data.errors.join(', ') : String(data.errors || `Request failed with status ${res.status}`)

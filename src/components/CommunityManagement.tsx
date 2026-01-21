@@ -5,12 +5,32 @@ import { toast } from 'sonner';
 import { TianjinImage } from './TianjinStyleComponents';
 
 // 类型定义
+export type CommunityRole = 'admin' | 'editor' | 'member';
+
+export type CommunityPermission = 
+  | 'manage_members' 
+  | 'manage_posts' 
+  | 'manage_announcements' 
+  | 'manage_settings' 
+  | 'manage_guidelines' 
+  | 'view_analytics' 
+  | 'create_posts' 
+  | 'comment_posts' 
+  | 'like_posts';
+
+export type CommunityRolePermissions = Record<CommunityRole, CommunityPermission[]>;
+
 export type Community = {
   id: string;
   name: string;
   description: string;
   cover: string;
   tags: string[];
+  bookmarks: Array<{
+    id: string;
+    name: string;
+    icon: string;
+  }>;
   members: number;
 };
 
@@ -24,6 +44,10 @@ interface CommunityManagementProps {
   onAdminStoreChange: (store: Record<string, string[]>) => void;
   memberStore: Record<string, string[]>;
   onMemberStoreChange: (store: Record<string, string[]>) => void;
+  roleStore: Record<string, Record<string, CommunityRole>>;
+  onRoleStoreChange: (store: Record<string, Record<string, CommunityRole>>) => void;
+  permissionStore: Record<string, CommunityRolePermissions>;
+  onPermissionStoreChange: (store: Record<string, CommunityRolePermissions>) => void;
   announceStore: Record<string, string>;
   onAnnounceStoreChange: (store: Record<string, string>) => void;
   privacyStore: Record<string, 'public' | 'private'>;
@@ -43,6 +67,10 @@ const CommunityManagement: React.FC<CommunityManagementProps> = ({
   onAdminStoreChange,
   memberStore,
   onMemberStoreChange,
+  roleStore,
+  onRoleStoreChange,
+  permissionStore,
+  onPermissionStoreChange,
   announceStore,
   onAnnounceStoreChange,
   privacyStore,
@@ -55,10 +83,37 @@ const CommunityManagement: React.FC<CommunityManagementProps> = ({
   const [newCommunityName, setNewCommunityName] = useState('');
   const [newCommunityDesc, setNewCommunityDesc] = useState('');
   const [newCommunityTags, setNewCommunityTags] = useState('');
-  const [editDraft, setEditDraft] = useState<{ id: string; name: string; desc: string; tags: string } | null>(null);
+  const [editDraft, setEditDraft] = useState<{ 
+    id: string; 
+    name: string; 
+    desc: string; 
+    tags: string;
+    bookmarks: Array<{
+      id: string;
+      name: string;
+      icon: string;
+    }>
+  } | null>(null);
   const [manageCommunityId, setManageCommunityId] = useState<string | null>(null);
   const [newMemberEmail, setNewMemberEmail] = useState('');
   const [expandedMembersId, setExpandedMembersId] = useState<string | null>(null);
+  const [selectedRole, setSelectedRole] = useState<CommunityRole>('member');
+  const [showPermissionSettings, setShowPermissionSettings] = useState(false);
+  const [inviteLink, setInviteLink] = useState('');
+  
+  // 默认角色权限
+  const defaultRolePermissions: CommunityRolePermissions = {
+    admin: [
+      'manage_members', 'manage_posts', 'manage_announcements', 'manage_settings', 
+      'manage_guidelines', 'view_analytics', 'create_posts', 'comment_posts', 'like_posts'
+    ],
+    editor: [
+      'manage_posts', 'view_analytics', 'create_posts', 'comment_posts', 'like_posts'
+    ],
+    member: [
+      'create_posts', 'comment_posts', 'like_posts'
+    ]
+  };
 
   // 判断是否为管理员
   const isAdmin = (communityId: string) => {
@@ -83,6 +138,7 @@ const CommunityManagement: React.FC<CommunityManagementProps> = ({
       description: desc, 
       cover, 
       tags, 
+      bookmarks: [],
       members: 1 
     };
     
@@ -98,6 +154,18 @@ const CommunityManagement: React.FC<CommunityManagementProps> = ({
       onMemberStoreChange({ 
         ...memberStore, 
         [id]: [currentEmail] 
+      });
+      
+      // 初始化角色设置
+      onRoleStoreChange({ 
+        ...roleStore, 
+        [id]: { [currentEmail]: 'admin' } 
+      });
+      
+      // 初始化权限设置
+      onPermissionStoreChange({ 
+        ...permissionStore, 
+        [id]: defaultRolePermissions 
       });
     }
     
@@ -168,6 +236,17 @@ const CommunityManagement: React.FC<CommunityManagementProps> = ({
     
     onMemberStoreChange(updatedMemberStore);
     
+    // 设置成员角色
+    const updatedRoleStore = {
+      ...roleStore,
+      [communityId]: {
+        ...(roleStore[communityId] || {}),
+        [email.trim()]: selectedRole
+      }
+    };
+    
+    onRoleStoreChange(updatedRoleStore);
+    
     // 更新社群成员数量
     onUserCommunitiesChange(userCommunities.map(c => {
       if (c.id !== communityId) return c;
@@ -187,6 +266,14 @@ const CommunityManagement: React.FC<CommunityManagementProps> = ({
     
     onMemberStoreChange(updatedMemberStore);
     
+    // 移除成员角色
+    const updatedRoleStore = { ...roleStore };
+    if (updatedRoleStore[communityId]) {
+      const { [email]: removedRole, ...remainingRoles } = updatedRoleStore[communityId];
+      updatedRoleStore[communityId] = remainingRoles;
+      onRoleStoreChange(updatedRoleStore);
+    }
+    
     // 更新社群成员数量
     onUserCommunitiesChange(userCommunities.map(c => {
       if (c.id !== communityId) return c;
@@ -204,6 +291,17 @@ const CommunityManagement: React.FC<CommunityManagementProps> = ({
     };
     
     onAdminStoreChange(updatedAdminStore);
+    
+    // 更新角色为管理员
+    const updatedRoleStore = {
+      ...roleStore,
+      [communityId]: {
+        ...(roleStore[communityId] || {}),
+        [email]: 'admin'
+      }
+    };
+    
+    onRoleStoreChange(updatedRoleStore);
     toast.success('成员已升级为管理员');
   };
 
@@ -215,7 +313,83 @@ const CommunityManagement: React.FC<CommunityManagementProps> = ({
     };
     
     onAdminStoreChange(updatedAdminStore);
+    
+    // 更新角色为普通成员
+    const updatedRoleStore = {
+      ...roleStore,
+      [communityId]: {
+        ...(roleStore[communityId] || {}),
+        [email]: 'member'
+      }
+    };
+    
+    onRoleStoreChange(updatedRoleStore);
     toast.success('管理员已降级为普通成员');
+  };
+
+  // 设置成员角色
+  const setMemberRole = (communityId: string, email: string, role: CommunityRole) => {
+    const updatedRoleStore = {
+      ...roleStore,
+      [communityId]: {
+        ...(roleStore[communityId] || {}),
+        [email]: role
+      }
+    };
+    
+    onRoleStoreChange(updatedRoleStore);
+    
+    // 如果设置为管理员，确保在adminStore中
+    if (role === 'admin') {
+      if (!adminStore[communityId]?.includes(email)) {
+        const updatedAdminStore = {
+          ...adminStore,
+          [communityId]: [...(adminStore[communityId] || []), email]
+        };
+        onAdminStoreChange(updatedAdminStore);
+      }
+    } else {
+      // 如果从管理员降级，确保从adminStore中移除
+      if (adminStore[communityId]?.includes(email)) {
+        const updatedAdminStore = {
+          ...adminStore,
+          [communityId]: (adminStore[communityId] || []).filter(a => a !== email)
+        };
+        onAdminStoreChange(updatedAdminStore);
+      }
+    }
+    
+    toast.success(`成员角色已更新为${role}`);
+  };
+
+  // 生成邀请链接
+  const generateInviteLink = (communityId: string) => {
+    // 生成唯一邀请码
+    const inviteCode = Math.random().toString(36).substring(2, 10).toUpperCase();
+    const link = `${window.location.origin}/join-community/${communityId}?code=${inviteCode}`;
+    setInviteLink(link);
+    
+    // 复制到剪贴板
+    navigator.clipboard.writeText(link).then(() => {
+      toast.success('邀请链接已复制到剪贴板');
+    }).catch(err => {
+      console.error('复制失败:', err);
+      toast.error('复制失败，请手动复制链接');
+    });
+  };
+
+  // 更新角色权限
+  const updateRolePermissions = (communityId: string, role: CommunityRole, permissions: CommunityPermission[]) => {
+    const updatedPermissionStore = {
+      ...permissionStore,
+      [communityId]: {
+        ...(permissionStore[communityId] || defaultRolePermissions),
+        [role]: permissions
+      }
+    };
+    
+    onPermissionStoreChange(updatedPermissionStore);
+    toast.success('角色权限已更新');
   };
 
   // 开始编辑社群
@@ -224,7 +398,8 @@ const CommunityManagement: React.FC<CommunityManagementProps> = ({
       id: community.id,
       name: community.name,
       desc: community.description,
-      tags: community.tags.join(',')
+      tags: community.tags.join(','),
+      bookmarks: community.bookmarks || []
     });
   };
 
@@ -248,7 +423,7 @@ const CommunityManagement: React.FC<CommunityManagementProps> = ({
     
     const updatedCommunities = userCommunities.map(c => 
       c.id === editDraft.id 
-        ? { ...c, name, description: desc, tags } 
+        ? { ...c, name, description: desc, tags, bookmarks: editDraft.bookmarks } 
         : c
     );
     
@@ -514,50 +689,154 @@ const CommunityManagement: React.FC<CommunityManagementProps> = ({
             {/* 成员管理 */}
             <div className="mb-6">
               <h4 className="font-medium mb-3">成员管理</h4>
-              <div className="flex items-center gap-2 mb-3">
-                <input 
-                  value={newMemberEmail} 
-                  onChange={e => setNewMemberEmail(e.target.value)} 
-                  placeholder="添加成员邮箱" 
-                  className={`flex-1 ${isDark ? 'bg-gray-700 text-white ring-1 ring-gray-600' : 'bg-white text-gray-900 ring-1 ring-gray-300'} px-3 py-2 rounded-lg focus:outline-none focus:ring-2 ${isDark ? 'focus:ring-purple-500' : 'focus:ring-pink-300'}`} 
-                />
-                <button 
-                  onClick={addMember} 
-                  className={`${isDark ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white'} px-3 py-2 rounded-lg text-sm`}
+              
+              {/* 邀请成员 */}
+              <div className="bg-gray-100 dark:bg-gray-700/50 p-3 rounded-lg mb-4">
+                <h5 className="text-sm font-medium mb-2">邀请成员</h5>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <input 
+                    value={newMemberEmail} 
+                    onChange={e => setNewMemberEmail(e.target.value)} 
+                    placeholder="添加成员邮箱" 
+                    className={`${isDark ? 'bg-gray-700 text-white ring-1 ring-gray-600' : 'bg-white text-gray-900 ring-1 ring-gray-300'} px-3 py-2 rounded-lg focus:outline-none focus:ring-2 ${isDark ? 'focus:ring-purple-500' : 'focus:ring-pink-300'}`} 
+                  />
+                  <select
+                    value={selectedRole}
+                    onChange={(e) => setSelectedRole(e.target.value as CommunityRole)}
+                    className={`${isDark ? 'bg-gray-700 text-white ring-1 ring-gray-600' : 'bg-white text-gray-900 ring-1 ring-gray-300'} px-3 py-2 rounded-lg focus:outline-none focus:ring-2 ${isDark ? 'focus:ring-purple-500' : 'focus:ring-pink-300'}`}
+                  >
+                    <option value="member">普通成员</option>
+                    <option value="editor">编辑</option>
+                    <option value="admin">管理员</option>
+                  </select>
+                  <button 
+                    onClick={addMember} 
+                    className={`${isDark ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white'} px-3 py-2 rounded-lg text-sm`}
+                  >
+                    邀请
+                  </button>
+                </div>
+                
+                {/* 邀请链接 */}
+                <div className="mt-4">
+                  <div className="flex items-center gap-2">
+                    <input 
+                      value={inviteLink} 
+                      readOnly
+                      className={`flex-1 ${isDark ? 'bg-gray-700 text-white ring-1 ring-gray-600' : 'bg-white text-gray-900 ring-1 ring-gray-300'} px-3 py-2 rounded-lg focus:outline-none focus:ring-2 ${isDark ? 'focus:ring-purple-500' : 'focus:ring-pink-300'}`} 
+                    />
+                    <button 
+                      onClick={() => generateInviteLink(manageCommunityId!)} 
+                      className={`${isDark ? 'bg-green-600 text-white' : 'bg-green-500 text-white'} px-3 py-2 rounded-lg text-sm`}
+                    >
+                      生成邀请链接
+                    </button>
+                  </div>
+                </div>
+              </div>
+              
+              {/* 成员列表 */}
+              <div className="bg-gray-100 dark:bg-gray-700/50 p-3 rounded-lg">
+                <h5 className="text-sm font-medium mb-2">成员列表</h5>
+                <div className="space-y-2 max-h-96 overflow-y-auto">
+                  {[currentEmail, ...(memberStore[manageCommunityId] || [])].map((email, i) => {
+                    const memberRole = roleStore[manageCommunityId!]?.[email] || 'member';
+                    return (
+                      <div key={i} className={`flex items-center justify-between p-2 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                        <div className="flex items-center gap-2">
+                          <div className="text-sm">{email}</div>
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${isDark ? 
+                            memberRole === 'admin' ? 'bg-purple-600 text-white' : 
+                            memberRole === 'editor' ? 'bg-blue-600 text-white' : 
+                            'bg-green-600 text-white' : 
+                            memberRole === 'admin' ? 'bg-purple-500 text-white' : 
+                            memberRole === 'editor' ? 'bg-blue-500 text-white' : 
+                            'bg-green-500 text-white'}`}>
+                            {memberRole === 'admin' ? '管理员' : memberRole === 'editor' ? '编辑' : '成员'}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {email !== currentEmail && (
+                            <>
+                              <select
+                                value={memberRole}
+                                onChange={(e) => setMemberRole(manageCommunityId!, email, e.target.value as CommunityRole)}
+                                className={`${isDark ? 'bg-gray-700 text-white ring-1 ring-gray-600' : 'bg-white text-gray-900 ring-1 ring-gray-300'} px-2 py-1 rounded-lg text-xs focus:outline-none focus:ring-2 ${isDark ? 'focus:ring-purple-500' : 'focus:ring-pink-300'}`}
+                              >
+                                <option value="member">普通成员</option>
+                                <option value="editor">编辑</option>
+                                <option value="admin">管理员</option>
+                              </select>
+                              <button 
+                                onClick={() => removeMemberFromManaged(email)} 
+                                className={`text-xs px-2 py-1 rounded-full ${isDark ? 'bg-red-600 text-white' : 'bg-red-500 text-white'}`}
+                              >
+                                移除
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+            
+            {/* 角色权限设置 */}
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="font-medium">角色权限设置</h4>
+                <button
+                  onClick={() => setShowPermissionSettings(!showPermissionSettings)}
+                  className={`text-sm ${isDark ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-500'}`}
                 >
-                  添加
+                  {showPermissionSettings ? '收起' : '展开'}
                 </button>
               </div>
-              <div className="space-y-2">
-                {[currentEmail, ...(memberStore[manageCommunityId] || [])].map((email, i) => (
-                  <div key={i} className={`flex items-center justify-between p-2 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                    <div className="flex items-center gap-2">
-                      <div className="text-sm">{email}</div>
-                      {adminStore[manageCommunityId]?.includes(email) && (
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${isDark ? 'bg-purple-600 text-white' : 'bg-purple-500 text-white'}`}>管理员</span>
-                      )}
+              
+              {showPermissionSettings && (
+                <div className="space-y-4 bg-gray-100 dark:bg-gray-700/50 p-3 rounded-lg">
+                  {(['admin', 'editor', 'member'] as CommunityRole[]).map((role) => (
+                    <div key={role} className="space-y-2">
+                      <h5 className="text-sm font-medium capitalize">{role} 权限</h5>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        {([
+                          { key: 'manage_members', label: '管理成员' },
+                          { key: 'manage_posts', label: '管理帖子' },
+                          { key: 'manage_announcements', label: '管理公告' },
+                          { key: 'manage_settings', label: '管理设置' },
+                          { key: 'manage_guidelines', label: '管理版规' },
+                          { key: 'view_analytics', label: '查看分析' },
+                          { key: 'create_posts', label: '创建帖子' },
+                          { key: 'comment_posts', label: '评论帖子' },
+                          { key: 'like_posts', label: '点赞帖子' }
+                        ] as { key: CommunityPermission; label: string }[]).map((permission) => {
+                          const currentPermissions = permissionStore[manageCommunityId!]?.[role] || defaultRolePermissions[role];
+                          const hasPermission = currentPermissions.includes(permission.key);
+                          
+                          return (
+                            <div key={permission.key} className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={hasPermission}
+                                onChange={(e) => {
+                                  const updatedPermissions = e.target.checked
+                                    ? [...currentPermissions, permission.key]
+                                    : currentPermissions.filter(p => p !== permission.key);
+                                  updateRolePermissions(manageCommunityId!, role, updatedPermissions);
+                                }}
+                                className={`${isDark ? 'accent-purple-500' : 'accent-pink-500'}`}
+                              />
+                              <label className="text-sm">{permission.label}</label>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      {email !== currentEmail && (
-                        <>
-                          <button 
-                            onClick={() => toggleAdminRole(email)} 
-                            className={`text-xs px-2 py-1 rounded-full ${isDark ? 'bg-gray-600 text-white' : 'bg-gray-200 text-gray-800'}`}
-                          >
-                            {adminStore[manageCommunityId]?.includes(email) ? '移除管理员' : '设为管理员'}
-                          </button>
-                          <button 
-                            onClick={() => removeMemberFromManaged(email)} 
-                            className={`text-xs px-2 py-1 rounded-full ${isDark ? 'bg-red-600 text-white' : 'bg-red-500 text-white'}`}
-                          >
-                            移除
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
             
             {/* 社群设置 */}

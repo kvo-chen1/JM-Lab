@@ -19,6 +19,10 @@ interface CreateActions {
   savePatternHistory: () => void;
   restorePatternHistory: (historyItemId: string) => void;
   clearPatternHistory: () => void;
+  // New functions for action buttons
+  saveToDrafts: () => void;
+  shareDesign: () => void;
+  applyToOtherTool: (tool: ToolType) => void;
 }
 
 const initialState: CreateState = {
@@ -162,4 +166,56 @@ export const useCreateStore = create<CreateState & CreateActions>((set, get) => 
     ...state,
     patternHistory: [],
   })),
+  
+  // 保存到草稿
+  saveToDrafts: () => set((state) => {
+    if (!state.selectedResult) return state;
+    
+    const selectedImage = state.generatedResults.find(r => r.id === state.selectedResult);
+    if (!selectedImage) return state;
+    
+    try {
+      const drafts = JSON.parse(localStorage.getItem('CREATE_DRAFTS') || '[]');
+      const newDraft = {
+        id: `draft-${Date.now()}`,
+        createdAt: Date.now(),
+        prompt: state.prompt,
+        selectedResult: state.selectedResult,
+        generatedResults: state.generatedResults,
+        activeTool: state.activeTool,
+        stylePreset: state.stylePreset,
+      };
+      const updatedDrafts = [newDraft, ...drafts].slice(0, 10); // 保存最近10个草稿
+      localStorage.setItem('CREATE_DRAFTS', JSON.stringify(updatedDrafts));
+      console.log('Design saved to drafts');
+    } catch (error) {
+      console.error('Failed to save to drafts:', error);
+    }
+    
+    return state;
+  }),
+  
+  // 分享设计
+  shareDesign: () => set((state) => {
+    if (!state.selectedResult) return state;
+    
+    const selectedImage = state.generatedResults.find(r => r.id === state.selectedResult);
+    if (!selectedImage) return state;
+    
+    // 这里可以实现分享功能，比如生成分享链接或打开分享面板
+    console.log('Share design:', selectedImage.thumbnail);
+    return state;
+  }),
+  
+  // 应用到其他工具
+  applyToOtherTool: (tool: ToolType) => set((state) => {
+    if (!state.selectedResult) return state;
+    
+    // 切换到指定工具
+    return {
+      ...state,
+      activeTool: tool,
+      // 可以根据需要添加其他状态更新
+    };
+  })
 }));

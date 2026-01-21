@@ -50,7 +50,7 @@ export default function SketchPanel() {
             setGeneratedResults(mapped);
             setSelectedResult(mapped[0]?.id ?? null);
             setCurrentStep(2);
-            toast.success(`${currentModel.name}已生成${urls.length}张方案`);
+            toast.success(`${currentModel.name}已生成${urls.length}张方案，可在下方查看并进行下载、编辑等操作`);
         } else {
              toast.info('未返回图片，使用模拟数据');
              const fallback = [

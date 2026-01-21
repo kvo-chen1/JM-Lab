@@ -229,19 +229,40 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
     setConnectionError('');
     
     try {
-      // 使用简单的请求测试连接
-      const response = await fetch('/api/ping', {
+      // 测试服务器健康状态
+      const healthResponse = await fetch('/api/health/ping', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json'
         }
       });
       
-      if (response.ok) {
-        setConnectionStatus('connected');
+      if (healthResponse.ok) {
+        // 测试模型配置状态
+        const llmResponse = await fetch('/api/health/llms', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (llmResponse.ok) {
+          const llmStatus = await llmResponse.json();
+          // 检查当前模型是否已配置
+          const currentModelId = llmService.getCurrentModel().id;
+          if (llmStatus.ok && llmStatus.status && llmStatus.status[currentModelId] && llmStatus.status[currentModelId].configured) {
+            setConnectionStatus('connected');
+          } else {
+            setConnectionStatus('error');
+            setConnectionError(`当前模型 ${currentModelId} 未正确配置`);
+          }
+        } else {
+          setConnectionStatus('error');
+          setConnectionError('模型配置检查失败');
+        }
       } else {
         setConnectionStatus('error');
-        setConnectionError('连接测试失败，服务器返回错误');
+        setConnectionError('服务器健康检查失败');
       }
     } catch (error) {
       setConnectionStatus('error');

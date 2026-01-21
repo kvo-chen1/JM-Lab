@@ -24,6 +24,11 @@ export default function CanvasArea() {
   const patternPositionX = useCreateStore((state) => state.patternPositionX);
   const patternPositionY = useCreateStore((state) => state.patternPositionY);
   const updateState = useCreateStore((state) => state.updateState);
+  
+  // 新添加的状态管理函数
+  const saveToDrafts = useCreateStore((state) => state.saveToDrafts);
+  const shareDesign = useCreateStore((state) => state.shareDesign);
+  const applyToOtherTool = useCreateStore((state) => state.applyToOtherTool);
 
   const handleFullscreenToggle = () => {
     if (!document.fullscreenElement) {
@@ -446,6 +451,81 @@ export default function CanvasArea() {
                 </div>
               )}
 
+              {/* Action Buttons */}
+              <div className={`w-full max-w-4xl backdrop-blur-sm p-4 rounded-2xl border mb-6 ${isDark ? 'bg-black/30 border-white/20' : 'bg-white/30 border-gray-200'}`}>
+                <div className="flex flex-wrap justify-center gap-3">
+                  {/* Download Button */}
+                  <button
+                    onClick={() => {
+                      const selectedImage = generatedResults.find(r => r.id === selectedResult);
+                      if (selectedImage) {
+                        const link = document.createElement('a');
+                        link.href = selectedImage.thumbnail;
+                        link.download = `design_${Date.now()}.png`;
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                      }
+                    }}
+                    disabled={!selectedResult}
+                    className={`px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 transition-all shadow-sm ${selectedResult ? (isDark ? 'bg-[#C02C38] hover:bg-[#E60012] text-white' : 'bg-[#C02C38] hover:bg-[#E60012] text-white') : (isDark ? 'bg-gray-800 text-gray-500 cursor-not-allowed' : 'bg-gray-200 text-gray-500 cursor-not-allowed')}`}
+                  >
+                    <i className="fas fa-download"></i>
+                    <span>下载设计</span>
+                  </button>
+                  
+                  {/* Edit Button */}
+                  <button
+                    onClick={() => {
+                      // 这里可以跳转到编辑页面或打开编辑面板
+                      console.log('Edit design');
+                    }}
+                    disabled={!selectedResult}
+                    className={`px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 transition-all shadow-sm ${selectedResult ? (isDark ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white') : (isDark ? 'bg-gray-800 text-gray-500 cursor-not-allowed' : 'bg-gray-200 text-gray-500 cursor-not-allowed')}`}
+                  >
+                    <i className="fas fa-edit"></i>
+                    <span>编辑设计</span>
+                  </button>
+                  
+                  {/* Save to Drafts Button */}
+                  <button
+                    onClick={() => {
+                      saveToDrafts();
+                    }}
+                    disabled={!selectedResult}
+                    className={`px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 transition-all shadow-sm ${selectedResult ? (isDark ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-green-600 hover:bg-green-700 text-white') : (isDark ? 'bg-gray-800 text-gray-500 cursor-not-allowed' : 'bg-gray-200 text-gray-500 cursor-not-allowed')}`}
+                  >
+                    <i className="fas fa-save"></i>
+                    <span>保存草稿</span>
+                  </button>
+                  
+                  {/* Share Button */}
+                  <button
+                    onClick={() => {
+                      shareDesign();
+                    }}
+                    disabled={!selectedResult}
+                    className={`px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 transition-all shadow-sm ${selectedResult ? (isDark ? 'bg-purple-600 hover:bg-purple-700 text-white' : 'bg-purple-600 hover:bg-purple-700 text-white') : (isDark ? 'bg-gray-800 text-gray-500 cursor-not-allowed' : 'bg-gray-200 text-gray-500 cursor-not-allowed')}`}
+                  >
+                    <i className="fas fa-share-alt"></i>
+                    <span>分享设计</span>
+                  </button>
+                  
+                  {/* Apply to Other Tools Button */}
+                  <button
+                    onClick={() => {
+                      // 弹出工具选择菜单或直接切换到某个工具
+                      applyToOtherTool('filter'); // 这里可以根据需要修改为默认工具
+                    }}
+                    disabled={!selectedResult}
+                    className={`px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 transition-all shadow-sm ${selectedResult ? (isDark ? 'bg-yellow-600 hover:bg-yellow-700 text-white' : 'bg-yellow-600 hover:bg-yellow-700 text-white') : (isDark ? 'bg-gray-800 text-gray-500 cursor-not-allowed' : 'bg-gray-200 text-gray-500 cursor-not-allowed')}`}
+                  >
+                    <i className="fas fa-tools"></i>
+                    <span>其他工具</span>
+                  </button>
+                </div>
+              </div>
+              
               {/* Thumbnails Strip */}
               <div className="w-full max-w-4xl backdrop-blur-sm bg-white/30 dark:bg-black/30 p-4 rounded-2xl border border-white/20">
                 <div className="flex gap-4 overflow-x-auto custom-scrollbar justify-center">

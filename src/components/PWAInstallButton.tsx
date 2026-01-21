@@ -264,10 +264,18 @@ const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
     return import.meta.env.MODE === 'development';
   };
 
+  // 检查是否为平台环境
+  const isPlatformEnvironment = () => {
+    // 检测当前环境是否为平台环境
+    // 根据实际情况调整检测逻辑，例如检查URL、环境变量等
+    // 这里暂时总是返回true，表示当前是平台环境，不显示提示框
+    return true;
+  };
+
   return (
     <>
       {/* 安装引导 */}
-      {!asMenuItem && showGuide && isPWASupported() && (
+      {!asMenuItem && showGuide && isPWASupported() && !isPlatformEnvironment() && (
         <div className="fixed bottom-20 right-6 z-40 max-w-xs">
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-4 border border-gray-200 dark:border-gray-700">
             <div className="flex justify-between items-start mb-3">

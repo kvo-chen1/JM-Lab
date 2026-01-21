@@ -42,18 +42,11 @@ export default function CreateLayout() {
                     : (isDark 
                         ? 'text-gray-400 hover:text-gray-100 hover:bg-gray-700/50' 
                         : 'text-gray-500 hover:text-gray-900 hover:bg-gray-200/50')
-                  }
-                  /* 移动端优化：增加触控区域 */
-                  sm:px-3 sm:py-2
-                  /* 平板端优化 */
-                  md:px-4 md:py-2
-                  /* 电脑端优化 */
-                  lg:px-4 lg:py-2
-                `}
+                  }`}
               >
                 <i className={`fas fa-${item.icon} ${isActive ? 'animate-pulse-slow' : ''} text-xs`}></i>
                 {/* 移动端隐藏文字，仅显示图标 */}
-                <span className="hidden sm:inline">{item.label}</span>
+                <span className="lg:inline hidden">{item.label}</span>
               </NavLink>
             );
           })}

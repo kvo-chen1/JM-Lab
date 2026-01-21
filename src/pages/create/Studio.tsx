@@ -45,10 +45,8 @@ export default function Studio() {
   
   return (
     <div className={`flex h-full overflow-hidden ${isDark ? 'bg-gray-950' : 'bg-gray-50'}`}>
-      {/* 电脑端左侧工具栏 */}
-      <div className="hidden lg:flex">
-        <ToolSidebar />
-      </div>
+      {/* 左侧工具栏 - 内部处理响应式显示 */}
+      <ToolSidebar />
       
       {/* Inspiration Panel Drawer - 灵感面板抽屉 */}
       <AnimatePresence>
@@ -77,19 +75,14 @@ export default function Studio() {
       </AnimatePresence>
 
       {/* Main Canvas Area - 主画布区域 */}
-      <div className="flex-1 relative flex flex-col min-w-0 overflow-hidden lg:mb-0 mb-24">
+      <div className="flex-1 relative flex flex-col min-w-0 overflow-hidden
+        /* 手机端和平板端：为底部工具栏留出空间 */
+        md:mb-0 mb-24">
         <CanvasArea />
       </div>
 
-      {/* 电脑端右侧属性面板 */}
-      <div className="hidden lg:flex">
-        <PropertiesPanel />
-      </div>
-
-      {/* 移动端底部工具栏 */}
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50">
-        <ToolSidebar />
-      </div>
+      {/* 右侧属性面板 - 内部处理响应式显示 */}
+      <PropertiesPanel />
 
       {/* Modals / Overlays */}
       <AnimatePresence>

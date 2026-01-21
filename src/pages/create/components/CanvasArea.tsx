@@ -526,15 +526,15 @@ export default function CanvasArea() {
                 </div>
               </div>
               
-              {/* Thumbnails Strip */}
+              {/* Thumbnails Strip - 移动端优化 */}
               <div className="w-full max-w-4xl backdrop-blur-sm bg-white/30 dark:bg-black/30 p-4 rounded-2xl border border-white/20">
-                <div className="flex gap-4 overflow-x-auto custom-scrollbar justify-center">
+                <div className="flex gap-3 sm:gap-4 overflow-x-auto custom-scrollbar justify-center">
                   {generatedResults.map((result) => (
                     <motion.button
                       key={result.id}
                       layoutId={`thumb-${result.id}`}
                       onClick={() => setSelectedResult(result.id)}
-                      className={`relative flex-shrink-0 w-20 h-20 lg:w-24 lg:h-24 rounded-xl overflow-hidden border-2 transition-all shadow-sm ${selectedResult === result.id ? 'border-[#C02C38] ring-2 ring-[#C02C38]/20 scale-105 z-10' : 'border-white dark:border-gray-700 opacity-70 hover:opacity-100 hover:scale-105'}`}
+                      className={`relative flex-shrink-0 w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 rounded-xl overflow-hidden border-2 transition-all shadow-sm ${selectedResult === result.id ? 'border-[#C02C38] ring-2 ring-[#C02C38]/20 scale-105 z-10' : 'border-white dark:border-gray-700 opacity-70 hover:opacity-100 hover:scale-105'}`}
                     >
                       <img src={result.thumbnail} alt="" className="w-full h-full object-cover" />
                       {result.score && (

@@ -1737,7 +1737,7 @@ class LLMService {
           model: 'wanx2.1-t2i-turbo',
           input: { prompt: params.prompt },
           parameters: {
-            size: (params.size || '1024x1024').replace('x', '*'),
+            size: params.size || '1024x1024',
             n: params.n || 1
           }
         }),

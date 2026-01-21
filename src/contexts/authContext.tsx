@@ -567,27 +567,28 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   };
 
-  // 发送邮箱验证码方法（使用Supabase内置功能）
+  // 发送邮箱验证码方法（使用后端API）
   const sendEmailOtp = async (email: string): Promise<{ success: boolean; error?: string }> => {
     try {
       console.log('发送邮箱验证码到:', email);
-      console.log('Supabase auth对象:', !!supabase.auth);
-      console.log('Supabase auth.signInWithOtp方法:', typeof supabase.auth.signInWithOtp);
       
-      const { error } = await supabase.auth.signInWithOtp({
-        email,
-        options: {
-          emailRedirectTo: `${window.location.origin}/login`,
+      const response = await fetch('/api/auth/send-email-code', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify({ email }),
       });
       
-      if (error) {
-        console.error('发送邮箱验证码失败:', error);
-        return { success: false, error: error.message };
-      }
+      const data = await response.json();
       
-      console.log('邮箱验证码发送成功');
-      return { success: true };
+      if (response.ok && data.code === 0) {
+        console.log('邮箱验证码发送成功');
+        return { success: true };
+      } else {
+        console.error('发送邮箱验证码失败:', data.message || '未知错误');
+        return { success: false, error: data.message || '发送邮箱验证码失败，请稍后重试' };
+      }
     } catch (error) {
       console.error('发送邮箱验证码失败:', error);
       return { success: false, error: '发送邮箱验证码失败，请稍后重试' };

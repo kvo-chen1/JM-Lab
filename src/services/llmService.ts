@@ -1706,11 +1706,10 @@ class LLMService {
   
   /**
    * 生成图片
-   * 始终使用通义千问(Qwen)进行图片生成
+   * 直接调用通义千问(Qwen)API进行图片生成
    */
   async generateImage(params: GenerateImageParams): Promise<GenerateImageResponse> {
-    // 调用本地代理端点，由服务器处理API调用
-    const endpoint = '/api/qwen/images/generate';
+    const authKey = this.getEnvVar('VITE_QWEN_API_KEY') || this.getEnvVar('QWEN_API_KEY');
     
     try {
       // 确保prompt字段存在
@@ -1719,45 +1718,94 @@ class LLMService {
         return this.getMockImageResponse(params.prompt);
       }
       
-      // 调用本地代理的图片生成API
-      const resp = await fetch(endpoint, {
+      // 确保API密钥存在
+      if (!authKey) {
+        console.error('[LLM] Missing Qwen API key for image generation');
+        return this.getMockImageResponse(params.prompt);
+      }
+      
+      // 直接调用通义千问的图片生成API
+      const createResp = await fetch('https://dashscope.aliyuncs.com/api/v1/services/aigc/text2image/image-synthesis', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authKey}`,
+          'X-DashScope-Async': 'enable'
         },
         body: JSON.stringify({
-          prompt: params.prompt,
-          size: params.size || '1024x1024',
-          n: params.n || 1,
-          model: 'wanx2.1-t2i-turbo'
+          model: params.model || 'wanx2.1-t2i-turbo',
+          input: { prompt: params.prompt },
+          parameters: {
+            size: params.size ? params.size.replace('x', '*') : '1024*1024',
+            n: params.n || 1
+          }
         }),
         signal: AbortSignal.timeout(60000) // 60秒超时
       });
       
-      if (!resp.ok) {
-        console.warn(`[LLM] API call failed, falling back to mock mode: ${resp.status} ${resp.statusText}`);
+      const createData = await createResp.json();
+      if (!createResp.ok) {
+        console.warn(`[LLM] Qwen image creation failed:`, createData);
         return this.getMockImageResponse(params.prompt);
       }
       
-      const data = await resp.json();
+      const taskId = createData?.output?.task_id || createData?.task_id;
+      if (!taskId) {
+        console.warn(`[LLM] Qwen image task ID missing:`, createData);
+        return this.getMockImageResponse(params.prompt);
+      }
       
-      // 处理代理返回的结果
-      if (data.ok && data.data) {
-        const images = Array.isArray(data.data.data) ? data.data.data.map((result: any) => {
-          const url = result?.url || result?.image_url || result?.image || '';
-          return { url, revised_prompt: params.prompt };
-        }).filter((it: any) => !!it.url) : [];
+      console.log(`[LLM] Qwen image generation task created: ${taskId}`);
+      
+      // 轮询获取生成结果
+      const startedAt = Date.now();
+      const timeoutMs = 60000;
+      while (Date.now() - startedAt < timeoutMs) {
+        const taskResp = await fetch(`https://dashscope.aliyuncs.com/api/v1/tasks/${taskId}`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${authKey}`
+          },
+          signal: AbortSignal.timeout(10000) // 10秒超时
+        });
         
-        return {
-          created: Date.now(),
-          data: images
-        };
-      } else {
-        console.warn(`[LLM] Unexpected response format, falling back to mock mode:`, data);
-        return this.getMockImageResponse(params.prompt);
+        const taskData = await taskResp.json();
+        if (!taskResp.ok) {
+          console.warn(`[LLM] Qwen image task check failed:`, taskData);
+          return this.getMockImageResponse(params.prompt);
+        }
+        
+        // 检查任务状态
+        const taskStatus = taskData?.output?.task_status || taskData?.task_status;
+        console.log(`[LLM] Qwen image task status: ${taskStatus}`);
+        
+        if (taskStatus === 'SUCCEEDED') {
+          // 生成成功
+          const results = taskData?.output?.results || taskData?.output?.result || taskData?.output?.images || [];
+          const images = Array.isArray(results) ? results.map((item: any) => {
+            const url = item?.url || item?.image_url || item?.image || '';
+            return { url, revised_prompt: params.prompt };
+          }).filter((it: any) => !!it.url) : [];
+          
+          return {
+            created: Date.now(),
+            data: images
+          };
+        } else if (taskStatus === 'FAILED' || taskStatus === 'CANCELED' || taskStatus === 'CANCELLED') {
+          // 生成失败
+          console.warn(`[LLM] Qwen image generation failed: ${taskStatus}`, taskData);
+          return this.getMockImageResponse(params.prompt);
+        }
+        
+        // 等待2秒后再次轮询
+        await new Promise(resolve => setTimeout(resolve, 2000));
       }
+      
+      // 超时
+      console.warn('[LLM] Qwen image generation timeout');
+      return this.getMockImageResponse(params.prompt);
     } catch (error) {
-      console.warn('[LLM] Image generation failed, falling back to mock mode:', error);
+      console.warn('[LLM] Image generation failed:', error);
       return this.getMockImageResponse(params.prompt);
     }
   }
@@ -2442,26 +2490,25 @@ class LLMService {
     try {
       switch (modelId) {
         case 'kimi':
+          console.log('[LLM] 尝试调用 Kimi API');
           return await this.callKimiApi(messages, options);
         case 'qwen':
+          console.log('[LLM] 尝试调用 Qwen API');
           return await this.callQwenApi(messages, options);
         default:
           throw new Error(`不支持的模型类型: ${modelId}`);
       }
     } catch (error) {
-      console.warn(`[LLM] 模型 ${modelId} 调用失败，尝试切换到 Qwen 模型:`, error);
+      console.warn(`[LLM] 模型 ${modelId} 调用失败:`, error);
       
-      // 当 Kimi 模型调用失败时，自动切换到 Qwen 模型
-      if (modelId === 'kimi') {
-        try {
-          return await this.callQwenApi(messages, options);
-        } catch (qwenError) {
-          console.error(`[LLM] Qwen 模型调用也失败:`, qwenError);
-          throw new Error('所有可用模型均调用失败，请稍后再试');
-        }
+      // 无论什么模型调用失败，都尝试切换到 Qwen 模型作为兜底
+      try {
+        console.log(`[LLM] 尝试切换到 Qwen 模型`);
+        return await this.callQwenApi(messages, options);
+      } catch (qwenError) {
+        console.error(`[LLM] Qwen 模型调用也失败:`, qwenError);
+        throw new Error('所有可用模型均调用失败，请稍后再试');
       }
-      
-      throw error;
     }
   }
   

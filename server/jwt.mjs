@@ -71,11 +71,11 @@ export function getJwtExpiresIn() {
  * @param {Object} options - 选项
  * @returns {string} JWT令牌
  */
-export function generateToken(payload, options = {}) {
+export function generateToken(payload, expiresIn = '7d') {
   const secret = getActiveJwtSecret()
   
   // 直接使用字符串形式的expiresIn参数
-  return jwt.sign(payload, secret, { expiresIn: '7d' })
+  return jwt.sign(payload, secret, { expiresIn })
 }
 
 /**

@@ -15,7 +15,7 @@ const heritageStories = [
     excerpt: '探索泥人张彩塑的历史渊源与现代传承，了解这项国家级非物质文化遗产的独特魅力。',
     tags: ['泥人张', '非遗', '彩塑', '天津'],
     image: '/api/proxy/trae-api/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Traditional%20Chinese%20clay%20sculpture%20workshop%20Tianjin',
-    content: '泥人张彩塑是天津著名的传统民间艺术，以形神兼备、色彩鲜明、做工精细而闻名，是中国泥塑艺术的代表。泥人张彩塑的历史可以追溯到清代道光年间，创始人张明山被誉为"泥人张"，他的作品生动传神，深受人们喜爱。经过几代人的传承和发展，泥人张彩塑已经成为天津的文化名片之一，被列入国家级非物质文化遗产名录。'
+    content: '泥人张彩塑是天津著名的传统民间艺术，以形神兼备、色彩鲜明、做工精细而闻名，是中国泥塑艺术的代表。泥人张彩塑的历史可以追溯到清代道光年间，创始人张明山被誉为"泥人张"，他的作品生动传神，深受人们喜爱。\n\n张明山出生于1826年，自幼跟随父亲学习泥塑技艺，20岁时便在天津城崭露头角。他善于观察生活，能够在短时间内捕捉人物的神态和特征，将其栩栩如生地塑造出来。传说张明山曾在戏院看戏时，仅凭观察就能在袖口中捏出演员的形象，令观众叹为观止。\n\n泥人张彩塑的制作工艺非常复杂，需要经过选泥、和泥、捏制、晾干、彩绘等多个环节。制作泥人使用的泥土经过特殊处理，具有良好的可塑性和耐久性。彩绘采用天然颜料，色彩鲜艳持久，富有传统韵味。\n\n经过几代人的传承和发展，泥人张彩塑已经形成了独特的艺术风格。作品题材广泛，包括历史人物、民间故事、戏曲角色、生活场景等。泥人张彩塑不仅具有很高的艺术价值，还具有重要的历史和文化价值，是研究中国民间艺术和社会生活的重要资料。\n\n2006年，泥人张彩塑被列入第一批国家级非物质文化遗产名录，得到了国家的重视和保护。如今，泥人张彩塑已经成为天津的文化名片之一，吸引了众多国内外游客前来观赏和学习。同时，泥人张彩塑也在不断创新和发展，结合现代艺术元素，创作出更多符合时代审美的作品，让这一传统艺术在现代社会中焕发出新的生机和活力。\n\n泥人张彩塑的传承和发展，离不开一代代艺人的努力和奉献。他们不仅继承了传统的技艺，还不断探索和创新，让泥人张彩塑在保持传统特色的同时，适应现代社会的需求。相信在未来，泥人张彩塑这一传统艺术将会继续传承下去，为中国的民间艺术宝库增添更多精彩的作品。'
   },
   {
     id: 'story-002',
@@ -991,10 +991,9 @@ export default function CulturalKnowledge() {
                       
                       {/* 正文内容 */}
                       <div className={`prose ${isDark ? 'prose-invert' : ''} max-w-none prose-xl ${isDark ? 'prose-headings:text-white' : 'prose-headings:text-gray-900'} prose-p:text-xl prose-p:leading-relaxed prose-p:tracking-wide prose-p:mb-8`}>
-                        <p>{selectedStory.content}</p>
-                        <p>{selectedStory.content}</p>
-                        <p>{selectedStory.content}</p>
-                        <p className="mb-0">{selectedStory.content}</p>
+                        {selectedStory.content.split('\n\n').map((paragraph, index) => (
+                          <p key={index}>{paragraph}</p>
+                        ))}
                       </div>
                     </div>
                     

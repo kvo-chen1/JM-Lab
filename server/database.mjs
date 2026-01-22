@@ -3,7 +3,6 @@ import fs from 'fs'
 import path from 'path'
 import { randomUUID } from 'crypto'
 import dotenv from 'dotenv'
-import Database from 'better-sqlite3'
 import { Pool } from 'pg'
 
 // 加载环境变量
@@ -398,7 +397,9 @@ async function initPostgreSQL() {
     let { connectionString, options } = config.postgresql
     
     if (!connectionString) {
-      throw new Error('PostgreSQL Connection String not configured')
+      const errorMsg = 'PostgreSQL Connection String not configured. Please set DATABASE_URL in Vercel Environment Variables. (Format: postgres://user:pass@host:port/db)';
+      console.error(errorMsg); // 确保在 Vercel 日志中可见
+      throw new Error(errorMsg);
     }
 
     // 移除 connectionString 中的 sslmode 参数，避免与 options.ssl 冲突

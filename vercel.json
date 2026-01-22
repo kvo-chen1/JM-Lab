@@ -5,14 +5,16 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "/server/local-api.mjs"
+      "destination": "/api/index.js"
     },
     {
       "source": "/(.*)",
       "destination": "/index.html"
     }
   ],
-  "env": {
-    "NODE_VERSION": "20"
+  "functions": {
+    "api/index.js": {
+      "maxDuration": 60
+    }
   }
 }

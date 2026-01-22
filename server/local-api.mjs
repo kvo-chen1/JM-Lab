@@ -709,16 +709,41 @@ function loadCommunityConfig() {
   }
 }
 
-const server = http.createServer(async (req, res) => {
-  console.log('[DEBUG] Request received:', req.method, req.url); // Debug Log
-  setCors(res)
-  if (req.method === 'OPTIONS') { res.statusCode = 204; res.end(); return }
-  const u = new URL(req.url, `http://localhost:${PORT}`)
-  const path = u.pathname
+// 导出处理函数以供 Vercel Serverless Function 使用
+export default async function handler(req, res) {
+  // 设置 CORS
+  setCors(res);
+  
+  if (req.method === 'OPTIONS') {
+    res.statusCode = 204;
+    res.end();
+    return;
+  }
 
-  // Skip global Doubao key check; validate per-route
+  // 确保 req.url 包含完整的路径
+  // 在 Vercel 环境下，req.url 可能是不带域名的路径
+  const protocol = req.headers['x-forwarded-proto'] || 'http';
+  const host = req.headers.host || `localhost:${PORT}`;
+  const u = new URL(req.url, `${protocol}://${host}`);
+  const path = u.pathname;
+
+  console.log('[API Handler] Request:', req.method, path);
 
   try {
+    // 复用原有的路由逻辑...
+    // 这里我们需要将原有的 server.listen 逻辑改造为函数调用
+    // 为了最小化改动，我们可以将原有的路由逻辑封装在一个 async function route(req, res) 中
+    await route(req, res, u, path);
+  } catch (error) {
+    console.error('API error:', error);
+    sendJson(res, 500, { error: 'SERVER_ERROR', message: '服务器内部错误' });
+  }
+}
+
+// 将原有的 server 回调逻辑提取为 route 函数
+async function route(req, res, u, path) {
+    // ... 原有的路由逻辑 ...
+
     // 中文注释：教程收藏改为使用数据库持久化
     if (req.method === 'GET' && path === '/api/favorites/tutorials') {
       // 从JWT令牌获取当前用户ID
@@ -2593,8 +2618,16 @@ const server = http.createServer(async (req, res) => {
     console.error('API error:', error)
     sendJson(res, 500, { error: 'SERVER_ERROR', message: '服务器内部错误' })
   }
-})
+}
 
-server.listen(PORT, () => {
-  console.log(`Local API server running on http://localhost:${PORT}`)
-})
+// 仅在本地开发时启动服务器（非 Vercel 环境）
+if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+  const server = http.createServer(async (req, res) => {
+    // 适配本地 http.createServer 的 req/res 到 handler
+    await handler(req, res);
+  });
+  
+  server.listen(PORT, () => {
+    console.log(`Local API server running on http://localhost:${PORT}`)
+  })
+}

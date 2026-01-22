@@ -70,13 +70,27 @@ const getPostgresConnectionString = () => {
 const detectDbType = () => {
   // 优先使用环境变量指定的数据库类型
   if (process.env.DB_TYPE) return process.env.DB_TYPE
+  
+  // Vercel 环境强制检测
+  if (process.env.VERCEL) {
+    // 如果配置了 PostgreSQL 相关的环境变量，优先使用 PostgreSQL
+    if (process.env.POSTGRES_URL || process.env.DATABASE_URL || process.env.SUPABASE_URL) {
+      return DB_TYPE.POSTGRESQL;
+    }
+    // Vercel Serverless 环境不支持本地文件写入 (SQLite)，回退到内存模式 (Memory)
+    // 注意：内存模式在 Serverless 函数冷启动时会重置数据
+    console.warn('Running on Vercel without Database config, falling back to Memory DB');
+    return DB_TYPE.MEMORY;
+  }
+
   // 如果配置了 Supabase 和 PostgreSQL URL，则使用 Supabase
   if (process.env.SUPABASE_URL && process.env.POSTGRES_URL) return DB_TYPE.SUPABASE
   // 如果数据库 URL 包含 neon，则使用 Neon API
   if (process.env.DATABASE_URL && process.env.DATABASE_URL.includes('neon')) return DB_TYPE.NEON_API
   // 如果有数据库 URL，则使用 PostgreSQL
   if (process.env.DATABASE_URL || process.env.POSTGRES_URL) return DB_TYPE.POSTGRESQL
-  // 否则使用 SQLite
+  
+  // 本地环境默认使用 SQLite
   return DB_TYPE.SQLITE
 }
 
@@ -1292,37 +1306,58 @@ export const userDB = {
   async getEmailLoginCode(email) {
     const db = await getDB()
     const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
-    switch (typeKey) {
-      case DB_TYPE.SQLITE: {
-        const row = db.prepare('SELECT email_login_code, email_login_expires FROM users WHERE email = ?').get(email)
-        return row || { email_login_code: null, email_login_expires: null }
+    try {
+      switch (typeKey) {
+        case DB_TYPE.SQLITE: {
+          const row = db.prepare('SELECT email_login_code, email_login_expires FROM users WHERE email = ?').get(email)
+          return row || { email_login_code: null, email_login_expires: null }
+        }
+        case DB_TYPE.MEMORY: {
+          const user = memoryStore.users.find(u => u.email === email)
+          return user ? { email_login_code: user.email_login_code, email_login_expires: user.email_login_expires } : { email_login_code: null, email_login_expires: null }
+        }
+        case DB_TYPE.MONGODB: {
+          const row = await db.collection('users').findOne(
+            { email },
+            { projection: { email_login_code: 1, email_login_expires: 1 } }
+          )
+          return row || { email_login_code: null, email_login_expires: null }
+        }
+        case DB_TYPE.POSTGRESQL: {
+          try {
+            const { rows } = await db.query(
+              'SELECT email_login_code, email_login_expires FROM users WHERE email = $1',
+              [email]
+            )
+            return rows[0] || { email_login_code: null, email_login_expires: null }
+          } catch (error) {
+            // 处理字段不存在的情况
+            if (error.code === '42703') {
+              return { email_login_code: null, email_login_expires: null }
+            }
+            throw error
+          }
+        }
+        case DB_TYPE.NEON_API: {
+          try {
+            const result = await db.query(
+              'SELECT email_login_code, email_login_expires FROM users WHERE email = $1',
+              [email]
+            )
+            return result.result.rows[0] || { email_login_code: null, email_login_expires: null }
+          } catch (error) {
+            // 处理字段不存在的情况
+            if (error.code === '42703') {
+              return { email_login_code: null, email_login_expires: null }
+            }
+            throw error
+          }
+        }
+        default: throw new Error(`Unsupported DB Type: ${config.dbType}`)
       }
-      case DB_TYPE.MEMORY: {
-        const user = memoryStore.users.find(u => u.email === email)
-        return user ? { email_login_code: user.email_login_code, email_login_expires: user.email_login_expires } : { email_login_code: null, email_login_expires: null }
-      }
-      case DB_TYPE.MONGODB: {
-        const row = await db.collection('users').findOne(
-          { email },
-          { projection: { email_login_code: 1, email_login_expires: 1 } }
-        )
-        return row || { email_login_code: null, email_login_expires: null }
-      }
-      case DB_TYPE.POSTGRESQL: {
-        const { rows } = await db.query(
-          'SELECT email_login_code, email_login_expires FROM users WHERE email = $1',
-          [email]
-        )
-        return rows[0] || { email_login_code: null, email_login_expires: null }
-      }
-      case DB_TYPE.NEON_API: {
-        const result = await db.query(
-          'SELECT email_login_code, email_login_expires FROM users WHERE email = $1',
-          [email]
-        )
-        return result.result.rows[0] || { email_login_code: null, email_login_expires: null }
-      }
-      default: throw new Error(`Unsupported DB Type: ${config.dbType}`)
+    } catch (error) {
+      console.error(`[getEmailLoginCode] 错误:`, error)
+      return { email_login_code: null, email_login_expires: null }
     }
   },
 

@@ -48,10 +48,16 @@ const log = (msg, level = 'INFO') => {
 const getPostgresConnectionString = () => {
   // 1. 最优先使用 NON_POOLING (Session Mode, port 5432) 
   // 这是 Vercel + Supabase Serverless 环境的最佳实践，避免 PGBouncer 事务模式导致的 "prepared statement" 错误
-  if (process.env.POSTGRES_URL_NON_POOLING) return process.env.POSTGRES_URL_NON_POOLING
+  if (process.env.POSTGRES_URL_NON_POOLING) {
+    console.log('[DB] Using POSTGRES_URL_NON_POOLING');
+    return process.env.POSTGRES_URL_NON_POOLING;
+  }
 
   // 2. 其次尝试标准 DATABASE_URL
-  if (process.env.DATABASE_URL) return process.env.DATABASE_URL
+  if (process.env.DATABASE_URL) {
+    console.log('[DB] Using DATABASE_URL');
+    return process.env.DATABASE_URL;
+  }
   
   // 3. 尝试 Neon 相关变量
   const neonUrl = process.env.NEON_URL || 
@@ -59,10 +65,16 @@ const getPostgresConnectionString = () => {
                   process.env.NEON_POSTGRES_URL || 
                   process.env.NEON_DATABASE_URL_UNPOOLED ||
                   process.env.NEON_POSTGRES_URL_NON_POOLING
-  if (neonUrl) return neonUrl
+  if (neonUrl) {
+    console.log('[DB] Using NEON URL');
+    return neonUrl;
+  }
 
   // 4. 尝试 Supabase 相关变量
-  if (process.env.POSTGRES_URL) return process.env.POSTGRES_URL
+  if (process.env.POSTGRES_URL) {
+    console.log('[DB] Using POSTGRES_URL');
+    return process.env.POSTGRES_URL;
+  }
   
   // 5. 如果是 Supabase 但没有完整 URL，尝试构建 (通常 Supabase 推荐使用 Connection String)
   // 这里假设如果只有 SUPABASE_URL 是不够的，必须要有 DB 连接信息
@@ -1255,7 +1267,9 @@ export const userDB = {
         if (existing) {
           db.prepare('UPDATE users SET email_login_code = ?, email_login_expires = ? WHERE email = ?').run(code, expiresAt, email)
         } else {
-          db.prepare('INSERT INTO users (email, email_login_code, email_login_expires, created_at, updated_at) VALUES (?, ?, ?, ?, ?)').run(email, code, expiresAt, Date.now(), Date.now())
+          const dummyUser = `user_${Date.now()}_${Math.floor(Math.random()*1000)}`;
+          const dummyPass = '$2a$10$XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'; // Dummy hash
+          db.prepare('INSERT INTO users (username, password_hash, email, email_login_code, email_login_expires, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(dummyUser, dummyPass, email, code, expiresAt, Date.now(), Date.now())
         }
         return true
       }
@@ -1269,15 +1283,15 @@ export const userDB = {
       }
       case DB_TYPE.POSTGRESQL: {
         await db.query(
-          'INSERT INTO users (id, username, email, email_login_code, email_login_expires, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, NOW(), NOW()) ON CONFLICT (email) DO UPDATE SET email_login_code = $4, email_login_expires = $5, updated_at = NOW()',
-          [randomUUID(), `user_${Date.now()}`, email, code, expiresAt]
+          'INSERT INTO users (id, username, email, password_hash, email_login_code, email_login_expires, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW()) ON CONFLICT (email) DO UPDATE SET email_login_code = $5, email_login_expires = $6, updated_at = NOW()',
+          [randomUUID(), `user_${Date.now()}`, email, 'TEMP_HASH', code, expiresAt]
         )
         return true
       }
       case DB_TYPE.NEON_API: {
         await db.query(
-          'INSERT INTO users (id, username, email, email_login_code, email_login_expires, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, NOW(), NOW()) ON CONFLICT (email) DO UPDATE SET email_login_code = $4, email_login_expires = $5, updated_at = NOW()',
-          [randomUUID(), `user_${Date.now()}`, email, code, expiresAt]
+          'INSERT INTO users (id, username, email, password_hash, email_login_code, email_login_expires, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW()) ON CONFLICT (email) DO UPDATE SET email_login_code = $5, email_login_expires = $6, updated_at = NOW()',
+          [randomUUID(), `user_${Date.now()}`, email, 'TEMP_HASH', code, expiresAt]
         )
         return true
       }
@@ -1295,6 +1309,7 @@ export const userDB = {
             id: randomUUID(),
             username: `user_${Date.now()}`,
             email,
+            password_hash: 'TEMP_HASH',
             email_login_code: code,
             email_login_expires: expiresAt,
             created_at: Date.now(),

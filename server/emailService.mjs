@@ -101,17 +101,24 @@ async function sendEmailInternal(to, subject, html) {
        return true;
     }
 
-    const info = await transporter.sendMail({
+    // 设置5秒超时，避免阻塞主流程
+    const sendPromise = transporter.sendMail({
       from: emailConfig.from,
       to,
       subject,
       html
     });
     
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Email sending timed out')), 5000)
+    );
+
+    const info = await Promise.race([sendPromise, timeoutPromise]);
+    
     console.log('邮件发送成功:', info.messageId);
     return true;
   } catch (error) {
-    console.error('邮件发送内部错误:', error);
+    console.error('邮件发送内部错误:', error.message);
     // 降级为模拟成功，确保开发流程畅通
     console.log(`[降级模拟] 邮件发送失败，转为模拟成功。To: ${to}`);
     const match = html.match(/letter-spacing: 4px;">(\d+)<\/div>/);

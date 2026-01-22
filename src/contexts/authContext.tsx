@@ -37,8 +37,9 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<boolean>;
   loginWithCode: (type: 'email' | 'phone', identifier: string, code: string) => Promise<boolean>;
   sendEmailOtp: (email: string) => Promise<{ success: boolean; error?: string }>;
+  sendRegisterEmailOtp: (email: string) => Promise<{ success: boolean; error?: string }>;
   sendSmsOtp: (phone: string) => Promise<{ success: boolean; error?: string }>;
-  register: (username: string, email: string, password: string, age?: string, tags?: string[]) => Promise<{ success: boolean; error?: string }>;
+  register: (username: string, email: string, password: string, age?: string, tags?: string[], code?: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   setIsAuthenticated: (value: boolean) => void;
   quickLogin: (provider: 'wechat' | 'phone' | 'alipay' | 'qq' | 'weibo' | 'google' | 'github' | 'twitter' | 'discord') => Promise<boolean>;
@@ -69,6 +70,7 @@ export const AuthContext = createContext<AuthContextType>({
   login: async () => false,
   loginWithCode: async () => false,
   sendEmailOtp: async () => ({ success: false, error: '默认发送邮箱验证码方法未实现' }),
+  sendRegisterEmailOtp: async () => ({ success: false, error: '默认发送注册验证码方法未实现' }),
   sendSmsOtp: async () => ({ success: false, error: '默认发送短信验证码方法未实现' }),
   register: async () => ({ success: false, error: '默认注册方法未实现' }),
   logout: () => {},
@@ -596,6 +598,34 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   };
 
+  // 发送注册验证码方法
+  const sendRegisterEmailOtp = async (email: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      console.log('发送注册验证码到:', email);
+      
+      const response = await fetch('/api/auth/send-register-email-code', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok && data.code === 0) {
+        console.log('注册验证码发送成功');
+        return { success: true };
+      } else {
+        console.error('发送注册验证码失败:', data.message || '未知错误');
+        return { success: false, error: data.message || '发送验证码失败，请稍后重试' };
+      }
+    } catch (error) {
+      console.error('发送注册验证码失败:', error);
+      return { success: false, error: '发送验证码失败，请稍后重试' };
+    }
+  };
+
   // 发送短信验证码方法（使用Supabase内置功能）
   const sendSmsOtp = async (phone: string): Promise<{ success: boolean; error?: string }> => {
     try {
@@ -655,9 +685,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   // 注册方法
-  const register = async (username: string, email: string, password: string, age?: string, tags?: string[]): Promise<{ success: boolean; error?: string }> => {
+  const register = async (username: string, email: string, password: string, age?: string, tags?: string[], code?: string): Promise<{ success: boolean; error?: string }> => {
     try {
-      console.log('Register function called with:', { username, email, password: '****', age, tags });
+      console.log('Register function called with:', { username, email, password: '****', age, tags, code });
       
       // 密码格式验证（与前端zod验证规则保持一致）
       const passwordRegex = /^(?=.*[a-zA-Z])(?=.*\d)[A-Za-z\d@$!%*?&]{8,}$/;
@@ -681,6 +711,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           password,
           age: age ? parseInt(age) : 0,
           tags: tags || [],
+          code,
         }),
       });
       
@@ -1199,6 +1230,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     login,
     loginWithCode,
     sendEmailOtp,
+    sendRegisterEmailOtp,
     sendSmsOtp,
     register,
     logout,

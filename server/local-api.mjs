@@ -1522,7 +1522,7 @@ async function route(req, res, u, path) {
     // 注册API
     if (req.method === 'POST' && path === '/api/auth/register') {
       const b = await readBody(req);
-      const { username, email, password, phone, avatar_url, interests, age, tags } = b;
+      const { username, email, password, phone, avatar_url, interests, age, tags, code } = b;
       
       // 验证必填字段
       if (!username || !email || !password) {
@@ -1550,6 +1550,16 @@ async function route(req, res, u, path) {
         if (existingUsername) {
           sendJson(res, 400, { error: 'USERNAME_ALREADY_EXISTS', message: '该用户名已被使用' });
           return;
+        }
+
+        // 如果提供了验证码，进行验证
+        if (code) {
+           const { email_login_code, email_login_expires } = await userDB.getEmailLoginCode(email);
+           const isValid = verifySmsCode(email_login_code, code, email_login_expires);
+           if (!isValid) {
+             sendJson(res, 400, { error: 'INVALID_CODE', message: '验证码无效或已过期' });
+             return;
+           }
         }
         
         // 密码加密
@@ -1828,7 +1838,7 @@ async function route(req, res, u, path) {
         });
       } catch (error) {
         console.error(`[用户登录] 异常 - 邮箱: ${email}, 错误:`, error);
-        sendJson(res, 500, { error: 'INTERNAL_ERROR', message: '登录失败，请稍后重试' });
+        sendJson(res, 500, { error: 'INTERNAL_ERROR', message: `登录失败: ${error.message}` });
       }
       return;
     }
@@ -2183,6 +2193,51 @@ async function route(req, res, u, path) {
       }
       sendJson(res, 200, { ok: true, status })
       return
+    }
+
+    // 发送注册邮箱验证码API
+    if (req.method === 'POST' && path === '/api/auth/send-register-email-code') {
+      const b = await readBody(req);
+      const { email } = b;
+
+      if (!email) {
+        sendJson(res, 400, { error: 'MISSING_EMAIL', message: '邮箱不能为空' });
+        return;
+      }
+
+      try {
+        // 检查用户是否已注册
+        const existingUser = await userDB.findByEmail(email);
+        if (existingUser) {
+          sendJson(res, 400, { error: 'EMAIL_ALREADY_EXISTS', message: '该邮箱已被注册' });
+          return;
+        }
+        
+        const code = generateVerificationCode();
+        const expiresAt = Date.now() + 5 * 60 * 1000; // 5分钟有效
+
+        console.log(`生成注册邮箱验证码 ${code} 发送到 ${email}，过期时间: ${new Date(expiresAt).toISOString()}`);
+
+        const success = await sendLoginEmailCode(email, code); // 复用发送验证码邮件的函数
+        if (success) {
+          // 更新数据库中的邮箱验证码 (会创建临时用户记录或更新现有记录)
+          await userDB.updateEmailLoginCode(email, code, expiresAt);
+          
+          sendJson(res, 200, {
+            code: 0,
+            message: '验证码已发送，请注意查收',
+            data: {
+              email: email.replace(/(.{2}).+(@.*)/, '$1****$2')
+            }
+          });
+        } else {
+          sendJson(res, 500, { code: 500, message: '验证码发送失败，请稍后重试' });
+        }
+      } catch (error) {
+        console.error('发送注册邮箱验证码失败:', error);
+        sendJson(res, 500, { error: 'INTERNAL_ERROR', message: '验证码发送失败，请稍后重试' });
+      }
+      return;
     }
 
     // 发送邮箱验证码API

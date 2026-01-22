@@ -37,14 +37,35 @@ async function verifySupabase() {
 
     try {
         const supabase = createClient(url, key);
-        const { data, error } = await supabase.from('users').select('count', { count: 'exact', head: true });
         
-        if (error) {
-            log(`Supabase Connection Failed: ${error.message}`, 'ERROR');
+        // 1. Verify 'users' table access
+        const { data: usersData, error: usersError } = await supabase.from('users').select('count', { count: 'exact', head: true });
+        if (usersError) {
+            log(`Supabase Connection Failed: ${usersError.message}`, 'ERROR');
             return false;
         }
-        
-        log(`Supabase Connected. Users count accessible.`, 'SUCCESS');
+        log(`Supabase Connected. 'users' table accessible.`, 'SUCCESS');
+
+        // 2. Verify Schema Integrity (Key Tables)
+        const requiredTables = ['users', 'conversations', 'messages', 'points', 'achievements', 'works', 'posts'];
+        const missingTables = [];
+
+        for (const table of requiredTables) {
+             // We use a trick: select count from table limit 0. 
+             // If table doesn't exist, it throws error 404 or 42P01.
+            const { error } = await supabase.from(table).select('id').limit(1);
+            if (error && (error.code === '42P01' || error.message.includes('does not exist'))) {
+                missingTables.push(table);
+            }
+        }
+
+        if (missingTables.length > 0) {
+            log(`Missing Tables detected: ${missingTables.join(', ')}`, 'ERROR');
+            reportContent += `> ❌ **Schema Mismatch**: The following tables are missing in production: ${missingTables.join(', ')}\n\n`;
+        } else {
+            log(`Core Schema Validated: All ${requiredTables.length} required tables exist.`, 'SUCCESS');
+        }
+
         return true;
     } catch (e: any) {
         log(`Supabase Exception: ${e.message}`, 'ERROR');

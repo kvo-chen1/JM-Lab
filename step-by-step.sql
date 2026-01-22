@@ -1,8 +1,7 @@
--- 分步执行脚本：确保表创建顺序正确，避免'community_id'列不存在的错误
-
+-- 分步执行脚本
 -- 第1步：创建基础表
 
--- 首先创建communities表，因为其他表依赖它
+-- 创建communities表
 CREATE TABLE IF NOT EXISTS communities (
     id VARCHAR(50) PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
@@ -15,7 +14,7 @@ CREATE TABLE IF NOT EXISTS communities (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 然后创建users表
+-- 创建users表
 CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     username VARCHAR(255) NOT NULL,
@@ -34,9 +33,9 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 第2步：创建直接依赖基础表的表
+-- 第2步：创建community_members表和posts表
 
--- 创建community_members表（依赖communities和users）
+-- 创建community_members表
 CREATE TABLE IF NOT EXISTS community_members (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     community_id VARCHAR(50) REFERENCES communities(id) ON DELETE CASCADE,
@@ -48,7 +47,7 @@ CREATE TABLE IF NOT EXISTS community_members (
     UNIQUE(community_id, user_id)
 );
 
--- 创建posts表（依赖communities和users）
+-- 创建posts表
 CREATE TABLE IF NOT EXISTS posts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     title VARCHAR(255) NOT NULL,
@@ -64,9 +63,9 @@ CREATE TABLE IF NOT EXISTS posts (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 第3步：创建依赖第二步表的表
+-- 第3步：创建其他依赖表
 
--- 创建replies表（依赖posts和users）
+-- 创建replies表
 CREATE TABLE IF NOT EXISTS replies (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     post_id UUID REFERENCES posts(id) ON DELETE CASCADE,
@@ -76,7 +75,7 @@ CREATE TABLE IF NOT EXISTS replies (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 创建messages表（依赖communities和users）
+-- 创建messages表
 CREATE TABLE IF NOT EXISTS messages (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     community_id VARCHAR(50) REFERENCES communities(id) ON DELETE CASCADE,
@@ -87,7 +86,7 @@ CREATE TABLE IF NOT EXISTS messages (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 创建favorites表（依赖posts和users）
+-- 创建favorites表
 CREATE TABLE IF NOT EXISTS favorites (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
@@ -96,9 +95,9 @@ CREATE TABLE IF NOT EXISTS favorites (
     UNIQUE(user_id, post_id)
 );
 
--- 第4步：创建剩余的表
+-- 第4步：创建剩余表
 
--- 创建follows表（依赖users）
+-- 创建follows表
 CREATE TABLE IF NOT EXISTS follows (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     follower_id UUID REFERENCES users(id) ON DELETE CASCADE,
@@ -107,7 +106,7 @@ CREATE TABLE IF NOT EXISTS follows (
     UNIQUE(follower_id, following_id)
 );
 
--- 创建membership_benefits表（无依赖）
+-- 创建membership_benefits表
 CREATE TABLE IF NOT EXISTS membership_benefits (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     membership_level VARCHAR(20) CHECK (membership_level IN ('free', 'premium', 'vip')),
@@ -116,7 +115,7 @@ CREATE TABLE IF NOT EXISTS membership_benefits (
     UNIQUE(membership_level, benefit)
 );
 
--- 创建scheduled_posts表（依赖users）
+-- 创建scheduled_posts表
 CREATE TABLE IF NOT EXISTS scheduled_posts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
@@ -130,7 +129,7 @@ CREATE TABLE IF NOT EXISTS scheduled_posts (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 创建community_announcements表（依赖communities和users）
+-- 创建community_announcements表
 CREATE TABLE IF NOT EXISTS community_announcements (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     community_id VARCHAR(50) REFERENCES communities(id) ON DELETE CASCADE,
@@ -140,7 +139,7 @@ CREATE TABLE IF NOT EXISTS community_announcements (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 创建friend_requests表（依赖users）
+-- 创建friend_requests表
 CREATE TABLE IF NOT EXISTS friend_requests (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     sender_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -151,7 +150,7 @@ CREATE TABLE IF NOT EXISTS friend_requests (
     UNIQUE(sender_id, receiver_id)
 );
 
--- 创建friends表（依赖users）
+-- 创建friends表
 CREATE TABLE IF NOT EXISTS friends (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -163,7 +162,7 @@ CREATE TABLE IF NOT EXISTS friends (
     UNIQUE(user_id, friend_id)
 );
 
--- 创建user_status表（依赖users）
+-- 创建user_status表
 CREATE TABLE IF NOT EXISTS user_status (
     user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     status VARCHAR(20) NOT NULL CHECK (status IN ('online', 'offline', 'away')),
@@ -171,65 +170,65 @@ CREATE TABLE IF NOT EXISTS user_status (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 第5步：创建索引（在所有表创建完成后）
+-- 第5步：创建索引
 
--- 为communities表创建索引
+-- communities表索引
 CREATE INDEX IF NOT EXISTS idx_communities_tags ON communities USING GIN(tags);
 CREATE INDEX IF NOT EXISTS idx_communities_created_at ON communities(created_at);
 
--- 为users表创建索引
+-- users表索引
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 CREATE INDEX IF NOT EXISTS idx_users_membership_level ON users(membership_level);
 
--- 为community_members表创建索引
+-- community_members表索引
 CREATE INDEX IF NOT EXISTS idx_community_members_community_id ON community_members(community_id);
 CREATE INDEX IF NOT EXISTS idx_community_members_user_id ON community_members(user_id);
 
--- 为posts表创建索引
+-- posts表索引
 CREATE INDEX IF NOT EXISTS idx_posts_community_id ON posts(community_id);
 CREATE INDEX IF NOT EXISTS idx_posts_user_id ON posts(user_id);
 CREATE INDEX IF NOT EXISTS idx_posts_topic ON posts(topic);
 CREATE INDEX IF NOT EXISTS idx_posts_created_at ON posts(created_at);
 CREATE INDEX IF NOT EXISTS idx_posts_is_pinned ON posts(is_pinned);
 
--- 为replies表创建索引
+-- replies表索引
 CREATE INDEX IF NOT EXISTS idx_replies_post_id ON replies(post_id);
 CREATE INDEX IF NOT EXISTS idx_replies_user_id ON replies(user_id);
 CREATE INDEX IF NOT EXISTS idx_replies_created_at ON replies(created_at);
 
--- 为messages表创建索引
+-- messages表索引
 CREATE INDEX IF NOT EXISTS idx_messages_community_id ON messages(community_id);
 CREATE INDEX IF NOT EXISTS idx_messages_user_id ON messages(user_id);
 CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at);
 CREATE INDEX IF NOT EXISTS idx_messages_is_pinned ON messages(is_pinned);
 
--- 为favorites表创建索引
+-- favorites表索引
 CREATE INDEX IF NOT EXISTS idx_favorites_user_id ON favorites(user_id);
 CREATE INDEX IF NOT EXISTS idx_favorites_post_id ON favorites(post_id);
 
--- 为follows表创建索引
+-- follows表索引
 CREATE INDEX IF NOT EXISTS idx_follows_follower_id ON follows(follower_id);
 CREATE INDEX IF NOT EXISTS idx_follows_following_id ON follows(following_id);
 
--- 为scheduled_posts表创建索引（注意：该表没有post_id列）
+-- scheduled_posts表索引
 CREATE INDEX IF NOT EXISTS idx_scheduled_posts_user_id ON scheduled_posts(user_id);
 CREATE INDEX IF NOT EXISTS idx_scheduled_posts_scheduled_time ON scheduled_posts(scheduled_time);
 CREATE INDEX IF NOT EXISTS idx_scheduled_posts_is_published ON scheduled_posts(is_published);
 
--- 为community_announcements表创建索引
+-- community_announcements表索引
 CREATE INDEX IF NOT EXISTS idx_community_announcements_community_id ON community_announcements(community_id);
 
--- 为friend_requests表创建索引
+-- friend_requests表索引
 CREATE INDEX IF NOT EXISTS idx_friend_requests_sender_id ON friend_requests(sender_id);
 CREATE INDEX IF NOT EXISTS idx_friend_requests_receiver_id ON friend_requests(receiver_id);
 CREATE INDEX IF NOT EXISTS idx_friend_requests_status ON friend_requests(status);
 
--- 为friends表创建索引
+-- friends表索引
 CREATE INDEX IF NOT EXISTS idx_friends_user_id ON friends(user_id);
 CREATE INDEX IF NOT EXISTS idx_friends_friend_id ON friends(friend_id);
 
--- 为user_status表创建索引
+-- user_status表索引
 CREATE INDEX IF NOT EXISTS idx_user_status_status ON user_status(status);
 
 -- 第6步：插入初始数据

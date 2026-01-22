@@ -180,10 +180,23 @@ export function verifySmsCode(storedCode, inputCode, expiresAt) {
   }
   
   // 检查验证码是否过期
-  // 处理秒级时间戳（来自PostgreSQL）和毫秒级时间戳（来自其他数据库）
+  // 处理秒级时间戳（来自PostgreSQL）、毫秒级时间戳（来自其他数据库）和时间字符串
+  // 处理null值情况
+  if (!expiresAt) {
+    return false;
+  }
+  
   const now = Date.now();
-  const isSeconds = expiresAt < 1e12; // 如果expiresAt小于1e12，认为是秒级时间戳
-  const actualExpiresAt = isSeconds ? expiresAt * 1000 : expiresAt;
+  let actualExpiresAt;
+  
+  if (typeof expiresAt === 'string') {
+    // 处理时间字符串
+    actualExpiresAt = new Date(expiresAt).getTime();
+  } else {
+    // 处理数字类型的时间戳
+    const isSeconds = expiresAt < 1e12; // 如果expiresAt小于1e12，认为是秒级时间戳
+    actualExpiresAt = isSeconds ? expiresAt * 1000 : expiresAt;
+  }
   
   if (now > actualExpiresAt) {
     return false;

@@ -1,7 +1,8 @@
 import pg from 'pg';
 import dotenv from 'dotenv';
 
-// 加载环境变量
+// 加载环境变量，优先加载.env.local
+dotenv.config({ path: '.env.local' });
 dotenv.config();
 
 const { Client } = pg;
@@ -13,9 +14,7 @@ async function checkMigrations() {
     user: process.env.POSTGRES_USER,
     password: process.env.POSTGRES_PASSWORD,
     database: process.env.POSTGRES_DATABASE,
-    ssl: {
-      rejectUnauthorized: false
-    }
+    ssl: false
   });
 
   try {

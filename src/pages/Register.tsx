@@ -32,7 +32,7 @@ const registerSchema = z.object({
 
 export default function Register() {
   const { theme, toggleTheme, isDark } = useTheme();
-  const { register, isAuthenticated } = useContext(AuthContext);
+  const { register, isAuthenticated, sendRegisterEmailOtp, sendSmsOtp } = useContext(AuthContext);
   const navigate = useNavigate();
   
   // 注册方式：email - 邮箱注册，phone - 手机号验证码注册
@@ -42,10 +42,12 @@ export default function Register() {
   const [password, setPassword] = useState('');
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
+  const [emailCode, setEmailCode] = useState(''); // 单独为邮箱添加验证码状态
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [isSendingCode, setIsSendingCode] = useState(false);
   const [countdown, setCountdown] = useState(0);
+  const [emailCountdown, setEmailCountdown] = useState(0); // 单独为邮箱添加倒计时
   const [showPrivacy, setShowPrivacy] = useState(false);
   const [age, setAge] = useState('');
   const [tags, setTags] = useState<string[]>(['国潮爱好者']);
@@ -60,6 +62,17 @@ export default function Register() {
       if (timer) clearTimeout(timer);
     };
   }, [countdown]);
+
+  // 邮箱验证码倒计时
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (emailCountdown > 0) {
+      timer = setTimeout(() => setEmailCountdown(emailCountdown - 1), 1000);
+    }
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [emailCountdown]);
   
   // 如果已登录，直接跳转到首页
   if (isAuthenticated) {
@@ -98,6 +111,31 @@ export default function Register() {
     }
   };
 
+  // 发送邮箱验证码
+  const handleSendEmailCode = async () => {
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setErrors(prev => ({ ...prev, email: '请输入有效的邮箱地址' }));
+      return;
+    }
+    
+    setIsSendingCode(true);
+    try {
+      // 调用发送注册验证码API
+      const result = await sendRegisterEmailOtp(email);
+      
+      if (result.success) {
+        toast.success('验证码发送成功，请查收邮件');
+        setEmailCountdown(60); // 60秒倒计时
+      } else {
+        toast.error(result.error || '验证码发送失败');
+      }
+    } catch (error) {
+      toast.error('验证码发送失败，请稍后重试');
+    } finally {
+      setIsSendingCode(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     console.log('1. handleSubmit called');
     e.preventDefault();
@@ -120,10 +158,12 @@ export default function Register() {
             .min(8, { message: '密码至少需要8个字符' })
             .regex(/[a-zA-Z]/, { message: '密码需要包含至少一个字母' })
             .regex(/[0-9]/, { message: '密码需要包含至少一个数字' }),
+          code: z.string()
+            .regex(/^\d{6}$/, { message: '验证码长度为6位数字' }),
           age: z.string().optional(),
           tags: z.array(z.string()).optional(),
         });
-        validationResult = emailRegisterSchema.safeParse({ username, email, password, age, tags });
+        validationResult = emailRegisterSchema.safeParse({ username, email, password, code: emailCode, age, tags });
       } else {
         // 手机号注册验证规则
         const phoneRegisterSchema = z.object({
@@ -168,12 +208,12 @@ export default function Register() {
     setIsLoading(true);
     
     try {
-      console.log('6. Calling register function with:', { username, email: registerMethod === 'email' ? email : undefined, phone: registerMethod === 'phone' ? phone : undefined, password: registerMethod === 'email' ? '****' : undefined, code: registerMethod === 'phone' ? code : undefined, age, tags });
+      console.log('6. Calling register function with:', { username, email: registerMethod === 'email' ? email : undefined, phone: registerMethod === 'phone' ? phone : undefined, password: registerMethod === 'email' ? '****' : undefined, code: registerMethod === 'phone' ? code : emailCode, age, tags });
       
       // 调用不同的注册API根据注册方式
       let result;
       if (registerMethod === 'email') {
-        result = await register(username, email, password, age, tags);
+        result = await register(username, email, password, age, tags, emailCode);
       } else {
         // 手机号验证码注册
         const response = await fetch('/api/auth/register-phone', {
@@ -376,6 +416,39 @@ export default function Register() {
                 )}
               </div>
               
+              <div>
+                <label htmlFor="emailCode" className="block text-sm font-medium mb-2">验证码</label>
+                <div className="flex space-x-3">
+                  <input
+                    type="text"
+                    id="emailCode"
+                    value={emailCode}
+                    onChange={(e) => setEmailCode(e.target.value)}
+                    className={cn(
+                      "flex-1 px-4 py-3 rounded-xl transition-colors focus:outline-none focus:ring-2",
+                      errors.code 
+                        ? "border-red-500 focus:ring-red-500" 
+                        : isDark 
+                          ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400 border focus:ring-red-500" 
+                          : "bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400 border focus:ring-red-500"
+                    )}
+                    placeholder="请输入邮箱验证码"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSendEmailCode}
+                    disabled={isSendingCode || emailCountdown > 0}
+                    className={`px-4 py-3 rounded-xl transition-colors whitespace-nowrap ${isSendingCode || emailCountdown > 0 ? (isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-400') : (isDark ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700')}`}
+                  >
+                    {isSendingCode ? '发送中...' : emailCountdown > 0 ? `${emailCountdown}秒后重发` : '获取验证码'}
+                  </button>
+                </div>
+                {errors.code && (
+                  <p className="mt-1 text-sm text-red-500">{errors.code}</p>
+                )}
+              </div>
+
               <div>
                 <label htmlFor="password" className="block text-sm font-medium mb-2">密码</label>
                 <input

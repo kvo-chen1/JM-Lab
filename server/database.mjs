@@ -1865,7 +1865,9 @@ export const messageDB = {
 }
 
 // 初始化默认数据库连接
-if (process.env.NODE_ENV !== 'test') {
+// 在 Serverless 环境下，避免在模块加载时立即建立连接，改为按需连接
+// 这可以防止冷启动超时，并允许不使用数据库的 API（如 LLM 代理）在数据库连接失败时也能正常工作
+if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
   getDB().catch(error => {
     log(`Database pre-connection failed: ${error.message}`, 'ERROR')
   })

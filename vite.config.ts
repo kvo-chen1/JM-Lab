@@ -36,9 +36,10 @@ export default defineConfig({
         quality: 75,
         force: true
       },
-      // 启用响应式图片生成
-      generateResponsiveImages: true,
+      // 暂时禁用响应式图片生成以加快构建速度
+      generateResponsiveImages: false,
       // 响应式图片尺寸配置
+      /*
       responsive: {
         adapter: {
           name: 'sharp',
@@ -49,6 +50,7 @@ export default defineConfig({
           }
         }
       },
+      */
       svg: {
         quality: 85,
         force: true
@@ -271,7 +273,8 @@ export default defineConfig({
   },
   build: {
     // 优化构建输出
-    minify: 'terser', // 使用terser进行更高级的压缩
+    minify: 'esbuild', // 使用esbuild替代terser加快构建速度
+    /*
     terserOptions: {
       compress: {
         drop_console: true, // 移除console.log
@@ -285,8 +288,9 @@ export default defineConfig({
         keep_fnames: false
       }
     },
-    // 启用更高效的压缩算法
-    brotliSize: true, // 启用brotli压缩
+    */
+    // 禁用brotli大小计算以加快构建
+    brotliSize: false, 
     // 优化 CSS 构建
     cssMinify: 'esbuild', // 使用esbuild压缩CSS，确保构建成功
     // 启用CSS代码分割
@@ -297,8 +301,8 @@ export default defineConfig({
     chunkSizeWarningLimit: 800, // 降低警告阈值，确保chunk大小合理
     // 启用资产预加载
     preloadAssets: true, // 启用预加载，优化加载性能
-    // 生成构建报告
-    reportCompressedSize: true, // 启用构建报告，便于分析
+    // 禁用压缩大小报告以加快构建
+    reportCompressedSize: false, 
     // 调整资产内联限制，减少内联资源数量
     assetsInlineLimit: 4096, // 内联小于4KB的资源
     // 禁用动态导入 polyfill，减少不必要的代码

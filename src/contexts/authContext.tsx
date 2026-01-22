@@ -158,6 +158,21 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   // 检查用户认证状态
   useEffect(() => {
+    // 强制清理可能导致死循环的旧状态
+    try {
+      const token = localStorage.getItem('token');
+      // 如果有token但格式不对（比如是undefined字符串），强制清理
+      if (token === 'undefined' || token === 'null' || (token && token.length < 10)) {
+        console.warn('Detected invalid token in storage, clearing auth state...');
+        localStorage.removeItem('token');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('user');
+        localStorage.removeItem('isAuthenticated');
+      }
+    } catch (e) {
+      console.error('Error cleaning auth state:', e);
+    }
+
     let mounted = true;
 
     // 优先设置监听器，确保能捕获所有状态变化

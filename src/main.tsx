@@ -2,6 +2,16 @@
 
 // 移除全局three.js引入，改为在需要的组件中按需引入
 
+// 尝试注销所有 Service Workers 以解决缓存冲突问题
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then((registrations) => {
+    for (const registration of registrations) {
+      console.log('Unregistering service worker:', registration);
+      registration.unregister();
+    }
+  }).catch(err => console.error('Service Worker cleanup failed:', err));
+}
+
 // 导入国际化配置
 import './i18n/i18n';
 import { setupApi } from './lib/setupApi';

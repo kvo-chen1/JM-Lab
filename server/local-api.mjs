@@ -2251,9 +2251,13 @@ async function route(req, res, u, path) {
         console.log(`生成注册邮箱验证码 ${code} 发送到 ${email}，过期时间: ${new Date(expiresAt).toISOString()}`);
 
         const success = await sendLoginEmailCode(email, code); // 复用发送验证码邮件的函数
+        console.log(`邮件发送结果: ${success}`);
+        
         if (success) {
           // 更新数据库中的邮箱验证码 (会创建临时用户记录或更新现有记录)
+          console.log(`正在更新数据库邮箱验证码...`);
           await userDB.updateEmailLoginCode(email, code, expiresAt);
+          console.log(`数据库更新成功`);
           
           sendJson(res, 200, {
             code: 0,
@@ -2263,11 +2267,13 @@ async function route(req, res, u, path) {
             }
           });
         } else {
+          console.error(`邮件发送失败: sendLoginEmailCode returned false`);
           sendJson(res, 500, { code: 500, message: '验证码发送失败，请稍后重试' });
         }
       } catch (error) {
         console.error('发送注册邮箱验证码失败:', error);
-        sendJson(res, 500, { error: 'INTERNAL_ERROR', message: '验证码发送失败，请稍后重试' });
+        // 返回具体错误信息以便调试
+        sendJson(res, 500, { error: 'INTERNAL_ERROR', message: `验证码发送失败: ${error.message}` });
       }
       return;
     }

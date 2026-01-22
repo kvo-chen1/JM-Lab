@@ -1285,16 +1285,29 @@ export const userDB = {
         return true
       }
       case DB_TYPE.POSTGRESQL: {
-        await db.query(
-          'INSERT INTO users (id, username, email, password_hash, email_login_code, email_login_expires, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW()) ON CONFLICT (email) DO UPDATE SET email_login_code = $5, email_login_expires = $6, updated_at = NOW()',
-          [randomUUID(), `user_${Date.now()}`, email, 'TEMP_HASH', code, expiresAt]
-        )
-        return true
+        const expiresAtDate = new Date(expiresAt);
+        // 使用更短的用户名生成策略，确保不超过 VARCHAR(20)
+        // Date.now().toString(36) 约为 8 字符
+        // Math.random() 部分约为 4 字符
+        // 总长度约为 1 + 8 + 4 = 13 字符
+        const tempUsername = `u${Date.now().toString(36)}${Math.floor(Math.random() * 10000).toString(36)}`;
+        
+        try {
+          await db.query(
+            'INSERT INTO users (id, username, email, password_hash, email_login_code, email_login_expires, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW()) ON CONFLICT (email) DO UPDATE SET email_login_code = $5, email_login_expires = $6, updated_at = NOW()',
+            [randomUUID(), tempUsername, email, 'TEMP_HASH', code, expiresAtDate]
+          )
+          return true
+        } catch (err) {
+          log(`PostgreSQL updateEmailLoginCode error: ${err.message}`, 'ERROR');
+          throw err;
+        }
       }
       case DB_TYPE.NEON_API: {
+        const expiresAtDate = new Date(expiresAt);
         await db.query(
           'INSERT INTO users (id, username, email, password_hash, email_login_code, email_login_expires, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW()) ON CONFLICT (email) DO UPDATE SET email_login_code = $5, email_login_expires = $6, updated_at = NOW()',
-          [randomUUID(), `user_${Date.now()}`, email, 'TEMP_HASH', code, expiresAt]
+          [randomUUID(), `user_${Date.now()}`, email, 'TEMP_HASH', code, expiresAtDate]
         )
         return true
       }

@@ -200,6 +200,10 @@ async function initSQLite() {
   try {
     ensureStorage()
     
+    // 动态导入 better-sqlite3，避免在 Vercel 环境下（devDependencies 被修剪）导致模块未找到错误
+    // Dynamic import to avoid module not found error on Vercel where devDependencies are pruned
+    const { default: Database } = await import('better-sqlite3');
+
     const { dbFile, timeout } = config.sqlite
     const db = new Database(dbFile, {
       timeout,

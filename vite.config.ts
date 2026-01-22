@@ -12,169 +12,6 @@ const LOCAL_API_PORT = process.env.LOCAL_API_PORT || '3021'
 // 使用127.0.0.1而不是localhost，避免IPv6连接问题
 const LOCAL_API_TARGET = `http://127.0.0.1:${LOCAL_API_PORT}`
 
-function getPlugins() {
-  const plugins = [
-    react(), 
-    tsconfigPaths(),
-    ViteImageOptimizer({
-      // 启用WebP和AVIF格式转换
-      png: {
-        quality: 80,
-        compressionLevel: 9,
-        force: true
-      },
-      jpeg: {
-        quality: 80,
-        force: true
-      },
-      webp: {
-        quality: 85,
-        force: true
-      },
-      avif: {
-        quality: 75,
-        force: true
-      },
-      // 启用响应式图片生成
-      generateResponsiveImages: true,
-      // 响应式图片尺寸配置
-      responsive: {
-        adapter: {
-          name: 'sharp',
-          options: {
-            sizes: [320, 640, 1024, 1600, 2048],
-            format: ['webp', 'avif'],
-            quality: [85, 75]
-          }
-        }
-      },
-      // 输出路径配置
-      svg: {
-        quality: 85,
-        force: true
-      },
-      gif: {
-        quality: 85,
-        force: true
-      },
-      // 仅在构建时优化
-      disable: process.env.NODE_ENV === 'development',
-      // 仅优化src目录下的图片
-      include: /\.(png|jpe?g|gif|svg|webp|avif)$/i,
-      // 排除node_modules目录
-      exclude: /node_modules/
-    }),
-    // 简化PWA配置，解决构建失败问题
-    VitePWA({
-      registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'robots.txt', 'assets/*.svg', 'assets/*.woff2', 'icons/*'],
-      manifest: {
-        name: '津脉智坊 - 津门老字号共创平台',
-        short_name: '津脉智坊',
-        description: '津门老字号共创平台，传承与创新的桥梁',
-        theme_color: '#2563eb',
-        background_color: '#ffffff',
-        display: 'standalone',
-        orientation: 'portrait',
-        icons: [
-          {
-            src: 'icons/icon-192x192.svg',
-            sizes: '192x192',
-            type: 'image/svg+xml',
-            purpose: 'any maskable'
-          },
-          {
-            src: 'icons/icon-512x512.svg',
-            sizes: '512x512',
-            type: 'image/svg+xml',
-            purpose: 'any maskable'
-          }
-        ]
-      },
-      workbox: {
-        // 优化workbox配置，增强离线支持
-        globPatterns: ['**/*.{js,css,html,ico,png,jpg,jpeg,svg,gif,webp,avif,woff2,ttf,json}'],
-        navigateFallback: '/index.html',
-        navigateFallbackAllowlist: [/^\/explore/, /^\/create/, /^\/tools/, /^\/neo/, /^\/wizard/],
-        // 确保根路径重定向正常工作，不被服务工作者拦截
-        navigateFallbackDenylist: [/^\/$/],
-        skipWaiting: true,
-        clientsClaim: true,
-        globIgnores: ['**/*.map', '**/node_modules/**', '**/sw.js', '**/workbox-*.js'],
-        cleanupOutdatedCaches: true,
-        offlineGoogleAnalytics: true,
-        
-        // 增强的runtimeCaching配置
-        runtimeCaching: [
-          {
-            urlPattern: /^https?:\/\/.*\.(png|jpg|jpeg|svg|gif|webp|avif)$/,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'image-cache-v2',
-              expiration: {
-                maxEntries: 100,
-                maxAgeSeconds: 60 * 60 * 24 * 60 // 60 days
-              },
-              cacheableResponse: {
-                statuses: [0, 200]
-              }
-            }
-          },
-          {
-            urlPattern: /^https?:\/\/.*\.(js|css)$/,
-            handler: 'StaleWhileRevalidate',
-            options: {
-              cacheName: 'static-resources-v2',
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 * 60 * 24 * 30 // 30 days
-              }
-            }
-          },
-          {
-            urlPattern: /^https?:\/\/.*\.(woff2|ttf)$/,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'font-cache',
-              expiration: {
-                maxEntries: 20,
-                maxAgeSeconds: 60 * 60 * 24 * 365 // 1 year
-              }
-            }
-          },
-          {
-            urlPattern: /^https?:\/\/api\./,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'api-cache',
-              networkTimeoutSeconds: 3,
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 * 60 * 24 * 7 // 7 days
-              },
-              cacheableResponse: {
-                statuses: [0, 200]
-              }
-            }
-          },
-          {
-            urlPattern: /^https?:\/\/.*\.json$/,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'data-cache',
-              expiration: {
-                maxEntries: 30,
-                maxAgeSeconds: 60 * 60 * 24 * 14 // 14 days
-              }
-            }
-          }
-        ]
-      }
-    })
-  ];
-  return plugins;
-}
-
 export default defineConfig({
   base: '/',
   plugins: [
@@ -229,7 +66,8 @@ export default defineConfig({
     }),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'robots.txt', 'assets/*.svg', 'assets/*.woff2'],
+      // Explicitly include static assets from public folder
+      includeAssets: ['favicon.ico', 'robots.txt', 'icons/*.svg', 'images/*.svg'],
       manifest: {
         name: '津脉智坊 - 津门老字号共创平台',
         short_name: '津脉智坊',
@@ -316,7 +154,8 @@ export default defineConfig({
         skipWaiting: true,
         clientsClaim: true,
         cleanupOutdatedCaches: true,
-        globIgnores: ['**/*.map', '**/node_modules/**', '**/public/**'],
+        // Ignore static assets directories in glob to avoid conflict with includeAssets/manifest
+        globIgnores: ['**/*.map', '**/node_modules/**', '**/public/**', 'icons/**', 'images/**'],
         runtimeCaching: [
           // API请求缓存 - 使用NetworkFirst策略
           {

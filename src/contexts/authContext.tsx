@@ -197,6 +197,77 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         console.log('Auth state change:', event);
         
         if (event === 'SIGNED_IN' && session?.user) {
+          console.log('Auth state change: SIGNED_IN', session.user.email);
+          
+          const hashParams = new URLSearchParams(window.location.hash.substring(1));
+          const searchParams = new URLSearchParams(window.location.search);
+          const hasOAuthParams = hashParams.has('access_token') || searchParams.has('code');
+          const localToken = localStorage.getItem('token');
+
+          // 如果是 OAuth 登录或本地缺失 Token，尝试通过后端桥接换取本地 Token
+          if (hasOAuthParams || !localToken) {
+            try {
+              console.log('Detected OAuth/Missing Token, calling bridge...');
+              const response = await fetch('/api/auth/supabase-login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  email: session.user.email,
+                  phone: session.user.phone,
+                  access_token: session.access_token,
+                  refresh_token: session.refresh_token
+                }),
+              });
+              
+              const apiData = await response.json();
+              if (apiData.code === 0 && apiData.data) {
+                 console.log('Bridge login success');
+                 // 成功获取本地 Token，更新状态
+                 const userData = apiData.data;
+                 const avatarUrl = 'https://picsum.photos/id/1005/200/200';
+                 const userWithMembership = {
+                    id: userData.id,
+                    username: userData.username,
+                    email: userData.email,
+                    avatar: avatarUrl,
+                    phone: userData.phone || '',
+                    interests: [],
+                    isAdmin: false,
+                    age: 0,
+                    tags: [],
+                    isNewUser: userData.isNewUser || false,
+                    worksCount: userData.worksCount || 0,
+                    followersCount: userData.followersCount || 0,
+                    followingCount: userData.followingCount || 0,
+                    favoritesCount: userData.favoritesCount || 0,
+                    membershipLevel: (userData.membershipLevel || 'free') as any,
+                    membershipStart: new Date().toISOString(),
+                    membershipEnd: undefined,
+                    membershipStatus: 'active' as any,
+                 };
+                 
+                 localStorage.setItem('token', userData.token);
+                 localStorage.setItem('refreshToken', userData.refreshToken || userData.token);
+                 localStorage.setItem('user', JSON.stringify(userWithMembership));
+                 localStorage.setItem('isAuthenticated', 'true');
+                 
+                 setUser(userWithMembership);
+                 setIsAuthenticated(true);
+                 setIsLoading(false);
+                 
+                 eventBus.publish('auth:login', { userId: userWithMembership.id, user: userWithMembership });
+                 
+                 // 清理 URL
+                 if (window.location.hash && (window.location.hash.includes('access_token') || window.location.hash.includes('error'))) {
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                 }
+                 return;
+              }
+            } catch (e) {
+              console.error('Bridge login failed, falling back to local session', e);
+            }
+          }
+
           // 强制使用固定的头像URL
           const avatarUrl = 'https://picsum.photos/id/1005/200/200';
           

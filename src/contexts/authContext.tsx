@@ -548,6 +548,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
                          window.history.replaceState({}, document.title, window.location.pathname);
                       }
                       return;
+                   } else {
+                      console.error('Manual bridge login failed with API error:', apiData);
+                      toast.error(`登录失败: ${apiData.message || '未知错误'}`);
                    }
                  } catch (e) {
                    console.error('Manual bridge login failed', e);

@@ -1706,11 +1706,9 @@ class LLMService {
   
   /**
    * 生成图片
-   * 直接调用通义千问(Qwen)API进行图片生成
+   * 调用后端代理API进行图片生成
    */
   async generateImage(params: GenerateImageParams): Promise<GenerateImageResponse> {
-    const authKey = this.getEnvVar('VITE_QWEN_API_KEY') || this.getEnvVar('QWEN_API_KEY');
-    
     try {
       // 确保prompt字段存在
       if (!params.prompt) {
@@ -1718,92 +1716,64 @@ class LLMService {
         return this.getMockImageResponse(params.prompt);
       }
       
-      // 确保API密钥存在
-      if (!authKey) {
-        console.error('[LLM] Missing Qwen API key for image generation');
-        return this.getMockImageResponse(params.prompt);
-      }
+      console.log('[LLM] Calling backend for Qwen image generation...');
       
-      // 直接调用通义千问的图片生成API
-      const createResp = await fetch('https://dashscope.aliyuncs.com/api/v1/services/aigc/text2image/image-synthesis', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authKey}`,
-          'X-DashScope-Async': 'enable'
-        },
-        body: JSON.stringify({
-          model: params.model || 'wanx2.1-t2i-turbo',
-          input: { prompt: params.prompt },
-          parameters: {
-            size: params.size ? params.size.replace('x', '*') : '1024*1024',
-            n: params.n || 1
-          }
-        }),
-        signal: AbortSignal.timeout(60000) // 60秒超时
-      });
+      // 调用后端代理API
+      // 设置较长的超时时间，因为后端会进行轮询
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 90000); // 90秒超时
       
-      const createData = await createResp.json();
-      if (!createResp.ok) {
-        console.warn(`[LLM] Qwen image creation failed:`, createData);
-        return this.getMockImageResponse(params.prompt);
-      }
-      
-      const taskId = createData?.output?.task_id || createData?.task_id;
-      if (!taskId) {
-        console.warn(`[LLM] Qwen image task ID missing:`, createData);
-        return this.getMockImageResponse(params.prompt);
-      }
-      
-      console.log(`[LLM] Qwen image generation task created: ${taskId}`);
-      
-      // 轮询获取生成结果
-      const startedAt = Date.now();
-      const timeoutMs = 60000;
-      while (Date.now() - startedAt < timeoutMs) {
-        const taskResp = await fetch(`https://dashscope.aliyuncs.com/api/v1/tasks/${taskId}`, {
-          method: 'GET',
+      try {
+        const response = await fetch('/api/qwen/images/generate', {
+          method: 'POST',
           headers: {
-            'Authorization': `Bearer ${authKey}`
+            'Content-Type': 'application/json',
           },
-          signal: AbortSignal.timeout(10000) // 10秒超时
+          body: JSON.stringify({
+            model: params.model || 'wanx2.1-t2i-turbo',
+            prompt: params.prompt,
+            size: params.size,
+            n: params.n || 1
+          }),
+          signal: controller.signal
         });
         
-        const taskData = await taskResp.json();
-        if (!taskResp.ok) {
-          console.warn(`[LLM] Qwen image task check failed:`, taskData);
-          return this.getMockImageResponse(params.prompt);
-        }
+        clearTimeout(timeoutId);
         
-        // 检查任务状态
-        const taskStatus = taskData?.output?.task_status || taskData?.task_status;
-        console.log(`[LLM] Qwen image task status: ${taskStatus}`);
-        
-        if (taskStatus === 'SUCCEEDED') {
-          // 生成成功
-          const results = taskData?.output?.results || taskData?.output?.result || taskData?.output?.images || [];
-          const images = Array.isArray(results) ? results.map((item: any) => {
-            const url = item?.url || item?.image_url || item?.image || '';
-            return { url, revised_prompt: params.prompt };
-          }).filter((it: any) => !!it.url) : [];
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          console.warn(`[LLM] Backend image generation failed:`, errorData);
           
-          return {
-            created: Date.now(),
-            data: images
-          };
-        } else if (taskStatus === 'FAILED' || taskStatus === 'CANCELED' || taskStatus === 'CANCELLED') {
-          // 生成失败
-          console.warn(`[LLM] Qwen image generation failed: ${taskStatus}`, taskData);
+          // 如果是认证错误，提示用户配置API密钥
+          if (response.status === 401 || response.status === 503) {
+             console.error('[LLM] API Key missing or invalid on server');
+             // 这里可以抛出特定错误，或者让UI显示配置提示
+          }
+          
           return this.getMockImageResponse(params.prompt);
         }
         
-        // 等待2秒后再次轮询
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        const result = await response.json();
+        
+        // Handle nested data structure from backend
+        // Backend returns { ok: true, data: { created: number, data: [] } }
+        const imageData = result.data?.data || result.data;
+        
+        if (result.ok && Array.isArray(imageData)) {
+          return {
+            created: result.data?.created || Date.now(),
+            data: imageData
+          };
+        } else {
+          console.warn('[LLM] Invalid response format from backend:', result);
+          return this.getMockImageResponse(params.prompt);
+        }
+        
+      } catch (fetchError) {
+        clearTimeout(timeoutId);
+        throw fetchError;
       }
       
-      // 超时
-      console.warn('[LLM] Qwen image generation timeout');
-      return this.getMockImageResponse(params.prompt);
     } catch (error) {
       console.warn('[LLM] Image generation failed:', error);
       return this.getMockImageResponse(params.prompt);

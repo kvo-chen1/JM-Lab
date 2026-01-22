@@ -1,64 +1,18 @@
 {
-  "version": 2,
-  "builds": [
+  "framework": "vite",
+  "buildCommand": "pnpm build",
+  "outputDirectory": "dist",
+  "rewrites": [
     {
-      "src": "package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "dist",
-        "buildCommand": "pnpm build"
-      }
+      "source": "/api/:path*",
+      "destination": "/server/local-api.mjs"
     },
     {
-      "src": "api/proxy/trae-api.js",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "api/proxy/unsplash.js",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "api/proxy/video.js",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "api/health/ping.js",
-      "use": "@vercel/node"
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ],
-  "routes": [
-    {
-      "src": "/api/proxy/trae-api(.*)",
-      "dest": "/api/proxy/trae-api.js"
-    },
-    {
-      "src": "/api/proxy/unsplash(.*)",
-      "dest": "/api/proxy/unsplash.js"
-    },
-    {
-      "src": "/api/proxy/video(.*)",
-      "dest": "/api/proxy/video.js"
-    },
-    {
-      "src": "/api/health/ping",
-      "dest": "/api/health/ping.js"
-    },
-    {
-      "src": "/_next/image(.*)",
-      "status": 404
-    },
-
-
-    {
-      "src": "/landing.html",
-      "status": 200
-    },
-    {
-      "handle": "filesystem"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/index.html"
-    }
-  ]
+  "env": {
+    "NODE_VERSION": "20"
+  }
 }

@@ -383,7 +383,7 @@ export default function Login() {
                 <div>
                   <div className="flex justify-between items-center mb-2">
                     <label htmlFor="password" className="block text-sm font-medium">密码</label>
-                    <a href="#" className="text-sm text-red-600 hover:text-red-700 transition-colors">忘记密码？</a>
+                    <Link to="/forgot-password" className="text-sm text-red-600 hover:text-red-700 transition-colors">忘记密码？</Link>
                   </div>
                   <input
                     type="password"

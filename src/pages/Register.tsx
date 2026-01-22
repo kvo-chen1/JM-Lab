@@ -99,7 +99,11 @@ export default function Register() {
       
       const data = await response.json();
       if (data.code === 0) {
-        toast.success('验证码发送成功');
+        if (data.data?.mockCode) {
+          toast.success(`验证码发送成功: ${data.data.mockCode}`);
+        } else {
+          toast.success('验证码发送成功');
+        }
         setCountdown(60); // 60秒倒计时
       } else {
         toast.error(data.message || '验证码发送失败');
@@ -124,7 +128,11 @@ export default function Register() {
       const result = await sendRegisterEmailOtp(email);
       
       if (result.success) {
-        toast.success('验证码发送成功，请查收邮件');
+        if (result.mockCode) {
+          toast.success(`验证码发送成功: ${result.mockCode}`);
+        } else {
+          toast.success('验证码发送成功，请查收邮件');
+        }
         setEmailCountdown(60); // 60秒倒计时
       } else {
         toast.error(result.error || '验证码发送失败');

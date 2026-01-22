@@ -1151,9 +1151,9 @@ export const userDB = {
     switch (typeKey) {
       case DB_TYPE.SQLITE: return db.prepare('SELECT * FROM users WHERE email = ?').get(email)
       case DB_TYPE.MEMORY: return memoryStore.users.find(u => u.email === email)
-      case DB_TYPE.MONGODB: return db.collection('users').findOne({ email })
-      case DB_TYPE.POSTGRESQL: return (await db.query('SELECT * FROM users WHERE email = $1', [email])).rows[0]
-      case DB_TYPE.NEON_API: return (await db.query('SELECT * FROM users WHERE email = $1', [email])).result.rows[0]
+      case DB_TYPE.MONGODB: return db.collection('users').findOne({ email: { $regex: new RegExp(`^${email}$`, 'i') } })
+      case DB_TYPE.POSTGRESQL: return (await db.query('SELECT * FROM users WHERE lower(email) = lower($1)', [email])).rows[0]
+      case DB_TYPE.NEON_API: return (await db.query('SELECT * FROM users WHERE lower(email) = lower($1)', [email])).result.rows[0]
       default: throw new Error(`Unsupported DB Type: ${config.dbType}`)
     }
   },

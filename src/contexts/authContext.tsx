@@ -36,8 +36,8 @@ interface AuthContextType {
   user: User | null;
   login: (email: string, password: string) => Promise<boolean>;
   loginWithCode: (type: 'email' | 'phone', identifier: string, code: string) => Promise<boolean>;
-  sendEmailOtp: (email: string) => Promise<{ success: boolean; error?: string }>;
-  sendRegisterEmailOtp: (email: string) => Promise<{ success: boolean; error?: string }>;
+  sendEmailOtp: (email: string) => Promise<{ success: boolean; error?: string; mockCode?: string }>;
+  sendRegisterEmailOtp: (email: string) => Promise<{ success: boolean; error?: string; mockCode?: string }>;
   sendSmsOtp: (phone: string) => Promise<{ success: boolean; error?: string }>;
   register: (username: string, email: string, password: string, age?: string, tags?: string[], code?: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
@@ -54,6 +54,8 @@ interface AuthContextType {
   verifyTwoFactorCode: (code: string) => Promise<boolean>;
   // 新增：刷新令牌方法
   refreshToken: () => Promise<boolean>;
+  // 新增：重置密码方法
+  resetPassword: (email: string, code: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
   // 加载状态
   isLoading: boolean;
 }
@@ -83,6 +85,7 @@ export const AuthContext = createContext<AuthContextType>({
   enableTwoFactorAuth: async () => false,
   verifyTwoFactorCode: async () => false,
   refreshToken: async () => false,
+  resetPassword: async () => ({ success: false, error: '默认重置密码方法未实现' }),
   isLoading: true,
 });
 
@@ -584,65 +587,51 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   };
 
-  // 发送邮箱验证码方法（使用后端API）
-  const sendEmailOtp = async (email: string): Promise<{ success: boolean; error?: string }> => {
+  // 发送邮箱验证码方法（使用Supabase）
+  const sendEmailOtp = async (email: string): Promise<{ success: boolean; error?: string; mockCode?: string }> => {
     try {
-      console.log('发送邮箱验证码到:', email);
+      console.log('使用Supabase发送邮箱验证码到:', email);
       
-      const response = await fetch('/api/auth/send-email-code', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email }),
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          shouldCreateUser: true, // 允许自动创建用户
+        }
       });
       
-      const data = await response.json();
-      
-      if (response.ok && data.code === 0) {
-        console.log('邮箱验证码发送成功');
-        return { success: true };
-      } else {
-        console.error('发送邮箱验证码失败:', data.message || '未知错误');
-        return { success: false, error: data.message || '发送邮箱验证码失败，请稍后重试' };
+      if (error) {
+        console.error('发送邮箱验证码失败:', error.message);
+        // 如果Supabase发送失败（例如额度限制），尝试降级到后端API（需要SMTP配置）
+        console.log('尝试降级到后端API发送...');
+        const response = await fetch('/api/auth/send-email-code', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email }),
+        });
+        const data = await response.json();
+        if (response.ok && data.code === 0) {
+           return { success: true, mockCode: data.data?.mockCode };
+        }
+        return { success: false, error: error.message };
       }
-    } catch (error) {
+      
+      console.log('邮箱验证码发送成功');
+      return { success: true };
+    } catch (error: any) {
       console.error('发送邮箱验证码失败:', error);
-      return { success: false, error: '发送邮箱验证码失败，请稍后重试' };
+      return { success: false, error: error.message || '发送邮箱验证码失败，请稍后重试' };
     }
   };
 
-  // 发送注册验证码方法
-  const sendRegisterEmailOtp = async (email: string): Promise<{ success: boolean; error?: string }> => {
-    try {
-      console.log('发送注册验证码到:', email);
-      
-      const response = await fetch('/api/auth/send-register-email-code', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email }),
-      });
-      
-      const data = await response.json();
-      
-      if (response.ok && data.code === 0) {
-        console.log('注册验证码发送成功');
-        return { success: true };
-      } else {
-        console.error('发送注册验证码失败:', data.message || '未知错误');
-        return { success: false, error: data.message || '发送验证码失败，请稍后重试' };
-      }
-    } catch (error) {
-      console.error('发送注册验证码失败:', error);
-      return { success: false, error: '发送验证码失败，请稍后重试' };
-    }
+  // 发送注册验证码方法（复用 sendEmailOtp）
+  const sendRegisterEmailOtp = async (email: string): Promise<{ success: boolean; error?: string; mockCode?: string }> => {
+    return sendEmailOtp(email);
   };
 
   // 发送短信验证码方法（使用Supabase内置功能）
   const sendSmsOtp = async (phone: string): Promise<{ success: boolean; error?: string }> => {
     try {
+      console.log('使用Supabase发送短信验证码到:', phone);
       const { error } = await supabase.auth.signInWithOtp({
         phone,
       });
@@ -654,48 +643,130 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       
       console.log('短信验证码发送成功');
       return { success: true };
-    } catch (error) {
+    } catch (error: any) {
       console.error('发送短信验证码失败:', error);
-      return { success: false, error: '发送短信验证码失败，请稍后重试' };
+      return { success: false, error: error.message || '发送短信验证码失败，请稍后重试' };
     }
   };
 
   // 验证码登录方法
   const loginWithCode = async (type: 'email' | 'phone', identifier: string, code: string): Promise<boolean> => {
     try {
-      if (type === 'email') {
-        // 使用Supabase的邮箱验证码登录
-        const { error } = await supabase.auth.verifyOtp({
-          email: identifier,
-          token: code,
-          type: 'email',
-        });
+      console.log(`[${type}] 尝试使用Supabase验证码登录: ${identifier}`);
+      
+      // 1. 使用 Supabase 验证 OTP
+      const { data, error } = await supabase.auth.verifyOtp({
+        [type === 'email' ? 'email' : 'phone']: identifier,
+        token: code,
+        type: type === 'email' ? 'email' : 'sms',
+      } as any);
+      
+      if (error) {
+        console.error('Supabase验证失败:', error.message);
         
-        if (error) {
-          console.error('邮箱验证码登录失败:', error.message);
-          return false;
+        // 如果是邮箱，尝试降级到后端API验证（针对使用后端API发送的情况）
+        if (type === 'email') {
+          console.log('尝试降级到后端API验证...');
+          const response = await fetch('/api/auth/login-with-email-code', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: identifier, code }),
+          });
+          const apiData = await response.json();
+          if (apiData.code === 0 && apiData.data) {
+             // 后端验证成功，直接使用返回的数据
+             return handleLoginSuccess(apiData.data);
+          }
         }
-      } else {
-        // 使用Supabase的手机验证码登录
-        const { error } = await supabase.auth.verifyOtp({
-          phone: identifier,
-          token: code,
-          type: 'sms',
+        return false;
+      }
+
+      if (data.session && data.user) {
+        console.log('Supabase验证成功，正在同步到后端...');
+        
+        // 2. 调用后端桥接接口，换取本地 Token
+        const response = await fetch('/api/auth/supabase-login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email: data.user.email,
+            phone: data.user.phone,
+            access_token: data.session.access_token,
+            refresh_token: data.session.refresh_token
+          }),
         });
         
-        if (error) {
-          console.error('手机验证码登录失败:', error.message);
-          return false;
+        const apiData = await response.json();
+        
+        if (apiData.code === 0 && apiData.data) {
+          return handleLoginSuccess(apiData.data);
+        } else {
+          console.error('后端同步失败:', apiData.message);
+          // 即使后端同步失败，只要Supabase登录成功，也可以让用户进入（降级模式）
+          // 但为了保持一致性，最好还是失败，或者在前端模拟一个 user 对象
+          // 这里我们选择尝试构建本地用户对象
+          const fallbackUser = {
+             id: data.user.id,
+             username: data.user.email?.split('@')[0] || '用户',
+             email: data.user.email || '',
+             token: data.session.access_token, // 临时使用Supabase token，部分后端接口可能不认
+             refreshToken: data.session.refresh_token,
+             membershipLevel: 'free' as const,
+             membershipStatus: 'active' as const
+          };
+          return handleLoginSuccess(fallbackUser);
         }
       }
       
-      console.log(`${type === 'email' ? '邮箱' : '手机'}验证码登录成功`);
-      // 登录成功后，authStateChange事件会处理用户信息
-      return true;
+      return false;
     } catch (error) {
       console.error(`${type === 'email' ? '邮箱' : '手机'}验证码登录失败:`, error);
       return false;
     }
+  };
+
+  // 辅助函数：处理登录成功逻辑
+  const handleLoginSuccess = (userData: any) => {
+    console.log('登录处理成功');
+    const avatarUrl = 'https://picsum.photos/id/1005/200/200';
+    
+    const userWithMembership = {
+      id: userData.id,
+      username: userData.username,
+      email: userData.email,
+      avatar: avatarUrl,
+      phone: userData.phone || '',
+      interests: [],
+      isAdmin: false,
+      age: 0,
+      tags: [],
+      isNewUser: userData.isNewUser || false,
+      worksCount: userData.worksCount || 0,
+      followersCount: userData.followersCount || 0,
+      followingCount: userData.followingCount || 0,
+      favoritesCount: userData.favoritesCount || 0,
+      membershipLevel: (userData.membershipLevel || 'free') as any,
+      membershipStart: new Date().toISOString(),
+      membershipEnd: undefined,
+      membershipStatus: 'active' as any,
+    };
+    
+    localStorage.setItem('token', userData.token);
+    localStorage.setItem('refreshToken', userData.refreshToken || userData.token);
+    localStorage.setItem('user', JSON.stringify(userWithMembership));
+    localStorage.setItem('isAuthenticated', 'true');
+    
+    setUser(userWithMembership);
+    setIsAuthenticated(true);
+    
+    eventBus.publish('auth:login', { 
+      userId: userWithMembership.id, 
+      user: userWithMembership 
+    });
+    
+    return true;
   };
 
   // 注册方法
@@ -1103,6 +1174,30 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   };
 
+  // 新增：重置密码方法
+  const resetPassword = async (email: string, code: string, newPassword: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const response = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, code, newPassword }),
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok && data.code === 0) {
+        return { success: true };
+      } else {
+        return { success: false, error: data.message || '重置密码失败' };
+      }
+    } catch (error: any) {
+      console.error('重置密码失败:', error);
+      return { success: false, error: error.message || '重置密码失败' };
+    }
+  };
+
   // 自动登录检查
   useEffect(() => {
     const autoLogin = async () => {
@@ -1257,6 +1352,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     enableTwoFactorAuth,
     verifyTwoFactorCode,
     refreshToken,
+    resetPassword,
     isLoading
   };
 

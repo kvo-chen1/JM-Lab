@@ -1806,10 +1806,117 @@ async function route(req, res, u, path) {
       return;
     }
 
+    // Supabase 登录/注册桥接 API
+    // 前端使用 Supabase 完成验证后，调用此接口换取本地 JWT
+    if (req.method === 'POST' && path === '/api/auth/supabase-login') {
+      const b = await readBody(req);
+      const { email, access_token, refresh_token, phone } = b;
+
+      if (!access_token) {
+        sendJson(res, 400, { error: 'MISSING_TOKEN', message: 'Supabase access_token is required' });
+        return;
+      }
+
+      try {
+        // 1. 验证 Supabase Token
+        // 使用 Supabase Auth API 获取用户信息
+        const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+        const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+
+        if (!supabaseUrl || !supabaseKey) {
+          console.error('Supabase not configured on server');
+          sendJson(res, 500, { error: 'CONFIG_ERROR', message: 'Server Supabase configuration missing' });
+          return;
+        }
+
+        const userResp = await fetch(`${supabaseUrl}/auth/v1/user`, {
+          headers: {
+            'Authorization': `Bearer ${access_token}`,
+            'apikey': supabaseKey
+          }
+        });
+
+        if (!userResp.ok) {
+          console.error('Supabase token validation failed');
+          sendJson(res, 401, { error: 'INVALID_TOKEN', message: 'Invalid Supabase token' });
+          return;
+        }
+
+        const supabaseUser = await userResp.json();
+        
+        // 验证邮箱或手机号是否匹配
+        const userEmail = supabaseUser.email;
+        const userPhone = supabaseUser.phone;
+        
+        // 2. 在本地数据库查找或创建用户
+        // 优先使用 email，其次 phone
+        const identifier = email || userEmail || phone || userPhone;
+        if (!identifier) {
+           sendJson(res, 400, { error: 'USER_INFO_MISSING', message: 'User must have email or phone' });
+           return;
+        }
+
+        let user = null;
+        if (userEmail) {
+          user = await userDB.findByEmail(userEmail);
+        } else if (userPhone) {
+          user = await userDB.findByPhone(userPhone);
+        }
+
+        const now = Date.now();
+        
+        if (!user) {
+          // 创建新用户
+          console.log(`[Supabase桥接] 创建新用户: ${identifier}`);
+          // 生成随机密码占位
+          const password_hash = await bcrypt.hash(crypto.randomBytes(16).toString('hex'), 10);
+          
+          const newUser = await userDB.createUser({
+            username: identifier.split('@')[0], // 默认用户名
+            email: userEmail || identifier, // 如果只有手机号，暂时用手机号当邮箱字段存（需 schema 支持）或者留空
+            password_hash,
+            phone: userPhone,
+            auth_provider: 'supabase',
+            email_verified: 1,
+            created_at: now,
+            updated_at: now
+          });
+          user = await userDB.findById(newUser.id);
+        } else {
+          console.log(`[Supabase桥接] 关联现有用户: ${user.id}`);
+          // 可选：更新 auth_provider 信息
+        }
+
+        // 3. 颁发本地 JWT
+        const token = generateToken({ userId: user.id, email: user.email });
+
+        sendJson(res, 200, {
+          code: 0,
+          message: '登录成功',
+          data: {
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            token,
+            refreshToken: token,
+            email_verified: true
+          }
+        });
+
+      } catch (error) {
+        console.error('Supabase login bridge failed:', error);
+        sendJson(res, 500, { error: 'INTERNAL_ERROR', message: `Login failed: ${error.message}` });
+      }
+      return;
+    }
+
     // 登录API
     if (req.method === 'POST' && path === '/api/auth/login') {
       const b = await readBody(req);
-      const { email, password } = b;
+      let { email, password } = b;
+      
+      // 统一转换为小写
+      if (email) email = email.toLowerCase();
       
       // 验证必填字段
       if (!email || !password) {
@@ -1829,7 +1936,7 @@ async function route(req, res, u, path) {
         console.log(`[用户登录] 尝试登录 - 邮箱: ${email}`);
         const user = await userDB.findByEmail(email);
         if (!user) {
-          console.warn(`[用户登录] 失败 - 邮箱不存在: ${email}`);
+          console.warn(`[用户登录] 失败 - 邮箱不存在: ${email} (normalized)`);
           sendJson(res, 401, { error: 'INVALID_CREDENTIALS', message: '邮箱或密码错误' });
           return;
         }
@@ -1845,6 +1952,7 @@ async function route(req, res, u, path) {
         const isPasswordValid = await bcrypt.compare(password, user.password_hash);
         if (!isPasswordValid) {
           console.warn(`[用户登录] 失败 - 密码错误: ${email}`);
+          console.log(`[Debug] Provided password length: ${password.length}, Hash in DB: ${user.password_hash.substring(0, 10)}...`);
           sendJson(res, 401, { error: 'INVALID_CREDENTIALS', message: '邮箱或密码错误' });
           return;
         }
@@ -2016,7 +2124,9 @@ async function route(req, res, u, path) {
             code: 0,
             message: '验证码已发送，请注意查收',
             data: {
-              phone: phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2') // 隐藏中间4位
+              phone: phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2'), // 隐藏中间4位
+              // 开发环境直接返回验证码方便测试
+              mockCode: code
             }
           });
         } else {
@@ -2071,7 +2181,9 @@ async function route(req, res, u, path) {
             code: 0,
             message: '验证码已发送，请注意查收',
             data: {
-              phone: phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2') // 隐藏中间4位
+              phone: phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2'), // 隐藏中间4位
+              // 开发环境直接返回验证码方便测试
+              mockCode: code
             }
           });
         } else {
@@ -2336,7 +2448,10 @@ async function route(req, res, u, path) {
     // 发送邮箱验证码API
     if (req.method === 'POST' && path === '/api/auth/send-email-code') {
       const b = await readBody(req);
-      const { email } = b;
+      let { email } = b;
+      
+      // 统一转换为小写
+      if (email) email = email.toLowerCase();
 
       if (!email) {
         sendJson(res, 400, { error: 'MISSING_EMAIL', message: '邮箱不能为空' });
@@ -2356,44 +2471,27 @@ async function route(req, res, u, path) {
 
         console.log(`生成邮箱验证码 ${code} 发送到 ${email}，过期时间: ${new Date(expiresAt).toISOString()}`);
 
-        // 直接返回成功，不调用数据库更新，避免字段不存在错误
-        // 因为当前数据库表中没有email_login_code和email_login_expires字段
-        sendJson(res, 200, {
-          code: 0,
-          message: '验证码已发送，请注意查收',
-          data: {
-            email: email.replace(/(.{2}).+(@.*)/, '$1****$2')
-          }
-        });
-        
-        // 下面的代码暂时注释，因为数据库表中没有相应字段
-        /*
         const success = await sendLoginEmailCode(email, code);
+        
         if (success) {
           // 更新数据库中的邮箱验证码
-          // 暂时注释，因为数据库表中没有email_login_code和email_login_expires字段
-          // await userDB.updateEmailLoginCode(email, code, expiresAt);
+          await userDB.updateEmailLoginCode(email, code, expiresAt);
+          
           sendJson(res, 200, {
             code: 0,
             message: '验证码已发送，请注意查收',
             data: {
-              email: email.replace(/(.{2}).+(@.*)/, '$1****$2')
+              email: email.replace(/(.{2}).+(@.*)/, '$1****$2'),
+              // 开发环境直接返回验证码方便测试
+              mockCode: code
             }
           });
         } else {
           sendJson(res, 500, { code: 500, message: '验证码发送失败，请稍后重试' });
         }
-        */
       } catch (error) {
         console.error('发送邮箱验证码失败:', error);
-        // 即使数据库更新失败，只要邮件发送成功，就返回成功
-        sendJson(res, 200, {
-          code: 0,
-          message: '验证码已发送，请注意查收',
-          data: {
-            email: email.replace(/(.{2}).+(@.*)/, '$1****$2')
-          }
-        });
+        sendJson(res, 500, { error: 'INTERNAL_ERROR', message: `验证码发送失败: ${error.message}` });
       }
       return;
     }
@@ -2409,24 +2507,66 @@ async function route(req, res, u, path) {
       }
 
       try {
-        // 直接返回无效验证码错误，避免数据库查询失败
-        // 因为当前数据库表中没有email_login_code和email_login_expires字段
-        sendJson(res, 400, { code: 400, message: '验证码无效或已过期', data: null });
-        return;
-
-        // 下面的代码暂时注释，因为数据库表中没有相应字段
-        /*
         const { email_login_code, email_login_expires } = await userDB.getEmailLoginCode(email);
         const isValid = verifySmsCode(email_login_code, code, email_login_expires);
+        
         if (isValid) {
           sendJson(res, 200, { code: 0, message: '验证码验证成功', data: null });
         } else {
           sendJson(res, 400, { code: 400, message: '验证码无效或已过期', data: null });
         }
-        */
       } catch (error) {
         console.error('邮箱验证码验证失败:', error);
         sendJson(res, 400, { code: 400, message: '验证码无效或已过期', data: null });
+      }
+      return;
+    }
+
+    // 重置密码API
+    if (req.method === 'POST' && path === '/api/auth/reset-password') {
+      const b = await readBody(req);
+      let { email, code, newPassword } = b;
+      
+      if (email) email = email.toLowerCase();
+
+      if (!email || !code || !newPassword) {
+        sendJson(res, 400, { error: 'MISSING_PARAMETERS', message: '邮箱、验证码和新密码不能为空' });
+        return;
+      }
+
+      try {
+        // 1. 验证验证码
+        const { email_login_code, email_login_expires } = await userDB.getEmailLoginCode(email);
+        const isValid = verifySmsCode(email_login_code, code, email_login_expires);
+        
+        if (!isValid) {
+          sendJson(res, 400, { error: 'INVALID_CODE', message: '验证码无效或已过期' });
+          return;
+        }
+
+        // 2. 查找用户
+        const user = await userDB.findByEmail(email);
+        if (!user) {
+          sendJson(res, 404, { error: 'USER_NOT_FOUND', message: '用户不存在' });
+          return;
+        }
+
+        // 3. 更新密码
+        const password_hash = await bcrypt.hash(newPassword, 10);
+        await userDB.updateById(user.id, { password_hash, updated_at: Date.now() });
+
+        // 4. 清除验证码 (可选，防止重放)
+        // await userDB.updateEmailLoginCode(email, null, 0); 
+
+        sendJson(res, 200, {
+          code: 0,
+          message: '密码重置成功，请使用新密码登录',
+          data: null
+        });
+
+      } catch (error) {
+        console.error('重置密码失败:', error);
+        sendJson(res, 500, { error: 'INTERNAL_ERROR', message: `重置密码失败: ${error.message}` });
       }
       return;
     }
@@ -2444,15 +2584,9 @@ async function route(req, res, u, path) {
       try {
         console.log(`[邮箱验证码登录] 尝试登录 - 邮箱: ${email}`);
         
-        // 直接返回无效验证码错误，避免数据库查询失败
-        // 因为当前数据库表中没有email_login_code和email_login_expires字段
-        sendJson(res, 400, { error: 'INVALID_CODE', message: '验证码无效或已过期' });
-        return;
-
-        // 下面的代码暂时注释，因为数据库表中没有相应字段
-        /*
         const { email_login_code, email_login_expires } = await userDB.getEmailLoginCode(email);
         const isValid = verifySmsCode(email_login_code, code, email_login_expires);
+        
         if (!isValid) {
           console.warn(`[邮箱验证码登录] 失败 - 验证码无效或已过期: ${email}`);
           sendJson(res, 400, { error: 'INVALID_CODE', message: '验证码无效或已过期' });
@@ -2483,10 +2617,9 @@ async function route(req, res, u, path) {
             email_verified: emailVerified
           }
         });
-        */
       } catch (error) {
         console.error(`[邮箱验证码登录] 异常 - 邮箱: ${email}, 错误:`, error);
-        sendJson(res, 400, { error: 'INVALID_CODE', message: '验证码无效或已过期' });
+        sendJson(res, 500, { error: 'INTERNAL_ERROR', message: `登录失败: ${error.message}` });
       }
       return;
     }

@@ -24,6 +24,7 @@ import Landing from "@/pages/Landing";
 import Home from "@/pages/Home";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
+import ForgotPassword from "@/pages/ForgotPassword";
 
 // 优化懒加载策略：根据页面访问频率和大小重新分类
 
@@ -605,6 +606,7 @@ export default function App() {
         {/* 不需要布局的页面 */}
         <Route path="/login" element={<AnimatedPage><Login /></AnimatedPage>} />
         <Route path="/register" element={<AnimatedPage><Register /></AnimatedPage>} />
+        <Route path="/forgot-password" element={<AnimatedPage><ForgotPassword /></AnimatedPage>} />
         {/* 测试页面 */}
         <Route path="/test" element={<AnimatedPage><TestPage /></AnimatedPage>} />
         <Route path="/test-basic" element={<AnimatedPage><TestBasic /></AnimatedPage>} />

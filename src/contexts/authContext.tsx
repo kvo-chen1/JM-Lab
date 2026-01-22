@@ -512,10 +512,49 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         }
         
         // 检查 Supabase session (非 OAuth 重定向情况，或者 OAuth 失败兜底)
-        if (supabase && !isAuthenticated) {
-           // 如果有 OAuth 参数，且已通过上方等待逻辑，此处继续检查
-           
+        if (supabase) {
+           // 1. 尝试从 Supabase 获取 Session
            const { data: { session } } = await supabase.auth.getSession();
+           
+           // 2. 如果没有 Session 但有 OAuth 参数，尝试手动解析 Hash 进行补救
+           if (!session && hasOAuthParams) {
+              console.log('Manual fallback: No session from Supabase but OAuth params found. Attempting manual bridge...');
+              const fragment = window.location.hash.substring(1);
+              const params = new URLSearchParams(fragment);
+              const accessToken = params.get('access_token');
+              const refreshToken = params.get('refresh_token');
+              
+              if (accessToken) {
+                 try {
+                   // 直接调用桥接接口
+                   const response = await fetch('/api/auth/supabase-login', {
+                     method: 'POST',
+                     headers: { 'Content-Type': 'application/json' },
+                     body: JSON.stringify({
+                       access_token: accessToken,
+                       refresh_token: refreshToken,
+                       // 尝试从 JWT 解析 email (可选，后端也会解析)
+                       // 这里暂时不传 email，依赖后端通过 token 去 Supabase 获取
+                     }),
+                   });
+                   
+                   const apiData = await response.json();
+                   if (apiData.code === 0 && apiData.data) {
+                      console.log('Manual bridge login success');
+                      handleLoginSuccess(apiData.data);
+                      
+                      // 清理 URL
+                      if (window.location.hash && (window.location.hash.includes('access_token') || window.location.hash.includes('error'))) {
+                         window.history.replaceState({}, document.title, window.location.pathname);
+                      }
+                      return;
+                   }
+                 } catch (e) {
+                   console.error('Manual bridge login failed', e);
+                 }
+              }
+           }
+
            if (session && session.user) {
               // 已经在 onAuthStateChange 中处理了，这里只是保险
               // 如果 listener 还没触发，这里可以手动触发更新

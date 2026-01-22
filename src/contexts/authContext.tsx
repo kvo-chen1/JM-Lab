@@ -53,6 +53,8 @@ interface AuthContextType {
   verifyTwoFactorCode: (code: string) => Promise<boolean>;
   // 新增：刷新令牌方法
   refreshToken: () => Promise<boolean>;
+  // 加载状态
+  isLoading: boolean;
 }
 
 // AuthProvider 组件属性类型
@@ -79,6 +81,7 @@ export const AuthContext = createContext<AuthContextType>({
   enableTwoFactorAuth: async () => false,
   verifyTwoFactorCode: async () => false,
   refreshToken: async () => false,
+  isLoading: true,
 });
 
 // AuthProvider 组件
@@ -96,6 +99,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   };
   
+  // 加载状态
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+
   // 从本地存储获取用户认证状态
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     return !!localStorage.getItem('token') || localStorage.getItem('isAuthenticated') === 'true';
@@ -341,6 +347,54 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         
         // 然后检查supabase
         if (supabase) {
+          // 检查 URL 中是否有 OAuth 重定向参数 (生产环境也需要检查)
+          const hashParams = new URLSearchParams(window.location.hash.substring(1));
+          const searchParams = new URLSearchParams(window.location.search);
+          const hasOAuthParams = hashParams.has('access_token') || searchParams.has('code') || hashParams.has('session_state');
+
+          if (hasOAuthParams) {
+             const { data: { session } } = await supabase.auth.getSession();
+             if (session && session.user) {
+                // 有会话，更新用户信息和状态
+                // 强制使用固定的头像URL
+                const avatarUrl = 'https://picsum.photos/id/1005/200/200';
+                
+                const userWithMembership = {
+                  id: session.user.id,
+                  username: session.user.user_metadata?.username || session.user.email?.split('@')[0] || '用户',
+                  email: session.user.email || '',
+                  avatar: avatarUrl,
+                  phone: session.user.user_metadata?.phone || '',
+                  interests: session.user.user_metadata?.interests || [],
+                  isAdmin: session.user.user_metadata?.isAdmin || false,
+                  age: session.user.user_metadata?.age || 0,
+                  tags: session.user.user_metadata?.tags || [],
+                  // 标记为新用户（如果是首次登录）
+                  isNewUser: session.user.user_metadata?.isNewUser || false,
+                  // 初始化统计数据
+                  worksCount: session.user.user_metadata?.worksCount || 0,
+                  followersCount: session.user.user_metadata?.followersCount || 0,
+                  followingCount: session.user.user_metadata?.followingCount || 0,
+                  favoritesCount: session.user.user_metadata?.favoritesCount || 0,
+                  membershipLevel: session.user.user_metadata?.membershipLevel || 'free',
+                  membershipStart: session.user.user_metadata?.membershipStart || new Date().toISOString(),
+                  membershipEnd: session.user.user_metadata?.membershipEnd,
+                  membershipStatus: session.user.user_metadata?.membershipStatus || 'active',
+                };
+                
+                // 存储用户信息到本地
+                localStorage.setItem('user', JSON.stringify(userWithMembership));
+                localStorage.setItem('isAuthenticated', 'true');
+                
+                // 更新状态
+                setUser(userWithMembership);
+                setIsAuthenticated(true);
+                // 清理 URL 中的 OAuth 参数
+                window.history.replaceState({}, document.title, window.location.pathname);
+                return;
+             }
+          }
+
           // 使用 Supabase 获取当前会话
           const { data: { session } } = await supabase.auth.getSession();
           
@@ -428,6 +482,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         localStorage.removeItem('isAuthenticated');
         setIsAuthenticated(false);
         setUser(null);
+      } finally {
+        setIsLoading(false);
       }
     };
     
@@ -1209,7 +1265,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     getMembershipBenefits,
     enableTwoFactorAuth,
     verifyTwoFactorCode,
-    refreshToken
+    refreshToken,
+    isLoading
   };
 
   // 返回Provider组件

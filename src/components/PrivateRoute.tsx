@@ -9,15 +9,24 @@ interface PrivateRouteProps {
 
 // 使用memo优化，避免不必要的重新渲染
 const PrivateRoute = memo(({ component: Component, children }: PrivateRouteProps) => {
-  const { isAuthenticated } = useContext(AuthContext);
+  const { isAuthenticated, isLoading } = useContext(AuthContext);
   const location = useLocation();
+  
+  // 如果正在加载认证状态，显示加载指示器
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
   
   // 优化重定向逻辑，使用更明确的状态检查
   if (isAuthenticated === false) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
   
-  // 如果isAuthenticated为undefined（初始加载状态），返回null避免闪烁
+  // 如果isAuthenticated为undefined（理论上不会发生，因为isLoading处理了初始状态），返回null
   if (isAuthenticated === undefined) {
     return null;
   }

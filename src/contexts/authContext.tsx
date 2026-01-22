@@ -90,14 +90,16 @@ export const AuthContext = createContext<AuthContextType>({
 export const AuthProvider = ({ children }: AuthProviderProps) => {
   // 检查是否为开发环境或测试环境
   const isDevelopment = () => {
+    // 优先使用 Vite 的标准方式
+    if (import.meta.env.DEV) return true;
+    
     try {
-      // 先检查process是否存在，再检查NODE_ENV
+      // 兼容性检查
       return typeof process !== 'undefined' && 
              process.env && 
              (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test');
     } catch (error) {
-      // 如果process不可用，返回true作为默认值
-      return true;
+      return false; // 默认为生产环境
     }
   };
   
@@ -179,6 +181,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
     // 优先设置监听器，确保能捕获所有状态变化
     let subscription: any = null;
+    
+    // 检测初始URL中是否包含OAuth参数
+    const hashParams = new URLSearchParams(window.location.hash.substring(1));
+    const searchParams = new URLSearchParams(window.location.search);
+    const hasOAuthParams = hashParams.has('access_token') || searchParams.has('code') || hashParams.has('error');
+    
     if (supabase) {
       const { data } = supabase.auth.onAuthStateChange(async (event, session) => {
         if (!mounted) return;
@@ -233,6 +241,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           }
           
         } else if (event === 'SIGNED_OUT') {
+          // 如果检测到OAuth参数，且当前正在加载中，忽略SIGNED_OUT事件
+          // 这是为了防止在OAuth回调处理过程中，Supabase先触发SIGNED_OUT导致页面跳转
+          if (hasOAuthParams && isLoading) {
+             console.log('Detected OAuth params during SIGNED_OUT, ignoring logout to wait for session processing...');
+             return;
+          }
+          
           // 用户登出
           localStorage.removeItem('token');
           localStorage.removeItem('refreshToken');
@@ -423,9 +438,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         
         // 检查 Supabase session (非 OAuth 重定向情况，或者 OAuth 失败兜底)
         if (supabase && !isAuthenticated) {
-           // 如果有 OAuth 参数，逻辑已经在最上方处理了
-           if (hasOAuthParams) return;
-
+           // 如果有 OAuth 参数，且已通过上方等待逻辑，此处继续检查
+           
            const { data: { session } } = await supabase.auth.getSession();
            if (session && session.user) {
               // 已经在 onAuthStateChange 中处理了，这里只是保险

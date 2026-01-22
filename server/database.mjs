@@ -551,6 +551,9 @@ async function createPostgreSQLTables(pool) {
       await client.query(`ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS sms_verification_code VARCHAR(10);`)
       await client.query(`ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS sms_verification_expires TIMESTAMP WITH TIME ZONE;`)
       await client.query(`ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS email_verification_expires TIMESTAMP WITH TIME ZONE;`)
+      // 邮箱登录/注册验证码
+      await client.query(`ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS email_login_code VARCHAR(10);`)
+      await client.query(`ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS email_login_expires TIMESTAMP WITH TIME ZONE;`)
       // GitHub OAuth fields
       await client.query(`ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS github_id VARCHAR(255);`)
       await client.query(`ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS github_username VARCHAR(255);`)

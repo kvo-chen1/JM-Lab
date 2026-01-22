@@ -1537,19 +1537,31 @@ async function route(req, res, u, path) {
         return;
       }
       
+      let isTempUser = false;
+      let existingUserId = null;
+
       try {
         // 检查邮箱是否已存在
         const existingUser = await userDB.findByEmail(email);
         if (existingUser) {
-          sendJson(res, 400, { error: 'EMAIL_ALREADY_EXISTS', message: '该邮箱已被注册' });
-          return;
+          // 检查是否是临时用户（通过发送验证码生成的占位记录）
+          if (existingUser.password_hash === 'TEMP_HASH') {
+            isTempUser = true;
+            existingUserId = existingUser.id;
+          } else {
+            sendJson(res, 400, { error: 'EMAIL_ALREADY_EXISTS', message: '该邮箱已被注册' });
+            return;
+          }
         }
         
         // 检查用户名是否已存在
         const existingUsername = await userDB.findByUsername(username);
         if (existingUsername) {
-          sendJson(res, 400, { error: 'USERNAME_ALREADY_EXISTS', message: '该用户名已被使用' });
-          return;
+          // 如果是同一个临时用户，则不算冲突
+          if (!isTempUser || existingUsername.id !== existingUserId) {
+            sendJson(res, 400, { error: 'USERNAME_ALREADY_EXISTS', message: '该用户名已被使用' });
+            return;
+          }
         }
 
         // 如果提供了验证码，进行验证
@@ -1560,46 +1572,66 @@ async function route(req, res, u, path) {
              sendJson(res, 400, { error: 'INVALID_CODE', message: '验证码无效或已过期' });
              return;
            }
+        } else if (isTempUser) {
+            // 如果是临时用户注册，必须提供验证码
+            sendJson(res, 400, { error: 'MISSING_CODE', message: '请填写验证码以完成注册' });
+            return;
         }
         
         // 密码加密
         const password_hash = await bcrypt.hash(password, 10);
         
-        // 创建用户，暂时移除所有可能导致问题的字段
-        const newUser = await userDB.createUser({
-          username,
-          email,
-          password_hash,
-          phone: null,
-          avatar_url: null,
-          interests: null,
-          age: null,
-          tags: null,
-          github_id: null,
-          github_username: null,
-          auth_provider: 'local'
-        });
+        let userId;
+        if (isTempUser) {
+          // 更新临时用户记录
+          await userDB.updateById(existingUserId, {
+            username,
+            password_hash,
+            age: age || null,
+            tags: tags || null,
+            interests: interests || null,
+            phone: phone || null,
+            avatar_url: avatar_url || null,
+            email_verified: 1, // 既然通过了验证码，就视为已验证
+            updated_at: Date.now()
+          });
+          userId = existingUserId;
+        } else {
+          // 创建新用户
+          const newUser = await userDB.createUser({
+            username,
+            email,
+            password_hash,
+            phone: null,
+            avatar_url: null,
+            interests: null,
+            age: null,
+            tags: null,
+            github_id: null,
+            github_username: null,
+            auth_provider: 'local'
+          });
+          userId = newUser.id;
+        }
         
         // 生成JWT令牌
-        const token = generateToken({ userId: newUser.id, email });
+        const token = generateToken({ userId, email });
         
-        // 生成邮箱验证令牌
-        const verificationToken = generateToken({ userId: newUser.id, email }, '24h');
+        // 既然已经通过验证码验证，就不需要再发验证邮件了，或者可以发一封欢迎邮件
+        // const verificationToken = generateToken({ userId, email }, '24h');
+        // await sendVerificationEmail(email, verificationToken, username);
         
-        // 发送验证邮件
-        const emailSent = await sendVerificationEmail(email, verificationToken, username);
-        
-        console.log(`[用户注册] 成功 - 用户ID: ${newUser.id}, 邮箱: ${email}, 验证邮件发送: ${emailSent}`);
+        console.log(`[用户注册] 成功 - 用户ID: ${userId}, 邮箱: ${email}`);
         
         sendJson(res, 200, {
           code: 0,
-          message: '注册成功，验证邮件已发送，请查收',
+          message: '注册成功',
           data: {
-            id: newUser.id,
+            id: userId,
             username,
             email,
             token,
-            email_verified: false
+            email_verified: true
           }
         });
       } catch (error) {
@@ -1803,9 +1835,9 @@ async function route(req, res, u, path) {
         }
         
         // 检查用户是否有password_hash字段（可能通过其他方式注册）
-        if (!user.password_hash) {
-          console.warn(`[用户登录] 失败 - 用户没有设置密码: ${email}`);
-          sendJson(res, 401, { error: 'INVALID_CREDENTIALS', message: '邮箱或密码错误' });
+        if (!user.password_hash || user.password_hash === 'TEMP_HASH') {
+          console.warn(`[用户登录] 失败 - 用户未完成注册流程: ${email}`);
+          sendJson(res, 401, { error: 'INVALID_CREDENTIALS', message: '该邮箱尚未完成注册，请先注册' });
           return;
         }
         

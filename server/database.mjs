@@ -46,10 +46,14 @@ const log = (msg, level = 'INFO') => {
 
 // 构建PostgreSQL连接字符串
 const getPostgresConnectionString = () => {
-  // 1. 优先使用标准 DATABASE_URL
+  // 1. 最优先使用 NON_POOLING (Session Mode, port 5432) 
+  // 这是 Vercel + Supabase Serverless 环境的最佳实践，避免 PGBouncer 事务模式导致的 "prepared statement" 错误
+  if (process.env.POSTGRES_URL_NON_POOLING) return process.env.POSTGRES_URL_NON_POOLING
+
+  // 2. 其次尝试标准 DATABASE_URL
   if (process.env.DATABASE_URL) return process.env.DATABASE_URL
   
-  // 2. 尝试 Neon 相关变量
+  // 3. 尝试 Neon 相关变量
   const neonUrl = process.env.NEON_URL || 
                   process.env.NEON_DATABASE_URL || 
                   process.env.NEON_POSTGRES_URL || 
@@ -57,10 +61,10 @@ const getPostgresConnectionString = () => {
                   process.env.NEON_POSTGRES_URL_NON_POOLING
   if (neonUrl) return neonUrl
 
-  // 3. 尝试 Supabase 相关变量 (如果 POSTGRES_URL 存在)
+  // 4. 尝试 Supabase 相关变量
   if (process.env.POSTGRES_URL) return process.env.POSTGRES_URL
   
-  // 4. 如果是 Supabase 但没有完整 URL，尝试构建 (通常 Supabase 推荐使用 Connection String)
+  // 5. 如果是 Supabase 但没有完整 URL，尝试构建 (通常 Supabase 推荐使用 Connection String)
   // 这里假设如果只有 SUPABASE_URL 是不够的，必须要有 DB 连接信息
   return null
 }

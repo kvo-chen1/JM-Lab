@@ -46,80 +46,22 @@ try {
       process.env[k] = v;
 
     }
-    
-    // 将前端变量映射到服务端使用的变量（无条件覆盖，避免旧值残留）
-
-    
-    // Kimi
-    if (process.env.VITE_KIMI_API_KEY) {
-      process.env.KIMI_API_KEY = process.env.VITE_KIMI_API_KEY;
-
-    }
-    if (process.env.VITE_KIMI_BASE_URL) {
-      process.env.KIMI_BASE_URL = process.env.VITE_KIMI_BASE_URL;
-
-    }
-    
-    // DeepSeek
-    if (process.env.VITE_DEEPSEEK_API_KEY) {
-      process.env.DEEPSEEK_API_KEY = process.env.VITE_DEEPSEEK_API_KEY;
-
-    }
-    if (process.env.VITE_DEEPSEEK_BASE_URL) {
-      process.env.DEEPSEEK_BASE_URL = process.env.VITE_DEEPSEEK_BASE_URL;
-
-    }
-    
-    // Doubao
-    const doubaoEnvKey = process.env.VITE_DOUBAO_API_KEY || process.env.VITE_DOBAO_API_KEY;
-    if (doubaoEnvKey) {
-      process.env.DOUBAO_API_KEY = doubaoEnvKey;
-
-    }
-    if (process.env.VITE_DOUBAO_BASE_URL) {
-      process.env.DOUBAO_BASE_URL = process.env.VITE_DOUBAO_BASE_URL;
-
-    }
-    
-    // Qwen (DashScope)
-    if (process.env.VITE_QWEN_API_KEY) {
-      process.env.DASHSCOPE_API_KEY = process.env.VITE_QWEN_API_KEY;
-
-    }
-    
-    // Wenxin (Qianfan)
-    if (process.env.VITE_WENXIN_API_KEY) {
-      process.env.QIANFAN_AUTH = process.env.VITE_WENXIN_API_KEY;
-
-    }
-    
-    // ChatGPT
-    if (process.env.VITE_CHATGPT_API_KEY) {
-      process.env.CHATGPT_API_KEY = process.env.VITE_CHATGPT_API_KEY;
-
-    }
-    
-    // Gemini
-    if (process.env.VITE_GEMINI_API_KEY) {
-      process.env.GEMINI_API_KEY = process.env.VITE_GEMINI_API_KEY;
-
-    }
-    
-    // Gork
-    if (process.env.VITE_GORK_API_KEY) {
-      process.env.GORK_API_KEY = process.env.VITE_GORK_API_KEY;
-
-    }
-    
-    // Zhipu
-    if (process.env.VITE_ZHIPU_API_KEY) {
-      process.env.ZHIPU_API_KEY = process.env.VITE_ZHIPU_API_KEY;
-
-    }
   }
 } catch (error) {
   console.error('Failed to load .env.local:', error);
 }
+
+// 始终尝试兼容 VITE_ 前缀的环境变量
+if (!process.env.KIMI_API_KEY && process.env.VITE_KIMI_API_KEY) {
+  process.env.KIMI_API_KEY = process.env.VITE_KIMI_API_KEY;
+}
+if (!process.env.DASHSCOPE_API_KEY && process.env.VITE_QWEN_API_KEY) {
+  process.env.DASHSCOPE_API_KEY = process.env.VITE_QWEN_API_KEY;
+}
+if (!process.env.DEEPSEEK_API_KEY && process.env.VITE_DEEPSEEK_API_KEY) {
+  process.env.DEEPSEEK_API_KEY = process.env.VITE_DEEPSEEK_API_KEY;
+}
+
 
 // 端口配置
 const PORT = Number(process.env.LOCAL_API_PORT || process.env.PORT) || 3021
@@ -1176,7 +1118,11 @@ async function route(req, res, u, path) {
     if (req.method === 'POST' && (path === '/api/dashscope/chat/completions' || path === '/api/qwen/chat/completions')) {
       // 从环境变量获取API密钥，不需要用户输入
       const authKey = process.env.DASHSCOPE_API_KEY || process.env.VITE_QWEN_API_KEY || ''
-      if (!authKey) { sendJson(res, 500, { error: 'API_KEY_NOT_CONFIGURED' }); return }
+      if (!authKey) { 
+        console.error('[Qwen] API Key missing. Checked DASHSCOPE_API_KEY and VITE_QWEN_API_KEY.');
+        sendJson(res, 503, { error: 'API_KEY_NOT_CONFIGURED', message: 'Qwen/DashScope API Key is missing. Please set DASHSCOPE_API_KEY or VITE_QWEN_API_KEY in Vercel Settings.' }); 
+        return 
+      }
       
       const b = await readBody(req)
       // 转换为DashScope API期望的格式
@@ -2614,10 +2560,7 @@ async function route(req, res, u, path) {
     }
     
 
-  } catch (error) {
-    console.error('API error:', error)
-    sendJson(res, 500, { error: 'SERVER_ERROR', message: '服务器内部错误' })
-  }
+  // Error handled by middleware
 }
 
 // 仅在本地开发时启动服务器（非 Vercel 环境）

@@ -196,8 +196,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         
         console.log('Auth state change:', event);
         
-        if (event === 'SIGNED_IN' && session?.user) {
-          console.log('Auth state change: SIGNED_IN', session.user.email);
+        if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user) {
+          console.log(`Auth state change: ${event}`, session.user.email, session);
           
           const hashParams = new URLSearchParams(window.location.hash.substring(1));
           const searchParams = new URLSearchParams(window.location.search);
@@ -205,6 +205,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           const localToken = localStorage.getItem('token');
 
           // 如果是 OAuth 登录或本地缺失 Token，尝试通过后端桥接换取本地 Token
+          // 只要有 Supabase session 且本地没 token，就应该尝试桥接
           if (hasOAuthParams || !localToken) {
             try {
               console.log('Detected OAuth/Missing Token, calling bridge...');
@@ -519,6 +520,56 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
               // 已经在 onAuthStateChange 中处理了，这里只是保险
               // 如果 listener 还没触发，这里可以手动触发更新
               if (mounted && !isAuthenticated) {
+                 // 尝试调用桥接接口
+                 try {
+                   console.log('checkAuth fallback: Calling bridge login...');
+                   const response = await fetch('/api/auth/supabase-login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      email: session.user.email,
+                      phone: session.user.phone,
+                      access_token: session.access_token,
+                      refresh_token: session.refresh_token
+                    }),
+                   });
+                   const apiData = await response.json();
+                   if (apiData.code === 0 && apiData.data) {
+                      const userData = apiData.data;
+                      const avatarUrl = 'https://picsum.photos/id/1005/200/200';
+                      const userWithMembership = {
+                          id: userData.id,
+                          username: userData.username,
+                          email: userData.email,
+                          avatar: avatarUrl,
+                          phone: userData.phone || '',
+                          interests: [],
+                          isAdmin: false,
+                          age: 0,
+                          tags: [],
+                          isNewUser: userData.isNewUser || false,
+                          worksCount: userData.worksCount || 0,
+                          followersCount: userData.followersCount || 0,
+                          followingCount: userData.followingCount || 0,
+                          favoritesCount: userData.favoritesCount || 0,
+                          membershipLevel: (userData.membershipLevel || 'free') as any,
+                          membershipStart: new Date().toISOString(),
+                          membershipEnd: undefined,
+                          membershipStatus: 'active' as any,
+                      };
+                      
+                      localStorage.setItem('token', userData.token);
+                      localStorage.setItem('refreshToken', userData.refreshToken || userData.token);
+                      localStorage.setItem('user', JSON.stringify(userWithMembership));
+                      localStorage.setItem('isAuthenticated', 'true');
+                      setUser(userWithMembership);
+                      setIsAuthenticated(true);
+                      return; // 成功后直接返回
+                   }
+                 } catch (e) {
+                   console.error('checkAuth fallback: Bridge failed', e);
+                 }
+
                  // 强制使用固定的头像URL
                 const avatarUrl = 'https://picsum.photos/id/1005/200/200';
                 

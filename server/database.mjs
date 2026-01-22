@@ -668,6 +668,56 @@ async function createPostgreSQLTables(pool) {
           FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE
         );
       `)
+
+      // Social Features Tables
+      
+      // Direct Messages
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS direct_messages (
+          id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+          sender_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          receiver_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          content TEXT NOT NULL,
+          is_read BOOLEAN DEFAULT FALSE,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+      `)
+
+      // Friend Requests
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS friend_requests (
+          id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+          sender_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          receiver_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          status VARCHAR(20) DEFAULT 'pending',
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+      `)
+
+      // Friends
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS friends (
+          id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+          user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          friend_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          user_note VARCHAR(255),
+          friend_note VARCHAR(255),
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          UNIQUE(user_id, friend_id)
+        );
+      `)
+
+      // User Status
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS user_status (
+          user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+          status VARCHAR(20) CHECK (status IN ('online', 'offline', 'away')),
+          last_seen TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+      `)
       
       // 创建索引
       const createIndex = async (sql) => {
@@ -1678,7 +1728,23 @@ export const friendDB = {
         
         db.prepare('INSERT INTO friend_requests (sender_id, receiver_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?)').run(senderId, receiverId, 'pending', now, now)
         return db.prepare('SELECT * FROM friend_requests WHERE sender_id = ? AND receiver_id = ?').get(senderId, receiverId)
+
+      case DB_TYPE.POSTGRESQL:
+        // Check if request already exists
+        const { rows: existingPg } = await db.query('SELECT * FROM friend_requests WHERE sender_id = $1 AND receiver_id = $2', [senderId, receiverId])
+        if (existingPg.length > 0) return existingPg[0]
         
+        // Check if already friends
+        const { rows: friendPg } = await db.query('SELECT * FROM friends WHERE user_id = $1 AND friend_id = $2', [senderId, receiverId])
+        if (friendPg.length > 0) throw new Error('ALREADY_FRIENDS')
+        
+        const { rows: newRequest } = await db.query(`
+          INSERT INTO friend_requests (sender_id, receiver_id, status, created_at, updated_at) 
+          VALUES ($1, $2, 'pending', NOW(), NOW()) 
+          RETURNING *
+        `, [senderId, receiverId])
+        return newRequest[0]
+
       default: throw new Error(`Unsupported DB Type: ${config.dbType}`)
     }
   },
@@ -1706,6 +1772,24 @@ export const friendDB = {
         transaction()
         return true
         
+      case DB_TYPE.POSTGRESQL:
+        const { rows: pgReqRows } = await db.query('SELECT * FROM friend_requests WHERE id = $1', [requestId])
+        if (pgReqRows.length === 0) throw new Error('REQUEST_NOT_FOUND')
+        const pgRequest = pgReqRows[0]
+        if (pgRequest.status !== 'pending') throw new Error('INVALID_STATUS')
+        
+        try {
+          await db.query('BEGIN')
+          await db.query("UPDATE friend_requests SET status = 'accepted', updated_at = NOW() WHERE id = $1", [requestId])
+          await db.query('INSERT INTO friends (user_id, friend_id, created_at) VALUES ($1, $2, NOW()) ON CONFLICT DO NOTHING', [pgRequest.sender_id, pgRequest.receiver_id])
+          await db.query('INSERT INTO friends (user_id, friend_id, created_at) VALUES ($1, $2, NOW()) ON CONFLICT DO NOTHING', [pgRequest.receiver_id, pgRequest.sender_id])
+          await db.query('COMMIT')
+          return true
+        } catch (e) {
+          await db.query('ROLLBACK')
+          throw e
+        }
+
       default: throw new Error(`Unsupported DB Type: ${config.dbType}`)
     }
   },
@@ -1718,6 +1802,9 @@ export const friendDB = {
     switch (typeKey) {
       case DB_TYPE.SQLITE:
         db.prepare('UPDATE friend_requests SET status = ?, updated_at = ? WHERE id = ?').run('rejected', now, requestId)
+        return true
+      case DB_TYPE.POSTGRESQL:
+        await db.query("UPDATE friend_requests SET status = 'rejected', updated_at = NOW() WHERE id = $1", [requestId])
         return true
       default: throw new Error(`Unsupported DB Type: ${config.dbType}`)
     }
@@ -1737,6 +1824,18 @@ export const friendDB = {
           ORDER BY fr.created_at DESC
         `).all(userId)
         return requests.map(r => ({
+          ...r,
+          sender: { id: r.sender_id, username: r.username, avatar_url: r.avatar_url }
+        }))
+      case DB_TYPE.POSTGRESQL:
+        const { rows: pgRequests } = await db.query(`
+          SELECT fr.*, u.username, u.avatar_url 
+          FROM friend_requests fr
+          JOIN users u ON fr.sender_id = u.id
+          WHERE fr.receiver_id = $1 AND fr.status = 'pending'
+          ORDER BY fr.created_at DESC
+        `, [userId])
+        return pgRequests.map(r => ({
           ...r,
           sender: { id: r.sender_id, username: r.username, avatar_url: r.avatar_url }
         }))
@@ -1769,6 +1868,26 @@ export const friendDB = {
             last_seen: f.last_seen
           }
         }))
+      case DB_TYPE.POSTGRESQL:
+        const { rows: pgFriends } = await db.query(`
+          SELECT f.*, u.username, u.avatar_url, u.email, s.status as online_status, s.last_seen
+          FROM friends f
+          JOIN users u ON f.friend_id = u.id
+          LEFT JOIN user_status s ON f.friend_id = s.user_id
+          WHERE f.user_id = $1
+          ORDER BY s.status DESC, f.created_at DESC
+        `, [userId])
+        return pgFriends.map(f => ({
+          ...f,
+          friend: { 
+            id: f.friend_id, 
+            username: f.username, 
+            avatar_url: f.avatar_url, 
+            email: f.email,
+            status: f.online_status || 'offline',
+            last_seen: f.last_seen
+          }
+        }))
       default: throw new Error(`Unsupported DB Type: ${config.dbType}`)
     }
   },
@@ -1781,6 +1900,9 @@ export const friendDB = {
       case DB_TYPE.SQLITE:
         db.prepare('DELETE FROM friends WHERE (user_id = ? AND friend_id = ?) OR (user_id = ? AND friend_id = ?)').run(userId, friendId, friendId, userId)
         return true
+      case DB_TYPE.POSTGRESQL:
+        await db.query('DELETE FROM friends WHERE (user_id = $1 AND friend_id = $2) OR (user_id = $2 AND friend_id = $1)', [userId, friendId])
+        return true
       default: throw new Error(`Unsupported DB Type: ${config.dbType}`)
     }
   },
@@ -1792,6 +1914,9 @@ export const friendDB = {
     switch (typeKey) {
       case DB_TYPE.SQLITE:
         db.prepare('UPDATE friends SET user_note = ? WHERE user_id = ? AND friend_id = ?').run(note, userId, friendId)
+        return true
+      case DB_TYPE.POSTGRESQL:
+        await db.query('UPDATE friends SET user_note = $1 WHERE user_id = $2 AND friend_id = $3', [note, userId, friendId])
         return true
       default: throw new Error(`Unsupported DB Type: ${config.dbType}`)
     }
@@ -1815,6 +1940,15 @@ export const friendDB = {
            const statusRow = db.prepare('SELECT status FROM user_status WHERE user_id = ?').get(u.id)
            return { ...u, status: statusRow ? statusRow.status : 'offline' }
         })
+      case DB_TYPE.POSTGRESQL:
+        const { rows: pgSearchUsers } = await db.query(`
+          SELECT u.id, u.username, u.email, u.avatar_url, u.phone, s.status
+          FROM users u
+          LEFT JOIN user_status s ON u.id = s.user_id
+          WHERE (u.username ILIKE $1 OR u.email ILIKE $2) AND u.id != $3
+          LIMIT 20
+        `, [`%${query}%`, `%${query}%`, currentUserId])
+        return pgSearchUsers.map(u => ({ ...u, status: u.status || 'offline' }))
       default: throw new Error(`Unsupported DB Type: ${config.dbType}`)
     }
   },
@@ -1832,6 +1966,13 @@ export const friendDB = {
           ON CONFLICT(user_id) DO UPDATE SET status = ?, last_seen = ?
         `).run(userId, status, now, status, now)
         return true
+      case DB_TYPE.POSTGRESQL:
+        await db.query(`
+          INSERT INTO user_status (user_id, status, last_seen, updated_at) 
+          VALUES ($1, $2, NOW(), NOW())
+          ON CONFLICT(user_id) DO UPDATE SET status = $2, last_seen = NOW(), updated_at = NOW()
+        `, [userId, status])
+        return true
       default: throw new Error(`Unsupported DB Type: ${config.dbType}`)
     }
   }
@@ -1847,6 +1988,13 @@ export const messageDB = {
       case DB_TYPE.SQLITE:
         db.prepare('INSERT INTO messages (sender_id, receiver_id, content, is_read, created_at) VALUES (?, ?, ?, 0, ?)').run(senderId, receiverId, content, now)
         return { sender_id: senderId, receiver_id: receiverId, content, is_read: 0, created_at: now }
+      case DB_TYPE.POSTGRESQL:
+        const { rows: msgRows } = await db.query(`
+          INSERT INTO direct_messages (sender_id, receiver_id, content, is_read, created_at) 
+          VALUES ($1, $2, $3, false, NOW()) 
+          RETURNING *
+        `, [senderId, receiverId, content])
+        return msgRows[0]
       default: throw new Error(`Unsupported DB Type: ${config.dbType}`)
     }
   },
@@ -1864,6 +2012,14 @@ export const messageDB = {
           LIMIT ? OFFSET ?
         `).all(userId, friendId, friendId, userId, limit, offset)
         return messages.reverse() // Return in chronological order
+      case DB_TYPE.POSTGRESQL:
+        const { rows: pgMessages } = await db.query(`
+          SELECT * FROM direct_messages 
+          WHERE (sender_id = $1 AND receiver_id = $2) OR (sender_id = $2 AND receiver_id = $1)
+          ORDER BY created_at DESC
+          LIMIT $3 OFFSET $4
+        `, [userId, friendId, limit, offset])
+        return pgMessages.reverse()
       default: throw new Error(`Unsupported DB Type: ${config.dbType}`)
     }
   },
@@ -1876,6 +2032,9 @@ export const messageDB = {
       case DB_TYPE.SQLITE:
         // Mark messages sent by friend to user as read
         db.prepare('UPDATE messages SET is_read = 1 WHERE sender_id = ? AND receiver_id = ?').run(friendId, userId)
+        return true
+      case DB_TYPE.POSTGRESQL:
+        await db.query('UPDATE direct_messages SET is_read = true WHERE sender_id = $1 AND receiver_id = $2', [friendId, userId])
         return true
       default: throw new Error(`Unsupported DB Type: ${config.dbType}`)
     }
@@ -1894,6 +2053,14 @@ export const messageDB = {
           GROUP BY sender_id
         `).all(userId)
         return result
+      case DB_TYPE.POSTGRESQL:
+        const { rows: unreadRows } = await db.query(`
+          SELECT sender_id, COUNT(*) as count 
+          FROM direct_messages 
+          WHERE receiver_id = $1 AND is_read = false 
+          GROUP BY sender_id
+        `, [userId])
+        return unreadRows
       default: throw new Error(`Unsupported DB Type: ${config.dbType}`)
     }
   }

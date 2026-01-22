@@ -1980,6 +1980,61 @@ async function route(req, res, u, path) {
       return;
     }
     
+    // 发送注册短信验证码API
+    if (req.method === 'POST' && path === '/api/auth/send-register-sms-code') {
+      const b = await readBody(req);
+      const { phone } = b;
+      
+      if (!phone) {
+        sendJson(res, 400, { error: 'MISSING_PHONE', message: '手机号不能为空' });
+        return;
+      }
+      
+      try {
+        // 检查用户是否已注册
+        const existingUser = await userDB.findByPhone(phone);
+        if (existingUser) {
+          sendJson(res, 400, { error: 'PHONE_ALREADY_REGISTERED', message: '该手机号已被注册' });
+          return;
+        }
+        
+        // 生成验证码
+        const code = generateVerificationCode();
+        // 验证码5分钟后过期
+        const expiresAt = Date.now() + 5 * 60 * 1000;
+        
+        console.log(`生成注册验证码 ${code} 发送到 ${phone}，过期时间: ${new Date(expiresAt).toISOString()}`);
+        
+        // 发送短信验证码
+        const success = await sendSmsVerificationCode(phone, code);
+        
+        if (success) {
+          // 保存验证码到数据库
+          await userDB.updateSmsVerificationCode(phone, code, expiresAt);
+          
+          sendJson(res, 200, {
+            code: 0,
+            message: '验证码已发送，请注意查收',
+            data: {
+              phone: phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2') // 隐藏中间4位
+            }
+          });
+        } else {
+          sendJson(res, 500, {
+            code: 500,
+            message: '验证码发送失败，请稍后重试'
+          });
+        }
+      } catch (error) {
+        console.error('发送注册短信验证码失败:', error);
+        sendJson(res, 500, {
+          code: 500,
+          message: '验证码发送失败，请稍后重试'
+        });
+      }
+      return;
+    }
+
     // 发送短信验证码API
     if (req.method === 'POST' && path === '/api/auth/send-sms-code') {
       const b = await readBody(req);
@@ -2632,9 +2687,9 @@ async function route(req, res, u, path) {
           email: user.email,
           phone: user.phone || null,
           avatar_url: user.avatar_url || null,
-          interests: user.interests ? JSON.parse(user.interests) : null,
+          interests: typeof user.interests === 'string' ? JSON.parse(user.interests) : (user.interests || null),
           age: user.age || null,
-          tags: user.tags ? JSON.parse(user.tags) : null,
+          tags: typeof user.tags === 'string' ? JSON.parse(user.tags) : (user.tags || null),
           isAdmin: user.email === 'testuser789@example.com' || user.isAdmin
         },
         user: { // 保持向后兼容
@@ -2643,9 +2698,9 @@ async function route(req, res, u, path) {
           email: user.email,
           phone: user.phone || null,
           avatar_url: user.avatar_url || null,
-          interests: user.interests ? JSON.parse(user.interests) : null,
+          interests: typeof user.interests === 'string' ? JSON.parse(user.interests) : (user.interests || null),
           age: user.age || null,
-          tags: user.tags ? JSON.parse(user.tags) : null,
+          tags: typeof user.tags === 'string' ? JSON.parse(user.tags) : (user.tags || null),
           isAdmin: user.email === 'testuser789@example.com' || user.isAdmin
         }
       })

@@ -88,8 +88,8 @@ export default function Register() {
     
     setIsSendingCode(true);
     try {
-      // 调用发送验证码API
-      const response = await fetch('/api/auth/send-sms-code', {
+      // 调用发送验证码API (使用注册专用接口)
+      const response = await fetch('/api/auth/send-register-sms-code', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

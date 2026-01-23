@@ -40,6 +40,18 @@ if (typeof window !== 'undefined') {
   (window as any).lazilyLoaded = (window as any).lazilyLoaded || {};
 }
 
+if (import.meta.env.PROD && typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+  const key = 'sw_unregistered_once';
+  if (!sessionStorage.getItem(key)) {
+    navigator.serviceWorker.getRegistrations()
+      .then(regs => Promise.all(regs.map(r => r.unregister())))
+      .finally(() => {
+        sessionStorage.setItem(key, '1');
+        if (typeof location !== 'undefined' && location.reload) location.reload();
+      });
+  }
+}
+
 // 应用渲染
 const root = document.getElementById("root");
 if (root) {

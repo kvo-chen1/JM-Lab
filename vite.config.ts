@@ -67,6 +67,8 @@ export default defineConfig({
       exclude: [/node_modules/, /fallback\.jpg$/, /placeholder-image\.jpg$/]
     }),
     VitePWA({
+      injectRegister: false,
+      selfDestroying: true,
       registerType: 'autoUpdate',
       // Explicitly include static assets from public folder
       includeAssets: ['favicon.ico', 'robots.txt', 'icons/*.svg', 'images/*.svg'],

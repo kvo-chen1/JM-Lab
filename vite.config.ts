@@ -387,12 +387,10 @@ export default defineConfig({
             return 'vendor';
           }
           
-          // 处理 src 目录下的文件，避免使用绝对路径作为文件名
-          // 仅对动态导入的文件生效，静态导入的会被合并到 entry 或 vendor 中
-          if (id.includes('src')) {
-            // 获取文件名作为 chunk name
-            return path.basename(id, path.extname(id));
-          }
+          //   if (id.includes('src')) {
+          //     // 获取文件名作为 chunk name
+          //     return path.basename(id, path.extname(id));
+          //   }
         }
       },
       // 优化插件配置

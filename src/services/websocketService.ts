@@ -82,9 +82,15 @@ export class WebSocketService {
   private lastActivity: number = Date.now();
 
   constructor(config?: Partial<WebSocketConfig>) {
+    // 从环境变量获取WebSocket URL，支持开发和生产环境
+    const wsProtocol = import.meta.env.PROD ? 'wss:' : 'ws:';
+    const wsHost = import.meta.env.VITE_WEBSOCKET_HOST || 
+                   (import.meta.env.PROD ? window.location.host : 'localhost:3021');
+    const wsPath = import.meta.env.VITE_WEBSOCKET_PATH || '/ws';
+    
     // 默认配置
     this.config = {
-      url: `ws://localhost:3021/ws`,
+      url: `${wsProtocol}//${wsHost}${wsPath}`,
       reconnectAttempts: 5,
       reconnectDelay: 1000,
       maxReconnectDelay: 30000,

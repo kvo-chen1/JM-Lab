@@ -321,9 +321,14 @@ const debounceStore: Map<string, NodeJS.Timeout> = new Map()
 const throttleStore: Map<string, { lastRan: number; inThrottle: boolean }> = new Map()
 
 const getBaseUrl = () => {
+  // 从环境变量获取API base URL，支持开发和生产环境
   // 在开发环境下使用相对路径，让请求通过Vite代理
   // 在生产环境下可以配置为真实的API地址
-  return ''
+  if (import.meta.env.PROD) {
+    return import.meta.env.VITE_API_BASE_URL || '';
+  }
+  // 开发环境使用相对路径，通过Vite代理
+  return '';
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))

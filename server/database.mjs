@@ -1742,6 +1742,27 @@ export const friendDB = {
         db.prepare('INSERT INTO friend_requests (sender_id, receiver_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?)').run(senderId, receiverId, 'pending', now, now)
         return db.prepare('SELECT * FROM friend_requests WHERE sender_id = ? AND receiver_id = ?').get(senderId, receiverId)
 
+      case DB_TYPE.MEMORY: {
+        // Check if request already exists
+        const existingMem = memoryStore.friend_requests.find(r => r.sender_id === senderId && r.receiver_id === receiverId)
+        if (existingMem) return existingMem
+        
+        // Check if already friends
+        const friendMem = memoryStore.friends.find(f => f.user_id === senderId && f.friend_id === receiverId)
+        if (friendMem) throw new Error('ALREADY_FRIENDS')
+        
+        const newRequest = {
+          id: randomUUID(),
+          sender_id: senderId,
+          receiver_id: receiverId,
+          status: 'pending',
+          created_at: now,
+          updated_at: now
+        }
+        memoryStore.friend_requests.push(newRequest)
+        return newRequest
+      }
+
       case DB_TYPE.POSTGRESQL:
         // Check if request already exists
         const { rows: existingPg } = await db.query('SELECT * FROM friend_requests WHERE sender_id = $1 AND receiver_id = $2', [senderId, receiverId])
@@ -1785,6 +1806,25 @@ export const friendDB = {
         transaction()
         return true
         
+      case DB_TYPE.MEMORY:
+        const reqIndex = memoryStore.friend_requests.findIndex(r => r.id === requestId)
+        if (reqIndex === -1) throw new Error('REQUEST_NOT_FOUND')
+        const memRequest = memoryStore.friend_requests[reqIndex]
+        if (memRequest.status !== 'pending') throw new Error('INVALID_STATUS')
+        
+        // Update request status
+        memRequest.status = 'accepted'
+        memRequest.updated_at = now
+        
+        // Add to friends table (bidirectional)
+        if (!memoryStore.friends.some(f => f.user_id === memRequest.sender_id && f.friend_id === memRequest.receiver_id)) {
+          memoryStore.friends.push({ id: randomUUID(), user_id: memRequest.sender_id, friend_id: memRequest.receiver_id, created_at: now, updated_at: now })
+        }
+        if (!memoryStore.friends.some(f => f.user_id === memRequest.receiver_id && f.friend_id === memRequest.sender_id)) {
+          memoryStore.friends.push({ id: randomUUID(), user_id: memRequest.receiver_id, friend_id: memRequest.sender_id, created_at: now, updated_at: now })
+        }
+        return true
+
       case DB_TYPE.POSTGRESQL:
         const { rows: pgReqRows } = await db.query('SELECT * FROM friend_requests WHERE id = $1', [requestId])
         if (pgReqRows.length === 0) throw new Error('REQUEST_NOT_FOUND')
@@ -1816,6 +1856,13 @@ export const friendDB = {
       case DB_TYPE.SQLITE:
         db.prepare('UPDATE friend_requests SET status = ?, updated_at = ? WHERE id = ?').run('rejected', now, requestId)
         return true
+      case DB_TYPE.MEMORY:
+        const rejIndex = memoryStore.friend_requests.findIndex(r => r.id === requestId)
+        if (rejIndex !== -1) {
+          memoryStore.friend_requests[rejIndex].status = 'rejected'
+          memoryStore.friend_requests[rejIndex].updated_at = now
+        }
+        return true
       case DB_TYPE.POSTGRESQL:
         await db.query("UPDATE friend_requests SET status = 'rejected', updated_at = NOW() WHERE id = $1", [requestId])
         return true
@@ -1840,6 +1887,17 @@ export const friendDB = {
           ...r,
           sender: { id: r.sender_id, username: r.username, avatar_url: r.avatar_url }
         }))
+      case DB_TYPE.MEMORY:
+        return memoryStore.friend_requests
+          .filter(r => r.receiver_id === userId && r.status === 'pending')
+          .sort((a, b) => b.created_at - a.created_at)
+          .map(r => {
+            const sender = memoryStore.users.find(u => u.id === r.sender_id)
+            return {
+              ...r,
+              sender: sender ? { id: sender.id, username: sender.username, avatar_url: sender.avatar_url } : { id: r.sender_id, username: 'Unknown', avatar_url: null }
+            }
+          })
       case DB_TYPE.POSTGRESQL:
         const { rows: pgRequests } = await db.query(`
           SELECT fr.*, u.username, u.avatar_url 
@@ -1881,6 +1939,30 @@ export const friendDB = {
             last_seen: f.last_seen
           }
         }))
+      case DB_TYPE.MEMORY:
+        return memoryStore.friends
+          .filter(f => f.user_id === userId)
+          .map(f => {
+            const friend = memoryStore.users.find(u => u.id === f.friend_id)
+            const status = memoryStore.user_status.find(s => s.user_id === f.friend_id)
+            return {
+              ...f,
+              friend: {
+                id: f.friend_id,
+                username: friend ? friend.username : 'Unknown',
+                avatar_url: friend ? friend.avatar_url : null,
+                email: friend ? friend.email : null,
+                status: status ? status.status : 'offline',
+                last_seen: status ? status.last_seen : null
+              }
+            }
+          })
+          .sort((a, b) => {
+             const statusA = a.friend.status === 'online' ? 2 : (a.friend.status === 'away' ? 1 : 0)
+             const statusB = b.friend.status === 'online' ? 2 : (b.friend.status === 'away' ? 1 : 0)
+             if (statusA !== statusB) return statusB - statusA
+             return b.created_at - a.created_at
+          })
       case DB_TYPE.POSTGRESQL:
         const { rows: pgFriends } = await db.query(`
           SELECT f.*, u.username, u.avatar_url, u.email, s.status as online_status, s.last_seen
@@ -1913,6 +1995,11 @@ export const friendDB = {
       case DB_TYPE.SQLITE:
         db.prepare('DELETE FROM friends WHERE (user_id = ? AND friend_id = ?) OR (user_id = ? AND friend_id = ?)').run(userId, friendId, friendId, userId)
         return true
+      case DB_TYPE.MEMORY:
+        memoryStore.friends = memoryStore.friends.filter(f => 
+          !((f.user_id === userId && f.friend_id === friendId) || (f.user_id === friendId && f.friend_id === userId))
+        )
+        return true
       case DB_TYPE.POSTGRESQL:
         await db.query('DELETE FROM friends WHERE (user_id = $1 AND friend_id = $2) OR (user_id = $2 AND friend_id = $1)', [userId, friendId])
         return true
@@ -1927,6 +2014,12 @@ export const friendDB = {
     switch (typeKey) {
       case DB_TYPE.SQLITE:
         db.prepare('UPDATE friends SET user_note = ? WHERE user_id = ? AND friend_id = ?').run(note, userId, friendId)
+        return true
+      case DB_TYPE.MEMORY:
+        const friendEntry = memoryStore.friends.find(f => f.user_id === userId && f.friend_id === friendId)
+        if (friendEntry) {
+          friendEntry.user_note = note
+        }
         return true
       case DB_TYPE.POSTGRESQL:
         await db.query('UPDATE friends SET user_note = $1 WHERE user_id = $2 AND friend_id = $3', [note, userId, friendId])
@@ -1953,6 +2046,22 @@ export const friendDB = {
            const statusRow = db.prepare('SELECT status FROM user_status WHERE user_id = ?').get(u.id)
            return { ...u, status: statusRow ? statusRow.status : 'offline' }
         })
+      case DB_TYPE.MEMORY:
+        const lowerQuery = query.toLowerCase()
+        return memoryStore.users
+          .filter(u => (u.username.toLowerCase().includes(lowerQuery) || u.email.toLowerCase().includes(lowerQuery)) && u.id !== currentUserId)
+          .slice(0, 20)
+          .map(u => {
+             const status = memoryStore.user_status.find(s => s.user_id === u.id)
+             return {
+               id: u.id,
+               username: u.username,
+               email: u.email,
+               avatar_url: u.avatar_url,
+               phone: u.phone,
+               status: status ? status.status : 'offline'
+             }
+          })
       case DB_TYPE.POSTGRESQL:
         const { rows: pgSearchUsers } = await db.query(`
           SELECT u.id, u.username, u.email, u.avatar_url, u.phone, s.status
@@ -2066,6 +2175,14 @@ export const messageDB = {
           GROUP BY sender_id
         `).all(userId)
         return result
+      case DB_TYPE.MEMORY:
+        const counts = {}
+        memoryStore.messages.forEach(m => {
+          if (m.receiver_id === userId && !m.is_read) {
+            counts[m.sender_id] = (counts[m.sender_id] || 0) + 1
+          }
+        })
+        return Object.keys(counts).map(senderId => ({ sender_id: senderId, count: counts[senderId] }))
       case DB_TYPE.POSTGRESQL:
         const { rows: unreadRows } = await db.query(`
           SELECT sender_id, COUNT(*) as count 

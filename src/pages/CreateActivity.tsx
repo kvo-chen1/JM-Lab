@@ -703,7 +703,7 @@ export default function CreateActivity() {
           </div>
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-12 lg:grid-cols-12 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-12 lg:grid-cols-12 gap-6">
           {/* 左侧：步骤导航 (垂直时间轴样式) */}
           <div className="md:col-span-3 lg:col-span-2 xl:col-span-2 hidden md:block">
             <div className="sticky top-6">
@@ -767,8 +767,8 @@ export default function CreateActivity() {
             </div>
           </div>
           
-          {/* 中间：表单内容 */}
-          <div className="md:col-span-9 lg:col-span-7 xl:col-span-8">
+          {/* 中间：表单内容 - 调整列宽以适配三栏布局 (2+6+4=12) */}
+          <div className="md:col-span-9 lg:col-span-6 xl:col-span-6">
             {/* 移动端进度条 */}
             <div className="md:hidden mb-6 px-1">
               <div className="flex justify-between text-sm font-medium mb-2 text-gray-600 dark:text-gray-300">
@@ -1268,13 +1268,13 @@ export default function CreateActivity() {
             </div>
           </div>
           
-          {/* 右侧：实时预览 (手机模型) */}
-          <div className="md:col-span-12 lg:col-span-3 xl:col-span-2 hidden lg:block">
-            <div className="sticky top-6">
-               <h2 className="font-bold text-lg mb-4 text-center bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">实时预览</h2>
-               
-               {/* 手机外框 */}
-               <div className="relative mx-auto border-gray-800 dark:border-gray-700 bg-gray-800 border-[10px] rounded-[2.5rem] h-[600px] w-full max-w-[300px] shadow-2xl">
+          {/* 右侧：实时预览 (手机模型) - 占据4列，保持水平对齐 */}
+           <div className="md:col-span-12 lg:col-span-4 xl:col-span-4 hidden lg:block min-w-0">
+             <div className="sticky top-6">
+                <h2 className="font-bold text-lg mb-4 text-center bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">实时预览</h2>
+                
+                {/* 手机外框 */}
+                <div className="relative mx-auto border-gray-800 dark:border-gray-700 bg-gray-800 border-[10px] rounded-[2.5rem] h-[640px] w-full max-w-[340px] shadow-2xl">
                  <div className="h-[32px] w-[3px] bg-gray-800 absolute -left-[13px] top-[72px] rounded-l-lg"></div>
                  <div className="h-[46px] w-[3px] bg-gray-800 absolute -left-[13px] top-[124px] rounded-l-lg"></div>
                  <div className="h-[46px] w-[3px] bg-gray-800 absolute -left-[13px] top-[178px] rounded-l-lg"></div>

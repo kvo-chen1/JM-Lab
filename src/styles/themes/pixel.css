@@ -110,59 +110,89 @@
 
 /* --- 侧边栏强制暗黑覆盖 (Sidebar Override) --- */
 .pixel aside {
-  background-color: #050505 !important;
+  /* 使用深色带噪点纹理的背景，而非纯黑，增加质感 */
+  background-color: #0d1117 !important;
   border-right: 1px solid var(--border-primary) !important;
+  /* 添加微弱的右侧光晕，增加立体感 */
+  box-shadow: 2px 0 10px rgba(0, 0, 0, 0.5) !important;
 }
 
-/* 提高侧边栏默认文本对比度，从淡紫灰(--text-secondary)改为更亮的颜色 */
-.pixel aside * {
-  color: #c0c0e0 !important; 
-  text-shadow: 1px 1px 0 #000; /* 增加文字阴影提升辨识度 */
+/* 侧边栏分组标题 */
+.pixel aside h3 {
+  color: #606080 !important;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  font-size: 0.75rem !important;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+  padding-left: 0.5rem;
+  border-left: 2px solid var(--border-primary);
+  text-shadow: none !important;
+}
+
+/* 侧边栏分组容器背景优化 - 去除之前的灰色块，改用透明或极淡的背景 */
+.pixel aside nav > div {
+  background-color: transparent !important;
+  border: none !important;
+  margin-bottom: 0.5rem;
+  padding: 0 !important;
+}
+
+/* 提高侧边栏默认文本对比度 */
+.pixel aside a, .pixel aside button {
+  color: #8b949e !important;
+  transition: all 0.2s ease !important;
+  border-radius: 0 !important;
+  margin: 2px 0;
+  border: 1px solid transparent; /* 预留边框位置避免抖动 */
 }
 
 /* 侧边栏链接悬停状态 */
 .pixel aside button:hover,
 .pixel aside a:hover,
 .pixel aside div[role="button"]:hover {
-  background-color: var(--bg-hover) !important;
-  color: var(--color-primary) !important;
-  box-shadow: inset 2px 0 0 var(--color-primary); /* 左侧增加青色指示条 */
-  padding-left: 14px !important; /* 配合指示条增加内边距，产生位移感 */
-  transition: all 0.1s steps(2); /* 像素风阶跃动画 */
+  background-color: #161b22 !important;
+  color: #fff !important;
+  border-color: var(--border-primary);
+  box-shadow: none !important; /* 移除之前的左侧指示条 */
+  padding-left: 12px !important; /* 保持原位或微小位移 */
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
 }
 
-/* 侧边栏选中项高亮增强 */
+/* 侧边栏选中项高亮增强 - 设计感升级 */
 .pixel aside .active-nav-item,
 .pixel aside .active-nav-item * {
-  color: #fff !important; /* 选中项文字纯白 */
-  text-shadow: 0 0 5px var(--color-primary), 2px 2px 0 #000; /* 强发光 + 硬阴影 */
-  background: linear-gradient(90deg, rgba(0, 229, 255, 0.15), transparent) !important;
-  border-right: none !important; /* 移除之前的右边框 */
-  box-shadow: inset 4px 0 0 var(--color-primary); /* 左侧加粗青色指示条 */
+  color: #fff !important;
+  background-color: #1f6feb !important; /* 经典的 GitHub/VSCode 选中蓝，更高级 */
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 0 0 1px #000, 4px 4px 0 rgba(0, 0, 0, 0.5) !important; /* 像素立体投影 */
   font-weight: bold;
-  letter-spacing: 1px; /* 增加字间距 */
+  transform: translate(-2px, -2px); /* 选中时浮起 */
+  text-shadow: none !important;
 }
 
 /* 侧边栏图标颜色 */
 .pixel aside i, 
 .pixel aside svg {
-  color: var(--text-secondary) !important;
-  opacity: 0.8;
+  color: inherit !important;
+  opacity: 0.7;
 }
 
 .pixel aside .active-nav-item i,
 .pixel aside .active-nav-item svg {
-  color: var(--color-primary) !important;
   opacity: 1;
-  filter: drop-shadow(0 0 2px var(--color-primary));
+  filter: none !important;
 }
 
 /* 侧边栏Logo区域增强 */
 .pixel aside .logo-area,
 .pixel aside h1 {
-  color: var(--color-primary) !important;
-  text-shadow: 2px 2px 0 #FF00AA; /* 青色文字配品红阴影，赛博撞色 */
-  font-size: 1.2em;
+  background: linear-gradient(90deg, #fff, #ccc);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: none !important;
+  font-size: 1.4em;
+  letter-spacing: -1px;
 }
 
 /* 头部强制覆盖 */
@@ -226,16 +256,49 @@
   animation: glitch-skew 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94) both infinite;
 }
 
-/* 2. 卡片 (Cards) */
-.pixel .card, 
-.pixel section.rounded-xl, 
-.pixel article.rounded-xl,
-.pixel div.bg-white,
-.pixel div.bg-gray-800 {
-  background: var(--bg-secondary) !important;
+/* 菜单、下拉框等浮动面板覆盖 */
+.pixel [role="menu"],
+.pixel [role="dialog"],
+.pixel .absolute.shadow-lg,
+.pixel .absolute.rounded-xl {
+  background-color: var(--bg-secondary) !important;
   border: 1px solid var(--border-primary) !important;
   box-shadow: var(--shadow-md) !important;
-  position: relative;
+  border-radius: 0 !important;
+}
+
+/* 下拉菜单项样式 */
+.pixel [role="menuitem"],
+.pixel [role="menu"] button,
+.pixel [role="menu"] a,
+.pixel ul button {
+  border-radius: 0 !important;
+  color: var(--text-secondary) !important;
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.pixel [role="menuitem"]:hover,
+.pixel [role="menu"] button:hover,
+.pixel [role="menu"] a:hover,
+.pixel ul button:hover {
+  background-color: var(--bg-hover) !important;
+  color: var(--color-primary) !important;
+  padding-left: 20px !important; /* 悬停位移 */
+  transition: all 0.1s steps(2);
+}
+
+/* 移除菜单项的圆角和多余边框 */
+.pixel .rounded-xl,
+.pixel .rounded-lg,
+.pixel .rounded-md,
+.pixel .rounded {
+  border-radius: 0 !important;
+}
+
+/* 修正头像圆形为方形 */
+.pixel .rounded-full {
+  border-radius: 0 !important;
+  border: 1px solid var(--border-primary);
 }
 
 /* 卡片内斜面效果 */

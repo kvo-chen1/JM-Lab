@@ -223,14 +223,14 @@ export const AVAILABLE_MODELS: LLMModel[] = [
     name: 'Kimi',
     description: 'Kimi（Moonshot AI），擅长中文长文创作与协作',
     strengths: ['中文对话', '长上下文写作', '检索增强'],
-    isDefault: true
+    isDefault: false
   },
   {
     id: 'qwen',
     name: '通义千问',
     description: '阿里云DashScope，中文对话与综合任务表现优秀，支持图像生成',
     strengths: ['中文对话', '综合任务', '工具调用', '图像生成', '语音合成'],
-    isDefault: false
+    isDefault: true
   }
 ];
 
@@ -246,6 +246,7 @@ export const DEFAULT_ROLES: ModelRole[] = [
     presence_penalty: 0,
     frequency_penalty: 0,
     is_default: true,
+    preferredModel: 'qwen', // 津小脉默认使用通义千问
     created_at: Date.now(),
     updated_at: Date.now(),
     tags: ['默认', '创意', '帮助']
@@ -512,6 +513,15 @@ class LLMService {
    * 从localStorage加载保存的当前模型
    */
   private loadCurrentModelFromStorage(): void {
+    // 优先检查当前角色的偏好
+    if (this.currentRole && this.currentRole.preferredModel) {
+       const modelExists = AVAILABLE_MODELS.some(m => m.id === this.currentRole.preferredModel);
+       if (modelExists) {
+         this.setCurrentModel(this.currentRole.preferredModel, true);
+         return;
+       }
+    }
+
     try {
       const savedModelId = localStorage.getItem('LLM_CURRENT_MODEL');
       let modelIdToUse = savedModelId;
@@ -803,6 +813,12 @@ class LLMService {
           roleMap.set(role.id, role);
         });
         
+        // 修复：确保默认角色使用通义千问（如果用户本地存储的是旧配置）
+        const defaultRole = roleMap.get('default');
+        if (defaultRole && (defaultRole.preferredModel === 'kimi' || !defaultRole.preferredModel)) {
+          defaultRole.preferredModel = 'qwen';
+        }
+
         this.roles = Array.from(roleMap.values());
       }
       
@@ -1382,6 +1398,23 @@ class LLMService {
       
       // 触发角色切换事件
       this.emitRoleChangeEvent(roleId);
+
+      // 如果角色有偏好的模型，自动切换模型
+      if (role.preferredModel) {
+        // 检查模型是否可用
+        const modelExists = AVAILABLE_MODELS.some(m => m.id === role.preferredModel);
+        if (modelExists) {
+          console.log(`[LLM] Switching to preferred model ${role.preferredModel} for role ${role.name}`);
+          this.setCurrentModel(role.preferredModel, true);
+        }
+      } else {
+        // 如果没有偏好，切换到全局默认模型
+        const defaultModel = AVAILABLE_MODELS.find(m => m.isDefault) || AVAILABLE_MODELS[0];
+        if (defaultModel && defaultModel.id !== this.currentModel.id) {
+           console.log(`[LLM] Switching to default model ${defaultModel.id} for role ${role.name}`);
+           this.setCurrentModel(defaultModel.id, true);
+        }
+      }
     }
   }
   

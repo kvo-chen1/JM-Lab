@@ -1117,7 +1117,11 @@ async function route(req, res, u, path) {
     // 处理通义千问模型的聊天补全请求
     if (req.method === 'POST' && (path === '/api/dashscope/chat/completions' || path === '/api/qwen/chat/completions')) {
       // 从环境变量获取API密钥，不需要用户输入
-      const authKey = process.env.DASHSCOPE_API_KEY || process.env.VITE_QWEN_API_KEY || ''
+      let authKey = process.env.DASHSCOPE_API_KEY || process.env.VITE_QWEN_API_KEY || ''
+      authKey = authKey.trim();
+      
+      console.log(`[Qwen] Request received. Key configured: ${!!authKey}, Key length: ${authKey.length}`);
+
       if (!authKey) { 
         console.error('[Qwen] API Key missing. Checked DASHSCOPE_API_KEY and VITE_QWEN_API_KEY.');
         sendJson(res, 503, { error: 'API_KEY_NOT_CONFIGURED', message: 'Qwen/DashScope API Key is missing. Please set DASHSCOPE_API_KEY or VITE_QWEN_API_KEY in Vercel Settings.' }); 
@@ -1125,6 +1129,8 @@ async function route(req, res, u, path) {
       }
       
       const b = await readBody(req)
+      console.log(`[Qwen] Model requested: ${b.model || DASHSCOPE_MODEL_ID}`);
+      
       // 转换为DashScope API期望的格式
       const payload = {
         model: b.model || DASHSCOPE_MODEL_ID,
@@ -1136,8 +1142,19 @@ async function route(req, res, u, path) {
       }
       // 通义千问API使用标准的OpenAI兼容路径格式
       const r = await dashscopeFetch('/chat/completions', 'POST', payload, authKey, res)
-      if (r.isStream) return
-      if (!r.ok) { sendJson(res, r.status, { error: (r.data?.code) || (r.data?.message) || 'SERVER_ERROR', data: r.data }); return }
+      
+      if (r.isStream) {
+         console.log('[Qwen] Stream started successfully');
+         return
+      }
+      
+      if (!r.ok) { 
+          console.error('[Qwen] Upstream API Error:', r.status, JSON.stringify(r.data));
+          sendJson(res, r.status, { error: (r.data?.code) || (r.data?.message) || 'SERVER_ERROR', data: r.data }); 
+          return 
+      }
+      
+      console.log('[Qwen] Response received successfully');
       sendJson(res, 200, { ok: true, data: r.data })
       return
     }

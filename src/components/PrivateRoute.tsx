@@ -16,7 +16,10 @@ const PrivateRoute = memo(({ component: Component, children }: PrivateRouteProps
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-lg text-gray-600 dark:text-gray-400">正在检查认证状态...</p>
+        </div>
       </div>
     );
   }
@@ -26,9 +29,9 @@ const PrivateRoute = memo(({ component: Component, children }: PrivateRouteProps
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
   
-  // 如果isAuthenticated为undefined（理论上不会发生，因为isLoading处理了初始状态），返回null
+  // 修复：如果isAuthenticated为undefined，也重定向到登录页面，而不是返回null
   if (isAuthenticated === undefined) {
-    return null;
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
   
   // 如果有children，直接返回children，用于支持懒加载组件

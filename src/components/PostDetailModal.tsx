@@ -4,6 +4,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { Post } from '@/services/postService';
 import { TianjinAvatar, TianjinButton, TianjinImage } from '@/components/TianjinStyleComponents';
 import LazyImage from './LazyImage';
+import { toast } from 'sonner';
 
 interface PostDetailModalProps {
   post: Post | null;
@@ -55,6 +56,11 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
     if (post && commentText.trim()) {
       onComment(post.id, commentText);
       setCommentText('');
+      // 评论成功反馈
+      toast.success('评论发送成功！', {
+        duration: 2000,
+        position: 'top-center',
+      });
     }
   };
 
@@ -126,16 +132,11 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
                   />
                   
                   {/* Main Image */}
-                  <div className={`relative z-10 w-full h-full p-4 flex items-center justify-center transition-all duration-300 ${isImageFull ? 'p-0' : ''}`}>
-                    <LazyImage 
-                      src={post.thumbnail} 
-                      alt={post.title} 
-                      className={`max-w-full max-h-full object-contain shadow-2xl transition-transform duration-300 ${isImageFull ? 'scale-100' : 'group-hover:scale-[1.02]'}`}
-                      fallbackSrc="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDIwMCAyMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxjaXJjbGUgY3g9IjEwMCIgY3k9IjEwMCIgcj0iMTAwIiBmaWxsPSIjZmZmZmZmIi8+CjxjaXJjbGUgY3g9IjEwMCIgY3k9IjEwMCIgcj0iNzAiIGZpbGw9IiM2NjY2NjYiLz4KPHN2ZyB4PSI3MCIgeT0iNzAiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgZmlsbD0ibm9uZSI+CjxyZWN0IHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgZmlsbD0id2hpdGUiLz4KPHJlY3QgeD0iODAiIHk9IjgwIiB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIGZpbGw9IiNkY2RjZGMiLz4KPHJlY3QgeD0iOTAuNSIgeT0iOTEiIHdpZHRoPSIxOSIgaGVpZ2h0PSIxOCIgc3Ryb2tlPSIjNzc3Nzc3IiBzdHJva2Utb3BhY2l0eT0iMC41IiBzdHJva2Utd2lkdGg9IjIiLz4KPC9zdmc+Cjwvc3ZnPg==" 
-                      placeholder="skeleton" 
-                      disableFallback={false} 
-                    />
-                  </div>
+                  <img 
+                    src={post.thumbnail} 
+                    alt={post.title} 
+                    className={`absolute inset-0 w-full h-full object-cover shadow-2xl transition-transform duration-300 ${isImageFull ? 'scale-100' : 'group-hover:scale-[1.02]'}`}
+                  />
 
                   {/* Image Controls */}
                   <div className="absolute top-4 right-4 z-20 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -248,35 +249,60 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
                      <div className={`h-px w-full my-4 ${isDark ? 'bg-gray-800' : 'bg-gray-100'}`}></div>
 
                      {/* Comments Section */}
-                     <div>
-                        <h3 className="text-sm font-bold mb-4 flex items-center gap-2">
-                           评论 <span className="opacity-50 font-normal">{post.comments.length}</span>
-                        </h3>
+                     <div className="mt-8">
+                        <div className="flex items-center justify-between mb-6">
+                           <h3 className="text-lg font-bold flex items-center gap-2">
+                              <i className="far fa-comment text-blue-500"></i>
+                              评论 
+                              <span className="bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-xs font-medium px-2.5 py-0.5 rounded-full">
+                                {post.comments.length}
+                              </span>
+                           </h3>
+                        </div>
                         
                         {post.comments.length === 0 ? (
-                           <div className="text-center py-8 opacity-50 text-sm">
-                              <i className="far fa-comment-dots text-2xl mb-2"></i>
-                              <p>暂无评论，快来抢沙发~</p>
+                           <div className="flex flex-col items-center justify-center py-10 text-center bg-gray-50 dark:bg-gray-800/50 rounded-xl">
+                              <i className="far fa-comment-dots text-3xl mb-3 text-gray-400 dark:text-gray-500"></i>
+                              <h4 className="text-sm font-medium mb-1">暂无评论</h4>
+                              <p className="text-xs opacity-60 max-w-xs">快来发表第一条评论，分享你的想法吧~</p>
+                              <button 
+                                className="mt-4 px-4 py-2 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors" 
+                                onClick={() => commentInputRef.current?.focus()}
+                              >
+                                发表评论
+                              </button>
                            </div>
                         ) : (
-                           <div className="space-y-4">
+                           <div className="space-y-5">
                               {post.comments.map(comment => (
-                                 <div key={comment.id} className="flex gap-3">
+                                 <div key={comment.id} className="flex gap-3 pb-4 border-b last:border-b-0 last:pb-0 border-gray-100 dark:border-gray-800">
                                     <TianjinAvatar 
                                        src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${comment.id}`} 
                                        alt={`用户${comment.id.slice(-4)}`} 
-                                       size="xs" 
+                                       size="sm" 
+                                       variant="gradient"
                                     />
                                     <div className="flex-1">
-                                       <div className={`text-xs font-bold mb-0.5 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                                          用户{comment.id.slice(-4)}
+                                       <div className="flex items-center justify-between mb-1">
+                                          <div className={`text-sm font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                                             用户{comment.id.slice(-4)}
+                                          </div>
+                                          <div className="text-xs text-gray-500 dark:text-gray-400">
+                                             {new Date(comment.date).toLocaleString()}
+                                          </div>
                                        </div>
-                                       <div className={`text-sm mb-1 ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                                       <div className={`text-sm mb-2 leading-relaxed ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                                           {comment.content}
                                        </div>
-                                       <div className="flex items-center gap-3 text-[10px] opacity-50">
-                                          <span>{new Date(comment.date).toLocaleString()}</span>
-                                          <button className="hover:text-blue-500">回复</button>
+                                       <div className="flex items-center gap-4 text-xs opacity-60">
+                                          <button className="hover:text-blue-500 transition-colors flex items-center gap-1">
+                                            <i className="far fa-comment"></i>
+                                            回复
+                                          </button>
+                                          <button className="hover:text-red-500 transition-colors flex items-center gap-1">
+                                            <i className="far fa-heart"></i>
+                                            点赞
+                                          </button>
                                        </div>
                                     </div>
                                  </div>
@@ -288,30 +314,30 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
 
                   {/* Footer Action Bar */}
                   <div className={`p-4 border-t ${isDark ? 'border-gray-800 bg-gray-900' : 'border-gray-100 bg-white'}`}>
-                     <div className="flex items-center gap-3 mb-3">
-                        <div className={`flex-1 flex items-center gap-2 px-3 py-2 rounded-full border transition-colors ${
-                           isDark 
-                             ? 'bg-gray-800 border-gray-700 focus-within:border-gray-600' 
-                             : 'bg-gray-50 border-gray-200 focus-within:border-gray-300'
-                        }`}>
-                           <i className="far fa-edit opacity-50 ml-1"></i>
+                     <div className="flex items-center gap-3 mb-2">
+                        <div className={`flex-1 flex items-center gap-2 px-4 py-3 rounded-full border transition-all duration-200 ${isDark ? 'bg-gray-800 border-gray-700 focus-within:border-blue-500 focus-within:bg-gray-750' : 'bg-gray-50 border-gray-200 focus-within:border-blue-500 focus-within:bg-white'}`}>
+                           <i className="far fa-comment opacity-50 ml-0 text-sm"></i>
                            <input 
                              ref={commentInputRef}
                              value={commentText}
                              onChange={(e) => setCommentText(e.target.value)}
                              onKeyDown={handleKeyDown}
-                             placeholder="说点什么..."
-                             className="flex-1 bg-transparent border-none outline-none text-sm"
+                             placeholder="分享你的想法..."
+                             className="flex-1 bg-transparent border-none outline-none text-sm placeholder-opacity-50"
+                             maxLength={200}
                            />
                            {commentText.trim() && (
                               <button 
                                 onClick={handleSendComment}
-                                className="text-blue-500 font-bold text-xs px-2 animate-fadeIn"
+                                className="text-white bg-blue-500 hover:bg-blue-600 font-bold text-xs px-3 py-1.5 rounded-full transition-all duration-200 shadow-sm hover:shadow"
                               >
                                 发送
                               </button>
                            )}
                         </div>
+                     </div>
+                     <div className="text-xs text-right opacity-50 mb-1">
+                       {commentText.length}/200
                      </div>
                      <div className="flex items-center justify-between">
                         <div className="flex gap-4">

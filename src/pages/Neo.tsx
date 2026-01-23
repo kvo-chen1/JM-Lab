@@ -7,10 +7,9 @@ import voiceService from '@/services/voiceService'
 import { TianjinImage } from '@/components/TianjinStyleComponents'
 import { toast } from 'sonner'
 import errorService from '@/services/errorService'
-import doubao from '@/services/doubao'
-import { createVideoTask, pollVideoTask } from '@/services/doubao'
-import type { DoubaoVideoContent } from '@/services/doubao'
 import GradientHero from '@/components/GradientHero'
+import NeoLeftSidebar from '@/components/NeoLeftSidebar'
+import NeoRightSidebar from '@/components/NeoRightSidebar'
 
 const BRAND_STORIES: Record<string, string> = {
   mahua: '始于清末，以多褶形态与香酥口感著称，传统工艺要求条条分明，不含水分。',
@@ -1366,8 +1365,58 @@ export default function Neo() {
     }
   }
 
+  // 侧边栏折叠状态管理
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  
+  // 设置管理
+  const [settings, setSettings] = useState(() => {
+    try {
+      const saved = localStorage.getItem('NEO_SETTINGS');
+      return saved ? JSON.parse(saved) : {
+        rightSidebarVisible: true,
+        sidebarCollapsed: false
+      };
+    } catch {
+      return {
+        rightSidebarVisible: true,
+        sidebarCollapsed: false
+      };
+    }
+  });
+  
+  // 右侧边栏显示状态管理
+  const [rightSidebarVisible, setRightSidebarVisible] = useState(settings.rightSidebarVisible);
+  
+  // 保存设置到localStorage
+  const saveSettings = (newSettings: Partial<typeof settings>) => {
+    const updated = { ...settings, ...newSettings };
+    setSettings(updated);
+    try {
+      localStorage.setItem('NEO_SETTINGS', JSON.stringify(updated));
+    } catch {
+      // 保存失败时忽略
+    }
+  };
+  
+  // 移动端适配状态管理
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mobileInfoSidebarOpen, setMobileInfoSidebarOpen] = useState(false);
+
   return (
-    <div className={`flex flex-col h-full ${isDark ? 'bg-gray-950 text-white' : 'bg-gray-50 text-gray-900'}`}>
+    <div 
+      className={`flex flex-col h-full ${isDark ? 'bg-gray-950 text-white' : 'bg-gray-50 text-gray-900'}`}
+      style={{
+        '--primary-color': isDark ? '#ef4444' : '#ef4444',
+        '--secondary-color': isDark ? '#f97316' : '#f97316',
+        '--accent-color': isDark ? '#3b82f6' : '#3b82f6',
+        '--background-color': isDark ? '#0f172a' : '#f9fafb',
+        '--card-background': isDark ? '#1e293b' : '#ffffff',
+        '--border-color': isDark ? '#334155' : '#e5e7eb',
+        '--text-primary': isDark ? '#f8fafc' : '#1e293b',
+        '--text-secondary': isDark ? '#94a3b8' : '#64748b',
+        '--shadow-color': isDark ? 'rgba(0, 0, 0, 0.5)' : 'rgba(0, 0, 0, 0.1)'
+      } as React.CSSProperties}
+    >
       
       {/* Hero Section */}
       {!isEmbedded && (
@@ -1387,39 +1436,98 @@ export default function Neo() {
               ]}
               pattern={true}
               size="lg"
+              backgroundImage="https://picsum.photos/seed/neo/1920/1080"
             />
           </div>
         </div>
       )}
 
-      <div className={`max-w-7xl mx-auto ${isEmbedded ? 'p-6' : 'px-6 pb-12'}`}>
-        
-        {/* Top Header for Embedded */}
-        {isEmbedded && (
-           <div className="flex items-center justify-between mb-8">
-              <div>
-                <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-red-600 to-amber-600">
-                  津门 · 灵感引擎
-                </h1>
-                <p className={`text-sm mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                  面向传统文化创新的AI创作助手
-                </p>
-              </div>
-              <div className="flex gap-3">
-                 <div className={`flex p-1 rounded-lg ${isDark ? 'bg-gray-800' : 'bg-gray-200'}`}>
-                    <button onClick={() => setEngine('sdxl')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${engine==='sdxl' ? 'bg-white text-red-600 shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}>SDXL绘画</button>
-                    <button onClick={() => setEngine('qwen')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${engine==='qwen' ? 'bg-white text-red-600 shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}>通义千问</button>
-                 </div>
-              </div>
-           </div>
-        )}
+      {/* 移动端头部 */}
+      <div className="md:hidden h-16 flex items-center justify-between px-4 border-b z-50 sticky top-0 ${isDark ? 'bg-gray-900 border-gray-800 text-white' : 'bg-white border-gray-200 text-gray-900'} shadow-sm">
+        <div className="flex items-center gap-3">
+          <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-2 -ml-2 rounded-lg hover:bg-gray-200/20 dark:hover:bg-gray-800/50 transition-colors">
+            <i className={`fas ${mobileMenuOpen ? 'fa-times' : 'fa-bars'} text-lg`}></i>
+          </button>
+          <span className="font-bold text-base">津门灵感引擎</span>
+        </div>
+        <div className="flex items-center gap-3">
+          <button className="p-2 rounded-lg hover:bg-gray-200/20 dark:hover:bg-gray-800/50 transition-colors">
+            <i className="fas fa-search text-base"></i>
+          </button>
+          {/* 移动端信息侧边栏切换按钮 */}
+          <button onClick={() => setMobileInfoSidebarOpen(!mobileInfoSidebarOpen)} className="p-2 rounded-lg hover:bg-gray-200/20 dark:hover:bg-gray-800/50 transition-colors">
+            <i className="fas fa-info-circle text-base"></i>
+          </button>
+        </div>
+      </div>
+      
+      {/* 移动端侧边栏遮罩 */}
+      {mobileMenuOpen && (
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={() => setMobileMenuOpen(false)}
+          className="md:hidden fixed inset-0 bg-black/50 z-40"
+        />
+      )}
+      {mobileInfoSidebarOpen && (
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={() => setMobileInfoSidebarOpen(false)}
+          className="md:hidden fixed inset-0 bg-black/50 z-40"
+        />
+      )}
+      
+      {/* 三栏布局容器 */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* 左侧栏 */}
+        <aside className={`${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'} border-r transition-all duration-300 h-full overflow-y-auto shadow-lg ${sidebarCollapsed ? 'w-20' : 'w-72'} hidden lg:block`}>
+          <NeoLeftSidebar
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            collapsed={sidebarCollapsed}
+            onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+            rightSidebarVisible={rightSidebarVisible}
+            onToggleRightSidebar={() => {
+              const newVisible = !rightSidebarVisible;
+              setRightSidebarVisible(newVisible);
+              saveSettings({ rightSidebarVisible: newVisible });
+            }}
+          />
+        </aside>
 
-        <div ref={engineCardRef} className={`rounded-2xl shadow-sm ${isDark ? 'bg-gray-800' : 'bg-white'} border ${isDark ? 'border-gray-700' : 'border-gray-200'} p-6 transition-all duration-300 min-h-[600px]`}>
+        {/* 中间内容区 */}
+        <main className={`flex-1 overflow-y-auto transition-all duration-300 ${isDark ? 'bg-gray-950 text-white' : 'bg-gray-50 text-gray-900'} relative min-w-0 px-4`}>
+              {/* Top Header for Embedded */}
+              {isEmbedded && (
+                 <div className="flex items-center justify-between mb-8">
+                    <div>
+                      <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-red-600 to-amber-600">
+                        津门 · 灵感引擎
+                      </h1>
+                      <p className={`text-sm mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        面向传统文化创新的AI创作助手
+                      </p>
+                    </div>
+                    <div className="flex gap-3">
+                       <div className={`flex p-1 rounded-lg ${isDark ? 'bg-gray-800' : 'bg-gray-200'}`}>
+                          <button onClick={() => setEngine('sdxl')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${engine==='sdxl' ? 'bg-white text-red-600 shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}>SDXL绘画</button>
+                          <button onClick={() => setEngine('qwen')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${engine==='qwen' ? 'bg-white text-red-600 shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}>通义千问</button>
+                       </div>
+                    </div>
+                 </div>
+              )}
+
+              <div className="p-6 transition-all duration-300">
+              <div className={`rounded-2xl shadow-sm ${isDark ? 'bg-gray-800' : 'bg-white'} border ${isDark ? 'border-gray-700' : 'border-gray-200'} p-6 transition-all duration-300 min-h-[600px]`}>
            {/* Tab Navigation */}
            <div className="flex border-b border-gray-200 dark:border-gray-700 mb-6">
-              <button onClick={() => setActiveTab('create')} className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'create' ? 'border-red-600 text-red-600' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 hover:dark:text-gray-200'}`}>灵感创作</button>
-              <button onClick={() => setActiveTab('results')} className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'results' ? 'border-red-600 text-red-600' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 hover:dark:text-gray-200'}`}>生成结果</button>
-              <button onClick={() => setActiveTab('history')} className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'history' ? 'border-red-600 text-red-600' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 hover:dark:text-gray-200'}`}>历史记录</button>
+              <button onClick={() => setActiveTab('create')} className={`px-4 py-3 text-sm font-medium border-b-2 transition-all duration-300 ${activeTab === 'create' ? 'border-red-600 text-red-600' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 hover:dark:text-gray-200'}`}>灵感创作</button>
+              <button onClick={() => setActiveTab('results')} className={`px-4 py-3 text-sm font-medium border-b-2 transition-all duration-300 ${activeTab === 'results' ? 'border-red-600 text-red-600' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 hover:dark:text-gray-200'}`}>生成结果</button>
+              <button onClick={() => setActiveTab('history')} className={`px-4 py-3 text-sm font-medium border-b-2 transition-all duration-300 ${activeTab === 'history' ? 'border-red-600 text-red-600' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 hover:dark:text-gray-200'}`}>历史记录</button>
            </div>
             
             {activeTab === 'create' && (
@@ -1482,7 +1590,7 @@ export default function Neo() {
                 {/* Brand & Tags Card */}
                 <div className={`p-5 rounded-2xl border ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} shadow-sm space-y-6`}>
               <div>
-                <label className="text-sm mb-2 block">选择品牌</label>
+                <label className="text-sm font-medium mb-2 block ${isDark ? 'text-gray-300' : 'text-gray-700'}">选择品牌</label>
                 <select
                   value={useCustomBrand ? 'custom' : brand}
                   onChange={(e) => {
@@ -2300,8 +2408,37 @@ export default function Neo() {
           </div>
           )}
 
-          </div> {/* Close engineCardRef */}
-      </div>
+          </div> {/* Close content card */}
+        </div> {/* Close p-6 container */}
+        </main>
+        
+        {/* 右侧边栏 */}
+        {rightSidebarVisible && (
+          <aside className="hidden lg:block w-72">
+            <NeoRightSidebar
+              brand={brand}
+              story={story}
+              aiDirections={aiDirections}
+              isGenerating={isGenerating}
+              generationStatus={generationStatus}
+              progress={progress}
+              showOutput={showOutput}
+            />
+          </aside>
+        )}
+        
+        {/* 移动端右侧边栏 */}
+        <div className={`fixed inset-y-0 right-0 top-16 z-50 transform transition-transform duration-300 ease-in-out md:transform-none md:hidden ${mobileInfoSidebarOpen ? 'translate-x-0' : 'translate-x-full'}`} style={{ width: '90vw', maxWidth: '400px' }}>
+          <NeoRightSidebar
+            brand={brand}
+            story={story}
+            aiDirections={aiDirections}
+            isGenerating={isGenerating}
+            generationStatus={generationStatus}
+            progress={progress}
+            showOutput={showOutput}
+          />
+        </div>
 
 
       {/* 风格预设模态框 */}
@@ -2713,19 +2850,23 @@ export default function Neo() {
           </div>
         </div>
       )}
-      
-      {!isEmbedded && (
-        <footer className={`border-t ${isDark ? 'border-gray-800 bg-gray-900' : 'border-gray-200 bg-white'} py-6 px-4 z-10 relative`}>
-          <div className="container mx-auto flex justify-between items-center">
-            <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>© 2025 AI共创平台. 保留所有权利</p>
-            <div className="flex space-x-6">
-              <a href="/privacy" className={`text-sm ${isDark ? 'text-gray-400 hover:text-gray-300' : 'text-gray-600 hover:text-gray-900'} transition-colors`}>隐私政策</a>
-              <a href="/terms" className={`text-sm ${isDark ? 'text-gray-400 hover:text-gray-300' : 'text-gray-600 hover:text-gray-900'} transition-colors`}>服务条款</a>
-              <a href="/help" className={`text-sm ${isDark ? 'text-gray-400 hover:text-gray-300' : 'text-gray-600 hover:text-gray-900'} transition-colors`}>帮助中心</a>
-            </div>
-          </div>
-        </footer>
-      )}
-    </div>
-  )
+    
+
+  </div>
+  
+  {/* Footer */}
+  {!isEmbedded && (
+    <footer className={`border-t ${isDark ? 'border-gray-800 bg-gray-900' : 'border-gray-200 bg-white'} py-6 px-4 z-10 relative`}>
+      <div className="container mx-auto flex justify-between items-center">
+        <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>© 2025 AI共创平 台. 保留所有权利</p>
+        <div className="flex space-x-6">
+          <a href="/privacy" className={`text-sm ${isDark ? 'text-gray-400 hover:text-gray-300' : 'text-gray-600 hover:text-gray-900'} transition-colors`}>隐私政策</a>
+          <a href="/terms" className={`text-sm ${isDark ? 'text-gray-400 hover:text-gray-300' : 'text-gray-600 hover:text-gray-900'} transition-colors`}>服务条款</a>
+          <a href="/help" className={`text-sm ${isDark ? 'text-gray-400 hover:text-gray-300' : 'text-gray-600 hover:text-gray-900'} transition-colors`}>帮助中心</a>
+        </div>
+      </div>
+    </footer>
+  )}
+</div>
+)
 }

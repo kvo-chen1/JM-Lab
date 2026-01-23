@@ -2,37 +2,23 @@ import React from 'react';
 import { SkeletonBox, SkeletonText, SkeletonCard, SkeletonAvatar, SkeletonButton } from '../Skeleton';
 
 /**
- * 通用加载骨架屏 (原 SimpleLoadingSkeleton)
+ * 通用加载骨架屏 - 轻量级版本
  */
 export const SimpleLoadingSkeleton = React.memo(() => (
-  <div className="min-h-[200px] p-6">
-    <div className="space-y-6">
-      {/* 标题骨架 */}
-      <div className="flex items-center space-x-3">
-        <SkeletonAvatar size={40} />
-        <div className="flex-1 space-y-2">
-          <SkeletonText width="75%" variant="h4" />
-          <SkeletonText width="50%" />
-        </div>
-      </div>
-      
-      {/* 内容骨架 */}
-      <div className="space-y-3">
-        <SkeletonText width="100%" />
-        <SkeletonText width="85%" />
+  <div className="w-full max-w-md p-4">
+    <div className="space-y-4">
+      {/* 简化的标题和内容骨架 */}
+      <div className="space-y-2">
+        <SkeletonText width="60%" variant="h4" />
+        <SkeletonText width="90%" />
         <SkeletonText width="75%" />
       </div>
       
-      {/* 卡片骨架 */}
-      <div className="grid grid-cols-2 gap-4">
-        <SkeletonBox height="128px" rounded />
-        <SkeletonBox height="128px" rounded />
-      </div>
-      
-      {/* 行动按钮骨架 */}
-      <div className="flex space-x-3">
-        <SkeletonButton width="96px" />
-        <SkeletonButton width="96px" />
+      {/* 简化的卡片骨架 */}
+      <div className="space-y-3">
+        <SkeletonBox height="48px" rounded />
+        <SkeletonBox height="48px" rounded />
+        <SkeletonBox height="48px" rounded />
       </div>
     </div>
   </div>

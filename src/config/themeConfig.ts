@@ -1,7 +1,7 @@
 // src/config/themeConfig.ts
 
 // 主题类型定义
-export type Theme = 'light' | 'dark' | 'pink' | 'blue' | 'green' | 'auto';
+export type Theme = 'light' | 'blue' | 'green';
 
 // 主题配置项接口
 interface ThemeConfig {
@@ -12,10 +12,7 @@ interface ThemeConfig {
 
 // 主题配置列表
 export const themeConfig: ThemeConfig[] = [
-  { value: 'auto', label: '自动', icon: 'fas fa-circle-half-stroke' },
   { value: 'light', label: '浅色', icon: 'fas fa-sun' },
-  { value: 'dark', label: '深色', icon: 'fas fa-moon' },
-  { value: 'pink', label: '粉色', icon: 'fas fa-heart' },
   { value: 'blue', label: '蓝色', icon: 'fas fa-water' },
   { value: 'green', label: '绿色', icon: 'fas fa-leaf' }
 ];
@@ -25,16 +22,12 @@ export const themeEnhancements = {
   // 色彩对比度增强
   contrast: {
     light: 1.2,
-    dark: 1.1,
-    pink: 1.15,
     blue: 1.15,
     green: 1.15
   },
   // 色彩饱和度优化
   saturation: {
     light: 1.05,
-    dark: 1.1,
-    pink: 1.1,
     blue: 1.1,
     green: 1.1
   }
@@ -44,7 +37,7 @@ export const themeEnhancements = {
 export const defaultTheme: Theme = 'light';
 
 // 主题切换顺序
-export const themeOrder: Theme[] = ['light', 'dark', 'pink', 'blue', 'green', 'auto'];
+export const themeOrder: Theme[] = ['light', 'blue', 'green'];
 
 // 检测系统主题偏好
 export const getSystemTheme = (): 'light' | 'dark' => {
@@ -58,10 +51,7 @@ export const getSystemTheme = (): 'light' | 'dark' => {
 };
 
 // 获取实际应用的主题
-export const getAppliedTheme = (theme: Theme): 'light' | 'dark' | 'pink' | 'blue' | 'green' => {
-  if (theme === 'auto') {
-    return getSystemTheme();
-  }
+export const getAppliedTheme = (theme: Theme): 'light' | 'blue' | 'green' => {
   return theme;
 };
 

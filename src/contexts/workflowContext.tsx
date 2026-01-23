@@ -92,13 +92,25 @@ export const WorkflowProvider = ({ children }: { children: ReactNode }) => {
     // 监听事件总线，接收来自其他模块的状态更新
     const handleWorkflowUpdate = (data: any) => {
       if (data && data.state) {
-        setState(prev => ({ ...prev, ...data.state }))
+        // 直接使用set而不是setState来避免循环调用
+        set(prev => {
+          const newState = { ...prev, ...data.state }
+          // 通知订阅者但不发布事件，避免循环
+          subscribers.forEach(callback => callback(newState, data.state))
+          return newState
+        })
       }
     }
 
     const handleDataRefresh = (data: any) => {
       if (data && data.type === 'workflow') {
-        setState(prev => ({ ...prev, ...(data.payload || {}) }))
+        // 直接使用set而不是setState来避免循环调用
+        set(prev => {
+          const newState = { ...prev, ...(data.payload || {}) }
+          // 通知订阅者但不发布事件，避免循环
+          subscribers.forEach(callback => callback(newState, data.payload || {}))
+          return newState
+        })
       }
     }
 
@@ -109,7 +121,7 @@ export const WorkflowProvider = ({ children }: { children: ReactNode }) => {
       eventBus.unsubscribe('workflow:update', listener1)
       eventBus.unsubscribe('数据:刷新', listener2)
     }
-  }, [])
+  }, [subscribers])
 
   const setState = (s: Partial<WorkflowState>) => {
     set(prev => {

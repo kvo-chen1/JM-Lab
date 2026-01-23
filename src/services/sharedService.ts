@@ -1,7 +1,5 @@
 // 共享服务层，提供跨模块的功能支持
 import eventBus from '../lib/eventBus'
-import { useAuth } from '../contexts/authContext'
-import { useWorkflow } from '../contexts/workflowContext'
 import apiClient from '../lib/apiClient'
 
 // 数据转换选项
@@ -329,7 +327,8 @@ class SharedService {
       vip: ['read', 'create', 'like', 'comment', 'share', 'export', 'admin', 'analytics']
     }
     
-    const userPermissions = permissions[user.membershipLevel || 'free'] || permissions.free
+    const membershipLevel = user.membershipLevel || 'free'
+    const userPermissions = permissions[membershipLevel as keyof typeof permissions] || permissions.free
     return userPermissions.includes(permission)
   }
   

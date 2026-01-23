@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { useNotifications, Notification } from '@/contexts/NotificationContext';
 
 interface NotificationCenterProps {
@@ -32,6 +33,9 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
     getReadNotifications,
     getArchivedNotifications
   } = useNotifications();
+  
+  // 添加导航钩子
+  const navigate = useNavigate();
   
   // 状态管理
   const [activeView, setActiveView] = useState<NotificationView>('all');
@@ -169,7 +173,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
     }
     
     if (notification.link) {
-      window.location.href = notification.link;
+      navigate(notification.link);
       handleClose();
     }
   };

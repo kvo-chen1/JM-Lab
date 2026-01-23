@@ -69,14 +69,6 @@ export default memo(function TianjinCreativeActivities({ search: propSearch = ''
   const [selectedBrand, setSelectedBrand] = useState<TraditionalBrand | null>(null);
   const openBrandDetail = useCallback((b: TraditionalBrand) => setSelectedBrand(b), []);
   const closeBrandDetail = useCallback(() => setSelectedBrand(null), []);
-  const brandSentinelRef = useRef<HTMLDivElement | null>(null); // 中文注释：品牌区无限滚动哨兵引用
-  const [brandPage, setBrandPage] = useState<number>(1); // 中文注释：品牌区当前分页
-  const brandPageSize = 12; // 中文注释：品牌区每页数量，进一步减少为12以提高滚动性能
-  // 新增：模板和线下体验的分页
-  const [templatePage, setTemplatePage] = useState<number>(1);
-  const templatePageSize = 12;
-  const [experiencePage, setExperiencePage] = useState<number>(1);
-  const experiencePageSize = 12;
   
   // 当外部搜索属性变化时，更新内部搜索状态
   useEffect(() => {
@@ -776,96 +768,10 @@ export default memo(function TianjinCreativeActivities({ search: propSearch = ''
       : allBrands;
   }, [searchLower, allBrands]);
   
-  // 确保 pagedBrands 始终是一个数组
-  const pagedBrands = useMemo(() => {
-    if (!Array.isArray(filteredBrands)) return [];
-    return filteredBrands.slice(0, brandPage * brandPageSize);
-  }, [filteredBrands, brandPage, brandPageSize]);
-  
-  // 模板分页
-  const pagedTemplates = useMemo(() => {
-    if (!Array.isArray(filteredTemplates)) return [];
-    return filteredTemplates.slice(0, templatePage * templatePageSize);
-  }, [filteredTemplates, templatePage, templatePageSize]);
-  
-  // 线下体验分页
-  const pagedExperiences = useMemo(() => {
-    if (!Array.isArray(filteredExperiences)) return [];
-    return filteredExperiences.slice(0, experiencePage * experiencePageSize);
-  }, [filteredExperiences, experiencePage, experiencePageSize]);
-  
-  // 新增：模板和线下体验的哨兵引用
-  const templateSentinelRef = useRef<HTMLDivElement | null>(null);
-  const experienceSentinelRef = useRef<HTMLDivElement | null>(null);
-
-  // 中文注释：切换标签或搜索变化时重置对应分页
-  useEffect(() => {
-    setBrandPage(1);
-    setTemplatePage(1);
-    setExperiencePage(1);
-  }, [activeTab, search]);
-  // 中文注释：品牌区无限滚动（IntersectionObserver）
-  useEffect(() => {
-    if (activeTab !== 'brands') return;
-    const el = brandSentinelRef.current;
-    if (!el) return;
-    
-    try {
-      const maxPages = Math.ceil(filteredBrands.length / brandPageSize);
-      const observer = new IntersectionObserver((entries) => {
-        const entry = entries[0];
-        if (entry.isIntersecting) {
-          setBrandPage((prev) => (prev < maxPages ? prev + 1 : prev));
-        }
-      }, { rootMargin: '500px' });
-      observer.observe(el);
-      return () => observer.disconnect();
-    } catch (error) {
-      console.error('IntersectionObserver error:', error);
-    }
-  }, [activeTab, filteredBrands.length, brandPageSize]);
-  
-  // 中文注释：模板区无限滚动
-  useEffect(() => {
-    if (activeTab !== 'templates') return;
-    const el = templateSentinelRef.current;
-    if (!el) return;
-    
-    try {
-      const maxPages = Math.ceil(filteredTemplates.length / templatePageSize);
-      const observer = new IntersectionObserver((entries) => {
-        const entry = entries[0];
-        if (entry.isIntersecting) {
-          setTemplatePage((prev) => (prev < maxPages ? prev + 1 : prev));
-        }
-      }, { rootMargin: '500px' });
-      observer.observe(el);
-      return () => observer.disconnect();
-    } catch (error) {
-      console.error('IntersectionObserver error:', error);
-    }
-  }, [activeTab, filteredTemplates.length, templatePageSize]);
-  
-  // 中文注释：线下体验区无限滚动
-  useEffect(() => {
-    if (activeTab !== 'offline') return;
-    const el = experienceSentinelRef.current;
-    if (!el) return;
-    
-    try {
-      const maxPages = Math.ceil(filteredExperiences.length / experiencePageSize);
-      const observer = new IntersectionObserver((entries) => {
-        const entry = entries[0];
-        if (entry.isIntersecting) {
-          setExperiencePage((prev) => (prev < maxPages ? prev + 1 : prev));
-        }
-      }, { rootMargin: '500px' });
-      observer.observe(el);
-      return () => observer.disconnect();
-    } catch (error) {
-      console.error('IntersectionObserver error:', error);
-    }
-  }, [activeTab, filteredExperiences.length, experiencePageSize]);
+  // 移除分页，直接显示所有内容
+  const pagedBrands = filteredBrands;
+  const pagedTemplates = filteredTemplates;
+  const pagedExperiences = filteredExperiences;
   
   // 骨架屏加载状态
   if (isLoading) {
@@ -918,28 +824,30 @@ export default memo(function TianjinCreativeActivities({ search: propSearch = ''
             if (e.key === 'ArrowLeft') scrollTabs('left');
           }}
         >
-          {[
-            { id: 'offline', name: '线下体验' },
-            { id: 'templates', name: '地域模板' },
-            { id: 'brands', name: '老字号联名' }
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as 'templates' | 'offline' | 'brands')}
-              role="tab"
-              aria-selected={activeTab === tab.id}
-              title={tab.name}
-              className={`px-5 py-2.5 rounded-full text-sm font-semibold transition-all duration-300 whitespace-nowrap snap-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 ${
-                activeTab === tab.id 
-                  ? 'bg-gradient-to-r from-red-600 to-red-500 text-white shadow-lg scale-105' 
-                  : isDark 
-                    ? 'bg-gray-700/80 hover:bg-gray-700/100 hover:text-red-400' 
-                    : 'bg-gray-100 hover:bg-gray-200 hover:text-red-600'
-              } ${isDark ? 'focus-visible:ring-offset-2 focus-visible:ring-offset-gray-800' : 'focus-visible:ring-offset-2 focus-visible:ring-offset-white'}`}
-            >
-              {tab.name}
-            </button>
-          ))}
+          {
+            [
+              { id: 'offline', name: '线下体验' },
+              { id: 'templates', name: '地域模板' },
+              { id: 'brands', name: '老字号联名' }
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as 'templates' | 'offline' | 'brands')}
+                role="tab"
+                aria-selected={activeTab === tab.id}
+                title={tab.name}
+                className={`px-5 py-2.5 rounded-full text-sm font-semibold transition-all duration-300 whitespace-nowrap snap-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 ${
+                  activeTab === tab.id 
+                    ? 'bg-gradient-to-r from-red-600 to-red-500 text-white shadow-lg scale-105' 
+                    : isDark 
+                      ? 'bg-gray-700/80 hover:bg-gray-700/100 hover:text-red-400' 
+                      : 'bg-gray-100 hover:bg-gray-200 hover:text-red-600'
+                } ${isDark ? 'focus-visible:ring-offset-2 focus-visible:ring-offset-gray-800' : 'focus-visible:ring-offset-2 focus-visible:ring-offset-white'}`}
+              >
+                {tab.name}
+              </button>
+            ))
+          }
         </div>
         <div
           className={`pointer-events-none absolute right-0 top-0 bottom-0 w-8 ${
@@ -983,6 +891,7 @@ export default memo(function TianjinCreativeActivities({ search: propSearch = ''
                     ratio="auto"
                     rounded="none"
                     onClick={() => openTemplateDetail(template)}
+                    loading="eager"
                   />
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300" />
                 </div>
@@ -1026,17 +935,6 @@ export default memo(function TianjinCreativeActivities({ search: propSearch = ''
               </div>
             ))}
           </div>
-          {/* 模板区无限滚动哨兵 */}
-          <div className="text-center mt-8 pb-4" ref={templateSentinelRef}>
-            {templatePage * templatePageSize < filteredTemplates.length ? (
-              <div className="flex justify-center items-center space-x-2 text-gray-500">
-                <i className="fas fa-circle-notch fa-spin"></i>
-                <span>加载更多模板...</span>
-              </div>
-            ) : (
-              <span className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>- 已加载全部内容 -</span>
-            )}
-          </div>
         </>
       )}
       
@@ -1052,7 +950,7 @@ export default memo(function TianjinCreativeActivities({ search: propSearch = ''
                 }`}
               >
                 <div className="relative">
-                  <TianjinImage src={experience.image} alt={experience.name} ratio="auto" rounded="none" onClick={() => openExperienceDetail(experience)} />
+                  <TianjinImage src={experience.image} alt={experience.name} ratio="auto" rounded="none" onClick={() => openExperienceDetail(experience)} loading="eager" />
                   <div className="absolute top-2 right-2">
                     <span className="px-2 py-1 bg-white/90 backdrop-blur-sm rounded-lg text-xs font-bold text-red-600 shadow-sm border border-red-100">
                       {experience.price}
@@ -1118,17 +1016,6 @@ export default memo(function TianjinCreativeActivities({ search: propSearch = ''
               </div>
             ))}
           </div>
-          {/* 线下体验区无限滚动哨兵 */}
-          <div className="text-center mt-8 pb-4" ref={experienceSentinelRef}>
-            {experiencePage * experiencePageSize < filteredExperiences.length ? (
-              <div className="flex justify-center items-center space-x-2 text-gray-500">
-                <i className="fas fa-circle-notch fa-spin"></i>
-                <span>加载更多体验...</span>
-              </div>
-            ) : (
-              <span className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>- 已加载全部内容 -</span>
-            )}
-          </div>
         </>
       )}
       
@@ -1153,7 +1040,7 @@ export default memo(function TianjinCreativeActivities({ search: propSearch = ''
                     } shadow-sm group-hover:border-red-200`}
                   >
                     <div className="w-full h-full">
-                      <TianjinImage src={brand.logo} alt={brand.name} className="w-full h-full" ratio="square" fit="contain" rounded="lg" />
+                      <TianjinImage src={brand.logo} alt={brand.name} className="w-full h-full" ratio="square" fit="contain" rounded="lg" loading="eager" />
                     </div>
                   </div>
                   <div>
@@ -1213,16 +1100,6 @@ export default memo(function TianjinCreativeActivities({ search: propSearch = ''
               </div>
             ))}
           </div>
-          <div className="text-center mt-8 pb-4">
-            {brandPage * brandPageSize < filteredBrands.length ? (
-              <div ref={brandSentinelRef} className="flex justify-center items-center space-x-2 text-gray-500">
-                 <i className="fas fa-circle-notch fa-spin"></i>
-                 <span>加载更多品牌...</span>
-              </div>
-            ) : (
-              <span className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>- 已加载全部内容 -</span>
-            )}
-          </div>
         </>
       )}
       </div>
@@ -1230,222 +1107,263 @@ export default memo(function TianjinCreativeActivities({ search: propSearch = ''
       {/* 右侧补充内容区 - 改为横向排列 */}
       <div className="w-full flex flex-col md:flex-row gap-4">
         {/* 热门话题 */}
-        <div className="w-full md:w-1/2 p-3 rounded-xl shadow-md ${isDark ? 'bg-gray-700' : 'bg-white'}">
+        <div className={`w-full md:w-1/2 p-3 rounded-xl shadow-md ${isDark ? 'bg-gray-700' : 'bg-white'}`}>
           <h3 className="font-bold text-base mb-3">热门话题</h3>
           <div className="space-y-2">
-            {[
-              { tag: '#国潮设计', count: 234 },
-              { tag: '#天津老字号', count: 189 },
-              { tag: '#文创产品', count: 156 },
-              { tag: '#津味插画', count: 123 },
-              { tag: '#非遗传承', count: 98 }
-            ].map((topic, index) => (
-              <div key={index} className="flex justify-between items-center">
-                <div className="flex items-center">
-                  <span className={`inline-block w-2 h-2 rounded-full ${isDark ? 'bg-red-500' : 'bg-red-400'} mr-2`}></span>
-                  <span className={`${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{topic.tag}</span>
+            {
+              [
+                { tag: '#国潮设计', count: 234 },
+                { tag: '#天津老字号', count: 189 },
+                { tag: '#文创产品', count: 156 },
+                { tag: '#津味插画', count: 123 },
+                { tag: '#非遗传承', count: 98 }
+              ].map((topic, index) => (
+                <div key={index} className="flex justify-between items-center">
+                  <div className="flex items-center">
+                    <span className={`inline-block w-2 h-2 rounded-full ${isDark ? 'bg-red-500' : 'bg-red-400'} mr-2`}></span>
+                    <span className={`${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{topic.tag}</span>
+                  </div>
+                  <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{topic.count}人参与</span>
                 </div>
-                <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{topic.count}人参与</span>
-              </div>
-            ))}
+              ))
+            }
           </div>
         </div>
         
-        {/* 数据统计 */}
+        {/* 近期活动 */}
         <div className="w-full md:w-1/2 p-3 rounded-xl shadow-md ${isDark ? 'bg-gray-700' : 'bg-white'}">
-          <h3 className="font-bold text-base mb-3">数据统计</h3>
-          <div className="grid grid-cols-3 gap-2">
-            <div className={`p-2.5 rounded-lg ${
-              isDark ? 'bg-gray-600' : 'bg-gray-100'
-            } text-center`}>
-              <p className={`text-xs ${
-                isDark ? 'text-gray-400' : 'text-gray-600'
-              } mb-1`}>
-                总模板数
-              </p>
-              <p className="font-bold text-lg">{filteredTemplates.length}</p>
-            </div>
-            <div className={`p-2.5 rounded-lg ${
-              isDark ? 'bg-gray-600' : 'bg-gray-100'
-            } text-center`}>
-              <p className={`text-xs ${
-                isDark ? 'text-gray-400' : 'text-gray-600'
-              } mb-1`}>
-                线下体验
-              </p>
-              <p className="font-bold text-lg">{filteredExperiences.length}</p>
-            </div>
-            <div className={`p-2.5 rounded-lg ${
-              isDark ? 'bg-gray-600' : 'bg-gray-100'
-            } text-center`}>
-              <p className={`text-xs ${
-                isDark ? 'text-gray-400' : 'text-gray-600'
-              } mb-1`}>
-                老字号品牌
-              </p>
-              <p className="font-bold text-lg">{filteredBrands.length}</p>
-            </div>
+          <h3 className="font-bold text-base mb-3">近期活动</h3>
+          <div className="space-y-3">
+            {
+              [
+                { name: '天津老字号文化节', date: '2025.12.15-2025.12.25' },
+                { name: '海河国际艺术季', date: '2025.12.20-2026.01.10' },
+                { name: '杨柳青古镇旅游节', date: '2026.01.05-2026.01.15' },
+                { name: '津味美食文化展', date: '2026.01.12-2026.01.22' }
+              ].map((event, index) => (
+                <div key={index} className="flex justify-between items-center border-b pb-2 ${isDark ? 'border-gray-600' : 'border-gray-200'}">
+                  <div className="flex items-center">
+                    <span className="inline-block w-2 h-2 rounded-full ${isDark ? 'bg-blue-500' : 'bg-blue-400'} mr-2"></span>
+                    <span className={`${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{event.name}</span>
+                  </div>
+                  <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{event.date}</span>
+                </div>
+              ))
+            }
           </div>
         </div>
       </div>
-        {/* 活动详情弹层 - 已移除 */}
-
-        {/* 中文注释：地域模板详情弹层 */}
-        {selectedTemplate && (
-          <div className="fixed inset-0 z-40 flex items-center justify-center">
-            <div className="absolute inset-0 bg-black/50" onClick={closeTemplateDetail}></div>
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ duration: 0.2 }}
-              className={`relative z-50 w-full max-w-4xl mx-4 rounded-2xl overflow-hidden shadow-2xl ${isDark ? 'bg-gray-800' : 'bg-white'}`}
-            >
-              <div className={`flex justify-between items-center px-6 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
-                <h4 className="text-lg font-bold">{selectedTemplate.name}</h4>
-                <button onClick={closeTemplateDetail} className={`${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} px-3 py-1 rounded-lg`}>关闭</button>
+      
+      {/* 模板详情弹层 */}
+      {selectedTemplate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={closeTemplateDetail}></div>
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.95, opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            className={`w-full max-w-3xl max-h-[90vh] overflow-y-auto bg-white dark:bg-gray-800 rounded-xl shadow-2xl z-10 p-6`}
+          >
+            <div className="flex justify-between items-start mb-4">
+              <h2 className="text-2xl font-bold">{selectedTemplate.name}</h2>
+              <button
+                onClick={closeTemplateDetail}
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-xl"
+              >
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <img
+                  src={selectedTemplate.thumbnail}
+                  alt={selectedTemplate.name}
+                  className="w-full rounded-lg shadow-lg"
+                />
               </div>
-              <div className="px-6 py-4 grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div>
-                  <TianjinImage src={selectedTemplate.thumbnail} alt={selectedTemplate.name} className="w-full" ratio="landscape" rounded="xl" />
-                  <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
-                    <span className={`${isDark ? 'bg-gray-700 text-gray-200' : 'bg-gray-100 text-gray-700'} px-2 py-1 rounded`}>{selectedTemplate.category}</span>
-                    <span className={`${isDark ? 'bg-gray-700 text-gray-200' : 'bg-gray-100 text-gray-700'} px-2 py-1 rounded`}>使用 {selectedTemplate.usageCount}</span>
-                    <span className={`${isDark ? 'bg-gray-700 text-gray-200' : 'bg-gray-100 text-gray-700'} px-2 py-1 rounded`}>文件格式 PNG/SVG</span>
+              <div>
+                <div className="mb-4">
+                  <span className="inline-block px-3 py-1 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-full text-sm mb-2">{selectedTemplate.category}</span>
+                  <p className="text-gray-600 dark:text-gray-300 mb-4">{selectedTemplate.description}</p>
+                  <div className="flex items-center text-gray-500 dark:text-gray-400">
+                    <i className="fas fa-fire-alt mr-2 text-red-500"></i>
+                    <span>{selectedTemplate.usageCount}次使用</span>
                   </div>
                 </div>
-                <div>
-                  <p className={`${isDark ? 'text-gray-300' : 'text-gray-700'} text-sm mb-3`}>{selectedTemplate.description}</p>
-                  <div className={`rounded-lg p-3 ${isDark ? 'bg-gray-700' : 'bg-gray-50'} mb-3`}>
-                    <p className="font-medium mb-2">适用场景</p>
-                    <ul className={`${isDark ? 'text-gray-300' : 'text-gray-700'} text-sm space-y-1 list-disc pl-5`}>
-                      <li>活动海报、H5 页面主视觉</li>
-                      <li>品牌联名周边与包装封面</li>
-                      <li>社交媒体传播物料模板</li>
-                    </ul>
-                  </div>
-                  <div className={`rounded-lg p-3 ${isDark ? 'bg-gray-700' : 'bg-gray-50'} mb-3`}>
-                    <p className="font-medium mb-2">授权说明</p>
-                    <p className={`${isDark ? 'text-gray-300' : 'text-gray-700'} text-sm`}>仅限平台内项目使用，商业化需另行授权；请遵守地方文化元素使用规范。</p>
-                  </div>
-                  <div className="flex gap-3">
-                    <button className="flex-1 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white" onClick={() => handleApplyTemplate(selectedTemplate.id)}>应用到创作空间</button>
-                    <button className={`${isDark ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-800'} flex-1 py-2 rounded-lg`} onClick={closeTemplateDetail}>关闭</button>
-                  </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      handleApplyTemplate(selectedTemplate.id);
+                      closeTemplateDetail();
+                    }}
+                    className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors"
+                  >
+                    立即应用
+                  </button>
+                  <button
+                    onClick={closeTemplateDetail}
+                    className="flex-1 py-3 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg font-medium transition-colors"
+                  >
+                    关闭
+                  </button>
                 </div>
               </div>
-            </motion.div>
-          </div>
-        )}
-
-        {/* 中文注释：线下体验详情弹层 */}
-        {selectedExperience && (
-          <div className="fixed inset-0 z-40 flex items-center justify-center">
-            <div className="absolute inset-0 bg-black/50" onClick={closeExperienceDetail}></div>
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ duration: 0.2 }}
-              className={`relative z-50 w-full max-w-4xl mx-4 rounded-2xl overflow-hidden shadow-2xl ${isDark ? 'bg-gray-800' : 'bg-white'}`}
-            >
-              <div className={`flex justify-between items-center px-6 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
-                <h4 className="text-lg font-bold">{selectedExperience.name}</h4>
-                <button onClick={closeExperienceDetail} className={`${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} px-3 py-1 rounded-lg`}>关闭</button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+      
+      {/* 线下体验详情弹层 */}
+      {selectedExperience && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={closeExperienceDetail}></div>
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.95, opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            className={`w-full max-w-3xl max-h-[90vh] overflow-y-auto bg-white dark:bg-gray-800 rounded-xl shadow-2xl z-10 p-6`}
+          >
+            <div className="flex justify-between items-start mb-4">
+              <h2 className="text-2xl font-bold">{selectedExperience.name}</h2>
+              <button
+                onClick={closeExperienceDetail}
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-xl"
+              >
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <img
+                  src={selectedExperience.image}
+                  alt={selectedExperience.name}
+                  className="w-full rounded-lg shadow-lg"
+                />
               </div>
-              <div className="px-6 py-4 grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div>
-                  <TianjinImage src={selectedExperience.image} alt={selectedExperience.name} className="w-full" ratio="landscape" rounded="xl" />
-                  <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
-                    <span className={`${isDark ? 'bg-gray-700 text-gray-200' : 'bg-gray-100 text-gray-700'} px-2 py-1 rounded`}>评分 {selectedExperience.rating}</span>
-                    <span className={`${isDark ? 'bg-gray-700 text-gray-200' : 'bg-gray-100 text-gray-700'} px-2 py-1 rounded`}>点评 {selectedExperience.reviewCount}</span>
-                    <span className={`${isDark ? 'bg-gray-700 text-gray-200' : 'bg-gray-100 text-gray-700'} px-2 py-1 rounded`}>名额 {selectedExperience.availableSlots}</span>
+              <div>
+                <div className="mb-4">
+                  <div className="flex items-center mb-2">
+                    <span className="text-yellow-500 mr-1">
+                      {[...Array(5)].map((_, i) => (
+                        <i key={i} className={`fas fa-star ${i < Math.floor(selectedExperience.rating) ? '' : 'text-gray-300'}`}></i>
+                      ))}
+                    </span>
+                    <span className="text-sm text-gray-500">{selectedExperience.rating} ({selectedExperience.reviewCount}条评价)</span>
                   </div>
-                </div>
-                <div>
-                  <p className={`${isDark ? 'text-gray-300' : 'text-gray-700'} text-sm mb-3`}>{selectedExperience.description}</p>
-                  <div className="grid grid-cols-2 gap-3 text-sm mb-3">
-                    <div className={`${isDark ? 'bg-gray-700' : 'bg-gray-100'} rounded-lg p-3`}>
-                      <p className={`${isDark ? 'text-gray-400' : 'text-gray-600'} mb-1`}>体验地点</p>
-                      <p className="font-medium">{selectedExperience.location}</p>
+                  <p className="text-gray-600 dark:text-gray-300 mb-4">{selectedExperience.description}</p>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center">
+                      <i className="fas fa-map-marker-alt mr-2 text-red-500"></i>
+                      <span>{selectedExperience.location}</span>
                     </div>
-                    <div className={`${isDark ? 'bg-gray-700' : 'bg-gray-100'} rounded-lg p-3`}>
-                      <p className={`${isDark ? 'text-gray-400' : 'text-gray-600'} mb-1`}>费用说明</p>
-                      <p className="font-medium">{selectedExperience.price}（含材料费/讲解）</p>
+                    <div className="flex items-center">
+                      <i className="fas fa-tag mr-2 text-green-500"></i>
+                      <span>{selectedExperience.price}</span>
+                    </div>
+                    <div className="flex items-center">
+                      <i className="fas fa-users mr-2 text-blue-500"></i>
+                      <span>剩余名额: <span className="font-bold text-red-500">{selectedExperience.availableSlots}</span></span>
                     </div>
                   </div>
-                  <div className={`rounded-lg p-3 ${isDark ? 'bg-gray-700' : 'bg-gray-50'} mb-3`}>
-                    <p className="font-medium mb-2">预约须知</p>
-                    <ul className={`${isDark ? 'text-gray-300' : 'text-gray-700'} text-sm space-y-1 list-disc pl-5`}>
-                      <li>确认预约后请准时到场，迟到可能需重新排队</li>
-                      <li>如需取消，请提前 24 小时联系工作人员</li>
-                      <li>体验中请遵守现场安全与文化保护规范</li>
-                    </ul>
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      handleBookExperience(selectedExperience.id);
+                      closeExperienceDetail();
+                    }}
+                    className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors"
+                  >
+                    立即预约
+                  </button>
+                  <button
+                    onClick={closeExperienceDetail}
+                    className="flex-1 py-3 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg font-medium transition-colors"
+                  >
+                    关闭
+                  </button>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+      
+      {/* 老字号品牌详情弹层 */}
+      {selectedBrand && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={closeBrandDetail}></div>
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.95, opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            className={`w-full max-w-3xl max-h-[90vh] overflow-y-auto bg-white dark:bg-gray-800 rounded-xl shadow-2xl z-10 p-6`}
+          >
+            <div className="flex justify-between items-start mb-4">
+              <h2 className="text-2xl font-bold">{selectedBrand.name}</h2>
+              <button
+                onClick={closeBrandDetail}
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-xl"
+              >
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <div className="flex justify-center mb-4">
+                  <div className="w-32 h-32 p-4 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center">
+                    <img
+                      src={selectedBrand.logo}
+                      alt={selectedBrand.name}
+                      className="w-full h-full object-contain"
+                    />
                   </div>
-                  <div className="flex gap-3">
-                    <button className="flex-1 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white">立即预约</button>
-                    <button className={`${isDark ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-800'} flex-1 py-2 rounded-lg`} onClick={closeExperienceDetail}>关闭</button>
+                </div>
+                <div className="space-y-3">
+                  <div className="text-center">
+                    <p className="text-sm text-gray-500 dark:text-gray-400">创立于 {selectedBrand.establishedYear} 年</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="text-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                      <p className="text-sm text-gray-500 dark:text-gray-400">定制工具</p>
+                      <p className="text-xl font-bold">{selectedBrand.collaborationTools}</p>
+                    </div>
+                    <div className="text-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                      <p className="text-sm text-gray-500 dark:text-gray-400">热度指数</p>
+                      <p className="text-xl font-bold">{selectedBrand.popularity}</p>
+                    </div>
                   </div>
                 </div>
               </div>
-            </motion.div>
-          </div>
-        )}
-
-        {/* 中文注释：老字号品牌详情弹层 */}
-        {selectedBrand && (
-          <div className="fixed inset-0 z-40 flex items-center justify-center">
-            <div className="absolute inset-0 bg-black/50" onClick={closeBrandDetail}></div>
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ duration: 0.2 }}
-              className={`relative z-50 w-full max-w-4xl mx-4 rounded-2xl overflow-hidden shadow-2xl ${isDark ? 'bg-gray-800' : 'bg-white'}`}
-            >
-              <div className={`flex justify-between items-center px-6 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
-                <h4 className="text-lg font-bold">{selectedBrand.name}</h4>
-                <button onClick={closeBrandDetail} className={`${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} px-3 py-1 rounded-lg`}>关闭</button>
-              </div>
-              <div className="px-6 py-4 grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div>
-                  <div className="w-full h-56 bg-white rounded-xl flex items-center justify-center p-6">
-                    <TianjinImage src={selectedBrand.logo} alt={selectedBrand.name} className="max-h-full" ratio="square" fit="contain" />
-                  </div>
-                  <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
-                    <span className={`${isDark ? 'bg-gray-700 text-gray-200' : 'bg-gray-100 text-gray-700'} px-2 py-1 rounded`}>创立 {selectedBrand.establishedYear}</span>
-                    <span className={`${isDark ? 'bg-gray-700 text-gray-200' : 'bg-gray-100 text-gray-700'} px-2 py-1 rounded`}>工具 {selectedBrand.collaborationTools}</span>
-                    <span className={`${isDark ? 'bg-gray-700 text-gray-200' : 'bg-gray-100 text-gray-700'} px-2 py-1 rounded`}>热度 {selectedBrand.popularity}</span>
-                  </div>
+              <div>
+                <div className="mb-4">
+                  <p className="text-gray-600 dark:text-gray-300 mb-4">{selectedBrand.description}</p>
                 </div>
-                <div>
-                  <p className={`${isDark ? 'text-gray-300' : 'text-gray-700'} text-sm mb-3`}>{selectedBrand.description}</p>
-                  <div className={`rounded-lg p-3 ${isDark ? 'bg-gray-700' : 'bg-gray-50'} mb-3`}>
-                    <p className="font-medium mb-2">联名方向</p>
-                    <ul className={`${isDark ? 'text-gray-300' : 'text-gray-700'} text-sm space-y-1 list-disc pl-5`}>
-                      <li>联名包装与周边（限定款）</li>
-                      <li>门店活动视觉与导视系统</li>
-                      <li>跨界文化体验合作</li>
-                    </ul>
-                  </div>
-                  <div className={`rounded-lg p-3 ${isDark ? 'bg-gray-700' : 'bg-gray-50'} mb-3`}>
-                    <p className="font-medium mb-2">合作流程</p>
-                    <ol className={`${isDark ? 'text-gray-300' : 'text-gray-700'} text-sm space-y-1 list-decimal pl-5`}>
-                      <li>提交联名创意与目标受众</li>
-                      <li>品牌方评审与法务合规确认</li>
-                      <li>打样测试与上线活动执行</li>
-                    </ol>
-                  </div>
-                  <div className="flex gap-3">
-                    {/* 中文注释：统一使用天津特色按钮样式，强化整体风格 */}
-                    <TianjinButton className="flex-1">
-                      <i className="fas fa-handshake mr-2"></i>
-                      联系品牌方
-                    </TianjinButton>
-                    <button className={`${isDark ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-800'} flex-1 py-2 rounded-lg`} onClick={closeBrandDetail}>关闭</button>
-                  </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      navigate(`/tools?from=tianjin&query=${encodeURIComponent(selectedBrand.name + ' 联名 工具')}&mode=inspire`);
+                      closeBrandDetail();
+                    }}
+                    className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors"
+                  >
+                    查看联名工具
+                  </button>
+                  <button
+                    onClick={closeBrandDetail}
+                    className="flex-1 py-3 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg font-medium transition-colors"
+                  >
+                    关闭
+                  </button>
                 </div>
               </div>
-            </motion.div>
-          </div>
-        )}
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 });

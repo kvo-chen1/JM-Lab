@@ -177,6 +177,214 @@ class WorkService extends ApiService {
   async unlikeWork(id: number): Promise<void> {
     return this.post<void, void>(`/api/works/${id}/unlike`);
   }
+  
+  /**
+   * 发布作品到探索
+   */
+  async publishToExplore(workId: number, data: {
+    category: string;
+    tags: string[];
+    culturalElements: string[];
+    visibility: 'public' | 'private';
+    isFeatured: boolean;
+    scheduledPublishDate: string | null;
+  }): Promise<{
+    success: boolean;
+    message: string;
+    moderationStatus: 'pending' | 'approved' | 'rejected' | 'scheduled';
+  }> {
+    return this.post<{
+      success: boolean;
+      message: string;
+      moderationStatus: 'pending' | 'approved' | 'rejected' | 'scheduled';
+    }, any>(`/api/works/${workId}/publish/explore`, data);
+  }
+  
+  /**
+   * 获取作品审核状态
+   */
+  async getModerationStatus(workId: number): Promise<{
+    status: 'pending' | 'approved' | 'rejected' | 'scheduled';
+    reviewedAt: string | null;
+    rejectionReason: string | null;
+    moderator: User | null;
+  }> {
+    return this.get<{
+      status: 'pending' | 'approved' | 'rejected' | 'scheduled';
+      reviewedAt: string | null;
+      rejectionReason: string | null;
+      moderator: User | null;
+    }>(`/api/works/${workId}/moderation-status`);
+  }
+  
+  /**
+   * 审核作品
+   */
+  async moderateWork(workId: number, data: {
+    status: 'approved' | 'rejected';
+    reason: string | null;
+    featured?: boolean;
+    tags?: string[];
+  }): Promise<{
+    success: boolean;
+    message: string;
+  }> {
+    return this.post<{
+      success: boolean;
+      message: string;
+    }, any>(`/api/works/${workId}/moderate`, data);
+  }
+  
+  /**
+   * 获取待审核作品列表
+   */
+  async getPendingModerationWorks(params?: {
+    page?: number;
+    limit?: number;
+  }): Promise<Array<Work & {
+    moderationStatus: 'pending' | 'approved' | 'rejected' | 'scheduled';
+    moderator?: User;
+    reviewedAt: string | null;
+  }>> {
+    return this.get<Array<Work & {
+      moderationStatus: 'pending' | 'approved' | 'rejected' | 'scheduled';
+      moderator?: User;
+      reviewedAt: string | null;
+    }>>('/api/moderation/pending', params);
+  }
+  
+  /**
+   * 发布作品到社群
+   */
+  async publishToCommunity(workId: number, data: {
+    communityId: string;
+    visibility: 'public' | 'community' | 'private';
+    scheduledPublishDate: string | null;
+  }): Promise<{
+    success: boolean;
+    message: string;
+  }> {
+    return this.post<{
+      success: boolean;
+      message: string;
+    }, any>(`/api/works/${workId}/publish/community`, data);
+  }
+  
+  /**
+   * 获取社群作品列表
+   */
+  async getCommunityPosts(communityId: string, params?: {
+    page?: number;
+    limit?: number;
+    sortBy: 'latest' | 'popular' | 'trending';
+    category?: string;
+    tag?: string;
+  }): Promise<Array<Work & {
+    communityId: string;
+    commentCount: number;
+    engagementRate: number;
+  }>> {
+    return this.get<Array<Work & {
+      communityId: string;
+      commentCount: number;
+      engagementRate: number;
+    }>>(`/api/communities/${communityId}/posts`, params);
+  }
+  
+  /**
+   * 获取用户加入的社群列表
+   */
+  async getUserCommunities(userId: string): Promise<Array<{
+    id: string;
+    name: string;
+    description: string;
+    thumbnail: string;
+    memberCount: number;
+    postCount: number;
+    isPublic: boolean;
+    isMember: boolean;
+  }>> {
+    return this.get<Array<{
+      id: string;
+      name: string;
+      description: string;
+      thumbnail: string;
+      memberCount: number;
+      postCount: number;
+      isPublic: boolean;
+      isMember: boolean;
+    }>>(`/api/users/${userId}/communities`);
+  }
+  
+  /**
+   * 获取发布统计数据
+   */
+  async getPublishStats(): Promise<{
+    successRate: number;
+    totalPublished: number;
+    totalPending: number;
+    totalRejected: number;
+    byCategory: Array<{
+      category: string;
+      count: number;
+    }>;
+    byDate: Array<{
+      date: string;
+      count: number;
+    }>;
+  }> {
+    return this.get<{
+      successRate: number;
+      totalPublished: number;
+      totalPending: number;
+      totalRejected: number;
+      byCategory: Array<{
+        category: string;
+        count: number;
+      }>;
+      byDate: Array<{
+        date: string;
+        count: number;
+      }>;
+    }>('/api/stats/publish');
+  }
+  
+  /**
+   * 获取作品互动统计
+   */
+  async getEngagementStats(workId: number): Promise<{
+    likes: number;
+    comments: number;
+    shares: number;
+    views: number;
+    downloads: number;
+    engagementRate: number;
+    bySource: Array<{
+      source: string;
+      count: number;
+    }>;
+    byDate: Array<{
+      date: string;
+      count: number;
+    }>;
+  }> {
+    return this.get<{
+      likes: number;
+      comments: number;
+      shares: number;
+      views: number;
+      downloads: number;
+      engagementRate: number;
+      bySource: Array<{
+        source: string;
+        count: number;
+      }>;
+      byDate: Array<{
+        date: string;
+        count: number;
+      }>;
+    }>(`/api/stats/engagement/${workId}`);
+  }
 }
 
 // 用户服务

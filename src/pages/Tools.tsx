@@ -321,6 +321,7 @@ export default function Tools() {
           variant={fusionMode ? 'split' : 'center'}
           size={fusionMode ? 'lg' : 'md'}
           pattern={fusionMode}
+          backgroundImage="https://picsum.photos/seed/creative/1920/1080"
           stats={[
             { label: '精选', value: '优选' },
             { label: '风格', value: '融合' },

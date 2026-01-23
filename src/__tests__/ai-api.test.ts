@@ -5,7 +5,7 @@
 import { llmService, AVAILABLE_MODELS } from '../services/llmService';
 
 // 测试报告类型定义
-interface TestResult {
+type TestResult = {
   modelId: string;
   modelName: string;
   tests: {
@@ -21,7 +21,7 @@ interface TestResult {
     failedTests: number;
     averageResponseTime: number;
   };
-}
+};
 
 // 测试报告存储
 const testResults: TestResult[] = [];

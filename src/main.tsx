@@ -2,15 +2,7 @@
 
 // 移除全局three.js引入，改为在需要的组件中按需引入
 
-// 尝试注销所有 Service Workers 以解决缓存冲突问题
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.getRegistrations().then((registrations) => {
-    for (const registration of registrations) {
-      console.log('Unregistering service worker:', registration);
-      registration.unregister();
-    }
-  }).catch(err => console.error('Service Worker cleanup failed:', err));
-}
+// Service Worker 清理逻辑已移除，避免不必要的缓存失效
 
 // 导入国际化配置
 import './i18n/i18n';
@@ -32,8 +24,8 @@ import { FriendProvider } from './contexts/friendContext.tsx';
 import { LanguageProvider } from './contexts/LanguageContext';
 import { ChatProvider } from './contexts/chatContext.tsx';
 import "./index.css";
-// 恢复全局Font Awesome CSS，解决图标不显示问题
-import '@fortawesome/fontawesome-free/css/all.min.css';
+// 动态加载Font Awesome CSS，避免阻塞初始渲染
+import('@fortawesome/fontawesome-free/css/all.min.css').catch(err => console.error('Failed to load Font Awesome CSS:', err));
 import ErrorBoundary from './components/ErrorBoundary';
 import { ThemeProvider } from './hooks/useTheme';
 

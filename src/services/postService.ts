@@ -22,6 +22,29 @@ export interface Comment {
 // 作品分类类型
 export type PostCategory = 'design' | 'writing' | 'audio' | 'video' | 'other';
 
+// 简化的User接口
+export interface User {
+  id: string;
+  username: string;
+  email: string;
+  avatar?: string;
+  isAdmin?: boolean;
+  membershipLevel?: string;
+  membershipStatus?: 'active' | 'inactive' | 'trial';
+}
+
+// 审核日志接口
+export interface ModerationLog {
+  id: string;
+  postId: string;
+  moderatorId: string;
+  action: 'approve' | 'reject' | 'flag' | 'schedule';
+  reason: string;
+  timestamp: string;
+  metadata: any;
+  moderator?: User;
+}
+
 // 作品接口
 export interface Post {
   id: string;
@@ -30,7 +53,7 @@ export interface Post {
   likes: number;
   comments: Comment[];
   date: string;
-  author?: string;
+  author?: User | string;
   isLiked?: boolean;
   isBookmarked?: boolean;
   // 作品集扩展字段
@@ -50,6 +73,28 @@ export interface Post {
   fileSize?: string;
   downloadCount?: number;
   license?: string;
+  
+  // 新增发布相关字段
+  publishType: 'explore' | 'community' | 'both';
+  communityId: string | null;
+  moderationStatus: 'pending' | 'approved' | 'rejected' | 'scheduled';
+  rejectionReason: string | null;
+  scheduledPublishDate: string | null;
+  visibility: 'public' | 'private' | 'community';
+  
+  // 统计扩展
+  commentCount: number;
+  engagementRate: number;
+  trendingScore: number;
+  reach: number;
+  
+  // 审核相关
+  moderator: User | null;
+  reviewedAt: string | null;
+  
+  // 推荐相关
+  recommendationScore: number;
+  recommendedFor: string[];
 }
 
 const KEY = 'jmzf_posts';
@@ -176,12 +221,34 @@ export async function getPosts(): Promise<Post[]> {
       shares: 0,
       isFeatured: work.featured,
       isDraft: false,
-      completionStatus: 'published',
+      completionStatus: 'published' as const,
       creativeDirection: '',
       culturalElements: [],
       colorScheme: [],
       toolsUsed: [],
-      downloadCount: 0
+      downloadCount: 0,
+      
+      // 新增发布相关字段
+      publishType: 'explore' as const,
+      communityId: null,
+      moderationStatus: 'approved',
+      rejectionReason: null,
+      scheduledPublishDate: null,
+      visibility: 'public',
+      
+      // 统计扩展
+      commentCount: 0,
+      engagementRate: 0,
+      trendingScore: 0,
+      reach: 0,
+      
+      // 审核相关
+      moderator: null,
+      reviewedAt: null,
+      
+      // 推荐相关
+      recommendationScore: 0,
+      recommendedFor: []
     }));
     
     setCache(postCache, 'all', posts);
@@ -196,7 +263,7 @@ export async function getPosts(): Promise<Post[]> {
 /**
  * 添加作品
  */
-export async function addPost(p: Omit<Post, 'id' | 'likes' | 'comments' | 'date' | 'isLiked' | 'isBookmarked' | 'views' | 'shares' | 'isFeatured' | 'isDraft' | 'completionStatus'>): Promise<Post> {
+export async function addPost(p: Omit<Post, 'id' | 'likes' | 'comments' | 'date' | 'isLiked' | 'isBookmarked' | 'views' | 'shares' | 'isFeatured' | 'commentCount' | 'engagementRate' | 'trendingScore' | 'reach' | 'moderator' | 'reviewedAt' | 'recommendationScore' | 'recommendedFor'>): Promise<Post> {
   try {
     // 使用统一API服务创建作品
     const createdWork = await workService.createWork({
@@ -207,8 +274,7 @@ export async function addPost(p: Omit<Post, 'id' | 'likes' | 'comments' | 'date'
       description: p.description,
       views: 0,
       likes: 0,
-      featured: false,
-      user_id: '1' // 假设当前用户ID为1，实际应从认证上下文中获取
+      featured: false
     });
     
     // 转换为Post类型
@@ -222,8 +288,16 @@ export async function addPost(p: Omit<Post, 'id' | 'likes' | 'comments' | 'date'
       views: createdWork.views,
       shares: 0,
       isFeatured: createdWork.featured,
-      isDraft: false,
-      completionStatus: 'completed',
+      isDraft: p.isDraft || false,
+      completionStatus: p.completionStatus || 'completed',
+      commentCount: 0,
+      engagementRate: 0,
+      trendingScore: 0,
+      reach: 0,
+      moderator: null,
+      reviewedAt: null,
+      recommendationScore: 0,
+      recommendedFor: [],
       ...p
     };
     
@@ -246,8 +320,16 @@ export async function addPost(p: Omit<Post, 'id' | 'likes' | 'comments' | 'date'
       views: 0,
       shares: 0,
       isFeatured: false,
-      isDraft: false,
-      completionStatus: 'completed',
+      isDraft: p.isDraft || false,
+      completionStatus: p.completionStatus || 'completed',
+      commentCount: 0,
+      engagementRate: 0,
+      trendingScore: 0,
+      reach: 0,
+      moderator: null,
+      reviewedAt: null,
+      recommendationScore: 0,
+      recommendedFor: [],
       ...p
     };
     return post;
@@ -255,19 +337,203 @@ export async function addPost(p: Omit<Post, 'id' | 'likes' | 'comments' | 'date'
 }
 
 /**
+ * 发布作品到探索作品
+ */
+export async function publishToExplore(postId: string, data: {
+  category: string;
+  tags: string[];
+  culturalElements: string[];
+  visibility: 'public' | 'private';
+  isFeatured: boolean;
+  scheduledPublishDate: string | null;
+}): Promise<{
+  success: boolean;
+  message: string;
+  moderationStatus: 'pending' | 'approved' | 'rejected' | 'scheduled';
+}> {
+  try {
+    const result = await workService.publishToExplore(parseInt(postId), data);
+    
+    // 更新本地缓存中的作品状态
+    const posts = await getPosts();
+    const postIndex = posts.findIndex(p => p.id === postId);
+    if (postIndex >= 0) {
+      posts[postIndex].moderationStatus = result.moderationStatus;
+      posts[postIndex].scheduledPublishDate = data.scheduledPublishDate;
+      setCache(postCache, 'all', posts);
+    }
+    
+    return result;
+  } catch (error) {
+    console.error('发布到探索作品失败:', error);
+    return {
+      success: false,
+      message: '发布失败，请重试',
+      moderationStatus: 'rejected'
+    };
+  }
+}
+
+/**
+ * 发布作品到社群
+ */
+export async function publishToCommunity(postId: string, data: {
+  communityId: string;
+  visibility: 'public' | 'community' | 'private';
+  scheduledPublishDate: string | null;
+}): Promise<{
+  success: boolean;
+  message: string;
+}> {
+  try {
+    const result = await workService.publishToCommunity(parseInt(postId), data);
+    
+    // 更新本地缓存中的作品状态
+    const posts = await getPosts();
+    const postIndex = posts.findIndex(p => p.id === postId);
+    if (postIndex >= 0) {
+      posts[postIndex].publishType = 'community';
+      posts[postIndex].communityId = data.communityId;
+      posts[postIndex].visibility = data.visibility;
+      posts[postIndex].scheduledPublishDate = data.scheduledPublishDate;
+      setCache(postCache, 'all', posts);
+    }
+    
+    return result;
+  } catch (error) {
+    console.error('发布到社群失败:', error);
+    return {
+      success: false,
+      message: '发布失败，请重试'
+    };
+  }
+}
+
+/**
+ * 获取作品审核状态
+ */
+export async function getModerationStatus(postId: string): Promise<{
+  status: 'pending' | 'approved' | 'rejected' | 'scheduled';
+  reviewedAt: string | null;
+  rejectionReason: string | null;
+  moderator: User | null;
+}> {
+  try {
+    return await workService.getModerationStatus(parseInt(postId));
+  } catch (error) {
+    console.error('获取审核状态失败:', error);
+    return {
+      status: 'pending',
+      reviewedAt: null,
+      rejectionReason: null,
+      moderator: null
+    };
+  }
+}
+
+/**
+ * 获取用户加入的社群列表
+ */
+export async function getUserCommunities(userId: string): Promise<Array<{
+  id: string;
+  name: string;
+  description: string;
+  thumbnail: string;
+  memberCount: number;
+  postCount: number;
+  isPublic: boolean;
+  isMember: boolean;
+}>> {
+  try {
+    return await workService.getUserCommunities(userId);
+  } catch (error) {
+    console.error('获取用户社群列表失败:', error);
+    return [];
+  }
+}
+
+/**
+ * 获取发布统计数据
+ */
+export async function getPublishStats(): Promise<{
+  successRate: number;
+  totalPublished: number;
+  totalPending: number;
+  totalRejected: number;
+  byCategory: Array<{
+    category: string;
+    count: number;
+  }>;
+  byDate: Array<{
+    date: string;
+    count: number;
+  }>;
+}> {
+  try {
+    return await workService.getPublishStats();
+  } catch (error) {
+    console.error('获取发布统计数据失败:', error);
+    return {
+      successRate: 0,
+      totalPublished: 0,
+      totalPending: 0,
+      totalRejected: 0,
+      byCategory: [],
+      byDate: []
+    };
+  }
+}
+
+/**
+ * 获取作品互动统计
+ */
+export async function getEngagementStats(postId: string): Promise<{
+  likes: number;
+  comments: number;
+  shares: number;
+  views: number;
+  downloads: number;
+  engagementRate: number;
+  bySource: Array<{
+    source: string;
+    count: number;
+  }>;
+  byDate: Array<{
+    date: string;
+    count: number;
+  }>;
+}> {
+  try {
+    return await workService.getEngagementStats(parseInt(postId));
+  } catch (error) {
+    console.error('获取作品互动统计失败:', error);
+    return {
+      likes: 0,
+      comments: 0,
+      shares: 0,
+      views: 0,
+      downloads: 0,
+      engagementRate: 0,
+      bySource: [],
+      byDate: []
+    };
+  }
+}
+
+/**
  * 点赞帖子
  */
-export async function likePost(id: string): Promise<Post | undefined> {
+export async function likePost(id: string, userId: string = 'anonymous'): Promise<Post | undefined> {
   try {
     // 使用统一API服务点赞作品
     await workService.likeWork(parseInt(id));
     
     // 更新本地缓存
-    const userLikes = getUserLikes();
+    const userLikes = getUserLikes(userId);
     if (!userLikes.includes(id)) {
       userLikes.push(id);
-      scheduleBatchUpdate(USER_LIKES_KEY, userLikes);
-      setCache(likeCache, 'user', userLikes);
+      scheduleBatchUpdate(`${USER_LIKES_KEY}_${userId}`, userLikes);
+      setCache(likeCache, `user_${userId}`, userLikes);
     }
     
     // 更新帖子缓存
@@ -304,9 +570,24 @@ export async function likePost(id: string): Promise<Post | undefined> {
         culturalElements: [],
         colorScheme: [],
         toolsUsed: [],
-        downloadCount: 0
+        downloadCount: 0,
+        publishType: 'explore',
+        communityId: null,
+        moderationStatus: 'approved',
+        rejectionReason: null,
+        scheduledPublishDate: null,
+        visibility: 'public',
+        commentCount: 0,
+        engagementRate: 0,
+        trendingScore: 0,
+        reach: 0,
+        moderator: null,
+        reviewedAt: null,
+        recommendationScore: 0,
+        recommendedFor: []
       };
     }
+    
   } catch (error) {
     console.error('点赞帖子失败:', error);
   }
@@ -316,16 +597,16 @@ export async function likePost(id: string): Promise<Post | undefined> {
 /**
  * 取消点赞帖子
  */
-export async function unlikePost(id: string): Promise<Post | undefined> {
+export async function unlikePost(id: string, userId: string = 'anonymous'): Promise<Post | undefined> {
   try {
     // 使用统一API服务取消点赞作品
     await workService.unlikeWork(parseInt(id));
     
     // 更新本地缓存
-    const userLikes = getUserLikes();
+    const userLikes = getUserLikes(userId);
     const updatedLikes = userLikes.filter(postId => postId !== id);
-    scheduleBatchUpdate(USER_LIKES_KEY, updatedLikes);
-    setCache(likeCache, 'user', updatedLikes);
+    scheduleBatchUpdate(`${USER_LIKES_KEY}_${userId}`, updatedLikes);
+    setCache(likeCache, `user_${userId}`, updatedLikes);
     
     // 更新帖子缓存
     const posts = await getPosts();
@@ -361,7 +642,21 @@ export async function unlikePost(id: string): Promise<Post | undefined> {
         culturalElements: [],
         colorScheme: [],
         toolsUsed: [],
-        downloadCount: 0
+        downloadCount: 0,
+        publishType: 'explore',
+        communityId: null,
+        moderationStatus: 'approved',
+        rejectionReason: null,
+        scheduledPublishDate: null,
+        visibility: 'public',
+        commentCount: 0,
+        engagementRate: 0,
+        trendingScore: 0,
+        reach: 0,
+        moderator: null,
+        reviewedAt: null,
+        recommendationScore: 0,
+        recommendedFor: []
       };
     }
   } catch (error) {
@@ -373,12 +668,12 @@ export async function unlikePost(id: string): Promise<Post | undefined> {
 /**
  * 收藏帖子
  */
-export function bookmarkPost(id: string): Post | undefined {
-  const userBookmarks = getUserBookmarks();
+export function bookmarkPost(id: string, userId: string = 'anonymous'): Post | undefined {
+  const userBookmarks = getUserBookmarks(userId);
   if (!userBookmarks.includes(id)) {
     userBookmarks.push(id);
-    scheduleBatchUpdate(USER_BOOKMARKS_KEY, userBookmarks);
-    setCache(bookmarkCache, 'user', userBookmarks);
+    scheduleBatchUpdate(`${USER_BOOKMARKS_KEY}_${userId}`, userBookmarks);
+    setCache(bookmarkCache, `user_${userId}`, userBookmarks);
   }
   
   const work = mockWorks.find(w => w.id.toString() === id);
@@ -404,7 +699,21 @@ export function bookmarkPost(id: string): Post | undefined {
       culturalElements: [],
       colorScheme: [],
       toolsUsed: [],
-      downloadCount: 0
+      downloadCount: 0,
+      publishType: 'explore',
+      communityId: null,
+      moderationStatus: 'approved',
+      rejectionReason: null,
+      scheduledPublishDate: null,
+      visibility: 'public',
+      commentCount: 0,
+      engagementRate: 0,
+      trendingScore: 0,
+      reach: 0,
+      moderator: null,
+      reviewedAt: null,
+      recommendationScore: 0,
+      recommendedFor: []
     };
   }
   return undefined;
@@ -413,11 +722,11 @@ export function bookmarkPost(id: string): Post | undefined {
 /**
  * 取消收藏帖子
  */
-export function unbookmarkPost(id: string): Post | undefined {
-  const userBookmarks = getUserBookmarks();
+export function unbookmarkPost(id: string, userId: string = 'anonymous'): Post | undefined {
+  const userBookmarks = getUserBookmarks(userId);
   const updatedBookmarks = userBookmarks.filter(postId => postId !== id);
-  scheduleBatchUpdate(USER_BOOKMARKS_KEY, updatedBookmarks);
-  setCache(bookmarkCache, 'user', updatedBookmarks);
+  scheduleBatchUpdate(`${USER_BOOKMARKS_KEY}_${userId}`, updatedBookmarks);
+  setCache(bookmarkCache, `user_${userId}`, updatedBookmarks);
   
   const work = mockWorks.find(w => w.id.toString() === id);
   if (work) {
@@ -442,7 +751,21 @@ export function unbookmarkPost(id: string): Post | undefined {
       culturalElements: [],
       colorScheme: [],
       toolsUsed: [],
-      downloadCount: 0
+      downloadCount: 0,
+      publishType: 'explore',
+      communityId: null,
+      moderationStatus: 'approved',
+      rejectionReason: null,
+      scheduledPublishDate: null,
+      visibility: 'public',
+      commentCount: 0,
+      engagementRate: 0,
+      trendingScore: 0,
+      reach: 0,
+      moderator: null,
+      reviewedAt: null,
+      recommendationScore: 0,
+      recommendedFor: []
     };
   }
   return undefined;
@@ -485,13 +808,13 @@ export function getUserLikes(userId: string): string[] {
 /**
  * 获取用户收藏的帖子
  */
-export function getBookmarkedPosts(): Post[] {
-  const cached = getCache(bookmarkedPostsCache, 'all');
+export function getBookmarkedPosts(userId: string): Post[] {
+  const cached = getCache(bookmarkedPostsCache, `user_${userId}`);
   if (cached) {
     return cached;
   }
   
-  const bookmarkedIds = getUserBookmarks();
+  const bookmarkedIds = getUserBookmarks(userId);
   const posts = mockWorks
     .filter(post => bookmarkedIds.includes(post.id.toString()))
     .map(work => ({
@@ -515,23 +838,37 @@ export function getBookmarkedPosts(): Post[] {
       culturalElements: [],
       colorScheme: [],
       toolsUsed: [],
-      downloadCount: 0
+      downloadCount: 0,
+      publishType: 'explore',
+      communityId: null,
+      moderationStatus: 'approved',
+      rejectionReason: null,
+      scheduledPublishDate: null,
+      visibility: 'public',
+      commentCount: 0,
+      engagementRate: 0,
+      trendingScore: 0,
+      reach: 0,
+      moderator: null,
+      reviewedAt: null,
+      recommendationScore: 0,
+      recommendedFor: []
     }));
   
-  setCache(bookmarkedPostsCache, 'all', posts);
+  setCache(bookmarkedPostsCache, `user_${userId}`, posts);
   return posts;
 }
 
 /**
  * 获取用户点赞的帖子
  */
-export function getLikedPosts(): Post[] {
-  const cached = getCache(likedPostsCache, 'all');
+export function getLikedPosts(userId: string): Post[] {
+  const cached = getCache(likedPostsCache, `user_${userId}`);
   if (cached) {
     return cached;
   }
   
-  const likedIds = getUserLikes();
+  const likedIds = getUserLikes(userId);
   const posts = mockWorks
     .filter(post => likedIds.includes(post.id.toString()))
     .map(work => ({
@@ -555,10 +892,24 @@ export function getLikedPosts(): Post[] {
       culturalElements: [],
       colorScheme: [],
       toolsUsed: [],
-      downloadCount: 0
+      downloadCount: 0,
+      publishType: 'explore',
+      communityId: null,
+      moderationStatus: 'approved',
+      rejectionReason: null,
+      scheduledPublishDate: null,
+      visibility: 'public',
+      commentCount: 0,
+      engagementRate: 0,
+      trendingScore: 0,
+      reach: 0,
+      moderator: null,
+      reviewedAt: null,
+      recommendationScore: 0,
+      recommendedFor: []
     }));
   
-  setCache(likedPostsCache, 'all', posts);
+  setCache(likedPostsCache, `user_${userId}`, posts);
   return posts;
 }
 
@@ -718,5 +1069,11 @@ export default {
   addCommentReaction,
   deleteComment,
   clearAllCaches,
-  flushPendingUpdates
+  flushPendingUpdates,
+  publishToExplore,
+  publishToCommunity,
+  getModerationStatus,
+  getUserCommunities,
+  getPublishStats,
+  getEngagementStats
 };

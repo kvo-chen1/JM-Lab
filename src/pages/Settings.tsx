@@ -1,14 +1,13 @@
 import { useState, useEffect } from 'react'
 import { useTheme } from '@/hooks/useTheme'
+import { themeOrder } from '@/config/themeConfig'
 import { Link } from 'react-router-dom'
 
 import ModelSelector from '@/components/ModelSelector'
-import ThemePreviewModal from '@/components/ThemePreviewModal'
 
 export default function Settings() {
   const { theme, isDark, toggleTheme, setTheme, availableThemes } = useTheme()
   const [showModelSelector, setShowModelSelector] = useState(false)
-  const [showThemeModal, setShowThemeModal] = useState(false)
   
   // 通知设置
   const [notificationsEnabled, setNotificationsEnabled] = useState<boolean>(() => {
@@ -131,7 +130,12 @@ export default function Settings() {
                 </span>
               </div>
               <button
-                onClick={() => setShowThemeModal(true)}
+                onClick={() => {
+                  // 直接切换主题
+                  const currentIndex = themeOrder.indexOf(theme as typeof themeOrder[number]);
+                  const nextIndex = (currentIndex + 1) % themeOrder.length;
+                  setTheme(themeOrder[nextIndex]);
+                }}
                 className={`w-full py-3 rounded-xl transition-all duration-300 flex items-center justify-center gap-2 ${
                   isDark 
                     ? 'bg-gray-700 hover:bg-gray-600 text-white' 
@@ -139,7 +143,7 @@ export default function Settings() {
                 }`}
               >
                 <i className="fas fa-palette text-lg"></i>
-                <span className="font-medium">预览并选择主题</span>
+                <span className="font-medium">切换主题</span>
               </button>
             </div>
           </div>
@@ -329,15 +333,6 @@ export default function Settings() {
       {showModelSelector && (
         <ModelSelector isOpen={showModelSelector} onClose={() => setShowModelSelector(false)} />
       )}
-      <ThemePreviewModal
-        isOpen={showThemeModal}
-        onClose={() => setShowThemeModal(false)}
-        onSelectTheme={(selectedTheme) => {
-          setTheme(selectedTheme);
-          setShowThemeModal(false);
-        }}
-        currentTheme={theme}
-      />
     </>
   )
 }

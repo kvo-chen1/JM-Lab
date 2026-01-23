@@ -52,6 +52,46 @@
                     },
                     backgroundImage: {
                         'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
+                    },
+                    animation: {
+                        'fade-in': 'fadeIn 0.8s ease-out forwards',
+                        'slide-in-left': 'slideInLeft 0.8s ease-out forwards',
+                        'slide-in-right': 'slideInRight 0.8s ease-out forwards',
+                        'slide-in-up': 'slideInUp 0.8s ease-out forwards',
+                        'scale-in': 'scaleIn 0.8s ease-out forwards',
+                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'float-slow': 'float 6s ease-in-out infinite',
+                        'bounce-slow': 'bounce 2s infinite',
+                    },
+                    keyframes: {
+                        fadeIn: {
+                            '0%': { opacity: '0' },
+                            '100%': { opacity: '1' },
+                        },
+                        slideInLeft: {
+                            '0%': { opacity: '0', transform: 'translateX(-30px)' },
+                            '100%': { opacity: '1', transform: 'translateX(0)' },
+                        },
+                        slideInRight: {
+                            '0%': { opacity: '0', transform: 'translateX(30px)' },
+                            '100%': { opacity: '1', transform: 'translateX(0)' },
+                        },
+                        slideInUp: {
+                            '0%': { opacity: '0', transform: 'translateY(30px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' },
+                        },
+                        scaleIn: {
+                            '0%': { opacity: '0', transform: 'scale(0.95)' },
+                            '100%': { opacity: '1', transform: 'scale(1)' },
+                        },
+                    },
+                    transitionDuration: {
+                        '2000': '2000ms',
+                        '3000': '3000ms',
+                    },
+                    transitionTimingFunction: {
+                        'bounce-slow': 'cubic-bezier(0.16, 1, 0.3, 1)',
+                        'ease-in-out-quad': 'cubic-bezier(0.455, 0.03, 0.515, 0.955)',
                     }
                 }
             }
@@ -1048,6 +1088,28 @@
             initLeftNavigation();
         });
         
+        // 性能优化工具函数
+        // 节流函数：限制函数在指定时间内只执行一次
+        function throttle(func, delay) {
+            let lastCall = 0;
+            return function(...args) {
+                const now = Date.now();
+                if (now - lastCall >= delay) {
+                    lastCall = now;
+                    return func.apply(this, args);
+                }
+            };
+        }
+
+        // 防抖函数：延迟函数执行，直到指定时间内没有再次调用
+        function debounce(func, delay) {
+            let timeoutId;
+            return function(...args) {
+                clearTimeout(timeoutId);
+                timeoutId = setTimeout(() => func.apply(this, args), delay);
+            };
+        }
+
         // 初始化左侧导航
         function initLeftNavigation() {
             const navPoints = document.querySelectorAll('.nav-point');
@@ -1071,10 +1133,9 @@
                 });
             });
             
-            // 监听滚动事件，更新活动状态
-            window.addEventListener('scroll', function() {
-                updateActiveSection();
-            });
+            // 监听滚动事件，更新活动状态（使用节流优化）
+            const throttledUpdateActiveSection = throttle(updateActiveSection, 100);
+            window.addEventListener('scroll', throttledUpdateActiveSection);
             
             // 初始化活动状态
             updateActiveSection();
@@ -1139,40 +1200,98 @@
             box-shadow: 0 0 30px rgba(112, 0, 255, 0.15);
         }
 
-        /* 动画类 */
+        /* 动画类 - 增强版本 */
+        /* 基础动画参数变量 */
+        :root {
+            --anim-duration: 1s;
+            --anim-delay: 0s;
+            --anim-ease: cubic-bezier(0.16, 1, 0.3, 1);
+            --anim-ease-out: ease-out;
+            --anim-ease-in: ease-in;
+            --anim-ease-in-out: ease-in-out;
+        }
+        
+        /* 滚动触发动画 - 多种变体 */
         .fade-in-section {
             opacity: 0;
             transform: translateY(30px);
-            transition: opacity 1s ease-out, transform 1s ease-out;
-            will-change: opacity, visibility;
+            transition: opacity var(--anim-duration) var(--anim-ease-out), transform var(--anim-duration) var(--anim-ease-out);
+            will-change: opacity, transform;
         }
+        
+        .fade-in-section.from-left {
+            transform: translateX(-30px);
+        }
+        
+        .fade-in-section.from-right {
+            transform: translateX(30px);
+        }
+        
+        .fade-in-section.scale-in {
+            transform: scale(0.95);
+        }
+        
         .fade-in-section.is-visible {
             opacity: 1;
             transform: none;
         }
+        
+        /* 延迟动画类 */
+        .fade-in-section.delay-100 {
+            transition-delay: 0.1s;
+        }
+        
+        .fade-in-section.delay-200 {
+            transition-delay: 0.2s;
+        }
+        
+        .fade-in-section.delay-300 {
+            transition-delay: 0.3s;
+        }
+        
+        .fade-in-section.delay-400 {
+            transition-delay: 0.4s;
+        }
+        
+        .fade-in-section.delay-500 {
+            transition-delay: 0.5s;
+        }
 
-        /* 玻璃拟态卡片 */
+        /* 玻璃拟态卡片 - 增强效果 */
         .glass-card {
             background: rgba(255, 255, 255, 0.03);
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.05);
-            transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-        .glass-card:hover {
-            background: rgba(255, 255, 255, 0.08);
-            border-color: rgba(0, 240, 255, 0.3);
-            transform: translateY(-8px) scale(1.02);
-            box-shadow: 0 15px 40px -10px rgba(0, 240, 255, 0.2);
+            transition: all 0.6s var(--anim-ease);
+            will-change: transform, box-shadow, border-color;
         }
         
-        /* 渐变背景动画 */
+        .glass-card:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(0, 240, 255, 0.4);
+            transform: translateY(-10px) scale(1.02);
+            box-shadow: 
+                0 15px 40px -10px rgba(0, 240, 255, 0.2),
+                0 0 30px rgba(0, 240, 255, 0.1),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        }
+        
+        /* 文字辉光效果 - 增强 */
+        .glow-text {
+            text-shadow: 
+                0 0 20px rgba(0, 240, 255, 0.5),
+                0 0 40px rgba(0, 240, 255, 0.3),
+                0 0 60px rgba(0, 240, 255, 0.1);
+            transition: text-shadow 0.3s ease;
+        }
+        
+        /* 文字渐变动画 - 增强 */
         @keyframes gradientFlow {
             0% { background-position: 0% 50%; }
             50% { background-position: 100% 50%; }
             100% { background-position: 0% 50%; }
         }
         
-        /* 文字渐变动画 */
         .gradient-text {
             background: linear-gradient(90deg, #00f0ff, #7000ff, #00f0ff);
             background-size: 200% auto;
@@ -1181,70 +1300,72 @@
             animation: gradientFlow 3s ease infinite;
         }
         
-        /* 按钮脉冲动画 */
+        /* 按钮脉冲动画 - 增强 */
         @keyframes pulse {
             0%, 100% {
                 box-shadow: 0 0 0 0 rgba(0, 240, 255, 0.4);
             }
             50% {
-                box-shadow: 0 0 0 10px rgba(0, 240, 255, 0);
+                box-shadow: 0 0 0 15px rgba(0, 240, 255, 0);
             }
         }
+        
         .pulse-button:hover {
             animation: pulse 2s infinite;
         }
         
-        /* 文字呼吸动画 */
+        /* 文字呼吸动画 - 增强 */
         @keyframes breathe {
             0%, 100% {
                 transform: scale(1);
+                text-shadow: 0 0 20px rgba(0, 240, 255, 0.5);
             }
             50% {
                 transform: scale(1.05);
+                text-shadow: 0 0 30px rgba(0, 240, 255, 0.8);
             }
         }
+        
         .breathe-text {
-            animation: breathe 3s ease-in-out infinite;
+            animation: breathe 3s var(--anim-ease-in-out) infinite;
         }
         
-        /* 卡片悬浮动画 */
+        /* 卡片悬浮动画 - 增强 */
         @keyframes float {
             0%, 100% {
-                transform: translateY(0px);
+                transform: translateY(0px) rotate(0deg);
             }
-            50% {
-                transform: translateY(-10px);
+            25% {
+                transform: translateY(-10px) rotate(0.5deg);
+            }
+            75% {
+                transform: translateY(-10px) rotate(-0.5deg);
             }
         }
+        
         .float-card {
-            animation: float 4s ease-in-out infinite;
+            animation: float 6s var(--anim-ease-in-out) infinite;
         }
         
-        /* 滚动触发的缩放动画 */
-        .scale-in-section {
-            opacity: 0;
-            transform: scale(0.9);
-            transition: opacity 1s ease-out, transform 1s ease-out;
-        }
-        .scale-in-section.is-visible {
-            opacity: 1;
-            transform: scale(1);
-        }
-        
-        /* 边框发光动画 */
+        /* 滚动触发的缩放动画 - 合并到fade-in-section */
+        /* 边框发光动画 - 增强 */
         @keyframes border-glow {
             0%, 100% {
                 box-shadow: 0 0 20px rgba(0, 240, 255, 0.2);
             }
             50% {
-                box-shadow: 0 0 40px rgba(0, 240, 255, 0.4), 0 0 60px rgba(112, 0, 255, 0.2);
+                box-shadow: 
+                    0 0 40px rgba(0, 240, 255, 0.4),
+                    0 0 60px rgba(112, 0, 255, 0.2),
+                    inset 0 0 20px rgba(0, 240, 255, 0.1);
             }
         }
+        
         .border-glow {
-            animation: border-glow 3s ease-in-out infinite;
+            animation: border-glow 3s var(--anim-ease-in-out) infinite;
         }
         
-        /* 背景渐变动画 */
+        /* 背景渐变动画 - 增强 */
         @keyframes bg-gradient {
             0% {
                 background-position: 0% 50%;
@@ -1256,9 +1377,234 @@
                 background-position: 0% 50%;
             }
         }
+        
         .bg-gradient-animate {
             background-size: 200% 200%;
             animation: bg-gradient 8s ease infinite;
+        }
+        
+        /* 新动画类 - 导航栏滚动效果 */
+        #navbar {
+            background-color: transparent;
+            transition: all 0.5s ease;
+        }
+        
+        #navbar.scrolled {
+            background-color: rgba(3, 3, 8, 0.95);
+            backdrop-filter: blur(20px);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+        }
+        
+        /* 链接悬停效果 - 增强 */
+        a {
+            transition: all 0.3s var(--anim-ease);
+            position: relative;
+        }
+        
+        /* 文字链接下划线动画 */
+        a.text-link {
+            display: inline-block;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        a.text-link::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 0;
+            height: 1px;
+            background: linear-gradient(90deg, #00f0ff, #7000ff);
+            transition: width 0.3s var(--anim-ease);
+        }
+        
+        a.text-link:hover::after {
+            width: 100%;
+        }
+        
+        /* 按钮增强效果 */
+        .btn-primary {
+            transition: all 0.3s var(--anim-ease);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0, 240, 255, 0.3);
+        }
+        
+        /* 区块标题动画 */
+        .section-title {
+            opacity: 0;
+            transform: translateX(-30px);
+            transition: opacity 0.8s var(--anim-ease-out), transform 0.8s var(--anim-ease-out);
+            will-change: opacity, transform;
+        }
+        
+        .section-title.is-visible {
+            opacity: 1;
+            transform: none;
+        }
+        
+        /* 数字增长动画容器 */
+        .counter {
+            font-variant-numeric: tabular-nums;
+            will-change: content;
+        }
+        
+        /* 3D 卡片效果 */
+        .card-3d {
+            transition: transform 0.6s var(--anim-ease), box-shadow 0.6s var(--anim-ease);
+            transform-style: preserve-3d;
+            will-change: transform, box-shadow;
+        }
+        
+        .card-3d:hover {
+            transform: translateY(-10px) rotateX(5deg) rotateY(5deg);
+        }
+        
+        /* 合作伙伴卡片悬停效果 */
+        .partner-card {
+            transition: all 0.4s var(--anim-ease);
+            will-change: transform, background, border-color;
+        }
+        
+        .partner-card:hover {
+            background: rgba(255, 255, 255, 0.05);
+            transform: scale(1.05);
+            border-color: rgba(112, 0, 255, 0.4);
+        }
+        
+        /* 时间线项动画 */
+        .timeline-item {
+            opacity: 0;
+            transform: translateX(-30px);
+            transition: opacity 0.8s var(--anim-ease-out), transform 0.8s var(--anim-ease-out);
+            will-change: opacity, transform;
+        }
+        
+        .timeline-item.is-visible {
+            opacity: 1;
+            transform: none;
+        }
+        
+        /* 按钮动画优化 */
+        button {
+            will-change: transform, box-shadow;
+        }
+        
+        /* 导航链接动画优化 */
+        .nav-item {
+            will-change: transform;
+        }
+        
+        /* 响应式动画优化 - 多个断点 */
+        
+        /* 大屏幕设备 */
+        @media (min-width: 1024px) {
+            :root {
+                --anim-duration: 1s;
+                --anim-delay: 0s;
+            }
+        }
+        
+        /* 中等屏幕设备 */
+        @media (max-width: 1023px) {
+            :root {
+                --anim-duration: 0.8s;
+            }
+            
+            .glow-text {
+                text-shadow: 0 0 15px rgba(0, 240, 255, 0.4);
+            }
+        }
+        
+        /* 平板设备 */
+        @media (max-width: 768px) {
+            :root {
+                --anim-duration: 0.6s;
+            }
+            
+            .fade-in-section {
+                transform: translateY(20px);
+            }
+            
+            .fade-in-section.from-left,
+            .fade-in-section.from-right {
+                transform: translateX(15px);
+            }
+            
+            .glow-text {
+                text-shadow: 0 0 10px rgba(0, 240, 255, 0.5);
+            }
+            
+            .glass-card:hover {
+                transform: translateY(-5px) scale(1.01);
+                box-shadow: 0 8px 20px -5px rgba(0, 240, 255, 0.15);
+            }
+            
+            .card-3d:hover {
+                transform: translateY(-5px) rotateX(3deg) rotateY(3deg);
+            }
+        }
+        
+        /* 移动设备 */
+        @media (max-width: 480px) {
+            :root {
+                --anim-duration: 0.5s;
+            }
+            
+            .fade-in-section {
+                transform: translateY(15px);
+            }
+            
+            .fade-in-section.from-left,
+            .fade-in-section.from-right {
+                transform: translateX(10px);
+            }
+            
+            .glow-text {
+                text-shadow: 0 0 8px rgba(0, 240, 255, 0.4);
+            }
+            
+            /* 简化触摸设备的悬停效果，减少性能消耗 */
+            .glass-card {
+                transition: all 0.3s ease;
+            }
+            
+            .glass-card:hover {
+                transform: translateY(-3px) scale(1.005);
+                box-shadow: 0 4px 15px -3px rgba(0, 240, 255, 0.1);
+            }
+            
+            /* 触摸设备上禁用复杂的3D效果 */
+            .card-3d:hover {
+                transform: translateY(-5px);
+            }
+            
+            /* 优化按钮触摸反馈 */
+            button {
+                transition: all 0.2s ease;
+            }
+        }
+        
+        /* 触摸设备优化 */
+        @media (hover: none) {
+            /* 为触摸设备简化悬停效果 */
+            .glass-card:active {
+                transform: translateY(-3px) scale(1.005);
+                box-shadow: 0 4px 15px -3px rgba(0, 240, 255, 0.15);
+            }
+            
+            .card-3d:active {
+                transform: translateY(-5px);
+            }
+            
+            .partner-card:active {
+                transform: scale(1.03);
+            }
         }
         
         /* Modal Animation */
@@ -2774,15 +3120,22 @@
                 }, 500);
             }, 1000);
 
-            // Navbar Blur Effect on Scroll
+            // 导航栏滚动样式效果 - 增强版本（使用节流优化）
             const navbar = document.getElementById('navbar');
-            window.addEventListener('scroll', () => {
+            const throttledNavbarUpdate = throttle(() => {
                 if (window.scrollY > 50) {
-                    navbar.classList.add('bg-deep/80', 'backdrop-blur-md', 'shadow-lg');
+                    navbar.classList.add('scrolled');
                 } else {
-                    navbar.classList.remove('bg-deep/80', 'backdrop-blur-md', 'shadow-lg');
+                    navbar.classList.remove('scrolled');
                 }
-            });
+            }, 100);
+            
+            window.addEventListener('scroll', throttledNavbarUpdate);
+
+            // 初始化导航栏状态
+            if (window.scrollY > 50) {
+                navbar.classList.add('scrolled');
+            }
 
             // Mobile Menu Toggle
             const btn = document.getElementById('mobile-menu-btn');
@@ -2791,11 +3144,12 @@
                 menu.classList.toggle('hidden');
             });
 
-            // Intersection Observer for Fade-in Animations
+            // 合并的Intersection Observer配置
             const observerOptions = {
                 threshold: 0.1
             };
 
+            // 增强的Intersection Observer - 处理多种动画类型
             const observer = new IntersectionObserver((entries) => {
                 entries.forEach(entry => {
                     if (entry.isIntersecting) {
@@ -2804,22 +3158,40 @@
                 });
             }, observerOptions);
 
-            document.querySelectorAll('.fade-in-section').forEach(section => {
-                observer.observe(section);
+            // 观察所有需要动画的元素
+            const animatedElements = [
+                '.fade-in-section',
+                '.section-title',
+                '.timeline-item',
+                '.counter'
+            ];
+
+            animatedElements.forEach(selector => {
+                document.querySelectorAll(selector).forEach(element => {
+                    observer.observe(element);
+                });
             });
 
-            // Number Counter Animation
+            // 优化的数字增长动画
             const counterObserver = new IntersectionObserver((entries) => {
                 entries.forEach(entry => {
                     if (entry.isIntersecting) {
                         const target = +(entry.target.getAttribute('data-target') ?? 0);
                         const duration = 2000; // ms
-                        const increment = target / (duration / 16); 
+                        const frameRate = 60;
+                        const totalFrames = duration / (1000 / frameRate);
+                        const increment = target / totalFrames;
                         
                         let current = 0;
+                        let frame = 0;
+                        
                         const updateCounter = () => {
-                            current += increment;
-                            if (current < target) {
+                            frame++;
+                            // 使用缓动函数使动画更自然
+                            const progress = easeOutCubic(frame / totalFrames);
+                            current = target * progress;
+                            
+                            if (frame < totalFrames) {
                                 entry.target.innerText = Math.ceil(current).toLocaleString();
                                 requestAnimationFrame(updateCounter);
                             } else {
@@ -2835,6 +3207,19 @@
             document.querySelectorAll('.counter').forEach(counter => {
                 counterObserver.observe(counter);
             });
+
+            // 缓动函数
+            function easeOutCubic(t) {
+                return 1 - Math.pow(1 - t, 3);
+            }
+
+            function easeInOutCubic(t) {
+                return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+            }
+
+            function easeOutQuad(t) {
+                return t * (2 - t);
+            }
 
             // Scroll Spy for Left Navigation
             const navItems = document.querySelectorAll('.nav-item');

@@ -1,5 +1,5 @@
 import { useState, useContext, useEffect, useRef } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '@/contexts/authContext';
@@ -8,7 +8,7 @@ import { EventCreateRequest, Media } from '@/types';
 import { useEventService } from '@/hooks/useEventService';
 
 // 导入UI组件
-import { TianjinButton } from '@/components/TianjinStyleComponents';
+import { TianjinButton, TianjinImage } from '@/components/TianjinStyleComponents';
 import { Input, Textarea, Select, DatePicker, Checkbox, FileUpload } from '@/components/ui/Form';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import { MediaGallery } from '@/components/MediaGallery';
@@ -34,7 +34,7 @@ export default function CreateActivity() {
   const { isDark } = useTheme();
   const { isAuthenticated, user } = useContext(AuthContext);
   const navigate = useNavigate();
-  const { createEvent, publishEvent } = useEventService();
+  const { createEvent, publishEvent, updateEvent, getUserEvents } = useEventService();
   
   // 当前步骤
   const [currentStep, setCurrentStep] = useState<StepType>('basic');
@@ -60,18 +60,102 @@ export default function CreateActivity() {
   const [isLoading, setIsLoading] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   
+  // 保存状态
+  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
+  const [lastSavedTime, setLastSavedTime] = useState<Date | null>(null);
+  
   // 表单验证错误
   const [errors, setErrors] = useState<Record<string, string>>({});
   
   // 自动保存定时器
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
   
-  // 检查登录状态
+  // 活动ID（用于断点续创）
+  const [eventId, setEventId] = useState<string | null>(null);
+  
+  // 版本管理相关状态
+  const [showVersionHistory, setShowVersionHistory] = useState(false);
+  const [versions, setVersions] = useState<Array<{
+    id: string;
+    createdAt: Date;
+    title: string;
+    description: string;
+  }>>([]);
+  const [isLoadingVersions, setIsLoadingVersions] = useState(false);
+  
+  // 分享相关状态
+  const [showShareOptions, setShowShareOptions] = useState(false);
+  const [shareUrl, setShareUrl] = useState<string>('');
+  const [copiedToClipboard, setCopiedToClipboard] = useState(false);
+  
+  // 标签管理相关状态
+  const [tagInput, setTagInput] = useState('');
+  const [showTagSuggestions, setShowTagSuggestions] = useState(false);
+  const [tagSuggestions, setTagSuggestions] = useState<string[]>([]);
+  const [selectedTagIndex, setSelectedTagIndex] = useState(-1);
+  
+  // 预设标签列表
+  const presetTags = ['文化展览', '演出活动', '讲座论坛', '节日庆典', '亲子活动', '体育赛事', '公益活动', '艺术创作', '非遗传承', '文创设计', '历史文化', '民俗文化', '红色文化', '天津特色'];
+  
+  // 天津特色配色方案
+  const tianjinColors = {
+    primary: '#0066CC', // 天津蓝 - 主色调
+    secondary: '#FF6B35', // 天津橙 - 辅助色
+    accent: '#F7931E', // 天津金 - 强调色
+    success: '#22C55E', // 成功色
+    warning: '#EAB308', // 警告色
+    error: '#EF4444', // 错误色
+  };
+  
+  // 检查登录状态和加载草稿
   useEffect(() => {
     if (!isAuthenticated || !user) {
       navigate('/login');
+      return;
     }
-  }, [isAuthenticated, user, navigate]);
+    
+    // 加载最近的草稿
+    const loadDraft = async () => {
+      try {
+        setIsLoading(true);
+        // 获取用户最近的草稿活动
+        const userEvents = await getUserEvents(user.id, {
+          status: 'draft',
+          limit: 1,
+          sort: 'updated_at',
+          order: 'desc'
+        });
+        
+        if (userEvents.length > 0) {
+          const draft = userEvents[0];
+          setFormData({
+            title: draft.title,
+            description: draft.description,
+            content: draft.content,
+            startTime: new Date(draft.startTime),
+            endTime: new Date(draft.endTime),
+            location: draft.location,
+            type: draft.type,
+            tags: draft.tags,
+            media: draft.media,
+            isPublic: draft.isPublic,
+            contactName: draft.contactName,
+            contactPhone: draft.contactPhone,
+            contactEmail: draft.contactEmail,
+          });
+          setEventId(draft.id);
+          setLastSavedTime(new Date(draft.updatedAt));
+          toast.success('已加载最近的草稿');
+        }
+      } catch (error) {
+        console.error('加载草稿失败:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    loadDraft();
+  }, [isAuthenticated, user, navigate, getUserEvents]);
   
   // 自动保存草稿
   useEffect(() => {
@@ -80,18 +164,37 @@ export default function CreateActivity() {
       clearTimeout(autoSaveTimerRef.current);
     }
     
+    // 设置为未保存状态
+    setSaveStatus('unsaved');
+    
     // 防抖：5秒后自动保存
     autoSaveTimerRef.current = setTimeout(async () => {
       // 只有当表单有数据时才保存
       if (formData.title || formData.description || formData.content) {
         try {
-          await createEvent({
-            ...formData,
-            status: 'draft'
-          });
+          setSaveStatus('saving');
+          
+          if (eventId) {
+            // 更新现有草稿
+            await updateEvent(eventId, {
+              ...formData,
+              status: 'draft'
+            });
+          } else {
+            // 创建新草稿
+            const newEvent = await createEvent({
+              ...formData,
+              status: 'draft'
+            });
+            setEventId(newEvent.id);
+          }
+          
+          setSaveStatus('saved');
+          setLastSavedTime(new Date());
         } catch (error) {
-          console.log('自动保存失败:', error);
-        }
+            console.error('自动保存失败:', error);
+            setSaveStatus('unsaved');
+          }
       }
     }, 5000);
     
@@ -101,7 +204,7 @@ export default function CreateActivity() {
         clearTimeout(autoSaveTimerRef.current);
       }
     };
-  }, [formData, createEvent]);
+  }, [formData, createEvent, updateEvent, eventId]);
   
   // 处理步骤切换
   const handleStepChange = (step: StepType) => {
@@ -195,20 +298,241 @@ export default function CreateActivity() {
   const handleSaveDraft = async () => {
     try {
       setIsLoading(true);
+      setSaveStatus('saving');
       
-      // 创建或更新草稿
-      await createEvent({
-        ...formData,
-        status: 'draft'
-      });
+      if (eventId) {
+        // 更新现有草稿
+        await updateEvent(eventId, {
+          ...formData,
+          status: 'draft'
+        });
+      } else {
+        // 创建新草稿
+        await createEvent({
+          ...formData,
+          status: 'draft'
+        });
+      }
       
+      setSaveStatus('saved');
+      setLastSavedTime(new Date());
       toast.success('草稿已保存');
       navigate('/activities');
     } catch (error) {
       toast.error('保存失败，请稍后重试');
+      setSaveStatus('unsaved');
     } finally {
       setIsLoading(false);
     }
+  };
+  
+  // 获取版本历史
+  const fetchVersions = async () => {
+    if (!eventId) return;
+    
+    try {
+      setIsLoadingVersions(true);
+      // 模拟获取版本历史
+      // 实际实现中，这里应该调用API获取版本历史
+      const mockVersions = [
+        {
+          id: 'v1',
+          createdAt: new Date(Date.now() - 3600000),
+          title: formData.title || '未命名活动',
+          description: formData.description || '无描述'
+        },
+        {
+          id: 'v2',
+          createdAt: new Date(Date.now() - 7200000),
+          title: '初始版本',
+          description: '初始创建'
+        }
+      ];
+      setVersions(mockVersions);
+    } catch (error) {
+      toast.error('获取版本历史失败');
+      console.error('获取版本历史失败:', error);
+    } finally {
+      setIsLoadingVersions(false);
+    }
+  };
+  
+  // 恢复到特定版本
+  const restoreVersion = async (versionId: string) => {
+    try {
+      setIsLoading(true);
+      // 模拟恢复版本
+      // 实际实现中，这里应该调用API获取特定版本的详细信息
+      toast.success('已恢复到选定版本');
+      setShowVersionHistory(false);
+    } catch (error) {
+      toast.error('恢复版本失败');
+      console.error('恢复版本失败:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // 打开版本历史
+  const openVersionHistory = () => {
+    fetchVersions();
+    setShowVersionHistory(true);
+  };
+  
+  // 生成分享链接
+  const generateShareUrl = () => {
+    if (eventId) {
+      const url = `${window.location.origin}/events/${eventId}`;
+      setShareUrl(url);
+      return url;
+    }
+    return '';
+  };
+  
+  // 复制分享链接到剪贴板
+  const copyShareUrl = async () => {
+    const url = generateShareUrl();
+    if (url) {
+      try {
+        await navigator.clipboard.writeText(url);
+        setCopiedToClipboard(true);
+        toast.success('链接已复制到剪贴板');
+        setTimeout(() => setCopiedToClipboard(false), 2000);
+      } catch (error) {
+        toast.error('复制链接失败，请手动复制');
+        console.error('复制链接失败:', error);
+      }
+    }
+  };
+  
+  // 社交媒体分享
+  const shareToSocialMedia = (platform: 'wechat' | 'weibo' | 'qq') => {
+    const url = generateShareUrl();
+    const title = formData.title || '天津文化活动';
+    const description = formData.description || '欢迎参加我们的活动';
+    
+    let shareUrl = '';
+    
+    switch (platform) {
+      case 'weibo':
+        shareUrl = `https://service.weibo.com/share/share.php?url=${encodeURIComponent(url)}&title=${encodeURIComponent(title)}&description=${encodeURIComponent(description)}`;
+        break;
+      case 'qq':
+        shareUrl = `https://connect.qq.com/widget/shareqq/index.html?url=${encodeURIComponent(url)}&title=${encodeURIComponent(title)}&desc=${encodeURIComponent(description)}`;
+        break;
+      case 'wechat':
+        // 微信分享需要特殊处理，这里只显示提示
+        toast.info('请使用微信扫描二维码分享');
+        return;
+    }
+    
+    // 打开分享窗口
+    window.open(shareUrl, '_blank', 'width=600,height=400');
+  };
+  
+  // 打开分享选项
+  const openShareOptions = () => {
+    generateShareUrl();
+    setShowShareOptions(true);
+  };
+  
+  // 生成标签建议
+  const generateTagSuggestions = (input: string) => {
+    if (!input.trim()) {
+      return [];
+    }
+    
+    const lowerInput = input.toLowerCase();
+    const usedTags = formData.tags || [];
+    
+    // 从预设标签中过滤匹配的建议
+    const matchingTags = presetTags
+      .filter(tag => tag.toLowerCase().includes(lowerInput) && !usedTags.includes(tag))
+      .slice(0, 5);
+    
+    return matchingTags;
+  };
+  
+  // 处理标签输入变化
+  const handleTagInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setTagInput(value);
+    
+    if (value.trim()) {
+      const suggestions = generateTagSuggestions(value);
+      setTagSuggestions(suggestions);
+      setShowTagSuggestions(suggestions.length > 0);
+      setSelectedTagIndex(-1);
+    } else {
+      setShowTagSuggestions(false);
+      setTagSuggestions([]);
+      setSelectedTagIndex(-1);
+    }
+  };
+  
+  // 处理标签选择
+  const selectTag = (tag: string) => {
+    if (!formData.tags?.includes(tag)) {
+      handleChange('tags', [...(formData.tags || []), tag]);
+    }
+    setTagInput('');
+    setShowTagSuggestions(false);
+    setTagSuggestions([]);
+    setSelectedTagIndex(-1);
+  };
+  
+  // 处理标签输入键盘事件
+  const handleTagKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // 回车键处理
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (selectedTagIndex >= 0 && tagSuggestions.length > 0) {
+        // 选择当前高亮的建议标签
+        selectTag(tagSuggestions[selectedTagIndex]);
+      } else if (tagInput.trim()) {
+        // 添加自定义标签
+        selectTag(tagInput.trim());
+      }
+      return;
+    }
+    
+    // 上下箭头处理
+    if (showTagSuggestions) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedTagIndex(prev => {
+          if (prev < tagSuggestions.length - 1) {
+            return prev + 1;
+          }
+          return prev;
+        });
+        return;
+      }
+      
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedTagIndex(prev => {
+          if (prev > 0) {
+            return prev - 1;
+          }
+          return -1;
+        });
+        return;
+      }
+      
+      // Escape键关闭建议
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setShowTagSuggestions(false);
+        setSelectedTagIndex(-1);
+        return;
+      }
+    }
+  };
+  
+  // 处理标签删除
+  const removeTag = (tagToRemove: string) => {
+    handleChange('tags', formData.tags?.filter(tag => tag !== tagToRemove) || []);
   };
   
   // 提交发布
@@ -261,59 +585,168 @@ export default function CreateActivity() {
   return (
     <main className="container mx-auto px-4 py-10">
       <div className="max-w-7xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold">创建活动</h1>
-          <TianjinButton 
-            onClick={handleSaveDraft}
-            disabled={isLoading}
-            className="mr-2"
-          >
-            <i className="fas fa-save mr-2"></i>
-            保存草稿
-          </TianjinButton>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-4">
+          <div>
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">创建活动</h1>
+            {/* 保存状态指示器 */}
+            <div className="flex items-center mt-2.5">
+              {saveStatus === 'saving' && (
+                <div className="flex items-center text-sm text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-3 py-1 rounded-full shadow-sm">
+                  <i className="fas fa-spinner fa-spin mr-1.5"></i>
+                  <span>保存中...</span>
+                </div>
+              )}
+              {saveStatus === 'saved' && lastSavedTime && (
+                <div className="flex items-center text-sm text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30 px-3 py-1 rounded-full shadow-sm">
+                  <i className="fas fa-check-circle mr-1.5"></i>
+                  <span>已保存</span>
+                  <span className="ml-2 text-gray-500 dark:text-gray-400">
+                    {lastSavedTime.toLocaleTimeString('zh-CN')}
+                  </span>
+                </div>
+              )}
+              {saveStatus === 'unsaved' && (
+                <div className="flex items-center text-sm text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/30 px-3 py-1 rounded-full shadow-sm">
+                  <i className="fas fa-exclamation-triangle mr-1.5"></i>
+                  <span>未保存</span>
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="flex gap-3 mt-3 sm:mt-0">
+            {/* 分享按钮 */}
+            <button
+              onClick={openShareOptions}
+              disabled={!eventId}
+              className={`px-5 py-2.5 rounded-lg transition-all duration-300 flex items-center gap-2 font-medium shadow-md ${!eventId 
+                ? 'opacity-50 cursor-not-allowed' 
+                : isDark 
+                ? 'bg-gray-700 hover:bg-gray-600 text-white hover:shadow-lg hover:-translate-y-0.5' 
+                : 'bg-gray-100 hover:bg-gray-200 text-gray-800 hover:shadow-lg hover:-translate-y-0.5'}`}
+            >
+              <i className="fas fa-share-alt"></i>
+              分享
+            </button>
+            {/* 版本历史按钮 */}
+            <button
+              onClick={openVersionHistory}
+              disabled={!eventId}
+              className={`px-5 py-2.5 rounded-lg transition-all duration-300 flex items-center gap-2 font-medium shadow-md ${!eventId 
+                ? 'opacity-50 cursor-not-allowed' 
+                : isDark 
+                ? 'bg-gray-700 hover:bg-gray-600 text-white hover:shadow-lg hover:-translate-y-0.5' 
+                : 'bg-gray-100 hover:bg-gray-200 text-gray-800 hover:shadow-lg hover:-translate-y-0.5'}`}
+            >
+              <i className="fas fa-history"></i>
+              版本历史
+            </button>
+            {/* 保存草稿按钮 */}
+            <TianjinButton 
+              onClick={handleSaveDraft}
+              disabled={isLoading || saveStatus === 'saving'}
+              className="px-5 py-2.5 flex items-center gap-2 font-medium shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300"
+            >
+              <i className="fas fa-save"></i>
+              保存草稿
+            </TianjinButton>
+          </div>
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-12 lg:grid-cols-12 gap-8">
           {/* 左侧：步骤导航 */}
-          <div className="md:col-span-3 lg:col-span-2">
-            <div className={`rounded-xl p-4 ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-md sticky top-6`}>
-              <h2 className="font-semibold mb-4">创建步骤</h2>
-              <div className="space-y-3">
+          <div className="md:col-span-3 lg:col-span-2 xl:col-span-2">
+            <div className={`rounded-2xl p-6 ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-xl sticky top-6 border ${isDark ? 'border-gray-700' : 'border-gray-100'} transition-all duration-300 hover:shadow-2xl`}>
+              <h2 className="font-bold text-lg mb-6 bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">创建步骤</h2>
+              
+              {/* 步骤进度条 */}
+              <div className="mb-6 relative">
+                <div className={`h-1.5 rounded-full ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                  <div 
+                    className="h-full rounded-full bg-gradient-to-r from-blue-600 via-indigo-500 to-purple-600 transition-all duration-500 ease-out shadow-md"
+                    style={{ 
+                      width: `${((steps.findIndex(s => s.id === currentStep) + 1) / steps.length) * 100}%` 
+                    }}
+                  ></div>
+                </div>
+                {/* 步骤进度点 */}
+                <div className="flex justify-between mt-[-7px]">
+                  {steps.map((_, index) => {
+                    const isActive = index <= steps.findIndex(s => s.id === currentStep);
+                    return (
+                      <div 
+                        key={index}
+                        className={`w-4 h-4 rounded-full transition-all duration-300 ${isActive 
+                          ? 'bg-gradient-to-r from-blue-600 to-purple-600 scale-125 ring-2 ring-blue-100 dark:ring-blue-900/50' 
+                          : isDark ? 'bg-gray-600' : 'bg-gray-400'}`}
+                      ></div>
+                    );
+                  })}
+                </div>
+              </div>
+              
+              {/* 步骤列表 */}
+              <div className="space-y-3.5">
                 {steps.map((step, index) => {
                   const isActive = currentStep === step.id;
                   const isCompleted = steps.findIndex(s => s.id === currentStep) > index;
                   
                   return (
-                    <div key={step.id} className="flex items-center">
-                      {/* 步骤指示器 */}
-                      <div 
-                        className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center mr-3 transition-all duration-300 ${isActive 
-                          ? 'bg-gradient-to-r from-red-600 to-red-500 text-white scale-110 shadow-lg' 
-                          : isCompleted
-                          ? 'bg-green-600 text-white' 
-                          : isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500'}`}
+                    <button
+                        key={step.id}
+                        onClick={() => handleStepChange(step.id as StepType)}
+                        className={`w-full flex items-center p-3 rounded-xl transition-all duration-400 hover:translate-x-1 ${isActive 
+                          ? isDark ? 'bg-gradient-to-r from-blue-900/30 to-indigo-900/30' : 'bg-gradient-to-r from-blue-50 to-indigo-50' 
+                          : 'hover:bg-gray-100 dark:hover:bg-gray-700/50'}`}
+                        style={{
+                          borderLeft: isActive 
+                            ? '3px solid #0066CC' 
+                            : '3px solid transparent'
+                        }}
                       >
-                        {isCompleted ? (
-                          <i className="fas fa-check"></i>
-                        ) : (
-                          <i className={`fas fa-${step.icon}`}></i>
-                        )}
-                      </div>
-                      
-                      {/* 步骤名称 */}
-                      <div className="flex-1">
-                        <button
-                          onClick={() => handleStepChange(step.id as StepType)}
-                          className={`text-left font-medium transition-colors duration-300 ${isActive 
-                            ? 'text-red-600 dark:text-red-400' 
+                        {/* 步骤指示器 */}
+                        <div 
+                          className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center mr-3 transition-all duration-500 shadow-md ${isActive 
+                            ? 'bg-gradient-to-r from-blue-600 to-indigo-500 text-white scale-110 ring-4 ring-blue-100 dark:ring-blue-900/50' 
                             : isCompleted
-                            ? 'text-green-600 dark:text-green-400' 
-                            : isDark ? 'text-gray-300 hover:text-gray-100' : 'text-gray-700 hover:text-red-600'}`}
+                            ? 'bg-green-600 text-white scale-105 ring-2 ring-green-100 dark:ring-green-900/50' 
+                            : isDark ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
                         >
-                          {step.name}
-                        </button>
+                          {isCompleted ? (
+                            <i className="fas fa-check text-lg"></i>
+                          ) : (
+                            <i className={`fas fa-${step.icon} text-lg`}></i>
+                          )}
+                        </div>
+                        
+                        {/* 步骤名称和描述 */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between">
+                            <span className={`font-medium truncate transition-colors duration-300 ${isActive 
+                              ? 'text-blue-600 dark:text-blue-400' 
+                              : isCompleted
+                              ? 'text-green-600 dark:text-green-400' 
+                              : isDark ? 'text-gray-300 hover:text-gray-100' : 'text-gray-700 hover:text-blue-600'}`}
+                            >
+                              {step.name}
+                            </span>
+                            {isCompleted && (
+                              <span className="text-xs text-green-600 dark:text-green-400 ml-2">
+                                <i className="fas fa-check-circle"></i>
+                              </span>
+                            )}
+                          </div>
+                        {/* 步骤描述 */}
+                        <p className={`text-xs mt-0.5 ${isActive 
+                          ? (isDark ? 'text-blue-400' : 'text-blue-600') 
+                          : (isDark ? 'text-gray-500' : 'text-gray-500')}`}>
+                          {step.id === 'basic' && '填写活动基本信息'}
+                          {step.id === 'content' && '编辑活动详细内容'}
+                          {step.id === 'media' && '上传活动多媒体资源'}
+                          {step.id === 'settings' && '配置活动相关设置'}
+                          {step.id === 'preview' && '预览活动效果，检查所有信息是否正确，确认无误后发布'}
+                        </p>
                       </div>
-                    </div>
+                    </button>
                   );
                 })}
               </div>
@@ -321,96 +754,171 @@ export default function CreateActivity() {
           </div>
           
           {/* 中间：表单内容 */}
-          <div className="md:col-span-9 lg:col-span-7">
-            <div className={`rounded-xl p-6 ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-md`}>
+          <div className="md:col-span-9 lg:col-span-7 xl:col-span-8">
+            <div className={`rounded-2xl p-7 ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-xl border ${isDark ? 'border-gray-700' : 'border-gray-100'} transition-all duration-300 hover:shadow-2xl`}>
+              {/* 当前步骤标题和描述 */}
+              <div className="mb-8 pb-5 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}">
+                <h2 className="text-2xl font-bold mb-2.5">
+                  {steps.find(step => step.id === currentStep)?.name}
+                </h2>
+                <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'} leading-relaxed`}>
+                  {currentStep === 'basic' && '填写活动的基本信息，包括活动名称、描述、时间和地点等'}
+                  {currentStep === 'content' && '详细描述活动内容，包括活动流程、参与方式、注意事项等'}
+                  {currentStep === 'media' && '上传活动相关的图片和视频，第一张图片将作为活动封面'}
+                  {currentStep === 'settings' && '配置活动的参与人数、隐私设置和标签等'}
+                  {currentStep === 'preview' && '预览活动效果，检查所有信息是否正确，确认无误后发布'}
+                </p>
+              </div>
               {/* 基本信息步骤 */}
               {currentStep === 'basic' && (
                 <div className="space-y-6">
-                  <h2 className="text-xl font-semibold">基本信息</h2>
-                  
                   <div className="space-y-4">
-                    <Input
-                      label="活动名称"
-                      placeholder="请输入活动名称"
-                      value={formData.title}
-                      onChange={(e) => handleChange('title', e.target.value)}
-                      error={errors.title}
-                      required
-                    />
-                    
-                    <Textarea
-                      label="活动描述"
-                      placeholder="请输入活动简要描述"
-                      value={formData.description}
-                      onChange={(e) => handleChange('description', e.target.value)}
-                      error={errors.description}
-                      rows={4}
-                      required
-                    />
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <DatePicker
-                        label="开始时间"
-                        value={formData.startTime}
-                        onChange={(date) => handleChange('startTime', date)}
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.1 }}
+                    >
+                      <Input
+                        label="活动名称"
+                        placeholder="请输入活动名称"
+                        value={formData.title}
+                        onChange={(e) => handleChange('title', e.target.value)}
+                        error={errors.title}
                         required
-                        showTime
                       />
+                    </motion.div>
+                    
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.2 }}
+                    >
+                      <Textarea
+                        label="活动描述"
+                        placeholder="请输入活动简要描述"
+                        value={formData.description}
+                        onChange={(e) => handleChange('description', e.target.value)}
+                        error={errors.description}
+                        rows={4}
+                        required
+                      />
+                    </motion.div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.3 }}
+                      >
+                        <DatePicker
+                          label="开始时间"
+                          value={formData.startTime}
+                          onChange={(date) => handleChange('startTime', date)}
+                          required
+                          showTime
+                        />
+                      </motion.div>
                       
-                      <DatePicker
-                        label="结束时间"
-                        value={formData.endTime}
-                        onChange={(date) => handleChange('endTime', date)}
-                        required
-                        showTime
-                      />
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.4 }}
+                      >
+                        <DatePicker
+                          label="结束时间"
+                          value={formData.endTime}
+                          onChange={(date) => handleChange('endTime', date)}
+                          required
+                          showTime
+                        />
+                      </motion.div>
                     </div>
                     {errors.time && (
-                      <p className="text-red-500 text-sm mt-1">{errors.time}</p>
+                      <motion.p
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: 0.35 }}
+                        className="text-red-500 text-sm mt-1 mb-4"
+                      >
+                        {errors.time}
+                      </motion.p>
                     )}
                     
-                    <Input
-                      label="活动地点"
-                      placeholder="请输入活动地点或线上链接"
-                      value={formData.location || ''}
-                      onChange={(e) => handleChange('location', e.target.value)}
-                    />
-                    
-                    <Select
-                      label="活动类型"
-                      value={formData.type}
-                      onChange={(e) => handleChange('type', e.target.value as 'online' | 'offline')}
-                      options={[
-                        { value: 'offline', label: '线下活动' },
-                        { value: 'online', label: '线上活动' }
-                      ]}
-                      required
-                    />
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <Input
-                        label="联系人"
-                        placeholder="请输入联系人姓名"
-                        value={formData.contactName || ''}
-                        onChange={(e) => handleChange('contactName', e.target.value)}
-                      />
+                    <div className="space-y-6">
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.5 }}
+                      >
+                        <Input
+                          label="活动地点"
+                          placeholder="请输入活动地点或线上链接"
+                          value={formData.location || ''}
+                          onChange={(e) => handleChange('location', e.target.value)}
+                        />
+                      </motion.div>
                       
-                      <Input
-                        label="联系电话"
-                        placeholder="请输入联系电话"
-                        value={formData.contactPhone || ''}
-                        onChange={(e) => handleChange('contactPhone', e.target.value)}
-                        error={errors.contactPhone}
-                      />
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.6 }}
+                      >
+                        <Select
+                          label="活动类型"
+                          value={formData.type}
+                          onChange={(e) => handleChange('type', e.target.value as 'online' | 'offline')}
+                          options={[
+                            { value: 'offline', label: '线下活动' },
+                            { value: 'online', label: '线上活动' }
+                          ]}
+                          required
+                        />
+                      </motion.div>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 mt-6">
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.7 }}
+                      >
+                        <Input
+                          label="联系人"
+                          placeholder="请输入联系人姓名"
+                          value={formData.contactName || ''}
+                          onChange={(e) => handleChange('contactName', e.target.value)}
+                        />
+                      </motion.div>
                       
-                      <Input
-                        label="联系邮箱"
-                        placeholder="请输入联系邮箱"
-                        type="email"
-                        value={formData.contactEmail || ''}
-                        onChange={(e) => handleChange('contactEmail', e.target.value)}
-                        error={errors.contactEmail}
-                      />
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.8 }}
+                      >
+                        <Input
+                          label="联系电话"
+                          placeholder="请输入联系电话"
+                          value={formData.contactPhone || ''}
+                          onChange={(e) => handleChange('contactPhone', e.target.value)}
+                          error={errors.contactPhone}
+                        />
+                      </motion.div>
+                      
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.9 }}
+                        className="sm:col-span-2 lg:col-span-1"
+                      >
+                        <Input
+                          label="联系邮箱"
+                          placeholder="请输入联系邮箱"
+                          type="email"
+                          value={formData.contactEmail || ''}
+                          onChange={(e) => handleChange('contactEmail', e.target.value)}
+                          error={errors.contactEmail}
+                        />
+                      </motion.div>
                     </div>
                   </div>
                 </div>
@@ -418,188 +926,256 @@ export default function CreateActivity() {
               
               {/* 活动内容步骤 */}
               {currentStep === 'content' && (
-                <div className="space-y-6">
-                  <h2 className="text-xl font-semibold">活动内容</h2>
-                  
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+                  className="space-y-6"
+                >
                   <RichTextEditor
                     content={formData.content}
                     onChange={(content) => handleChange('content', content)}
                     error={errors.content}
                     placeholder="请输入活动详细内容，支持富文本格式"
                   />
-                </div>
+                </motion.div>
               )}
               
               {/* 多媒体步骤 */}
               {currentStep === 'media' && (
-                <div className="space-y-6">
-                  <h2 className="text-xl font-semibold">多媒体资源</h2>
-                  
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+                  className="space-y-6"
+                >
                   <div className="space-y-4">
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                    <motion.p
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.3 }}
+                      className="text-sm text-gray-500 dark:text-gray-400"
+                    >
                       上传活动图片和视频，第一张图片将作为活动封面
-                    </p>
+                    </motion.p>
                     
-                    <MediaGallery
-                      media={formData.media}
-                      onChange={handleMediaUpload}
-                      error={errors.media}
-                      allowMultiple
-                      allowVideos
-                    />
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.98 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: 0.4 }}
+                    >
+                      <MediaGallery
+                        media={formData.media}
+                        onChange={handleMediaUpload}
+                        error={errors.media}
+                        allowMultiple
+                        allowVideos
+                      />
+                    </motion.div>
                   </div>
-                </div>
+                </motion.div>
               )}
               
               {/* 设置步骤 */}
               {currentStep === 'settings' && (
-                <div className="space-y-6">
-                  <h2 className="text-xl font-semibold">活动设置</h2>
-                  
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+                  className="space-y-6"
+                >
                   <div className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <Input
-                        label="最大参与人数"
-                        type="number"
-                        placeholder="不填则不限制"
-                        value={formData.maxParticipants || ''}
-                        onChange={(e) => handleChange('maxParticipants', e.target.value ? parseInt(e.target.value) : undefined)}
-                        min={1}
-                      />
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.3 }}
+                      >
+                        <Input
+                          label="最大参与人数"
+                          type="number"
+                          placeholder="不填则不限制"
+                          value={formData.maxParticipants || ''}
+                          onChange={(e) => handleChange('maxParticipants', e.target.value ? parseInt(e.target.value) : undefined)}
+                          min={1}
+                        />
+                      </motion.div>
                       
-                      <div className="flex items-center justify-center">
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.4 }}
+                        className="flex items-center justify-center"
+                      >
                         <Checkbox
                           label="公开活动"
                           checked={formData.isPublic}
                           onChange={(checked) => handleChange('isPublic', checked)}
                         />
-                      </div>
+                      </motion.div>
                     </div>
                     
                     <div>
-                      <label className="block text-sm font-medium mb-2">活动标签</label>
-                      <div className="mb-2">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">活动标签</label>
+                      
+                      {/* 标签输入框和建议列表 */}
+                      <div className="mb-3 relative">
                         <Input
-                          placeholder="输入标签，按回车添加"
-                          onKeyPress={(e) => {
-                            if (e.key === 'Enter' && e.target.value.trim()) {
-                              e.preventDefault();
-                              const tag = e.target.value.trim();
-                              if (!formData.tags?.includes(tag)) {
-                                handleChange('tags', [...(formData.tags || []), tag]);
-                                e.target.value = '';
-                              }
+                          value={tagInput}
+                          onChange={handleTagInputChange}
+                          onKeyDown={handleTagKeyDown}
+                          placeholder="输入标签，按回车添加或选择建议标签"
+                          onBlur={() => {
+                            // 延迟关闭建议，以便点击建议时能触发点击事件
+                            setTimeout(() => setShowTagSuggestions(false), 200);
+                          }}
+                          onFocus={() => {
+                            if (tagInput.trim()) {
+                              const suggestions = generateTagSuggestions(tagInput);
+                              setTagSuggestions(suggestions);
+                              setShowTagSuggestions(suggestions.length > 0);
                             }
                           }}
                         />
+                        
+                        {/* 标签建议列表 */}
+                        {showTagSuggestions && tagSuggestions.length > 0 && (
+                          <div className={`absolute z-10 mt-1 w-full rounded-lg shadow-lg overflow-hidden ${isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'}`}>
+                            {tagSuggestions.map((suggestion, index) => (
+                              <button
+                                key={suggestion}
+                                onClick={() => selectTag(suggestion)}
+                                className={`w-full text-left px-3 py-2 text-sm transition-colors duration-300 ${index === selectedTagIndex 
+                                  ? isDark 
+                                    ? 'bg-blue-700 text-white' 
+                                    : 'bg-blue-100 text-blue-800' 
+                                  : isDark 
+                                    ? 'bg-gray-800 hover:bg-gray-700 text-gray-300' 
+                                    : 'bg-white hover:bg-gray-100 text-gray-800'}`}
+                              >
+                                <i className="fas fa-tag mr-2"></i>
+                                {suggestion}
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
+                        
+                      {/* 已选标签 */}
+                      {formData.tags && formData.tags.length > 0 && (
+                        <div className="mb-4">
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-2 flex items-center">
+                            <i className="fas fa-tags mr-1"></i>
+                            已选标签：
+                          </p>
+                          <div className="flex flex-wrap gap-2.5">
+                            {formData.tags.map((tag, index) => (
+                              <span 
+                                key={index} 
+                                className={`px-4 py-1.5 rounded-full text-sm flex items-center transition-all duration-300 hover:shadow-md ${isDark 
+                                  ? 'bg-blue-900 text-blue-300 hover:bg-blue-800' 
+                                  : 'bg-blue-100 text-blue-700 hover:bg-blue-200'}`}
+                              >
+                                <i className="fas fa-tag mr-1.5 text-xs"></i>
+                                {tag}
+                                <button 
+                                  className="ml-2 hover:text-red-600 dark:hover:text-red-400 transition-colors duration-300 hover:scale-110"
+                                  onClick={() => removeTag(tag)}
+                                >
+                                  <i className="fas fa-times text-xs"></i>
+                                </button>
+                              </span>
+                            ))}
+                            
+                            {/* 清空标签按钮 */}
+                            <button
+                              onClick={() => handleChange('tags', [])}
+                              className={`px-4 py-1.5 rounded-full text-sm flex items-center transition-all duration-300 hover:shadow-md ${isDark 
+                                ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' 
+                                : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
+                            >
+                              <i className="fas fa-trash mr-1.5"></i>
+                              清空
+                            </button>
+                          </div>
+                        </div>
+                      )}
                       
                       {/* 预设标签 */}
-                      <div className="mb-3">
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">预设标签：</p>
-                        <div className="flex flex-wrap gap-2">
-                          {['文化展览', '演出活动', '讲座论坛', '节日庆典', '亲子活动', '体育赛事', '公益活动', '艺术创作'].map((presetTag) => (
+                      <div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-2 flex items-center">
+                          <i className="fas fa-lightbulb mr-1"></i>
+                          预设标签：
+                        </p>
+                        <div className="flex flex-wrap gap-2.5">
+                          {presetTags.map((presetTag) => (
                             <button
                               key={presetTag}
-                              onClick={() => {
-                                if (!formData.tags?.includes(presetTag)) {
-                                  handleChange('tags', [...(formData.tags || []), presetTag]);
-                                }
-                              }}
-                              className={`px-3 py-1 rounded-full text-sm transition-colors duration-300 ${formData.tags?.includes(presetTag)
-                                ? 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300'
-                                : isDark
-                                ? 'bg-gray-700 hover:bg-gray-600 text-gray-300'
-                                : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
+                              onClick={() => selectTag(presetTag)}
+                              className={`px-4 py-1.5 rounded-full text-sm transition-all duration-300 hover:shadow-md transform hover:-translate-y-0.5 ${formData.tags?.includes(presetTag)
+                                ? isDark 
+                                  ? 'bg-red-900 text-red-300 hover:bg-red-800' 
+                                  : 'bg-red-100 text-red-700 hover:bg-red-200' 
+                                : isDark 
+                                  ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' 
+                                  : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
                             >
                               {presetTag}
                             </button>
                           ))}
                         </div>
                       </div>
-                      
-                      {formData.tags && formData.tags.length > 0 && (
-                        <div className="flex flex-wrap gap-2">
-                          {formData.tags.map((tag, index) => (
-                            <span 
-                              key={index} 
-                              className="px-3 py-1 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 text-sm flex items-center"
-                            >
-                              {tag}
-                              <button 
-                                className="ml-2 hover:text-red-600 dark:hover:text-red-400"
-                                onClick={() => handleChange('tags', formData.tags?.filter((t, i) => i !== index))}
-                              >
-                                <i className="fas fa-times"></i>
-                              </button>
-                            </span>
-                          ))}
-                          
-                          {/* 清空标签按钮 */}
-                          <button
-                            onClick={() => handleChange('tags', [])}
-                            className="px-3 py-1 rounded-full bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 text-sm hover:bg-gray-200 dark:hover:bg-gray-700"
-                          >
-                            <i className="fas fa-trash mr-1"></i>
-                            清空
-                          </button>
-                        </div>
-                      )}
                     </div>
                   </div>
-                </div>
+                </motion.div>
               )}
               
               {/* 预览发布步骤 */}
               {currentStep === 'preview' && (
-                <div className="space-y-6">
-                  <h2 className="text-xl font-semibold">预览发布</h2>
-                  
-                  <div className="p-4 border rounded-lg">
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+                  className="space-y-6"
+                >
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.3 }}
+                    className="p-4 border rounded-lg"
+                  >
                     <h3 className="font-medium mb-3">发布前检查</h3>
                     <ul className="space-y-2">
-                      <li className="flex items-center">
-                        <i className={`fas mr-2 ${formData.title ? 'fa-check text-green-500' : 'fa-times text-red-500'}`}></i>
-                        <span>活动名称已填写</span>
-                      </li>
-                      <li className="flex items-center">
-                        <i className={`fas mr-2 ${formData.description ? 'fa-check text-green-500' : 'fa-times text-red-500'}`}></i>
-                        <span>活动描述已填写</span>
-                      </li>
-                      <li className="flex items-center">
-                        <i className={`fas mr-2 ${formData.content ? 'fa-check text-green-500' : 'fa-times text-red-500'}`}></i>
-                        <span>活动内容已填写</span>
-                      </li>
-                      <li className="flex items-center">
-                        <i className={`fas mr-2 ${formData.media.length > 0 ? 'fa-check text-green-500' : 'fa-times text-red-500'}`}></i>
-                        <span>多媒体资源已上传</span>
-                      </li>
-                      <li className="flex items-center">
-                        <i className={`fas mr-2 ${formData.startTime < formData.endTime ? 'fa-check text-green-500' : 'fa-times text-red-500'}`}></i>
-                        <span>活动时间设置正确</span>
-                      </li>
-                      {formData.contactPhone && (
-                        <li className="flex items-center">
-                          <i className="fas fa-check mr-2 text-green-500"></i>
-                          <span>联系电话：{formData.contactPhone}</span>
-                        </li>
-                      )}
-                      {formData.contactEmail && (
-                        <li className="flex items-center">
-                          <i className="fas fa-check mr-2 text-green-500"></i>
-                          <span>联系邮箱：{formData.contactEmail}</span>
-                        </li>
-                      )}
-                      {formData.contactName && (
-                        <li className="flex items-center">
-                          <i className="fas fa-check mr-2 text-green-500"></i>
-                          <span>联系人：{formData.contactName}</span>
-                        </li>
-                      )}
+                      {[
+                        { condition: formData.title, text: '活动名称已填写' },
+                        { condition: formData.description, text: '活动描述已填写' },
+                        { condition: formData.content, text: '活动内容已填写' },
+                        { condition: formData.media.length > 0, text: '多媒体资源已上传' },
+                        { condition: formData.startTime < formData.endTime, text: '活动时间设置正确' },
+                        ...(formData.contactPhone ? [{ condition: true, text: `联系电话：${formData.contactPhone}` }] : []),
+                        ...(formData.contactEmail ? [{ condition: true, text: `联系邮箱：${formData.contactEmail}` }] : []),
+                        ...(formData.contactName ? [{ condition: true, text: `联系人：${formData.contactName}` }] : [])
+                      ].map((item, index) => (
+                        <motion.li 
+                          key={index} 
+                          className="flex items-center"
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: 0.4 + (index * 0.1) }}
+                        >
+                          <i className={`fas mr-2 ${item.condition ? 'fa-check text-green-500' : 'fa-times text-red-500'}`}></i>
+                          <span>{item.text}</span>
+                        </motion.li>
+                      ))}
                     </ul>
-                  </div>
+                  </motion.div>
                   
-                  <div className="mt-6">
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.6 }}
+                    className="mt-6"
+                  >
                     <h3 className="font-medium mb-3">发布说明</h3>
                     <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
                       <p className="text-sm text-yellow-800 dark:text-yellow-300">
@@ -607,12 +1183,12 @@ export default function CreateActivity() {
                         审核通常需要1-2个工作日，请耐心等待。
                       </p>
                     </div>
-                  </div>
-                </div>
+                  </motion.div>
+                </motion.div>
               )}
               
               {/* 步骤导航按钮 */}
-              <div className="flex justify-between mt-8 pt-6 border-t">
+              <div className="flex flex-col sm:flex-row justify-between gap-3 mt-8 pt-6 border-t">
                 <button
                   onClick={handlePrevious}
                   disabled={currentStep === steps[0].id}
@@ -630,7 +1206,7 @@ export default function CreateActivity() {
                   <TianjinButton
                     onClick={handlePublish}
                     disabled={isPublishing}
-                    className="bg-red-600 hover:bg-red-700"
+                    className="bg-gradient-to-r from-blue-600 to-indigo-500 hover:from-blue-700 hover:to-indigo-600"
                   >
                     {isPublishing ? (
                       <>
@@ -658,13 +1234,291 @@ export default function CreateActivity() {
           </div>
           
           {/* 右侧：实时预览 */}
-          <div className="md:col-span-12 lg:col-span-3">
-            <div className={`rounded-xl p-4 ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-md sticky top-6`}>
-              <h2 className="font-semibold mb-4">实时预览</h2>
-              <EventPreview event={formData} />
+          <div className="md:col-span-12 lg:col-span-3 xl:col-span-2">
+            <div className={`rounded-2xl p-6 ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-xl border ${isDark ? 'border-gray-700' : 'border-gray-100'} sticky top-6 transition-all duration-300 hover:shadow-2xl`}>
+              <h2 className="font-bold text-lg mb-5 bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">实时预览</h2>
+              <EventPreview 
+                event={formData} 
+                onEditSection={(section) => {
+                  // 根据点击的区域跳转到对应编辑步骤
+                  switch (section) {
+                    case 'title':
+                    case 'description':
+                      setCurrentStep('basic');
+                      break;
+                    case 'content':
+                      setCurrentStep('content');
+                      break;
+                    case 'media':
+                      setCurrentStep('media');
+                      break;
+                    case 'settings':
+                      setCurrentStep('settings');
+                      break;
+                  }
+                }} 
+              />
+              
+              {/* 预览操作 */}
+              <div className="mt-5 pt-5 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}">
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      // 生成完整预览链接
+                      const previewUrl = generateShareUrl();
+                      if (previewUrl) {
+                        window.open(previewUrl, '_blank');
+                      }
+                    }}
+                    disabled={!eventId}
+                    className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-300 flex items-center justify-center gap-2 ${!eventId 
+                      ? 'opacity-50 cursor-not-allowed' 
+                      : isDark 
+                      ? 'bg-blue-700 hover:bg-blue-600 text-white hover:shadow-md hover:-translate-y-0.5' 
+                      : 'bg-blue-500 hover:bg-blue-600 text-white hover:shadow-md hover:-translate-y-0.5'}`}
+                  >
+                    <i className="fas fa-external-link-alt"></i>
+                    新窗口预览
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
+        
+        {/* 底部CTA */}
+        <div className="fixed bottom-6 right-6 z-40 flex flex-col gap-3">
+          {[1, 2, 3].map((i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, x: 50 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 2 + i * 0.2 }}
+              className="bg-white dark:bg-gray-800 p-3 rounded-lg shadow-lg border-l-4 border-blue-500 flex items-center gap-3 max-w-xs cursor-pointer transform hover:scale-105 transition-transform"
+              onClick={() => navigate('/create')}
+            >
+              <div className="w-10 h-10 rounded overflow-hidden flex-shrink-0">
+                <TianjinImage
+                  src={`https://picsum.photos/100/100?random=${i + 100}`}
+                  alt="Work"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-gray-500 dark:text-gray-400 truncate">有人刚才使用了</p>
+                <p className="text-sm font-bold text-gray-800 dark:text-white truncate">津门纹样生成器</p>
+              </div>
+              <div className="w-8 h-8 rounded-full bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                <i className="fas fa-magic text-xs"></i>
+              </div>
+            </motion.div>
+          ))}
+          
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 3 }}
+            className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-4 rounded-xl shadow-xl cursor-pointer hover:shadow-2xl transition-all"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="font-bold">觉得这些作品很棒？</span>
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  // 关闭提示
+                }}
+                className="text-white/70 hover:text-white"
+              >
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+            <p className="text-sm text-blue-100 mb-3">你也可以轻松创作出这样的作品！</p>
+            <div className="flex gap-2">
+              <button 
+                onClick={() => navigate('/create')}
+                className="flex-1 bg-white text-blue-600 py-1.5 rounded-lg text-sm font-bold hover:bg-blue-50 transition-colors"
+              >
+                立即尝试
+              </button>
+              <button 
+                className="px-3 py-1.5 bg-blue-700 text-white rounded-lg text-sm hover:bg-blue-800 transition-colors"
+                onClick={() => {
+                  // 应用到创作中心
+                  navigate('/create');
+                }}
+              >
+                应用到创作中心
+              </button>
+            </div>
+          </motion.div>
+        </div>
+
+        {/* 版本历史面板 */}
+        <AnimatePresence>
+          {showVersionHistory && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              transition={{ duration: 0.3 }}
+              className={`fixed inset-0 bg-black bg-opacity-50 z-50 flex items-end justify-center p-4 ${isDark ? 'bg-gray-900/90' : 'bg-white/90'} backdrop-blur-sm`}
+            >
+              <div className={`w-full max-w-3xl rounded-t-2xl shadow-2xl ${isDark ? 'bg-gray-800' : 'bg-white'} overflow-hidden max-h-[80vh] flex flex-col`}>
+                {/* 面板头部 */}
+                <div className={`p-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'} flex justify-between items-center`}>
+                  <h2 className="text-xl font-bold">版本历史</h2>
+                  <button
+                    onClick={() => setShowVersionHistory(false)}
+                    className={`p-2 rounded-full ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
+                  >
+                    <i className="fas fa-times"></i>
+                  </button>
+                </div>
+                
+                {/* 面板内容 */}
+                <div className="flex-1 overflow-auto p-4">
+                  {isLoadingVersions ? (
+                    <div className="flex justify-center items-center py-10">
+                      <div className="flex flex-col items-center">
+                        <i className="fas fa-spinner fa-spin text-2xl text-blue-600 mb-2"></i>
+                        <span>加载版本历史...</span>
+                      </div>
+                    </div>
+                  ) : versions.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-10 text-center">
+                      <i className="fas fa-history text-4xl text-gray-400 mb-3"></i>
+                      <h3 className="text-lg font-medium mb-1">暂无版本历史</h3>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        保存活动后将自动创建版本
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {versions.map((version, index) => (
+                        <motion.div
+                          key={version.id}
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: index * 0.1 }}
+                          className={`p-4 rounded-lg border ${isDark ? 'border-gray-700 hover:border-gray-600' : 'border-gray-200 hover:border-gray-300'} transition-colors duration-300 cursor-pointer hover:shadow-md`}
+                        >
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <h3 className="font-medium">{version.title}</h3>
+                              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                {version.description}
+                              </p>
+                            </div>
+                            <button
+                              onClick={() => restoreVersion(version.id)}
+                              className={`px-3 py-1 rounded text-sm ${isDark ? 'bg-blue-700 hover:bg-blue-600' : 'bg-blue-500 hover:bg-blue-600'} text-white transition-colors duration-300`}
+                            >
+                              恢复此版本
+                            </button>
+                          </div>
+                          <div className="mt-3 text-sm text-gray-500 dark:text-gray-400">
+                            <div className="flex items-center">
+                              <i className="fas fa-clock mr-1"></i>
+                              <span>{version.createdAt.toLocaleString('zh-CN')}</span>
+                            </div>
+                            <div className="flex items-center mt-1">
+                              <i className="fas fa-code-branch mr-1"></i>
+                              <span>版本 {versions.length - index}</span>
+                            </div>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+        
+        {/* 分享选项面板 */}
+        <AnimatePresence>
+          {showShareOptions && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              transition={{ duration: 0.3 }}
+              className={`fixed inset-0 bg-black bg-opacity-50 z-50 flex items-end justify-center p-4 ${isDark ? 'bg-gray-900/90' : 'bg-white/90'} backdrop-blur-sm`}
+            >
+              <div className={`w-full max-w-md rounded-t-2xl shadow-2xl ${isDark ? 'bg-gray-800' : 'bg-white'} overflow-hidden`}>
+                {/* 面板头部 */}
+                <div className={`p-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'} flex justify-between items-center`}>
+                  <h2 className="text-xl font-bold">分享活动</h2>
+                  <button
+                    onClick={() => setShowShareOptions(false)}
+                    className={`p-2 rounded-full ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
+                  >
+                    <i className="fas fa-times"></i>
+                  </button>
+                </div>
+                
+                {/* 面板内容 */}
+                <div className="p-4">
+                  <div className="mb-6">
+                    <label className="block text-sm font-medium mb-2">分享链接</label>
+                    <div className="flex">
+                      <input
+                        type="text"
+                        value={shareUrl}
+                        readOnly
+                        className={`flex-1 px-3 py-2 rounded-l-lg border ${isDark ? 'border-gray-700 bg-gray-900' : 'border-gray-300 bg-white'} text-sm`}
+                      />
+                      <button
+                        onClick={copyShareUrl}
+                        className={`px-4 py-2 rounded-r-lg ${isDark ? 'bg-blue-700 hover:bg-blue-600' : 'bg-blue-500 hover:bg-blue-600'} text-white transition-colors duration-300`}
+                      >
+                        {copiedToClipboard ? (
+                          <>
+                            <i className="fas fa-check mr-2"></i>
+                            已复制
+                          </>
+                        ) : (
+                          <>
+                            <i className="fas fa-copy mr-2"></i>
+                            复制
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <h3 className="text-sm font-medium mb-3">分享到社交媒体</h3>
+                    <div className="flex gap-4">
+                      <button
+                        onClick={() => shareToSocialMedia('wechat')}
+                        className={`flex flex-col items-center justify-center p-3 rounded-lg transition-colors duration-300 ${isDark ? 'bg-green-800 hover:bg-green-700' : 'bg-green-100 hover:bg-green-200'} text-green-600 dark:text-green-300`}
+                      >
+                        <i className="fab fa-weixin text-2xl mb-1"></i>
+                        <span className="text-xs">微信</span>
+                      </button>
+                      <button
+                        onClick={() => shareToSocialMedia('weibo')}
+                        className={`flex flex-col items-center justify-center p-3 rounded-lg transition-colors duration-300 ${isDark ? 'bg-red-800 hover:bg-red-700' : 'bg-red-100 hover:bg-red-200'} text-red-600 dark:text-red-300`}
+                      >
+                        <i className="fab fa-weibo text-2xl mb-1"></i>
+                        <span className="text-xs">微博</span>
+                      </button>
+                      <button
+                        onClick={() => shareToSocialMedia('qq')}
+                        className={`flex flex-col items-center justify-center p-3 rounded-lg transition-colors duration-300 ${isDark ? 'bg-blue-800 hover:bg-blue-700' : 'bg-blue-100 hover:bg-blue-200'} text-blue-600 dark:text-blue-300`}
+                      >
+                        <i className="fab fa-qq text-2xl mb-1"></i>
+                        <span className="text-xs">QQ</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </main>
   );

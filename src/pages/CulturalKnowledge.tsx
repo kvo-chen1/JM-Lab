@@ -821,9 +821,9 @@ export default function CulturalKnowledge() {
   const { type } = useParams();
   
   const [activeTab, setActiveTab] = useState<TabType>('stories');
-  // 作品展示数量控制，用于"加载更多"功能
-  const [displayedWorksCount, setDisplayedWorksCount] = useState<number>(16);
-  // 每次加载更多的作品数量
+  // 作品展示数量控制，直接显示所有作品
+  const [displayedWorksCount, setDisplayedWorksCount] = useState<number>(mockWorks.length);
+  // 每次加载更多的作品数量（已不再使用）
   const worksPerLoad = 16;
   
   // 从location.state中获取activeTab参数，用于左侧导航直接切换到文化资讯
@@ -838,8 +838,8 @@ export default function CulturalKnowledge() {
   useEffect(() => {
     if (type && Object.values<TabType>(['stories', 'tutorials', 'elements', 'encyclopedia', 'figures', 'works', 'crafts', 'assets']).includes(type as TabType)) {
       setActiveTab(type as TabType);
-      // 切换标签时重置作品展示数量
-      setDisplayedWorksCount(16);
+      // 切换标签时显示所有作品
+      setDisplayedWorksCount(mockWorks.length);
     }
   }, [type]);
   
@@ -861,8 +861,8 @@ export default function CulturalKnowledge() {
     setSelectedStory(null);
     setSelectedFigure(null);
     setSelectedTutorial(null);
-    // 切换标签时重置作品展示数量
-    setDisplayedWorksCount(16);
+    // 切换标签时显示所有作品
+    setDisplayedWorksCount(mockWorks.length);
   };
   
   // 处理故事点击
@@ -1473,7 +1473,7 @@ export default function CulturalKnowledge() {
                           target.src = fallbackImageUrl(400, 200);
                           target.alt = `${work.title} - 图片加载失败`;
                         }}
-                        loading="lazy"
+                        loading="eager"
                       />
                       <div className="absolute bottom-3 left-3">
                         <span className="bg-red-600 text-white px-3 py-1 rounded-full text-xs font-medium">{work.category}</span>
@@ -1494,7 +1494,7 @@ export default function CulturalKnowledge() {
                           target.src = fallbackImageUrl(100, 100);
                           target.alt = `${work.creator} - 头像加载失败`;
                         }}
-                        loading="lazy"
+                        loading="eager"
                       />
                         <span className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-800'}`}>{work.creator}</span>
                       </div>
@@ -1508,21 +1508,6 @@ export default function CulturalKnowledge() {
                     </div>
                   </motion.div>
                 ))}
-              </div>
-              <div className="mt-8 flex justify-center">
-                {displayedWorksCount < mockWorks.length ? (
-                  <button
-                    onClick={handleLoadMoreWorks}
-                    className="px-6 py-3 rounded-lg bg-red-600 hover:bg-red-700 text-white transition-all duration-300 hover:shadow-lg flex items-center gap-2"
-                  >
-                    <span>加载更多作品</span>
-                    <i className="fas fa-arrow-down"></i>
-                  </button>
-                ) : (
-                  <div className="text-gray-600 dark:text-gray-400 text-center py-4">
-                    <p>已显示全部作品</p>
-                  </div>
-                )}
               </div>
             </motion.div>
           )}

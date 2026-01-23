@@ -17,7 +17,10 @@
     "test:ci": "jest --ci --coverage",
     "vercel-build": "pnpm install --no-frozen-lockfile && pnpm build",
     "ts-node": "ts-node --esm --experimental-specifier-resolution=node --project tsconfig.node.json",
-    "test:e2e": "playwright test --reporter=line"
+    "test:e2e": "playwright test --reporter=line",
+    "clean:scan": "node .trae/skills/redundancy-cleaner/index.js scan",
+    "clean:remove": "node .trae/skills/redundancy-cleaner/index.js remove",
+    "clean:help": "node .trae/skills/redundancy-cleaner/index.js help"
   },
   "dependencies": {
     "@amap/amap-jsapi-loader": "1.0.1",

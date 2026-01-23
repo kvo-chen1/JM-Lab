@@ -6,8 +6,7 @@ import {
   themeOrder,
   getAppliedTheme,
   initializeTheme,
-  saveThemeToLocalStorage,
-  getSystemTheme
+  saveThemeToLocalStorage
 } from '@/config/themeConfig';
 
 interface ThemeContextType {
@@ -59,33 +58,30 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     }
   }, [theme]);
 
-  // 监听系统主题变化
-  useEffect(() => {
-    // 只在浏览器环境中添加事件监听
-    if (typeof window !== 'undefined') {
-      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-      
-      const handleSystemThemeChange = () => {
-        if (theme === 'auto') {
-          updateThemeClass();
-        }
-      };
-      
-      mediaQuery.addEventListener('change', handleSystemThemeChange);
-      return () => mediaQuery.removeEventListener('change', handleSystemThemeChange);
-    }
-    return undefined;
-  }, [theme, updateThemeClass]);
+  // 移除了系统主题变化监听，因为不再支持auto主题
 
   // 主题变化时更新类名和localStorage
   useEffect(() => {
-    // 使用requestAnimationFrame优化DOM更新，减少卡顿
-    const frameId = requestAnimationFrame(() => {
-      updateThemeClass();
-      saveThemeToLocalStorage(theme);
-    });
+    // 避免在服务器端渲染时执行
+    if (typeof window === 'undefined') return;
     
-    return () => cancelAnimationFrame(frameId);
+    // 检查当前主题类是否已经正确应用，避免重复更新
+    const currentAppliedTheme = getAppliedTheme(theme);
+    const hasCorrectClass = document.documentElement.classList.contains(currentAppliedTheme) || 
+                          (currentAppliedTheme === 'light' && !document.documentElement.classList.contains('dark') && 
+                           !document.documentElement.classList.contains('blue') && 
+                           !document.documentElement.classList.contains('green') && 
+                           !document.documentElement.classList.contains('pink'));
+    
+    if (!hasCorrectClass) {
+      // 使用requestAnimationFrame优化DOM更新，减少卡顿
+      const frameId = requestAnimationFrame(() => {
+        updateThemeClass();
+        saveThemeToLocalStorage(theme);
+      });
+      
+      return () => cancelAnimationFrame(frameId);
+    }
   }, [theme, updateThemeClass]);
 
   // 优化toggleTheme函数，使用主题顺序数组
@@ -104,9 +100,6 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
       return false;
     }
     
-    if (theme === 'auto') {
-      return getSystemTheme() === 'dark';
-    }
     return theme === 'dark';
   }, [theme]);
 

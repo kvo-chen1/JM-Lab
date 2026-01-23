@@ -596,6 +596,12 @@ export default defineConfig({
           };
         },
       },
+      // WebSocket代理配置
+      '/ws': {
+        target: LOCAL_API_TARGET.replace('http://', 'ws://'),
+        changeOrigin: true,
+        ws: true
+      },
     },
   },
   // 预览服务器配置
@@ -685,6 +691,12 @@ export default defineConfig({
             proxyRes.headers['Access-Control-Allow-Origin'] = '*';
           };
         },
+      },
+      // WebSocket代理配置
+      '/ws': {
+        target: LOCAL_API_TARGET.replace('http://', 'ws://'),
+        changeOrigin: true,
+        ws: true
       },
     },
     // 确保预览服务器也使用相同的resolve配置

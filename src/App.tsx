@@ -1,8 +1,9 @@
-import React, { useState, useEffect, Suspense, lazy, useRef } from 'react';
+import React, { useState, useEffect, Suspense, lazy, useRef, useCallback } from 'react';
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
 import { Toaster } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
+import { debounce } from '@/lib/utils';
 
 import { Routes, Route, Outlet, useLocation, useNavigationType, Link, Navigate } from "react-router-dom";
 // 导入mock数据和postService用于初始化
@@ -14,6 +15,10 @@ import { Post } from '@/services/postService';
 import { createLazyComponent, ROUTE_PRIORITIES, performanceOptimizer } from '@/utils/performanceOptimization';
 // 导入通知上下文
 import { NotificationProvider } from '@/contexts/NotificationContext';
+// 导入主题上下文
+import { ThemeProvider } from '@/hooks/useTheme';
+// 导入Toaster样式
+import "sonner/dist/styles.css";
 
 
 import CommandPalette from '@/components/CommandPalette';
@@ -28,51 +33,45 @@ import ForgotPassword from "@/pages/ForgotPassword";
 
 // 优化懒加载策略：根据页面访问频率和大小重新分类
 
-// 1. 高频访问页面 - 懒加载，添加预加载提示
-const Dashboard = createLazyComponent(() => import(/* webpackChunkName: "pages-dashboard" */ "@/pages/Dashboard"), {
-  priority: ROUTE_PRIORITIES.MEDIUM
-});
-const Explore = createLazyComponent(() => import(/* webpackChunkName: "pages-explore" */ "@/pages/Explore"), {
-  priority: ROUTE_PRIORITIES.MEDIUM
-});
-const WorkDetail = createLazyComponent(() => import(/* webpackChunkName: "pages-explore" */ "@/pages/WorkDetail"), {
-  priority: ROUTE_PRIORITIES.MEDIUM
-});
+// 1. 高频访问页面 - 静态导入核心页面，确保稳定性
+import Dashboard from "@/pages/Dashboard";
+import Explore from "@/pages/Explore";
+import WorkDetail from "@/pages/WorkDetail";
 const About = createLazyComponent(() => import(/* webpackChunkName: "pages-other" */ "@/pages/About"), {
   priority: ROUTE_PRIORITIES.LOW
 });
 const Square = createLazyComponent(() => import(/* webpackChunkName: "pages-community" */ "@/pages/Square"), {
-  priority: ROUTE_PRIORITIES.MEDIUM
+  priority: ROUTE_PRIORITIES.HIGH
 });
 const Community = createLazyComponent(() => import(/* webpackChunkName: "pages-community" */ "@/pages/Community"), {
-  priority: ROUTE_PRIORITIES.MEDIUM
+  priority: ROUTE_PRIORITIES.HIGH
 });
 const Neo = createLazyComponent(() => import(/* webpackChunkName: "pages-other" */ "@/pages/Neo"), {
   priority: ROUTE_PRIORITIES.LOW
 });
 const NewsDetail = createLazyComponent(() => import(/* webpackChunkName: "pages-cultural" */ "@/pages/NewsDetail"), {
-  priority: ROUTE_PRIORITIES.MEDIUM
+  priority: ROUTE_PRIORITIES.HIGH
 });
 const EventDetail = createLazyComponent(() => import(/* webpackChunkName: "pages-cultural" */ "@/pages/EventDetail"), {
-  priority: ROUTE_PRIORITIES.MEDIUM
+  priority: ROUTE_PRIORITIES.HIGH
 });
-const TestBasic = createLazyComponent(() => import(/* webpackChunkName: "pages-other" */ "@/pages/TestBasic"), {
-  priority: ROUTE_PRIORITIES.LOW
-});
+
 const SearchResults = createLazyComponent(() => import(/* webpackChunkName: "pages-explore" */ "@/pages/SearchResults"), {
   priority: ROUTE_PRIORITIES.HIGH
 });
 
-// 2. 高频访问但较大的页面 - 懒加载，优先加载
+// 2. 高频访问但较大的页面 - 核心工具页面直接加载，其他懒加载
 const Create = createLazyComponent(() => import(/* webpackChunkName: "pages-create" */ "@/pages/create/index.tsx"), {
   priority: ROUTE_PRIORITIES.HIGH
+});
+const CreateLayout = createLazyComponent(() => import(/* webpackChunkName: "pages-create" */ "@/pages/create/CreateLayout"), {
+  priority: ROUTE_PRIORITIES.MEDIUM
 });
 const Studio = createLazyComponent(() => import(/* webpackChunkName: "pages-create" */ "@/pages/create/Studio"), {
   priority: ROUTE_PRIORITIES.HIGH
 });
-const Tools = createLazyComponent(() => import(/* webpackChunkName: "pages-create" */ "@/pages/Tools"), {
-  priority: ROUTE_PRIORITIES.HIGH
-});
+// Tools页面改为直接加载，作为核心功能
+import Tools from "@/pages/Tools";
 const Settings = createLazyComponent(() => import(/* webpackChunkName: "pages-account" */ "@/pages/Settings"), {
   priority: ROUTE_PRIORITIES.MEDIUM
 });
@@ -100,18 +99,18 @@ const Drafts = createLazyComponent(() => import(/* webpackChunkName: "pages-crea
 
 // 文化和知识相关 - 懒加载
 const CulturalKnowledge = createLazyComponent(() => import(/* webpackChunkName: "pages-cultural" */ "@/pages/CulturalKnowledge"), {
-  priority: ROUTE_PRIORITIES.MEDIUM
+  priority: ROUTE_PRIORITIES.HIGH
 });
 // 直接导入 Tianjin 组件，避免动态导入问题
 import Tianjin from "@/pages/Tianjin";
 const TianjinMap = createLazyComponent(() => import(/* webpackChunkName: "pages-cultural" */ "@/pages/TianjinMap"), {
-  priority: ROUTE_PRIORITIES.MEDIUM
+  priority: ROUTE_PRIORITIES.HIGH
 });
 const CulturalEvents = createLazyComponent(() => import(/* webpackChunkName: "pages-cultural" */ "@/pages/CulturalEvents"), {
-  priority: ROUTE_PRIORITIES.MEDIUM
+  priority: ROUTE_PRIORITIES.HIGH
 });
 const CulturalNewsPage = createLazyComponent(() => import(/* webpackChunkName: "pages-cultural" */ "@/pages/CulturalNewsPage"), {
-  priority: ROUTE_PRIORITIES.MEDIUM
+  priority: ROUTE_PRIORITIES.HIGH
 });
 
 // 活动相关 - 静态导入
@@ -189,16 +188,7 @@ const CollaborationDemo = createLazyComponent(() => import(/* webpackChunkName: 
   priority: ROUTE_PRIORITIES.LOW
 });
 
-// 辅助和测试页面 - 懒加载
-const TestPage = createLazyComponent(() => import(/* webpackChunkName: "pages-test" */ "@/pages/TestPage"), {
-  priority: ROUTE_PRIORITIES.LOW
-});
-const ImageTest = createLazyComponent(() => import(/* webpackChunkName: "pages-test" */ "@/pages/ImageTest"), {
-  priority: ROUTE_PRIORITIES.LOW
-});
-const GitHubImageTestPage = createLazyComponent(() => import(/* webpackChunkName: "pages-test" */ "@/pages/GitHubImageTestPage"), {
-  priority: ROUTE_PRIORITIES.LOW
-});
+
 
 // 其他低频页面 - 懒加载
 const Terms = createLazyComponent(() => import(/* webpackChunkName: "pages-other" */ "@/pages/Terms"), {
@@ -252,8 +242,30 @@ const LazyComponent = React.memo(({
   fallback?: React.ReactNode; 
 }) => {
   return (
-    <Suspense fallback={fallback}>
-      {children}
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        {fallback}
+      </div>
+    }>
+      <ErrorBoundary fallback={
+        <div className="min-h-screen flex flex-col items-center justify-center p-4">
+          <div className="w-full max-w-md text-center">
+            <div className="text-6xl mb-4">❌</div>
+            <h2 className="text-2xl font-bold mb-2">页面加载失败</h2>
+            <p className="text-gray-600 dark:text-gray-400 mb-6">
+              抱歉，页面加载过程中出现错误。
+            </p>
+            <button 
+              onClick={() => window.location.reload()} 
+              className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+            >
+              重试
+            </button>
+          </div>
+        </div>
+      }>
+        {children}
+      </ErrorBoundary>
     </Suspense>
   );
 });
@@ -262,18 +274,56 @@ LazyComponent.displayName = 'LazyComponent';
 
 
 
-// 路由缓存组件
+// 路由缓存组件 - 优化缓存机制，添加缓存清理
 const RouteCache = ({ children }: { children: React.ReactNode }) => {
   const location = useLocation();
   const cacheRef = useRef<Map<string, React.ReactNode>>(new Map());
   
-  // 仅缓存核心页面
-  const cacheableRoutes = ['/', '/dashboard', '/explore', '/tools', '/about'];
+  // 核心页面列表 - 只缓存高频访问的核心页面
+  const cacheableRoutes = [
+    '/', 
+    '/dashboard', 
+    '/explore', 
+    '/tools', 
+    '/about',
+    '/search'
+  ];
   
-  // 检查当前路由是否可缓存
+  // 最大缓存数量
+  const MAX_CACHE_SIZE = 10;
+  
+  // 检查当前路由是否可缓存（仅精确匹配）
   const isCacheable = cacheableRoutes.includes(location.pathname);
   
-  // 直接渲染子组件，不使用缓存机制，避免无限重渲染问题
+  // 缓存清理机制：当缓存数量超过最大值时，清理最早的缓存
+  const cleanupCache = () => {
+    if (cacheRef.current.size > MAX_CACHE_SIZE) {
+      const firstKey = cacheRef.current.keys().next().value;
+      cacheRef.current.delete(firstKey);
+    }
+  };
+  
+  // 如果可缓存
+  if (isCacheable) {
+    // 生成缓存键，使用完整路径
+    const cacheKey = location.pathname;
+    
+    // 如果缓存中已有该路由的组件，直接返回
+    if (cacheRef.current.has(cacheKey)) {
+      return <>{cacheRef.current.get(cacheKey)}</>;
+    }
+    
+    // 否则渲染新组件并缓存
+    const renderedComponent = <>{children}</>;
+    cacheRef.current.set(cacheKey, renderedComponent);
+    
+    // 清理超出限制的缓存
+    cleanupCache();
+    
+    return renderedComponent;
+  }
+  
+  // 不可缓存的路由直接渲染
   return <>{children}</>;
 };
 
@@ -320,149 +370,51 @@ export default function App() {
     // 初始化性能优化器
     performanceOptimizer.initialize();
     
-    // 设置延迟，在应用启动后一段时间再初始化数据
+    // 设置更长延迟，在应用完全渲染后再初始化非核心数据
     const initTimer = setTimeout(async () => {
       try {
         // 检查localStorage中是否已有数据
         const storedPosts = localStorage.getItem('posts');
-        const existingPosts = storedPosts ? JSON.parse(storedPosts) : [];
-        
-        if (existingPosts.length === 0) {
-          // 优化：只初始化部分核心数据，减少一次性处理量
-          const coreWorks = mockWorks.slice(0, 10); // 只初始化前10个作品
+        if (!storedPosts) {
+          // 进一步优化：只初始化最核心的5个作品数据
+          const minimalWorks = mockWorks.slice(0, 5); // 只初始化前5个作品
           
-          // 批量添加到localStorage，减少localStorage操作次数
-          const postDataArray = coreWorks.map(work => ({
+          // 仅保留最核心的字段，减少数据处理量
+          const postDataArray = minimalWorks.map(work => ({
             title: work.title,
             thumbnail: work.thumbnail,
             category: work.category as any,
-            tags: work.tags,
-            description: work.description || '',
-            creativeDirection: '',
-            culturalElements: [],
-            colorScheme: [],
-            toolsUsed: [],
-            resolution: undefined,
-            fileSize: undefined,
-            downloadCount: 0,
-            license: undefined
+            tags: work.tags.slice(0, 3), // 只保留前3个标签
+            description: work.description?.substring(0, 100) || '' // 截断描述
           }));
           
-          // 使用postsApi的批量添加方法（如果有）或自定义批量添加逻辑
           // 直接操作localStorage，减少函数调用开销
-          const updatedPosts = [...existingPosts, ...postDataArray];
-          localStorage.setItem('posts', JSON.stringify(updatedPosts));
+          localStorage.setItem('posts', JSON.stringify(postDataArray));
         }
       } catch (error) {
         console.error('初始化数据失败:', error);
       }
-    }, 1000); // 延迟1秒执行，让应用先完成基本渲染
+    }, 2000); // 延迟2秒执行，让应用完全渲染后再处理
     
     return () => clearTimeout(initTimer);
   }, []);
   
+  // 优化：使用防抖函数减少resize事件触发频率
+  const checkIsMobile = useCallback(() => {
+    setIsMobile(window.innerWidth < 768);
+  }, []);
+  
   useEffect(() => {
-    const checkIsMobile = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-    
     // 初始化检查
     checkIsMobile();
     
-    // 添加 resize 事件监听
-    window.addEventListener('resize', checkIsMobile);
+    // 添加 resize 事件监听，使用防抖优化
+    const debouncedCheck = debounce(checkIsMobile, 200);
+    window.addEventListener('resize', debouncedCheck);
     
     // 清理事件监听
-    return () => window.removeEventListener('resize', checkIsMobile);
-  }, []);
-
-  // 移除智能预取逻辑，减少不必要的预加载请求
-  // 预加载会增加初始加载时间和内存消耗，对于低性能设备来说可能会导致卡顿
-  // 导航跳转速度的提升应该通过优化组件渲染和减少不必要的资源加载来实现
-
-  // 全局console日志过滤，用于过滤WebAssembly内存地址日志
-  useEffect(() => {
-    // 保存原始console方法
-    const originalLog = console.log;
-    const originalWarn = console.warn;
-    const originalError = console.error;
-    const originalInfo = console.info;
-    
-    // 替换所有console方法，过滤内存地址日志
-    const filteredLog = function(...args: unknown[]) {
-      // 检查是否包含多个内存地址
-      const hasMultipleMemoryAddresses = args.some(arg => {
-        const str = String(arg);
-        // 检查是否有2个或更多内存地址
-        const matches = str.match(/0x[0-9a-fA-F]{8,}/gi);
-        return matches && matches.length >= 2;
-      });
-      
-      // 如果不包含多个内存地址，则调用原始方法
-      if (!hasMultipleMemoryAddresses) {
-        originalLog.apply(console, args);
-      }
-    };
-    
-    const filteredWarn = function(...args: unknown[]) {
-      // 检查是否包含多个内存地址
-      const hasMultipleMemoryAddresses = args.some(arg => {
-        const str = String(arg);
-        // 检查是否有2个或更多内存地址
-        const matches = str.match(/0x[0-9a-fA-F]{8,}/gi);
-        return matches && matches.length >= 2;
-      });
-      
-      // 如果不包含多个内存地址，则调用原始方法
-      if (!hasMultipleMemoryAddresses) {
-        originalWarn.apply(console, args);
-      }
-    };
-    
-    const filteredError = function(...args: unknown[]) {
-      // 检查是否包含多个内存地址
-      const hasMultipleMemoryAddresses = args.some(arg => {
-        const str = String(arg);
-        // 检查是否有2个或更多内存地址
-        const matches = str.match(/0x[0-9a-fA-F]{8,}/gi);
-        return matches && matches.length >= 2;
-      });
-      
-      // 如果不包含多个内存地址，则调用原始方法
-      if (!hasMultipleMemoryAddresses) {
-        originalError.apply(console, args);
-      }
-    };
-    
-    const filteredInfo = function(...args: unknown[]) {
-      // 检查是否包含多个内存地址
-      const hasMultipleMemoryAddresses = args.some(arg => {
-        const str = String(arg);
-        // 检查是否有2个或更多内存地址
-        const matches = str.match(/0x[0-9a-fA-F]{8,}/gi);
-        return matches && matches.length >= 2;
-      });
-      
-      // 如果不包含多个内存地址，则调用原始方法
-      if (!hasMultipleMemoryAddresses) {
-        originalInfo.apply(console, args);
-      }
-    };
-    
-    // 替换所有console方法
-    console.log = filteredLog;
-    console.warn = filteredWarn;
-    console.error = filteredError;
-    console.info = filteredInfo;
-    
-    // 清理函数，恢复原始console方法
-    return () => {
-      console.log = originalLog;
-      console.warn = originalWarn;
-      console.error = originalError;
-      console.info = originalInfo;
-    };
-  }, []);
+    return () => window.removeEventListener('resize', debouncedCheck);
+  }, [checkIsMobile]);
 
   // 右侧内容组件 - 使用memo优化，避免不必要的重新渲染
   const RightContent = React.memo(() => (
@@ -561,32 +513,50 @@ export default function App() {
     </div>
   );
 
-  // 简化的AnimatedPage组件，减少动画效果，提高性能
+  // Enhanced AnimatedPage component with optimized transitions
   const AnimatedPage = React.memo(({ children }: { children: React.ReactNode }) => {
-    return <div>{children}</div>;
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{
+          duration: 0.15,
+          ease: "easeOut"
+        }}
+        className="transition-opacity duration-150"
+      >
+        {children}
+      </motion.div>
+    );
   });
   
   AnimatedPage.displayName = 'AnimatedPage';
   
+  // 优化根元素样式，使用CSS变量而不是条件类，减少重排
+  const rootClass: string = 'relative min-h-screen transition-colors duration-300';
+
   return (
-    <NotificationProvider>
-      <div className="relative min-h-screen bg-white dark:bg-[var(--bg-primary)]">
-        <Analytics />
-        <SpeedInsights />
-        <Routes>
-        {/* 核心页面直接渲染，无需懒加载，添加缓存和动画 */}
-        {/* 确保根路径是第一个路由，提高匹配优先级 */}
-        <Route path="/" element={
-          <RouteCache>
-            <AnimatedPage>
-              {isMobile ? (
-                <MobileLayout><PrivateRoute><Home /></PrivateRoute></MobileLayout>
-              ) : (
-                <SidebarLayout><PrivateRoute><Home /></PrivateRoute></SidebarLayout>
-              )}
-            </AnimatedPage>
-          </RouteCache>
-        } />
+    <ThemeProvider>
+      <NotificationProvider>
+        <div className={rootClass} style={{ backgroundColor: 'var(--bg-primary, #ffffff)' }}>
+          <Analytics />
+          <SpeedInsights />
+          <AnimatePresence mode="popLayout">
+            <Routes location={location} key={location.pathname}>
+          {/* 核心页面直接渲染，无需懒加载，添加缓存和动画 */}
+          {/* 确保根路径是第一个路由，提高匹配优先级 */}
+          <Route path="/" element={
+            <RouteCache>
+              <AnimatedPage>
+                {isMobile ? (
+                  <MobileLayout><PrivateRoute><Home /></PrivateRoute></MobileLayout>
+                ) : (
+                  <SidebarLayout><PrivateRoute><Home /></PrivateRoute></SidebarLayout>
+                )}
+              </AnimatedPage>
+            </RouteCache>
+          } />
         {/* Landing页面路由 */}
         <Route path="/landing" element={<Landing />} />
         
@@ -607,9 +577,7 @@ export default function App() {
         <Route path="/login" element={<AnimatedPage><Login /></AnimatedPage>} />
         <Route path="/register" element={<AnimatedPage><Register /></AnimatedPage>} />
         <Route path="/forgot-password" element={<AnimatedPage><ForgotPassword /></AnimatedPage>} />
-        {/* 测试页面 */}
-        <Route path="/test" element={<AnimatedPage><TestPage /></AnimatedPage>} />
-        <Route path="/test-basic" element={<AnimatedPage><TestBasic /></AnimatedPage>} />
+
         
         {/* 使用布局的页面，为所有子路由添加动画 */}
         <Route element={
@@ -621,10 +589,11 @@ export default function App() {
             )}
           </AnimatedPage>
         }>
-          <Route path="/explore" element={<RouteCache><LazyComponent><Explore /></LazyComponent></RouteCache>} />
+          <Route path="/explore" element={<RouteCache><Explore /></RouteCache>} />
           <Route path="/explore/:id" element={<LazyComponent fallback={<WorkDetailSkeleton />}><WorkDetail /></LazyComponent>} />
           <Route path="/works/:id" element={<LazyComponent fallback={<WorkDetailSkeleton />}><WorkDetail /></LazyComponent>} />
           <Route path="/about" element={<RouteCache><LazyComponent><About /></LazyComponent></RouteCache>} />
+          <Route path="/tools" element={<RouteCache><PrivateRoute><Tools /></PrivateRoute></RouteCache>} />
           <Route path="/neo" element={<Navigate to="/create/inspiration" replace />} />
           <Route path="/square" element={<LazyComponent><PrivateRoute><Square /></PrivateRoute></LazyComponent>} />
           <Route path="/square/:id" element={<LazyComponent><PrivateRoute><Square /></PrivateRoute></LazyComponent>} />
@@ -638,8 +607,8 @@ export default function App() {
             <Route path="inspiration" element={<LazyComponent><Neo /></LazyComponent>} />
             <Route path="wizard" element={<LazyComponent><Wizard /></LazyComponent>} />
           </Route>
-          <Route path="/create-activity" element={<LazyComponent><PrivateRoute><Create /></PrivateRoute></LazyComponent>}>
-            <Route index element={<LazyComponent><CreateActivity /></LazyComponent>} />
+          <Route path="/create-activity" element={<LazyComponent><PrivateRoute><CreateLayout /></PrivateRoute></LazyComponent>}>
+            <Route index element={<AnimatedPage><CreateActivity /></AnimatedPage>} />
           </Route>
           <Route path="/creates" element={<Navigate to="/create" replace />} />
           <Route path="/wizard" element={<Navigate to="/create/wizard" replace />} />
@@ -653,8 +622,6 @@ export default function App() {
           <Route path="/leaderboard" element={<LazyComponent><Leaderboard /></LazyComponent>} />
           <Route path="/games" element={<LazyComponent><Games /></LazyComponent>} />
           <Route path="/lab" element={<LazyComponent><PrivateRoute><Lab /></PrivateRoute></LazyComponent>} />
-          <Route path="/image-test" element={<LazyComponent><ImageTest /></LazyComponent>} />
-          <Route path="/github-image-test" element={<LazyComponent><GitHubImageTestPage /></LazyComponent>} />
           <Route path="/author/:id" element={<LazyComponent><AuthorProfile /></LazyComponent>} />
 
           <Route path="/brand" element={<LazyComponent><PrivateRoute><BrandGuide /></PrivateRoute></LazyComponent>} />
@@ -713,6 +680,7 @@ export default function App() {
           <Route path="/admin-analytics" element={<LazyComponent><AdminRoute component={AdminAnalytics} /></LazyComponent>} />
         </Route>
       </Routes>
+      </AnimatePresence>
       
       {/* PWA 安装按钮 - 懒加载，隐藏固定按钮，只在个人菜单中显示 */}
       <LazyComponent>
@@ -747,5 +715,6 @@ export default function App() {
       
     </div>
     </NotificationProvider>
+    </ThemeProvider>
 );
 }

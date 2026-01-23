@@ -163,7 +163,24 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
           onClick: () => {
             markAsRead(newNotification.id);
             if (newNotification.link) {
-              window.location.href = newNotification.link;
+              // 检查是否为内部链接
+              try {
+                const notificationUrl = new URL(newNotification.link, window.location.origin);
+                const currentOrigin = window.location.origin;
+                
+                if (notificationUrl.origin === currentOrigin) {
+                  // 内部链接使用history.pushState实现无刷新跳转
+                  window.history.pushState({}, '', notificationUrl.pathname + notificationUrl.search + notificationUrl.hash);
+                  // 触发popstate事件，让React Router检测到路径变化
+                  window.dispatchEvent(new PopStateEvent('popstate'));
+                } else {
+                  // 外部链接使用window.location.href
+                  window.location.href = newNotification.link;
+                }
+              } catch (error) {
+                // 处理无效URL的情况
+                window.location.href = newNotification.link;
+              }
             }
           }
         }

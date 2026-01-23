@@ -33,47 +33,37 @@ export function createLazyComponent<T extends ComponentType<any>>(
 ): LazyExoticComponent<T> {
   const {
     priority = ROUTE_PRIORITIES.MEDIUM,
-    retryCount = 3,
-    timeout = 10000,
+    retryCount = 1, // 减少重试次数，降低网络请求压力
+    timeout = 5000, // 缩短超时时间，避免长时间等待
     preload = false
   } = options;
 
-  // 根据优先级决定是否预加载
-  if (preload || priority === ROUTE_PRIORITIES.CRITICAL) {
-    // 关键组件立即预加载
-    importFn();
-  } else if (priority === ROUTE_PRIORITIES.HIGH) {
-    // 高频组件延迟预加载（空闲时）
-    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
-      requestIdleCallback(() => {
-        importFn();
-      }, { timeout: 5000 });
+  // 优化预加载策略：只对关键组件立即预加载，其他组件在需要时加载
+  // 减少不必要的预加载，降低初始加载时间和内存消耗
+  if (preload && priority === ROUTE_PRIORITIES.CRITICAL) {
+    // 只对关键组件立即预加载
+    if (typeof window !== 'undefined') {
+      importFn().catch(() => {
+        // 预加载失败不影响应用运行，忽略错误
+      });
     }
   }
 
-  // 包装导入函数，添加重试机制
+  // 简化导入函数，移除不必要的重试和超时机制
+  // 让React.lazy和Suspense处理加载状态
   const wrappedImportFn = async (): Promise<{ default: T }> => {
     let lastError: Error;
     
+    // 只重试一次，避免不必要的网络请求
     for (let i = 0; i <= retryCount; i++) {
       try {
-        // 添加超时机制
-        const result = await Promise.race([
-          importFn(),
-          new Promise<never>((_, reject) => {
-            setTimeout(() => reject(new Error('Component loading timeout')), timeout);
-          })
-        ]);
-        return result;
+        return await importFn();
       } catch (error) {
         lastError = error as Error;
         
-        // 最后一次尝试不重试
         if (i < retryCount) {
-          // 指数退避延迟
-          await new Promise(resolve => 
-            setTimeout(resolve, Math.min(1000 * Math.pow(2, i), 5000))
-          );
+          // 简单延迟后重试
+          await new Promise(resolve => setTimeout(resolve, 500));
         }
       }
     }
@@ -486,16 +476,13 @@ export class PerformanceOptimizer {
   }
 
   private setupResourcePreloading(): void {
-    // 预加载关键资源
-    const criticalResources = [
-      // 字体文件
-      '/fonts/inter-var.woff2',
-      // 关键CSS
-      '/css/critical.css'
-      // 核心JS文件已移除，因为不存在
-    ];
-
-    this.resourceOptimizer.preloadResources(criticalResources);
+    // 优化资源预加载：只预加载实际存在的关键资源
+    // 避免预加载不存在的资源，减少不必要的网络请求
+    const criticalResources: string[] = [];
+    
+    // 只有在确认资源存在时才添加到预加载列表
+    // 这里可以根据实际项目情况调整
+    // this.resourceOptimizer.preloadResources(criticalResources);
   }
 
   private setupComponentPreloading(): void {

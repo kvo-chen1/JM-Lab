@@ -27,7 +27,7 @@ export default function InspirationPanel({ onClose, onApply, className = '' }: I
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
-  const [generatedImages, setGeneratedImages] = useState<string[]>([]);
+  const [generatedItems, setGeneratedItems] = useState<Array<{ image: string; video: string; isGeneratingVideo: boolean }>>([]);
   const [activeTab, setActiveTab] = useState<'generate' | 'explore'>('generate');
 
   // Load random suggestions on mount
@@ -69,7 +69,8 @@ export default function InspirationPanel({ onClose, onApply, className = '' }: I
       const urls = list.map((d: any) => d?.url).filter(Boolean);
 
       if (urls.length > 0) {
-        setGeneratedImages(prev => [...urls, ...prev]);
+        const newItems = urls.map(url => ({ image: url, video: '', isGeneratingVideo: false }));
+        setGeneratedItems(prev => [...newItems, ...prev]);
         // 检查是否是 Unsplash 的图片，以此判断是否触发了 Mock 模式
         const isMock = urls.some(u => u.includes('unsplash.com'));
         if (isMock) {
@@ -80,7 +81,7 @@ export default function InspirationPanel({ onClose, onApply, className = '' }: I
       } else {
         // 如果没有生成图片，使用后备占位图（理论上 llmService 已经处理了，这里是双重保险）
         const fallbackUrl = `https://images.unsplash.com/photo-1606787366850-de6330128bfc?w=600&h=600&fit=crop&prompt=${encodeURIComponent(basePrompt)}`;
-        setGeneratedImages(prev => [fallbackUrl, ...prev]);
+        setGeneratedItems(prev => [{ image: fallbackUrl, video: '', isGeneratingVideo: false }, ...prev]);
         toast.info('AI服务暂不可用，已生成预览图');
       }
       
@@ -254,7 +255,7 @@ export default function InspirationPanel({ onClose, onApply, className = '' }: I
 
               {/* Results - Waterfall Grid */}
               <AnimatePresence>
-                {generatedImages.length > 0 && (
+                {generatedItems.length > 0 && (
                   <motion.section
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
@@ -264,14 +265,14 @@ export default function InspirationPanel({ onClose, onApply, className = '' }: I
                     <div className="flex items-center justify-between">
                       <h3 className="font-semibold text-sm">生成结果</h3>
                       <button 
-                        onClick={() => setGeneratedImages([])}
+                        onClick={() => setGeneratedItems([])}
                         className="text-xs text-gray-400 hover:text-red-500 transition-colors"
                       >
                         清空
                       </button>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
-                      {generatedImages.map((img, idx) => (
+                      {generatedItems.map((item, idx) => (
                         <motion.div
                           key={idx}
                           initial={{ opacity: 0, scale: 0.9 }}
@@ -279,7 +280,7 @@ export default function InspirationPanel({ onClose, onApply, className = '' }: I
                           transition={{ delay: idx * 0.1 }}
                           className="relative group rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow"
                         >
-                          <TianjinImage src={img} alt={`Result ${idx}`} ratio="square" rounded="xl" />
+                          <TianjinImage src={item.image} alt={`Result ${idx}`} ratio="square" rounded="xl" />
                           
                           {/* Hover Actions Overlay */}
                           <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col items-center justify-center gap-2 backdrop-blur-[2px]">
@@ -287,7 +288,7 @@ export default function InspirationPanel({ onClose, onApply, className = '' }: I
                               <motion.button
                                 whileHover={{ scale: 1.1 }}
                                 whileTap={{ scale: 0.9 }}
-                                onClick={() => onApply({ prompt: prompt || 'Generated Image', image: img, type: 'image' })}
+                                onClick={() => onApply({ prompt: prompt || 'Generated Image', image: item.image, type: 'image' })}
                                 className="px-3 py-1.5 bg-blue-600 rounded-full text-white text-xs font-medium shadow-lg flex items-center gap-1"
                               >
                                 <i className="fas fa-plus"></i> 应用
@@ -297,14 +298,86 @@ export default function InspirationPanel({ onClose, onApply, className = '' }: I
                               whileHover={{ scale: 1.1 }}
                               whileTap={{ scale: 0.9 }}
                               onClick={() => {
-                                navigator.clipboard.writeText(img);
-                                toast.success('链接已复制');
+                                navigator.clipboard.writeText(item.image);
+                                toast.success('图片链接已复制');
                               }}
                               className="px-3 py-1.5 bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-full text-white text-xs font-medium border border-white/30 flex items-center gap-1"
                             >
-                              <i className="fas fa-link"></i> 复制
+                              <i className="fas fa-link"></i> 复制图片
+                            </motion.button>
+                            <motion.button
+                              whileHover={{ scale: 1.1 }}
+                              whileTap={{ scale: 0.9 }}
+                              onClick={async () => {
+                                if (!item.image.startsWith('http')) {
+                                  toast.error('首帧为本地数据，需使用可公网访问的图片URL');
+                                  return;
+                                }
+                                
+                                setGeneratedItems(prev => 
+                                  prev.map((it, i) => i === idx ? { ...it, isGeneratingVideo: true, video: '生成中...' } : it)
+                                );
+                                
+                                try {
+                                  const basePrompt = `${prompt}  --resolution 720p  --duration 5 --camerafixed false`;
+                                  const result = await llmService.generateVideo({
+                                    prompt: basePrompt,
+                                    imageUrl: item.image,
+                                    resolution: '720p',
+                                    duration: 5
+                                  });
+                                  
+                                  if (!result.ok || !result.data?.video_url) {
+                                    const error = result.error || '视频生成失败';
+                                    toast.error(error);
+                                    setGeneratedItems(prev => 
+                                      prev.map((it, i) => i === idx ? { ...it, isGeneratingVideo: false, video: `视频生成失败：${error}` } : it)
+                                    );
+                                    return;
+                                  }
+                                  
+                                  const videoUrl = result.data.video_url;
+                                  setGeneratedItems(prev => 
+                                    prev.map((it, i) => i === idx ? { ...it, isGeneratingVideo: false, video: videoUrl } : it)
+                                  );
+                                  toast.success('视频生成完成');
+                                } catch (e: any) {
+                                  toast.error(e?.message || '视频生成异常');
+                                  setGeneratedItems(prev => 
+                                    prev.map((it, i) => i === idx ? { ...it, isGeneratingVideo: false, video: '视频生成失败' } : it)
+                                  );
+                                }
+                              }}
+                              className="px-3 py-1.5 bg-green-600 hover:bg-green-700 backdrop-blur-sm rounded-full text-white text-xs font-medium border border-white/30 flex items-center gap-1"
+                              disabled={item.isGeneratingVideo}
+                            >
+                              <i className="fas fa-video"></i> {item.isGeneratingVideo ? '生成中...' : '生成视频'}
                             </motion.button>
                           </div>
+                          
+                          {/* Video Result */}
+                          {item.video && (
+                            <div className={`absolute bottom-2 left-2 right-2 p-2 rounded-lg ${isDark ? 'bg-gray-800/90' : 'bg-white/90'} backdrop-blur-sm text-xs`}>
+                              {item.video.startsWith('http') ? (
+                                <div className="flex items-center justify-between gap-2">
+                                  <a href={item.video} target="_blank" rel="noreferrer" className="text-blue-400 hover:text-blue-300 truncate">
+                                    打开视频
+                                  </a>
+                                  <button 
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(item.video);
+                                      toast.success('视频链接已复制');
+                                    }}
+                                    className="text-gray-300 hover:text-white"
+                                  >
+                                    <i className="fas fa-copy"></i>
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="text-red-400 truncate">{item.video}</div>
+                              )}
+                            </div>
+                          )}
                         </motion.div>
                       ))}
                     </div>

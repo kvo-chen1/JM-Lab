@@ -84,7 +84,7 @@ export class WebSocketService {
   constructor(config?: Partial<WebSocketConfig>) {
     // 默认配置
     this.config = {
-      url: `ws://localhost:3007/ws`,
+      url: `ws://localhost:3021/ws`,
       reconnectAttempts: 5,
       reconnectDelay: 1000,
       maxReconnectDelay: 30000,

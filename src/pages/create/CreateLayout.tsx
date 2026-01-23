@@ -56,7 +56,7 @@ export default function CreateLayout() {
       </div>
 
       {/* Content Area */}
-      <div className={`flex-1 relative ${isStudio ? 'overflow-hidden' : 'overflow-y-auto'}`}>
+      <div className={`flex-1 relative ${isStudio ? '' : 'overflow-y-auto'}`}>
         <Outlet />
       </div>
     </div>

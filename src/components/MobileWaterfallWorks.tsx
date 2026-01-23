@@ -148,64 +148,108 @@ export const MobileWaterfallWorks: React.FC<MobileWaterfallWorksProps> = ({
             return (
             <motion.div
               key={work.id}
-              initial={{ opacity: 1, y: 0 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: '100px' }}
-              whileHover={{ scale: 1.02, boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)" }}
-              whileTap={{ scale: 0.98 }}
-              transition={{
-                duration: 0.1,
-                hover: { duration: 0.1, ease: "easeInOut" }
-              }}
-              className="bg-white dark:bg-gray-800 rounded-lg shadow-sm hover:shadow-lg overflow-hidden transition-all duration-150"
+              className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden cursor-pointer group"
               onClick={() => onClick?.(work.id)}
+              whileHover={{ 
+                scale: 1.02, 
+                boxShadow: isDark 
+                  ? '0 8px 24px rgba(0, 0, 0, 0.3)' 
+                  : '0 8px 24px rgba(0, 0, 0, 0.15)'
+              }}
+              transition={{ duration: 0.3, ease: "easeOut" }}
             >
               <div className="relative overflow-hidden">
-                <TianjinImage
-                  src={work.thumbnail}
-                  alt={work.title}
-                  className="w-full object-cover align-bottom"
-                  rounded="lg"
-                  imageTag={work.imageTag}
-                  disableFallback={false}
-                  loading="lazy"
-                  quality="medium"
-                  priority={false}
-                  // 确保固定尺寸，避免布局跳动
-                  style={{ aspectRatio: `${ratio}` }}
-                />
+                <motion.div
+                  className="w-full"
+                  whileHover={{ scale: 1.08 }}
+                  transition={{ duration: 0.4, ease: "easeOut" }}
+                >
+                  <TianjinImage
+                    src={work.thumbnail}
+                    alt={work.title}
+                    className="w-full object-cover align-bottom"
+                    rounded="lg"
+                    imageTag={work.imageTag}
+                    disableFallback={false}
+                    loading="eager"
+                    quality="medium"
+                    priority={true}
+                    style={{ aspectRatio: `${ratio}` }}
+                  />
+                </motion.div>
+                
+                {/* 悬停时显示的标签 */}
+                <motion.div
+                  className="absolute top-2 left-2 right-2 flex flex-wrap gap-1.5 opacity-0 group-hover:opacity-100"
+                  initial={{ opacity: 0, y: -10 }}
+                  whileHover={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, delay: 0.1, ease: "easeOut" }}
+                >
+                  {work.tags.slice(0, 2).map((tag, ti) => (
+                    <motion.span
+                      key={ti}
+                      className={`px-2 py-0.5 bg-black/60 backdrop-blur-sm text-white text-xs rounded-full ${isDark ? 'bg-white/20' : 'bg-black/60'}`}
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      whileHover={{ opacity: 1, scale: 1 }}
+                      transition={{ duration: 0.2, delay: 0.1 + ti * 0.05, ease: "easeOut" }}
+                    >
+                      {tag}
+                    </motion.span>
+                  ))}
+                </motion.div>
               </div>
               
-              <div className="p-2.5">
-                <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 leading-snug mb-2 line-clamp-2">
+              <motion.div 
+                className="p-2.5"
+                initial={{ y: 0 }}
+                whileHover={{ y: -4 }}
+                transition={{ duration: 0.3, ease: "easeOut" }}
+              >
+                <motion.h3 
+                  className="text-sm font-semibold text-gray-900 dark:text-gray-100 leading-snug mb-2 line-clamp-2"
+                  whileHover={{ color: isDark ? '#ffffff' : '#1f2937' }}
+                  transition={{ duration: 0.3, ease: "easeOut" }}
+                >
                   {work.title}
-                </h3>
-                <div className="flex items-center justify-between">
+                </motion.h3>
+                <motion.div 
+                  className="flex items-center justify-between"
+                  initial={{ opacity: 0.8 }}
+                  whileHover={{ opacity: 1 }}
+                  transition={{ duration: 0.3, ease: "easeOut" }}
+                >
                   <div className="flex items-center gap-1.5 min-w-0">
-                    <div className="w-5 h-5 rounded-full overflow-hidden flex-shrink-0 border border-gray-100 dark:border-gray-700">
+                    <motion.div 
+                      className="w-5 h-5 rounded-full overflow-hidden flex-shrink-0 border border-gray-100 dark:border-gray-700"
+                      whileHover={{ scale: 1.1, rotate: 5 }}
+                      transition={{ duration: 0.3, ease: "easeOut" }}
+                    >
                       <TianjinImage
                         src={work.creatorAvatar}
                         alt={work.creator}
                         disableFallback={false}
                         quality="low"
                       />
-                    </div>
+                    </motion.div>
                     <span className="text-xs text-gray-500 dark:text-gray-400 truncate">
                       {work.creator}
                     </span>
                   </div>
-                  <button 
+                  <motion.button 
                     onClick={(e) => {
                       e.stopPropagation();
                       handleShare(work);
                     }}
                     className={`w-6 h-6 flex items-center justify-center rounded-full transition-colors ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} text-gray-500 hover:text-gray-800 dark:hover:text-gray-100`}
                     title="分享作品"
+                    whileHover={{ scale: 1.2, rotate: 10 }}
+                    whileTap={{ scale: 0.9 }}
+                    transition={{ duration: 0.2, ease: "easeOut" }}
                   >
                     <i className="fas fa-share-alt text-xs"></i>
-                  </button>
-                </div>
-              </div>
+                  </motion.button>
+                </motion.div>
+              </motion.div>
             </motion.div>
           )})}
         </div>

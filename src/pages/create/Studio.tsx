@@ -44,7 +44,7 @@ export default function Studio() {
   }, [searchParams, setActiveTool, setPrompt]);
   
   return (
-    <div className={`flex h-full overflow-hidden ${isDark ? 'bg-gray-950' : 'bg-gray-50'}`}>
+    <div className={`flex h-full ${isDark ? 'bg-gray-950' : 'bg-gray-50'}`}>
       {/* 左侧工具栏 - 内部处理响应式显示 */}
       <ToolSidebar />
       

@@ -67,7 +67,6 @@ export default function Explore() {
   const [featuredAtEnd, setFeaturedAtEnd] = useState(false);
   const featuredScrollRef = useRef<HTMLDivElement>(null);
   const tagsContainerRef = useRef<HTMLDivElement>(null);
-  const sentinelRef = useRef<HTMLDivElement>(null);
   // 用于自动滚动标签栏的ref
   const autoScrollTagsRef = useRef<HTMLDivElement>(null);
   // 自动滚动标签栏的宽度
@@ -80,11 +79,6 @@ export default function Explore() {
   // 搜索历史记录状态
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [maxHistoryItems, setMaxHistoryItems] = useState(10);
-  
-  // 分页和无限滚动
-  const [page, setPage] = useState(1);
-  // 优化分页大小，减少初始加载的图片数量，避免请求拥堵
-  const pageSize = 9; // 从18调整为9，减少初始加载的图片数量
   
   // 初始化作品数据 - 直接使用mockWorks，避免多余的localStorage操作
   useEffect(() => {
@@ -176,13 +170,6 @@ export default function Explore() {
     }
   }, [location.search]);
 
-  // 使用ref跟踪上一次的核心筛选条件
-  const prevCoreFiltersRef = useRef({ 
-    category: '全部', 
-    search: '', 
-    sortBy: 'originalOrder' 
-  });
-
   // 筛选和排序作品 - 使用useMemo优化性能
   const filteredWorks = useMemo(() => {
     let result = mockWorks;
@@ -231,26 +218,7 @@ export default function Explore() {
     }
 
     return result;
-  }, [selectedCategory, searchQuery, sortBy, selectedTags]);
-
-  // 监听核心筛选条件变化，重置分页
-  useEffect(() => {
-    const prev = prevCoreFiltersRef.current;
-    const hasCoreFilterChanged = prev.category !== selectedCategory || 
-                                 prev.search !== searchQuery || 
-                                 prev.sortBy !== sortBy;
-    
-    // 只有在核心筛选条件变化时才重置分页
-    if (hasCoreFilterChanged) {
-      setPage(1);
-      // 更新ref值
-      prevCoreFiltersRef.current = { 
-        category: selectedCategory, 
-        search: searchQuery, 
-        sortBy: sortBy 
-      };
-    }
-  }, [selectedCategory, searchQuery, sortBy]);
+  }, [selectedCategory, searchQuery, sortBy, selectedTags, mockWorks]);
 
   // 获取精选作品：按点赞数降序排序，取前十名
   const featuredWorks = useMemo(() => {
@@ -258,7 +226,7 @@ export default function Explore() {
     return [...mockWorks]
       .sort((a, b) => b.likes - a.likes)
       .slice(0, 10);
-  }, []);
+  }, [mockWorks]);
 
   // 更新搜索建议
   useEffect(() => {
@@ -362,29 +330,6 @@ export default function Explore() {
     navigate(`/explore/${id}`);
   }, [navigate]);
   
-  // 实现无限滚动，优化阈值和根边距，让加载更及时
-  useEffect(() => {
-    if (page * pageSize >= filteredWorks.length) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting) {
-          // 增加500ms的延迟，模拟加载效果，避免闪烁
-          setTimeout(() => {
-            setPage(prev => prev + 1);
-          }, 300);
-        }
-      },
-      { threshold: 0.1, rootMargin: '200px' }
-    );
-
-    if (sentinelRef.current) {
-      observer.observe(sentinelRef.current);
-    }
-
-    return () => observer.disconnect();
-  }, [page, filteredWorks.length]);
-
   // 处理标签选择
   const toggleTag = (tag: string) => {
     setSelectedTags(prev => 
@@ -743,43 +688,101 @@ export default function Explore() {
           <div className="relative overflow-hidden">
             <div className="flex gap-3 sm:gap-4 overflow-x-auto pb-3 sm:pb-4 scrollbar-hide">
               {featuredWorks.map((work, index) => (
-                <div
+                <motion.div
                   key={work.id}
-                  className="flex-shrink-0 w-64 sm:w-72 bg-white dark:bg-gray-800 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
+                  className="flex-shrink-0 w-64 sm:w-72 bg-white dark:bg-gray-800 rounded-xl overflow-hidden shadow-sm cursor-pointer group"
                   onClick={() => handleWorkClick(work.id)}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4, delay: 0.1 * index, ease: "easeOut" }}
+                  whileHover={{ 
+                    scale: 1.03, 
+                    boxShadow: theme === 'dark' 
+                      ? '0 10px 25px rgba(0, 0, 0, 0.4)' 
+                      : '0 10px 25px rgba(0, 0, 0, 0.15)'
+                  }}
                 >
                   <div className="relative aspect-[4/3] overflow-hidden">
-                    <TianjinImage
-                      src={work.thumbnail}
-                      alt={work.title}
-                      className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-300"
-                    />
+                    <motion.div
+                      whileHover={{ scale: 1.1 }}
+                      transition={{ duration: 0.5, ease: "easeOut" }}
+                    >
+                      <TianjinImage
+                        src={work.thumbnail}
+                        alt={work.title}
+                        className="w-full h-full object-cover"
+                      />
+                    </motion.div>
                     {work.category && (
                       <div className="absolute top-2 left-2 px-2 py-1 bg-black/50 backdrop-blur-sm rounded text-xs text-white">
                         {work.category}
                       </div>
                     )}
+                    
+                    {/* 悬停时显示的标签 */}
+                    <motion.div
+                      className="absolute bottom-2 left-2 right-2 flex flex-wrap gap-1.5 opacity-0 group-hover:opacity-100"
+                      initial={{ opacity: 0, y: 10 }}
+                      whileHover={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.3, delay: 0.1, ease: "easeOut" }}
+                    >
+                      {work.tags.slice(0, 2).map((tag, ti) => (
+                        <motion.span
+                          key={ti}
+                          className={`px-2 py-0.5 bg-black/60 backdrop-blur-sm text-white text-xs rounded-full ${theme === 'dark' ? 'bg-white/20' : 'bg-black/60'}`}
+                          initial={{ opacity: 0, scale: 0.8 }}
+                          whileHover={{ opacity: 1, scale: 1 }}
+                          transition={{ duration: 0.2, delay: 0.1 + ti * 0.05, ease: "easeOut" }}
+                        >
+                          {tag}
+                        </motion.span>
+                      ))}
+                    </motion.div>
                   </div>
-                  <div className="p-3">
-                    <h3 className="font-bold text-gray-800 dark:text-white truncate">{work.title}</h3>
-                    <div className="flex items-center mt-2">
-                      <div className="w-5 h-5 rounded-full overflow-hidden mr-2">
+                  <motion.div 
+                    className="p-3"
+                    initial={{ y: 0 }}
+                    whileHover={{ y: -4 }}
+                    transition={{ duration: 0.3, ease: "easeOut" }}
+                  >
+                    <motion.h3 
+                      className="font-bold text-gray-800 dark:text-white truncate"
+                      whileHover={{ color: theme === 'dark' ? '#ffffff' : '#1f2937' }}
+                      transition={{ duration: 0.3, ease: "easeOut" }}
+                    >
+                      {work.title}
+                    </motion.h3>
+                    <motion.div 
+                      className="flex items-center mt-2"
+                      initial={{ opacity: 0.8 }}
+                      whileHover={{ opacity: 1 }}
+                      transition={{ duration: 0.3, ease: "easeOut" }}
+                    >
+                      <motion.div 
+                        className="w-5 h-5 rounded-full overflow-hidden mr-2"
+                        whileHover={{ scale: 1.1, rotate: 5 }}
+                        transition={{ duration: 0.3, ease: "easeOut" }}
+                      >
                         <TianjinImage
                           src={work.creatorAvatar}
                           alt={work.creator}
                           className="w-full h-full object-cover"
                         />
-                      </div>
+                      </motion.div>
                       <span className="text-xs text-gray-500 dark:text-gray-400 truncate flex-1">
                         {work.creator}
                       </span>
-                      <div className="flex items-center text-xs text-gray-400">
+                      <motion.div 
+                        className="flex items-center text-xs text-gray-400"
+                        whileHover={{ color: '#ef4444' }}
+                        transition={{ duration: 0.3, ease: "easeOut" }}
+                      >
                         <i className="fas fa-heart mr-1"></i>
                         {work.likes}
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                      </motion.div>
+                    </motion.div>
+                  </motion.div>
+                </motion.div>
               ))}
             </div>
           </div>
@@ -831,7 +834,7 @@ export default function Explore() {
           {/* 瀑布流展示 */}
           {filteredWorks.length > 0 ? (
             <MobileWaterfallWorks 
-              items={filteredWorks.slice(0, page * pageSize)} 
+              items={filteredWorks} 
               onClick={handleWorkClick} 
             />
           ) : (
@@ -985,17 +988,6 @@ export default function Explore() {
         <div className="mt-12 text-center text-gray-500 dark:text-gray-400 text-sm">
           <p>共找到 {filteredWorks.length} 个作品</p>
           <p className="mt-1">探索更多中国传统品牌创意设计</p>
-        </div>
-        
-        {/* 无限滚动哨兵 */}
-        <div className="text-center mt-10">
-          {page * pageSize < filteredWorks.length ? (
-            <div ref={sentinelRef} className="h-10">
-              <div className="animate-pulse text-gray-500 dark:text-gray-400">加载更多...</div>
-            </div>
-          ) : (
-            <span className="text-gray-500 dark:text-gray-400">已加载全部</span>
-          )}
         </div>
         
         {/* 页脚 */}

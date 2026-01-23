@@ -41,25 +41,23 @@ export default function GradientHero({ title, subtitle, badgeText, theme = 'red'
       className={`relative overflow-hidden rounded-3xl mb-8 text-white ${className || ''}`}
       style={{
         minHeight: '300px',
-        ...(backgroundImage ? {
-          background: `url(${backgroundImage}) center/cover no-repeat`
-        } : {
-          background: `linear-gradient(to right, ${gradient})`
-        })
+        background: backgroundImage ? 
+          `url(${backgroundImage}) center/cover no-repeat` : 
+          `linear-gradient(to right, ${gradient})`
       }}
       aria-label={title}
       initial={{ opacity: 0, y: -12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
     >
-      {/* 图片背景遮罩层 - 优化为更通透的渐变，模仿共创广场的质感 */}
+      {/* 图片背景遮罩层 - 移除背景渐变，只保留半透明黑色遮罩 */}
       {backgroundImage && (
-        <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/30 to-black/10 backdrop-blur-[1px] z-0"></div>
+        <div className="absolute inset-0 bg-black/30 backdrop-blur-[1px] z-0"></div>
       )}
       
       {pattern && (
         <div
-          className="pointer-events-none absolute inset-0 opacity-10 z-10"
+          className="pointer-events-none absolute inset-0 opacity-10 z-1"
           style={{
             backgroundImage: 'linear-gradient(to right, rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.1) 1px, transparent 1px)',
             backgroundSize: '20px 20px'

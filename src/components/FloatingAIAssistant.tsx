@@ -31,19 +31,31 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
   const [showPresetQuestions, setShowPresetQuestions] = useState(true);
   const [enableTypingEffect, setEnableTypingEffect] = useState(true);
   const [autoScroll, setAutoScroll] = useState(true);
+  // 添加标志位，防止滚动事件在程序化滚动时触发
+  const [isProgrammaticScroll, setIsProgrammaticScroll] = useState(false);
   // 反馈相关状态
   const [feedbackVisible, setFeedbackVisible] = useState<{[key: number]: boolean}>({});
   const [feedbackRatings, setFeedbackRatings] = useState<{[key: number]: number}>({});
   const [feedbackComments, setFeedbackComments] = useState<{[key: number]: string}>({});
+  // 复制相关状态
+  const [copiedMessage, setCopiedMessage] = useState<number | null>(null);
   const [windowWidth, setWindowWidth] = useState<number>(0);
   // 连接状态相关状态
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
   const [connectionError, setConnectionError] = useState<string>('');
   const [isTestingConnection, setIsTestingConnection] = useState(false);
+  // 自动完成相关状态
+  const [showAutocomplete, setShowAutocomplete] = useState(false);
+  const [autocompleteSuggestions, setAutocompleteSuggestions] = useState<string[]>([]);
+  const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);
+  // 打字效果相关状态
+  const [typingMessage, setTypingMessage] = useState<string>('');
+  const [isTyping, setIsTyping] = useState(false);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const autocompleteRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -114,8 +126,15 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
         label: '新对话',
         icon: '💬',
         action: () => {
-          llmService.createSession('新对话');
-          setMessages([]);
+          if (messages.length > 1) {
+            if (confirm('创建新对话将丢失当前对话历史，确定要继续吗？')) {
+              llmService.createSession('新对话');
+              setMessages([]);
+            }
+          } else {
+            llmService.createSession('新对话');
+            setMessages([]);
+          }
         },
         visible: true
       },
@@ -124,9 +143,13 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
         label: '清空历史',
         icon: '🗑️',
         action: () => {
-          if (confirm('确定要清空对话历史吗？')) {
+          if (confirm('确定要清空对话历史吗？此操作不可恢复。')) {
             llmService.clearHistory();
             setMessages([]);
+            setCopiedMessage(null);
+            setFeedbackRatings({});
+            setFeedbackComments({});
+            setFeedbackVisible({});
           }
         },
         visible: messages.length > 0
@@ -371,6 +394,22 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
     }));
   };
 
+  // 处理消息复制
+  const handleCopyMessage = async (messageIndex: number) => {
+    const message = messages[messageIndex];
+    if (message) {
+      try {
+        await navigator.clipboard.writeText(message.content);
+        // 显示复制成功反馈
+        setCopiedMessage(messageIndex);
+        // 3秒后清除复制状态
+        setTimeout(() => setCopiedMessage(null), 3000);
+      } catch (error) {
+        console.error('Failed to copy message:', error);
+      }
+    }
+  };
+
   // 生成上下文相关的初始欢迎消息
   const getWelcomeMessage = () => {
     const welcomeMessages: Record<string, string> = {
@@ -414,6 +453,11 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
 
   // 检测手动滚动，当用户手动滚动时禁用autoScroll，滚动到底部时重新启用
   const handleScroll = () => {
+    // 跳过程序化滚动触发的事件
+    if (isProgrammaticScroll) {
+      return;
+    }
+    
     if (chatContainerRef.current) {
       const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current;
       // 检查是否接近底部（50px以内）
@@ -430,6 +474,9 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
   // 通用的滚动到底部函数
   const scrollToBottom = useCallback(() => {
     if (chatContainerRef.current && autoScroll) {
+      // 设置程序化滚动标志
+      setIsProgrammaticScroll(true);
+      
       const container = chatContainerRef.current;
       
       // 强制滚动到底部，不依赖autoScroll状态
@@ -437,6 +484,11 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
       
       // 额外的滚动方法，确保在各种浏览器中都能正常工作
       container.scroll({ top: container.scrollHeight, behavior: 'instant' });
+      
+      // 延迟清除程序化滚动标志，确保滚动事件完成
+      setTimeout(() => {
+        setIsProgrammaticScroll(false);
+      }, 100);
     }
   }, [autoScroll]);
 
@@ -596,17 +648,17 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
         if (navigationTarget) {
           // 执行页面跳转
           response = `正在为你跳转到「${navigationTarget.name}」页面...`;
-          setMessages(prev => [...prev, {
-            role: 'assistant',
-            content: response,
-            timestamp: Date.now()
-          }]);
-          setIsGenerating(false);
           
-          // 延迟跳转，让用户看到反馈
-          setTimeout(() => {
-            navigate(navigationTarget.path);
-          }, 1000);
+          // 使用打字效果显示跳转提示
+          await addTypingEffect(response, () => {
+            setIsGenerating(false);
+            
+            // 延迟跳转，让用户看到反馈
+            setTimeout(() => {
+              navigate(navigationTarget.path);
+            }, 1000);
+          });
+          
           return;
         }
         
@@ -646,13 +698,8 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
         }
       }
       
-      const assistantMessage: Message = {
-        role: 'assistant',
-        content: response,
-        timestamp: Date.now()
-      };
-
-      setMessages(prev => [...prev, assistantMessage]);
+      // 使用打字效果显示回复
+      await addTypingEffect(response);
     } catch (error) {
       console.error('Failed to generate response:', error);
       
@@ -666,15 +713,58 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
         errorContent = `抱歉，我暂时无法回答你的问题。\n\n建议：\n1. 检查网络连接是否正常\n2. 稍后再试或尝试其他问题\n3. 点击右上角设置按钮，使用"测试连接"功能检查AI服务状态`;
       }
       
-      const errorMessage: Message = {
-        role: 'assistant',
-        content: errorContent,
-        timestamp: Date.now()
-      };
-
-      setMessages(prev => [...prev, errorMessage]);
+      // 使用打字效果显示错误信息
+      await addTypingEffect(errorContent, undefined, true);
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  // 打字效果辅助函数
+  const addTypingEffect = async (fullResponse: string, callback?: () => void, isError: boolean = false) => {
+    let displayedText = '';
+    const typingSpeed = 30; // 打字速度（毫秒/字符）
+    
+    // 创建一个临时的打字消息
+    const typingMessage: Message = {
+      role: 'assistant',
+      content: '',
+      timestamp: Date.now()
+    };
+    
+    // 添加到消息列表
+    setMessages(prev => [...prev, typingMessage]);
+    
+    // 滚动到底部
+    scrollToBottom();
+    
+    // 逐字符显示文本
+    for (let i = 0; i < fullResponse.length; i++) {
+      displayedText += fullResponse[i];
+      
+      // 更新消息列表中的最后一条消息
+      setMessages(prev => {
+        const updated = [...prev];
+        if (updated.length > 0) {
+          updated[updated.length - 1] = {
+            ...updated[updated.length - 1],
+            content: displayedText,
+            isError: isError
+          };
+        }
+        return updated;
+      });
+      
+      // 滚动到底部
+      scrollToBottom();
+      
+      // 等待打字间隔
+      await new Promise(resolve => setTimeout(resolve, typingSpeed));
+    }
+    
+    // 执行回调函数（如果有）
+    if (callback) {
+      callback();
     }
   };
 
@@ -684,13 +774,197 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
     handleSendMessage();
   };
 
+  // 自动完成建议生成函数
+  const generateAutocompleteSuggestions = (input: string): string[] => {
+    if (!input.trim() || input.length < 2) {
+      return [];
+    }
+    
+    const lowerInput = input.toLowerCase();
+    const currentQuestions = getPresetQuestions();
+    
+    // 从当前页面的预设问题中过滤匹配的建议
+    const matchingQuestions = currentQuestions.filter(question => 
+      question.toLowerCase().includes(lowerInput)
+    );
+    
+    // 从通用问题中添加更多建议
+    const generalSuggestions = [
+      '如何使用AI生成功能',
+      '如何分享我的作品',
+      '平台有哪些功能',
+      '如何获取创作灵感',
+      '如何参与社区活动',
+      '如何管理我的作品',
+      '如何编辑已发布作品',
+      '如何查看作品统计',
+      '如何设置作品隐私',
+      '如何批量操作作品',
+      '如何搜索作品',
+      '如何筛选作品',
+      '如何点赞收藏',
+      '如何查看热门作品',
+      '如何关注热门创作者',
+      '如何使用创作工具',
+      '如何添加素材',
+      '如何使用AI辅助创作',
+      '如何保存草稿',
+      '如何使用快捷键',
+      '如何查看创作数据',
+      '如何查看收益情况',
+      '如何设置通知',
+      '如何管理账户信息',
+      '如何查看系统通知',
+      '如何修改密码',
+      '如何绑定手机号',
+      '如何设置隐私',
+      '如何管理API密钥',
+      '如何清除缓存'
+    ];
+    
+    const additionalSuggestions = generalSuggestions
+      .filter(suggestion => 
+        suggestion.toLowerCase().includes(lowerInput) &&
+        !matchingQuestions.includes(suggestion)
+      )
+      .slice(0, 5 - matchingQuestions.length);
+    
+    return [...matchingQuestions, ...additionalSuggestions].slice(0, 5);
+  };
+
+  // 处理输入变化，生成自动完成建议
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setInputMessage(value);
+    
+    if (value.trim().length >= 2) {
+      const suggestions = generateAutocompleteSuggestions(value);
+      setAutocompleteSuggestions(suggestions);
+      setShowAutocomplete(suggestions.length > 0);
+      setSelectedSuggestionIndex(-1);
+    } else {
+      setShowAutocomplete(false);
+      setAutocompleteSuggestions([]);
+      setSelectedSuggestionIndex(-1);
+    }
+  };
+
+  // 处理自动完成建议选择
+  const handleSuggestionSelect = (suggestion: string) => {
+    setInputMessage(suggestion);
+    setShowAutocomplete(false);
+    setAutocompleteSuggestions([]);
+    setSelectedSuggestionIndex(-1);
+    inputRef.current?.focus();
+  };
+
+  // 处理键盘导航自动完成建议
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Enter键处理
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      if (showAutocomplete && selectedSuggestionIndex >= 0) {
+        handleSuggestionSelect(autocompleteSuggestions[selectedSuggestionIndex]);
+      } else {
+        handleSendMessage();
+      }
+      return;
+    }
+    
+    // 上下箭头处理
+    if (showAutocomplete) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedSuggestionIndex(prev => {
+          if (prev < autocompleteSuggestions.length - 1) {
+            return prev + 1;
+          }
+          return prev;
+        });
+        return;
+      }
+      
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedSuggestionIndex(prev => {
+          if (prev > 0) {
+            return prev - 1;
+          }
+          return -1;
+        });
+        return;
+      }
+      
+      // Escape键关闭自动完成
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setShowAutocomplete(false);
+        setSelectedSuggestionIndex(-1);
+        return;
+      }
+    }
+    
+    // Tab键处理
+    if (e.key === 'Tab' && showAutocomplete && selectedSuggestionIndex >= 0) {
+      e.preventDefault();
+      handleSuggestionSelect(autocompleteSuggestions[selectedSuggestionIndex]);
+    }
+  };
+
   // 处理键盘事件
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSendMessage();
+      if (showAutocomplete && selectedSuggestionIndex >= 0) {
+        handleSuggestionSelect(autocompleteSuggestions[selectedSuggestionIndex]);
+      } else {
+        handleSendMessage();
+      }
     }
   };
+
+  // 处理键盘快捷键
+  const handleKeyboardShortcuts = (e: KeyboardEvent) => {
+    // Ctrl/Cmd + K: 打开/关闭聊天窗口
+    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+      e.preventDefault();
+      toggleAssistant();
+    }
+    
+    // Esc: 关闭聊天窗口或自动完成
+    if (e.key === 'Escape') {
+      if (showAutocomplete) {
+        setShowAutocomplete(false);
+        setSelectedSuggestionIndex(-1);
+      } else if (isOpen) {
+        setIsOpen(false);
+      }
+    }
+  };
+
+  // 添加键盘快捷键监听
+  useEffect(() => {
+    window.addEventListener('keydown', handleKeyboardShortcuts);
+    return () => {
+      window.removeEventListener('keydown', handleKeyboardShortcuts);
+    };
+  }, [isOpen, showAutocomplete]);
+
+  // 点击外部关闭自动完成
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (autocompleteRef.current && !autocompleteRef.current.contains(event.target as Node) && 
+          inputRef.current && !inputRef.current.contains(event.target as Node)) {
+        setShowAutocomplete(false);
+        setSelectedSuggestionIndex(-1);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   // 初始化位置，从localStorage读取保存的位置，如果没有则使用默认位置
   useEffect(() => {
@@ -1017,24 +1291,58 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
                   >
                     {messages.map((message, index) => (
                       <motion.div
-                        key={index}
-                        className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'} ${windowWidth < 768 ? 'mb-3' : 'mb-4'}`}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: index * 0.1, duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
+                    key={index}
+                    className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'} ${windowWidth < 768 ? 'mb-3' : 'mb-4'}`}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.1, duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
+                  >
+                    <div className="max-w-[88%]">
+                      <motion.div
+                        className={`${windowWidth < 768 ? 'p-3.5' : 'p-4.5'} rounded-2xl ${message.role === 'user' ? 
+                          (isDark ? 'bg-gradient-to-br from-blue-600 to-purple-600 text-white shadow-lg' : 'bg-gradient-to-br from-blue-500 to-purple-500 text-white shadow-lg') : 
+                          (message.isError ? 
+                            (isDark ? 'bg-gradient-to-br from-red-600/90 to-red-700/90 text-white border border-red-500/50 shadow-lg' : 'bg-gradient-to-br from-red-100/90 to-red-200/90 text-red-800 border border-red-300/50 shadow-lg') : 
+                            (isDark ? 'bg-gray-700/90 text-gray-200 border border-gray-600/50' : 'bg-gray-100/90 text-gray-800 border border-gray-200/50')
+                          )
+                        } transition-all relative group`}
+                        whileHover={{ scale: 1.01, boxShadow: message.role === 'user' ? '0 10px 25px rgba(99, 102, 241, 0.3)' : message.isError ? (isDark ? '0 10px 25px rgba(239, 68, 68, 0.4)' : '0 10px 25px rgba(239, 68, 68, 0.2)') : (isDark ? '0 10px 25px rgba(0, 0, 0, 0.3)' : '0 10px 25px rgba(0, 0, 0, 0.1)') }}
                       >
-                        <div className="max-w-[88%]">
-                          <motion.div
-                            className={`${windowWidth < 768 ? 'p-3.5' : 'p-4.5'} rounded-2xl ${message.role === 'user' ? 
-                              (isDark ? 'bg-gradient-to-br from-blue-600 to-purple-600 text-white shadow-lg' : 'bg-gradient-to-br from-blue-500 to-purple-500 text-white shadow-lg') : 
-                              (isDark ? 'bg-gray-700/90 text-gray-200 border border-gray-600/50' : 'bg-gray-100/90 text-gray-800 border border-gray-200/50')
-                            } transition-all`}
-                            whileHover={{ scale: 1.01, boxShadow: message.role === 'user' ? '0 10px 25px rgba(99, 102, 241, 0.3)' : isDark ? '0 10px 25px rgba(0, 0, 0, 0.3)' : '0 10px 25px rgba(0, 0, 0, 0.1)' }}
-                          >
-                            <div className="text-sm whitespace-pre-wrap leading-relaxed">
-                              {message.content}
-                            </div>
-                          </motion.div>
+                        {/* 复制按钮 */}
+                        <motion.button
+                          onClick={() => handleCopyMessage(index)}
+                          className={`absolute top-2 right-2 p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-all duration-200 ${isDark ? 'bg-gray-600/80 hover:bg-gray-500 text-white' : 'bg-gray-200/80 hover:bg-gray-300 text-gray-800'} text-xs`}
+                          whileHover={{ scale: 1.1 }}
+                          whileTap={{ scale: 0.95 }}
+                          aria-label="复制消息"
+                        >
+                          <i className={`fas ${copiedMessage === index ? 'fa-check' : 'fa-copy'} text-xs`}></i>
+                        </motion.button>
+                        <div className="text-sm whitespace-pre-wrap leading-relaxed">
+                          {message.content}
+                        </div>
+                        
+                        {/* 重试按钮 - 仅针对AI错误消息显示 */}
+                        {message.isError && message.role === 'assistant' && (
+                          <div className="mt-3 flex justify-end">
+                            <motion.button
+                              onClick={() => {
+                                // 重新发送上一条用户消息
+                                if (index > 0 && messages[index - 1].role === 'user') {
+                                  setInputMessage(messages[index - 1].content);
+                                  setMessages(prev => prev.slice(0, index));
+                                  setTimeout(() => handleSendMessage(), 100);
+                                }
+                              }}
+                              className={`px-3 py-1.5 text-xs rounded-full transition-all ${isDark ? 'bg-red-600/80 hover:bg-red-500 text-white' : 'bg-red-100 hover:bg-red-200 text-red-800'}`}
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.95 }}
+                            >
+                              <i className="fas fa-redo mr-1"></i> 重试
+                            </motion.button>
+                          </div>
+                        )}
+                      </motion.div>
                           
                           {/* 只有AI回复显示评分功能 */}
                           {message.role === 'assistant' && (
@@ -1121,7 +1429,7 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
                             </div>
                           )}
                         </div>
-                      </div>
+                      </motion.div>
                     ))}
 
                     {/* 正在生成指示器 */}
@@ -1368,31 +1676,91 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
             )}
 
             {/* 输入区域 - 手机端优化 */}
-            <div className={`${windowWidth < 768 ? 'p-2' : 'p-3'} border-t ${isDark ? 'border-gray-700 bg-gray-900' : 'border-gray-200 bg-white'} shadow-inner`}>
-              <div className="flex gap-1 items-center">
-                <input
-                  ref={inputRef}
-                  type="text"
-                  value={inputMessage}
-                  onChange={(e) => setInputMessage(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  placeholder="输入你的问题..."
-                  disabled={isGenerating}
-                  className={`flex-1 px-2.5 py-2 rounded-full border ${isDark ? 'border-gray-700 bg-gray-800 text-white placeholder-gray-500 focus:border-blue-500' : 'border-gray-300 bg-gray-50 text-gray-900 placeholder-gray-500 focus:border-blue-500'} focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all shadow-sm text-sm`}
-                />
-                <motion.button
-                  onClick={handleSendMessage}
-                  disabled={isGenerating || !inputMessage.trim()}
-                  className={`${windowWidth < 768 ? 'p-2' : 'p-2.5'} rounded-full transition-all shadow-md ${isGenerating || !inputMessage.trim() ? 
-                    (isDark ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-300 text-gray-500 cursor-not-allowed') : 
-                    (isDark ? 'bg-gradient-to-br from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white' : 'bg-gradient-to-br from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white')
-                  }`}
-                  whileHover={{ scale: isGenerating || !inputMessage.trim() ? 1 : 1.1 }}
-                  whileTap={{ scale: isGenerating || !inputMessage.trim() ? 1 : 0.95 }}
-                  aria-label="发送"
-                >
-                  <i className="fas fa-paper-plane text-xs sm:text-sm"></i>
-                </motion.button>
+            <div className={`${windowWidth < 768 ? 'p-2.5' : 'p-3'} border-t ${isDark ? 'border-gray-700 bg-gray-900' : 'border-gray-200 bg-white'} shadow-inner`}>
+              <div className="relative">
+                <div className="flex gap-1 items-center">
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    value={inputMessage}
+                    onChange={handleInputChange}
+                    onKeyPress={handleKeyPress}
+                    onKeyDown={handleKeyDown}
+                    placeholder="输入你的问题..."
+                    disabled={isGenerating}
+                    className={`flex-1 px-4 py-3 rounded-full border ${isDark ? 'border-gray-700 bg-gray-800 text-white placeholder-gray-500 focus:border-blue-500' : 'border-gray-300 bg-gray-50 text-gray-900 placeholder-gray-500 focus:border-blue-500'} focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all shadow-sm text-sm touch-manipulation`}
+                    style={{
+                      // 优化移动端触摸体验
+                      WebkitTapHighlightColor: 'transparent',
+                      touchAction: 'manipulation'
+                    }}
+                  />
+                  <motion.button
+                    onClick={handleSendMessage}
+                    disabled={isGenerating || !inputMessage.trim()}
+                    className={`${windowWidth < 768 ? 'p-3' : 'p-2.5'} rounded-full transition-all duration-300 shadow-md ${isGenerating ? 
+                      (isDark ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white') : 
+                      (isGenerating || !inputMessage.trim() ? 
+                        (isDark ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-300 text-gray-500 cursor-not-allowed') : 
+                        (isDark ? 'bg-gradient-to-br from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white' : 'bg-gradient-to-br from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white')
+                      )
+                    }`}
+                    whileHover={{ scale: isGenerating || !inputMessage.trim() ? 1 : 1.1 }}
+                    whileTap={{ scale: isGenerating || !inputMessage.trim() ? 1 : 0.95 }}
+                    whileTouchStart={{ scale: 0.95 }}
+                    whileTouchEnd={{ scale: 1 }}
+                    aria-label="发送"
+                    animate={isGenerating ? { rotate: 360 } : { rotate: 0 }}
+                    transition={isGenerating ? { duration: 1, repeat: Infinity, ease: "linear" } : {}}
+                    style={{
+                      // 优化移动端触摸体验
+                      WebkitTapHighlightColor: 'transparent',
+                      touchAction: 'manipulation'
+                    }}
+                  >
+                    {isGenerating ? (
+                      <i className="fas fa-spinner fa-spin text-sm sm:text-base"></i>
+                    ) : (
+                      <i className="fas fa-paper-plane text-sm sm:text-base"></i>
+                    )}
+                  </motion.button>
+                </div>
+                
+                {/* 自动完成建议列表 */}
+                <AnimatePresence>
+                  {showAutocomplete && autocompleteSuggestions.length > 0 && (
+                    <motion.div
+                      ref={autocompleteRef}
+                      initial={{ opacity: 0, y: -5, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -5, scale: 0.98 }}
+                      transition={{ duration: 0.2 }}
+                      className={`absolute left-0 right-0 top-full mt-1 rounded-xl shadow-xl overflow-hidden z-50 ${isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'}`}
+                    >
+                      {autocompleteSuggestions.map((suggestion, index) => (
+                        <motion.div
+                          key={index}
+                          onClick={() => handleSuggestionSelect(suggestion)}
+                          className={`px-4 py-2.5 text-sm cursor-pointer transition-all ${index === selectedSuggestionIndex ? 
+                            (isDark ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white') : 
+                            (isDark ? 'bg-gray-800 hover:bg-gray-700 text-gray-200' : 'bg-white hover:bg-gray-100 text-gray-800')
+                          }`}
+                          whileHover={{ 
+                            backgroundColor: index === selectedSuggestionIndex ? 
+                              (isDark ? 'rgba(59, 130, 246, 0.8)' : 'rgba(59, 130, 246, 0.8)') : 
+                              (isDark ? 'rgba(31, 41, 55, 0.8)' : 'rgba(249, 250, 251, 0.8)')
+                          }}
+                          whileTap={{ scale: 0.98 }}
+                        >
+                          <div className="flex items-center">
+                            <i className="fas fa-magic text-xs mr-2 opacity-60"></i>
+                            <span>{suggestion}</span>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             </div>
           </motion.div>

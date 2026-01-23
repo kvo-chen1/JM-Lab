@@ -172,6 +172,7 @@ export default function BrandGuide() {
           badgeText="Beta"
           pattern={true}
           size="lg"
+          backgroundImage="https://picsum.photos/seed/brand/1920/1080"
         />
         <div className="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }} className={`${isDark ? 'bg-gray-800/80 ring-1 ring-gray-700' : 'bg-white/90 ring-1 ring-gray-200'} rounded-2xl shadow-xl p-6 backdrop-blur lg:sticky lg:top-6`} id="brand-section" aria-labelledby="brand-section-title">

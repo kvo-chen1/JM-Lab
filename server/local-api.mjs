@@ -1541,9 +1541,13 @@ async function route(req, res, u, path) {
       let existingUserId = null;
 
       try {
+        console.log(`[注册请求] 收到请求: username=${username}, email=${email}, phone=${phone}`);
+        
         // 检查邮箱是否已存在
+        console.log(`[注册请求] 检查邮箱是否存在: ${email}`);
         const existingUser = await userDB.findByEmail(email);
         if (existingUser) {
+          console.log(`[注册请求] 邮箱已存在: ${email}, 是否临时用户: ${existingUser.password_hash === 'TEMP_HASH'}`);
           // 检查是否是临时用户（通过发送验证码生成的占位记录）
           if (existingUser.password_hash === 'TEMP_HASH') {
             isTempUser = true;
@@ -1555,8 +1559,10 @@ async function route(req, res, u, path) {
         }
         
         // 检查用户名是否已存在
+        console.log(`[注册请求] 检查用户名是否存在: ${username}`);
         const existingUsername = await userDB.findByUsername(username);
         if (existingUsername) {
+          console.log(`[注册请求] 用户名已存在: ${username}`);
           // 如果是同一个临时用户，则不算冲突
           if (!isTempUser || existingUsername.id !== existingUserId) {
             sendJson(res, 400, { error: 'USERNAME_ALREADY_EXISTS', message: '该用户名已被使用' });
@@ -1566,6 +1572,7 @@ async function route(req, res, u, path) {
 
         // 如果提供了验证码，进行验证
         if (code) {
+           console.log(`[注册请求] 验证验证码: ${code}`);
            const { email_login_code, email_login_expires } = await userDB.getEmailLoginCode(email);
            const isValid = verifySmsCode(email_login_code, code, email_login_expires);
            if (!isValid) {
@@ -1573,17 +1580,20 @@ async function route(req, res, u, path) {
              return;
            }
         } else if (isTempUser) {
+            console.log(`[注册请求] 临时用户注册但缺少验证码`);
             // 如果是临时用户注册，必须提供验证码
             sendJson(res, 400, { error: 'MISSING_CODE', message: '请填写验证码以完成注册' });
             return;
         }
         
         // 密码加密
+        console.log(`[注册请求] 加密密码`);
         const password_hash = await bcrypt.hash(password, 10);
         
         let userId;
         if (isTempUser) {
           // 更新临时用户记录
+          console.log(`[注册请求] 更新临时用户: ${existingUserId}`);
           await userDB.updateById(existingUserId, {
             username,
             password_hash,
@@ -1598,6 +1608,7 @@ async function route(req, res, u, path) {
           userId = existingUserId;
         } else {
           // 创建新用户
+          console.log(`[注册请求] 创建新用户: ${username} <${email}>`);
           const newUser = await userDB.createUser({
             username,
             email,
@@ -1611,10 +1622,12 @@ async function route(req, res, u, path) {
             github_username: null,
             auth_provider: 'local'
           });
+          console.log(`[注册请求] 新用户创建成功，ID: ${newUser.id}`);
           userId = newUser.id;
         }
         
         // 生成JWT令牌
+        console.log(`[注册请求] 生成JWT令牌`);
         const token = generateToken({ userId, email });
         
         // 既然已经通过验证码验证，就不需要再发验证邮件了，或者可以发一封欢迎邮件
@@ -1636,7 +1649,8 @@ async function route(req, res, u, path) {
         });
       } catch (error) {
         console.error('注册失败:', error);
-        sendJson(res, 500, { error: 'INTERNAL_ERROR', message: '注册失败，请稍后重试' });
+        console.error('注册失败详细信息:', error.stack);
+        sendJson(res, 500, { error: 'INTERNAL_ERROR', message: '注册失败，请稍后重试', details: error.message });
       }
       return;
     }
@@ -2851,7 +2865,75 @@ if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
     await handler(req, res);
   });
   
+  // 启动 WebSocket 服务器
+  const wss = new WebSocketServer({
+    server,
+    path: '/ws'
+  });
+  
+  wss.on('connection', (ws) => {
+    console.log('WebSocket client connected');
+    
+    // 发送连接确认
+    ws.send(JSON.stringify({
+      type: 'connection_established',
+      message: 'WebSocket connection established',
+      timestamp: Date.now()
+    }));
+    
+    ws.on('message', (message) => {
+      try {
+        const parsedMessage = JSON.parse(message);
+        console.log('WebSocket message received:', parsedMessage);
+        
+        // 处理不同类型的消息
+        switch (parsedMessage.type) {
+          case 'ping':
+            ws.send(JSON.stringify({
+              type: 'pong',
+              timestamp: Date.now()
+            }));
+            break;
+          case 'subscribe':
+            // 处理订阅
+            ws.send(JSON.stringify({
+              type: 'subscribed',
+              topic: parsedMessage.payload.topic,
+              timestamp: Date.now()
+            }));
+            break;
+          case 'unsubscribe':
+            // 处理取消订阅
+            ws.send(JSON.stringify({
+              type: 'unsubscribed',
+              topic: parsedMessage.payload.topic,
+              timestamp: Date.now()
+            }));
+            break;
+          default:
+            // 转发其他消息到客户端
+            wss.clients.forEach((client) => {
+              if (client !== ws && client.readyState === WebSocket.OPEN) {
+                client.send(message);
+              }
+            });
+        }
+      } catch (error) {
+        console.error('WebSocket message processing error:', error);
+      }
+    });
+    
+    ws.on('close', () => {
+      console.log('WebSocket client disconnected');
+    });
+    
+    ws.on('error', (error) => {
+      console.error('WebSocket error:', error);
+    });
+  });
+  
   server.listen(PORT, () => {
-    console.log(`Local API server running on http://localhost:${PORT}`)
+    console.log(`Local API server running on http://localhost:${PORT}`);
+    console.log(`WebSocket server running on ws://localhost:${PORT}/ws`);
   })
 }

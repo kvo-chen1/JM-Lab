@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState, useContext, memo, useCallback } from 'react'
+import { debounce } from '@/lib/utils'
 import { TianjinImage } from '@/components/TianjinStyleComponents'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useTheme } from '@/hooks/useTheme'
+import { themeOrder } from '@/config/themeConfig'
 import { AuthContext } from '@/contexts/authContext'
 import { markPrefetched, isPrefetched } from '@/services/prefetch'
 import ErrorFeedback from '@/components/ErrorFeedback'
@@ -10,12 +12,14 @@ import CreatorDashboard from './CreatorDashboard'
 import useLanguage from '@/contexts/LanguageContext'
 import { useTranslation } from 'react-i18next'
 import { navigationGroups } from '@/config/navigationConfig'
-import ThemePreviewModal from './ThemePreviewModal'
+
 import SearchBar, { SearchSuggestion } from '@/components/SearchBar'
 import searchService from '@/services/searchService'
 import PWAInstallButton from '@/components/PWAInstallButton'
 import { playNotificationSound, sendDesktopNotification, requestDesktopNotificationPermission } from '../utils/notificationUtils'
 import NotificationPanel, { Notification, NotificationSettings } from './NotificationPanel'
+
+
 
 interface SidebarLayoutProps {
   children: React.ReactNode
@@ -44,20 +48,19 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
     
     setIsMounted(true)
     
-    // 从localStorage读取保存的折叠状态
+    // 从localStorage批量读取保存的状态，减少localStorage操作次数
     const savedCollapsed = localStorage.getItem('sidebarCollapsed')
+    const savedPinned = localStorage.getItem('sidebarPinned')
+    const savedWidth = localStorage.getItem('sidebarWidth')
+    
     if (savedCollapsed) {
       setCollapsed(JSON.parse(savedCollapsed))
     }
     
-    // 从localStorage读取保存的固定状态
-    const savedPinned = localStorage.getItem('sidebarPinned')
     if (savedPinned) {
       setIsPinned(JSON.parse(savedPinned))
     }
     
-    // 从localStorage读取保存的宽度
-    const savedWidth = localStorage.getItem('sidebarWidth')
     if (savedWidth) {
       setWidth(Math.min(Math.max(parseInt(savedWidth), 180), 320))
     }
@@ -65,21 +68,22 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
   const dragging = useRef(false)
   const searchRef = useRef<HTMLInputElement | null>(null)
   const [search, setSearch] = useState('')
-  const [showThemeModal, setShowThemeModal] = useState(false)
+  
+  // 使用防抖函数优化localStorage写入
+  const debouncedSave = useCallback(debounce((key: string, value: any) => {
+    if (typeof localStorage === 'undefined') return
+    localStorage.setItem(key, JSON.stringify(value))
+  }, 200), [])
   
   // 保存折叠状态到localStorage
   useEffect(() => {
-    // 只在客户端环境中访问localStorage
-    if (typeof localStorage === 'undefined') return
-    localStorage.setItem('sidebarCollapsed', JSON.stringify(collapsed))
-  }, [collapsed])
+    debouncedSave('sidebarCollapsed', collapsed)
+  }, [collapsed, debouncedSave])
   
   // 保存固定状态到localStorage
   useEffect(() => {
-    // 只在客户端环境中访问localStorage
-    if (typeof localStorage === 'undefined') return
-    localStorage.setItem('sidebarPinned', JSON.stringify(isPinned))
-  }, [isPinned])
+    debouncedSave('sidebarPinned', isPinned)
+  }, [isPinned, debouncedSave])
   // 初始化最近搜索为[]，确保服务器端和客户端渲染一致
   const [recentSearches, setRecentSearches] = useState<string[]>([])
   
@@ -135,7 +139,8 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
     // 更新最近搜索
     setRecentSearches((prev) => {
       const next = [suggestion.text, ...prev.filter((x) => x !== suggestion.text)].slice(0, 6)
-      try { localStorage.setItem('recentSearches', JSON.stringify(next)) } catch {}
+      // 使用防抖函数保存到localStorage，减少操作次数
+      debouncedSave('recentSearches', next)
       return next
     })
   }  
@@ -253,18 +258,15 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
   
   const unreadCount = useMemo(() => notifications.filter(n => !n.read).length, [notifications])
   
+  // 保存通知到本地存储 - 使用防抖函数优化
   useEffect(() => {
-    try {
-      localStorage.setItem('notifications', JSON.stringify(notifications))
-    } catch {}
-  }, [notifications])
+    debouncedSave('notifications', notifications)
+  }, [notifications, debouncedSave])
 
-  // 保存通知设置到本地存储
+  // 保存通知设置到本地存储 - 使用防抖函数优化
   useEffect(() => {
-    try {
-      localStorage.setItem('notificationSettings', JSON.stringify(notificationSettings))
-    } catch {}
-  }, [notificationSettings])
+    debouncedSave('notificationSettings', notificationSettings)
+  }, [notificationSettings, debouncedSave])
   useEffect(() => {
     // 只在浏览器环境中添加事件监听
     if (typeof document === 'undefined') return
@@ -352,11 +354,13 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
       if (!dragging.current || collapsed) return
       const next = Math.min(Math.max(width + e.movementX, minW), maxW)
       setWidth(next)
-      localStorage.setItem('sidebarWidth', String(next))
+      // 拖拽时不立即保存，只在拖拽结束后保存
     }
     const onUp = () => {
       dragging.current = false
       document.body.style.cursor = 'default'
+      // 拖拽结束后保存宽度到localStorage，使用防抖函数优化
+      debouncedSave('sidebarWidth', width)
     }
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
@@ -364,7 +368,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
     }
-  }, [width, collapsed])
+  }, [width, collapsed, debouncedSave])
 
   // 添加通知动画效果
   const [newNotification, setNewNotification] = useState<Notification | null>(null)
@@ -493,23 +497,12 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
-  // 防抖函数
-  const debounce = (func: Function, wait: number) => {
-    let timeout: NodeJS.Timeout;
-    return function executedFunction(...args: any[]) {
-      const later = () => {
-        clearTimeout(timeout);
-        func(...args);
-      };
-      clearTimeout(timeout);
-      timeout = setTimeout(later, wait);
-    };
-  };
+
 
   // 中文注释：暗色主题下的导航项悬停时变白，背景使用透明度白色
   // 统一导航项高度和内边距，避免激活时布局变化
   const navItemClass = useMemo(() => (
-    `${isDark ? 'hover:text-white hover:bg-white/10 text-[13px]' : 'hover:bg-[var(--bg-hover)]'} flex items-center px-3 py-2 rounded-lg transition-all duration-200`
+    `${isDark ? 'hover:text-white hover:bg-gray-800/60 text-[13px]' : 'hover:bg-[var(--bg-hover)]'} flex items-center px-3 py-2 rounded-lg transition-all duration-200`
   ), [isDark])
 
   // 中文注释：主题激活态使用CSS变量，确保主题变化时样式同步更新
@@ -703,9 +696,9 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
 
         <nav className="px-2 pt-2 pb-4 space-y-4">
           {navigationGroups.map((group) => (
-            <div key={group.id} className={`rounded-lg ${isDark ? 'bg-white/5 backdrop-blur-sm border border-white/5' : 'bg-gray-50'} p-3 transition-all duration-300`}>
+            <div key={group.id} className={`rounded-lg ${isDark ? 'bg-[#1e293b]/60 backdrop-blur-sm border border-gray-700/50' : 'bg-gray-50'} p-3 transition-all duration-300`}>
               {(!collapsed || hovered || isPinned) && group.id !== 'platform' && group.id !== 'creation' && (
-                <h3 className={`${isDark ? 'text-[8px] text-gray-400' : 'text-[11px] text-blue-600'} font-medium mb-1 uppercase tracking-wide flex items-center transition-all duration-300 ease-in-out opacity-100`}>
+                <h3 className={`${isDark ? 'text-[10px] text-gray-300' : 'text-[11px] text-blue-600'} font-medium mb-1 uppercase tracking-wide flex items-center transition-all duration-300 ease-in-out opacity-100`}>
                   <span className="mr-2 w-1.5 h-1.5 rounded-full bg-current"></span>
                   {t(navGroupIdToTranslationKey[group.id] || group.id)}
                 </h3>
@@ -717,7 +710,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                     to={`${item.path}${item.search || ''}`}
                     title={collapsed && !hovered && !isPinned ? t(navItemIdToTranslationKey[item.id] || item.id) : undefined} 
                     onMouseEnter={() => debouncedPrefetch(item.path)} 
-                    className={({ isActive }) => `${navItemClass} ${isActive ? activeClass : (isDark ? 'text-gray-300' : 'text-gray-700')} relative overflow-hidden group ${(collapsed && !hovered && !isPinned) ? 'justify-center px-2 py-2.5' : ''}`}
+                    className={({ isActive }) => `${navItemClass} ${isActive ? activeClass : (isDark ? 'text-gray-200' : 'text-gray-700')} relative overflow-hidden group ${(collapsed && !hovered && !isPinned) ? 'justify-center px-2 py-2.5' : ''}`}
                     end
                   > 
                     <i className={`fas ${item.icon} ${(collapsed && !hovered && !isPinned) ? 'mr-0' : 'mr-2'} transition-all duration-300 group-hover:scale-110 group-hover:rotate-5`}></i>
@@ -753,11 +746,11 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
         }}
       >
         {/* 中文注释：暗色头部采用半透明背景与毛玻璃，弱化硬边 */}
-        <header className={`sticky top-0 z-40 ${isDark ? 'bg-[#0b0e13]/80 backdrop-blur-sm' : theme === 'pink' ? 'bg-white/80 backdrop-blur-sm' : 'bg-white'} border-b ${isDark ? 'border-gray-800' : theme === 'pink' ? 'border-pink-200' : 'border-gray-200'} px-4 py-3`}>
+        <header className={`sticky top-0 z-40 ${isDark ? 'bg-[#10151d]/95 backdrop-blur-sm text-white' : theme === 'pink' ? 'bg-white/80 backdrop-blur-sm' : 'bg-white'} border-b ${isDark ? 'border-gray-700' : theme === 'pink' ? 'border-pink-200' : 'border-gray-200'} px-4 py-3`}>
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3 flex-shrink-0">
               <button
-                className={`p-2 rounded-lg ${isDark ? 'hover:bg-gray-800 ring-1 ring-gray-700' : 'hover:bg-gray-50 ring-1 ring-gray-200'}`}
+                className={`p-2 rounded-lg ${isDark ? 'hover:bg-gray-800/70 ring-1 ring-gray-700 text-white' : 'hover:bg-gray-50 ring-1 ring-gray-200'}`}
                 onClick={() => setCollapsed(!collapsed)}
                 aria-label={t('sidebar.toggle')}
               >
@@ -781,12 +774,17 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
               </div>
               {/* 主题切换按钮 */}
               <button
-                onClick={() => setShowThemeModal(true)}
-                className={`p-2 rounded-lg transition-all duration-300 flex items-center ${isDark ? 'bg-gray-800 hover:bg-gray-700 ring-1 ring-gray-700 text-gray-100 hover:ring-gray-600' : theme === 'pink' ? 'bg-pink-50 hover:bg-pink-100 ring-1 ring-pink-200 text-pink-800 hover:ring-pink-300' : 'bg-white hover:bg-gray-50 ring-1 ring-gray-200 text-gray-900 hover:ring-gray-300'}`}
+                onClick={() => {
+                  // 直接切换主题
+                  const currentIndex = themeOrder.indexOf(theme as typeof themeOrder[number]);
+                  const nextIndex = (currentIndex + 1) % themeOrder.length;
+                  setTheme(themeOrder[nextIndex]);
+                }}
+                className={`p-2 rounded-lg transition-all duration-300 flex items-center ${isDark ? 'bg-gray-800 hover:bg-gray-700 ring-1 ring-gray-700 text-gray-100 hover:ring-gray-600' : theme === 'blue' ? 'bg-blue-50 hover:bg-blue-100 ring-1 ring-blue-200 text-blue-800 hover:ring-blue-300' : theme === 'green' ? 'bg-green-50 hover:bg-green-100 ring-1 ring-green-200 text-green-800 hover:ring-green-300' : 'bg-white hover:bg-gray-50 ring-1 ring-gray-200 text-gray-900 hover:ring-gray-300'}`}
                 aria-label={t('header.toggleTheme')}
                 title={t('header.toggleTheme')}
               >
-                <i className={`fas ${theme === 'dark' ? 'fa-sun' : theme === 'light' ? 'fa-moon' : theme === 'pink' ? 'fa-heart' : 'fa-circle-half-stroke'} transition-transform duration-300 hover:scale-110`}></i>
+                <i className={`fas ${theme === 'dark' ? 'fa-sun' : theme === 'light' ? 'fa-moon' : theme === 'blue' ? 'fa-water' : theme === 'green' ? 'fa-leaf' : 'fa-circle-half-stroke'} transition-transform duration-300 hover:scale-110`}></i>
               </button>
               
               {/* 语言切换器 */}
@@ -1008,15 +1006,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
             </div>
           </div>
         </header>
-        <ThemePreviewModal
-          isOpen={showThemeModal}
-          onClose={() => setShowThemeModal(false)}
-          onSelectTheme={(selectedTheme) => {
-            setTheme(selectedTheme);
-            setShowThemeModal(false);
-          }}
-          currentTheme={theme}
-        />
+
         {children}
         {/* 中文注释：全局“回到顶部”悬浮按钮（自适应暗色/浅色主题） */}
         {showBackToTop && (

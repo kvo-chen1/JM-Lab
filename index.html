@@ -38,7 +38,7 @@
     <!-- 这些资源会在构建过程中被正确处理，不需要手动预加载 -->
     
     <!-- 6. 预加载关键图片资源 -->
-    <link rel="preload" href="data:image/svg+xml,%3csvg%20xmlns='http://www.w3.org/2000/svg'%20width='192'%20height='192'%20viewBox='0%200%20192%20192'%20fill='none'%3e%3c!--%20渐变背景%20--%3e%3clinearGradient%20id='bgGradient'%20x1='0%25'%20y1='0%25'%20x2='100%25'%20y2='100%25'%3e%3cstop%20offset='0%25'%20stop-color='%232563eb'%20/%3e%3cstop%20offset='100%25'%20stop-color='%231e40af'%20/%3e%3c/linearGradient%3e%3crect%20width='192'%20height='192'%20rx='32'%20fill='url(%23bgGradient)'/%3e%3c!--%20简约现代的JZ图标%20-%20居中布局%20--%3e%3cg%20transform='translate(36%2036)'%3e%3c!--%20左侧J字母%20-%20现代简约风格%20--%3e%3cpath%20d='M32%2032V88H56V32H32Z'%20fill='white'/%3e%3cpath%20d='M32%2088V104H56V88H32Z'%20fill='white'/%3e%3c!--%20右侧Z字母%20-%20现代简约风格%20--%3e%3cpath%20d='M64%2032L88%2032L64%2056L88%2080H64V56H48V80H32V32H48V56H64V32Z'%20fill='white'/%3e%3c!--%20环绕的圆环%20-%20现代设计%20--%3e%3ccircle%20cx='64'%20cy='64'%20r='36'%20fill='none'%20stroke='white'%20stroke-width='4'%20stroke-linecap='round'%20stroke-linejoin='round'%20opacity='0.3'/%3e%3c!--%20顶部装饰线%20--%3e%3cpath%20d='M24%2024L104%2024'%20fill='none'%20stroke='white'%20stroke-width='4'%20stroke-linecap='round'/%3e%3c!--%20底部装饰线%20--%3e%3cpath%20d='M24%20104L104%20104'%20fill='none'%20stroke='white'%20stroke-width='4'%20stroke-linecap='round'/%3e%3c/g%3e%3c/svg%3e" as="image" type="image/svg+xml" />
+    <link rel="preload" href="data:image/svg+xml,%3csvg%20xmlns='http://www.w3.org/2000/svg'%20width='192'%20height='192'%20viewBox='0%200%20192%20192'%20fill='none'%3e%3c!--%20渐变背景%20--%3e%3clinearGradient%20id='bgGradient'%20x1='0%25'%20y1='0%25'%20x2='100%25'%20y2='100%25'%3e%3cstop%20offset='0%25'%20stop-color='%232563eb'%20/%3e%3cstop%20offset='100%25'%20stop-color='%231e40af'%20/%3e%3c/linearGradient%3e%3crect%20width='192'%20height='192'%20rx='32'%20fill='url(%23bgGradient)'/%3e%3c!--%20简约现代的JZ图标%20-%20居中布局%20--%3e%3cg%20transform='translate(36%2036)'%3e%3c!--%20左侧J字母%20-%20现代简约风格%20--%3e%3cpath%20d='M32%2032V88H56V32H32Z'%20fill='white'/%3e%3cpath%20d='M32%2088V104H56V88H32Z'%20fill='white'/%3e%3c!--%20右侧Z字母%20-%20现代简约风格%20--%3e%3cpath%20d='M64%2032L88%2032L64%2056L88%2080H64V56H48V80H32V32H48V56H64V32Z'%20fill='white'/%3e%3c!--%20环绕的圆环%20-%20现代设计%20--%3e%3ccircle%20cx='64'%20cy='64'%20r='36'%20fill='none'%20stroke='white'%20stroke-width='4'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3c!--%20顶部装饰线%20--%3e%3cpath%20d='M24%2024L104%2024'%20fill='none'%20stroke='white'%20stroke-width='4'%20stroke-linecap='round'/%3e%3c!--%20底部装饰线%20--%3e%3cpath%20d='M24%20104L104%20104'%20fill='none'%20stroke='white'%20stroke-width='4'%20stroke-linecap='round'/%3e%3c/g%3e%3c/svg%3e" as="image" type="image/svg+xml" />
     
     <!-- 图标配置 -->
     <link rel="icon" href="/icons/icon-192x192.svg" type="image/svg+xml" sizes="192x192" />
@@ -59,6 +59,51 @@
     <!-- 修复mobile-web-app-capable配置 -->
     <meta name="mobile-web-app-capable" content="yes" />
     
+    <!-- 内联CSS，避免初始加载白屏 -->
+    <style>
+      /* 初始加载样式，避免白屏 */
+      body {
+        margin: 0;
+        padding: 0;
+        min-height: 100vh;
+        background-color: #ffffff;
+        transition: background-color 0.3s ease;
+      }
+      
+      /* 深色主题预加载 */
+      body.dark {
+        background-color: var(--bg-primary, #121212);
+      }
+      
+      /* 优化初始加载状态 */
+      #root {
+        min-height: 100vh;
+      }
+      
+      /* 防止字体加载闪烁 */
+      html {
+        font-family: 'Noto Sans SC', sans-serif;
+      }
+    </style>
+    
+    <!-- 预加载主题，避免主题切换闪烁 -->
+    <script>
+      // 从localStorage读取主题并立即应用
+      (function() {
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        const isDark = savedTheme === 'dark';
+        
+        // 立即应用主题类
+        if (isDark) {
+          document.documentElement.classList.add('dark');
+        }
+        
+        // 设置CSS变量，确保主题颜色正确
+        document.documentElement.style.setProperty('--bg-primary', isDark ? '#121212' : '#ffffff');
+      })();
+    </script>
+    
+    <!-- 根路径重定向逻辑已在页面顶部实现 -->
   </head>
   <body>
     <div id="root"></div>

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useContext } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTheme } from '@/hooks/useTheme'
+import { useNavigate } from 'react-router-dom'
 import { llmService, Message, ConversationSession, AssistantPersonality, AssistantTheme } from '@/services/llmService'
 import { toast } from 'sonner'
 import SpeechInput from './SpeechInput'
@@ -22,6 +23,7 @@ interface AICollaborationPanelProps {
 
 export default function AICollaborationPanel({ isOpen, onClose, onContentGenerated, context }: AICollaborationPanelProps) {
   const { isDark } = useTheme()
+  const navigate = useNavigate()
   const { t, i18n } = useTranslation()
   const { user } = useContext(AuthContext)
   const [sessions, setSessions] = useState<ConversationSession[]>([])
@@ -443,7 +445,7 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
           
           // 延迟跳转，让用户看到反馈
           setTimeout(() => {
-            window.location.href = navigationTarget.path;
+            navigate(navigationTarget.path);
           }, 1000);
           return;
         }

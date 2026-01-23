@@ -16,6 +16,7 @@ export default function CulturalNewsPage() {
         theme="red"
         size="lg"
         pattern
+        backgroundImage="https://picsum.photos/seed/culture/1920/1080"
         stats={[
           { label: '政策动态', value: '更新' },
           { label: '赛事活动', value: '推荐' },

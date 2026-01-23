@@ -25,6 +25,7 @@ export interface Message {
   role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: number;
+  isError?: boolean;
 }
 
 // 对话会话类型定义
@@ -1761,8 +1762,11 @@ class LLMService {
         
         if (result.ok && Array.isArray(imageData)) {
           return {
-            created: result.data?.created || Date.now(),
-            data: imageData
+            ok: true,
+            data: {
+              created: result.data?.created || Date.now(),
+              data: imageData
+            }
           };
         } else {
           console.warn('[LLM] Invalid response format from backend:', result);
@@ -1777,6 +1781,85 @@ class LLMService {
     } catch (error) {
       console.warn('[LLM] Image generation failed:', error);
       return this.getMockImageResponse(params.prompt);
+    }
+  }
+  
+  /**
+   * 生成视频
+   * @param params 视频生成参数
+   * @returns 视频生成响应
+   */
+  async generateVideo(params: {
+    prompt: string;
+    imageUrl?: string;
+    duration?: number;
+    resolution?: '720p' | '1080p' | '4k';
+    aspectRatio?: '16:9' | '9:16' | '1:1' | '4:3';
+    model?: string;
+  }): Promise<{ ok: boolean; data?: any; error?: string }> {
+    try {
+      console.log('[LLM] Calling backend for Qwen video generation...');
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 120000); // 120秒超时
+      
+      try {
+        const content = [];
+        
+        // 添加文本提示
+        content.push({ type: 'text', text: params.prompt });
+        
+        // 添加图片URL（如果有）
+        if (params.imageUrl) {
+          content.push({ type: 'image_url', image_url: { url: params.imageUrl } });
+        }
+        
+        const response = await fetch('/api/qwen/videos/generate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: params.model || 'wanx2.1-t2v-turbo',
+            content,
+            duration: params.duration,
+            resolution: params.resolution,
+            aspect_ratio: params.aspectRatio
+          }),
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          console.warn(`[LLM] Backend video generation failed:`, errorData);
+          
+          // 如果是认证错误，提示用户配置API密钥
+          if (response.status === 401 || response.status === 503) {
+             console.error('[LLM] API Key missing or invalid on server');
+          }
+          
+          return { ok: false, error: errorData.error || 'Video generation failed' };
+        }
+        
+        const result = await response.json();
+        
+        if (result.ok) {
+          return { ok: true, data: result.data };
+        } else {
+          console.warn('[LLM] Invalid response format from backend:', result);
+          return { ok: false, error: result.error || 'Invalid response from backend' };
+        }
+        
+      } catch (fetchError) {
+        clearTimeout(timeoutId);
+        throw fetchError;
+      }
+      
+    } catch (error) {
+      console.warn('[LLM] Video generation failed:', error);
+      return { ok: false, error: error instanceof Error ? error.message : 'Video generation failed' };
     }
   }
 

@@ -64,6 +64,7 @@ export interface CreateState {
   activeTool: ToolType;
   currentStep: number;
   isLoading: boolean;
+  showPropertiesPanel: boolean;
   
   // Data State
   prompt: string;
@@ -114,7 +115,6 @@ export interface CreateState {
   
   // Filter Tool State
   selectedFilterId: number | null;
-  filterIntensity: number;
   showQuickActions: boolean;
   showEngineDetails: boolean;
   

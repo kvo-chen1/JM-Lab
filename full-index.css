@@ -764,6 +764,24 @@ section:nth-child(5) {
   }
 }
 
+/* 渐变背景动画 */
+.animate-gradient-shift {
+  background-size: 200% 200%;
+  animation: gradient-shift 8s ease infinite;
+}
+
+@keyframes gradient-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
 /* 元素缩放动画 */
 .animate-scaleIn {
   animation: scaleIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);

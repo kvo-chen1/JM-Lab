@@ -1,10 +1,14 @@
-/* 绿色主题 - 基于白色主题框架 */
+/* 绿色主题 - 清新自然风格 */
 .green {
   /* 绿色主题色彩方案 */
   --color-primary: #15803d;
   --color-secondary: #16a34a;
   --color-accent: #22c55e;
   --color-neutral: #166534;
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
+  --color-info: #3b82f6;
   
   /* 绿色主题背景层次 */
   --bg-primary: #ffffff;
@@ -12,17 +16,20 @@
   --bg-tertiary: #dcfce7;
   --bg-hover: #bbf7d0;
   --bg-active: #86efac;
+  --bg-muted: #f0fdf4;
   
   /* 绿色主题文字层次 */
   --text-primary: #15803d;
   --text-secondary: #166534;
   --text-tertiary: #059669;
   --text-muted: #16a34a;
+  --text-inverse: #ffffff;
   
   /* 绿色主题边框层次 */
   --border-primary: #e5e7eb;
   --border-secondary: #bbf7d0;
   --border-tertiary: #86efac;
+  --border-muted: #e5e7eb;
   
   /* 绿色主题阴影 */
   --shadow-sm: 0 1px 2px 0 rgba(74, 222, 128, 0.08);
@@ -39,193 +46,6 @@
   --gradient-primary: linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%);
   --gradient-secondary: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
   --gradient-accent: linear-gradient(135deg, var(--color-secondary) 0%, var(--color-primary) 100%);
-}
-
-/* 绿色主题卡片高级样式 */
-.green .card {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-primary);
-  box-shadow: var(--shadow-md), 0 0 15px rgba(74, 222, 128, 0.05);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-  overflow: hidden;
-  border-radius: 0.75rem;
-}
-
-.green .card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--color-accent), transparent);
-  opacity: 0.7;
-  animation: shimmer 3s ease-in-out infinite;
-}
-
-.green .card::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, transparent 0%, rgba(74, 222, 128, 0.02) 100%);
-  pointer-events: none;
-}
-
-.green .card:hover {
-  box-shadow: var(--shadow-lg), 0 0 20px rgba(74, 222, 128, 0.1);
-  transform: translateY(-3px) scale(1.01);
-  border-color: var(--border-secondary);
-}
-
-.green .card:active {
-  transform: translateY(-1px) scale(0.995);
-}
-
-/* 绿色主题按钮高级样式 */
-.green button {
-  box-shadow: var(--shadow-sm), 0 0 10px rgba(74, 222, 128, 0.05);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-  overflow: hidden;
-  border-radius: 0.5rem;
-}
-
-.green button:hover {
-  box-shadow: var(--shadow-md), 0 0 15px rgba(74, 222, 128, 0.1);
-  transform: translateY(-2px) scale(1.02);
-  border-color: var(--border-secondary);
-}
-
-.green button:active {
-  box-shadow: var(--shadow-sm);
-  transform: translateY(0) scale(0.98);
-}
-
-.green button:focus {
-  outline: none;
-  box-shadow: var(--shadow-md), 0 0 0 3px rgba(74, 222, 128, 0.15), var(--glow-primary);
-}
-
-/* 绿色主题输入框高级样式 */
-.green input, .green textarea, .green select {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-primary);
-  color: var(--text-primary);
-  box-shadow: inset 0 1px 2px rgba(74, 222, 128, 0.08), 0 0 10px rgba(74, 222, 128, 0.05);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  border-radius: 0.625rem;
-  padding: 0.625rem 0.75rem;
-  font-size: 0.9375rem;
-  line-height: 1.5;
-  width: 100%;
-}
-
-.green input::placeholder, .green textarea::placeholder, .green select::placeholder {
-  color: var(--text-muted);
-  opacity: 1;
-  transition: color 0.3s ease;
-}
-
-.green input:hover::placeholder, .green textarea:hover::placeholder, .green select:hover::placeholder {
-  color: var(--text-tertiary);
-}
-
-.green input:focus, .green textarea:focus, .green select:focus {
-  box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.12), inset 0 1px 2px rgba(74, 222, 128, 0.08), 0 0 15px rgba(74, 222, 128, 0.1);
-  border-color: var(--color-accent);
-  transform: translateY(-1px);
-  outline: none;
-  background: var(--bg-primary);
-}
-
-.green input:hover, .green textarea:hover, .green select:hover {
-  border-color: var(--border-secondary);
-  box-shadow: inset 0 1px 2px rgba(74, 222, 128, 0.1), 0 0 15px rgba(74, 222, 128, 0.08);
-}
-
-.green input:disabled, .green textarea:disabled, .green select:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  background: var(--bg-secondary);
-  border-color: var(--border-primary);
-  box-shadow: inset 0 1px 2px rgba(74, 222, 128, 0.08);
-}
-
-.green input:read-only, .green textarea:read-only {
-  background: var(--bg-secondary);
-  border-color: var(--border-primary);
-  box-shadow: inset 0 1px 2px rgba(74, 222, 128, 0.08);
-}
-
-.green input[type="file"] {
-  padding: 0.5rem;
-  border: 1px dashed var(--border-primary);
-  background: var(--bg-secondary);
-  cursor: pointer;
-}
-
-.green input[type="file"]:hover {
-  border-color: var(--color-accent);
-  background: var(--bg-tertiary);
-}
-
-.green textarea {
-  resize: vertical;
-  min-height: 100px;
-}
-
-.green select {
-  cursor: pointer;
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
-  background-position: right 0.5rem center;
-  background-repeat: no-repeat;
-  background-size: 1.5em 1.5em;
-  padding-right: 2.5rem;
-}
-
-.green select:hover {
-  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23374151' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
-}
-
-.green select:focus {
-  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%238b5cf6' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
-}
-
-/* 绿色主题滚动条美化 */
-.green ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-.green ::-webkit-scrollbar-track {
-  background: var(--bg-secondary);
-  border-radius: 4px;
-  box-shadow: inset 0 0 5px rgba(74, 222, 128, 0.1);
-}
-
-.green ::-webkit-scrollbar-thumb {
-  background: var(--color-accent);
-  box-shadow: 0 2px 4px rgba(74, 222, 128, 0.3), var(--glow-accent);
-  border-radius: 4px;
-  transition: all 0.3s ease;
-}
-
-.green ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-primary);
-  box-shadow: 0 2px 6px rgba(74, 222, 128, 0.3), var(--glow-primary);
-  transform: scale(1.1);
-}
-
-/* 绿色主题文本选中颜色 */
-.green ::selection {
-  background: var(--color-accent);
-  color: #fff;
-}
-
-/* 绿色主题全局渐变背景 */
-.green body {
-  background: var(--gradient-primary);
-  background-attachment: fixed;
+  --gradient-button: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary) 100%);
+  --gradient-card: linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%);
 }

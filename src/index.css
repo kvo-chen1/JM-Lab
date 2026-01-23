@@ -1,8 +1,7 @@
 /* 导入模块化主题样式 */
-@import './styles/themes/dark.css';
+@import './styles/themes/base.css';
 @import './styles/themes/blue.css';
 @import './styles/themes/green.css';
-@import './styles/themes/pink.css';
 
 @tailwind base;
 @tailwind components;
@@ -22,91 +21,9 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  
-  /* 天津特色配色系统 - 增强版 */
-  --color-primary: #c21807;              /* 主色调：泥人张红 - 更深的红色，显著提高对比度和品牌识别度 */
-  --color-secondary: #6d28d9;            /* 辅助色：津门蓝紫 - 更深的紫色，增强视觉层次感和交互反馈 */
-  --color-accent: #047857;               /* 强调色：杨柳青绿 - 更深的绿色，提升成功状态的视觉冲击力 */
-  --color-neutral: #78350f;              /* 中性色：漕运褐 - 更鲜明的棕色，提高次要信息的辨识度 */
-  --color-success: #059669;              /* 成功色：增强版绿色 */
-  --color-warning: #d97706;              /* 警告色：金色 */
-  --color-error: #dc2626;                /* 错误色：红色 */
-  --color-info: #3b82f6;                 /* 信息色：蓝色 */
-  
-  /* 高级灰度梯度（优化对比度和层次感） */
-  --color-gray-1: #f9fafb;
-  --color-gray-2: #f3f4f6;
-  --color-gray-3: #e5e7eb;
-  --color-gray-4: #d1d5db;
-  --color-gray-5: #9ca3af;
-  --color-gray-6: #6b7280;
-  --color-gray-7: #4b5563;
-  --color-gray-8: #1f2937;
-  --color-gray-9: #111827;
-  
-  /* 亮色主题专用（优化对比度和层次感） */
-  --bg-primary: #ffffff;
-  --bg-secondary: #f9fafb;
-  --bg-tertiary: #f3f4f6;
-  --bg-hover: #e5e7eb;
-  --bg-active: #d1d5db;
-  --text-primary: #111827;
-  --text-secondary: #374151;
-  --text-tertiary: #6b7280;
-  --text-muted: #9ca3af;
-  --border-primary: #e5e7eb;
-  --border-secondary: #d1d5db;
-  --border-tertiary: #9ca3af;
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
-  --gradient-primary: linear-gradient(135deg, #ffffff 0%, #fafafa 100%);
-  --gradient-secondary: linear-gradient(135deg, #f5f5f5 0%, #e0e0e0 100%);
-  --gradient-accent: linear-gradient(135deg, var(--color-secondary) 0%, var(--color-primary) 100%);
 }
 
-/* 暗色主题高级色彩方案 */
-.dark {
-  /* 深色背景层次 */
-  --bg-primary: #0f172a;        /* 深海蓝黑 - 主背景 */
-  --bg-secondary: #1e293b;      /* 夜空蓝灰 - 卡片背景 */
-  --bg-tertiary: #334155;       /* 岩石灰蓝 - 组件背景 */
-  --bg-hover: #475569;          /* 钢蓝灰 - 悬停背景 */
-  --bg-active: #64748b;         /* 雾蓝灰 - 激活背景 */
-  
-  /* 深色文字层次 */
-  --text-primary: #f1f5f9;       /* 亮月光白 - 主文字 */
-  --text-secondary: #cbd5e1;     /* 银灰蓝 - 次文字 */
-  --text-tertiary: #94a3b8;      /* 钢蓝灰 - 辅助文字 */
-  --text-muted: #64748b;         /* 深灰蓝 - 禁用文字 */
-  
-  /* 深色边框层次 */
-  --border-primary: #334155;     /* 岩石灰蓝 - 主边框 */
-  --border-secondary: #475569;   /* 钢蓝灰 - 次边框 */
-  --border-tertiary: #64748b;    /* 雾蓝灰 - 辅助边框 */
-  
-  /* 暗色主题强调色 - 与亮色主题保持一致的品牌色彩 */
-  --color-primary: #fca5a5;      /* 主色调：泥人张红 - 更亮的红色，提高深色模式下的可读性 */
-  --color-secondary: #c4b5fd;    /* 辅助色：津门蓝紫 - 更亮的紫色，增强交互反馈 */
-  --color-accent: #6ee7b7;       /* 强调色：杨柳青绿 - 更亮的绿色，提升成功状态的辨识度 */
-  --color-neutral: #d97706;      /* 中性色：漕运褐 - 更鲜明的金色，提高次要信息的可见性 */
-  --color-success: #4ade80;      /* 成功色：增强版绿色 */
-  --color-warning: #fbbf24;      /* 警告色：金色 */
-  --color-error: #f87171;        /* 错误色：红色 */
-  --color-info: #60a5fa;         /* 信息色：蓝色 */
-  
-  /* 渐变色彩 */
-  --gradient-primary: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-  --gradient-secondary: linear-gradient(135deg, #334155 0%, #1e293b 100%);
-  --gradient-accent: linear-gradient(135deg, var(--color-secondary) 0%, var(--color-primary) 100%);
-  
-  /* 阴影色彩 */
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -4px rgba(0, 0, 0, 0.4);
-  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
-}
+
 
 /* 确保页面布局固定，避免滚动条变化影响宽度 */
 html {
@@ -339,7 +256,7 @@ button, input, select, textarea, a, .card, .modal, .notification, .nav-item, .bt
 }
 
 /* 优化主题类切换的过渡效果 */
-.dark, .light, .pink {
+.dark, .light {
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -349,7 +266,7 @@ body {
 }
 
 /* 优化主题切换时CSS变量的过渡 */
-:root, .dark, .light, .pink {
+:root, .dark, .light {
   transition: --bg-primary 0.3s ease, --bg-secondary 0.3s ease, --bg-tertiary 0.3s ease,
               --text-primary 0.3s ease, --text-secondary 0.3s ease, --text-tertiary 0.3s ease,
               --border-primary 0.3s ease, --border-secondary 0.3s ease, --border-tertiary 0.3s ease,
@@ -649,107 +566,7 @@ details p {
 }
 
 /* 深色主题下的卡片样式优化 */
-.dark section.rounded-xl.shadow-lg, .dark article.rounded-xl.shadow-lg {
-  background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
-  border: 1px solid var(--border-primary);
-}
 
-.dark section.rounded-xl.shadow-lg::before, .dark article.rounded-xl.shadow-lg::before {
-  background: linear-gradient(90deg, var(--color-primary), var(--color-secondary), var(--color-primary));
-}
-
-/* 深色主题下的列表项样式优化 */
-.dark ul.grid.grid-cols-1.md\:grid-cols-2.gap-4 li {
-  background: var(--bg-secondary);
-}
-
-.dark ul.grid.grid-cols-1.md\:grid-cols-2.gap-4 li:hover {
-  background-color: var(--bg-hover);
-  border-color: var(--border-secondary);
-}
-
-/* 深色主题下的按钮样式优化 */
-.dark button.bg-primary {
-  background: linear-gradient(135deg, var(--color-primary), var(--color-primary));
-}
-
-.dark button.bg-primary:hover {
-  background: linear-gradient(135deg, var(--color-primary), var(--color-primary));
-  opacity: 0.9;
-}
-
-/* 深色主题下的最受欢迎标签样式优化 */
-.dark .bg-primary.text-white.text-center.py-2.font-medium {
-  background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
-}
-
-/* 深色主题下的会员中心卡片样式 */
-.dark section.rounded-xl.shadow-lg, .dark article.rounded-xl.shadow-lg {
-  background-color: var(--bg-secondary);
-  border-color: var(--border-primary);
-}
-
-.dark section.rounded-xl.shadow-lg:hover, .dark article.rounded-xl.shadow-lg:hover {
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.2);
-}
-
-/* 深色主题下的会员套餐卡片样式 */
-.dark article.rounded-xl.shadow-lg:hover {
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4);
-}
-
-/* 深色主题下的列表项样式 */
-.dark ul.grid.grid-cols-1.md\:grid-cols-2.gap-4 li {
-  color: var(--text-primary);
-}
-
-.dark ul.grid.grid-cols-1.md\:grid-cols-2.gap-4 li:hover {
-  background-color: var(--bg-hover);
-  color: var(--text-primary);
-}
-
-/* 深色主题下的文字颜色 */
-.dark h1, .dark h2, .dark h3, .dark h4, .dark h5, .dark h6 {
-  color: var(--text-primary);
-}
-
-.dark p, .dark span.text-gray-600, .dark span.text-gray-500 {
-  color: var(--text-secondary);
-}
-
-/* 深色主题下的按钮样式 */
-.dark button.bg-primary {
-  background-color: var(--color-primary);
-  color: white;
-}
-
-.dark button.bg-primary:hover {
-  background-color: var(--color-primary);
-  opacity: 0.9;
-}
-
-/* 深色主题下的会员状态样式 */
-.dark .text-green-500 {
-  color: var(--color-accent);
-}
-
-.dark .text-red-500 {
-  color: #f87171;
-}
-
-/* 深色主题下的复选标记样式 */
-.dark span.text-primary {
-  color: var(--color-primary);
-}
-
-/* 深色主题下的常见问题样式 */
-.dark details summary {
-  color: var(--text-primary);
-}
-
-.dark details p {
-  color: var(--text-secondary);
-}
 
 /* 深色主题卡片高级样式 */
 .dark .card {
@@ -1491,7 +1308,7 @@ details p {
 }
 
 /* 主题切换时的平滑过渡 */
-.dark, .light, .pink, .blue, .green {
+.dark, .light, .blue, .green {
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -1569,200 +1386,6 @@ details p {
   --gradient-accent: linear-gradient(135deg, var(--color-secondary) 0%, var(--color-primary) 100%);
 }
 
-/* 粉色主题高级色彩方案 */
-.pink {
-  /* 优化后的粉色背景层次 */
-  --bg-primary: #fdf2f8;
-  --bg-secondary: #fce7f3;
-  --bg-tertiary: #fbcfe8;
-  --bg-hover: #f9a8d4;
-  --bg-active: #f472b6;
-  
-  /* 优化后的粉色文字层次 */
-  --text-primary: #831843;
-  --text-secondary: #9d174d;
-  --text-tertiary: #be185d;
-  --text-muted: #db2777;
-  
-  /* 优化后的粉色边框层次 */
-  --border-primary: #fbcfe8;
-  --border-secondary: #f9a8d4;
-  --border-tertiary: #f472b6;
-  
-  /* 优化后的粉色主题强调色 */
-  --color-primary: #be185d;
-  --color-secondary: #db2777;
-  --color-accent: #ec4899;
-  --color-neutral: #f43f5e;
-  
-  /* 优化后的粉色主题阴影 */
-  --shadow-sm: 0 1px 2px 0 rgba(236, 72, 153, 0.08);
-  --shadow-md: 0 4px 6px -1px rgba(236, 72, 153, 0.08), 0 2px 4px -1px rgba(236, 72, 153, 0.04);
-  --shadow-lg: 0 10px 15px -3px rgba(236, 72, 153, 0.08), 0 4px 6px -2px rgba(236, 72, 153, 0.03);
-  --shadow-xl: 0 20px 25px -5px rgba(236, 72, 153, 0.08), 0 8px 10px -6px rgba(236, 72, 153, 0.02);
-  
-  /* 优化后的粉色主题发光效果 */
-  --glow-primary: 0 0 10px rgba(236, 72, 153, 0.2);
-  --glow-secondary: 0 0 15px rgba(219, 39, 119, 0.2);
-  --glow-accent: 0 0 20px rgba(251, 113, 133, 0.2);
-  
-  /* 优化后的粉色主题渐变 */
-  --gradient-primary: linear-gradient(135deg, #fce7f3 0%, #fdf2f8 100%);
-  --gradient-secondary: linear-gradient(135deg, #fbcfe8 0%, #fce7f3 100%);
-  --gradient-accent: linear-gradient(135deg, var(--color-secondary) 0%, var(--color-primary) 100%);
-}
-
-/* 粉色主题卡片高级样式 */
-.pink .card {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-primary);
-  box-shadow: var(--shadow-md), 0 0 15px rgba(236, 72, 153, 0.05);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-  overflow: hidden;
-  border-radius: 0.75rem;
-}
-
-.pink .card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--color-accent), transparent);
-  opacity: 0.7;
-  animation: shimmer 3s ease-in-out infinite;
-}
-
-.pink .card::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, transparent 0%, rgba(236, 72, 153, 0.02) 100%);
-  pointer-events: none;
-}
-
-.pink .card:hover {
-  box-shadow: var(--shadow-lg), 0 0 20px rgba(236, 72, 153, 0.1);
-  transform: translateY(-3px) scale(1.01);
-  border-color: var(--border-secondary);
-}
-
-.pink .card:active {
-  transform: translateY(-1px) scale(0.995);
-}
-
-/* 粉色主题按钮高级样式 */
-.pink button {
-  box-shadow: var(--shadow-sm), 0 0 10px rgba(236, 72, 153, 0.05);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-  overflow: hidden;
-  border-radius: 0.5rem;
-}
-
-.pink button:hover {
-  box-shadow: var(--shadow-md), 0 0 15px rgba(236, 72, 153, 0.1);
-  transform: translateY(-2px) scale(1.02);
-  border-color: var(--border-secondary);
-}
-
-.pink button:active {
-  box-shadow: var(--shadow-sm);
-  transform: translateY(0) scale(0.98);
-}
-
-.pink button:focus {
-  outline: none;
-  box-shadow: var(--shadow-md), 0 0 0 3px rgba(236, 72, 153, 0.15), var(--glow-primary);
-}
-
-/* 粉色主题输入框高级样式 */
-.pink input, .pink textarea, .pink select {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-primary);
-  color: var(--text-primary);
-  box-shadow: inset 0 1px 2px rgba(236, 72, 153, 0.08), 0 0 10px rgba(236, 72, 153, 0.05);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  border-radius: 0.625rem;
-  padding: 0.625rem 0.75rem;
-  font-size: 0.9375rem;
-  line-height: 1.5;
-  width: 100%;
-}
-
-.pink input::placeholder, .pink textarea::placeholder, .pink select::placeholder {
-  color: var(--text-muted);
-  opacity: 1;
-  transition: color 0.3s ease;
-}
-
-.pink input:hover::placeholder, .pink textarea:hover::placeholder, .pink select:hover::placeholder {
-  color: var(--text-tertiary);
-}
-
-.pink input:focus, .pink textarea:focus, .pink select:focus {
-  box-shadow: 0 0 0 3px rgba(236, 72, 153, 0.12), inset 0 1px 2px rgba(236, 72, 153, 0.08), 0 0 15px rgba(236, 72, 153, 0.1);
-  border-color: var(--color-accent);
-  transform: translateY(-1px);
-  outline: none;
-  background: var(--bg-primary);
-}
-
-.pink input:hover, .pink textarea:hover, .pink select:hover {
-  border-color: var(--border-secondary);
-  box-shadow: inset 0 1px 2px rgba(236, 72, 153, 0.1), 0 0 15px rgba(236, 72, 153, 0.08);
-}
-
-.pink input:disabled, .pink textarea:disabled, .pink select:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  background: var(--bg-secondary);
-  border-color: var(--border-primary);
-  box-shadow: inset 0 1px 2px rgba(236, 72, 153, 0.08);
-}
-
-.pink input:read-only, .pink textarea:read-only {
-  background: var(--bg-secondary);
-  border-color: var(--border-primary);
-  box-shadow: inset 0 1px 2px rgba(236, 72, 153, 0.08);
-}
-
-.pink input[type="file"] {
-  padding: 0.5rem;
-  border: 1px dashed var(--border-primary);
-  background: var(--bg-secondary);
-  cursor: pointer;
-}
-
-.pink input[type="file"]:hover {
-  border-color: var(--color-accent);
-  background: var(--bg-tertiary);
-}
-
-.pink textarea {
-  resize: vertical;
-  min-height: 100px;
-}
-
-.pink select {
-  cursor: pointer;
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
-  background-position: right 0.5rem center;
-  background-repeat: no-repeat;
-  background-size: 1.5em 1.5em;
-  padding-right: 2.5rem;
-}
-
-.pink select:hover {
-  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23374151' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
-}
-
-.pink select:focus {
-  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%238b5cf6' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
-}
 
 /* 粉色主题滚动条美化 */
 .pink ::-webkit-scrollbar {

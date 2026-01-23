@@ -108,10 +108,12 @@ const ThemePreviewModal: React.FC<ThemePreviewModalProps> = ({
         transition={{ duration: 0.3 }}
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.98 }}
-        className="relative cursor-pointer rounded-xl overflow-hidden shadow-lg transition-all duration-300 hover:shadow-2xl"
+        className="relative cursor-pointer rounded-2xl overflow-hidden shadow-md border border-transparent transition-all duration-300 hover:shadow-xl hover:translate-y-[-2px] active:translate-y-0"
         style={{
           backgroundColor: currentStyle.bg,
-          color: currentStyle.text
+          color: currentStyle.text,
+          borderColor: currentTheme === themeValue ? currentStyle.primary : 'transparent',
+          boxShadow: currentTheme === themeValue ? `0 0 0 2px ${currentStyle.primary}40` : undefined
         }}
         onClick={() => onSelectTheme(themeValue)}
       >
@@ -176,44 +178,52 @@ const ThemePreviewModal: React.FC<ThemePreviewModalProps> = ({
               {/* 预览按钮组 */}
               <div className="flex gap-2">
                 <button 
-                  className="px-3 py-1 rounded-lg text-sm text-white" 
+                  className="px-4 py-2 rounded-lg text-sm font-medium text-white shadow-sm hover:shadow-md transition-all duration-200 transform hover:scale-105 active:scale-95" 
                   style={{ 
                     backgroundColor: currentStyle.primary,
-                    borderRadius: '0.5rem'
+                    borderRadius: '0.75rem',
+                    boxShadow: `0 2px 4px ${currentStyle.primary}40`
                   }}
-                >主按钮</button>
+                >按钮</button>
                 <button 
-                  className="px-3 py-1 rounded-lg text-sm" 
+                  className="px-4 py-2 rounded-lg text-sm font-medium text-white shadow-sm hover:shadow-md transition-all duration-200 transform hover:scale-105 active:scale-95" 
                   style={{ 
-                    backgroundColor: currentStyle.secondary,
-                    color: '#ffffff',
-                    borderRadius: '0.5rem'
+                    backgroundColor: currentStyle.primary,
+                    borderRadius: '0.75rem',
+                    boxShadow: `0 2px 4px ${currentStyle.primary}40`
                   }}
-                >次按钮</button>
+                >按钮</button>
               </div>
             </div>
           </div>
           
           {/* 选择指示器 */}
           <div className="relative z-10 mt-4">
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: currentTheme === themeValue ? 1 : 0 }}
-              transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-              className="absolute -bottom-2 -right-2 bg-white border-2 rounded-full p-1"
-              style={{ borderColor: currentStyle.primary }}
-            >
-              <i className="fas fa-check" style={{ color: currentStyle.primary }}></i>
-            </motion.div>
+            {currentTheme === themeValue && (
+              <motion.div
+                initial={{ scale: 0, opacity: 0, rotate: -90 }}
+                animate={{ scale: 1, opacity: 1, rotate: 0 }}
+                transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+                className="absolute -bottom-2 -right-2 bg-white border-2 rounded-full p-1 shadow-lg"
+                style={{ 
+                  borderColor: currentStyle.primary, 
+                  backgroundColor: '#ffffff',
+                  boxShadow: `0 4px 12px ${currentStyle.primary}30`
+                }}
+              >
+                <i className="fas fa-check text-lg" style={{ color: currentStyle.primary }}></i>
+              </motion.div>
+            )}
           </div>
         </div>
         
         {/* 主题标签 */}
         <div 
-          className="px-4 py-2 text-center text-sm font-medium"
+          className="px-6 py-2.5 text-center text-sm font-medium"
           style={{ 
-            backgroundColor: `${currentStyle.textSecondary}10`,
-            color: currentStyle.text
+            backgroundColor: `${currentStyle.textSecondary}08`,
+            color: currentStyle.text,
+            borderTop: `1px solid ${currentStyle.textSecondary}10`
           }}
         >
           {label}

@@ -3,8 +3,6 @@ import { useLocation } from 'react-router-dom'
 import { useTheme } from '@/hooks/useTheme'
 import { motion } from 'framer-motion'
 import { toast } from 'sonner'
-import { generateImage, pollVideoTask, createVideoTask } from '@/services/doubao'
-import doubao from '@/services/doubao'
 import errorService from '@/services/errorService'
 import voiceService from '@/services/voiceService'
 import { llmService } from '@/services/llmService'
@@ -25,7 +23,7 @@ export default function Generation() {
   const [isGeneratingCopy, setIsGeneratingCopy] = useState(false)
   // 中文注释：新增多模态图片问答所需的图片URL与模型选择
   const [vqaUrl, setVqaUrl] = useState('https://ark-project.tos-cn-beijing.ivolces.com/images/view.jpeg')
-  const [modelId, setModelId] = useState<'kimi' | 'doubao'>(llmService.getCurrentModel().id as any)
+  const [modelId, setModelId] = useState<'kimi' | 'qwen'>(llmService.getCurrentModel().id as any || 'qwen')
   const inputRef = useRef<HTMLInputElement | null>(null)
   const aiCopyRef = useRef<HTMLDivElement | null>(null)
   const variantsRef = useRef<HTMLDivElement | null>(null)
@@ -60,42 +58,30 @@ export default function Generation() {
     const text = `${prompt}  --resolution 720p  --duration 5 --camerafixed false`
     setVariants((arr) => arr.map((it, i) => (i === idx ? { ...it, video: '生成中...' } : it)))
     try {
-      const created = await createVideoTask({ model: 'doubao-seedance-1-0-pro-250528', content: [{ type: 'text', text }, { type: 'image_url', image_url: { url: v.image } }] })
-      if (!created.ok || !created.data?.id) {
-        const code = (created as any)?.error || (created as any)?.data?.error?.code || 'UNKNOWN'
-        const msg = (created as any)?.error === 'CONFIG_MISSING' ? '服务端未配置 DOUBAO_API_KEY，请在 .env.local 设置后重启' : `创建视频任务失败：${code}`
+      const result = await llmService.generateVideo({
+        prompt: text,
+        imageUrl: v.image,
+        duration: 5,
+        resolution: '720p'
+      })
+      if (!result.ok || !result.data?.url) {
+        const msg = result.error || '视频生成失败'
         toast.error(msg)
-        setVariants((arr) => arr.map((it, i) => (i === idx ? { ...it, video: `视频生成失败：${code}` } : it)))
+        setVariants((arr) => arr.map((it, i) => (i === idx ? { ...it, video: `视频生成失败：${msg}` } : it)))
         return
       }
-      const taskId = created.data.id
-      const polled = await pollVideoTask(taskId, { intervalMs: 10000, timeoutMs: 600000 })
-      if (!polled.ok) {
-        const code = (polled as any)?.error || (polled as any)?.data?.error?.code || 'UNKNOWN'
-        const msg = (polled as any)?.error === 'CONFIG_MISSING' ? '服务端未配置 DOUBAO_API_KEY，请在 .env.local 设置后重启' : `查询视频任务失败：${code}`
-        toast.error(msg)
-        setVariants((arr) => arr.map((it, i) => (i === idx ? { ...it, video: `视频生成失败：${code}` } : it)))
-        return
-      }
-      const status = polled.data?.status
-      const url = polled.data?.content?.video_url || ''
-      if (status === 'succeeded' && url) {
-        setVariants((arr) => arr.map((it, i) => (i === idx ? { ...it, video: url } : it)))
-        toast.success('视频生成完成')
-        try {
-          if (saveToTutorialId && url) {
-            const raw = localStorage.getItem('TUTORIAL_VIDEO_OVERRIDES')
-            const obj = raw ? JSON.parse(raw) : {}
-            obj[saveToTutorialId] = url
-            localStorage.setItem('TUTORIAL_VIDEO_OVERRIDES', JSON.stringify(obj))
-            toast.success('已写入教程视频覆盖')
-          }
-        } catch {}
-      } else {
-        const code = polled.data?.error?.code || polled.data?.error?.message || polled.data?.status || 'UNKNOWN'
-        toast.error(`视频生成失败：${code}`)
-        setVariants((arr) => arr.map((it, i) => (i === idx ? { ...it, video: `视频生成失败：${code}` } : it)))
-      }
+      const url = result.data.url
+      setVariants((arr) => arr.map((it, i) => (i === idx ? { ...it, video: url } : it)))
+      toast.success('视频生成完成')
+      try {
+        if (saveToTutorialId && url) {
+          const raw = localStorage.getItem('TUTORIAL_VIDEO_OVERRIDES')
+          const obj = raw ? JSON.parse(raw) : {}
+          obj[saveToTutorialId] = url
+          localStorage.setItem('TUTORIAL_VIDEO_OVERRIDES', JSON.stringify(obj))
+          toast.success('已写入教程视频覆盖')
+        }
+      } catch {}
     } catch (e: any) {
       errorService.logError(e instanceof Error ? e : 'SERVER_ERROR', { scope: 'generation-video', prompt })
       toast.error('视频生成异常')
@@ -111,7 +97,7 @@ export default function Generation() {
     }
     setLoading(true)
     try {
-      const resp = await generateImage({ prompt: base, n: 3, size: '1024x1024', response_format: 'url' })
+      const resp = await llmService.generateImage({ prompt: base, n: 3, size: '1024x1024', response_format: 'url' })
       if (!resp.ok) {
         errorService.logError(resp.error || 'SERVER_ERROR', { scope: 'generation', prompt })
         toast.error('生成失败，已回退为占位图')
@@ -195,6 +181,8 @@ export default function Generation() {
       const zhChars = (base.match(/[\u4e00-\u9fa5]/g) || []).length
       const isEnglish = enLetters > zhChars && enLetters > 0
       const promptWithPolicy = isEnglish ? base : `${zhPolicy}\n\n${base}`
+      // 创作中心使用千问模型
+      llmService.setCurrentModel('qwen')
       const final = await llmService.directGenerateResponse(promptWithPolicy, { onDelta: (chunk: string) => setAiText((prev) => prev + chunk) })
       setAiText((prev) => final || prev)
       const text = final || aiText || base
@@ -367,22 +355,12 @@ export default function Generation() {
           <div className="mt-4 flex gap-2">
             <motion.button whileHover={{ scale: 1.03 }} type="button" onClick={() => gen()} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed" disabled={loading}>生成</motion.button>
             <motion.button whileHover={{ scale: 1.03 }} type="button" onClick={() => optimizeAndRead()} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed" disabled={isGeneratingCopy}>优化并朗读</motion.button>
-            {/* 中文注释：模型选择（Kimi/豆包），影响优化并朗读使用的后端模型 */}
-            <select aria-label="选择模型" value={modelId} onChange={(e) => setModelId(e.target.value as any)} className={`${isDark ? 'bg-gray-700 text-white' : 'bg-gray-50 text-gray-900'} px-3 py-2 rounded-lg border`}>
-              <option value="kimi">Kimi</option>
-              <option value="doubao">豆包</option>
-            </select>
-          </div>
-          {/* 中文注释：豆包图片问答输入与触发按钮 */}
-          <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-2 items-center">
-            <input
-              value={vqaUrl}
-              onChange={(e) => setVqaUrl(e.target.value)}
-              placeholder="填写可公网访问的图片URL（用于豆包图片问答）"
-              className={`${isDark ? 'bg-gray-700 text-white' : 'bg-gray-50 text-gray-900'} w-full px-4 py-2 rounded-lg border`}
-            />
-            <motion.button whileHover={{ scale: 1.03 }} type="button" onClick={runDoubaoVqa} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">豆包图片问答</motion.button>
-          </div>
+            {/* 中文注释：模型选择（Kimi/千问），影响优化并朗读使用的后端模型 */}
+          <select aria-label="选择模型" value={modelId} onChange={(e) => setModelId(e.target.value as any)} className={`${isDark ? 'bg-gray-700 text-white' : 'bg-gray-50 text-gray-900'} px-3 py-2 rounded-lg border`}>
+            <option value="qwen">千问</option>
+            <option value="kimi">Kimi</option>
+          </select>
+        </div>
           {loading && <div role="status" aria-live="polite" className="mt-2 text-sm">生成中，预期小于30秒</div>}
           <div ref={aiCopyRef} role="region" aria-labelledby="ai-copy-title" className={`mt-4 rounded-2xl p-4 ${isDark ? 'bg-gray-800' : 'bg-white'} ${aiText ? 'block' : 'block'}`}>
             <h2 id="ai-copy-title" className="font-medium mb-2">AI文案</h2>

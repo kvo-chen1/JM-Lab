@@ -5,6 +5,7 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string;
   error?: string;
   helperText?: string;
+  required?: boolean;
 }
 
 export const Input: React.FC<InputProps> = ({ 
@@ -12,26 +13,31 @@ export const Input: React.FC<InputProps> = ({
   error, 
   helperText, 
   className = '',
+  required = false,
   ...props 
 }) => {
   return (
-    <div className="space-y-1">
+    <div className="space-y-1.5">
       {label && (
-        <label className="block text-sm font-medium">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
           {label}
+          {required && <span className="text-red-500 ml-1">*</span>}
         </label>
       )}
       <input
-        className={`w-full px-3 py-2 border rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 ${error 
-          ? 'border-red-500 bg-red-50' 
-          : 'border-gray-300 focus:border-blue-500'}`}
+        className={`w-full px-4 py-2.5 border rounded-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-1 hover:shadow-sm ${error 
+          ? 'border-red-500 bg-red-50 focus:border-red-500 focus:ring-red-500' 
+          : 'border-gray-300 hover:border-gray-400 focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:hover:border-gray-500 dark:text-white'}`}
         {...props}
       />
-      {helperText && (
-        <p className="text-xs text-gray-500">{helperText}</p>
+      {helperText && !error && (
+        <p className="text-xs text-gray-500 dark:text-gray-400">{helperText}</p>
       )}
       {error && (
-        <p className="text-xs text-red-500">{error}</p>
+        <div className="flex items-center gap-1.5">
+          <i className="fas fa-exclamation-circle text-red-500 text-xs"></i>
+          <p className="text-xs text-red-500 dark:text-red-400">{error}</p>
+        </div>
       )}
     </div>
   );
@@ -42,6 +48,7 @@ interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement
   label?: string;
   error?: string;
   helperText?: string;
+  required?: boolean;
 }
 
 export const Textarea: React.FC<TextareaProps> = ({ 
@@ -50,43 +57,44 @@ export const Textarea: React.FC<TextareaProps> = ({
   helperText, 
   className = '',
   rows = 4,
+  required = false,
   ...props 
 }) => {
   return (
-    <div className="space-y-1">
+    <div className="space-y-1.5">
       {label && (
-        <label className="block text-sm font-medium">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
           {label}
+          {required && <span className="text-red-500 ml-1">*</span>}
         </label>
       )}
       <textarea
         rows={rows}
-        className={`w-full px-3 py-2 border rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y ${error 
-          ? 'border-red-500 bg-red-50' 
-          : 'border-gray-300 focus:border-blue-500'}`}
+        className={`w-full px-4 py-2.5 border rounded-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-1 resize-y hover:shadow-sm ${error 
+          ? 'border-red-500 bg-red-50 focus:border-red-500 focus:ring-red-500' 
+          : 'border-gray-300 hover:border-gray-400 focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:hover:border-gray-500 dark:text-white'}`}
         {...props}
       />
-      {helperText && (
-        <p className="text-xs text-gray-500">{helperText}</p>
+      {helperText && !error && (
+        <p className="text-xs text-gray-500 dark:text-gray-400">{helperText}</p>
       )}
       {error && (
-        <p className="text-xs text-red-500">{error}</p>
+        <div className="flex items-center gap-1.5">
+          <i className="fas fa-exclamation-circle text-red-500 text-xs"></i>
+          <p className="text-xs text-red-500 dark:text-red-400">{error}</p>
+        </div>
       )}
     </div>
   );
 };
 
 // Select组件
-interface SelectOption {
-  value: string;
-  label: string;
-}
-
 interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
   label?: string;
   error?: string;
   helperText?: string;
   options: SelectOption[];
+  required?: boolean;
 }
 
 export const Select: React.FC<SelectProps> = ({ 
@@ -95,19 +103,21 @@ export const Select: React.FC<SelectProps> = ({
   helperText, 
   options,
   className = '',
+  required = false,
   ...props 
 }) => {
   return (
-    <div className="space-y-1">
+    <div className="space-y-1.5">
       {label && (
-        <label className="block text-sm font-medium">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
           {label}
+          {required && <span className="text-red-500 ml-1">*</span>}
         </label>
       )}
       <select
-        className={`w-full px-3 py-2 border rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 ${error 
-          ? 'border-red-500 bg-red-50' 
-          : 'border-gray-300 focus:border-blue-500'}`}
+        className={`w-full px-4 py-2.5 border rounded-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-1 appearance-none bg-white dark:bg-gray-700 hover:shadow-sm ${error 
+          ? 'border-red-500 bg-red-50 focus:border-red-500 focus:ring-red-500' 
+          : 'border-gray-300 hover:border-gray-400 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:hover:border-gray-500 dark:text-white'}`}
         {...props}
       >
         {options.map((option) => (
@@ -116,11 +126,14 @@ export const Select: React.FC<SelectProps> = ({
           </option>
         ))}
       </select>
-      {helperText && (
-        <p className="text-xs text-gray-500">{helperText}</p>
+      {helperText && !error && (
+        <p className="text-xs text-gray-500 dark:text-gray-400">{helperText}</p>
       )}
       {error && (
-        <p className="text-xs text-red-500">{error}</p>
+        <div className="flex items-center gap-1.5">
+          <i className="fas fa-exclamation-circle text-red-500 text-xs"></i>
+          <p className="text-xs text-red-500 dark:text-red-400">{error}</p>
+        </div>
       )}
     </div>
   );
@@ -154,10 +167,11 @@ export const DatePicker: React.FC<DatePickerProps> = ({
   };
   
   return (
-    <div className="space-y-1">
+    <div className="space-y-1.5">
       {label && (
-        <label className="block text-sm font-medium">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
           {label}
+          {required && <span className="text-red-500 ml-1">*</span>}
         </label>
       )}
       <input
@@ -165,15 +179,18 @@ export const DatePicker: React.FC<DatePickerProps> = ({
         value={value.toISOString().slice(0, showTime ? 16 : 10)}
         onChange={handleChange}
         required={required}
-        className={`w-full px-3 py-2 border rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 ${error 
-          ? 'border-red-500 bg-red-50' 
-          : 'border-gray-300 focus:border-blue-500'}`}
+        className={`w-full px-4 py-2.5 border rounded-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-1 hover:shadow-sm ${error 
+          ? 'border-red-500 bg-red-50 focus:border-red-500 focus:ring-red-500' 
+          : 'border-gray-300 hover:border-gray-400 focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:hover:border-gray-500 dark:text-white'}`}
       />
-      {helperText && (
-        <p className="text-xs text-gray-500">{helperText}</p>
+      {helperText && !error && (
+        <p className="text-xs text-gray-500 dark:text-gray-400">{helperText}</p>
       )}
       {error && (
-        <p className="text-xs text-red-500">{error}</p>
+        <div className="flex items-center gap-1.5">
+          <i className="fas fa-exclamation-circle text-red-500 text-xs"></i>
+          <p className="text-xs text-red-500 dark:text-red-400">{error}</p>
+        </div>
       )}
     </div>
   );
@@ -194,24 +211,27 @@ export const Checkbox: React.FC<CheckboxProps> = ({
   ...props 
 }) => {
   return (
-    <div className="space-y-1">
-      <div className="flex items-center space-x-2">
+    <div className="space-y-1.5">
+      <div className="flex items-center space-x-3">
         <input
           type="checkbox"
-          className={`h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500`}
+          className={`h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 transition-all duration-300 hover:border-gray-400 dark:bg-gray-700 dark:border-gray-600 hover:shadow-sm`}
           {...props}
         />
         {label && (
-          <label className="text-sm font-medium">
+          <label className="text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer">
             {label}
           </label>
         )}
       </div>
-      {helperText && (
-        <p className="text-xs text-gray-500 ml-6">{helperText}</p>
+      {helperText && !error && (
+        <p className="text-xs text-gray-500 dark:text-gray-400 ml-8">{helperText}</p>
       )}
       {error && (
-        <p className="text-xs text-red-500 ml-6">{error}</p>
+        <div className="flex items-center gap-1.5 ml-8">
+          <i className="fas fa-exclamation-circle text-red-500 text-xs"></i>
+          <p className="text-xs text-red-500 dark:text-red-400">{error}</p>
+        </div>
       )}
     </div>
   );
@@ -226,6 +246,7 @@ interface FileUploadProps {
   accept?: string;
   onChange: (files: FileList | null) => void;
   disabled?: boolean;
+  required?: boolean;
 }
 
 export const FileUpload: React.FC<FileUploadProps> = ({ 
@@ -236,6 +257,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
   accept = '*/*',
   onChange,
   disabled = false,
+  required = false,
 }) => {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   
@@ -246,13 +268,14 @@ export const FileUpload: React.FC<FileUploadProps> = ({
   };
   
   return (
-    <div className="space-y-1">
+    <div className="space-y-1.5">
       {label && (
-        <label className="block text-sm font-medium">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
           {label}
+          {required && <span className="text-red-500 ml-1">*</span>}
         </label>
       )}
-      <div className="flex space-x-2">
+      <div className="flex space-x-3">
         <input
           ref={fileInputRef}
           type="file"
@@ -266,19 +289,22 @@ export const FileUpload: React.FC<FileUploadProps> = ({
           type="button"
           onClick={handleButtonClick}
           disabled={disabled}
-          className={`px-4 py-2 rounded-lg transition-colors duration-200 ${disabled 
-            ? 'opacity-50 cursor-not-allowed' 
-            : 'bg-blue-600 hover:bg-blue-700 text-white'}`}
+          className={`px-5 py-2.5 rounded-lg transition-all duration-300 flex items-center gap-2 font-medium shadow-md ${disabled 
+            ? 'opacity-50 cursor-not-allowed bg-gray-400 text-gray-700 dark:bg-gray-600 dark:text-gray-400' 
+            : 'bg-blue-600 hover:bg-blue-700 text-white hover:shadow-lg transform hover:-translate-y-0.5'}`}
         >
-          <i className="fas fa-file-upload mr-2"></i>
+          <i className="fas fa-file-upload"></i>
           选择文件
         </button>
       </div>
-      {helperText && (
-        <p className="text-xs text-gray-500">{helperText}</p>
+      {helperText && !error && (
+        <p className="text-xs text-gray-500 dark:text-gray-400">{helperText}</p>
       )}
       {error && (
-        <p className="text-xs text-red-500">{error}</p>
+        <div className="flex items-center gap-1.5">
+          <i className="fas fa-exclamation-circle text-red-500 text-xs"></i>
+          <p className="text-xs text-red-500 dark:text-red-400">{error}</p>
+        </div>
       )}
     </div>
   );

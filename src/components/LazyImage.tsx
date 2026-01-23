@@ -469,7 +469,7 @@ const LazyImage: React.FC<LazyImageProps> = React.memo(({
         
         {/* 简化的加载状态指示器 - 仅显示旋转动画，减少DOM节点 */}
         {isVisible && !isLoaded && !isError && !disableFallback && (
-          <div className="absolute inset-0 z-10 flex items中心 justify-center">
+          <div className="absolute inset-0 z-10 flex items-center justify-center">
             <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
           </div>
         )}

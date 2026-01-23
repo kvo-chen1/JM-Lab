@@ -943,6 +943,8 @@ export const userDB = {
       membership_start = null, membership_end = null,
       github_id = null, github_username = null, auth_provider = 'local'
     } = userData
+    // 确保email为小写，保证后续查找时的大小写不敏感
+    const normalizedEmail = email.toLowerCase()
     const now = Date.now()
     const membershipStart = membership_start || now
     const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
@@ -957,14 +959,14 @@ export const userDB = {
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           RETURNING id
         `).get(
-          username, email, password_hash, phone, avatar_url, interests, age, tags,
+          username, normalizedEmail, password_hash, phone, avatar_url, interests, age, tags,
           membership_level, membership_status, membershipStart, membership_end,
           now, now, github_id, github_username, auth_provider
         )
       case DB_TYPE.MEMORY:
         const newUser = {
           id: randomUUID(),
-          username, email, password_hash, phone, avatar_url, interests, age, tags,
+          username, email: normalizedEmail, password_hash, phone, avatar_url, interests, age, tags,
           membership_level, membership_status, membership_start: membershipStart, membership_end,
           created_at: now, updated_at: now,
           github_id, github_username, auth_provider
@@ -973,7 +975,7 @@ export const userDB = {
         return { id: newUser.id }
       case DB_TYPE.MONGODB:
         const result = await db.collection('users').insertOne({
-          username, email, password_hash, phone, avatar_url, interests, age, tags,
+          username, email: normalizedEmail, password_hash, phone, avatar_url, interests, age, tags,
           membership_level, membership_status, membership_start: membershipStart, membership_end,
           created_at: now, updated_at: now,
           github_id, github_username, auth_provider
@@ -997,7 +999,7 @@ export const userDB = {
             auth_provider = $14, updated_at = NOW()
           RETURNING id
         `, [
-          userId, username, email, password_hash, phone, avatar_url, interests, age, tags,
+          userId, username, normalizedEmail, password_hash, phone, avatar_url, interests, age, tags,
           membership_level, membership_status, github_id, github_username, auth_provider
         ])
         return rows[0]
@@ -1016,7 +1018,7 @@ export const userDB = {
             auth_provider = $14, updated_at = NOW()
           RETURNING id
         `, [
-          neonUserId, username, email, password_hash, phone, avatar_url, interests, age, tags,
+          neonUserId, username, normalizedEmail, password_hash, phone, avatar_url, interests, age, tags,
           membership_level, membership_status, github_id, github_username, auth_provider
         ])
         return neonResult.result.rows[0]
@@ -1154,7 +1156,7 @@ export const userDB = {
     const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
     switch (typeKey) {
       case DB_TYPE.SQLITE: return db.prepare('SELECT * FROM users WHERE email = ?').get(email)
-      case DB_TYPE.MEMORY: return memoryStore.users.find(u => u.email === email)
+      case DB_TYPE.MEMORY: return memoryStore.users.find(u => u.email.toLowerCase() === email.toLowerCase())
       case DB_TYPE.MONGODB: return db.collection('users').findOne({ email: { $regex: new RegExp(`^${email}$`, 'i') } })
       case DB_TYPE.POSTGRESQL: return (await db.query('SELECT * FROM users WHERE lower(email) = lower($1)', [email])).rows[0]
       case DB_TYPE.NEON_API: return (await db.query('SELECT * FROM users WHERE lower(email) = lower($1)', [email])).result.rows[0]

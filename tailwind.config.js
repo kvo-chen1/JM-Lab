@@ -1,11 +1,6 @@
-/** WARNING: DON'T EDIT THIS FILE */
-/** WARNING: DON'T EDIT THIS FILE */
-/** WARNING: DON'T EDIT THIS FILE */
-
 /** @type {import('tailwindcss').Config} */
-
 export default {
-  darkMode: "class",
+  darkMode: "off",
   content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
   theme: {
     container: {

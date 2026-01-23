@@ -10,7 +10,6 @@ import analyticsService from '../services/analyticsService';
 import { useCommunityLogic } from '@/hooks/useCommunityLogic';
 
 
-import OnboardingGuide from '@/components/OnboardingGuide'
 import PWAInstallButton from '@/components/PWAInstallButton'
 
 // 模拟数据
@@ -63,7 +62,6 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
   const [showCreatorProfile, setShowCreatorProfile] = useState(false);
-  const [showOnboarding, setShowOnboarding] = useState(false);
   const [creatorLevelInfo, setCreatorLevelInfo] = useState(() => achievementService.getCreatorLevelInfo());
   const [achievements, setAchievements] = useState(() => achievementService.getUnlockedAchievements());
   const [pointsStats, setPointsStats] = useState(() => achievementService.getPointsStats());
@@ -151,12 +149,6 @@ export default function Dashboard() {
       // 模拟加载数据
       setTimeout(() => {
         setIsLoading(false);
-        // 中文注释：首次登录展示新手引导（按用户维度持久化）
-        try {
-          const key = `onboarded-${user.id}`
-          const done = localStorage.getItem(key) === 'true'
-          if (!done) setShowOnboarding(true)
-        } catch {}
       }, 800);
     }
   }, [isAuthenticated, user, navigate]);
@@ -180,17 +172,6 @@ export default function Dashboard() {
   
   return (
     <>
-      <OnboardingGuide
-          isOpen={showOnboarding}
-          onClose={(completed) => {
-            try {
-              if (user) {
-                localStorage.setItem(`onboarded-${user.id}`, 'true')
-              }
-            } catch {}
-            setShowOnboarding(false)
-          }}
-        />
       <main className="container mx-auto px-4 py-4">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* 中间内容区 */}
@@ -215,6 +196,7 @@ export default function Dashboard() {
         </div>
         
         <motion.button
+          id="guide-step-dashboard-create"
           onClick={handleCreateNew}
           className="mt-4 md:mt-0 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white px-6 py-3 rounded-full flex items-center gap-2 transition-all duration-300 min-h-[44px] shadow-lg hover:shadow-xl hover:shadow-red-500/20"
           whileHover={{ scale: 1.05, y: -2 }}

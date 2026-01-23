@@ -875,11 +875,12 @@ export default memo(function TianjinCreativeActivities({ search: propSearch = ''
       {/* 地域模板内容 */}
       {activeTab === 'templates' && (
         <>
-          <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-4">
+          {/* 移动端专属修改：columns-2 (原columns-1) 实现更紧凑的瀑布流，gap-3 */}
+          <div className="columns-2 sm:columns-2 lg:columns-3 xl:columns-4 gap-3 md:gap-4">
             {pagedTemplates.map((template) => (
               <div
                 key={template.id}
-                className={`break-inside-avoid mb-4 rounded-xl overflow-hidden shadow-md border transition-all duration-300 hover:shadow-xl hover:-translate-y-1 ${
+                className={`break-inside-avoid mb-3 md:mb-4 rounded-xl overflow-hidden shadow-md border transition-all duration-300 hover:shadow-xl hover:-translate-y-1 ${
                   isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'
                 }`}
               >
@@ -891,44 +892,46 @@ export default memo(function TianjinCreativeActivities({ search: propSearch = ''
                     ratio="auto"
                     rounded="none"
                     onClick={() => openTemplateDetail(template)}
-                    loading="eager"
+                    loading="lazy"
                   />
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300" />
                 </div>
-                <div className={`p-4 ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
+                {/* 移动端专属修改：p-2 (原p-4) 减少内边距 */}
+                <div className={`p-2 md:p-4 ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
                   <div className="flex justify-between items-start mb-2">
-                    <h4 className="font-bold text-lg leading-tight">{template.name}</h4>
+                    <h4 className="font-bold text-sm md:text-lg leading-tight line-clamp-1">{template.name}</h4>
                   </div>
-                  <div className="flex flex-wrap gap-2 mb-3">
-                    <span className={`text-xs px-2 py-0.5 rounded-full border ${
+                  <div className="flex flex-wrap gap-1 md:gap-2 mb-2 md:mb-3">
+                    <span className={`text-[10px] md:text-xs px-1.5 py-0.5 rounded-full border ${
                       isDark ? 'bg-gray-700 border-gray-600 text-gray-300' : 'bg-red-50 border-red-100 text-red-600'
                     }`}>
                       {template.category}
                     </span>
                   </div>
-                  <p className={`text-sm mb-4 line-clamp-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                  <p className={`text-xs md:text-sm mb-2 md:mb-4 line-clamp-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                     {template.description}
                   </p>
-                  <div className="flex justify-between items-center text-xs mb-4">
+                  <div className="flex justify-between items-center text-[10px] md:text-xs mb-2 md:mb-4">
                     <span className={`${isDark ? 'text-gray-400' : 'text-gray-500'} flex items-center`}>
                       <i className="fas fa-fire-alt mr-1 text-red-500"></i>
-                      {template.usageCount}次使用
+                      {template.usageCount}
                     </span>
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
+                  {/* 移动端专属修改：Flex布局水平排列按钮，更紧凑 */}
+                  <div className="flex md:grid md:grid-cols-2 gap-1 md:gap-2">
                     <button 
                       onClick={() => handleApplyTemplate(template.id)}
-                      className="py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-medium transition-colors shadow-sm"
+                      className="flex-1 py-1.5 md:py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-[10px] md:text-sm font-medium transition-colors shadow-sm whitespace-nowrap"
                     >
-                      立即应用
+                      应用
                     </button>
                     <button 
                       onClick={() => openTemplateDetail(template)}
-                      className={`py-2 rounded-lg text-sm font-medium transition-colors border ${
+                      className={`flex-1 py-1.5 md:py-2 rounded-lg text-[10px] md:text-sm font-medium transition-colors border whitespace-nowrap ${
                         isDark ? 'border-gray-600 hover:bg-gray-700 text-gray-300' : 'border-gray-200 hover:bg-gray-50 text-gray-700'
                       }`}
                     >
-                      查看详情
+                      详情
                     </button>
                   </div>
                 </div>
@@ -941,49 +944,55 @@ export default memo(function TianjinCreativeActivities({ search: propSearch = ''
       {/* 线下体验内容 */}
       {activeTab === 'offline' && (
           <>
-            <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-4">
+            <div className="columns-2 sm:columns-2 lg:columns-3 xl:columns-4 gap-3 md:gap-4">
               {pagedExperiences.map((experience) => (
               <div
                 key={experience.id}
-                className={`break-inside-avoid mb-4 rounded-xl overflow-hidden shadow-md border transition-all duration-300 hover:shadow-xl hover:-translate-y-1 ${
+                className={`break-inside-avoid mb-3 md:mb-4 rounded-xl overflow-hidden shadow-md border transition-all duration-300 hover:shadow-xl hover:-translate-y-1 ${
                   isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'
                 }`}
               >
                 <div className="relative">
-                  <TianjinImage src={experience.image} alt={experience.name} ratio="auto" rounded="none" onClick={() => openExperienceDetail(experience)} loading="eager" />
-                  <div className="absolute top-2 right-2">
-                    <span className="px-2 py-1 bg-white/90 backdrop-blur-sm rounded-lg text-xs font-bold text-red-600 shadow-sm border border-red-100">
+                  <TianjinImage src={experience.image} alt={experience.name} ratio="auto" rounded="none" onClick={() => openExperienceDetail(experience)} loading="lazy" />
+                  <div className="absolute top-1 right-1 md:top-2 md:right-2">
+                    <span className="px-1.5 py-0.5 md:px-2 md:py-1 bg-white/90 backdrop-blur-sm rounded-md text-[10px] md:text-xs font-bold text-red-600 shadow-sm border border-red-100">
                       {experience.price}
                     </span>
                   </div>
                   {experience.rating >= 4.8 && (
-                    <div className="absolute top-2 left-2">
-                      <span className="px-2 py-1 bg-yellow-400 text-yellow-900 rounded-lg text-xs font-bold shadow-sm flex items-center gap-1">
+                    <div className="absolute top-1 left-1 md:top-2 md:left-2">
+                      <span className="px-1.5 py-0.5 md:px-2 md:py-1 bg-yellow-400 text-yellow-900 rounded-md text-[10px] md:text-xs font-bold shadow-sm flex items-center gap-1">
                         <i className="fas fa-fire"></i>
-                        高分推荐
+                        <span className="hidden md:inline">高分</span>
                       </span>
                     </div>
                   )}
                 </div>
-                <div className={`p-4 ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
-                  <div className="flex justify-between items-start mb-2">
-                    <h4 className="font-bold text-lg leading-tight">{experience.name}</h4>
+                <div className={`p-2 md:p-4 ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
+                  <div className="flex justify-between items-start mb-1 md:mb-2">
+                    <h4 className="font-bold text-xs md:text-lg leading-tight line-clamp-2">{experience.name}</h4>
                   </div>
-                  <div className="flex items-center mb-3 text-yellow-500 text-sm">
-                    {[...Array(5)].map((_, i) => (
-                      <i key={i} className={`fas fa-star ${i < Math.floor(experience.rating) ? '' : 'text-gray-300'}`}></i>
-                    ))}
-                    <span className={`ml-2 text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                      {experience.rating} ({experience.reviewCount}条评价)
+                  <div className="flex items-center mb-1.5 md:mb-3 text-yellow-500 text-[10px] md:text-sm">
+                    {/* 移动端只显示一颗星+分数，桌面端显示5颗星 */}
+                    <div className="hidden md:flex">
+                      {[...Array(5)].map((_, i) => (
+                        <i key={i} className={`fas fa-star ${i < Math.floor(experience.rating) ? '' : 'text-gray-300'}`}></i>
+                      ))}
+                    </div>
+                    <div className="md:hidden flex items-center">
+                       <i className="fas fa-star text-xs mr-0.5"></i>
+                    </div>
+                    <span className={`ml-0.5 md:ml-2 text-[10px] md:text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                      {experience.rating}
                     </span>
                   </div>
-                  <p className={`text-sm mb-4 line-clamp-2 ${
+                  <p className={`text-[10px] md:text-sm mb-2 md:mb-4 line-clamp-2 leading-snug ${
                     isDark ? 'text-gray-400' : 'text-gray-600'
                   }`}>
                     {experience.description}
                   </p>
                   
-                  <div className={`mb-4 p-3 rounded-lg ${isDark ? 'bg-gray-700/50' : 'bg-gray-50'} space-y-2`}>
+                  <div className={`hidden md:block mb-4 p-3 rounded-lg ${isDark ? 'bg-gray-700/50' : 'bg-gray-50'} space-y-2`}>
                     <div className="flex items-start text-xs">
                       <i className="fas fa-map-marker-alt mt-0.5 mr-2 text-red-500 w-3"></i>
                       <span className={`${isDark ? 'text-gray-300' : 'text-gray-600'} line-clamp-1`}>{experience.location}</span>
@@ -991,25 +1000,26 @@ export default memo(function TianjinCreativeActivities({ search: propSearch = ''
                     <div className="flex items-center text-xs justify-between">
                       <div className="flex items-center">
                         <i className="fas fa-users mr-2 text-blue-500 w-3"></i>
-                        <span className={`${isDark ? 'text-gray-300' : 'text-gray-600'}`}>剩余名额: <span className="font-bold text-red-500">{experience.availableSlots}</span></span>
+                        <span className={`${isDark ? 'text-gray-300' : 'text-gray-600'}`}>剩余: <span className="font-bold text-red-500">{experience.availableSlots}</span></span>
                       </div>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2">
+                  {/* 移动端专属修改：Flex布局水平排列按钮，更紧凑 */}
+                  <div className="flex md:grid md:grid-cols-2 gap-1 md:gap-2">
                     <button 
                       onClick={() => handleBookExperience(experience.id)}
-                      className="py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-medium transition-colors shadow-sm"
+                      className="flex-1 py-1.5 md:py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-[10px] md:text-sm font-medium transition-colors shadow-sm whitespace-nowrap"
                     >
-                      立即预约
+                      预约
                     </button>
                     <button 
                       onClick={() => openExperienceDetail(experience)}
-                      className={`py-2 rounded-lg text-sm font-medium transition-colors border ${
+                      className={`flex-1 py-1.5 md:py-2 rounded-lg text-[10px] md:text-sm font-medium transition-colors border whitespace-nowrap ${
                         isDark ? 'border-gray-600 hover:bg-gray-700 text-gray-300' : 'border-gray-200 hover:bg-gray-50 text-gray-700'
                       }`}
                     >
-                      查看详情
+                      详情
                     </button>
                   </div>
                 </div>
@@ -1022,48 +1032,44 @@ export default memo(function TianjinCreativeActivities({ search: propSearch = ''
       {/* 老字号联名内容 */}
       {activeTab === 'brands' && (
           <>
-            <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-4">
+            <div className="columns-2 sm:columns-2 lg:columns-3 xl:columns-4 gap-3 md:gap-4">
               {pagedBrands.map((brand) => (
               <div
                 key={brand.id}
-                className={`break-inside-avoid mb-4 p-5 rounded-xl shadow-md border transition-all duration-300 hover:shadow-xl hover:-translate-y-1 ${
+                className={`break-inside-avoid mb-3 md:mb-4 p-3 md:p-5 rounded-xl shadow-md border transition-all duration-300 hover:shadow-xl hover:-translate-y-1 ${
                   isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'
                 } group relative overflow-hidden`}
               >
                 {/* 装饰背景图案 */}
-                <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-red-500/10 to-transparent rounded-bl-full -mr-8 -mt-8 pointer-events-none"></div>
+                <div className="absolute top-0 right-0 w-16 h-16 md:w-24 md:h-24 bg-gradient-to-bl from-red-500/10 to-transparent rounded-bl-full -mr-6 -mt-6 md:-mr-8 md:-mt-8 pointer-events-none"></div>
                 
-                <div className="flex items-start mb-4 relative z-10">
+                <div className="flex flex-col md:flex-row items-center md:items-start mb-2 md:mb-4 relative z-10">
                   <div
-                    className={`w-20 h-20 rounded-xl overflow-hidden p-2 mr-4 flex-shrink-0 flex items-center justify-center border transition-colors ${
+                    className={`w-10 h-10 md:w-20 md:h-20 rounded-lg md:rounded-xl overflow-hidden p-1 md:p-2 mb-1 md:mb-0 md:mr-4 flex-shrink-0 flex items-center justify-center border transition-colors ${
                       isDark ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-100'
                     } shadow-sm group-hover:border-red-200`}
                   >
                     <div className="w-full h-full">
-                      <TianjinImage src={brand.logo} alt={brand.name} className="w-full h-full" ratio="square" fit="contain" rounded="lg" loading="eager" />
+                      <TianjinImage src={brand.logo} alt={brand.name} className="w-full h-full" ratio="square" fit="contain" rounded="lg" loading="lazy" />
                     </div>
                   </div>
-                  <div>
-                    <h4 className="font-bold text-lg mb-1">{brand.name}</h4>
-                    <div className="flex items-center text-xs space-x-2 mb-2">
+                  <div className="text-center md:text-left">
+                    <h4 className="font-bold text-xs md:text-lg mb-0.5 md:mb-1">{brand.name}</h4>
+                    <div className="hidden md:flex items-center text-xs space-x-2 mb-2">
                       <span className={`px-2 py-0.5 rounded text-white bg-red-600`}>
                         {brand.establishedYear}年创立
                       </span>
                     </div>
-                    <div className="flex items-center text-xs text-yellow-600">
-                      <i className="fas fa-fire mr-1"></i>
-                      <span>热度 {brand.popularity}</span>
-                    </div>
                   </div>
                 </div>
                 
-                <p className={`text-sm mb-5 leading-relaxed ${
+                <p className={`hidden md:block text-sm mb-5 leading-relaxed ${
                   isDark ? 'text-gray-400' : 'text-gray-600'
                 } line-clamp-3`}>
                   {brand.description}
                 </p>
                 
-                <div className={`grid grid-cols-2 gap-3 mb-5 p-3 rounded-lg ${
+                <div className={`hidden md:grid grid-cols-2 gap-3 mb-5 p-3 rounded-lg ${
                   isDark ? 'bg-gray-700/50' : 'bg-gray-50'
                 }`}>
                   <div className="text-center">
@@ -1076,24 +1082,23 @@ export default memo(function TianjinCreativeActivities({ search: propSearch = ''
                   </div>
                 </div>
                 
-                <div className="grid grid-cols-2 gap-3">
-                  {/* 中文注释：使用天津特色按钮，提供细腻的悬浮与点击反馈 */}
+                {/* 移动端专属修改：Flex布局水平排列按钮，更紧凑 */}
+                <div className="flex md:grid md:grid-cols-2 gap-1 md:gap-3">
                   <TianjinButton 
                     ariaLabel={`查看${brand.name}联名工具`} 
-                    className="w-full justify-center" 
+                    className="flex-1 justify-center text-[10px] md:text-sm py-1.5 md:py-2 whitespace-nowrap" 
                     variant="primary"
                     onClick={() => navigate(`/tools?from=tianjin&query=${encodeURIComponent(brand.name + ' 联名 工具')}&mode=inspire`)}
                   >
-                    <i className="fas fa-tools mr-2"></i>
-                    联名工具
+                    <i className="fas fa-tools mr-1 md:mr-2"></i>
+                    工具
                   </TianjinButton>
                   <button 
                     onClick={() => openBrandDetail(brand)}
-                    className={`w-full py-2 rounded-lg text-sm font-medium transition-colors border ${
+                    className={`flex-1 py-1.5 md:py-2 rounded-lg text-[10px] md:text-sm font-medium transition-colors border whitespace-nowrap ${
                       isDark ? 'border-gray-600 hover:bg-gray-700 text-gray-300' : 'border-gray-200 hover:bg-gray-50 text-gray-700'
                     }`}
                   >
-                    <i className="fas fa-info-circle mr-1"></i>
                     详情
                   </button>
                 </div>

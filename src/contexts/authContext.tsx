@@ -735,6 +735,15 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           userId: userWithMembership.id, 
           user: userWithMembership 
         });
+
+        // 如果是新用户，同时也发布注册成功事件，以触发新手引导
+        if (userWithMembership.isNewUser) {
+          console.log('邮箱登录检测为新用户，触发新手引导');
+          eventBus.publish('auth:register', { 
+            userId: userWithMembership.id, 
+            user: userWithMembership 
+          });
+        }
         
         return true;
       } else {
@@ -926,6 +935,15 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       userId: userWithMembership.id, 
       user: userWithMembership 
     });
+
+    // 如果是新用户，同时也发布注册成功事件，以触发新手引导
+    if (userWithMembership.isNewUser) {
+      console.log('登录检测为新用户，触发新手引导');
+      eventBus.publish('auth:register', { 
+        userId: userWithMembership.id, 
+        user: userWithMembership 
+      });
+    }
     
     return true;
   };
@@ -1044,6 +1062,15 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           userId: userWithMembership.id, 
           user: userWithMembership 
         });
+
+        // 如果是新用户，同时也发布注册成功事件，以触发新手引导
+        if (userWithMembership.isNewUser) {
+          console.log('手机号登录检测为新用户，触发新手引导');
+          eventBus.publish('auth:register', { 
+            userId: userWithMembership.id, 
+            user: userWithMembership 
+          });
+        }
         
         // 显示成功提示
         toast.success('手机号一键登录成功！');

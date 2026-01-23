@@ -122,7 +122,7 @@ export default function Tianjin() {
             </button>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-6">
             {upcomingEvents.map((event) => (
               <motion.div
                 key={event.id}
@@ -135,27 +135,27 @@ export default function Tianjin() {
                 }`}
                 onClick={() => navigate(`/events/${event.id}`)}
               >
-                <div className="relative h-32 overflow-hidden">
+                <div className="relative h-24 md:h-32 overflow-hidden">
                   <img 
                     src={event.image} 
                     alt={event.title} 
                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                   />
                   <div className="absolute top-2 left-2">
-                    <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-600 text-white shadow-sm">
+                    <span className="px-1.5 py-0.5 md:px-2 rounded-full text-[10px] md:text-xs font-medium bg-red-600 text-white shadow-sm">
                       即将开始
                     </span>
                   </div>
                 </div>
-                <div className="p-4">
-                  <h3 className="font-bold text-base mb-1 line-clamp-1 group-hover:text-red-500 transition-colors">
+                <div className="p-2 md:p-4">
+                  <h3 className="font-bold text-sm md:text-base mb-1 line-clamp-1 group-hover:text-red-500 transition-colors">
                     {event.title}
                   </h3>
-                  <div className="flex items-center text-xs text-gray-500 mb-2">
-                    <i className="far fa-calendar-alt mr-1.5"></i>
+                  <div className="flex items-center text-[10px] md:text-xs text-gray-500 mb-1 md:mb-2">
+                    <i className="far fa-calendar-alt mr-1 md:mr-1.5"></i>
                     {event.startDate}
                   </div>
-                  <p className={`text-xs line-clamp-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                  <p className={`text-[10px] md:text-xs line-clamp-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                     {event.description}
                   </p>
                 </div>

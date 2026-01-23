@@ -30,7 +30,7 @@ export default function ToolSidebar() {
   return (
     <>
       {/* 电脑端：左侧垂直工具栏 (大屏幕 - lg及以上) */}
-        <div className={`hidden lg:block w-24 h-full flex flex-col items-center py-6 border-r backdrop-blur-xl transition-all duration-300 ${isDark ? 'bg-gray-900/95 border-gray-800' : 'bg-white/95 border-gray-200'} z-20`}>
+        <div id="guide-step-create-sidebar" className={`hidden lg:block w-24 h-full flex flex-col items-center py-6 border-r backdrop-blur-xl transition-all duration-300 ${isDark ? 'bg-gray-900/95 border-gray-800' : 'bg-white/95 border-gray-200'} z-20`}>
           {/* Brand/Logo */}
           <div className="mb-6 flex items-center justify-center w-full px-3">
             <div className={`w-full h-[68px] flex items-center justify-center py-4 rounded-2xl ${isDark ? 'bg-red-900/20 text-red-500' : 'bg-red-50 text-red-600'}`}>

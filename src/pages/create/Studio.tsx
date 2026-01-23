@@ -10,10 +10,15 @@ import ModelSelector from '@/components/ModelSelector';
 import InspirationPanel from '@/components/InspirationPanel';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useSearchParams } from 'react-router-dom';
+import { useAutoSave } from '@/hooks/useAutoSave';
 
 export default function Studio() {
   const { isDark } = useTheme();
   const [searchParams] = useSearchParams();
+  
+  // 启用自动保存
+  useAutoSave();
+
   const { 
     showCollaborationPanel, updateState, 
     showAIReview, 
@@ -75,7 +80,7 @@ export default function Studio() {
       </AnimatePresence>
 
       {/* Main Canvas Area - 主画布区域 */}
-      <div className="flex-1 relative flex flex-col min-w-0 overflow-hidden
+      <div id="guide-step-create-canvas" className="flex-1 relative flex flex-col min-w-0 overflow-hidden
         /* 手机端和平板端：为底部工具栏留出空间 */
         md:mb-0 mb-24">
         <CanvasArea />

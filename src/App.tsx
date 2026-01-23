@@ -307,7 +307,15 @@ const UserFeedback = createLazyComponent(() => import(/* webpackChunkName: "comp
   priority: ROUTE_PRIORITIES.MEDIUM
 });
 
+// 津门文化随机弹窗 - 懒加载
+const JinmenCulturePopup = createLazyComponent(() => import(/* webpackChunkName: "components-cultural" */ '@/components/JinmenCulturePopup'), {
+  priority: ROUTE_PRIORITIES.LOW
+});
 
+
+
+import { GuideProvider } from '@/contexts/GuideContext';
+import OnboardingGuide from '@/components/OnboardingGuide';
 
 export default function App() {
   const location = useLocation();
@@ -481,7 +489,8 @@ export default function App() {
   return (
     <ThemeProvider>
       <NotificationProvider>
-        <div className={rootClass} style={{ backgroundColor: 'var(--bg-primary, #ffffff)' }}>
+        <GuideProvider>
+          <div className={rootClass} style={{ backgroundColor: 'var(--bg-primary, #ffffff)' }}>
           <Analytics />
           <SpeedInsights />
           <Routes location={location} key={location.pathname}>
@@ -641,6 +650,13 @@ export default function App() {
         <UserFeedback isOpen={showFeedback} onClose={() => setShowFeedback(false)} />
       </LazyComponent>
       
+      {/* 津门文化随机弹窗 */}
+      <ErrorBoundary fallback={null}>
+        <LazyComponent>
+          <JinmenCulturePopup />
+        </LazyComponent>
+      </ErrorBoundary>
+      
 
 
       {/* 全局命令面板 */}
@@ -649,7 +665,9 @@ export default function App() {
       {/* 全局 Toast 通知 */}
       <Toaster position="top-center" richColors closeButton />
       
+      <OnboardingGuide />
     </div>
+    </GuideProvider>
     </NotificationProvider>
     </ThemeProvider>
 );

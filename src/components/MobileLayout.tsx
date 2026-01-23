@@ -406,24 +406,24 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
                 to="/"
                 onTouchStart={() => prefetchRoute('home')}
                 className={clsx(
-                  'flex items-center gap-1 transition-all duration-300 hover:scale-105 active:scale-95 group min-w-0',
+                  'flex items-center gap-1.5 transition-all duration-300 hover:scale-105 active:scale-95 group min-w-0',
                   isDark ? 'text-white' : 
                   theme === 'pink' ? 'text-pink-900' : 
                   'text-gray-900'
                 )}
               >
                 <div className={clsx(
-                  'w-7 h-7 rounded-lg flex items-center justify-center text-white font-bold shadow-md transition-all duration-300 hover:scale-110 group-hover:shadow-lg flex-shrink-0',
-                  `bg-gradient-to-br ${themeStyles.logoBackground}`,
-                  'relative overflow-hidden'
+                  'w-8 h-8 rounded-xl flex items-center justify-center text-white font-bold shadow-lg transition-all duration-300 hover:scale-110 group-hover:shadow-xl flex-shrink-0',
+                  `bg-gradient-to-br ${themeStyles.gradient}`,
+                  'relative overflow-hidden ring-1 ring-white/20'
                 )}>
-                  <span className="text-sm font-extrabold z-10 transform transition-transform duration-300 group-hover:scale-125">{themeStyles.logoText}</span>
-                  <div className={clsx(
-                    'absolute inset-0 opacity-0 group-hover:opacity-30 transition-opacity duration-300',
-                    `bg-gradient-to-tr from-white to-transparent`
-                  )}></div>
+                  <span className="text-sm font-extrabold z-10 transform transition-transform duration-300 group-hover:scale-110 drop-shadow-sm">{themeStyles.logoText}</span>
+                  {/* 顶部高光 */}
+                  <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/20 to-transparent"></div>
+                  {/* 底部反光 */}
+                  <div className="absolute bottom-0 right-0 w-full h-full bg-gradient-to-tl from-black/10 to-transparent"></div>
                 </div>
-                <span className="ml-0.5 text-sm font-bold tracking-tight align-baseline bg-clip-text text-transparent bg-gradient-to-r truncate max-w-[120px] xs:max-w-none"
+                <span className="text-sm font-bold tracking-tight align-baseline bg-clip-text text-transparent bg-gradient-to-r truncate max-w-[120px] xs:max-w-none"
                   style={{ 
                     backgroundImage: isDark ? 'linear-gradient(to right, #60a5fa, #a78bfa)' : 
                                      theme === 'pink' ? 'linear-gradient(to right, #ec4899, #f472b6)' : 
@@ -860,15 +860,20 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
             theme === 'pink' ? 'border-pink-200' : 
             'border-gray-200'
           )}>
-            <div className="flex items-center">
+            <div className="flex items-center gap-2">
               <div className={clsx(
-                'w-7 h-7 rounded-lg flex items-center justify-center text-white font-bold',
-                themeStyles.logoBackground
+                'w-8 h-8 rounded-xl flex items-center justify-center text-white font-bold shadow-md',
+                `bg-gradient-to-br ${themeStyles.gradient}`,
+                'relative overflow-hidden ring-1 ring-white/20'
               )}>
-                {themeStyles.logoText}
+                <span className="text-sm font-extrabold z-10 drop-shadow-sm">{themeStyles.logoText}</span>
+                {/* 顶部高光 */}
+                <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/20 to-transparent"></div>
+                {/* 底部反光 */}
+                <div className="absolute bottom-0 right-0 w-full h-full bg-gradient-to-tl from-black/10 to-transparent"></div>
               </div>
               {/* 应用名称多语言显示 */}
-              <span className="ml-2 text-lg font-bold">{t('common.appName')}</span>
+              <span className="text-lg font-bold">{t('common.appName')}</span>
             </div>
             <button
               onClick={() => setShowSidebarDrawer(false)}
@@ -1011,7 +1016,7 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
       
       {/* 底部导航 - 优化交互体验 */}
       <div className={clsx(
-        'fixed bottom-0 inset-x-0 md:hidden z-20 transition-all duration-300 ease-in-out',
+        'fixed bottom-0 inset-x-0 md:hidden z-[90] transition-all duration-300 ease-in-out',
         showMobileNav ? 'translate-y-0' : 'translate-y-full'
       )}>
         <div className={clsx(

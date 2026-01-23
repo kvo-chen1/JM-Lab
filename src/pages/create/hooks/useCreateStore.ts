@@ -22,6 +22,7 @@ interface CreateActions {
   clearPatternHistory: () => void;
   // New functions for action buttons
   saveToDrafts: () => void;
+  loadDraft: (draft: any) => void;
   shareDesign: () => void;
   applyToOtherTool: (tool?: ToolType) => void;
   // Publishing functions
@@ -193,6 +194,49 @@ export const useCreateStore = create<CreateState & CreateActions>((set, get) => 
     patternHistory: [],
   })),
   
+  // 加载草稿
+  loadDraft: (draft: any) => set((state) => {
+    try {
+      // 恢复基础状态
+      const newState: Partial<CreateState> = {
+        prompt: draft.prompt || '',
+        selectedResult: draft.selectedResult || null,
+        generatedResults: draft.generatedResults || [],
+        activeTool: draft.activeTool || 'sketch',
+        stylePreset: draft.stylePreset || '',
+        currentStep: draft.currentStep || 1,
+        aiExplanation: draft.aiExplanation || '',
+        // 如果草稿中有其他状态字段，也可以在这里恢复
+        patternOpacity: draft.patternOpacity ?? state.patternOpacity,
+        patternScale: draft.patternScale ?? state.patternScale,
+        patternRotation: draft.patternRotation ?? state.patternRotation,
+        patternBlendMode: draft.patternBlendMode ?? state.patternBlendMode,
+        patternTileMode: draft.patternTileMode ?? state.patternTileMode,
+        patternPositionX: draft.patternPositionX ?? state.patternPositionX,
+        patternPositionY: draft.patternPositionY ?? state.patternPositionY,
+        selectedPatternId: draft.selectedPatternId ?? state.selectedPatternId,
+      };
+
+      // 提示加载成功
+      if (typeof window !== 'undefined') {
+        const toast = document.createElement('div');
+        toast.className = 'fixed top-20 right-6 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 transition-all duration-300 ease-in-out';
+        toast.textContent = '草稿加载成功！';
+        document.body.appendChild(toast);
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateX(100%)';
+            setTimeout(() => document.body.removeChild(toast), 300);
+        }, 2000);
+      }
+      
+      return { ...state, ...newState };
+    } catch (error) {
+      console.error('Failed to load draft:', error);
+      return state;
+    }
+  }),
+
   // 保存到草稿
   saveToDrafts: () => set((state) => {
     if (!state.selectedResult) return state;
@@ -205,6 +249,7 @@ export const useCreateStore = create<CreateState & CreateActions>((set, get) => 
       const newDraft = {
         id: `draft-${Date.now()}`,
         createdAt: Date.now(),
+        updatedAt: Date.now(),
         name: `草稿 ${drafts.length + 1}`,
         description: '',
         prompt: state.prompt,
@@ -212,6 +257,17 @@ export const useCreateStore = create<CreateState & CreateActions>((set, get) => 
         generatedResults: state.generatedResults,
         activeTool: state.activeTool,
         stylePreset: state.stylePreset,
+        currentStep: state.currentStep,
+        aiExplanation: state.aiExplanation,
+        // 保存纹样工具状态
+        selectedPatternId: state.selectedPatternId,
+        patternOpacity: state.patternOpacity,
+        patternScale: state.patternScale,
+        patternRotation: state.patternRotation,
+        patternBlendMode: state.patternBlendMode,
+        patternTileMode: state.patternTileMode,
+        patternPositionX: state.patternPositionX,
+        patternPositionY: state.patternPositionY,
       };
       const updatedDrafts = [newDraft, ...drafts].slice(0, 10); // 保存最近10个草稿
       localStorage.setItem('CREATE_DRAFTS', JSON.stringify(updatedDrafts));

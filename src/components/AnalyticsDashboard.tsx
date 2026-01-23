@@ -503,12 +503,14 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
       </div>
 
       {/* 主图表 */}
-      <ChartCard 
-        title="数据分析图表" 
-        description={`显示${activeMetric}数据，按${timeRange}时间范围，以${groupBy}分组`}
-      >
-        {renderChart()}
-      </ChartCard>
+      <div id="guide-step-analytics-chart">
+        <ChartCard 
+          title="数据分析图表" 
+          description={`显示${activeMetric}数据，按${timeRange}时间范围，以${groupBy}分组`}
+        >
+          {renderChart()}
+        </ChartCard>
+      </div>
 
       {/* 作品表现 */}
       <div>

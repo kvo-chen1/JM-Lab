@@ -450,7 +450,7 @@ export default function Explore() {
               发现津门文化的无限可能
             </p>
           </div>
-          <div className="flex gap-4">
+          <div className="flex gap-4" id="guide-step-explore-search">
             <TianjinButton 
               variant="secondary"
               leftIcon={<i className="fas fa-search"></i>}
@@ -468,7 +468,7 @@ export default function Explore() {
         </div>
 
         {/* 自动滚动标签栏 */}
-        <div className="mb-8 overflow-hidden relative group">
+        <div className="mb-8 overflow-hidden relative group" id="guide-step-explore-tags">
           {/* 渐变遮罩 */}
           <div className={`absolute inset-y-0 left-0 w-12 z-10 bg-gradient-to-r ${theme === 'dark' ? 'from-gray-900' : 'from-gray-50'} opacity-70`}></div>
           <div className={`absolute inset-y-0 right-0 w-12 z-10 bg-gradient-to-l ${theme === 'dark' ? 'from-gray-900' : 'from-gray-50'} opacity-70`}></div>

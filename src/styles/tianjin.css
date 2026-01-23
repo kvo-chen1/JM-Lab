@@ -8,3 +8,12 @@
 .border-tianjin {
   border-color: #93c5fd;
 }
+
+/* Utility for hiding scrollbar but allowing scroll */
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+}
+.scrollbar-hide {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+}

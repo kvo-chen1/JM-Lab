@@ -2,11 +2,13 @@ import { useState, useEffect } from 'react'
 import { useTheme } from '@/hooks/useTheme'
 import { themeOrder } from '@/config/themeConfig'
 import { Link } from 'react-router-dom'
+import { useGuide } from '@/contexts/GuideContext'
 
 import ModelSelector from '@/components/ModelSelector'
 
 export default function Settings() {
   const { theme, isDark, toggleTheme, setTheme, availableThemes } = useTheme()
+  const { startGuide } = useGuide()
   const [showModelSelector, setShowModelSelector] = useState(false)
   
   // 通知设置
@@ -116,7 +118,7 @@ export default function Settings() {
         <h1 className="text-2xl font-bold mb-6">设置</h1>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* 主题设置 */}
-          <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-md p-6`}>
+          <div id="guide-step-settings-theme" className={`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-md p-6`}>
             <h2 className="font-medium mb-3">主题</h2>
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -262,6 +264,16 @@ export default function Settings() {
                   <option value="standard">标准</option>
                   <option value="spacious">宽松</option>
                 </select>
+              </div>
+              
+              <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
+                <button 
+                  onClick={startGuide}
+                  className={`w-full text-left px-4 py-2 rounded-lg ${isDark ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'} transition-colors flex items-center justify-between`}
+                >
+                  <span>重置新手引导</span>
+                  <i className="fas fa-redo-alt text-sm opacity-50"></i>
+                </button>
               </div>
             </div>
           </div>

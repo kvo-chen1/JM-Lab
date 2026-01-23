@@ -1456,14 +1456,16 @@ export default function CulturalKnowledge() {
                   精选的优质作品，展示传统文化与现代设计的完美结合
                 </p>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+              {/* 移动端专属修改：使用 columns-2 实现瀑布流，md以上保持 Grid */}
+              <div className="block columns-2 gap-3 space-y-3 md:grid md:grid-cols-2 lg:grid-cols-4 md:gap-8 md:space-y-0">
                 {mockWorks.slice(0, displayedWorksCount).map((work) => (
                   <motion.div
                     key={work.id}
                     whileHover={{ y: -5 }}
-                    className={`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-xl overflow-hidden shadow-lg transition-all duration-300 hover:shadow-xl border ${isDark ? 'border-gray-700' : 'border-gray-200'} cursor-pointer`}
+                    /* 移动端专属修改：添加 break-inside-avoid 防止卡片断裂，mb-3 用于列间距 */
+                    className={`break-inside-avoid mb-3 md:mb-0 ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-xl overflow-hidden shadow-lg transition-all duration-300 hover:shadow-xl border ${isDark ? 'border-gray-700' : 'border-gray-200'} cursor-pointer`}
                   >
-                    <div className="relative h-48 overflow-hidden bg-gray-200 dark:bg-gray-700">
+                    <div className="relative h-32 md:h-48 overflow-hidden bg-gray-200 dark:bg-gray-700">
                       <img
                         src={getContentImageUrl(work.title, 400, 200)}
                         alt={work.title}
@@ -1473,7 +1475,7 @@ export default function CulturalKnowledge() {
                           target.src = fallbackImageUrl(400, 200);
                           target.alt = `${work.title} - 图片加载失败`;
                         }}
-                        loading="eager"
+                        loading="lazy"
                       />
                       <div className="absolute bottom-3 left-3">
                         <span className="bg-red-600 text-white px-3 py-1 rounded-full text-xs font-medium">{work.category}</span>

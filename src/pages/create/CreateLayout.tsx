@@ -36,7 +36,7 @@ export default function CreateLayout() {
       {/* Top Navigation Bar - 顶部导航栏 */}
       <div className={`flex items-center justify-between px-3 md:px-6 py-3 border-b flex-shrink-0 z-30 transition-colors duration-300 ${isDark ? 'border-gray-800 bg-gray-900/95 backdrop-blur-sm' : 'border-gray-200 bg-white/95 backdrop-blur-sm'}`}>
         {/* 导航 Tab - 响应式显示 */}
-        <div className={`flex flex-1 overflow-x-auto no-scrollbar space-x-1 p-1 rounded-xl border mr-2 ${isDark ? 'bg-gray-800/50 border-gray-700' : 'bg-gray-100/80 border-gray-200'}`}>
+        <div id="guide-step-create-nav" className={`flex flex-1 overflow-x-auto no-scrollbar space-x-1 p-1 rounded-xl border mr-2 ${isDark ? 'bg-gray-800/50 border-gray-700' : 'bg-gray-100/80 border-gray-200'}`}>
           {navItems.map((item) => {
             const isActive = item.exact 
               ? location.pathname === item.path

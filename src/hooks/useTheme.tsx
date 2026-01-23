@@ -49,7 +49,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
       const appliedTheme = getAppliedTheme(theme);
       
       // 清除所有主题类
-      document.documentElement.classList.remove('light', 'dark', 'pink', 'blue', 'green');
+      document.documentElement.classList.remove('light', 'dark', 'pink', 'blue', 'green', 'pixel');
       
       // 添加当前主题类（浅色主题不需要添加类，使用默认样式）
       if (appliedTheme !== 'light') {
@@ -71,7 +71,8 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
                           (currentAppliedTheme === 'light' && !document.documentElement.classList.contains('dark') && 
                            !document.documentElement.classList.contains('blue') && 
                            !document.documentElement.classList.contains('green') && 
-                           !document.documentElement.classList.contains('pink'));
+                           !document.documentElement.classList.contains('pink') &&
+                           !document.documentElement.classList.contains('pixel'));
     
     if (!hasCorrectClass) {
       // 使用requestAnimationFrame优化DOM更新，减少卡顿
@@ -100,7 +101,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
       return false;
     }
     
-    return theme === 'dark';
+    return theme === 'dark' || theme === 'pixel';
   }, [theme]);
 
   // 优化上下文值，减少组件重新渲染

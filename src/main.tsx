@@ -19,7 +19,7 @@ import { StrictMode } from "react";
 import "./styles/tianjin.css";
 import "./styles/neo.css";
 import * as ReactDOMClient from "react-dom/client";
-import { BrowserRouter } from "react-router-dom";
+import { HashRouter } from "react-router-dom";
 import { Toaster } from 'sonner';
 import App from "./App.tsx";
 import { AuthProvider } from './contexts/authContext.tsx';
@@ -40,16 +40,21 @@ if (typeof window !== 'undefined') {
   (window as any).lazilyLoaded = (window as any).lazilyLoaded || {};
 }
 
-if (import.meta.env.PROD && typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
-  const key = 'sw_unregistered_once';
-  if (!sessionStorage.getItem(key)) {
-    navigator.serviceWorker.getRegistrations()
-      .then(regs => Promise.all(regs.map(r => r.unregister())))
-      .finally(() => {
-        sessionStorage.setItem(key, '1');
-        if (typeof location !== 'undefined' && location.reload) location.reload();
-      });
-  }
+import { registerSW } from 'virtual:pwa-register';
+
+// 注册 Service Worker
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  const updateSW = registerSW({
+    onNeedRefresh() {
+      // 当有新内容时提示用户
+      if (confirm('新版本可用，是否刷新？')) {
+        updateSW(true);
+      }
+    },
+    onOfflineReady() {
+      console.log('App ready to work offline');
+    },
+  });
 }
 
 // 应用渲染
@@ -64,7 +69,7 @@ if (root) {
       <ErrorBoundary>
         <LanguageProvider>
           <ThemeProvider>
-            <BrowserRouter>
+            <HashRouter>
                 <AuthProvider>
                   <FriendProvider>
                     <ChatProvider>
@@ -74,7 +79,7 @@ if (root) {
                     </ChatProvider>
                   </FriendProvider>
                 </AuthProvider>
-              </BrowserRouter>
+              </HashRouter>
           </ThemeProvider>
         </LanguageProvider>
       </ErrorBoundary>

@@ -195,69 +195,82 @@ function invalidateRelatedCaches(): void {
  * 获取所有帖子
  */
 export async function getPosts(): Promise<Post[]> {
-  const cached = getCache(postCache, 'all');
-  if (cached) {
-    return cached;
+  // SWR Strategy: Check cache directly
+  const entry = postCache.get('all');
+  
+  // Define fetch logic
+  const fetchFromNetwork = async () => {
+    try {
+      // 使用统一API服务获取作品数据
+      const works = await workService.getWorks();
+      
+      // 将Work类型转换为Post类型
+      const posts = works.map(work => ({
+        id: work.id.toString(),
+        title: work.title,
+        thumbnail: work.thumbnail,
+        likes: work.likes,
+        comments: [],
+        date: new Date().toISOString().slice(0, 10),
+        isLiked: false,
+        isBookmarked: false,
+        category: work.category as PostCategory,
+        tags: work.tags,
+        description: work.description || '',
+        views: work.views,
+        shares: 0,
+        isFeatured: work.featured,
+        isDraft: false,
+        completionStatus: 'published' as const,
+        creativeDirection: '',
+        culturalElements: [],
+        colorScheme: [],
+        toolsUsed: [],
+        downloadCount: 0,
+        
+        // 新增发布相关字段
+        publishType: 'explore' as const,
+        communityId: null,
+        moderationStatus: 'approved',
+        rejectionReason: null,
+        scheduledPublishDate: null,
+        visibility: 'public',
+        
+        // 统计扩展
+        commentCount: 0,
+        engagementRate: 0,
+        trendingScore: 0,
+        reach: 0,
+        
+        // 审核相关
+        moderator: null,
+        reviewedAt: null,
+        
+        // 推荐相关
+        recommendationScore: 0,
+        recommendedFor: []
+      }));
+      
+      setCache(postCache, 'all', posts);
+      return posts;
+    } catch (error) {
+      console.error('获取帖子失败:', error);
+      return [];
+    }
+  };
+
+  // If cache exists, return it immediately
+  if (entry) {
+    // If stale, trigger background update
+    if (Date.now() - entry.timestamp > CACHE_TTL) {
+      console.log('Cache stale, fetching in background...');
+      fetchFromNetwork().catch(e => console.error('Background update failed', e));
+    }
+    return entry.data;
   }
   
-  try {
-    // 使用统一API服务获取作品数据
-    const works = await workService.getWorks();
-    
-    // 将Work类型转换为Post类型
-    const posts = works.map(work => ({
-      id: work.id.toString(),
-      title: work.title,
-      thumbnail: work.thumbnail,
-      likes: work.likes,
-      comments: [],
-      date: new Date().toISOString().slice(0, 10),
-      isLiked: false,
-      isBookmarked: false,
-      category: work.category as PostCategory,
-      tags: work.tags,
-      description: work.description || '',
-      views: work.views,
-      shares: 0,
-      isFeatured: work.featured,
-      isDraft: false,
-      completionStatus: 'published' as const,
-      creativeDirection: '',
-      culturalElements: [],
-      colorScheme: [],
-      toolsUsed: [],
-      downloadCount: 0,
-      
-      // 新增发布相关字段
-      publishType: 'explore' as const,
-      communityId: null,
-      moderationStatus: 'approved',
-      rejectionReason: null,
-      scheduledPublishDate: null,
-      visibility: 'public',
-      
-      // 统计扩展
-      commentCount: 0,
-      engagementRate: 0,
-      trendingScore: 0,
-      reach: 0,
-      
-      // 审核相关
-      moderator: null,
-      reviewedAt: null,
-      
-      // 推荐相关
-      recommendationScore: 0,
-      recommendedFor: []
-    }));
-    
-    setCache(postCache, 'all', posts);
-    return posts;
-  } catch (error) {
-    console.error('获取帖子失败:', error);
-    // 失败时返回空数组
-    return [];
-  }
+  // No cache, wait for network
+  return fetchFromNetwork();
 }
 
 /**

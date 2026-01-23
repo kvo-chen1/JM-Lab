@@ -218,20 +218,50 @@ export default function CreateActivity() {
   // 验证当前步骤
   const validateCurrentStep = (): boolean => {
     const newErrors: Record<string, string> = {};
+    const now = new Date();
     
     switch (currentStep) {
       case 'basic':
         if (!formData.title.trim()) {
           newErrors.title = '请输入活动名称';
+        } else if (formData.title.length < 2) {
+          newErrors.title = '活动名称至少需要2个字符';
+        } else if (formData.title.length > 50) {
+          newErrors.title = '活动名称不能超过50个字符';
         }
+
         if (!formData.description.trim()) {
           newErrors.description = '请输入活动描述';
+        } else if (formData.description.length < 5) {
+          newErrors.description = '活动描述至少需要5个字符';
         }
-        if (formData.startTime >= formData.endTime) {
-          newErrors.time = '开始时间必须早于结束时间';
+
+        // 时间验证
+        if (formData.startTime) {
+           // 允许稍微过去一点的时间（比如几分钟前），避免操作过程中的时间流逝导致校验失败
+           // 这里暂时不强制校验“必须是未来时间”，但结束时间必须晚于开始时间
+           if (isNaN(formData.startTime.getTime())) {
+             newErrors.startTime = '无效的开始时间';
+           }
         }
+        
+        if (formData.endTime) {
+           if (isNaN(formData.endTime.getTime())) {
+             newErrors.endTime = '无效的结束时间';
+           }
+        }
+
+        if (formData.startTime && formData.endTime) {
+          if (formData.startTime >= formData.endTime) {
+            newErrors.time = '结束时间必须晚于开始时间';
+          } else if (formData.endTime.getTime() - formData.startTime.getTime() < 30 * 60 * 1000) {
+            // 活动时长至少30分钟
+            newErrors.time = '活动时长至少需要30分钟';
+          }
+        }
+
         if (formData.contactPhone && !/^1[3-9]\d{9}$/.test(formData.contactPhone)) {
-          newErrors.contactPhone = '请输入有效的手机号码';
+          newErrors.contactPhone = '请输入有效的11位手机号码';
         }
         if (formData.contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.contactEmail)) {
           newErrors.contactEmail = '请输入有效的邮箱地址';
@@ -239,20 +269,26 @@ export default function CreateActivity() {
         break;
         
       case 'content':
-        if (!formData.content.trim()) {
+        if (!formData.content.trim() || formData.content === '<p><br></p>') {
           newErrors.content = '请输入活动内容';
-        } else if (formData.content.length < 10) {
-          newErrors.content = '活动内容至少需要10个字符';
+        } else if (formData.content.replace(/<[^>]*>/g, '').length < 10) {
+          newErrors.content = '活动内容详情至少需要10个字符';
         }
         break;
         
       case 'media':
         // 至少需要一张缩略图
         if (formData.media.length === 0) {
-          newErrors.media = '请上传至少一张图片';
+          newErrors.media = '请上传至少一张图片作为封面';
         }
         break;
         
+      case 'settings':
+         if (formData.maxParticipants !== undefined && formData.maxParticipants <= 0) {
+           newErrors.maxParticipants = '最大参与人数必须大于0';
+         }
+         break;
+
       default:
         break;
     }
@@ -260,7 +296,7 @@ export default function CreateActivity() {
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
-  
+
   // 处理表单字段变化
   const handleChange = (field: keyof EventCreateRequest, value: any) => {
     setFormData(prev => ({
@@ -268,14 +304,29 @@ export default function CreateActivity() {
       [field]: value
     }));
     
-    // 清除对应字段的错误
+    // 标记为已触摸
+    if (!touched[field]) {
+        setTouched(prev => ({ ...prev, [field]: true }));
+    }
+    
+    // 实时验证（仅清除当前字段的错误，或者如果已触摸则重新验证该字段）
     if (errors[field]) {
       setErrors(prev => {
         const newErrors = { ...prev };
         delete newErrors[field];
+        // 如果是时间相关的，可能需要同时清除 time 错误
+        if (field === 'startTime' || field === 'endTime') {
+            delete newErrors.time;
+        }
         return newErrors;
       });
     }
+  };
+
+  // 处理字段Blur事件
+  const handleBlur = (field: string) => {
+      setTouched(prev => ({ ...prev, [field]: true }));
+      // 可以在这里触发单个字段的验证逻辑，但为了简化，我们依赖提交时的完整验证或实时的输入反馈
   };
   
   // 处理媒体上传
@@ -653,109 +704,86 @@ export default function CreateActivity() {
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-12 lg:grid-cols-12 gap-8">
-          {/* 左侧：步骤导航 */}
-          <div className="md:col-span-3 lg:col-span-2 xl:col-span-2">
-            <div className={`rounded-2xl p-6 ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-xl sticky top-6 border ${isDark ? 'border-gray-700' : 'border-gray-100'} transition-all duration-300 hover:shadow-2xl`}>
-              <h2 className="font-bold text-lg mb-6 bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">创建步骤</h2>
-              
-              {/* 步骤进度条 */}
-              <div className="mb-6 relative">
-                <div className={`h-1.5 rounded-full ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
-                  <div 
-                    className="h-full rounded-full bg-gradient-to-r from-blue-600 via-indigo-500 to-purple-600 transition-all duration-500 ease-out shadow-md"
-                    style={{ 
-                      width: `${((steps.findIndex(s => s.id === currentStep) + 1) / steps.length) * 100}%` 
-                    }}
-                  ></div>
-                </div>
-                {/* 步骤进度点 */}
-                <div className="flex justify-between mt-[-7px]">
-                  {steps.map((_, index) => {
-                    const isActive = index <= steps.findIndex(s => s.id === currentStep);
+          {/* 左侧：步骤导航 (垂直时间轴样式) */}
+          <div className="md:col-span-3 lg:col-span-2 xl:col-span-2 hidden md:block">
+            <div className="sticky top-6">
+              <div className="relative pl-4">
+                {/* 垂直连接线 */}
+                <div className={`absolute left-[23px] top-4 bottom-4 w-0.5 ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}></div>
+                
+                <div className="space-y-8 relative">
+                  {steps.map((step, index) => {
+                    const isActive = currentStep === step.id;
+                    const isCompleted = steps.findIndex(s => s.id === currentStep) > index;
+                    const isPending = steps.findIndex(s => s.id === currentStep) < index;
+                    
                     return (
-                      <div 
-                        key={index}
-                        className={`w-4 h-4 rounded-full transition-all duration-300 ${isActive 
-                          ? 'bg-gradient-to-r from-blue-600 to-purple-600 scale-125 ring-2 ring-blue-100 dark:ring-blue-900/50' 
-                          : isDark ? 'bg-gray-600' : 'bg-gray-400'}`}
-                      ></div>
+                      <div key={step.id} className="relative flex items-center group">
+                         {/* 步骤点 */}
+                        <button
+                          onClick={() => handleStepChange(step.id as StepType)}
+                          disabled={isPending && !isCompleted}
+                          className={`
+                            relative z-10 flex items-center justify-center w-5 h-5 rounded-full border-2 transition-all duration-300
+                            ${isActive 
+                              ? 'bg-white border-blue-600 scale-125 shadow-[0_0_0_4px_rgba(37,99,235,0.2)]' 
+                              : isCompleted
+                                ? 'bg-blue-600 border-blue-600' 
+                                : isDark ? 'bg-gray-800 border-gray-600' : 'bg-white border-gray-300'}
+                          `}
+                        >
+                          {isActive && <div className="w-2 h-2 rounded-full bg-blue-600"></div>}
+                          {isCompleted && <i className="fas fa-check text-[10px] text-white"></i>}
+                        </button>
+                        
+                        {/* 步骤文字 */}
+                        <button
+                          onClick={() => handleStepChange(step.id as StepType)}
+                          disabled={isPending && !isCompleted}
+                          className={`ml-4 text-left transition-all duration-300 ${isActive ? 'translate-x-1' : ''}`}
+                        >
+                          <span className={`block text-sm font-bold ${
+                            isActive 
+                              ? 'text-blue-600 dark:text-blue-400' 
+                              : isCompleted 
+                                ? isDark ? 'text-gray-300' : 'text-gray-700'
+                                : 'text-gray-400'
+                          }`}>
+                            {step.name}
+                          </span>
+                          <span className={`text-xs mt-0.5 block max-w-[120px] ${isActive ? 'text-gray-500 dark:text-gray-400' : 'hidden'}`}>
+                            {step.id === 'basic' && '基本信息'}
+                            {step.id === 'content' && '详细内容'}
+                            {step.id === 'media' && '图片视频'}
+                            {step.id === 'settings' && '规则设置'}
+                            {step.id === 'preview' && '确认发布'}
+                          </span>
+                        </button>
+                      </div>
                     );
                   })}
                 </div>
-              </div>
-              
-              {/* 步骤列表 */}
-              <div className="space-y-3.5">
-                {steps.map((step, index) => {
-                  const isActive = currentStep === step.id;
-                  const isCompleted = steps.findIndex(s => s.id === currentStep) > index;
-                  
-                  return (
-                    <button
-                        key={step.id}
-                        onClick={() => handleStepChange(step.id as StepType)}
-                        className={`w-full flex items-center p-3 rounded-xl transition-all duration-400 hover:translate-x-1 ${isActive 
-                          ? isDark ? 'bg-gradient-to-r from-blue-900/30 to-indigo-900/30' : 'bg-gradient-to-r from-blue-50 to-indigo-50' 
-                          : 'hover:bg-gray-100 dark:hover:bg-gray-700/50'}`}
-                        style={{
-                          borderLeft: isActive 
-                            ? '3px solid #0066CC' 
-                            : '3px solid transparent'
-                        }}
-                      >
-                        {/* 步骤指示器 */}
-                        <div 
-                          className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center mr-3 transition-all duration-500 shadow-md ${isActive 
-                            ? 'bg-gradient-to-r from-blue-600 to-indigo-500 text-white scale-110 ring-4 ring-blue-100 dark:ring-blue-900/50' 
-                            : isCompleted
-                            ? 'bg-green-600 text-white scale-105 ring-2 ring-green-100 dark:ring-green-900/50' 
-                            : isDark ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
-                        >
-                          {isCompleted ? (
-                            <i className="fas fa-check text-lg"></i>
-                          ) : (
-                            <i className={`fas fa-${step.icon} text-lg`}></i>
-                          )}
-                        </div>
-                        
-                        {/* 步骤名称和描述 */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between">
-                            <span className={`font-medium truncate transition-colors duration-300 ${isActive 
-                              ? 'text-blue-600 dark:text-blue-400' 
-                              : isCompleted
-                              ? 'text-green-600 dark:text-green-400' 
-                              : isDark ? 'text-gray-300 hover:text-gray-100' : 'text-gray-700 hover:text-blue-600'}`}
-                            >
-                              {step.name}
-                            </span>
-                            {isCompleted && (
-                              <span className="text-xs text-green-600 dark:text-green-400 ml-2">
-                                <i className="fas fa-check-circle"></i>
-                              </span>
-                            )}
-                          </div>
-                        {/* 步骤描述 */}
-                        <p className={`text-xs mt-0.5 ${isActive 
-                          ? (isDark ? 'text-blue-400' : 'text-blue-600') 
-                          : (isDark ? 'text-gray-500' : 'text-gray-500')}`}>
-                          {step.id === 'basic' && '填写活动基本信息'}
-                          {step.id === 'content' && '编辑活动详细内容'}
-                          {step.id === 'media' && '上传活动多媒体资源'}
-                          {step.id === 'settings' && '配置活动相关设置'}
-                          {step.id === 'preview' && '预览活动效果，检查所有信息是否正确，确认无误后发布'}
-                        </p>
-                      </div>
-                    </button>
-                  );
-                })}
               </div>
             </div>
           </div>
           
           {/* 中间：表单内容 */}
           <div className="md:col-span-9 lg:col-span-7 xl:col-span-8">
-            <div className={`rounded-2xl p-7 ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-xl border ${isDark ? 'border-gray-700' : 'border-gray-100'} transition-all duration-300 hover:shadow-2xl`}>
+            {/* 移动端进度条 */}
+            <div className="md:hidden mb-6 px-1">
+              <div className="flex justify-between text-sm font-medium mb-2 text-gray-600 dark:text-gray-300">
+                  <span>步骤 {steps.findIndex(s => s.id === currentStep) + 1} / {steps.length}</span>
+                  <span className="text-blue-600">{steps.find(s => s.id === currentStep)?.name}</span>
+              </div>
+              <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden shadow-inner">
+                  <div 
+                    className="h-full bg-gradient-to-r from-blue-500 to-indigo-600 transition-all duration-500 ease-out"
+                    style={{ width: `${((steps.findIndex(s => s.id === currentStep) + 1) / steps.length) * 100}%` }}
+                  ></div>
+              </div>
+            </div>
+
+            <div className={`rounded-2xl p-8 ${isDark ? 'bg-gray-800/90' : 'bg-white/90'} backdrop-blur-xl shadow-2xl border ${isDark ? 'border-gray-700/50' : 'border-white/50'} transition-all duration-300`}>
               {/* 当前步骤标题和描述 */}
               <div className="mb-8 pb-5 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}">
                 <h2 className="text-2xl font-bold mb-2.5">
@@ -783,6 +811,7 @@ export default function CreateActivity() {
                         placeholder="请输入活动名称"
                         value={formData.title}
                         onChange={(e) => handleChange('title', e.target.value)}
+                        onBlur={() => handleBlur('title')}
                         error={errors.title}
                         required
                       />
@@ -798,6 +827,7 @@ export default function CreateActivity() {
                         placeholder="请输入活动简要描述"
                         value={formData.description}
                         onChange={(e) => handleChange('description', e.target.value)}
+                        onBlur={() => handleBlur('description')}
                         error={errors.description}
                         rows={4}
                         required
@@ -814,6 +844,7 @@ export default function CreateActivity() {
                           label="开始时间"
                           value={formData.startTime}
                           onChange={(date) => handleChange('startTime', date)}
+                          onBlur={() => handleBlur('startTime')}
                           required
                           showTime
                         />
@@ -828,6 +859,7 @@ export default function CreateActivity() {
                           label="结束时间"
                           value={formData.endTime}
                           onChange={(date) => handleChange('endTime', date)}
+                          onBlur={() => handleBlur('endTime')}
                           required
                           showTime
                         />
@@ -887,6 +919,7 @@ export default function CreateActivity() {
                           placeholder="请输入联系人姓名"
                           value={formData.contactName || ''}
                           onChange={(e) => handleChange('contactName', e.target.value)}
+                          onBlur={() => handleBlur('contactName')}
                         />
                       </motion.div>
                       
@@ -900,6 +933,7 @@ export default function CreateActivity() {
                           placeholder="请输入联系电话"
                           value={formData.contactPhone || ''}
                           onChange={(e) => handleChange('contactPhone', e.target.value)}
+                          onBlur={() => handleBlur('contactPhone')}
                           error={errors.contactPhone}
                         />
                       </motion.div>
@@ -916,6 +950,7 @@ export default function CreateActivity() {
                           type="email"
                           value={formData.contactEmail || ''}
                           onChange={(e) => handleChange('contactEmail', e.target.value)}
+                          onBlur={() => handleBlur('contactEmail')}
                           error={errors.contactEmail}
                         />
                       </motion.div>
@@ -1233,125 +1268,77 @@ export default function CreateActivity() {
             </div>
           </div>
           
-          {/* 右侧：实时预览 */}
-          <div className="md:col-span-12 lg:col-span-3 xl:col-span-2">
-            <div className={`rounded-2xl p-6 ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-xl border ${isDark ? 'border-gray-700' : 'border-gray-100'} sticky top-6 transition-all duration-300 hover:shadow-2xl`}>
-              <h2 className="font-bold text-lg mb-5 bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">实时预览</h2>
-              <EventPreview 
-                event={formData} 
-                onEditSection={(section) => {
-                  // 根据点击的区域跳转到对应编辑步骤
-                  switch (section) {
-                    case 'title':
-                    case 'description':
-                      setCurrentStep('basic');
-                      break;
-                    case 'content':
-                      setCurrentStep('content');
-                      break;
-                    case 'media':
-                      setCurrentStep('media');
-                      break;
-                    case 'settings':
-                      setCurrentStep('settings');
-                      break;
-                  }
-                }} 
-              />
-              
+          {/* 右侧：实时预览 (手机模型) */}
+          <div className="md:col-span-12 lg:col-span-3 xl:col-span-2 hidden lg:block">
+            <div className="sticky top-6">
+               <h2 className="font-bold text-lg mb-4 text-center bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">实时预览</h2>
+               
+               {/* 手机外框 */}
+               <div className="relative mx-auto border-gray-800 dark:border-gray-700 bg-gray-800 border-[10px] rounded-[2.5rem] h-[600px] w-full max-w-[300px] shadow-2xl">
+                 <div className="h-[32px] w-[3px] bg-gray-800 absolute -left-[13px] top-[72px] rounded-l-lg"></div>
+                 <div className="h-[46px] w-[3px] bg-gray-800 absolute -left-[13px] top-[124px] rounded-l-lg"></div>
+                 <div className="h-[46px] w-[3px] bg-gray-800 absolute -left-[13px] top-[178px] rounded-l-lg"></div>
+                 <div className="h-[64px] w-[3px] bg-gray-800 absolute -right-[13px] top-[142px] rounded-r-lg"></div>
+                 <div className="rounded-[2rem] overflow-hidden w-full h-full bg-gray-50 dark:bg-gray-900 relative">
+                    {/* 顶部刘海/状态栏模拟 */}
+                    <div className="absolute top-0 inset-x-0 h-7 bg-black/90 z-20 flex justify-between px-5 items-center text-[10px] text-white font-medium">
+                        <span>9:41</span>
+                        <div className="flex gap-1.5">
+                            <i className="fas fa-signal"></i>
+                            <i className="fas fa-wifi"></i>
+                            <i className="fas fa-battery-full"></i>
+                        </div>
+                    </div>
+
+                    {/* 内容区域 */}
+                    <div className="h-full overflow-y-auto scrollbar-hide pt-8 pb-4 bg-white dark:bg-gray-900">
+                        <EventPreview 
+                            event={formData} 
+                            onEditSection={(section) => {
+                              switch (section) {
+                                case 'title':
+                                case 'description':
+                                  setCurrentStep('basic');
+                                  break;
+                                case 'content':
+                                  setCurrentStep('content');
+                                  break;
+                                case 'media':
+                                  setCurrentStep('media');
+                                  break;
+                                case 'settings':
+                                  setCurrentStep('settings');
+                                  break;
+                              }
+                            }} 
+                        />
+                    </div>
+                 </div>
+               </div>
+
               {/* 预览操作 */}
-              <div className="mt-5 pt-5 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}">
-                <div className="flex gap-3">
+              <div className="mt-6 flex justify-center gap-3">
                   <button
                     onClick={() => {
-                      // 生成完整预览链接
                       const previewUrl = generateShareUrl();
                       if (previewUrl) {
                         window.open(previewUrl, '_blank');
                       }
                     }}
                     disabled={!eventId}
-                    className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-300 flex items-center justify-center gap-2 ${!eventId 
-                      ? 'opacity-50 cursor-not-allowed' 
-                      : isDark 
-                      ? 'bg-blue-700 hover:bg-blue-600 text-white hover:shadow-md hover:-translate-y-0.5' 
-                      : 'bg-blue-500 hover:bg-blue-600 text-white hover:shadow-md hover:-translate-y-0.5'}`}
+                    className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 flex items-center justify-center gap-2 shadow-lg ${!eventId 
+                      ? 'opacity-50 cursor-not-allowed bg-gray-200 text-gray-500' 
+                      : 'bg-white dark:bg-gray-800 text-blue-600 hover:scale-105'}`}
                   >
                     <i className="fas fa-external-link-alt"></i>
-                    新窗口预览
+                    新窗口打开
                   </button>
-                </div>
               </div>
             </div>
           </div>
         </div>
         
-        {/* 底部CTA */}
-        <div className="fixed bottom-6 right-6 z-40 flex flex-col gap-3">
-          {[1, 2, 3].map((i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, x: 50 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 2 + i * 0.2 }}
-              className="bg-white dark:bg-gray-800 p-3 rounded-lg shadow-lg border-l-4 border-blue-500 flex items-center gap-3 max-w-xs cursor-pointer transform hover:scale-105 transition-transform"
-              onClick={() => navigate('/create')}
-            >
-              <div className="w-10 h-10 rounded overflow-hidden flex-shrink-0">
-                <TianjinImage
-                  src={`https://picsum.photos/100/100?random=${i + 100}`}
-                  alt="Work"
-                  className="w-full h-full object-cover"
-                />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs text-gray-500 dark:text-gray-400 truncate">有人刚才使用了</p>
-                <p className="text-sm font-bold text-gray-800 dark:text-white truncate">津门纹样生成器</p>
-              </div>
-              <div className="w-8 h-8 rounded-full bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400">
-                <i className="fas fa-magic text-xs"></i>
-              </div>
-            </motion.div>
-          ))}
-          
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 3 }}
-            className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-4 rounded-xl shadow-xl cursor-pointer hover:shadow-2xl transition-all"
-          >
-            <div className="flex items-center justify-between mb-2">
-              <span className="font-bold">觉得这些作品很棒？</span>
-              <button 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  // 关闭提示
-                }}
-                className="text-white/70 hover:text-white"
-              >
-                <i className="fas fa-times"></i>
-              </button>
-            </div>
-            <p className="text-sm text-blue-100 mb-3">你也可以轻松创作出这样的作品！</p>
-            <div className="flex gap-2">
-              <button 
-                onClick={() => navigate('/create')}
-                className="flex-1 bg-white text-blue-600 py-1.5 rounded-lg text-sm font-bold hover:bg-blue-50 transition-colors"
-              >
-                立即尝试
-              </button>
-              <button 
-                className="px-3 py-1.5 bg-blue-700 text-white rounded-lg text-sm hover:bg-blue-800 transition-colors"
-                onClick={() => {
-                  // 应用到创作中心
-                  navigate('/create');
-                }}
-              >
-                应用到创作中心
-              </button>
-            </div>
-          </motion.div>
-        </div>
+
 
         {/* 版本历史面板 */}
         <AnimatePresence>

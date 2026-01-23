@@ -53,6 +53,7 @@ export const MobileWaterfallWorks: React.FC<MobileWaterfallWorksProps> = ({
     return 4;
   }, [width]);
 
+  // 手动计算瀑布流列数据
   const columns = useMemo(() => {
     const cols: WorkItem[][] = Array.from({ length: columnsCount }, () => []);
     items.forEach((item, i) => {
@@ -142,8 +143,10 @@ export const MobileWaterfallWorks: React.FC<MobileWaterfallWorksProps> = ({
         <div key={ci} className="flex-1 flex flex-col gap-2">
           {col.map((work, wi) => {
             const ratio = work.aspectRatio || getRandomAspectRatio(work.id);
-            // Calculate height percentage for padding-bottom trick if using background images, 
-            // but for img tag, we can just let it flow or use style.
+            // Calculate global index for priority loading logic
+            // This is an approximation as we don't have the original index easily here without extra logic
+            // But for eager loading, checking if it's in the first few rows is enough.
+            const isTopItem = wi < 2; 
             
             return (
             <motion.div
@@ -171,9 +174,10 @@ export const MobileWaterfallWorks: React.FC<MobileWaterfallWorksProps> = ({
                     rounded="lg"
                     imageTag={work.imageTag}
                     disableFallback={false}
-                    loading="eager"
+                    loading={isTopItem ? "eager" : "lazy"} // 只有前几行急加载
                     quality="medium"
-                    priority={true}
+                    priority={isTopItem} // 高优先级
+                    fetchPriority={isTopItem && ci === 0 ? "high" : "auto"} // 第一列的顶部元素最高优先级
                     style={{ aspectRatio: `${ratio}` }}
                   />
                 </motion.div>

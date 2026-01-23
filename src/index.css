@@ -2,6 +2,7 @@
 @import './styles/themes/base.css';
 @import './styles/themes/blue.css';
 @import './styles/themes/green.css';
+@import './styles/themes/pixel.css';
 
 @tailwind base;
 @tailwind components;

@@ -4,6 +4,7 @@ import tsconfigPaths from 'vite-tsconfig-paths'
 import { VitePWA } from 'vite-plugin-pwa'
 import { visualizer } from 'rollup-plugin-visualizer'
 import { ViteImageOptimizer } from 'vite-plugin-image-optimizer'
+import viteCompression from 'vite-plugin-compression'
 import path from 'path'
 import { createRequire } from 'node:module'
 
@@ -249,7 +250,23 @@ export default defineConfig({
           }
         ]
       }
-    })
+    }),
+    // 启用 Gzip 压缩
+    viteCompression({
+      verbose: true,
+      disable: process.env.NODE_ENV === 'development',
+      threshold: 10240,
+      algorithm: 'gzip',
+      ext: '.gz',
+    }),
+    // 启用 Brotli 压缩
+    viteCompression({
+      verbose: true,
+      disable: process.env.NODE_ENV === 'development',
+      threshold: 10240,
+      algorithm: 'brotliCompress',
+      ext: '.br',
+    }),
   ],
   resolve: {
     // 为数据库相关的 Node.js 原生模块创建别名，避免在浏览器环境中打包
@@ -355,6 +372,15 @@ export default defineConfig({
             // 将其他大型库单独打包
             if (id.includes('@tensorflow') || id.includes('@mediapipe')) {
               return 'ai-vendor';
+            }
+            if (id.includes('tinymce')) {
+              return 'editor-vendor';
+            }
+            if (id.includes('supabase')) {
+              return 'supabase-vendor';
+            }
+            if (id.includes('recharts')) {
+              return 'charts-vendor';
             }
             return 'vendor';
           }

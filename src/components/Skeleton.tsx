@@ -94,7 +94,7 @@ export function SkeletonText({
           )}
           style={{
             width: typeof lineWidth === 'number' ? `${lineWidth}px` : lineWidth,
-            height: variant === 'p' ? '1rem' : `${parseInt(variant.slice(1)) * 0.3 + 0.8}rem`,
+            height: variant === 'p' ? '1rem' : variant === 'span' ? '1em' : `${parseInt(variant.slice(1)) * 0.3 + 0.8}rem`,
           }}
         />
       ))}

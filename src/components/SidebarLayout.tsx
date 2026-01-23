@@ -5,7 +5,7 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useTheme } from '@/hooks/useTheme'
 import { themeOrder } from '@/config/themeConfig'
 import { AuthContext } from '@/contexts/authContext'
-import { componentPreloader } from '@/utils/performanceOptimization'
+import { usePrefetch } from '@/hooks/usePrefetch'
 import ErrorFeedback from '@/components/ErrorFeedback'
 import { toast } from 'sonner'
 import CreatorDashboard from './CreatorDashboard'
@@ -329,11 +329,8 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
     document.body.style.cursor = 'col-resize'
   }
 
-  // 路由预加载逻辑
-  const prefetchRoute = useCallback((id: string) => {
-    // 使用组件预加载器预加载指定ID的组件
-    componentPreloader.preloadComponents([id]);
-  }, [])
+  // Use prefetch hook
+  const { debouncedPrefetch, prefetch: prefetchRoute } = usePrefetch();
 
   // 移除空闲时预加载逻辑，减少不必要的资源加载
   // useEffect(() => {
@@ -635,11 +632,6 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
     setShowSearchDropdown(false)
   }, [search, navigate])
 
-  // 防抖的预加载函数
-  const debouncedPrefetch = useCallback(debounce((path: string) => {
-    prefetchRoute(path)
-  }, 200), [prefetchRoute])
-
   // 中文注释：根据查询参数精确判断当前激活的社群类型，避免两个导航同时高亮
   const isCommunityActive = (ctx: 'cocreation' | 'creator') => {
     const sp = new URLSearchParams(location.search)
@@ -721,7 +713,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                     key={item.id}
                     to={`${item.path}${item.search || ''}`}
                     title={collapsed && !hovered && !isPinned ? t(navItemIdToTranslationKey[item.id] || item.id) : undefined} 
-                    onMouseEnter={() => debouncedPrefetch(item.path)} 
+                    onMouseEnter={() => debouncedPrefetch(item.id)} 
                     className={({ isActive }) => `${navItemClass} ${isActive ? activeClass : (isDark ? 'text-gray-200' : 'text-gray-700')} relative overflow-hidden group ${(collapsed && !hovered && !isPinned) ? 'justify-center px-2 py-2.5' : ''}`}
                     end
                   > 

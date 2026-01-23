@@ -1,7 +1,7 @@
 // src/config/themeConfig.ts
 
 // 主题类型定义
-export type Theme = 'light' | 'blue' | 'green';
+export type Theme = 'light' | 'blue' | 'green' | 'pixel';
 
 // 主题配置项接口
 interface ThemeConfig {
@@ -14,7 +14,8 @@ interface ThemeConfig {
 export const themeConfig: ThemeConfig[] = [
   { value: 'light', label: '浅色', icon: 'fas fa-sun' },
   { value: 'blue', label: '蓝色', icon: 'fas fa-water' },
-  { value: 'green', label: '绿色', icon: 'fas fa-leaf' }
+  { value: 'green', label: '绿色', icon: 'fas fa-leaf' },
+  { value: 'pixel', label: '赛博像素', icon: 'fas fa-dungeon' }
 ];
 
 // 主题色彩增强配置
@@ -23,13 +24,15 @@ export const themeEnhancements = {
   contrast: {
     light: 1.2,
     blue: 1.15,
-    green: 1.15
+    green: 1.15,
+    pixel: 1.3
   },
   // 色彩饱和度优化
   saturation: {
     light: 1.05,
     blue: 1.1,
-    green: 1.1
+    green: 1.1,
+    pixel: 1.2
   }
 };
 
@@ -37,7 +40,7 @@ export const themeEnhancements = {
 export const defaultTheme: Theme = 'light';
 
 // 主题切换顺序
-export const themeOrder: Theme[] = ['light', 'blue', 'green'];
+export const themeOrder: Theme[] = ['light', 'blue', 'green', 'pixel'];
 
 // 检测系统主题偏好
 export const getSystemTheme = (): 'light' | 'dark' => {
@@ -51,7 +54,7 @@ export const getSystemTheme = (): 'light' | 'dark' => {
 };
 
 // 获取实际应用的主题
-export const getAppliedTheme = (theme: Theme): 'light' | 'blue' | 'green' => {
+export const getAppliedTheme = (theme: Theme): 'light' | 'blue' | 'green' | 'pixel' => {
   return theme;
 };
 

@@ -37,22 +37,31 @@ import ForgotPassword from "@/pages/ForgotPassword";
 import Dashboard from "@/pages/Dashboard";
 import Explore from "@/pages/Explore";
 import WorkDetail from "@/pages/WorkDetail";
+import Community from "@/pages/Community";
+import Square from "@/pages/Square";
+import Tools from "@/pages/Tools";
+import Friends from "@/pages/Friends";
+import PostDetail from "@/pages/PostDetail";
+
+// 2. 高频访问但较大的页面 - 核心工具页面直接加载
+import Create from "@/pages/create/index.tsx";
+import Studio from "@/pages/create/Studio";
+
+// 其他次要页面保持懒加载
 const About = createLazyComponent(() => import(/* webpackChunkName: "pages-other" */ "@/pages/About"), {
   priority: ROUTE_PRIORITIES.LOW,
   name: 'about'
 });
-const Square = createLazyComponent(() => import(/* webpackChunkName: "pages-community" */ "@/pages/Square"), {
-  priority: ROUTE_PRIORITIES.HIGH,
-  name: 'square'
+const Settings = createLazyComponent(() => import(/* webpackChunkName: "pages-account" */ "@/pages/Settings"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'settings'
 });
-const Community = createLazyComponent(() => import(/* webpackChunkName: "pages-community" */ "@/pages/Community"), {
-  priority: ROUTE_PRIORITIES.HIGH,
-  name: 'community'
-});
+
 const Neo = createLazyComponent(() => import(/* webpackChunkName: "pages-other" */ "@/pages/Neo"), {
   priority: ROUTE_PRIORITIES.LOW,
   name: 'neo'
 });
+
 const NewsDetail = createLazyComponent(() => import(/* webpackChunkName: "pages-cultural" */ "@/pages/NewsDetail"), {
   priority: ROUTE_PRIORITIES.HIGH
 });
@@ -65,22 +74,8 @@ const SearchResults = createLazyComponent(() => import(/* webpackChunkName: "pag
   name: 'search'
 });
 
-// 2. 高频访问但较大的页面 - 核心工具页面直接加载，其他懒加载
-const Create = createLazyComponent(() => import(/* webpackChunkName: "pages-create" */ "@/pages/create/index.tsx"), {
-  priority: ROUTE_PRIORITIES.HIGH,
-  name: 'create'
-});
 const CreateLayout = createLazyComponent(() => import(/* webpackChunkName: "pages-create" */ "@/pages/create/CreateLayout"), {
   priority: ROUTE_PRIORITIES.MEDIUM
-});
-const Studio = createLazyComponent(() => import(/* webpackChunkName: "pages-create" */ "@/pages/create/Studio"), {
-  priority: ROUTE_PRIORITIES.HIGH
-});
-// Tools页面改为直接加载，作为核心功能
-import Tools from "@/pages/Tools";
-const Settings = createLazyComponent(() => import(/* webpackChunkName: "pages-account" */ "@/pages/Settings"), {
-  priority: ROUTE_PRIORITIES.MEDIUM,
-  name: 'settings'
 });
 // 账户设置相关页面 - 懒加载
 const ProfileEdit = createLazyComponent(() => import(/* webpackChunkName: "pages-account" */ "@/pages/ProfileEdit"), {
@@ -172,14 +167,7 @@ const CreativeMatchmaking = createLazyComponent(() => import(/* webpackChunkName
 const AchievementMuseum = createLazyComponent(() => import(/* webpackChunkName: "components-community" */ "@/components/AchievementMuseum"), {
   priority: ROUTE_PRIORITIES.MEDIUM
 });
-const PostDetail = createLazyComponent(() => import(/* webpackChunkName: "pages-community" */ "@/pages/PostDetail"), {
-  priority: ROUTE_PRIORITIES.MEDIUM
-});
 
-// 好友系统相关 - 懒加载
-const Friends = createLazyComponent(() => import(/* webpackChunkName: "pages-community" */ "@/pages/Friends"), {
-  priority: ROUTE_PRIORITIES.MEDIUM
-});
 
 // 作者个人资料页面 - 懒加载
 const AuthorProfile = createLazyComponent(() => import(/* webpackChunkName: "pages-community" */ "@/pages/AuthorProfile"), {
@@ -289,59 +277,6 @@ const LazyComponent = React.memo(({
 LazyComponent.displayName = 'LazyComponent';
 
 
-
-// 路由缓存组件 - 优化缓存机制，添加缓存清理
-const RouteCache = ({ children }: { children: React.ReactNode }) => {
-  const location = useLocation();
-  const cacheRef = useRef<Map<string, React.ReactNode>>(new Map());
-  
-  // 核心页面列表 - 只缓存高频访问的核心页面
-  const cacheableRoutes = [
-    '/', 
-    '/dashboard', 
-    '/explore', 
-    '/tools', 
-    '/about',
-    '/search'
-  ];
-  
-  // 最大缓存数量
-  const MAX_CACHE_SIZE = 10;
-  
-  // 检查当前路由是否可缓存（仅精确匹配）
-  const isCacheable = cacheableRoutes.includes(location.pathname);
-  
-  // 缓存清理机制：当缓存数量超过最大值时，清理最早的缓存
-  const cleanupCache = () => {
-    if (cacheRef.current.size > MAX_CACHE_SIZE) {
-      const firstKey = cacheRef.current.keys().next().value;
-      cacheRef.current.delete(firstKey);
-    }
-  };
-  
-  // 如果可缓存
-  if (isCacheable) {
-    // 生成缓存键，使用完整路径
-    const cacheKey = location.pathname;
-    
-    // 如果缓存中已有该路由的组件，直接返回
-    if (cacheRef.current.has(cacheKey)) {
-      return <>{cacheRef.current.get(cacheKey)}</>;
-    }
-    
-    // 否则渲染新组件并缓存
-    const renderedComponent = <>{children}</>;
-    cacheRef.current.set(cacheKey, renderedComponent);
-    
-    // 清理超出限制的缓存
-    cleanupCache();
-    
-    return renderedComponent;
-  }
-  
-  // 不可缓存的路由直接渲染
-  return <>{children}</>;
-};
 
 // 布局组件
 import SidebarLayout from '@/components/SidebarLayout';
@@ -532,18 +467,9 @@ export default function App() {
   // Enhanced AnimatedPage component with optimized transitions
   const AnimatedPage = React.memo(({ children }: { children: React.ReactNode }) => {
     return (
-      <motion.div
-        initial={{ opacity: 0, y: 8, scale: 0.99 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: -8, scale: 0.99 }}
-        transition={{
-          duration: 0.25,
-          ease: [0.22, 1, 0.36, 1] // Custom cubic-bezier for smoother feel
-        }}
-        className="w-full h-full"
-      >
+      <div className="w-full h-full bg-white dark:bg-gray-900">
         {children}
-      </motion.div>
+      </div>
     );
   });
   
@@ -558,35 +484,30 @@ export default function App() {
         <div className={rootClass} style={{ backgroundColor: 'var(--bg-primary, #ffffff)' }}>
           <Analytics />
           <SpeedInsights />
-          <AnimatePresence mode="popLayout">
-            <Routes location={location} key={location.pathname}>
+          <Routes location={location} key={location.pathname}>
           {/* 核心页面直接渲染，无需懒加载，添加缓存和动画 */}
           {/* 确保根路径是第一个路由，提高匹配优先级 */}
           <Route path="/" element={
-            <RouteCache>
-              <AnimatedPage>
-                {isMobile ? (
-                  <MobileLayout><PrivateRoute><Home /></PrivateRoute></MobileLayout>
-                ) : (
-                  <SidebarLayout><PrivateRoute><Home /></PrivateRoute></SidebarLayout>
-                )}
-              </AnimatedPage>
-            </RouteCache>
+            <AnimatedPage>
+              {isMobile ? (
+                <MobileLayout><PrivateRoute><Home /></PrivateRoute></MobileLayout>
+              ) : (
+                <SidebarLayout><PrivateRoute><Home /></PrivateRoute></SidebarLayout>
+              )}
+            </AnimatedPage>
           } />
         {/* Landing页面路由 */}
         <Route path="/landing" element={<Landing />} />
         
         {/* 搜索结果页面 */}
         <Route path="/search" element={
-          <RouteCache>
-            <AnimatedPage>
-              {isMobile ? (
-                <MobileLayout><SearchResults /></MobileLayout>
-              ) : (
-                <SidebarLayout><SearchResults /></SidebarLayout>
-              )}
-            </AnimatedPage>
-          </RouteCache>
+          <AnimatedPage>
+            {isMobile ? (
+              <MobileLayout><SearchResults /></MobileLayout>
+            ) : (
+              <SidebarLayout><SearchResults /></SidebarLayout>
+            )}
+          </AnimatedPage>
         } />
         
         {/* 不需要布局的页面 */}
@@ -605,21 +526,21 @@ export default function App() {
             )}
           </AnimatedPage>
         }>
-          <Route path="/explore" element={<RouteCache><Explore /></RouteCache>} />
+          <Route path="/explore" element={<Explore />} />
           <Route path="/explore/:id" element={<LazyComponent fallback={<WorkDetailSkeleton />}><WorkDetail /></LazyComponent>} />
           <Route path="/works/:id" element={<LazyComponent fallback={<WorkDetailSkeleton />}><WorkDetail /></LazyComponent>} />
-          <Route path="/about" element={<RouteCache><LazyComponent><About /></LazyComponent></RouteCache>} />
-          <Route path="/tools" element={<RouteCache><PrivateRoute><Tools /></PrivateRoute></RouteCache>} />
+          <Route path="/about" element={<LazyComponent><About /></LazyComponent>} />
+          <Route path="/tools" element={<PrivateRoute><Tools /></PrivateRoute>} />
           <Route path="/neo" element={<Navigate to="/create/inspiration" replace />} />
-          <Route path="/square" element={<LazyComponent><PrivateRoute><Square /></PrivateRoute></LazyComponent>} />
-          <Route path="/square/:id" element={<LazyComponent><PrivateRoute><Square /></PrivateRoute></LazyComponent>} />
-          <Route path="/community" element={<LazyComponent><PrivateRoute><Community /></PrivateRoute></LazyComponent>} />
-          <Route path="/friends" element={<LazyComponent><PrivateRoute><Friends /></PrivateRoute></LazyComponent>} />
-          <Route path="/post/:id" element={<LazyComponent><PostDetail /></LazyComponent>} />
+          <Route path="/square" element={<PrivateRoute><Square /></PrivateRoute>} />
+          <Route path="/square/:id" element={<PrivateRoute><Square /></PrivateRoute>} />
+          <Route path="/community" element={<PrivateRoute><Community /></PrivateRoute>} />
+          <Route path="/friends" element={<PrivateRoute><Friends /></PrivateRoute>} />
+          <Route path="/post/:id" element={<PostDetail />} />
           <Route path="/creator-community" element={<Navigate to="/community" replace />} />
-          <Route path="/dashboard" element={<RouteCache><LazyComponent fallback={<DashboardSkeleton />}><PrivateRoute><Dashboard /></PrivateRoute></LazyComponent></RouteCache>} />          <Route path="/profile" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/create" element={<LazyComponent><PrivateRoute><Create /></PrivateRoute></LazyComponent>}>
-            <Route index element={<LazyComponent><Studio /></LazyComponent>} />
+          <Route path="/dashboard" element={<LazyComponent fallback={<DashboardSkeleton />}><PrivateRoute><Dashboard /></PrivateRoute></LazyComponent>} />          <Route path="/profile" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/create" element={<PrivateRoute><Create /></PrivateRoute>}>
+            <Route index element={<Studio />} />
             <Route path="inspiration" element={<LazyComponent><Neo /></LazyComponent>} />
             <Route path="wizard" element={<LazyComponent><Wizard /></LazyComponent>} />
           </Route>
@@ -696,7 +617,6 @@ export default function App() {
           <Route path="/admin-analytics" element={<LazyComponent><AdminRoute component={AdminAnalytics} /></LazyComponent>} />
         </Route>
       </Routes>
-      </AnimatePresence>
       
       {/* PWA 安装按钮 - 懒加载，隐藏固定按钮，只在个人菜单中显示 */}
       <LazyComponent>

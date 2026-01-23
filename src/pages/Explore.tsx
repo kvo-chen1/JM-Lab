@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { useTheme } from '@/hooks/useTheme';
@@ -913,77 +914,6 @@ export default function Explore() {
           </div>
         </div>
 
-        {/* 底部CTA */}
-        <div className="fixed bottom-6 right-6 z-40 flex flex-col gap-3">
-          {filteredWorks.length > 0 && (
-            [1, 2, 3].map((i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, x: 50 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 2 + i * 0.2 }}
-                className="bg-white dark:bg-gray-800 p-3 rounded-lg shadow-lg border-l-4 border-blue-500 flex items-center gap-3 max-w-xs cursor-pointer transform hover:scale-105 transition-transform"
-                onClick={() => navigate('/create')}
-              >
-                <div className="w-10 h-10 rounded overflow-hidden flex-shrink-0">
-                  <TianjinImage
-                    src={`https://picsum.photos/100/100?random=${i + 100}`}
-                    alt="Work"
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs text-gray-500 dark:text-gray-400 truncate">有人刚才使用了</p>
-                  <p className="text-sm font-bold text-gray-800 dark:text-white truncate">津门纹样生成器</p>
-                </div>
-                <div className="w-8 h-8 rounded-full bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400">
-                  <i className="fas fa-magic text-xs"></i>
-                </div>
-              </motion.div>
-            ))
-          )}
-          
-          {filteredWorks.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 3 }}
-              className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-4 rounded-xl shadow-xl cursor-pointer hover:shadow-2xl transition-all"
-            >
-              <div className="flex items-center justify-between mb-2">
-                <span className="font-bold">觉得这些作品很棒？</span>
-                <button 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    // 关闭提示
-                  }}
-                  className="text-white/70 hover:text-white"
-                >
-                  <i className="fas fa-times"></i>
-                </button>
-              </div>
-              <p className="text-sm text-blue-100 mb-3">你也可以轻松创作出这样的作品！</p>
-              <div className="flex gap-2">
-                <button 
-                  onClick={() => navigate('/create')}
-                  className="flex-1 bg-white text-blue-600 py-1.5 rounded-lg text-sm font-bold hover:bg-blue-50 transition-colors"
-                >
-                  立即尝试
-                </button>
-                <button 
-                  className="px-3 py-1.5 bg-blue-700 text-white rounded-lg text-sm hover:bg-blue-800 transition-colors"
-                  onClick={() => {
-                    // 应用到创作中心
-                    navigate('/create');
-                  }}
-                >
-                  应用到创作中心
-                </button>
-              </div>
-            </motion.div>
-          )}
-        </div>
-
         {/* 底部信息 */}
         <div className="mt-12 text-center text-gray-500 dark:text-gray-400 text-sm">
           <p>共找到 {filteredWorks.length} 个作品</p>
@@ -1005,6 +935,79 @@ export default function Explore() {
           </div>
         </footer>
       </div>
+
+      {/* 底部CTA - 使用 Portal 移至 body 确保不被遮挡 */}
+      {createPortal(
+        <div className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-3 pointer-events-none">
+          <div className="pointer-events-auto flex flex-col gap-3">
+            {[1, 2, 3].map((i) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, x: 50 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.5 + i * 0.2 }}
+                className="bg-white dark:bg-gray-800 p-3 rounded-lg shadow-lg border-l-4 border-blue-500 flex items-center gap-3 max-w-xs cursor-pointer transform hover:scale-105 transition-transform"
+                onClick={() => navigate('/create')}
+              >
+                <div className="w-10 h-10 rounded overflow-hidden flex-shrink-0">
+                  <TianjinImage
+                    src={`https://picsum.photos/100/100?random=${i + 100}`}
+                    alt="Work"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 truncate">有人刚才使用了</p>
+                  <p className="text-sm font-bold text-gray-800 dark:text-white truncate">津门纹样生成器</p>
+                </div>
+                <div className="w-8 h-8 rounded-full bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                  <i className="fas fa-magic text-xs"></i>
+                </div>
+              </motion.div>
+            ))}
+            
+            {filteredWorks.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 1.5 }}
+                className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-4 rounded-xl shadow-xl cursor-pointer hover:shadow-2xl transition-all"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-bold">觉得这些作品很棒？</span>
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      // 这里可以添加关闭状态的逻辑，暂时不处理
+                      const el = e.currentTarget.closest('.bg-gradient-to-r');
+                      if (el) el.remove();
+                    }}
+                    className="text-white/70 hover:text-white"
+                  >
+                    <i className="fas fa-times"></i>
+                  </button>
+                </div>
+                <p className="text-sm text-blue-100 mb-3">你也可以轻松创作出这样的作品！</p>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => navigate('/create')}
+                    className="flex-1 bg-white text-blue-600 py-1.5 rounded-lg text-sm font-bold hover:bg-blue-50 transition-colors"
+                  >
+                    立即尝试
+                  </button>
+                  <button 
+                    className="px-3 py-1.5 bg-blue-700 text-white rounded-lg text-sm hover:bg-blue-800 transition-colors"
+                    onClick={() => navigate('/create')}
+                  >
+                    应用到创作中心
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

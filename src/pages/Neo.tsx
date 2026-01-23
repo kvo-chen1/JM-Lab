@@ -10,6 +10,7 @@ import errorService from '@/services/errorService'
 import GradientHero from '@/components/GradientHero'
 import NeoLeftSidebar from '@/components/NeoLeftSidebar'
 import NeoRightSidebar from '@/components/NeoRightSidebar'
+import { motion, AnimatePresence } from 'framer-motion'
 
 const BRAND_STORIES: Record<string, string> = {
   mahua: '始于清末，以多褶形态与香酥口感著称，传统工艺要求条条分明，不含水分。',
@@ -1482,9 +1483,9 @@ export default function Neo() {
       )}
       
       {/* 三栏布局容器 */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden relative">
         {/* 左侧栏 */}
-        <aside className={`${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'} border-r transition-all duration-300 h-full overflow-y-auto shadow-lg ${sidebarCollapsed ? 'w-20' : 'w-72'} hidden lg:block`}>
+        <div className={`flex-shrink-0 h-full z-30 transition-all duration-300 ${sidebarCollapsed ? 'w-20' : 'w-[280px]'} hidden lg:block shadow-xl`}>
           <NeoLeftSidebar
             activeTab={activeTab}
             onTabChange={setActiveTab}
@@ -1497,412 +1498,463 @@ export default function Neo() {
               saveSettings({ rightSidebarVisible: newVisible });
             }}
           />
-        </aside>
+        </div>
 
         {/* 中间内容区 */}
-        <main className={`flex-1 overflow-y-auto transition-all duration-300 ${isDark ? 'bg-gray-950 text-white' : 'bg-gray-50 text-gray-900'} relative min-w-0 px-4`}>
-              {/* Top Header for Embedded */}
-              {isEmbedded && (
-                 <div className="flex items-center justify-between mb-8">
-                    <div>
-                      <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-red-600 to-amber-600">
-                        津门 · 灵感引擎
-                      </h1>
-                      <p className={`text-sm mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                        面向传统文化创新的AI创作助手
-                      </p>
-                    </div>
-                    <div className="flex gap-3">
-                       <div className={`flex p-1 rounded-lg ${isDark ? 'bg-gray-800' : 'bg-gray-200'}`}>
-                          <button onClick={() => setEngine('sdxl')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${engine==='sdxl' ? 'bg-white text-red-600 shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}>SDXL绘画</button>
-                          <button onClick={() => setEngine('qwen')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${engine==='qwen' ? 'bg-white text-red-600 shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}>通义千问</button>
-                       </div>
-                    </div>
+        <main className="flex-1 flex flex-col h-full min-w-0 overflow-hidden relative z-0">
+          <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-6 lg:p-8">
+              {/* Header Area */}
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                 <div>
+                    <h2 className={`text-2xl font-bold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                       {activeTab === 'create' ? '开始创作' : activeTab === 'results' ? '生成结果' : '历史记录'}
+                    </h2>
+                    <p className={`text-sm mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                       {activeTab === 'create' ? '释放你的想象力，探索津门文化的无限可能' : activeTab === 'results' ? '查看刚刚生成的精彩作品' : '回顾过往的创作历程'}
+                    </p>
                  </div>
-              )}
+                 
+                 {/* Engine Selector & Tabs */}
+                 <div className="flex items-center gap-4 bg-white dark:bg-slate-900 p-1.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                    <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
+                       <button onClick={() => setActiveTab('create')} className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${activeTab === 'create' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}>创作</button>
+                       <button onClick={() => setActiveTab('results')} className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${activeTab === 'results' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}>结果</button>
+                       <button onClick={() => setActiveTab('history')} className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${activeTab === 'history' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}>历史</button>
+                    </div>
+                    <div className="w-px h-4 bg-slate-200 dark:bg-slate-700"></div>
+                    <select 
+                       value={engine} 
+                       onChange={(e) => setEngine(e.target.value as any)}
+                       className={`text-sm font-medium bg-transparent border-none focus:ring-0 cursor-pointer ${isDark ? 'text-slate-300' : 'text-slate-700'}`}
+                    >
+                       <option value="sdxl">SDXL 绘画</option>
+                       <option value="qwen">通义千问</option>
+                    </select>
+                 </div>
+              </div>
 
-              <div className="p-6 transition-all duration-300">
-              <div className={`rounded-2xl shadow-sm ${isDark ? 'bg-gray-800' : 'bg-white'} border ${isDark ? 'border-gray-700' : 'border-gray-200'} p-6 transition-all duration-300 min-h-[600px]`}>
-           {/* Tab Navigation */}
-           <div className="flex border-b border-gray-200 dark:border-gray-700 mb-6">
-              <button onClick={() => setActiveTab('create')} className={`px-4 py-3 text-sm font-medium border-b-2 transition-all duration-300 ${activeTab === 'create' ? 'border-red-600 text-red-600' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 hover:dark:text-gray-200'}`}>灵感创作</button>
-              <button onClick={() => setActiveTab('results')} className={`px-4 py-3 text-sm font-medium border-b-2 transition-all duration-300 ${activeTab === 'results' ? 'border-red-600 text-red-600' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 hover:dark:text-gray-200'}`}>生成结果</button>
-              <button onClick={() => setActiveTab('history')} className={`px-4 py-3 text-sm font-medium border-b-2 transition-all duration-300 ${activeTab === 'history' ? 'border-red-600 text-red-600' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 hover:dark:text-gray-200'}`}>历史记录</button>
-           </div>
+              <div className="min-h-[600px]">
             
             {activeTab === 'create' && (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 lg:gap-8">
               {/* Left Column */}
-              <div className="lg:col-span-4 space-y-6">
+              <div className="xl:col-span-4 space-y-6">
                 
                 {/* Presets Card */}
-                <div className={`p-5 rounded-2xl border ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} shadow-sm`}>
+                <div className={`p-5 rounded-2xl border ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'} shadow-sm`}>
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-semibold flex items-center gap-2">
-                      <i className="fas fa-magic text-purple-500"></i> 风格预设
+                    <h3 className={`font-semibold flex items-center gap-2 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+                      <i className="fas fa-palette text-purple-500"></i> 风格预设
                     </h3>
                     <button 
                       onClick={() => openPresetModal()}
-                      className={`text-xs px-3 py-1.5 rounded-lg transition-all duration-200 ${isDark ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-green-600 hover:bg-green-700 text-white'} active:scale-98`}
+                      className="text-xs px-3 py-1.5 rounded-lg transition-all duration-200 bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 active:scale-95 flex items-center gap-1"
                     >
-                      + 保存
+                      <i className="fas fa-plus"></i> 新建
                     </button>
                   </div>
                   
                   {stylePresets.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                       {stylePresets.map(preset => (
                         <div key={preset.id} className="relative group">
                           <button
                             onClick={() => applyPreset(preset)}
-                            className={`text-xs px-3 py-2 rounded-xl border transition-all duration-200 transform hover:scale-105 active:scale-95 ${isDark ? 'border-purple-500 text-purple-400 bg-purple-900 bg-opacity-20 hover:bg-opacity-30' : 'border-purple-500 text-purple-600 bg-purple-50 hover:bg-purple-100'}`}
-                            style={{ minWidth: '80px', textAlign: 'center' }}
-                            title={preset.description}
+                            className={`w-full text-left p-3 rounded-xl border transition-all duration-200 group-hover:-translate-y-1 group-hover:shadow-md
+                              ${isDark ? 'bg-slate-800 border-slate-700 hover:border-purple-500/50' : 'bg-slate-50 border-slate-200 hover:border-purple-300'}
+                            `}
                           >
-                            {preset.name}
+                            <div className="w-8 h-8 rounded-lg bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 flex items-center justify-center mb-2">
+                               <i className="fas fa-magic text-sm"></i>
+                            </div>
+                            <div className={`text-xs font-semibold truncate ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{preset.name}</div>
+                            <div className={`text-[10px] truncate mt-0.5 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>{preset.description || '无描述'}</div>
                           </button>
-                          <div className="absolute right-0 -top-1 -translate-x-full group-hover:flex hidden flex-col gap-1 ml-1 bg-white dark:bg-gray-800 p-1 rounded-lg shadow-lg border dark:border-gray-700 z-10">
+                          
+                          <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
                             <button
-                              onClick={() => openPresetModal(preset)}
-                              className="text-xs px-3 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors flex items-center justify-center"
-                              style={{ minWidth: '45px' }}
+                              onClick={(e) => { e.stopPropagation(); openPresetModal(preset); }}
+                              className="w-6 h-6 rounded-full bg-white dark:bg-slate-700 shadow-sm flex items-center justify-center text-blue-500 hover:text-blue-600"
+                              title="编辑"
                             >
-                              编辑
+                              <i className="fas fa-pen text-[10px]"></i>
                             </button>
                             <button
-                              onClick={() => deletePreset(preset.id)}
-                              className="text-xs px-3 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition-colors flex items-center justify-center"
-                              style={{ minWidth: '45px' }}
+                              onClick={(e) => { e.stopPropagation(); deletePreset(preset.id); }}
+                              className="w-6 h-6 rounded-full bg-white dark:bg-slate-700 shadow-sm flex items-center justify-center text-red-500 hover:text-red-600"
+                              title="删除"
                             >
-                              删除
+                              <i className="fas fa-trash text-[10px]"></i>
                             </button>
                           </div>
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                      暂无预设
+                    <div className={`flex flex-col items-center justify-center py-8 border-2 border-dashed rounded-xl ${isDark ? 'border-slate-800 text-slate-600' : 'border-slate-200 text-slate-400'}`}>
+                      <i className="fas fa-inbox text-2xl mb-2 opacity-50"></i>
+                      <span className="text-xs">暂无预设风格</span>
                     </div>
                   )}
                 </div>
 
                 {/* Brand & Tags Card */}
-                <div className={`p-5 rounded-2xl border ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} shadow-sm space-y-6`}>
-              <div>
-                <label className="text-sm font-medium mb-2 block ${isDark ? 'text-gray-300' : 'text-gray-700'}">选择品牌</label>
-                <select
-                  value={useCustomBrand ? 'custom' : brand}
-                  onChange={(e) => {
-                    const v = e.target.value
-                    if (v === 'custom') {
-                      setUseCustomBrand(true)
-                      const val = customBrand.trim()
-                      if (val) {
-                        updateStory(val)
-                      } else {
-                        setBrand('')
-                        setStory('请输入品牌名称进行创作')
-                      }
-                    } else {
-                      setUseCustomBrand(false)
-                      updateStory(v)
-                    }
-                  }}
-                  className={`${isDark ? 'bg-gray-700/80 border-gray-600 text-white' : 'bg-white/80 border-gray-300'} w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-red-500 transition-all duration-300 min-h-[48px] text-sm sm:text-base`}
-                >
-                  <option value="mahua">桂发祥十八街麻花</option>
-                  <option value="baozi">狗不理包子</option>
-                  <option value="niuren">泥人张彩塑</option>
-                  <option value="erduoyan">耳朵眼炸糕</option>
-                  <option value="laomeihua">老美华鞋店</option>
-                  <option value="dafulai">大福来锅巴菜</option>
-                  <option value="guorenzhang">果仁张糖炒栗子</option>
-                  <option value="chatangli">茶汤李茶汤</option>
-                  <option value="custom">自定义品牌</option>
-                </select>
-                {useCustomBrand && (
-                  <input
-                    value={customBrand}
-                    onChange={(e) => {
-                      const val = e.target.value
-                      setCustomBrand(val)
-                      updateStory(val)
-                    }}
-                    placeholder="输入品牌名称（支持自定义）"
-                    className={`${isDark ? 'bg-gray-700/80 border-gray-600 text-white' : 'bg-white/80 border-gray-300 text-gray-900'} w-full mt-2 px-4 py-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-red-500 transition-all duration-300 min-h-[48px] text-sm sm:text-base`}
-                  />
-                )}
-              </div>
+                <div className={`p-5 rounded-2xl border ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'} shadow-sm space-y-6`}>
+                   {/* Brand Selection */}
+                   <div>
+                      <div className="flex items-center justify-between mb-3">
+                         <label className={`text-sm font-semibold flex items-center gap-2 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+                            <i className="fas fa-store text-amber-500"></i> 选择品牌
+                         </label>
+                         {brand && brand !== 'custom' && (
+                            <span className={`text-[10px] px-2 py-0.5 rounded-full ${isDark ? 'bg-amber-900/30 text-amber-400' : 'bg-amber-100 text-amber-700'}`}>
+                               已选
+                            </span>
+                         )}
+                      </div>
+                      <div className="relative">
+                         <select
+                           value={useCustomBrand ? 'custom' : brand}
+                           onChange={(e) => {
+                             const v = e.target.value
+                             if (v === 'custom') {
+                               setUseCustomBrand(true)
+                               const val = customBrand.trim()
+                               if (val) {
+                                 updateStory(val)
+                               } else {
+                                 setBrand('')
+                                 setStory('请输入品牌名称进行创作')
+                               }
+                             } else {
+                               setUseCustomBrand(false)
+                               updateStory(v)
+                             }
+                           }}
+                           className={`w-full appearance-none px-4 py-3 rounded-xl border font-medium text-sm transition-all duration-200
+                              ${isDark 
+                                 ? 'bg-slate-800 border-slate-700 text-white focus:border-amber-500' 
+                                 : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-amber-500 hover:bg-slate-100'}
+                              focus:ring-2 focus:ring-amber-500/20 focus:outline-none cursor-pointer
+                           `}
+                         >
+                           <option value="" disabled>请选择一个品牌...</option>
+                           <option value="mahua">桂发祥十八街麻花</option>
+                           <option value="baozi">狗不理包子</option>
+                           <option value="niuren">泥人张彩塑</option>
+                           <option value="erduoyan">耳朵眼炸糕</option>
+                           <option value="laomeihua">老美华鞋店</option>
+                           <option value="dafulai">大福来锅巴菜</option>
+                           <option value="guorenzhang">果仁张糖炒栗子</option>
+                           <option value="chatangli">茶汤李茶汤</option>
+                           <option value="custom">自定义品牌...</option>
+                         </select>
+                         <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                            <i className="fas fa-chevron-down text-xs"></i>
+                         </div>
+                      </div>
+                      
+                      {useCustomBrand && (
+                        <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }}>
+                           <input
+                             value={customBrand}
+                             onChange={(e) => {
+                               const val = e.target.value
+                               setCustomBrand(val)
+                               updateStory(val)
+                             }}
+                             placeholder="输入品牌名称..."
+                             className={`w-full mt-2 px-4 py-3 rounded-xl border text-sm transition-all duration-200
+                                ${isDark 
+                                   ? 'bg-slate-800 border-slate-700 text-white focus:border-amber-500' 
+                                   : 'bg-white border-slate-200 text-slate-900 focus:border-amber-500'}
+                                focus:ring-2 focus:ring-amber-500/20 focus:outline-none
+                             `}
+                           />
+                        </motion.div>
+                      )}
+                   </div>
 
-              <div>
-                <label className="text-sm mb-2 block">创作标签</label>
-                <div className="flex flex-wrap gap-2 mb-3">
-                  {/* 内置标签 */}
-                  {TAGS.map(t => {
-                    const active = tags.includes(t)
-                    return (
-                      <button
-                        key={`built-in-${t}`}
-                        onClick={() => toggleTag(t)}
-                        className={`text-sm sm:text-xs px-3 py-2 rounded-xl border transition-all duration-200 transform hover:scale-105 active:scale-95 ${
-                          active
-                            ? isDark
-                              ? 'border-red-500 text-red-400 bg-red-900 bg-opacity-20 hover:bg-opacity-30'
-                              : 'border-red-500 text-red-600 bg-red-50 hover:bg-red-100'
-                            : isDark
-                              ? 'border-gray-600 text-gray-300 hover:border-gray-500 hover:bg-gray-700'
-                              : 'border-gray-300 text-gray-700 hover:border-gray-400 hover:bg-gray-100'
-                        }`}
-                        style={{ minWidth: '65px', textAlign: 'center', fontSize: '0.85rem' }}
-                      >
-                        {t}
-                      </button>
-                    )
-                  })}
-                  {/* 自定义标签 */}
-                  {customTags.map(t => {
-                    const active = tags.includes(t)
-                    return (
-                      <div key={`custom-${t}`} className="relative group">
-                        <button
-                          onClick={() => toggleTag(t)}
-                          className={`text-sm sm:text-xs px-3 py-2 rounded-xl border transition-all duration-200 transform hover:scale-105 active:scale-95 ${
-                            active
-                              ? isDark
-                                ? 'border-purple-500 text-purple-400 bg-purple-900 bg-opacity-20 hover:bg-opacity-30'
-                                : 'border-purple-500 text-purple-600 bg-purple-50 hover:bg-purple-100'
-                              : isDark
-                                ? 'border-gray-600 text-gray-300 hover:border-gray-500 hover:bg-gray-700'
-                                : 'border-gray-300 text-gray-700 hover:border-gray-400 hover:bg-gray-100'
-                          }`}
-                          style={{ minWidth: '65px', textAlign: 'center', fontSize: '0.85rem' }}
-                        >
-                          {t}
-                        </button>
-                        <div className="absolute right-0 -top-1 -translate-x-full group-hover:flex hidden flex-col gap-1 ml-1 bg-white dark:bg-gray-800 p-1 rounded-lg shadow-lg border dark:border-gray-700 z-10">
-                          <button
-                            onClick={() => startEditTag(t)}
-                            className="text-xs px-3 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors flex items-center justify-center"
-                            style={{ minWidth: '45px' }}
-                          >
-                            编辑
-                          </button>
-                          <button
-                            onClick={() => removeCustomTag(t)}
-                            className="text-xs px-3 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition-colors flex items-center justify-center"
-                            style={{ minWidth: '45px' }}
-                          >
-                            删除
-                          </button>
+                   {/* Tags Selection */}
+                   <div>
+                      <label className={`text-sm font-semibold mb-3 flex items-center gap-2 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+                         <i className="fas fa-tags text-blue-500"></i> 创作标签
+                      </label>
+                      <div className="flex flex-wrap gap-2 mb-3">
+                        {/* Built-in Tags */}
+                        {TAGS.map(t => {
+                           const active = tags.includes(t)
+                           return (
+                             <button
+                               key={`built-in-${t}`}
+                               onClick={() => toggleTag(t)}
+                               className={`text-xs px-3 py-1.5 rounded-full border transition-all duration-200 active:scale-95
+                                 ${active
+                                   ? (isDark ? 'bg-blue-900/30 border-blue-500 text-blue-400' : 'bg-blue-50 border-blue-500 text-blue-600')
+                                   : (isDark ? 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700' : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100')
+                                 }
+                               `}
+                             >
+                               {active && <i className="fas fa-check mr-1 text-[10px]"></i>}
+                               {t}
+                             </button>
+                           )
+                        })}
+                        {/* Custom Tags */}
+                        {customTags.map(t => {
+                           const active = tags.includes(t)
+                           return (
+                             <div key={`custom-${t}`} className="relative group">
+                               <button
+                                 onClick={() => toggleTag(t)}
+                                 className={`text-xs px-3 py-1.5 rounded-full border transition-all duration-200 active:scale-95
+                                   ${active
+                                     ? (isDark ? 'bg-purple-900/30 border-purple-500 text-purple-400' : 'bg-purple-50 border-purple-500 text-purple-600')
+                                     : (isDark ? 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700' : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100')
+                                   }
+                                 `}
+                               >
+                                 {t}
+                               </button>
+                               <button
+                                 onClick={(e) => { e.stopPropagation(); removeCustomTag(t); }}
+                                 className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm z-10"
+                               >
+                                 <i className="fas fa-times text-[10px]"></i>
+                               </button>
+                             </div>
+                           )
+                        })}
+                        
+                        {/* Add Tag Button */}
+                        <div className="relative">
+                           {editingTag || newTag ? (
+                              <input
+                                autoFocus
+                                value={newTag}
+                                onChange={(e) => setNewTag(e.target.value)}
+                                onBlur={() => { if(newTag) addCustomTag(); else setNewTag(''); }}
+                                onKeyPress={(e) => e.key === 'Enter' && addCustomTag()}
+                                className={`w-24 text-xs px-3 py-1.5 rounded-full border focus:outline-none focus:ring-1 focus:ring-blue-500
+                                   ${isDark ? 'bg-slate-800 border-slate-600 text-white' : 'bg-white border-slate-300 text-slate-900'}
+                                `}
+                              />
+                           ) : (
+                              <button
+                                onClick={() => setNewTag(' ')} // Trigger input
+                                className={`text-xs px-3 py-1.5 rounded-full border border-dashed transition-all duration-200
+                                  ${isDark ? 'border-slate-600 text-slate-400 hover:text-white hover:border-slate-500' : 'border-slate-300 text-slate-500 hover:text-slate-800 hover:border-slate-400'}
+                                `}
+                              >
+                                <i className="fas fa-plus mr-1"></i> 自定义
+                              </button>
+                           )}
                         </div>
                       </div>
-                    )
-                  })}
-                </div>
-                {/* 添加/编辑自定义标签 */}
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={newTag}
-                    onChange={(e) => setNewTag(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && (editingTag ? saveEditedTag() : addCustomTag())}
-                    placeholder={editingTag ? '编辑标签...' : '添加自定义标签...'}
-                    className={`flex-1 text-sm px-3 py-2 rounded-lg border ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'} focus:outline-none focus:ring-2 focus:ring-red-500 transition-all duration-300`}
-                  />
-                  {editingTag ? (
-                    <div className="flex gap-1">
-                      <button
-                        onClick={saveEditedTag}
-                        className="text-xs px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                      >
-                        保存
-                      </button>
-                      <button
-                        onClick={cancelEdit}
-                        className="text-xs px-3 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
-                      >
-                        取消
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={addCustomTag}
-                      className="text-xs px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                    >
-                      添加
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div> {/* Close Brand & Tags Card */}
+                   </div>
+                </div> {/* Close Brand & Tags Card */}
             </div> {/* Close Left Column */}
 
             {/* Right Column */}
-             <div className="lg:col-span-8 space-y-6">
+             <div className="xl:col-span-8 space-y-6">
                {/* Create Tab Content */}
                <div className="block space-y-6">
-               {/* Story Context */}
-               <div className={`text-sm p-4 rounded-xl border ${isDark ? 'bg-blue-900/40 border-blue-800 text-blue-100' : 'bg-blue-50 border-blue-100 text-blue-800'} flex items-start gap-3`}>
-                  <i className="fas fa-info-circle mt-0.5"></i>
-                  <div>{story}</div>
+                 {/* Main Input Card */}
+                 <div className={`p-1 rounded-2xl ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'} border shadow-sm`}>
+                    
+                    {/* Story Tip */}
+                    {story && (
+                       <div className={`mx-4 mt-4 mb-2 text-xs px-3 py-2 rounded-lg flex items-start gap-2 ${isDark ? 'bg-blue-900/20 text-blue-300' : 'bg-blue-50 text-blue-600'}`}>
+                          <i className="fas fa-info-circle mt-0.5"></i>
+                          <span>{story}</span>
+                       </div>
+                    )}
+                    
+                    {/* Textarea */}
+                    <div className="relative p-2">
+                       <textarea
+                          value={prompt}
+                          onChange={(e) => { const v = e.target.value; setPrompt(v); if (optTimerRef.current) clearTimeout(optTimerRef.current); optTimerRef.current = setTimeout(() => { if (v.trim() && !optimizing && v.trim() !== lastOptimizedPrompt.trim()) optimizePrompt() }, 2000) }}
+                          onBlur={() => { if (prompt.trim() && !optimizing) optimizePrompt() }}
+                          placeholder="描述你想要的画面，例如：一只拿着糖葫芦的赛博朋克风格醒狮... (支持语音输入)"
+                          className={`w-full h-48 px-4 py-4 rounded-xl resize-none text-base leading-relaxed transition-all duration-200 outline-none
+                             ${isDark 
+                                ? 'bg-transparent text-white placeholder-slate-600' 
+                                : 'bg-transparent text-slate-900 placeholder-slate-400'}
+                          `}
+                          autoCapitalize="none"
+                          autoCorrect="off"
+                          enterKeyHint="send"
+                          inputMode="text"
+                       />
+                       
+                       {/* Floating Actions */}
+                       <div className="absolute bottom-4 right-4 flex items-center gap-2">
+                          <button
+                            onClick={optimizePrompt}
+                            disabled={optimizing || isGenerating}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all
+                               ${isDark ? 'bg-slate-800 text-green-400 hover:bg-slate-700' : 'bg-green-50 text-green-600 hover:bg-green-100'}
+                            `}
+                          >
+                             <i className={`fas fa-magic ${optimizing ? 'animate-spin' : ''}`}></i>
+                             {optimizing ? '优化中' : 'AI 润色'}
+                          </button>
+                          
+                          <button
+                            onClick={async () => {
+                              if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+                                const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+                                const recognition = new SpeechRecognition();
+                                recognition.lang = 'zh-CN';
+                                recognition.interimResults = false;
+                                recognition.onstart = () => toast.info('开始语音输入...');
+                                recognition.onresult = (event: any) => {
+                                  const speechResult = event.results[0][0].transcript;
+                                  setPrompt(prev => prev + speechResult);
+                                  toast.success('语音输入完成');
+                                };
+                                recognition.onerror = (event: any) => toast.error('语音输入失败: ' + event.error);
+                                recognition.start();
+                              } else {
+                                toast.error('您的浏览器不支持语音输入功能');
+                              }
+                            }}
+                            className={`p-2 rounded-full transition-all hover:scale-105
+                               ${isDark ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}
+                            `}
+                          >
+                             <i className="fas fa-microphone"></i>
+                          </button>
+                       </div>
+                    </div>
+                    
+                    {/* Optimization Feedback */}
+                    {(optimizing || optStatus !== 'idle') && (
+                       <div className="px-6 pb-2 text-xs text-slate-500">
+                          {optimizing ? '优化中...' : optStatus === 'done' ? '已完成优化' : ''}
+                          {optPreview && optimizing && <div className="mt-1 opacity-70">{optPreview}</div>}
+                       </div>
+                    )}
+                    
+                    {lastUserPrompt && lastOptimizedPrompt && (
+                        <div className="px-6 pb-2">
+                          <button
+                            onClick={() => { setPrompt(lastUserPrompt); setOptStatus('idle'); setOptPreview(''); toast.success('已撤销优化') }}
+                            className={`text-xs px-2 py-1 rounded transition-colors ${isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-400' : 'bg-slate-100 hover:bg-slate-200 text-slate-600'}`}
+                          >撤销优化</button>
+                        </div>
+                    )}
+
+                    {/* Action Bar */}
+                    <div className={`p-4 border-t flex items-center justify-between ${isDark ? 'border-slate-800 bg-slate-800/30' : 'border-slate-100 bg-slate-50/50'}`}>
+                       <div className="flex items-center gap-4">
+                          {/* Engine Status / Mode */}
+                          <div className={`flex items-center gap-2 text-xs font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                             <i className={`fas fa-circle text-[8px] ${isGenerating ? 'text-blue-500 animate-pulse' : 'text-green-500'}`}></i>
+                             {isGenerating ? '正在生成...' : '就绪'}
+                          </div>
+                       </div>
+                       
+                       <div className="flex items-center gap-3">
+                          <button
+                            onClick={() => { setPrompt(''); toast.success('已清空'); }}
+                            className={`text-sm px-4 py-2 rounded-xl transition-colors
+                               ${isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'}
+                            `}
+                          >
+                             清空
+                          </button>
+                          <button
+                            onClick={startGeneration}
+                            disabled={isGenerating}
+                            className={`px-6 py-2.5 rounded-xl font-bold text-white shadow-lg shadow-red-500/20 transition-all hover:shadow-red-500/30 active:scale-95 flex items-center gap-2
+                               ${isGenerating ? 'bg-slate-700 cursor-wait' : 'bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500'}
+                            `}
+                          >
+                             {isGenerating ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-sparkles"></i>}
+                             注入灵感
+                          </button>
+                       </div>
+                    </div>
+                 </div>
+
+            {/* AI Copywriting Section */}
+            <div className={`mt-6 rounded-2xl ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'} border shadow-sm p-5`}>
+               {/* Header */}
+               <div className="flex items-center justify-between mb-4">
+                  <div className={`font-semibold flex items-center gap-2 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+                     <i className="fas fa-feather-alt text-purple-500"></i> 
+                     <span>AI 创意文案</span>
+                  </div>
+                  
+                  {/* Style Selector */}
+                  <div className="flex items-center gap-2">
+                     <select
+                       value={textStyle}
+                       onChange={(e) => setTextStyle(e.target.value as any)}
+                       className={`text-xs px-3 py-1.5 rounded-lg border focus:outline-none focus:border-purple-500 transition-all duration-300 cursor-pointer
+                          ${isDark ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-700'}
+                       `}
+                     >
+                       <option value="creative">✨ 创意风格</option>
+                       <option value="formal">👔 正式风格</option>
+                       <option value="humorous">😄 幽默风格</option>
+                       <option value="poetic">📜 诗意风格</option>
+                     </select>
+                  </div>
                </div>
-
-            <div className="relative mb-4">
-              <textarea
-                value={prompt}
-                onChange={(e) => { const v = e.target.value; setPrompt(v); if (optTimerRef.current) clearTimeout(optTimerRef.current); optTimerRef.current = setTimeout(() => { if (v.trim() && !optimizing && v.trim() !== lastOptimizedPrompt.trim()) optimizePrompt() }, 2000) }}
-                onBlur={() => { if (prompt.trim() && !optimizing) optimizePrompt() }}
-                placeholder="描述你想要的画面，例如：一只拿着糖葫芦的赛博朋克风格醒狮... (支持语音输入)"
-                className={`w-full h-32 px-4 py-3 rounded-xl border focus:ring-2 focus:ring-red-500 transition-all duration-300 ${isDark ? 'bg-gray-700 border-gray-600 text-white focus:border-red-500 placeholder-gray-400' : 'bg-white border-gray-300 focus:border-red-500 placeholder-gray-400'} resize-y text-base`}
-                autoCapitalize="none"
-                autoCorrect="off"
-                enterKeyHint="send"
-                inputMode="text"
-              />
-              <button
-                onClick={async () => {
-                  if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-                    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-                    const recognition = new SpeechRecognition();
-                    recognition.lang = 'zh-CN';
-                    recognition.interimResults = false;
-                    
-                    recognition.onstart = () => {
-                      toast.info('开始语音输入...');
-                    };
-                    
-                    recognition.onresult = (event: any) => {
-                      const speechResult = event.results[0][0].transcript;
-                      setPrompt(prev => prev + speechResult);
-                      toast.success('语音输入完成');
-                    };
-                    
-                    recognition.onerror = (event: any) => {
-                      toast.error('语音输入失败: ' + event.error);
-                    };
-                    
-                    recognition.start();
-                  } else {
-                    toast.error('您的浏览器不支持语音输入功能');
-                  }
-                }}
-                className={`absolute right-3 bottom-3 p-2 rounded-full ${isDark ? 'bg-gray-600 hover:bg-gray-500 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'} transition-all duration-300 hover:scale-110`}
-                aria-label="语音输入"
-              >
-                <i className="fas fa-microphone"></i>
-              </button>
-            </div>
-            {(optimizing || optStatus !== 'idle') && (
-              <div className={`text-xs mb-2 ${isDark ? 'text-gray-300' : 'text-gray-600'}`} aria-live="polite">
-                {optimizing ? '优化中…' : (optStatus === 'done' ? '已优化' : '准备优化')}
-              </div>
-            )}
-            {optPreview && optimizing && (
-              <div className={`text-xs rounded p-2 mb-2 ${isDark ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-700'}`}>{optPreview}</div>
-            )}
-
-            <button
-              onClick={startGeneration}
-              disabled={isGenerating}
-              className={`w-full bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white px-4 py-3 rounded-xl font-bold shadow-lg shadow-red-500/30 transition-all duration-200 min-h-[48px] active:scale-95 flex items-center justify-center gap-2 ${isGenerating ? 'opacity-70 cursor-wait' : ''}`}
-            >
-              {isGenerating ? (
-                <>
-                  <i className="fas fa-spinner fa-spin"></i> 正在注入灵感...
-                </>
-              ) : (
-                <>
-                  <i className="fas fa-sparkles"></i> 注入灵感
-                </>
-              )}
-            </button>
-            <div className="mt-3">
-              <button
-                onClick={optimizePrompt}
-                disabled={optimizing || isGenerating}
-                className={`w-full border-2 ${isDark ? 'border-green-600 text-green-500 hover:bg-green-900/20' : 'border-green-600 text-green-600 hover:bg-green-50'} px-4 py-2 rounded-xl font-bold transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed active:scale-98 flex items-center justify-center gap-2`}
-              >
-                <i className="fas fa-magic"></i>
-                {optimizing ? 'DeepSeek优化中…' : '优化提示词（DeepSeek）'}
-              </button>
-              {lastUserPrompt && lastOptimizedPrompt && (
-                <div className="mt-2 flex gap-2">
-                  <button
-                    onClick={() => { setPrompt(lastUserPrompt); setOptStatus('idle'); setOptPreview(''); toast.success('已撤销优化') }}
-                    className={`text-xs px-3 py-1 rounded transition-colors ${isDark ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-900'}`}
-                  >撤销优化</button>
-                </div>
-              )}
-            </div>
-
-            <div className={`mt-6 rounded-2xl ${isDark ? 'bg-gray-800/50 border-gray-700' : 'bg-white border-gray-200'} border p-5 shadow-sm`}>
-            <div className="font-bold mb-4 flex items-center justify-between">
-              <span className="flex items-center gap-2"><i className="fas fa-lightbulb text-yellow-500"></i> AI建议</span>
-              <button onClick={regenerateDirections} className={`text-xs px-3 py-1.5 rounded-lg ${isDark ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'} transition-all duration-200 active:scale-95`}>
-                <i className="fas fa-sync-alt mr-1"></i>换一换
-              </button>
-            </div>
-            {aiDirections.length > 0 ? (
-              <div className="flex flex-wrap gap-2 mb-6">
-                {aiDirections.map((d, i) => (
-                  <button key={i} onClick={() => applyDirection(d)} className={`text-sm px-4 py-2 rounded-xl border transition-all duration-200 ${isDark ? 'border-gray-600 text-gray-300 hover:border-gray-500 hover:bg-gray-700' : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'} active:scale-95`}>
-                    {d}
+               
+               {/* Suggestions Chips */}
+               {aiDirections.length > 0 && (
+                 <div className="flex flex-wrap gap-2 mb-4">
+                   {aiDirections.map((d, i) => (
+                     <button key={i} onClick={() => applyDirection(d)} className={`text-xs px-3 py-1.5 rounded-full border transition-all duration-200 active:scale-95
+                        ${isDark ? 'border-slate-700 text-slate-300 hover:bg-slate-800' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}
+                     `}>
+                       {d}
+                     </button>
+                   ))}
+                   <button onClick={regenerateDirections} className={`text-xs px-3 py-1.5 rounded-full transition-all duration-200 active:scale-95 ${isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'}`}>
+                     <i className="fas fa-sync-alt mr-1"></i> 换一批
+                   </button>
+                 </div>
+               )}
+               
+               {/* Content Area */}
+               <div className={`text-sm whitespace-pre-wrap min-h-[100px] p-4 rounded-xl border mb-4 leading-relaxed transition-colors
+                  ${isDark ? 'bg-slate-800/50 border-slate-700 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'}
+               `}>
+                 {aiText || (
+                    <div className="flex flex-col items-center justify-center h-full py-4 opacity-50">
+                       <i className="fas fa-pen-nib mb-2"></i>
+                       <span>等待生成文案...</span>
+                    </div>
+                 )}
+               </div>
+               
+               {/* Actions */}
+               <div className="flex gap-3">
+                  <button onClick={async () => { const base = aiText.trim() ? aiText : prompt.trim(); if (!base) { toast.warning('请先生成文案或填写提示'); return } try { const r = await voiceService.synthesize(base, { format: 'mp3' }); setTtsUrl(r.audioUrl) } catch (e: any) { toast.error(e?.message || '朗读失败') } }} className={`flex-1 flex items-center justify-center gap-2 text-sm px-4 py-2 rounded-xl transition-all duration-200 border active:scale-95 ${isDark ? 'border-slate-700 hover:bg-slate-800 text-slate-300' : 'border-slate-200 hover:bg-slate-50 text-slate-600'}`}>
+                    <i className="fas fa-volume-up"></i> 朗读
                   </button>
-                ))}
-              </div>
-            ) : (
-              <div className={`text-sm flex flex-col items-center justify-center py-8 border-2 border-dashed rounded-xl ${isDark ? 'border-gray-700 text-gray-500' : 'border-gray-200 text-gray-400'} mb-6`}>
-                <i className="fas fa-sparkles text-2xl mb-2 opacity-50"></i>
-                <span>点击“注入灵感”以获取建议</span>
-              </div>
-            )}
-            
-            <div className="flex flex-col gap-3 mb-3">
-              <div className="flex items-center justify-between">
-                <div className="font-bold flex items-center gap-2"><i className="fas fa-pen-fancy text-purple-500"></i> AI文案</div>
-                <div className="flex items-center gap-2">
-                  <select
-                    value={textStyle}
-                    onChange={(e) => setTextStyle(e.target.value as any)}
-                    className={`text-xs px-3 py-1.5 rounded-lg border focus:outline-none focus:border-red-500 transition-all duration-300 ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-200 text-gray-700'}`}
-                  >
-                    <option value="creative">✨ 创意风格</option>
-                    <option value="formal">👔 正式风格</option>
-                    <option value="humorous">😄 幽默风格</option>
-                    <option value="poetic">📜 诗意风格</option>
-                  </select>
-                </div>
-              </div>
+                  <button onClick={() => { const text = aiText.trim(); if (!text) { toast.warning('暂无可复制的文案'); return } try { navigator.clipboard.writeText(text); toast.success('已复制文案'); } catch { toast.error('复制失败'); } }} className={`flex-1 flex items-center justify-center gap-2 text-sm px-4 py-2 rounded-xl transition-all duration-200 border active:scale-95 ${isDark ? 'border-slate-700 hover:bg-slate-800 text-slate-300' : 'border-slate-200 hover:bg-slate-50 text-slate-600'}`}>
+                    <i className="fas fa-copy"></i> 复制
+                  </button>
+                  <button onClick={() => { const text = aiText.trim(); if (!text) { toast.warning('暂无文案可插入'); return } setPrompt(text); toast.success('已插入到输入框'); }} className={`flex-1 flex items-center justify-center gap-2 text-sm px-4 py-2 rounded-xl transition-all duration-200 border active:scale-95 ${isDark ? 'border-slate-700 hover:bg-slate-800 text-slate-300' : 'border-slate-200 hover:bg-slate-50 text-slate-600'}`}>
+                    <i className="fas fa-arrow-up"></i> 插入
+                  </button>
+                  <button onClick={() => { if (!aiText.trim()) { toast.warning('暂无文案可保存'); return } try { const raw = localStorage.getItem('NEO_COPY_HISTORY'); const arr = raw ? JSON.parse(raw) : []; const entry = { id: Date.now(), text: aiText.trim() }; const next = [entry, ...arr].slice(0, 50); localStorage.setItem('NEO_COPY_HISTORY', JSON.stringify(next)); toast.success('已保存到本地'); } catch { toast.error('保存失败'); } }} className={`flex-1 flex items-center justify-center gap-2 text-sm px-4 py-2 rounded-xl transition-all duration-200 border active:scale-95 ${isDark ? 'border-slate-700 hover:bg-slate-800 text-slate-300' : 'border-slate-200 hover:bg-slate-50 text-slate-600'}`}>
+                    <i className="fas fa-save"></i> 保存
+                  </button>
+               </div>
+               
+               {ttsUrl && (
+                 <div className="mt-4">
+                   <audio controls src={ttsUrl} className={`w-full rounded-md border ${isDark ? 'border-slate-700' : 'border-slate-200'}`} />
+                 </div>
+               )}
             </div>
-            <div className={`text-sm whitespace-pre-wrap min-h-[100px] p-4 rounded-xl ${isDark ? 'bg-gray-900/50 border-gray-700 text-gray-300' : 'bg-gray-50 border-gray-200 text-gray-700'} border mb-4 leading-relaxed`}>
-              {aiText || <span className="opacity-50 italic">等待生成文案...</span>}
-            </div>
-            
-            <div className="grid grid-cols-2 gap-3">
-               <button onClick={async () => { const base = aiText.trim() ? aiText : prompt.trim(); if (!base) { toast.warning('请先生成文案或填写提示'); return } try { const r = await voiceService.synthesize(base, { format: 'mp3' }); setTtsUrl(r.audioUrl) } catch (e: any) { toast.error(e?.message || '朗读失败') } }} className={`flex items-center justify-center gap-2 text-sm px-4 py-2.5 rounded-xl transition-all duration-200 border ${isDark ? 'border-gray-600 hover:bg-gray-700 text-gray-300' : 'border-gray-200 hover:bg-gray-50 text-gray-600'} active:scale-95`}>
-                 <i className="fas fa-volume-up"></i> 朗读
-               </button>
-               <button onClick={() => { const text = aiText.trim(); if (!text) { toast.warning('暂无可复制的文案'); return } try { navigator.clipboard.writeText(text); toast.success('已复制文案'); } catch { toast.error('复制失败'); } }} className={`flex items-center justify-center gap-2 text-sm px-4 py-2.5 rounded-xl transition-all duration-200 border ${isDark ? 'border-gray-600 hover:bg-gray-700 text-gray-300' : 'border-gray-200 hover:bg-gray-50 text-gray-600'} active:scale-95`}>
-                 <i className="fas fa-copy"></i> 复制
-               </button>
-               <button onClick={() => { const text = aiText.trim(); if (!text) { toast.warning('暂无文案可插入'); return } setPrompt(text); toast.success('已插入到输入框'); }} className={`flex items-center justify-center gap-2 text-sm px-4 py-2.5 rounded-xl transition-all duration-200 border ${isDark ? 'border-gray-600 hover:bg-gray-700 text-gray-300' : 'border-gray-200 hover:bg-gray-50 text-gray-600'} active:scale-95`}>
-                 <i className="fas fa-arrow-up"></i> 插入
-               </button>
-               <button onClick={() => { if (!aiText.trim()) { toast.warning('暂无文案可保存'); return } try { const raw = localStorage.getItem('NEO_COPY_HISTORY'); const arr = raw ? JSON.parse(raw) : []; const entry = { id: Date.now(), text: aiText.trim() }; const next = [entry, ...arr].slice(0, 50); localStorage.setItem('NEO_COPY_HISTORY', JSON.stringify(next)); toast.success('已保存到本地'); } catch { toast.error('保存失败'); } }} className={`flex items-center justify-center gap-2 text-sm px-4 py-2.5 rounded-xl transition-all duration-200 border ${isDark ? 'border-gray-600 hover:bg-gray-700 text-gray-300' : 'border-gray-200 hover:bg-gray-50 text-gray-600'} active:scale-95`}>
-                 <i className="fas fa-save"></i> 保存
-               </button>
-               <button onClick={() => { setAiText(''); toast.success('已清空文案'); }} className={`col-span-2 flex items-center justify-center gap-2 text-sm px-4 py-2.5 rounded-xl transition-all duration-200 border border-dashed ${isDark ? 'border-gray-700 hover:bg-gray-800 text-gray-400' : 'border-gray-300 hover:bg-gray-50 text-gray-500'} active:scale-95`}>
-                 <i className="fas fa-trash-alt"></i> 清空文案
-               </button>
-            </div>
-            {ttsUrl && (
-              <div className="mt-4">
-                <audio controls src={ttsUrl} className={`w-full rounded-md border ${isDark ? 'border-gray-600' : 'border-gray-200'}`} />
-              </div>
-            )}
-            {isGenerating && (<div className={`${isDark ? 'text-gray-500' : 'text-gray-400'} text-sm mt-2`}>生成中…</div>)}
-          </div>
         </div>
       </div>
     </div>
@@ -2338,8 +2390,8 @@ export default function Neo() {
                   
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                   {filteredHistory.map((h, idx) => (
-                    <div key={idx} className={`group relative rounded-lg overflow-hidden border ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-200'} shadow-sm hover:shadow-md transition-all duration-300`}>
-                      <div className="relative aspect-square bg-gray-100 dark:bg-gray-800">
+                    <div key={idx} className={`group relative rounded-xl overflow-hidden border ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'} shadow-sm hover:shadow-lg transition-all duration-300`}>
+                      <div className="relative aspect-square bg-slate-100 dark:bg-slate-900">
                         <img src={h.thumb || h.image} alt="thumb" className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
                         
                         {/* 悬浮覆盖层 */}
@@ -2411,34 +2463,61 @@ export default function Neo() {
           </div> {/* Close content card */}
         </div> {/* Close p-6 container */}
         </main>
-        
-        {/* 右侧边栏 */}
-        {rightSidebarVisible && (
-          <aside className="hidden lg:block w-72">
-            <NeoRightSidebar
-              brand={brand}
-              story={story}
-              aiDirections={aiDirections}
-              isGenerating={isGenerating}
-              generationStatus={generationStatus}
-              progress={progress}
-              showOutput={showOutput}
-            />
-          </aside>
-        )}
-        
-        {/* 移动端右侧边栏 */}
-        <div className={`fixed inset-y-0 right-0 top-16 z-50 transform transition-transform duration-300 ease-in-out md:transform-none md:hidden ${mobileInfoSidebarOpen ? 'translate-x-0' : 'translate-x-full'}`} style={{ width: '90vw', maxWidth: '400px' }}>
-          <NeoRightSidebar
-            brand={brand}
-            story={story}
-            aiDirections={aiDirections}
-            isGenerating={isGenerating}
-            generationStatus={generationStatus}
-            progress={progress}
-            showOutput={showOutput}
-          />
-        </div>
+
+        {/* Right Sidebar (Desktop) */}
+        <AnimatePresence>
+          {rightSidebarVisible && (
+            <motion.div 
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 320, opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ duration: 0.3, ease: "easeInOut" }}
+              className="flex-shrink-0 h-full z-20 hidden xl:block shadow-xl overflow-hidden"
+            >
+               <NeoRightSidebar
+                brand={brand}
+                story={story}
+                aiDirections={aiDirections}
+                isGenerating={isGenerating}
+                generationStatus={generationStatus}
+                progress={progress}
+                showOutput={showOutput}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Right Sidebar (Mobile) */}
+        <AnimatePresence>
+          {mobileInfoSidebarOpen && (
+             <>
+               <motion.div
+                 initial={{ opacity: 0 }}
+                 animate={{ opacity: 0.5 }}
+                 exit={{ opacity: 0 }}
+                 className="fixed inset-0 bg-black z-40 md:hidden"
+                 onClick={() => setMobileInfoSidebarOpen(false)}
+               />
+               <motion.div
+                 initial={{ x: '100%' }}
+                 animate={{ x: 0 }}
+                 exit={{ x: '100%' }}
+                 transition={{ type: "spring", damping: 25, stiffness: 200 }}
+                 className="fixed inset-y-0 right-0 z-50 w-80 md:hidden"
+               >
+                 <NeoRightSidebar
+                    brand={brand}
+                    story={story}
+                    aiDirections={aiDirections}
+                    isGenerating={isGenerating}
+                    generationStatus={generationStatus}
+                    progress={progress}
+                    showOutput={showOutput}
+                  />
+               </motion.div>
+             </>
+          )}
+        </AnimatePresence>
 
 
       {/* 风格预设模态框 */}

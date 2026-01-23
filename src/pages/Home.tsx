@@ -1216,7 +1216,7 @@ export default function Home() {
         {/* 5. 趣味互动 (Fun) - 3D Interactive Cards */}
         <div className={`py-20 ${isDark ? 'bg-gray-950' : 'bg-gray-50'}`}>
           <div className="max-w-7xl mx-auto px-4 md:px-6">
-             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 md:gap-6">
+             <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
                 {[
                   { 
                     title: '粒子艺术', 

@@ -834,10 +834,12 @@ export default function Explore() {
 
           {/* 瀑布流展示 */}
           {filteredWorks.length > 0 ? (
-            <MobileWaterfallWorks 
-              items={filteredWorks} 
-              onClick={handleWorkClick} 
-            />
+            <div className="min-h-[500px]">
+              <MobileWaterfallWorks 
+                items={filteredWorks} 
+                onClick={handleWorkClick} 
+              />
+            </div>
           ) : (
             <div className="py-20 text-center">
               <div className="text-6xl mb-4">🔍</div>

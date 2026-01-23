@@ -197,7 +197,7 @@ export default function CanvasArea() {
         </div>
         
         {/* View Controls & Actions */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 pr-12 md:pr-0">
           <button 
             onClick={() => useCreateStore.getState().updateState({ showCollaborationPanel: true })}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2 transition-all ${isDark ? 'bg-gray-800 hover:bg-gray-700 text-gray-300' : 'bg-white hover:bg-gray-50 text-gray-600 shadow-sm border border-gray-200'}`}
@@ -581,12 +581,12 @@ export default function CanvasArea() {
                   </div>
                 </motion.div>
                 
-                {/* 样式预览区 - 精简显示 */}
+                {/* 样式预览区 - 精简显示 - 手机端隐藏 */}
                 <motion.div 
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.4, delay: 0.2, ease: "easeOut" }}
-                  className={`w-full backdrop-blur-md p-3 rounded-2xl border mb-3 shadow-lg ${isDark ? 'bg-black/50 border-white/20' : 'bg-white/50 border-gray-200'}`}
+                  className={`hidden md:block w-full backdrop-blur-md p-3 rounded-2xl border mb-3 shadow-lg ${isDark ? 'bg-black/50 border-white/20' : 'bg-white/50 border-gray-200'}`}
                 >
                   <h3 className="text-sm font-semibold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}">样式预览</h3>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -669,12 +669,12 @@ export default function CanvasArea() {
                   </div>
                 </motion.div>
                 
-                {/* Action Buttons */}
+                {/* Action Buttons - 手机端隐藏 */}
                 <motion.div 
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.4, delay: 0.3, ease: "easeOut" }}
-                  className={`w-full backdrop-blur-md p-4 rounded-2xl border shadow-lg ${isDark ? 'bg-black/50 border-white/20' : 'bg-white/50 border-gray-200'}`}
+                  className={`hidden md:block w-full backdrop-blur-md p-4 rounded-2xl border shadow-lg ${isDark ? 'bg-black/50 border-white/20' : 'bg-white/50 border-gray-200'}`}
                 >
                   <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
                     {/* Download Button */}

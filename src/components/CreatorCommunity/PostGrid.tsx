@@ -350,7 +350,7 @@ export const PostGrid: React.FC<PostGridProps> = ({
 
       {/* 帖子列表 */}
       <div className={viewMode === 'grid' 
-        ? 'columns-1 md:columns-2 lg:columns-3 gap-6'
+        ? 'columns-2 md:columns-2 lg:columns-3 gap-3 md:gap-6'
         : 'space-y-4'
       }>
         {posts.map((post) => (

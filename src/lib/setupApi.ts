@@ -10,19 +10,45 @@ export function setupApi() {
   // 全局错误提示防抖：记录最近显示的错误类型和时间
   let lastErrorTime = 0;
   let lastErrorMessage = '';
-  const ERROR_DEBOUNCE_TIME = 5000; // 5秒内只显示一次错误
+  const ERROR_DEBOUNCE_TIME = 2000; // 2秒内只显示一次错误
+  
+  // 针对特定错误的特殊防抖时间（例如未授权访问）
+  const SPECIAL_ERRORS: Record<string, number> = {
+    '未授权访问': 60 * 60 * 1000, // 1小时内只显示一次
+    'UNAUTHORIZED': 60 * 60 * 1000,
+    'Unauthorized': 60 * 60 * 1000
+  };
+  
+  // 记录特殊错误的最后显示时间
+  const specialErrorLastTimes: Record<string, number> = {};
   
   // 更严格的防抖：短时间内只显示一次任何类型的错误
   const shouldShowErrorToast = (message: string): boolean => {
     const now = Date.now();
+    
+    // 检查是否是特殊错误，并检查其特定的冷却时间
+    for (const [key, time] of Object.entries(SPECIAL_ERRORS)) {
+      if (message.includes(key)) {
+        const lastTime = specialErrorLastTimes[key] || 0;
+        if (now - lastTime < time) {
+          return false;
+        }
+        // 如果通过了检查，更新该特殊错误的最后显示时间
+        specialErrorLastTimes[key] = now;
+        // 同时也更新全局最后错误时间，避免与其他错误重叠
+        lastErrorTime = now;
+        lastErrorMessage = message;
+        return true;
+      }
+    }
     
     // 检查是否是相同的错误，并且时间间隔小于防抖时间
     if (message === lastErrorMessage && now - lastErrorTime < ERROR_DEBOUNCE_TIME) {
       return false;
     }
     
-    // 检查是否在防抖时间内，无论错误类型
-    if (now - lastErrorTime < ERROR_DEBOUNCE_TIME) {
+    // 检查是否在普通防抖时间内，无论错误类型（避免瞬间多个弹窗堆叠）
+    if (now - lastErrorTime < 500) {
       return false;
     }
     

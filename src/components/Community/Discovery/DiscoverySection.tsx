@@ -203,7 +203,7 @@ export const DiscoverySection: React.FC<DiscoverySectionProps> = ({
       </div>
 
       {/* Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2 md:gap-6">
         {filteredCommunities.map((community) => (
           <motion.div
             key={community.id}
@@ -211,7 +211,7 @@ export const DiscoverySection: React.FC<DiscoverySectionProps> = ({
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3 }}
-            className={`relative rounded-2xl overflow-hidden cursor-pointer group shadow-md hover:shadow-xl transition-all duration-300 ${isDark ? 'bg-gray-800' : 'bg-white'} mb-6 aspect-square`}
+            className={`relative rounded-2xl overflow-hidden cursor-pointer group shadow-md hover:shadow-xl transition-all duration-300 ${isDark ? 'bg-gray-800' : 'bg-white'} aspect-square`}
             onClick={() => onOpen(community.id)}
           >
             {/* Image */}
@@ -235,39 +235,39 @@ export const DiscoverySection: React.FC<DiscoverySectionProps> = ({
               </div>
 
               {/* Content */}
-              <div className="absolute bottom-0 left-0 w-full p-5">
-                <div className="transform translate-y-2 group-hover:translate-y-0 transition-transform duration-300">
+              <div className="absolute bottom-0 left-0 w-full p-3 md:p-5">
+                <div className="transform translate-y-0 md:translate-y-2 md:group-hover:translate-y-0 transition-transform duration-300">
                   {/* Tags */}
-                  <div className="flex flex-wrap gap-2 mb-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/20 backdrop-blur-md text-white">
+                  <div className="flex flex-wrap gap-2 mb-1 md:mb-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300">
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/20 backdrop-blur-md text-white scale-90 origin-left">
                       #{community.topic}
                     </span>
                   </div>
                   
                   {/* Title */}
-                  <h3 className="font-bold text-white mb-1 text-lg">{community.name}</h3>
+                  <h3 className="font-bold text-white mb-0.5 md:mb-1 text-sm md:text-lg leading-tight">{community.name}</h3>
                   
                   {/* Description */}
-                  <p className="text-white/80 text-xs mb-3 line-clamp-1">{community.description}</p>
+                  <p className="text-white/80 text-[10px] md:text-xs mb-1 md:mb-3 line-clamp-1">{community.description}</p>
                   
                   {/* Footer */}
-                  <div className="flex items-center justify-between border-t border-white/20 pt-3">
-                    <span className="text-white/70 text-xs flex items-center gap-1">
-                      <i className="fas fa-user-friends"></i> {community.memberCount}
+                  <div className="flex items-center justify-between border-t border-white/20 pt-1.5 md:pt-3">
+                    <span className="text-white/70 text-[10px] md:text-xs flex items-center gap-1">
+                      <i className="fas fa-user-friends text-[10px]"></i> {community.memberCount}
                     </span>
                     
                     <div className="flex gap-2">
                       {joinedIds.includes(community.id) ? (
                         <button
                           onClick={(e) => { e.stopPropagation(); onJoin(community.id); }}
-                          className="bg-white/20 text-white text-xs px-3 py-1 rounded-full font-bold opacity-0 group-hover:opacity-100 transition-opacity duration-300 transform translate-x-4 group-hover:translate-x-0"
+                          className="bg-white/20 text-white text-[10px] md:text-xs px-2 md:px-3 py-0.5 md:py-1 rounded-full font-bold opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300 transform translate-x-0 md:translate-x-4 md:group-hover:translate-x-0"
                         >
                           已加入
                         </button>
                       ) : (
                         <button
                           onClick={(e) => { e.stopPropagation(); onJoin(community.id); }}
-                          className="bg-white text-black text-xs px-3 py-1 rounded-full font-bold opacity-0 group-hover:opacity-100 transition-opacity duration-300 transform translate-x-4 group-hover:translate-x-0"
+                          className="bg-white text-black text-[10px] md:text-xs px-2 md:px-3 py-0.5 md:py-1 rounded-full font-bold opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300 transform translate-x-0 md:translate-x-4 md:group-hover:translate-x-0"
                         >
                           加入
                         </button>

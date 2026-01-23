@@ -63,7 +63,7 @@ const AICollaborationMessage: React.FC<AICollaborationMessageProps> = ({
         }`}>
           {isUser ? (
             <img 
-              src={userAvatar || 'https://picsum.photos/id/1005/200/200'} 
+              src={userAvatar || ''} 
               alt="用户头像" 
               className="w-full h-full object-cover rounded-full"
             />

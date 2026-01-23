@@ -103,7 +103,7 @@ export default function PropertiesPanel() {
       {/* 手机端和平板端属性面板切换按钮 */}
       <motion.button
         onClick={() => updateState({ showPropertiesPanel: !showPropertiesPanel })}
-        className={`md:hidden fixed top-20 right-4 z-40 p-3 rounded-full shadow-lg transition-all duration-300 ${isDark ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-blue-500 text-white hover:bg-blue-600'}`}
+        className={`md:hidden fixed top-28 right-2 z-40 p-3 rounded-full shadow-lg transition-all duration-300 ${isDark ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-blue-500 text-white hover:bg-blue-600'}`}
         aria-label={showPropertiesPanel ? '关闭属性面板' : '打开属性面板'}
         whileHover={{ scale: 1.1, boxShadow: "0 8px 25px rgba(0, 0, 0, 0.2)" }}
         whileTap={{ scale: 0.95 }}
@@ -120,7 +120,7 @@ export default function PropertiesPanel() {
         <i className="fas fa-sliders-h text-xl"></i>
       </motion.button>
 
-      {/* 电脑端右侧属性面板 / 平板端右侧抽屉 / 手机端右侧抽屉 */}
+      {/* 电脑端右侧属性面板 / 平板端右侧抽屉 */}
       <AnimatePresence>
         {/* 电脑端：始终显示右侧属性面板 */}
         <div className={`hidden lg:block w-80 xl:w-96 h-full flex flex-col border-l backdrop-blur-xl transition-all duration-300 ${isDark ? 'bg-gray-900/95 border-gray-800' : 'bg-white/95 border-gray-200'} z-30`}>
@@ -226,10 +226,12 @@ export default function PropertiesPanel() {
                 }
               }}
               className={`${isDark ? 'bg-gray-900/95 border-gray-800' : 'bg-white/95 border-gray-200'} transition-colors relative z-30
-                /* 平板端样式：右侧抽屉，固定宽度 */
-                hidden md:block lg:hidden fixed top-0 right-0 bottom-0 w-80 h-full shadow-2xl border-l
-                /* 手机端样式：右侧抽屉，覆盖80%屏幕宽度 */
-                md:hidden fixed top-0 right-0 bottom-0 w-[80%] max-w-xs h-full shadow-2xl border-l`}
+                /* 通用定位：固定在右侧，全高 */
+                fixed top-0 right-0 bottom-0 h-full shadow-2xl border-l lg:hidden
+                /* 手机端宽度 */
+                w-[85%] max-w-xs
+                /* 平板端宽度 */
+                md:w-80`}
             >
               {/* Glass Header */}
               <div className={`h-16 px-6 flex items-center justify-between border-b backdrop-blur-md flex-shrink-0 ${isDark ? 'bg-gray-900/50 border-gray-800' : 'bg-white/50 border-gray-100'}`}>

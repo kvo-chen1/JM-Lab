@@ -510,8 +510,9 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
 
   // 中文注释：暗色主题下的导航项悬停时变白，背景使用透明度白色
   // 统一导航项高度和内边距，避免激活时布局变化
+  // 平板端优化：在平板尺寸(md)下增加垂直内边距(py-3)，提升触摸体验；桌面端(lg)保持原样
   const navItemClass = useMemo(() => (
-    `${isDark ? 'hover:text-white hover:bg-gray-800/60 text-[13px]' : 'hover:bg-[var(--bg-hover)]'} flex items-center px-3 py-2 rounded-lg transition-all duration-200`
+    `${isDark ? 'hover:text-white hover:bg-gray-800/60 text-[13px]' : 'hover:bg-[var(--bg-hover)]'} flex items-center px-3 py-2 md:py-3 lg:py-2 rounded-lg transition-all duration-200`
   ), [isDark])
 
   // 中文注释：主题激活态使用CSS变量，确保主题变化时样式同步更新

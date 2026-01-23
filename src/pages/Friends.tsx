@@ -200,7 +200,7 @@ const FriendsPage: React.FC = () => {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <img
-                          src={friend.friend?.avatar || 'https://picsum.photos/id/1005/200/200'}
+                          src={friend.friend?.avatar || ''}
                           alt={friend.friend?.username}
                           className="w-12 h-12 rounded-full object-cover"
                         />
@@ -286,7 +286,7 @@ const FriendsPage: React.FC = () => {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <img
-                          src={request.sender?.avatar || 'https://picsum.photos/id/1005/200/200'}
+                          src={request.sender?.avatar || ''}
                           alt={request.sender?.username}
                           className="w-12 h-12 rounded-full object-cover"
                         />
@@ -355,7 +355,7 @@ const FriendsPage: React.FC = () => {
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                           <img
-                            src={user.avatar || 'https://picsum.photos/id/1005/200/200'}
+                            src={user.avatar || ''}
                             alt={user.username}
                             className="w-12 h-12 rounded-full object-cover"
                           />

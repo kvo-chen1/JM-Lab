@@ -107,14 +107,14 @@ export const CommunityLayout: React.FC<CommunityLayoutProps> = ({
 
       {/* 3. Main Content Area */}
       <main 
-        className={`flex-1 min-h-screen transition-all duration-300 w-full lg:w-auto flex`}
+        className={`flex-1 min-h-screen transition-all duration-300 w-full lg:w-auto flex overflow-x-hidden`}
       >
         <motion.div 
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -10 }}
           transition={{ duration: 0.3 }}
-          className={`h-full ${isDark ? 'bg-gray-700' : 'bg-white'} min-h-[calc(100vh-64px)] lg:min-h-screen flex-1`}
+          className={`h-full ${isDark ? 'bg-gray-700' : 'bg-white'} min-h-[calc(100vh-64px)] lg:min-h-screen flex-1 w-full max-w-full`}
         >
              {/* Mobile Navigation Toggle */}
              <div className="md:hidden h-14 flex items-center px-4 border-b dark:border-gray-700 border-gray-200">
@@ -137,7 +137,7 @@ export const CommunityLayout: React.FC<CommunityLayoutProps> = ({
                     {infoSidebar}
                 </div>
                 {/* Mobile Sidebar */}
-                <div className={`fixed inset-y-0 right-0 top-16 z-50 transform transition-transform duration-300 ease-in-out md:hidden ${mobileInfoSidebarOpen ? 'translate-x-0' : 'translate-x-full'}`} style={{ width: '90vw', maxWidth: '400px' }}>
+                <div className={`fixed inset-y-0 right-0 z-50 transform transition-transform duration-300 ease-in-out md:hidden ${mobileInfoSidebarOpen ? 'translate-x-0' : 'translate-x-full'}`} style={{ width: '90vw', maxWidth: '400px' }}>
                     {infoSidebar}
                 </div>
             </>

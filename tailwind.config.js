@@ -6,7 +6,7 @@ export default {
     container: {
       center: true,
     },
-    extend: {
+      extend: {
       colors: {
         primary: {
           50: '#eff6ff',
@@ -21,6 +21,20 @@ export default {
           900: '#1e3a8a',
           950: '#172554',
         },
+      },
+      screens: {
+        'xs': '480px', // 超小屏幕手机
+        'sm': '640px', // 大屏手机/小平板
+        'md': '768px', // 平板竖屏
+        'lg': '1024px', // 平板横屏/小笔记本
+        'xl': '1280px', // 桌面显示器
+        '2xl': '1536px', // 大屏显示器
+      },
+      spacing: {
+        'safe-top': 'env(safe-area-inset-top)',
+        'safe-bottom': 'env(safe-area-inset-bottom)',
+        'safe-left': 'env(safe-area-inset-left)',
+        'safe-right': 'env(safe-area-inset-right)',
       },
     },
   },

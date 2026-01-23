@@ -123,7 +123,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         // 确保用户有有效的头像URL
         const avatarUrl = parsedUser.avatar && parsedUser.avatar.trim() 
           ? parsedUser.avatar 
-          : 'https://picsum.photos/id/1005/200/200';
+          : '';
         
         // 添加默认会员信息和统计数据
         return {
@@ -149,19 +149,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     return null;
   });
 
-  // 确保所有用户都使用固定的头像URL
-  useEffect(() => {
-    if (isAuthenticated && user && user.avatar !== 'https://picsum.photos/id/1005/200/200') {
-      // 强制使用固定的头像URL
-      const fixedAvatarUser = {
-        ...user,
-        avatar: 'https://picsum.photos/id/1005/200/200'
-      };
-      // 更新本地存储和状态
-      localStorage.setItem('user', JSON.stringify(fixedAvatarUser));
-      setUser(fixedAvatarUser);
-    }
-  }, [isAuthenticated, user]);
+  // 移除强制使用固定头像的逻辑
+
 
   // 检查用户认证状态
   useEffect(() => {
@@ -225,7 +214,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
                  console.log('Bridge login success');
                  // 成功获取本地 Token，更新状态
                  const userData = apiData.data;
-                 const avatarUrl = 'https://picsum.photos/id/1005/200/200';
+                 // 优先使用后端返回的头像，否则使用默认头像
+                 const avatarUrl = userData.avatar || '';
                  const userWithMembership = {
                     id: userData.id,
                     username: userData.username,
@@ -269,8 +259,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             }
           }
 
-          // 强制使用固定的头像URL
-          const avatarUrl = 'https://picsum.photos/id/1005/200/200';
+          // 优先使用用户元数据中的头像，否则使用默认头像
+          const avatarUrl = session.user.user_metadata?.avatar || '';
           
           const userWithMembership = {
             id: session.user.id,
@@ -375,12 +365,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           if (userData && isAuthenticatedFlag === 'true') {
             try {
               const parsedUser = JSON.parse(userData);
-              const fixedAvatarUser = {
+              const userWithAvatar = {
                 ...parsedUser,
-                avatar: 'https://picsum.photos/id/1005/200/200'
+                avatar: parsedUser.avatar || ''
               };
-              localStorage.setItem('user', JSON.stringify(fixedAvatarUser));
-              setUser(fixedAvatarUser);
+              localStorage.setItem('user', JSON.stringify(userWithAvatar));
+              setUser(userWithAvatar);
               setIsAuthenticated(true);
             } catch (error) {
               console.error('Failed to parse user data:', error);
@@ -405,10 +395,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         if (token && userData && isAuthenticatedFlag === 'true') {
           // 本地存储有认证信息
           try {
-            // 强制使用固定的头像URL
-            const avatarUrl = 'https://picsum.photos/id/1005/200/200';
-            
             const parsedUser = JSON.parse(userData);
+            // 优先使用本地存储中的头像，否则使用默认头像
+            const avatarUrl = parsedUser.avatar || '';
+            
             const userWithMembership = {
               ...parsedUser,
               avatar: avatarUrl,
@@ -430,6 +420,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
                 const data = await response.json();
                 if (data.code === 0 && data.data) {
                   Object.assign(userWithMembership, {
+                    // 更新头像
+                    avatar: data.data.avatar || userWithMembership.avatar,
                     // 标记为新用户（如果是首次登录）
                     isNewUser: data.data.isNewUser || false,
                     // 初始化统计数据
@@ -474,6 +466,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
                       const meData = await meResponse.json();
                       if (meData.code === 0 && meData.data) {
                         Object.assign(userWithMembership, {
+                          // 更新头像
+                          avatar: meData.data.avatar || userWithMembership.avatar,
                           isNewUser: meData.data.isNewUser || false,
                           worksCount: meData.data.worksCount || 0,
                           followersCount: meData.data.followersCount || 0,
@@ -579,7 +573,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
                    const apiData = await response.json();
                    if (apiData.code === 0 && apiData.data) {
                       const userData = apiData.data;
-                      const avatarUrl = 'https://picsum.photos/id/1005/200/200';
+                      // 优先使用后端返回的头像，否则使用默认头像
+                      const avatarUrl = userData.avatar || '';
                       const userWithMembership = {
                           id: userData.id,
                           username: userData.username,
@@ -613,8 +608,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
                    console.error('checkAuth fallback: Bridge failed', e);
                  }
 
-                 // 强制使用固定的头像URL
-                const avatarUrl = 'https://picsum.photos/id/1005/200/200';
+                 // 优先使用用户元数据中的头像，否则使用默认头像
+                const avatarUrl = session.user.user_metadata?.avatar || '';
                 
                 const userWithMembership = {
                   id: session.user.id,
@@ -699,8 +694,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       
       if (data.code === 0 && data.data) {
         console.log('登录成功');
-        // 强制使用固定的头像URL
-        const avatarUrl = 'https://picsum.photos/id/1005/200/200';
+        // 优先使用后端返回的头像，否则使用默认头像
+        const avatarUrl = data.data.avatar || '';
         
         const userWithMembership = {
           id: data.data.id,
@@ -895,7 +890,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   // 辅助函数：处理登录成功逻辑
   const handleLoginSuccess = (userData: any) => {
     console.log('登录处理成功');
-    const avatarUrl = 'https://picsum.photos/id/1005/200/200';
+    // 优先使用后端返回的头像，否则使用默认头像
+    const avatarUrl = userData.avatar || '';
     
     const userWithMembership = {
       id: userData.id,
@@ -1016,7 +1012,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           id: `phone_user_${Date.now()}`,
           username: '手机用户',
           email: '',
-          avatar: 'https://picsum.photos/id/1005/200/200',
+          avatar: '',
           phone: '',
           interests: [],
           isAdmin: false,
@@ -1190,7 +1186,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           // 根据Supabase返回的用户信息更新本地用户数据
           const avatarUrl = data.user.user_metadata?.avatar && data.user.user_metadata?.avatar.trim() 
             ? data.user.user_metadata?.avatar 
-            : 'https://picsum.photos/id/1005/200/200';
+            : '';
           
           const updatedUser = {
             id: data.user.id,
@@ -1390,8 +1386,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             // token有效，更新用户信息
             const data = await response.json();
             if (data.code === 0 && data.data) {
-              // 强制使用固定的头像URL
-              const avatarUrl = 'https://picsum.photos/id/1005/200/200';
+              // 优先使用后端返回的头像，否则使用默认头像
+              const avatarUrl = data.data.avatar || '';
               
               const userWithMembership = {
                 ...JSON.parse(userData),
@@ -1427,8 +1423,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
               if (refreshResponse.ok) {
                 const data = await refreshResponse.json();
                 if (data.code === 0 && data.data) {
-                  // 强制使用固定的头像URL
-                  const avatarUrl = 'https://picsum.photos/id/1005/200/200';
+                  // 优先使用后端返回的头像，否则使用默认头像
+                  const avatarUrl = data.data.avatar || '';
                   
                   const userWithMembership = {
                     ...JSON.parse(userData),

@@ -440,6 +440,46 @@ export const useCreateStore = create<CreateState & CreateActions>((set, get) => 
                 
                 console.log('Publish to explore:', { title, description, category, tags, visibility });
                 
+                // --- 模拟发布到探索作品 ---
+                try {
+                  // 1. 获取当前选中的图片信息
+                  const store = useCreateStore.getState();
+                  const currentImage = store.generatedResults.find(r => r.id === store.selectedResult);
+                  
+                  if (currentImage) {
+                    // 2. 构建新作品对象
+                    const newWork = {
+                      id: `work-${Date.now()}`,
+                      title: title || '未命名作品',
+                      description: description || '这是一个由AI生成的创意设计',
+                      imageUrl: currentImage.imageUrl,
+                      author: {
+                        name: '当前用户',
+                        avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix'
+                      },
+                      likes: 0,
+                      views: 0,
+                      category: category,
+                      tags: tags.length > 0 ? tags : ['AI设计', '创意'],
+                      createdAt: new Date().toISOString(),
+                      isFeatured: false
+                    };
+                    
+                    // 3. 保存到 localStorage (模拟后端存储)
+                    const existingWorks = JSON.parse(localStorage.getItem('EXPLORE_WORKS') || '[]');
+                    const updatedWorks = [newWork, ...existingWorks];
+                    localStorage.setItem('EXPLORE_WORKS', JSON.stringify(updatedWorks));
+                    
+                    // 4. 触发自定义事件，通知探索页面刷新
+                    window.dispatchEvent(new CustomEvent('explore-works-updated'));
+                    
+                    console.log('Work published to local storage:', newWork);
+                  }
+                } catch (err) {
+                  console.error('Failed to save work locally:', err);
+                }
+                // -------------------------
+                
                 // 这里可以调用API发布作品
                 // 假设调用成功
                 

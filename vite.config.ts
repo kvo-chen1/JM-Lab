@@ -252,6 +252,7 @@ export default defineConfig({
       }
     }),
     // 启用 Gzip 压缩
+    /*
     viteCompression({
       verbose: true,
       disable: process.env.NODE_ENV === 'development',
@@ -267,6 +268,7 @@ export default defineConfig({
       algorithm: 'brotliCompress',
       ext: '.br',
     }),
+    */
   ],
   resolve: {
     // 为数据库相关的 Node.js 原生模块创建别名，避免在浏览器环境中打包
@@ -383,6 +385,13 @@ export default defineConfig({
               return 'charts-vendor';
             }
             return 'vendor';
+          }
+          
+          // 处理 src 目录下的文件，避免使用绝对路径作为文件名
+          // 仅对动态导入的文件生效，静态导入的会被合并到 entry 或 vendor 中
+          if (id.includes('src')) {
+            // 获取文件名作为 chunk name
+            return path.basename(id, path.extname(id));
           }
         }
       },

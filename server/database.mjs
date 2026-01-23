@@ -730,6 +730,7 @@ async function createPostgreSQLTables(pool) {
 
       await createIndex('CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);')
       await createIndex('CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);')
+      await createIndex('CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone);')
       await createIndex('CREATE INDEX IF NOT EXISTS idx_favorites_user_id ON favorites(user_id);')
       await createIndex('CREATE INDEX IF NOT EXISTS idx_video_tasks_status ON video_tasks(status);')
       await createIndex('CREATE INDEX IF NOT EXISTS idx_video_tasks_created_at ON video_tasks(created_at);')
@@ -738,6 +739,12 @@ async function createPostgreSQLTables(pool) {
       await createIndex('CREATE INDEX IF NOT EXISTS idx_posts_user_id ON posts(user_id);')
       await createIndex('CREATE INDEX IF NOT EXISTS idx_posts_category_id ON posts(category_id);')
       await createIndex('CREATE INDEX IF NOT EXISTS idx_posts_status ON posts(status);')
+      // Performance optimization for leaderboards
+      await createIndex('CREATE INDEX IF NOT EXISTS idx_posts_likes ON posts(likes_count);')
+      await createIndex('CREATE INDEX IF NOT EXISTS idx_posts_views ON posts(views);')
+      await createIndex('CREATE INDEX IF NOT EXISTS idx_posts_comments ON posts(comments_count);')
+      await createIndex('CREATE INDEX IF NOT EXISTS idx_posts_created_at ON posts(created_at);')
+      
       await createIndex('CREATE INDEX IF NOT EXISTS idx_post_tags_post_id ON post_tags(post_id);')
       await createIndex('CREATE INDEX IF NOT EXISTS idx_post_tags_tag_id ON post_tags(tag_id);')
       await createIndex('CREATE INDEX IF NOT EXISTS idx_comments_post_id ON comments(post_id);')

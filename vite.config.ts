@@ -334,7 +334,29 @@ export default defineConfig({
         chunkFileNames: 'chunks/[name]-[hash:8].js',
         entryFileNames: 'entries/[name]-[hash:8].js',
         // 启用动态导入支持
-        dynamicImportInCjs: true
+        dynamicImportInCjs: true,
+        // 手动分包策略
+        manualChunks: (id) => {
+          if (id.includes('node_modules')) {
+            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router-dom') || id.includes('scheduler')) {
+              return 'react-vendor';
+            }
+            if (id.includes('three') || id.includes('@react-three')) {
+              return 'three-vendor';
+            }
+            if (id.includes('framer-motion')) {
+              return 'motion-vendor';
+            }
+            if (id.includes('lucide-react')) {
+              return 'icons-vendor';
+            }
+            // 将其他大型库单独打包
+            if (id.includes('@tensorflow') || id.includes('@mediapipe')) {
+              return 'ai-vendor';
+            }
+            return 'vendor';
+          }
+        }
       },
       // 优化插件配置
       plugins: [

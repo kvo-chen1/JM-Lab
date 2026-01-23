@@ -5,7 +5,7 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useTheme } from '@/hooks/useTheme'
 import { themeOrder } from '@/config/themeConfig'
 import { AuthContext } from '@/contexts/authContext'
-import { markPrefetched, isPrefetched } from '@/services/prefetch'
+import { componentPreloader } from '@/utils/performanceOptimization'
 import ErrorFeedback from '@/components/ErrorFeedback'
 import { toast } from 'sonner'
 import CreatorDashboard from './CreatorDashboard'
@@ -329,12 +329,10 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
     document.body.style.cursor = 'col-resize'
   }
 
-  // 移除路由预加载逻辑，减少不必要的资源加载
-  // 预加载会增加内存消耗和网络请求，对于低性能设备来说可能会导致卡顿
-  // 导航跳转速度的提升应该通过优化组件渲染和减少不必要的资源加载来实现
-  const prefetchRoute = useCallback((path: string, ttlMs = 60000) => {
-    // 直接返回，不执行任何预加载逻辑
-    return;
+  // 路由预加载逻辑
+  const prefetchRoute = useCallback((id: string) => {
+    // 使用组件预加载器预加载指定ID的组件
+    componentPreloader.preloadComponents([id]);
   }, [])
 
   // 移除空闲时预加载逻辑，减少不必要的资源加载
@@ -475,7 +473,21 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
         }
         const dest = map[e.key]
         if (dest) {
-          prefetchRoute(dest)
+          // 简单的路径到ID映射，用于快捷键预加载
+          const pathToId: Record<string, string> = {
+            '/': 'home',
+            '/explore': 'explore',
+            '/create': 'create',
+            '/create/inspiration': 'neo',
+            '/create/wizard': 'wizard',
+            '/square': 'square',
+            '/knowledge': 'knowledge',
+            '/tianjin': 'tianjin',
+            '/leaderboard': 'leaderboard',
+            '/about': 'about'
+          }
+          const id = pathToId[dest]
+          if (id) prefetchRoute(id)
           navigate(dest)
         }
       }

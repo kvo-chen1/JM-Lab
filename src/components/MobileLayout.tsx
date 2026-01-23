@@ -4,6 +4,7 @@ import { useTheme } from '@/hooks/useTheme'
 import { AuthContext } from '@/contexts/authContext'
 import { toast } from 'sonner'
 import { markPrefetched, isPrefetched } from '@/services/prefetch'
+import { componentPreloader } from '@/utils/performanceOptimization'
 import { throttle } from '@/utils/performance'
 import clsx from 'clsx'
 import { TianjinImage } from './TianjinStyleComponents'
@@ -293,19 +294,10 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
     setShowSearch(false)
   }, [search, navigate, t])
 
-  // 预取路由 - 使用防抖和空闲回调，避免阻塞点击事件
-  const prefetchRoute = useCallback((path: string) => {
-    // 仅预加载高频访问路由，减少预加载数量
-    const highFrequencyRoutes = ['/', '/explore', '/tools', '/neo', '/wizard'];
-    if (path === location.pathname || isPrefetched(path) || !highFrequencyRoutes.includes(path)) return
-    
-    // 只在浏览器空闲时进行预取，避免阻塞点击事件
-    const idleCallback = (window as any).requestIdleCallback || ((fn: Function) => setTimeout(fn, 100))
-    
-    idleCallback(() => {
-      markPrefetched(path)
-    })
-  }, [location.pathname])
+  // 预取路由 - 使用组件预加载器
+  const prefetchRoute = useCallback((id: string) => {
+    componentPreloader.preloadComponents([id]);
+  }, [])
 
   return (
     <div className={clsx(
@@ -412,7 +404,7 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
               </button>
               <NavLink
                 to="/"
-                onTouchStart={() => prefetchRoute('/')}
+                onTouchStart={() => prefetchRoute('home')}
                 className={clsx(
                   'flex items-center gap-1 transition-all duration-300 hover:scale-105 active:scale-95 group min-w-0',
                   isDark ? 'text-white' : 
@@ -674,7 +666,7 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
                     <div className="py-2">
                       <NavLink
                       to="/dashboard"
-                      onTouchStart={() => prefetchRoute('/dashboard')}
+                      onTouchStart={() => prefetchRoute('dashboard')}
                       className={clsx(
                         'block px-4 py-3 text-sm transition-all duration-200 hover:translate-x-1',
                         isDark ? 'text-gray-300 hover:bg-gray-700' : 
@@ -701,7 +693,7 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
                     </NavLink>
                     <NavLink
                       to="/drafts"
-                      onTouchStart={() => prefetchRoute('/drafts')}
+                      onTouchStart={() => prefetchRoute('drafts')}
                       className={clsx(
                         'block px-4 py-3 text-sm transition-all duration-200 hover:translate-x-1',
                         isDark ? 'text-gray-300 hover:bg-gray-700' : 
@@ -746,7 +738,7 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
                     </button>
                     <NavLink
                       to="/membership"
-                      onTouchStart={() => prefetchRoute('/membership')}
+                      onTouchStart={() => prefetchRoute('membership')}
                       className={clsx(
                         'block px-4 py-3 text-sm transition-all duration-200 hover:translate-x-1',
                         isDark ? 'text-gray-300 hover:bg-gray-700' : 
@@ -759,7 +751,7 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
                     </NavLink>
                     <NavLink
                       to="/create"
-                      onTouchStart={() => prefetchRoute('/create')}
+                      onTouchStart={() => prefetchRoute('create')}
                       className={clsx(
                         'block px-4 py-3 text-sm transition-all duration-200 hover:translate-x-1',
                         isDark ? 'text-gray-300 hover:bg-gray-700' : 
@@ -976,7 +968,7 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
                           key={item.id}
                           to={item.path + (item.search || '')}
                           title={item.label}
-                          onTouchStart={() => prefetchRoute(item.path)}
+                          onTouchStart={() => prefetchRoute(item.id)}
                           className={({ isActive }) => clsx(
                             'flex items-center px-3 py-2.5 rounded-lg transition-all duration-200',
                             'min-h-[44px]', // 确保触摸目标尺寸不小于44px
@@ -1031,7 +1023,7 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
           <li className="flex items-center justify-center">
             <NavLink 
               to="/" 
-              onTouchStart={() => prefetchRoute('/')}
+              onTouchStart={() => prefetchRoute('home')}
               aria-label="首页"
               className="flex-1 flex items-center justify-center"
               end
@@ -1069,7 +1061,7 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
           <li className="flex items-center justify-center">
             <NavLink 
               to="/explore"
-              onTouchStart={() => prefetchRoute('/explore')}
+              onTouchStart={() => prefetchRoute('explore')}
               aria-label="探索"
               className="flex-1 flex items-center justify-center"
             >
@@ -1162,7 +1154,7 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
           <li className="flex items-center justify-center">
             <NavLink 
               to="/community?context=cocreation&tab=joined"
-              onTouchStart={() => prefetchRoute('/community')}
+              onTouchStart={() => prefetchRoute('community')}
               aria-label="社群"
               className="flex-1 flex items-center justify-center"
             >
@@ -1205,7 +1197,7 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
           <li className="flex items-center justify-center">
             <NavLink 
               to="/tianjin"
-              onTouchStart={() => prefetchRoute('/tianjin')}
+              onTouchStart={() => prefetchRoute('tianjin')}
               aria-label="天津特色专区"
               className="flex-1 flex items-center justify-center"
             >

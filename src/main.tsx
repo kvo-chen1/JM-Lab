@@ -7,9 +7,13 @@
 // 导入国际化配置
 import './i18n/i18n';
 import { setupApi } from './lib/setupApi';
+import { initPerformanceMonitor } from './utils/performanceMonitor';
 
 // Initialize API middleware
 setupApi();
+
+// Initialize Performance Monitor
+initPerformanceMonitor();
 
 import { StrictMode } from "react";
 import "./styles/tianjin.css";

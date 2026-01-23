@@ -2777,9 +2777,18 @@ async function route(req, res, u, path) {
       const sortBy = u.searchParams.get('sortBy') || 'likes_count'
       const limit = parseInt(u.searchParams.get('limit') || '20')
       
+      const cacheKey = `leaderboard_posts_${timeRange}_${sortBy}_${limit}`;
+      const cached = getFromCache(cacheKey);
+      if (cached) {
+        sendJson(res, 200, cached);
+        return;
+      }
+
       try {
         const posts = await leaderboardDB.getPostsLeaderboard({ timeRange, sortBy, limit })
-        sendJson(res, 200, { ok: true, data: posts })
+        const data = { ok: true, data: posts };
+        setCache(cacheKey, data, 60 * 1000); // Cache for 1 minute
+        sendJson(res, 200, data)
       } catch (e) {
         sendJson(res, 500, { error: 'DB_ERROR', message: e.message })
       }
@@ -2792,9 +2801,18 @@ async function route(req, res, u, path) {
       const sortBy = u.searchParams.get('sortBy') || 'posts_count'
       const limit = parseInt(u.searchParams.get('limit') || '20')
       
+      const cacheKey = `leaderboard_users_${timeRange}_${sortBy}_${limit}`;
+      const cached = getFromCache(cacheKey);
+      if (cached) {
+        sendJson(res, 200, cached);
+        return;
+      }
+
       try {
         const users = await leaderboardDB.getUsersLeaderboard({ timeRange, sortBy, limit })
-        sendJson(res, 200, { ok: true, data: users })
+        const data = { ok: true, data: users };
+        setCache(cacheKey, data, 60 * 1000);
+        sendJson(res, 200, data)
       } catch (e) {
         sendJson(res, 500, { error: 'DB_ERROR', message: e.message })
       }

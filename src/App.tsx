@@ -38,16 +38,20 @@ import Dashboard from "@/pages/Dashboard";
 import Explore from "@/pages/Explore";
 import WorkDetail from "@/pages/WorkDetail";
 const About = createLazyComponent(() => import(/* webpackChunkName: "pages-other" */ "@/pages/About"), {
-  priority: ROUTE_PRIORITIES.LOW
+  priority: ROUTE_PRIORITIES.LOW,
+  name: 'about'
 });
 const Square = createLazyComponent(() => import(/* webpackChunkName: "pages-community" */ "@/pages/Square"), {
-  priority: ROUTE_PRIORITIES.HIGH
+  priority: ROUTE_PRIORITIES.HIGH,
+  name: 'square'
 });
 const Community = createLazyComponent(() => import(/* webpackChunkName: "pages-community" */ "@/pages/Community"), {
-  priority: ROUTE_PRIORITIES.HIGH
+  priority: ROUTE_PRIORITIES.HIGH,
+  name: 'community'
 });
 const Neo = createLazyComponent(() => import(/* webpackChunkName: "pages-other" */ "@/pages/Neo"), {
-  priority: ROUTE_PRIORITIES.LOW
+  priority: ROUTE_PRIORITIES.LOW,
+  name: 'neo'
 });
 const NewsDetail = createLazyComponent(() => import(/* webpackChunkName: "pages-cultural" */ "@/pages/NewsDetail"), {
   priority: ROUTE_PRIORITIES.HIGH
@@ -57,12 +61,14 @@ const EventDetail = createLazyComponent(() => import(/* webpackChunkName: "pages
 });
 
 const SearchResults = createLazyComponent(() => import(/* webpackChunkName: "pages-explore" */ "@/pages/SearchResults"), {
-  priority: ROUTE_PRIORITIES.HIGH
+  priority: ROUTE_PRIORITIES.HIGH,
+  name: 'search'
 });
 
 // 2. 高频访问但较大的页面 - 核心工具页面直接加载，其他懒加载
 const Create = createLazyComponent(() => import(/* webpackChunkName: "pages-create" */ "@/pages/create/index.tsx"), {
-  priority: ROUTE_PRIORITIES.HIGH
+  priority: ROUTE_PRIORITIES.HIGH,
+  name: 'create'
 });
 const CreateLayout = createLazyComponent(() => import(/* webpackChunkName: "pages-create" */ "@/pages/create/CreateLayout"), {
   priority: ROUTE_PRIORITIES.MEDIUM
@@ -73,7 +79,8 @@ const Studio = createLazyComponent(() => import(/* webpackChunkName: "pages-crea
 // Tools页面改为直接加载，作为核心功能
 import Tools from "@/pages/Tools";
 const Settings = createLazyComponent(() => import(/* webpackChunkName: "pages-account" */ "@/pages/Settings"), {
-  priority: ROUTE_PRIORITIES.MEDIUM
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'settings'
 });
 // 账户设置相关页面 - 懒加载
 const ProfileEdit = createLazyComponent(() => import(/* webpackChunkName: "pages-account" */ "@/pages/ProfileEdit"), {
@@ -99,18 +106,22 @@ const Drafts = createLazyComponent(() => import(/* webpackChunkName: "pages-crea
 
 // 文化和知识相关 - 懒加载
 const CulturalKnowledge = createLazyComponent(() => import(/* webpackChunkName: "pages-cultural" */ "@/pages/CulturalKnowledge"), {
-  priority: ROUTE_PRIORITIES.HIGH
+  priority: ROUTE_PRIORITIES.HIGH,
+  name: 'knowledge'
 });
 // 直接导入 Tianjin 组件，避免动态导入问题
 import Tianjin from "@/pages/Tianjin";
 const TianjinMap = createLazyComponent(() => import(/* webpackChunkName: "pages-cultural" */ "@/pages/TianjinMap"), {
-  priority: ROUTE_PRIORITIES.HIGH
+  priority: ROUTE_PRIORITIES.HIGH,
+  name: 'tianjin-map'
 });
 const CulturalEvents = createLazyComponent(() => import(/* webpackChunkName: "pages-cultural" */ "@/pages/CulturalEvents"), {
-  priority: ROUTE_PRIORITIES.HIGH
+  priority: ROUTE_PRIORITIES.HIGH,
+  name: 'events'
 });
 const CulturalNewsPage = createLazyComponent(() => import(/* webpackChunkName: "pages-cultural" */ "@/pages/CulturalNewsPage"), {
-  priority: ROUTE_PRIORITIES.HIGH
+  priority: ROUTE_PRIORITIES.HIGH,
+  name: 'news'
 });
 
 // 活动相关 - 静态导入
@@ -149,7 +160,8 @@ const PointsMall = createLazyComponent(() => import(/* webpackChunkName: "pages-
 
 // 社区和互动相关 - 懒加载
 const Leaderboard = createLazyComponent(() => import(/* webpackChunkName: "pages-community" */ "@/pages/Leaderboard"), {
-  priority: ROUTE_PRIORITIES.MEDIUM
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'leaderboard'
 });
 const DailyCheckin = createLazyComponent(() => import(/* webpackChunkName: "components-community" */ "@/components/DailyCheckin"), {
   priority: ROUTE_PRIORITIES.MEDIUM
@@ -201,10 +213,12 @@ const Privacy = createLazyComponent(() => import(/* webpackChunkName: "pages-oth
   priority: ROUTE_PRIORITIES.LOW
 });
 const BrandGuide = createLazyComponent(() => import(/* webpackChunkName: "pages-other" */ "@/pages/BrandGuide"), {
-  priority: ROUTE_PRIORITIES.LOW
+  priority: ROUTE_PRIORITIES.LOW,
+  name: 'brand'
 });
 const BusinessCooperation = createLazyComponent(() => import(/* webpackChunkName: "pages-business" */ "@/pages/BusinessCooperation"), {
-  priority: ROUTE_PRIORITIES.MEDIUM
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'business'
 });
 const Authenticity = createLazyComponent(() => import(/* webpackChunkName: "pages-other" */ "@/pages/Authenticity"), {
   priority: ROUTE_PRIORITIES.LOW
@@ -213,10 +227,12 @@ const Wizard = createLazyComponent(() => import(/* webpackChunkName: "pages-othe
   priority: ROUTE_PRIORITIES.LOW
 });
 const AnalyticsPage = createLazyComponent(() => import(/* webpackChunkName: "pages-other" */ "@/pages/Analytics"), {
-  priority: ROUTE_PRIORITIES.LOW
+  priority: ROUTE_PRIORITIES.LOW,
+  name: 'analytics'
 });
 const UserCollection = createLazyComponent(() => import(/* webpackChunkName: "pages-other" */ "@/pages/UserCollection"), {
-  priority: ROUTE_PRIORITIES.MEDIUM
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'collections'
 });
 
 // 特殊功能组件 - 懒加载
@@ -517,14 +533,14 @@ export default function App() {
   const AnimatedPage = React.memo(({ children }: { children: React.ReactNode }) => {
     return (
       <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
+        initial={{ opacity: 0, y: 8, scale: 0.99 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: -8, scale: 0.99 }}
         transition={{
-          duration: 0.15,
-          ease: "easeOut"
+          duration: 0.25,
+          ease: [0.22, 1, 0.36, 1] // Custom cubic-bezier for smoother feel
         }}
-        className="transition-opacity duration-150"
+        className="w-full h-full"
       >
         {children}
       </motion.div>

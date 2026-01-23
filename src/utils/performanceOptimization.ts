@@ -22,6 +22,14 @@ export type RoutePriority = typeof ROUTE_PRIORITIES[keyof typeof ROUTE_PRIORITIE
  * 优化的懒加载组件工厂函数
  * 支持不同的加载策略和错误处理
  */
+export interface PreloadableComponent<T extends ComponentType<any>> extends LazyExoticComponent<T> {
+  preload: () => Promise<{ default: T }>;
+}
+
+/**
+ * 优化的懒加载组件工厂函数
+ * 支持不同的加载策略和错误处理
+ */
 export function createLazyComponent<T extends ComponentType<any>>(
   importFn: () => Promise<{ default: T }>,
   options: {
@@ -29,28 +37,18 @@ export function createLazyComponent<T extends ComponentType<any>>(
     retryCount?: number;
     timeout?: number;
     preload?: boolean;
+    name?: string; // 组件名称，用于注册到预加载器
   } = {}
-): LazyExoticComponent<T> {
+): PreloadableComponent<T> {
   const {
     priority = ROUTE_PRIORITIES.MEDIUM,
     retryCount = 1, // 减少重试次数，降低网络请求压力
     timeout = 5000, // 缩短超时时间，避免长时间等待
-    preload = false
+    preload = false,
+    name
   } = options;
 
-  // 优化预加载策略：只对关键组件立即预加载，其他组件在需要时加载
-  // 减少不必要的预加载，降低初始加载时间和内存消耗
-  if (preload && priority === ROUTE_PRIORITIES.CRITICAL) {
-    // 只对关键组件立即预加载
-    if (typeof window !== 'undefined') {
-      importFn().catch(() => {
-        // 预加载失败不影响应用运行，忽略错误
-      });
-    }
-  }
-
-  // 简化导入函数，移除不必要的重试和超时机制
-  // 让React.lazy和Suspense处理加载状态
+  // 包装导入函数，添加重试逻辑
   const wrappedImportFn = async (): Promise<{ default: T }> => {
     let lastError: Error;
     
@@ -71,7 +69,27 @@ export function createLazyComponent<T extends ComponentType<any>>(
     throw lastError!;
   };
 
-  return lazy(wrappedImportFn);
+  // 创建 Lazy 组件
+  const LazyComponent = lazy(wrappedImportFn) as PreloadableComponent<T>;
+
+  // 添加 preload 方法
+  LazyComponent.preload = wrappedImportFn;
+
+  // 如果提供了名称，注册到预加载器
+  if (name) {
+    ComponentPreloader.getInstance().register(name, wrappedImportFn);
+  }
+
+  // 优化预加载策略：只对关键组件立即预加载
+  if (preload && priority === ROUTE_PRIORITIES.CRITICAL) {
+    if (typeof window !== 'undefined') {
+      wrappedImportFn().catch(() => {
+        // 预加载失败不影响应用运行，忽略错误
+      });
+    }
+  }
+
+  return LazyComponent;
 }
 
 /**

@@ -4,6 +4,7 @@
   "outputDirectory": "dist",
   "rewrites": [
     { "source": "/api/:path*", "destination": "/api/index.js" },
+    { "source": "/", "destination": "/landing.html" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "functions": {

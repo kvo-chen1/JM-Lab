@@ -1266,7 +1266,7 @@ export default function Home() {
                       scale: 1.05,
                       rotateY: 5,
                       rotateX: 5,
-                      shadow: "0 30px 60px -15px rgba(0, 0, 0, 0.3)" 
+                      boxShadow: "0 30px 60px -15px rgba(0, 0, 0, 0.3)" 
                     }}
                     className={`relative rounded-2xl overflow-hidden cursor-pointer group transition-all duration-700 ${isDark ? 'bg-gray-900/80 border border-gray-700/50' : 'bg-white/80 border border-gray-200'} shadow-lg hover:shadow-3xl backdrop-blur-sm`}
                     onClick={() => navigate(item.link)}

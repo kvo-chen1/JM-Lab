@@ -70,4 +70,12 @@ export async function synthesize(text: string, opts?: { voice?: string, speed?: 
   }
 }
 
-export default { transcribeAudio, synthesize }
+export async function startListening(): Promise<{ text: string } | null> {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve({ text: '示例语音输入内容' })
+    }, 1500)
+  })
+}
+
+export default { transcribeAudio, synthesize, startListening }

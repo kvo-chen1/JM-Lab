@@ -364,6 +364,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           // 这里主要逻辑已经移到上方通用逻辑中，保留此块是为了兼容性
           if (hasOAuthParams) {
              // 逻辑已在上方处理
+             setIsLoading(false); // 确保isLoading被设置为false
              return;
           }
 
@@ -392,7 +393,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             setIsAuthenticated(false);
             setUser(null);
           }
-          if (!hasOAuthParams) setIsLoading(false);
+          setIsLoading(false); // 无论hasOAuthParams是什么，都设置isLoading为false
           return;
         }
         

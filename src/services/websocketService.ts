@@ -102,7 +102,13 @@ export class WebSocketService {
   /**
    * 连接WebSocket服务器
    */
-  connect(params?: Record<string, string>): Promise<boolean> {
+  connect(sessionId?: string, userId?: string, username?: string): Promise<boolean> {
+    // 将参数转换为params对象
+    const params: Record<string, string> = {};
+    if (sessionId) params.sessionId = sessionId;
+    if (userId) params.userId = userId;
+    if (username) params.username = username;
+
     return new Promise((resolve, reject) => {
       // 如果已经连接或正在连接，直接返回
       if (this.isConnecting || this.ws?.readyState === WebSocket.OPEN) {

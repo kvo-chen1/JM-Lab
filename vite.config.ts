@@ -65,14 +65,14 @@ export default defineConfig({
       // 仅优化src目录下的图片
       include: /\.(png|jpe?g|gif|svg|webp|avif)$/i,
       // 排除node_modules目录和有问题的图片
-      exclude: [/node_modules/, /fallback\.jpg$/, /placeholder-image\.jpg$/]
+      exclude: [/node_modules/, /placeholder-image\.jpg$/]
     }),
     VitePWA({
       injectRegister: false,
       selfDestroying: true,
       registerType: 'autoUpdate',
       // Explicitly include static assets from public folder
-      includeAssets: ['favicon.ico', 'robots.txt', 'icons/*.svg', 'images/*.svg'],
+      includeAssets: ['robots.txt', 'icons/*.svg', 'images/*.svg'],
       manifest: {
         name: '津脉智坊 - 津门老字号共创平台',
         short_name: '津脉智坊',

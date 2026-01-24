@@ -316,9 +316,11 @@ const JinmenCulturePopup = createLazyComponent(() => import(/* webpackChunkName:
 
 import { GuideProvider } from '@/contexts/GuideContext';
 import OnboardingGuide from '@/components/OnboardingGuide';
+import { AuthContext } from '@/contexts/authContext';
 
 export default function App() {
   const location = useLocation();
+  const { isAuthenticated } = React.useContext(AuthContext);
   // 添加响应式布局状态 - 服务器端和客户端初始状态必须一致
   const [isMobile, setIsMobile] = useState(false);
   // 添加用户反馈状态
@@ -498,7 +500,15 @@ export default function App() {
           {/* 确保根路径是第一个路由，提高匹配优先级 */}
           <Route path="/" element={
             <AnimatedPage>
-              <Landing />
+              {isAuthenticated ? (
+                isMobile ? (
+                  <MobileLayout><PrivateRoute><Home /></PrivateRoute></MobileLayout>
+                ) : (
+                  <SidebarLayout><PrivateRoute><Home /></PrivateRoute></SidebarLayout>
+                )
+              ) : (
+                <Landing />
+              )}
             </AnimatedPage>
           } />
         {/* Landing页面路由 */}

@@ -126,7 +126,48 @@ export default function OnboardingGuide() {
         navigate(stepConfig.targetPath);
         // 路由跳转后，需要等待页面渲染
         setIsLocating(true);
-        return;
+        
+        // 路由跳转后延迟定位，确保页面完全渲染
+        const timer = setTimeout(() => {
+          const findTarget = () => {
+            if (!stepConfig.targetId) {
+              setTargetRect(null); // 居中模式
+              setIsLocating(false);
+              return true;
+            }
+
+            const element = document.getElementById(stepConfig.targetId);
+            if (element) {
+              const rect = element.getBoundingClientRect();
+              // 检查元素是否可见且有大小
+              if (rect.width > 0 && rect.height > 0) {
+                setTargetRect(rect);
+                setIsLocating(false);
+                // 滚动到元素位置 (留出一点边距)
+                element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                return true;
+              }
+            }
+            return false;
+          };
+
+          // 尝试寻找元素（带有重试机制，应对动态加载）
+          let attempts = 0;
+          const maxAttempts = 15;
+          const interval = setInterval(() => {
+            attempts++;
+            if (findTarget() || attempts >= maxAttempts) {
+              clearInterval(interval);
+              if (attempts >= maxAttempts && stepConfig.targetId) {
+                // 如果最终没找到，降级为居中显示，但也取消定位状态
+                setTargetRect(null); 
+                setIsLocating(false);
+              }
+            }
+          }, 200);
+        }, 500);
+
+        return () => clearTimeout(timer);
       }
 
       // 2. 定位目标元素
@@ -134,7 +175,7 @@ export default function OnboardingGuide() {
         if (!stepConfig.targetId) {
           setTargetRect(null); // 居中模式
           setIsLocating(false);
-          return;
+          return true;
         }
 
         const element = document.getElementById(stepConfig.targetId);
@@ -155,7 +196,7 @@ export default function OnboardingGuide() {
       // 尝试寻找元素（带有重试机制，应对动态加载）
       setIsLocating(true);
       let attempts = 0;
-      const maxAttempts = 10;
+      const maxAttempts = 15;
       const interval = setInterval(() => {
         attempts++;
         if (findTarget() || attempts >= maxAttempts) {
@@ -166,7 +207,7 @@ export default function OnboardingGuide() {
             setIsLocating(false);
           }
         }
-      }, 300);
+      }, 200);
 
       return () => clearInterval(interval);
     }
@@ -235,43 +276,51 @@ export default function OnboardingGuide() {
 
     const placement = currentStepData.placement || 'bottom';
     const gap = 12;
-    const popoverWidth = 400; // 预估宽度
-    const popoverHeight = 250; // 预估高度 (包含内容)
+    const popoverWidth = Math.min(400, window.innerWidth * 0.8); // 自适应宽度
+    const popoverHeight = 250; // 预估高度
 
     let top = 0;
     let left = 0;
 
     switch (placement) {
       case 'top':
-        top = targetRect.top - gap - popoverHeight; // 注意：这里仅作初始计算，实际高度可能不同，CSS transform 会更好，但这里简化
+        top = targetRect.top - gap - popoverHeight;
         left = targetRect.left + (targetRect.width / 2) - (popoverWidth / 2);
         // 如果上方空间不足，转到底部
-        if (top < 10) top = targetRect.bottom + gap;
+        if (top < 10) {
+          top = targetRect.bottom + gap;
+        }
         break;
         
       case 'bottom':
         top = targetRect.bottom + gap;
         left = targetRect.left + (targetRect.width / 2) - (popoverWidth / 2);
         // 如果下方空间不足，转到顶部
-        if (top + popoverHeight > window.innerHeight) top = targetRect.top - gap - 200;
+        if (top + popoverHeight > window.innerHeight) {
+          top = targetRect.top - gap - popoverHeight;
+        }
         break;
         
       case 'left':
-        top = targetRect.top + (targetRect.height / 2) - 100; // 垂直居中
+        top = targetRect.top + (targetRect.height / 2) - (popoverHeight / 2); // 垂直居中
         left = targetRect.left - gap - popoverWidth;
         // 如果左侧空间不足，转到右侧
-        if (left < 10) left = targetRect.right + gap;
+        if (left < 10) {
+          left = targetRect.right + gap;
+        }
         break;
         
       case 'right':
-        top = targetRect.top + (targetRect.height / 2) - 100; // 垂直居中
+        top = targetRect.top + (targetRect.height / 2) - (popoverHeight / 2); // 垂直居中
         left = targetRect.right + gap;
         // 如果右侧空间不足，转到左侧
-        if (left + popoverWidth > window.innerWidth) left = targetRect.left - gap - popoverWidth;
+        if (left + popoverWidth > window.innerWidth) {
+          left = targetRect.left - gap - popoverWidth;
+        }
         break;
 
       case 'center':
-        top = targetRect.top + (targetRect.height / 2) - 100;
+        top = targetRect.top + (targetRect.height / 2) - (popoverHeight / 2);
         left = targetRect.left + (targetRect.width / 2) - (popoverWidth / 2);
         break;
         
@@ -284,7 +333,7 @@ export default function OnboardingGuide() {
     if (left < 10) left = 10;
     if (left + popoverWidth > window.innerWidth - 10) left = window.innerWidth - popoverWidth - 10;
     if (top < 10) top = 10;
-    if (top + 100 > window.innerHeight) top = window.innerHeight - 200; // 简单防溢出
+    if (top + popoverHeight > window.innerHeight - 10) top = window.innerHeight - popoverHeight - 10;
 
     return {
       top: `${top}px`,
@@ -363,9 +412,26 @@ export default function OnboardingGuide() {
         >
           {/* 装饰性箭头 (仅当有目标元素时显示) */}
           {targetRect && (
-             <div className={`absolute w-4 h-4 transform rotate-45 ${
-               isDark ? 'bg-gray-800 border-l border-t border-gray-700' : 'bg-white'
-             } -top-2 left-1/2 -translate-x-1/2`} />
+            <div 
+              className={`absolute w-4 h-4 transform rotate-45 ${
+                isDark ? 'bg-gray-800 border-l border-t border-gray-700' : 'bg-white'
+              }`}
+              style={(() => {
+                const placement = currentStepData.placement || 'bottom';
+                switch (placement) {
+                  case 'top':
+                    return { bottom: '-8px', left: '50%', transform: 'translateX(-50%) rotate-45' };
+                  case 'bottom':
+                    return { top: '-8px', left: '50%', transform: 'translateX(-50%) rotate-45' };
+                  case 'left':
+                    return { right: '-8px', top: '50%', transform: 'translateY(-50%) rotate-45' };
+                  case 'right':
+                    return { left: '-8px', top: '50%', transform: 'translateY(-50%) rotate-45' };
+                  default:
+                    return { top: '-8px', left: '50%', transform: 'translateX(-50%) rotate-45' };
+                }
+              })()}
+            />
           )}
 
           <div className="flex items-center justify-between mb-4">

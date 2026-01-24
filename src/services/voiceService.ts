@@ -32,39 +32,95 @@ export async function synthesize(text: string, opts?: { voice?: string, speed?: 
   } catch (e) {
     const dev = (import.meta as any).env?.DEV
     if (dev) {
-      const sampleRate = 44100
-      const duration = 1
-      const frequency = 440
-      const numSamples = sampleRate * duration
-      const buffer = new Array<number>(44 + numSamples * 2)
-      const writeStr = (str: string, offset: number) => { for (let i = 0; i < str.length; i++) buffer[offset + i] = str.charCodeAt(i) }
-      const write16 = (val: number, offset: number) => { buffer[offset] = val & 0xff; buffer[offset + 1] = (val >> 8) & 0xff }
-      const write32 = (val: number, offset: number) => { buffer[offset] = val & 0xff; buffer[offset + 1] = (val >> 8) & 0xff; buffer[offset + 2] = (val >> 16) & 0xff; buffer[offset + 3] = (val >> 24) & 0xff }
-      writeStr('RIFF', 0)
-      write32(36 + numSamples * 2, 4)
-      writeStr('WAVE', 8)
-      writeStr('fmt ', 12)
-      write32(16, 16)
-      write16(1, 20)
-      write16(1, 22)
-      write32(sampleRate, 24)
-      write32(sampleRate * 2, 28)
-      write16(2, 32)
-      write16(16, 34)
-      writeStr('data', 36)
-      write32(numSamples * 2, 40)
-      for (let i = 0; i < numSamples; i++) {
-        const t = i / sampleRate
-        const s = Math.sin(2 * Math.PI * frequency * t)
-        const v = Math.max(-1, Math.min(1, s))
-        const int = v < 0 ? v * 0x8000 : v * 0x7fff
-        const idx = 44 + i * 2
-        write16((int as number) & 0xffff, idx)
+      // 检查浏览器是否支持语音合成API
+      if ('speechSynthesis' in window) {
+        // 使用浏览器内置语音合成API
+        return new Promise((resolve, reject) => {
+          try {
+            const utterance = new SpeechSynthesisUtterance(text)
+            utterance.lang = 'zh-CN'
+            utterance.rate = opts?.speed || 1.0
+            utterance.pitch = opts?.pitch || 1.0
+            utterance.volume = 1.0
+            
+            // 立即播放
+            speechSynthesis.speak(utterance)
+            
+            // 创建一个模拟的音频URL，以便前端可以显示播放器
+            // 注意：这不会返回实际的音频数据，只是为了保持API一致性
+            const sampleRate = 44100
+            const duration = Math.max(1, text.length * 0.05) // 估算音频长度
+            const frequency = 440
+            const numSamples = sampleRate * duration
+            const buffer = new Array<number>(44 + numSamples * 2)
+            const writeStr = (str: string, offset: number) => { for (let i = 0; i < str.length; i++) buffer[offset + i] = str.charCodeAt(i) }
+            const write16 = (val: number, offset: number) => { buffer[offset] = val & 0xff; buffer[offset + 1] = (val >> 8) & 0xff }
+            const write32 = (val: number, offset: number) => { buffer[offset] = val & 0xff; buffer[offset + 1] = (val >> 8) & 0xff; buffer[offset + 2] = (val >> 16) & 0xff; buffer[offset + 3] = (val >> 24) & 0xff }
+            writeStr('RIFF', 0)
+            write32(36 + numSamples * 2, 4)
+            writeStr('WAVE', 8)
+            writeStr('fmt ', 12)
+            write32(16, 16)
+            write16(1, 20)
+            write16(1, 22)
+            write32(sampleRate, 24)
+            write32(sampleRate * 2, 28)
+            write16(2, 32)
+            write16(16, 34)
+            writeStr('data', 36)
+            write32(numSamples * 2, 40)
+            for (let i = 0; i < numSamples; i++) {
+              const t = i / sampleRate
+              const s = Math.sin(2 * Math.PI * frequency * t)
+              const v = Math.max(-1, Math.min(1, s))
+              const int = v < 0 ? v * 0x8000 : v * 0x7fff
+              const idx = 44 + i * 2
+              write16((int as number) & 0xffff, idx)
+            }
+            const bytes = new Uint8Array(buffer)
+            const b64 = btoa(String.fromCharCode(...bytes))
+            const audioUrl = `data:audio/wav;base64,${b64}`
+            resolve({ audioUrl, contentType: 'audio/wav' })
+          } catch (error) {
+            reject(error)
+          }
+        })
+      } else {
+        // 浏览器不支持语音合成API，使用原来的模拟音频
+        const sampleRate = 44100
+        const duration = 1
+        const frequency = 440
+        const numSamples = sampleRate * duration
+        const buffer = new Array<number>(44 + numSamples * 2)
+        const writeStr = (str: string, offset: number) => { for (let i = 0; i < str.length; i++) buffer[offset + i] = str.charCodeAt(i) }
+        const write16 = (val: number, offset: number) => { buffer[offset] = val & 0xff; buffer[offset + 1] = (val >> 8) & 0xff }
+        const write32 = (val: number, offset: number) => { buffer[offset] = val & 0xff; buffer[offset + 1] = (val >> 8) & 0xff; buffer[offset + 2] = (val >> 16) & 0xff; buffer[offset + 3] = (val >> 24) & 0xff }
+        writeStr('RIFF', 0)
+        write32(36 + numSamples * 2, 4)
+        writeStr('WAVE', 8)
+        writeStr('fmt ', 12)
+        write32(16, 16)
+        write16(1, 20)
+        write16(1, 22)
+        write32(sampleRate, 24)
+        write32(sampleRate * 2, 28)
+        write16(2, 32)
+        write16(16, 34)
+        writeStr('data', 36)
+        write32(numSamples * 2, 40)
+        for (let i = 0; i < numSamples; i++) {
+          const t = i / sampleRate
+          const s = Math.sin(2 * Math.PI * frequency * t)
+          const v = Math.max(-1, Math.min(1, s))
+          const int = v < 0 ? v * 0x8000 : v * 0x7fff
+          const idx = 44 + i * 2
+          write16((int as number) & 0xffff, idx)
+        }
+        const bytes = new Uint8Array(buffer)
+        const b64 = btoa(String.fromCharCode(...bytes))
+        const audioUrl = `data:audio/wav;base64,${b64}`
+        return { audioUrl, contentType: 'audio/wav' }
       }
-      const bytes = new Uint8Array(buffer)
-      const b64 = btoa(String.fromCharCode(...bytes))
-      const audioUrl = `data:audio/wav;base64,${b64}`
-      return { audioUrl, contentType: 'audio/wav' }
     }
     throw e
   }

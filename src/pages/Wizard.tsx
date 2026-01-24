@@ -87,7 +87,7 @@ export default function Wizard() {
               <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-amber-400 to-red-500 flex items-center justify-center text-white font-bold">
                 <i className="fas fa-hat-wizard"></i>
               </div>
-              <h1 className="text-xl font-bold tracking-tight">共创向导</h1>
+              <h1 className="text-xl font-bold tracking-tight">品牌向导</h1>
             </div>
             
             {/* Stepper */}
@@ -95,19 +95,36 @@ export default function Wizard() {
               {steps.map((s, i) => (
                 <div key={s.id} className="flex items-center flex-shrink-0">
                   <div className={`flex items-center gap-2 ${step >= s.id ? (isDark ? 'text-white' : 'text-gray-900') : (isDark ? 'text-gray-600' : 'text-gray-400')}`}>
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300 ${
-                      step >= s.id 
-                        ? 'bg-red-600 text-white shadow-md shadow-red-500/20' 
-                        : (isDark ? 'bg-gray-800' : 'bg-gray-200')
-                    }`}>
-                      {step > s.id ? <i className="fas fa-check"></i> : s.id}
-                    </div>
+                    <motion.div 
+                      className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-300 ${
+                        step >= s.id 
+                          ? 'bg-red-600 text-white shadow-md shadow-red-500/20' 
+                          : (isDark ? 'bg-gray-800' : 'bg-gray-200')
+                      }`}
+                      initial={{ scale: 0.9 }}
+                      animate={{ scale: step === s.id ? 1.1 : 1 }}
+                      transition={{ duration: 0.3 }}
+                    >
+                      {step > s.id ? (
+                        <motion.i 
+                          className="fas fa-check"
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          transition={{ duration: 0.3 }}
+                        />
+                      ) : s.id}
+                    </motion.div>
                     <span className="text-sm font-medium hidden sm:block">{s.title}</span>
                   </div>
                   {i < steps.length - 1 && (
-                    <div className={`w-8 h-0.5 mx-2 rounded-full transition-colors duration-300 ${
-                      step > s.id ? 'bg-red-600' : (isDark ? 'bg-gray-800' : 'bg-gray-200')
-                    }`}></div>
+                    <motion.div 
+                      className={`w-10 h-1 mx-2 rounded-full transition-colors duration-500 ${
+                        step > s.id ? 'bg-red-600' : (isDark ? 'bg-gray-800' : 'bg-gray-200')
+                      }`}
+                      initial={{ width: 0 }}
+                      animate={{ width: step > s.id ? 40 : 40 }}
+                      transition={{ duration: 0.5 }}
+                    ></motion.div>
                   )}
                 </div>
               ))}
@@ -173,25 +190,55 @@ export default function Wizard() {
                 {/* Brand Preview */}
                 <div className={`p-10 rounded-3xl ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'} border shadow-sm flex flex-col items-center justify-center text-center`}>
                   {state.brandName ? (
-                    <div className="w-full space-y-4">
-                      <div className="relative aspect-video rounded-xl overflow-hidden shadow-lg">
+                    <div className="w-full space-y-6">
+                      <div className="relative aspect-video rounded-xl overflow-hidden shadow-lg group">
                         {(() => {
                           const brand = BRANDS.find(b => b.id === state.brandId || b.name === (state.brandName || ''));
                           const src = brand?.image || `https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?prompt=${encodeURIComponent(`Tianjin ${state.brandName || 'brand'} product shot, cultural style`)}&image_size=1920x1080`;
-                          return <TianjinImage src={src} alt="brand" ratio="landscape" className="w-full h-full object-cover" />;
+                          return (
+                            <motion.div 
+                              initial={{ scale: 1 }}
+                              whileHover={{ scale: 1.05 }}
+                              transition={{ duration: 0.3 }}
+                            >
+                              <TianjinImage src={src} alt="brand" ratio="landscape" className="w-full h-full object-cover transition-transform duration-500" />
+                            </motion.div>
+                          );
                         })()}
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex items-end p-6">
-                          <h3 className="text-white font-bold text-3xl">{state.brandName}</h3>
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent flex flex-col justify-end p-6">
+                          <div className="flex flex-wrap gap-2 mb-3">
+                            <span className="px-3 py-1 rounded-full bg-red-600 text-white text-xs font-medium shadow-md">天津老字号</span>
+                            <span className="px-3 py-1 rounded-full bg-white/20 backdrop-blur-sm text-white text-xs font-medium">文化传承</span>
+                          </div>
+                          <h3 className="text-white font-bold text-3xl mb-1">{state.brandName}</h3>
+                          <p className="text-white/80 text-sm">{BRANDS.find(b => b.name === state.brandName)?.established || '历史悠久'}</p>
                         </div>
                       </div>
-                      <p className={`text-lg ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                        {BRANDS.find(b => b.name === state.brandName)?.story || '暂无品牌故事描述'}
-                      </p>
+                      
+                      <div className="space-y-3">
+                        <p className={`text-lg ${isDark ? 'text-gray-400' : 'text-gray-600'} leading-relaxed`}>
+                          {BRANDS.find(b => b.name === state.brandName)?.story || '暂无品牌故事描述'}
+                        </p>
+                        
+                        {/* Brand Tags */}
+                        <div className="flex flex-wrap gap-2 justify-center">
+                          {BRANDS.find(b => b.name === state.brandName)?.tags?.slice(0, 4).map((tag, i) => (
+                            <span key={i} className={`px-3 py-1 rounded-full text-xs font-medium ${
+                              isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
+                            }`}>
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   ) : (
-                    <div className="opacity-40 space-y-4">
-                      <i className="fas fa-store text-6xl mb-4"></i>
+                    <div className="opacity-40 space-y-4 transform transition-transform hover:opacity-50 hover:scale-105">
+                      <div className="w-20 h-20 rounded-full bg-gradient-to-br from-red-500 to-amber-500 flex items-center justify-center mb-4">
+                        <i className="fas fa-store text-white text-4xl"></i>
+                      </div>
                       <p className="text-xl">请在左侧输入或选择品牌以预览</p>
+                      <p className="text-sm opacity-60">选择一个品牌开始您的创意之旅</p>
                     </div>
                   )}
                 </div>
@@ -251,33 +298,101 @@ export default function Wizard() {
 
                   {/* AI Assistance */}
                   <div className={`p-6 rounded-2xl ${isDark ? 'bg-gray-800/50 border-gray-700' : 'bg-blue-50/50 border-blue-100'} border border-dashed`}>
-                    <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-2 text-blue-600 font-medium">
                         <i className="fas fa-sparkles"></i> AI 创意助理
                       </div>
-                      <TianjinButton 
-                        size="sm" 
-                        primary 
-                        disabled={!state.inputText?.trim() || isGenerating}
-                        onClick={runAIHelp}
-                        loading={isGenerating}
-                      >
-                        生成建议
-                      </TianjinButton>
+                      <div className="flex gap-2">
+                        <TianjinButton 
+                          size="sm" 
+                          primary 
+                          disabled={!state.inputText?.trim() || isGenerating}
+                          onClick={runAIHelp}
+                          loading={isGenerating}
+                        >
+                          生成建议
+                        </TianjinButton>
+                        <TianjinButton 
+                          size="sm" 
+                          variant="secondary" 
+                          disabled={!state.brandName}
+                          onClick={() => setState({ inputText: `${state.brandName} 品牌推广创意，结合天津文化元素，现代设计风格` })}
+                        >
+                          快速模板
+                        </TianjinButton>
+                      </div>
                     </div>
                     
                     {aiText ? (
-                      <div className="space-y-3">
-                        <div className={`text-sm p-4 rounded-xl ${isDark ? 'bg-gray-900' : 'bg-white'} whitespace-pre-wrap leading-relaxed`}>
-                          {aiText}
+                      <div className="space-y-4">
+                        {/* AI Generated Text */}
+                        <div className="space-y-3">
+                          <div className={`text-sm p-4 rounded-xl ${isDark ? 'bg-gray-900' : 'bg-white'} whitespace-pre-wrap leading-relaxed`}>
+                            {aiText}
+                          </div>
+                          <div className="flex gap-2 flex-wrap">
+                            <TianjinButton size="sm" variant="secondary" onClick={applyAITextToInput}>应用到输入</TianjinButton>
+                            <TianjinButton size="sm" variant="ghost" onClick={() => { navigator.clipboard.writeText(aiText); toast.success('已复制'); }}>复制</TianjinButton>
+                            <TianjinButton size="sm" variant="ghost" onClick={() => setAiText('')}>清空</TianjinButton>
+                          </div>
                         </div>
-                        <div className="flex gap-2">
-                          <TianjinButton size="sm" variant="secondary" onClick={applyAITextToInput}>应用到输入</TianjinButton>
-                          <TianjinButton size="sm" variant="ghost" onClick={() => { navigator.clipboard.writeText(aiText); toast.success('已复制'); }}>复制</TianjinButton>
-                        </div>
+                        
+                        {/* Creative Directions */}
+                        {aiDirections.length > 0 && (
+                          <div className="space-y-2">
+                            <div className="text-sm font-medium text-blue-600">创意方向建议</div>
+                            <div className="flex flex-wrap gap-2">
+                              {aiDirections.map((dir, i) => (
+                                <button
+                                  key={i}
+                                  onClick={() => setState({ inputText: `${state.inputText || ''} ${dir}` })}
+                                  className={`text-xs px-3 py-1.5 rounded-full ${isDark ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-blue-100 hover:bg-blue-200 text-blue-700'}`}
+                                >
+                                  {dir}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Cultural Elements */}
+                        {culturalElements.length > 0 && (
+                          <div className="space-y-2">
+                            <div className="text-sm font-medium text-blue-600">文化元素推荐</div>
+                            <div className="flex flex-wrap gap-2">
+                              {culturalElements.map((elem, i) => (
+                                <button
+                                  key={i}
+                                  onClick={() => setState({ inputText: `${state.inputText || ''} ${elem}` })}
+                                  className={`text-xs px-3 py-1.5 rounded-full ${isDark ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-amber-100 hover:bg-amber-200 text-amber-700'}`}
+                                >
+                                  {elem}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ) : (
-                      <p className="text-sm opacity-60">输入创意描述后，点击生成建议获取 AI 优化文案。</p>
+                      <div className="space-y-3">
+                        <p className="text-sm opacity-60">输入创意描述后，点击生成建议获取 AI 优化文案。</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <div className={`p-3 rounded-lg ${isDark ? 'bg-gray-700/50' : 'bg-white/70'} border ${isDark ? 'border-gray-600' : 'border-blue-100'}`}>
+                            <div className="flex items-center gap-2 mb-1">
+                              <i className="fas fa-lightbulb text-yellow-500 text-sm"></i>
+                              <span className="text-xs font-medium">创意方向</span>
+                            </div>
+                            <p className="text-xs opacity-70">基于品牌特性生成创意方向建议</p>
+                          </div>
+                          <div className={`p-3 rounded-lg ${isDark ? 'bg-gray-700/50' : 'bg-white/70'} border ${isDark ? 'border-gray-600' : 'border-blue-100'}`}>
+                            <div className="flex items-center gap-2 mb-1">
+                              <i className="fas fa-landmark text-red-500 text-sm"></i>
+                              <span className="text-xs font-medium">文化元素</span>
+                            </div>
+                            <p className="text-xs opacity-70">推荐结合天津文化特色元素</p>
+                          </div>
+                        </div>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -349,26 +464,73 @@ export default function Wizard() {
                   <motion.div 
                     key={i} 
                     className={`group relative rounded-2xl overflow-hidden border ${isDark ? 'border-gray-700 bg-gray-800' : 'border-gray-100 bg-white'} shadow-sm hover:shadow-xl transition-all cursor-pointer`}
-                    whileHover={{ y: -5 }}
+                    whileHover={{ y: -8 }}
                   >
-                    <div className="relative aspect-square">
-                      <TianjinImage src={v.image} alt={`variant-${i}`} ratio="square" className="w-full h-full object-cover" />
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                        <button className="bg-white text-gray-900 px-4 py-2 rounded-full font-medium transform scale-90 group-hover:scale-100 transition-transform">
+                    <div className="relative aspect-square overflow-hidden">
+                      <motion.div
+                        initial={{ scale: 1 }}
+                        whileHover={{ scale: 1.05 }}
+                        transition={{ duration: 0.4 }}
+                      >
+                        <TianjinImage src={v.image} alt={`variant-${i}`} ratio="square" className="w-full h-full object-cover" />
+                      </motion.div>
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4">
+                        <div className="space-y-2">
+                          <h4 className="text-white font-bold text-sm">{v.script}</h4>
+                          <p className="text-white/80 text-xs">点击选择此创意方案</p>
+                        </div>
+                      </div>
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+                        <motion.button 
+                          className="bg-red-600 text-white px-5 py-2 rounded-full font-medium shadow-lg shadow-red-600/30"
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                        >
                           选择此方案
-                        </button>
+                        </motion.button>
                       </div>
                     </div>
-                    <div className="p-4">
-                      <h3 className="font-bold mb-1">{v.script}</h3>
-                      <p className="text-xs opacity-60">包含视觉设计与文案建议</p>
+                    <div className="p-4 space-y-3">
+                      <div>
+                        <h3 className="font-bold mb-1">{v.script}</h3>
+                        <p className="text-xs opacity-60">包含视觉设计与文案建议</p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
+                        }`}>
+                          {i === 0 ? '经典风格' : i === 1 ? '现代融合' : '未来感'}
+                        </span>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
+                        }`}>
+                          AI 生成
+                        </span>
+                      </div>
                     </div>
                   </motion.div>
                 ))}
                 {(!state.variants || state.variants.length === 0) && (
-                  <div className="col-span-3 py-12 flex flex-col items-center justify-center opacity-50 border-2 border-dashed rounded-2xl">
-                    <i className="fas fa-image text-4xl mb-4"></i>
-                    <p>点击“重新生成”以获取设计方案</p>
+                  <div className="col-span-3 py-16 flex flex-col items-center justify-center opacity-50 border-2 border-dashed rounded-2xl transition-all hover:opacity-70">
+                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-red-500 to-amber-500 flex items-center justify-center mb-6">
+                      <i className="fas fa-image text-white text-3xl"></i>
+                    </div>
+                    <h3 className="text-lg font-medium mb-2">暂无设计方案</h3>
+                    <p className="text-sm opacity-60 mb-4">点击“重新生成”按钮获取创意设计方案</p>
+                    <TianjinButton 
+                      size="sm" 
+                      primary
+                      onClick={() => {
+                        const base = `${(state.inputText || '').trim()} ${(aiText || '').trim()}`.trim() || 'Tianjin cultural design';
+                        setState({ variants: [
+                          { script: '方案A：经典传承', image: `https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?prompt=${encodeURIComponent(base + ' classic style')}&image_size=1024x1024`, video: '视频占位A' },
+                          { script: '方案B：现代融合', image: `https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?prompt=${encodeURIComponent(base + ' modern fusion')}&image_size=1024x1024`, video: '视频占位B' },
+                          { script: '方案C：未来探索', image: `https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?prompt=${encodeURIComponent(base + ' futuristic')}&image_size=1024x1024`, video: '视频占位C' },
+                        ] });
+                      }}
+                    >
+                      立即生成
+                    </TianjinButton>
                   </div>
                 )}
               </div>

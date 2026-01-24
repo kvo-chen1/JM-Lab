@@ -22,7 +22,7 @@ export default function JinmenCulturePopup() {
   const [imageSrc, setImageSrc] = useState<string>(''); // 图片源状态
   const [isMobile, setIsMobile] = useState(false); // 移动端检测状态
   const autoCloseTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const AUTO_CLOSE_DURATION = 10000; // 10 seconds
+  const AUTO_CLOSE_DURATION = 5000; // 5 seconds - 加快自动关闭时间
 
   // 检测是否为移动端
   const checkIsMobile = () => {
@@ -198,7 +198,7 @@ export default function JinmenCulturePopup() {
           initial={{ y: 100, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 100, opacity: 0 }}
-          transition={{ type: 'spring', damping: 20, stiffness: 300 }}
+          transition={{ type: 'spring', damping: 15, stiffness: 500, duration: 0.2 }}
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
         >

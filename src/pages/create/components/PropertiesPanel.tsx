@@ -31,7 +31,7 @@ export default function PropertiesPanel() {
 
   const getToolIcon = () => {
     const tool = toolOptions.find(t => t.id === activeTool);
-    return tool ? tool.icon : 'fas fa-tools';
+    return tool ? `fas fa-${tool.icon}` : 'fas fa-tools';
   };
 
   const renderPanel = () => {
@@ -138,18 +138,21 @@ export default function PropertiesPanel() {
               transition={{ delay: 0.1, duration: 0.3 }}
             >
               <motion.span 
-                className={`flex items-center justify-center w-8 h-8 rounded-lg ${isDark ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-600'}`}
+                className="flex items-center justify-center w-8 h-8 rounded-full relative overflow-hidden"
                 whileHover={{ 
                   scale: 1.1,
-                  rotate: [0, -5, 5, -5, 0],
-                  backgroundColor: isDark ? "#1f2937" : "#f3f4f6"
+                  boxShadow: '0 4px 12px rgba(168, 85, 247, 0.3)',
+                  rotate: [0, -5, 5, -5, 0]
                 }}
                 transition={{ 
                   rotate: { duration: 0.5 },
                   scale: { type: "spring", stiffness: 400, damping: 17 }
                 }}
               >
-                <i className={`${getToolIcon()} text-sm`}></i>
+                <div className={`absolute inset-0 ${isDark ? 'bg-gradient-to-br from-purple-900/60 to-purple-700/40' : 'bg-gradient-to-br from-purple-400/20 to-purple-600/10'}`}></div>
+                <div className={`relative z-10 ${isDark ? 'text-purple-400' : 'text-purple-600'}`}>
+                  <i className={`${getToolIcon()} text-sm`}></i>
+                </div>
               </motion.span>
               <motion.span 
                 className={`font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}
@@ -236,8 +239,11 @@ export default function PropertiesPanel() {
               {/* Glass Header */}
               <div className={`h-16 px-6 flex items-center justify-between border-b backdrop-blur-md flex-shrink-0 ${isDark ? 'bg-gray-900/50 border-gray-800' : 'bg-white/50 border-gray-100'}`}>
                 <div className="flex items-center gap-3">
-                  <span className={`flex items-center justify-center w-8 h-8 rounded-lg ${isDark ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
-                    <i className={`${getToolIcon()} text-sm`}></i>
+                  <span className="flex items-center justify-center w-8 h-8 rounded-full relative overflow-hidden">
+                    <div className={`absolute inset-0 ${isDark ? 'bg-gradient-to-br from-purple-900/60 to-purple-700/40' : 'bg-gradient-to-br from-purple-400/20 to-purple-600/10'}`}></div>
+                    <div className={`relative z-10 ${isDark ? 'text-purple-400' : 'text-purple-600'}`}>
+                      <i className={`${getToolIcon()} text-sm`}></i>
+                    </div>
                   </span>
                   <span className={`font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
                     {getToolName()}

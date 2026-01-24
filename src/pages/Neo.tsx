@@ -1,9 +1,10 @@
-import { useEffect, useState, useRef } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
 import { scoreAuthenticity } from '@/services/authenticityService'
 import { useTheme } from '@/hooks/useTheme'
 import { llmService } from '@/services/llmService'
 import voiceService from '@/services/voiceService'
+import { createVideoTask, pollVideoTask, DoubaoVideoContent } from '@/services/doubao'
 import { TianjinImage } from '@/components/TianjinStyleComponents'
 import { toast } from 'sonner'
 import errorService from '@/services/errorService'
@@ -11,6 +12,51 @@ import GradientHero from '@/components/GradientHero'
 import NeoLeftSidebar from '@/components/NeoLeftSidebar'
 import NeoRightSidebar from '@/components/NeoRightSidebar'
 import { motion, AnimatePresence } from 'framer-motion'
+
+// 错误边界组件
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    // 更新状态，下次渲染时显示备用UI
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    // 记录错误信息
+    console.error('Error caught by ErrorBoundary:', error, errorInfo);
+    errorService.logError(error, { scope: 'neo-error-boundary', errorInfo });
+  }
+
+  render() {
+    if (this.state.hasError) {
+      // 自定义备用UI
+      return (
+        <div className="flex flex-col items-center justify-center min-h-[200px] p-6 rounded-xl border text-center">
+          <div className="text-red-500 text-4xl mb-4">
+            <i className="fas fa-exclamation-triangle"></i>
+          </div>
+          <h3 className="text-lg font-semibold mb-2">出现错误</h3>
+          <p className="text-sm text-gray-500 mb-4">
+            {this.state.error?.message || '应用遇到了一些问题，请稍后重试'}
+          </p>
+          <button 
+            onClick={() => this.setState({ hasError: false, error: null })}
+            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+          >
+            重试
+          </button>
+        </div>
+      );
+    }
+
+    // 正常渲染子组件
+    return this.props.children;
+  }
+}
 
 const BRAND_STORIES: Record<string, string> = {
   mahua: '始于清末，以多褶形态与香酥口感著称，传统工艺要求条条分明，不含水分。',
@@ -379,17 +425,66 @@ export default function Neo() {
       const raw = localStorage.getItem('NEO_VIDEO_HISTORY')
       const arr = raw ? JSON.parse(raw) : []
       if (Array.isArray(arr)) {
-        // 确保每个历史项都有isFavorite和type字段
-        const processed = arr.map(item => ({
-          ...item,
-          isFavorite: item.isFavorite || false,
-          type: item.type || 'video'
-        }))
+        // 确保每个历史项都有必要的字段
+        const processed = arr.filter(item => item && item.url) // 过滤掉没有url的项
+          .map(item => ({
+            ...item,
+            url: item.url || '',
+            image: item.image || '',
+            createdAt: item.createdAt || Date.now(),
+            isFavorite: item.isFavorite || false,
+            type: item.type || 'video'
+          }))
         setVideoHistory(processed)
       }
     } catch {}
   }, [])
   
+  // 保存创作状态到本地存储
+  const saveCreationState = () => {
+    try {
+      const state = {
+        prompt,
+        brand,
+        tags,
+        customBrand,
+        useCustomBrand,
+        textStyle,
+        videoParams,
+        engine
+      }
+      localStorage.setItem('NEO_CREATION_STATE', JSON.stringify(state))
+    } catch {}
+  }
+
+  // 从本地存储恢复创作状态
+  const loadCreationState = () => {
+    try {
+      const raw = localStorage.getItem('NEO_CREATION_STATE')
+      if (raw) {
+        const state = JSON.parse(raw)
+        if (state) {
+          setPrompt(state.prompt || '')
+          setBrand(state.brand || 'mahua')
+          setTags(state.tags || [])
+          setCustomBrand(state.customBrand || '')
+          setUseCustomBrand(state.useCustomBrand || false)
+          setTextStyle(state.textStyle || 'creative')
+          setVideoParams(state.videoParams || {
+            duration: 5,
+            resolution: '720p',
+            cameraFixed: false
+          })
+          setEngine(state.engine || 'sdxl')
+          // 恢复品牌故事
+          if (state.brand) {
+            updateStory(state.brand)
+          }
+        }
+      }
+    } catch {}
+  }
+
   // 保存历史记录
   const saveHistory = (entry: Omit<HistoryItem, 'isFavorite' | 'type'>) => {
     const newEntry: HistoryItem = {
@@ -770,6 +865,10 @@ export default function Neo() {
   const [generationStatus, setGenerationStatus] = useState<string>('')
   const [videoProgress, setVideoProgress] = useState<Record<string, number>>({})
   const [videoStatus, setVideoStatus] = useState<Record<string, string>>({})
+  // 文案生成缓存，避免重复生成
+  const [aiTextCache, setAiTextCache] = useState<Record<string, string>>({})
+  // 文案生成进度
+  const [aiTextProgress, setAiTextProgress] = useState(0)
   
   // 图片编辑工具状态
   const [editingImageIndex, setEditingImageIndex] = useState<number | null>(null)
@@ -878,6 +977,16 @@ export default function Neo() {
   useEffect(() => {
     setStylePresets(getStylePresets())
   }, [])
+
+  // 组件挂载时加载创作状态
+  useEffect(() => {
+    loadCreationState()
+  }, [])
+
+  // 创作内容发生变化时自动保存
+  useEffect(() => {
+    saveCreationState()
+  }, [prompt, brand, tags, customBrand, useCustomBrand, textStyle, videoParams, engine])
 
   useEffect(() => {
     return () => { if (optTimerRef.current) clearTimeout(optTimerRef.current) }
@@ -996,6 +1105,11 @@ export default function Neo() {
     else setStory(val ? `为 ${val} 创作的灵感简介，请结合品牌特色与天津文化。` : '')
   }
 
+  // 生成缓存键的辅助函数
+  const generateCacheKey = (input: string, style: string): string => {
+    return `${input}_${style}_${textStyle}`
+  }
+
   const optimizePrompt = async () => {
     const base = prompt.trim()
     if (!base) { toast.warning('请输入提示词'); return }
@@ -1010,7 +1124,7 @@ export default function Neo() {
       if (chosen !== prev) llmService.setCurrentModel(chosen)
       llmService.updateConfig({ stream: true })
       const context = `${base} ${tags.join(' ')} ${brand}`.trim()
-      const instruction = `请将以下提示词优化为更清晰、可直接用于AI绘图的单句提示，包含主体、风格、构图、细节、光影、材质、配色，避免解释：\n${context}`
+      const instruction = `请将以下提示词优化为更清晰、可直接用于AI绘图的单句提示，包含主体、风格、构图、细节、光影、材质、配色，避免解释。重要：请用中文输出结果。\n${context}`
       const final = await llmService.generateResponse(instruction, { onDelta: (chunk: string) => setOptPreview(chunk) })
       const text = (final || base).trim()
       setPrompt(text)
@@ -1039,6 +1153,20 @@ export default function Neo() {
     const base = `${prompt} ${dir}`.trim()
     toggleTag(dir)
     setPrompt(base)
+    
+    // 生成缓存键
+    const cacheKey = generateCacheKey(dir, textStyle)
+    
+    // 检查缓存中是否已有对应内容
+    if (aiTextCache[cacheKey]) {
+      toast.info('使用缓存的文案内容')
+      setAiText(aiTextCache[cacheKey])
+      return
+    }
+    
+    // 添加操作开始提示
+    toast.info('正在生成文案，请稍候...')
+    
     try {
       setIsGenerating(true)
       setAiText('')
@@ -1049,10 +1177,40 @@ export default function Neo() {
         poetic: '诗意、优美、富有文采的风格'
       }
       const instruction = `请基于以下方向输出一段不超过120字的中文文案，要求${styleDesc[textStyle]}，通俗易懂，便于朗读：\n方向：${dir}\n提示：${base || '天津文化设计灵感'}`
-      const text = await llmService.generateResponse(instruction)
-      setAiText((text || '').trim())
-    } catch {
+      
+      // 使用流式响应，让用户看到实时生成的内容
+      let generatedText = ''
+      let progress = 0
+      const text = await llmService.generateResponse(instruction, {
+        onDelta: (chunk: string) => {
+          generatedText += chunk
+          setAiText(generatedText)
+          // 简单的进度计算，基于文本长度
+          progress = Math.min(100, Math.floor((generatedText.length / 120) * 100))
+          setAiTextProgress(progress)
+        }
+      })
+      
+      const finalText = (text || '').trim()
+      setAiText(finalText)
+      
+      // 将生成的文案存入缓存
+      setAiTextCache(prev => ({
+        ...prev,
+        [cacheKey]: finalText
+      }))
+      
+      // 重置进度状态
+      setAiTextProgress(0)
+      
+      toast.success('文案生成成功！')
+    } catch (error) {
+      console.error('生成文案失败:', error)
       toast.error('生成文案失败，请稍后重试')
+      // 即使失败也保持界面清洁
+      setAiText('')
+      // 重置进度状态
+      setAiTextProgress(0)
     } finally {
       setIsGenerating(false)
     }
@@ -1171,10 +1329,19 @@ export default function Neo() {
     try {
       const dirs = llmService.generateCreativeDirections(input)
       setAiDirections(dirs)
-    } catch {}
+    } catch (error) {
+      console.error('生成创意方向失败:', error)
+      // 即使失败也继续执行，不影响整体流程
+    }
     
+    // 添加打字机效果的流式响应处理
+    let accumulatedText = '';
     llmService.generateResponse(input, {
-      onDelta: (chunk: string) => setAiText(chunk)
+      onDelta: (chunk: string) => {
+        accumulatedText += chunk;
+        // 直接更新状态，让用户看到实时生成的内容
+        setAiText(accumulatedText);
+      }
     }).then(final => {
       clearInterval(progressTimer)
       setProgress(100)
@@ -1202,6 +1369,7 @@ export default function Neo() {
           }
         }
         setGenerationStatus('')
+        toast.success('AI创意文案生成完成！')
       }).catch((e) => {
         errorService.logError(e instanceof Error ? e : 'SERVER_ERROR', { scope: 'neo-doubao', prompt: final || input })
         // 如果 catch 到错误，通常是因为网络完全不通，或者 llmService 内部抛出了未捕获的异常
@@ -1212,11 +1380,13 @@ export default function Neo() {
         setImages(genImages(final))
         setVideoByIndex(new Array(3).fill(''))
         setGenerationStatus('')
+        toast.success('AI创意文案生成完成！')
       })
       const r = scoreAuthenticity(final || prompt, story)
       setScore(r.score)
       setFeedback(r.feedback)
-    }).catch(() => {
+    }).catch((error) => {
+      console.error('生成AI文案失败:', error)
       clearInterval(progressTimer)
       setProgress(100)
       const imgs = genImages()
@@ -1225,6 +1395,7 @@ export default function Neo() {
       setScore(r.score)
       setFeedback(r.feedback)
       setGenerationStatus('')
+      toast.error('生成AI文案失败，已使用占位内容')
     }).finally(() => {
       setIsGenerating(false)
     })
@@ -1247,73 +1418,163 @@ export default function Neo() {
     setVideoProgress(prev => ({ ...prev, [taskId]: 0 }))
     setVideoStatus(prev => ({ ...prev, [taskId]: '初始化视频生成任务...' }))
     
-    // 模拟进度更新
+    // 优化进度更新，使用更合理的时间间隔和进度增长
     const progressInterval = setInterval(() => {
       setVideoProgress(prev => {
         const current = prev[taskId] || 0
-        if (current < 90) {
-          // 每10秒增加5%的进度，直到90%
-          return { ...prev, [taskId]: current + 5 }
+        if (current < 95) {
+          // 每3秒增加3%的进度，直到95%
+          const newProgress = current + 3
+          // 同时更新状态
+          setVideoStatus(statusPrev => {
+            if (newProgress < 30) {
+              return { ...statusPrev, [taskId]: '正在准备视频素材...' }
+            } else if (newProgress < 60) {
+              return { ...statusPrev, [taskId]: '正在生成视频画面...' }
+            } else if (newProgress < 90) {
+              return { ...statusPrev, [taskId]: '正在优化视频效果...' }
+            } else {
+              return { ...statusPrev, [taskId]: '正在处理视频输出...' }
+            }
+          })
+          return { ...prev, [taskId]: newProgress }
         }
         return prev
       })
-    }, 10000)
+    }, 3000)
     
     try {
-      const content: DoubaoVideoContent[] = safeImage 
-        ? [{ type: 'text' as const, text }, { type: 'image_url' as const, image_url: { url: src } }]
-        : [{ type: 'text' as const, text }]
-      const created = await createVideoTask({ model: 'doubao-seedance-1-0-pro-250528', content })
-      if (!created.ok || !created.data?.id) {
-        clearInterval(progressInterval)
-        const msg = (created as any)?.error === 'CONFIG_MISSING' ? '服务端未配置 DOUBAO_API_KEY，请在 .env.local 设置后重启' : '创建失败'
-        toast.error(msg)
-        setVideoByIndex(prev => prev.map((v, i) => (i === idx ? '视频生成失败' : v)))
-        return
-      }
-      const polled = await pollVideoTask(created.data.id, { intervalMs: 10000, timeoutMs: 600000 })
-      if (!polled.ok) {
-        clearInterval(progressInterval)
-        const msg = (polled as any)?.error === 'CONFIG_MISSING' ? '服务端未配置 DOUBAO_API_KEY，请在 .env.local 设置后重启' : (polled.error || '查询失败')
-        toast.error(msg)
-        setVideoByIndex(prev => prev.map((v, i) => (i === idx ? '视频生成失败' : v)))
-        return
-      }
-      const url = polled.data?.content?.video_url || ''
-      const last = polled.data?.content?.last_frame_url || ''
-      if (polled.data?.status === 'succeeded' && url) {
-        clearInterval(progressInterval)
-        setVideoProgress(prev => ({ ...prev, [taskId]: 100 }))
-        setVideoStatus(prev => ({ ...prev, [taskId]: '视频生成完成' }))
-        toast.success('视频生成完成')
-        setVideoByIndex(prev => prev.map((v, i) => (i === idx ? url : v)))
-        const createdAt = polled.data?.created_at || polled.data?.updated_at || Date.now()
-        setVideoMetaByIndex(prev => prev.map((m, i) => (i === idx ? { ...m, createdAt: typeof createdAt === 'number' ? createdAt : Date.now() } : m)))
-        saveHistory({ url, image: src, createdAt: typeof createdAt === 'number' ? createdAt : Date.now(), thumb: last || undefined })
+      // 无论当前选择的引擎是什么，都使用千问视频生成API
+      if (true) {
+        // 使用千问视频生成API
+        setVideoStatus(prev => ({ ...prev, [taskId]: '使用千问生成视频...' }))
         
-        // 1秒后清除进度状态
-        setTimeout(() => {
-          setVideoProgress(prev => {
-            const newProgress = { ...prev }
-            delete newProgress[taskId]
-            return newProgress
-          })
-          setVideoStatus(prev => {
-            const newStatus = { ...prev }
-            delete newStatus[taskId]
-            return newStatus
-          })
-        }, 1000)
+        // 构建纯文本提示，不包含命令行参数
+        const purePrompt = `${prompt} ${tags.join(' ')} ${brand}`.trim() || '天津文化设计灵感'
+        
+        const videoResult = await llmService.generateVideo({
+          prompt: purePrompt,
+          imageUrl: undefined, // 暂时不传递图片URL，避免url error
+          duration: videoParams.duration,
+          resolution: videoParams.resolution,
+          aspectRatio: '16:9'
+        })
+        
+        if (videoResult.ok && videoResult.data?.video_url) {
+          clearInterval(progressInterval)
+          setVideoProgress(prev => ({ ...prev, [taskId]: 100 }))
+          setVideoStatus(prev => ({ ...prev, [taskId]: '视频生成完成' }))
+          toast.success('千问视频生成完成')
+          const videoUrl = videoResult.data.video_url
+          setVideoByIndex(prev => prev.map((v, i) => (i === idx ? videoUrl : v)))
+          const createdAt = Date.now()
+          setVideoMetaByIndex(prev => prev.map((m, i) => (i === idx ? { ...m, createdAt } : m)))
+          saveHistory({ url: videoUrl, image: src, createdAt, thumb: videoResult.data.last_frame_url || undefined })
+          
+          // 1秒后清除进度状态
+          setTimeout(() => {
+            setVideoProgress(prev => {
+              const newProgress = { ...prev }
+              delete newProgress[taskId]
+              return newProgress
+            })
+            setVideoStatus(prev => {
+              const newStatus = { ...prev }
+              delete newStatus[taskId]
+              return newStatus
+            })
+          }, 1000)
+        } else {
+          clearInterval(progressInterval)
+          const msg = videoResult.error || '千问视频生成失败'
+          toast.error(msg)
+          setVideoByIndex(prev => prev.map((v, i) => (i === idx ? '视频生成失败' : v)))
+          // 清除进度状态
+          setTimeout(() => {
+            setVideoProgress(prev => {
+              const newProgress = { ...prev }
+              delete newProgress[taskId]
+              return newProgress
+            })
+            setVideoStatus(prev => {
+              const newStatus = { ...prev }
+              delete newStatus[taskId]
+              return newStatus
+            })
+          }, 1000)
+        }
       } else {
-        clearInterval(progressInterval)
-        toast.error('视频生成失败')
-        setVideoByIndex(prev => prev.map((v, i) => (i === idx ? '视频生成失败' : v)))
+        // 使用豆包视频生成API
+        setVideoStatus(prev => ({ ...prev, [taskId]: '使用豆包生成视频...' }))
+        
+        const content: DoubaoVideoContent[] = safeImage 
+          ? [{ type: 'text' as const, text }, { type: 'image_url' as const, image_url: { url: src } }]
+          : [{ type: 'text' as const, text }]
+        const created = await createVideoTask({ model: 'doubao-seedance-1-0-pro-250528', content })
+        if (!created.ok || !created.data?.id) {
+          clearInterval(progressInterval)
+          const msg = (created as any)?.error === 'CONFIG_MISSING' ? '服务端未配置 DOUBAO_API_KEY，请在 .env.local 设置后重启' : '创建失败'
+          toast.error(msg)
+          setVideoByIndex(prev => prev.map((v, i) => (i === idx ? '视频生成失败' : v)))
+          return
+        }
+        const polled = await pollVideoTask(created.data.id, { intervalMs: 10000, timeoutMs: 600000 })
+        if (!polled.ok) {
+          clearInterval(progressInterval)
+          const msg = (polled as any)?.error === 'CONFIG_MISSING' ? '服务端未配置 DOUBAO_API_KEY，请在 .env.local 设置后重启' : (polled.error || '查询失败')
+          toast.error(msg)
+          setVideoByIndex(prev => prev.map((v, i) => (i === idx ? '视频生成失败' : v)))
+          return
+        }
+        const url = polled.data?.content?.video_url || ''
+        const last = polled.data?.content?.last_frame_url || ''
+        if (polled.data?.status === 'succeeded' && url) {
+          clearInterval(progressInterval)
+          setVideoProgress(prev => ({ ...prev, [taskId]: 100 }))
+          setVideoStatus(prev => ({ ...prev, [taskId]: '视频生成完成' }))
+          toast.success('视频生成完成')
+          setVideoByIndex(prev => prev.map((v, i) => (i === idx ? url : v)))
+          const createdAt = polled.data?.created_at || polled.data?.updated_at || Date.now()
+          setVideoMetaByIndex(prev => prev.map((m, i) => (i === idx ? { ...m, createdAt: typeof createdAt === 'number' ? createdAt : Date.now() } : m)))
+          saveHistory({ url, image: src, createdAt: typeof createdAt === 'number' ? createdAt : Date.now(), thumb: last || undefined })
+          
+          // 1秒后清除进度状态
+          setTimeout(() => {
+            setVideoProgress(prev => {
+              const newProgress = { ...prev }
+              delete newProgress[taskId]
+              return newProgress
+            })
+            setVideoStatus(prev => {
+              const newStatus = { ...prev }
+              delete newStatus[taskId]
+              return newStatus
+            })
+          }, 1000)
+        } else {
+          clearInterval(progressInterval)
+          toast.error('视频生成失败')
+          setVideoByIndex(prev => prev.map((v, i) => (i === idx ? '视频生成失败' : v)))
+        }
       }
     } catch (e: any) {
       clearInterval(progressInterval)
       errorService.logError(e instanceof Error ? e : 'SERVER_ERROR', { scope: 'neo-video' })
       toast.error('视频生成异常')
       setVideoByIndex(prev => prev.map((v, i) => (i === idx ? '视频生成失败' : v)))
+      // 清除进度状态
+      setTimeout(() => {
+        setVideoProgress(prev => {
+          const newProgress = { ...prev }
+          delete newProgress[taskId]
+          return newProgress
+        })
+        setVideoStatus(prev => {
+          const newStatus = { ...prev }
+          delete newStatus[taskId]
+          return newStatus
+        })
+      }, 1000)
     }
   }
 
@@ -1444,7 +1705,7 @@ export default function Neo() {
       )}
 
       {/* 移动端头部 */}
-      <div className="md:hidden h-16 flex items-center justify-between px-4 border-b z-50 sticky top-0 ${isDark ? 'bg-gray-900 border-gray-800 text-white' : 'bg-white border-gray-200 text-gray-900'} shadow-sm">
+      <div className={`md:hidden h-16 flex items-center justify-between px-4 border-b z-50 sticky top-0 ${isDark ? 'bg-gray-900 border-gray-800 text-white' : 'bg-white border-gray-200 text-gray-900'} shadow-sm`}>
         <div className="flex items-center gap-3">
           <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-2 -ml-2 rounded-lg hover:bg-gray-200/20 dark:hover:bg-gray-800/50 transition-colors">
             <i className={`fas ${mobileMenuOpen ? 'fa-times' : 'fa-bars'} text-lg`}></i>
@@ -1502,7 +1763,8 @@ export default function Neo() {
 
         {/* 中间内容区 */}
         <main className="flex-1 flex flex-col h-full min-w-0 overflow-hidden relative z-0">
-          <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-6 lg:p-8">
+          <ErrorBoundary>
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-6 lg:p-8">
               {/* Header Area */}
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                  <div>
@@ -1564,9 +1826,16 @@ export default function Neo() {
                               ${isDark ? 'bg-slate-800 border-slate-700 hover:border-purple-500/50' : 'bg-slate-50 border-slate-200 hover:border-purple-300'}
                             `}
                           >
-                            <div className="w-8 h-8 rounded-lg bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 flex items-center justify-center mb-2">
-                               <i className="fas fa-magic text-sm"></i>
-                            </div>
+                            <motion.div 
+                              whileHover={{ scale: 1.1, boxShadow: '0 4px 12px rgba(168, 85, 247, 0.3)' }}
+                              transition={{ type: 'spring', stiffness: 300 }}
+                              className="w-8 h-8 rounded-full flex items-center justify-center mb-2 relative overflow-hidden"
+                            >
+                              <div className={`absolute inset-0 ${isDark ? 'bg-gradient-to-br from-purple-900/60 to-purple-700/40' : 'bg-gradient-to-br from-purple-400/20 to-purple-600/10'}`}></div>
+                              <div className={`relative z-10 ${isDark ? 'text-purple-400' : 'text-purple-600'}`}>
+                                <i className="fas fa-magic text-sm"></i>
+                              </div>
+                            </motion.div>
                             <div className={`text-xs font-semibold truncate ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{preset.name}</div>
                             <div className={`text-[10px] truncate mt-0.5 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>{preset.description || '无描述'}</div>
                           </button>
@@ -1677,9 +1946,16 @@ export default function Neo() {
 
                    {/* Tags Selection */}
                    <div>
-                      <label className={`text-sm font-semibold mb-3 flex items-center gap-2 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
-                         <i className="fas fa-tags text-blue-500"></i> 创作标签
-                      </label>
+                      <div className="flex items-center justify-between mb-3">
+                         <label className={`text-sm font-semibold flex items-center gap-2 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+                            <i className="fas fa-tags text-blue-500"></i> 创作标签
+                         </label>
+                         {tags.length > 0 && (
+                            <span className={`text-[10px] px-2 py-0.5 rounded-full ${isDark ? 'bg-blue-900/30 text-blue-400' : 'bg-blue-50 text-blue-700'}`}>
+                               {tags.length} 个标签
+                            </span>
+                         )}
+                      </div>
                       <div className="flex flex-wrap gap-2 mb-3">
                         {/* Built-in Tags */}
                         {TAGS.map(t => {
@@ -1880,7 +2156,12 @@ export default function Neo() {
                  </div>
 
             {/* AI Copywriting Section */}
-            <div className={`mt-6 rounded-2xl ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'} border shadow-sm p-5`}>
+            <motion.div 
+              className={`mt-6 rounded-2xl ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'} border shadow-sm p-5`}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+            >
                {/* Header */}
                <div className="flex items-center justify-between mb-4">
                   <div className={`font-semibold flex items-center gap-2 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
@@ -1921,17 +2202,53 @@ export default function Neo() {
                  </div>
                )}
                
+               {/* Progress Bar */}
+               {isGenerating && (
+                 <div className="mb-3">
+                   <div className="flex justify-between text-xs mb-1">
+                     <span>生成进度</span>
+                     <span>{aiTextProgress}%</span>
+                   </div>
+                   <div className={`h-2 rounded-full overflow-hidden ${isDark ? 'bg-slate-700' : 'bg-slate-200'}`}>
+                     <motion.div 
+                       className="h-full bg-purple-500 rounded-full"
+                       initial={{ width: '0%' }}
+                       animate={{ width: `${aiTextProgress}%` }}
+                       transition={{ duration: 0.3 }}
+                     />
+                   </div>
+                 </div>
+               )}
+               
                {/* Content Area */}
-               <div className={`text-sm whitespace-pre-wrap min-h-[100px] p-4 rounded-xl border mb-4 leading-relaxed transition-colors
+               <motion.div 
+                 className={`text-sm whitespace-pre-wrap min-h-[100px] p-4 rounded-xl border mb-4 leading-relaxed transition-colors
                   ${isDark ? 'bg-slate-800/50 border-slate-700 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'}
-               `}>
-                 {aiText || (
-                    <div className="flex flex-col items-center justify-center h-full py-4 opacity-50">
-                       <i className="fas fa-pen-nib mb-2"></i>
-                       <span>等待生成文案...</span>
-                    </div>
+                 `}
+                 initial={{ opacity: 0 }}
+                 animate={{ opacity: 1 }}
+                 transition={{ duration: 0.3 }}
+               >
+                 {isGenerating ? (
+                   <div className="flex flex-col items-center justify-center h-full py-4">
+                     <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-purple-500 mb-2"></div>
+                     <span className="text-sm text-gray-500">正在生成文案...</span>
+                   </div>
+                 ) : aiText ? (
+                   <motion.div
+                     initial={{ opacity: 0 }}
+                     animate={{ opacity: 1 }}
+                     transition={{ duration: 0.5 }}
+                   >
+                     {aiText}
+                   </motion.div>
+                 ) : (
+                   <div className="flex flex-col items-center justify-center h-full py-4 opacity-50">
+                     <i className="fas fa-pen-nib mb-2"></i>
+                     <span>等待生成文案...</span>
+                   </div>
                  )}
-               </div>
+               </motion.div>
                
                {/* Actions */}
                <div className="flex gap-3">
@@ -1954,7 +2271,7 @@ export default function Neo() {
                    <audio controls src={ttsUrl} className={`w-full rounded-md border ${isDark ? 'border-slate-700' : 'border-slate-200'}`} />
                  </div>
                )}
-            </div>
+            </motion.div>
         </div>
       </div>
     </div>
@@ -2462,6 +2779,7 @@ export default function Neo() {
 
           </div> {/* Close content card */}
         </div> {/* Close p-6 container */}
+          </ErrorBoundary>
         </main>
 
         {/* Right Sidebar (Desktop) */}

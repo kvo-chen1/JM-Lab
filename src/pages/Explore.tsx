@@ -761,9 +761,13 @@ export default function Explore() {
                       transition={{ duration: 0.3, ease: "easeOut" }}
                     >
                       <motion.div 
-                        className="w-5 h-5 rounded-full overflow-hidden mr-2"
+                        className="w-5 h-5 rounded-full overflow-hidden mr-2 cursor-pointer"
                         whileHover={{ scale: 1.1, rotate: 5 }}
                         transition={{ duration: 0.3, ease: "easeOut" }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/user/${encodeURIComponent(work.creator)}`);
+                        }}
                       >
                         <TianjinImage
                           src={work.creatorAvatar}
@@ -771,9 +775,15 @@ export default function Explore() {
                           className="w-full h-full object-cover"
                         />
                       </motion.div>
-                      <span className="text-xs text-gray-500 dark:text-gray-400 truncate flex-1">
+                      <motion.span 
+                        className="text-xs text-gray-500 dark:text-gray-400 truncate flex-1 cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/user/${encodeURIComponent(work.creator)}`);
+                        }}
+                      >
                         {work.creator}
-                      </span>
+                      </motion.span>
                       <motion.div 
                         className="flex items-center text-xs text-gray-400"
                         whileHover={{ color: '#ef4444' }}

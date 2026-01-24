@@ -28,7 +28,7 @@ try {
         continue;
       }
       
-      const m = line.match(/^([A-Z0-9_]+)=(.*)$/);
+      const m = line.match(/^([A-Za-z0-9_]+)=(.*)$/);
       if (!m) {
 
         continue;
@@ -2841,6 +2841,124 @@ async function route(req, res, u, path) {
       const row = await videoTaskDB.getTask(id)
       if (!row) { sendJson(res, 404, { error: 'NOT_FOUND' }); return }
       sendJson(res, 200, { ok: true, data: row })
+      return
+    }
+
+    // 处理通义千问模型的视频生成请求
+    if (req.method === 'POST' && path === '/api/qwen/videos/generate') {
+      // 从环境变量获取API密钥
+      let authKey = process.env.DASHSCOPE_API_KEY || process.env.VITE_QWEN_API_KEY || ''
+      authKey = authKey.trim();
+      
+      if (!authKey) {
+        console.error('[Qwen Video] API Key missing.');
+        sendJson(res, 503, { error: 'API_KEY_NOT_CONFIGURED', message: 'Qwen/DashScope API Key is missing.' });
+        return
+      }
+      
+      const b = await readBody(req)
+      console.log('[Qwen Video] Request received:', b);
+      
+      // 处理通义千问视频生成
+      try {
+        const base = 'https://dashscope.aliyuncs.com/api/v1';
+        const endpoint = `${base}/services/aigc/text2video/video-synthesis`;
+        
+        // 构造请求数据
+        const payload = {
+          model: b.model || 'wanx2.1-t2v-turbo',
+          input: {
+            content: b.content || [{ type: 'text', text: b.prompt || 'Tianjin cultural design' }]
+          },
+          parameters: {
+            duration: b.duration,
+            resolution: b.resolution,
+            aspect_ratio: b.aspect_ratio
+          }
+        };
+        
+        console.log('[Qwen Video] Sending request to DashScope:', payload);
+        
+        const resp = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authKey}`,
+            'X-DashScope-Async': 'enable'
+          },
+          body: JSON.stringify(payload)
+        });
+        
+        console.log('[Qwen Video] Response status:', resp.status);
+        
+        if (!resp.ok) {
+          const errorData = await resp.json().catch(() => ({}));
+          console.error('[Qwen Video] Error response:', errorData);
+          sendJson(res, resp.status, { error: errorData.error || 'Video generation failed', data: errorData });
+          return
+        }
+        
+        const createData = await resp.json();
+        console.log('[Qwen Video] Create task response:', createData);
+        
+        const taskId = createData?.output?.task_id || createData?.task_id;
+        if (!taskId) {
+          sendJson(res, 500, { error: 'TASK_ID_MISSING', message: 'Missing task ID in response', data: createData });
+          return
+        }
+        
+        // 轮询任务状态
+        const startedAt = Date.now();
+        const timeoutMs = 300000; // 5分钟超时
+        while (Date.now() - startedAt < timeoutMs) {
+          const taskResp = await fetch(`${base}/tasks/${taskId}`, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${authKey}`
+            }
+          });
+          
+          const taskData = await taskResp.json();
+          console.log('[Qwen Video] Task status:', taskData?.output?.task_status || taskData?.task_status);
+          
+          if (!taskResp.ok) {
+            sendJson(res, taskResp.status, { error: 'TASK_STATUS_ERROR', data: taskData });
+            return
+          }
+          
+          const status = String(taskData?.output?.task_status || taskData?.task_status || '').toUpperCase();
+          if (status === 'SUCCEEDED' || status === 'FAILED' || status === 'CANCELED' || status === 'CANCELLED') {
+            if (status !== 'SUCCEEDED') {
+              sendJson(res, 500, { error: 'TASK_FAILED', message: `Task failed with status: ${status}`, data: taskData });
+              return
+            }
+            
+            // 构建响应数据
+            const videoUrl = taskData?.output?.results?.[0]?.video_url || taskData?.output?.video_url || '';
+            const lastFrameUrl = taskData?.output?.results?.[0]?.last_frame_url || taskData?.output?.last_frame_url || '';
+            
+            const result = {
+              video_url: videoUrl,
+              last_frame_url: lastFrameUrl,
+              task_id: taskId,
+              status: status
+            };
+            
+            console.log('[Qwen Video] Task succeeded:', result);
+            sendJson(res, 200, { ok: true, data: result });
+            return
+          }
+          
+          // 等待3秒后再次轮询
+          await new Promise(resolve => setTimeout(resolve, 3000));
+        }
+        
+        // 超时
+        sendJson(res, 504, { error: 'TASK_TIMEOUT', message: 'Video generation task timed out after 5 minutes' });
+      } catch (error) {
+        console.error('[Qwen Video] Exception:', error);
+        sendJson(res, 500, { error: error.message || 'Video generation failed' });
+      }
       return
     }
     

@@ -87,26 +87,60 @@ const NeoLeftSidebar: React.FC<NeoLeftSidebarProps> = ({
         <AnimatePresence>
           {!collapsed && (
             <motion.div 
-              className={`mb-6 p-3 rounded-xl border shadow-sm transition-all
-                ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
+              className={`mb-6 p-4 rounded-2xl border transition-all duration-300 hover:shadow-lg
+                ${isDark 
+                  ? 'bg-slate-900/80 border-slate-800 hover:bg-slate-900 hover:border-slate-700' 
+                  : 'bg-white/90 border-slate-200 hover:bg-white hover:border-slate-300'}
+                backdrop-blur-sm
+              `}
+              initial={{ opacity: 0, y: 10, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, height: 0, marginBottom: 0, overflow: 'hidden' }}
+              whileHover={{ y: -2, transition: { duration: 0.2 } }}
             >
-              <div className="flex items-center gap-3">
-                <div className={`h-10 w-10 rounded-full flex items-center justify-center text-white font-bold shadow-md
-                  ${isDark ? 'bg-gradient-to-br from-blue-600 to-indigo-600' : 'bg-gradient-to-br from-orange-500 to-red-500'}`}>
-                  {user?.username?.charAt(0).toUpperCase() || 'U'}
-                </div>
+              <div className="flex items-center gap-4">
+                <motion.div 
+                  className={`h-12 w-12 rounded-full flex items-center justify-center text-white font-bold shadow-lg
+                    ${isDark 
+                      ? 'bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600' 
+                      : 'bg-gradient-to-br from-orange-500 via-red-500 to-pink-500'}
+                    relative overflow-hidden
+                  `}
+                  whileHover={{ scale: 1.05, transition: { duration: 0.2 } }}
+                >
+                  <span className="relative z-10">{user?.username?.charAt(0).toUpperCase() || 'U'}</span>
+                  <div className="absolute inset-0 bg-white/10 rounded-full"></div>
+                  <div className="absolute -bottom-2 -right-2 w-6 h-6 bg-white/20 rounded-full"></div>
+                </motion.div>
                 <div className="flex-1 min-w-0">
-                  <p className={`text-sm font-semibold truncate ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+                  <motion.p 
+                    className={`text-sm font-semibold truncate ${isDark ? 'text-slate-200' : 'text-slate-800'}`}
+                    initial={{ opacity: 0, x: -5 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.1 }}
+                  >
                     {user?.username || '访客用户'}
-                  </p>
-                  <div className="flex items-center gap-1.5 mt-0.5">
-                    <span className={`w-2 h-2 rounded-full ${isAuthenticated ? 'bg-green-500' : 'bg-slate-400'}`}></span>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                  </motion.p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <motion.span 
+                      className={`w-2.5 h-2.5 rounded-full ${isAuthenticated ? 'bg-green-500' : 'bg-slate-400'}`}
+                      animate={{ 
+                        scale: isAuthenticated ? [1, 1.2, 1] : 1 
+                      }}
+                      transition={{ 
+                        duration: 2, 
+                        repeat: isAuthenticated ? Infinity : 0, 
+                        repeatType: 'reverse' 
+                      }}
+                    ></motion.span>
+                    <motion.p 
+                      className="text-xs font-medium text-slate-500 dark:text-slate-400 truncate"
+                      initial={{ opacity: 0, x: -5 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.2 }}
+                    >
                       {isAuthenticated ? '已连接' : '未登录'}
-                    </p>
+                    </motion.p>
                   </div>
                 </div>
               </div>

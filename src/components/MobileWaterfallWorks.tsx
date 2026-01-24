@@ -4,6 +4,7 @@ import { useResponsive } from '@/utils/responsiveDesign';
 import { TianjinImage } from '@/components/TianjinStyleComponents';
 import { toast } from 'sonner';
 import { useTheme } from '@/hooks/useTheme';
+import { useNavigate } from 'react-router-dom';
 // 异步导入CreatePostModal组件
 const CreatePostModal = React.lazy(() => import('@/components/Community/Modals/CreatePostModal').then(module => ({ default: module.CreatePostModal })));
 import { mockCommunities, getUserCommunities } from '@/mock/communities';
@@ -39,6 +40,7 @@ export const MobileWaterfallWorks: React.FC<MobileWaterfallWorksProps> = ({
 }) => {
   const { width } = useResponsive();
   const { theme } = useTheme();
+  const navigate = useNavigate();
   const isDark = theme === 'dark';
   
   // 分享相关状态
@@ -46,6 +48,14 @@ export const MobileWaterfallWorks: React.FC<MobileWaterfallWorksProps> = ({
   const [isShareToCommunityOpen, setIsShareToCommunityOpen] = useState(false);
   const [selectedWork, setSelectedWork] = useState<WorkItem | null>(null);
   const [shareSuccess, setShareSuccess] = useState(false);
+  
+  // 处理创作者头像点击
+  const handleCreatorClick = (e: React.MouseEvent, creatorName: string) => {
+    e.stopPropagation();
+    // 这里假设我们有一个基于创作者名称的路由
+    // 在实际应用中，应该使用创作者的唯一ID
+    navigate(`/user/${encodeURIComponent(creatorName)}`);
+  };
 
   const columnsCount = useMemo(() => {
     if (width < 480) return 2;
@@ -227,9 +237,10 @@ export const MobileWaterfallWorks: React.FC<MobileWaterfallWorksProps> = ({
                 >
                   <div className="flex items-center gap-2 min-w-0">
                     <motion.div 
-                      className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0 border-2 border-white dark:border-gray-700 shadow-sm"
+                      className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0 border-2 border-white dark:border-gray-700 shadow-sm cursor-pointer"
                       whileHover={{ scale: 1.1, rotate: 5 }}
                       transition={{ duration: 0.3, ease: "easeOut" }}
+                      onClick={(e) => handleCreatorClick(e, work.creator)}
                     >
                       <TianjinImage
                         src={work.creatorAvatar}
@@ -238,9 +249,12 @@ export const MobileWaterfallWorks: React.FC<MobileWaterfallWorksProps> = ({
                         quality="low"
                       />
                     </motion.div>
-                    <span className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                    <motion.span 
+                      className="text-xs text-gray-500 dark:text-gray-400 truncate cursor-pointer"
+                      onClick={(e) => handleCreatorClick(e, work.creator)}
+                    >
                       {work.creator}
-                    </span>
+                    </motion.span>
                   </div>
                   <motion.button 
                     onClick={(e) => {

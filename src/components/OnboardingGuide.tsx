@@ -26,7 +26,7 @@ const STEPS = [
   },
   { 
     title: '丰富的创作工具', 
-    desc: '在这里切换不同的创作模式：设计工坊、灵感探索、向导模式等，满足各种创作需求。', 
+    desc: '在这里切换不同的创作模式：设计工坊、灵感探索、品牌向导等，满足各种创作需求。', 
     icon: 'palette',
     targetPath: '/create',
     primaryText: '下一步',

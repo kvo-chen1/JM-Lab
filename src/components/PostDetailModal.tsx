@@ -11,7 +11,7 @@ interface PostDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   onLike: (id: string) => void;
-  onComment: (id: string, content: string) => void;
+  onComment: (id: string, content: string) => Promise<void>;
   onShare?: (id: string) => void;
   loading?: boolean;
   error?: string | null;
@@ -52,9 +52,9 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
     };
   }, [isOpen]);
 
-  const handleSendComment = () => {
+  const handleSendComment = async () => {
     if (post && commentText.trim()) {
-      onComment(post.id, commentText);
+      await onComment(post.id, commentText);
       setCommentText('');
       // 评论成功反馈
       toast.success('评论发送成功！', {

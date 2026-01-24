@@ -1833,20 +1833,21 @@ class LLMService {
     try {
       console.log('[LLM] Calling backend for Qwen video generation...');
       
+      const content = [];
+      
+      // 添加文本提示
+      content.push({ type: 'text', text: params.prompt });
+      
+      // 添加图片URL（如果有）
+      if (params.imageUrl) {
+        content.push({ type: 'image_url', image_url: { url: params.imageUrl } });
+      }
+      
+      // 添加超时机制，避免无限期等待
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 120000); // 120秒超时
+      const timeoutId = setTimeout(() => controller.abort(), 300000); // 5分钟超时
       
       try {
-        const content = [];
-        
-        // 添加文本提示
-        content.push({ type: 'text', text: params.prompt });
-        
-        // 添加图片URL（如果有）
-        if (params.imageUrl) {
-          content.push({ type: 'image_url', image_url: { url: params.imageUrl } });
-        }
-        
         const response = await fetch('/api/qwen/videos/generate', {
           method: 'POST',
           headers: {
@@ -1884,10 +1885,15 @@ class LLMService {
           console.warn('[LLM] Invalid response format from backend:', result);
           return { ok: false, error: result.error || 'Invalid response from backend' };
         }
-        
-      } catch (fetchError) {
+      } catch (error) {
         clearTimeout(timeoutId);
-        throw fetchError;
+        
+        if (error.name === 'AbortError') {
+          console.warn('[LLM] Video generation request timed out after 5 minutes');
+          return { ok: false, error: '视频生成请求超时，请稍后重试' };
+        }
+        
+        throw error;
       }
       
     } catch (error) {

@@ -78,20 +78,9 @@ const FirstLaunchGuide: React.FC = () => {
   }, [showGuide, handleNext, handlePrevious, handleSkip]);
 
   useEffect(() => {
-    // 检查是否是首次启动
-    const isFirstLaunch = localStorage.getItem('firstLaunch') === null;
-    const hasSeenGuide = localStorage.getItem('hasSeenGuide') === 'true';
-    
-    // 检查是否是从主屏幕启动的PWA
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches ||
-                        (window.navigator as any).standalone === true;
-    
-    if (isFirstLaunch || !hasSeenGuide) {
-      // 延迟显示引导，让应用有时间加载
-      setTimeout(() => {
-        setShowGuide(true);
-      }, 1000);
-    }
+    // 禁用首次启动引导，因为注册登录后已有更好的引导
+    // 保留组件结构以便后续可能的复用
+    setShowGuide(false);
   }, []);
 
   const steps: GuideStep[] = [

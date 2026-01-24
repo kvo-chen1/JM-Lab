@@ -1,6 +1,6 @@
 import { useTheme } from '@/hooks/useTheme'
 import { useState, useMemo, useRef, useCallback, useEffect, lazy, Suspense } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import postsApi, { Post } from '@/services/postService'
 import { SearchResultType } from '@/components/SearchBar'
 import { motion } from 'framer-motion'
@@ -263,8 +263,13 @@ export default function Square() {
       let found = allPosts.find(p => p.id === id)
       
       if (!found) {
-        // 如果在API数据中找不到，尝试从种子数据中查找
-        found = SEED.find(s => s.id === id) || EXPLORE_SEEDS.find(s => s.id === id)
+        // 如果在API数据中找不到，尝试从本地状态中查找（保留评论数据）
+        found = posts.find(p => p.id === id)
+        
+        // 如果本地状态中也找不到，再从种子数据中查找
+        if (!found) {
+          found = SEED.find(s => s.id === id) || EXPLORE_SEEDS.find(s => s.id === id)
+        }
       }
       
       if (found) {
@@ -407,15 +412,47 @@ export default function Square() {
   // 优化：使用useCallback稳定addComment函数
   const addComment = useCallback(async (id: string, content: string) => {
     if (!content) return
-    await postsApi.addComment(id, content)
-    const current = await postsApi.getPosts()
-    setPosts(current)
-    // 更新active状态中的评论
+    console.log('Adding comment to post:', id, 'content:', content)
+    
+    // 1. 首先更新本地状态，确保评论能够立即显示
     if (active && active.id === id) {
-      const updatedPost = current.find(p => p.id === id)
-      if (updatedPost) {
-        setActive(updatedPost)
+      const newComment = {
+        id: `c-${Date.now()}`,
+        content,
+        date: new Date().toISOString(),
+        likes: 0,
+        reactions: {
+          like: 0,
+          love: 0,
+          laugh: 0,
+          surprise: 0,
+          sad: 0,
+          angry: 0
+        },
+        replies: [],
+        userReactions: []
       }
+      
+      // 创建更新后的帖子对象
+      const updatedActivePost = {
+        ...active,
+        comments: [...active.comments, newComment]
+      }
+      
+      // 立即更新active状态，实现评论的实时显示
+      setActive(updatedActivePost)
+      console.log('Updated active post immediately:', updatedActivePost)
+    }
+    
+    // 2. 然后调用API添加评论，确保数据持久化
+    const updatedPost = await postsApi.addComment(id, content)
+    console.log('Updated post from API:', updatedPost)
+    
+    // 3. 最后更新本地状态，确保数据同步
+    if (updatedPost) {
+      const current = await postsApi.getPosts()
+      console.log('Current posts after API call:', current)
+      setPosts(current)
     }
   }, [active])
   
@@ -686,18 +723,18 @@ export default function Square() {
                    </motion.span>
                  ))}
               </div>
-              <motion.a 
-                href="/community" 
+              <motion.button
+                onClick={() => navigate('/community')}
                 whileHover={{ scale: 1.03, y: -3 }}
                 whileTap={{ scale: 0.97 }}
-                className="mt-auto text-sm font-medium flex items-center justify-between px-4 py-3 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-500/20 hover:shadow-xl hover:shadow-blue-500/30 transition-all group"
+                className="mt-auto text-sm font-medium flex items-center justify-between px-4 py-3 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-500/20 hover:shadow-xl hover:shadow-blue-500/30 transition-all group cursor-pointer"
               >
                 <span className="flex items-center gap-2">
                   <i className="fas fa-rocket text-sm"></i>
                   <span>进入创作者社区</span>
                 </span>
                 <i className="fas fa-arrow-right transform group-hover:translate-x-2 transition-transform duration-300"></i>
-              </motion.a>
+              </motion.button>
            </div>
         </div>
       </div>

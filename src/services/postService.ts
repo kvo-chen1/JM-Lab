@@ -201,61 +201,101 @@ export async function getPosts(): Promise<Post[]> {
   // Define fetch logic
   const fetchFromNetwork = async () => {
     try {
+      // 先获取本地存储的帖子数据
+      const localRaw = safeLocalStorageGet(KEY);
+      const localPosts: Post[] = localRaw ? JSON.parse(localRaw) : [];
+      
+      // 创建本地帖子映射表，方便查找
+      const localPostsMap = new Map<string, Post>();
+      localPosts.forEach(post => {
+        localPostsMap.set(post.id, post);
+      });
+      
       // 使用统一API服务获取作品数据
       const works = await workService.getWorks();
       
-      // 将Work类型转换为Post类型
-      const posts = works.map(work => ({
-        id: work.id.toString(),
-        title: work.title,
-        thumbnail: work.thumbnail,
-        likes: work.likes,
-        comments: [],
-        date: new Date().toISOString().slice(0, 10),
-        isLiked: false,
-        isBookmarked: false,
-        category: work.category as PostCategory,
-        tags: work.tags,
-        description: work.description || '',
-        views: work.views,
-        shares: 0,
-        isFeatured: work.featured,
-        isDraft: false,
-        completionStatus: 'published' as const,
-        creativeDirection: '',
-        culturalElements: [],
-        colorScheme: [],
-        toolsUsed: [],
-        downloadCount: 0,
+      // 将Work类型转换为Post类型，优先使用本地存储的数据
+      const posts = works.map(work => {
+        const workId = work.id.toString();
+        const localPost = localPostsMap.get(workId);
         
-        // 新增发布相关字段
-        publishType: 'explore' as const,
-        communityId: null,
-        moderationStatus: 'approved',
-        rejectionReason: null,
-        scheduledPublishDate: null,
-        visibility: 'public',
-        
-        // 统计扩展
-        commentCount: 0,
-        engagementRate: 0,
-        trendingScore: 0,
-        reach: 0,
-        
-        // 审核相关
-        moderator: null,
-        reviewedAt: null,
-        
-        // 推荐相关
-        recommendationScore: 0,
-        recommendedFor: []
-      }));
+        if (localPost) {
+          // 使用本地存储的帖子数据，只更新API返回的字段
+          return {
+            ...localPost,
+            title: work.title,
+            thumbnail: work.thumbnail,
+            likes: work.likes,
+            category: work.category as PostCategory,
+            tags: work.tags,
+            description: work.description || '',
+            views: work.views,
+            isFeatured: work.featured
+          };
+        } else {
+          // 创建新的帖子对象
+          return {
+            id: workId,
+            title: work.title,
+            thumbnail: work.thumbnail,
+            likes: work.likes,
+            comments: [],
+            date: new Date().toISOString().slice(0, 10),
+            isLiked: false,
+            isBookmarked: false,
+            category: work.category as PostCategory,
+            tags: work.tags,
+            description: work.description || '',
+            views: work.views,
+            shares: 0,
+            isFeatured: work.featured,
+            isDraft: false,
+            completionStatus: 'published' as const,
+            creativeDirection: '',
+            culturalElements: [],
+            colorScheme: [],
+            toolsUsed: [],
+            downloadCount: 0,
+            
+            // 新增发布相关字段
+            publishType: 'explore' as const,
+            communityId: null,
+            moderationStatus: 'approved',
+            rejectionReason: null,
+            scheduledPublishDate: null,
+            visibility: 'public',
+            
+            // 统计扩展
+            commentCount: 0,
+            engagementRate: 0,
+            trendingScore: 0,
+            reach: 0,
+            
+            // 审核相关
+            moderator: null,
+            reviewedAt: null,
+            
+            // 推荐相关
+            recommendationScore: 0,
+            recommendedFor: []
+          };
+        }
+      });
+      
+      // 检查是否有本地存储的帖子不在API返回的数据中
+      localPosts.forEach(localPost => {
+        if (!posts.some(post => post.id === localPost.id)) {
+          posts.push(localPost);
+        }
+      });
       
       setCache(postCache, 'all', posts);
       return posts;
     } catch (error) {
       console.error('获取帖子失败:', error);
-      return [];
+      // 失败时返回本地存储的数据
+      const localRaw = safeLocalStorageGet(KEY);
+      return localRaw ? JSON.parse(localRaw) : [];
     }
   };
 
@@ -946,38 +986,45 @@ function findComment(comments: Comment[], commentId: string): { comment: Comment
  * 添加评论
  */
 export async function addComment(postId: string, content: string, parentId?: string): Promise<Post | undefined> {
-  const posts = await getPosts();
-  const postIdx = posts.findIndex(p => p.id === postId);
-  if (postIdx >= 0) {
-    const newComment: Comment = {
-      id: `c-${Date.now()}`,
-      content,
-      date: new Date().toISOString(),
-      likes: 0,
-      reactions: {
-        like: 0,
-        love: 0,
-        laugh: 0,
-        surprise: 0,
-        sad: 0,
-        angry: 0
-      },
-      replies: [],
-      userReactions: []
-    };
+  try {
+    const posts = await getPosts();
+    const postIdx = posts.findIndex(p => p.id === postId);
+    if (postIdx >= 0) {
+      const newComment: Comment = {
+        id: `c-${Date.now()}`,
+        content,
+        date: new Date().toISOString(),
+        likes: 0,
+        reactions: {
+          like: 0,
+          love: 0,
+          laugh: 0,
+          surprise: 0,
+          sad: 0,
+          angry: 0
+        },
+        replies: [],
+        userReactions: []
+      };
 
-    if (parentId) {
-      const result = findComment(posts[postIdx].comments, parentId);
-      if (result) {
-        result.comment.replies.push(newComment);
+      if (parentId) {
+        const result = findComment(posts[postIdx].comments, parentId);
+        if (result) {
+          result.comment.replies.push(newComment);
+        }
+      } else {
+        posts[postIdx].comments.push(newComment);
       }
-    } else {
-      posts[postIdx].comments.push(newComment);
-    }
 
-    scheduleBatchUpdate(KEY, posts);
-    setCache(postCache, 'all', posts);
-    return posts[postIdx];
+      // 立即保存到本地存储，确保数据不会丢失
+      safeLocalStorageSet(KEY, JSON.stringify(posts));
+      setCache(postCache, 'all', posts);
+      console.log('Comment added successfully:', newComment);
+      console.log('Updated post comments:', posts[postIdx].comments);
+      return posts[postIdx];
+    }
+  } catch (error) {
+    console.error('Error adding comment:', error);
   }
   return undefined;
 }

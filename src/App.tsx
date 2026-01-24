@@ -506,6 +506,15 @@ export default function App() {
               )}
             </AnimatedPage>
           } />
+          <Route path="/landing" element={
+            <AnimatedPage>
+              <div className="min-h-screen">
+                {/* 这里将加载landing.html的内容 */}
+                <h1 className="text-2xl font-bold text-center py-10">津脉智坊 - 欢迎页面</h1>
+                <p className="text-center">正在加载 landing 页面内容...</p>
+              </div>
+            </AnimatedPage>
+          } />
 
         
         {/* 搜索结果页面 */}

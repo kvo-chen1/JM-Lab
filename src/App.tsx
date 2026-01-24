@@ -25,7 +25,6 @@ import CommandPalette from '@/components/CommandPalette';
 import ErrorBoundary from '@/components/ErrorBoundary';
 
 // 核心页面 - 只保留最关键的页面进行同步加载，减少初始加载时间
-import Landing from "@/pages/Landing";
 import Home from "@/pages/Home";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
@@ -501,8 +500,7 @@ export default function App() {
           <Route path="/" element={
             <Navigate to="/landing.html" replace />
           } />
-        {/* Landing页面路由 */}
-        <Route path="/landing" element={<Landing />} />
+
         
         {/* 搜索结果页面 */}
         <Route path="/search" element={

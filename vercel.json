@@ -5,7 +5,8 @@
   "rewrites": [
     { "source": "/api/:path*", "destination": "/api/index.js" },
     { "source": "/", "destination": "/landing.html" },
-    { "source": "/((?!landing).*)+$", "destination": "/index.html" }
+    { "source": "/landing.html", "destination": "/landing.html" },
+    { "source": "/((?!api|landing).*)+$", "destination": "/index.html" }
   ],
   "functions": {
     "api/index.js": {

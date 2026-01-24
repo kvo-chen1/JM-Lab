@@ -498,11 +498,7 @@ export default function App() {
           {/* 确保根路径是第一个路由，提高匹配优先级 */}
           <Route path="/" element={
             <AnimatedPage>
-              {isMobile ? (
-                <MobileLayout><PrivateRoute><Home /></PrivateRoute></MobileLayout>
-              ) : (
-                <SidebarLayout><PrivateRoute><Home /></PrivateRoute></SidebarLayout>
-              )}
+              <Landing />
             </AnimatedPage>
           } />
         {/* Landing页面路由 */}

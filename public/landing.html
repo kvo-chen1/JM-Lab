@@ -3106,7 +3106,8 @@
             // 这样用户下次访问时不会被重复重定向到landing.html
             localStorage.setItem('hasExplored', 'true');
             // 跳转到登录页，要求用户先登录/注册
-            window.location.href = window.location.origin + '/login';
+            // 确保使用绝对路径，避免相对路径问题
+            window.location.href = '/login';
         }
         
         document.addEventListener('DOMContentLoaded', () => {

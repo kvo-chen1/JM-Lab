@@ -2087,18 +2087,7 @@
                     </span>
                     <div class="absolute inset-0 bg-white opacity-0 group-hover:opacity-20 transition-opacity pointer-events-none"></div>
                 </button>
-                <script>
-                  function handleExploreClick() {
-                    // 用户主动点击探索按钮，设置一个临时标志表示已经探索过
-                    // 这样用户下次访问时不会被重复重定向到landing.html
-                    localStorage.setItem('hasExplored', 'true');
-                    // 跳转到登录页，要求用户先登录/注册
-                    // 使用普通的 URL 格式，与 BrowserRouter 兼容
-                    const baseUrl = window.location.origin;
-                    const loginUrl = `${baseUrl}/login`;
-                    window.location.replace(loginUrl);
-                  }
-                </script>
+
                 <a href="#culture" class="px-8 py-4 rounded-full border border-white/20 hover:border-white/50 hover:bg-white/5 transition-all text-gray-300 hover:text-white">
                     了解企业使命
                 </a>

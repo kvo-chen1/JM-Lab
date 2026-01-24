@@ -626,7 +626,9 @@
                     // 立即探索平台按钮
                     if (heroBtns[0].tagName === 'BUTTON') {
                         const icon = heroBtns[0].querySelector('svg');
-                        heroBtns[0].innerHTML = '<span class="relative z-10 flex items-center justify-center">' + t.hero.exploreBtn + ' ' + icon.outerHTML + '</span><div class="absolute inset-0 bg-white opacity-0 group-hover:opacity-20 transition-opacity"></div>';
+                        heroBtns[0].innerHTML = '<span class="relative z-10 flex items-center justify-center">' + t.hero.exploreBtn + ' ' + icon.outerHTML + '</span><div class="absolute inset-0 bg-white opacity-0 group-hover:opacity-20 transition-opacity pointer-events-none"></div>';
+                        // 重新添加 onclick 属性，确保跳转功能正常
+                        heroBtns[0].setAttribute('onclick', 'handleExploreClick()'); 
                     }
                     // 了解企业使命按钮
                     if (heroBtns[1].tagName === 'A') {
@@ -2083,7 +2085,7 @@
                         立即探索平台
                         <svg class="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
                     </span>
-                    <div class="absolute inset-0 bg-white opacity-0 group-hover:opacity-20 transition-opacity"></div>
+                    <div class="absolute inset-0 bg-white opacity-0 group-hover:opacity-20 transition-opacity pointer-events-none"></div>
                 </button>
                 <script>
                   function handleExploreClick() {
@@ -2091,7 +2093,10 @@
                     // 这样用户下次访问时不会被重复重定向到landing.html
                     localStorage.setItem('hasExplored', 'true');
                     // 跳转到登录页，要求用户先登录/注册
-                    window.location.href = '/login';
+                    // 使用普通的 URL 格式，与 BrowserRouter 兼容
+                    const baseUrl = window.location.origin;
+                    const loginUrl = `${baseUrl}/login`;
+                    window.location.replace(loginUrl);
                   }
                 </script>
                 <a href="#culture" class="px-8 py-4 rounded-full border border-white/20 hover:border-white/50 hover:bg-white/5 transition-all text-gray-300 hover:text-white">
@@ -3099,19 +3104,24 @@
         };
 
         // --- 2. UI Logic ---
-        // Add handleExploreClick function
-        function handleExploreClick() {
+        // Add handleExploreClick function to global scope
+        window.handleExploreClick = function() {
             console.log('Explore button clicked, navigating to platform...');
             // 用户主动点击探索按钮，设置一个临时标志表示已经探索过
             // 这样用户下次访问时不会被重复重定向到landing.html
             localStorage.setItem('hasExplored', 'true');
             // 跳转到登录页，要求用户先登录/注册
-            // 确保使用绝对路径，避免相对路径问题
+            // 使用普通的 URL 格式，与 BrowserRouter 兼容
+            console.log('Current URL:', window.location.href);
             console.log('Navigating to login page...');
-            setTimeout(() => {
-                window.location.href = '/login';
-            }, 100);
-        }
+            // 立即跳转到登录页面，不使用setTimeout
+            const baseUrl = window.location.origin;
+            // 构建普通格式的登录 URL
+            const loginUrl = `${baseUrl}/login`;
+            console.log('Will navigate to:', loginUrl);
+            // 使用replace方法，避免在浏览器历史中留下记录
+            window.location.replace(loginUrl);
+        };
         
         document.addEventListener('DOMContentLoaded', () => {
             // Remove Loader

@@ -19,7 +19,7 @@ import { StrictMode } from "react";
 import "./styles/tianjin.css";
 import "./styles/neo.css";
 import * as ReactDOMClient from "react-dom/client";
-import { HashRouter } from "react-router-dom";
+import { BrowserRouter } from "react-router-dom";
 import { Toaster } from 'sonner';
 import App from "./App.tsx";
 import { AuthProvider } from './contexts/authContext.tsx';
@@ -69,7 +69,7 @@ if (root) {
       <ErrorBoundary>
         <LanguageProvider>
           <ThemeProvider>
-            <HashRouter>
+            <BrowserRouter>
                 <AuthProvider>
                   <FriendProvider>
                     <ChatProvider>
@@ -79,7 +79,7 @@ if (root) {
                     </ChatProvider>
                   </FriendProvider>
                 </AuthProvider>
-              </HashRouter>
+              </BrowserRouter>
           </ThemeProvider>
         </LanguageProvider>
       </ErrorBoundary>

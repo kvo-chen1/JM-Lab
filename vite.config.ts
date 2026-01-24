@@ -347,7 +347,8 @@ export default defineConfig({
       external: ['better-sqlite3', 'mongodb', 'pg', '@neondatabase/serverless', 'ws'],
       // 优化输入选项
       input: {
-        main: 'landing.html',
+        main: 'index.html',
+        landing: 'landing.html',
       },
       output: {
         // 优化资产输出
@@ -445,21 +446,6 @@ export default defineConfig({
                 .replace(/(?<!(const|let|var|function|class|import|export)\s+)\bGammaEncoding\b/g, '3007');
             }
             return code;
-          }
-        },
-        // 自定义插件：将landing.html重命名为index.html
-        {
-          name: 'rename-landing-to-index',
-          generateBundle(options, bundle) {
-            // 找到landing.html的输出文件
-            const landingHtml = Object.values(bundle).find((chunk) => {
-              return chunk.type === 'asset' && chunk.fileName === 'landing.html';
-            });
-            
-            if (landingHtml) {
-              // 将landing.html重命名为index.html
-              landingHtml.fileName = 'index.html';
-            }
           }
         },
         // 只在ANALYZE模式下启用构建分析插件

@@ -3107,7 +3107,10 @@
             localStorage.setItem('hasExplored', 'true');
             // 跳转到登录页，要求用户先登录/注册
             // 确保使用绝对路径，避免相对路径问题
-            window.location.href = '/login';
+            console.log('Navigating to login page...');
+            setTimeout(() => {
+                window.location.href = '/login';
+            }, 100);
         }
         
         document.addEventListener('DOMContentLoaded', () => {

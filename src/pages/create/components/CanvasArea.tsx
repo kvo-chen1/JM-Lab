@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useSearchParams } from 'react-router-dom';
 import { useTheme } from '@/hooks/useTheme';
 import { useCreateStore } from '../hooks/useCreateStore';
 import { traditionalPatterns } from '../data';
 
 export default function CanvasArea() {
   const { isDark } = useTheme();
+  const [searchParams] = useSearchParams();
+  const eventId = searchParams.get('eventId');
   const generatedResults = useCreateStore((state) => state.generatedResults);
   const selectedResult = useCreateStore((state) => state.selectedResult);
   const setSelectedResult = useCreateStore((state) => state.setSelectedResult);
@@ -1068,6 +1071,41 @@ export default function CanvasArea() {
                     <span>分享设计</span>
                   </motion.button>
                   
+                  {/* Submit to Activity Button */}
+                  {eventId && (
+                    <motion.button
+                      whileHover={{ scale: 1.05, y: -2 }}
+                      whileTap={{ scale: 0.95 }}
+                      initial={{ opacity: 0, scale: 0.9, y: 10 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      transition={{ duration: 0.3, delay: 0.6, ease: "easeOut" }}
+                      onClick={() => {
+                        if (!selectedResult) return;
+                        if(window.confirm('确定要将此作品提交到活动吗？')) {
+                            // 模拟提交成功
+                            const toast = document.createElement('div');
+                            toast.className = 'fixed top-20 right-6 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg z-50 transition-all duration-300 ease-in-out';
+                            toast.textContent = '作品提交成功！正在返回活动页面...';
+                            document.body.appendChild(toast);
+                            setTimeout(() => {
+                                toast.style.opacity = '0';
+                                setTimeout(() => document.body.removeChild(toast), 300);
+                            }, 2000);
+                            
+                            // 延迟跳转回我的活动页面
+                            setTimeout(() => {
+                                window.location.href = '/my-activities';
+                            }, 1500);
+                        }
+                      }}
+                      disabled={!selectedResult}
+                      className={`px-5 py-3 rounded-xl text-sm font-semibold flex items-center gap-2 transition-all shadow-md ${selectedResult ? 'bg-red-600 hover:bg-red-700 text-white hover:shadow-lg' : (isDark ? 'bg-gray-800 text-gray-500 cursor-not-allowed' : 'bg-gray-200 text-gray-500 cursor-not-allowed')}`}
+                    >
+                      <i className="fas fa-trophy"></i>
+                      <span>提交参赛</span>
+                    </motion.button>
+                  )}
+
                   {/* Apply to Other Tools Button */}
                   <motion.button
                     whileHover={{ scale: 1.05, y: -2 }}

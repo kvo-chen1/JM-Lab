@@ -11,7 +11,7 @@ export interface WorkflowState {
   imageUrl?: string
   
   // AI生成变体
-  variants?: Array<{ script: string; image: string; video: string }>
+  variants?: Array<{ script: string; image: string; video: string; loading?: boolean }>
   
   // 真实性评估
   authenticity?: { score: number; feedback: string[] }

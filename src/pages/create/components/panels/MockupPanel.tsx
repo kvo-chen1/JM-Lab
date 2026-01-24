@@ -125,12 +125,22 @@ const mockupTemplates: MockupTemplate[] = [
 
 const MockupPanel: React.FC = () => {
   const { isDark } = useTheme();
-  const { updateState } = useCreateStore();
-  const [selectedMockup, setSelectedMockup] = useState<MockupTemplate | null>(null);
+  const { updateState, mockupSelectedTemplateId, mockupShowWireframe } = useCreateStore();
+
+  // Derive selectedMockup from ID
+  const selectedMockup = React.useMemo(() => 
+    mockupTemplates.find(t => t.id === mockupSelectedTemplateId) || null,
+    [mockupSelectedTemplateId]
+  );
+  
+  // Use store state
+  const showWireframe = mockupShowWireframe;
+
+  // const [selectedMockup, setSelectedMockup] = useState<MockupTemplate | null>(null);
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [isApplying, setIsApplying] = useState<boolean>(false);
   const [previewQuality, setPreviewQuality] = useState<'low' | 'medium' | 'high'>('medium');
-  const [showWireframe, setShowWireframe] = useState<boolean>(false); // 新增线框图开关
+  // const [showWireframe, setShowWireframe] = useState<boolean>(false); // 新增线框图开关
   const [zoomLevel, setZoomLevel] = useState<number>(1); // 新增缩放级别
   const [renderingProgress, setRenderingProgress] = useState<number>(0); // 新增渲染进度
   
@@ -437,18 +447,20 @@ const MockupPanel: React.FC = () => {
                   <i className="fas fa-grid text-xs text-[#C02C38]"></i>
                   <span className="text-xs">显示线框图</span>
                 </div>
-                <label className="relative inline-flex items-center cursor-pointer">
+                <label className="flex items-center gap-2 cursor-pointer">
+                <div className="relative">
                   <input
                     type="checkbox"
                     checked={showWireframe}
-                    onChange={() => setShowWireframe(!showWireframe)}
+                    onChange={(e) => updateState({ mockupShowWireframe: e.target.checked })}
                     className="sr-only peer"
                   />
                   <div className={`w-11 h-6 rounded-full peer ${showWireframe ? 'bg-[#C02C38]' : 'bg-gray-600'} peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[#C02C38] peer-focus:ring-opacity-50 transition-all duration-300`}></div>
                   <div className={`absolute left-1.5 top-1.5 bg-white w-3 h-3 rounded-full transition-transform duration-300 ${showWireframe ? 'transform translate-x-5' : ''}`}></div>
-                </label>
+                </div>
+              </label>
               </div>
-              
+
               {/* 渲染按钮 */}
               <motion.button
                 onClick={handleRenderPreview}

@@ -20,7 +20,6 @@ interface CreateActions {
   savePatternHistory: () => void;
   restorePatternHistory: (historyItemId: string) => void;
   clearPatternHistory: () => void;
-  // New functions for action buttons
   saveToDrafts: () => void;
   loadDraft: (draft: any) => void;
   shareDesign: () => void;
@@ -215,6 +214,23 @@ export const useCreateStore = create<CreateState & CreateActions>((set, get) => 
         patternPositionX: draft.patternPositionX ?? state.patternPositionX,
         patternPositionY: draft.patternPositionY ?? state.patternPositionY,
         selectedPatternId: draft.selectedPatternId ?? state.selectedPatternId,
+
+        traceSelectedKnowledgeId: draft.traceSelectedKnowledgeId ?? state.traceSelectedKnowledgeId,
+        culturalInfoText: draft.culturalInfoText ?? state.culturalInfoText,
+
+        // Restore Mockup Tool State
+        mockupSelectedTemplateId: draft.mockupSelectedTemplateId ?? state.mockupSelectedTemplateId,
+        mockupShowWireframe: draft.mockupShowWireframe ?? state.mockupShowWireframe,
+
+        // Restore Tile Tool State
+        tilePatternId: draft.tilePatternId ?? state.tilePatternId,
+        tileMode: draft.tileMode ?? state.tileMode,
+        tileSize: draft.tileSize ?? state.tileSize,
+        tileSpacing: draft.tileSpacing ?? state.tileSpacing,
+        tileRotation: draft.tileRotation ?? state.tileRotation,
+        tileOpacity: draft.tileOpacity ?? state.tileOpacity,
+
+        // Restore Filter Tool State
       };
 
       // 提示加载成功

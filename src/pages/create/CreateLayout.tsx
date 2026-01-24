@@ -23,6 +23,7 @@ export default function CreateLayout() {
 
   const navItems = [
     { path: '/create', label: '设计工坊', icon: 'layer-group', exact: true },
+    { path: '/create/ai-writer', label: 'AI 智作文案', icon: 'pen-nib' },
     { path: '/create/inspiration', label: '灵感探索', icon: 'bolt' },
     { path: '/create/wizard', label: '品牌向导', icon: 'hat-wizard' },
     { path: '/create-activity', label: '创建活动', icon: 'calendar-plus', exact: true },

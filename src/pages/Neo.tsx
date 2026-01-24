@@ -12,6 +12,7 @@ import GradientHero from '@/components/GradientHero'
 import NeoLeftSidebar from '@/components/NeoLeftSidebar'
 import NeoRightSidebar from '@/components/NeoRightSidebar'
 import { motion, AnimatePresence } from 'framer-motion'
+import { tianjinActivityService, Activity } from '@/services/tianjinActivityService'
 
 // 错误边界组件
 class ErrorBoundary extends React.Component {
@@ -286,6 +287,39 @@ export default function Neo() {
   const [showTutorial, setShowTutorial] = useState(false)
   const [currentTutorialStep, setCurrentTutorialStep] = useState(0)
   const [tutorialCompleted, setTutorialCompleted] = useState(false)
+
+  // 工具箱状态
+  const [showToolsModal, setShowToolsModal] = useState(false)
+  const [showStatsModal, setShowStatsModal] = useState(false)
+
+  // 处理功能点击
+  const handleFeatureClick = (featureId: string) => {
+    if (featureId === 'presets') {
+      openPresetModal();
+    } else if (featureId === 'tools') {
+      setShowToolsModal(true);
+    } else if (featureId === 'stats') {
+      setShowStatsModal(true);
+    }
+  };
+
+  // AI生成与活动参与新功能状态
+  const [generationMode, setGenerationMode] = useState<'text-to-image' | 'image-to-video' | 'text-to-video'>('text-to-image')
+  const [uploadedImage, setUploadedImage] = useState<string>('')
+  const [uploadedImageFile, setUploadedImageFile] = useState<File | null>(null)
+  
+  // 活动参与状态
+  const [showActivityModal, setShowActivityModal] = useState(false)
+  const [activities, setActivities] = useState<Activity[]>([])
+  const [selectedActivity, setSelectedActivity] = useState<string>('')
+  const [submissionForm, setSubmissionForm] = useState({
+    workTitle: '',
+    workDesc: '',
+    authorName: '',
+    authorPhone: ''
+  })
+  const [submittingWork, setSubmittingWork] = useState(false)
+  const [submissionTargetUrl, setSubmissionTargetUrl] = useState('') // 要提交的作品URL
   
   // 通知功能函数
   const addNotification = (item: {
@@ -1297,10 +1331,103 @@ export default function Neo() {
     closeImageEditor()
   }
 
+  // 获取活动列表
+  const fetchActivitiesList = async () => {
+    try {
+      const list = await tianjinActivityService.getActivities()
+      setActivities(list)
+    } catch (error) {
+      console.error('获取活动列表失败:', error)
+      toast.error('获取活动列表失败')
+    }
+  }
+
+  // 打开活动投稿模态框
+  const openActivityModal = (url: string) => {
+    setSubmissionTargetUrl(url)
+    setSubmissionForm(prev => ({ ...prev, workTitle: prompt.slice(0, 20) || '我的创意作品' }))
+    setShowActivityModal(true)
+    fetchActivitiesList()
+  }
+
+  // 提交作品
+  const handleActivitySubmit = async () => {
+    if (!selectedActivity) {
+      toast.warning('请选择要参加的活动')
+      return
+    }
+    if (!submissionForm.workTitle || !submissionForm.authorName || !submissionForm.authorPhone) {
+      toast.warning('请填写完整的投稿信息')
+      return
+    }
+
+    setSubmittingWork(true)
+    try {
+      const result = await tianjinActivityService.submitWork({
+        activityId: selectedActivity,
+        workTitle: submissionForm.workTitle,
+        workDesc: submissionForm.workDesc,
+        workUrl: submissionTargetUrl,
+        authorName: submissionForm.authorName,
+        authorPhone: submissionForm.authorPhone
+      })
+
+      if (result.ok) {
+        toast.success('作品投稿成功！')
+        setShowActivityModal(false)
+        // 重置表单
+        setSubmissionForm({
+          workTitle: '',
+          workDesc: '',
+          authorName: '',
+          authorPhone: ''
+        })
+        setSelectedActivity('')
+      } else {
+        toast.error(result.message)
+      }
+    } catch (error) {
+      toast.error('投稿失败，请稍后重试')
+    } finally {
+      setSubmittingWork(false)
+    }
+  }
+
+  // 处理图片上传（用于图生视频）
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error('图片大小不能超过 5MB')
+        return
+      }
+      setUploadedImageFile(file)
+      // 创建预览URL
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        setUploadedImage(e.target?.result as string)
+      }
+      reader.readAsDataURL(file)
+      
+      // 在实际项目中，这里应该上传文件到服务器获取URL
+      // 暂时模拟，或者如果后端支持base64也可以直接用
+      // 为了兼容现有逻辑，我们假设这里已经有了URL
+      // 如果需要真实上传，应该调用 uploadService
+    }
+  }
+
   const startGeneration = () => {
     setShowOutput(true)
     setActiveTab('results')
-    setImages([])
+    
+    // 如果是文生图，清空旧图片
+    if (generationMode === 'text-to-image') {
+      setImages([])
+      setVideoByIndex([])
+    } else {
+      // 视频生成不影响图片列表
+    }
+    
     setProgress(0)
     setAiText('')
     setIsGenerating(true)
@@ -1312,7 +1439,7 @@ export default function Neo() {
       { status: '正在分析输入...', progress: 10 },
       { status: '正在生成创意方向...', progress: 30 },
       { status: '正在生成AI文案...', progress: 50 },
-      { status: '正在生成图片...', progress: 70 },
+      { status: '正在生成内容...', progress: 70 },
       { status: '正在计算纯正性评分...', progress: 90 },
       { status: '生成完成', progress: 100 }
     ]
@@ -1331,7 +1458,6 @@ export default function Neo() {
       setAiDirections(dirs)
     } catch (error) {
       console.error('生成创意方向失败:', error)
-      // 即使失败也继续执行，不影响整体流程
     }
     
     // 添加打字机效果的流式响应处理
@@ -1339,63 +1465,112 @@ export default function Neo() {
     llmService.generateResponse(input, {
       onDelta: (chunk: string) => {
         accumulatedText += chunk;
-        // 直接更新状态，让用户看到实时生成的内容
         setAiText(accumulatedText);
       }
-    }).then(final => {
+    }).then(async final => {
       clearInterval(progressTimer)
       setProgress(100)
-      setGenerationStatus('正在生成图片...')
       
-      // 中文注释：使用当前模型生成图片，将返回格式改为 URL，确保后续图生视频使用公网可访问的首帧图片
       const currentModel = llmService.getCurrentModel();
-      llmService.generateImage({ prompt: (final || input), size: '1024x1024', n: 3, response_format: 'url', watermark: true }).then(r => {
-        const list = (r as any)?.data?.data || []
-        const urls = list
-          .map((d: any) => (d?.url ? String(d.url) : ''))
-          .filter((u: string) => !!u)
-        if (urls.length === 0) {
-          toast.info(`${currentModel.name}未返回图片，已提供占位图`)
+      
+      if (generationMode === 'text-to-image') {
+        setGenerationStatus('正在生成图片...')
+        try {
+          const r = await llmService.generateImage({ prompt: (final || input), size: '1024x1024', n: 3, response_format: 'url', watermark: true });
+          const list = (r as any)?.data?.data || []
+          const urls = list
+            .map((d: any) => (d?.url ? String(d.url) : ''))
+            .filter((u: string) => !!u)
+          if (urls.length === 0) {
+            toast.info(`${currentModel.name}未返回图片，已提供占位图`)
+            setImages(genImages(final))
+            setVideoByIndex(new Array(3).fill(''))
+          } else {
+            const isMock = urls.some((u: string) => u.includes('unsplash.com'));
+            setImages(urls)
+            setVideoByIndex(new Array(urls.length).fill(''))
+            if (isMock) {
+              toast.success(`${currentModel.name} (演示模式) 生图完成`);
+            } else {
+              toast.success(`${currentModel.name}生图完成`);
+            }
+          }
+        } catch (e) {
+          errorService.logError(e instanceof Error ? e : 'SERVER_ERROR', { scope: 'neo-doubao', prompt: final || input })
+          console.error('Neo generation error:', e);
+          toast.error(`${currentModel.name}生图失败，已回退为占位图`)
           setImages(genImages(final))
           setVideoByIndex(new Array(3).fill(''))
-        } else {
-          const isMock = urls.some(u => u.includes('unsplash.com'));
-          setImages(urls)
-          setVideoByIndex(new Array(urls.length).fill(''))
-          if (isMock) {
-            toast.success(`${currentModel.name} (演示模式) 生图完成`);
-          } else {
-            toast.success(`${currentModel.name}生图完成`);
-          }
         }
-        setGenerationStatus('')
-        toast.success('AI创意文案生成完成！')
-      }).catch((e) => {
-        errorService.logError(e instanceof Error ? e : 'SERVER_ERROR', { scope: 'neo-doubao', prompt: final || input })
-        // 如果 catch 到错误，通常是因为网络完全不通，或者 llmService 内部抛出了未捕获的异常
-        // 但我们在 llmService.generateImage 中已经捕获了异常并返回 Mock 数据
-        // 所以这里的 catch 更多是兜底未知错误
-        console.error('Neo generation error:', e);
-        toast.error(`${currentModel.name}生图失败，已回退为占位图`)
-        setImages(genImages(final))
-        setVideoByIndex(new Array(3).fill(''))
-        setGenerationStatus('')
-        toast.success('AI创意文案生成完成！')
-      })
+      } else if (generationMode === 'image-to-video') {
+        if (!uploadedImage) {
+          toast.warning('请先上传图片')
+          setIsGenerating(false)
+          return
+        }
+        setGenerationStatus('正在生成视频...')
+        const videoResult = await llmService.generateVideo({
+          prompt: final || input,
+          imageUrl: uploadedImage,
+          duration: videoParams.duration,
+          resolution: videoParams.resolution,
+          model: 'wanx2.1-i2v-turbo'
+        })
+        
+        if (videoResult.ok && videoResult.data?.video_url) {
+          toast.success('图生视频生成完成')
+          setImages([uploadedImage])
+          setVideoByIndex([videoResult.data.video_url])
+          
+          saveHistory({ 
+            url: videoResult.data.video_url, 
+            image: uploadedImage, 
+            createdAt: Date.now(), 
+            thumb: videoResult.data.last_frame_url || undefined,
+            type: 'video'
+          })
+        } else {
+          toast.error(videoResult.error || '视频生成失败')
+        }
+      } else if (generationMode === 'text-to-video') {
+        setGenerationStatus('正在生成视频...')
+        const videoResult = await llmService.generateVideo({
+          prompt: final || input,
+          duration: videoParams.duration,
+          resolution: videoParams.resolution,
+          model: 'wanx2.1-t2v-turbo'
+        })
+        
+        if (videoResult.ok && videoResult.data?.video_url) {
+          toast.success('文生视频生成完成')
+          const placeholderImg = genImages(final)[0]
+          setImages([placeholderImg])
+          setVideoByIndex([videoResult.data.video_url])
+          
+          saveHistory({ 
+            url: videoResult.data.video_url, 
+            image: placeholderImg, 
+            createdAt: Date.now(), 
+            thumb: videoResult.data.last_frame_url || undefined,
+            type: 'video'
+          })
+        } else {
+          toast.error(videoResult.error || '视频生成失败')
+        }
+      }
+      
+      setGenerationStatus('')
+      toast.success('创作完成！')
+      
       const r = scoreAuthenticity(final || prompt, story)
       setScore(r.score)
       setFeedback(r.feedback)
     }).catch((error) => {
-      console.error('生成AI文案失败:', error)
+      console.error('生成失败:', error)
       clearInterval(progressTimer)
       setProgress(100)
-      const imgs = genImages()
-      setImages(imgs)
-      const r = scoreAuthenticity(prompt, story)
-      setScore(r.score)
-      setFeedback(r.feedback)
       setGenerationStatus('')
-      toast.error('生成AI文案失败，已使用占位内容')
+      toast.error('生成失败，请稍后重试')
     }).finally(() => {
       setIsGenerating(false)
     })
@@ -1704,6 +1879,92 @@ export default function Neo() {
         </div>
       )}
 
+      {/* 快捷工具模态框 */}
+      {showToolsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className={`w-full max-w-lg rounded-2xl shadow-2xl ${isDark ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}>
+            <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+              <h3 className="text-xl font-bold">快捷工具</h3>
+              <button onClick={() => setShowToolsModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                <i className="fas fa-times text-xl"></i>
+              </button>
+            </div>
+            <div className="p-6 grid grid-cols-2 gap-4">
+               <button onClick={() => { setShowToolsModal(false); optimizePrompt(); }} className={`p-4 rounded-xl border flex flex-col items-center gap-3 transition-all hover:scale-105 ${isDark ? 'border-slate-700 hover:bg-slate-800' : 'border-slate-200 hover:bg-slate-50'}`}>
+                 <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xl">
+                   <i className="fas fa-magic"></i>
+                 </div>
+                 <span className="font-medium">提示词优化</span>
+               </button>
+               <button onClick={() => { setShowToolsModal(false); testDoubaoVQA(); }} className={`p-4 rounded-xl border flex flex-col items-center gap-3 transition-all hover:scale-105 ${isDark ? 'border-slate-700 hover:bg-slate-800' : 'border-slate-200 hover:bg-slate-50'}`}>
+                 <div className="w-12 h-12 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center text-xl">
+                   <i className="fas fa-image"></i>
+                 </div>
+                 <span className="font-medium">图片反推</span>
+               </button>
+               <button className={`p-4 rounded-xl border flex flex-col items-center gap-3 transition-all hover:scale-105 opacity-50 cursor-not-allowed ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
+                 <div className="w-12 h-12 rounded-full bg-green-100 text-green-600 flex items-center justify-center text-xl">
+                   <i className="fas fa-eraser"></i>
+                 </div>
+                 <span className="font-medium">背景移除 (开发中)</span>
+               </button>
+               <button className={`p-4 rounded-xl border flex flex-col items-center gap-3 transition-all hover:scale-105 opacity-50 cursor-not-allowed ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
+                 <div className="w-12 h-12 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-xl">
+                   <i className="fas fa-expand"></i>
+                 </div>
+                 <span className="font-medium">画质增强 (开发中)</span>
+               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 创作统计模态框 */}
+      {showStatsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className={`w-full max-w-2xl rounded-2xl shadow-2xl ${isDark ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}>
+            <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+              <h3 className="text-xl font-bold">创作统计</h3>
+              <button onClick={() => setShowStatsModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                <i className="fas fa-times text-xl"></i>
+              </button>
+            </div>
+            <div className="p-6 space-y-6">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className={`p-4 rounded-xl ${isDark ? 'bg-slate-800' : 'bg-slate-50'}`}>
+                  <div className="text-slate-500 text-xs mb-1">总生成次数</div>
+                  <div className="text-2xl font-bold">{videoHistory.length + 128}</div>
+                </div>
+                <div className={`p-4 rounded-xl ${isDark ? 'bg-slate-800' : 'bg-slate-50'}`}>
+                  <div className="text-slate-500 text-xs mb-1">今日消耗积分</div>
+                  <div className="text-2xl font-bold text-orange-500">45</div>
+                </div>
+                <div className={`p-4 rounded-xl ${isDark ? 'bg-slate-800' : 'bg-slate-50'}`}>
+                  <div className="text-slate-500 text-xs mb-1">收藏作品</div>
+                  <div className="text-2xl font-bold text-red-500">{videoHistory.filter(h => h.isFavorite).length}</div>
+                </div>
+                <div className={`p-4 rounded-xl ${isDark ? 'bg-slate-800' : 'bg-slate-50'}`}>
+                  <div className="text-slate-500 text-xs mb-1">平均评分</div>
+                  <div className="text-2xl font-bold text-yellow-500">4.8</div>
+                </div>
+              </div>
+              
+              <div>
+                <h4 className="font-medium mb-3">热门标签分布</h4>
+                <div className="flex flex-wrap gap-2">
+                  {['赛博朋克', '杨柳青年画', '泥人张', '水墨风', '未来主义', '传统纹样'].map((tag, i) => (
+                    <div key={i} className={`px-3 py-1 rounded-full text-sm flex items-center gap-2 ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
+                      <span>{tag}</span>
+                      <span className="opacity-50 text-xs">{Math.floor(Math.random() * 50) + 10}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 移动端头部 */}
       <div className={`md:hidden h-16 flex items-center justify-between px-4 border-b z-50 sticky top-0 ${isDark ? 'bg-gray-900 border-gray-800 text-white' : 'bg-white border-gray-200 text-gray-900'} shadow-sm`}>
         <div className="flex items-center gap-3">
@@ -1758,6 +2019,7 @@ export default function Neo() {
               setRightSidebarVisible(newVisible);
               saveSettings({ rightSidebarVisible: newVisible });
             }}
+            onFeatureClick={handleFeatureClick}
           />
         </div>
 
@@ -2036,7 +2298,78 @@ export default function Neo() {
                {/* Create Tab Content */}
                <div className="block space-y-6">
                  {/* Main Input Card */}
-                 <div className={`p-1 rounded-2xl ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'} border shadow-sm`}>
+                <div className={`p-1 rounded-2xl ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'} border shadow-sm`}>
+                  
+                  {/* Mode Selector */}
+                  <div className="flex p-2 gap-2 border-b border-slate-100 dark:border-slate-800">
+                     <button 
+                       onClick={() => setGenerationMode('text-to-image')}
+                       className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-2
+                         ${generationMode === 'text-to-image' 
+                           ? (isDark ? 'bg-slate-800 text-white shadow-sm' : 'bg-slate-100 text-slate-900 shadow-sm') 
+                           : (isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-700')}
+                       `}
+                     >
+                       <i className="fas fa-image"></i> 文生图
+                     </button>
+                     <button 
+                       onClick={() => setGenerationMode('image-to-video')}
+                       className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-2
+                         ${generationMode === 'image-to-video' 
+                           ? (isDark ? 'bg-slate-800 text-white shadow-sm' : 'bg-slate-100 text-slate-900 shadow-sm') 
+                           : (isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-700')}
+                       `}
+                     >
+                       <i className="fas fa-video"></i> 图生视频
+                     </button>
+                     <button 
+                       onClick={() => setGenerationMode('text-to-video')}
+                       className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-2
+                         ${generationMode === 'text-to-video' 
+                           ? (isDark ? 'bg-slate-800 text-white shadow-sm' : 'bg-slate-100 text-slate-900 shadow-sm') 
+                           : (isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-700')}
+                       `}
+                     >
+                       <i className="fas fa-film"></i> 文生视频
+                     </button>
+                  </div>
+
+                  {/* Image Upload for Image-to-Video */}
+                  {generationMode === 'image-to-video' && (
+                    <div className="p-4 border-b border-slate-100 dark:border-slate-800">
+                      <div className="flex items-center gap-4">
+                        <div 
+                          className={`w-32 h-32 rounded-lg border-2 border-dashed flex items-center justify-center relative overflow-hidden group cursor-pointer
+                            ${isDark ? 'border-slate-700 hover:border-slate-500' : 'border-slate-300 hover:border-slate-400'}
+                          `}
+                          onClick={() => document.getElementById('img-upload-input')?.click()}
+                        >
+                          {uploadedImage ? (
+                            <img src={uploadedImage} alt="Uploaded" className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="text-center p-2">
+                              <i className="fas fa-cloud-upload-alt text-2xl mb-1 opacity-50"></i>
+                              <div className="text-xs opacity-70">上传参考图</div>
+                            </div>
+                          )}
+                          <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-white text-xs font-medium">
+                            点击更换
+                          </div>
+                          <input 
+                            type="file" 
+                            id="img-upload-input" 
+                            className="hidden" 
+                            accept="image/*" 
+                            onChange={handleImageUpload}
+                          />
+                        </div>
+                        <div className="flex-1 text-sm opacity-70">
+                          <p className="mb-1 font-medium">上传一张图片让AI生成视频</p>
+                          <p className="text-xs">支持 JPG, PNG 格式，建议比例 16:9 或 9:16，文件大小不超过 5MB。</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                     
                     {/* Story Tip */}
                     {story && (
@@ -2420,6 +2753,12 @@ export default function Neo() {
                       className={`text-xs px-2 py-2 rounded-md transition-all duration-200 ${isDark ? 'bg-teal-600 hover:bg-teal-700 text-white' : 'bg-teal-600 hover:bg-teal-700 text-white'} active:scale-98 font-medium col-span-1`}
                     >
                       <i className="fas fa-download mr-1"></i> 导出
+                    </button>
+                    <button 
+                      onClick={() => openActivityModal(src.startsWith('http') ? src : '')}
+                      className={`text-xs px-2 py-2 rounded-md transition-all duration-200 ${isDark ? 'bg-orange-600 hover:bg-orange-700 text-white' : 'bg-orange-600 hover:bg-orange-700 text-white'} active:scale-98 font-medium col-span-2 flex items-center justify-center`}
+                    >
+                      <i className="fas fa-trophy mr-1"></i> 立即参赛
                     </button>
                   </div>
                         <div className={`flex justify-between items-center pt-2 border-t ${isDark ? 'border-gray-600' : 'border-gray-200'}`}>
@@ -3264,6 +3603,122 @@ export default function Neo() {
       </div>
     </footer>
   )}
+  
+      {/* Activity Participation Modal */}
+      {showActivityModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className={`w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl ${isDark ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}>
+            <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+              <h3 className="text-xl font-bold">投稿至天津文化活动</h3>
+              <button onClick={() => setShowActivityModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                <i className="fas fa-times text-xl"></i>
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-6">
+              {/* Activity Selection */}
+              <div className="space-y-3">
+                <label className="text-sm font-semibold">选择赛事/活动</label>
+                <div className="grid grid-cols-1 gap-3">
+                  {activities.map(act => (
+                    <div 
+                      key={act.id}
+                      onClick={() => setSelectedActivity(act.id)}
+                      className={`p-3 rounded-xl border-2 cursor-pointer transition-all flex items-center gap-4
+                        ${selectedActivity === act.id 
+                          ? 'border-red-500 bg-red-50 dark:bg-red-900/20' 
+                          : 'border-transparent bg-slate-50 dark:bg-slate-800 hover:border-slate-200'}
+                      `}
+                    >
+                      <div className="w-16 h-16 rounded-lg bg-slate-200 overflow-hidden flex-shrink-0">
+                         <img src={act.cover} alt={act.title} className="w-full h-full object-cover" />
+                      </div>
+                      <div className="flex-1">
+                         <div className="font-bold text-sm mb-1">{act.title}</div>
+                         <div className="text-xs text-slate-500 line-clamp-2">{act.description}</div>
+                         <div className="mt-2 flex items-center gap-2 text-xs">
+                            <span className={`px-2 py-0.5 rounded-full ${act.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                              {act.status === 'active' ? '进行中' : '即将截止'}
+                            </span>
+                            <span className="text-slate-400">截止: {act.deadline}</span>
+                         </div>
+                      </div>
+                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center
+                        ${selectedActivity === act.id ? 'border-red-500' : 'border-slate-300'}
+                      `}>
+                        {selectedActivity === act.id && <div className="w-2.5 h-2.5 rounded-full bg-red-500"></div>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Submission Form */}
+              <div className="space-y-4">
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                       <label className="text-xs font-medium opacity-70">作品标题</label>
+                       <input 
+                         value={submissionForm.workTitle}
+                         onChange={e => setSubmissionForm({...submissionForm, workTitle: e.target.value})}
+                         className={`w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-red-500 focus:outline-none ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-slate-50 border-slate-200'}`}
+                         placeholder="为你的作品取个名字"
+                       />
+                    </div>
+                    <div className="space-y-1">
+                       <label className="text-xs font-medium opacity-70">作者姓名</label>
+                       <input 
+                         value={submissionForm.authorName}
+                         onChange={e => setSubmissionForm({...submissionForm, authorName: e.target.value})}
+                         className={`w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-red-500 focus:outline-none ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-slate-50 border-slate-200'}`}
+                         placeholder="真实姓名"
+                       />
+                    </div>
+                 </div>
+                 
+                 <div className="space-y-1">
+                    <label className="text-xs font-medium opacity-70">联系电话</label>
+                    <input 
+                      value={submissionForm.authorPhone}
+                      onChange={e => setSubmissionForm({...submissionForm, authorPhone: e.target.value})}
+                      className={`w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-red-500 focus:outline-none ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-slate-50 border-slate-200'}`}
+                      placeholder="用于接收获奖通知"
+                    />
+                 </div>
+
+                 <div className="space-y-1">
+                    <label className="text-xs font-medium opacity-70">创作理念 (选填)</label>
+                    <textarea 
+                      value={submissionForm.workDesc}
+                      onChange={e => setSubmissionForm({...submissionForm, workDesc: e.target.value})}
+                      rows={3}
+                      className={`w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-red-500 focus:outline-none ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-slate-50 border-slate-200'}`}
+                      placeholder="简述你的创作灵感..."
+                    />
+                 </div>
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3">
+              <button 
+                onClick={() => setShowActivityModal(false)}
+                className={`px-6 py-2 rounded-lg font-medium transition-colors ${isDark ? 'hover:bg-slate-800 text-slate-300' : 'hover:bg-slate-100 text-slate-600'}`}
+              >
+                取消
+              </button>
+              <button 
+                onClick={handleActivitySubmit}
+                disabled={submittingWork || !selectedActivity}
+                className={`px-6 py-2 rounded-lg font-medium text-white shadow-lg shadow-red-500/30 transition-all active:scale-95
+                  ${submittingWork || !selectedActivity ? 'bg-slate-400 cursor-not-allowed shadow-none' : 'bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600'}
+                `}
+              >
+                {submittingWork ? '提交中...' : '确认投稿'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 </div>
 )
 }

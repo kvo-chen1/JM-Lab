@@ -218,6 +218,8 @@ export interface EventCreateRequest {
   contactName?: string;
   contactPhone?: string;
   contactEmail?: string;
+  pushToCommunity?: boolean;
+  applyForRecommendation?: boolean;
 }
 
 // 活动更新请求类型
@@ -372,4 +374,19 @@ export interface SystemConfig {
   category: string;
   isPublic: boolean;
   updatedBy?: string;
+}
+
+// 活动参与记录类型
+export interface ActivityParticipation extends BaseEntity {
+  userId: string;
+  eventId: string;
+  event: Event;
+  status: 'registered' | 'submitted' | 'reviewing' | 'completed' | 'awarded' | 'cancelled';
+  progress: number; // 0-100
+  currentStep: number; // 1: 报名成功, 2: 作品提交, 3: 评审中, 4: 结果公布
+  submittedWorkId?: string;
+  ranking?: number;
+  award?: string;
+  registrationDate: Date;
+  submissionDate?: Date;
 }

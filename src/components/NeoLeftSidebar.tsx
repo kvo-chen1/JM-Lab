@@ -11,6 +11,7 @@ interface NeoLeftSidebarProps {
   onToggleCollapse?: () => void;
   rightSidebarVisible?: boolean;
   onToggleRightSidebar?: () => void;
+  onFeatureClick?: (featureId: string) => void;
 }
 
 const NeoLeftSidebar: React.FC<NeoLeftSidebarProps> = ({
@@ -19,7 +20,8 @@ const NeoLeftSidebar: React.FC<NeoLeftSidebarProps> = ({
   collapsed = false,
   onToggleCollapse,
   rightSidebarVisible = false,
-  onToggleRightSidebar
+  onToggleRightSidebar,
+  onFeatureClick
 }) => {
   const { theme, isDark, setTheme } = useTheme();
   const { isAuthenticated, user } = useContext(AuthContext);
@@ -200,7 +202,7 @@ const NeoLeftSidebar: React.FC<NeoLeftSidebarProps> = ({
               {featureItems.map((item) => (
                 <button
                   key={item.id}
-                  onClick={() => console.log('Feature clicked:', item.id)}
+                  onClick={() => onFeatureClick?.(item.id)}
                   className={`group flex items-center w-full p-3 rounded-xl transition-all duration-200
                     ${isDark ? 'text-slate-400 hover:bg-slate-800 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}
                 >

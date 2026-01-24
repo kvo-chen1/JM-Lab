@@ -226,6 +226,13 @@ export const AVAILABLE_MODELS: LLMModel[] = [
     isDefault: false
   },
   {
+    id: 'deepseek',
+    name: 'DeepSeek',
+    description: 'DeepSeek深度求索，擅长代码生成与逻辑推理，兼具优秀的中文创作能力',
+    strengths: ['代码生成', '逻辑推理', '中文创作', '数学计算'],
+    isDefault: false
+  },
+  {
     id: 'qwen',
     name: '通义千问',
     description: '阿里云DashScope，中文对话与综合任务表现优秀，支持图像生成',
@@ -2584,6 +2591,9 @@ class LLMService {
         case 'kimi':
           console.log('[LLM] 尝试调用 Kimi API');
           return await this.callKimiApi(messages, options);
+        case 'deepseek':
+          console.log('[LLM] 尝试调用 Deepseek API');
+          return await this.callDeepseekApi(messages, options);
         case 'qwen':
           console.log('[LLM] 尝试调用 Qwen API');
           return await this.callQwenApi(messages, options);

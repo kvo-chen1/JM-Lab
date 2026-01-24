@@ -2865,10 +2865,20 @@ async function route(req, res, u, path) {
         const endpoint = `${base}/services/aigc/text2video/video-synthesis`;
         
         // 构造请求数据
+        // 如果 content 中包含 image_url，则自动切换到 wanx2.1-i2v-turbo 模型，除非显式指定了其他模型
+        let model = b.model || 'wanx2.1-t2v-turbo';
+        const content = b.content || [{ type: 'text', text: b.prompt || 'Tianjin cultural design' }];
+        const hasImage = content.some(item => item.type === 'image_url');
+        
+        if (hasImage && !b.model) {
+           model = 'wanx2.1-i2v-turbo';
+           console.log('[Qwen Video] Detected image input, switching to i2v model:', model);
+        }
+
         const payload = {
-          model: b.model || 'wanx2.1-t2v-turbo',
+          model: model,
           input: {
-            content: b.content || [{ type: 'text', text: b.prompt || 'Tianjin cultural design' }]
+            content: content
           },
           parameters: {
             duration: b.duration,
@@ -2961,6 +2971,72 @@ async function route(req, res, u, path) {
       }
       return
     }
+
+    // ==========================================
+    // 天津文化活动平台 Mock API
+    // ==========================================
+    
+    // 获取活动列表
+    if (req.method === 'GET' && path === '/api/tianjin/activities') {
+       // 模拟活动数据
+       const activities = [
+         {
+           id: 'act-001',
+           title: '2025“津门古韵”创意设计大赛',
+           cover: 'https://images.unsplash.com/photo-1599839575945-a9e5af0c3fa5?w=800&q=80',
+           deadline: '2025-12-31',
+           status: 'active',
+           description: '征集以天津古建筑、非遗文化为主题的创意设计作品，形式不限。'
+         },
+         {
+           id: 'act-002',
+           title: '“海河之光”短视频挑战赛',
+           cover: 'https://images.unsplash.com/photo-1574610758391-6c4c1587f1ee?w=800&q=80',
+           deadline: '2025-10-15',
+           status: 'active',
+           description: '用镜头记录海河两岸的日新月异，展现天津现代化都市风貌。'
+         },
+         {
+           id: 'act-003',
+           title: '天津卫老字号新国潮',
+           cover: 'https://images.unsplash.com/photo-1606787366850-de6330128bfc?w=800&q=80',
+           deadline: '2025-08-20',
+           status: 'ending_soon',
+           description: '鼓励为狗不理、十八街麻花等老字号设计新国潮包装或宣传物料。'
+         }
+       ];
+       sendJson(res, 200, { ok: true, data: activities });
+       return;
+    }
+
+    // 提交作品
+    if (req.method === 'POST' && path === '/api/tianjin/submit') {
+      const b = await readBody(req);
+      const { activityId, workTitle, workDesc, workUrl, authorName, authorPhone } = b;
+      
+      if (!activityId || !workUrl) {
+        sendJson(res, 400, { error: 'MISSING_PARAMS', message: '缺少必要参数' });
+        return;
+      }
+      
+      // 模拟提交成功
+      console.log(`[Tianjin Activity] Submission received: Activity ${activityId}, Work: ${workTitle}`);
+      
+      // 模拟网络延迟
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      sendJson(res, 200, { 
+        ok: true, 
+        message: '作品提交成功！',
+        data: {
+          submissionId: `sub-${Date.now()}`,
+          submittedAt: Date.now(),
+          status: 'pending_review'
+        }
+      });
+      return;
+    }
+
     
     // 获取当前用户信息 - 支持 /api/auth/me 和 /api/users/me
     if ((req.method === 'GET' && path === '/api/auth/me') || (req.method === 'GET' && path === '/api/users/me')) {

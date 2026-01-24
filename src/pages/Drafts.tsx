@@ -325,8 +325,30 @@ export default function Drafts() {
                         className="w-full h-full object-cover transition-transform group-hover:scale-105"
                       />
                     ) : (
-                      <div className={`w-full h-full flex items-center justify-center ${isDark ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                        <span className="text-xs text-gray-500">无预览图</span>
+                      <div className={`w-full h-full flex flex-col items-center justify-center ${isDark ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                        {draft.activeTool === 'layout' ? (
+                             <LayoutGrid className="w-8 h-8 text-gray-400 mb-2" />
+                         ) : draft.activeTool === 'trace' ? (
+                             <div className="w-8 h-8 text-gray-400 mb-2 flex items-center justify-center">
+                                 <i className="fas fa-landmark text-2xl"></i>
+                             </div>
+                         ) : draft.activeTool === 'mockup' ? (
+                             <div className="w-8 h-8 text-gray-400 mb-2 flex items-center justify-center">
+                                 <i className="fas fa-box-open text-2xl"></i>
+                             </div>
+                         ) : draft.activeTool === 'tile' ? (
+                             <div className="w-8 h-8 text-gray-400 mb-2 flex items-center justify-center">
+                                 <i className="fas fa-border-all text-2xl"></i>
+                             </div>
+                         ) : (
+                             <FileEdit className="w-8 h-8 text-gray-400 mb-2" />
+                         )}
+                         <span className="text-xs text-gray-500">
+                             {draft.activeTool === 'layout' ? '版式设计' : 
+                              draft.activeTool === 'trace' ? '文化溯源' : 
+                              draft.activeTool === 'mockup' ? '模型预览' :
+                              draft.activeTool === 'tile' ? '图案平铺' : '无预览图'}
+                         </span>
                       </div>
                     )}
                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />

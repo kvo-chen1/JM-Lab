@@ -45,6 +45,10 @@ import PostDetail from "@/pages/PostDetail";
 // 2. 高频访问但较大的页面 - 核心工具页面直接加载
 import Create from "@/pages/create/index.tsx";
 import Studio from "@/pages/create/Studio";
+const AIWriter = createLazyComponent(() => import(/* webpackChunkName: "pages-create" */ "@/pages/create/AIWriter"), {
+  priority: ROUTE_PRIORITIES.HIGH,
+  name: 'ai-writer'
+});
 
 // 其他次要页面保持懒加载
 const About = createLazyComponent(() => import(/* webpackChunkName: "pages-other" */ "@/pages/About"), {
@@ -123,6 +127,7 @@ import CreateActivity from "@/pages/CreateActivity";
 import ActivityList from "@/pages/ActivityList";
 import ActivityDetail from "@/pages/ActivityDetail";
 import EditActivity from "@/pages/EditActivity";
+import MyActivities from "@/pages/MyActivities";
 
 // 管理相关 - 懒加载
 const Admin = createLazyComponent(() => import(/* webpackChunkName: "pages-admin" */ "@/pages/admin/Admin"), {
@@ -559,6 +564,7 @@ export default function App() {
           <Route path="/dashboard" element={<LazyComponent fallback={<DashboardSkeleton />}><PrivateRoute><Dashboard /></PrivateRoute></LazyComponent>} />          <Route path="/profile" element={<Navigate to="/dashboard" replace />} />
           <Route path="/create" element={<PrivateRoute><Create /></PrivateRoute>}>
             <Route index element={<Studio />} />
+            <Route path="ai-writer" element={<LazyComponent><AIWriter /></LazyComponent>} />
             <Route path="inspiration" element={<LazyComponent><Neo /></LazyComponent>} />
             <Route path="wizard" element={<LazyComponent><Wizard /></LazyComponent>} />
           </Route>
@@ -612,6 +618,7 @@ export default function App() {
           <Route path="/activities" element={<LazyComponent><PrivateRoute><ActivityList /></PrivateRoute></LazyComponent>} />
           <Route path="/activities/:id" element={<LazyComponent><PrivateRoute><ActivityDetail /></PrivateRoute></LazyComponent>} />
           <Route path="/edit-activity/:id" element={<LazyComponent><PrivateRoute><EditActivity /></PrivateRoute></LazyComponent>} />
+          <Route path="/my-activities" element={<LazyComponent><PrivateRoute><MyActivities /></PrivateRoute></LazyComponent>} />
           
           {/* 创新功能路由 - 懒加载 */}
           <Route path="/daily-checkin" element={<LazyComponent><PrivateRoute><DailyCheckin /></PrivateRoute></LazyComponent>} />

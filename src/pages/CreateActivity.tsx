@@ -54,6 +54,8 @@ export default function CreateActivity() {
     contactName: '',
     contactPhone: '',
     contactEmail: '',
+    pushToCommunity: false,
+    applyForRecommendation: false,
   });
   
   // 加载状态
@@ -1046,6 +1048,36 @@ export default function CreateActivity() {
                           label="公开活动"
                           checked={formData.isPublic}
                           onChange={(checked) => handleChange('isPublic', checked)}
+                        />
+                      </motion.div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.45 }}
+                        className="flex items-center justify-center p-4 border rounded-lg bg-gray-50 dark:bg-gray-800/50"
+                      >
+                        <Checkbox
+                          label="同步发布至社群"
+                          description="将活动推送到相关社群，吸引更多用户参与"
+                          checked={formData.pushToCommunity || false}
+                          onChange={(checked) => handleChange('pushToCommunity', checked)}
+                        />
+                      </motion.div>
+                      
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.5 }}
+                        className="flex items-center justify-center p-4 border rounded-lg bg-gray-50 dark:bg-gray-800/50"
+                      >
+                        <Checkbox
+                          label="申请平台推荐"
+                          description="优质活动可申请平台推荐位，获取更多流量"
+                          checked={formData.applyForRecommendation || false}
+                          onChange={(checked) => handleChange('applyForRecommendation', checked)}
                         />
                       </motion.div>
                     </div>

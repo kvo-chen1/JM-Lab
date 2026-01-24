@@ -274,6 +274,7 @@ const LayoutPanel: React.FC = () => {
     setTimeout(() => {
       updateState({
         aiExplanation: `已生成${selectedLayout.name}版式，尺寸为${customSize.width}x${customSize.height}像素`,
+        generatedImage: selectedLayout.thumbnail,
         showAIReview: true
       });
       setIsGenerating(false);

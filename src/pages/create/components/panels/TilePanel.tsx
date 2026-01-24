@@ -19,30 +19,50 @@ interface TileConfig {
 
 const TilePanel: React.FC = () => {
   const { isDark } = useTheme();
-  const { selectedPatternId, updateState, patternOpacity, patternScale, patternRotation } = useCreateStore();
-  const [tileConfig, setTileConfig] = useState<TileConfig>({
-    patternId: selectedPatternId,
-    mode: 'repeat',
-    size: patternScale,
-    spacing: 0,
-    rotation: patternRotation,
-    opacity: patternOpacity
-  });
+  const { 
+    updateState, 
+    tilePatternId, 
+    tileMode, 
+    tileSize, 
+    tileSpacing, 
+    tileRotation, 
+    tileOpacity 
+  } = useCreateStore();
+  
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
+
+  // Derive tileConfig from store for rendering
+  const tileConfig = {
+    patternId: tilePatternId,
+    mode: tileMode || 'repeat',
+    size: tileSize || 100,
+    spacing: tileSpacing || 0,
+    rotation: tileRotation || 0,
+    opacity: tileOpacity || 100
+  };
 
   // 处理图案选择
   const handlePatternSelect = (patternId: number) => {
-    setTileConfig(prev => ({ ...prev, patternId }));
+    updateState({ tilePatternId: patternId });
   };
 
   // 处理平铺模式变化
   const handleModeChange = (mode: TileMode) => {
-    setTileConfig(prev => ({ ...prev, mode }));
+    updateState({ tileMode: mode });
   };
 
   // 处理配置变化
   const handleConfigChange = (field: keyof Omit<TileConfig, 'patternId' | 'mode'>, value: number) => {
-    setTileConfig(prev => ({ ...prev, [field]: value }));
+    const storeKeyMap: Record<string, string> = {
+        size: 'tileSize',
+        spacing: 'tileSpacing',
+        rotation: 'tileRotation',
+        opacity: 'tileOpacity'
+    };
+    const storeKey = storeKeyMap[field];
+    if (storeKey) {
+        updateState({ [storeKey]: value });
+    }
   };
 
   // 应用平铺效果
@@ -82,11 +102,11 @@ const TilePanel: React.FC = () => {
                 <motion.button
                   key={pattern.id}
                   onClick={() => handlePatternSelect(pattern.id)}
-                  className={`group rounded-lg overflow-hidden border-2 transition-all duration-300 hover:shadow-md ${isDark 
-                    ? 'bg-gray-800 border-gray-700' 
-                    : 'bg-white border-gray-200'} ${isSelected 
-                    ? 'border-[#C02C38] ring-2 ring-[#C02C38]/20 scale-105 z-10' 
-                    : 'opacity-70 hover:opacity-100 hover:scale-105'}`}
+                  className={`group rounded-lg overflow-hidden border-2 transition-all duration-200 ${
+                    tileConfig.patternId === pattern.id 
+                      ? 'border-[#C02C38] ring-2 ring-[#C02C38]/20 scale-105 z-10' 
+                      : isDark ? 'border-gray-700 hover:border-gray-500' : 'border-gray-200 hover:border-gray-300'
+                  }`}
                   whileTap={{ scale: 0.95 }}
                 >
                   <div className="aspect-square relative">
@@ -126,13 +146,11 @@ const TilePanel: React.FC = () => {
             <motion.button
               key={mode.value}
               onClick={() => handleModeChange(mode.value)}
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all ${isDark 
-                ? tileConfig.mode === mode.value 
-                  ? 'bg-[#C02C38]/20 text-[#C02C38]' 
-                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700' 
-                : tileConfig.mode === mode.value 
-                  ? 'bg-[#C02C38]/10 text-[#C02C38]' 
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+              className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all duration-200 flex flex-col items-center gap-1 ${
+                tileConfig.mode === mode.value 
+                  ? 'bg-[#C02C38] text-white shadow-md' 
+                  : isDark ? 'bg-gray-800 text-gray-400 hover:bg-gray-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
               whileTap={{ scale: 0.95 }}
             >
               <i className={`fas fa-${mode.icon}`}></i>

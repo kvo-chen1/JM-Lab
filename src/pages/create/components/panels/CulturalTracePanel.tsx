@@ -8,9 +8,19 @@ import { LoadingSkeleton } from '@/components/LoadingSkeleton';
 
 const CulturalTracePanel: React.FC = () => {
   const { isDark } = useTheme();
-  const { culturalInfoText, updateState } = useCreateStore();
-  const [selectedCategory, setSelectedCategory] = useState<string>(KNOWLEDGE_CATEGORIES[0]);
-  const [selectedKnowledge, setSelectedKnowledge] = useState<KnowledgeItem | null>(null);
+  const { culturalInfoText, updateState, traceSelectedCategoryId, traceSelectedKnowledgeId } = useCreateStore();
+  
+  // Use store state or default
+  const selectedCategory = traceSelectedCategoryId || KNOWLEDGE_CATEGORIES[0];
+  
+  // Derive selectedKnowledge from ID
+  const selectedKnowledge = React.useMemo(() => {
+    if (!traceSelectedKnowledgeId) return null;
+    return tianjinCultureService.getKnowledgeById(traceSelectedKnowledgeId);
+  }, [traceSelectedKnowledgeId]);
+
+  // const [selectedCategory, setSelectedCategory] = useState<string>(KNOWLEDGE_CATEGORIES[0]); // Removed
+  // const [selectedKnowledge, setSelectedKnowledge] = useState<KnowledgeItem | null>(null); // Removed
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<KnowledgeItem[]>([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
@@ -562,7 +572,7 @@ const CulturalTracePanel: React.FC = () => {
                     onClick={() => {
                       // 切换到一个有数据的分类
                       const randomCategory = KNOWLEDGE_CATEGORIES[Math.floor(Math.random() * KNOWLEDGE_CATEGORIES.length)];
-                      setSelectedCategory(randomCategory);
+                      updateState({ traceSelectedCategoryId: randomCategory, traceSelectedKnowledgeId: null });
                     }}
                     className={`px-5 py-3 rounded-lg text-sm font-medium ${isDark 
                       ? 'bg-[#C02C38] text-white' 
@@ -708,7 +718,7 @@ const CulturalTracePanel: React.FC = () => {
                         <p>尝试切换其他分类或使用搜索</p>
                         <div className="flex flex-wrap gap-2 justify-center">
                           <motion.button
-                            onClick={() => setSelectedCategory(KNOWLEDGE_CATEGORIES[1])}
+                            onClick={() => updateState({ traceSelectedCategoryId: KNOWLEDGE_CATEGORIES[1], traceSelectedKnowledgeId: null })}
                             className={`px-4 py-2 rounded-lg text-xs ${isDark 
                               ? 'bg-[#C02C38]/20 hover:bg-[#C02C38]/30 text-[#C02C38]' 
                               : 'bg-[#C02C38]/10 hover:bg-[#C02C38]/20 text-[#C02C38]'} transition-colors shadow-sm`}

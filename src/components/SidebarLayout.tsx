@@ -976,7 +976,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                           <button className={`w-full text-left px-4 py-2 ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}`} onClick={() => { setShowUserMenu(false); navigate('/analytics') }}>{t('header.analytics')}</button>
                         </li>
                         <li>
-                          <button className={`w-full text-left px-4 py-2 ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}`} onClick={() => { setShowUserMenu(false); navigate('/activities') }}>{t('sidebar.activityManagement')}</button>
+                          <button className={`w-full text-left px-4 py-2 ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}`} onClick={() => { setShowUserMenu(false); navigate('/my-activities') }}>我的活动</button>
                         </li>
                         <li>
                           <button className={`w-full text-left px-4 py-2 ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}`} onClick={() => { setShowUserMenu(false); navigate('/membership') }}>{t('header.membershipCenter')}</button>

@@ -357,42 +357,6 @@ export default defineConfig({
         entryFileNames: 'entries/[name]-[hash:8].js',
         // 启用动态导入支持
         dynamicImportInCjs: true,
-        // 手动分包策略
-        manualChunks: (id) => {
-          if (id.includes('node_modules')) {
-            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router-dom') || id.includes('scheduler')) {
-              return 'react-vendor';
-            }
-            if (id.includes('three') || id.includes('@react-three')) {
-              return 'three-vendor';
-            }
-            if (id.includes('framer-motion')) {
-              return 'motion-vendor';
-            }
-            if (id.includes('lucide-react')) {
-              return 'icons-vendor';
-            }
-            // 将其他大型库单独打包
-            if (id.includes('@tensorflow') || id.includes('@mediapipe')) {
-              return 'ai-vendor';
-            }
-            if (id.includes('tinymce')) {
-              return 'editor-vendor';
-            }
-            if (id.includes('supabase')) {
-              return 'supabase-vendor';
-            }
-            if (id.includes('recharts')) {
-              return 'charts-vendor';
-            }
-            return 'vendor';
-          }
-          
-          //   if (id.includes('src')) {
-          //     // 获取文件名作为 chunk name
-          //     return path.basename(id, path.extname(id));
-          //   }
-        }
       },
       // 优化插件配置
       plugins: [

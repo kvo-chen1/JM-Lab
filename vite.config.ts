@@ -348,7 +348,6 @@ export default defineConfig({
       // 优化输入选项
       input: {
         main: 'index.html',
-        landing: 'landing.html',
       },
       output: {
         // 优化资产输出

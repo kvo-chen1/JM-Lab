@@ -499,17 +499,7 @@ export default function App() {
           {/* 核心页面直接渲染，无需懒加载，添加缓存和动画 */}
           {/* 确保根路径是第一个路由，提高匹配优先级 */}
           <Route path="/" element={
-            <AnimatedPage>
-              {isAuthenticated ? (
-                isMobile ? (
-                  <MobileLayout><PrivateRoute><Home /></PrivateRoute></MobileLayout>
-                ) : (
-                  <SidebarLayout><PrivateRoute><Home /></PrivateRoute></SidebarLayout>
-                )
-              ) : (
-                <Landing />
-              )}
-            </AnimatedPage>
+            <Navigate to="/landing.html" replace />
           } />
         {/* Landing页面路由 */}
         <Route path="/landing" element={<Landing />} />

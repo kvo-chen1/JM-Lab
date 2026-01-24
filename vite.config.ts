@@ -347,7 +347,8 @@ export default defineConfig({
       external: ['better-sqlite3', 'mongodb', 'pg', '@neondatabase/serverless', 'ws'],
       // 优化输入选项
       input: {
-        main: 'index.html',
+        main: path.resolve(__dirname, 'index.html'),
+        landing: path.resolve(__dirname, 'landing.html'),
       },
       output: {
         // 优化资产输出

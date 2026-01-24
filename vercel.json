@@ -1,5 +1,13 @@
 {
   "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/", "destination": "/landing.html" },
+    { "source": "/login", "destination": "/index.html" },
+    { "source": "/register", "destination": "/index.html" },
+    { "source": "/create(.*)", "destination": "/index.html" },
+    { "source": "/explore(.*)", "destination": "/index.html" },
+    { "source": "/profile(.*)", "destination": "/index.html" },
+    { "source": "/community(.*)", "destination": "/index.html" },
+    { "source": "/admin(.*)", "destination": "/index.html" },
+    { "source": "/((?!landing\\.html|assets/|.*\\.).*)", "destination": "/index.html" }
   ]
 }

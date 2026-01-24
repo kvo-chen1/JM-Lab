@@ -123,7 +123,9 @@ export default function CommunityPage() {
       isCreatePostOpen,
       setIsCreatePostOpen,
       isCreateCommunityOpen,
-      setIsCreateCommunityOpen
+      setIsCreateCommunityOpen,
+      search,
+      setSearch,
     } = useCommunityLogic();
 
   // 使用useMemo优化性能，减少不必要的计算
@@ -192,6 +194,8 @@ export default function CommunityPage() {
         ) : undefined
       }
       activeCommunity={activeCommunity} // 传递活跃社群信息，用于自定义风格
+      search={search}
+      setSearch={setSearch}
     >
       <Suspense fallback={<LoadingFallback />}>
         <PageTransition>
@@ -206,6 +210,8 @@ export default function CommunityPage() {
                   onJoin={onJoinCommunity}
                   onOpen={onSelectCommunity}
                   userTags={selectedTag ? [selectedTag] : []}
+                  search={search}
+                  setSearch={setSearch}
               />
             ) : (
             <FeedSection

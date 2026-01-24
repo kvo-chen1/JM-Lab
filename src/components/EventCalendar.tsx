@@ -144,11 +144,11 @@ export default function EventCalendar() {
   }
 
   return (
-    <div className={`p-4 sm:p-6 rounded-2xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-md`}>
+    <div className={`sm:p-4 md:p-6 sm:rounded-2xl ${isDark ? 'sm:bg-gray-800' : 'sm:bg-white'} sm:shadow-md`}>
       {/* 标题和搜索 */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 sm:mb-6 space-y-3 sm:space-y-0">
-        <h2 className="text-lg sm:text-xl font-bold">文化主题活动日历</h2>
-        <div className="relative w-full md:w-64">
+      <div className="mb-4 sm:mb-6">
+        {/* 手机端搜索框 - 放在上面 */}
+        <div className="sm:hidden relative mb-3">
           <input 
             type="text"
             placeholder="搜索活动..."
@@ -160,6 +160,23 @@ export default function EventCalendar() {
               focus:outline-none focus:ring-2 focus:ring-red-500 transition-all`}
           />
           <i className="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+        </div>
+        {/* 电脑端标题和搜索 */}
+        <div className="hidden sm:flex flex-col md:flex-row justify-between items-start md:items-center space-y-3 sm:space-y-0">
+          <h2 className="text-lg sm:text-xl font-bold">文化主题活动日历</h2>
+          <div className="relative w-full md:w-64">
+            <input 
+              type="text"
+              placeholder="搜索活动..."
+              value={searchKeyword}
+              onChange={(e) => setSearchKeyword(e.target.value)}
+              className={`w-full pl-10 pr-4 py-2 rounded-lg text-sm ${isDark 
+                ? 'bg-gray-700 text-white placeholder-gray-400' 
+                : 'bg-gray-100 text-gray-900 placeholder-gray-600'}
+                focus:outline-none focus:ring-2 focus:ring-red-500 transition-all`}
+            />
+            <i className="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+          </div>
         </div>
       </div>
 
@@ -185,11 +202,11 @@ export default function EventCalendar() {
       </div>
 
       {/* 事件类型筛选 */}
-      <div className="flex space-x-3 mb-4 sm:mb-6 overflow-x-auto pb-4 scrollbar-hide">
+      <div className="flex space-x-2 sm:space-x-3 mb-3 sm:mb-6 overflow-x-auto pb-3 sm:pb-4 scrollbar-hide px-1 sm:px-0">
         <button
           onClick={() => setSelectedEventType('all')}
-          className={`px-3 py-1.5 rounded-full text-xs sm:text-sm transition-all whitespace-nowrap ${selectedEventType === 'all'
-            ? 'bg-blue-600 text-white'
+          className={`px-2.5 sm:px-3 py-1.5 sm:py-1.5 rounded-full text-xs sm:text-sm transition-all whitespace-nowrap min-w-[80px] sm:min-w-[90px] text-center ${selectedEventType === 'all'
+            ? 'bg-blue-600 text-white shadow-sm'
             : isDark
               ? 'bg-gray-700 hover:bg-gray-600'
               : 'bg-gray-100 hover:bg-gray-200'}`}
@@ -200,8 +217,8 @@ export default function EventCalendar() {
           <button
             key={type}
             onClick={() => setSelectedEventType(type)}
-            className={`px-3 py-1.5 rounded-full text-xs sm:text-sm transition-all whitespace-nowrap ${selectedEventType === type
-              ? 'bg-blue-600 text-white'
+            className={`px-2.5 sm:px-3 py-1.5 sm:py-1.5 rounded-full text-xs sm:text-sm transition-all whitespace-nowrap min-w-[80px] sm:min-w-[90px] text-center ${selectedEventType === type
+              ? 'bg-blue-600 text-white shadow-sm'
               : isDark
                 ? 'bg-gray-700 hover:bg-gray-600'
                 : 'bg-gray-100 hover:bg-gray-200'}`}

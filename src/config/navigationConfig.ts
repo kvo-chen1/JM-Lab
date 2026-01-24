@@ -44,7 +44,7 @@ export const eventsNavItems: NavItem[] = [
 
 // 发现天津导航项
 export const discoveryNavItems: NavItem[] = [
-  { id: 'tianjin', path: '/tianjin', label: '天津专区', icon: 'fas fa-landmark' },
+  { id: 'tianjin', path: '/tianjin', label: '天津特色专区', icon: 'fas fa-landmark' },
   { id: 'events', path: '/cultural-events', label: '天津文化活动', icon: 'fas fa-calendar-alt' },
   { id: 'tianjin-map', path: '/tianjin/map', label: '天津老字号地图', icon: 'fas fa-map-marked-alt' },
   { id: 'knowledge', path: '/cultural-knowledge', label: '天津文化知识', icon: 'fas fa-book' }

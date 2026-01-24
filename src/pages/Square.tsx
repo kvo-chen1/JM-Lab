@@ -3,6 +3,7 @@ import { useState, useMemo, useRef, useCallback, useEffect, lazy, Suspense } fro
 import { useParams, useNavigate } from 'react-router-dom'
 import postsApi, { Post } from '@/services/postService'
 import { SearchResultType } from '@/components/SearchBar'
+import { motion } from 'framer-motion'
 
 import GradientHero from '@/components/GradientHero'
 import CommunitySpotlight from '@/components/CommunitySpotlight'
@@ -580,80 +581,91 @@ export default function Square() {
       />
       
       {/* Filter & Control Bar */}
-      <div className={`mb-8 ${isDark ? 'bg-gray-800/60 border-gray-700' : 'bg-white/80 border-gray-200'} backdrop-blur-xl border rounded-3xl shadow-lg p-1`}>
-        <div className="flex flex-col lg:flex-row gap-4 p-4">
+      <div className={`mb-8 ${isDark ? 'bg-gray-800/60 border-gray-700' : 'bg-white/80 border-gray-200'} backdrop-blur-xl border rounded-3xl shadow-lg p-1 transition-all duration-300 hover:shadow-xl`}>
+        <div className="flex flex-col lg:flex-row gap-4 p-4 bg-white/70 dark:bg-gray-900/70 backdrop-blur-sm rounded-2xl">
            {/* Left: Community Mode Tabs */}
            <div className="flex-1 flex flex-col gap-4">
-              <div className="flex items-center gap-3 overflow-x-auto scrollbar-hide">
-                <span className={`text-sm font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'} whitespace-nowrap`}>
-                  <i className="fas fa-layer-group mr-2"></i>分区
+              <div className="flex items-center gap-3 overflow-x-auto scrollbar-hide pb-2">
+                <span className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} whitespace-nowrap flex items-center gap-2 px-2 py-1.5 rounded-lg bg-gray-100/70 dark:bg-gray-800/70 shadow-sm`}>
+                  <i className="fas fa-layer-group text-blue-500"></i>
+                  <span>分区</span>
                 </span>
-                <div className={`flex p-1 rounded-xl ${isDark ? 'bg-gray-900/50' : 'bg-gray-100'}`}>
+                <div className={`flex p-1 rounded-xl ${isDark ? 'bg-gray-900/80' : 'bg-gray-100/80'} backdrop-blur-sm shadow-sm`}>
                   {[
                     { id: 'all', label: '全部' },
                     { id: 'style', label: '风格' },
                     { id: 'topic', label: '题材' }
                   ].map(tab => (
-                    <button
+                    <motion.button
                       key={tab.id}
                       onClick={() => setCommunityMode(tab.id as any)}
-                      className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${communityMode === tab.id ? (isDark ? 'bg-gray-700 text-white shadow-sm' : 'bg-white text-gray-900 shadow-sm') : (isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-900')}`}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-all min-w-[80px] text-center ${communityMode === tab.id ? (isDark ? 'bg-gray-700 text-white shadow-md' : 'bg-white text-gray-900 shadow-md') : (isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-900')}`}
                     >
                       {tab.label}
-                    </button>
+                    </motion.button>
                   ))}
                 </div>
                 
-                <div className="w-px h-6 bg-gray-300 dark:bg-gray-700 mx-2"></div>
+                <div className="w-px h-6 bg-gray-300/50 dark:bg-gray-700/50 mx-2"></div>
                 
                 {/* Quick Toggles */}
-                <button 
+                <motion.button 
                   onClick={() => setFavOnly(v => !v)} 
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-all flex items-center gap-2 ${favOnly ? 'bg-red-50 text-red-600 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800' : (isDark ? 'border-gray-700 text-gray-400 hover:bg-gray-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50')}`}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium border transition-all flex items-center gap-2 min-h-[40px] ${favOnly ? 'bg-red-50 text-red-600 border-red-200 shadow-sm dark:bg-red-900/20 dark:text-red-400 dark:border-red-800' : (isDark ? 'border-gray-700 text-gray-400 hover:bg-gray-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50')}`}
                 >
                   <i className={`fas fa-heart ${favOnly ? 'text-red-500' : ''}`}></i>
                   收藏
-                </button>
-                <button 
+                </motion.button>
+                <motion.button 
                   onClick={importExploreWorks} 
                   disabled={importedExplore}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-all flex items-center gap-2 ${importedExplore ? 'bg-gray-100 text-gray-400 border-transparent cursor-not-allowed dark:bg-gray-800 dark:text-gray-600' : 'bg-green-50 text-green-600 border-green-200 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800'}`}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium border transition-all flex items-center gap-2 min-h-[40px] ${importedExplore ? 'bg-gray-100 text-gray-400 border-transparent cursor-not-allowed dark:bg-gray-800 dark:text-gray-600' : 'bg-green-50 text-green-600 border-green-200 shadow-sm hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800'}`}
                 >
                   <i className="fas fa-cloud-download-alt"></i>
                   {importedExplore ? '已导入' : '导入策展'}
-                </button>
+                </motion.button>
               </div>
 
               {/* Filter Tags Area */}
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center gap-3 p-3 bg-gray-50/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-xl shadow-sm">
                  {communityMode === 'all' && (
-                   <div className="text-sm opacity-50 italic px-2">选择上方分区查看特定分类</div>
+                   <div className="text-sm text-gray-500 dark:text-gray-400 italic px-3 py-2 rounded-lg bg-white/70 dark:bg-gray-700/70 shadow-sm">选择上方分区查看特定分类</div>
                  )}
                  {communityMode === 'style' && (
                     <>
-                      <span className="text-xs opacity-50 mr-2">风格:</span>
+                      <span className="text-xs font-medium text-gray-600 dark:text-gray-400 mr-2 whitespace-nowrap px-3 py-1.5 rounded-full bg-white/80 dark:bg-gray-700/80 shadow-sm">风格:</span>
                       {STYLE_LIST.map(s => (
-                        <button 
+                        <motion.button 
                           key={s} 
                           onClick={() => setSelectedStyle(s)} 
-                          className={`px-3 py-1 rounded-full text-xs transition-all border ${selectedStyle === s ? 'bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800' : (isDark ? 'border-gray-700 text-gray-400 hover:border-gray-500' : 'border-gray-200 text-gray-600 hover:border-gray-300')}`}
+                          whileHover={{ scale: 1.05, y: -2 }}
+                          whileTap={{ scale: 0.95 }}
+                          className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all border min-h-[36px] ${selectedStyle === s ? 'bg-blue-50 text-blue-600 border-blue-200 shadow-md dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800' : (isDark ? 'border-gray-700 text-gray-400 hover:border-gray-500' : 'border-gray-200 text-gray-600 hover:border-gray-300')}`}
                         >
                           {s}
-                        </button>
+                        </motion.button>
                       ))}
                     </>
                  )}
                  {communityMode === 'topic' && (
                     <>
-                      <span className="text-xs opacity-50 mr-2">题材:</span>
+                      <span className="text-xs font-medium text-gray-600 dark:text-gray-400 mr-2 whitespace-nowrap px-3 py-1.5 rounded-full bg-white/80 dark:bg-gray-700/80 shadow-sm">题材:</span>
                       {TOPIC_LIST.map(s => (
-                        <button 
+                        <motion.button 
                           key={s} 
                           onClick={() => setSelectedTopic(s)} 
-                          className={`px-3 py-1 rounded-full text-xs transition-all border ${selectedTopic === s ? 'bg-purple-50 text-purple-600 border-purple-200 dark:bg-purple-900/30 dark:text-purple-400 dark:border-purple-800' : (isDark ? 'border-gray-700 text-gray-400 hover:border-gray-500' : 'border-gray-200 text-gray-600 hover:border-gray-300')}`}
+                          whileHover={{ scale: 1.05, y: -2 }}
+                          whileTap={{ scale: 0.95 }}
+                          className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all border min-h-[36px] ${selectedTopic === s ? 'bg-purple-50 text-purple-600 border-purple-200 shadow-md dark:bg-purple-900/30 dark:text-purple-400 dark:border-purple-800' : (isDark ? 'border-gray-700 text-gray-400 hover:border-gray-500' : 'border-gray-200 text-gray-600 hover:border-gray-300')}`}
                         >
                           {s}
-                        </button>
+                        </motion.button>
                       ))}
                     </>
                  )}
@@ -661,18 +673,31 @@ export default function Square() {
            </div>
 
            {/* Right: Top Stats / Link */}
-           <div className={`lg:w-64 flex flex-col justify-between gap-2 pl-0 lg:pl-6 lg:border-l ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+           <div className={`lg:w-64 flex flex-col justify-between gap-3 pl-0 lg:pl-6 lg:border-l ${isDark ? 'border-gray-700/50' : 'border-gray-200/50'}`}>
               <div className="flex flex-wrap gap-2">
                  {topStyles.slice(0, 3).map(([name, count]) => (
-                   <span key={name} className={`text-[10px] px-2 py-0.5 rounded border ${isDark ? 'bg-gray-800 border-gray-700 text-gray-400' : 'bg-gray-50 border-gray-200 text-gray-500'}`}>
-                     {name} {count}
-                   </span>
+                   <motion.span 
+                     key={name} 
+                     whileHover={{ scale: 1.05, y: -2 }}
+                     className={`text-[10px] px-3 py-1.5 rounded-full border ${isDark ? 'bg-gray-800/80 border-gray-700 text-gray-400' : 'bg-white/80 border-gray-200 text-gray-600'} shadow-sm font-medium`}
+                   >
+                     <span>{name}</span>
+                     <span className="text-gray-500 dark:text-gray-500 ml-1">{count}</span>
+                   </motion.span>
                  ))}
               </div>
-              <a href="/community" className="mt-auto text-xs flex items-center justify-between px-3 py-2 rounded-lg bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-md hover:shadow-lg transition-all group">
-                 <span>进入创作者社区</span>
-                 <i className="fas fa-arrow-right transform group-hover:translate-x-1 transition-transform"></i>
-              </a>
+              <motion.a 
+                href="/community" 
+                whileHover={{ scale: 1.03, y: -3 }}
+                whileTap={{ scale: 0.97 }}
+                className="mt-auto text-sm font-medium flex items-center justify-between px-4 py-3 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-500/20 hover:shadow-xl hover:shadow-blue-500/30 transition-all group"
+              >
+                <span className="flex items-center gap-2">
+                  <i className="fas fa-rocket text-sm"></i>
+                  <span>进入创作者社区</span>
+                </span>
+                <i className="fas fa-arrow-right transform group-hover:translate-x-2 transition-transform duration-300"></i>
+              </motion.a>
            </div>
         </div>
       </div>

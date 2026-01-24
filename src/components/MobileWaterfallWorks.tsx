@@ -138,9 +138,9 @@ export const MobileWaterfallWorks: React.FC<MobileWaterfallWorksProps> = ({
   }
 
   return (
-    <div className="flex gap-2 px-2 pb-20">
+    <div className="flex gap-3 pb-20">
       {columns.map((col, ci) => (
-        <div key={ci} className="flex-1 flex flex-col gap-2">
+        <div key={ci} className="flex-1 flex flex-col gap-3">
           {col.map((work, wi) => {
             const ratio = work.aspectRatio || getRandomAspectRatio(work.id);
             // Calculate global index for priority loading logic
@@ -151,15 +151,18 @@ export const MobileWaterfallWorks: React.FC<MobileWaterfallWorksProps> = ({
             return (
             <motion.div
               key={work.id}
-              className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden cursor-pointer group"
+              className="bg-white dark:bg-gray-800 rounded-xl overflow-hidden cursor-pointer group shadow-sm hover:shadow-lg transition-shadow"
               onClick={() => onClick?.(work.id)}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: wi * 0.1, ease: "easeOut" }}
               whileHover={{ 
-                scale: 1.02, 
+                scale: 1.03, 
                 boxShadow: isDark 
-                  ? '0 8px 24px rgba(0, 0, 0, 0.3)' 
-                  : '0 8px 24px rgba(0, 0, 0, 0.15)'
+                  ? '0 12px 32px rgba(0, 0, 0, 0.4)' 
+                  : '0 12px 32px rgba(0, 0, 0, 0.18)'
               }}
-              transition={{ duration: 0.3, ease: "easeOut" }}
+              whileTap={{ scale: 0.98 }}
             >
               <div className="relative overflow-hidden">
                 <motion.div
@@ -171,7 +174,7 @@ export const MobileWaterfallWorks: React.FC<MobileWaterfallWorksProps> = ({
                     src={work.thumbnail}
                     alt={work.title}
                     className="w-full object-cover align-bottom"
-                    rounded="lg"
+                    rounded="xl"
                     imageTag={work.imageTag}
                     disableFallback={false}
                     loading={isTopItem ? "eager" : "lazy"} // 只有前几行急加载
@@ -204,13 +207,13 @@ export const MobileWaterfallWorks: React.FC<MobileWaterfallWorksProps> = ({
               </div>
               
               <motion.div 
-                className="p-2.5"
+                className="p-3"
                 initial={{ y: 0 }}
-                whileHover={{ y: -4 }}
+                whileHover={{ y: -6 }}
                 transition={{ duration: 0.3, ease: "easeOut" }}
               >
                 <motion.h3 
-                  className="text-sm font-semibold text-gray-900 dark:text-gray-100 leading-snug mb-2 line-clamp-2"
+                  className="text-sm font-bold text-gray-900 dark:text-gray-100 leading-snug mb-2 line-clamp-2"
                   whileHover={{ color: isDark ? '#ffffff' : '#1f2937' }}
                   transition={{ duration: 0.3, ease: "easeOut" }}
                 >
@@ -222,9 +225,9 @@ export const MobileWaterfallWorks: React.FC<MobileWaterfallWorksProps> = ({
                   whileHover={{ opacity: 1 }}
                   transition={{ duration: 0.3, ease: "easeOut" }}
                 >
-                  <div className="flex items-center gap-1.5 min-w-0">
+                  <div className="flex items-center gap-2 min-w-0">
                     <motion.div 
-                      className="w-5 h-5 rounded-full overflow-hidden flex-shrink-0 border border-gray-100 dark:border-gray-700"
+                      className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0 border-2 border-white dark:border-gray-700 shadow-sm"
                       whileHover={{ scale: 1.1, rotate: 5 }}
                       transition={{ duration: 0.3, ease: "easeOut" }}
                     >
@@ -244,9 +247,9 @@ export const MobileWaterfallWorks: React.FC<MobileWaterfallWorksProps> = ({
                       e.stopPropagation();
                       handleShare(work);
                     }}
-                    className={`w-6 h-6 flex items-center justify-center rounded-full transition-colors ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} text-gray-500 hover:text-gray-800 dark:hover:text-gray-100`}
+                    className={`w-8 h-8 flex items-center justify-center rounded-full transition-all ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} text-gray-500 hover:text-gray-800 dark:hover:text-gray-100`}
                     title="分享作品"
-                    whileHover={{ scale: 1.2, rotate: 10 }}
+                    whileHover={{ scale: 1.2, rotate: 15, backgroundColor: isDark ? '#4b5563' : '#f3f4f6' }}
                     whileTap={{ scale: 0.9 }}
                     transition={{ duration: 0.2, ease: "easeOut" }}
                   >

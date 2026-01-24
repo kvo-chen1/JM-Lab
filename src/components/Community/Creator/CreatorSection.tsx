@@ -9,7 +9,9 @@ import {
 import { PostGrid } from '@/components/CreatorCommunity/PostGrid';
 import { AuthorGrid } from '@/components/CreatorCommunity/AuthorCard';
 import { useCommunityStore } from '@/stores/communityStore';
+import { useCommunityLogic } from '@/hooks/useCommunityLogic';
 import type { UserProfile } from '@/lib/supabase';
+import type { Community } from '@/mock/communities';
 
 interface CreatorSectionProps {
   isDark?: boolean;
@@ -37,6 +39,8 @@ export const CreatorSection: React.FC<CreatorSectionProps> = ({ isDark, currentU
     fetchPosts, setCategory, setSortBy,
     initSubscription, unsubscribe
   } = useCommunityStore();
+  
+  const { joinedCommunities, onSelectCommunity } = useCommunityLogic();
   
   const currentUser = propUser || storeUser;
   
@@ -91,7 +95,61 @@ export const CreatorSection: React.FC<CreatorSectionProps> = ({ isDark, currentU
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           {/* 主内容区 */}
           <div className="lg:col-span-3">
-
+            {/* 手机端已加入社群区域 */}
+            <div className="lg:hidden mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                  我的社群
+                </h3>
+                <button
+                  onClick={() => navigate('/community')}
+                  className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}
+                >
+                  查看全部
+                </button>
+              </div>
+              <div className="overflow-x-auto pb-2 -mx-1">
+                <div className="flex space-x-3 px-1">
+                  {joinedCommunities.map((community) => (
+                    <motion.div
+                      key={community.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.3 }}
+                      whileHover={{ scale: 1.05 }}
+                      className={`flex-shrink-0 w-20 flex flex-col items-center cursor-pointer`}
+                      onClick={() => onSelectCommunity(community.id)}
+                    >
+                      <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-gray-200 dark:border-gray-700 mb-2">
+                        <img
+                          src={community.avatar || 'https://picsum.photos/seed/community/200/200'}
+                          alt={community.name}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <span className={`text-xs text-center ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                        {community.name.length > 8 ? community.name.substring(0, 8) + '...' : community.name}
+                      </span>
+                    </motion.div>
+                  ))}
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3 }}
+                    whileHover={{ scale: 1.05 }}
+                    className={`flex-shrink-0 w-20 flex flex-col items-center justify-center cursor-pointer`}
+                    onClick={() => navigate('/community')}
+                  >
+                    <div className={`w-16 h-16 rounded-full border-2 border-dashed flex items-center justify-center mb-2 ${isDark ? 'border-gray-700 bg-gray-800 text-gray-400' : 'border-gray-300 bg-gray-50 text-gray-400'}`}>
+                      <i className="fas fa-plus text-xl"></i>
+                    </div>
+                    <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                      加入更多
+                    </span>
+                  </motion.div>
+                </div>
+              </div>
+            </div>
 
             {/* 帖子列表 */}
             <div>

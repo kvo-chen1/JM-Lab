@@ -13,12 +13,40 @@ import { useTranslation } from 'react-i18next'
 import PromptInput from '@/components/PromptInput'
 import eventBus from '@/lib/eventBus' // 导入事件总线
 
+// 响应式动画速度控制
+const useResponsiveAnimation = () => {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // 根据设备类型返回动画持续时间
+  const getDuration = (defaultDuration: number) => {
+    return isMobile ? defaultDuration * 0.4 : defaultDuration;
+  };
+
+  // 根据设备类型返回动画延迟时间
+  const getDelay = (defaultDelay: number) => {
+    return isMobile ? defaultDelay * 0.5 : defaultDelay;
+  };
+
+  return { isMobile, getDuration, getDelay };
+};
+
 export default function Home() {
   const { isDark } = useTheme();
   useContext(AuthContext);
   const navigate = useNavigate();
   const { t } = useTranslation();
   const { scrollY } = useScroll();
+  const { getDuration, getDelay } = useResponsiveAnimation();
   
   // Parallax effects
   const heroY = useTransform(scrollY, [0, 500], [0, 200]);
@@ -293,7 +321,7 @@ export default function Home() {
           <motion.h1 
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.8, ease: "easeOut" }}
+            transition={{ duration: getDuration(0.8), ease: "easeOut" }}
             className="text-5xl md:text-7xl lg:text-8xl font-black text-white mb-6 drop-shadow-2xl tracking-tight"
           >
             {t('common.welcome')}
@@ -301,7 +329,7 @@ export default function Home() {
           <motion.p 
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.8, delay: 0.2, ease: "easeOut" }}
+            transition={{ duration: getDuration(0.8), delay: getDelay(0.2), ease: "easeOut" }}
             className="text-lg md:text-2xl text-white/90 mb-12 font-light tracking-wide max-w-2xl mx-auto"
           >
             {t('home.exploreTianjinCulture')}
@@ -311,7 +339,7 @@ export default function Home() {
           <motion.div 
             initial={{ y: 30, opacity: 0, scale: 0.95 }}
             animate={{ y: 0, opacity: 1, scale: 1 }}
-            transition={{ duration: 0.8, delay: 0.4, type: 'spring', stiffness: 100 }}
+            transition={{ duration: getDuration(0.8), delay: getDelay(0.4), type: 'spring', stiffness: 100 }}
             className="w-full max-w-3xl mx-auto backdrop-blur-xl bg-white/10 border border-white/20 rounded-3xl p-2 shadow-2xl transition-all duration-500 hover:bg-white/15 focus-within:bg-white/15 focus-within:border-white/30 focus-within:shadow-3xl hover:shadow-3xl"
           >
             <div className="flex flex-col md:flex-row gap-2">
@@ -377,18 +405,26 @@ export default function Home() {
               </div>
             </div>
             {/* Quick Tags inside search bar area */}
-            <div className="flex gap-2 px-6 pb-3 mt-2 overflow-x-auto scrollbar-hide">
+            <div className="flex gap-2 px-4 sm:px-6 pb-2 sm:pb-3 mt-2 overflow-x-auto scrollbar-hide scroll-smooth snap-x snap-mandatory">
               {quickTags.map((tag, i) => (
                 <motion.button
                   key={i}
                   onClick={() => toggleTag(tag)}
-                  className={`text-xs px-3 py-1 rounded-full border transition-all ${selectedTags.includes(tag) ? 'bg-white text-black border-white' : 'bg-transparent text-white/70 border-white/20 hover:bg-white/10'}`}
+                  className={`text-xs sm:text-xs px-2 sm:px-3 py-1.5 sm:py-1 min-w-max rounded-full border transition-all ${selectedTags.includes(tag) ? 'bg-white text-black border-white' : 'bg-transparent text-white/70 border-white/20 hover:bg-white/10'}`}
                   whileHover={{ scale: 1.05, y: -2 }}
                   whileTap={{ scale: 0.95 }}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.8 + i * 0.05 }}
                   layoutId={`tag-${tag}`}
+                  style={{
+                    // 优化移动端触摸目标
+                    touchAction: 'manipulation',
+                    // 确保在移动设备上有足够的点击区域
+                    minHeight: '32px',
+                    // 平滑滚动
+                    scrollSnapAlign: 'start'
+                  }}
                 >
                   {tag}
                 </motion.button>
@@ -414,7 +450,7 @@ export default function Home() {
                 initial={{ opacity: 0, y: 50, scale: 0.95 }}
                 whileInView={{ opacity: 1, y: 0, scale: 1 }}
                 viewport={{ once: true, margin: '-100px' }}
-                transition={{ duration: 0.6, delay: idx * 0.2, type: 'spring', stiffness: 100 }}
+                transition={{ duration: getDuration(0.6), delay: getDelay(idx * 0.2), type: 'spring', stiffness: 100 }}
                 whileHover={{ y: -10, scale: 1.02, boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)' }}
                 className={`relative h-80 rounded-3xl overflow-hidden cursor-pointer group shadow-2xl ${isDark ? 'bg-gray-900' : 'bg-white'}`}
                 onClick={() => navigate(item.path)}
@@ -422,7 +458,7 @@ export default function Home() {
                 <motion.div
                   initial={{ scale: 1.1 }}
                   whileInView={{ scale: 1 }}
-                  transition={{ duration: 0.8, delay: idx * 0.2 + 0.2 }}
+                  transition={{ duration: getDuration(0.8), delay: getDelay(idx * 0.2 + 0.2) }}
                   className="overflow-hidden"
                 >
                   <TianjinImage 
@@ -472,15 +508,15 @@ export default function Home() {
               initial={{ opacity: 0, x: -100, scale: 0.9 }}
               whileInView={{ opacity: 1, x: 0, scale: 1 }}
               viewport={{ once: true, margin: '-100px' }}
-              transition={{ duration: 0.7, type: 'spring', stiffness: 100 }}
+              transition={{ duration: getDuration(0.7), type: 'spring', stiffness: 100 }}
               whileHover={{ scale: 1.02 }}
-              className="lg:col-span-7 h-full relative rounded-3xl overflow-hidden cursor-pointer group shadow-xl" 
+              className="lg:col-span-7 h-64 md:h-80 lg:h-full lg:row-span-1 relative rounded-3xl overflow-hidden cursor-pointer group shadow-xl" 
               onClick={() => navigate('/cultural-knowledge')}
             >
                <motion.div
                  initial={{ scale: 1.1 }}
                  whileInView={{ scale: 1 }}
-                 transition={{ duration: 1, delay: 0.2 }}
+                 transition={{ duration: getDuration(1), delay: getDelay(0.2) }}
                  className="absolute inset-0 overflow-hidden"
                >
                  <TianjinImage 
@@ -528,19 +564,19 @@ export default function Home() {
             </motion.div>
             
             {/* Side Articles - Takes 5 cols */}
-            <div className="lg:col-span-5 flex flex-col gap-6 h-full">
+            <div className="lg:col-span-5 flex flex-col gap-6 h-full lg:row-span-1">
               {/* Tianjin Cultural Map Card */}
               <motion.div 
                 initial={{ opacity: 0, x: 100, scale: 0.9 }}
                 whileInView={{ opacity: 1, x: 0, scale: 1 }}
                 viewport={{ once: true, margin: '-100px' }}
-                transition={{ duration: 0.7, delay: 0.2, type: 'spring', stiffness: 100 }}
+                transition={{ duration: getDuration(0.7), delay: getDelay(0.2), type: 'spring', stiffness: 100 }}
                 whileHover={{ y: -5, scale: 1.02 }}
                 className={`flex-1 rounded-3xl p-8 relative overflow-hidden cursor-pointer group transition-all duration-500 ${isDark ? 'bg-gray-900' : 'bg-white border border-gray-100'} shadow-xl hover:shadow-2xl`} 
                 onClick={() => navigate('/tianjin-map')}
               >
                 {/* Background Image Overlay */}
-                <div className="absolute inset-0 opacity-[0.08] group-hover:opacity-[0.15] transition-opacity duration-500 bg-[url('https://images.unsplash.com/photo-1524661135-423995f22d0b?w=800&q=80')] bg-cover bg-center"></div>
+                <div className="absolute inset-0 opacity-[0.2] group-hover:opacity-[0.3] transition-opacity duration-500 bg-[url('https://images.unsplash.com/photo-1524661135-423995f22d0b?w=800&q=80')] bg-cover bg-center"></div>
                 
                 <div className="relative z-10 h-full flex flex-col justify-center">
                    <motion.div 
@@ -584,13 +620,13 @@ export default function Home() {
                 initial={{ opacity: 0, x: 100, scale: 0.9 }}
                 whileInView={{ opacity: 1, x: 0, scale: 1 }}
                 viewport={{ once: true, margin: '-100px' }}
-                transition={{ duration: 0.7, delay: 0.4, type: 'spring', stiffness: 100 }}
+                transition={{ duration: getDuration(0.7), delay: getDelay(0.4), type: 'spring', stiffness: 100 }}
                 whileHover={{ y: -5, scale: 1.02 }}
                 className={`flex-1 rounded-3xl p-8 relative overflow-hidden cursor-pointer group transition-all duration-500 ${isDark ? 'bg-gray-900' : 'bg-white border border-gray-100'} shadow-xl hover:shadow-2xl`} 
                 onClick={() => navigate('/cultural-news')}
               >
                 {/* Background Image Overlay */}
-                <div className="absolute inset-0 opacity-[0.08] group-hover:opacity-[0.15] transition-opacity duration-500 bg-[url('https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=800&q=80')] bg-cover bg-center"></div>
+                <div className="absolute inset-0 opacity-[0.2] group-hover:opacity-[0.3] transition-opacity duration-500 bg-[url('https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=800&q=80')] bg-cover bg-center"></div>
                 
                 <div className="relative z-10 h-full flex flex-col justify-center">
                    <motion.div 
@@ -634,7 +670,7 @@ export default function Home() {
 
         {/* 3. 活动与挑战 (Events) - Horizontal Scroll */}
         <Section title="活动与挑战">
-           <div className="flex gap-6 overflow-x-auto pb-8 snap-x snap-mandatory scrollbar-hide px-2">
+           <div className="flex flex-col md:flex-row gap-6 md:overflow-x-auto md:pb-8 md:snap-x md:snap-mandatory scrollbar-hide px-2">
               {[
                 { 
                   title: '津门老字号设计赛', 
@@ -672,9 +708,9 @@ export default function Home() {
                   initial={{ opacity: 0, y: 50, scale: 0.9 }}
                   whileInView={{ opacity: 1, y: 0, scale: 1 }}
                   viewport={{ once: true, margin: '-100px' }}
-                  transition={{ duration: 0.6, delay: idx * 0.15, type: 'spring', stiffness: 100 }}
+                  transition={{ duration: getDuration(0.6), delay: getDelay(idx * 0.15), type: 'spring', stiffness: 100 }}
                   whileHover={{ y: -8, scale: 1.02 }}
-                  className="min-w-[320px] md:min-w-[420px] snap-center cursor-pointer group"
+                  className="w-full md:w-auto min-w-[320px] md:min-w-[420px] snap-center cursor-pointer group"
                   onClick={() => navigate(item.link)}
                 >
                    <motion.div 
@@ -684,7 +720,7 @@ export default function Home() {
                      <motion.div
                        initial={{ scale: 1.2 }}
                        whileInView={{ scale: 1 }}
-                       transition={{ duration: 0.8, delay: idx * 0.15 + 0.2 }}
+                       transition={{ duration: getDuration(0.8), delay: getDelay(idx * 0.15 + 0.2) }}
                        whileHover={{ scale: 1.1 }}
                        className="overflow-hidden"
                      >
@@ -807,7 +843,7 @@ export default function Home() {
                    initial={{ opacity: 0, y: 30, scale: 0.9 }}
                    whileInView={{ opacity: 1, y: 0, scale: 1 }}
                    viewport={{ once: true }}
-                   transition={{ duration: 0.5, delay: idx * 0.1 }}
+                   transition={{ duration: getDuration(0.5), delay: getDelay(idx * 0.1) }}
                    whileHover={{ y: -5, scale: 1.05 }}
                    className="flex flex-col items-center min-w-[100px] snap-center cursor-pointer group"
                  >
@@ -938,7 +974,7 @@ export default function Home() {
                     initial={{ opacity: 0, y: 50, scale: 0.9 }}
                     whileInView={{ opacity: 1, y: 0, scale: 1 }}
                     viewport={{ once: true, margin: '-50px' }}
-                    transition={{ duration: 0.6, delay: idx * 0.1, type: 'spring', stiffness: 100 }}
+                    transition={{ duration: getDuration(0.6), delay: getDelay(idx * 0.1), type: 'spring', stiffness: 100 }}
                     whileHover={{ y: -5, scale: 1.02 }}
                     className={`relative rounded-2xl overflow-hidden cursor-pointer group shadow-md hover:shadow-xl transition-all duration-500 ${idx % 3 === 0 ? 'md:col-span-2 md:row-span-2 aspect-square' : 'md:col-span-1 md:row-span-1 aspect-square'}`}
                   >
@@ -946,7 +982,7 @@ export default function Home() {
                     <motion.img 
                       initial={{ scale: 1.2 }}
                       whileInView={{ scale: 1 }}
-                      transition={{ duration: 0.8, delay: idx * 0.1 + 0.2 }}
+                      transition={{ duration: getDuration(0.8), delay: getDelay(idx * 0.1 + 0.2) }}
                       whileHover={{ scale: 1.1 }}
                       src={group.img} 
                       alt={group.title} 
@@ -1055,14 +1091,14 @@ export default function Home() {
                     initial={{ opacity: 0, y: 40, scale: 0.95 }}
                     whileInView={{ opacity: 1, y: 0, scale: 1 }}
                     viewport={{ once: true, margin: '-50px' }}
-                    transition={{ duration: 0.6, delay: idx * 0.15, type: 'spring', stiffness: 100 }}
+                    transition={{ duration: getDuration(0.6), delay: getDelay(idx * 0.15), type: 'spring', stiffness: 100 }}
                     whileHover={{ y: -5, scale: 1.02 }}
                     className="relative h-48 rounded-2xl overflow-hidden cursor-pointer group shadow-lg hover:shadow-xl transition-all duration-500"
                   >
                     <motion.div
                       initial={{ scale: 1.2 }}
                       whileInView={{ scale: 1 }}
-                      transition={{ duration: 0.8, delay: idx * 0.15 + 0.2 }}
+                      transition={{ duration: getDuration(0.8), delay: getDelay(idx * 0.15 + 0.2) }}
                       whileHover={{ scale: 1.1 }}
                       className="overflow-hidden"
                     >
@@ -1191,7 +1227,7 @@ export default function Home() {
               initial={{ opacity: 0, y: 30, scale: 0.9 }}
               whileInView={{ opacity: 1, y: 0, scale: 1 }}
               viewport={{ once: true }}
-              transition={{ duration: 0.6, type: 'spring', stiffness: 100 }}
+              transition={{ duration: getDuration(0.6), type: 'spring', stiffness: 100 }}
               whileHover={{ 
                 scale: 1.08, 
                 y: -5, 
@@ -1260,7 +1296,7 @@ export default function Home() {
                     initial={{ opacity: 0, y: 50, scale: 0.9, rotateY: -10, rotateX: -10 }}
                     whileInView={{ opacity: 1, y: 0, scale: 1, rotateY: 0, rotateX: 0 }}
                     viewport={{ once: true, margin: '-50px' }}
-                    transition={{ duration: 0.6, delay: idx * 0.15, type: 'spring', stiffness: 100 }}
+                    transition={{ duration: getDuration(0.6), delay: getDelay(idx * 0.15), type: 'spring', stiffness: 100 }}
                     whileHover={{ 
                       y: -15, 
                       scale: 1.05,
@@ -1277,7 +1313,7 @@ export default function Home() {
                       className="absolute inset-0 overflow-hidden"
                       initial={{ scale: 1.2, rotateY: 10, rotateX: 10 }}
                       whileInView={{ scale: 1, rotateY: 0, rotateX: 0 }}
-                      transition={{ duration: 0.8, delay: idx * 0.15 + 0.2 }}
+                      transition={{ duration: getDuration(0.8), delay: getDelay(idx * 0.15 + 0.2) }}
                       whileHover={{ scale: 1.2, rotateY: -5, rotateX: -5 }}
                     >
                       <img 

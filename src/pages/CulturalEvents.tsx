@@ -48,7 +48,7 @@ export default function CulturalEvents() {
         backgroundImage="https://images.unsplash.com/photo-1511919884226-fd3cad34687c?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80"
       />
         {/* 活动统计卡片 */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
+        <div className="hidden sm:block grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
           <motion.div
             className={`p-4 sm:p-6 rounded-2xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-md transition-all hover:shadow-lg`}
             initial={{ opacity: 0, y: 20 }}
@@ -104,10 +104,10 @@ export default function CulturalEvents() {
         {/* 即将开始的活动 */}
         {upcomingEvents.length > 0 && (
           <motion.section
-            className="mb-8 sm:mb-12"
+            className="hidden sm:block mb-8 sm:mb-12"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.3 }}
+            transition={{ duration: 0.6, delay: 0.2 }}
           >
             <div className="flex justify-between items-center mb-4 sm:mb-6">
               <h2 className="text-xl sm:text-2xl font-bold">即将开始的活动</h2>
@@ -176,7 +176,7 @@ export default function CulturalEvents() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.4 }}
         >
-          <h2 className="text-2xl font-bold mb-6">活动日历</h2>
+          <h2 className="hidden sm:block text-2xl font-bold mb-6">活动日历</h2>
           <EventCalendar />
         </motion.section>
 

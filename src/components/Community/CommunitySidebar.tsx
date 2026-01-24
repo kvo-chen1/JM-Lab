@@ -19,28 +19,29 @@ export const CommunitySidebar: React.FC<CommunitySidebarProps> = ({
   onCreateCommunity,
 }) => {
   return (
-    <div className={`w-[72px] flex flex-col items-center py-4 gap-2 h-full lg:h-screen ${isDark ? 'bg-gray-900' : 'bg-gray-100'} border-r ${isDark ? 'border-gray-800' : 'border-gray-200'}`}>
-      {/* Home / Discovery Button */}
-      <Tooltip text="发现社群" isDark={isDark}>
-        <button
-          onClick={() => onSelectCommunity(null)}
-          className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-200 group relative ${
-            activeCommunityId === null
-              ? 'bg-blue-600 text-white rounded-2xl'
-              : `${isDark ? 'bg-gray-800 text-gray-400 hover:bg-blue-600 hover:text-white' : 'bg-white text-gray-600 hover:bg-blue-600 hover:text-white'} rounded-[24px] hover:rounded-2xl`
-          }`}
-        >
-          <i className="fas fa-compass text-xl"></i>
-          {activeCommunityId === null && (
-            <div className={`absolute -left-4 w-1 h-8 bg-white rounded-r-full`}></div>
-          )}
-        </button>
-      </Tooltip>
+    <div className={`md:w-[72px] md:flex-col md:items-center md:py-4 md:gap-2 md:h-full lg:h-screen md:${isDark ? 'bg-gray-900' : 'bg-gray-100'} md:border-r md:${isDark ? 'border-gray-800' : 'border-gray-200'}`}>
+      {/* Community List */}
+      <div className="flex md:flex-col gap-3 md:w-full md:items-center md:overflow-y-auto md:no-scrollbar md:pb-4">
+        {/* Home / Discovery Button */}
+        <Tooltip text="发现社群" isDark={isDark}>
+          <button
+            onClick={() => onSelectCommunity(null)}
+            className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-200 group relative ${
+              activeCommunityId === null
+                ? 'bg-blue-600 text-white rounded-2xl'
+                : `${isDark ? 'bg-gray-800 text-gray-400 hover:bg-blue-600 hover:text-white' : 'bg-white text-gray-600 hover:bg-blue-600 hover:text-white'} rounded-[24px] hover:rounded-2xl`
+            }`}
+          >
+            <i className="fas fa-compass text-xl"></i>
+            {activeCommunityId === null && (
+              <div className={`hidden md:block absolute -left-4 w-1 h-8 bg-white rounded-r-full`}></div>
+            )}
+          </button>
+        </Tooltip>
 
-      <div className={`w-8 h-[2px] rounded-full my-1 ${isDark ? 'bg-gray-800' : 'bg-gray-300'}`}></div>
+        <div className={`hidden md:block w-8 h-[2px] rounded-full my-1 ${isDark ? 'bg-gray-800' : 'bg-gray-300'}`}></div>
 
-      {/* Joined Communities List */}
-      <div className="flex-1 flex flex-col gap-3 w-full items-center overflow-y-auto no-scrollbar pb-4">
+        {/* Joined Communities List */}
         {joinedCommunities.map((community) => (
           <Tooltip key={community.id} text={community.name} isDark={isDark}>
             <button
@@ -58,7 +59,7 @@ export const CommunitySidebar: React.FC<CommunitySidebarProps> = ({
               </div>
               
               {/* Active Indicator */}
-              <div className={`absolute -left-4 top-1/2 -translate-y-1/2 w-1 bg-white rounded-r-full transition-all duration-200 ${
+              <div className={`hidden md:block absolute -left-4 top-1/2 -translate-y-1/2 w-1 bg-white rounded-r-full transition-all duration-200 ${
                 activeCommunityId === community.id ? 'h-8' : 'h-2 opacity-0 group-hover:opacity-100 group-hover:h-5'
               }`}></div>
             </button>

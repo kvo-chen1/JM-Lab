@@ -44,13 +44,15 @@ interface TraditionalBrand {
 
 interface TianjinCreativeActivitiesProps {
   search?: string;
+  activeTab?: 'templates' | 'offline' | 'brands';
 }
 
-export default memo(function TianjinCreativeActivities({ search: propSearch = '' }: TianjinCreativeActivitiesProps) {
+export default memo(function TianjinCreativeActivities({ search: propSearch = '', activeTab: propActiveTab }: TianjinCreativeActivitiesProps) {
   const { isDark } = useTheme();
   const navigate = useNavigate();
   const { isAuthenticated } = useContext(AuthContext);
-  const [activeTab, setActiveTab] = useState<'templates' | 'offline' | 'brands'>('offline');
+  // 直接使用传入的 propActiveTab 作为当前活动标签
+  const activeTab = propActiveTab || 'offline';
   const isLoading = false; // 直接设置为false，移除模拟加载
   const tabListRef = useRef<HTMLDivElement | null>(null);
   const [atStart, setAtStart] = useState(true);
@@ -800,24 +802,17 @@ export default memo(function TianjinCreativeActivities({ search: propSearch = ''
   
   return (
     <div
-      className={`p-4 md:p-6 rounded-xl ${isDark ? 'bg-gray-800/50 backdrop-blur-sm border border-gray-700' : 'bg-white/80 backdrop-blur-sm border border-gray-100'} shadow-lg flex-1 flex flex-col gap-6`}
+      className={`p-0 md:p-0 rounded-none ${isDark ? 'bg-transparent' : 'bg-transparent'} shadow-none flex-1 flex flex-col gap-6`}
     >
       {/* 左侧主内容区 */}
       <div className="w-full">
-        {/* 标签页切换 */}
-        <div className={`relative mb-6 sticky top-0 z-20 py-2 -mx-2 px-2 transition-colors duration-300 ${
-          isDark ? 'bg-gray-800/95 backdrop-blur-md' : 'bg-white/95 backdrop-blur-md'
-        }`}>
-        <div
-          className={`pointer-events-none absolute left-0 top-0 bottom-0 w-8 ${
-            isDark ? 'bg-gradient-to-r from-gray-800/50 to-transparent' : 'bg-gradient-to-r from-white/80 to-transparent'
-          } ${atStart ? 'opacity-0' : 'opacity-100'} transition-all duration-300`}
-        ></div>
+        {/* 标签页切换 - 仅在电脑端显示 */}
+        <div className="relative mb-6 hidden sm:block">
         <div
           role="tablist"
           aria-label="津味共创活动类别"
           ref={tabListRef}
-          className="flex space-x-3 overflow-x-auto scrollbar-hide scroll-smooth snap-x snap-mandatory px-2 pb-2"
+          className="flex space-x-3 overflow-x-auto scrollbar-hide scroll-smooth snap-x snap-mandatory px-0 pb-2"
           tabIndex={0}
           onKeyDown={(e) => {
             if (e.key === 'ArrowRight') scrollTabs('right');
@@ -836,9 +831,9 @@ export default memo(function TianjinCreativeActivities({ search: propSearch = ''
                 role="tab"
                 aria-selected={activeTab === tab.id}
                 title={tab.name}
-                className={`px-5 py-2.5 rounded-full text-sm font-semibold transition-all duration-300 whitespace-nowrap snap-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 ${
+                className={`px-5 py-2.5 rounded-full text-sm font-semibold text-left transition-all duration-300 whitespace-nowrap snap-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 ${
                   activeTab === tab.id 
-                    ? 'bg-gradient-to-r from-red-600 to-red-500 text-white shadow-lg scale-105' 
+                    ? 'bg-red-500 text-white shadow-lg' 
                     : isDark 
                       ? 'bg-gray-700/80 hover:bg-gray-700/100 hover:text-red-400' 
                       : 'bg-gray-100 hover:bg-gray-200 hover:text-red-600'
@@ -1043,9 +1038,9 @@ export default memo(function TianjinCreativeActivities({ search: propSearch = ''
                 {/* 装饰背景图案 */}
                 <div className="absolute top-0 right-0 w-16 h-16 md:w-24 md:h-24 bg-gradient-to-bl from-red-500/10 to-transparent rounded-bl-full -mr-6 -mt-6 md:-mr-8 md:-mt-8 pointer-events-none"></div>
                 
-                <div className="flex flex-col md:flex-row items-center md:items-start mb-2 md:mb-4 relative z-10">
+                <div className="flex flex-col items-center mb-3 relative z-10">
                   <div
-                    className={`w-10 h-10 md:w-20 md:h-20 rounded-lg md:rounded-xl overflow-hidden p-1 md:p-2 mb-1 md:mb-0 md:mr-4 flex-shrink-0 flex items-center justify-center border transition-colors ${
+                    className={`w-16 h-16 md:w-20 md:h-20 rounded-lg md:rounded-xl overflow-hidden p-2 md:p-2 mb-3 md:mb-4 flex-shrink-0 flex items-center justify-center border transition-colors ${
                       isDark ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-100'
                     } shadow-sm group-hover:border-red-200`}
                   >
@@ -1053,49 +1048,23 @@ export default memo(function TianjinCreativeActivities({ search: propSearch = ''
                       <TianjinImage src={brand.logo} alt={brand.name} className="w-full h-full" ratio="square" fit="contain" rounded="lg" loading="lazy" />
                     </div>
                   </div>
-                  <div className="text-center md:text-left">
-                    <h4 className="font-bold text-xs md:text-lg mb-0.5 md:mb-1">{brand.name}</h4>
-                    <div className="hidden md:flex items-center text-xs space-x-2 mb-2">
-                      <span className={`px-2 py-0.5 rounded text-white bg-red-600`}>
-                        {brand.establishedYear}年创立
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                
-                <p className={`hidden md:block text-sm mb-5 leading-relaxed ${
-                  isDark ? 'text-gray-400' : 'text-gray-600'
-                } line-clamp-3`}>
-                  {brand.description}
-                </p>
-                
-                <div className={`hidden md:grid grid-cols-2 gap-3 mb-5 p-3 rounded-lg ${
-                  isDark ? 'bg-gray-700/50' : 'bg-gray-50'
-                }`}>
                   <div className="text-center">
-                    <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'} mb-1`}>定制工具</p>
-                    <p className="font-bold text-lg">{brand.collaborationTools}</p>
-                  </div>
-                  <div className="text-center border-l border-gray-200 dark:border-gray-600">
-                    <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'} mb-1`}>热度指数</p>
-                    <p className="font-bold text-lg">{brand.popularity}</p>
+                    <h4 className="font-bold text-sm md:text-lg mb-3 md:mb-4">{brand.name}</h4>
                   </div>
                 </div>
                 
                 {/* 移动端专属修改：Flex布局水平排列按钮，更紧凑 */}
-                <div className="flex md:grid md:grid-cols-2 gap-1 md:gap-3">
-                  <TianjinButton 
-                    ariaLabel={`查看${brand.name}联名工具`} 
-                    className="flex-1 justify-center text-[10px] md:text-sm py-1.5 md:py-2 whitespace-nowrap" 
-                    variant="primary"
+                <div className="flex md:grid md:grid-cols-2 gap-2 md:gap-3">
+                  <button 
                     onClick={() => navigate(`/tools?from=tianjin&query=${encodeURIComponent(brand.name + ' 联名 工具')}&mode=inspire`)}
+                    className={`flex-1 flex items-center justify-center py-2 md:py-2.5 rounded-lg text-sm md:text-sm font-semibold transition-all duration-300 bg-red-500 hover:bg-red-600 text-white shadow-sm whitespace-nowrap`}
                   >
-                    <i className="fas fa-tools mr-1 md:mr-2"></i>
+                    <i className="fas fa-tools mr-2"></i>
                     工具
-                  </TianjinButton>
+                  </button>
                   <button 
                     onClick={() => openBrandDetail(brand)}
-                    className={`flex-1 py-1.5 md:py-2 rounded-lg text-[10px] md:text-sm font-medium transition-colors border whitespace-nowrap ${
+                    className={`flex-1 flex items-center justify-center py-2 md:py-2.5 rounded-lg text-sm md:text-sm font-semibold transition-colors border whitespace-nowrap ${
                       isDark ? 'border-gray-600 hover:bg-gray-700 text-gray-300' : 'border-gray-200 hover:bg-gray-50 text-gray-700'
                     }`}
                   >

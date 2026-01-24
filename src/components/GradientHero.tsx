@@ -14,9 +14,10 @@ export interface GradientHeroProps {
   size?: 'sm' | 'md' | 'lg'
   pattern?: boolean
   backgroundImage?: string
+  children?: React.ReactNode
 }
 
-export default function GradientHero({ title, subtitle, badgeText, theme = 'red', stats = [], className, variant = 'center', showDecor = true, size = 'md', pattern = false, backgroundImage }: GradientHeroProps) {
+export default function GradientHero({ title, subtitle, badgeText, theme = 'red', stats = [], className, variant = 'center', showDecor = true, size = 'md', pattern = false, backgroundImage, children }: GradientHeroProps) {
   const { isDark } = useTheme()
   // 中文注释：根据主题选择不同的渐变配色，满足多页面风格统一
   const gradient = useMemo(() => {
@@ -52,7 +53,12 @@ export default function GradientHero({ title, subtitle, badgeText, theme = 'red'
     >
       {/* 图片背景遮罩层 - 移除背景渐变，只保留半透明黑色遮罩 */}
       {backgroundImage && (
-        <div className="absolute inset-0 bg-black/30 backdrop-blur-[1px] z-0"></div>
+        <>
+          {/* 电脑端背景遮罩 */}
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-[1px] z-0 hidden sm:block"></div>
+          {/* 手机端渐变背景 */}
+          <div className="absolute inset-0 bg-gradient-to-r from-orange-400/80 to-blue-500/80 z-0 sm:hidden"></div>
+        </>
       )}
       
       {pattern && (
@@ -68,67 +74,84 @@ export default function GradientHero({ title, subtitle, badgeText, theme = 'red'
       <div className="relative z-10 h-full flex flex-col justify-center">
         {variant === 'center' ? (
           <div className={`container mx-auto ${paddings}`}>
-            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 mb-4">
-              <div>
-                <h1 className={`${titleClass} font-bold tracking-tight mb-2 drop-shadow-lg`}>{title}</h1>
+            {/* 手机端美化设计 */}
+            <div className="sm:hidden">
+              <div className="flex flex-col items-center text-center">
+                <h1 className="text-2xl md:text-3xl font-bold tracking-tight mb-4 drop-shadow-lg">{title}</h1>
                 {subtitle && (
-                  <p className={`${isDark || backgroundImage ? 'text-gray-200' : 'text-white/90'} ${subtitleClass} font-light tracking-wide`}>{subtitle}</p>
+                  <p className="text-white/90 text-sm font-light tracking-wide mb-6">{subtitle}</p>
                 )}
+                {/* 添加装饰性波浪线条 */}
+                <div className="w-full max-w-xs h-1 bg-gradient-to-r from-orange-400 to-blue-500 rounded-full mb-6"></div>
+                {/* 渲染子内容（如手机端搜索框） */}
+                {children}
               </div>
-              {badgeText && (
-                <span className={`text-xs px-3 py-1 rounded-full ${isDark || backgroundImage ? 'bg-white/10 ring-1 ring-white/30 text-white' : 'bg-white/20 ring-1 ring-white/50'} backdrop-blur self-start md:self-center`}>{badgeText}</span>
-              )}
             </div>
             
-            {stats.length > 0 && (
-              <div className="mt-8 grid grid-cols-2 sm:grid-cols-4 gap-4">
-                {stats.map((s, idx) => (
-                  <div
-                    key={idx}
-                    className={`${isDark || backgroundImage ? 'bg-black/30 ring-1 ring-white/10 hover:bg-black/40' : 'bg-white/15 ring-1 ring-white/40'} rounded-2xl px-5 py-4 backdrop-blur-md transition-all duration-300 group`}
-                  >
-                    <div className="text-xs opacity-70 mb-1 tracking-wider uppercase">{s.label}</div>
-                    <div className="text-xl font-bold tracking-tight group-hover:scale-105 transition-transform origin-left">{s.value}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-      ) : (
-        <div className={`container mx-auto ${paddings}`}>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
-            <div>
-              <div className="flex items-center justify-between">
-                <h1 className={`${titleClass} font-bold tracking-tight`}>{title}</h1>
+            {/* 电脑端原有设计 */}
+            <div className="hidden sm:block">
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 mb-4">
+                <div>
+                  <h1 className={`${titleClass} font-bold tracking-tight mb-2 drop-shadow-lg`}>{title}</h1>
+                  {subtitle && (
+                    <p className={`${isDark || backgroundImage ? 'text-gray-200' : 'text-white/90'} ${subtitleClass} font-light tracking-wide`}>{subtitle}</p>
+                  )}
+                </div>
                 {badgeText && (
-                  <span className={`text-xs px-2 py-1 rounded-full ${isDark || backgroundImage ? 'bg-black/30 ring-1 ring-gray-600' : 'bg-white/20 ring-1 ring-white/50'} backdrop-blur`}>{badgeText}</span>
+                  <span className={`text-xs px-3 py-1 rounded-full ${isDark || backgroundImage ? 'bg-white/10 ring-1 ring-white/30 text-white' : 'bg-white/20 ring-1 ring-white/50'} backdrop-blur self-start md:self-center`}>{badgeText}</span>
                 )}
               </div>
-              {subtitle && (
-                <p className={`${isDark || backgroundImage ? 'text-gray-200' : 'text-white/90'} ${subtitleClass}`}>{subtitle}</p>
-              )}
-            </div>
-            <div className="relative">
-              {showDecor && (
-                <div className="pointer-events-none absolute -top-8 -right-8 w-40 h-40 rounded-full blur-2xl opacity-30 bg-white"></div>
-              )}
+              
               {stats.length > 0 && (
-                <div className="grid grid-cols-2 gap-4">
+                <div className="mt-8 grid grid-cols-2 sm:grid-cols-4 gap-4">
                   {stats.map((s, idx) => (
                     <div
                       key={idx}
-                      className={`${isDark || backgroundImage ? 'bg-black/20 ring-1 ring-gray-700' : 'bg-white/15 ring-1 ring-white/40'} rounded-xl px-4 py-3 backdrop-blur`}
+                      className={`${isDark || backgroundImage ? 'bg-black/30 ring-1 ring-white/10 hover:bg-black/40' : 'bg-white/15 ring-1 ring-white/40'} rounded-2xl px-5 py-4 backdrop-blur-md transition-all duration-300 group`}
                     >
-                      <div className="text-xs opacity-80">{s.label}</div>
-                      <div className="text-base font-semibold">{s.value}</div>
+                      <div className="text-xs opacity-70 mb-1 tracking-wider uppercase">{s.label}</div>
+                      <div className="text-xl font-bold tracking-tight group-hover:scale-105 transition-transform origin-left">{s.value}</div>
                     </div>
                   ))}
                 </div>
               )}
             </div>
           </div>
-        </div>
-      )}
+        ) : (
+          <div className={`container mx-auto ${paddings}`}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+              <div>
+                <div className="flex items-center justify-between">
+                  <h1 className={`${titleClass} font-bold tracking-tight`}>{title}</h1>
+                  {badgeText && (
+                    <span className={`text-xs px-2 py-1 rounded-full ${isDark || backgroundImage ? 'bg-black/30 ring-1 ring-gray-600' : 'bg-white/20 ring-1 ring-white/50'} backdrop-blur`}>{badgeText}</span>
+                  )}
+                </div>
+                {subtitle && (
+                  <p className={`${isDark || backgroundImage ? 'text-gray-200' : 'text-white/90'} ${subtitleClass}`}>{subtitle}</p>
+                )}
+              </div>
+              <div className="relative">
+                {showDecor && (
+                  <div className="pointer-events-none absolute -top-8 -right-8 w-40 h-40 rounded-full blur-2xl opacity-30 bg-white"></div>
+                )}
+                {stats.length > 0 && (
+                  <div className="grid grid-cols-2 gap-4">
+                    {stats.map((s, idx) => (
+                      <div
+                        key={idx}
+                        className={`${isDark || backgroundImage ? 'bg-black/20 ring-1 ring-gray-700' : 'bg-white/15 ring-1 ring-white/40'} rounded-xl px-4 py-3 backdrop-blur`}
+                      >
+                        <div className="text-xs opacity-80">{s.label}</div>
+                        <div className="text-base font-semibold">{s.value}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </motion.section>
   )

@@ -8,6 +8,8 @@ interface CommunityLayoutProps {
   navigation: ReactNode;
   infoSidebar?: ReactNode;
   activeCommunity?: any; // 添加活跃社群信息，用于自定义风格
+  search?: string;
+  setSearch?: (value: string) => void;
 }
 
 export const CommunityLayout: React.FC<CommunityLayoutProps> = ({
@@ -16,9 +18,10 @@ export const CommunityLayout: React.FC<CommunityLayoutProps> = ({
   sidebar,
   navigation,
   infoSidebar,
-  activeCommunity
+  activeCommunity,
+  search,
+  setSearch
 }) => {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [mobileInfoSidebarOpen, setMobileInfoSidebarOpen] = useState(false);
 
@@ -31,50 +34,15 @@ export const CommunityLayout: React.FC<CommunityLayoutProps> = ({
       } as React.CSSProperties}
     >
       
-      {/* Mobile Header */}
-      <div className={`md:hidden h-16 flex items-center justify-between px-4 border-b z-50 sticky top-0 ${isDark ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-200 text-gray-900'} shadow-sm`}>
-        {/* 如果有社群主题色，应用到移动端头部 */}
-        {activeCommunity?.theme?.primaryColor && (
-          <style jsx>{`
-            .mobile-header-button.active {
-              background-color: ${activeCommunity.theme.primaryColor} !important;
-              color: white !important;
-            }
-          `}</style>
-        )}
-        <div className="flex items-center gap-3">
-            <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-2 -ml-2 rounded-lg hover:bg-gray-200/20 dark:hover:bg-gray-700/50 transition-colors">
-                <i className={`fas ${mobileMenuOpen ? 'fa-times' : 'fa-bars'} text-lg`}></i>
-            </button>
-            <span className="font-bold text-base">创作社群</span>
-        </div>
-        <div className="flex items-center gap-3">
-             <button className="p-2 rounded-lg hover:bg-gray-200/20 dark:hover:bg-gray-700/50 transition-colors">
-               <i className="fas fa-search text-base"></i>
-             </button>
-             {/* 移动端信息侧边栏切换按钮 */}
-             {infoSidebar && (
-               <button onClick={() => setMobileInfoSidebarOpen(!mobileInfoSidebarOpen)} className="p-2 rounded-lg hover:bg-gray-200/20 dark:hover:bg-gray-700/50 transition-colors">
-                 <i className="fas fa-info-circle text-base"></i>
-               </button>
-             )}
-             <div className="w-9 h-9 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center text-sm font-medium">
-               {""}
-             </div>
+      {/* Mobile Community Bar */}
+      <div className="md:hidden px-4 py-2 border-b dark:border-gray-700 border-gray-200 overflow-x-auto">
+        <div className="flex space-x-3">
+          {sidebar}
         </div>
       </div>
 
       {/* Mobile Sidebar Overlay */}
       <AnimatePresence>
-        {mobileMenuOpen && (
-            <motion.div 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                onClick={() => setMobileMenuOpen(false)}
-                className="md:hidden fixed inset-0 bg-black/50 z-40"
-            />
-        )}
         {mobileNavOpen && (
             <motion.div 
                 initial={{ opacity: 0 }}
@@ -95,13 +63,13 @@ export const CommunityLayout: React.FC<CommunityLayoutProps> = ({
         )}
       </AnimatePresence>
 
-      {/* 1. Far Left Sidebar (Servers) */}
-      <div className={`fixed inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out md:transform-none md:static md:block ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+      {/* Desktop Sidebar */}
+      <div className="hidden md:block">
           {sidebar}
       </div>
 
       {/* 2. Middle Navigation (Channels) - Mobile Optimization */}
-      <div className={`fixed inset-y-0 left-0 top-16 z-50 transform transition-transform duration-300 ease-in-out md:transform-none md:static md:block md:left-[72px] ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+      <div className={`fixed inset-y-0 left-0 top-0 z-50 transform transition-transform duration-300 ease-in-out md:transform-none md:static md:block md:left-[72px] ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
          {navigation}
       </div>
 
@@ -125,6 +93,17 @@ export const CommunityLayout: React.FC<CommunityLayoutProps> = ({
                  <i className="fas fa-list-ul"></i>
                  <span>导航</span>
                </button>
+               
+               {/* Mobile Search Bar */}
+               <div className="ml-3 flex-1 relative">
+                 <i className={`fas fa-search absolute left-3 top-1/2 -translate-y-1/2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}></i>
+                 <input
+                   placeholder="搜索社群关键词..."
+                   value={search}
+                   onChange={(e) => setSearch?.(e.target.value)}
+                   className={`w-full pl-10 pr-4 py-2 rounded-xl border focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all ${isDark ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-500' : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400 shadow-sm'}`}
+                 />
+               </div>
              </div>
              {children}
         </motion.div>

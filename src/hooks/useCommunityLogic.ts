@@ -224,6 +224,7 @@ export const useCommunityLogic = () => {
   const [threads, setThreads] = useState<(Thread & { comments?: Comment[] })[]>([]);
   const [selectedTag, setSelectedTag] = useState<string>('国潮');
   const [favoritedThreads, setFavoritedThreads] = useState<string[]>([]); // 收藏的帖子ID列表
+  const [search, setSearch] = useState(''); // 搜索关键词
 
   // 直接使用mock数据作为初始值，确保每次刷新都能获取最新的社群列表
   const [allCommunities, setAllCommunities] = useState<Community[]>(JSON.parse(JSON.stringify(recommendedCommunities))); // For Discovery
@@ -749,6 +750,8 @@ export const useCommunityLogic = () => {
     tags: allTags,
     favoritedThreads,
     isThreadFavorited,
+    search,
+    setSearch,
     
     // Modal States
     isCreatePostOpen,

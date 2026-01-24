@@ -934,14 +934,28 @@ export default function CulturalKnowledge() {
               <motion.button
                 key={tab.id}
                 onClick={() => handleTabChange(tab.id as TabType)}
-                className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all duration-300 ${activeTab === tab.id ? (isDark ? 'bg-gradient-to-r from-red-600 to-red-700 text-white shadow-lg shadow-red-500/20' : 'bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg shadow-red-500/20') : (isDark ? 'bg-gray-800 hover:bg-gray-750 text-gray-300 hover:text-white shadow-md hover:shadow-lg' : 'bg-white hover:bg-gray-50 text-gray-700 hover:text-gray-900 shadow-md hover:shadow-lg border border-gray-200 dark:border-gray-700')}`}
+                className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all duration-300
+                  /* 响应式样式 */
+                  sm:px-4 sm:py-2 sm:gap-1.5
+                  
+                  /* 激活状态 */
+                  ${activeTab === tab.id ? (isDark ? 'bg-gradient-to-r from-red-600 to-red-700 text-white shadow-lg shadow-red-500/20' : 'bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg shadow-red-500/20') : (isDark ? 'bg-gray-800 hover:bg-gray-750 text-gray-300 hover:text-white shadow-md hover:shadow-lg' : 'bg-white hover:bg-gray-50 text-gray-700 hover:text-gray-900 shadow-md hover:shadow-lg border border-gray-200 dark:border-gray-700')}
+                  
+                  /* 手机端特有样式 */
+                  min-h-[44px]`}
                 whileHover={{ scale: 1.05, translateY: -2 }}
                 whileTap={{ scale: 0.98 }}
                 initial={{ opacity: 0, translateY: 10 }}
                 animate={{ opacity: 1, translateY: 0 }}
                 transition={{ duration: 0.3 }}
+                style={{
+                  // 响应式字体大小
+                  fontSize: 'clamp(0.75rem, 2vw, 0.875rem)',
+                  // 确保在移动设备上有足够的点击区域
+                  touchAction: 'manipulation'
+                }}
               >
-                <span className="text-base">{tab.icon}</span>
+                <span style={{ fontSize: 'clamp(1rem, 3vw, 1.125rem)' }}>{tab.icon}</span>
                 <span>{tab.label}</span>
               </motion.button>
             ))

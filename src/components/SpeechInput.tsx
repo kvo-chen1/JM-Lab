@@ -178,7 +178,7 @@ export default function SpeechInput({ onTextRecognized, onRecordingStatusChange,
       {/* 语音识别按钮 */}
       <button
         onClick={toggleRecording}
-        className={`p-2 rounded-full transition-all duration-300 hover:scale-110 ${isRecording ? 'bg-red-600 text-white shadow-lg animate-pulse' : (isDark ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-900')}`}
+        className={`p-3 sm:p-2 rounded-full transition-all duration-300 hover:scale-110 ${isRecording ? 'bg-red-600 text-white shadow-lg animate-pulse' : (isDark ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-900')}`}
         title={isRecording ? '停止录音' : '开始录音'}
       >
         {isRecording ? (
@@ -190,7 +190,7 @@ export default function SpeechInput({ onTextRecognized, onRecordingStatusChange,
       
       {/* 实时识别结果 */}
       {isRecording && recognizedText && (
-        <div className={`absolute -top-12 left-1/2 transform -translate-x-1/2 px-3 py-2 rounded-lg shadow-lg whitespace-nowrap ${isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'} border ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+        <div className={`absolute -top-12 left-1/2 transform -translate-x-1/2 px-3 py-2 rounded-lg shadow-lg whitespace-nowrap ${isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'} border ${isDark ? 'border-gray-700' : 'border-gray-200'} z-10`}>
           <p className="text-xs">{recognizedText}</p>
         </div>
       )}

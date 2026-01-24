@@ -439,9 +439,9 @@ export default function Explore() {
         <div className={`absolute top-0 left-0 w-full h-[50vh] ${theme === 'dark' ? 'bg-gradient-to-b from-blue-900/20 to-transparent' : 'bg-gradient-to-b from-blue-100/50 to-transparent'}`} />
       </div>
 
-      <div className="container mx-auto px-4 py-8 relative z-10">
+      <div className="container mx-auto px-4 py-4 sm:py-8 relative z-10">
         {/* 顶部标题栏 */}
-        <div className="flex justify-between items-center mb-8">
+        <div className="flex justify-between items-center mb-8 hidden sm:flex">
           <div>
             <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400">
               探索灵感
@@ -450,7 +450,7 @@ export default function Explore() {
               发现津门文化的无限可能
             </p>
           </div>
-          <div className="flex gap-4" id="guide-step-explore-search">
+          <div className="flex gap-4 hidden sm:flex" id="guide-step-explore-search">
             <TianjinButton 
               variant="secondary"
               leftIcon={<i className="fas fa-search"></i>}
@@ -468,7 +468,7 @@ export default function Explore() {
         </div>
 
         {/* 自动滚动标签栏 */}
-        <div className="mb-8 overflow-hidden relative group" id="guide-step-explore-tags">
+        <div className="overflow-hidden relative group hidden sm:block mb-8" id="guide-step-explore-tags">
           {/* 渐变遮罩 */}
           <div className={`absolute inset-y-0 left-0 w-12 z-10 bg-gradient-to-r ${theme === 'dark' ? 'from-gray-900' : 'from-gray-50'} opacity-70`}></div>
           <div className={`absolute inset-y-0 right-0 w-12 z-10 bg-gradient-to-l ${theme === 'dark' ? 'from-gray-900' : 'from-gray-50'} opacity-70`}></div>
@@ -509,9 +509,10 @@ export default function Explore() {
         {/* 搜索栏 */}
         {showSearchBar && (
           <motion.div 
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
+            initial={{ height: 0, opacity: 0, y: -20 }}
+            animate={{ height: 'auto', opacity: 1, y: 0 }}
+            exit={{ height: 0, opacity: 0, y: -20 }}
+            transition={{ duration: 0.3, ease: "easeOut" }}
             className="mb-8 bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6"
           >
             <div className="relative">
@@ -601,7 +602,7 @@ export default function Explore() {
         )}
 
         {/* 标签筛选 */}
-        <div className="mb-8">
+        <div className="hidden sm:block mb-8">
           <AnimatePresence mode="wait">
             {tagsOpen ? (
               <AdvancedTagFilter
@@ -674,7 +675,7 @@ export default function Explore() {
         )}
 
         {/* 精选作品轮播 */}
-        <div className="mb-12">
+        <div className="mb-12 hidden sm:block">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-2xl font-bold text-gray-800 dark:text-white">精选作品</h2>
             <button
@@ -790,17 +791,25 @@ export default function Explore() {
         </div>
 
         {/* 分类筛选 */}
-        <div className="sticky top-0 z-30 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md py-4 mb-6 border-b border-gray-100 dark:border-gray-800 -mx-4 px-4">
-          <div className="flex overflow-x-auto pb-2 scrollbar-hide gap-2">
+        <div className="sticky top-0 z-30 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md py-1 sm:py-3 mb-4 border-b border-gray-100 dark:border-gray-800 -mx-4 px-4">
+          <div className="flex overflow-x-auto pb-1 scrollbar-hide scroll-smooth snap-x snap-mandatory gap-1 sm:gap-2">
             {categories.map((category) => (
               <button
                 key={category}
                 onClick={() => setSelectedCategory(category)}
-                className={`px-4 py-2 rounded-full whitespace-nowrap text-sm font-medium transition-all ${
+                className={`px-3 sm:px-4 py-1 min-w-max rounded-full whitespace-nowrap text-xs sm:text-sm font-medium transition-all duration-300 transform hover:scale-105 ${
                   selectedCategory === category
-                    ? 'bg-blue-600 text-white shadow-md'
+                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
                     : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
                 }`}
+                style={{
+                  // 优化移动端触摸目标
+                  touchAction: 'manipulation',
+                  // 确保在移动设备上有足够的点击区域
+                  minHeight: '32px',
+                  // 平滑滚动
+                  scrollSnapAlign: 'start'
+                }}
               >
                 {category}
               </button>
@@ -810,7 +819,7 @@ export default function Explore() {
 
         {/* 作品列表 */}
         <div className="mb-8">
-          <div className="flex justify-between items-center mb-6">
+          <div className="flex justify-between items-center mb-6 hidden sm:block">
             <h2 className="text-xl font-bold text-gray-800 dark:text-white">
               {selectedCategory === '全部' ? '全部作品' : selectedCategory}
               <span className="ml-2 text-sm font-normal text-gray-500 dark:text-gray-400">
@@ -941,64 +950,81 @@ export default function Explore() {
       {/* 底部CTA - 使用 Portal 移至 body 确保不被遮挡 */}
       {createPortal(
         <div className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-3 pointer-events-none">
-          <div className="pointer-events-auto flex flex-col gap-3">
-            {[1, 2, 3].map((i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, x: 50 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.5 + i * 0.2 }}
-                className="bg-white dark:bg-gray-800 p-3 rounded-lg shadow-lg border-l-4 border-blue-500 flex items-center gap-3 max-w-xs cursor-pointer transform hover:scale-105 transition-transform"
-                onClick={() => navigate('/create')}
-              >
-                <div className="w-10 h-10 rounded overflow-hidden flex-shrink-0">
-                  <TianjinImage
-                    src={`https://picsum.photos/100/100?random=${i + 100}`}
-                    alt="Work"
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs text-gray-500 dark:text-gray-400 truncate">有人刚才使用了</p>
-                  <p className="text-sm font-bold text-gray-800 dark:text-white truncate">津门纹样生成器</p>
-                </div>
-                <div className="w-8 h-8 rounded-full bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400">
-                  <i className="fas fa-magic text-xs"></i>
-                </div>
-              </motion.div>
-            ))}
+          <div className="pointer-events-auto flex flex-col gap-3 max-w-xs">
+            {/* 活动卡片容器 */}
+            <div className="space-y-2">
+              {[1, 2, 3].map((i) => (
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, x: 30, scale: 0.9 }}
+                  animate={{ opacity: 1, x: 0, scale: 1 }}
+                  exit={{ opacity: 0, x: 30, scale: 0.9 }}
+                  transition={{ delay: 0.2 + i * 0.1, type: 'spring', stiffness: 100 }}
+                  whileHover={{ 
+                    y: -3, 
+                    scale: 1.02, 
+                    boxShadow: "0 15px 30px -10px rgba(0, 0, 0, 0.2)" 
+                  }}
+                  className="bg-white dark:bg-gray-800 p-3 rounded-lg shadow-md border-l-3 border-blue-500 flex items-center gap-3 max-w-xs cursor-pointer transform transition-all duration-300 hidden sm:block"
+                  style={{
+                    animation: `autoHide 8s forwards ${0.5 + i * 0.2}s`
+                  }}
+                  onClick={() => navigate('/create')}
+                >
+                  <div className="w-8 h-8 rounded overflow-hidden flex-shrink-0">
+                    <TianjinImage
+                      src={`https://picsum.photos/100/100?random=${i + 100}`}
+                      alt="Work"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate">有人刚才使用了</p>
+                    <p className="text-sm font-bold text-gray-800 dark:text-white truncate">津门纹样生成器</p>
+                  </div>
+                  <div className="w-6 h-6 rounded-full bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 flex-shrink-0">
+                    <i className="fas fa-magic text-xs"></i>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
             
+            {/* 底部弹窗 */}
             {filteredWorks.length > 0 && (
               <motion.div
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 1.5 }}
-                className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-4 rounded-xl shadow-xl cursor-pointer hover:shadow-2xl transition-all"
+                initial={{ opacity: 0, x: 30, scale: 0.9 }}
+                animate={{ opacity: 1, x: 0, scale: 1 }}
+                exit={{ opacity: 0, x: 30, scale: 0.9 }}
+                transition={{ delay: 0.5, type: 'spring', stiffness: 100 }}
+                whileHover={{ y: -3, boxShadow: "0 20px 40px -12px rgba(0, 0, 0, 0.3)" }}
+                className="mt-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white p-4 rounded-xl shadow-lg cursor-pointer transition-all duration-300 hidden sm:block"
+                style={{
+                  animation: 'autoHide 8s forwards'
+                }}
               >
                 <div className="flex items-center justify-between mb-2">
-                  <span className="font-bold">觉得这些作品很棒？</span>
+                  <span className="font-bold text-sm">觉得这些作品很棒？</span>
                   <button 
                     onClick={(e) => {
                       e.stopPropagation();
-                      // 这里可以添加关闭状态的逻辑，暂时不处理
                       const el = e.currentTarget.closest('.bg-gradient-to-r');
                       if (el) el.remove();
                     }}
-                    className="text-white/70 hover:text-white"
+                    className="text-white/70 hover:text-white transition-colors p-1 rounded-full hover:bg-white/10"
                   >
-                    <i className="fas fa-times"></i>
+                    <i className="fas fa-times text-xs"></i>
                   </button>
                 </div>
-                <p className="text-sm text-blue-100 mb-3">你也可以轻松创作出这样的作品！</p>
+                <p className="text-xs text-blue-100 mb-3">你也可以轻松创作出这样的作品！</p>
                 <div className="flex gap-2">
                   <button 
                     onClick={() => navigate('/create')}
-                    className="flex-1 bg-white text-blue-600 py-1.5 rounded-lg text-sm font-bold hover:bg-blue-50 transition-colors"
+                    className="flex-1 bg-white text-blue-600 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-50 transition-colors duration-300"
                   >
                     立即尝试
                   </button>
                   <button 
-                    className="px-3 py-1.5 bg-blue-700 text-white rounded-lg text-sm hover:bg-blue-800 transition-colors"
+                    className="px-3 py-1.5 bg-blue-700 text-white rounded-lg text-xs hover:bg-blue-800 transition-colors duration-300"
                     onClick={() => navigate('/create')}
                   >
                     应用到创作中心
@@ -1010,6 +1036,15 @@ export default function Explore() {
         </div>,
         document.body
       )}
+      
+      {/* 自动隐藏动画 */}
+      <style jsx global>{`
+        @keyframes autoHide {
+          0% { opacity: 1; transform: translateX(0); }
+          80% { opacity: 1; transform: translateX(0); }
+          100% { opacity: 0; transform: translateX(20px); pointer-events: none; }
+        }
+      `}</style>
     </div>
   );
 }

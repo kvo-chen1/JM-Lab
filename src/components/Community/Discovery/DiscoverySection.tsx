@@ -10,6 +10,8 @@ interface DiscoverySectionProps {
   onJoin: (id: string) => void;
   onOpen: (communityId: string) => void;
   userTags?: string[]; // 用户兴趣标签
+  search?: string;
+  setSearch?: (value: string) => void;
 }
 
 // 社群分类
@@ -29,9 +31,10 @@ export const DiscoverySection: React.FC<DiscoverySectionProps> = ({
   joinedIds,
   onJoin,
   onOpen,
-  userTags = []
+  userTags = [],
+  search = '',
+  setSearch
 }) => {
-  const [search, setSearch] = useState('');
   const [sort, setSort] = useState<'members' | 'name' | 'newest' | 'recommended'>('members');
   const [category, setCategory] = useState<string>('all');
 
@@ -141,21 +144,12 @@ export const DiscoverySection: React.FC<DiscoverySectionProps> = ({
   return (
     <div className="max-w-6xl mx-auto py-3 md:py-8 px-3 md:px-4">
       <div className="mb-3 md:mb-8">
-        <h2 className={`text-lg md:text-2xl font-bold mb-3 md:mb-6 ${isDark ? 'text-white' : 'text-gray-900'}`}>社群</h2>
+        <h2 className={`hidden sm:block text-lg md:text-2xl font-bold mb-3 md:mb-6 ${isDark ? 'text-white' : 'text-gray-900'}`}>社群</h2>
         
         <div className="flex flex-col gap-3">
-          <div className="relative">
-            <i className={`fas fa-search absolute left-4 top-1/2 -translate-y-1/2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}></i>
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="搜索社群关键词..."
-              className={`w-full pl-10 pr-4 py-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all ${isDark ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-500' : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400 shadow-sm'}`}
-            />
-          </div>
           
-          {/* 分类筛选 */}
-          <div className="overflow-x-auto no-scrollbar">
+          {/* 分类筛选 - 只在电脑端显示 */}
+          <div className="hidden sm:block overflow-x-auto no-scrollbar">
             <div className="flex gap-2 py-1 min-w-max">
               {COMMUNITY_CATEGORIES.map(cat => (
                 <button

@@ -165,7 +165,7 @@ const CommunitySpotlight: React.FC<CommunitySpotlightProps> = ({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.6, ease: "easeOut" }}
-      className={`rounded-3xl ${containerBg} ${glassEffect} border ${borderColor} p-6 mb-8 overflow-hidden relative shadow-xl`}
+      className={`hidden md:block rounded-3xl ${containerBg} ${glassEffect} border ${borderColor} p-6 mb-8 overflow-hidden relative shadow-xl`}
     >
       {/* Background decoration */}
       <div className="absolute -top-20 -right-20 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl pointer-events-none"></div>

@@ -20,10 +20,30 @@ export default function JinmenCulturePopup() {
   const [data, setData] = useState<CulturalKnowledge | null>(null);
   const [isVisible, setIsVisible] = useState(true); // For "Don't show again today" logic
   const [imageSrc, setImageSrc] = useState<string>(''); // 图片源状态
+  const [isMobile, setIsMobile] = useState(false); // 移动端检测状态
   const autoCloseTimerRef = useRef<NodeJS.Timeout | null>(null);
   const AUTO_CLOSE_DURATION = 10000; // 10 seconds
 
+  // 检测是否为移动端
+  const checkIsMobile = () => {
+    const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
+    const mobileRegex = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i;
+    const isMobileDevice = mobileRegex.test(userAgent);
+    const screenWidth = window.innerWidth;
+    const isSmallScreen = screenWidth < 768; // 768px 作为平板和手机的分界
+    return isMobileDevice || isSmallScreen;
+  };
+
   useEffect(() => {
+    // 检测是否为移动端
+    const mobileStatus = checkIsMobile();
+    setIsMobile(mobileStatus);
+    
+    // 如果是移动端，直接返回，不显示弹窗
+    if (mobileStatus) {
+      return;
+    }
+    
     // 路由检查：只在非公开页面显示
     // 排除登录、注册、着陆页、忘记密码等页面
     const publicPaths = ['/login', '/register', '/landing', '/forgot-password', '/'];
@@ -89,6 +109,24 @@ export default function JinmenCulturePopup() {
 
     checkShowStatus();
   }, [location.pathname]); // 添加 location.pathname 作为依赖，路由变化时重新检查
+
+  // 监听窗口大小变化，重新检测移动端状态
+  useEffect(() => {
+    const handleResize = () => {
+      const mobileStatus = checkIsMobile();
+      if (mobileStatus !== isMobile) {
+        setIsMobile(mobileStatus);
+        // 如果从桌面端变为移动端，关闭弹窗
+        if (mobileStatus && isOpen) {
+          setIsOpen(false);
+          clearAutoCloseTimer();
+        }
+      }
+    };
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [isMobile, isOpen]);
 
   // Auto-close effect
   useEffect(() => {
@@ -156,7 +194,7 @@ export default function JinmenCulturePopup() {
     <AnimatePresence>
       {isOpen && (
         <motion.div
-          className={`fixed z-[9999] ${isMinimized ? 'bottom-4 right-4' : 'bottom-8 right-8'} w-full max-w-sm`}
+          className={`fixed z-[9999] ${isMinimized ? 'bottom-3 right-3' : 'bottom-6 right-6'} w-full max-w-xs sm:max-w-sm`}
           initial={{ y: 100, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 100, opacity: 0 }}
@@ -206,7 +244,7 @@ export default function JinmenCulturePopup() {
                 exit={{ height: 0, opacity: 0 }}
               >
                 {/* Image Area */}
-                <div className="relative h-40 w-full bg-gray-100 dark:bg-gray-800 overflow-hidden group">
+                <div className="relative h-32 sm:h-40 w-full bg-gray-100 dark:bg-gray-800 overflow-hidden group">
                   <img 
                     src={imageSrc} 
                     alt={data.title}

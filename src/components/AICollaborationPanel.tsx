@@ -1165,19 +1165,19 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
                 </div>
                 
                 {/* 输入区域 */}
-                <div className="p-3.5 border-t dark:border-gray-800/50 bg-gradient-to-b from-transparent to-gray-50 dark:to-gray-900">
-                  <div className="flex items-end gap-2">
+                <div className="p-3 sm:p-3.5 border-t dark:border-gray-800/50 bg-gradient-to-b from-transparent to-gray-50 dark:to-gray-900">
+                  <div className="flex items-end gap-2 sm:gap-2">
                     <div className="flex-1 relative">
                       <textarea
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                         onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
                         placeholder={t('aiCollab.placeholders.input')}
-                        className={`w-full min-h-[64px] max-h-[200px] p-4 rounded-2xl border resize-none shadow-sm ${isDark ? 'bg-gray-800 border-gray-700/50 text-white placeholder-gray-500' : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'} focus:outline-none focus:ring-3 focus:ring-blue-500/30 focus:border-blue-500 transition-all duration-300`}
+                        className={`w-full min-h-[56px] sm:min-h-[64px] max-h-[150px] sm:max-h-[200px] p-3 sm:p-4 rounded-2xl border resize-none shadow-sm ${isDark ? 'bg-gray-800 border-gray-700/50 text-white placeholder-gray-500' : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'} focus:outline-none focus:ring-3 focus:ring-blue-500/30 focus:border-blue-500 transition-all duration-300`}
                         disabled={isGenerating}
                         style={{ resize: 'none' }}
                       />
-                      <div className="absolute right-4 bottom-4">
+                      <div className="absolute right-3 sm:right-4 bottom-3 sm:bottom-4">
                         <SpeechInput 
                           onTextRecognized={(text) => setInput(prev => prev + text)} 
                           language={i18n.language.startsWith('zh') ? 'zh-CN' : 'en-US'}
@@ -1187,7 +1187,7 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
                     <motion.button
                       onClick={sendMessage}
                       disabled={isGenerating || !input.trim()}
-                      className={`px-4.5 py-3.5 rounded-2xl transition-all duration-300 font-medium shadow-md flex-shrink-0 ${isGenerating || !input.trim() ? (isDark ? 'bg-gray-700 text-gray-400 cursor-not-allowed' : 'bg-gray-300 text-gray-500 cursor-not-allowed') : (isDark ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white' : 'bg-gradient-to-r from-blue-600 to-purple-600 text-white')}`}
+                      className={`px-3.5 sm:px-4.5 py-3 sm:py-3.5 rounded-2xl transition-all duration-300 font-medium shadow-md flex-shrink-0 ${isGenerating || !input.trim() ? (isDark ? 'bg-gray-700 text-gray-400 cursor-not-allowed' : 'bg-gray-300 text-gray-500 cursor-not-allowed') : (isDark ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white' : 'bg-gradient-to-r from-blue-600 to-purple-600 text-white')}`}
                       whileHover={!isGenerating && input.trim() ? { scale: 1.05, boxShadow: '0 8px 20px rgba(99, 102, 241, 0.3)' } : {}}
                       whileTap={!isGenerating && input.trim() ? { scale: 0.98 } : {}}
                       transition={{ type: 'spring', stiffness: 300, damping: 15 }}

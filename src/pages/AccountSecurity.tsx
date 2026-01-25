@@ -1,7 +1,8 @@
-import { useState, useContext } from 'react'
+import { useState, useContext, useEffect } from 'react'
 import { AuthContext } from '@/contexts/authContext'
 import { useTheme } from '@/hooks/useTheme'
 import { Link, useNavigate } from 'react-router-dom'
+import { format } from 'date-fns'
 
 export default function AccountSecurity() {
   const { user, enableTwoFactorAuth, verifyTwoFactorCode } = useContext(AuthContext)
@@ -17,12 +18,55 @@ export default function AccountSecurity() {
   const [success, setSuccess] = useState('')
   
   // 安全日志状态
-  const [securityLogs, setSecurityLogs] = useState([
-    { id: 1, action: '登录', ip: '192.168.1.1', device: 'Chrome 120', time: '2024-12-29 14:30:22', location: '北京' },
-    { id: 2, action: '修改密码', ip: '192.168.1.1', device: 'Chrome 120', time: '2024-12-28 09:15:45', location: '北京' },
-    { id: 3, action: '登录', ip: '203.0.113.5', device: 'Safari 17', time: '2024-12-27 18:45:12', location: '上海' },
-    { id: 4, action: '登录', ip: '192.168.1.1', device: 'Chrome 120', time: '2024-12-27 08:20:33', location: '北京' }
-  ])
+  const [securityLogs, setSecurityLogs] = useState<any[]>([])
+  
+  useEffect(() => {
+    // 获取真实的安全日志
+    const fetchLogs = async () => {
+      try {
+        const response = await fetch('/api/users/activities');
+        if (response.ok) {
+          const data = await response.json();
+          const logs = data.map((item: any) => {
+            const details = typeof item.details === 'string' ? JSON.parse(item.details) : item.details;
+            let actionName = item.action_type;
+            
+            // 格式化操作名称
+            if (item.action_type === 'LOGIN' || item.action_type === 'login') actionName = '登录';
+            else if (item.action_type === 'UPDATE_PASSWORD') actionName = '修改密码';
+            else if (item.action_type === 'REGISTER') actionName = '注册账号';
+            
+            // 格式化设备信息 (从User-Agent解析)
+            let deviceName = '未知设备';
+            if (item.user_agent) {
+              if (item.user_agent.includes('Chrome')) deviceName = 'Chrome';
+              else if (item.user_agent.includes('Safari')) deviceName = 'Safari';
+              else if (item.user_agent.includes('Firefox')) deviceName = 'Firefox';
+              else if (item.user_agent.includes('Edge')) deviceName = 'Edge';
+              else if (item.user_agent.includes('Mobile')) deviceName = 'Mobile Device';
+            }
+            
+            return {
+              id: item.id,
+              action: actionName,
+              ip: item.ip_address || '未知IP',
+              device: deviceName,
+              time: format(new Date(item.created_at), 'yyyy-MM-dd HH:mm:ss'),
+              location: '未知位置', // 实际需要IP库解析
+              raw_details: details
+            };
+          });
+          setSecurityLogs(logs);
+        }
+      } catch (error) {
+        console.error('Failed to fetch security logs:', error);
+      }
+    };
+    
+    if (user) {
+      fetchLogs();
+    }
+  }, [user]);
   
   const handleEnableTwoFactor = async () => {
     setIsLoading(true)

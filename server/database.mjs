@@ -856,6 +856,24 @@ async function createPostgreSQLTables(pool) {
       await createIndex('CREATE INDEX IF NOT EXISTS idx_likes_post_id ON likes(post_id);')
       await createIndex('CREATE INDEX IF NOT EXISTS idx_likes_user_id ON likes(user_id);')
 
+      // 创建用户活动日志表
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS user_activities (
+          id SERIAL PRIMARY KEY,
+          user_id UUID NOT NULL,
+          action_type VARCHAR(50) NOT NULL,
+          entity_type VARCHAR(50),
+          entity_id VARCHAR(50),
+          details JSONB,
+          ip_address VARCHAR(45),
+          user_agent TEXT,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+      `)
+      await createIndex('CREATE INDEX IF NOT EXISTS idx_user_activities_user_id ON user_activities(user_id);')
+      await createIndex('CREATE INDEX IF NOT EXISTS idx_user_activities_created_at ON user_activities(created_at);')
+
     } finally {
       client.release()
     }
@@ -2180,9 +2198,9 @@ export const friendDB = {
         const users = db.prepare(`
           SELECT id, username, email, avatar_url, phone
           FROM users 
-          WHERE (username LIKE ? OR email LIKE ?) AND id != ?
+          WHERE (username LIKE ? OR email LIKE ? OR phone LIKE ? OR CAST(id AS TEXT) LIKE ?) AND id != ?
           LIMIT 20
-        `).all(`%${query}%`, `%${query}%`, currentUserId)
+        `).all(`%${query}%`, `%${query}%`, `%${query}%`, `%${query}%`, currentUserId)
         
         // Add status info
         return users.map(u => {
@@ -2192,7 +2210,12 @@ export const friendDB = {
       case DB_TYPE.MEMORY:
         const lowerQuery = query.toLowerCase()
         return memoryStore.users
-          .filter(u => (u.username.toLowerCase().includes(lowerQuery) || u.email.toLowerCase().includes(lowerQuery)) && u.id !== currentUserId)
+          .filter(u => (
+            u.username.toLowerCase().includes(lowerQuery) || 
+            u.email.toLowerCase().includes(lowerQuery) ||
+            (u.phone && u.phone.includes(query)) ||
+            (u.id && String(u.id).toLowerCase().includes(lowerQuery))
+          ) && u.id !== currentUserId)
           .slice(0, 20)
           .map(u => {
              const status = memoryStore.user_status.find(s => s.user_id === u.id)
@@ -2210,9 +2233,9 @@ export const friendDB = {
           SELECT u.id, u.username, u.email, u.avatar_url, u.phone, s.status
           FROM users u
           LEFT JOIN user_status s ON u.id = s.user_id
-          WHERE (u.username ILIKE $1 OR u.email ILIKE $2) AND u.id != $3
+          WHERE (u.username ILIKE $1 OR u.email ILIKE $1 OR u.phone ILIKE $1 OR u.id::text ILIKE $1) AND u.id != $2
           LIMIT 20
-        `, [`%${query}%`, `%${query}%`, currentUserId])
+        `, [`%${query}%`, currentUserId])
         return pgSearchUsers.map(u => ({ ...u, status: u.status || 'offline' }))
       default: throw new Error(`Unsupported DB Type: ${config.dbType}`)
     }

@@ -2598,27 +2598,56 @@ async function route(req, res, u, path) {
           sendJson(res, 400, { error: 'INVALID_CODE', message: '验证码无效或已过期' });
           return;
         }
-        
-        // 2. 查找用户
-        const user = await userDB.findByPhone(phone);
+
+        // 2. 获取或创建用户
+        let user = await userDB.findByPhone(phone);
         if (!user) {
-          sendJson(res, 401, { error: 'USER_NOT_FOUND', message: '该手机号未注册' });
-          return;
+          // 如果用户不存在，尝试通过 email 查找 (假设 phone 和 email 可能重用，或者这是一个新用户)
+          // 简单起见，这里假设 phone 也是一种 email (如果格式允许) 或者创建一个新用户
+          user = await userDB.findByEmail(phone);
+          if (!user) {
+             // 自动注册新用户
+             const newId = await userDB.createUser({
+               username: `user_${phone.slice(-4)}`,
+               email: phone, // 使用手机号作为 email (或者需要单独的 phone 字段)
+               phone: phone,
+               password_hash: '', // 无密码登录
+               auth_provider: 'phone'
+             });
+             user = await userDB.findById(newId.id || newId);
+          }
         }
         
-        // 3. 生成JWT令牌
-        const token = generateToken({ userId: user.id, email: user.email });
-        
+        // 3. 生成 Token
+        const token = generateToken({ 
+          userId: user.id, 
+          email: user.email, 
+          username: user.username,
+          role: user.role || 'user'
+        });
+
+        // 4. 记录登录日志
+        await activityDB.logActivity({
+          userId: user.id,
+          actionType: 'LOGIN',
+          entityType: 'USER',
+          entityId: user.id,
+          details: { method: 'phone_sms' },
+          ipAddress: req.headers['x-forwarded-for'] || req.socket.remoteAddress,
+          userAgent: req.headers['user-agent']
+        });
+
         sendJson(res, 200, {
           code: 0,
           message: '登录成功',
           data: {
-            id: user.id,
-            username: user.username,
-            email: user.email,
             token,
-            refreshToken: token, // 简化实现，实际应该使用不同的refreshToken
-            email_verified: user.email_verified === 1 || user.email_verified === true
+            user: {
+              id: user.id,
+              username: user.username,
+              email: user.email,
+              avatar_url: user.avatar_url
+            }
           }
         });
       } catch (error) {
@@ -2630,6 +2659,7 @@ async function route(req, res, u, path) {
       }
       return;
     }
+
     
     // 手机号验证码注册API
     if (req.method === 'POST' && path === '/api/auth/register-phone') {
@@ -2685,6 +2715,20 @@ async function route(req, res, u, path) {
         
         // 5. 生成JWT令牌
         const token = generateToken({ userId: newUser.id, email: phone });
+        
+        // 初始化用户空间
+        await initializeUserSpace(newUser.id);
+        
+        // Log Activity
+        await activityDB.logActivity({
+          userId: newUser.id,
+          actionType: 'register',
+          entityType: 'user',
+          entityId: newUser.id,
+          details: { description: '手机号注册' },
+          ipAddress: req.socket.remoteAddress,
+          userAgent: req.headers['user-agent']
+        });
         
         sendJson(res, 200, {
           code: 0,

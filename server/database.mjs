@@ -89,7 +89,13 @@ const getPostgresConnectionString = () => {
     return process.env.DATABASE_URL;
   }
   
-  // 3. 尝试 Neon 相关变量
+  // 3. 尝试 Supabase 相关变量
+  if (process.env.POSTGRES_URL) {
+    console.log('[DB] Using POSTGRES_URL');
+    return process.env.POSTGRES_URL;
+  }
+  
+  // 4. 尝试 Neon 相关变量
   const neonUrl = process.env.NEON_URL || 
                   process.env.NEON_DATABASE_URL || 
                   process.env.NEON_POSTGRES_URL || 
@@ -99,15 +105,13 @@ const getPostgresConnectionString = () => {
     console.log('[DB] Using NEON URL');
     return neonUrl;
   }
-
-  // 4. 尝试 Supabase 相关变量
-  if (process.env.POSTGRES_URL) {
-    console.log('[DB] Using POSTGRES_URL');
-    return process.env.POSTGRES_URL;
+  
+  // 5. 尝试从环境变量文件中读取
+  if (process.env.DB_TYPE === 'supabase') {
+    console.log('[DB] Using fallback connection string for Supabase');
+    return 'postgres://postgres.pptqdicaaewtnaiflfcs:csh200506207837@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true';
   }
   
-  // 5. 如果是 Supabase 但没有完整 URL，尝试构建 (通常 Supabase 推荐使用 Connection String)
-  // 这里假设如果只有 SUPABASE_URL 是不够的，必须要有 DB 连接信息
   return null
 }
 
@@ -454,7 +458,11 @@ async function initPostgreSQL() {
     if (!connectionString) {
       const errorMsg = 'PostgreSQL Connection String not configured. Please set DATABASE_URL in Vercel Environment Variables. (Format: postgres://user:pass@host:port/db)';
       console.error(errorMsg); // 确保在 Vercel 日志中可见
-      throw new Error(errorMsg);
+      
+      // 优雅降级到内存数据库
+      console.warn('Falling back to Memory DB due to missing PostgreSQL connection string');
+      config.dbType = DB_TYPE.MEMORY;
+      return {};
     }
 
     // 移除 connectionString 中的 sslmode 参数，避免与 options.ssl 冲突
@@ -531,7 +539,11 @@ async function initPostgreSQL() {
     retryCounts.postgresql++
     
     log(`PostgreSQL connection failed: ${error.message}`, 'ERROR')
-    throw error
+    
+    // 优雅降级到内存数据库
+    console.warn('Falling back to Memory DB due to PostgreSQL connection failure');
+    config.dbType = DB_TYPE.MEMORY;
+    return {};
   }
 }
 

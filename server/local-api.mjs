@@ -131,12 +131,27 @@ function setCors(res) {
 }
 
 async function readBody(req) {
+  // 检查是否是Vercel Serverless Function环境（req.body已解析）
+  if (req.body) {
+    return req.body;
+  }
+  
+  // 标准Node.js HTTP请求
   return new Promise((resolve) => {
     let data = ''
-    req.on('data', (chunk) => (data += chunk))
-    req.on('end', () => {
-      try { resolve(data ? JSON.parse(data) : {}) } catch { resolve({}) }
-    })
+    if (req.on) {
+      req.on('data', (chunk) => (data += chunk))
+      req.on('end', () => {
+        try { resolve(data ? JSON.parse(data) : {}) } catch { resolve({}) }
+      })
+      // 处理错误
+      req.on('error', () => {
+        resolve({})
+      })
+    } else {
+      // 其他环境，直接返回空对象
+      resolve({})
+    }
   })
 }
 

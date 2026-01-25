@@ -2081,99 +2081,92 @@ async function route(req, res, u, path) {
         }
         
         // 验证密码
-        const isPasswordValid = await bcrypt.compare(password, user.password_hash);
-        if (!isPasswordValid) {
-          console.warn(`[用户登录] 失败 - 密码错误: ${email}`);
-          console.log(`[Debug] Provided password length: ${password.length}, Hash in DB: ${user.password_hash.substring(0, 10)}...`);
-          sendJson(res, 401, { error: 'INVALID_CREDENTIALS', message: '邮箱或密码错误' });
-          return;
-        }
+        // 修正方案：如果 DB_TYPE 是 supabase，优先调用 Supabase 的 Auth API 来验证密码
+        let isSupabaseAuthSuccess = false;
         
-        // 检查邮箱验证状态
-        const emailVerified = user.email_verified === 1 || user.email_verified === true;
-        
-        // 特殊修正：如果是刚从Supabase同步过来的用户（或者历史遗留），可能没有password_hash
-        // 但如果能走到这里，说明 verifyHash 通过了。
-        // 如果是 Supabase Auth 登录的用户，不应该走 /api/auth/login，而是 /api/auth/supabase-login
-        // 但如果用户试图用邮箱密码登录，我们需要确保本地存了密码hash。
-        // 对于 Supabase Auth 托管的用户，本地可能不知道明文密码，无法验证。
-        // 除非我们完全接管了 auth。
-        
-        // 既然我们现在是 Hybrid 模式，且 DB_TYPE=supabase，userDB 实际上是操作 Supabase 的 public.users 表
-        // 而 Supabase 的 auth.users 表才存密码。
-        // 所以，本地的 /api/auth/login 逻辑其实是有问题的，它试图验证 public.users 里的 password_hash
-        // 但 Supabase Auth 不会把密码同步到 public.users。
-        
-        // 修正方案：如果 DB_TYPE 是 supabase，应该调用 Supabase 的 Auth API 来验证密码
         if (process.env.DB_TYPE === 'supabase') {
            const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
            const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
            
            if (supabaseUrl && supabaseKey) {
              console.log(`[用户登录] 委托 Supabase Auth 验证: ${email}`);
-             const authResp = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
-               method: 'POST',
-               headers: {
-                 'apikey': supabaseKey,
-                 'Content-Type': 'application/json'
-               },
-               body: JSON.stringify({ email, password })
-             });
-             
-             if (authResp.ok) {
-               const authData = await authResp.json();
-               console.log(`[用户登录] Supabase Auth 验证成功`);
-               // 验证成功，颁发本地 Token
-               // 确保本地 public.users 有这个用户
-               let localUser = await userDB.findByEmail(email);
-               if (!localUser) {
-                 // 同步创建
-                 const now = Date.now();
-                 const newUser = await userDB.createUser({
-                    username: email.split('@')[0],
-                    email,
-                    password_hash: 'MANAGED_BY_SUPABASE',
-                    auth_provider: 'supabase',
-                    email_verified: 1,
-                    created_at: now,
-                    updated_at: now
+             try {
+               const authResp = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
+                 method: 'POST',
+                 headers: {
+                   'apikey': supabaseKey,
+                   'Content-Type': 'application/json'
+                 },
+                 body: JSON.stringify({ email, password })
+               });
+               
+               if (authResp.ok) {
+                 isSupabaseAuthSuccess = true;
+                 const authData = await authResp.json();
+                 console.log(`[用户登录] Supabase Auth 验证成功`);
+                 // 验证成功，颁发本地 Token
+                 // 确保本地 public.users 有这个用户
+                 let localUser = await userDB.findByEmail(email);
+                 if (!localUser) {
+                   // 同步创建
+                   const now = Date.now();
+                   const newUser = await userDB.createUser({
+                      username: email.split('@')[0],
+                      email,
+                      password_hash: 'MANAGED_BY_SUPABASE',
+                      auth_provider: 'supabase',
+                      email_verified: 1,
+                      created_at: now,
+                      updated_at: now
+                   });
+                   localUser = await userDB.findById(newUser.id);
+                 }
+                 
+                 const token = generateToken({ userId: localUser.id, email: localUser.email });
+                 
+                 // 初始化用户空间
+                 await initializeUserSpace(localUser.id);
+  
+                 // Log Activity
+                 await activityDB.logActivity({
+                   userId: localUser.id,
+                   actionType: 'login',
+                   entityType: 'user',
+                   entityId: localUser.id,
+                   details: { description: '邮箱登录 (Supabase)' },
+                   ipAddress: req.socket.remoteAddress,
+                   userAgent: req.headers['user-agent']
                  });
-                 localUser = await userDB.findById(newUser.id);
+  
+                 sendJson(res, 200, {
+                    code: 0,
+                    message: '登录成功',
+                    data: {
+                      id: localUser.id,
+                      username: localUser.username,
+                      email: localUser.email,
+                      token,
+                      email_verified: true
+                    }
+                 });
+                 return;
+               } else {
+                 console.warn(`[用户登录] Supabase Auth 验证失败: ${authResp.status}`);
+                 // 如果 Supabase 验证失败，继续尝试本地验证（为了兼容旧数据）
                }
-               
-               const token = generateToken({ userId: localUser.id, email: localUser.email });
-               
-               // 初始化用户空间
-               await initializeUserSpace(localUser.id);
-
-               // Log Activity
-               await activityDB.logActivity({
-                 userId: localUser.id,
-                 actionType: 'login',
-                 entityType: 'user',
-                 entityId: localUser.id,
-                 details: { description: '邮箱登录 (Supabase)' },
-                 ipAddress: req.socket.remoteAddress,
-                 userAgent: req.headers['user-agent']
-               });
-
-               sendJson(res, 200, {
-                  code: 0,
-                  message: '登录成功',
-                  data: {
-                    id: localUser.id,
-                    username: localUser.username,
-                    email: localUser.email,
-                    token,
-                    email_verified: true
-                  }
-               });
-               return;
-             } else {
-               console.warn(`[用户登录] Supabase Auth 验证失败: ${authResp.status}`);
-               // 如果 Supabase 验证失败，继续尝试本地验证（为了兼容旧数据）
+             } catch (err) {
+                console.error('[用户登录] Supabase Auth 请求异常:', err);
              }
            }
+        }
+
+        // 如果 Supabase 验证未通过，尝试本地密码验证
+        const isPasswordValid = await bcrypt.compare(password, user.password_hash);
+        if (!isPasswordValid) {
+          console.warn(`[用户登录] 失败 - 密码错误: ${email}`);
+          console.log(`[Debug] Provided password length: ${password.length}, Hash in DB: ${user.password_hash ? user.password_hash.substring(0, 10) + '...' : 'NULL'}`);
+          sendJson(res, 401, { error: 'INVALID_CREDENTIALS', message: '邮箱或密码错误' });
+          return;
         }
 
         // 验证密码 (本地逻辑)

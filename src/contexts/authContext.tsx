@@ -259,6 +259,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             }
           }
 
+
           // 优先使用用户元数据中的头像，否则使用默认头像
           const avatarUrl = session.user.user_metadata?.avatar || '';
           
@@ -792,9 +793,41 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   };
 
-  // 发送注册验证码方法（复用 sendEmailOtp）
+  // 发送注册验证码方法
   const sendRegisterEmailOtp = async (email: string): Promise<{ success: boolean; error?: string; mockCode?: string }> => {
-    return sendEmailOtp(email);
+    try {
+      console.log('使用Supabase发送注册邮箱验证码到:', email);
+      
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          shouldCreateUser: true, // 允许自动创建用户
+        }
+      });
+      
+      if (error) {
+        console.error('Supabase发送注册验证码失败:', error.message);
+        // 尝试降级到后端API发送
+        console.log('尝试降级到后端API发送注册验证码...');
+        const response = await fetch('/api/auth/send-register-email-code', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email }),
+        });
+        const data = await response.json();
+        if (response.ok && data.code === 0) {
+           return { success: true, mockCode: data.data?.mockCode };
+        }
+        // 如果后端也失败，返回Supabase的错误或后端的错误
+        return { success: false, error: data.message || error.message };
+      }
+      
+      console.log('注册邮箱验证码发送成功');
+      return { success: true };
+    } catch (error: any) {
+      console.error('发送注册邮箱验证码失败:', error);
+      return { success: false, error: error.message || '发送验证码失败，请稍后重试' };
+    }
   };
 
   // 发送短信验证码方法（使用Supabase内置功能）
@@ -1386,111 +1419,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   };
 
-  // 自动登录检查
-  useEffect(() => {
-    const autoLogin = async () => {
-      try {
-        // 检查是否已经登录
-        if (isAuthenticated) {
-          return;
-        }
-        
-        // 检查本地存储中是否有token
-        const token = localStorage.getItem('token');
-        const refreshTokenFromStorage = localStorage.getItem('refreshToken');
-        const userData = localStorage.getItem('user');
-        
-        if (token && refreshTokenFromStorage && userData) {
-          // 尝试使用token获取用户信息
-          const response = await fetch('/api/auth/me', {
-            method: 'GET',
-            headers: {
-              'Authorization': `Bearer ${token}`,
-            },
-          });
-          
-          if (response.ok) {
-            // token有效，更新用户信息
-            const data = await response.json();
-            if (data.code === 0 && data.data) {
-              // 优先使用后端返回的头像，否则使用默认头像
-              const avatarUrl = data.data.avatar || '';
-              
-              const userWithMembership = {
-                ...JSON.parse(userData),
-                avatar: avatarUrl,
-                // 标记为新用户（如果是首次登录）
-                isNewUser: data.data.isNewUser || false,
-                // 初始化统计数据
-                worksCount: data.data.worksCount || 0,
-                followersCount: data.data.followersCount || 0,
-                followingCount: data.data.followingCount || 0,
-                favoritesCount: data.data.favoritesCount || 0,
-                membershipLevel: (data.data.membershipLevel || 'free') as 'free' | 'premium' | 'vip',
-                membershipStatus: data.data.membershipStatus || 'active',
-              };
-              
-              localStorage.setItem('user', JSON.stringify(userWithMembership));
-              setUser(userWithMembership);
-              setIsAuthenticated(true);
-            }
-          } else if (response.status === 401) {
-            // token过期，尝试刷新token
-            const refreshSuccess = await refreshToken();
-            if (refreshSuccess) {
-              // 刷新成功，重新获取用户信息
-              const newToken = localStorage.getItem('token');
-              const refreshResponse = await fetch('/api/auth/me', {
-                method: 'GET',
-                headers: {
-                  'Authorization': `Bearer ${newToken}`,
-                },
-              });
-              
-              if (refreshResponse.ok) {
-                const data = await refreshResponse.json();
-                if (data.code === 0 && data.data) {
-                  // 优先使用后端返回的头像，否则使用默认头像
-                  const avatarUrl = data.data.avatar || '';
-                  
-                  const userWithMembership = {
-                    ...JSON.parse(userData),
-                    avatar: avatarUrl,
-                    // 标记为新用户（如果是首次登录）
-                    isNewUser: data.data.isNewUser || false,
-                    // 初始化统计数据
-                    worksCount: data.data.worksCount || 0,
-                    followersCount: data.data.followersCount || 0,
-                    followingCount: data.data.followingCount || 0,
-                    favoritesCount: data.data.favoritesCount || 0,
-                    membershipLevel: data.data.membershipLevel || 'free',
-                    membershipStatus: data.data.membershipStatus || 'active',
-                  };
-                  
-                  localStorage.setItem('user', JSON.stringify(userWithMembership));
-                  setUser(userWithMembership);
-                  setIsAuthenticated(true);
-                }
-              }
-            }
-          }
-        }
-      } catch (error) {
-        console.error('自动登录失败:', error);
-        // 发生错误，清除本地存储
-        localStorage.removeItem('token');
-        localStorage.removeItem('refreshToken');
-        localStorage.removeItem('user');
-        localStorage.removeItem('isAuthenticated');
-        securityService.setSecureItem('SECURE_TOKEN', '');
-        securityService.setSecureItem('SECURE_REFRESH_TOKEN', '');
-        setIsAuthenticated(false);
-        setUser(null);
-      }
-    };
-    
-    autoLogin();
-  }, [isAuthenticated, supabase]);
+  // 自动登录检查 - 已合并到 checkAuth，删除冗余的 Effect 以防止竞争条件
+  // useEffect(() => {
+  //   const autoLogin = async () => { ... }
+  //   autoLogin();
+  // }, [isAuthenticated, supabase]);
 
   // 新增：启用双因素认证
   const enableTwoFactorAuth = async (): Promise<boolean> => {

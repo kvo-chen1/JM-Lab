@@ -23,18 +23,6 @@ const loadEnv = () => {
     console.error('Error loading process.env:', error);
   }
   
-  // 如果是浏览器环境，尝试从import.meta.env加载
-  if (typeof import.meta !== 'undefined' && import.meta.env) {
-    return {
-      NEXT_PUBLIC_SUPABASE_URL: import.meta.env.NEXT_PUBLIC_SUPABASE_URL,
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: import.meta.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-      VITE_SUPABASE_URL: import.meta.env.VITE_SUPABASE_URL,
-      VITE_SUPABASE_ANON_KEY: import.meta.env.VITE_SUPABASE_ANON_KEY,
-      SUPABASE_URL: import.meta.env.SUPABASE_URL,
-      SUPABASE_ANON_KEY: import.meta.env.SUPABASE_ANON_KEY
-    };
-  }
-  
   return {};
 };
 

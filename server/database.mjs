@@ -38,6 +38,36 @@ const memoryStore = {
   post_tags: []
 }
 
+// JSON持久化路径
+const JSON_DB_PATH = path.join(process.cwd(), 'server', 'data', 'backup.json');
+
+// 加载JSON数据
+function loadMemoryStore() {
+  try {
+    if (fs.existsSync(JSON_DB_PATH)) {
+      const data = JSON.parse(fs.readFileSync(JSON_DB_PATH, 'utf-8'));
+      Object.assign(memoryStore, data);
+      log('Loaded data from JSON backup');
+    }
+  } catch (e) {
+    log(`Failed to load JSON backup: ${e.message}`, 'ERROR');
+  }
+}
+
+// 保存JSON数据
+function saveMemoryStore() {
+  try {
+    const dir = path.dirname(JSON_DB_PATH);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(JSON_DB_PATH, JSON.stringify(memoryStore, null, 2));
+  } catch (e) {
+    console.error('Failed to save JSON backup:', e);
+  }
+}
+
+// 初始化时尝试加载
+loadMemoryStore();
+
 // 日志助手
 const log = (msg, level = 'INFO') => {
   const timestamp = new Date().toISOString()
@@ -232,7 +262,12 @@ async function initSQLite() {
     retryCounts.sqlite++
     
     log(`SQLite connection failed: ${error.message}`, 'ERROR')
-    throw error
+    
+    // Fallback to Memory (with JSON persistence)
+    log('Falling back to JSON-backed Memory DB', 'WARN');
+    config.dbType = DB_TYPE.MEMORY;
+    // Return dummy object to satisfy interface, but getDB() will redirect to memoryStore
+    return {}; 
   }
 }
 
@@ -979,6 +1014,7 @@ export const userDB = {
           github_id, github_username, auth_provider
         }
         memoryStore.users.push(newUser)
+        saveMemoryStore()
         return { id: newUser.id }
       case DB_TYPE.MONGODB:
         const result = await db.collection('users').insertOne({
@@ -1080,6 +1116,7 @@ export const userDB = {
         if (userIndex === -1) return null
         const updatedUser = { ...memoryStore.users[userIndex], ...updateData, updated_at: now }
         memoryStore.users[userIndex] = updatedUser
+        saveMemoryStore()
         return updatedUser
 
       case DB_TYPE.MONGODB:
@@ -1120,11 +1157,16 @@ export const userDB = {
         if (email_verified !== undefined) { pgUpdateFields.push(`email_verified = $${pgParamIndex++}`); pgParams.push(email_verified) }
         if (email_verification_token !== undefined) { pgUpdateFields.push(`email_verification_token = $${pgParamIndex++}`); pgParams.push(email_verification_token) }
         if (email_verification_expires !== undefined) { pgUpdateFields.push(`email_verification_expires = $${pgParamIndex++}`); pgParams.push(email_verification_expires) }
-        pgUpdateFields.push(`updated_at = $${pgParamIndex++}`)
-        pgParams.push(now)
+        
+        // 关键修复：确保 updated_at 使用 PostgreSQL 的 NOW() 函数，而不是 JavaScript 的 timestamp
+        // 否则如果 updated_at 字段类型是 timestamp with time zone，传入 int 会报错
+        pgUpdateFields.push(`updated_at = NOW()`)
+        
         pgParams.push(id)
         if (pgUpdateFields.length === 1) return this.findById(id)
-        const pgUpdateSql = `UPDATE users SET ${pgUpdateFields.join(', ')} WHERE id = $${pgParamIndex - 1} RETURNING *`
+        
+        // id 参数索引是最后一个
+        const pgUpdateSql = `UPDATE users SET ${pgUpdateFields.join(', ')} WHERE id = $${pgParamIndex} RETURNING *`
         return (await db.query(pgUpdateSql, pgParams)).rows[0]
 
       case DB_TYPE.NEON_API:
@@ -1263,6 +1305,7 @@ export const userDB = {
             })
           }
         }
+        saveMemoryStore()
         return true
       case DB_TYPE.MONGODB:
         await db.collection('users').updateOne(
@@ -1395,6 +1438,7 @@ export const userDB = {
             updated_at: Date.now()
           });
         }
+        saveMemoryStore();
         return true;
       }
       default: throw new Error(`Unsupported DB Type: ${config.dbType}`)
@@ -1513,6 +1557,7 @@ export const favoriteDB = {
         const favIndex = memoryStore.favorites.findIndex(f => f.user_id === userId && f.tutorial_id === tutorialId)
         if (favIndex > -1) memoryStore.favorites.splice(favIndex, 1)
         else memoryStore.favorites.push({ user_id: userId, tutorial_id: tutorialId, created_at: Date.now() })
+        saveMemoryStore()
         return this.getUserFavorites(userId)
       case DB_TYPE.MONGODB:
         const result = await db.collection('favorites').findOneAndDelete({ user_id: userId, tutorial_id: tutorialId })
@@ -1561,6 +1606,7 @@ export const videoTaskDB = {
         } else {
           memoryStore.video_tasks.push({ id, status, model, created_at: now, updated_at: now, payload })
         }
+        saveMemoryStore()
         return
       case DB_TYPE.MONGODB:
         await db.collection('video_tasks').updateOne({ id }, { $set: { status, model, updated_at: now, payload }, $setOnInsert: { created_at: now } }, { upsert: true })
@@ -1760,6 +1806,7 @@ export const friendDB = {
           updated_at: now
         }
         memoryStore.friend_requests.push(newRequest)
+        saveMemoryStore()
         return newRequest
       }
 
@@ -1823,6 +1870,7 @@ export const friendDB = {
         if (!memoryStore.friends.some(f => f.user_id === memRequest.receiver_id && f.friend_id === memRequest.sender_id)) {
           memoryStore.friends.push({ id: randomUUID(), user_id: memRequest.receiver_id, friend_id: memRequest.sender_id, created_at: now, updated_at: now })
         }
+        saveMemoryStore()
         return true
 
       case DB_TYPE.POSTGRESQL:
@@ -1862,6 +1910,7 @@ export const friendDB = {
           memoryStore.friend_requests[rejIndex].status = 'rejected'
           memoryStore.friend_requests[rejIndex].updated_at = now
         }
+        saveMemoryStore()
         return true
       case DB_TYPE.POSTGRESQL:
         await db.query("UPDATE friend_requests SET status = 'rejected', updated_at = NOW() WHERE id = $1", [requestId])
@@ -1999,6 +2048,7 @@ export const friendDB = {
         memoryStore.friends = memoryStore.friends.filter(f => 
           !((f.user_id === userId && f.friend_id === friendId) || (f.user_id === friendId && f.friend_id === userId))
         )
+        saveMemoryStore()
         return true
       case DB_TYPE.POSTGRESQL:
         await db.query('DELETE FROM friends WHERE (user_id = $1 AND friend_id = $2) OR (user_id = $2 AND friend_id = $1)', [userId, friendId])
@@ -2020,6 +2070,7 @@ export const friendDB = {
         if (friendEntry) {
           friendEntry.user_note = note
         }
+        saveMemoryStore()
         return true
       case DB_TYPE.POSTGRESQL:
         await db.query('UPDATE friends SET user_note = $1 WHERE user_id = $2 AND friend_id = $3', [note, userId, friendId])
@@ -2088,6 +2139,22 @@ export const friendDB = {
           ON CONFLICT(user_id) DO UPDATE SET status = ?, last_seen = ?
         `).run(userId, status, now, status, now)
         return true
+      case DB_TYPE.MEMORY:
+        const statusIndex = memoryStore.user_status.findIndex(s => s.user_id === userId)
+        if (statusIndex > -1) {
+          memoryStore.user_status[statusIndex].status = status
+          memoryStore.user_status[statusIndex].last_seen = now
+          memoryStore.user_status[statusIndex].updated_at = now
+        } else {
+          memoryStore.user_status.push({
+            user_id: userId,
+            status: status,
+            last_seen: now,
+            updated_at: now
+          })
+        }
+        saveMemoryStore()
+        return true
       case DB_TYPE.POSTGRESQL:
         await db.query(`
           INSERT INTO user_status (user_id, status, last_seen, updated_at) 
@@ -2110,6 +2177,18 @@ export const messageDB = {
       case DB_TYPE.SQLITE:
         db.prepare('INSERT INTO messages (sender_id, receiver_id, content, is_read, created_at) VALUES (?, ?, ?, 0, ?)').run(senderId, receiverId, content, now)
         return { sender_id: senderId, receiver_id: receiverId, content, is_read: 0, created_at: now }
+      case DB_TYPE.MEMORY:
+        const newMessage = {
+          id: randomUUID(),
+          sender_id: senderId,
+          receiver_id: receiverId,
+          content: content,
+          is_read: false,
+          created_at: now
+        }
+        memoryStore.messages.push(newMessage)
+        saveMemoryStore()
+        return newMessage
       case DB_TYPE.POSTGRESQL:
         const { rows: msgRows } = await db.query(`
           INSERT INTO direct_messages (sender_id, receiver_id, content, is_read, created_at) 
@@ -2134,6 +2213,12 @@ export const messageDB = {
           LIMIT ? OFFSET ?
         `).all(userId, friendId, friendId, userId, limit, offset)
         return messages.reverse() // Return in chronological order
+      case DB_TYPE.MEMORY:
+        const memMessages = memoryStore.messages
+          .filter(m => (m.sender_id === userId && m.receiver_id === friendId) || (m.sender_id === friendId && m.receiver_id === userId))
+          .sort((a, b) => b.created_at - a.created_at) // Newest first
+          .slice(offset, offset + limit)
+        return memMessages.reverse() // Oldest first
       case DB_TYPE.POSTGRESQL:
         const { rows: pgMessages } = await db.query(`
           SELECT * FROM direct_messages 
@@ -2154,6 +2239,14 @@ export const messageDB = {
       case DB_TYPE.SQLITE:
         // Mark messages sent by friend to user as read
         db.prepare('UPDATE messages SET is_read = 1 WHERE sender_id = ? AND receiver_id = ?').run(friendId, userId)
+        return true
+      case DB_TYPE.MEMORY:
+        memoryStore.messages.forEach(m => {
+          if (m.sender_id === friendId && m.receiver_id === userId) {
+            m.is_read = true
+          }
+        })
+        saveMemoryStore()
         return true
       case DB_TYPE.POSTGRESQL:
         await db.query('UPDATE direct_messages SET is_read = true WHERE sender_id = $1 AND receiver_id = $2', [friendId, userId])

@@ -2,6 +2,7 @@ import { useState, useContext } from 'react'
 import { AuthContext } from '@/contexts/authContext'
 import { useTheme } from '@/hooks/useTheme'
 import { Link, useNavigate } from 'react-router-dom'
+import { userService } from '@/services/apiService'
 
 export default function ProfileEdit() {
   const { user, updateUser } = useContext(AuthContext)
@@ -46,14 +47,67 @@ export default function ProfileEdit() {
       
       setAvatarFile(file)
       
-      // 创建预览URL
-      const reader = new FileReader()
-      reader.onloadend = () => {
-        const result = reader.result as string
-        setAvatarPreview(result)
-        setFormData(prev => ({ ...prev, avatar: result }))
+      // 创建预览URL并压缩图片
+      const compressImage = (file: File, maxWidth: number = 800, maxHeight: number = 800, quality: number = 0.7) => {
+        return new Promise<string>((resolve) => {
+          const canvas = document.createElement('canvas')
+          const ctx = canvas.getContext('2d')
+          const img = new Image()
+          
+          img.onload = () => {
+            // 计算压缩后的尺寸
+            let width = img.width
+            let height = img.height
+            
+            if (width > height) {
+              if (width > maxWidth) {
+                height = (height * maxWidth) / width
+                width = maxWidth
+              }
+            } else {
+              if (height > maxHeight) {
+                width = (width * maxHeight) / height
+                height = maxHeight
+              }
+            }
+            
+            // 设置canvas尺寸
+            canvas.width = width
+            canvas.height = height
+            
+            // 绘制压缩后的图片
+            ctx?.drawImage(img, 0, 0, width, height)
+            
+            // 转换为base64
+            const compressedDataUrl = canvas.toDataURL('image/jpeg', quality)
+            resolve(compressedDataUrl)
+          }
+          
+          img.src = URL.createObjectURL(file)
+        })
       }
-      reader.readAsDataURL(file)
+      
+      // 压缩图片
+      compressImage(file).then(compressedDataUrl => {
+        console.log('原始图片大小:', (file.size / 1024).toFixed(2), 'KB');
+        console.log('压缩后base64长度:', compressedDataUrl.length);
+        console.log('压缩后估计大小:', (compressedDataUrl.length * 0.75 / 1024).toFixed(2), 'KB');
+        
+        // 进一步限制大小
+        if (compressedDataUrl.length > 100000) {
+          console.log('图片仍然过大，再次压缩');
+          // 更严格的压缩
+          compressImage(file, 600, 600, 0.6).then(smallerDataUrl => {
+            console.log('再次压缩后base64长度:', smallerDataUrl.length);
+            console.log('再次压缩后估计大小:', (smallerDataUrl.length * 0.75 / 1024).toFixed(2), 'KB');
+            setAvatarPreview(smallerDataUrl);
+            setFormData(prev => ({ ...prev, avatar: smallerDataUrl }));
+          });
+        } else {
+          setAvatarPreview(compressedDataUrl);
+          setFormData(prev => ({ ...prev, avatar: compressedDataUrl }));
+        }
+      })
     }
   }
   
@@ -71,6 +125,9 @@ export default function ProfileEdit() {
         interests: formData.interests ? formData.interests.split(',').map(interest => interest.trim()) : [],
         avatar: avatarPreview
       }
+      
+      // 先调用后端 API 持久化
+      await userService.updateUser(updatedUser);
       
       updateUser(updatedUser)
       setSuccess('个人资料更新成功！')

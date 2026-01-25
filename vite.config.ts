@@ -531,6 +531,10 @@ export default defineConfig({
     },
     // 添加开发服务器代理配置
     proxy: {
+      '/api/users': {
+        target: LOCAL_API_TARGET,
+        changeOrigin: true
+      },
       '/api/auth': {
         target: LOCAL_API_TARGET,
         changeOrigin: true
@@ -634,6 +638,10 @@ export default defineConfig({
     port: 3000,
     // 添加预览服务器代理配置
     proxy: {
+      '/api/users': {
+        target: LOCAL_API_TARGET,
+        changeOrigin: true
+      },
       '/api/auth': {
         target: LOCAL_API_TARGET,
         changeOrigin: true

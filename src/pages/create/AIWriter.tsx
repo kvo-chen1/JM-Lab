@@ -104,6 +104,30 @@ const TEMPLATES = {
 使用 <h2>, <h3>, <p>, <ul>, <table> 等标签。
 内容包含：行业概况、市场规模测算（使用表格展示数据）、市场趋势、目标客户分析、竞争格局、SWOT分析（使用表格）。
 语言需客观、专业，引用行业标准术语。`
+  },
+  prd: {
+    id: 'prd',
+    name: '产品需求文档 (PRD)',
+    icon: 'fas fa-clipboard-list',
+    description: '标准化的互联网产品需求定义文档',
+    sections: [
+      '文档说明', '产品背景', '用户角色', '功能需求', '非功能需求', '数据埋点'
+    ],
+    prompt: `请撰写一份专业的产品需求文档（PRD）。
+产品名称：[产品名称]
+核心功能：[核心功能]
+
+请直接输出 **HTML 格式** 的内容。
+使用 <table border="1" style="width: 100%; border-collapse: collapse;"> 展示功能列表和版本记录。
+章节结构：
+1. <h2>文档说明</h2>：版本记录、变更日志。
+2. <h2>产品背景</h2>：背景、目标、范围。
+3. <h2>用户角色</h2>：用户画像、使用场景。
+4. <h2>功能需求</h2>：详细的功能点描述（使用表格：功能模块 | 功能点 | 优先级 | 描述）。
+5. <h2>非功能需求</h2>：性能、安全、兼容性。
+6. <h2>数据埋点</h2>：关键指标定义。
+
+语言需极度严谨，逻辑清晰，无歧义。`
   }
 };
 
@@ -121,6 +145,31 @@ interface ChatMessage {
   timestamp: number;
 }
 
+interface GenerationOptions {
+  tone: string;
+  language: string;
+}
+
+const TONES = [
+  { id: 'professional', label: '专业严谨', icon: 'fas fa-user-tie' },
+  { id: 'enthusiastic', label: '热情感染', icon: 'fas fa-fire' },
+  { id: 'creative', label: '创意新颖', icon: 'fas fa-lightbulb' },
+  { id: 'concise', label: '简洁有力', icon: 'fas fa-compress-alt' },
+];
+
+const LANGUAGES = [
+  { id: 'zh', label: '中文', icon: '🇨🇳' },
+  { id: 'en', label: 'English', icon: '🇺🇸' },
+];
+
+const QUICK_ACTIONS = [
+  { label: '润色文字', prompt: '请润色这段文字，使其更加通顺、优雅，保持原意不变。' },
+  { label: '扩充内容', prompt: '请扩充这段内容，增加更多细节、例子和数据支持，使论证更充分。' },
+  { label: '精简摘要', prompt: '请将这段内容概括为一段精炼的摘要，保留核心观点。' },
+  { label: '纠正语法', prompt: '请检查并纠正文中的语法错误和错别字。' },
+  { label: '翻译为英文', prompt: 'Please translate the content into professional English.' },
+];
+
 export default function AIWriter() {
   const { isDark } = useTheme();
   
@@ -131,6 +180,7 @@ export default function AIWriter() {
   
   // Input State
   const [inputs, setInputs] = useState<Record<string, string>>({});
+  const [genOptions, setGenOptions] = useState<GenerationOptions>({ tone: 'professional', language: 'zh' });
   
   // Editor State
   const [content, setContent] = useState('');
@@ -140,6 +190,7 @@ export default function AIWriter() {
   const [versions, setVersions] = useState<Version[]>([]);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [showHistory, setShowHistory] = useState(false);
+  const [stats, setStats] = useState({ words: 0, chars: 0, time: 0 });
   
   // Chat State
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
@@ -182,6 +233,20 @@ export default function AIWriter() {
     };
   }, [content, currentStep, isGenerating]);
 
+  // Update stats when content changes
+  useEffect(() => {
+    const plainText = content.replace(/<[^>]*>/g, '');
+    const charCount = plainText.length;
+    const wordCount = plainText.trim() === '' ? 0 : plainText.trim().split(/\s+/).length;
+    const readTime = Math.ceil(charCount / 500); // Rough estimate: 500 chars per minute
+
+    setStats({
+      chars: charCount,
+      words: wordCount,
+      time: readTime
+    });
+  }, [content]);
+
   // Scroll to bottom of streaming content
   useEffect(() => {
     if (isGenerating && editorContainerRef.current) {
@@ -212,6 +277,16 @@ export default function AIWriter() {
       finalPrompt = finalPrompt.replace(`[${key}]`, inputs[key]);
     });
     finalPrompt = finalPrompt.replace(/\[.*?\]/g, '');
+
+    // Append Tone and Language instructions
+    finalPrompt += `\n\n**重要要求**：\n`;
+    finalPrompt += `- 写作语调：${TONES.find(t => t.id === genOptions.tone)?.label || '专业严谨'}\n`;
+    finalPrompt += `- 输出语言：${genOptions.language === 'en' ? 'English' : 'Simplified Chinese (简体中文)'}\n`;
+    
+    if (genOptions.language === 'en') {
+      finalPrompt += `- Please ensure the output is in English, but keep the professional structure.\n`;
+    }
+
     return finalPrompt;
   };
 
@@ -230,7 +305,7 @@ export default function AIWriter() {
     const initialUserMessage: ChatMessage = {
       id: Date.now().toString(),
       role: 'user',
-      content: `基于模板"${currentTemplate.name}"生成初始草稿。`,
+      content: `基于模板"${currentTemplate.name}"生成初始草稿。语调：${TONES.find(t => t.id === genOptions.tone)?.label}。`,
       timestamp: Date.now()
     };
     setChatHistory([initialUserMessage]);
@@ -267,10 +342,11 @@ export default function AIWriter() {
     }
   };
 
-  const handleModification = async () => {
-    if (!chatInput.trim() || isGenerating) return;
+  const handleModification = async (customPrompt?: string) => {
+    const inputToUse = customPrompt || chatInput;
+    if (!inputToUse.trim() || isGenerating) return;
 
-    const userInstruction = chatInput;
+    const userInstruction = inputToUse;
     setChatInput('');
     setIsGenerating(true);
 
@@ -406,6 +482,13 @@ IMPORTANT:
     }
   };
 
+  const handleClear = () => {
+    if (window.confirm('确定要清空所有内容吗？此操作无法撤销。')) {
+      setContent('');
+      toast.success('内容已清空');
+    }
+  };
+
   // Export & Submit Handlers
   const handleExport = (format: 'html' | 'print') => {
     setShowExportMenu(false);
@@ -461,6 +544,11 @@ IMPORTANT:
         { key: '行业/领域', label: '分析行业', placeholder: '例如：新能源汽车' },
         { key: '关注焦点', label: '重点关注方向', placeholder: '例如：电池技术革新' }
       ];
+    } else if (selectedTemplateId === 'prd') {
+      specificFields = [
+        { key: '产品名称', label: '产品名称', placeholder: '例如：AI写作助手' },
+        { key: '核心功能', label: '核心功能', placeholder: '例如：多模态生成、实时协作' }
+      ];
     }
 
     return (
@@ -493,6 +581,48 @@ IMPORTANT:
             )}
           </div>
         ))}
+
+        {/* Options: Tone & Language */}
+        <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-100 dark:border-gray-700">
+          <div>
+            <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">写作语调</label>
+            <div className="grid grid-cols-2 gap-2">
+              {TONES.map(tone => (
+                <button
+                  key={tone.id}
+                  onClick={() => setGenOptions(prev => ({ ...prev, tone: tone.id }))}
+                  className={`p-2 text-xs rounded-lg border transition-all flex flex-col items-center justify-center gap-1 ${
+                    genOptions.tone === tone.id
+                      ? 'bg-blue-50 border-blue-500 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400'
+                      : 'border-gray-200 hover:border-blue-300 dark:border-gray-700 dark:hover:border-gray-600'
+                  }`}
+                >
+                  <i className={tone.icon}></i>
+                  {tone.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">输出语言</label>
+            <div className="grid grid-cols-2 gap-2">
+              {LANGUAGES.map(lang => (
+                <button
+                  key={lang.id}
+                  onClick={() => setGenOptions(prev => ({ ...prev, language: lang.id }))}
+                  className={`p-2 text-xs rounded-lg border transition-all flex flex-col items-center justify-center gap-1 ${
+                    genOptions.language === lang.id
+                      ? 'bg-blue-50 border-blue-500 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400'
+                      : 'border-gray-200 hover:border-blue-300 dark:border-gray-700 dark:hover:border-gray-600'
+                  }`}
+                >
+                  <span className="text-base">{lang.icon}</span>
+                  {lang.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
     );
   };
@@ -607,6 +737,13 @@ IMPORTANT:
 
               <div className="h-6 w-px bg-gray-300 dark:bg-gray-700 mx-1"></div>
 
+              <button
+                onClick={handleClear}
+                className="px-3 py-1.5 text-sm bg-gray-100 dark:bg-gray-800 hover:bg-red-100 hover:text-red-500 dark:hover:bg-red-900/30 dark:hover:text-red-400 rounded-lg transition-colors"
+                title="清空内容"
+              >
+                <i className="fas fa-trash-alt"></i>
+              </button>
               <button
                 onClick={() => saveDraft('手动保存')}
                 className="px-3 py-1.5 text-sm bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
@@ -746,6 +883,15 @@ IMPORTANT:
                   </div>
                 )}
               </div>
+
+              {/* Stats Bar */}
+              {!isGenerating && (
+                <div className={`px-4 py-2 border-t text-xs flex items-center gap-4 ${isDark ? 'bg-gray-900 border-gray-800 text-gray-400' : 'bg-gray-50 border-gray-200 text-gray-500'}`}>
+                  <span>字数: <strong className="text-gray-700 dark:text-gray-300">{stats.words}</strong></span>
+                  <span>字符: <strong className="text-gray-700 dark:text-gray-300">{stats.chars}</strong></span>
+                  <span>预计阅读: <strong className="text-gray-700 dark:text-gray-300">{stats.time}</strong> 分钟</span>
+                </div>
+              )}
             </div>
 
             {/* AI Assistant Sidebar */}
@@ -779,6 +925,26 @@ IMPORTANT:
                     <div ref={chatEndRef} />
                   </div>
 
+                  {/* Quick Actions */}
+                  <div className={`px-4 py-2 border-t overflow-x-auto whitespace-nowrap ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+                    <div className="flex gap-2">
+                      {QUICK_ACTIONS.map((action, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => handleModification(action.prompt)}
+                          disabled={isGenerating}
+                          className={`text-xs px-2.5 py-1.5 rounded-full border transition-colors ${
+                            isDark 
+                              ? 'border-gray-600 hover:bg-gray-700 text-gray-300' 
+                              : 'border-gray-200 hover:bg-gray-100 text-gray-600'
+                          }`}
+                        >
+                          {action.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   <div className={`p-4 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
                     <div className="relative">
                       <textarea
@@ -798,7 +964,7 @@ IMPORTANT:
                         disabled={isGenerating}
                       />
                       <button
-                        onClick={handleModification}
+                        onClick={() => handleModification()}
                         disabled={!chatInput.trim() || isGenerating}
                         className={`absolute bottom-3 right-3 w-8 h-8 rounded-full flex items-center justify-center transition-all ${
                           !chatInput.trim() || isGenerating

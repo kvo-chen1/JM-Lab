@@ -1570,6 +1570,14 @@ async function route(req, res, u, path) {
             isTempUser = true;
             existingUserId = existingUser.id;
           } else {
+            // 如果已存在且不是临时用户，尝试“静默登录”逻辑或提示
+            // 但标准流程是返回错误。
+            // 既然用户说“显示没注册，而且supabase上有这个数据”，说明Supabase有，但本地DB没有同步，或者状态不一致。
+            // 鉴于我们刚切换了DB_TYPE，本地DB是新的（空的），所以 findByEmail 应该返回 null。
+            // 如果 findByEmail 返回了用户，说明本地DB里确实有。
+            
+            // 特殊处理：如果用户坚称没注册，但库里有，可能是之前的测试数据。
+            // 允许覆盖注册？不，这不安全。
             sendJson(res, 400, { error: 'EMAIL_ALREADY_EXISTS', message: '该邮箱已被注册' });
             return;
           }
@@ -1991,30 +1999,112 @@ async function route(req, res, u, path) {
         // 检查邮箱验证状态
         const emailVerified = user.email_verified === 1 || user.email_verified === true;
         
-        // 生成JWT令牌
-        const token = generateToken({ userId: user.id, email: user.email });
+        // 特殊修正：如果是刚从Supabase同步过来的用户（或者历史遗留），可能没有password_hash
+        // 但如果能走到这里，说明 verifyHash 通过了。
+        // 如果是 Supabase Auth 登录的用户，不应该走 /api/auth/login，而是 /api/auth/supabase-login
+        // 但如果用户试图用邮箱密码登录，我们需要确保本地存了密码hash。
+        // 对于 Supabase Auth 托管的用户，本地可能不知道明文密码，无法验证。
+        // 除非我们完全接管了 auth。
         
-        console.log(`[用户登录] 成功 - 用户ID: ${user.id}, 邮箱: ${email}, 邮箱已验证: ${emailVerified}`);
+        // 既然我们现在是 Hybrid 模式，且 DB_TYPE=supabase，userDB 实际上是操作 Supabase 的 public.users 表
+        // 而 Supabase 的 auth.users 表才存密码。
+        // 所以，本地的 /api/auth/login 逻辑其实是有问题的，它试图验证 public.users 里的 password_hash
+        // 但 Supabase Auth 不会把密码同步到 public.users。
         
-        sendJson(res, 200, {
-          code: 0,
-          message: emailVerified ? '登录成功' : '登录成功，但您的邮箱尚未验证，请尽快验证',
-          data: {
-            id: user.id,
-            username: user.username,
-            email: user.email,
-            token,
-            email_verified: emailVerified
-          }
-        });
-      } catch (error) {
-        console.error(`[用户登录] 异常 - 邮箱: ${email}, 错误:`, error);
-        sendJson(res, 500, { error: 'INTERNAL_ERROR', message: `登录失败: ${error.message}` });
-      }
-      return;
-    }
-    
-    // 登出API
+        // 修正方案：如果 DB_TYPE 是 supabase，应该调用 Supabase 的 Auth API 来验证密码
+        if (process.env.DB_TYPE === 'supabase') {
+           const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+           const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+           
+           if (supabaseUrl && supabaseKey) {
+             console.log(`[用户登录] 委托 Supabase Auth 验证: ${email}`);
+             const authResp = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
+               method: 'POST',
+               headers: {
+                 'apikey': supabaseKey,
+                 'Content-Type': 'application/json'
+               },
+               body: JSON.stringify({ email, password })
+             });
+             
+             if (authResp.ok) {
+               const authData = await authResp.json();
+               console.log(`[用户登录] Supabase Auth 验证成功`);
+               // 验证成功，颁发本地 Token
+               // 确保本地 public.users 有这个用户
+               let localUser = await userDB.findByEmail(email);
+               if (!localUser) {
+                 // 同步创建
+                 const now = Date.now();
+                 const newUser = await userDB.createUser({
+                    username: email.split('@')[0],
+                    email,
+                    password_hash: 'MANAGED_BY_SUPABASE',
+                    auth_provider: 'supabase',
+                    email_verified: 1,
+                    created_at: now,
+                    updated_at: now
+                 });
+                 localUser = await userDB.findById(newUser.id);
+               }
+               
+               const token = generateToken({ userId: localUser.id, email: localUser.email });
+               
+               sendJson(res, 200, {
+                  code: 0,
+                  message: '登录成功',
+                  data: {
+                    id: localUser.id,
+                    username: localUser.username,
+                    email: localUser.email,
+                    token,
+                    email_verified: true
+                  }
+               });
+               return;
+             } else {
+               console.warn(`[用户登录] Supabase Auth 验证失败: ${authResp.status}`);
+               // 如果 Supabase 验证失败，继续尝试本地验证（为了兼容旧数据）
+             }
+           }
+        }
+
+        // 验证密码 (本地逻辑)
+        // 修正变量冲突问题
+        const isPasswordValidLocal = await bcrypt.compare(password, user.password_hash);
+        if (!isPasswordValidLocal) {
+           console.warn(`[用户登录] 失败 - 密码错误: ${email}`);
+           console.log(`[Debug] Provided password length: ${password.length}, Hash in DB: ${user.password_hash.substring(0, 10)}...`);
+           sendJson(res, 401, { error: 'INVALID_CREDENTIALS', message: '邮箱或密码错误' });
+           return;
+         }
+         
+         // 检查邮箱验证状态
+          // 修正变量冲突问题
+          const emailVerifiedLocal = user.email_verified === 1 || user.email_verified === true;
+          
+          // 生成JWT令牌
+          const token = generateToken({ userId: user.id, email: user.email });
+          
+          console.log(`[用户登录] 成功 - 用户ID: ${user.id}, 邮箱: ${email}, 邮箱已验证: ${emailVerifiedLocal}`);
+          
+          sendJson(res, 200, {
+            code: 0,
+            message: emailVerifiedLocal ? '登录成功' : '登录成功，但您的邮箱尚未验证，请尽快验证',
+            data: {
+              id: user.id,
+              username: user.username,
+              email: user.email,
+              token,
+              email_verified: emailVerifiedLocal
+            }
+          });
+       } catch (error) {
+         console.error(`[用户登录] 异常 - 邮箱: ${email}, 错误:`, error);
+         sendJson(res, 500, { error: 'INTERNAL_ERROR', message: `登录失败: ${error.message}` });
+       }
+       return;
+     }
     if (req.method === 'POST' && path === '/api/auth/logout') {
       // JWT是无状态的，登出只需客户端删除令牌即可
       sendJson(res, 200, {
@@ -2022,6 +2112,100 @@ async function route(req, res, u, path) {
         message: '退出成功',
         data: null
       });
+      return;
+    }
+
+    // 获取当前用户信息
+    if (req.method === 'GET' && (path === '/api/auth/me' || path === '/api/users/me')) {
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        sendJson(res, 401, { error: 'MISSING_TOKEN', message: '未提供令牌' });
+        return;
+      }
+      
+      const token = authHeader.split(' ')[1];
+      const decoded = verifyToken(token);
+      
+      if (!decoded) {
+        sendJson(res, 401, { error: 'INVALID_TOKEN', message: '无效的令牌' });
+        return;
+      }
+      
+      try {
+        const user = await userDB.findById(decoded.userId);
+        if (!user) {
+          sendJson(res, 404, { error: 'USER_NOT_FOUND', message: '用户不存在' });
+          return;
+        }
+        
+        sendJson(res, 200, {
+          code: 0,
+          message: '获取成功',
+          data: {
+            ...user,
+            avatar: user.avatar_url, // 映射 avatar_url 为 avatar，兼容前端
+            email_verified: user.email_verified === 1 || user.email_verified === true
+          }
+        });
+      } catch (error) {
+        console.error('获取用户信息失败:', error);
+        sendJson(res, 500, { error: 'INTERNAL_ERROR', message: '获取用户信息失败' });
+      }
+      return;
+    }
+    
+    // 更新当前用户信息
+    if (req.method === 'PUT' && path === '/api/users/me') {
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        sendJson(res, 401, { error: 'MISSING_TOKEN', message: '未提供令牌' });
+        return;
+      }
+      
+      const token = authHeader.split(' ')[1];
+      const decoded = verifyToken(token);
+      
+      if (!decoded) {
+        sendJson(res, 401, { error: 'INVALID_TOKEN', message: '无效的令牌' });
+        return;
+      }
+      
+      try {
+        const updates = await readBody(req);
+        // 过滤不允许更新的字段
+        delete updates.id;
+        delete updates.email; // 通常不允许改邮箱
+        delete updates.password_hash;
+        delete updates.created_at;
+        
+        // 兼容前端 avatar 字段，映射为 avatar_url
+        if (updates.avatar && !updates.avatar_url) {
+          updates.avatar_url = updates.avatar;
+          delete updates.avatar;
+        }
+        
+        console.log(`[更新资料] 用户ID: ${decoded.userId}, 更新内容:`, updates);
+        
+        const updatedUser = await userDB.updateById(decoded.userId, updates);
+        
+        if (!updatedUser) {
+           sendJson(res, 404, { error: 'USER_NOT_FOUND', message: '更新失败，用户不存在' });
+           return;
+        }
+        
+        sendJson(res, 200, {
+          code: 0,
+          message: '更新成功',
+          data: {
+            ...updatedUser,
+            avatar: updatedUser.avatar_url, // 映射 avatar_url 为 avatar，兼容前端
+            email_verified: updatedUser.email_verified === 1 || updatedUser.email_verified === true
+          }
+        });
+      } catch (error) {
+        console.error('更新用户信息失败:', error);
+        sendJson(res, 500, { error: 'INTERNAL_ERROR', message: `更新失败: ${error.message}` });
+      }
       return;
     }
     

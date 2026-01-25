@@ -1,4 +1,42 @@
 import nodemailer from 'nodemailer';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+// 获取当前目录
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// 确保日志目录存在
+const logDir = path.join(__dirname, '../logs');
+if (!fs.existsSync(logDir)) {
+  try {
+    fs.mkdirSync(logDir, { recursive: true });
+  } catch (e) {
+    console.error('无法创建日志目录:', e);
+  }
+}
+
+const logFile = path.join(logDir, 'email.log');
+
+// 写入日志
+function logEmail(type, data) {
+  const timestamp = new Date().toISOString();
+  const logEntry = `[${timestamp}] [${type}] ${JSON.stringify(data)}\n`;
+  
+  // 同时输出到控制台
+  if (type === 'ERROR') {
+    console.error(logEntry.trim());
+  } else {
+    console.log(logEntry.trim());
+  }
+  
+  try {
+    fs.appendFileSync(logFile, logEntry);
+  } catch (e) {
+    console.error('写入日志文件失败:', e);
+  }
+}
 
 // 邮件服务配置
 const emailConfig = {
@@ -95,9 +133,9 @@ async function sendEmailInternal(to, subject, html) {
   try {
     // 检查配置是否为示例值或不完整，如果是则模拟发送
     if (emailConfig.host === 'smtp.example.com' || emailConfig.auth.user.includes('example.com') || !emailConfig.host || !emailConfig.auth.user) {
-       console.log(`[模拟邮件] To: ${to}, Subject: ${subject}`);
+       logEmail('MOCK_SEND', { to, subject, status: 'simulated' });
        const match = html.match(/letter-spacing: 4px;">(\d+)<\/div>/);
-       if (match) console.log(`[模拟邮件] 验证码: ${match[1]}`);
+       if (match) logEmail('MOCK_CODE', { to, code: match[1] });
        return true;
     }
 
@@ -115,14 +153,14 @@ async function sendEmailInternal(to, subject, html) {
 
     const info = await Promise.race([sendPromise, timeoutPromise]);
     
-    console.log('邮件发送成功:', info.messageId);
+    logEmail('SUCCESS', { to, messageId: info.messageId });
     return true;
   } catch (error) {
-    console.error('邮件发送内部错误:', error.message);
+    logEmail('ERROR', { to, error: error.message });
     // 降级为模拟成功，确保开发流程畅通
-    console.log(`[降级模拟] 邮件发送失败，转为模拟成功。To: ${to}`);
+    logEmail('FALLBACK', { to, status: 'simulated_fallback', reason: error.message });
     const match = html.match(/letter-spacing: 4px;">(\d+)<\/div>/);
-    if (match) console.log(`[降级模拟] 验证码: ${match[1]}`);
+    if (match) logEmail('MOCK_CODE', { to, code: match[1] });
     return true;
   }
 }

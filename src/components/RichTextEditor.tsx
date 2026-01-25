@@ -40,7 +40,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   return (
     <div className="space-y-2">
       <Editor
-        apiKey={import.meta.env.VITE_TINYMCE_API_KEY || ''}
+        apiKey={import.meta.env.VITE_TINYMCE_API_KEY || 'no-api-key'}
         value={editorContent}
         init={{
           height: 400,

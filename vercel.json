@@ -9,6 +9,10 @@
       "destination": "https://images.unsplash.com/:path*"
     },
     {
+      "source": "/api/(.*)",
+      "destination": "/api/index.js"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

@@ -635,8 +635,8 @@ export default function App() {
         <FirstLaunchGuide />
       </LazyComponent>
       
-      {/* 悬浮AI助手按钮 - 用于打开侧边栏AI助手，登录页面不显示 */}
-      {location.pathname !== '/login' && (
+      {/* 悬浮AI助手按钮 - 用于打开侧边栏AI助手，登录页面和落地页不显示 */}
+      {location.pathname !== '/login' && location.pathname !== '/landing.html' && location.pathname !== '/landing' && (
         <ErrorBoundary fallback={null}>
           <LazyComponent>
             <FloatingAIAssistant />
@@ -649,12 +649,14 @@ export default function App() {
         <UserFeedback isOpen={showFeedback} onClose={() => setShowFeedback(false)} />
       </LazyComponent>
       
-      {/* 津门文化随机弹窗 */}
-      <ErrorBoundary fallback={null}>
-        <LazyComponent>
-          <JinmenCulturePopup />
-        </LazyComponent>
-      </ErrorBoundary>
+      {/* 津门文化随机弹窗 - 落地页不显示 */}
+      {location.pathname !== '/landing.html' && location.pathname !== '/landing' && (
+        <ErrorBoundary fallback={null}>
+          <LazyComponent>
+            <JinmenCulturePopup />
+          </LazyComponent>
+        </ErrorBoundary>
+      )}
       
 
 

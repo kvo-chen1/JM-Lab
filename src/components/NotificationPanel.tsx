@@ -54,140 +54,90 @@ export default function NotificationPanel({
     
     if (notificationFilter === 'unread') {
       result = result.filter(n => !n.read);
-    } else if (notificationFilter !== 'all') {
-      const isTypeFilter = ['info', 'success', 'warning', 'error'].includes(notificationFilter);
-      if (isTypeFilter) {
-        result = result.filter(n => n.type === notificationFilter);
-      } else {
-        result = result.filter(n => n.category === notificationFilter);
-      }
+    } else if (notificationFilter === 'social') {
+      result = result.filter(n => ['like', 'join', 'mention', 'social'].includes(n.category));
+    } else if (notificationFilter === 'activity') {
+      result = result.filter(n => ['task', 'points', 'learning', 'creation'].includes(n.category));
+    } else if (notificationFilter === 'system') {
+      result = result.filter(n => ['system', 'warning', 'info'].includes(n.category) || n.type === 'warning');
+    } else if (notificationFilter === 'message') {
+      result = result.filter(n => n.category === 'message');
     }
+    
     return result;
   }, [notifications, notificationFilter]);
 
   const filterOptions = [
-    { value: 'all', label: t('notification.types.all'), icon: 'fa-home' },
-    { value: 'unread', label: t('notification.types.unread'), icon: 'fa-folder' },
-    { value: 'success', label: t('notification.types.success'), icon: 'fa-check-circle' },
-    { value: 'info', label: t('notification.types.info'), icon: 'fa-info-circle' },
-    { value: 'warning', label: t('notification.types.warning'), icon: 'fa-exclamation-triangle' },
-    { value: 'like', label: t('notification.types.like'), icon: 'fa-heart' },
-    { value: 'join', label: t('notification.types.join'), icon: 'fa-user-plus' },
-    { value: 'message', label: t('notification.types.message'), icon: 'fa-envelope' },
-    { value: 'task', label: t('notification.types.task'), icon: 'fa-list-ul' },
-    { value: 'points', label: t('notification.types.points'), icon: 'fa-coins' },
+    { value: 'all', label: t('notification.types.all') },
+    { value: 'unread', label: t('notification.types.unread') },
+    { value: 'system', label: t('notification.types.system') },
+    { value: 'social', label: t('notification.types.social') },
+    { value: 'activity', label: t('notification.types.task') },
+    { value: 'message', label: t('notification.types.message') },
   ];
 
   return (
-    <div className={`absolute right-0 mt-2 w-[380px] sm:w-[440px] rounded-2xl shadow-2xl ring-1 transition-all duration-300 transform origin-top-right ${isDark ? 'bg-[#1e232e] ring-gray-700' : 'bg-white ring-gray-200'} z-50`} role="dialog" aria-label={t('header.viewNotifications')}>
+    <div className={`absolute right-0 mt-2 w-[360px] sm:w-[400px] rounded-2xl shadow-2xl ring-1 transition-all duration-300 transform origin-top-right ${isDark ? 'bg-[#1e232e] ring-gray-700' : 'bg-white ring-gray-200'} z-50 overflow-hidden`} role="dialog" aria-label={t('header.viewNotifications')}>
       {/* Header */}
-      <div className={`px-5 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-100'}`}>
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center space-x-3">
-            <div className={`inline-flex items-center justify-center w-10 h-10 rounded-full ${isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-50 text-blue-600'} shadow-sm`}>
-              <i className="fas fa-bell text-lg"></i>
-            </div>
-            <div>
-              <h3 className={`font-bold text-lg flex items-center ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                {t('header.notifications')}
-                <span className={`ml-2 text-xs font-medium px-2 py-0.5 rounded-full ${isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-600'}`}>
-                  {unreadCount} {t('notification.types.unread')}
-                </span>
-              </h3>
-              <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'} mt-0.5`}>
-                {t('notification.totalCount', { count: notifications.length })}
-              </p>
-            </div>
+      <div className={`px-4 py-3 border-b ${isDark ? 'border-gray-700' : 'border-gray-100'}`}>
+        <div className="flex items-center justify-between">
+          <h3 className={`font-bold text-base flex items-center ${isDark ? 'text-white' : 'text-gray-900'}`}>
+            {t('header.notifications')}
+            {unreadCount > 0 && (
+              <span className={`ml-2 text-xs font-medium px-1.5 py-0.5 rounded-full ${isDark ? 'bg-red-500/20 text-red-400' : 'bg-red-100 text-red-600'}`}>
+                {unreadCount}
+              </span>
+            )}
+          </h3>
+          
+          <div className="flex items-center space-x-1">
+             <button
+              className={`p-1.5 rounded-lg transition-colors ${isDark ? 'text-gray-400 hover:text-white hover:bg-gray-700' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'}`}
+              onClick={() => setNotifications(prev => prev.map(n => ({ ...n, read: true })))}
+              title={t('header.markAllAsRead')}
+            >
+              <i className="fas fa-check-double text-xs"></i>
+            </button>
+            <button
+              className={`p-1.5 rounded-lg transition-colors ${isDark ? 'text-gray-400 hover:text-white hover:bg-gray-700' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'}`}
+              onClick={() => setNotifications([])}
+              title={t('header.clearAll')}
+            >
+              <i className="fas fa-trash-alt text-xs"></i>
+            </button>
+            <button
+              className={`p-1.5 rounded-lg transition-colors ${isDark ? 'text-gray-400 hover:text-white hover:bg-gray-700' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'}`}
+              onClick={() => setShowSettings(!showSettings)}
+              title={t('header.settings')}
+            >
+              <i className={`fas fa-cog text-xs ${showSettings ? 'animate-spin' : ''}`}></i>
+            </button>
           </div>
-        </div>
-
-        <div className="flex items-center justify-between space-x-2">
-          <button
-            className={`flex-1 text-xs px-3 py-2 rounded-xl font-medium transition-all duration-200 hover:scale-[1.02] active:scale-95 flex items-center justify-center ${isDark ? 'bg-blue-500/10 text-blue-400 hover:bg-blue-500/20' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}
-            onClick={() => setNotifications(prev => prev.map(n => ({ ...n, read: true })))}>
-            <i className="fas fa-check-double mr-1.5"></i>
-            {t('header.markAllAsRead')}
-          </button>
-          <button
-            className={`flex-1 text-xs px-3 py-2 rounded-xl font-medium transition-all duration-200 hover:scale-[1.02] active:scale-95 flex items-center justify-center ${isDark ? 'bg-red-500/10 text-red-400 hover:bg-red-500/20' : 'bg-red-50 text-red-600 hover:bg-red-100'}`}
-            onClick={() => setNotifications([])}>
-            <i className="fas fa-trash-alt mr-1.5"></i>
-            {t('header.clearAll')}
-          </button>
-          <button
-            className={`flex-1 text-xs px-3 py-2 rounded-xl font-medium transition-all duration-200 hover:scale-[1.02] active:scale-95 flex items-center justify-center ${isDark ? 'bg-purple-500/10 text-purple-400 hover:bg-purple-500/20' : 'bg-purple-50 text-purple-600 hover:bg-purple-100'}`}
-            onClick={() => setShowSettings(!showSettings)}>
-            <i className={`fas fa-cog mr-1.5 ${showSettings ? 'animate-spin' : ''}`}></i>
-            {t('header.settings')}
-          </button>
         </div>
       </div>
 
-      {/* Settings Panel */}
-      {showSettings && (
-        <div className={`px-5 py-4 border-b ${isDark ? 'border-gray-700 bg-gray-800/50' : 'border-gray-100 bg-gray-50/80'} animate-fadeIn`}>
-          <h4 className={`font-medium mb-3 flex items-center text-sm ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-            <i className="fas fa-sliders-h mr-2 text-purple-500"></i>
-            {t('notification.settings')}
-          </h4>
-          
-          <div className="space-y-3">
-            <div className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-100/50 dark:hover:bg-gray-700/50 transition-colors">
-              <label className={`text-sm flex items-center ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                <i className="fas fa-volume-up mr-2 text-gray-400 w-5 text-center"></i>
-                {t('notification.sound')}
-              </label>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input 
-                  type="checkbox" 
-                  checked={notificationSettings.enableSound} 
-                  onChange={(e) => setNotificationSettings(prev => ({ ...prev, enableSound: e.target.checked }))}
-                  className="sr-only peer"
-                />
-                <div className={`w-9 h-5 rounded-full transition-colors peer ${notificationSettings.enableSound ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'}`}></div>
-                <span className={`absolute left-1 top-1 bg-white w-3 h-3 rounded-full transition-transform peer-checked:translate-x-4`}></span>
-              </label>
-            </div>
-            
-            <div className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-100/50 dark:hover:bg-gray-700/50 transition-colors">
-              <label className={`text-sm flex items-center ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                <i className="fas fa-desktop mr-2 text-gray-400 w-5 text-center"></i>
-                {t('notification.desktop')}
-              </label>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input 
-                  type="checkbox" 
-                  checked={notificationSettings.enableDesktop} 
-                  onChange={(e) => setNotificationSettings(prev => ({ ...prev, enableDesktop: e.target.checked }))}
-                  className="sr-only peer"
-                />
-                <div className={`w-9 h-5 rounded-full transition-colors peer ${notificationSettings.enableDesktop ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'}`}></div>
-                <span className={`absolute left-1 top-1 bg-white w-3 h-3 rounded-full transition-transform peer-checked:translate-x-4`}></span>
-              </label>
-            </div>
-          </div>
-        </div>
-      )}
-      
-      {/* Filter Tabs - Optimized for clean look (Icons only) */}
-      <div className={`px-2 py-3 border-b ${isDark ? 'border-gray-700' : 'border-gray-100'}`}>
-        <div className="flex space-x-1 overflow-x-auto pb-1 scrollbar-hide px-2">
+      {/* Filter Tabs - Clean Text Tabs */}
+      <div className={`px-2 pt-2 border-b ${isDark ? 'border-gray-700' : 'border-gray-100'}`}>
+        <div className="flex space-x-4 overflow-x-auto pb-0 px-2 scrollbar-hide">
           {filterOptions.map(filter => (
             <button
               key={filter.value}
               onClick={() => setNotificationFilter(filter.value as any)}
-              title={filter.label}
-              className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200 ${
+              className={`pb-2 text-xs font-medium whitespace-nowrap transition-colors relative ${
                 notificationFilter === filter.value 
-                  ? (isDark ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/20' : 'bg-blue-500 text-white shadow-lg shadow-blue-500/30') 
-                  : (isDark ? 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-gray-200' : 'bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700')
+                  ? (isDark ? 'text-blue-400' : 'text-blue-600') 
+                  : (isDark ? 'text-gray-400 hover:text-gray-300' : 'text-gray-500 hover:text-gray-700')
               }`}
             >
-              <i className={`fas ${filter.icon} text-sm`}></i>
+              {filter.label}
+              {notificationFilter === filter.value && (
+                <span className={`absolute bottom-0 left-0 right-0 h-0.5 rounded-t-full ${isDark ? 'bg-blue-400' : 'bg-blue-600'}`}></span>
+              )}
             </button>
           ))}
         </div>
       </div>
+
       
       {/* Notification List */}
       <ul className="max-h-[400px] overflow-y-auto overscroll-contain">

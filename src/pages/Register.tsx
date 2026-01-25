@@ -239,8 +239,13 @@ export default function Register() {
       
       if (result.success || result.code === 0) {
         if (registerMethod === 'email') {
-          toast.success('注册成功！请检查邮箱进行验证');
-          navigate('/login');
+          // 如果注册方法已经自动登录了（通过token），直接跳转
+          // 我们需要短暂延迟检查isAuthenticated，或者直接假设如果后端返回成功且不是纯验证码模式
+          // 由于React状态更新是异步的，这里isAuthenticated可能还没变
+          // 最好是看result是否包含token或者通过navigate直接尝试跳转
+          toast.success('注册成功！');
+          // 强制刷新一下或者直接跳转，AuthContext会处理状态
+          navigate('/');
         } else {
           toast.success('注册成功！自动登录中...');
           // 手机号注册成功后直接登录

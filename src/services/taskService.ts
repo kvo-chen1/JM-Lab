@@ -60,6 +60,180 @@ class TaskService {
    */
   private initOfficialTasks() {
     const officialTasks: Task[] = [
+      // 新手任务
+      {
+        id: 'novice-guide',
+        title: '完成新手引导',
+        description: '了解平台基本功能',
+        type: 'achievement',
+        status: 'active',
+        reward: {
+          points: 50,
+          description: '新手引导奖励'
+        },
+        requirements: {
+          type: 'create', // 暂时复用create类型，实际上是浏览引导
+          count: 1
+        },
+        progress: 0,
+        startDate: Date.now(),
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        isOfficial: true,
+        tags: ['新手任务'],
+      },
+      {
+        id: 'novice-first-post',
+        title: '发布第一篇作品',
+        description: '发布你的第一个创作作品',
+        type: 'achievement',
+        status: 'active',
+        reward: {
+          points: 100,
+          description: '首发奖励 + 素材包'
+        },
+        requirements: {
+          type: 'create',
+          count: 1
+        },
+        progress: 0,
+        startDate: Date.now(),
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        isOfficial: true,
+        tags: ['新手任务'],
+      },
+      {
+        id: 'novice-invite',
+        title: '邀请一位好友',
+        description: '邀请好友加入平台',
+        type: 'achievement',
+        status: 'active',
+        reward: {
+          points: 150,
+          description: '邀请奖励'
+        },
+        requirements: {
+          type: 'share', // 暂时复用share
+          count: 1
+        },
+        progress: 0,
+        startDate: Date.now(),
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        isOfficial: true,
+        tags: ['新手任务'],
+      },
+      {
+        id: 'novice-event',
+        title: '参与一次主题活动',
+        description: '报名参与任意主题活动',
+        type: 'achievement',
+        status: 'active',
+        reward: {
+          points: 200,
+          description: '活动奖励'
+        },
+        requirements: {
+          type: 'create',
+          count: 1
+        },
+        progress: 0,
+        startDate: Date.now(),
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        isOfficial: true,
+        tags: ['新手任务'],
+      },
+      // 每日任务
+      {
+        id: 'daily-login',
+        title: '登录平台',
+        description: '每日登录',
+        type: 'daily',
+        status: 'active',
+        reward: {
+          points: 2,
+          description: '登录奖励'
+        },
+        requirements: {
+          type: 'create', // 占位
+          count: 1
+        },
+        progress: 0,
+        startDate: Date.now(),
+        endDate: Date.now() + 24 * 60 * 60 * 1000,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        isOfficial: true,
+        tags: ['每日任务'],
+      },
+      {
+        id: 'daily-view-5',
+        title: '浏览 5 个作品',
+        description: '浏览社区作品',
+        type: 'daily',
+        status: 'active',
+        reward: {
+          points: 3,
+          description: '浏览奖励'
+        },
+        requirements: {
+          type: 'like', // 占位
+          count: 5
+        },
+        progress: 0,
+        startDate: Date.now(),
+        endDate: Date.now() + 24 * 60 * 60 * 1000,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        isOfficial: true,
+        tags: ['每日任务'],
+      },
+      {
+        id: 'daily-comment',
+        title: '发表 1 条评论',
+        description: '参与社区互动',
+        type: 'daily',
+        status: 'active',
+        reward: {
+          points: 5,
+          description: '评论奖励'
+        },
+        requirements: {
+          type: 'comment',
+          count: 1
+        },
+        progress: 0,
+        startDate: Date.now(),
+        endDate: Date.now() + 24 * 60 * 60 * 1000,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        isOfficial: true,
+        tags: ['每日任务'],
+      },
+      {
+        id: 'daily-share',
+        title: '分享作品到社交平台',
+        description: '分享喜欢的作品',
+        type: 'daily',
+        status: 'active',
+        reward: {
+          points: 10,
+          description: '分享奖励'
+        },
+        requirements: {
+          type: 'share',
+          count: 1
+        },
+        progress: 0,
+        startDate: Date.now(),
+        endDate: Date.now() + 24 * 60 * 60 * 1000,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        isOfficial: true,
+        tags: ['每日任务'],
+      },
       {
         id: 'official-daily-1',
         title: '每日创作',

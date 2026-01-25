@@ -341,20 +341,8 @@ export default function App() {
         // 检查localStorage中是否已有数据
         const storedPosts = localStorage.getItem('posts');
         if (!storedPosts) {
-          // 进一步优化：只初始化最核心的5个作品数据
-          const minimalWorks = mockWorks.slice(0, 5); // 只初始化前5个作品
-          
-          // 仅保留最核心的字段，减少数据处理量
-          const postDataArray = minimalWorks.map(work => ({
-            title: work.title,
-            thumbnail: work.thumbnail,
-            category: work.category as any,
-            tags: work.tags.slice(0, 3), // 只保留前3个标签
-            description: work.description?.substring(0, 100) || '' // 截断描述
-          }));
-          
-          // 直接操作localStorage，减少函数调用开销
-          localStorage.setItem('posts', JSON.stringify(postDataArray));
+          // 初始化为空数组，确保新用户看到的是空状态
+          localStorage.setItem('posts', JSON.stringify([]));
         }
       } catch (error) {
         console.error('初始化数据失败:', error);
@@ -410,14 +398,9 @@ export default function App() {
         <div className="rounded-xl p-4 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700">
           <h4 className="font-medium mb-2">最新通知</h4>
           <div className="space-y-3">
-            <div className="text-xs p-2 bg-yellow-50 dark:bg-gray-700 rounded-lg">
-              <p className="font-medium mb-1">系统更新</p>
-              <p className="text-gray-600 dark:text-gray-400">平台已更新至最新版本，体验更多功能</p>
-            </div>
-            <div className="text-xs p-2 bg-green-50 dark:bg-gray-700 rounded-lg">
-              <p className="font-medium mb-1">活动通知</p>
-              <p className="text-gray-600 dark:text-gray-400">新一期创作活动即将开始，敬请期待</p>
-            </div>
+             <div className="text-center py-4 text-xs text-gray-500 dark:text-gray-400">
+               <p>暂无新通知</p>
+             </div>
           </div>
         </div>
       </div>

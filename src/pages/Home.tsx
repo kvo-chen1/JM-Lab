@@ -42,8 +42,11 @@ const useResponsiveAnimation = () => {
 
 export default function Home() {
   const { isDark } = useTheme();
-  useContext(AuthContext);
+  const { isAuthenticated } = useContext(AuthContext);
   const navigate = useNavigate();
+  
+  // 已移除自动跳转逻辑，让已登录用户也能访问首页
+  
   const { t } = useTranslation();
   const { scrollY } = useScroll();
   const { getDuration, getDelay } = useResponsiveAnimation();

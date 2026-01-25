@@ -91,38 +91,61 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
   });
 
   // 初始化通知数据
-  const [notifications, setNotifications] = useState<Notification[]>(() => {
-    try {
-      const stored = localStorage.getItem('notifications')
-      if (stored) {
-        const parsed = JSON.parse(stored)
-        // 确保所有通知都有完整字段
-        return parsed.map((n: any) => ({
-          ...n,
-          category: n.category || 'system',
-          timestamp: n.timestamp || Date.now() - 3600000,
-          description: n.description || '',
-        }))
-      }
-    } catch (error) {
-      console.error('Failed to load notifications from localStorage:', error)
-    }
-    const now = Date.now()
-    // 默认通知数据
-    return [
-      { id: 'n1', title: t('notification.newMessage'), description: t('notification.newMessageDesc'), time: t('notification.justNow'), read: false, type: 'info', category: 'message', timestamp: now },
-      { id: 'n2', title: t('notification.systemNotification'), description: t('notification.systemNotificationDesc'), time: `1 ${t('notification.hoursAgo')}`, read: false, type: 'success', category: 'system', timestamp: now - 3600000 },
-      { id: 'n3', title: t('notification.workLiked'), description: t('notification.workLikedNewDesc'), time: `2 ${t('notification.hoursAgo')}`, read: false, type: 'success', category: 'like', timestamp: now - 7200000 },
-      { id: 'n4', title: t('notification.newMember'), description: t('notification.newMemberDesc'), time: `30 ${t('notification.minutesAgo')}`, read: false, type: 'info', category: 'join', timestamp: now - 1800000 },
-      { id: 'n5', title: t('notification.mention'), description: t('notification.mentionDesc'), time: `3 ${t('notification.hoursAgo')}`, read: true, type: 'info', category: 'mention', timestamp: now - 10800000 },
-      { id: 'n6', title: t('notification.taskCompleted'), description: t('notification.taskCompletedDesc'), time: `4 ${t('notification.hoursAgo')}`, read: true, type: 'success', category: 'task', timestamp: now - 14400000 },
-      { id: 'n7', title: t('notification.pointsAdded'), description: t('notification.pointsAddedDesc'), time: `5 ${t('notification.hoursAgo')}`, read: false, type: 'success', category: 'points', timestamp: now - 18000000 },
-      { id: 'n8', title: t('notification.uploadFailed'), description: t('notification.uploadFailedDesc'), time: `6 ${t('notification.hoursAgo')}`, read: false, type: 'error', category: 'creation', timestamp: now - 21600000 },
-    ]
-  })
+  const [notifications, setNotifications] = useState<Notification[]>([])
+
   // 未读通知数量
   const unreadNotificationCount = useMemo(() => notifications.filter(n => !n.read).length, [notifications])
   
+  // 监听用户变化，根据用户类型加载通知数据
+  useEffect(() => {
+    if (!user) {
+      setNotifications([])
+      return
+    }
+
+    if (!user.id.startsWith('phone_user_')) {
+      const fetchNotifications = async () => {
+        try {
+          const token = localStorage.getItem('token');
+          const response = await fetch('/api/notifications', {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          const data = await response.json();
+          if (data.code === 0 && data.data && Array.isArray(data.data.list)) {
+            const mappedNotifications: Notification[] = data.data.list.map((n: any) => ({
+              id: n.id.toString(),
+              title: n.title,
+              description: n.content,
+              time: new Date(n.created_at).toLocaleString(),
+              read: n.is_read,
+              type: 'info', // 默认类型
+              category: 'system', // 默认分类
+              timestamp: new Date(n.created_at).getTime(),
+              sound: false
+            }));
+            setNotifications(mappedNotifications);
+          }
+        } catch (error) {
+          console.error('Failed to fetch notifications:', error);
+        }
+      };
+      fetchNotifications();
+    } else {
+       // Phone user: load mock data
+       const now = Date.now()
+       setNotifications([
+        { id: 'n1', title: t('notification.newMessage'), description: t('notification.newMessageDesc'), time: t('notification.justNow'), read: false, type: 'info', category: 'message', timestamp: now },
+        { id: 'n2', title: t('notification.systemNotification'), description: t('notification.systemNotificationDesc'), time: `1 ${t('notification.hoursAgo')}`, read: false, type: 'success', category: 'system', timestamp: now - 3600000 },
+        { id: 'n3', title: t('notification.workLiked'), description: t('notification.workLikedNewDesc'), time: `2 ${t('notification.hoursAgo')}`, read: false, type: 'success', category: 'like', timestamp: now - 7200000 },
+        { id: 'n4', title: t('notification.newMember'), description: t('notification.newMemberDesc'), time: `30 ${t('notification.minutesAgo')}`, read: false, type: 'info', category: 'join', timestamp: now - 1800000 },
+        { id: 'n5', title: t('notification.mention'), description: t('notification.mentionDesc'), time: `3 ${t('notification.hoursAgo')}`, read: true, type: 'info', category: 'mention', timestamp: now - 10800000 },
+        { id: 'n6', title: t('notification.taskCompleted'), description: t('notification.taskCompletedDesc'), time: `4 ${t('notification.hoursAgo')}`, read: true, type: 'success', category: 'task', timestamp: now - 14400000 },
+        { id: 'n7', title: t('notification.pointsAdded'), description: t('notification.pointsAddedDesc'), time: `5 ${t('notification.hoursAgo')}`, read: false, type: 'success', category: 'points', timestamp: now - 18000000 },
+        { id: 'n8', title: t('notification.uploadFailed'), description: t('notification.uploadFailedDesc'), time: `6 ${t('notification.hoursAgo')}`, read: false, type: 'error', category: 'creation', timestamp: now - 21600000 },
+      ])
+    }
+  }, [user, t]);
+
   // 过滤后的通知
   const filteredNotifications = useMemo(() => {
     let result = [...notifications];
@@ -143,6 +166,7 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
     return result;
   }, [notifications, notificationFilter]);
 
+  /* 移除本地存储同步
   // 保存通知到本地存储
   useEffect(() => {
     try {
@@ -151,6 +175,7 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
       console.error('Failed to save notifications to localStorage:', error)
     }
   }, [notifications])
+  */
 
   // 保存通知设置到本地存储
   useEffect(() => {

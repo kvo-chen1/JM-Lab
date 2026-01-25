@@ -332,6 +332,32 @@ function createSQLiteTables(db) {
       );
     `)
     
+    // 创建用户成就表
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS user_achievements (
+        user_id TEXT NOT NULL,
+        achievement_id INTEGER NOT NULL,
+        progress INTEGER DEFAULT 0,
+        is_unlocked INTEGER DEFAULT 0,
+        unlocked_at INTEGER,
+        PRIMARY KEY (user_id, achievement_id)
+      );
+    `)
+
+    // 创建积分记录表
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS points_records (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT NOT NULL,
+        source TEXT,
+        type TEXT,
+        points INTEGER NOT NULL,
+        created_at INTEGER NOT NULL,
+        description TEXT,
+        balance_after INTEGER DEFAULT 0
+      );
+    `)
+    
     try {
       db.exec(`ALTER TABLE favorites ADD COLUMN user_id INTEGER NOT NULL DEFAULT 0`)
     } catch (e) {
@@ -587,7 +613,8 @@ async function createPostgreSQLTables(pool) {
           membership_level VARCHAR(20) DEFAULT 'free',
           membership_status VARCHAR(20) DEFAULT 'active',
           membership_start TIMESTAMP WITH TIME ZONE,
-          membership_end TIMESTAMP WITH TIME ZONE
+          membership_end TIMESTAMP WITH TIME ZONE,
+          metadata JSONB
         );
       `);
       
@@ -598,7 +625,8 @@ async function createPostgreSQLTables(pool) {
         // 忽略约束不存在的错误
       }
       
-      // 确保必要的列存在，即使表已经存在
+      // 确保必要的列存在
+      await ensureColumn('users', 'metadata', 'JSONB')
       await client.query(`ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS sms_verification_code VARCHAR(10);`)
       await client.query(`ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS sms_verification_expires TIMESTAMP WITH TIME ZONE;`)
       await client.query(`ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS email_verification_expires TIMESTAMP WITH TIME ZONE;`)
@@ -717,6 +745,34 @@ async function createPostgreSQLTables(pool) {
           PRIMARY KEY (user_id, post_id),
           FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
           FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE
+        );
+      `)
+
+      // 创建用户成就表
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS user_achievements (
+          user_id UUID NOT NULL,
+          achievement_id INTEGER NOT NULL,
+          progress INTEGER DEFAULT 0,
+          is_unlocked BOOLEAN DEFAULT FALSE,
+          unlocked_at BIGINT,
+          PRIMARY KEY (user_id, achievement_id),
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+      `)
+
+      // 创建积分记录表
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS points_records (
+          id SERIAL PRIMARY KEY,
+          user_id UUID NOT NULL,
+          source VARCHAR(50),
+          type VARCHAR(20),
+          points INTEGER NOT NULL,
+          created_at BIGINT NOT NULL,
+          description TEXT,
+          balance_after INTEGER DEFAULT 0,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         );
       `)
 
@@ -992,6 +1048,7 @@ export const userDB = {
   async createUser(userData) {
     const db = await getDB()
     const { 
+      id = null, // Support custom ID (e.g. from Supabase Auth)
       username, email, password_hash, phone = null, avatar_url = null, interests = null, 
       age = null, tags = null, membership_level = 'free', membership_status = 'active', 
       membership_start = null, membership_end = null,
@@ -1005,6 +1062,10 @@ export const userDB = {
 
     switch (typeKey) {
       case DB_TYPE.SQLITE:
+        // SQLite usually uses AUTOINCREMENT, but we can try to force ID if needed or ignore it.
+        // For simplicity, we stick to AUTOINCREMENT for SQLite unless we change schema to UUID.
+        // Schema says: id INTEGER PRIMARY KEY AUTOINCREMENT. So we can't easily insert UUID string.
+        // We will ignore custom ID for SQLite for now as it's dev only.
         return db.prepare(`
           INSERT INTO users (
             username, email, password_hash, phone, avatar_url, interests, age, tags, 
@@ -1019,7 +1080,7 @@ export const userDB = {
         )
       case DB_TYPE.MEMORY:
         const newUser = {
-          id: randomUUID(),
+          id: id || randomUUID(),
           username, email: normalizedEmail, password_hash, phone, avatar_url, interests, age, tags,
           membership_level, membership_status, membership_start: membershipStart, membership_end,
           created_at: now, updated_at: now,
@@ -1029,16 +1090,18 @@ export const userDB = {
         saveMemoryStore()
         return { id: newUser.id }
       case DB_TYPE.MONGODB:
-        const result = await db.collection('users').insertOne({
+        const doc = {
           username, email: normalizedEmail, password_hash, phone, avatar_url, interests, age, tags,
           membership_level, membership_status, membership_start: membershipStart, membership_end,
           created_at: now, updated_at: now,
           github_id, github_username, auth_provider
-        })
+        }
+        if (id) doc._id = id; // MongoDB allows custom _id
+        const result = await db.collection('users').insertOne(doc)
         return { id: result.insertedId }
       case DB_TYPE.POSTGRESQL:
-        // 生成UUID作为ID
-        const userId = randomUUID();
+        // Use provided ID or generate a new UUID
+        const userId = id || randomUUID();
         // 对于Supabase，我们需要先创建auth.users记录，然后才能创建public.users记录
         // 但由于我们没有直接访问auth API的权限，我们可以尝试使用INSERT ... ON CONFLICT或其他方法
         // 这里我们简化处理，只插入必要的字段，不包括可能导致问题的外键约束
@@ -1059,8 +1122,8 @@ export const userDB = {
         ])
         return rows[0]
       case DB_TYPE.NEON_API:
-        // 生成UUID作为ID
-        const neonUserId = randomUUID();
+        // Use provided ID or generate a new UUID
+        const neonUserId = id || randomUUID();
         const neonResult = await db.query(`
           INSERT INTO users (
             id, username, email, password_hash, phone, avatar_url, interests, age, tags, 
@@ -1087,7 +1150,8 @@ export const userDB = {
     const { 
       username, email, password_hash, phone, avatar_url, interests, age, tags,
       membership_level, membership_status, membership_start, membership_end,
-      email_verified, email_verification_token, email_verification_expires
+      email_verified, email_verification_token, email_verification_expires,
+      metadata
     } = updateData
     const now = Date.now()
     const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
@@ -1116,6 +1180,7 @@ export const userDB = {
         if (email_verified !== undefined) { updateFields.push(`email_verified = ?`); params.push(email_verified); }
         if (email_verification_token !== undefined) { updateFields.push(`email_verification_token = ?`); params.push(email_verification_token); }
         if (email_verification_expires !== undefined) { updateFields.push(`email_verification_expires = ?`); params.push(email_verification_expires); }
+        if (metadata !== undefined) { updateFields.push(`metadata = ?`); params.push(JSON.stringify(metadata)); }
         updateFields.push(`updated_at = ?`)
         params.push(now)
         params.push(id)
@@ -1148,6 +1213,7 @@ export const userDB = {
         if (email_verified !== undefined) { updateObj.email_verified = email_verified }
         if (email_verification_token !== undefined) { updateObj.email_verification_token = email_verification_token }
         if (email_verification_expires !== undefined) { updateObj.email_verification_expires = email_verification_expires }
+        if (metadata !== undefined) { updateObj.metadata = metadata }
         return (await db.collection('users').findOneAndUpdate({ _id: id }, { $set: updateObj }, { returnDocument: 'after' })).value
 
       case DB_TYPE.POSTGRESQL:
@@ -1169,6 +1235,7 @@ export const userDB = {
         if (email_verified !== undefined) { pgUpdateFields.push(`email_verified = $${pgParamIndex++}`); pgParams.push(email_verified) }
         if (email_verification_token !== undefined) { pgUpdateFields.push(`email_verification_token = $${pgParamIndex++}`); pgParams.push(email_verification_token) }
         if (email_verification_expires !== undefined) { pgUpdateFields.push(`email_verification_expires = $${pgParamIndex++}`); pgParams.push(email_verification_expires) }
+        if (metadata !== undefined) { pgUpdateFields.push(`metadata = $${pgParamIndex++}`); pgParams.push(metadata); }
         
         // 关键修复：确保 updated_at 使用 PostgreSQL 的 NOW() 函数，而不是 JavaScript 的 timestamp
         // 否则如果 updated_at 字段类型是 timestamp with time zone，传入 int 会报错
@@ -1179,7 +1246,20 @@ export const userDB = {
         
         // id 参数索引是最后一个
         const pgUpdateSql = `UPDATE users SET ${pgUpdateFields.join(', ')} WHERE id = $${pgParamIndex} RETURNING *`
-        return (await db.query(pgUpdateSql, pgParams)).rows[0]
+        try {
+          return (await db.query(pgUpdateSql, pgParams)).rows[0]
+        } catch (error) {
+          // 如果是 email_verified 列不存在错误，尝试忽略该字段更新
+          if (error.code === '42703' && error.message.includes('email_verified')) {
+             console.warn('[DB] email_verified column missing, retrying update without it');
+             // 移除 email_verified 相关参数
+             const newFields = pgUpdateFields.filter(f => !f.startsWith('email_verified'));
+             // 重新构建参数数组（比较复杂，简单起见只重试核心字段或抛出更友好错误）
+             // 由于参数索引错位问题，这里简单地抛出警告，建议运行迁移脚本
+             throw new Error('Database schema mismatch: Missing email_verified column. Please run database migrations.');
+          }
+          throw error;
+        }
 
       case DB_TYPE.NEON_API:
         const neonUpdateFields = []
@@ -2297,6 +2377,311 @@ export const messageDB = {
         `, [userId])
         return unreadRows
       default: throw new Error(`Unsupported DB Type: ${config.dbType}`)
+    }
+  }
+}
+
+export const workDB = {
+  async getWorksByUserId(userId, limit = 50, offset = 0) {
+    const db = await getDB()
+    const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
+    switch (typeKey) {
+      case DB_TYPE.SQLITE:
+        // Assume works table exists in SQLite (migrated earlier)
+        return db.prepare('SELECT * FROM works WHERE creator_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?').all(userId, limit, offset)
+      case DB_TYPE.MEMORY:
+        // Mock data or in-memory store
+        // We can use memoryStore.posts as a fallback if works are not separate
+        return (memoryStore.works || []).filter(w => w.creator_id === userId).sort((a, b) => b.created_at - a.created_at).slice(offset, offset + limit)
+      case DB_TYPE.POSTGRESQL:
+        return (await db.query('SELECT * FROM works WHERE creator_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3', [userId, limit, offset])).rows
+      default: return []
+    }
+  },
+
+  async getWorkStats(userId) {
+    const db = await getDB()
+    const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
+    switch (typeKey) {
+      case DB_TYPE.SQLITE:
+        const stats = db.prepare(`
+          SELECT 
+            COUNT(*) as works_count,
+            SUM(likes) as total_likes,
+            SUM(views) as total_views,
+            SUM(comments) as total_comments
+          FROM works WHERE creator_id = ?
+        `).get(userId)
+        return stats || { works_count: 0, total_likes: 0, total_views: 0, total_comments: 0 }
+      case DB_TYPE.POSTGRESQL:
+        const { rows } = await db.query(`
+          SELECT 
+            COUNT(*) as works_count,
+            COALESCE(SUM(likes), 0) as total_likes,
+            COALESCE(SUM(views), 0) as total_views,
+            COALESCE(SUM(comments), 0) as total_comments
+          FROM works WHERE creator_id = $1
+        `, [userId])
+        return rows[0] || { works_count: 0, total_likes: 0, total_views: 0, total_comments: 0 }
+      default: return { works_count: 0, total_likes: 0, total_views: 0, total_comments: 0 }
+    }
+  }
+}
+
+export const notificationDB = {
+  async addNotification(notification) {
+    const db = await getDB()
+    const { userId, title, content, type = 'system' } = notification
+    const now = Date.now()
+    const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
+    
+    switch (typeKey) {
+      case DB_TYPE.SQLITE:
+        db.prepare('INSERT INTO notifications (user_id, title, content, type, is_read, created_at) VALUES (?, ?, ?, ?, 0, ?)').run(userId, title, content, type, now)
+        return true
+      case DB_TYPE.POSTGRESQL:
+        await db.query('INSERT INTO notifications (user_id, title, content, type, is_read, created_at) VALUES ($1, $2, $3, $4, false, NOW())', [userId, title, content, type])
+        return true
+      default: return false
+    }
+  },
+
+  async getNotifications(userId, limit = 20, offset = 0) {
+    const db = await getDB()
+    const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
+    switch (typeKey) {
+      case DB_TYPE.SQLITE:
+        return db.prepare('SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?').all(userId, limit, offset)
+      case DB_TYPE.POSTGRESQL:
+        return (await db.query('SELECT * FROM notifications WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3', [userId, limit, offset])).rows
+      default: return []
+    }
+  },
+
+  async getUnreadCount(userId) {
+    const db = await getDB()
+    const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
+    switch (typeKey) {
+      case DB_TYPE.SQLITE:
+        const res = db.prepare('SELECT COUNT(*) as count FROM notifications WHERE user_id = ? AND is_read = 0').get(userId)
+        return res ? res.count : 0
+      case DB_TYPE.POSTGRESQL:
+        const { rows } = await db.query('SELECT COUNT(*) as count FROM notifications WHERE user_id = $1 AND is_read = false', [userId])
+        return rows[0] ? parseInt(rows[0].count) : 0
+      default: return 0
+    }
+  },
+
+  async markAsRead(id, userId) {
+    const db = await getDB()
+    const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
+    switch (typeKey) {
+      case DB_TYPE.SQLITE:
+        db.prepare('UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?').run(id, userId)
+        return true
+      case DB_TYPE.POSTGRESQL:
+        await db.query('UPDATE notifications SET is_read = true WHERE id = $1 AND user_id = $2', [id, userId])
+        return true
+      default: return false
+    }
+  },
+
+  async markAllAsRead(userId) {
+    const db = await getDB()
+    const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
+    switch (typeKey) {
+      case DB_TYPE.SQLITE:
+        db.prepare('UPDATE notifications SET is_read = 1 WHERE user_id = ?').run(userId)
+        return true
+      case DB_TYPE.POSTGRESQL:
+        await db.query('UPDATE notifications SET is_read = true WHERE user_id = $1', [userId])
+        return true
+      default: return false
+    }
+  }
+}
+
+export const achievementDB = {
+  async getUserAchievements(userId) {
+    const db = await getDB()
+    const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
+    switch (typeKey) {
+      case DB_TYPE.SQLITE:
+        return db.prepare('SELECT * FROM user_achievements WHERE user_id = ?').all(userId)
+      case DB_TYPE.POSTGRESQL:
+        return (await db.query('SELECT * FROM user_achievements WHERE user_id = $1', [userId])).rows
+      case DB_TYPE.MEMORY:
+        // Return empty or mock if needed, but for now empty
+        return []
+      default: return []
+    }
+  },
+
+  async upsertAchievement(userId, achievementId, progress, isUnlocked) {
+    const db = await getDB()
+    const now = Date.now()
+    const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
+    
+    switch (typeKey) {
+      case DB_TYPE.SQLITE:
+        db.prepare(`
+          INSERT INTO user_achievements (user_id, achievement_id, progress, is_unlocked, unlocked_at)
+          VALUES (?, ?, ?, ?, ?)
+          ON CONFLICT(user_id, achievement_id) DO UPDATE SET
+            progress = excluded.progress,
+            is_unlocked = excluded.is_unlocked,
+            unlocked_at = CASE WHEN excluded.is_unlocked = 1 AND user_achievements.is_unlocked = 0 THEN ? ELSE user_achievements.unlocked_at END
+        `).run(userId, achievementId, progress, isUnlocked ? 1 : 0, isUnlocked ? now : null, now)
+        return true
+      case DB_TYPE.POSTGRESQL:
+        await db.query(`
+          INSERT INTO user_achievements (user_id, achievement_id, progress, is_unlocked, unlocked_at)
+          VALUES ($1, $2, $3, $4, $5)
+          ON CONFLICT(user_id, achievement_id) DO UPDATE SET
+            progress = EXCLUDED.progress,
+            is_unlocked = EXCLUDED.is_unlocked,
+            unlocked_at = CASE WHEN EXCLUDED.is_unlocked = TRUE AND user_achievements.is_unlocked = FALSE THEN $6 ELSE user_achievements.unlocked_at END
+        `, [userId, achievementId, progress, isUnlocked, isUnlocked ? now : null, now])
+        return true
+      default: return false
+    }
+  },
+
+  async getPointsRecords(userId, limit = 20, offset = 0) {
+    const db = await getDB()
+    const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
+    switch (typeKey) {
+      case DB_TYPE.SQLITE:
+        return db.prepare('SELECT * FROM points_records WHERE user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?').all(userId, limit, offset)
+      case DB_TYPE.POSTGRESQL:
+        return (await db.query('SELECT * FROM points_records WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3', [userId, limit, offset])).rows
+      default: return []
+    }
+  },
+
+  async addPointsRecord(record) {
+    const db = await getDB()
+    const { userId, source, type, points, description } = record
+    const now = Date.now()
+    const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
+    
+    // Calculate new balance
+    // This is a simplified approach. Ideally we should store current balance in users table or calculate sum
+    // For now, we'll calculate sum on the fly or just store the record
+    
+    switch (typeKey) {
+      case DB_TYPE.SQLITE:
+        const currentBalance = db.prepare('SELECT SUM(points) as total FROM points_records WHERE user_id = ?').get(userId).total || 0
+        const newBalance = currentBalance + points
+        db.prepare('INSERT INTO points_records (user_id, source, type, points, created_at, description, balance_after) VALUES (?, ?, ?, ?, ?, ?, ?)').run(userId, source, type, points, now, description, newBalance)
+        return newBalance
+      case DB_TYPE.POSTGRESQL:
+        const { rows } = await db.query('SELECT SUM(points) as total FROM points_records WHERE user_id = $1', [userId])
+        const pgCurrentBalance = parseInt(rows[0].total || '0')
+        const pgNewBalance = pgCurrentBalance + points
+        await db.query('INSERT INTO points_records (user_id, source, type, points, created_at, description, balance_after) VALUES ($1, $2, $3, $4, $5, $6, $7)', [userId, source, type, points, now, description, pgNewBalance])
+        return pgNewBalance
+      default: return 0
+    }
+  },
+
+  async getUserTotalPoints(userId) {
+    const db = await getDB()
+    const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
+    switch (typeKey) {
+      case DB_TYPE.SQLITE:
+        const res = db.prepare('SELECT SUM(points) as total FROM points_records WHERE user_id = ?').get(userId)
+        return res ? (res.total || 0) : 0
+      case DB_TYPE.POSTGRESQL:
+        const { rows } = await db.query('SELECT SUM(points) as total FROM points_records WHERE user_id = $1', [userId])
+        if (!rows || rows.length === 0) return 0
+        const total = rows[0].total
+        return total ? Number(total) : 0
+      default: return 0
+    }
+  }
+}
+
+export const activityDB = {
+  async logActivity(activity) {
+    const db = await getDB()
+    const { userId, actionType, entityType, entityId, details, ipAddress, userAgent } = activity
+    const now = Date.now()
+    const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
+
+    try {
+      switch (typeKey) {
+        case DB_TYPE.SQLITE:
+           // Ensure table exists for SQLite (dev)
+           db.exec(`
+             CREATE TABLE IF NOT EXISTS user_activities (
+               id INTEGER PRIMARY KEY AUTOINCREMENT,
+               user_id TEXT,
+               action_type TEXT,
+               entity_type TEXT,
+               entity_id TEXT,
+               details TEXT,
+               ip_address TEXT,
+               user_agent TEXT,
+               created_at INTEGER
+             )
+           `);
+           db.prepare(`
+             INSERT INTO user_activities (user_id, action_type, entity_type, entity_id, details, ip_address, user_agent, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+           `).run(userId, actionType, entityType, entityId, JSON.stringify(details || {}), ipAddress, userAgent, now)
+           return true
+        case DB_TYPE.POSTGRESQL:
+           await db.query(`
+             INSERT INTO user_activities (user_id, action_type, entity_type, entity_id, details, ip_address, user_agent, created_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+           `, [userId, actionType, entityType, entityId, details || {}, ipAddress, userAgent])
+           return true
+        case DB_TYPE.MEMORY:
+           if (!memoryStore.user_activities) memoryStore.user_activities = [];
+           memoryStore.user_activities.push({
+             id: randomUUID(),
+             user_id: userId,
+             action_type: actionType,
+             entity_type: entityType,
+             entity_id: entityId,
+             details: details || {},
+             ip_address: ipAddress,
+             user_agent: userAgent,
+             created_at: now
+           });
+           saveMemoryStore();
+           return true;
+        default: return false
+      }
+    } catch (e) {
+      console.error('[DB] Failed to log activity:', e);
+      return false;
+    }
+  },
+
+  async getUserActivities(userId, limit = 20, offset = 0) {
+    const db = await getDB()
+    const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
+    try {
+      switch (typeKey) {
+        case DB_TYPE.SQLITE:
+          try {
+            const rows = db.prepare('SELECT * FROM user_activities WHERE user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?').all(userId, limit, offset)
+            return rows.map(r => ({...r, details: JSON.parse(r.details || '{}')}))
+          } catch (e) { return [] } // Table might not exist
+        case DB_TYPE.POSTGRESQL:
+          return (await db.query('SELECT * FROM user_activities WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3', [userId, limit, offset])).rows
+        case DB_TYPE.MEMORY:
+          return (memoryStore.user_activities || [])
+            .filter(a => a.user_id === userId)
+            .sort((a, b) => b.created_at - a.created_at)
+            .slice(offset, offset + limit);
+        default: return []
+      }
+    } catch (e) {
+      console.error('[DB] Failed to get activities:', e);
+      return [];
     }
   }
 }

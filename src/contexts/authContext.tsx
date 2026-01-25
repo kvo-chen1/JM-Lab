@@ -4,6 +4,7 @@ import securityService from "../services/securityService";
 import eventBus from '../lib/eventBus'; // 导入事件总线
 import { toast } from 'sonner';
 import userStatsService from '../services/userStatsService';
+import { apiService } from '../services/apiService';
 
 // 用户类型定义
 export interface User {
@@ -38,7 +39,7 @@ interface AuthContextType {
   loginWithCode: (type: 'email' | 'phone', identifier: string, code: string) => Promise<boolean>;
   sendEmailOtp: (email: string) => Promise<{ success: boolean; error?: string; mockCode?: string }>;
   sendRegisterEmailOtp: (email: string) => Promise<{ success: boolean; error?: string; mockCode?: string }>;
-  sendSmsOtp: (phone: string) => Promise<{ success: boolean; error?: string }>;
+  sendSmsOtp: (phone: string) => Promise<{ success: boolean; error?: string; mockCode?: string }>;
   register: (username: string, email: string, password: string, age?: string, tags?: string[], code?: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   setIsAuthenticated: (value: boolean) => void;
@@ -151,6 +152,22 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   // 移除强制使用固定头像的逻辑
 
+
+  // 监听用户变化，同步 API 服务状态 (Mock vs Real)
+  useEffect(() => {
+    if (user) {
+      // 如果是手机演示用户，强制使用 Mock 数据
+      if (user.id.startsWith('phone_user_') || user.email === 'xiaoming@example.com' || user.email === 'xiaoli@example.com') {
+        console.log('[Auth] Detected demo user, enabling Mock Mode');
+        apiService.setUseMockData(true);
+      } else {
+        // 真实用户，强制使用真实 API
+        // 注意：这可能会覆盖开发环境的默认 Mock 设置，但这符合"正式登录使用真实数据"的要求
+        console.log('[Auth] Detected real user, disabling Mock Mode');
+        apiService.setUseMockData(false);
+      }
+    }
+  }, [user]);
 
   // 检查用户认证状态
   useEffect(() => {
@@ -682,6 +699,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   // 登录方法
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
+      // 确保使用真实 API
+      apiService.setUseMockData(false);
+
       // 使用自定义API登录，与验证码登录保持一致
       const response = await fetch('/api/auth/login', {
         method: 'POST',
@@ -830,23 +850,62 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   };
 
-  // 发送短信验证码方法（使用Supabase内置功能）
-  const sendSmsOtp = async (phone: string): Promise<{ success: boolean; error?: string }> => {
+  // 格式化手机号
+  const formatPhoneNumber = (phone: string) => {
+    // 移除所有非数字字符（除了开头的+）
+    const cleanPhone = phone.replace(/[^\d+]/g, '');
+    // 如果是中国手机号（11位数字且以1开头），且没有+86前缀，则添加
+    if (/^1[3-9]\d{9}$/.test(cleanPhone)) {
+      return `+86${cleanPhone}`;
+    }
+    // 如果没有+前缀，且看起来像手机号，默认加上+86
+    if (!cleanPhone.startsWith('+') && cleanPhone.length >= 11) {
+      return `+86${cleanPhone}`;
+    }
+    return cleanPhone;
+  };
+
+  // 发送短信验证码方法（优先 Supabase，失败降级到后端 API）
+  const sendSmsOtp = async (phone: string): Promise<{ success: boolean; error?: string; mockCode?: string }> => {
     try {
-      console.log('使用Supabase发送短信验证码到:', phone);
+      const formattedPhone = formatPhoneNumber(phone);
+      console.log(`尝试发送短信验证码到: ${formattedPhone} (原号码: ${phone})`);
+      
+      // 1. 优先尝试 Supabase (支持 Twilio)
+      console.log('使用 Supabase 发送短信验证码...');
       const { error } = await supabase.auth.signInWithOtp({
-        phone,
+        phone: formattedPhone,
       });
       
       if (error) {
-        console.error('发送短信验证码失败:', error.message);
+        console.error('Supabase 发送失败:', error.message);
+        
+        // 2. 降级到后端 API (支持 Mock/阿里云/腾讯云)
+        console.log('尝试降级到后端 API 发送...');
+        try {
+          const response = await fetch('/api/auth/send-sms-code', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phone }), // 传原始号码给后端
+          });
+          
+          const data = await response.json();
+          if (response.ok && data.code === 0) {
+            console.log('后端 API 发送成功');
+            return { success: true, mockCode: data.data?.mockCode };
+          }
+          console.error('后端 API 发送失败:', data.message);
+        } catch (backendError) {
+          console.error('后端 API 调用出错:', backendError);
+        }
+
         return { success: false, error: error.message };
       }
       
-      console.log('短信验证码发送成功');
+      console.log('Supabase 短信验证码发送成功');
       return { success: true };
     } catch (error: any) {
-      console.error('发送短信验证码失败:', error);
+      console.error('发送短信验证码异常:', error);
       return { success: false, error: error.message || '发送短信验证码失败，请稍后重试' };
     }
   };
@@ -854,11 +913,14 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   // 验证码登录方法
   const loginWithCode = async (type: 'email' | 'phone', identifier: string, code: string): Promise<boolean> => {
     try {
-      console.log(`[${type}] 尝试使用Supabase验证码登录: ${identifier}`);
+      const isPhone = type === 'phone';
+      const formattedIdentifier = isPhone ? formatPhoneNumber(identifier) : identifier;
       
-      // 1. 使用 Supabase 验证 OTP
+      console.log(`[${type}] 尝试使用验证码登录: ${formattedIdentifier}`);
+      
+      // 1. 尝试 Supabase 验证 OTP
       const { data, error } = await supabase.auth.verifyOtp({
-        [type === 'email' ? 'email' : 'phone']: identifier,
+        [type === 'email' ? 'email' : 'phone']: formattedIdentifier,
         token: code,
         type: type === 'email' ? 'email' : 'sms',
       } as any);
@@ -866,20 +928,26 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       if (error) {
         console.error('Supabase验证失败:', error.message);
         
-        // 如果是邮箱，尝试降级到后端API验证（针对使用后端API发送的情况）
-        if (type === 'email') {
-          console.log('尝试降级到后端API验证...');
-          const response = await fetch('/api/auth/login-with-email-code', {
+        // 2. 降级尝试后端 API 验证
+        console.log('尝试降级到后端 API 验证...');
+        try {
+          const endpoint = isPhone ? '/api/auth/login-with-sms-code' : '/api/auth/login-with-email-code';
+          const body = isPhone ? { phone: identifier, code } : { email: identifier, code };
+          
+          const response = await fetch(endpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: identifier, code }),
+            body: JSON.stringify(body),
           });
           const apiData = await response.json();
           if (apiData.code === 0 && apiData.data) {
-             // 后端验证成功，直接使用返回的数据
+             // 后端验证成功
              return handleLoginSuccess(apiData.data);
           }
+        } catch (e) {
+           console.error('后端 API 验证失败:', e);
         }
+        
         return false;
       }
 
@@ -1017,8 +1085,44 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       if (data.code === 0) {
         console.log('注册成功');
         
-        // 创建用户对象
-        const newUser = {
+        // 如果后端返回了token，直接自动登录
+        if (data.data.token) {
+           console.log('注册返回Token，自动登录...');
+           const avatarUrl = data.data.avatar || '';
+           
+           const newUser = {
+              id: data.data.id,
+              username: data.data.username,
+              email: data.data.email,
+              avatar: avatarUrl,
+              phone: data.data.phone || '',
+              interests: [],
+              isAdmin: false,
+              age: data.data.age || 0,
+              tags: data.data.tags || [],
+              isNewUser: true,
+              worksCount: 0,
+              followersCount: 0,
+              followingCount: 0,
+              favoritesCount: 0,
+              membershipLevel: 'free' as const,
+              membershipStatus: 'active' as const,
+              membershipStart: new Date().toISOString(),
+           };
+           
+           localStorage.setItem('token', data.data.token);
+           localStorage.setItem('refreshToken', data.data.refreshToken || data.data.token);
+           localStorage.setItem('user', JSON.stringify(newUser));
+           localStorage.setItem('isAuthenticated', 'true');
+           
+           setUser(newUser);
+           setIsAuthenticated(true);
+           
+           eventBus.publish('auth:login', { userId: newUser.id, user: newUser });
+        }
+        
+        // 创建用户对象 (仅用于事件发布，如果上面没自动登录的话)
+        const eventUser = {
           id: data.data.id,
           username: data.data.username,
           email: data.data.email,
@@ -1037,8 +1141,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         
         // 发布注册成功事件
         eventBus.publish('auth:register', { 
-          userId: newUser.id, 
-          user: newUser 
+          userId: eventUser.id, 
+          user: eventUser 
         });
         
         return { success: true };
@@ -1058,6 +1162,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       // 处理手机号一键登录
       if (provider === 'phone') {
         // 手机号一键登录功能暂时开放，不需要验证
+        // 开启 Mock 模式，确保数据隔离
+        apiService.setUseMockData(true);
+        
         // 创建模拟用户对象
         const userWithMembership = {
           id: `phone_user_${Date.now()}`,

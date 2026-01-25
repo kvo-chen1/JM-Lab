@@ -7,6 +7,8 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import CreatorProfile from '../components/CreatorProfile';
 import achievementService from '../services/achievementService';
 import analyticsService from '../services/analyticsService';
+import taskService, { Task } from '../services/taskService';
+import checkinService from '../services/checkinService';
 import { useCommunityLogic } from '@/hooks/useCommunityLogic';
 
 
@@ -14,46 +16,15 @@ import PWAInstallButton from '@/components/PWAInstallButton'
 
 // 模拟数据
 const performanceData = [
-  { name: '一月', views: 4000, likes: 2400, comments: 240 },
-  { name: '二月', views: 3000, likes: 1398, comments: 221 },
-  { name: '三月', views: 2000, likes: 9800, comments: 229 },
-  { name: '四月', views: 2780, likes: 3908, comments: 200 },
-  { name: '五月', views: 1890, likes: 4800, comments: 218 },
-  { name: '六月', views: 2390, likes: 3800, comments: 250 },
+  { name: '一月', views: 0, likes: 0, comments: 0 },
+  { name: '二月', views: 0, likes: 0, comments: 0 },
+  { name: '三月', views: 0, likes: 0, comments: 0 },
+  { name: '四月', views: 0, likes: 0, comments: 0 },
+  { name: '五月', views: 0, likes: 0, comments: 0 },
+  { name: '六月', views: 0, likes: 0, comments: 0 },
 ];
 
-const recentWorks = [
-  {
-    id: 1,
-    title: '国潮插画设计',
-    thumbnail: '/images/cultural-bg.jpg',
-    status: '已发布',
-    views: 1245,
-    likes: 324,
-    date: '2025-11-10',
-    copyrightCertified: true
-  },
-  {
-    id: 2,
-    title: '老字号包装设计',
-    thumbnail: '/images/placeholder-image.jpg',
-    status: '审核中',
-    views: 0,
-    likes: 0,
-    date: '2025-11-09',
-    copyrightCertified: false
-  },
-  {
-    id: 3,
-    title: '传统纹样AI创作',
-    thumbnail: '/images/placeholder-image.jpg',
-    status: '草稿',
-    views: 0,
-    likes: 0,
-    date: '2025-11-08',
-    copyrightCertified: false
-  },
-];
+const recentWorks: any[] = [];
 
 
 export default function Dashboard() {
@@ -67,6 +38,8 @@ export default function Dashboard() {
   const [pointsStats, setPointsStats] = useState(() => achievementService.getPointsStats());
   const [worksPerformance, setWorksPerformance] = useState(() => analyticsService.getWorksPerformance(3));
   const [activePeriod, setActivePeriod] = useState<'周' | '月' | '年'>('月');
+  const [noviceTasks, setNoviceTasks] = useState<Task[]>([]);
+  const [dailyTasks, setDailyTasks] = useState<Task[]>([]);
   // 作品操作菜单状态管理
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
   // 动态内容导航状态
@@ -74,6 +47,64 @@ export default function Dashboard() {
   
   // 使用社区逻辑钩子获取动态数据
   const { threads, onUpvote, onToggleFavorite } = useCommunityLogic();
+
+  // 判断是否为真实用户（非手机号模拟用户）
+  const isRealUser = user && !user.id.startsWith('phone_user_');
+  const [realUserWorks, setRealUserWorks] = useState<any[]>([]);
+  const [realUserStats, setRealUserStats] = useState<any>(null);
+
+  // 获取真实用户数据
+  useEffect(() => {
+    if (isRealUser && user?.id) {
+      const fetchUserData = async () => {
+        try {
+          const [worksRes, statsRes] = await Promise.all([
+            fetch(`/api/user/works?userId=${user.id}`),
+            fetch(`/api/user/stats?userId=${user.id}`)
+          ]);
+          
+          if (worksRes.ok) {
+            const worksData = await worksRes.json();
+            if (worksData.code === 0) {
+              setRealUserWorks(worksData.data);
+            }
+          }
+          
+          if (statsRes.ok) {
+            const statsData = await statsRes.json();
+            if (statsData.code === 0) {
+              const data = statsData.data;
+              setRealUserStats(data);
+              
+              // Update level info with real data
+              if (data.level) {
+                setCreatorLevelInfo({
+                  currentLevel: { 
+                    id: data.level, 
+                    name: `创作Lv.${data.level}`, 
+                    icon: data.level === 1 ? 'seedling' : data.level === 2 ? 'tree' : 'crown',
+                    requiredPoints: 0 
+                  },
+                  nextLevel: data.level < 4 ? { 
+                    id: data.level + 1, 
+                    name: `创作Lv.${data.level + 1}`, 
+                    requiredPoints: data.next_level_points 
+                  } : null,
+                  currentPoints: data.points,
+                  pointsToNextLevel: data.next_level_points - data.points,
+                  levelProgress: data.level_progress
+                });
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Failed to fetch real user data:', error);
+        }
+      };
+      
+      fetchUserData();
+    }
+  }, [isRealUser, user?.id]);
 
   // 点击外部关闭菜单
   useEffect(() => {
@@ -101,32 +132,43 @@ export default function Dashboard() {
   
   // 根据activePeriod计算当前图表数据
   const chartData = () => {
+    if (isRealUser) {
+      // Return empty data for real users initially (until analytics API is ready)
+      return [
+        { name: '一月', views: 0, likes: 0, comments: 0 },
+        { name: '二月', views: 0, likes: 0, comments: 0 },
+        { name: '三月', views: 0, likes: 0, comments: 0 },
+        { name: '四月', views: 0, likes: 0, comments: 0 },
+        { name: '五月', views: 0, likes: 0, comments: 0 },
+        { name: '六月', views: 0, likes: 0, comments: 0 }
+      ];
+    }
     switch (activePeriod) {
       case '周':
         return [
-          { name: '周一', views: 1200, likes: 800, comments: 120 },
-          { name: '周二', views: 1500, likes: 900, comments: 150 },
-          { name: '周三', views: 1800, likes: 1200, comments: 180 },
-          { name: '周四', views: 1600, likes: 1000, comments: 160 },
-          { name: '周五', views: 2000, likes: 1500, comments: 200 },
-          { name: '周六', views: 2500, likes: 1800, comments: 250 },
-          { name: '周日', views: 2200, likes: 1600, comments: 220 }
+          { name: '周一', views: 0, likes: 0, comments: 0 },
+          { name: '周二', views: 0, likes: 0, comments: 0 },
+          { name: '周三', views: 0, likes: 0, comments: 0 },
+          { name: '周四', views: 0, likes: 0, comments: 0 },
+          { name: '周五', views: 0, likes: 0, comments: 0 },
+          { name: '周六', views: 0, likes: 0, comments: 0 },
+          { name: '周日', views: 0, likes: 0, comments: 0 }
         ];
       case '月':
         return [
-          { name: '一月', views: 4000, likes: 2400, comments: 240 },
-          { name: '二月', views: 3000, likes: 1398, comments: 221 },
-          { name: '三月', views: 2000, likes: 9800, comments: 229 },
-          { name: '四月', views: 2780, likes: 3908, comments: 200 },
-          { name: '五月', views: 1890, likes: 4800, comments: 218 },
-          { name: '六月', views: 2390, likes: 3800, comments: 250 }
+          { name: '一月', views: 0, likes: 0, comments: 0 },
+          { name: '二月', views: 0, likes: 0, comments: 0 },
+          { name: '三月', views: 0, likes: 0, comments: 0 },
+          { name: '四月', views: 0, likes: 0, comments: 0 },
+          { name: '五月', views: 0, likes: 0, comments: 0 },
+          { name: '六月', views: 0, likes: 0, comments: 0 }
         ];
       case '年':
         return [
-          { name: '2022', views: 12000, likes: 8000, comments: 1200 },
-          { name: '2023', views: 15000, likes: 9000, comments: 1500 },
-          { name: '2024', views: 18000, likes: 12000, comments: 1800 },
-          { name: '2025', views: 22000, likes: 16000, comments: 2200 }
+          { name: '2022', views: 0, likes: 0, comments: 0 },
+          { name: '2023', views: 0, likes: 0, comments: 0 },
+          { name: '2024', views: 0, likes: 0, comments: 0 },
+          { name: '2025', views: 0, likes: 0, comments: 0 }
         ];
       default:
         return performanceData;
@@ -141,15 +183,38 @@ export default function Dashboard() {
     { name: '其他', value: pointsSourceStats.other, color: '#94a3b8' }
   ].filter(item => item.value > 0);
   
-  // 检查是否已登录
+  // 检查是否已登录并加载数据
   useEffect(() => {
     if (!isAuthenticated || !user) {
       navigate('/login');
     } else {
-      // 模拟加载数据
-      setTimeout(() => {
-        setIsLoading(false);
-      }, 800);
+      // 加载成就和积分数据
+      const loadData = async () => {
+        try {
+          await achievementService.initialize();
+          setCreatorLevelInfo(achievementService.getCreatorLevelInfo());
+          setAchievements(achievementService.getUnlockedAchievements());
+          setPointsStats(achievementService.getPointsStats());
+
+          // 加载任务数据
+          const allTasks = taskService.getAllTasks();
+          // 更新任务状态
+          const enrichedTasks = allTasks.map(task => {
+            const progress = taskService.getTaskProgress(user.id).find(p => p.taskId === task.id);
+            return {
+              ...task,
+              status: (progress && progress.progress >= task.requirements.count) ? 'completed' : 'active'
+            };
+          });
+          setNoviceTasks(enrichedTasks.filter(t => t.tags?.includes('新手任务')) as any);
+          setDailyTasks(enrichedTasks.filter(t => t.tags?.includes('每日任务')) as any);
+        } catch (error) {
+          console.error('Failed to load achievement data:', error);
+        } finally {
+          setIsLoading(false);
+        }
+      };
+      loadData();
     }
   }, [isAuthenticated, user, navigate]);
   
@@ -191,7 +256,7 @@ export default function Dashboard() {
         <div>
           <h1 className="text-2xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-red-600 to-orange-600">欢迎回来，{user?.username}！</h1>
           <p className={`${isDark ? 'text-gray-300' : 'text-gray-600'} text-sm leading-relaxed`}>
-            今天是个创作的好日子，您有 <span className="text-red-600 font-medium animate-pulse">3</span> 个作品待完成
+            今天是个创作的好日子，您有 <span className="text-red-600 font-medium animate-pulse">0</span> 个作品待完成
           </p>
         </div>
         
@@ -367,9 +432,9 @@ export default function Dashboard() {
         {/* 数据概览 */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           {[
-            { title: '总浏览量', value: '12,458', icon: 'eye', color: 'blue' },
-            { title: '获赞总数', value: '3,245', icon: 'thumbs-up', color: 'red' },
-            { title: '作品总数', value: '28', icon: 'image', color: 'green' },
+            { title: '总浏览量', value: isRealUser ? (realUserStats?.views_count || 0).toLocaleString() : '0', icon: 'eye', color: 'blue' },
+            { title: '获赞总数', value: isRealUser ? (realUserStats?.likes_count || 0).toLocaleString() : '0', icon: 'thumbs-up', color: 'red' },
+            { title: '作品总数', value: isRealUser ? (realUserStats?.works_count || 0).toLocaleString() : '0', icon: 'image', color: 'green' },
           ].map((stat, index) => (
             <motion.div
               key={index}
@@ -481,7 +546,11 @@ export default function Dashboard() {
             </div>
             
             <div className="space-y-3">
-              {recentWorks.map((work) => (
+              {(isRealUser ? realUserWorks : recentWorks).length === 0 && isRealUser ? (
+                 <div className="text-center py-8 text-gray-500">
+                   <p>暂无作品，快去创作吧！</p>
+                 </div>
+              ) : (isRealUser ? realUserWorks : recentWorks).map((work) => (
                 <motion.div 
                   key={work.id} 
                   className={`p-4 rounded-xl ${isDark ? 'bg-gray-700/80 backdrop-blur-sm border border-gray-600' : 'bg-white border border-gray-100 shadow-sm'} transition-all hover:shadow-md hover:border-red-200 relative group`}
@@ -815,8 +884,8 @@ export default function Dashboard() {
                     <div className="mt-2">签到</div>
                   </div>
                 </motion.div>
-                <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 bg-green-500 text-white text-xs px-3 py-1 rounded-full">
-                  连续签到 7 天
+                <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 bg-gray-500 text-white text-xs px-3 py-1 rounded-full">
+                  连续签到 0 天
                 </div>
               </div>
               
@@ -832,11 +901,11 @@ export default function Dashboard() {
                   {['日', '一', '二', '三', '四', '五', '六'].map((day) => (
                     <div key={day} className="text-center text-xs font-medium py-1">{day}</div>
                   ))}
-                  {/* 模拟签到记录 */}
+                  {/* 模拟签到记录 - 初始化为空 */}
                   {Array.from({ length: 30 }, (_, i) => (
                     <div 
                       key={i} 
-                      className={`w-8 h-8 rounded-full flex items-center justify-center text-xs ${i % 2 === 0 ? 'bg-green-500 text-white' : isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-600'}`}
+                      className={`w-8 h-8 rounded-full flex items-center justify-center text-xs ${isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-600'}`}
                     >
                       {i + 1}
                     </div>
@@ -870,12 +939,7 @@ export default function Dashboard() {
               <div>
                 <h3 className="text-sm font-medium mb-3">新手任务</h3>
                 <div className="space-y-3">
-                  {[
-                    { id: 1, title: '完成新手引导', status: 'completed', reward: '50 积分', icon: 'fas fa-graduation-cap' },
-                    { id: 2, title: '发布第一篇作品', status: 'completed', reward: '100 积分 + 素材包', icon: 'fas fa-paper-plane' },
-                    { id: 3, title: '邀请一位好友', status: 'pending', reward: '150 积分', icon: 'fas fa-user-plus', route: '/friends' },
-                    { id: 4, title: '参与一次主题活动', status: 'pending', reward: '200 积分', icon: 'fas fa-calendar-alt', route: '/events' }
-                  ].map((task) => (
+                  {noviceTasks.map((task) => (
                     <motion.div 
                       key={task.id} 
                       className={`p-4 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-50'} flex items-center justify-between`}
@@ -884,11 +948,11 @@ export default function Dashboard() {
                     >
                       <div className="flex items-center">
                         <div className={`w-8 h-8 rounded-full ${task.status === 'completed' ? 'bg-green-100 text-green-600' : isDark ? 'bg-gray-600 text-gray-300' : 'bg-gray-200 text-gray-600'} flex items-center justify-center mr-3`}>
-                          <i className={task.icon}></i>
+                          <i className="fas fa-tasks"></i>
                         </div>
                         <div>
                           <div className="font-medium">{task.title}</div>
-                          <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{task.reward}</div>
+                          <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{task.reward.points} 积分</div>
                         </div>
                       </div>
                       <motion.button 
@@ -897,15 +961,14 @@ export default function Dashboard() {
                         whileHover={{ scale: task.status !== 'completed' ? 1.05 : 1 }}
                         whileTap={{ scale: task.status !== 'completed' ? 0.95 : 1 }}
                         onClick={() => {
-                          if (task.status !== 'completed' && (task as any).route) {
-                            navigate((task as any).route);
-                          }
+                          // TODO: 跳转到对应任务
                         }}
                       >
                         {task.status === 'completed' ? '已完成' : '去完成'}
                       </motion.button>
                     </motion.div>
                   ))}
+                  {noviceTasks.length === 0 && <div className="text-gray-500 text-sm">暂无新手任务</div>}
                 </div>
               </div>
               
@@ -913,12 +976,7 @@ export default function Dashboard() {
               <div className="mt-6">
                 <h3 className="text-sm font-medium mb-3">每日任务</h3>
                 <div className="space-y-3">
-                  {[
-                    { id: 5, title: '登录平台', status: 'completed', reward: '2 积分', icon: 'fas fa-sign-in-alt' },
-                    { id: 6, title: '浏览 5 个作品', status: 'completed', reward: '3 积分', icon: 'fas fa-eye', route: '/explore' },
-                    { id: 7, title: '发表 1 条评论', status: 'pending', reward: '5 积分', icon: 'fas fa-comment', route: '/explore' },
-                    { id: 8, title: '分享作品到社交平台', status: 'pending', reward: '10 积分', icon: 'fas fa-share-alt', route: '/explore' }
-                  ].map((task) => (
+                  {dailyTasks.map((task) => (
                     <motion.div 
                       key={task.id} 
                       className={`p-4 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-50'} flex items-center justify-between`}
@@ -927,11 +985,11 @@ export default function Dashboard() {
                     >
                       <div className="flex items-center">
                         <div className={`w-8 h-8 rounded-full ${task.status === 'completed' ? 'bg-green-100 text-green-600' : isDark ? 'bg-gray-600 text-gray-300' : 'bg-gray-200 text-gray-600'} flex items-center justify-center mr-3`}>
-                          <i className={task.icon}></i>
+                          <i className="fas fa-calendar-day"></i>
                         </div>
                         <div>
                           <div className="font-medium">{task.title}</div>
-                          <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{task.reward}</div>
+                          <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{task.reward.points} 积分</div>
                         </div>
                       </div>
                       <motion.button 
@@ -940,15 +998,14 @@ export default function Dashboard() {
                         whileHover={{ scale: task.status !== 'completed' ? 1.05 : 1 }}
                         whileTap={{ scale: task.status !== 'completed' ? 0.95 : 1 }}
                         onClick={() => {
-                          if (task.status !== 'completed' && (task as any).route) {
-                            navigate((task as any).route);
-                          }
+                          // TODO
                         }}
                       >
                         {task.status === 'completed' ? '已完成' : '去完成'}
                       </motion.button>
                     </motion.div>
                   ))}
+                   {dailyTasks.length === 0 && <div className="text-gray-500 text-sm">暂无每日任务</div>}
                 </div>
               </div>
             </div>

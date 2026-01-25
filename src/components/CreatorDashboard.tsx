@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useTheme } from '@/hooks/useTheme';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
+import OperationHistory from './OperationHistory';
 
 // 作品统计接口
 interface WorkStats {
@@ -54,74 +55,22 @@ const CreatorDashboard: React.FC = () => {
 
   // 模拟数据 - 实际项目中应从API获取
   useEffect(() => {
-    // 模拟作品统计数据
-    const mockWorkStats: WorkStats = {
-      totalWorks: 15,
-      totalLikes: 245,
-      totalViews: 3200,
-      totalComments: 89,
-      draftCount: 3
+    // 初始化为空数据，等待真实数据接入
+    const emptyWorkStats: WorkStats = {
+      totalWorks: 0,
+      totalLikes: 0,
+      totalViews: 0,
+      totalComments: 0,
+      draftCount: 0
     };
 
-    // 使用内联SVG作为头像占位图，避免外部请求失败
-    const avatarSvg = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMTUiIGZpbGw9IiM3MDcwNzAiLz4KPHBhdGggZD0iTTIwIDMwQzE0LjQ3NyAzMCAxMCAyNS41MjMgMTAgMjBDMTAgMTQuNDc3IDE0LjQ3NyAxMCAyMCAxMEMyNS41MjMgMTAgMzAgMTQuNDc3IDMwIDIwQzMwIDI1LjUyMyAyNS41MjMgMzAgMjAgMzBaIiBmaWxsPSIjRjVGNkZGIi8+CjxwYXRoIGQ9Ik0xNSAxN0MxNSAxNS4zNDcgMTYuMzQ3IDE0IDE4IDE0QzE5LjY1MyAxNCAyMSAxNS4zNDcgMjEgMTdDMjEgMTguNjUzIDE5LjY1MyAyMCAxOCAyMEMxNi4zNDcgMjAgMTUgMTguNjUzIDE1IDE3WiIgZmlsbD0iIzE5MWMxOTEiLz4KPC9zdmc+';
-
-    // 模拟近期活动数据
-    const mockRecentActivities: RecentActivity[] = [
-      {
-        id: '1',
-        type: 'like',
-        user: '创作者小明',
-        userAvatar: avatarSvg,
-        content: '点赞了你的作品',
-        timestamp: new Date(Date.now() - 30 * 60 * 1000),
-        workId: '101',
-        workTitle: '国潮设计作品'
-      },
-      {
-        id: '2',
-        type: 'comment',
-        user: '用户小红',
-        userAvatar: avatarSvg,
-        content: '这个设计太棒了！',
-        timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000),
-        workId: '102',
-        workTitle: '老字号品牌升级'
-      },
-      {
-        id: '3',
-        type: 'follow',
-        user: '设计师小李',
-        userAvatar: avatarSvg,
-        content: '关注了你',
-        timestamp: new Date(Date.now() - 5 * 60 * 60 * 1000)
-      }
-    ];
-
-    // 模拟社群消息数据
-    const mockCommunityMessages: CommunityMessage[] = [
-      {
-        id: '1',
-        社群名称: 'AI设计交流群',
-        sender: '群主',
-        senderAvatar: avatarSvg,
-        content: '本周社群活动：AI设计大赛开始报名',
-        timestamp: new Date(Date.now() - 1 * 60 * 60 * 1000)
-      },
-      {
-        id: '2',
-        社群名称: '国潮设计联盟',
-        sender: '设计师小张',
-        senderAvatar: avatarSvg,
-        content: '分享一个国潮设计的新趋势',
-        timestamp: new Date(Date.now() - 4 * 60 * 60 * 1000)
-      }
-    ];
+    const emptyActivities: RecentActivity[] = [];
+    const emptyMessages: CommunityMessage[] = [];
 
     // 更新状态
-    setWorkStats(mockWorkStats);
-    setRecentActivities(mockRecentActivities);
-    setCommunityMessages(mockCommunityMessages);
+    setWorkStats(emptyWorkStats);
+    setRecentActivities(emptyActivities);
+    setCommunityMessages(emptyMessages);
   }, []);
   
   // 添加点击外部关闭面板的功能
@@ -327,6 +276,11 @@ const CreatorDashboard: React.FC = () => {
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* 操作历史 */}
+          <div className="mb-4">
+            <OperationHistory />
           </div>
 
           {/* 近期活动 */}

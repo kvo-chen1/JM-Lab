@@ -1,4 +1,5 @@
 import { Post, Comment } from './postService';
+import { workService, commentService } from './apiService';
 
 export type OfflineDataStatus = 'pending' | 'syncing' | 'synced' | 'failed';
 
@@ -308,6 +309,7 @@ export class OfflineService {
       this.addOfflineRecord({
         id: syncOp.id,
         type: syncOp.entity,
+        operationType: syncOp.type,
         status: 'pending',
         data: syncOp.data,
         createdAt: syncOp.timestamp
@@ -350,8 +352,34 @@ export class OfflineService {
     for (const operation of queue) {
       try {
         this.updateOfflineRecord(operation.id, { status: 'syncing' });
-        // 这里应该调用实际的API
-        // 例如：await apiService.syncOperation(operation);
+        
+        // 根据操作类型调用相应的API
+        switch (operation.entity) {
+          case 'post':
+            if (operation.type === 'create') {
+              await workService.createWork(operation.data);
+            } else if (operation.type === 'update') {
+              await workService.updateWork(operation.data.id, operation.data);
+            } else if (operation.type === 'delete') {
+              await workService.deleteWork(operation.data.id);
+            }
+            break;
+            
+          case 'comment':
+            if (operation.type === 'create') {
+              // 假设 data 中包含 workId 和 content
+              await commentService.addWorkComment(operation.data.workId, operation.data.content);
+            }
+            break;
+            
+          case 'like':
+            if (operation.type === 'create') {
+              await workService.likeWork(operation.data.id);
+            } else if (operation.type === 'delete') {
+              await workService.unlikeWork(operation.data.id);
+            }
+            break;
+        }
         
         // 同步成功后从队列中删除
         await this.removeFromSyncQueue(operation.id);
@@ -365,6 +393,12 @@ export class OfflineService {
         });
       }
     }
+  }
+
+  // 清除历史记录
+  clearHistory(): void {
+    this.offlineData = [];
+    this.saveOfflineData();
   }
 
   // 从同步队列中删除操作

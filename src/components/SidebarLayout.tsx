@@ -228,40 +228,68 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
   
   const notifRef = useRef<HTMLDivElement | null>(null)
   // 初始化通知状态
-  const [notifications, setNotifications] = useState<Notification[]>(() => {
-    try {
-      const stored = localStorage.getItem('notifications')
-      if (stored) {
-        const parsed = JSON.parse(stored)
-        // 确保所有通知都有完整字段
-        return parsed.map((n: any) => ({
-          ...n,
-          category: n.category || 'system',
-          timestamp: n.timestamp || Date.now() - 3600000,
-        }))
-      }
-    } catch {}
-    const now = Date.now()
-    return [
-      { id: 'n1', title: t('notification.welcome'), description: t('notification.dailyReward'), time: t('notification.justNow'), read: false, type: 'success', category: 'system', timestamp: now },
-      { id: 'n2', title: t('notification.systemUpdate'), description: t('notification.systemUpdateDesc'), time: `1 ${t('notification.hoursAgo')}`, read: false, type: 'info', category: 'system', timestamp: now - 3600000 },
-      { id: 'n3', title: t('notification.newTutorial'), description: t('notification.newTutorialDesc'), time: t('notification.daysAgo'), read: true, type: 'info', category: 'learning', timestamp: now - 86400000 },
-      { id: 'n4', title: t('notification.workLiked'), description: t('notification.workLikedDesc'), time: `2 ${t('notification.hoursAgo')}`, read: false, type: 'success', category: 'like', timestamp: now - 7200000 },
-      { id: 'n5', title: t('notification.newMember'), description: t('notification.newMemberDesc'), time: `30 ${t('notification.minutesAgo')}`, read: false, type: 'info', category: 'join', timestamp: now - 1800000 },
-      { id: 'n6', title: t('notification.privateMessage'), description: t('notification.privateMessageDesc'), time: `1 ${t('notification.hoursAgo')}`, read: false, type: 'info', category: 'message', timestamp: now - 3600000 },
-      { id: 'n7', title: t('notification.mention'), description: t('notification.mentionDesc'), time: `2 ${t('notification.hoursAgo')}`, read: false, type: 'info', category: 'mention', timestamp: now - 7200000 },
-      { id: 'n8', title: t('notification.taskCompleted'), description: t('notification.taskCompletedDesc'), time: `3 ${t('notification.hoursAgo')}`, read: true, type: 'success', category: 'task', timestamp: now - 10800000 },
-      { id: 'n9', title: t('notification.pointsAdded'), description: t('notification.pointsAddedDesc'), time: `4 ${t('notification.hoursAgo')}`, read: false, type: 'success', category: 'points', timestamp: now - 14400000 },
-      { id: 'n10', title: t('notification.systemWarning'), description: t('notification.systemWarningDesc'), time: `5 ${t('notification.hoursAgo')}`, read: true, type: 'warning', category: 'system', timestamp: now - 18000000 },
-    ]
-  })
+  const [notifications, setNotifications] = useState<Notification[]>([])
   
   const unreadCount = useMemo(() => notifications.filter(n => !n.read).length, [notifications])
   
-  // 保存通知到本地存储 - 使用防抖函数优化
+  // 监听用户变化，根据用户类型加载通知数据
+  useEffect(() => {
+    if (!user) {
+      setNotifications([])
+      return
+    }
+
+    if (!user.id.startsWith('phone_user_')) {
+      const fetchNotifications = async () => {
+        try {
+          const token = localStorage.getItem('token');
+          const response = await fetch('/api/notifications', {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          const data = await response.json();
+          if (data.code === 0 && data.data && Array.isArray(data.data.list)) {
+            const mappedNotifications: Notification[] = data.data.list.map((n: any) => ({
+              id: n.id.toString(),
+              title: n.title,
+              description: n.content,
+              time: new Date(n.created_at).toLocaleString(),
+              read: n.is_read,
+              type: 'info', // 默认类型
+              category: 'system', // 默认分类，后续可根据后端type字段映射
+              timestamp: new Date(n.created_at).getTime(),
+              sound: false
+            }));
+            setNotifications(mappedNotifications);
+          }
+        } catch (error) {
+          console.error('Failed to fetch notifications:', error);
+        }
+      };
+      fetchNotifications();
+    } else {
+       // Phone user: load mock data
+       const now = Date.now()
+       setNotifications([
+        { id: 'n1', title: t('notification.welcome'), description: t('notification.dailyReward'), time: t('notification.justNow'), read: false, type: 'success', category: 'system', timestamp: now },
+        { id: 'n2', title: t('notification.systemUpdate'), description: t('notification.systemUpdateDesc'), time: `1 ${t('notification.hoursAgo')}`, read: false, type: 'info', category: 'system', timestamp: now - 3600000 },
+        { id: 'n3', title: t('notification.newTutorial'), description: t('notification.newTutorialDesc'), time: t('notification.daysAgo'), read: true, type: 'info', category: 'learning', timestamp: now - 86400000 },
+        { id: 'n4', title: t('notification.workLiked'), description: t('notification.workLikedDesc'), time: `2 ${t('notification.hoursAgo')}`, read: false, type: 'success', category: 'like', timestamp: now - 7200000 },
+        { id: 'n5', title: t('notification.newMember'), description: t('notification.newMemberDesc'), time: `30 ${t('notification.minutesAgo')}`, read: false, type: 'info', category: 'join', timestamp: now - 1800000 },
+        { id: 'n6', title: t('notification.privateMessage'), description: t('notification.privateMessageDesc'), time: `1 ${t('notification.hoursAgo')}`, read: false, type: 'info', category: 'message', timestamp: now - 3600000 },
+        { id: 'n7', title: t('notification.mention'), description: t('notification.mentionDesc'), time: `2 ${t('notification.hoursAgo')}`, read: false, type: 'info', category: 'mention', timestamp: now - 7200000 },
+        { id: 'n8', title: t('notification.taskCompleted'), description: t('notification.taskCompletedDesc'), time: `3 ${t('notification.hoursAgo')}`, read: true, type: 'success', category: 'task', timestamp: now - 10800000 },
+        { id: 'n9', title: t('notification.pointsAdded'), description: t('notification.pointsAddedDesc'), time: `4 ${t('notification.hoursAgo')}`, read: false, type: 'success', category: 'points', timestamp: now - 14400000 },
+        { id: 'n10', title: t('notification.systemWarning'), description: t('notification.systemWarningDesc'), time: `5 ${t('notification.hoursAgo')}`, read: true, type: 'warning', category: 'system', timestamp: now - 18000000 },
+      ])
+    }
+  }, [user, t]);
+
+  // 移除本地存储同步，确保数据隔离
+  /*
   useEffect(() => {
     debouncedSave('notifications', notifications)
   }, [notifications, debouncedSave])
+  */
 
   // 保存通知设置到本地存储 - 使用防抖函数优化
   useEffect(() => {

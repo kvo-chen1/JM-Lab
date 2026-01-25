@@ -277,212 +277,21 @@ class AnalyticsService {
 
   // 获取作品表现数据
   getWorksPerformance(limit: number = 10): WorkPerformance[] {
-    // 模拟作品表现数据
-    const mockWorks: WorkPerformance[] = [
-      {
-        workId: '1',
-        title: '国潮IP设计',
-        thumbnail: '/images/cultural-bg.jpg',
-        category: '国潮设计',
-        metrics: {
-          likes: 1234,
-          views: 12345,
-          comments: 456,
-          shares: 789,
-          engagementRate: 0.23
-        },
-        trend: 'up',
-        ranking: 1
-      },
-      {
-        workId: '2',
-        title: '非遗传承插画',
-        thumbnail: '/images/placeholder-image.jpg',
-        category: '非遗传承',
-        metrics: {
-          likes: 987,
-          views: 8765,
-          comments: 345,
-          shares: 654,
-          engagementRate: 0.19
-        },
-        trend: 'up',
-        ranking: 2
-      },
-      {
-        workId: '3',
-        title: '老字号品牌升级',
-        thumbnail: '/images/placeholder-image.jpg',
-        category: '老字号品牌',
-        metrics: {
-          likes: 876,
-          views: 7654,
-          comments: 234,
-          shares: 543,
-          engagementRate: 0.17
-        },
-        trend: 'stable',
-        ranking: 3
-      }
-    ];
-
-    return mockWorks.slice(0, limit);
+    // 如果没有数据，返回空数组而不是模拟数据
+    // 在实际应用中，这里应该请求后端API
+    return [];
   }
 
   // 获取用户活动数据
   getUserActivity(limit: number = 10): UserActivity[] {
-    // 模拟用户活动数据
-    const mockUsers: UserActivity[] = [
-      {
-        userId: '1',
-        username: '创意设计师A',
-        avatar: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1024x1024&prompt=creative%20designer%20avatar',
-        metrics: {
-          worksCreated: 25,
-          likesReceived: 1234,
-          viewsReceived: 12345,
-          commentsReceived: 456,
-          commentsMade: 789,
-          sharesMade: 432
-        },
-        engagementScore: 95,
-        ranking: 1
-      },
-      {
-        userId: '2',
-        username: '插画师B',
-        avatar: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1024x1024&prompt=illustrator%20avatar',
-        metrics: {
-          worksCreated: 20,
-          likesReceived: 987,
-          viewsReceived: 8765,
-          commentsReceived: 345,
-          commentsMade: 654,
-          sharesMade: 321
-        },
-        engagementScore: 88,
-        ranking: 2
-      },
-      {
-        userId: '3',
-        username: 'IP设计师C',
-        avatar: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1024x1024&prompt=IP%20designer%20avatar',
-        metrics: {
-          worksCreated: 15,
-          likesReceived: 876,
-          viewsReceived: 7654,
-          commentsReceived: 234,
-          commentsMade: 543,
-          sharesMade: 210
-        },
-        engagementScore: 82,
-        ranking: 3
-      },
-      {
-        userId: '4',
-        username: '非遗传承者D',
-        avatar: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1024x1024&prompt=intangible%20heritage%20inheritor%20avatar',
-        metrics: {
-          worksCreated: 10,
-          likesReceived: 765,
-          viewsReceived: 6543,
-          commentsReceived: 123,
-          commentsMade: 432,
-          sharesMade: 109
-        },
-        engagementScore: 75,
-        ranking: 4
-      },
-      {
-        userId: '5',
-        username: '品牌设计师E',
-        avatar: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1024x1024&prompt=brand%20designer%20avatar',
-        metrics: {
-          worksCreated: 8,
-          likesReceived: 654,
-          viewsReceived: 5432,
-          commentsReceived: 111,
-          commentsMade: 321,
-          sharesMade: 98
-        },
-        engagementScore: 70,
-        ranking: 5
-      }
-    ];
-
-    return mockUsers.slice(0, limit);
+    // 返回空数组
+    return [];
   }
 
   // 获取主题趋势数据
   getThemeTrends(limit: number = 10): ThemeTrend[] {
-    // 模拟主题趋势数据
-    const mockThemes: ThemeTrend[] = [
-      {
-        theme: '中国红',
-        category: '配色',
-        popularity: 98,
-        growth: 15,
-        relatedTags: ['红色', '传统色', '喜庆'],
-        worksCount: 1234,
-        ranking: 1
-      },
-      {
-        theme: '青花瓷',
-        category: '纹样',
-        popularity: 95,
-        growth: 12,
-        relatedTags: ['蓝色', '陶瓷', '传统纹样'],
-        worksCount: 1123,
-        ranking: 2
-      },
-      {
-        theme: '京剧',
-        category: '文化元素',
-        popularity: 92,
-        growth: 8,
-        relatedTags: ['戏曲', '脸谱', '传统艺术'],
-        worksCount: 1012,
-        ranking: 3
-      },
-      {
-        theme: '回纹',
-        category: '纹样',
-        popularity: 88,
-        growth: 5,
-        relatedTags: ['几何', '传统纹样', '装饰'],
-        worksCount: 901,
-        ranking: 4
-      },
-      {
-        theme: '泥人张',
-        category: '非遗',
-        popularity: 85,
-        growth: 18,
-        relatedTags: ['泥塑', '天津', '传统工艺'],
-        worksCount: 790,
-        ranking: 5
-      },
-      {
-        theme: '海河',
-        category: '地域文化',
-        popularity: 82,
-        growth: 10,
-        relatedTags: ['天津', '河流', '地域特色'],
-        worksCount: 679,
-        ranking: 6
-      },
-      {
-        theme: '同仁堂',
-        category: '老字号',
-        popularity: 79,
-        growth: 6,
-        relatedTags: ['中药', '健康', '传统医药'],
-        worksCount: 568,
-        ranking: 7
-      }
-    ];
-
-    return mockThemes.slice(0, limit);
+    // 返回空数组
+    return [];
   }
 
   // 导出数据分析报告

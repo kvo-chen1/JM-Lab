@@ -14,8 +14,8 @@ const cleanEnvValue = (value) => {
 };
 
 // 获取Supabase连接信息
-const supabaseUrl = cleanEnvValue(process.env.SUPABASE_URL) || cleanEnvValue(process.env.NEXT_PUBLIC_SUPABASE_URL);
-const supabaseKey = cleanEnvValue(process.env.SUPABASE_SERVICE_ROLE_KEY) || cleanEnvValue(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+const supabaseUrl = cleanEnvValue(process.env.VITE_SUPABASE_URL) || cleanEnvValue(process.env.SUPABASE_URL) || cleanEnvValue(process.env.NEXT_PUBLIC_SUPABASE_URL);
+const supabaseKey = cleanEnvValue(process.env.SUPABASE_SERVICE_ROLE_KEY) || cleanEnvValue(process.env.VITE_SUPABASE_ANON_KEY) || cleanEnvValue(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 
 console.log('=== Supabase数据库迁移工具 ===');
 console.log('URL:', supabaseUrl);
@@ -23,7 +23,7 @@ console.log('密钥类型:', supabaseKey.includes('service_role') ? 'Service Rol
 console.log('密钥:', supabaseKey ? '已设置（长度：' + supabaseKey.length + '）' : '未设置');
 
 // 读取SQL迁移脚本
-const sqlFilePath = './supabase-tables.sql';
+const sqlFilePath = process.argv[2] || './supabase-tables.sql';
 if (!fs.existsSync(sqlFilePath)) {
   console.error('❌ SQL迁移脚本不存在:', sqlFilePath);
   process.exit(1);

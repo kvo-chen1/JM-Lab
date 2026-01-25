@@ -77,10 +77,14 @@ export default function Login() {
           toast.error(result.error || '邮箱验证码发送失败');
         }
       } else {
-        // 使用Supabase内置的手机验证码发送功能
+        // 使用后端API发送手机验证码
         const result = await sendSmsOtp(phone);
         if (result.success) {
-          toast.success('短信验证码发送成功');
+          if (result.mockCode) {
+            toast.success(`短信验证码发送成功: ${result.mockCode}`);
+          } else {
+            toast.success('短信验证码发送成功');
+          }
           setCountdown(60); // 60秒倒计时
         } else {
           toast.error(result.error || '短信验证码发送失败');

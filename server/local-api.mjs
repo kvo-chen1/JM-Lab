@@ -5,11 +5,13 @@ import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 import { WebSocketServer } from 'ws'
 import { Readable } from 'stream'
+import { createClient } from '@supabase/supabase-js'
 import { generateToken, verifyToken } from './jwt.mjs'
-import { userDB, favoriteDB, videoTaskDB, leaderboardDB, friendDB, messageDB, getDBStatus } from './database.mjs'
+import { userDB, favoriteDB, videoTaskDB, leaderboardDB, friendDB, messageDB, workDB, notificationDB, achievementDB, activityDB, getDBStatus } from './database.mjs'
 import { sendVerificationEmail } from './emailService.mjs'
 import { sendSmsVerificationCode, generateVerificationCode, verifySmsCode } from './smsService.mjs'
 import { sendLoginEmailCode } from './emailService.mjs'
+import { initializeUserSpace } from './services/userInitService.mjs'
 
 // Load .env.local for local development (non-production)
 try {
@@ -49,6 +51,30 @@ try {
   }
 } catch (error) {
   console.error('Failed to load .env.local:', error);
+}
+
+// 初始化 Supabase 客户端 (用于同步 Auth)
+let supabaseAdmin = null;
+if (process.env.VITE_SUPABASE_URL) {
+  const supabaseUrl = process.env.VITE_SUPABASE_URL;
+  // 优先使用 Service Role Key (如果存在)，否则回退到 Anon Key
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+  
+  if (supabaseKey) {
+    try {
+      supabaseAdmin = createClient(supabaseUrl, supabaseKey, {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
+        }
+      });
+      console.log(`[Supabase] 已初始化 (Key Type: ${process.env.SUPABASE_SERVICE_ROLE_KEY ? 'Service Role' : 'Anon'})`);
+    } catch (e) {
+      console.error('[Supabase] 初始化失败:', e);
+    }
+  } else {
+    console.warn('[Supabase] 未找到 Key，跳过初始化');
+  }
 }
 
 // 始终尝试兼容 VITE_ 前缀的环境变量
@@ -1647,9 +1673,58 @@ async function route(req, res, u, path) {
           });
           userId = existingUserId;
         } else {
+          // 尝试同步创建 Supabase 用户
+          let supabaseUserId = null;
+          if (supabaseAdmin) {
+              console.log(`[注册请求] 尝试同步创建 Supabase 用户...`);
+              try {
+                  if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+                      // 使用 Service Role Key 直接创建 (自动确认邮箱)
+                      const { data, error } = await supabaseAdmin.auth.admin.createUser({
+                          email,
+                          password,
+                          user_metadata: { username, phone },
+                          email_confirm: true
+                      });
+                      if (error) {
+                           console.warn(`[Supabase Sync] Admin Create 失败: ${error.message}`);
+                           // 如果用户已存在，尝试获取其ID
+                           if (error.message.includes('already been registered') || error.status === 422) {
+                               console.log('[Supabase Sync] 用户已存在，尝试获取ID...');
+                               // 注意：admin.listUsers 不能按邮箱过滤，只能获取列表后筛选，或者尝试 getUserById（如果有ID）
+                               // 更好的方式是忽略此错误，让后续流程继续（本地创建）
+                               // 或者通过 admin.inviteUserByEmail 也许能获取？不，那会发送邮件
+                               // 暂时忽略，因为本地数据库才是主要来源
+                           }
+                      } else if (data.user) {
+                           supabaseUserId = data.user.id;
+                           console.log(`[Supabase Sync] 用户已创建: ${supabaseUserId}`);
+                      }
+                  } else {
+                      // 使用 Anon Key 注册 (可能会发送确认邮件)
+                      const { data, error } = await supabaseAdmin.auth.signUp({
+                          email,
+                          password,
+                          options: {
+                              data: { username, phone }
+                          }
+                      });
+                      if (error) {
+                          console.warn(`[Supabase Sync] SignUp 失败: ${error.message}`);
+                      } else if (data.user) {
+                          supabaseUserId = data.user.id;
+                          console.log(`[Supabase Sync] 用户已注册: ${supabaseUserId}`);
+                      }
+                  }
+              } catch (err) {
+                  console.error(`[Supabase Sync] 异常:`, err);
+              }
+          }
+
           // 创建新用户
           console.log(`[注册请求] 创建新用户: ${username} <${email}>`);
           const newUser = await userDB.createUser({
+            id: supabaseUserId, // 尝试使用 Supabase ID
             username,
             email,
             password_hash,
@@ -1944,6 +2019,9 @@ async function route(req, res, u, path) {
         // 3. 颁发本地 JWT
         const token = generateToken({ userId: user.id, email: user.email });
 
+        // 4. 初始化用户空间（如果是新用户或未初始化）
+        await initializeUserSpace(user.id);
+
         sendJson(res, 200, {
           code: 0,
           message: '登录成功',
@@ -2065,6 +2143,20 @@ async function route(req, res, u, path) {
                
                const token = generateToken({ userId: localUser.id, email: localUser.email });
                
+               // 初始化用户空间
+               await initializeUserSpace(localUser.id);
+
+               // Log Activity
+               await activityDB.logActivity({
+                 userId: localUser.id,
+                 actionType: 'login',
+                 entityType: 'user',
+                 entityId: localUser.id,
+                 details: { description: '邮箱登录 (Supabase)' },
+                 ipAddress: req.socket.remoteAddress,
+                 userAgent: req.headers['user-agent']
+               });
+
                sendJson(res, 200, {
                   code: 0,
                   message: '登录成功',
@@ -2101,8 +2193,22 @@ async function route(req, res, u, path) {
           // 生成JWT令牌
           const token = generateToken({ userId: user.id, email: user.email });
           
+          // 初始化用户空间
+          await initializeUserSpace(user.id);
+
           console.log(`[用户登录] 成功 - 用户ID: ${user.id}, 邮箱: ${email}, 邮箱已验证: ${emailVerifiedLocal}`);
           
+          // Log Activity
+          await activityDB.logActivity({
+            userId: user.id,
+            actionType: 'login',
+            entityType: 'user',
+            entityId: user.id,
+            details: { description: '邮箱登录 (Local)' },
+            ipAddress: req.socket.remoteAddress,
+            userAgent: req.headers['user-agent']
+          });
+
           sendJson(res, 200, {
             code: 0,
             message: emailVerifiedLocal ? '登录成功' : '登录成功，但您的邮箱尚未验证，请尽快验证',
@@ -3251,7 +3357,353 @@ async function route(req, res, u, path) {
         return
       }
       
-      // 统一响应格式：前端 authContext 期望 { code: 0, data: ... }
+      // 获取用户作品列表
+  if (req.method === 'GET' && path === '/api/user/works') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+    const limit = parseInt(req.url.searchParams.get('limit') || '50')
+    const offset = parseInt(req.url.searchParams.get('offset') || '0')
+    
+    try {
+      const works = await workDB.getWorksByUserId(decoded.userId, limit, offset)
+      sendJson(res, 200, { code: 0, data: works })
+    } catch (e) {
+      console.error('[API] Get works failed:', e)
+      sendJson(res, 500, { code: 1, message: '获取作品失败' })
+    }
+    return
+  }
+
+  // 获取用户统计数据
+  if (req.method === 'GET' && path === '/api/user/stats') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+    
+    try {
+      const stats = await workDB.getWorkStats(decoded.userId)
+      const user = await userDB.findById(decoded.userId)
+      
+      // Calculate Points & Level
+      let totalPoints = await achievementDB.getUserTotalPoints(decoded.userId)
+      // Safety check for NaN or null
+      if (typeof totalPoints !== 'number' || isNaN(totalPoints)) {
+        totalPoints = 0
+      }
+      
+      let level = 1
+      let nextLevelPoints = 100
+      let progress = 0
+      
+      if (totalPoints < 100) {
+        level = 1
+        nextLevelPoints = 100
+        progress = (totalPoints / 100) * 100
+      } else if (totalPoints < 500) {
+        level = 2
+        nextLevelPoints = 500
+        progress = ((totalPoints - 100) / 400) * 100
+      } else if (totalPoints < 2000) {
+        level = 3
+        nextLevelPoints = 2000
+        progress = ((totalPoints - 500) / 1500) * 100
+      } else {
+        level = 4 // Max level for now
+        nextLevelPoints = 2000
+        progress = 100
+      }
+      
+      const fullStats = {
+        ...stats,
+        followers_count: 0,
+        following_count: 0,
+        favorites_count: (await favoriteDB.getUserFavorites(decoded.userId)).length,
+        membership_level: user.membership_level,
+        membership_status: user.membership_status,
+        points: totalPoints,
+        level: level,
+        level_progress: Math.min(Math.max(progress, 0), 100),
+        next_level_points: nextLevelPoints
+      }
+      sendJson(res, 200, { code: 0, data: fullStats })
+    } catch (e) {
+      console.error('[API] Get stats failed:', e)
+      sendJson(res, 500, { code: 1, message: '获取统计数据失败' })
+    }
+    return
+  }
+
+  // 获取积分历史
+  if (req.method === 'GET' && path === '/api/user/points/history') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+    
+    try {
+      const records = await achievementDB.getPointsRecords(decoded.userId)
+      sendJson(res, 200, { code: 0, data: records })
+    } catch (e) {
+      console.error('[API] Get points history failed:', e)
+      sendJson(res, 500, { code: 1, message: '获取积分记录失败' })
+    }
+    return
+  }
+
+  // 获取用户活动日志
+  if (req.method === 'GET' && path === '/api/user/activities') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+    
+    try {
+      const limit = parseInt(req.query.get('limit') || '20')
+      const offset = parseInt(req.query.get('offset') || '0')
+      const activities = await activityDB.getUserActivities(decoded.userId, limit, offset)
+      sendJson(res, 200, { code: 0, data: activities })
+    } catch (e) {
+      console.error('[API] Get activities failed:', e)
+      sendJson(res, 500, { code: 1, message: '获取活动日志失败' })
+    }
+    return
+  }
+
+  // 创建作品 (Mock implementation for now, just to award points)
+  if (req.method === 'POST' && path === '/api/works') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+    
+    try {
+      // In a real app, we would insert into works table. 
+      // For now, we assume success and award points.
+      // We should probably parse the body to get title/content
+      
+      // Award Points
+      await achievementDB.addPointsRecord({
+        userId: decoded.userId,
+        source: 'creation',
+        type: 'earn',
+        points: 50,
+        description: '发布新作品'
+      })
+      
+      // Add notification
+      await notificationDB.addNotification({
+        userId: decoded.userId,
+        title: '作品发布成功',
+        content: '恭喜！您的作品已发布，获得50积分！',
+        type: 'success'
+      })
+
+      // Log Activity
+      await activityDB.logActivity({
+        userId: decoded.userId,
+        actionType: 'create_work',
+        entityType: 'work',
+        entityId: 'new_work', // In real app use returned ID
+        details: { title: req.body.title || 'Untitled', description: '发布新作品' },
+        ipAddress: req.socket.remoteAddress,
+        userAgent: req.headers['user-agent']
+      })
+
+      sendJson(res, 200, { code: 0, data: { id: Date.now(), ...req.body } }) // Echo back
+    } catch (e) {
+      console.error('[API] Create work failed:', e)
+      sendJson(res, 500, { code: 1, message: '发布作品失败' })
+    }
+    return
+  }
+
+  // 点赞作品
+  if (req.method === 'POST' && path.match(/^\/api\/works\/\d+\/like$/)) {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+    
+    try {
+      // Award Points
+      await achievementDB.addPointsRecord({
+        userId: decoded.userId,
+        source: 'interaction',
+        type: 'earn',
+        points: 5,
+        description: '点赞作品'
+      })
+      
+      // Log Activity
+      const workId = path.split('/')[3]
+      await activityDB.logActivity({
+        userId: decoded.userId,
+        actionType: 'like_work',
+        entityType: 'work',
+        entityId: workId,
+        details: { description: '点赞作品' },
+        ipAddress: req.socket.remoteAddress,
+        userAgent: req.headers['user-agent']
+      })
+
+      sendJson(res, 200, { code: 0, success: true })
+    } catch (e) {
+      console.error('[API] Like work failed:', e)
+      sendJson(res, 500, { code: 1, message: '点赞失败' })
+    }
+    return
+  }
+
+
+  // 获取通知列表
+  if (req.method === 'GET' && path === '/api/notifications') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+    const limit = parseInt(req.url.searchParams.get('limit') || '20')
+    const offset = parseInt(req.url.searchParams.get('offset') || '0')
+    
+    try {
+      const notifications = await notificationDB.getNotifications(decoded.userId, limit, offset)
+      const unreadCount = await notificationDB.getUnreadCount(decoded.userId)
+      sendJson(res, 200, { code: 0, data: { list: notifications, unread_count: unreadCount } })
+    } catch (e) {
+      console.error('[API] Get notifications failed:', e)
+      sendJson(res, 500, { code: 1, message: '获取通知失败' })
+    }
+    return
+  }
+
+  // 标记所有通知为已读
+  if (req.method === 'POST' && path === '/api/notifications/read-all') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+    
+    try {
+      await notificationDB.markAllAsRead(decoded.userId)
+      sendJson(res, 200, { code: 0, success: true })
+    } catch (e) {
+      console.error('[API] Mark all read failed:', e)
+      sendJson(res, 500, { code: 1, message: '操作失败' })
+    }
+    return
+  }
+
+  // 标记单个通知为已读
+  if (req.method === 'POST' && path.match(/^\/api\/notifications\/[\w-]+\/read$/)) {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+    const id = path.split('/')[3]
+    
+    try {
+      await notificationDB.markAsRead(id, decoded.userId)
+      sendJson(res, 200, { code: 0, success: true })
+    } catch (e) {
+      console.error('[API] Mark read failed:', e)
+      sendJson(res, 500, { code: 1, message: '操作失败' })
+    }
+    return
+  }
+
+  // 获取用户成就
+  if (req.method === 'GET' && path === '/api/user/achievements') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+    
+    try {
+      const achievements = await achievementDB.getUserAchievements(decoded.userId)
+      sendJson(res, 200, { code: 0, data: achievements })
+    } catch (e) {
+      console.error('[API] Get achievements failed:', e)
+      sendJson(res, 500, { code: 1, message: '获取成就失败' })
+    }
+    return
+  }
+
+  // 获取用户积分记录
+  if (req.method === 'GET' && path === '/api/user/points') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+    
+    try {
+      const records = await achievementDB.getPointsRecords(decoded.userId)
+      const total = await achievementDB.getUserTotalPoints(decoded.userId)
+      sendJson(res, 200, { code: 0, data: { total, records } })
+    } catch (e) {
+      console.error('[API] Get points failed:', e)
+      sendJson(res, 500, { code: 1, message: '获取积分失败' })
+    }
+    return
+  }
+
+  // 领取积分/签到
+  if (req.method === 'POST' && path === '/api/user/points/claim') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+    
+    const b = await readBody(req)
+    const { type, source, points, description } = b
+    
+    try {
+      // 简单防刷：检查今日是否已签到 (如果是签到类型)
+      if (type === 'daily') {
+        const records = await achievementDB.getPointsRecords(decoded.userId, 100) // 获取最近100条
+        const today = new Date().toISOString().split('T')[0] // YYYY-MM-DD
+        // 注意：created_at 是时间戳，需要转换
+        const hasSignedIn = records.some(r => {
+           const recordDate = new Date(Number(r.created_at)).toISOString().split('T')[0]
+           return r.type === 'daily' && recordDate === today
+        })
+        
+        if (hasSignedIn) {
+          sendJson(res, 400, { code: 1, message: '今日已签到' })
+          return
+        }
+      }
+      
+      const newBalance = await achievementDB.addPointsRecord({
+        userId: decoded.userId,
+        source: source || '系统奖励',
+        type: type || 'system',
+        points: points || 0,
+        description: description || '系统发放'
+      })
+      
+      sendJson(res, 200, { code: 0, data: { balance: newBalance } })
+    } catch (e) {
+      console.error('[API] Claim points failed:', e)
+      sendJson(res, 500, { code: 1, message: '操作失败' })
+    }
+    return
+  }
+
+  // 统一响应格式：前端 authContext 期望 { code: 0, data: ... }
       sendJson(res, 200, {
         code: 0,
         message: 'ok',

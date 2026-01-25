@@ -1,6 +1,7 @@
 /**
  * 成就服务模块 - 提供创作成就相关功能
  */
+import apiClient from '../lib/apiClient';
 
 // 创作者等级类型定义
 export interface CreatorLevel {
@@ -45,6 +46,7 @@ export interface PointsRecord {
   description: string;
   relatedId?: string;
   balanceAfter: number;
+  created_at?: number; // 后端返回的时间戳
 }
 
 // 积分来源统计类型定义
@@ -80,8 +82,8 @@ class AchievementService {
     { level: 5, name: '创作传奇', icon: '👑', requiredPoints: 2000, 权益: ['平台荣誉认证', '定制化创作工具', 'IP孵化支持'], description: '创作界的传奇人物' }
   ];
 
-  // 模拟成就数据
-  private achievements: Achievement[] = [
+  // 基础成就定义 (静态数据)
+  private baseAchievements: Omit<Achievement, 'progress' | 'isUnlocked' | 'unlockedAt'>[] = [
     {
       id: 1,
       name: '初次创作',
@@ -89,9 +91,6 @@ class AchievementService {
       icon: 'star',
       rarity: 'common',
       criteria: '完成1篇作品',
-      progress: 100,
-      isUnlocked: true,
-      unlockedAt: '2025-11-01',
       points: 10
     },
     {
@@ -101,9 +100,6 @@ class AchievementService {
       icon: 'fire',
       rarity: 'common',
       criteria: '连续登录7天',
-      progress: 100,
-      isUnlocked: true,
-      unlockedAt: '2025-11-07',
       points: 20
     },
     {
@@ -113,8 +109,6 @@ class AchievementService {
       icon: 'thumbs-up',
       rarity: 'rare',
       criteria: '获得100个点赞',
-      progress: 32,
-      isUnlocked: false,
       points: 50
     },
     {
@@ -124,8 +118,6 @@ class AchievementService {
       icon: 'book',
       rarity: 'rare',
       criteria: '使用5种不同文化元素',
-      progress: 60,
-      isUnlocked: false,
       points: 40
     },
     {
@@ -135,8 +127,6 @@ class AchievementService {
       icon: 'image',
       rarity: 'rare',
       criteria: '发布10篇作品',
-      progress: 30,
-      isUnlocked: false,
       points: 80
     },
     {
@@ -146,8 +136,6 @@ class AchievementService {
       icon: 'handshake',
       rarity: 'epic',
       criteria: '作品被品牌采纳1次',
-      progress: 0,
-      isUnlocked: false,
       points: 200
     },
     {
@@ -157,65 +145,20 @@ class AchievementService {
       icon: 'graduation-cap',
       rarity: 'legendary',
       criteria: '完成10个文化知识问答',
-      progress: 0,
-      isUnlocked: false,
       points: 300
     }
   ];
 
+  // 运行时成就数据
+  private achievements: Achievement[] = [];
+
   // 积分记录数据
-  public pointsRecords: PointsRecord[] = [
-    {
-      id: 1,
-      source: '初次创作',
-      type: 'achievement',
-      points: 10,
-      date: '2025-11-01',
-      description: '完成第一篇创作作品',
-      balanceAfter: 10
-    },
-    {
-      id: 2,
-      source: '活跃创作者',
-      type: 'achievement',
-      points: 20,
-      date: '2025-11-07',
-      description: '连续登录7天',
-      balanceAfter: 30
-    },
-    {
-      id: 3,
-      source: '完成新手引导',
-      type: 'task',
-      points: 50,
-      date: '2025-11-01',
-      description: '完成平台新手引导',
-      balanceAfter: 80
-    },
-    {
-      id: 4,
-      source: '发布第一篇作品',
-      type: 'task',
-      points: 100,
-      date: '2025-11-01',
-      description: '在平台发布第一篇作品',
-      balanceAfter: 180
-    },
-    {
-      id: 5,
-      source: '每日签到',
-      type: 'daily',
-      points: 5,
-      date: '2025-11-08',
-      description: '每日签到奖励',
-      balanceAfter: 185
-    }
-  ];
+  public pointsRecords: PointsRecord[] = [];
 
   // 消费记录数据
   private consumptionRecords: ConsumptionRecord[] = [];
 
-  // 模拟用户积分数据
+  // 用户积分数据
   private userPoints: number = 0;
   
   // 消费金额兑换积分比例
@@ -226,6 +169,106 @@ class AchievementService {
   
   // 单次消费最大抵扣比例
   private readonly MAX_DISCOUNT_RATIO = 0.3; // 30%
+
+  private initialized = false;
+
+  constructor() {
+    this.resetState();
+  }
+
+  // 重置状态为初始值（未解锁任何成就，0积分）
+  private resetState() {
+    this.achievements = this.baseAchievements.map(a => ({
+      ...a,
+      progress: 0,
+      isUnlocked: false
+    }));
+    this.pointsRecords = [];
+    this.userPoints = 0;
+  }
+
+  // 初始化数据（从后端获取）
+  async initialize(): Promise<void> {
+    if (this.initialized) return;
+
+    try {
+      await Promise.all([
+        this.fetchUserAchievements(),
+        this.fetchPointsStats()
+      ]);
+      this.initialized = true;
+    } catch (error) {
+      console.error('Failed to initialize achievement service:', error);
+      // Fallback to empty state is already done in constructor
+    }
+  }
+
+  // 从服务器获取用户成就
+  async fetchUserAchievements(): Promise<Achievement[]> {
+    try {
+      const response = await apiClient.get<any[]>('/api/user/achievements');
+      if (response.ok && response.data) {
+        // 合并后端数据
+        const userAchievements = response.data;
+        this.achievements = this.baseAchievements.map(base => {
+          const userAch = userAchievements.find((ua: any) => ua.achievement_id === base.id);
+          return {
+            ...base,
+            progress: userAch ? userAch.progress : 0,
+            isUnlocked: userAch ? !!userAch.is_unlocked : false,
+            unlockedAt: userAch && userAch.unlocked_at ? new Date(Number(userAch.unlocked_at)).toISOString().split('T')[0] : undefined
+          };
+        });
+      }
+      return this.achievements;
+    } catch (error) {
+      console.error('Fetch user achievements failed:', error);
+      return this.achievements;
+    }
+  }
+
+  // 从服务器获取积分统计
+  async fetchPointsStats(): Promise<void> {
+    try {
+      const response = await apiClient.get<{ total: number, records: any[] }>('/api/user/points');
+      if (response.ok && response.data) {
+        this.userPoints = response.data.total;
+        this.pointsRecords = response.data.records.map(r => ({
+          id: r.id,
+          source: r.source,
+          type: r.type as any,
+          points: r.points,
+          date: new Date(Number(r.created_at)).toISOString().split('T')[0],
+          description: r.description,
+          balanceAfter: r.balance_after,
+          created_at: Number(r.created_at)
+        }));
+      }
+    } catch (error) {
+      console.error('Fetch points stats failed:', error);
+    }
+  }
+
+  // 领取积分/签到
+  async claimPoints(type: string, source: string, points: number, description: string): Promise<boolean> {
+    try {
+      const response = await apiClient.post<{ balance: number }>('/api/user/points/claim', {
+        type,
+        source,
+        points,
+        description
+      });
+      
+      if (response.ok) {
+        await this.fetchPointsStats(); // 刷新数据
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Claim points failed:', error);
+      return false;
+    }
+  }
   
   // 获取所有成就
   getAllAchievements(): Achievement[] {
@@ -247,8 +290,9 @@ class AchievementService {
     return this.achievements.find(achievement => achievement.id === id);
   }
 
-  // 更新成就进度
+  // 更新成就进度 (暂保留为本地模拟，实际应调用API)
   updateAchievementProgress(id: number, progress: number): boolean {
+    // TODO: 调用后端API更新进度
     const achievement = this.getAchievementById(id);
     if (achievement && !achievement.isUnlocked) {
       achievement.progress = Math.min(progress, 100);
@@ -257,7 +301,8 @@ class AchievementService {
       if (achievement.progress >= 100) {
         achievement.isUnlocked = true;
         achievement.unlockedAt = new Date().toISOString().split('T')[0];
-        this.addPoints(achievement.points, 'achievement', achievement.name, `解锁成就：${achievement.name}`);
+        // 实际上应该由后端触发积分添加
+        // this.addPoints(achievement.points, 'achievement', achievement.name, `解锁成就：${achievement.name}`);
         return true;
       }
     }
@@ -292,7 +337,7 @@ class AchievementService {
       total: this.achievements.length,
       unlocked: unlocked.length,
       locked: this.achievements.length - unlocked.length,
-      completionRate: Math.round((unlocked.length / this.achievements.length) * 100),
+      completionRate: this.achievements.length > 0 ? Math.round((unlocked.length / this.achievements.length) * 100) : 0,
       recentUnlocks: unlocked
         .sort((a, b) => new Date(b.unlockedAt || '').getTime() - new Date(a.unlockedAt || '').getTime())
         .slice(0, 3)
@@ -322,16 +367,6 @@ class AchievementService {
 
   // 计算用户总积分
   calculateUserPoints(): number {
-    // 计算已解锁成就的总积分
-    const unlockedAchievements = this.getUnlockedAchievements();
-    this.userPoints = unlockedAchievements.reduce((total, achievement) => total + achievement.points, 0);
-    
-    // 加上其他来源的积分
-    const otherPoints = this.pointsRecords
-      .filter(record => record.type !== 'achievement')
-      .reduce((total, record) => total + record.points, 0);
-    
-    this.userPoints += otherPoints;
     return this.userPoints;
   }
 
@@ -461,7 +496,7 @@ class AchievementService {
     };
   }
 
-  // 添加积分
+  // 添加积分 (内部辅助，实际上由后端控制)
   private addPoints(points: number, type: PointsRecord['type'], source: string, description: string, relatedId?: string): void {
     const currentPoints = this.calculateUserPoints();
     const newPoints = currentPoints + points;
@@ -476,6 +511,7 @@ class AchievementService {
       relatedId,
       balanceAfter: newPoints
     });
+    this.userPoints = newPoints;
   }
 
   // 消费金额兑换积分

@@ -879,6 +879,7 @@ IMPORTANT:
                       onChange={setContent}
                       placeholder="AI生成的内容将显示在这里..."
                       disabled={false}
+                      height="100%"
                     />
                   </div>
                 )}

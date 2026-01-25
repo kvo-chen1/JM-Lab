@@ -7,6 +7,7 @@ interface RichTextEditorProps {
   error?: string;
   placeholder?: string;
   disabled?: boolean;
+  height?: number | string;
 }
 
 export const RichTextEditor: React.FC<RichTextEditorProps> = ({
@@ -15,6 +16,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   error,
   placeholder = '请输入内容...',
   disabled = false,
+  height = 400,
 }) => {
   const [editorContent, setEditorContent] = useState(content);
   const editorRef = useRef<any>(null);
@@ -38,12 +40,12 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   };
   
   return (
-    <div className="space-y-2">
+    <div className={`space-y-2 ${height === '100%' ? 'h-full flex flex-col' : ''}`}>
       <Editor
         apiKey={import.meta.env.VITE_TINYMCE_API_KEY || 'no-api-key'}
         value={editorContent}
         init={{
-          height: 400,
+          height: height,
           menubar: true,
           plugins: [
             'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',

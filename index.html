@@ -96,7 +96,22 @@
       })();
     </script>
     
-    <!-- 根路径重定向逻辑已在页面顶部实现 -->
+    <!-- 根路径重定向逻辑 -->
+    <script>
+      (function() {
+        // 只有当访问根路径 / 且没有明确的来源标识时，才检查是否应该重定向到落地页
+        if (window.location.pathname === '/') {
+          // 检查是否已经从落地页跳转过来（通过sessionStorage或URL参数判断）
+          const hasVisitedLanding = sessionStorage.getItem('hasVisitedLanding');
+          const isFromLanding = new URLSearchParams(window.location.search).has('from_landing');
+          
+          // 如果没有访问过落地页，且不是从落地页跳转过来的，则重定向到落地页
+          if (!hasVisitedLanding && !isFromLanding) {
+            window.location.href = '/landing.html';
+          }
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

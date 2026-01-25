@@ -3096,20 +3096,16 @@
         // Add handleExploreClick function to global scope
         window.handleExploreClick = function() {
             console.log('Explore button clicked, navigating to platform...');
-            // 用户主动点击探索按钮，设置一个临时标志表示已经探索过
-            // 这样用户下次访问时不会被重复重定向到landing.html
+            // 设置sessionStorage标志，告知index.html我们是从落地页来的
+            sessionStorage.setItem('hasVisitedLanding', 'true');
             localStorage.setItem('hasExplored', 'true');
-            // 跳转到登录页，要求用户先登录/注册
-            // 使用普通的 URL 格式，与 BrowserRouter 兼容
-            console.log('Current URL:', window.location.href);
-            console.log('Navigating to login page...');
-            // 立即跳转到登录页面，不使用setTimeout
+            
+            // 跳转到登录页
             const baseUrl = window.location.origin;
-            // 构建普通格式的登录 URL
-            const loginUrl = `${baseUrl}/login`;
+            // 添加from_landing参数作为双重保险
+            const loginUrl = `${baseUrl}/login?from_landing=true`;
             console.log('Will navigate to:', loginUrl);
-            // 使用replace方法，避免在浏览器历史中留下记录
-            window.location.replace(loginUrl);
+            window.location.href = loginUrl;
         };
         
         document.addEventListener('DOMContentLoaded', () => {

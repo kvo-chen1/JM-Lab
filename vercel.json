@@ -1,16 +1,16 @@
 {
   "rewrites": [
-    { "source": "/", "destination": "/landing.html" },
-    { "source": "/index.html", "destination": "/index.html" },
-    { "source": "/landing.html", "destination": "/landing.html" },
-    { "source": "/login", "destination": "/index.html" },
-    { "source": "/register", "destination": "/index.html" },
-    { "source": "/create(.*)", "destination": "/index.html" },
-    { "source": "/explore(.*)", "destination": "/index.html" },
-    { "source": "/profile(.*)", "destination": "/index.html" },
-    { "source": "/community(.*)", "destination": "/index.html" },
-    { "source": "/admin(.*)", "destination": "/index.html" },
-    { "source": "/assets/(.*)", "destination": "/assets/$1" },
-    { "source": "/((?!landing\\.html|assets/|.*\\.).*)", "destination": "/index.html" }
+    {
+      "source": "/api/proxy/trae-api/:path*",
+      "destination": "https://trae-api-sg.mchost.guru/:path*"
+    },
+    {
+      "source": "/api/proxy/unsplash/:path*",
+      "destination": "https://images.unsplash.com/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
   ]
 }

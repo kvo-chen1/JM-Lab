@@ -8,6 +8,8 @@ import { useChatStore } from '@/stores/chatStore';
 import { apiService } from '@/services/apiService';
 import { communityService } from '@/services/communityService';
 import { websocketService } from '@/services/websocketService';
+import { uploadImage } from '@/services/imageService';
+import { fileService } from '@/services/fileService';
 import recommendationService from '@/services/recommendationService';
 import type { Community } from '@/services/communityService';
 
@@ -229,7 +231,8 @@ export const useCommunityLogic = () => {
     sendMessage: storeSendMessage = async () => {}, 
     setActiveChannel: storeSetActiveChannel = () => {},
     subscribeToChannel: storeSubscribe = () => {},
-    fetchMessages: storeFetchMessages = async () => {}
+    fetchMessages: storeFetchMessages = async () => {},
+    resendFailedMessages: storeResendFailedMessages = async () => {}
   } = useChatStore();
 
   // Modal States
@@ -817,13 +820,83 @@ export const useCommunityLogic = () => {
       }
       
       try {
-        await storeSendMessage(user.id, message.text || '');
+        // 处理图片上传
+        const uploadedImages = [];
+        if (message.images && message.images.length > 0) {
+          for (const img of message.images) {
+            if (img.file) {
+              try {
+                const url = await uploadImage(img.file);
+                uploadedImages.push({
+                  ...img,
+                  url,
+                  file: undefined // 移除文件对象，只保留元数据
+                });
+              } catch (e) {
+                console.error('Image upload failed', e);
+                toast.error(`图片 ${img.name} 上传失败`);
+                return; // 终止发送
+              }
+            } else {
+              uploadedImages.push(img);
+            }
+          }
+        }
+
+        // 处理文件上传
+        const uploadedFiles = [];
+        if (message.files && message.files.length > 0) {
+          for (const file of message.files) {
+            if (file.file) {
+              try {
+                const url = await fileService.uploadFile(file.file);
+                uploadedFiles.push({
+                  ...file,
+                  url,
+                  status: 'success',
+                  progress: 100,
+                  file: undefined
+                });
+              } catch (e) {
+                console.error('File upload failed', e);
+                toast.error(`文件 ${file.name} 上传失败`);
+                return;
+              }
+            } else {
+              uploadedFiles.push(file);
+            }
+          }
+        }
+
+        // 构建消息选项
+        const options: any = {
+          type: message.type || 'text',
+          communityId: activeCommunityId,
+          metadata: {
+            images: uploadedImages.length > 0 ? uploadedImages : undefined,
+            files: uploadedFiles.length > 0 ? uploadedFiles : undefined,
+            richContent: message.richContent
+          }
+        };
+
+        await storeSendMessage(user.id, message.text || '', options);
         // Toast is not needed here as UI will update via subscription/optimistic update
       } catch (error) {
+        console.error('Send message error:', error);
         toast.error('发送失败');
       }
   }, [user, contentModeration, storeSendMessage, activeCommunityId, checkPermission]);
-  
+
+  // 重试发送失败消息
+  const retrySendMessage = useCallback(async (messageId: string) => {
+      try {
+        await storeResendFailedMessages();
+        toast.success('已尝试重发失败的消息');
+      } catch (e) {
+        toast.error('重发失败');
+      }
+  }, [storeResendFailedMessages]);
+
   const submitCreateThread = useCallback(async (data: { title: string; content: string; topic: string; contentType: string; images?: Array<string> }) => {
       // 确保有活跃社群ID
       if (!activeCommunityId) {
@@ -902,11 +975,6 @@ export const useCommunityLogic = () => {
         toast.error(message);
       }
   }, [activeCommunityId, contentModeration, checkPermission, user, addNotification, navigate, addNotificationWithNavigate]);
-
-  // 重试发送失败消息
-  const retrySendMessage = useCallback((messageId: string) => {
-      toast.info('重试功能开发中...');
-  }, []);
 
   // 添加消息反应
   const handleAddReaction = useCallback(async (messageId: string, reaction: string) => {

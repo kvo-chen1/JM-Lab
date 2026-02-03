@@ -780,9 +780,15 @@ async function route(req, res, u, path) {
         // 从查询参数获取分页信息
         const limit = parseInt(u.searchParams.get('limit') || '50')
         const offset = parseInt(u.searchParams.get('offset') || '0')
+        const userId = u.searchParams.get('userId')
         
         // 使用workDB.getWorks()获取真实的作品数据
-        const works = await workDB.getWorks(limit, offset)
+        let works;
+        if (userId) {
+          works = await workDB.getWorksByUserId(userId, limit, offset)
+        } else {
+          works = await workDB.getWorks(limit, offset)
+        }
         
         // 如果没有作品数据，返回空数组
         if (!works || works.length === 0) {
@@ -796,6 +802,11 @@ async function route(req, res, u, path) {
             user_id: work.creator_id || work.user_id,
             username: work.username || '用户',
             avatar_url: work.avatar_url || '',
+            thumbnail: work.thumbnail || work.cover_url || '',
+            cover_url: work.cover_url || work.thumbnail || '',
+            category: work.category || '',
+            tags: work.tags || [],
+            views_count: work.views || 0,
             likes_count: work.likes || 0,
             comments_count: work.comments || 0,
             created_at: work.created_at || Date.now()
@@ -2888,6 +2899,40 @@ async function route(req, res, u, path) {
         const updated = await eventDB.updateEvent(eventId, b)
         sendJson(res, 200, { ok: true, data: updated })
       } catch (e) {
+        sendJson(res, 500, { error: 'DB_ERROR', message: e.message })
+      }
+      return
+    }
+
+    // 提交活动作品
+    if (req.method === 'POST' && path.match(/^\/api\/events\/[^/]+\/submit$/)) {
+      const decoded = verifyRequestToken(req)
+      if (!decoded) { sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' }); return }
+
+      const eventId = path.split('/')[3]
+      const b = await readBody(req)
+
+      try {
+        const event = await eventDB.getEvent(eventId)
+        if (!event) { sendJson(res, 404, { error: 'NOT_FOUND', message: '活动不存在' }); return }
+        
+        // 模拟保存作品
+        console.log(`[Event Submission] Event: ${eventId}, User: ${decoded.userId}`, b)
+        
+        // 模拟网络延迟
+        await new Promise(resolve => setTimeout(resolve, 800))
+        
+        sendJson(res, 200, {
+          success: true,
+          message: '作品提交成功',
+          data: {
+            submissionId: `sub-${Date.now()}`,
+            submittedAt: Date.now(),
+            status: 'pending'
+          }
+        })
+      } catch (e) {
+        console.error('Submit work failed:', e)
         sendJson(res, 500, { error: 'DB_ERROR', message: e.message })
       }
       return

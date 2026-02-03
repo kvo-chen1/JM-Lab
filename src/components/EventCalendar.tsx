@@ -1,17 +1,36 @@
+
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { useTheme } from '@/hooks/useTheme';
 import { toast } from 'sonner';
 import { useEventService } from '@/hooks/useEventService';
 import { Event } from '@/types';
 import { TianjinImage } from './TianjinStyleComponents';
+import { 
+  Calendar, 
+  MapPin, 
+  Clock, 
+  Users, 
+  Search, 
+  X, 
+  ChevronRight, 
+  Tag,
+  Share2,
+  ExternalLink,
+  User,
+  Phone,
+  Mail,
+  Filter
+} from 'lucide-react';
 
 // 活动类型
-import type { EventType, EventStatus } from '@/services/eventCalendarService';
+import type { EventType } from '@/services/eventCalendarService';
 
 // 活动日历组件
 export default function EventCalendar() {
   const { isDark } = useTheme();
+  const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'upcoming' | 'ongoing' | 'completed'>('upcoming');
   const [selectedEventType, setSelectedEventType] = useState<EventType | 'all'>('all');
@@ -28,26 +47,31 @@ export default function EventCalendar() {
     const loadEvents = async () => {
       setIsLoading(true);
       try {
-        console.log('开始获取活动数据...');
-        // 获取所有活动
         const allEvents = await getEvents();
-        console.log('API 返回的所有活动:', allEvents);
-        
-        // 确保是数组
         const eventsArray = Array.isArray(allEvents) ? allEvents : [];
-        console.log('处理后的活动数组:', eventsArray);
-        
-        // 过滤出已发布的活动
-        const publishedEvents = eventsArray.filter(event => {
-          return event && event.status === 'published';
-        });
-        console.log('已发布的活动:', publishedEvents);
+        const publishedEvents = eventsArray.filter(event => event && event.status === 'published');
         
         setEvents(publishedEvents);
         setFilteredEvents(publishedEvents);
+
+        // 智能切换 Tab
+        const now = new Date();
+        const hasUpcoming = publishedEvents.some(e => {
+          try { return new Date(e.startTime) > now; } catch { return false; }
+        });
+        const hasOngoing = publishedEvents.some(e => {
+          try { 
+            const start = new Date(e.startTime);
+            const end = new Date(e.endTime);
+            return start <= now && end >= now;
+          } catch { return false; }
+        });
+
+        if (!hasUpcoming && hasOngoing) {
+          setActiveTab('ongoing');
+        }
       } catch (error) {
         console.error('加载活动失败:', error);
-        // 出错时设置空数组，避免渲染错误
         setEvents([]);
         setFilteredEvents([]);
       } finally {
@@ -66,42 +90,25 @@ export default function EventCalendar() {
     // 按状态筛选
     if (activeTab === 'upcoming') {
       result = result.filter(event => {
-        try {
-          const eventStart = new Date(event.startTime);
-          return eventStart > now;
-        } catch (error) {
-          console.error('Date parse error (startTime):', error);
-          return false;
-        }
+        try { return new Date(event.startTime) > now; } catch { return false; }
       });
     } else if (activeTab === 'ongoing') {
       result = result.filter(event => {
         try {
-          const eventStart = new Date(event.startTime);
-          const eventEnd = new Date(event.endTime);
-          return eventStart <= now && eventEnd >= now;
-        } catch (error) {
-          console.error('Date parse error (ongoing):', error);
-          return false;
-        }
+          const start = new Date(event.startTime);
+          const end = new Date(event.endTime);
+          return start <= now && end >= now;
+        } catch { return false; }
       });
     } else if (activeTab === 'completed') {
       result = result.filter(event => {
-        try {
-          const eventEnd = new Date(event.endTime);
-          return eventEnd < now;
-        } catch (error) {
-          console.error('Date parse error (endTime):', error);
-          return false;
-        }
+        try { return new Date(event.endTime) < now; } catch { return false; }
       });
     }
 
     // 按类型筛选
     if (selectedEventType !== 'all') {
-      // 这里需要根据实际的 Event 类型结构调整
-      // 暂时注释掉，因为新的 Event 类型可能没有 type 字段
-      // result = result.filter(event => event.type === selectedEventType);
+       // result = result.filter(event => event.type === selectedEventType);
     }
 
     // 按关键词搜索
@@ -114,43 +121,37 @@ export default function EventCalendar() {
             event.description.toLowerCase().includes(keyword) ||
             (event.tags && event.tags.some(tag => tag.toLowerCase().includes(keyword)))
           );
-        } catch (error) {
-          console.error('Filter error:', error);
-          return true;
-        }
+        } catch { return true; }
       });
     }
 
     setFilteredEvents(result);
   }, [activeTab, selectedEventType, events, searchKeyword]);
 
-  // 处理活动点击
   const handleEventClick = (event: Event) => {
     setSelectedEvent(event);
     setIsEventDetailsOpen(true);
   };
 
-  // 处理活动注册
   const handleRegisterEvent = async (eventId: string) => {
     try {
-      // 模拟API调用
       await new Promise(resolve => setTimeout(resolve, 500));
-      toast.success('活动注册成功！');
-      // 发布活动注册成功事件
+      toast.success('报名成功！请留意通知消息');
       import('@/services/enhancedEventBus').then(({ default: eventBus }) => {
         eventBus.emit('activity:registered', { eventId });
       });
     } catch (error) {
-      toast.error('活动注册失败，请稍后重试');
+      toast.error('报名失败，请稍后重试');
     }
   };
 
-  // 处理活动提交
   const handleSubmitWork = (eventId: string) => {
-    toast.success('作品提交成功！');
+    // 关闭详情弹窗
+    setIsEventDetailsOpen(false);
+    // 跳转到提交作品页面
+    navigate(`/events/${eventId}/submit`);
   };
 
-  // 获取事件类型显示名称
   const getEventTypeDisplayName = (type: EventType): string => {
     const typeMap: Record<EventType, string> = {
       theme: '主题活动',
@@ -159,441 +160,474 @@ export default function EventCalendar() {
       workshop: '工作坊',
       exhibition: '展览'
     };
-    return typeMap[type];
+    return typeMap[type] || type;
   };
 
-  // 获取事件类型图标
-  const getEventTypeIcon = (type: EventType): string => {
-    const iconMap: Record<EventType, string> = {
-      theme: 'calendar-alt',
-      collaboration: 'users',
-      competition: 'trophy',
-      workshop: 'chalkboard-teacher',
-      exhibition: 'images'
-    };
-    return iconMap[type];
+  // 格式化日期范围
+  const formatDateRange = (start: string | number, end: string | number) => {
+    const s = new Date(start);
+    const e = new Date(end);
+    const dateStr = s.toLocaleDateString('zh-CN');
+    const timeStr = `${s.getHours().toString().padStart(2, '0')}:${s.getMinutes().toString().padStart(2, '0')}`;
+    const endDateStr = e.toLocaleDateString('zh-CN');
+    const endTimeStr = `${e.getHours().toString().padStart(2, '0')}:${e.getMinutes().toString().padStart(2, '0')}`;
+    
+    if (dateStr === endDateStr) {
+      return { date: dateStr, time: `${timeStr} - ${endTimeStr}` };
+    }
+    return { date: `${dateStr} 至 ${endDateStr}`, time: `${timeStr} - ${endTimeStr}` };
   };
 
-  // 骨架屏加载状态
+  // 获取活动的时间状态
+  const getEventTimeStatus = (event: Event): 'upcoming' | 'ongoing' | 'completed' => {
+    const now = new Date();
+    try {
+      const start = new Date(event.startTime);
+      const end = new Date(event.endTime);
+      if (now < start) return 'upcoming';
+      if (now >= start && now <= end) return 'ongoing';
+      return 'completed';
+    } catch {
+      return 'completed';
+    }
+  };
+
+  // 处理分享
+  const handleShare = async (event: Event) => {
+    try {
+      const shareUrl = `${window.location.origin}/events/${event.id}`;
+      await navigator.clipboard.writeText(shareUrl);
+      toast.success('活动链接已复制到剪贴板');
+    } catch (error) {
+      toast.error('复制链接失败');
+    }
+  };
+
   if (isLoading) {
     return (
-      <div className={`p-6 rounded-2xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-md`}>
-        <div className="space-y-6">
-          <div className={`h-8 w-1/4 rounded ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`}></div>
-          
-          {/* 搜索栏 */}
-          <div className={`h-10 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`}></div>
-          
-          {/* 标签页切换 */}
-          <div className="flex space-x-3 overflow-x-auto pb-4">
-            {[1, 2, 3].map((i) => (
-              <div 
-                key={i} 
-                className={`h-10 w-24 rounded-full ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`}></div>
-            ))}
-          </div>
-          
-          {/* 类型筛选 */}
-          <div className="flex space-x-3 overflow-x-auto pb-4">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <div 
-                key={i} 
-                className={`h-8 w-20 rounded-full ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`}></div>
-            ))}
-          </div>
-          
-          {/* 事件列表 */}
-          <div className="space-y-4">
-            {[1, 2, 3].map((i) => (
-              <div 
-                key={i} 
-                className={`h-48 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`}></div>
-            ))}
-          </div>
+      <div className={`p-6 rounded-2xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-sm animate-pulse`}>
+        <div className="h-8 w-48 bg-gray-200 dark:bg-gray-700 rounded mb-6"></div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="h-80 bg-gray-200 dark:bg-gray-700 rounded-xl"></div>
+          ))}
         </div>
       </div>
     );
   }
 
   return (
-    <div className={`sm:p-4 md:p-6 sm:rounded-2xl ${isDark ? 'sm:bg-gray-800' : 'sm:bg-white'} sm:shadow-md`}>
-      {/* 标题和搜索 */}
-      <div className="mb-4 sm:mb-6">
-        {/* 手机端搜索框 - 放在上面 */}
-        <div className="sm:hidden relative mb-3">
-          <input 
-            type="text"
-            placeholder="搜索活动..."
-            value={searchKeyword}
-            onChange={(e) => setSearchKeyword(e.target.value)}
-            className={`w-full pl-10 pr-4 py-2 rounded-lg text-sm ${isDark 
-              ? 'bg-gray-700 text-white placeholder-gray-400' 
-              : 'bg-gray-100 text-gray-900 placeholder-gray-600'}
-              focus:outline-none focus:ring-2 focus:ring-red-500 transition-all`}
-          />
-          <i className="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+    <div className={`flex flex-col h-full ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>
+      {/* 顶部控制栏 */}
+      <div className={`sticky top-0 z-10 p-4 sm:p-6 mb-6 rounded-2xl shadow-sm backdrop-blur-md ${isDark ? 'bg-gray-800/90 border border-gray-700' : 'bg-white/90 border border-gray-100'}`}>
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div>
+            <h2 className="text-2xl font-bold bg-gradient-to-r from-red-600 to-orange-500 bg-clip-text text-transparent">津脉活动</h2>
+            <p className={`text-sm mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>探索天津文化的无限魅力</p>
+          </div>
+          
+          <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+            <div className="relative group">
+              <input 
+                type="text"
+                placeholder="搜索活动..."
+                value={searchKeyword}
+                onChange={(e) => setSearchKeyword(e.target.value)}
+                className={`w-full sm:w-64 pl-10 pr-4 py-2.5 rounded-xl text-sm transition-all border ${
+                  isDark 
+                    ? 'bg-gray-900/50 border-gray-700 focus:border-red-500 text-white' 
+                    : 'bg-gray-50 border-gray-200 focus:border-red-500 text-gray-900'
+                } focus:outline-none focus:ring-4 focus:ring-red-500/10`}
+              />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-red-500 transition-colors" />
+            </div>
+          </div>
         </div>
-        {/* 电脑端标题和搜索 */}
-        <div className="hidden sm:flex flex-col md:flex-row justify-between items-start md:items-center space-y-3 sm:space-y-0">
-          <h2 className="text-lg sm:text-xl font-bold">津脉活动</h2>
-          <div className="relative w-full md:w-64">
-            <input 
-              type="text"
-              placeholder="搜索活动..."
-              value={searchKeyword}
-              onChange={(e) => setSearchKeyword(e.target.value)}
-              className={`w-full pl-10 pr-4 py-2 rounded-lg text-sm ${isDark 
-                ? 'bg-gray-700 text-white placeholder-gray-400' 
-                : 'bg-gray-100 text-gray-900 placeholder-gray-600'}
-                focus:outline-none focus:ring-2 focus:ring-red-500 transition-all`}
-            />
-            <i className="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+
+        {/* 筛选标签 */}
+        <div className="mt-6 flex flex-col sm:flex-row justify-between gap-4 overflow-x-auto pb-2 scrollbar-hide">
+          <div className={`inline-flex p-1 rounded-xl ${isDark ? 'bg-gray-900/50' : 'bg-gray-100/80'}`}>
+            {[
+              { id: 'upcoming', name: '即将开始' },
+              { id: 'ongoing', name: '进行中' },
+              { id: 'completed', name: '已结束' }
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`relative px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                  activeTab === tab.id
+                    ? 'text-white shadow-md'
+                    : isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-900'
+                }`}
+              >
+                {activeTab === tab.id && (
+                  <motion.div
+                    layoutId="activeTabBg"
+                    className="absolute inset-0 bg-red-600 rounded-lg"
+                    initial={false}
+                    transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                  />
+                )}
+                <span className="relative z-10">{tab.name}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
+            <Filter className={`w-4 h-4 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
+            <button
+              onClick={() => setSelectedEventType('all')}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors whitespace-nowrap ${
+                selectedEventType === 'all'
+                  ? 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/30 dark:border-blue-800 dark:text-blue-300'
+                  : 'border-transparent hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500'
+              }`}
+            >
+              全部
+            </button>
+            {(['theme', 'collaboration', 'competition', 'workshop', 'exhibition'] as EventType[]).map((type) => (
+              <button
+                key={type}
+                onClick={() => setSelectedEventType(type)}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors whitespace-nowrap ${
+                  selectedEventType === type
+                    ? 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/30 dark:border-blue-800 dark:text-blue-300'
+                    : 'border-transparent hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500'
+                }`}
+              >
+                {getEventTypeDisplayName(type)}
+              </button>
+            ))}
           </div>
         </div>
       </div>
 
-      {/* 状态标签页 */}
-      <div className="flex space-x-3 mb-4 sm:mb-6 overflow-x-auto pb-4 scrollbar-hide">
-        {[
-          { id: 'upcoming', name: '即将开始' },
-          { id: 'ongoing', name: '进行中' },
-          { id: 'completed', name: '已结束' }
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id as 'upcoming' | 'ongoing' | 'completed')}
-            className={`px-4 py-2 rounded-full text-xs sm:text-sm font-medium transition-all whitespace-nowrap ${activeTab === tab.id
-              ? 'bg-red-600 text-white shadow-md'
-              : isDark
-                ? 'bg-gray-700 hover:bg-gray-600'
-                : 'bg-gray-100 hover:bg-gray-200'}`}
+      {/* 活动列表网格 */}
+      <AnimatePresence mode="wait">
+        {filteredEvents.length > 0 ? (
+          <motion.div 
+            key={activeTab}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 px-1"
           >
-            {tab.name}
-          </button>
-        ))}
-      </div>
+            {filteredEvents.map((event) => {
+              const { date, time } = formatDateRange(event.startTime, event.endTime);
+              return (
+                <motion.div
+                  key={event.id}
+                  whileHover={{ y: -6, scale: 1.01 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => handleEventClick(event)}
+                  className={`group relative flex flex-col rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 border ${
+                    isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'
+                  } cursor-pointer`}
+                >
+                  {/* 卡片封面 */}
+                  <div className="relative aspect-[16/10] overflow-hidden">
+                    <TianjinImage
+                      src={event.media?.[0]?.url || `https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=traditional%20chinese%20culture%20${event.type}&image_size=landscape_16_9`}
+                      alt={event.title}
+                      className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                      ratio="landscape"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                    
+                    <div className="absolute top-3 left-3 flex gap-2">
+                      <span className={`px-2.5 py-1 rounded-lg text-xs font-semibold backdrop-blur-md shadow-sm ${
+                        event.type === 'online' ? 'bg-blue-500/90 text-white' : 'bg-emerald-500/90 text-white'
+                      }`}>
+                        {event.type === 'online' ? '线上' : '线下'}
+                      </span>
+                    </div>
+                  </div>
 
-      {/* 事件类型筛选 */}
-      <div className="flex space-x-2 sm:space-x-3 mb-3 sm:mb-6 overflow-x-auto pb-3 sm:pb-4 scrollbar-hide px-1 sm:px-0">
-        <button
-          onClick={() => setSelectedEventType('all')}
-          className={`px-2.5 sm:px-3 py-1.5 sm:py-1.5 rounded-full text-xs sm:text-sm transition-all whitespace-nowrap min-w-[80px] sm:min-w-[90px] text-center ${selectedEventType === 'all'
-            ? 'bg-blue-600 text-white shadow-sm'
-            : isDark
-              ? 'bg-gray-700 hover:bg-gray-600'
-              : 'bg-gray-100 hover:bg-gray-200'}`}
-        >
-          全部类型
-        </button>
-        {(['theme', 'collaboration', 'competition', 'workshop', 'exhibition'] as EventType[]).map((type) => (
-          <button
-            key={type}
-            onClick={() => setSelectedEventType(type)}
-            className={`px-2.5 sm:px-3 py-1.5 sm:py-1.5 rounded-full text-xs sm:text-sm transition-all whitespace-nowrap min-w-[80px] sm:min-w-[90px] text-center ${selectedEventType === type
-              ? 'bg-blue-600 text-white shadow-sm'
-              : isDark
-                ? 'bg-gray-700 hover:bg-gray-600'
-                : 'bg-gray-100 hover:bg-gray-200'}`}
+                  {/* 卡片内容 */}
+                  <div className="flex-1 p-5 flex flex-col">
+                    <h3 className={`text-lg font-bold mb-2 line-clamp-2 leading-tight group-hover:text-red-600 transition-colors ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>
+                      {event.title}
+                    </h3>
+                    
+                    <div className="mt-auto space-y-3">
+                      <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                        <Calendar className="w-4 h-4 shrink-0" />
+                        <span className="truncate">{date}</span>
+                      </div>
+                      
+                      {event.location && (
+                        <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                          <MapPin className="w-4 h-4 shrink-0" />
+                          <span className="truncate">{event.location}</span>
+                        </div>
+                      )}
+
+                      <div className="pt-4 mt-2 border-t border-gray-100 dark:border-gray-700 flex justify-between items-center">
+                        <div className="flex -space-x-2">
+                          {[...Array(Math.min(3, event.participantCount || 0))].map((_, i) => (
+                            <div key={i} className={`w-6 h-6 rounded-full border-2 flex items-center justify-center text-[10px] font-bold ${
+                              isDark ? 'border-gray-800 bg-gray-700' : 'border-white bg-gray-200'
+                            }`}>
+                              <User className="w-3 h-3" />
+                            </div>
+                          ))}
+                          {(event.participantCount || 0) > 0 && (
+                            <span className="ml-3 text-xs text-gray-500 dark:text-gray-400 self-center">
+                              {event.participantCount}人参与
+                            </span>
+                          )}
+                        </div>
+                        <span className={`text-xs font-medium px-2 py-1 rounded-md ${
+                          activeTab === 'upcoming' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                          activeTab === 'ongoing' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
+                          'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
+                        }`}>
+                          {activeTab === 'upcoming' ? '招募中' : activeTab === 'ongoing' ? '进行中' : '已结束'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </motion.div>
+        ) : (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className={`flex flex-col items-center justify-center py-20 px-4 rounded-3xl border-2 border-dashed ${isDark ? 'border-gray-700 bg-gray-800/50' : 'border-gray-200 bg-gray-50'}`}
           >
-            {getEventTypeDisplayName(type)}
-          </button>
-        ))}
-      </div>
-
-      {/* 事件列表 */}
-      {filteredEvents.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-          {filteredEvents.map((event) => (
-            <motion.div
-              key={event.id}
-              className={`rounded-xl overflow-hidden shadow-md border ${isDark ? 'border-gray-700' : 'border-gray-200'} cursor-pointer`}
-              whileHover={{ y: -5 }}
-              onClick={() => handleEventClick(event)}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
+            <div className={`p-4 rounded-full mb-4 ${isDark ? 'bg-gray-700' : 'bg-white shadow-sm'}`}>
+              <Calendar className={`w-12 h-12 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
+            </div>
+            <h3 className="text-xl font-bold mb-2">暂无相关活动</h3>
+            <p className={`text-center max-w-xs mb-6 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+              当前筛选条件下没有找到活动，换个筛选条件试试吧
+            </p>
+            <button 
+              onClick={() => {
+                const now = new Date();
+                const hasOngoing = events.some(e => {
+                  try { 
+                    const start = new Date(e.startTime);
+                    const end = new Date(e.endTime);
+                    return start <= now && end >= now;
+                  } catch { return false; }
+                });
+                setActiveTab(hasOngoing ? 'ongoing' : 'upcoming');
+                setSelectedEventType('all');
+                setSearchKeyword('');
+              }}
+              className="px-6 py-2.5 rounded-xl text-sm font-semibold bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-600/20 transition-all hover:scale-105"
             >
-              {/* 事件图片 */}
-              <div className="relative">
+              查看所有活动
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 详情弹窗 */}
+      <AnimatePresence>
+        {isEventDetailsOpen && selectedEvent && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsEventDetailsOpen(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className={`relative w-full max-w-5xl max-h-[90vh] overflow-hidden rounded-3xl shadow-2xl flex flex-col md:flex-row ${isDark ? 'bg-gray-800' : 'bg-white'}`}
+            >
+              <button 
+                onClick={() => setIsEventDetailsOpen(false)}
+                className="absolute top-4 right-4 z-10 p-2 rounded-full bg-black/20 hover:bg-black/40 text-white backdrop-blur-md transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              {/* 左侧/顶部 图片区 */}
+              <div className="w-full md:w-2/5 h-48 md:h-auto relative shrink-0">
                 <TianjinImage
-                  src={event.media && event.media.length > 0 ? event.media[0].url : 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=traditional%20chinese%20cultural%20event%20banner&image_size=landscape_16_9'}
-                  alt={event.title}
-                  className="w-full h-36 sm:h-48 object-cover"
-                  ratio="landscape"
+                  src={selectedEvent.media?.[0]?.url || `https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=traditional%20chinese%20culture%20${selectedEvent.type}&image_size=portrait_3_4`}
+                  alt={selectedEvent.title}
+                  className="w-full h-full object-cover"
+                  ratio="portrait"
                 />
-                {/* 事件标签 */}
-                <div className="absolute top-2 left-2 flex gap-1.5">
-                  <span className={`text-[10px] sm:text-xs px-2 py-1 rounded-full ${isDark ? 'bg-gray-900 bg-opacity-80' : 'bg-white bg-opacity-90'}`}>
-                    <i className="fas fa-calendar-alt mr-1"></i>
-                    {event.type === 'online' ? '线上活动' : '线下活动'}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent md:hidden" />
+                <div className="absolute bottom-4 left-4 right-4 md:hidden text-white">
+                  <span className={`inline-block px-2 py-1 mb-2 text-xs font-bold rounded-md ${
+                    getEventTimeStatus(selectedEvent) === 'upcoming' ? 'bg-green-600' : 
+                    getEventTimeStatus(selectedEvent) === 'ongoing' ? 'bg-yellow-600' : 'bg-gray-600'
+                  }`}>
+                    {getEventTimeStatus(selectedEvent) === 'upcoming' ? '即将开始' : getEventTimeStatus(selectedEvent) === 'ongoing' ? '进行中' : '已结束'}
                   </span>
-                  <span className={`text-[10px] sm:text-xs px-2 py-1 rounded-full ${activeTab === 'upcoming' 
-                    ? 'bg-green-600 text-white' 
-                    : activeTab === 'ongoing' 
-                    ? 'bg-yellow-600 text-white' 
-                    : 'bg-gray-600 text-white'}`}>
-                    {activeTab === 'upcoming' ? '即将开始' : activeTab === 'ongoing' ? '进行中' : '已结束'}
-                  </span>
+                  <h2 className="text-xl font-bold line-clamp-2">{selectedEvent.title}</h2>
                 </div>
               </div>
 
-              {/* 事件内容 */}
-              <div className={`p-3 sm:p-5 ${isDark ? 'bg-gray-700' : 'bg-white'}`}>
-                <h3 className="text-sm sm:text-lg font-bold mb-2 line-clamp-2">{event.title}</h3>
-                <p className={`text-xs sm:text-sm mb-3 sm:mb-4 ${isDark ? 'text-gray-400' : 'text-gray-600'} line-clamp-3`}>
-                  {event.description}
-                </p>
+              {/* 右侧/底部 内容区 */}
+              <div className="flex-1 flex flex-col h-full overflow-hidden">
+                <div className="flex-1 overflow-y-auto p-6 md:p-8">
+                  {/* Desktop Header */}
+                  <div className="hidden md:block mb-6">
+                    <div className="flex items-center gap-3 mb-3">
+                      <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                        getEventTimeStatus(selectedEvent) === 'upcoming' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                        getEventTimeStatus(selectedEvent) === 'ongoing' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
+                        'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
+                      }`}>
+                        {getEventTimeStatus(selectedEvent) === 'upcoming' ? '即将开始' : getEventTimeStatus(selectedEvent) === 'ongoing' ? '进行中' : '已结束'}
+                      </span>
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${isDark ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                        {selectedEvent.type === 'online' ? '线上活动' : '线下活动'}
+                      </span>
+                    </div>
+                    <h2 className="text-3xl font-bold leading-tight">{selectedEvent.title}</h2>
+                  </div>
 
-                {/* 事件时间和地点 */}
-                <div className="space-y-1.5 sm:space-y-2 mb-3 sm:mb-4">
-                  <div className="flex items-center text-xs sm:text-sm">
-                    <i className="fas fa-calendar-alt text-red-500 mr-2 w-5 text-center"></i>
-                    <span>{new Date(event.startTime).toLocaleDateString('zh-CN')} {new Date(event.endTime).toLocaleDateString('zh-CN') !== new Date(event.startTime).toLocaleDateString('zh-CN') ? `至 ${new Date(event.endTime).toLocaleDateString('zh-CN')}` : ''}</span>
-                  </div>
-                  <div className="flex items-center text-xs sm:text-sm">
-                    <i className="fas fa-clock text-red-500 mr-2 w-5 text-center"></i>
-                    <span>{new Date(event.startTime).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })} - {new Date(event.endTime).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</span>
-                  </div>
-                  {event.location && (
-                    <div className="flex items-center text-xs sm:text-sm">
-                      <i className="fas fa-map-marker-alt text-red-500 mr-2 w-5 text-center"></i>
-                      <span className="line-clamp-1">{event.location}</span>
+                  {/* Info Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+                    <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                      <div className="flex items-start gap-3">
+                        <Calendar className="w-5 h-5 text-red-500 mt-0.5" />
+                        <div>
+                          <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">时间</p>
+                          <p className="font-semibold">{formatDateRange(selectedEvent.startTime, selectedEvent.endTime).date}</p>
+                          <p className="text-sm text-gray-500">{formatDateRange(selectedEvent.startTime, selectedEvent.endTime).time}</p>
+                        </div>
+                      </div>
                     </div>
-                  )}
-                  {event.type === 'online' && (
-                    <div className="flex items-center text-xs sm:text-sm">
-                      <i className="fas fa-link text-red-500 mr-2 w-5 text-center"></i>
-                      <span className="line-clamp-1 text-blue-500 hover:underline">线上活动</span>
+
+                    <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                      <div className="flex items-start gap-3">
+                        <MapPin className="w-5 h-5 text-red-500 mt-0.5" />
+                        <div>
+                          <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">地点</p>
+                          <p className="font-semibold line-clamp-2">{selectedEvent.location || (selectedEvent.type === 'online' ? '线上活动' : '暂无地点')}</p>
+                          {selectedEvent.type === 'online' && <p className="text-sm text-blue-500">点击查看链接</p>}
+                        </div>
+                      </div>
                     </div>
-                  )}
+                  </div>
+
+                  {/* Description */}
+                  <div className="prose dark:prose-invert max-w-none mb-8">
+                    <h3 className="text-lg font-bold mb-3 flex items-center gap-2">
+                      <div className="w-1 h-6 bg-red-600 rounded-full" />
+                      活动详情
+                    </h3>
+                    <p className={`text-base leading-relaxed ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                      {selectedEvent.description}
+                    </p>
+                    {selectedEvent.content && (
+                       <div className={`mt-4 p-4 rounded-xl ${isDark ? 'bg-gray-700/30' : 'bg-gray-50'} text-sm`} dangerouslySetInnerHTML={{ __html: selectedEvent.content }} />
+                    )}
+                  </div>
+
+                  {/* Tags & Contact */}
+                  <div className="space-y-6">
+                    {selectedEvent.tags && selectedEvent.tags.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-medium text-gray-500 mb-2">相关标签</h4>
+                        <div className="flex flex-wrap gap-2">
+                          {selectedEvent.tags.map((tag, i) => (
+                            <span key={i} className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
+                              <Tag className="w-3 h-3" />
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {(selectedEvent.contactName || selectedEvent.contactPhone) && (
+                      <div className={`flex flex-wrap gap-4 p-4 rounded-xl border ${isDark ? 'border-gray-700' : 'border-gray-100'}`}>
+                        {selectedEvent.contactName && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <User className="w-4 h-4 text-gray-400" />
+                            <span>{selectedEvent.contactName}</span>
+                          </div>
+                        )}
+                        {selectedEvent.contactPhone && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <Phone className="w-4 h-4 text-gray-400" />
+                            <span>{selectedEvent.contactPhone}</span>
+                          </div>
+                        )}
+                        {selectedEvent.contactEmail && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <Mail className="w-4 h-4 text-gray-400" />
+                            <span>{selectedEvent.contactEmail}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
-                {/* 标签和参与人数 */}
-                <div className="flex flex-wrap gap-1.5 sm:gap-2 mb-3 sm:mb-4">
-                  {event.tags && event.tags.slice(0, 3).map((tag, index) => (
-                    <span key={index} className={`text-[10px] sm:text-xs px-2 py-0.5 rounded-full ${isDark ? 'bg-gray-600' : 'bg-gray-100'}`}>
-                      {tag}
-                    </span>
-                  ))}
-                  {event.tags && event.tags.length > 3 && (
-                    <span className={`text-[10px] sm:text-xs px-2 py-0.5 rounded-full ${isDark ? 'bg-gray-600' : 'bg-gray-100'}`}>
-                      +{event.tags.length - 3}
-                    </span>
-                  )}
-                </div>
-
-                {/* 参与人数 */}
-                <div className="flex items-center justify-between text-xs sm:text-sm">
-                  <span className={`${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                    <i className="fas fa-users mr-1"></i>
-                    {event.participantCount || 0}人已参与
-                    {event.maxParticipants && ` / ${event.maxParticipants}`}
-                  </span>
+                {/* Footer Action Bar */}
+                <div className={`p-4 md:p-6 border-t ${isDark ? 'border-gray-700 bg-gray-800' : 'border-gray-100 bg-white'}`}>
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="hidden sm:block">
+                      <p className="text-xs text-gray-500">参与人数</p>
+                      <p className="font-bold text-lg">
+                        {selectedEvent.participantCount || 0} 
+                        <span className="text-sm font-normal text-gray-400 ml-1">
+                          {selectedEvent.maxParticipants ? `/ ${selectedEvent.maxParticipants}` : '人已报名'}
+                        </span>
+                      </p>
+                    </div>
+                    
+                    <div className="flex gap-3 flex-1 sm:flex-none justify-end">
+                      <button 
+                        onClick={() => handleShare(selectedEvent)}
+                        className={`p-3 rounded-xl transition-colors ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}
+                      >
+                        <Share2 className="w-5 h-5" />
+                      </button>
+                      
+                      {getEventTimeStatus(selectedEvent) === 'upcoming' ? (
+                        <button 
+                          onClick={() => {
+                            handleRegisterEvent(selectedEvent.id);
+                            setIsEventDetailsOpen(false);
+                          }}
+                          className="flex-1 sm:flex-none px-8 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold shadow-lg shadow-red-600/20 transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
+                        >
+                          立即报名
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                      ) : getEventTimeStatus(selectedEvent) === 'ongoing' ? (
+                        <button 
+                          onClick={() => {
+                            handleSubmitWork(selectedEvent.id);
+                            setIsEventDetailsOpen(false);
+                          }}
+                          className="flex-1 sm:flex-none px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-lg shadow-blue-600/20 transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
+                        >
+                          提交作品
+                          <ExternalLink className="w-4 h-4" />
+                        </button>
+                      ) : (
+                        <button disabled className="flex-1 sm:flex-none px-8 py-3 bg-gray-300 dark:bg-gray-700 text-gray-500 rounded-xl font-bold cursor-not-allowed">
+                          活动已结束
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             </motion.div>
-          ))}
-        </div>
-      ) : (
-        <div className={`p-6 sm:p-8 rounded-xl text-center ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
-          <i className="fas fa-calendar-times text-5xl sm:text-6xl text-red-600 mb-3 sm:mb-4"></i>
-          <h3 className="text-lg sm:text-xl font-bold mb-2">暂无活动</h3>
-          <p className={`text-sm sm:text-base mb-4 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-            当前筛选条件下没有找到相关活动
-          </p>
-          <button 
-            onClick={() => {
-              setActiveTab('upcoming');
-              setSelectedEventType('all');
-              setSearchKeyword('');
-            }}
-            className="px-4 py-2 sm:px-6 sm:py-2 rounded-lg text-sm font-medium bg-red-600 hover:bg-red-700 text-white transition-colors"
-          >
-            查看全部活动
-          </button>
-        </div>
-      )}
-
-      {/* 活动详情模态框 */}
-      {isEventDetailsOpen && selectedEvent && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70 p-4 overflow-y-auto">
-          <div className={`${isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'} rounded-xl p-4 sm:p-6 w-full max-w-md sm:max-w-2xl lg:max-w-3xl max-h-[90vh] overflow-y-auto`}>
-            {/* 模态框头部 */}
-            <div className="flex justify-between items-center mb-4 sm:mb-6">
-              <h3 className="text-lg sm:text-xl font-bold line-clamp-2">{selectedEvent.title}</h3>
-              <button 
-                onClick={() => setIsEventDetailsOpen(false)}
-                className={`p-2 rounded-full ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} transition-colors`}
-              >
-                <i className="fas fa-times text-lg sm:text-xl"></i>
-              </button>
-            </div>
-
-            {/* 活动图片 */}
-            <TianjinImage
-              src={selectedEvent.media && selectedEvent.media.length > 0 ? selectedEvent.media[0].url : 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=traditional%20chinese%20cultural%20event%20banner&image_size=landscape_16_9'}
-              alt={selectedEvent.title}
-              className="w-full h-36 sm:h-48 lg:h-64 object-cover rounded-lg mb-4 sm:mb-6"
-              ratio="landscape"
-            />
-
-            {/* 活动基本信息 */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 mb-4 sm:mb-6">
-              <div className="space-y-3 sm:space-y-4">
-                <div>
-                  <h4 className="text-xs sm:text-sm font-medium mb-2">活动类型</h4>
-                  <span className={`px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm ${isDark ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                    <i className="fas fa-calendar-alt mr-1"></i>
-                    {selectedEvent.type === 'online' ? '线上活动' : '线下活动'}
-                  </span>
-                </div>
-
-                <div>
-                  <h4 className="text-xs sm:text-sm font-medium mb-2">活动状态</h4>
-                  <span className={`px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm ${activeTab === 'upcoming' 
-                    ? 'bg-green-600 text-white' 
-                    : activeTab === 'ongoing' 
-                    ? 'bg-yellow-600 text-white' 
-                    : 'bg-gray-600 text-white'}`}>
-                    {activeTab === 'upcoming' ? '即将开始' : activeTab === 'ongoing' ? '进行中' : '已结束'}
-                  </span>
-                </div>
-
-                <div>
-                  <h4 className="text-xs sm:text-sm font-medium mb-2">活动时间</h4>
-                  <div className="space-y-1">
-                    <div className="flex items-center text-xs sm:text-sm">
-                      <i className="fas fa-calendar-alt text-red-500 mr-2 w-5 text-center"></i>
-                      <span>{new Date(selectedEvent.startTime).toLocaleDateString('zh-CN')} {new Date(selectedEvent.endTime).toLocaleDateString('zh-CN') !== new Date(selectedEvent.startTime).toLocaleDateString('zh-CN') ? `至 ${new Date(selectedEvent.endTime).toLocaleDateString('zh-CN')}` : ''}</span>
-                    </div>
-                    <div className="flex items-center text-xs sm:text-sm">
-                      <i className="fas fa-clock text-red-500 mr-2 w-5 text-center"></i>
-                      <span>{new Date(selectedEvent.startTime).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })} - {new Date(selectedEvent.endTime).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <h4 className="text-xs sm:text-sm font-medium mb-2">活动地点</h4>
-                  <div className="space-y-1">
-                    {selectedEvent.location && (
-                      <div className="flex items-center text-xs sm:text-sm">
-                        <i className="fas fa-map-marker-alt text-red-500 mr-2 w-5 text-center"></i>
-                        <span className="line-clamp-1">{selectedEvent.location}</span>
-                      </div>
-                    )}
-                    {selectedEvent.type === 'online' && (
-                      <div className="flex items-center text-xs sm:text-sm">
-                        <i className="fas fa-link text-red-500 mr-2 w-5 text-center"></i>
-                        <span className="line-clamp-1 text-blue-500 hover:underline">线上活动</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-3 sm:space-y-4">
-                <div>
-                  <h4 className="text-xs sm:text-sm font-medium mb-2">参与情况</h4>
-                  <div className="flex items-center text-xs sm:text-sm">
-                    <i className="fas fa-users text-red-500 mr-2 w-5 text-center"></i>
-                    <span>
-                      {selectedEvent.participantCount || 0}人已参与
-                      {selectedEvent.maxParticipants && ` / ${selectedEvent.maxParticipants}`}
-                    </span>
-                  </div>
-                </div>
-
-                <div>
-                  <h4 className="text-xs sm:text-sm font-medium mb-2">联系方式</h4>
-                  <div className="space-y-1">
-                    {selectedEvent.contactName && (
-                      <div className="flex items-center text-xs sm:text-sm">
-                        <i className="fas fa-user text-red-500 mr-2 w-5 text-center"></i>
-                        <span>{selectedEvent.contactName}</span>
-                      </div>
-                    )}
-                    {selectedEvent.contactPhone && (
-                      <div className="flex items-center text-xs sm:text-sm">
-                        <i className="fas fa-phone text-red-500 mr-2 w-5 text-center"></i>
-                        <span>{selectedEvent.contactPhone}</span>
-                      </div>
-                    )}
-                    {selectedEvent.contactEmail && (
-                      <div className="flex items-center text-xs sm:text-sm">
-                        <i className="fas fa-envelope text-red-500 mr-2 w-5 text-center"></i>
-                        <span>{selectedEvent.contactEmail}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* 活动描述 */}
-            <div className="mb-4 sm:mb-6">
-              <h4 className="text-xs sm:text-sm font-medium mb-2">活动描述</h4>
-              <p className={`text-xs sm:text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{selectedEvent.description}</p>
-            </div>
-
-            {/* 活动内容 */}
-            {selectedEvent.content && (
-              <div className="mb-4 sm:mb-6">
-                <h4 className="text-xs sm:text-sm font-medium mb-2">活动内容</h4>
-                <div className={`p-3 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
-                  <div className="text-xs sm:text-sm" dangerouslySetInnerHTML={{ __html: selectedEvent.content }}></div>
-                </div>
-              </div>
-            )}
-
-            {/* 活动标签 */}
-            {selectedEvent.tags && selectedEvent.tags.length > 0 && (
-              <div className="mb-4 sm:mb-6">
-                <h4 className="text-xs sm:text-sm font-medium mb-2">标签</h4>
-                <div className="flex flex-wrap gap-1.5 sm:gap-2">
-                  {selectedEvent.tags.map((tag, index) => (
-                    <span key={index} className={`px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm ${isDark ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* 操作按钮 */}
-            <div className="flex flex-col sm:flex-row justify-end gap-3 mt-6">
-              <button 
-                onClick={() => setIsEventDetailsOpen(false)}
-                className={`px-4 py-2 sm:px-6 sm:py-2 rounded-lg text-sm font-medium transition-colors ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} w-full sm:w-auto`}
-              >
-                关闭
-              </button>
-              {selectedEvent.status === 'upcoming' && (
-                <button 
-                  onClick={() => {
-                    handleRegisterEvent(selectedEvent.id);
-                    setIsEventDetailsOpen(false);
-                  }}
-                  className="px-4 py-2 sm:px-6 sm:py-2 rounded-lg text-sm font-medium bg-green-600 hover:bg-green-700 text-white transition-colors w-full sm:w-auto"
-                >
-                  立即报名
-                </button>
-              )}
-              {selectedEvent.status === 'ongoing' && (
-                <button 
-                  onClick={() => {
-                    handleSubmitWork(selectedEvent.id);
-                    setIsEventDetailsOpen(false);
-                  }}
-                  className="px-4 py-2 sm:px-6 sm:py-2 rounded-lg text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white transition-colors w-full sm:w-auto"
-                >
-                  提交作品
-                </button>
-              )}
-            </div>
           </div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
     </div>
   );
 }

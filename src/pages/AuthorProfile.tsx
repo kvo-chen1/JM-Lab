@@ -63,7 +63,7 @@ export const AuthorProfile: React.FC<AuthorProfileProps> = ({ currentUser }) => 
           
           // 2. 检查关注状态
           if (currentUser) {
-            const following = checkUserFollowing(id)
+            const following = await checkUserFollowing(id)
             setIsFollowing(following)
           }
 

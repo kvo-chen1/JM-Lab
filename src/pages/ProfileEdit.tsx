@@ -1,14 +1,21 @@
-import { useState, useContext } from 'react'
+import { useState, useContext, useEffect } from 'react'
 import { AuthContext } from '@/contexts/authContext'
 import { useTheme } from '@/hooks/useTheme'
 import { Link, useNavigate } from 'react-router-dom'
 import { userService } from '@/services/apiService'
 import { validationService } from '@/services/validationService'
+import { useAnalyticsStore } from '@/stores/useAnalyticsStore'
 
 export default function ProfileEdit() {
   const { user, updateUser } = useContext(AuthContext)
   const { isDark } = useTheme()
   const navigate = useNavigate()
+  const { logUserAction } = useAnalyticsStore()
+  
+  // 记录页面访问
+  useEffect(() => {
+    logUserAction('page_view', { page: 'profile_edit', userId: user?.id });
+  }, [logUserAction, user?.id]);
   
   const [formData, setFormData] = useState({
     username: user?.username || '',
@@ -140,6 +147,13 @@ export default function ProfileEdit() {
       // 先调用后端 API 持久化
       await userService.updateUser(updatedUser);
       
+      // 记录用户行为日志
+      await logUserAction('profile_update', { 
+        userId: user?.id,
+        updatedFields: Object.keys(updatedUser).filter(key => key !== 'id' && key !== 'avatar'), // 避免记录过大的头像数据
+        timestamp: Date.now()
+      });
+
       updateUser(updatedUser)
       setSuccess('个人资料更新成功！')
       

@@ -433,14 +433,14 @@ export default function Square() {
   
   // 优化：使用useCallback稳定like函数
   const like = useCallback(async (id: string) => {
-    await postsApi.likePost(id)
+    await postsApi.likePost(id, user?.id)
     const current = await postsApi.getPosts()
     setPosts(current)
     // 更新active状态中的点赞数
     if (active && active.id === id) {
       setActive(prev => prev ? { ...prev, likes: prev.likes + 1 } : null)
     }
-  }, [active])
+  }, [active, user])
   
   // 优化：使用useCallback稳定addComment函数
   const addComment = useCallback(async (id: string, content: string) => {
@@ -463,13 +463,14 @@ export default function Square() {
           angry: 0
         },
         replies: [],
-        userReactions: []
+        userReactions: [],
+        author: user?.username || '匿名用户'
       }
       
       // 创建更新后的帖子对象
       const updatedActivePost = {
         ...active,
-        comments: [...active.comments, newComment]
+        comments: [...active.comments, newComment as any]
       }
       
       // 立即更新active状态，实现评论的实时显示
@@ -478,7 +479,7 @@ export default function Square() {
     }
     
     // 2. 然后调用API添加评论，确保数据持久化
-    const updatedPost = await postsApi.addComment(id, content)
+    const updatedPost = await postsApi.addComment(id, content, undefined, user || undefined)
     console.log('Updated post from API:', updatedPost)
     
     // 3. 最后更新本地状态，确保数据同步
@@ -487,7 +488,7 @@ export default function Square() {
       console.log('Current posts after API call:', current)
       setPosts(current)
     }
-  }, [active])
+  }, [active, user])
   
   // 优化：使用useCallback稳定share函数
   const sharePost = useCallback((id: string) => {
@@ -512,9 +513,9 @@ export default function Square() {
     // 然后调用API更新服务器状态
     try {
       if (isCurrentlyFavorited) {
-        await postsApi.unbookmarkPost(id);
+        await postsApi.unbookmarkPost(id, user?.id);
       } else {
-        await postsApi.bookmarkPost(id);
+        await postsApi.bookmarkPost(id, user?.id);
       }
       
       // 更新active状态中的收藏状态
@@ -526,7 +527,7 @@ export default function Square() {
       // 如果API调用失败，恢复本地状态
       setFavorites(favorites);
     }
-  }, [active, favorites])
+  }, [active, favorites, user])
   
   // 优化：使用useCallback稳定deletePost函数
   const deletePost = useCallback(async (id: string) => {
@@ -753,12 +754,12 @@ export default function Square() {
       </header>
 
       {/* 主要内容 */}
-      <main className="container mx-auto px-4 py-6">
+      <main className={`w-full min-h-screen transition-colors duration-300 ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
 
 
         {/* 作品网格 */}
         <Suspense fallback={
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 p-4">
             {Array.from({ length: 6 }).map((_, i) => (
               <div key={i} className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 aspect-square flex items-center justify-center">
                 <div className="text-gray-400">加载中...</div>
@@ -776,12 +777,15 @@ export default function Square() {
             onBookmark={toggleFavorite}
             onDelete={deletePost}
             onPostClick={(id) => {
-              navigate(`/post/${id}`)
+              loadPostDetail(id)
+              // 更新URL但不跳转，保持模态框体验
+              window.history.pushState({ modal: true }, '', `/post/${id}`)
             }}
             favorites={favorites}
             isLoading={isLoading}
             isLoadingMore={isLoadingMore}
             hasMore={hasMore}
+            isDark={isDark}
           />
         </Suspense>
 
@@ -800,7 +804,15 @@ export default function Square() {
         <PostDetailModal
           post={hydratedActive}
           isOpen={!!active}
-          onClose={() => setActive(null)}
+          onClose={() => {
+            setActive(null)
+            // 恢复URL
+            if (window.history.state?.modal) {
+              window.history.back()
+            } else {
+              window.history.pushState({}, '', '/square')
+            }
+          }}
           onLike={like}
           onComment={addComment}
           onShare={sharePost}

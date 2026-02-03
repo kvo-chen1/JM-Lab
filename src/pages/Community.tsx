@@ -213,7 +213,7 @@ const CommunityPageWithNotifications = React.memo(function CommunityPageWithNoti
             <CommunityInfoSidebar
             isDark={isDark}
             community={activeCommunity}
-            onlineCount={activeCommunity?.memberCount || 0} // 使用成员数量作为在线数
+            onlineCount={onlineUsers.length} // 使用真实在线人数
             isJoined={joinedCommunities.some(c => c.id === activeCommunityId)}
             onJoinCommunity={onJoinCommunity}
             // isAdmin={activeCommunityId ? checkPermission(activeCommunityId, 'manage_community') : false}

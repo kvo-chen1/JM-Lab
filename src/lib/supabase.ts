@@ -5,8 +5,26 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || ''
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
 
+// 增强的 fetch，带有重试逻辑
+const fetchWithRetry = async (url: RequestInfo | URL, options?: RequestInit, retries = 3, backoff = 300): Promise<Response> => {
+  try {
+    const response = await fetch(url, options);
+    // 只有 5xx 错误或网络错误才重试，4xx 错误通常是客户端请求问题，不应重试
+    if (!response.ok && retries > 0 && response.status >= 500) {
+      throw new Error(`Server error: ${response.status}`);
+    }
+    return response;
+  } catch (error) {
+    if (retries > 0) {
+      await new Promise(resolve => setTimeout(resolve, backoff));
+      return fetchWithRetry(url, options, retries - 1, backoff * 2);
+    }
+    throw error;
+  }
+};
+
 // 创建 Supabase 客户端 - 带错误处理
-export let supabase;
+export let supabase: ReturnType<typeof createClient>;
 
 try {
   if (supabaseUrl && supabaseAnonKey) {
@@ -19,7 +37,8 @@ try {
       global: {
         headers: {
           'x-application-name': 'creator-community'
-        }
+        },
+        fetch: fetchWithRetry // 使用带重试的 fetch
       },
       db: {
         schema: 'public'
@@ -40,8 +59,16 @@ try {
         subscribe: () => ({ unsubscribe: () => {} })
       }),
       auth: {
-        getSession: () => Promise.resolve({ data: null, error: null }),
-        onAuthStateChange: () => () => {}
+        getSession: () => Promise.resolve({ data: { session: null }, error: null }),
+        getUser: () => Promise.resolve({ data: { user: null }, error: null }),
+        onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
+        signInWithPassword: () => Promise.resolve({ data: { user: null, session: null }, error: new Error('Mock client: login failed') }),
+        signInWithOtp: () => Promise.resolve({ data: { user: null, session: null }, error: new Error('Mock client: OTP login failed') }),
+        verifyOtp: () => Promise.resolve({ data: { user: null, session: null }, error: new Error('Mock client: verify failed') }),
+        signUp: () => Promise.resolve({ data: { user: null, session: null }, error: new Error('Mock client: signup failed') }),
+        signOut: () => Promise.resolve({ error: null }),
+        updateUser: () => Promise.resolve({ data: { user: null }, error: new Error('Mock client: update failed') }),
+        resetPasswordForEmail: () => Promise.resolve({ data: {}, error: new Error('Mock client: reset failed') }),
       }
     } as any
   }
@@ -60,8 +87,16 @@ try {
       subscribe: () => ({ unsubscribe: () => {} })
     }),
     auth: {
-      getSession: () => Promise.resolve({ data: null, error: null }),
-      onAuthStateChange: () => () => {}
+      getSession: () => Promise.resolve({ data: { session: null }, error: null }),
+      getUser: () => Promise.resolve({ data: { user: null }, error: null }),
+      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
+      signInWithPassword: () => Promise.resolve({ data: { user: null, session: null }, error: new Error('Mock client: login failed') }),
+      signInWithOtp: () => Promise.resolve({ data: { user: null, session: null }, error: new Error('Mock client: OTP login failed') }),
+      verifyOtp: () => Promise.resolve({ data: { user: null, session: null }, error: new Error('Mock client: verify failed') }),
+      signUp: () => Promise.resolve({ data: { user: null, session: null }, error: new Error('Mock client: signup failed') }),
+      signOut: () => Promise.resolve({ error: null }),
+      updateUser: () => Promise.resolve({ data: { user: null }, error: new Error('Mock client: update failed') }),
+      resetPasswordForEmail: () => Promise.resolve({ data: {}, error: new Error('Mock client: reset failed') }),
     }
   } as any
 }

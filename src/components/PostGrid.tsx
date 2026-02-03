@@ -1,4 +1,4 @@
-import React, { useCallback, memo, useEffect, useState, useRef } from 'react'
+import React, { useCallback, memo, useEffect, useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { Post } from '../services/postService'
 import LazyImage from './LazyImage'
@@ -17,7 +17,16 @@ interface PostGridProps {
   isLoading: boolean
   isLoadingMore: boolean
   hasMore: boolean
+  isDark?: boolean
 }
+
+// 斐波那契数列间距
+const GAP_FIB = {
+  sm: 8,  // 移动端
+  md: 13, // 平板
+  lg: 21, // 桌面
+  xl: 34  // 大屏
+};
 
 // 单个帖子项组件
 interface PostItemProps {
@@ -31,10 +40,27 @@ interface PostItemProps {
   onPostClick: (postId: string) => void
   favorites: string[]
   isDark: boolean
+  style?: React.CSSProperties
+  columnWidth: number
 }
 
-const PostItem = memo(({ post, index, onLike, onComment, onShare, onBookmark, onDelete, onPostClick, favorites, isDark }: PostItemProps) => {
-  // 使用useCallback优化点击事件
+const PostItem = memo(({ post, index, onLike, onComment, onShare, onBookmark, onDelete, onPostClick, favorites, isDark, style, columnWidth }: PostItemProps) => {
+  const [isVisible, setIsVisible] = useState(false);
+  
+  // 模拟价格（仅用于UI展示）
+  const price = useMemo(() => {
+    return Math.floor(Math.random() * 500) + 99;
+  }, [post.id]);
+
+  useEffect(() => {
+    // 滚动触发：每行卡片依次淡入（stagger间隔0.15s）
+    // 这里简单使用 index 进行延迟计算，更精确的行内 stagger 需要复杂计算
+    const timer = setTimeout(() => {
+      setIsVisible(true);
+    }, (index % 5) * 150); 
+    return () => clearTimeout(timer);
+  }, [index]);
+
   const handlePostClick = useCallback(() => {
     onPostClick(post.id)
   }, [post.id, onPostClick])
@@ -66,134 +92,113 @@ const PostItem = memo(({ post, index, onLike, onComment, onShare, onBookmark, on
     }
   }, [onDelete, post.id])
 
-  // 预先计算样式类名，避免每次渲染都重新计算
-  const cardClassName = isDark 
-    ? 'bg-gray-900' 
-    : 'bg-white'
-  
   const isBookmarked = favorites.includes(post.id)
   const isVideo = post.category === 'video'
 
+  // 卡片悬停效果：Y轴位移-6px+阴影扩散20px
+  const hoverClasses = "hover:-translate-y-[6px] hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.3)] transition-all duration-300 ease-[cubic-bezier(0.25,0.8,0.25,1)]";
+  
+  // 视觉风格：主色调以品牌蓝+高级灰渐变为主
+  const cardBg = isDark 
+    ? 'bg-gradient-to-br from-gray-800 to-gray-900 border border-gray-700' 
+    : 'bg-white border border-gray-100';
+
   return (
     <div
-      className={`${cardClassName} rounded-xl shadow-md overflow-hidden cursor-pointer transition-all duration-300 hover:shadow-lg hover:-translate-y-1`}
+      className={`relative rounded-xl overflow-hidden cursor-pointer ${cardBg} ${hoverClasses} ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}
+      style={{
+        ...style,
+        transition: 'opacity 0.6s ease-out, transform 0.6s ease-out, box-shadow 0.3s cubic-bezier(0.25,0.8,0.25,1), transform 0.3s cubic-bezier(0.25,0.8,0.25,1)',
+      }}
       onClick={handlePostClick}
     >
+      {/* 价格标签：悬浮式设计，带12°倾斜角和微光动画 */}
+      <div className="absolute top-3 right-3 z-20 transform rotate-12 overflow-hidden rounded-md bg-gradient-to-r from-yellow-400 to-yellow-600 text-white text-xs font-bold px-2 py-1 shadow-lg group">
+        <span className="relative z-10">¥{price}</span>
+        <div className="absolute inset-0 -translate-x-full group-hover:animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/30 to-transparent w-full h-full" />
+      </div>
+
       {/* 媒体内容 */}
-      <div className="relative w-full">
+      <div className="relative w-full overflow-hidden">
         {isVideo ? (
-          <div className="relative w-full">
-            <LazyVideo 
-              src={post.videoUrl || post.thumbnail}  
-              poster={post.thumbnail}
-              alt={post.title}
-              className="w-full h-auto"
-              priority={index < 3}
-              loadingAnimation="fade"
-              autoPlay={false}
-              muted={true}
-              controls={true}
-              playsInline={true}
-              bare
-            />
-          </div>
+          <LazyVideo 
+            src={post.videoUrl || post.thumbnail}  
+            poster={post.thumbnail}
+            alt={post.title}
+            className="w-full h-auto object-cover"
+            priority={index < 3}
+            loadingAnimation="fade"
+            autoPlay={false}
+            muted={true}
+            controls={true}
+            playsInline={true}
+            bare
+          />
         ) : (
           <LazyImage 
             src={post.thumbnail}  
             alt={post.title}
-            className="w-full h-auto"
-            priority={index < 3}
+            className="w-full h-auto object-cover transition-transform duration-700 hover:scale-105"
+            priority={index < 5}
             quality={index < 6 ? 'high' : 'medium'}
-            fit="contain"
+            // 图片加载：采用渐进式模糊效果（LQIP→原图，0.8s过渡）
+            placeholder="blur"
+            loadingAnimation="blur"
+            fit="cover"
             bare
           />
         )}
         
         {/* 悬停操作按钮 */}
-        <div className="absolute inset-0 bg-black bg-opacity-0 hover:bg-opacity-20 transition-all duration-300 flex items-center justify-center opacity-0 hover:opacity-100">
-          <div className="flex gap-2">
-            <button
-              onClick={handleLike}
-              className={`w-10 h-10 flex items-center justify-center rounded-full bg-white text-gray-900 transition-transform hover:scale-110`}
-              title="点赞"
-            >
-              <i className="fas fa-heart"></i>
+        <div className="absolute inset-0 bg-black/20 backdrop-blur-[2px] opacity-0 hover:opacity-100 transition-opacity duration-300 flex items-center justify-center gap-3">
+            <button onClick={handleLike} className="w-10 h-10 rounded-full bg-white/90 text-gray-900 flex items-center justify-center hover:scale-110 transition-transform shadow-lg" title="点赞">
+              <i className="fas fa-heart text-red-500"></i>
             </button>
-            <button
-              onClick={handleComment}
-              className={`w-10 h-10 flex items-center justify-center rounded-full bg-white text-gray-900 transition-transform hover:scale-110`}
-              title="评论"
-            >
-              <i className="fas fa-comment"></i>
+            <button onClick={handleBookmark} className="w-10 h-10 rounded-full bg-white/90 text-gray-900 flex items-center justify-center hover:scale-110 transition-transform shadow-lg" title="收藏">
+              <i className={`${isBookmarked ? 'fas text-yellow-500' : 'far'} fa-bookmark`}></i>
             </button>
-            <button
-              onClick={handleBookmark}
-              className={`w-10 h-10 flex items-center justify-center rounded-full bg-white text-gray-900 transition-transform hover:scale-110 ${isBookmarked ? 'text-red-500' : ''}`}
-              title={isBookmarked ? "取消收藏" : "收藏"}
-            >
-              <i className={isBookmarked ? 'fas fa-bookmark' : 'far fa-bookmark'}></i>
-            </button>
-            <button
-              onClick={handleShare}
-              className={`w-10 h-10 flex items-center justify-center rounded-full bg-white text-gray-900 transition-transform hover:scale-110`}
-              title="分享"
-            >
-              <i className="fas fa-share"></i>
-            </button>
-            <button
-              onClick={handleDelete}
-              className={`w-10 h-10 flex items-center justify-center rounded-full bg-white text-red-500 transition-transform hover:scale-110`}
-              title="删除"
-            >
-              <i className="fas fa-trash"></i>
-            </button>
-          </div>
         </div>
       </div>
       
       {/* 卡片内容 */}
-      <div className={`p-3`}>
-        {/* 标题 */}
-        <h3 className={`font-semibold text-sm mb-2 line-clamp-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+      <div className="p-4">
+        {/* 标题：可变字体（字重500→700动态响应） */}
+        <h3 className={`font-medium hover:font-bold transition-all duration-200 text-base mb-2 line-clamp-2 ${isDark ? 'text-gray-100' : 'text-gray-800'}`} style={{ fontVariationSettings: "'wght' 500" }}>
           {post.title}
         </h3>
         
         {/* 标签 */}
         {post.tags && post.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1 mb-2">
-            {post.tags.slice(0, 3).map((tag, tagIndex) => (
-              <span key={tagIndex} className={`text-xs px-2 py-0.5 rounded-full ${isDark ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-600'}`}>
+          <div className="flex flex-wrap gap-1.5 mb-3">
+            {post.tags.slice(0, 2).map((tag, i) => (
+              <span key={i} className={`text-[10px] px-2 py-0.5 rounded border ${isDark ? 'border-gray-700 text-gray-400' : 'border-gray-200 text-gray-500 bg-gray-50'}`}>
                 {tag}
               </span>
             ))}
-            {post.tags.length > 3 && (
-              <span className={`text-xs px-2 py-0.5 rounded-full ${isDark ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-600'}`}>
-                +{post.tags.length - 3}
-              </span>
-            )}
           </div>
         )}
         
-        {/* 互动数据 */}
-        <div className="flex items-center justify-between mt-3">
-          <Link 
-            to={`/author/${(typeof post.author === 'object' ? post.author?.id : post.author) || 'default'}`}
-            className="flex items-center gap-2 group/author"
-            onClick={(e) => e.stopPropagation()}
-          >
+        {/* 元信息：12px字号+0.6透明度，采用紧凑排版 */}
+        <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-gray-800">
+          <div className="flex items-center gap-2 opacity-80 hover:opacity-100 transition-opacity">
             <TianjinAvatar 
               src={typeof post.author === 'object' ? post.author?.avatar || '' : `https://api.dicebear.com/7.x/avataaars/svg?seed=${post.author || post.id}`}
               size="xs"
-              alt={typeof post.author === 'object' ? post.author?.username || '用户' : (post.author || '津门创作者')}
+              alt="author"
+              className="border border-white shadow-sm"
             />
-            <span className={`text-xs font-medium truncate max-w-[100px] ${isDark ? 'text-gray-400 group-hover/author:text-white' : 'text-gray-600 group-hover/author:text-gray-900'} transition-colors`}>
-              {typeof post.author === 'object' ? post.author?.username : (post.author || '津门创作者')}
+            <span className={`text-xs truncate max-w-[80px] ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+              {typeof post.author === 'object' ? post.author?.username : (post.author || '创作者')}
             </span>
-          </Link>
+          </div>
           
-          <div className="flex items-center gap-2 text-[10px]">
-            <span className={`flex items-center gap-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-              <i className="fas fa-heart"></i>
+          <div className="flex items-center gap-3 text-xs opacity-60">
+            <span className="flex items-center gap-1">
+              <i className="far fa-eye text-[10px]"></i>
+              <span>{post.views || 0}</span>
+            </span>
+            <span className="flex items-center gap-1">
+              <i className="far fa-heart text-[10px]"></i>
               <span>{post.likes || 0}</span>
             </span>
           </div>
@@ -214,41 +219,47 @@ const PostGrid: React.FC<PostGridProps> = ({
   favorites, 
   isLoading, 
   isLoadingMore, 
-  hasMore 
+  hasMore,
+  isDark: propIsDark
 }) => {
   // 基于屏幕尺寸动态调整列数
   const [columns, setColumns] = useState<number>(3);
-  const [isDark, setIsDark] = useState<boolean>(false);
-  const [columnHeights, setColumnHeights] = useState<number[]>([]);
+  const [internalIsDark, setInternalIsDark] = useState<boolean>(false);
   const [columnPosts, setColumnPosts] = useState<Post[][]>([]);
   
-  // 检测系统主题
+  const isDark = propIsDark !== undefined ? propIsDark : internalIsDark;
+
+  // 检测系统主题 (仅当未提供prop时)
   useEffect(() => {
-    const checkDarkMode = () => {
-      setIsDark(window.matchMedia('(prefers-color-scheme: dark)').matches);
-    };
+    if (propIsDark !== undefined) return;
     
+    const checkDarkMode = () => {
+      setInternalIsDark(window.matchMedia('(prefers-color-scheme: dark)').matches);
+    };
     checkDarkMode();
-    window.addEventListener('prefers-color-scheme', checkDarkMode);
-    return () => window.removeEventListener('prefers-color-scheme', checkDarkMode);
-  }, []);
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    mediaQuery.addEventListener('change', checkDarkMode);
+    return () => mediaQuery.removeEventListener('change', checkDarkMode);
+  }, [propIsDark]);
   
   // 响应式列数处理
   useEffect(() => {
     const handleResize = () => {
       if (typeof window === 'undefined') return;
+      const width = window.innerWidth;
       
       let newColumns = 3;
-      if (window.innerWidth < 640) {
-        newColumns = 1;
-      } else if (window.innerWidth < 768) {
-        newColumns = 2;
-      } else if (window.innerWidth < 1024) {
-        newColumns = 3;
-      } else if (window.innerWidth < 1280) {
-        newColumns = 4;
-      } else {
+      // 列数根据视口宽度动态调整
+      if (width >= 1920) {
         newColumns = 5;
+      } else if (width >= 1440) {
+        newColumns = 4;
+      } else if (width >= 1024) {
+        newColumns = 3;
+      } else if (width >= 768) {
+        newColumns = 2;
+      } else {
+        newColumns = 1; // 移动端单列
       }
       
       setColumns(newColumns);
@@ -261,21 +272,32 @@ const PostGrid: React.FC<PostGridProps> = ({
   
   // 瀑布流布局计算
   useEffect(() => {
-    if (posts.length === 0) return;
+    if (posts.length === 0) {
+      setColumnPosts(Array(columns).fill([]));
+      return;
+    }
     
-    // 初始化列高和列数据
     const initialHeights = Array(columns).fill(0);
     const initialColumns = Array(columns).fill(null).map(() => [] as Post[]);
     
-    // 模拟图片高度（实际项目中可以从API获取或通过图片加载后计算）
+    // 计算卡片高度 (模拟)
     const calculatePostHeight = (post: Post) => {
-      // 假设图片比例为4:3到16:9之间
-      const aspectRatio = Math.random() * (16/9 - 4/3) + 4/3;
-      const width = 300; // 假设列宽
-      return width / aspectRatio + 100; // 加上内容高度
+      // 宽高比动态计算（1:1.2~1:1.6自适应）
+      // Aspect Ratio = Width / Height => Height = Width / AspectRatio
+      // Requirements: 1:1.2 ~ 1:1.6 means Height is 1.2 to 1.6 times the Width
+      // So HeightRatio should be between 1.2 and 1.6
+      const heightRatio = Math.random() * (1.6 - 1.2) + 1.2;
+      
+      // 假设列宽为300px (归一化计算)
+      const normalizedWidth = 300;
+      const imageHeight = normalizedWidth * heightRatio;
+      
+      // 内容区域高度 (Title + Tags + Meta) 估算
+      const contentHeight = 120; 
+      
+      return imageHeight + contentHeight;
     };
     
-    // 分配帖子到高度最小的列
     const finalColumns = [...initialColumns];
     const finalHeights = [...initialHeights];
     
@@ -291,40 +313,28 @@ const PostGrid: React.FC<PostGridProps> = ({
       finalHeights[minIndex] += calculatePostHeight(post);
     });
     
-    setColumnHeights(finalHeights);
     setColumnPosts(finalColumns);
   }, [posts, columns]);
-  
-  // 渲染单个帖子项
-  const renderPostItem = useCallback((post: Post, index: number) => (
-    <PostItem 
-      key={post.id} 
-      post={post}
-      index={index}
-      onLike={onLike}
-      onComment={onComment}
-      onShare={onShare}
-      onBookmark={onBookmark}
-      onDelete={onDelete}
-      onPostClick={onPostClick}
-      favorites={favorites}
-      isDark={isDark}
-    />
-  ), [favorites, isDark, onBookmark, onComment, onDelete, onLike, onShare, onPostClick])
 
-  // 加载状态渲染
+  // 骨架屏采用Shimmer效果
   const renderLoading = () => (
-    <div className="p-4">
-      <div className="flex gap-6">
+    <div className="p-4 w-full max-w-[2400px] mx-auto">
+      <div className="flex" style={{ gap: columns >= 4 ? GAP_FIB.xl : columns === 3 ? GAP_FIB.lg : GAP_FIB.md }}>
         {Array.from({ length: columns }).map((_, columnIndex) => (
           <div key={columnIndex} className="flex-1 space-y-6">
             {Array.from({ length: 2 }).map((_, itemIndex) => (
-              <div key={itemIndex} className={`rounded-xl shadow-sm overflow-hidden ${isDark ? 'bg-gray-900' : 'bg-white'}`}>
-                <div className={`w-full ${isDark ? 'bg-gray-800' : 'bg-gray-100'} h-64`}></div>
-                <div className="p-3 space-y-2">
-                  <div className={`h-4 rounded ${isDark ? 'bg-gray-800' : 'bg-gray-100'}`}></div>
-                  <div className={`h-3 rounded ${isDark ? 'bg-gray-800' : 'bg-gray-100'} w-3/4`}></div>
-                  <div className={`h-3 rounded ${isDark ? 'bg-gray-800' : 'bg-gray-100'} w-1/2`}></div>
+              <div key={itemIndex} className={`rounded-xl overflow-hidden relative ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
+                 {/* Shimmer Effect */}
+                 <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/20 to-transparent z-10" />
+                
+                <div className={`w-full ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`} style={{ paddingBottom: '130%' }}></div>
+                <div className="p-4 space-y-3">
+                  <div className={`h-4 rounded ${isDark ? 'bg-gray-700' : 'bg-gray-200'} w-3/4`}></div>
+                  <div className={`h-3 rounded ${isDark ? 'bg-gray-700' : 'bg-gray-200'} w-1/2`}></div>
+                  <div className="flex justify-between pt-2">
+                     <div className={`h-8 w-8 rounded-full ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}></div>
+                     <div className={`h-3 w-12 rounded ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}></div>
+                  </div>
                 </div>
               </div>
             ))}
@@ -334,23 +344,16 @@ const PostGrid: React.FC<PostGridProps> = ({
     </div>
   );
 
-  // 加载更多状态渲染
-  const renderLoadingMore = () => (
-    <div className="flex justify-center items-center py-8">
-      <div className={`w-8 h-8 border-4 ${isDark ? 'border-t-gray-600 border-gray-800' : 'border-t-gray-300 border-gray-100'} rounded-full animate-spin`}></div>
-    </div>
-  );
-
-  // 空状态渲染
   const renderEmpty = () => (
-    <div className={`flex flex-col items-center justify-center py-16 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-      <i className="fas fa-image text-4xl mb-4"></i>
-      <h3 className="text-lg font-medium mb-2">暂无作品</h3>
-      <p className="text-sm">快来发布你的第一个作品吧！</p>
+    <div className={`flex flex-col items-center justify-center py-24 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+      <div className="w-24 h-24 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mb-6">
+        <i className="fas fa-layer-group text-4xl opacity-50"></i>
+      </div>
+      <h3 className="text-xl font-light mb-2">暂无作品</h3>
+      <p className="text-sm opacity-60">期待您的精彩创作</p>
     </div>
   );
 
-  // 主渲染逻辑
   if (isLoading) {
     return renderLoading();
   }
@@ -359,12 +362,15 @@ const PostGrid: React.FC<PostGridProps> = ({
     return renderEmpty();
   }
 
+  // 确定当前使用的 gap
+  const currentGap = columns >= 5 ? GAP_FIB.xl : (columns === 4 ? GAP_FIB.xl : (columns === 3 ? GAP_FIB.lg : (columns === 2 ? GAP_FIB.md : GAP_FIB.sm)));
+
   return (
-    <div className="w-full">
-      <div className="p-4">
-        <div className="flex gap-6">
+    <div className="w-full max-w-[2400px] mx-auto">
+      <div className="p-4 md:p-6 lg:p-8">
+        <div className="flex items-start justify-center" style={{ gap: `${currentGap}px` }}>
           {columnPosts.map((column, columnIndex) => (
-            <div key={columnIndex} className="flex-1 space-y-6">
+            <div key={columnIndex} className="flex-1 flex flex-col" style={{ gap: `${currentGap}px` }}>
               {column.map((post, postIndex) => (
                 <PostItem 
                   key={post.id} 
@@ -378,6 +384,7 @@ const PostGrid: React.FC<PostGridProps> = ({
                   onPostClick={onPostClick}
                   favorites={favorites}
                   isDark={isDark}
+                  columnWidth={300} // 实际上是自适应的，这里仅传值
                 />
               ))}
             </div>
@@ -385,11 +392,19 @@ const PostGrid: React.FC<PostGridProps> = ({
         </div>
       </div>
       
-      {isLoadingMore && renderLoadingMore()}
+      {isLoadingMore && (
+        <div className="flex justify-center items-center py-12">
+           <div className="flex space-x-2">
+             <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+             <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+             <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></div>
+           </div>
+        </div>
+      )}
       
       {!hasMore && posts.length > 0 && (
-        <div className={`flex justify-center items-center py-8 text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-          没有更多作品了
+        <div className={`flex justify-center items-center py-12 text-xs tracking-widest uppercase opacity-40 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+          THE END
         </div>
       )}
     </div>

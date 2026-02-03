@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
+import { useAnalyticsStore } from '@/stores/useAnalyticsStore';
 import {
   LineChart,
   Line,
@@ -48,6 +49,35 @@ interface AnalyticsDashboardProps {
   initialMetric?: MetricType;
   initialTimeRange?: TimeRange;
 }
+
+// 状态指示器组件
+const StatusIndicator = () => {
+  const { isOnline, pendingActions, lastSyncTime } = useAnalyticsStore();
+  
+  return (
+    <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
+      <div className={`px-3 py-1 rounded-full text-xs font-medium flex items-center gap-2 shadow-lg ${
+        isOnline ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+      }`}>
+        <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-500' : 'bg-red-500'}`}></span>
+        {isOnline ? '实时连接 (Online)' : '离线模式 (Offline)'}
+      </div>
+      
+      {pendingActions.length > 0 && (
+        <div className="px-3 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700 flex items-center gap-2 shadow-lg">
+          <i className="fas fa-sync fa-spin"></i>
+          {pendingActions.length} 个操作待同步
+        </div>
+      )}
+      
+      {lastSyncTime > 0 && (
+        <div className="px-3 py-1 rounded-full text-xs text-gray-500 bg-white/80 backdrop-blur shadow-sm">
+          上次更新: {new Date(lastSyncTime).toLocaleTimeString()}
+        </div>
+      )}
+    </div>
+  );
+};
 
 // 图表卡片组件
 const ChartCard: React.FC<{
@@ -273,27 +303,51 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
   const [chartType, setChartType] = useState<ChartType>('line');
   const [groupBy, setGroupBy] = useState<GroupBy>('day');
   
-  // 获取数据
-  // TODO: 在实际应用中，这里应该调用API获取真实数据
-  // 目前使用本地服务中的空数据（已移除Mock数据）
-  const queryParams: AnalyticsQueryParams = {
-    metric: activeMetric,
-    timeRange: timeRange,
-    groupBy: groupBy,
-    filters: {
-      userId: userId,
-    },
-  };
+  // 使用 Zustand Store
+  const { 
+    dataPoints: metricsData, 
+    stats: metricsStats, 
+    isLoading, 
+    fetchData, 
+    subscribeToRealtime, 
+    unsubscribeFromRealtime 
+  } = useAnalyticsStore();
+
+  // 初始化与数据获取
+  useEffect(() => {
+    const queryParams: AnalyticsQueryParams = {
+      metric: activeMetric,
+      timeRange: timeRange,
+      groupBy: groupBy,
+      filters: {
+        userId: userId,
+      },
+    };
+
+    fetchData(queryParams);
+    subscribeToRealtime();
+
+    return () => {
+      unsubscribeFromRealtime();
+    };
+  }, [activeMetric, timeRange, groupBy, userId, fetchData, subscribeToRealtime, unsubscribeFromRealtime]);
   
-  const metricsData = analyticsService.getMetricsData(queryParams);
-  const metricsStats = analyticsService.getMetricsStats(metricsData);
-  // 获取空列表而不是Mock数据
+  // 获取空列表而不是Mock数据 (Top lists still from service for now, or could move to store too)
   const topWorks = analyticsService.getWorksPerformance(5);
   const topUsers = analyticsService.getUserActivity(5);
   const topThemes = analyticsService.getThemeTrends(5);
 
   // 渲染图表
   const renderChart = () => {
+    if (isLoading && metricsData.length === 0) {
+      return (
+        <div className="flex flex-col items-center justify-center h-full text-gray-400">
+          <i className="fas fa-spinner fa-spin text-4xl mb-4 opacity-50"></i>
+          <p>正在加载数据...</p>
+        </div>
+      );
+    }
+    
     if (metricsData.length === 0) {
        return (
          <div className="flex flex-col items-center justify-center h-full text-gray-400">
@@ -391,6 +445,7 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
 
   return (
     <div className="space-y-6">
+      <StatusIndicator />
       {/* 数据概览卡片 */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <DataCard 

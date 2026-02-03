@@ -100,6 +100,9 @@ const NewsDetail = createLazyComponent(() => import(/* webpackChunkName: "pages-
 const EventDetail = createLazyComponent(() => import(/* webpackChunkName: "pages-cultural" */ "@/pages/EventDetail"), {
   priority: ROUTE_PRIORITIES.HIGH
 });
+const SubmitWork = createLazyComponent(() => import(/* webpackChunkName: "pages-cultural" */ "@/pages/SubmitWork"), {
+  priority: ROUTE_PRIORITIES.HIGH
+});
 
 const SearchResults = createLazyComponent(() => import(/* webpackChunkName: "pages-explore" */ "@/pages/SearchResults"), {
   priority: ROUTE_PRIORITIES.HIGH,
@@ -621,6 +624,7 @@ export default function App() {
 
           <Route path="/events" element={<LazyComponent><CulturalEvents /></LazyComponent>} />
           <Route path="/events/:id" element={<LazyComponent><EventDetail /></LazyComponent>} />
+          <Route path="/events/:id/submit" element={<LazyComponent><PrivateRoute><SubmitWork /></PrivateRoute></LazyComponent>} />
           <Route path="/cultural-events" element={<LazyComponent><CulturalEvents /></LazyComponent>} />
           
           {/* 活动管理相关路由 */}

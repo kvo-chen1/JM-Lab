@@ -776,7 +776,8 @@ const ChatInput: React.FC<ChatInputProps> = memo(({
       message.images = state.images.files.map((file, index) => ({
         url: state.images.previews[index],
         name: file.name,
-        size: file.size
+        size: file.size,
+        file: file // 传递原始文件对象以便上传
       }));
     }
 
@@ -788,7 +789,8 @@ const ChatInput: React.FC<ChatInputProps> = memo(({
         size: fileObj.file.size,
         type: fileObj.file.type,
         status: fileObj.status,
-        progress: fileObj.progress
+        progress: fileObj.progress,
+        file: fileObj.file // 传递原始文件对象以便上传
       }));
     }
 

@@ -1,7 +1,8 @@
-import React, { useMemo, useState, useEffect, Suspense, lazy, useCallback } from 'react'
+import React, { useMemo, useState, useEffect, Suspense, lazy, useCallback, useContext } from 'react'
 import { useTheme } from '@/hooks/useTheme'
 import { motion } from 'framer-motion'
 import { useNavigate, useParams } from 'react-router-dom'
+import { AuthContext } from '@/contexts/AuthContext'
 // 使用更简洁的懒加载方式
 const ProductMockupPreview = lazy(() => import('@/components/ProductMockupPreview'))
 // 使用默认导入包装命名导出
@@ -17,6 +18,7 @@ export default function WorkDetail() {
   const { isDark } = useTheme()
   const navigate = useNavigate()
   const { id } = useParams()
+  const { user, isAuthenticated } = useContext(AuthContext)
   const [liked, setLiked] = useState(false)
   const [likes, setLikes] = useState(0)
   const [bookmarked, setBookmarked] = useState(false)
@@ -50,10 +52,22 @@ export default function WorkDetail() {
           
           if (workData) {
             // 初始化点赞和收藏状态
-            const userBookmarks = postsApi.getUserBookmarks();
-            const userLikes = postsApi.getUserLikes();
-            setBookmarked(userBookmarks.includes(id));
-            setLiked(userLikes.includes(id));
+            // 优先使用 workData 中的状态，如果后端正确返回了针对当前用户的状态
+            if (isAuthenticated && user) {
+                // 如果后端API返回了 isLiked/isBookmarked，则使用之
+                // 否则尝试从 Supabase 获取 (需要 await)
+                const userBookmarks = await postsApi.getUserBookmarks(user.id);
+                const userLikes = await postsApi.getUserLikes(user.id);
+                
+                // 假设 workData 可能不包含 isBookmarked/isLiked (如果后端没处理)
+                // 这里做一个合并逻辑
+                setBookmarked(workData.isBookmarked || userBookmarks.includes(id));
+                setLiked(workData.isLiked || userLikes.includes(id));
+            } else {
+                setBookmarked(false);
+                setLiked(false);
+            }
+            
             setLikes(workData.likes || 0);
             
             // 获取相关作品
@@ -105,11 +119,19 @@ export default function WorkDetail() {
       // 然后异步发送API请求
       try {
         if (newLikedState) {
-          // 调用API点赞
-          await apiService.likeWork(stringId)
+          // 调用API点赞，同时更新本地缓存
+          if (isAuthenticated && user) {
+             await postsApi.likePost(stringId, user.id);
+          } else {
+             await apiService.likeWork(stringId);
+          }
         } else {
-          // 调用API取消点赞
-          await apiService.unlikeWork(stringId)
+          // 调用API取消点赞，同时更新本地缓存
+          if (isAuthenticated && user) {
+             await postsApi.unlikePost(stringId, user.id);
+          } else {
+             await apiService.unlikeWork(stringId);
+          }
         }
       } catch (error) {
         console.error('点赞操作失败:', error)
@@ -119,7 +141,7 @@ export default function WorkDetail() {
         toast.error(liked ? '取消点赞失败' : '点赞失败')
       }
     }
-  }, [work, liked, likes])
+  }, [work, liked, likes, user, isAuthenticated])
 
   const handleBookmark = useCallback(async () => {
     if (work) {
@@ -132,11 +154,19 @@ export default function WorkDetail() {
       // 然后异步发送API请求
       try {
         if (newBookmarkedState) {
-          // 调用API收藏
-          await apiService.bookmarkWork(stringId)
+          // 调用API收藏，同时更新本地缓存
+          if (isAuthenticated && user) {
+             await postsApi.bookmarkPost(stringId, user.id);
+          } else {
+             await apiService.bookmarkWork(stringId);
+          }
         } else {
-          // 调用API取消收藏
-          await apiService.unbookmarkWork(stringId)
+          // 调用API取消收藏，同时更新本地缓存
+          if (isAuthenticated && user) {
+             await postsApi.unbookmarkPost(stringId, user.id);
+          } else {
+             await apiService.unbookmarkWork(stringId);
+          }
         }
       } catch (error) {
         console.error('收藏操作失败:', error)

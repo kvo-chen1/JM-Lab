@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useTheme } from '@/hooks/useTheme';
 import { useCreateStore } from '../hooks/useCreateStore';
 import { traditionalPatterns } from '../data';
+import { toast } from 'sonner';
 
 export default function CanvasArea() {
   const { isDark } = useTheme();
@@ -210,8 +211,14 @@ export default function CanvasArea() {
           </button>
           
           <button 
-            onClick={() => useCreateStore.getState().updateState({ showAIReview: true })}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2 transition-all ${isDark ? 'bg-gray-800 hover:bg-gray-700 text-gray-300' : 'bg-white hover:bg-gray-50 text-gray-600 shadow-sm border border-gray-200'}`}
+            onClick={() => {
+              if (isEmpty) {
+                toast.error('请先生成作品后再进行AI点评');
+                return;
+              }
+              useCreateStore.getState().updateState({ showAIReview: true });
+            }}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2 transition-all ${isEmpty ? 'opacity-50 cursor-not-allowed' : ''} ${isDark ? 'bg-gray-800 hover:bg-gray-700 text-gray-300' : 'bg-white hover:bg-gray-50 text-gray-600 shadow-sm border border-gray-200'}`}
           >
             <i className="fas fa-magic text-purple-500"></i>
             <span className="hidden sm:inline">AI点评</span>

@@ -4,8 +4,14 @@ export default defineConfig({
   testDir: './e2e',
   timeout: 60000,
   retries: 0,
+  webServer: {
+    command: 'pnpm dev:client --port 5174',
+    url: 'http://localhost:5174',
+    reuseExistingServer: false,
+    timeout: 120 * 1000,
+  },
   use: {
-    baseURL: 'http://localhost:3021',
+    baseURL: 'http://localhost:5174',
     headless: true,
     trace: 'on-first-retry'
   },

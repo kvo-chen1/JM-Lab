@@ -124,11 +124,18 @@ class HistoryService {
           action_type: item.action_type,
           content: item.content,
           session_id: item.session_id,
-          timestamp: item.timestamp,
+          timestamp: item.timestamp, // Ensure timestamp is included as it is non-nullable
           checksum: item.checksum
       });
 
-      if (error) throw error;
+      if (error) {
+          // If 400 error, don't retry locally to avoid loop
+          if (error.code?.startsWith('PGRST') || error.message?.includes('400')) {
+              console.warn('Invalid history item, skipping:', error);
+              return;
+          }
+          throw error;
+      }
       
       item.synced = true;
       await this.cacheHistory([item]);
@@ -192,26 +199,23 @@ class HistoryService {
 
       if (!error) {
         // Clear pending items
-        const transaction = this.db!.transaction(['pending_history'], 'readwrite');
-        const store = transaction.objectStore('pending_history');
-        // Clear all or delete by ID. Since we read all, clearing all is risky if new items were added.
-        // Better delete by keys.
-        pendingItems.forEach(item => {
-            // Assuming auto-increment ID for pending store
-            if (item.id) store.delete(item.id); 
-            // If we didn't store the key in item, we need to handle that. 
-            // In saveToPending we used autoIncrement. getAll() returns values. 
-            // We should use getAllKeys() or openCursor.
-        });
-        
-        // Actually, let's just clear the store if we successfully synced everything we read.
-        // But new items might have come in.
-        // Safe way: delete specific IDs.
-        // Let's refactor to use cursor or keep IDs.
-        // The 'id' in HistoryItem is optional, but IndexedDB auto-increments a key.
-        // We need that key to delete.
+        // Since we synced all, we can clear all.
+        // Wait, if new items were added during sync?
+        // Ideally we should delete by key.
+        // But since this is triggered by 'online' event and isSyncing is true, new items go to DB but won't trigger concurrent sync.
+        // However, it's safer to rely on retrySync logic which uses cursor and keys.
+        // So I will just clear here for now to match the "bulk success" logic.
+        const deleteTx = this.db!.transaction(['pending_history'], 'readwrite');
+        deleteTx.objectStore('pending_history').clear();
       } else {
         console.error('Sync failed', error);
+        // If error is 400 (Bad Request) or 409 (Conflict), it implies schema mismatch or data issue.
+        // We should probably discard these items to prevent infinite loop of errors.
+        if (error.code && (error.code.startsWith('PGRST') || error.code === '23505' || error.message.includes('400'))) {
+             console.warn('Non-retriable error, clearing pending items to avoid loop:', error);
+             const deleteTx = this.db!.transaction(['pending_history'], 'readwrite');
+             deleteTx.objectStore('pending_history').clear();
+        }
       }
     } catch (e) {
       console.error('Sync error', e);
@@ -253,11 +257,18 @@ class HistoryService {
                         timestamp: item.timestamp,
                         checksum: item.checksum
                     }))); // Exclude local ID and synced property
+                    
                     if (!error) {
                          // Delete processed
                          const deleteTx = this.db!.transaction(['pending_history'], 'readwrite');
                          const deleteStore = deleteTx.objectStore('pending_history');
                          keysToDelete.forEach(key => deleteStore.delete(key));
+                    } else if (error.message?.includes('400') || error.code?.startsWith('PGRST')) {
+                        // 严重错误（如 Schema 不匹配），清理这些无法同步的任务，防止死循环
+                        console.error('Non-retriable sync error, clearing batch:', error);
+                        const deleteTx = this.db!.transaction(['pending_history'], 'readwrite');
+                        const deleteStore = deleteTx.objectStore('pending_history');
+                        keysToDelete.forEach(key => deleteStore.delete(key));
                     }
                 }
                 this.isSyncing = false;

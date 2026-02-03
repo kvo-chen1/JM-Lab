@@ -1,8 +1,9 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { useTheme } from '@/hooks/useTheme';
+import { AuthContext } from '@/contexts/AuthContext';
 import { Work } from '@/mock/works';
 import postsApi from '@/services/postService';
 
@@ -30,6 +31,7 @@ const CreateWorkForm: React.FC<CreateWorkFormProps> = ({
   initialDescription = ''
 }) => {
   const { theme } = useTheme();
+  const { user } = useContext(AuthContext);
   const navigate = useNavigate();
   const isDark = theme === 'dark';
   
@@ -178,7 +180,7 @@ const CreateWorkForm: React.FC<CreateWorkFormProps> = ({
       
       if (image) {
         // 如果有文件对象，直接使用
-        publishedWork = await postsApi.createWork(newWork, image);
+        publishedWork = await postsApi.createWork(newWork, image, user?.id);
       } else if (imagePreview) {
         // 如果只有预览图（如来自草稿或URL）
         try {
@@ -186,16 +188,16 @@ const CreateWorkForm: React.FC<CreateWorkFormProps> = ({
              const res = await fetch(imagePreview);
              const blob = await res.blob();
              const file = new File([blob], "work.png", { type: "image/png" });
-             publishedWork = await postsApi.createWork(newWork, file);
+             publishedWork = await postsApi.createWork(newWork, file, user?.id);
           } else {
              // 远程URL或Blob URL
              // 尝试直接使用 createWorkWithUrl
-             publishedWork = await postsApi.createWorkWithUrl(newWork, imagePreview);
+             publishedWork = await postsApi.createWorkWithUrl(newWork, imagePreview, user?.id);
           }
         } catch (imgError) {
           console.error('处理图片失败:', imgError);
           // 如果图片处理失败，尝试直接用 createWorkWithUrl 作为最后的 fallback
-          publishedWork = await postsApi.createWorkWithUrl(newWork, imagePreview);
+          publishedWork = await postsApi.createWorkWithUrl(newWork, imagePreview, user?.id);
         }
       }
       

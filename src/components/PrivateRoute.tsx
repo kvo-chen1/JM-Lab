@@ -29,7 +29,12 @@ const PrivateRoute = memo(({ component: Component, children }: PrivateRouteProps
   
   // 开发环境：默认视为已登录，方便测试
   if (isDevelopment) {
-    console.log('[PrivateRoute] Development mode: Allowing access without authentication');
+    console.log('[PrivateRoute] Development mode: Checking for new user');
+    // 开发环境也需要检查新用户状态，以便测试完整信息流程
+    if (user && user.isNewUser && location.pathname !== '/complete-profile') {
+      return <Navigate to="/complete-profile" replace />;
+    }
+    
     // 开发环境直接返回子组件，不进行认证检查
     if (children) {
       return <>{children}</>;

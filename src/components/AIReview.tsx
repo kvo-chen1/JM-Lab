@@ -25,6 +25,18 @@ interface AIReviewResult {
     details: string[];
   };
   suggestions: string[];
+  highlights: string[];
+  recommendedCommercialPaths: Array<{
+    title: string;
+    description: string;
+    icon: string;
+  }>;
+  relatedActivities: Array<{
+    title: string;
+    deadline: string;
+    reward: string;
+    image?: string;
+  }>;
   similarWorks?: Array<{
     id: number;
     thumbnail: string;
@@ -89,14 +101,8 @@ const AIReview: React.FC<AIReviewProps> = ({ workId, prompt, aiExplanation, sele
         // Prepare creation description based on actual data
         const creationDescription = aiExplanation || prompt || 'This is a design work created on our platform';
         
-        // Get creation issue diagnosis based on actual content
-        const issues = llmService.diagnoseCreationIssues(creationDescription);
-        
-        // Get the selected result thumbnail if available
-        const selectedThumbnail = generatedResults.find(result => result.id === selectedResult)?.thumbnail;
-        
-        // Generate review result with more realistic scoring based on actual content
-        const generatedScore = Math.max(70, Math.min(95, Math.floor(Math.random() * 25) + 75));
+        // Call LLM service to generate real review
+        const reviewData = await llmService.generateWorkReview(prompt || 'General Design', creationDescription);
         
         // 从API获取作品数据，随机选择3个作品作为相似作品
         const fetchSimilarWorks = async () => {
@@ -105,24 +111,7 @@ const AIReview: React.FC<AIReviewProps> = ({ workId, prompt, aiExplanation, sele
             const randomWorks = [...worksData].sort(() => 0.5 - Math.random()).slice(0, 3);
             
             setReviewResult({
-              overallScore: generatedScore,
-              culturalFit: {
-                score: Math.max(65, Math.min(95, generatedScore + Math.floor(Math.random() * 10) - 5)),
-                details: (t('review.culturalFitDetails', { returnObjects: true }) as unknown) as string[]
-              },
-              creativity: {
-                score: Math.max(65, Math.min(95, generatedScore + Math.floor(Math.random() * 10) - 5)),
-                details: (t('review.creativityDetails', { returnObjects: true }) as unknown) as string[]
-              },
-              aesthetics: {
-                score: Math.max(65, Math.min(95, generatedScore + Math.floor(Math.random() * 10) - 5)),
-                details: (t('review.aestheticsDetails', { returnObjects: true }) as unknown) as string[]
-              },
-              suggestions: issues.length > 0 ? issues : (t('review.suggestions', { returnObjects: true }) as unknown) as string[],
-              commercialPotential: {
-                score: Math.max(65, Math.min(95, generatedScore + Math.floor(Math.random() * 10) - 5)),
-                analysis: (t('review.commercialAnalysisDetails', { returnObjects: true }) as unknown) as string[]
-              },
+              ...reviewData,
               similarWorks: randomWorks.map(work => ({
                 id: work.id,
                 thumbnail: work.thumbnail || work.imageUrl,
@@ -131,32 +120,15 @@ const AIReview: React.FC<AIReviewProps> = ({ workId, prompt, aiExplanation, sele
             });
           } catch (error) {
             console.error('获取相似作品失败:', error);
-            // 如果API调用失败，使用默认的相似作品
+            // 如果API调用失败，使用默认的相似作品为空
             setReviewResult({
-              overallScore: generatedScore,
-              culturalFit: {
-                score: Math.max(65, Math.min(95, generatedScore + Math.floor(Math.random() * 10) - 5)),
-                details: (t('review.culturalFitDetails', { returnObjects: true }) as unknown) as string[]
-              },
-              creativity: {
-                score: Math.max(65, Math.min(95, generatedScore + Math.floor(Math.random() * 10) - 5)),
-                details: (t('review.creativityDetails', { returnObjects: true }) as unknown) as string[]
-              },
-              aesthetics: {
-                score: Math.max(65, Math.min(95, generatedScore + Math.floor(Math.random() * 10) - 5)),
-                details: (t('review.aestheticsDetails', { returnObjects: true }) as unknown) as string[]
-              },
-              suggestions: issues.length > 0 ? issues : (t('review.suggestions', { returnObjects: true }) as unknown) as string[],
-              commercialPotential: {
-                score: Math.max(65, Math.min(95, generatedScore + Math.floor(Math.random() * 10) - 5)),
-                analysis: (t('review.commercialAnalysisDetails', { returnObjects: true }) as unknown) as string[]
-              },
+              ...reviewData,
               similarWorks: []
             });
           }
         };
         
-        fetchSimilarWorks();
+        await fetchSimilarWorks();
       } catch (error) {
         console.error('Failed to generate review:', error);
         setError('Failed to generate AI review. Please try again later.');
@@ -166,7 +138,7 @@ const AIReview: React.FC<AIReviewProps> = ({ workId, prompt, aiExplanation, sele
     };
     
     // Add a small delay to simulate API call
-    setTimeout(generateReview, 800);
+    generateReview();
   }, [workId, prompt, aiExplanation, selectedResult, generatedResults, t]);
   
   const handleApplySuggestion = (suggestion: string) => {
@@ -450,18 +422,29 @@ const AIReview: React.FC<AIReviewProps> = ({ workId, prompt, aiExplanation, sele
               <div className={`p-5 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-50'} mb-8`}>
                 <h4 className="font-medium mb-3">{t('review.workHighlights')}</h4>
                 <ul className="space-y-2">
-                  <li className="flex items-start">
-                    <i className="fas fa-star text-yellow-500 mt-1 mr-2 flex-shrink-0"></i>
-                    <span className="text-sm">文化元素融入自然，展现了深厚的文化底蕴</span>
-                  </li>
-                  <li className="flex items-start">
-                    <i className="fas fa-star text-yellow-500 mt-1 mr-2 flex-shrink-0"></i>
-                    <span className="text-sm">设计风格现代与传统完美结合，符合当下国潮趋势</span>
-                  </li>
-                  <li className="flex items-start">
-                    <i className="fas fa-star text-yellow-500 mt-1 mr-2 flex-shrink-0"></i>
-                    <span className="text-sm">视觉层次分明，色彩搭配和谐统一</span>
-                  </li>
+                  {reviewResult.highlights && reviewResult.highlights.length > 0 ? (
+                    reviewResult.highlights.map((highlight, index) => (
+                      <li key={index} className="flex items-start">
+                        <i className="fas fa-star text-yellow-500 mt-1 mr-2 flex-shrink-0"></i>
+                        <span className="text-sm">{highlight}</span>
+                      </li>
+                    ))
+                  ) : (
+                    <>
+                      <li className="flex items-start">
+                        <i className="fas fa-star text-yellow-500 mt-1 mr-2 flex-shrink-0"></i>
+                        <span className="text-sm">文化元素融入自然，展现了深厚的文化底蕴</span>
+                      </li>
+                      <li className="flex items-start">
+                        <i className="fas fa-star text-yellow-500 mt-1 mr-2 flex-shrink-0"></i>
+                        <span className="text-sm">设计风格现代与传统完美结合，符合当下国潮趋势</span>
+                      </li>
+                      <li className="flex items-start">
+                        <i className="fas fa-star text-yellow-500 mt-1 mr-2 flex-shrink-0"></i>
+                        <span className="text-sm">视觉层次分明，色彩搭配和谐统一</span>
+                      </li>
+                    </>
+                  )}
                 </ul>
               </div>
               
@@ -697,11 +680,11 @@ const AIReview: React.FC<AIReviewProps> = ({ workId, prompt, aiExplanation, sele
               <div className={`p-5 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-50'} mb-6`}>
                 <h5 className="font-medium mb-3">{t('review.recommendedCommercialPaths')}</h5>
                 <div className="space-y-3">
-                  {[
+                  {(reviewResult.recommendedCommercialPaths && reviewResult.recommendedCommercialPaths.length > 0 ? reviewResult.recommendedCommercialPaths : [
                     { title: t('review.culturalCreativeProduct'), icon: 'gift', description: t('review.culturalCreativeProductDesc') },
                     { title: t('review.brandPackaging'), icon: 'box', description: t('review.brandPackagingDesc') },
                     { title: t('review.digitalCollectibles'), icon: 'gem', description: t('review.digitalCollectiblesDesc') }
-                  ].map((path, index) => (
+                  ]).map((path, index) => (
                     <div key={index} className="flex items-start p-3 rounded-lg bg-white bg-opacity-10">
                       <div className="w-8 h-8 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center mr-3 flex-shrink-0">
                         <i className={`fas fa-${path.icon}`}></i>
@@ -719,7 +702,7 @@ const AIReview: React.FC<AIReviewProps> = ({ workId, prompt, aiExplanation, sele
               <div className="mb-6">
                 <h5 className="font-medium mb-3">{t('review.relatedActivities')}</h5>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {[
+                  {(reviewResult.relatedActivities && reviewResult.relatedActivities.length > 0 ? reviewResult.relatedActivities : [
                     { 
                       title: t('review.timeHonoredBrandCompetition'), 
                       deadline: t('review.timeHonoredBrandCompetitionDeadline'), 
@@ -732,11 +715,11 @@ const AIReview: React.FC<AIReviewProps> = ({ workId, prompt, aiExplanation, sele
                       reward: t('review.nationalTrendDesignCampReward'),
 
                     }
-                  ].map((activity, index) => (
+                  ]).map((activity, index) => (
                     <div key={index} className={`rounded-lg overflow-hidden ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
                       <div className="flex">
                         <LazyImage 
-                          src={activity.image} 
+                          src={activity.image || `https://source.unsplash.com/random/200x200?sig=${index}`} 
                           alt={activity.title} 
                           className="w-24 h-24 object-cover"
                           ratio="square"

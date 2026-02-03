@@ -387,6 +387,37 @@ function createSQLiteTables(db) {
         payload_json TEXT
       );
     `)
+
+    // 创建活动表
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS events (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        description TEXT,
+        start_time INTEGER,
+        end_time INTEGER,
+        location TEXT,
+        cover_url TEXT,
+        status TEXT DEFAULT 'draft',
+        creator_id TEXT NOT NULL,
+        created_at INTEGER,
+        updated_at INTEGER,
+        metadata TEXT,
+        type TEXT,
+        tags TEXT,
+        media TEXT
+      )
+    `)
+
+    // 尝试为活动表添加新列
+    const eventColumns = ['type TEXT', 'tags TEXT', 'media TEXT']
+    for (const col of eventColumns) {
+      try {
+        db.exec(`ALTER TABLE events ADD COLUMN ${col}`)
+      } catch (e) {
+        // Ignore duplicate column errors
+      }
+    }
     
     // 创建数据库迁移表
     db.exec(`
@@ -527,7 +558,7 @@ function createSQLiteTables(db) {
         status TEXT DEFAULT 'pending',
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL,
-        PRIMARY KEY (community_id, user_id)
+        UNIQUE (community_id, user_id)
       );
     `)
     
@@ -2084,15 +2115,25 @@ export const leaderboardDB = {
             { $project: { id: 1, title: 1, content: 1, user_id: 1, category_id: 1, status: 1, views: 1, likes_count: 1, comments_count: 1, created_at: 1, updated_at: 1, username: '$user_info.username', avatar_url: '$user_info.avatar_url' } }
           ]).toArray()
       case DB_TYPE.POSTGRESQL:
-        const pgWhereClause = startTime > 0 ? `WHERE p.created_at >= $1` : ''
+        const pgWhereClause = startTime > 0 ? `WHERE w.created_at >= to_timestamp($1/1000.0)` : ''
         const pgParams = startTime > 0 ? [startTime, limit] : [limit]
         const pgParamOffset = startTime > 0 ? 1 : 0
+        
+        let dbSortBy = sortBy;
+        if (sortBy === 'likes_count') dbSortBy = 'likes';
+        if (sortBy === 'comments_count') dbSortBy = 'comments';
+        
         return (await db.query(`
-          SELECT p.*, u.username, u.avatar_url
-          FROM posts p
-          LEFT JOIN users u ON p.user_id = u.id
+          SELECT 
+            w.id, w.title, w.description as content, w.thumbnail, 
+            w.creator_id as user_id, w.category as category_id, 
+            w.views, w.likes as likes_count, w.comments as comments_count, 
+            w.created_at, w.updated_at,
+            u.username, u.avatar_url
+          FROM works w
+          LEFT JOIN users u ON w.creator_id = u.id
           ${pgWhereClause}
-          ORDER BY p.${sortBy} DESC
+          ORDER BY w.${dbSortBy} DESC
           LIMIT $${pgParamOffset + 1}
         `, pgParams)).rows
       default: throw new Error(`Unsupported DB Type: ${config.dbType}`)
@@ -2125,15 +2166,24 @@ export const leaderboardDB = {
             { $limit: limit }
           ]).toArray()
       case DB_TYPE.POSTGRESQL:
-        const pgPostWhereClause = startTime > 0 ? `AND p.created_at >= $1` : ''
+        const pgWorkWhereClause = startTime > 0 ? `AND w.created_at >= to_timestamp($1/1000.0)` : ''
         const pgUserParams = startTime > 0 ? [startTime, limit] : [limit]
         const pgUserParamOffset = startTime > 0 ? 1 : 0
+        
+        let dbUserSortBy = sortBy;
+        if (sortBy === 'likes_count') dbUserSortBy = 'total_likes';
+        if (sortBy === 'posts_count') dbUserSortBy = 'posts_count';
+        if (sortBy === 'views') dbUserSortBy = 'total_views';
+
         return (await db.query(`
-          SELECT u.id, u.username, u.email, u.avatar_url, u.created_at, u.updated_at, COUNT(p.id) as posts_count, COALESCE(SUM(p.likes_count), 0) as total_likes, COALESCE(SUM(p.views), 0) as total_views
+          SELECT u.id, u.username, u.email, u.avatar_url, u.created_at, u.updated_at, 
+            COUNT(w.id) as posts_count, 
+            COALESCE(SUM(w.likes), 0) as total_likes, 
+            COALESCE(SUM(w.views), 0) as total_views
           FROM users u
-          LEFT JOIN posts p ON u.id = p.user_id ${pgPostWhereClause}
+          LEFT JOIN works w ON u.id = w.creator_id ${pgWorkWhereClause}
           GROUP BY u.id
-          ORDER BY ${sortBy} DESC
+          ORDER BY ${dbUserSortBy} DESC
           LIMIT $${pgUserParamOffset + 1}
         `, pgUserParams)).rows
       default: throw new Error(`Unsupported DB Type: ${config.dbType}`)
@@ -2682,13 +2732,13 @@ export const workDB = {
     switch (typeKey) {
       case DB_TYPE.SQLITE:
         // Assume works table exists in SQLite (migrated earlier)
-        return db.prepare('SELECT * FROM works ORDER BY created_at DESC LIMIT ? OFFSET ?').all(limit, offset)
+        return db.prepare('SELECT w.*, u.username, u.avatar_url FROM works w LEFT JOIN users u ON w.creator_id = u.id ORDER BY w.created_at DESC LIMIT ? OFFSET ?').all(limit, offset)
       case DB_TYPE.MEMORY:
         // Mock data or in-memory store
         // We can use memoryStore.posts as a fallback if works are not separate
         return (memoryStore.works || []).sort((a, b) => b.created_at - a.created_at).slice(offset, offset + limit)
       case DB_TYPE.POSTGRESQL:
-        return (await db.query('SELECT * FROM works ORDER BY created_at DESC LIMIT $1 OFFSET $2', [limit, offset])).rows
+        return (await db.query('SELECT w.*, u.username, u.avatar_url FROM works w LEFT JOIN users u ON w.creator_id = u.id ORDER BY w.created_at DESC LIMIT $1 OFFSET $2', [limit, offset])).rows
       default: return []
     }
   },
@@ -2699,13 +2749,13 @@ export const workDB = {
     switch (typeKey) {
       case DB_TYPE.SQLITE:
         // Assume works table exists in SQLite (migrated earlier)
-        return db.prepare('SELECT * FROM works WHERE creator_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?').all(userId, limit, offset)
+        return db.prepare('SELECT w.*, u.username, u.avatar_url FROM works w LEFT JOIN users u ON w.creator_id = u.id WHERE w.creator_id = ? ORDER BY w.created_at DESC LIMIT ? OFFSET ?').all(userId, limit, offset)
       case DB_TYPE.MEMORY:
         // Mock data or in-memory store
         // We can use memoryStore.posts as a fallback if works are not separate
         return (memoryStore.works || []).filter(w => w.creator_id === userId).sort((a, b) => b.created_at - a.created_at).slice(offset, offset + limit)
       case DB_TYPE.POSTGRESQL:
-        return (await db.query('SELECT * FROM works WHERE creator_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3', [userId, limit, offset])).rows
+        return (await db.query('SELECT w.*, u.username, u.avatar_url FROM works w LEFT JOIN users u ON w.creator_id = u.id WHERE w.creator_id = $1 ORDER BY w.created_at DESC LIMIT $2 OFFSET $3', [userId, limit, offset])).rows
       default: return []
     }
   },
@@ -3417,46 +3467,32 @@ export const activityDB = {
 export const eventDB = {
   async createEvent(eventData) {
     const db = await getDB()
-    const { id, title, description, startTime, endTime, location, coverUrl, status, creatorId, metadata } = eventData
+    const { id, title, description, startTime, endTime, location, coverUrl, status, creatorId, metadata, type, tags, media } = eventData
     const now = Date.now()
     const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
     
     // Ensure ID
     const eventId = id || randomUUID()
     const metaStr = metadata ? JSON.stringify(metadata) : null
+    const tagsStr = tags ? JSON.stringify(tags) : null
+    const mediaStr = media ? JSON.stringify(media) : null
 
     switch (typeKey) {
       case DB_TYPE.SQLITE:
-        // Ensure table exists
-        db.exec(`
-          CREATE TABLE IF NOT EXISTS events (
-            id TEXT PRIMARY KEY,
-            title TEXT NOT NULL,
-            description TEXT,
-            start_time INTEGER,
-            end_time INTEGER,
-            location TEXT,
-            cover_url TEXT,
-            status TEXT DEFAULT 'draft',
-            creator_id TEXT NOT NULL,
-            created_at INTEGER,
-            updated_at INTEGER,
-            metadata TEXT
-          )
-        `)
+        // Table creation handled in createSQLiteTables
         db.prepare(`
-          INSERT INTO events (id, title, description, start_time, end_time, location, cover_url, status, creator_id, created_at, updated_at, metadata)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(eventId, title, description, startTime, endTime, location, coverUrl, status || 'draft', creatorId, now, now, metaStr)
+          INSERT INTO events (id, title, description, start_time, end_time, location, cover_url, status, creator_id, created_at, updated_at, metadata, type, tags, media)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(eventId, title, description, startTime, endTime, location, coverUrl, status || 'draft', creatorId, now, now, metaStr, type, tagsStr, mediaStr)
         return { ...eventData, id: eventId, created_at: now, updated_at: now }
         
       case DB_TYPE.POSTGRESQL:
         // Assume table exists or create it (skipping creation here for brevity, assuming migration or createPostgreSQLTables handles it)
         // We'll add table creation to createPostgreSQLTables separately
         await db.query(`
-          INSERT INTO events (id, title, description, start_time, end_time, location, cover_url, status, creator_id, created_at, updated_at, metadata)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, to_timestamp($10/1000.0), to_timestamp($11/1000.0), $12)
-        `, [eventId, title, description, startTime, endTime, location, coverUrl, status || 'draft', creatorId, now, now, metadata]) // metadata as JSONB if column is JSONB
+          INSERT INTO events (id, title, description, start_time, end_time, location, cover_url, status, creator_id, created_at, updated_at, metadata, type, tags, media)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, to_timestamp($10/1000.0), to_timestamp($11/1000.0), $12, $13, $14, $15)
+        `, [eventId, title, description, startTime, endTime, location, coverUrl, status || 'draft', creatorId, now, now, metadata, type, tagsStr, mediaStr]) // metadata as JSONB if column is JSONB
         return { ...eventData, id: eventId, created_at: now, updated_at: now }
         
       case DB_TYPE.MEMORY:
@@ -3466,7 +3502,7 @@ export const eventDB = {
           title, description, startTime, endTime, location, coverUrl, 
           status: status || 'draft', creatorId, 
           created_at: now, updated_at: now,
-          metadata
+          metadata, type, tags, media
         }
         memoryStore.events.push(newEvent)
         saveMemoryStore()
@@ -3491,7 +3527,9 @@ export const eventDB = {
             endTime: row.end_time,
             coverUrl: row.cover_url,
             creatorId: row.creator_id,
-            metadata: row.metadata ? JSON.parse(row.metadata) : null
+            metadata: row.metadata ? JSON.parse(row.metadata) : null,
+            tags: row.tags ? JSON.parse(row.tags) : [],
+            media: row.media ? JSON.parse(row.media) : []
           }
         } catch (e) { return null }
         
@@ -3506,7 +3544,9 @@ export const eventDB = {
           coverUrl: pgRow.cover_url,
           creatorId: pgRow.creator_id,
           created_at: new Date(pgRow.created_at).getTime(),
-          updated_at: new Date(pgRow.updated_at).getTime()
+          updated_at: new Date(pgRow.updated_at).getTime(),
+          tags: pgRow.tags ? JSON.parse(pgRow.tags) : [],
+          media: pgRow.media ? JSON.parse(pgRow.media) : []
         }
         
       case DB_TYPE.MEMORY:
@@ -3533,6 +3573,9 @@ export const eventDB = {
         if (updateData.coverUrl) { fields.push('cover_url = ?'); params.push(updateData.coverUrl) }
         if (updateData.status) { fields.push('status = ?'); params.push(updateData.status) }
         if (updateData.metadata) { fields.push('metadata = ?'); params.push(JSON.stringify(updateData.metadata)) }
+        if (updateData.type) { fields.push('type = ?'); params.push(updateData.type) }
+        if (updateData.tags) { fields.push('tags = ?'); params.push(JSON.stringify(updateData.tags)) }
+        if (updateData.media) { fields.push('media = ?'); params.push(JSON.stringify(updateData.media)) }
         
         fields.push('updated_at = ?'); params.push(now)
         params.push(id)
@@ -3587,23 +3630,7 @@ export const eventDB = {
     switch (typeKey) {
       case DB_TYPE.SQLITE:
         try {
-          // Ensure table exists
-          db.exec(`
-            CREATE TABLE IF NOT EXISTS events (
-              id TEXT PRIMARY KEY,
-              title TEXT NOT NULL,
-              description TEXT,
-              start_time INTEGER,
-              end_time INTEGER,
-              location TEXT,
-              cover_url TEXT,
-              status TEXT DEFAULT 'draft',
-              creator_id TEXT NOT NULL,
-              created_at INTEGER,
-              updated_at INTEGER,
-              metadata TEXT
-            )
-          `)
+          // Table creation handled in createSQLiteTables
           let sql = 'SELECT * FROM events WHERE 1=1'
           const params = []
           if (filters.creatorId) { sql += ' AND creator_id = ?'; params.push(filters.creatorId) }
@@ -3617,7 +3644,9 @@ export const eventDB = {
             endTime: row.end_time,
             coverUrl: row.cover_url,
             creatorId: row.creator_id,
-            metadata: row.metadata ? JSON.parse(row.metadata) : null
+            metadata: row.metadata ? JSON.parse(row.metadata) : null,
+            tags: row.tags ? JSON.parse(row.tags) : [],
+            media: row.media ? JSON.parse(row.media) : []
           }))
         } catch (e) { return [] }
         
@@ -3639,7 +3668,9 @@ export const eventDB = {
             coverUrl: pgRow.cover_url,
             creatorId: pgRow.creator_id,
             created_at: new Date(pgRow.created_at).getTime(),
-            updated_at: new Date(pgRow.updated_at).getTime()
+            updated_at: new Date(pgRow.updated_at).getTime(),
+            tags: pgRow.tags ? JSON.parse(pgRow.tags) : [],
+            media: pgRow.media ? JSON.parse(pgRow.media) : []
           }))
         } catch (e) { return [] }
         

@@ -177,6 +177,40 @@ export default function CompleteProfile() {
         ...formData,
         isNewUser: false, // 标记用户信息已完善
       });
+
+      // 同步更新到 Supabase Auth Metadata，确保后台 Users 列表能看到 Display Name
+      if (isAuthenticated && user?.id) {
+        // 动态导入 supabase 避免 SSR 问题
+        import('@/lib/supabase').then(async ({ supabase }) => {
+            // 1. 更新 Auth Metadata
+            await supabase.auth.updateUser({
+                data: {
+                    username: formData.username,
+                    avatar: formData.avatar,
+                    phone: formData.phone,
+                    interests: formData.interests
+                }
+            });
+
+            // 2. 确保 public.users 表中有此用户数据 (用于外键关联)
+            const { error: upsertError } = await supabase
+                .from('users')
+                .upsert({
+                    id: user.id,
+                    email: user.email,
+                    username: formData.username,
+                    name: formData.username,
+                    avatar: formData.avatar,
+                    phone: formData.phone,
+                    interests: formData.interests,
+                    updated_at: new Date().toISOString()
+                }, { onConflict: 'id' });
+                
+            if (upsertError) {
+                console.error('Failed to sync public.users:', upsertError);
+            }
+        });
+      }
       
       toast.success('信息完善成功！');
       

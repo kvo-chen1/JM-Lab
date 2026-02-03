@@ -39,236 +39,12 @@ type LeaderboardType = 'posts' | 'users';
 type TimeRange = 'day' | 'week' | 'month' | 'all';
 type SortBy = 'likes_count' | 'views' | 'comments_count' | 'posts_count';
 
-// Mock data for posts
-const mockPosts: Post[] = [
-  {
-    id: 1,
-    title: '国潮插画设计',
-    content: '这是一个关于国潮风格的插画设计作品，融合了传统元素与现代设计理念。',
-    user_id: 1,
-    username: '设计师小明',
-    avatar_url: 'https://via.placeholder.com/64?text=设计师小明',
-    category_id: 1,
-    status: 'published',
-    views: 1234,
-    likes_count: 456,
-    comments_count: 78,
-    created_at: Date.now() - 86400000,
-    updated_at: Date.now() - 86400000
-  },
-  {
-    id: 2,
-    title: '赛博朋克风格海报',
-    content: '赛博朋克风格的海报设计，展现了未来科技感与城市夜景的融合。',
-    user_id: 2,
-    username: '插画师小红',
-    avatar_url: 'https://via.placeholder.com/64?text=插画师小红',
-    category_id: 2,
-    status: 'published',
-    views: 987,
-    likes_count: 321,
-    comments_count: 56,
-    created_at: Date.now() - 172800000,
-    updated_at: Date.now() - 172800000
-  },
-  {
-    id: 3,
-    title: '传统纹样现代化设计',
-    content: '将传统纹样重新设计，应用于现代产品包装，展现传统文化的新活力。',
-    user_id: 3,
-    username: '设计师小李',
-    avatar_url: 'https://via.placeholder.com/64?text=设计师小李',
-    category_id: 3,
-    status: 'published',
-    views: 765,
-    likes_count: 234,
-    comments_count: 45,
-    created_at: Date.now() - 259200000,
-    updated_at: Date.now() - 259200000
-  },
-  {
-    id: 4,
-    title: '水墨风格动画短片',
-    content: '使用传统水墨技法制作的动画短片，讲述了一个关于自然与人文的故事。',
-    user_id: 4,
-    username: '动画师小王',
-    avatar_url: 'https://via.placeholder.com/64?text=动画师小王',
-    category_id: 4,
-    status: 'published',
-    views: 543,
-    likes_count: 189,
-    comments_count: 34,
-    created_at: Date.now() - 345600000,
-    updated_at: Date.now() - 345600000
-  },
-  {
-    id: 5,
-    title: '民俗文化主题摄影',
-    content: '民俗文化主题的摄影作品，记录了各地的传统节日与习俗。',
-    user_id: 5,
-    username: '摄影师小张',
-    avatar_url: 'https://via.placeholder.com/64?text=摄影师小张',
-    category_id: 5,
-    status: 'published',
-    views: 321,
-    likes_count: 123,
-    comments_count: 23,
-    created_at: Date.now() - 432000000,
-    updated_at: Date.now() - 432000000
-  }
-];
+// Mock data removed. Using real data from API.
+const mockPosts: Post[] = [];
+const mockUsers: User[] = [];
 
-// Mock data for users
-const mockUsers: User[] = [
-  {
-    id: 1,
-    username: '设计师小明',
-    email: 'xiaoming@example.com',
-    avatar_url: 'https://via.placeholder.com/64?text=设计师小明',
-    posts_count: 12,
-    total_likes: 2345,
-    total_views: 15678,
-    created_at: Date.now() - 31536000000,
-    updated_at: Date.now() - 86400000
-  },
-  {
-    id: 2,
-    username: '插画师小红',
-    email: 'xiaohong@example.com',
-    avatar_url: 'https://via.placeholder.com/64?text=插画师小红',
-    posts_count: 8,
-    total_likes: 1890,
-    total_views: 12345,
-    created_at: Date.now() - 2592000000,
-    updated_at: Date.now() - 172800000
-  },
-  {
-    id: 3,
-    username: '设计师小李',
-    email: 'xiaoli@example.com',
-    avatar_url: 'https://via.placeholder.com/64?text=设计师小李',
-    posts_count: 15,
-    total_likes: 2100,
-    total_views: 14567,
-    created_at: Date.now() - 1814400000,
-    updated_at: Date.now() - 259200000
-  },
-  {
-    id: 4,
-    username: '动画师小王',
-    email: 'xiaowang@example.com',
-    avatar_url: 'https://via.placeholder.com/64?text=动画师小王',
-    posts_count: 6,
-    total_likes: 1567,
-    total_views: 10987,
-    created_at: Date.now() - 1209600000,
-    updated_at: Date.now() - 345600000
-  },
-  {
-    id: 5,
-    username: '摄影师小张',
-    email: 'xiaozhang@example.com',
-    avatar_url: 'https://via.placeholder.com/64?text=摄影师小张',
-    posts_count: 20,
-    total_likes: 2890,
-    total_views: 18765,
-    created_at: Date.now() - 907200000,
-    updated_at: Date.now() - 432000000
-  },
-  {
-    id: 6,
-    username: 'UI设计师小刘',
-    email: 'xiaoliu@example.com',
-    avatar_url: 'https://via.placeholder.com/64?text=UI设计师小刘',
-    posts_count: 14,
-    total_likes: 1987,
-    total_views: 13456,
-    created_at: Date.now() - 777600000,
-    updated_at: Date.now() - 518400000
-  },
-  {
-    id: 7,
-    username: '平面设计师小陈',
-    email: 'xiaochen@example.com',
-    avatar_url: 'https://via.placeholder.com/64?text=平面设计师小陈',
-    posts_count: 11,
-    total_likes: 1765,
-    total_views: 11234,
-    created_at: Date.now() - 691200000,
-    updated_at: Date.now() - 604800000
-  },
-  {
-    id: 8,
-    username: '3D设计师小周',
-    email: 'xiaozhou@example.com',
-    avatar_url: 'https://via.placeholder.com/64?text=3D设计师小周',
-    posts_count: 9,
-    total_likes: 2012,
-    total_views: 16789,
-    created_at: Date.now() - 604800000,
-    updated_at: Date.now() - 691200000
-  },
-  {
-    id: 9,
-    username: '视频编辑小吴',
-    email: 'xiaowu@example.com',
-    avatar_url: 'https://via.placeholder.com/64?text=视频编辑小吴',
-    posts_count: 7,
-    total_likes: 1654,
-    total_views: 10987,
-    created_at: Date.now() - 518400000,
-    updated_at: Date.now() - 777600000
-  },
-  {
-    id: 10,
-    username: '动效设计师小郑',
-    email: 'xiaozheng@example.com',
-    avatar_url: 'https://via.placeholder.com/64?text=动效设计师小郑',
-    posts_count: 13,
-    total_likes: 2234,
-    total_views: 14567,
-    created_at: Date.now() - 432000000,
-    updated_at: Date.now() - 864000000
-  },
-  {
-    id: 11,
-    username: '游戏设计师小冯',
-    email: 'xiaofeng@example.com',
-    avatar_url: 'https://via.placeholder.com/64?text=游戏设计师小冯',
-    posts_count: 10,
-    total_likes: 1987,
-    total_views: 13456,
-    created_at: Date.now() - 345600000,
-    updated_at: Date.now() - 950400000
-  },
-  {
-    id: 12,
-    username: '交互设计师小沈',
-    email: 'xishenshen@example.com',
-    avatar_url: 'https://via.placeholder.com/64?text=交互设计师小沈',
-    posts_count: 16,
-    total_likes: 2456,
-    total_views: 17890,
-    created_at: Date.now() - 259200000,
-    updated_at: Date.now() - 1036800000
-  }
-];
 
-// Helper function to sort mock data by different criteria
-const sortMockData = <T extends Post | User>(data: T[], sortBy: SortBy): T[] => {
-  return [...data].sort((a, b) => {
-    if (sortBy === 'likes_count') {
-      return (b as any).likes_count - (a as any).likes_count;
-    } else if (sortBy === 'views') {
-      return (b as any).views - (a as any).views;
-    } else if (sortBy === 'comments_count') {
-      return (b as any).comments_count - (a as any).comments_count;
-    } else if (sortBy === 'posts_count') {
-      return (b as any).posts_count - (a as any).posts_count;
-    }
-    return 0;
-  });
-};
+
 
 const Leaderboard: React.FC = () => {
   const { theme } = useTheme();
@@ -283,6 +59,7 @@ const Leaderboard: React.FC = () => {
   const [isDetailOpen, setIsDetailOpen] = useState<boolean>(false);
   const [isLoadingDetail, setIsLoadingDetail] = useState<boolean>(false);
   const [userPosts, setUserPosts] = useState<Post[]>([]);
+  const [stats, setStats] = useState<{ users_count: number; posts_count: number } | null>(null);
   const navigate = useNavigate();
 
   // 动态颜色类
@@ -308,7 +85,19 @@ const Leaderboard: React.FC = () => {
 
   useEffect(() => {
     fetchLeaderboard();
+    fetchStats();
   }, [leaderboardType, timeRange, sortBy]);
+
+  const fetchStats = async () => {
+    try {
+      const response = await apiClient.get('/api/db/status');
+      if (response.data && (response.data as any).stats) {
+         setStats((response.data as any).stats);
+      }
+    } catch (e) {
+      console.error('Failed to fetch stats', e);
+    }
+  };
 
   // 键盘事件监听，支持Esc键关闭弹窗
   useEffect(() => {
@@ -343,49 +132,21 @@ const Leaderboard: React.FC = () => {
       return;
     }
     
-    // 优化：立即使用mock数据作为初始加载，然后异步更新API数据
-    const sortedMockPosts = sortMockData(mockPosts, sortBy);
-    const sortedMockUsers = sortMockData(mockUsers, sortBy);
-    
-    if (leaderboardType === 'posts') {
-      setPosts(sortedMockPosts);
-    } else {
-      setUsers(sortedMockUsers);
-    }
-    
-    // 使用mock数据更新缓存
-    setCache(prev => ({
-      ...prev, 
-      [cacheKey]: {
-        ...prev[cacheKey] || { posts: [], users: [] },
-        posts: sortedMockPosts,
-        users: sortedMockUsers
-      }
-    }));
-    
     try {
-      // 优化API请求：减少超时时间，去除重试
       if (leaderboardType === 'posts') {
-        const response = await apiClient.get(`/api/leaderboard/posts?sortBy=${sortBy}&timeRange=${timeRange}&limit=10`, {
-          timeoutMs: 5000,
-          retries: 0
-        });
-        const data = Array.isArray(response.data) && response.data.length > 0 ? response.data as Post[] : sortedMockPosts;
+        const response = await apiClient.get(`/api/leaderboard/posts?sortBy=${sortBy}&timeRange=${timeRange}&limit=10`);
+        const data = Array.isArray(response.data) ? response.data as Post[] : [];
         setPosts(data);
         setCache(prev => ({ ...prev, [cacheKey]: { ...prev[cacheKey] || { posts: [], users: [] }, posts: data } }));
       } else {
-        const response = await apiClient.get(`/api/leaderboard/users?sortBy=${sortBy}&timeRange=${timeRange}&limit=10`, {
-          timeoutMs: 5000,
-          retries: 0
-        });
-        const data = Array.isArray(response.data) && response.data.length > 0 ? response.data as User[] : sortedMockUsers;
+        const response = await apiClient.get(`/api/leaderboard/users?sortBy=${sortBy}&timeRange=${timeRange}&limit=10`);
+        const data = Array.isArray(response.data) ? response.data as User[] : [];
         setUsers(data);
         setCache(prev => ({ ...prev, [cacheKey]: { ...prev[cacheKey] || { posts: [], users: [] }, users: data } }));
       }
     } catch (err: any) {
-      // API请求失败时，继续使用mock数据，不显示错误
-      console.log('API请求失败，使用mock数据:', err.message);
-      // 不设置错误状态，保持使用mock数据
+      console.error('API request failed:', err.message);
+      setError(err.message || '获取数据失败');
     } finally {
       // 使用requestAnimationFrame确保UI流畅更新
       requestAnimationFrame(() => {
@@ -405,11 +166,20 @@ const Leaderboard: React.FC = () => {
     
     // 获取用户热门作品
     try {
-      // 使用mock数据筛选用户的热门作品
-      const sortedPosts = mockPosts.filter(post => post.user_id === user.id)
-        .sort((a, b) => b.likes_count - a.likes_count)
-        .slice(0, 3);
-      setUserPosts(sortedPosts);
+      const response = await apiClient.get(`/api/works?userId=${user.id}&limit=3`);
+      const data = Array.isArray(response.data) ? response.data : [];
+      
+      // Map API response to Post interface
+      const mappedPosts: Post[] = data.map((item: any) => ({
+        ...item,
+        content: item.description || item.content || '',
+        views: item.views || 0,
+        status: item.status || 'published',
+        category_id: item.category_id || 0,
+        updated_at: item.updated_at || item.created_at
+      }));
+      
+      setUserPosts(mappedPosts);
     } catch (error) {
       console.error('Failed to fetch user posts:', error);
       setUserPosts([]);
@@ -504,11 +274,11 @@ const Leaderboard: React.FC = () => {
             >
               <div className="text-center">
                 <p className="text-sm text-gray-500 dark:text-gray-400 uppercase tracking-wider font-semibold">作品总数</p>
-                <p className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">{posts.length > 0 ? '12.5k+' : '-'}</p>
+                <p className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">{stats ? stats.posts_count : '-'}</p>
               </div>
               <div className="text-center">
                 <p className="text-sm text-gray-500 dark:text-gray-400 uppercase tracking-wider font-semibold">创作者</p>
-                <p className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">{users.length > 0 ? '8.2k+' : '-'}</p>
+                <p className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">{stats ? stats.users_count : '-'}</p>
               </div>
             </motion.div>
           </div>

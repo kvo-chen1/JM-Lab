@@ -18,7 +18,7 @@ async function run() {
     await client.connect();
     console.log("Connected to database.");
 
-    const sqlPath = path.join(__dirname, 'supabase/migrations/20260125_user_activities.sql');
+    const sqlPath = path.join(__dirname, 'supabase/migrations/20260203150000_add_events_table.sql');
     const sql = fs.readFileSync(sqlPath, 'utf8');
 
     console.log("Applying migration:", sqlPath);

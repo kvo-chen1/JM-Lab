@@ -591,22 +591,23 @@ export default memo(function TianjinCreativeActivities({ search: propSearch = ''
         <div className={`w-full md:w-1/2 p-3 rounded-xl shadow-md ${isDark ? 'bg-gray-700' : 'bg-white'}`}>
           <h3 className="font-bold text-base mb-3">近期活动</h3>
           <div className="space-y-3">
-            {
-              [
-                { name: '天津老字号文化节', date: '2025.12.15-2025.12.25' },
-                { name: '海河国际艺术季', date: '2025.12.20-2026.01.10' },
-                { name: '杨柳青古镇旅游节', date: '2026.01.05-2026.01.15' },
-                { name: '津味美食文化展', date: '2026.01.12-2026.01.22' }
-              ].map((event, index) => (
+            {userEvents.length > 0 ? (
+              userEvents.slice(0, 5).map((event, index) => (
                 <div key={index} className={`flex justify-between items-center border-b pb-2 ${isDark ? 'border-gray-600' : 'border-gray-200'}`}>
-                  <div className="flex items-center">
-                    <span className={`inline-block w-2 h-2 rounded-full ${isDark ? 'bg-blue-500' : 'bg-blue-400'} mr-2`}></span>
-                    <span className={`${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{event.name}</span>
+                  <div className="flex items-center flex-1 min-w-0">
+                    <span className={`inline-block w-2 h-2 rounded-full ${isDark ? 'bg-blue-500' : 'bg-blue-400'} mr-2 flex-shrink-0`}></span>
+                    <span className={`${isDark ? 'text-gray-300' : 'text-gray-700'} truncate`}>{event.title}</span>
                   </div>
-                  <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{event.date}</span>
+                  <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'} whitespace-nowrap ml-2`}>
+                    {new Date(event.startTime).toLocaleDateString('zh-CN')}
+                  </span>
                 </div>
               ))
-            }
+            ) : (
+              <div className={`text-center py-4 ${isDark ? 'text-gray-400' : 'text-gray-500'} text-sm`}>
+                暂无近期活动
+              </div>
+            )}
           </div>
         </div>
       </div>

@@ -102,28 +102,30 @@ export const CreateCommunityModal: React.FC<CreateCommunityModalProps> = ({
   };
   
   // 处理头像上传
-  const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // 这里应该实现文件上传逻辑，暂时使用模拟URL
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        setAvatar(event.target?.result as string);
-      };
-      reader.readAsDataURL(file);
+      try {
+        const url = await uploadImage(file);
+        setAvatar(url);
+      } catch (error) {
+        toast.error('上传头像失败');
+        console.error('Avatar upload failed:', error);
+      }
     }
   };
   
   // 处理封面图上传
-  const handleCoverImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleCoverImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // 这里应该实现文件上传逻辑，暂时使用模拟URL
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        setCoverImage(event.target?.result as string);
-      };
-      reader.readAsDataURL(file);
+      try {
+        const url = await uploadImage(file);
+        setCoverImage(url);
+      } catch (error) {
+        toast.error('上传封面图失败');
+        console.error('Cover upload failed:', error);
+      }
     }
   };
   

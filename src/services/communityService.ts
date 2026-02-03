@@ -86,12 +86,12 @@ export const communityService = {
       cover: community.cover,
       isActive: true,
       tags: community.tags || [],
-      bookmarks: [],
+      bookmarks: community.bookmarks || [],
       theme: {
-        primaryColor: '#3b82f6',
-        secondaryColor: '#60a5fa',
-        backgroundColor: '#f3f4f6',
-        textColor: '#1f2937'
+        primaryColor: community.theme?.primaryColor || '#3b82f6',
+        secondaryColor: community.theme?.secondaryColor || '#60a5fa',
+        backgroundColor: community.theme?.backgroundColor || '#f3f4f6',
+        textColor: community.theme?.textColor || '#1f2937'
       },
       layoutType: 'standard',
       enabledModules: {
@@ -173,12 +173,12 @@ export const communityService = {
               cover: community.cover,
               isActive: true,
               tags: community.tags || [],
-              bookmarks: [],
+              bookmarks: community.bookmarks || [],
               theme: {
-                primaryColor: '#3b82f6',
-                secondaryColor: '#60a5fa',
-                backgroundColor: '#f3f4f6',
-                textColor: '#1f2937'
+                primaryColor: community.theme?.primaryColor || '#3b82f6',
+                secondaryColor: community.theme?.secondaryColor || '#60a5fa',
+                backgroundColor: community.theme?.backgroundColor || '#f3f4f6',
+                textColor: community.theme?.textColor || '#1f2937'
               },
               layoutType: 'standard',
               enabledModules: {
@@ -260,24 +260,92 @@ export const communityService = {
       throw error;
     }
 
-    // 准备插入的数据，适配数据库表结构
+    // 获取当前真实的 Supabase 用户 ID，以防止前端存储的 ID 与数据库不一致
+    let realUserId = userId;
+    let currentUser = null;
+    
+    try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user && user.id) {
+            realUserId = user.id;
+            currentUser = user;
+        } else {
+             // 如果 getUser 失败，尝试刷新 session 或者抛出错误
+             // 但为了兼容性，暂时只记录警告
+             console.warn('supabase.auth.getUser() returned no user');
+        }
+    } catch (e) {
+        console.warn('Failed to get supabase user, using provided userId', e);
+    }
+
+    // 尝试修复 23503 错误：确保用户存在于 public.users 表中
+    // 某些外键约束可能指向 public.users 而不是 auth.users，或者触发器未执行
+    if (currentUser) {
+        try {
+            // 检查 public.users 是否存在该用户
+            const { data: profile, error: profileError } = await supabase
+                .from('users')
+                .select('id')
+                .eq('id', realUserId)
+                .single();
+            
+            if (!profile || profileError) {
+                console.log('User profile missing in public.users, attempting to sync...', realUserId);
+                
+                const metadata = currentUser.user_metadata || {};
+                const username = metadata.username || metadata.name || currentUser.email?.split('@')[0] || 'User';
+                
+                const { error: upsertError } = await supabase
+                    .from('users')
+                    .upsert({
+                        id: realUserId,
+                        email: currentUser.email,
+                        username: username,
+                        avatar_url: metadata.avatar_url || metadata.avatar || '',
+                        created_at: new Date().toISOString(),
+                        updated_at: new Date().toISOString()
+                    });
+                    
+                if (upsertError) {
+                    console.error('Failed to sync user profile:', upsertError);
+                } else {
+                    console.log('User profile synced successfully');
+                }
+            }
+        } catch (syncError) {
+            console.error('Error during profile sync check:', syncError);
+        }
+    }
+
+    // 准备插入的数据，适配数据库表实际存在的列
     const insertData: any = {
-        id: `community-${Date.now()}`,
         name: data.name,
         description: data.description,
         cover: data.coverImage,
         avatar: data.avatar,
         tags: data.tags,
         members_count: 1,
-        privacy: data.visibility || 'public',
+        member_count: 1,
+        privacy: data.visibility || 'public', // 使用数据库中存在的 privacy 列
         is_active: true,
         is_special: false,
-        creator_id: userId
+        creator_id: realUserId,
+        theme: data.theme || {
+            primaryColor: '#3b82f6',
+            secondaryColor: '#60a5fa',
+            backgroundColor: '#f3f4f6',
+            textColor: '#1f2937'
+        },
+        layout_type: data.layoutType || 'standard',
+        enabled_modules: data.enabledModules || {
+            posts: true,
+            chat: true,
+            members: true,
+            announcements: true
+        },
+        bookmarks: data.bookmarks || []
     };
     
-    // 只在字段存在时添加
-    // join_approval_required 字段可能不存在，暂时不添加
-
     const { data: newCommunity, error } = await supabase
       .from('communities')
       .insert(insertData)
@@ -286,6 +354,14 @@ export const communityService = {
     
     if (error) {
         console.error('Supabase create community error:', error);
+        // 处理 409 冲突错误 (通常是名称重复)
+        if (error.code === '23505' || error.message?.includes('duplicate key') || error.details?.includes('already exists')) {
+            throw new Error('社群名称已存在，请换个名字试试');
+        }
+        // 处理外键约束错误 (用户ID不存在)
+        if (error.code === '23503') {
+             throw new Error('用户认证状态异常，请尝试退出后重新登录');
+        }
         throw error;
     }
     
@@ -295,7 +371,7 @@ export const communityService = {
         .from('community_members')
         .insert({
           community_id: newCommunity.id,
-          user_id: userId,
+          user_id: realUserId,
           role: 'owner'
           // 移除 status 字段，因为表中不存在
         });
@@ -314,7 +390,7 @@ export const communityService = {
       cover: newCommunity.cover,
       isActive: newCommunity.is_active || true,
       tags: newCommunity.tags || [],
-      bookmarks: [],
+      bookmarks: newCommunity.bookmarks || [],
       theme: {
         primaryColor: data.theme?.primaryColor || '#3b82f6',
         secondaryColor: data.theme?.secondaryColor || '#60a5fa',
@@ -329,7 +405,7 @@ export const communityService = {
         announcements: true
       },
       isSpecial: newCommunity.is_special || false,
-      creatorId: userId,
+      creatorId: realUserId,
       createdAt: newCommunity.created_at,
       updatedAt: newCommunity.updated_at
     };
@@ -583,12 +659,12 @@ export const communityService = {
       cover: community.cover,
       isActive: true,
       tags: community.tags || [],
-      bookmarks: [],
+      bookmarks: community.bookmarks || [],
       theme: {
-        primaryColor: '#3b82f6',
-        secondaryColor: '#60a5fa',
-        backgroundColor: '#f3f4f6',
-        textColor: '#1f2937'
+        primaryColor: community.theme?.primaryColor || '#3b82f6',
+        secondaryColor: community.theme?.secondaryColor || '#60a5fa',
+        backgroundColor: community.theme?.backgroundColor || '#f3f4f6',
+        textColor: community.theme?.textColor || '#1f2937'
       },
       layoutType: 'standard',
       enabledModules: {
@@ -692,12 +768,12 @@ export const communityService = {
       cover: updatedCommunity.cover,
       isActive: true,
       tags: updatedCommunity.tags || [],
-      bookmarks: [],
+      bookmarks: updatedCommunity.bookmarks || [],
       theme: {
-        primaryColor: '#3b82f6',
-        secondaryColor: '#60a5fa',
-        backgroundColor: '#f3f4f6',
-        textColor: '#1f2937'
+        primaryColor: updatedCommunity.theme?.primaryColor || '#3b82f6',
+        secondaryColor: updatedCommunity.theme?.secondaryColor || '#60a5fa',
+        backgroundColor: updatedCommunity.theme?.backgroundColor || '#f3f4f6',
+        textColor: updatedCommunity.theme?.textColor || '#1f2937'
       },
       layoutType: 'standard',
       enabledModules: {
@@ -776,7 +852,7 @@ export const communityService = {
         content: comment.content,
         createdAt: new Date(comment.created_at).getTime()
       })) || [],
-      topic: post.topic,
+      topic: post.topic || post.category,
       upvotes: post.upvotes || 0,
       images: post.images,
       communityId: post.community_id,
@@ -810,7 +886,7 @@ export const communityService = {
         content: comment.content,
         createdAt: new Date(comment.created_at).getTime()
       })) || [],
-      topic: post.topic,
+      topic: post.topic || post.category,
       upvotes: post.upvotes || 0,
       images: post.images,
       communityId: post.community_id,
@@ -975,7 +1051,8 @@ export const communityService = {
         sender_id: senderId,
         receiver_id: receiverId,
         content,
-        is_read: false
+        is_read: false,
+        role: 'user' // Required by database constraint
       });
     
     if (error) throw error;

@@ -44,31 +44,17 @@ export default function Register() {
   
   // 发送邮箱验证码
   const handleSendEmailCode = async () => {
+    // 邮箱验证
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       setErrors(prev => ({ ...prev, email: '请输入有效的邮箱地址' }));
       return;
     }
     
-    setIsSendingCode(true);
-    try {
-      // 调用发送注册验证码API
-      const result = await sendRegisterEmailOtp(email);
-      
-      if (result.success) {
-        if (result.mockCode) {
-          toast.success(`验证码发送成功: ${result.mockCode}`);
-        } else {
-          toast.success('验证码发送成功，请查收邮件');
-        }
-        setEmailCountdown(60); // 60秒倒计时
-      } else {
-        toast.error(result.error || '验证码发送失败');
-      }
-    } catch (error) {
-      toast.error('验证码发送失败，请稍后重试');
-    } finally {
-      setIsSendingCode(false);
-    }
+    // 不再需要前端发送验证码，Supabase Auth 会在注册时自动发送
+    toast.info('注册时系统将自动发送验证邮件，无需手动获取');
+    
+    // 模拟倒计时效果，让用户知道不需要一直点
+    setEmailCountdown(60); 
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -89,12 +75,12 @@ export default function Register() {
           .min(8, { message: '密码至少需要8个字符' })
           .regex(/[a-zA-Z]/, { message: '密码需要包含至少一个字母' })
           .regex(/[0-9]/, { message: '密码需要包含至少一个数字' }),
-        code: z.string()
-          .regex(/^\d{6}$/, { message: '验证码长度为6位数字' }),
+        // 移除 code 验证，因为现在是点击链接验证
+        // code: z.string().regex(/^\d{6}$/, { message: '验证码长度为6位数字' }),
         age: z.string().optional(),
         tags: z.array(z.string()).optional(),
       });
-      const validationResult = emailRegisterSchema.safeParse({ username, email, password, code: emailCode, age, tags });
+      const validationResult = emailRegisterSchema.safeParse({ username, email, password, age, tags });
       
       if (!validationResult.success) {
         console.error('4. Form validation failed:', validationResult.error);
@@ -109,6 +95,7 @@ export default function Register() {
       console.log('3. Form validation passed');
       setErrors({});
     } catch (err) {
+      // ... 错误处理保持不变
       console.error('4. Form validation failed:', err);
       if (err instanceof z.ZodError) {
         const newErrors: Record<string, string> = {};
@@ -124,24 +111,30 @@ export default function Register() {
     setIsLoading(true);
     
     try {
-      console.log('6. Calling register function with:', { username, email, password: '****', code: emailCode, age, tags });
+      // 传递空 code，因为现在不再需要前端验证码
+      console.log('6. Calling register function with:', { username, email, password: '****', age, tags });
       
-      const result = await register(username, email, password, age, tags, emailCode);
+      const result = await register(username, email, password, age, tags, '');
       
       console.log('8. Register function returned:', result);
       
       if (result.success) {
-        toast.success('注册成功！');
-        navigate('/');
+        if (result.error) {
+            // 这里处理 "success: true" 但有提示的情况（需要去邮箱验证）
+            toast.success(result.error, { duration: 6000 });
+            // 可以跳转到登录页，或者显示一个提示页
+            setTimeout(() => navigate('/login'), 2000);
+        } else {
+            // 直接登录成功（如果不需要验证）
+            toast.success('注册成功！');
+            navigate('/');
+        }
       } else {
         toast.error(result.error || '注册失败，请检查输入信息或稍后重试');
       }
     } catch (error: any) {
+      // ... 错误处理保持不变
       console.error('8. Register failed with error:', error);
-      console.error('8.1 Error message:', error.message);
-      console.error('8.2 Error stack:', error.stack);
-      
-      // 提供更详细的错误信息给用户
       const errorMessage = error.message || '注册失败，请稍后重试';
       toast.error(`注册失败: ${errorMessage}`);
     } finally {
@@ -282,36 +275,12 @@ export default function Register() {
           </div>
 
           <div>
-            <label htmlFor="emailCode" className="block text-sm font-medium mb-2">验证码</label>
-            <div className="flex space-x-3">
-              <input
-                type="text"
-                id="emailCode"
-                value={emailCode}
-                onChange={(e) => setEmailCode(e.target.value)}
-                className={cn(
-                  "flex-1 px-4 py-3 rounded-xl transition-colors focus:outline-none focus:ring-2",
-                  errors.code
-                    ? "border-red-500 focus:ring-red-500"
-                    : isDark
-                      ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400 border focus:ring-red-500"
-                      : "bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400 border focus:ring-red-500"
-                )}
-                placeholder="请输入邮箱验证码"
-                required
-              />
-              <button
-                type="button"
-                onClick={handleSendEmailCode}
-                disabled={isSendingCode || emailCountdown > 0}
-                className={`px-4 py-3 rounded-xl transition-colors whitespace-nowrap ${isSendingCode || emailCountdown > 0 ? (isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-400') : (isDark ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700')}`}
-              >
-                {isSendingCode ? '发送中...' : emailCountdown > 0 ? `${emailCountdown}秒后重发` : '获取验证码'}
-              </button>
+            <label htmlFor="emailCode" className="block text-sm font-medium mb-2">验证方式</label>
+            <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl border border-gray-100 dark:border-gray-700 text-sm opacity-80">
+              <i className="fas fa-envelope mr-2 text-red-500"></i>
+              注册后系统将向您的邮箱发送验证链接，请点击链接激活账号。
             </div>
-            {errors.code && (
-              <p className="mt-1 text-sm text-red-500">{errors.code}</p>
-            )}
+            {/* 隐藏验证码输入框，因为不再需要手动输入验证码 */}
           </div>
 
           <div>

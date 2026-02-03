@@ -5,22 +5,66 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || ''
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
 
-// 创建 Supabase 客户端
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true
-  },
-  global: {
-    headers: {
-      'x-application-name': 'creator-community'
-    }
-  },
-  db: {
-    schema: 'public'
+// 创建 Supabase 客户端 - 带错误处理
+export let supabase;
+
+try {
+  if (supabaseUrl && supabaseAnonKey) {
+    supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true
+      },
+      global: {
+        headers: {
+          'x-application-name': 'creator-community'
+        }
+      },
+      db: {
+        schema: 'public'
+      }
+    })
+  } else {
+    // 如果环境变量不存在，创建一个安全的模拟客户端
+    console.warn('Supabase environment variables not found, using mock client')
+    supabase = {
+      from: () => ({
+        select: () => ({ eq: () => ({ order: () => ({ limit: () => Promise.resolve({ data: [], error: null }) }) }) }),
+        insert: () => ({ select: () => ({ single: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }) }) }),
+        update: () => ({ eq: () => Promise.resolve({ error: new Error('Supabase not configured') }) }),
+        delete: () => ({ eq: () => Promise.resolve({ error: new Error('Supabase not configured') }) })
+      }),
+      channel: () => ({
+        on: () => ({ subscribe: () => ({ unsubscribe: () => {} }) }),
+        subscribe: () => ({ unsubscribe: () => {} })
+      }),
+      auth: {
+        getSession: () => Promise.resolve({ data: null, error: null }),
+        onAuthStateChange: () => () => {}
+      }
+    } as any
   }
-})
+} catch (error) {
+  console.error('Error creating Supabase client:', error)
+  // 创建一个安全的模拟客户端
+  supabase = {
+    from: () => ({
+      select: () => ({ eq: () => ({ order: () => ({ limit: () => Promise.resolve({ data: [], error: null }) }) }) }),
+      insert: () => ({ select: () => ({ single: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }) }) }),
+      update: () => ({ eq: () => Promise.resolve({ error: new Error('Supabase not configured') }) }),
+      delete: () => ({ eq: () => Promise.resolve({ error: new Error('Supabase not configured') }) })
+    }),
+    channel: () => ({
+      on: () => ({ subscribe: () => ({ unsubscribe: () => {} }) }),
+      subscribe: () => ({ unsubscribe: () => {} })
+    }),
+    auth: {
+      getSession: () => Promise.resolve({ data: null, error: null }),
+      onAuthStateChange: () => () => {}
+    }
+  } as any
+}
 
 // 数据库表类型定义
 export interface Database {
@@ -160,23 +204,128 @@ export interface Database {
         Row: {
           id: string
           channel_id: string
+          community_id: string | null
           sender_id: string
+          receiver_id: string | null
           content: string
+          status: string
+          type: string
+          metadata: Record<string, any>
+          retry_count: number
+          is_read: boolean
+          delivered_at: string | null
+          read_at: string | null
           created_at: string
         }
         Insert: {
           id?: string
-          channel_id: string
+          channel_id?: string
+          community_id?: string | null
           sender_id: string
+          receiver_id?: string | null
           content: string
+          status?: string
+          type?: string
+          metadata?: Record<string, any>
+          retry_count?: number
+          is_read?: boolean
+          delivered_at?: string | null
+          read_at?: string | null
           created_at?: string
         }
         Update: {
           id?: string
           channel_id?: string
+          community_id?: string | null
           sender_id?: string
+          receiver_id?: string | null
           content?: string
+          status?: string
+          type?: string
+          metadata?: Record<string, any>
+          retry_count?: number
+          is_read?: boolean
+          delivered_at?: string | null
+          read_at?: string | null
           created_at?: string
+        }
+      }
+      friend_requests: {
+        Row: {
+          id: string
+          sender_id: string
+          receiver_id: string
+          status: 'pending' | 'accepted' | 'rejected'
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          sender_id: string
+          receiver_id: string
+          status?: 'pending' | 'accepted' | 'rejected'
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          sender_id?: string
+          receiver_id?: string
+          status?: 'pending' | 'accepted' | 'rejected'
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      user_status: {
+        Row: {
+          user_id: string
+          status: 'online' | 'offline' | 'away'
+          last_seen: string
+          updated_at: string
+        }
+        Insert: {
+          user_id: string
+          status?: 'online' | 'offline' | 'away'
+          last_seen?: string
+          updated_at?: string
+        }
+        Update: {
+          user_id?: string
+          status?: 'online' | 'offline' | 'away'
+          last_seen?: string
+          updated_at?: string
+        }
+      }
+      user_history: {
+        Row: {
+          id: string
+          user_id: string
+          action_type: string
+          content: Record<string, any>
+          session_id: string | null
+          created_at: string
+          timestamp: number
+          checksum: string | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          action_type: string
+          content?: Record<string, any>
+          session_id?: string | null
+          created_at?: string
+          timestamp: number
+          checksum?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          action_type?: string
+          content?: Record<string, any>
+          session_id?: string | null
+          created_at?: string
+          timestamp?: number
+          checksum?: string | null
         }
       }
     }

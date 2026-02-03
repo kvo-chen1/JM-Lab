@@ -292,7 +292,7 @@ class BackendLogService {
   }
 
   // 发送追踪数据到后端
-  private async sendTrace(traceData: TraceData): Promise<boolean> {
+  private async sendTrace(traceData: TraceData | Partial<TraceData>): Promise<boolean> {
     try {
       if (!this.apiUrl) {
         console.warn('后端日志API URL未配置，跳过发送追踪数据')
@@ -333,7 +333,7 @@ class BackendLogService {
     }
 
     // 发送追踪事件到后端
-    this.sendTrace(traceData as TraceData)
+    this.sendTrace(traceData)
   }
 
   // 启用/禁用控制台日志记录

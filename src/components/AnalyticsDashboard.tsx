@@ -274,6 +274,8 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
   const [groupBy, setGroupBy] = useState<GroupBy>('day');
   
   // 获取数据
+  // TODO: 在实际应用中，这里应该调用API获取真实数据
+  // 目前使用本地服务中的空数据（已移除Mock数据）
   const queryParams: AnalyticsQueryParams = {
     metric: activeMetric,
     timeRange: timeRange,
@@ -285,12 +287,22 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
   
   const metricsData = analyticsService.getMetricsData(queryParams);
   const metricsStats = analyticsService.getMetricsStats(metricsData);
+  // 获取空列表而不是Mock数据
   const topWorks = analyticsService.getWorksPerformance(5);
   const topUsers = analyticsService.getUserActivity(5);
   const topThemes = analyticsService.getThemeTrends(5);
 
   // 渲染图表
   const renderChart = () => {
+    if (metricsData.length === 0) {
+       return (
+         <div className="flex flex-col items-center justify-center h-full text-gray-400">
+           <i className="fas fa-chart-area text-4xl mb-4 opacity-50"></i>
+           <p>暂无分析数据</p>
+         </div>
+       );
+    }
+
     if (chartType === 'pie') {
       // 为饼图准备数据
       const pieData = metricsData.map((item, index) => ({

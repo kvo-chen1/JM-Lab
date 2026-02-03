@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { componentPreloader } from '@/utils/performanceOptimization';
+import { componentPreloader } from '@/utils/performanceOptimization.tsx';
 import { debounce } from '@/lib/utils';
 
 /**

@@ -71,9 +71,9 @@ export default function GradientHero({ title, subtitle, badgeText, theme = 'red'
         ></div>
       )}
       
-      <div className="relative z-10 h-full flex flex-col justify-center">
+      <div className={`relative z-10 h-full flex flex-col justify-center ${paddings}`}>
         {variant === 'center' ? (
-          <div className={`container mx-auto ${paddings}`}>
+          <>
             {/* 手机端美化设计 */}
             <div className="sm:hidden">
               <div className="flex flex-col items-center text-center">
@@ -116,39 +116,37 @@ export default function GradientHero({ title, subtitle, badgeText, theme = 'red'
                 </div>
               )}
             </div>
-          </div>
+          </>
         ) : (
-          <div className={`container mx-auto ${paddings}`}>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
-              <div>
-                <div className="flex items-center justify-between">
-                  <h1 className={`${titleClass} font-bold tracking-tight`}>{title}</h1>
-                  {badgeText && (
-                    <span className={`text-xs px-2 py-1 rounded-full ${isDark || backgroundImage ? 'bg-black/30 ring-1 ring-gray-600' : 'bg-white/20 ring-1 ring-white/50'} backdrop-blur`}>{badgeText}</span>
-                  )}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+            <div>
+              <div className="flex items-center justify-between">
+                <h1 className={`${titleClass} font-bold tracking-tight`}>{title}</h1>
+                {badgeText && (
+                  <span className={`text-xs px-2 py-1 rounded-full ${isDark || backgroundImage ? 'bg-black/30 ring-1 ring-gray-600' : 'bg-white/20 ring-1 ring-white/50'} backdrop-blur`}>{badgeText}</span>
+                )}
+              </div>
+              {subtitle && (
+                <p className={`${isDark || backgroundImage ? 'text-gray-200' : 'text-white/90'} ${subtitleClass}`}>{subtitle}</p>
+              )}
+            </div>
+            <div className="relative">
+              {showDecor && (
+                <div className="pointer-events-none absolute -top-8 -right-8 w-40 h-40 rounded-full blur-2xl opacity-30 bg-white"></div>
+              )}
+              {stats.length > 0 && (
+                <div className="grid grid-cols-2 gap-4">
+                  {stats.map((s, idx) => (
+                    <div
+                      key={idx}
+                      className={`${isDark || backgroundImage ? 'bg-black/20 ring-1 ring-gray-700' : 'bg-white/15 ring-1 ring-white/40'} rounded-xl px-4 py-3 backdrop-blur`}
+                    >
+                      <div className="text-xs opacity-80">{s.label}</div>
+                      <div className="text-base font-semibold">{s.value}</div>
+                    </div>
+                  ))}
                 </div>
-                {subtitle && (
-                  <p className={`${isDark || backgroundImage ? 'text-gray-200' : 'text-white/90'} ${subtitleClass}`}>{subtitle}</p>
-                )}
-              </div>
-              <div className="relative">
-                {showDecor && (
-                  <div className="pointer-events-none absolute -top-8 -right-8 w-40 h-40 rounded-full blur-2xl opacity-30 bg-white"></div>
-                )}
-                {stats.length > 0 && (
-                  <div className="grid grid-cols-2 gap-4">
-                    {stats.map((s, idx) => (
-                      <div
-                        key={idx}
-                        className={`${isDark || backgroundImage ? 'bg-black/20 ring-1 ring-gray-700' : 'bg-white/15 ring-1 ring-white/40'} rounded-xl px-4 py-3 backdrop-blur`}
-                      >
-                        <div className="text-xs opacity-80">{s.label}</div>
-                        <div className="text-base font-semibold">{s.value}</div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+              )}
             </div>
           </div>
         )}

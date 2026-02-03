@@ -1,7 +1,6 @@
-// 创作者社区 API 工具函数
+// 津脉社区 API 工具函数
 import { supabase } from './supabase'
 import type { PostWithAuthor, UserProfile, CommentWithAuthor } from './supabase'
-import { mockWorks } from '@/mock/works'
 
 /**
  * 获取帖子列表
@@ -84,55 +83,12 @@ export async function getPosts(
       total: count || 0
     }
   } catch (error) {
-    console.error('获取帖子列表错误，启用模拟数据回退:', error)
-    const filtered = mockWorks.filter(w => {
-      if (!category || category === 'all') return true
-      return (w.category || '').toLowerCase() === category.toLowerCase()
-    })
-    const sorted = [...filtered].sort((a, b) => {
-      if (sort === 'hot') {
-        return (b.views ?? 0) - (a.views ?? 0) || (b.likes ?? 0) - (a.likes ?? 0)
-      }
-      return (b.id ?? 0) - (a.id ?? 0)
-    })
-    const start = (page - 1) * limit
-    const end = start + limit
-    const slice = sorted.slice(start, end)
-
-    const posts: PostWithAuthor[] = slice.map(w => {
-      const author: UserProfile = {
-        id: `mock-user-${w.creator || 'unknown'}`,
-        email: `${(w.creator || 'user').replace(/\s+/g, '').toLowerCase()}@example.com`,
-        username: w.creator || '创作者',
-        avatar_url: (w.creatorAvatar as any) || null,
-        bio: w.description || null,
-        is_verified: !!w.featured,
-        metadata: {},
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        followers_count: Math.floor((w.views ?? 0) / 10),
-        following_count: 0,
-        posts_count: 1,
-        is_following: false
-      }
-      return {
-        id: String(w.id),
-        author_id: author.id,
-        title: w.title,
-        content: w.description || '',
-        attachments: [],
-        status: 'published',
-        view_count: w.views ?? 0,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        author,
-        likes_count: w.likes ?? 0,
-        comments_count: (w as any).comments ?? 0,
-        is_liked: false
-      }
-    })
-
-    return { posts, total: filtered.length }
+    console.error('获取帖子列表错误:', error)
+    // 发生错误时，返回空数组
+    return {
+      posts: [],
+      total: 0
+    }
   }
 }
 
@@ -207,27 +163,9 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
     }
 
     if (!data) {
-      // 如果数据库中没有找到用户，返回模拟数据
-      console.warn(`未找到用户: ${userId}，使用模拟数据`)
-      
-      // 创建模拟用户数据
-      const mockUser: UserProfile = {
-        id: `mock-user-${userId}`,
-        email: `${userId.replace(/\s+/g, '').toLowerCase()}@example.com`,
-        username: userId,
-        avatar_url: `https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=创作者${userId}的头像，简洁现代风格&image_size=square`,
-        bio: `这是${userId}的个人简介，来自模拟数据。`,
-        is_verified: false,
-        metadata: {},
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        followers_count: Math.floor(Math.random() * 1000),
-        following_count: Math.floor(Math.random() * 500),
-        posts_count: Math.floor(Math.random() * 100),
-        is_following: false
-      }
-      
-      return mockUser
+      // 如果数据库中没有找到用户，返回null而不是模拟数据
+      console.warn(`未找到用户: ${userId}`)
+      return null
     }
 
     // 获取统计信息
@@ -245,25 +183,8 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
     }
   } catch (error) {
     console.error('获取用户资料错误:', error)
-    
-    // 发生错误时，返回模拟数据作为回退
-    const mockUser: UserProfile = {
-      id: `mock-user-${userId}`,
-      email: `${userId.replace(/\s+/g, '').toLowerCase()}@example.com`,
-      username: userId,
-      avatar_url: `https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=创作者${userId}的头像，简洁现代风格&image_size=square`,
-      bio: `这是${userId}的个人简介，来自模拟数据。`,
-      is_verified: false,
-      metadata: {},
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      followers_count: Math.floor(Math.random() * 1000),
-      following_count: Math.floor(Math.random() * 500),
-      posts_count: Math.floor(Math.random() * 100),
-      is_following: false
-    }
-    
-    return mockUser
+    // 发生错误时，返回null而不是模拟数据
+    return null
   }
 }
 
@@ -316,47 +237,12 @@ export async function getUserPosts(
       throw error
     }
 
-    // 如果没有找到帖子，返回模拟数据
+    // 如果没有找到帖子，返回空数组
     if (!data || data.length === 0) {
-      console.warn(`未找到用户 ${userId} 的帖子，使用模拟数据`)
-      
-      // 创建模拟帖子数据
-      const mockPosts: PostWithAuthor[] = Array.from({ length: Math.floor(Math.random() * 5) + 1 }, (_, index) => {
-        const author: UserProfile = {
-          id: actualUserId,
-          username: userId,
-          avatar_url: `https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=创作者${userId}的头像，简洁现代风格&image_size=square`,
-          bio: `这是${userId}的个人简介，来自模拟数据。`,
-          is_verified: false,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          metadata: {},
-          followers_count: Math.floor(Math.random() * 1000),
-          following_count: Math.floor(Math.random() * 500),
-          posts_count: 0,
-          is_following: false
-        }
-        
-        return {
-          id: `mock-post-${userId}-${index}`,
-          author_id: actualUserId,
-          title: `${userId} 的模拟作品 ${index + 1}`,
-          content: `这是${userId}创作的模拟作品内容。这是一个示例帖子，用于展示创作者的作品风格和创作能力。`,
-          attachments: [],
-          status: 'published',
-          view_count: Math.floor(Math.random() * 1000),
-          created_at: new Date(Date.now() - index * 86400000).toISOString(), // 按天递减
-          updated_at: new Date(Date.now() - index * 86400000).toISOString(),
-          author,
-          likes_count: Math.floor(Math.random() * 100),
-          comments_count: Math.floor(Math.random() * 20),
-          is_liked: false
-        }
-      })
-      
+      console.warn(`未找到用户 ${userId} 的帖子`)
       return {
-        posts: mockPosts,
-        total: mockPosts.length
+        posts: [],
+        total: 0
       }
     }
 
@@ -384,43 +270,10 @@ export async function getUserPosts(
   } catch (error) {
     console.error('获取用户帖子错误:', error)
     
-    // 发生错误时，返回模拟数据
-    const mockPosts: PostWithAuthor[] = Array.from({ length: Math.floor(Math.random() * 5) + 1 }, (_, index) => {
-      const author: UserProfile = {
-        id: `mock-user-${userId}`,
-        username: userId,
-        avatar_url: `https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=创作者${userId}的头像，简洁现代风格&image_size=square`,
-        bio: `这是${userId}的个人简介，来自模拟数据。`,
-        is_verified: false,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        metadata: {},
-        followers_count: Math.floor(Math.random() * 1000),
-        following_count: Math.floor(Math.random() * 500),
-        posts_count: 0,
-        is_following: false
-      }
-      
-      return {
-        id: `mock-post-${userId}-${index}`,
-        author_id: `mock-user-${userId}`,
-        title: `${userId} 的模拟作品 ${index + 1}`,
-        content: `这是${userId}创作的模拟作品内容。这是一个示例帖子，用于展示创作者的作品风格和创作能力。`,
-        attachments: [],
-        status: 'published',
-        view_count: Math.floor(Math.random() * 1000),
-        created_at: new Date(Date.now() - index * 86400000).toISOString(), // 按天递减
-        updated_at: new Date(Date.now() - index * 86400000).toISOString(),
-        author,
-        likes_count: Math.floor(Math.random() * 100),
-        comments_count: Math.floor(Math.random() * 20),
-        is_liked: false
-      }
-    })
-    
+    // 发生错误时，返回空数组
     return {
-      posts: mockPosts,
-      total: mockPosts.length
+      posts: [],
+      total: 0
     }
   }
 }
@@ -544,10 +397,52 @@ export async function getPostComments(postId: string): Promise<CommentWithAuthor
       throw error
     }
 
-    return (data || []).map(comment => ({
-      ...comment,
-      author: comment.author as UserProfile
-    }))
+    // 处理评论数据，确保每个评论都有完整的作者信息
+    return await Promise.all((data || []).map(async (comment) => {
+      let authorInfo: UserProfile;
+      
+      if (comment.author) {
+        // 如果作者信息存在，直接使用
+        authorInfo = comment.author as UserProfile;
+      } else if (comment.author_id) {
+        // 如果作者信息不存在但有author_id，尝试通过getUserProfile获取完整信息
+        try {
+          const userProfile = await getUserProfile(comment.author_id);
+          authorInfo = userProfile as UserProfile;
+        } catch (error) {
+          console.error(`获取用户${comment.author_id}信息失败，使用默认信息:`, error);
+          // 如果获取失败，使用默认信息
+          authorInfo = {
+            id: comment.author_id,
+            username: `用户${comment.author_id.slice(-4)}`,
+            avatar_url: `https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=默认用户头像，简洁现代风格&image_size=square`,
+            bio: null,
+            is_verified: false,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            metadata: {}
+          };
+        }
+      } else {
+        // 如果没有author_id，使用完全默认的信息
+        const randomId = Math.floor(Math.random() * 10000);
+        authorInfo = {
+          id: `unknown-${Date.now()}`,
+          username: `用户${randomId}`,
+          avatar_url: `https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=默认用户头像，简洁现代风格&image_size=square`,
+          bio: null,
+          is_verified: false,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          metadata: {}
+        };
+      }
+      
+      return {
+        ...comment,
+        author: authorInfo
+      };
+    }));
   } catch (error) {
     console.error('获取评论错误:', error)
     return []
@@ -596,7 +491,16 @@ export async function createComment(
 
     return {
       ...data,
-      author: data.author as UserProfile
+      author: data.author as UserProfile || {
+        id: user.id,
+        username: user.email.split('@')[0],
+        avatar_url: `https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=默认用户头像，简洁现代风格&image_size=square`,
+        bio: null,
+        is_verified: false,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        metadata: {}
+      }
     }
   } catch (error) {
     console.error('发表评论错误:', error)

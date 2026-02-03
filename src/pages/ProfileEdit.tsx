@@ -3,6 +3,7 @@ import { AuthContext } from '@/contexts/authContext'
 import { useTheme } from '@/hooks/useTheme'
 import { Link, useNavigate } from 'react-router-dom'
 import { userService } from '@/services/apiService'
+import { validationService } from '@/services/validationService'
 
 export default function ProfileEdit() {
   const { user, updateUser } = useContext(AuthContext)
@@ -119,11 +120,21 @@ export default function ProfileEdit() {
     
     try {
       const updatedUser = {
+        id: user?.id,
         username: formData.username,
         phone: formData.phone,
         age: formData.age ? parseInt(formData.age) : undefined,
         interests: formData.interests ? formData.interests.split(',').map(interest => interest.trim()) : [],
         avatar: avatarPreview
+      }
+      
+      // 前端数据验证
+      const validationResult = validationService.validateUserPartial(updatedUser);
+      if (!validationResult.success) {
+        const errorMsg = Object.values(validationResult.errors || {}).join('; ');
+        setError(errorMsg || '输入数据格式有误');
+        setIsLoading(false);
+        return;
       }
       
       // 先调用后端 API 持久化
@@ -137,7 +148,28 @@ export default function ProfileEdit() {
         navigate('/settings')
       }, 1000)
     } catch (err) {
-      setError('更新失败，请重试')
+      console.error('更新个人资料失败:', err)
+      const errorMessage = err instanceof Error ? err.message : '更新失败'
+      
+      // 处理令牌无效错误
+      if (errorMessage.includes('令牌无效') || errorMessage.includes('缺少用户信息') || errorMessage.includes('401')) {
+        // 清除无效令牌
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('token')
+          localStorage.removeItem('refreshToken')
+          localStorage.removeItem('user')
+          localStorage.removeItem('isAuthenticated')
+        }
+        
+        // 跳转到登录页面
+        setTimeout(() => {
+          navigate('/login')
+        }, 1000)
+        
+        setError('登录已过期，请重新登录')
+      } else {
+        setError('更新失败，请重试')
+      }
     } finally {
       setIsLoading(false)
     }

@@ -1,4 +1,5 @@
-import React, { useCallback, useRef, memo } from 'react'
+import React, { useCallback, useRef, memo, useState, useEffect } from 'react'
+import './SearchBar.css' // Import custom Pinterest styles
 
 // 搜索结果类型枚举
 export const SearchResultType = {
@@ -17,6 +18,17 @@ export interface SearchSuggestion {
   text: string
   type: SearchResultType
   icon?: string
+  group?: string
+  onRemove?: () => void
+}
+
+// 高级筛选选项
+export interface SearchFilters {
+  type?: SearchResultType[]
+  category?: string[]
+  tags?: string[]
+  dateRange?: { start: Date | null; end: Date | null }
+  sortBy?: 'relevance' | 'latest' | 'popular'
 }
 
 interface SearchBarProps {
@@ -26,8 +38,10 @@ interface SearchBarProps {
   setShowSuggest: (value: boolean) => void
   suggestions: SearchSuggestion[]
   isDark: boolean
-  onSearch: (query: string) => void
+  onSearch: (query: string, filters?: SearchFilters) => void
   onSuggestionSelect: (suggestion: SearchSuggestion) => void
+  filters?: SearchFilters
+  onFiltersChange?: (filters: SearchFilters) => void
 }
 
 // 搜索建议项组件
@@ -38,65 +52,49 @@ interface SuggestionItemProps {
 }
 
 const SuggestionItem = memo(({ suggestion, isDark, onSelect }: SuggestionItemProps) => {
-  // 预先计算样式类名
-  const itemClassName = isDark 
-    ? 'hover:bg-gray-700' 
-    : 'hover:bg-gray-50'
-
-  // 根据类型获取图标和颜色
   const getTypeIcon = (type: SearchResultType) => {
     switch (type) {
-      case SearchResultType.WORK:
-        return { icon: 'fas fa-image', color: 'text-blue-500' }
-      case SearchResultType.USER:
-        return { icon: 'fas fa-user', color: 'text-green-500' }
-      case SearchResultType.CATEGORY:
-        return { icon: 'fas fa-folder', color: 'text-purple-500' }
-      case SearchResultType.TAG:
-        return { icon: 'fas fa-tag', color: 'text-yellow-500' }
-      case SearchResultType.PAGE:
-        return { icon: 'fas fa-file', color: 'text-indigo-500' }
-      default:
-        return { icon: 'fas fa-search', color: 'text-gray-500' }
+      case SearchResultType.WORK: return 'fas fa-image';
+      case SearchResultType.USER: return 'fas fa-user';
+      case SearchResultType.CATEGORY: return 'fas fa-folder';
+      case SearchResultType.TAG: return 'fas fa-tag';
+      case SearchResultType.PAGE: return 'fas fa-file';
+      default: return 'fas fa-search';
     }
   }
 
-  // 根据类型获取显示名称
-  const getTypeName = (type: SearchResultType) => {
-    switch (type) {
-      case SearchResultType.WORK:
-        return '作品'
-      case SearchResultType.USER:
-        return '用户'
-      case SearchResultType.CATEGORY:
-        return '分类'
-      case SearchResultType.TAG:
-        return '标签'
-      case SearchResultType.PAGE:
-        return '页面'
-      default:
-        return '搜索结果'
+  const handleRemove = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (suggestion.onRemove) {
+      suggestion.onRemove();
     }
-  }
+  }, [suggestion]);
 
-  const typeInfo = getTypeIcon(suggestion.type)
-
-  const handleSelect = useCallback(() => {
-    onSelect(suggestion)
-  }, [suggestion, onSelect])
+  const handleSelect = useCallback((e: React.MouseEvent) => {
+    e.preventDefault(); // Prevent input blur
+    onSelect(suggestion);
+  }, [onSelect, suggestion]);
 
   return (
     <div 
       onMouseDown={handleSelect} 
-      className={`${itemClassName} px-3 py-2 text-sm cursor-pointer flex items-center justify-between`}
+      className="suggestion-item"
     >
-      <div className="flex items-center gap-2">
-        <i className={`${typeInfo.icon} ${typeInfo.color} text-sm`}></i>
-        <span>{suggestion.text}</span>
+      <div className="suggestion-icon">
+        <i className={suggestion.icon || getTypeIcon(suggestion.type)}></i>
       </div>
-      <span className={`text-xs px-2 py-0.5 rounded-full ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
-        {getTypeName(suggestion.type)}
-      </span>
+      <span className="flex-1">{suggestion.text}</span>
+      {suggestion.onRemove && (
+        <button 
+          className="remove-btn" 
+          onClick={handleRemove} 
+          onMouseDown={(e) => e.stopPropagation()} // Prevent parent selection
+          aria-label="Remove"
+        >
+          <i className="fas fa-times"></i>
+        </button>
+      )}
     </div>
   )
 })
@@ -109,102 +107,153 @@ const SearchBar: React.FC<SearchBarProps> = memo(({
   suggestions,
   isDark,
   onSearch,
-  onSuggestionSelect
+  onSuggestionSelect,
+  filters = {},
+  onFiltersChange
 }) => {
-  // 优化事件处理函数 - 移除不必要的防抖，确保输入流畅
+  const [isFocused, setIsFocused] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Debounce search execution (optional, as the parent might handle API calls based on 'search' prop)
+  // For this component, we update the input value immediately.
+  
   const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value
-    
-    // 立即更新搜索状态，确保输入流畅
     setSearch(value)
-    
     setShowSuggest(true)
   }, [setSearch, setShowSuggest])
 
   const handleFocus = useCallback(() => {
+    setIsFocused(true);
     setShowSuggest(true)
   }, [setShowSuggest])
 
   const handleBlur = useCallback(() => {
-    setTimeout(() => setShowSuggest(false), 150)
+    setIsFocused(false);
+    setTimeout(() => setShowSuggest(false), 200)
   }, [setShowSuggest])
 
-  const handleSuggestionSelect = useCallback((suggestion: SearchSuggestion) => {
-    setSearch(suggestion.text)
-    setShowSuggest(false)
-    onSuggestionSelect(suggestion)
-  }, [setSearch, setShowSuggest, onSuggestionSelect])
+  const handleClear = useCallback(() => {
+    setSearch('');
+    inputRef.current?.focus();
+  }, [setSearch]);
 
   const handleKeyPress = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       setShowSuggest(false)
-      onSearch(search.trim())
+      onSearch(search.trim(), filters)
+      inputRef.current?.blur();
     }
-  }, [search, onSearch, setShowSuggest])
+    if (e.key === 'Escape') {
+        setSearch('');
+        inputRef.current?.blur();
+        setShowSuggest(false);
+    }
+  }, [search, onSearch, setShowSuggest, filters, setSearch])
 
-  const handleSearchButtonClick = useCallback(() => {
-    setShowSuggest(false)
-    onSearch(search.trim())
-  }, [search, onSearch, setShowSuggest])
+  // Global Keyboard Shortcuts
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+        if (e.key === '/' && document.activeElement !== inputRef.current) {
+            e.preventDefault();
+            inputRef.current?.focus();
+        }
+    };
+    document.addEventListener('keydown', handleGlobalKeyDown);
+    return () => document.removeEventListener('keydown', handleGlobalKeyDown);
+  }, []);
 
-  // 预先计算样式类名
-  const inputBaseClassName = isDark 
-    ? 'bg-gray-800 text-white focus:bg-gray-800' 
-    : 'bg-gray-50 text-gray-900 focus:bg-white'
+  // Group suggestions
+  const groupedSuggestions = React.useMemo(() => {
+    if (!suggestions.length) return {};
+    
+    // If no group is defined, treat as 'Suggestions' or handle flat list
+    // Check if any item has a group
+    const hasGroups = suggestions.some(s => s.group);
+    if (!hasGroups) return { 'default': suggestions };
 
-  const inputContainerClassName = isDark 
-    ? 'bg-gray-700' 
-    : 'bg-gray-100'
+    return suggestions.reduce((acc, curr) => {
+      const group = curr.group || '其他';
+      if (!acc[group]) acc[group] = [];
+      acc[group].push(curr);
+      return acc;
+    }, {} as Record<string, SearchSuggestion[]>);
+  }, [suggestions]);
 
-  const suggestBoxClassName = isDark 
-    ? 'bg-gray-800 text-white ring-gray-700 shadow-lg' 
-    : 'bg-white text-gray-900 ring-gray-200 shadow-lg'
-
-  const buttonClassName = isDark 
-    ? 'bg-red-600 hover:bg-red-700 text-white' 
-    : 'bg-red-600 hover:bg-red-700 text-white'
+  const groupKeys = Object.keys(groupedSuggestions);
 
   return (
-    <div className="relative">
-      <div className={`flex items-center rounded-lg ring-1 ${isDark ? 'bg-gray-900 ring-gray-700 hover:ring-gray-600' : 'bg-white ring-gray-200 hover:ring-gray-300'} px-3 py-2 transition-all duration-300 hover:shadow-lg`}>
-        {/* 搜索图标 */}
-        <div className={`flex items-center justify-center ${isDark ? 'text-gray-400 hover:text-gray-300' : 'text-gray-500 hover:text-gray-600'} mr-2 transition-colors duration-300`}>
-          <i className="fas fa-search"></i>
+    <div className={`pinterest-search-wrapper ${isDark ? 'dark' : ''}`}>
+      <div className={`pinterest-search-bar ${isFocused ? 'focused' : ''}`}>
+        
+        {/* Search Icon */}
+        <div className="search-icon-wrapper">
+          <svg className="search-icon" viewBox="0 0 24 24" aria-hidden="true">
+             <path d="M10 16c-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6-2.69 6-6 6z M10 2c-4.42 0-8 3.58-8 8s3.58 8 8 8 8-3.58 8-8-3.58-8-8-8z" />
+          </svg>
         </div>
         
+        {/* Input Field */}
         <input 
+          ref={inputRef}
           value={search} 
           onChange={handleSearchChange}
           onFocus={handleFocus}
           onBlur={handleBlur}
-          onKeyPress={handleKeyPress}
-          className={`${inputBaseClassName} flex-1 px-2 py-2 border-0 focus:outline-none focus:ring-0 transition-all duration-300`} 
-          placeholder="搜索作品、用户、分类、标签或页面" 
-          aria-label="搜索内容" 
+          onKeyDown={handleKeyPress}
+          placeholder="Search" 
+          aria-label="Search" 
+          autoComplete="off"
         />
         
-        {/* 搜索按钮 */}
+        {/* Clear Button */}
         <button 
-          onClick={handleSearchButtonClick}
-          className={`ml-2 px-3 py-1 rounded-md ${buttonClassName} text-sm font-medium transition-all duration-300 hover:shadow-md transform hover:-translate-y-0.5`}
-          aria-label="搜索"
+            className={`clear-btn ${search.length > 0 ? 'visible' : ''}`} 
+            onClick={handleClear}
+            aria-label="Clear search"
+            type="button"
         >
-          搜索
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+          </svg>
         </button>
-      </div>
-      
-      {showSuggest && suggestions.length > 0 && (
-        <div className={`${suggestBoxClassName} absolute z-10 mt-2 w-full rounded-xl ring-1 max-h-48 overflow-auto transition-all duration-300 transform origin-top scale-100 opacity-100`}>
-          {suggestions.map((suggestion) => (
-            <SuggestionItem 
-              key={suggestion.id} 
-              suggestion={suggestion} 
-              isDark={isDark} 
-              onSelect={handleSuggestionSelect}
-            />
-          ))}
+
+        {/* Search Suggestions Dropdown */}
+        <div className={`pinterest-suggestions ${showSuggest && suggestions.length > 0 ? 'visible' : ''}`}>
+           {groupKeys.length === 1 && groupKeys[0] === 'default' ? (
+              // Flat list
+              groupedSuggestions['default'].map((suggestion) => (
+                <SuggestionItem 
+                  key={suggestion.id} 
+                  suggestion={suggestion} 
+                  isDark={isDark} 
+                  onSelect={onSuggestionSelect}
+                />
+              ))
+           ) : (
+              // Grouped list
+              groupKeys.map(group => (
+                <div key={group} className="suggestion-group">
+                  <div className="suggestion-group-title">{group}</div>
+                  {groupedSuggestions[group].map((suggestion) => (
+                    <SuggestionItem 
+                      key={suggestion.id} 
+                      suggestion={suggestion} 
+                      isDark={isDark} 
+                      onSelect={onSuggestionSelect}
+                    />
+                  ))}
+                </div>
+              ))
+           )}
         </div>
-      )}
+
+      </div>
+
+      
+      {/* Note: Original 'Filter' and 'Search' buttons have been removed to comply with 
+          1:1 Pinterest visual replication requirements. If these functionalities are critical, 
+          they should be moved to a separate toolbar or integrated differently. */}
     </div>
   )
 })

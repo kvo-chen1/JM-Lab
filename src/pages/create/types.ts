@@ -1,4 +1,4 @@
-export type ToolType = 'sketch' | 'pattern' | 'filter' | 'trace' | 'remix' | 'layout' | 'mockup' | 'tile';
+export type ToolType = 'sketch' | 'upload' | 'pattern' | 'filter' | 'trace' | 'remix' | 'layout' | 'mockup' | 'tile';
 
 export interface GeneratedResult {
   id: number;
@@ -77,6 +77,7 @@ export interface CreateState {
   showAIReview: boolean;
   showModelSelector: boolean;
   showInspirationPanel: boolean;
+  showPublishModal: boolean;
   isPrecheckEnabled: boolean;
   precheckResult: PrecheckResult | null;
   fusionMode: boolean;
@@ -135,4 +136,20 @@ export interface CreateState {
   // AI Explanation
   aiExplanation: string;
   explainCollapsed: boolean;
+  
+  // Additional States
+  currentEventId: string | null;
+  traceSelectedKnowledgeId: string | null;
+  
+  // Mockup Tool State
+  mockupSelectedTemplateId: string | null;
+  mockupShowWireframe: boolean;
+  
+  // Tile Tool State
+  tilePatternId: number | null;
+  tileMode: string;
+  tileSize: number;
+  tileSpacing: number;
+  tileRotation: number;
+  tileOpacity: number;
 }

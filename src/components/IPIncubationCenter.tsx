@@ -1,10 +1,11 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useContext } from 'react';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { toast } from 'sonner';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, LineChart, Line, AreaChart, Area } from 'recharts';
 import { TianjinImage } from '@/components/TianjinStyleComponents';
 import ipService, { IPAsset, IPStage as ServiceIPStage, CommercialPartnership } from '@/services/ipService';
+import { AuthContext } from '@/contexts/authContext';
 
 // 商业化机会类型定义
 interface CommercialOpportunity {
@@ -37,6 +38,7 @@ interface EnhancedIPStage extends ServiceIPStage {
 
 export default function IPIncubationCenter() {
   const { isDark } = useTheme();
+  const { user, isAuthenticated } = useContext(AuthContext);
   const [activeTab, setActiveTab] = useState<'incubation' | 'opportunities' | 'copyright' | 'assets' | 'analytics'>('incubation');
   const [selectedIPAsset, setSelectedIPAsset] = useState<IPAsset | null>(null);
   const [ipAssets, setIpAssets] = useState<IPAsset[]>([]);
@@ -58,6 +60,9 @@ export default function IPIncubationCenter() {
   const [typeFilter, setTypeFilter] = useState<IPAsset['type'] | 'all'>('all');
   const [statusFilter, setStatusFilter] = useState<'in-progress' | 'completed' | 'pending' | 'all'>('all');
   const [minValueFilter, setMinValueFilter] = useState<string>('');
+  const [selectedAssets, setSelectedAssets] = useState<string[]>([]);
+  const [sortBy, setSortBy] = useState<'name' | 'value' | 'progress' | 'date'>('name');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   
   // IP价值趋势数据
   const [valueTrendData, setValueTrendData] = useState<ReturnType<typeof ipService.getIPValueTrend>>([]);
@@ -84,34 +89,61 @@ export default function IPIncubationCenter() {
       const ipAssets = ipService.getAllIPAssets();
       const stats = ipService.getIPStats();
       
-      // 模拟商业化机会数据（保持不变）
+      // 模拟商业化机会数据（增强版）
       const opportunities: CommercialOpportunity[] = [
         {
           id: 1,
           name: '国潮包装设计',
-          description: '为老字号食品品牌设计国潮风格包装',
+          description: '为老字号食品品牌设计国潮风格包装，要求融合传统元素与现代审美',
           brand: '桂发祥',
           reward: '¥15,000',
           status: 'open',
-          image: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Traditional%20brand%20packaging%20design%20opportunity'
+
         },
         {
           id: 2,
           name: '文创产品开发',
-          description: '设计传统文化元素文创产品系列',
+          description: '设计传统文化元素文创产品系列，包括文具、家居用品等多个品类',
           brand: '杨柳青画社',
           reward: '¥20,000',
           status: 'open',
-          image: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Cultural%20creative%20product%20development'
+
         },
         {
           id: 3,
           name: '数字藏品创作',
-          description: '创作基于传统纹样的数字藏品系列',
+          description: '创作基于传统纹样的数字藏品系列，要求具有独特的艺术价值和收藏价值',
           brand: '数字艺术馆',
           reward: '分成模式',
           status: 'matched',
-          image: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Digital%20collectibles%20creation%20opportunity'
+
+        },
+        {
+          id: 4,
+          name: '品牌视觉升级',
+          description: '为传统品牌进行现代化视觉升级，保留品牌基因的同时注入新活力',
+          brand: '天津老字号协会',
+          reward: '¥25,000',
+          status: 'open',
+
+        },
+        {
+          id: 5,
+          name: '文化主题插画',
+          description: '创作以天津传统文化为主题的插画系列，用于城市宣传和文化推广',
+          brand: '天津市文化和旅游局',
+          reward: '¥18,000',
+          status: 'open',
+
+        },
+        {
+          id: 6,
+          name: '传统工艺数字化',
+          description: '将传统工艺通过数字化技术进行创新表达，开发数字艺术作品',
+          brand: '文化创新中心',
+          reward: '分成模式',
+          status: 'closed',
+
         }
       ];
 
@@ -120,7 +152,7 @@ export default function IPIncubationCenter() {
         {
           id: 1,
           name: '国潮插画系列',
-          thumbnail: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Copyrighted%20artwork%20example%201',
+
           type: '插画',
           createdAt: '2025-11-01',
           status: '已存证',
@@ -129,7 +161,7 @@ export default function IPIncubationCenter() {
         {
           id: 2,
           name: '传统纹样创新',
-          thumbnail: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Copyrighted%20artwork%20example%202',
+
           type: '纹样',
           createdAt: '2025-10-25',
           status: '已授权',
@@ -138,7 +170,7 @@ export default function IPIncubationCenter() {
         {
           id: 3,
           name: '老字号品牌视觉',
-          thumbnail: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Copyrighted%20artwork%20example%203',
+
           type: '品牌设计',
           createdAt: '2025-10-15',
           status: '已存证',
@@ -162,7 +194,7 @@ export default function IPIncubationCenter() {
 
       setIsLoading(false);
     }, 800);
-  }, []);
+  }, [isAuthenticated, user]);
 
   const handleApplyOpportunity = (opportunityId: number) => {
     toast.success('已申请商业机会，等待品牌方审核');
@@ -170,6 +202,44 @@ export default function IPIncubationCenter() {
 
   const handleLicenseAsset = (assetId: number) => {
     toast.success('版权授权申请已提交');
+  };
+
+  // 批量操作功能
+  const handleAssetSelect = (assetId: string) => {
+    setSelectedAssets(prev => 
+      prev.includes(assetId) 
+        ? prev.filter(id => id !== assetId) 
+        : [...prev, assetId]
+    );
+  };
+
+  const handleSelectAllAssets = () => {
+    if (selectedAssets.length === filteredIpAssets.length) {
+      setSelectedAssets([]);
+    } else {
+      setSelectedAssets(filteredIpAssets.map(asset => asset.id));
+    }
+  };
+
+  const handleBatchOperation = (operation: string) => {
+    if (selectedAssets.length === 0) {
+      toast.warning('请先选择要操作的IP资产');
+      return;
+    }
+
+    switch (operation) {
+      case 'export':
+        toast.success(`已导出 ${selectedAssets.length} 个IP资产的信息`);
+        break;
+      case 'share':
+        toast.success(`已生成 ${selectedAssets.length} 个IP资产的分享链接`);
+        break;
+      case 'archive':
+        toast.success(`已归档 ${selectedAssets.length} 个IP资产`);
+        break;
+      default:
+        break;
+    }
   };
 
   // 实现搜索和筛选功能
@@ -197,8 +267,33 @@ export default function IPIncubationCenter() {
       filtered = ipService.filterIPAssets(filters);
     }
     
+    // 应用排序
+    filtered = [...filtered].sort((a, b) => {
+      let comparison = 0;
+      
+      switch (sortBy) {
+        case 'name':
+          comparison = a.name.localeCompare(b.name);
+          break;
+        case 'value':
+          comparison = b.commercialValue - a.commercialValue;
+          break;
+        case 'progress':
+          comparison = calculateIncubationProgress(b.stages) - calculateIncubationProgress(a.stages);
+          break;
+        case 'date':
+          // 假设每个资产有创建日期，这里使用ID作为替代
+          comparison = a.id.localeCompare(b.id);
+          break;
+        default:
+          break;
+      }
+      
+      return sortOrder === 'asc' ? comparison : -comparison;
+    });
+    
     setFilteredIpAssets(filtered);
-  }, [searchQuery, typeFilter, statusFilter, minValueFilter, ipAssets]);
+  }, [searchQuery, typeFilter, statusFilter, minValueFilter, sortBy, sortOrder, ipAssets]);
   
   // 更新IP孵化阶段状态
   const handleUpdateStage = (assetId: string, stageId: string, completed: boolean) => {
@@ -618,11 +713,73 @@ export default function IPIncubationCenter() {
             </div>
           </div>
           
+          {/* 排序和批量操作 */}
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+            {/* 排序选项 */}
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium">排序:</span>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as 'name' | 'value' | 'progress' | 'date')}
+                className={`px-3 py-1.5 rounded-lg border text-sm ${isDark ? 'bg-gray-600 border-gray-500' : 'bg-white border-gray-300'} focus:outline-none focus:ring-2 focus:ring-red-500`}
+              >
+                <option value="name">名称</option>
+                <option value="value">价值</option>
+                <option value="progress">进度</option>
+                <option value="date">日期</option>
+              </select>
+              <button
+                onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+                className={`p-1.5 rounded-lg ${isDark ? 'bg-gray-600 hover:bg-gray-500' : 'bg-white border border-gray-300 hover:bg-gray-100'}`}
+              >
+                <i className={`fas ${sortOrder === 'asc' ? 'fa-sort-up' : 'fa-sort-down'}`}></i>
+              </button>
+            </div>
+            
+            {/* 批量操作 */}
+            {selectedAssets.length > 0 && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm">已选择 {selectedAssets.length} 项</span>
+                <button
+                  onClick={() => handleBatchOperation('export')}
+                  className={`px-3 py-1.5 rounded-lg text-sm ${isDark ? 'bg-gray-600 hover:bg-gray-500' : 'bg-white border border-gray-300 hover:bg-gray-100'}`}
+                >
+                  <i className="fas fa-download mr-1"></i>导出
+                </button>
+                <button
+                  onClick={() => handleBatchOperation('share')}
+                  className={`px-3 py-1.5 rounded-lg text-sm ${isDark ? 'bg-gray-600 hover:bg-gray-500' : 'bg-white border border-gray-300 hover:bg-gray-100'}`}
+                >
+                  <i className="fas fa-share-alt mr-1"></i>分享
+                </button>
+                <button
+                  onClick={() => handleBatchOperation('archive')}
+                  className={`px-3 py-1.5 rounded-lg text-sm ${isDark ? 'bg-gray-600 hover:bg-gray-500' : 'bg-white border border-gray-300 hover:bg-gray-100'}`}
+                >
+                  <i className="fas fa-archive mr-1"></i>归档
+                </button>
+              </div>
+            )}
+          </div>
+          
+          {/* 全选和资产数量 */}
+          <div className="flex justify-between items-center mb-4">
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                checked={filteredIpAssets.length > 0 && selectedAssets.length === filteredIpAssets.length}
+                onChange={handleSelectAllAssets}
+                className={`w-4 h-4 rounded ${isDark ? 'accent-red-500' : 'accent-red-600'}`}
+              />
+              <span className="ml-2 text-sm">全选 ({filteredIpAssets.length} 项)</span>
+            </div>
+          </div>
+          
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {filteredIpAssets.map((asset) => (
               <motion.div
                 key={asset.id}
-                className={`rounded-xl overflow-hidden shadow-md border ${isDark ? 'border-gray-700' : 'border-gray-200'}`}
+                className={`rounded-xl overflow-hidden shadow-md border ${isDark ? 'border-gray-700' : 'border-gray-200'} ${selectedAssets.includes(asset.id) ? 'ring-2 ring-red-500' : ''}`}
                 whileHover={{ y: -5 }}
               >
                 <div className="relative">
@@ -641,6 +798,14 @@ export default function IPIncubationCenter() {
                     <span className={`text-xs px-2 py-1 rounded-full ${isDark ? 'bg-gray-600' : 'bg-white'}`}>
                       价值 ¥{asset.commercialValue.toLocaleString()}
                     </span>
+                  </div>
+                  <div className="absolute top-3 left-32">
+                    <input
+                      type="checkbox"
+                      checked={selectedAssets.includes(asset.id)}
+                      onChange={() => handleAssetSelect(asset.id)}
+                      className={`w-4 h-4 rounded ${isDark ? 'accent-red-500' : 'accent-red-600'}`}
+                    />
                   </div>
                 </div>
                 

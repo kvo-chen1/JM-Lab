@@ -5,7 +5,7 @@
 
 import { ApiResponse, BaseEntity, User, Work, Comment, Post } from '../types';
 import apiClient from '../lib/apiClient';
-import websocketService from './websocketService';
+import { websocketService } from './websocketService';
 import eventBus from './enhancedEventBus';
 import { EventType } from '../types/events';
 import errorService from './errorService';
@@ -196,10 +196,8 @@ export class DataSyncService {
     });
 
     // WebSocket消息事件
-    websocketService.onMessage((message) => {
-      if (message.type === 'sync_update') {
-        this.handleRemoteUpdate(message.payload);
-      }
+    websocketService.on('sync_update', (payload) => {
+      this.handleRemoteUpdate(payload);
     });
   }
 
@@ -446,20 +444,7 @@ export class DataSyncService {
     }
   }
 
-  /**
-   * 获取待同步的操作
-   */
-  private getPendingOperations(): SyncOperation[] {
-    return this.syncQueue.filter(op => op.status === 'pending');
-  }
 
-  /**
-   * 按优先级排序操作
-   */
-  private sortOperationsByPriority(operations: SyncOperation[]): SyncOperation[] {
-    const priorityOrder = { critical: 4, high: 3, normal: 2, low: 1 };
-    return [...operations].sort((a, b) => priorityOrder[b.priority] - priorityOrder[a.priority]);
-  }
 
   /**
    * 分批处理操作
@@ -675,7 +660,7 @@ export class DataSyncService {
    * 按优先级排序操作
    */
   private sortOperationsByPriority(operations: SyncOperation[]): SyncOperation[] {
-    const priorityOrder = { critical: 4, high: 3, normal: 2, low: 1 };
+    const priorityOrder: Record<SyncPriority, number> = { critical: 4, high: 3, normal: 2, low: 1 };
     return [...operations].sort((a, b) => priorityOrder[b.priority] - priorityOrder[a.priority]);
   }
 
@@ -683,8 +668,79 @@ export class DataSyncService {
    * 初始化离线存储
    */
   private initOfflineStorage(): void {
-    // 这里可以初始化IndexDB或其他离线存储
-    console.log('Initializing offline storage for data sync');
+    const request = indexedDB.open('TraeAppDB', 1);
+
+    request.onerror = (event) => {
+      console.error('Failed to open IndexedDB:', event);
+    };
+
+    request.onupgradeneeded = (event) => {
+      const db = (event.target as IDBOpenDBRequest).result;
+      if (!db.objectStoreNames.contains('syncQueue')) {
+        db.createObjectStore('syncQueue', { keyPath: 'id' });
+      }
+    };
+
+    request.onsuccess = (event) => {
+      const db = (event.target as IDBOpenDBRequest).result;
+      this.loadQueueFromStorage(db);
+    };
+  }
+
+  /**
+   * 从离线存储加载队列
+   */
+  private loadQueueFromStorage(db: IDBDatabase): void {
+    const transaction = db.transaction(['syncQueue'], 'readonly');
+    const store = transaction.objectStore('syncQueue');
+    const request = store.getAll();
+
+    request.onsuccess = () => {
+      const operations = request.result as SyncOperation[];
+      if (operations.length > 0) {
+        this.syncQueue = [...this.syncQueue, ...operations];
+        // 去重
+        const uniqueOps = new Map();
+        this.syncQueue.forEach(op => uniqueOps.set(op.id, op));
+        this.syncQueue = Array.from(uniqueOps.values());
+        
+        eventBus.emit(SyncEventType.SYNC_QUEUE_UPDATED, {
+          queueSize: this.syncQueue.length,
+          operation: 'load'
+        });
+        
+        // 尝试同步
+        if (this.networkStatus === 'online') {
+          this.sync();
+        }
+      }
+    };
+  }
+
+  /**
+   * 保存操作到离线存储
+   */
+  private saveOperationToStorage(operation: SyncOperation): void {
+    const request = indexedDB.open('TraeAppDB', 1);
+    request.onsuccess = (event) => {
+      const db = (event.target as IDBOpenDBRequest).result;
+      const transaction = db.transaction(['syncQueue'], 'readwrite');
+      const store = transaction.objectStore('syncQueue');
+      store.put(operation);
+    };
+  }
+
+  /**
+   * 从离线存储删除操作
+   */
+  private removeOperationFromStorage(operationId: string): void {
+    const request = indexedDB.open('TraeAppDB', 1);
+    request.onsuccess = (event) => {
+      const db = (event.target as IDBOpenDBRequest).result;
+      const transaction = db.transaction(['syncQueue'], 'readwrite');
+      const store = transaction.objectStore('syncQueue');
+      store.delete(operationId);
+    };
   }
 
   /**
@@ -698,6 +754,7 @@ export class DataSyncService {
 
     // 添加到队列
     this.syncQueue.push(operation);
+    this.saveOperationToStorage(operation);
 
     // 发布队列更新事件
     eventBus.emit(SyncEventType.SYNC_QUEUE_UPDATED, {
@@ -721,12 +778,15 @@ export class DataSyncService {
     const index = this.syncQueue.findIndex(op => op.id === operation.id);
     if (index !== -1) {
       this.syncQueue[index] = operation;
+      this.saveOperationToStorage(operation);
 
       // 发布队列更新事件
       eventBus.emit(SyncEventType.SYNC_QUEUE_UPDATED, {
-        queueSize: this.syncQueue.length,
-        operation: 'update',
-        operationId: operation.id
+        metadata: {
+          queueSize: this.syncQueue.length,
+          operation: 'update',
+          operationId: operation.id
+        }
       });
     }
   }
@@ -737,13 +797,16 @@ export class DataSyncService {
   public removeOperation(operationId: string): boolean {
     const initialLength = this.syncQueue.length;
     this.syncQueue = this.syncQueue.filter(op => op.id !== operationId);
+    this.removeOperationFromStorage(operationId);
 
     if (this.syncQueue.length < initialLength) {
       // 发布队列更新事件
       eventBus.emit(SyncEventType.SYNC_QUEUE_UPDATED, {
-        queueSize: this.syncQueue.length,
-        operation: 'remove',
-        operationId
+        metadata: {
+          queueSize: this.syncQueue.length,
+          operation: 'remove',
+          operationId
+        }
       });
       return true;
     }
@@ -759,8 +822,10 @@ export class DataSyncService {
 
     // 发布队列更新事件
     eventBus.emit(SyncEventType.SYNC_QUEUE_UPDATED, {
-      queueSize: 0,
-      operation: 'clear'
+      metadata: {
+        queueSize: 0,
+        operation: 'clear'
+      }
     });
   }
 
@@ -792,7 +857,9 @@ export class DataSyncService {
     }
 
     // 发布配置更新事件
-    eventBus.emit(SyncEventType.SYNC_CONFIG_UPDATED, this.config);
+    eventBus.emit(SyncEventType.SYNC_CONFIG_UPDATED, {
+      metadata: this.config
+    });
 
     return this.config;
   }
@@ -853,7 +920,7 @@ export class DataSyncService {
   /**
    * 强制同步特定实体
    */
-  public async syncEntity(entityType: string, entityId: string): Promise<ApiResponse<any>> {
+  public async syncEntity(entityType: string, entityId: string): Promise<ApiResponse<SyncStats>> {
     // 创建并添加同步操作
     const operation: SyncOperation = {
       id: `sync_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -873,13 +940,26 @@ export class DataSyncService {
     this.addOperation(operation);
 
     // 执行同步
-    return this.sync();
+    try {
+      const stats = await this.sync();
+      return {
+        ok: true,
+        status: 200,
+        data: stats
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        status: 500,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
   }
 
   /**
    * 批量同步实体
    */
-  public async syncEntities(entityType: string, entityIds: string[]): Promise<ApiResponse<any>> {
+  public async syncEntities(entityType: string, entityIds: string[]): Promise<ApiResponse<SyncStats>> {
     // 创建批量同步操作
     const operation: SyncOperation = {
       id: `batch_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -899,7 +979,20 @@ export class DataSyncService {
     this.addOperation(operation);
 
     // 执行同步
-    return this.sync();
+    try {
+      const stats = await this.sync();
+      return {
+        ok: true,
+        status: 200,
+        data: stats
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        status: 500,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
   }
 }
 

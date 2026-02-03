@@ -8,7 +8,7 @@
 import { aiTaskQueueService, AITask, TaskPriority } from './aiTaskQueueService';
 import apiClient from '@/lib/apiClient';
 import { handleSseStreamingResponse } from './llm/streaming';
-import { callKimiChat, callQwenChat } from './llm/chatProviders';
+import { callKimiChat, callQwenChat, callDeepseekChat } from './llm/chatProviders';
 
 // 模型类型定义
 export interface LLMModel {
@@ -434,6 +434,11 @@ export interface RecognizedEntity {
   confidence: number; // 识别置信度
 }
 
+// 扩展Window接口
+interface CustomWindow extends Window {
+  env?: Record<string, string>;
+}
+
 /**
    * LLM服务类
    */
@@ -563,10 +568,14 @@ class LLMService {
    */
   private getEnvVar(key: string): string | undefined {
     try {
-      if (typeof window !== 'undefined' && (window as any).env) {
-        // 浏览器环境中的window.env
-        return (window as any).env[key];
-      } else if (typeof process !== 'undefined' && process.env) {
+      if (typeof window !== 'undefined') {
+        const win = window as unknown as CustomWindow;
+        if (win.env) {
+          return win.env[key];
+        }
+      } 
+      
+      if (typeof process !== 'undefined' && process.env) {
         // Node.js环境和测试环境
         return process.env[key];
       }
@@ -2536,47 +2545,6 @@ class LLMService {
     }
   }
   
-  /**
-   * 通过代理服务调用API
-   */
-  private async callApiViaProxy(modelId: string, messages: Message[], options?: {
-    onDelta?: (chunk: string) => void;
-    signal?: AbortSignal;
-  }): Promise<string> {
-    // 安全获取API基础URL和密钥
-    const apiBase = this.getEnvVar('VITE_API_BASE_URL') || '';
-    const apiKey = this.getEnvVar('VITE_API_KEY') || '';
-    
-    const response = await fetch(`${apiBase}/api/chat`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: modelId,
-        messages: messages.map(msg => ({ role: msg.role, content: msg.content })),
-        stream: !!options?.onDelta,
-        temperature: this.modelConfig.temperature,
-        top_p: this.modelConfig.top_p,
-        max_tokens: this.modelConfig.max_tokens,
-      }),
-      signal: options?.signal,
-    });
-    
-    if (!response.ok) {
-      throw new Error(`API请求失败: ${response.status} ${response.statusText}`);
-    }
-    
-    if (options?.onDelta) {
-      // 处理流式响应
-      return handleSseStreamingResponse(response, options.onDelta);
-    } else {
-      // 处理非流式响应
-      const data = await response.json();
-      return data.choices[0]?.message?.content || '未获取到响应';
-    }
-  }
   
   /**
    * 直接调用模型API

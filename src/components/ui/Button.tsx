@@ -2,30 +2,37 @@
 
 import { ReactNode, ButtonHTMLAttributes, forwardRef, useState } from 'react';
 import { clsx } from 'clsx';
+import { componentVariants } from '@/utils/designSystem';
 
 // 按钮变体类型
-export type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'success' | 'ghost' | 'outline';
+export type ButtonVariant = keyof typeof componentVariants.button.variants.variant;
 
 // 按钮大小类型
-export type ButtonSize = 'small' | 'medium' | 'large';
+export type ButtonSize = keyof typeof componentVariants.button.variants.size;
+
+// 按钮形状类型
+export type ButtonShape = keyof typeof componentVariants.button.variants.shape;
 
 // 按钮属性接口
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   children: ReactNode;
   variant?: ButtonVariant;
   size?: ButtonSize;
+  shape?: ButtonShape;
   fullWidth?: boolean;
   loading?: boolean;
   icon?: ReactNode;
   iconPosition?: 'left' | 'right';
   rippleEffect?: boolean;
+  className?: string;
 }
 
 // 按钮组件
 const Button = forwardRef<HTMLButtonElement, ButtonProps>(({
   children,
-  variant = 'primary',
-  size = 'medium',
+  variant = 'default',
+  size = 'default',
+  shape = 'default',
   fullWidth = false,
   loading = false,
   icon,
@@ -60,28 +67,17 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(({
     }
   };
 
-  // 变体样式映射
-  const variantClasses = {
-    primary: 'bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary)]/90 border-transparent shadow-md hover:shadow-lg',
-    secondary: 'bg-secondary text-primary hover:bg-secondary/80 border-transparent',
-    danger: 'bg-danger text-white hover:bg-danger/90 border-transparent shadow-md hover:shadow-lg',
-    success: 'bg-success text-white hover:bg-success/90 border-transparent shadow-md hover:shadow-lg',
-    ghost: 'bg-transparent text-primary hover:bg-gray-100 dark:hover:bg-gray-800 border-transparent',
-    outline: 'bg-transparent border border-primary text-primary hover:bg-primary/10'
-  };
-
-  // 大小样式映射
-  const sizeClasses = {
-    small: 'text-sm px-3 py-1.5 h-8',
-    medium: 'text-base px-4 py-2 h-10',
-    large: 'text-lg px-6 py-3 h-12'
-  };
+  // 获取按钮变体样式
+  const variantConfig = componentVariants.button.variants.variant[variant];
+  const sizeConfig = componentVariants.button.variants.size[size];
+  const shapeConfig = componentVariants.button.variants.shape[shape];
 
   // 构建完整的类名
   const buttonClasses = clsx(
-    'inline-flex items-center justify-center rounded-lg font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary',
-    variantClasses[variant],
-    sizeClasses[size],
+    'inline-flex items-center justify-center font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary relative overflow-hidden',
+    variantConfig,
+    sizeConfig,
+    shapeConfig,
     fullWidth && 'w-full',
     loading && 'opacity-70 cursor-not-allowed',
     disabled && 'opacity-50 cursor-not-allowed',

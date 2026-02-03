@@ -369,6 +369,9 @@ const FriendsPage: React.FC = () => {
                             <p className="text-sm text-gray-500 dark:text-gray-400">
                               {user.email}
                             </p>
+                            <p className="text-xs text-gray-400 mt-0.5" title={user.id}>
+                              ID: {user.id}
+                            </p>
                           </div>
                         </div>
                         <Button 

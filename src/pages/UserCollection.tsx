@@ -27,11 +27,11 @@ export default function UserCollection() {
   }, [isAuthenticated, user, navigate]);
 
   // 加载用户收藏和点赞作品
-  const loadUserCollections = () => {
+  const loadUserCollections = async () => {
     setIsLoading(true);
     try {
-      const bookmarks = postsApi.getBookmarkedPosts();
-      const likes = postsApi.getLikedPosts();
+      const bookmarks = await postsApi.getBookmarkedPosts();
+      const likes = await postsApi.getLikedPosts();
       setBookmarkedPosts(bookmarks);
       setLikedPosts(likes);
     } catch (error) {
@@ -195,13 +195,13 @@ export default function UserCollection() {
               </div>
               <h2 className="text-xl font-semibold mb-2">暂无{activeTab === 'bookmarks' ? '收藏' : '点赞'}作品</h2>
               <p className={`${isDark ? 'text-gray-400' : 'text-gray-600'} mb-6`}>
-                去探索页面{activeTab === 'bookmarks' ? '收藏' : '点赞'}一些作品吧
+                去津脉广场{activeTab === 'bookmarks' ? '收藏' : '点赞'}一些作品吧
               </p>
               <button
-                onClick={() => navigate('/explore')}
+                onClick={() => navigate('/square')}
                 className="px-6 py-3 rounded-full bg-red-600 hover:bg-red-700 text-white transition-colors"
               >
-                去探索
+                去津脉广场
               </button>
             </div>
           )}

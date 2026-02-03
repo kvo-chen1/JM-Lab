@@ -4,11 +4,15 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import postsApi, { Post } from '@/services/postService'
 import { SearchResultType } from '@/components/SearchBar'
 import { motion } from 'framer-motion'
+import { toast } from 'sonner'
 
-import GradientHero from '@/components/GradientHero'
-import CommunitySpotlight from '@/components/CommunitySpotlight'
+import { AuthContext } from '@/contexts/authContext'
+import { useContext } from 'react'
+
 import PostDetailModal from '@/components/PostDetailModal'
-import { mockWorks } from '@/mock/works'
+import { CreatePostModal } from '@/components/Community/Modals/CreatePostModal'
+
+
 import apiClient from '@/lib/apiClient'
 
 // 懒加载组件
@@ -19,7 +23,11 @@ export default function Square() {
   const { isDark } = useTheme()
   const params = useParams()
   const navigate = useNavigate()
+  const { user } = useContext(AuthContext)
   const [posts, setPosts] = useState<Post[]>([])
+  
+  // 搜索功能状态
+  const [showSearchBar, setShowSearchBar] = useState(false)
   
   // 中文注释：热门话题标签（支持按点击热度排序）
   const DEFAULT_TAGS = ['国潮设计', '非遗传承', '品牌联名', '校园活动', '文旅推广', '纹样设计', '插画设计', '工艺创新', '老字号品牌', 'IP设计', '包装设计', '共创设计', '数字艺术', '3D设计', 'AI设计']
@@ -97,7 +105,7 @@ export default function Square() {
   }, [tagClicks, sortTagsByClicks])
   
   // 中文注释：精选社群数据（从本地API加载；失败回退本地静态）
-  type FeaturedCommunity = { name: string; members: number; path: string; official?: boolean; topic?: string; tags?: string[] }
+  type FeaturedCommunity = { name: string; members: number; path: string; official?: boolean; topic?: string; tags?: string[]; cover?: string; avatar?: string }
   const DEFAULT_FEATURED: FeaturedCommunity[] = [
     { name: '国潮共创组', members: 128, path: '/community?group=guochao' },
     { name: '非遗研究社', members: 96, path: '/community?group=heritage' },
@@ -138,6 +146,8 @@ export default function Square() {
           official: Boolean(x.official),
           topic: x.topic ? String(x.topic) : undefined,
           tags: Array.isArray(x.tags) ? x.tags.map((t: any) => String(t)) : undefined,
+          cover: x.cover ? String(x.cover) : undefined,
+          avatar: x.avatar ? String(x.avatar) : undefined,
         }))
         
         // 缓存结果
@@ -173,6 +183,9 @@ export default function Square() {
     setTagClicks(next)
     try { localStorage.setItem(TAG_KEY, JSON.stringify(next)) } catch {}
     setTags(sortTagsByClicks(DEFAULT_TAGS, next))
+    // 实现标签筛选逻辑
+    setSearch(tag)
+    console.log('标签筛选:', tag);
   }, [tagClicks, sortTagsByClicks])
   
   // 中文注释：社区模式与筛选（风格/题材）
@@ -199,6 +212,7 @@ export default function Square() {
   const [isLoading, setIsLoading] = useState(true) // 中文注释：初始加载状态
   const [isLoadingMore, setIsLoadingMore] = useState(false) // 中文注释：加载更多状态
   const [hasMore, setHasMore] = useState(true) // 中文注释：是否还有更多数据
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false) // 中文注释：发布弹窗状态
   const sentinelRef = useRef<HTMLDivElement | null>(null) // 中文注释：无限滚动观察器锚点
   const thumbFileRef = useRef<HTMLInputElement | null>(null) // 中文注释：封面本地上传文件引用
   const loadingRef = useRef(false) // 中文注释：防止重复加载的标志
@@ -206,45 +220,29 @@ export default function Square() {
   // 中文注释：本地缓存机制，减少重复计算
   const cachedDataRef = useRef<Map<string, Post[]>>(new Map())
   
-  // 中文注释：广场初始示例作品（可作为冷启动内容）
-  const SEED: Post[] = [
-    { id: 'seed-1', title: '国潮插画设计', thumbnail: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?prompt=Chinese%20traditional%20cultural%20illustration%20design&image_size=1024x1024', likes: 324, comments: [], date: '2025-11-01', category: 'design', tags: [], description: '', views: 0, shares: 0, isFeatured: false, isDraft: false, completionStatus: 'completed', creativeDirection: '', culturalElements: [], colorScheme: [], toolsUsed: [] },
-    { id: 'seed-2', title: '麻花赛博朋克', thumbnail: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?prompt=Tianjin%20mahua%20cyberpunk&image_size=1024x1024', likes: 512, comments: [], date: '2025-11-02', category: 'design', tags: [], description: '', views: 0, shares: 0, isFeatured: false, isDraft: false, completionStatus: 'completed', creativeDirection: '', culturalElements: [], colorScheme: [], toolsUsed: [] },
-    { id: 'seed-3', title: '杨柳青年画海报', thumbnail: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?prompt=Yangliuqing%20New%20Year%20poster%2C%20vibrant%20colors&image_size=1024x1024', likes: 338, comments: [], date: '2025-11-03', category: 'design', tags: [], description: '', views: 0, shares: 0, isFeatured: false, isDraft: false, completionStatus: 'completed', creativeDirection: '', culturalElements: [], colorScheme: [], toolsUsed: [] },
-  ]
   
-  // 从探索页导入的策展作品
-  const EXPLORE_SEEDS: Post[] = mockWorks.map((w) => ({
-    id: `ex-${w.id}`,
-    title: w.title,
-    thumbnail: w.thumbnail,
-    likes: w.likes,
-    comments: [],
-    date: new Date().toISOString().slice(0, 10),
-    category: 'design',
-    tags: [],
-    description: '',
-    views: 0,
-    shares: 0,
-    isFeatured: false,
-    isDraft: false,
-    completionStatus: 'completed',
-    creativeDirection: '',
-    culturalElements: [],
-    colorScheme: [],
-    toolsUsed: []
-  }))
+
   
+  // 优化初始数据加载：只加载必要的数据
   useEffect(() => {
-    // 优化初始数据加载：只加载必要的数据
     const loadInitialData = async () => {
-      const current = await postsApi.getPosts()
-      // 只加载前3个种子数据，其余数据按需加载
-      const initialSeed = SEED.slice(0, 3)
-      const merged = [...current, ...initialSeed]
-      
-      setPosts(merged)
-      setIsLoading(false)
+      try {
+        setIsLoading(true)
+        // 清除缓存，确保获取最新数据
+        await postsApi.clearAllCaches()
+        const current = await postsApi.getPosts()
+        
+        if (Array.isArray(current)) {
+          setPosts(current)
+        } else {
+          setPosts([])
+        }
+      } catch (error) {
+        console.error('加载初始数据失败:', error)
+        setPosts([])
+      } finally {
+        setIsLoading(false)
+      }
     }
     loadInitialData()
   }, [])
@@ -265,11 +263,6 @@ export default function Square() {
       if (!found) {
         // 如果在API数据中找不到，尝试从本地状态中查找（保留评论数据）
         found = posts.find(p => p.id === id)
-        
-        // 如果本地状态中也找不到，再从种子数据中查找
-        if (!found) {
-          found = SEED.find(s => s.id === id) || EXPLORE_SEEDS.find(s => s.id === id)
-        }
       }
       
       if (found) {
@@ -293,13 +286,39 @@ export default function Square() {
     }
   }, [params.id])
 
+  useEffect(() => {
+    // 监听作品发布事件，当用户发布新作品到津脉广场时自动刷新
+    const handleSquarePostsUpdated = async () => {
+      console.log('收到广场作品更新事件，重新加载数据...');
+      try {
+        // 清除缓存，确保获取最新数据
+        await postsApi.clearAllCaches();
+        const current = await postsApi.getPosts();
+        setPosts(current);
+        // 重置分页，显示最新作品
+        setPage(1);
+        setHasMore(true);
+      } catch (error) {
+        console.error('刷新广场作品失败:', error);
+      }
+    };
+
+    // 添加事件监听器
+    window.addEventListener('square-posts-updated', handleSquarePostsUpdated);
+
+    // 清理事件监听器
+    return () => {
+      window.removeEventListener('square-posts-updated', handleSquarePostsUpdated);
+    };
+  }, []);
+
   // 当posts状态更新时，如果当前有激活的帖子，确保它是最新的
   useEffect(() => {
     const updateActivePost = async () => {
       if (active) {
-        const allPosts = await postsApi.getPosts()
-        const updatedPost = allPosts.find(p => p.id === active.id)
-        if (updatedPost) {
+        // 直接从当前posts状态中查找，避免重新调用API
+        const updatedPost = posts.find(p => p.id === active.id)
+        if (updatedPost && JSON.stringify(updatedPost) !== JSON.stringify(active)) {
           setActive(updatedPost)
         }
       }
@@ -335,26 +354,40 @@ export default function Square() {
     // 使用Map来确保唯一ID，避免重复
     const uniquePosts = new Map<string, Post>()
     
-    // 添加posts数据
-    posts.forEach(p => uniquePosts.set(p.id, p))
-    // 添加SEED数据
-    SEED.forEach(s => uniquePosts.set(s.id, s))
+    // 添加posts数据，并修正当前用户的作者信息
+    posts.forEach(p => {
+      let post = p;
+      if (user && p.author) {
+        const authorId = typeof p.author === 'string' ? p.author : p.author.id;
+        // 检查是否是当前用户发布的（ID匹配 或者 authorId是'current-user'）
+        if (authorId === user.id || authorId === 'current-user') {
+           post = {
+             ...p,
+             author: {
+               id: user.id,
+               username: user.username,
+               email: user.email,
+               avatar: user.avatar,
+               isAdmin: user.isAdmin,
+               membershipLevel: user.membershipLevel,
+               membershipStatus: user.membershipStatus
+             }
+           };
+        }
+      }
+      uniquePosts.set(post.id, post)
+    })
     
     return Array.from(uniquePosts.values())
-  }, [posts])
+  }, [posts, user])
   
-  // 按需合并探索页数据，并确保数据不重复
+  // 按需合并数据，并确保数据不重复
   const merged = useMemo(() => {
     // 使用Map来确保唯一ID，避免重复
     const uniquePosts = new Map<string, Post>()
     
     // 先添加baseData
     baseData.forEach(p => uniquePosts.set(p.id, p))
-    
-    // 只在需要时添加探索页数据
-    if (importedExplore) {
-      EXPLORE_SEEDS.forEach(s => uniquePosts.set(s.id, s))
-    }
     
     // 将Map转换为数组
     const list = Array.from(uniquePosts.values())
@@ -394,7 +427,7 @@ export default function Square() {
     })
     
     return sorted
-  }, [baseData, sortBy, search, communityMode, selectedStyle, selectedTopic, favOnly, favorites, importedExplore])
+  }, [baseData, sortBy, search, communityMode, selectedStyle, selectedTopic, favOnly, favorites])
   
   const viewList = useMemo(() => merged.slice(0, page * pageSize), [merged, page])
   
@@ -464,21 +497,61 @@ export default function Square() {
   }, [])
   
   // 优化：使用useCallback稳定toggleFavorite函数
-  const toggleFavorite = useCallback((id: string) => {
+  const toggleFavorite = useCallback(async (id: string) => {
     // 中文注释：收藏/取消收藏
+    const isCurrentlyFavorited = favorites.includes(id);
+    
+    // 先更新本地状态，提供即时反馈
     setFavorites(prev => {
       const has = prev.includes(id)
       const next = has ? prev.filter(x => x !== id) : [...prev, id]
       try { localStorage.setItem('jmzf_favs', JSON.stringify(next)) } catch {}
       return next
-    })
-  }, [])
+    });
+    
+    // 然后调用API更新服务器状态
+    try {
+      if (isCurrentlyFavorited) {
+        await postsApi.unbookmarkPost(id);
+      } else {
+        await postsApi.bookmarkPost(id);
+      }
+      
+      // 更新active状态中的收藏状态
+      if (active && active.id === id) {
+        setActive(prev => prev ? { ...prev, isBookmarked: !isCurrentlyFavorited } : null);
+      }
+    } catch (error) {
+      console.error('更新收藏状态失败:', error);
+      // 如果API调用失败，恢复本地状态
+      setFavorites(favorites);
+    }
+  }, [active, favorites])
+  
+  // 优化：使用useCallback稳定deletePost函数
+  const deletePost = useCallback(async (id: string) => {
+    try {
+      // 调用API删除帖子
+      const success = await postsApi.deletePost(id);
+      if (success) {
+        // 重新获取最新的帖子数据
+        const current = await postsApi.getPosts();
+        setPosts(current);
+        // 如果当前打开的详情是被删除的帖子，关闭详情
+        if (active && active.id === id) {
+          setActive(null);
+        }
+      }
+    } catch (error) {
+      console.error('删除帖子失败:', error);
+    }
+  }, [active])
   
   // 优化：使用useCallback稳定importExploreWorks函数
   const importExploreWorks = useCallback(() => {
     // 中文注释：导入探索页策展作品到广场视图
     setImportedExplore(true)
-    alert(`已导入 ${EXPLORE_SEEDS.length} 条策展作品`)
+    alert('已导入策展作品')
   }, [])
   
   useEffect(() => {
@@ -568,205 +641,164 @@ export default function Square() {
     navigate(target)
   }
   
-  const createPost = async () => {
-    // 中文注释：创建新帖子，基本校验
-    const t = title.trim()
-    const u = thumb.trim()
-    if (!t) { alert('请输入标题'); return }
-    const cover = u || `https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?prompt=${encodeURIComponent(t)}&image_size=1024x1024`
-    postsApi.addPost({
-      title: t,
-      thumbnail: cover,
-      category: 'design',
-      tags: [],
-      description: '',
-      creativeDirection: '',
-      culturalElements: [],
-      colorScheme: [],
-      toolsUsed: []
-    })
-    setTitle('')
-    setThumb('')
-    const current = await postsApi.getPosts()
-    setPosts(current)
-  }
+  const handleCreatePost = async (data: any) => {
+    try {
+      const newPost: Partial<Post> = {
+        title: data.title,
+        description: data.content,
+        thumbnail: data.images?.[0] || 'https://images.unsplash.com/photo-1558655146-d09347e0c766?q=80&w=2560&auto=format&fit=crop', // 默认图
+        category: data.contentType === 'video' ? 'video' : 'design',
+        tags: [data.topic],
+        date: new Date().toISOString().split('T')[0],
+        likes: 0,
+        views: 0,
+        comments: [],
+        shares: 0,
+        // author: user?.name || '当前用户', // 不再使用字符串
+        // authorAvatar: user?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${Date.now()}`, // 不再使用单独字段
+        isLiked: false,
+        isBookmarked: false,
+        videoUrl: data.contentType === 'video' && data.images?.[0] ? data.images[0] : undefined
+      }
+
+      // 传入当前用户对象
+      await postsApi.addPost(newPost as Post, user || undefined)
+      toast.success('发布成功！')
+      setIsCreateModalOpen(false);
+      const current = await postsApi.getPosts();
+      setPosts(current);
+    } catch (error) {
+      toast.error('发布失败');
+      console.error(error);
+    }
+  };
+  
+  // 确保详情弹窗也显示最新的用户信息
+  const hydratedActive = useMemo(() => {
+    if (!active || !user) return active;
+    
+    const authorId = typeof active.author === 'string' ? active.author : active.author?.id;
+    if (authorId === user.id || authorId === 'current-user') {
+       return {
+           ...active,
+           author: {
+             id: user.id,
+             username: user.username,
+             email: user.email,
+             avatar: user.avatar,
+             isAdmin: user.isAdmin,
+             membershipLevel: user.membershipLevel,
+             membershipStatus: user.membershipStatus
+           }
+       };
+    }
+    return active;
+  }, [active, user]);
+
 
   return (
-    <main className="max-w-7xl mx-auto px-2 sm:px-4 py-6 w-full">
-      {/* 中文注释：统一使用通用渐变英雄组件 */}
-      <GradientHero
-        title="共创广场"
-        subtitle={`热榜每周更新 · 当前作品 ${merged.length} 条 · 收藏 ${favorites.length} 条`}
-        badgeText="Beta"
-        theme="blue"
-        size="md"
-        showDecor={false}
-        backgroundImage="https://picsum.photos/id/1035/1600/800"
-        stats={[
-          { label: '模式', value: communityMode === 'all' ? '全部' : communityMode === 'style' ? '风格' : '题材' },
-          { label: '筛选', value: favOnly ? '收藏' : '全部' },
-          { label: '排序', value: sortBy === 'hot' ? '热度' : '最新' },
-          { label: '联动', value: importedExplore ? '已导入' : '未导入' },
-        ]}
-      />
-      
-      <CommunitySpotlight 
-        tags={tags} 
-        featuredCommunities={featuredCommunities}
-        onTagClick={incTagClick}
-        loading={tagsLoading || featLoading}
-      />
-      
-      {/* Filter & Control Bar */}
-      <div className={`mb-8 ${isDark ? 'bg-gray-800/60 border-gray-700' : 'bg-white/80 border-gray-200'} backdrop-blur-xl border rounded-3xl shadow-lg p-1 transition-all duration-300 hover:shadow-xl`}>
-        <div className="flex flex-col lg:flex-row gap-4 p-4 bg-white/70 dark:bg-gray-900/70 backdrop-blur-sm rounded-2xl">
-           {/* Left: Community Mode Tabs */}
-           <div className="flex-1 flex flex-col gap-4">
-              <div className="flex items-center gap-3 overflow-x-auto scrollbar-hide pb-2">
-                <span className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} whitespace-nowrap flex items-center gap-2 px-2 py-1.5 rounded-lg bg-gray-100/70 dark:bg-gray-800/70 shadow-sm`}>
-                  <i className="fas fa-layer-group text-blue-500"></i>
-                  <span>分区</span>
-                </span>
-                <div className={`flex p-1 rounded-xl ${isDark ? 'bg-gray-900/80' : 'bg-gray-100/80'} backdrop-blur-sm shadow-sm`}>
-                  {[
-                    { id: 'all', label: '全部' },
-                    { id: 'style', label: '风格' },
-                    { id: 'topic', label: '题材' }
-                  ].map(tab => (
-                    <motion.button
-                      key={tab.id}
-                      onClick={() => setCommunityMode(tab.id as any)}
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-all min-w-[80px] text-center ${communityMode === tab.id ? (isDark ? 'bg-gray-700 text-white shadow-md' : 'bg-white text-gray-900 shadow-md') : (isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-900')}`}
-                    >
-                      {tab.label}
-                    </motion.button>
-                  ))}
-                </div>
-                
-                <div className="w-px h-6 bg-gray-300/50 dark:bg-gray-700/50 mx-2"></div>
-                
-                {/* Quick Toggles */}
-                <motion.button 
-                  onClick={() => setFavOnly(v => !v)} 
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  className={`px-3 py-2 rounded-lg text-sm font-medium border transition-all flex items-center gap-2 min-h-[40px] ${favOnly ? 'bg-red-50 text-red-600 border-red-200 shadow-sm dark:bg-red-900/20 dark:text-red-400 dark:border-red-800' : (isDark ? 'border-gray-700 text-gray-400 hover:bg-gray-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50')}`}
-                >
-                  <i className={`fas fa-heart ${favOnly ? 'text-red-500' : ''}`}></i>
-                  收藏
-                </motion.button>
-                <motion.button 
-                  onClick={importExploreWorks} 
-                  disabled={importedExplore}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  className={`px-3 py-2 rounded-lg text-sm font-medium border transition-all flex items-center gap-2 min-h-[40px] ${importedExplore ? 'bg-gray-100 text-gray-400 border-transparent cursor-not-allowed dark:bg-gray-800 dark:text-gray-600' : 'bg-green-50 text-green-600 border-green-200 shadow-sm hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800'}`}
-                >
-                  <i className="fas fa-cloud-download-alt"></i>
-                  {importedExplore ? '已导入' : '导入策展'}
-                </motion.button>
-              </div>
+    <div className="min-h-screen">
+      {/* 顶部导航栏 - Pinterest风格 */}
+      <header className={`sticky top-0 z-50 ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'} border-b shadow-sm`}>
+        <div className="container mx-auto px-4 py-3 flex items-center justify-between">
+          {/* Logo和导航链接 */}
+          <div className="flex items-center gap-4">
+            <Link to="/" className="flex items-center gap-2">
+              <i className="fas fa-globe-asia text-blue-500 text-xl"></i>
+            </Link>
+            <nav className="hidden md:flex items-center gap-6">
+              <Link to="/square" className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'} border-b-2 border-blue-500 px-1 py-2`}>发现</Link>
+              <Link to="/community" className={`text-sm font-medium ${isDark ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-900'} px-1 py-2`}>社区</Link>
+              <Link to="/create" className={`text-sm font-medium ${isDark ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-900'} px-1 py-2`}>创作</Link>
+            </nav>
+          </div>
+          
+          {/* 搜索框 - Pinterest风格 */}
+          <div className="flex-1 max-w-2xl mx-4 md:mx-6 relative z-50">
+            <div className={`relative ${isDark ? 'bg-gray-800' : 'bg-gray-100'} rounded-full overflow-hidden`}>
+              <i className="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 z-10"></i>
+              <input 
+                type="text" 
+                placeholder="搜索作品、创作者或标签..." 
+                className={`w-full pl-10 pr-4 py-2 rounded-full text-sm ${isDark ? 'bg-gray-800 text-white placeholder-gray-500' : 'bg-gray-100 text-gray-900 placeholder-gray-500'} focus:outline-none focus:ring-2 focus:ring-blue-500 relative z-20`}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter') {
+                    // 实现搜索逻辑
+                    console.log('搜索:', search);
+                  }
+                }}
+              />
+            </div>
+          </div>
+          
 
-              {/* Filter Tags Area */}
-              <div className="flex flex-wrap items-center gap-3 p-3 bg-gray-50/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-xl shadow-sm">
-                 {communityMode === 'all' && (
-                   <div className="text-sm text-gray-500 dark:text-gray-400 italic px-3 py-2 rounded-lg bg-white/70 dark:bg-gray-700/70 shadow-sm">选择上方分区查看特定分类</div>
-                 )}
-                 {communityMode === 'style' && (
-                    <>
-                      <span className="text-xs font-medium text-gray-600 dark:text-gray-400 mr-2 whitespace-nowrap px-3 py-1.5 rounded-full bg-white/80 dark:bg-gray-700/80 shadow-sm">风格:</span>
-                      {STYLE_LIST.map(s => (
-                        <motion.button 
-                          key={s} 
-                          onClick={() => setSelectedStyle(s)} 
-                          whileHover={{ scale: 1.05, y: -2 }}
-                          whileTap={{ scale: 0.95 }}
-                          className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all border min-h-[36px] ${selectedStyle === s ? 'bg-blue-50 text-blue-600 border-blue-200 shadow-md dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800' : (isDark ? 'border-gray-700 text-gray-400 hover:border-gray-500' : 'border-gray-200 text-gray-600 hover:border-gray-300')}`}
-                        >
-                          {s}
-                        </motion.button>
-                      ))}
-                    </>
-                 )}
-                 {communityMode === 'topic' && (
-                    <>
-                      <span className="text-xs font-medium text-gray-600 dark:text-gray-400 mr-2 whitespace-nowrap px-3 py-1.5 rounded-full bg-white/80 dark:bg-gray-700/80 shadow-sm">题材:</span>
-                      {TOPIC_LIST.map(s => (
-                        <motion.button 
-                          key={s} 
-                          onClick={() => setSelectedTopic(s)} 
-                          whileHover={{ scale: 1.05, y: -2 }}
-                          whileTap={{ scale: 0.95 }}
-                          className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all border min-h-[36px] ${selectedTopic === s ? 'bg-purple-50 text-purple-600 border-purple-200 shadow-md dark:bg-purple-900/30 dark:text-purple-400 dark:border-purple-800' : (isDark ? 'border-gray-700 text-gray-400 hover:border-gray-500' : 'border-gray-200 text-gray-600 hover:border-gray-300')}`}
-                        >
-                          {s}
-                        </motion.button>
-                      ))}
-                    </>
-                 )}
-              </div>
-           </div>
-
-           {/* Right: Top Stats / Link */}
-           <div className={`lg:w-64 flex flex-col justify-between gap-3 pl-0 lg:pl-6 lg:border-l ${isDark ? 'border-gray-700/50' : 'border-gray-200/50'}`}>
-              <div className="flex flex-wrap gap-2">
-                 {topStyles.slice(0, 3).map(([name, count]) => (
-                   <motion.span 
-                     key={name} 
-                     whileHover={{ scale: 1.05, y: -2 }}
-                     className={`text-[10px] px-3 py-1.5 rounded-full border ${isDark ? 'bg-gray-800/80 border-gray-700 text-gray-400' : 'bg-white/80 border-gray-200 text-gray-600'} shadow-sm font-medium`}
-                   >
-                     <span>{name}</span>
-                     <span className="text-gray-500 dark:text-gray-500 ml-1">{count}</span>
-                   </motion.span>
-                 ))}
-              </div>
-              <motion.button
-                onClick={() => navigate('/community')}
-                whileHover={{ scale: 1.03, y: -3 }}
-                whileTap={{ scale: 0.97 }}
-                className="mt-auto text-sm font-medium flex items-center justify-between px-4 py-3 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-500/20 hover:shadow-xl hover:shadow-blue-500/30 transition-all group cursor-pointer"
+        </div>
+        
+        {/* 标签栏 - Pinterest风格 */}
+        <div className={`border-t ${isDark ? 'border-gray-800' : 'border-gray-200'} overflow-x-auto`}>
+          <div className="container mx-auto px-4 py-2 flex items-center gap-2 min-w-max">
+            {tags.slice(0, 15).map((tag) => (
+              <button 
+                key={tag} 
+                onClick={() => incTagClick(tag)}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all duration-200 ${isDark ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
               >
-                <span className="flex items-center gap-2">
-                  <i className="fas fa-rocket text-sm"></i>
-                  <span>进入创作者社区</span>
-                </span>
-                <i className="fas fa-arrow-right transform group-hover:translate-x-2 transition-transform duration-300"></i>
-              </motion.button>
-           </div>
+                {tag}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
-      
-      {/* Post Grid Section */}
-      <Suspense fallback={<div className="h-96 bg-gray-200/50 dark:bg-gray-800/50 rounded-xl animate-pulse"></div>}>
-        <PostGrid
-          posts={viewList}
-          onPostClick={(post) => loadPostDetail(post.id)}
-          onLike={like}
-          onComment={(postId, text) => {
-            addComment(postId, text)
-          }}
-          isDark={isDark}
-        />
-      </Suspense>
-      
-      {/* Loading More Indicator */}
-      {isLoadingMore && (
-        <div className="mt-8 flex justify-center items-center gap-2">
-          <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-          <span className="text-sm text-gray-500 dark:text-gray-400">加载更多...</span>
+      </header>
+
+      {/* 主要内容 */}
+      <main className="container mx-auto px-4 py-6">
+
+
+        {/* 作品网格 */}
+        <Suspense fallback={
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 aspect-square flex items-center justify-center">
+                <div className="text-gray-400">加载中...</div>
+              </div>
+            ))}
+          </div>
+        }>
+          <PostGrid
+            posts={viewList}
+            onLike={like}
+            onComment={(id) => {
+              loadPostDetail(id)
+            }}
+            onShare={sharePost}
+            onBookmark={toggleFavorite}
+            onDelete={deletePost}
+            onPostClick={(id) => {
+              navigate(`/post/${id}`)
+            }}
+            favorites={favorites}
+            isLoading={isLoading}
+            isLoadingMore={isLoadingMore}
+            hasMore={hasMore}
+          />
+        </Suspense>
+
+        {/* 加载更多指示器 */}
+        <div ref={sentinelRef} className="h-16 flex items-center justify-center">
+          {isLoadingMore && (
+            <div className="text-gray-500">加载中...</div>
+          )}
         </div>
-      )}
-      
-      {/* Sentinel for Infinite Scroll */}
-      <div ref={sentinelRef} className="h-16 mt-8"></div>
-      
-      {/* Post Detail Modal */}
-      {active && (
+      </main>
+
+
+
+      {/* 详情弹窗 */}
+      {hydratedActive && (
         <PostDetailModal
-          post={active}
+          post={hydratedActive}
           isOpen={!!active}
           onClose={() => setActive(null)}
           onLike={like}
@@ -774,8 +806,18 @@ export default function Square() {
           onShare={sharePost}
           loading={activeLoading}
           error={activeError}
+          currentUser={user}
         />
       )}
-    </main>
+
+      {/* 发布弹窗 */}
+      <CreatePostModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onSubmit={handleCreatePost}
+        isDark={isDark}
+        topics={DEFAULT_TAGS}
+      />
+    </div>
   )
 }

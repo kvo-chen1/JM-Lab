@@ -34,7 +34,7 @@ export default function CreateActivity() {
   const { isDark } = useTheme();
   const { isAuthenticated, user } = useContext(AuthContext);
   const navigate = useNavigate();
-  const { createEvent, publishEvent, updateEvent, getUserEvents } = useEventService();
+  const { createEvent, publishEvent, publishToJinmaiPlatform, updateEvent, getUserEvents } = useEventService();
   
   // 当前步骤
   const [currentStep, setCurrentStep] = useState<StepType>('basic');
@@ -56,6 +56,13 @@ export default function CreateActivity() {
     contactEmail: '',
     pushToCommunity: false,
     applyForRecommendation: false,
+    maxParticipants: undefined,
+  });
+  
+  // 发布选项
+  const [publishOptions, setPublishOptions] = useState({
+    publishToJinmaiPlatform: true,
+    notifyFollowers: false,
   });
   
   // 加载状态
@@ -68,6 +75,9 @@ export default function CreateActivity() {
   
   // 表单验证错误
   const [errors, setErrors] = useState<Record<string, string>>({});
+  
+  // 表单触摸状态
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
   
   // 自动保存定时器
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -361,10 +371,11 @@ export default function CreateActivity() {
         });
       } else {
         // 创建新草稿
-        await createEvent({
+        const newEvent = await createEvent({
           ...formData,
           status: 'draft'
         });
+        setEventId(newEvent.id);
       }
       
       setSaveStatus('saved');
@@ -385,23 +396,9 @@ export default function CreateActivity() {
     
     try {
       setIsLoadingVersions(true);
-      // 模拟获取版本历史
       // 实际实现中，这里应该调用API获取版本历史
-      const mockVersions = [
-        {
-          id: 'v1',
-          createdAt: new Date(Date.now() - 3600000),
-          title: formData.title || '未命名活动',
-          description: formData.description || '无描述'
-        },
-        {
-          id: 'v2',
-          createdAt: new Date(Date.now() - 7200000),
-          title: '初始版本',
-          description: '初始创建'
-        }
-      ];
-      setVersions(mockVersions);
+      // 暂时返回空数组，避免显示模拟数据
+      setVersions([]);
     } catch (error) {
       toast.error('获取版本历史失败');
       console.error('获取版本历史失败:', error);
@@ -439,6 +436,7 @@ export default function CreateActivity() {
       setShareUrl(url);
       return url;
     }
+    setShareUrl('');
     return '';
   };
   
@@ -591,6 +589,9 @@ export default function CreateActivity() {
   // 提交发布
   const handlePublish = async () => {
     try {
+      // 保存原始步骤
+      const originalStep = currentStep;
+      
       // 验证所有步骤
       for (const step of steps) {
         setCurrentStep(step.id as StepType);
@@ -600,17 +601,57 @@ export default function CreateActivity() {
         }
       }
       
+      // 恢复原始步骤
+      setCurrentStep(originalStep);
+      
       setIsPublishing(true);
       
-      // 创建活动
-      const event = await createEvent(formData);
+      let event;
+      if (eventId) {
+        // 更新现有活动
+        event = await updateEvent(eventId, {
+          ...formData,
+          status: 'published'
+        });
+      } else {
+        // 创建新活动
+        event = await createEvent({
+          ...formData,
+          status: 'published'
+        });
+        setEventId(event.id);
+      }
       
-      // 提交发布审核
-      await publishEvent(event.id);
+      // 根据选择发布到相应平台
+      if (publishOptions.publishToJinmaiPlatform) {
+        // 直接发布到津脉活动平台
+        // 构造符合接口要求的参数
+        const publishData = {
+          title: formData.title,
+          description: formData.description,
+          startDate: formData.startTime.toISOString(),
+          endDate: formData.endTime.toISOString(),
+          requirements: '无', // 默认值
+          rewards: '无', // 默认值
+          visibility: formData.isPublic ? 'public' : 'private' as 'public' | 'private',
+          notifyFollowers: publishOptions.notifyFollowers
+        };
+
+        await publishToJinmaiPlatform(event.id, publishData);
+        toast.success('活动已成功发布到津脉活动平台');
+      } else {
+        // 提交发布审核
+        await publishEvent(event.id, { 
+          eventId: event.id,
+          notifyFollowers: publishOptions.notifyFollowers
+        });
+        toast.success('活动已提交审核，我们会尽快处理');
+      }
       
-      toast.success('活动已提交审核，我们会尽快处理');
+      // 跳转到活动列表页面
       navigate('/activities');
     } catch (error) {
+      console.error('发布活动失败:', error);
       toast.error('发布失败，请稍后重试');
     } finally {
       setIsPublishing(false);
@@ -1240,14 +1281,51 @@ export default function CreateActivity() {
                   <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.4 }}
+                    className="mt-6"
+                  >
+                    <h3 className="font-medium mb-3">发布选项</h3>
+                    <div className="space-y-3">
+                      <div className="flex items-center">
+                        <input
+                          type="checkbox"
+                          id="publishToJinmaiPlatform"
+                          checked={publishOptions.publishToJinmaiPlatform}
+                          onChange={(e) => setPublishOptions({ ...publishOptions, publishToJinmaiPlatform: e.target.checked })}
+                          className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                        />
+                        <label htmlFor="publishToJinmaiPlatform" className="ml-2 text-sm">
+                          直接发布到津脉活动平台
+                        </label>
+                      </div>
+                      <div className="flex items-center">
+                        <input
+                          type="checkbox"
+                          id="notifyFollowers"
+                          checked={publishOptions.notifyFollowers}
+                          onChange={(e) => setPublishOptions({ ...publishOptions, notifyFollowers: e.target.checked })}
+                          className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                        />
+                        <label htmlFor="notifyFollowers" className="ml-2 text-sm">
+                          通知我的关注者
+                        </label>
+                      </div>
+                    </div>
+                  </motion.div>
+                  
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.6 }}
                     className="mt-6"
                   >
                     <h3 className="font-medium mb-3">发布说明</h3>
                     <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
                       <p className="text-sm text-yellow-800 dark:text-yellow-300">
-                        提交发布后，我们将对活动内容进行审核，审核通过后活动将自动发布到天津文化活动页面。
-                        审核通常需要1-2个工作日，请耐心等待。
+                        {publishOptions.publishToJinmaiPlatform 
+                          ? '提交发布后，活动将直接发布到津脉活动平台，无需等待审核。' 
+                          : '提交发布后，我们将对活动内容进行审核，审核通过后活动将自动发布。'}
+                        {!publishOptions.publishToJinmaiPlatform && ' 审核通常需要1-2个工作日，请耐心等待。'}
                       </p>
                     </div>
                   </motion.div>

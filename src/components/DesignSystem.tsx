@@ -35,12 +35,13 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     disabled,
     ...props 
   }, ref) => {
-    const baseClasses = 'inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors';
+    const baseClasses = 'inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-all duration-200';
     const variantClasses = componentVariants.button.variants.variant[variant];
     const sizeClasses = componentVariants.button.variants.size[size];
-    const stateClasses = 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50';
+    const stateClasses = 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 hover:shadow-md active:shadow-sm';
     const widthClasses = fullWidth ? 'w-full' : '';
     const roundedClasses = rounded ? 'rounded-full' : '';
+    const interactiveClasses = 'transform hover:-translate-y-0.5 active:translate-y-0';
     
     const classes = cn(
       baseClasses,
@@ -49,6 +50,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       stateClasses,
       widthClasses,
       roundedClasses,
+      interactiveClasses,
       className
     );
 
@@ -81,9 +83,9 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
             ></path>
           </svg>
         )}
-        {leftIcon && !isLoading && <span className="mr-2">{leftIcon}</span>}
-        {isLoading && loadingText ? loadingText : children}
-        {rightIcon && !isLoading && <span className="ml-2">{rightIcon}</span>}
+        {leftIcon && !isLoading && <span className="mr-2 transform transition-transform duration-200 hover:scale-110">{leftIcon}</span>}
+        {isLoading && loadingText ? loadingText : <span className="transform transition-transform duration-200 hover:scale-105">{children}</span>}
+        {rightIcon && !isLoading && <span className="ml-2 transform transition-transform duration-200 hover:scale-110">{rightIcon}</span>}
       </button>
     );
   }
@@ -99,6 +101,8 @@ interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
   size?: 'default' | 'sm' | 'lg' | 'none';
   interactive?: boolean;
   elevated?: boolean;
+  hoverable?: boolean;
+  compact?: boolean;
 }
 
 export const Card = React.forwardRef<HTMLDivElement, CardProps>(
@@ -108,21 +112,27 @@ export const Card = React.forwardRef<HTMLDivElement, CardProps>(
     size = 'default',
     interactive = false,
     elevated = false,
+    hoverable = false,
+    compact = false,
     children,
     ...props 
   }, ref) => {
-    const baseClasses = 'relative';
+    const baseClasses = 'relative overflow-hidden';
     const variantClasses = componentVariants.card.variants.variant[variant];
     const sizeClasses = componentVariants.card.variants.size[size];
-    const interactiveClasses = interactive ? 'cursor-pointer transition-all hover:shadow-lg hover:-translate-y-1' : '';
-    const elevatedClasses = elevated ? 'shadow-lg' : 'shadow-sm';
+    const interactiveClasses = interactive ? 'cursor-pointer transition-all duration-300 hover:shadow-lg hover:-translate-y-1 active:translate-y-0' : '';
+    const hoverableClasses = hoverable && !interactive ? 'transition-all duration-300 hover:shadow-md' : '';
+    const elevatedClasses = elevated ? 'shadow-xl' : 'shadow-sm';
+    const compactClasses = compact ? 'p-4' : 'p-6';
     
     const classes = cn(
       baseClasses,
       variantClasses,
       sizeClasses,
       interactiveClasses,
+      hoverableClasses,
       elevatedClasses,
+      compactClasses,
       className
     );
 
@@ -145,14 +155,17 @@ Card.displayName = 'Card';
  */
 interface CardHeaderProps extends React.HTMLAttributes<HTMLDivElement> {
   bordered?: boolean;
+  compact?: boolean;
+  align?: 'start' | 'center' | 'end';
 }
 
 export const CardHeader = React.forwardRef<HTMLDivElement, CardHeaderProps>(
-  ({ className, bordered = false, children, ...props }, ref) => {
-    const baseClasses = 'flex flex-col space-y-1.5 p-6';
+  ({ className, bordered = false, compact = false, align = 'start', children, ...props }, ref) => {
+    const baseClasses = `flex flex-col space-y-1.5 ${compact ? 'p-4' : 'p-6'}`;
     const borderedClasses = bordered ? 'border-b border-border' : '';
+    const alignClasses = align === 'center' ? 'items-center text-center' : align === 'end' ? 'items-end text-right' : 'items-start';
     
-    const classes = cn(baseClasses, borderedClasses, className);
+    const classes = cn(baseClasses, borderedClasses, alignClasses, className);
 
     return (
       <div
@@ -173,12 +186,22 @@ CardHeader.displayName = 'CardHeader';
  */
 interface CardTitleProps extends React.HTMLAttributes<HTMLHeadingElement> {
   as?: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6';
+  size?: 'sm' | 'default' | 'lg' | 'xl';
+  truncated?: boolean;
 }
 
 export const CardTitle = React.forwardRef<HTMLHeadingElement, CardTitleProps>(
-  ({ className, as: Component = 'h3', children, ...props }, ref) => {
+  ({ className, as: Component = 'h3', size = 'default', truncated = false, children, ...props }, ref) => {
+    const sizeClasses = size === 'sm' ? 'text-xl font-semibold' : 
+                       size === 'lg' ? 'text-3xl font-bold' : 
+                       size === 'xl' ? 'text-4xl font-bold' : 
+                       'text-2xl font-semibold';
+    const truncatedClasses = truncated ? 'truncate' : '';
+    
     const classes = cn(
-      'text-2xl font-semibold leading-none tracking-tight',
+      sizeClasses,
+      'leading-none tracking-tight',
+      truncatedClasses,
       className
     );
 
@@ -199,11 +222,14 @@ CardTitle.displayName = 'CardTitle';
 /**
  * 卡片描述
  */
-interface CardDescriptionProps extends React.HTMLAttributes<HTMLParagraphElement> {}
+interface CardDescriptionProps extends React.HTMLAttributes<HTMLParagraphElement> {
+  compact?: boolean;
+}
 
 export const CardDescription = React.forwardRef<HTMLParagraphElement, CardDescriptionProps>(
-  ({ className, children, ...props }, ref) => {
-    const classes = cn('text-sm text-muted-foreground', className);
+  ({ className, compact = false, children, ...props }, ref) => {
+    const sizeClasses = compact ? 'text-xs' : 'text-sm';
+    const classes = cn(sizeClasses, 'text-muted-foreground', className);
 
     return (
       <p
@@ -222,11 +248,14 @@ CardDescription.displayName = 'CardDescription';
 /**
  * 卡片内容
  */
-interface CardContentProps extends React.HTMLAttributes<HTMLDivElement> {}
+interface CardContentProps extends React.HTMLAttributes<HTMLDivElement> {
+  compact?: boolean;
+}
 
 export const CardContent = React.forwardRef<HTMLDivElement, CardContentProps>(
-  ({ className, children, ...props }, ref) => {
-    const classes = cn('p-6 pt-0', className);
+  ({ className, compact = false, children, ...props }, ref) => {
+    const paddingClasses = compact ? 'p-4 pt-0' : 'p-6 pt-0';
+    const classes = cn(paddingClasses, className);
 
     return (
       <div
@@ -247,14 +276,20 @@ CardContent.displayName = 'CardContent';
  */
 interface CardFooterProps extends React.HTMLAttributes<HTMLDivElement> {
   bordered?: boolean;
+  compact?: boolean;
+  align?: 'start' | 'center' | 'end' | 'between';
 }
 
 export const CardFooter = React.forwardRef<HTMLDivElement, CardFooterProps>(
-  ({ className, bordered = false, children, ...props }, ref) => {
-    const baseClasses = 'flex items-center p-6 pt-0';
-    const borderedClasses = bordered ? 'border-t border-border mt-6' : '';
+  ({ className, bordered = false, compact = false, align = 'start', children, ...props }, ref) => {
+    const baseClasses = `flex ${compact ? 'p-4 pt-0' : 'p-6 pt-0'}`;
+    const borderedClasses = bordered ? 'border-t border-border mt-4' : '';
+    const alignClasses = align === 'center' ? 'justify-center items-center' : 
+                        align === 'end' ? 'justify-end items-center' : 
+                        align === 'between' ? 'justify-between items-center' : 
+                        'items-center';
     
-    const classes = cn(baseClasses, borderedClasses, className);
+    const classes = cn(baseClasses, borderedClasses, alignClasses, className);
 
     return (
       <div
@@ -292,17 +327,18 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
     rightIcon,
     ...props 
   }, ref) => {
-    const baseClasses = 'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50';
+    const baseClasses = 'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 transition-all duration-200';
     const variantClasses = componentVariants.input.variants.variant[variant];
     const sizeClasses = componentVariants.input.variants.size[size];
     const errorClasses = error ? 'border-destructive focus-visible:ring-destructive' : '';
+    const interactiveClasses = 'hover:border-ring/50 hover:shadow-sm focus-visible:shadow-md';
     
-    const inputClasses = cn(baseClasses, variantClasses, sizeClasses, errorClasses, className);
+    const inputClasses = cn(baseClasses, variantClasses, sizeClasses, errorClasses, interactiveClasses, className);
 
     return (
       <div className="relative">
         {leftIcon && (
-          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors duration-200 group-hover:text-foreground">
             {leftIcon}
           </div>
         )}
@@ -317,7 +353,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
           {...props}
         />
         {rightIcon && (
-          <div className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors duration-200 group-hover:text-foreground">
             {rightIcon}
           </div>
         )}
@@ -346,12 +382,12 @@ export const Badge = React.forwardRef<HTMLDivElement, BadgeProps>(
     children,
     ...props 
   }, ref) => {
-    const baseClasses = 'inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2';
+    const baseClasses = 'inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2';
     const variantClasses = {
-      default: 'border-transparent bg-primary text-primary-foreground shadow hover:bg-primary/80',
-      secondary: 'border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80',
-      destructive: 'border-transparent bg-destructive text-destructive-foreground shadow hover:bg-destructive/80',
-      outline: 'text-foreground'
+      default: 'border-transparent bg-primary text-primary-foreground shadow hover:bg-primary/80 hover:shadow-md',
+      secondary: 'border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80 hover:shadow-md',
+      destructive: 'border-transparent bg-destructive text-destructive-foreground shadow hover:bg-destructive/80 hover:shadow-md',
+      outline: 'text-foreground hover:bg-accent hover:text-accent-foreground'
     }[variant];
     
     const sizeClasses = {
@@ -361,8 +397,9 @@ export const Badge = React.forwardRef<HTMLDivElement, BadgeProps>(
     }[size];
     
     const roundedClasses = rounded ? 'rounded-full' : '';
+    const interactiveClasses = 'transform hover:-translate-y-0.5 active:translate-y-0';
     
-    const classes = cn(baseClasses, variantClasses, sizeClasses, roundedClasses, className);
+    const classes = cn(baseClasses, variantClasses, sizeClasses, roundedClasses, interactiveClasses, className);
 
     return (
       <div

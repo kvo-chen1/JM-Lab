@@ -84,17 +84,24 @@ export const FriendProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  
+
   // 初始化好友系统
   useEffect(() => {
     let cleanupFunction: (() => void) | undefined;
+    let statusTimer: NodeJS.Timeout | null = null;
     
     if (currentUser) {
-      // 更新用户状态为在线
-      updateUserStatus('online');
+      // 更新用户状态为在线（使用防抖）
+      statusTimer = setTimeout(() => {
+        updateUserStatus('online');
+      }, 1000);
       
-      // 加载好友列表和请求
-      getFriends();
-      getFriendRequests();
+      // 加载好友列表和请求（使用防抖）
+      setTimeout(() => {
+        getFriends();
+        getFriendRequests();
+      }, 500);
       
       // 监听好友状态变化
       cleanupFunction = subscribeToFriendStatuses();
@@ -102,8 +109,14 @@ export const FriendProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     
     // 组件卸载时更新状态为离线
     return () => {
+      if (statusTimer) {
+        clearTimeout(statusTimer);
+      }
       if (currentUser) {
-        updateUserStatus('offline');
+        // 延迟执行离线状态更新，避免频繁切换
+        setTimeout(() => {
+          updateUserStatus('offline');
+        }, 500);
       }
       // 执行清理函数
       if (cleanupFunction) {
@@ -120,9 +133,16 @@ export const FriendProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setError(null);
     
     try {
-      const response = await apiClient.get(`/api/friends/search?q=${encodeURIComponent(query)}`);
-      if (response.data?.ok) {
-        return response.data.data;
+      const response = await apiClient.get<{ ok: boolean; data: User[] }>(`/api/friends/search?q=${encodeURIComponent(query)}`);
+      if (response.ok) {
+        // apiClient unwraps the response data if it follows { code: 0, data: ... } pattern
+        // But if the backend returns { ok: true, data: [...] } as implied by the type hint I just added...
+        // Wait, let's assume apiClient returns the actual data payload in response.data
+        // If the backend returns standard structure, response.data should be the array of users.
+        const data = response.data as any; // Temporary cast to check structure
+        if (Array.isArray(data)) return data;
+        if (Array.isArray(data?.data)) return data.data;
+        return [];
       }
       return [];
     } catch (err: any) {
@@ -143,13 +163,13 @@ export const FriendProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     
     try {
       const response = await apiClient.post('/api/friends/request', { userId });
-      if (response.data?.ok) {
+      if (response.ok) {
         return true;
       }
-      if (response.data?.error === 'ALREADY_FRIENDS') {
+      if ((response.data as any)?.error === 'ALREADY_FRIENDS') {
         setError('已经是好友了');
       } else {
-        setError(response.data?.message || '发送请求失败');
+        setError((response.data as any)?.message || '发送请求失败');
       }
       return false;
     } catch (err: any) {
@@ -170,7 +190,7 @@ export const FriendProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     
     try {
       const response = await apiClient.post('/api/friends/accept', { requestId });
-      if (response.data?.ok) {
+      if (response.ok) {
         // 更新本地状态
         setFriendRequests(prev => prev.filter(r => r.id !== requestId));
         getFriends();
@@ -195,7 +215,7 @@ export const FriendProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     
     try {
       const response = await apiClient.post('/api/friends/reject', { requestId });
-      if (response.data?.ok) {
+      if (response.ok) {
         setFriendRequests(prev => prev.filter(r => r.id !== requestId));
         return true;
       }
@@ -209,6 +229,9 @@ export const FriendProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
   };
 
+  // 防抖定时器
+  const [debounceTimers, setDebounceTimers] = useState<Record<string, NodeJS.Timeout>>({});
+
   // 获取好友请求
   const getFriendRequests = async (): Promise<FriendRequest[]> => {
     if (!currentUser) return [];
@@ -217,9 +240,19 @@ export const FriendProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setError(null);
     
     try {
-      const response = await apiClient.get('/api/friends/requests');
-      if (response.data?.ok) {
-        const requests = response.data.data;
+      const response = await apiClient.get<FriendRequest[]>('/api/friends/requests', {
+        cache: {
+          enabled: true,
+          ttl: 60000, // 缓存60秒
+          staleTtl: 120000 // 过期后可再使用120秒
+        },
+        debounce: {
+          enabled: true,
+          delay: 500
+        }
+      });
+      if (response.ok) {
+        const requests = response.data || [];
         setFriendRequests(requests);
         return requests;
       }
@@ -241,7 +274,17 @@ export const FriendProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setError(null);
     
     try {
-      const response = await apiClient.get('/api/friends/list');
+      const response = await apiClient.get('/api/friends/list', {
+        cache: {
+          enabled: true,
+          ttl: 60000, // 缓存60秒
+          staleTtl: 120000 // 过期后可再使用120秒
+        },
+        debounce: {
+          enabled: true,
+          delay: 500
+        }
+      });
       if (response.data?.ok) {
         const friendList = response.data.data;
         setFriends(friendList);
@@ -314,7 +357,7 @@ export const FriendProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     
     try {
       const response = await apiClient.post('/api/friends/note', { friendId, note });
-      if (response.data?.ok) {
+      if (response.ok) {
         setFriends(prev => prev.map(f => 
           f.friend_id === friendId ? { ...f, user_note: note } : f
         ));

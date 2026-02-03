@@ -47,10 +47,10 @@ const NeoRightSidebar: React.FC<NeoRightSidebarProps> = ({
 
   // 相关资源推荐
   const resources = [
-    { id: 'tianjin-culture', title: '天津文化知识库', icon: 'book-open', color: 'blue' },
+    { id: 'tianjin-culture', title: '文化知识库', icon: 'book-open', color: 'blue' },
     { id: 'design-templates', title: '设计模板库', icon: 'palette', color: 'purple' },
     { id: 'tutorials', title: '创作教程', icon: 'graduation-cap', color: 'green' },
-    { id: 'community', title: '创作者社区', icon: 'users', color: 'orange' }
+    { id: 'community', title: '津脉社区', icon: 'users', color: 'orange' }
   ];
 
   const containerVariants = {

@@ -1,18 +1,44 @@
 import apiClient from '../lib/apiClient';
-import { Work } from '../mock/works';
-import { User } from '../contexts/authContext';
+import { Work } from '@/types';
 import { validationService } from './validationService';
+import { historyService } from './historyService';
+
+// 本地定义 User 类型以避免循环引用
+interface User {
+  id: string;
+  username: string;
+  email: string;
+  avatar?: string;
+  phone?: string;
+  interests?: string[];
+  isAdmin?: boolean;
+  age?: number;
+  tags?: string[];
+  isNewUser?: boolean;
+  worksCount?: number;
+  followersCount?: number;
+  followingCount?: number;
+  favoritesCount?: number;
+  membershipLevel: 'free' | 'premium' | 'vip';
+  membershipStart?: string;
+  membershipEnd?: string;
+  membershipStatus: 'active' | 'expired' | 'pending';
+}
 
 // 统一API服务层
 class ApiService {
   private baseUrl: string;
-  private useMockData: boolean;
 
   constructor() {
     this.baseUrl = '';
-    const isDev = typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'development';
-    const useMock = typeof process !== 'undefined' && process.env && process.env.USE_MOCK_DATA !== 'false';
-    this.useMockData = isDev && useMock;
+  }
+
+  /**
+   * 设置是否使用模拟数据
+   */
+  setUseMockData(useMock: boolean): void {
+    // 暂时只记录日志，后续可以接入 mockDataService
+    console.log(`[ApiService] 设置模拟数据模式: ${useMock}`);
   }
 
   /**
@@ -23,28 +49,23 @@ class ApiService {
   }
 
   /**
-   * 切换是否使用模拟数据
-   */
-  setUseMockData(useMock: boolean): void {
-    this.useMockData = useMock;
-  }
-
-  /**
-   * 获取当前是否使用模拟数据
-   */
-  getUseMockData(): boolean {
-    return this.useMockData;
-  }
-
-  /**
    * 通用GET请求
    */
   async get<T>(endpoint: string, params?: Record<string, any>): Promise<T> {
     const url = this.buildUrl(endpoint, params);
-    const response = await apiClient.get<T>(url);
+    // Extract cache options from params if present
+    const cacheOptions = params?.cache;
+    // Remove cache from params so it's not sent as query param
+    const { cache, ...queryParams } = params || {};
+    
+    // Rebuild URL without cache param
+    const requestUrl = this.buildUrl(endpoint, queryParams);
+    
+    const response = await apiClient.get<T>(requestUrl, { cache: cacheOptions });
     if (!response.ok) {
       throw new Error(response.error || '请求失败');
     }
+    // 确保返回的数据类型正确
     return response.data as T;
   }
 
@@ -66,6 +87,18 @@ class ApiService {
   async put<T, B>(endpoint: string, body?: B): Promise<T> {
     const url = this.buildUrl(endpoint);
     const response = await apiClient.put<T, B>(url, body);
+    if (!response.ok) {
+      throw new Error(response.error || '请求失败');
+    }
+    return response.data as T;
+  }
+
+  /**
+   * 通用PATCH请求
+   */
+  async patch<T, B>(endpoint: string, body?: B): Promise<T> {
+    const url = this.buildUrl(endpoint);
+    const response = await apiClient.patch<T, B>(url, body);
     if (!response.ok) {
       throw new Error(response.error || '请求失败');
     }
@@ -113,11 +146,6 @@ class WorkService extends ApiService {
     tags?: string[];
     featured?: boolean;
   }): Promise<Work[]> {
-    if (this.getUseMockData()) {
-      // 从模拟数据服务获取
-      const { mockWorkService } = await import('./mockDataService');
-      return mockWorkService.getWorks(params);
-    }
     return this.get<Work[]>('/api/works', params);
   }
 
@@ -125,11 +153,6 @@ class WorkService extends ApiService {
    * 获取作品详情
    */
   async getWorkById(id: number): Promise<Work> {
-    if (this.getUseMockData()) {
-      // 从模拟数据服务获取
-      const { mockWorkService } = await import('./mockDataService');
-      return mockWorkService.getWorkById(id);
-    }
     return this.get<Work>(`/api/works/${id}`);
   }
 
@@ -142,7 +165,9 @@ class WorkService extends ApiService {
     if (!validationResult.success) {
       throw new Error(`作品数据验证失败: ${Object.values(validationResult.errors || {}).join(', ')}`);
     }
-    return this.post<Work, Omit<Work, 'id'>>('/api/works', work);
+    const result = await this.post<Work, Omit<Work, 'id'>>('/api/works', work);
+    void historyService.record('create_work', { title: result.title, id: result.id });
+    return result;
   }
 
   /**
@@ -168,7 +193,8 @@ class WorkService extends ApiService {
    * 点赞作品
    */
   async likeWork(id: number): Promise<void> {
-    return this.post<void, void>(`/api/works/${id}/like`);
+    await this.post<void, void>(`/api/works/${id}/like`);
+    void historyService.record('like_work', { workId: id });
   }
 
   /**
@@ -193,11 +219,13 @@ class WorkService extends ApiService {
     message: string;
     moderationStatus: 'pending' | 'approved' | 'rejected' | 'scheduled';
   }> {
-    return this.post<{
+    const result = await this.post<{
       success: boolean;
       message: string;
       moderationStatus: 'pending' | 'approved' | 'rejected' | 'scheduled';
     }, any>(`/api/works/${workId}/publish/explore`, data);
+    void historyService.record('publish_work_explore', { workId, ...data });
+    return result;
   }
   
   /**
@@ -264,10 +292,12 @@ class WorkService extends ApiService {
     success: boolean;
     message: string;
   }> {
-    return this.post<{
+    const result = await this.post<{
       success: boolean;
       message: string;
     }, any>(`/api/works/${workId}/publish/community`, data);
+    void historyService.record('publish_work_community', { workId, ...data });
+    return result;
   }
   
   /**
@@ -400,7 +430,7 @@ class UserService extends ApiService {
    * 更新用户信息
    */
   async updateUser(user: Partial<User>): Promise<User> {
-    return this.put<User, Partial<User>>('/api/users/me', user);
+    return this.patch<User, Partial<User>>('/api/users/me', user);
   }
 
   /**
@@ -523,12 +553,14 @@ class CommentService extends ApiService {
     user: User;
     created_at: string;
   }> {
-    return this.post<{
+    const result = await this.post<{
       id: number;
       content: string;
       user: User;
       created_at: string;
     }, { content: string }>(`/api/works/${workId}/comments`, { content });
+    void historyService.record('comment_work', { workId, content, commentId: result.id });
+    return result;
   }
 }
 
@@ -556,6 +588,288 @@ class SearchService extends ApiService {
   }
 }
 
+// 社群服务
+class CommunityService extends ApiService {
+  /**
+   * 获取所有社群列表
+   */
+  async getCommunities(): Promise<Array<{
+    id: string;
+    name: string;
+    description: string;
+    avatar: string;
+    memberCount: number;
+    topic: string;
+    isActive: boolean;
+    isSpecial: boolean;
+    theme?: {
+      primaryColor?: string;
+      secondaryColor?: string;
+      backgroundColor?: string;
+      textColor?: string;
+    };
+    layoutType?: 'standard' | 'compact' | 'expanded';
+    enabledModules?: {
+      posts?: boolean;
+      chat?: boolean;
+      members?: boolean;
+      announcements?: boolean;
+    };
+  }>> {
+    return this.get<Array<{
+      id: string;
+      name: string;
+      description: string;
+      avatar: string;
+      memberCount: number;
+      topic: string;
+      isActive: boolean;
+      isSpecial: boolean;
+      theme?: {
+        primaryColor?: string;
+        secondaryColor?: string;
+        backgroundColor?: string;
+        textColor?: string;
+      };
+      layoutType?: 'standard' | 'compact' | 'expanded';
+      enabledModules?: {
+        posts?: boolean;
+        chat?: boolean;
+        members?: boolean;
+        announcements?: boolean;
+      };
+    }>>('/api/communities');
+  }
+
+  /**
+   * 获取用户加入的社群列表
+   */
+  async getUserCommunities(userId: string): Promise<Array<{
+    id: string;
+    name: string;
+    description: string;
+    avatar: string;
+    memberCount: number;
+    topic: string;
+    isActive: boolean;
+    isSpecial: boolean;
+    theme?: {
+      primaryColor?: string;
+      secondaryColor?: string;
+      backgroundColor?: string;
+      textColor?: string;
+    };
+    layoutType?: 'standard' | 'compact' | 'expanded';
+    enabledModules?: {
+      posts?: boolean;
+      chat?: boolean;
+      members?: boolean;
+      announcements?: boolean;
+    };
+  }>> {
+    return this.get<Array<{
+      id: string;
+      name: string;
+      description: string;
+      avatar: string;
+      memberCount: number;
+      topic: string;
+      isActive: boolean;
+      isSpecial: boolean;
+      theme?: {
+        primaryColor?: string;
+        secondaryColor?: string;
+        backgroundColor?: string;
+        textColor?: string;
+      };
+      layoutType?: 'standard' | 'compact' | 'expanded';
+      enabledModules?: {
+        posts?: boolean;
+        chat?: boolean;
+        members?: boolean;
+        announcements?: boolean;
+      };
+    }>>(`/api/users/${userId}/communities`);
+  }
+
+  /**
+   * 获取单个社群详情
+   */
+  async getCommunity(communityId: string): Promise<{
+    id: string;
+    name: string;
+    description: string;
+    avatar: string;
+    memberCount: number;
+    topic: string;
+    isActive: boolean;
+    isSpecial: boolean;
+    theme?: {
+      primaryColor?: string;
+      secondaryColor?: string;
+      backgroundColor?: string;
+      textColor?: string;
+    };
+    layoutType?: 'standard' | 'compact' | 'expanded';
+    enabledModules?: {
+      posts?: boolean;
+      chat?: boolean;
+      members?: boolean;
+      announcements?: boolean;
+    };
+  }> {
+    return this.get<{
+      id: string;
+      name: string;
+      description: string;
+      avatar: string;
+      memberCount: number;
+      topic: string;
+      isActive: boolean;
+      isSpecial: boolean;
+      theme?: {
+        primaryColor?: string;
+        secondaryColor?: string;
+        backgroundColor?: string;
+        textColor?: string;
+      };
+      layoutType?: 'standard' | 'compact' | 'expanded';
+      enabledModules?: {
+        posts?: boolean;
+        chat?: boolean;
+        members?: boolean;
+        announcements?: boolean;
+      };
+    }>(`/api/communities/${communityId}`);
+  }
+
+  /**
+   * 创建社群
+   */
+  async createCommunity(data: {
+    name: string;
+    description: string;
+    tags: string[];
+    theme?: {
+      primaryColor?: string;
+      secondaryColor?: string;
+      backgroundColor?: string;
+      textColor?: string;
+    };
+    layoutType?: 'standard' | 'compact' | 'expanded';
+    enabledModules?: {
+      posts?: boolean;
+      chat?: boolean;
+      members?: boolean;
+      announcements?: boolean;
+    };
+    avatar?: string;
+    coverImage?: string;
+    bookmarks?: Array<{
+      id: string;
+      name: string;
+      icon: string;
+    }>;
+    guidelines?: string[];
+  }): Promise<{
+    id: string;
+    name: string;
+    description: string;
+    avatar: string;
+    memberCount: number;
+    topic: string;
+    isActive: boolean;
+    isSpecial: boolean;
+  }> {
+    return this.post<{
+      id: string;
+      name: string;
+      description: string;
+      avatar: string;
+      memberCount: number;
+      topic: string;
+      isActive: boolean;
+      isSpecial: boolean;
+    }, any>('/api/communities', data);
+  }
+
+  /**
+   * 加入社群
+   */
+  async joinCommunity(communityId: string): Promise<void> {
+    await this.post<void, void>(`/api/communities/${communityId}/join`);
+    void historyService.record('join_community', { communityId });
+  }
+
+  /**
+   * 退出社群
+   */
+  async leaveCommunity(communityId: string): Promise<void> {
+    return this.post<void, void>(`/api/communities/${communityId}/leave`);
+  }
+
+  /**
+   * 创建帖子
+   */
+  async createThread(data: {
+    title: string;
+    content: string;
+    topic: string;
+    communityId: string;
+    images?: Array<string>;
+  }): Promise<{
+    id: string;
+    title: string;
+    content: string;
+    createdAt: number;
+    author: {
+      id: string;
+      username: string;
+      avatar: string;
+    };
+    comments?: Array<{
+      id: string;
+      content: string;
+      createdAt: number;
+      user: {
+        id: string;
+        username: string;
+        avatar: string;
+      };
+    }>;
+    upvotes: number;
+    isUpvoted?: boolean;
+    isFavorited?: boolean;
+    topic: string;
+  }> {
+    return this.post<{
+      id: string;
+      title: string;
+      content: string;
+      createdAt: number;
+      author: {
+        id: string;
+        username: string;
+        avatar: string;
+      };
+      comments?: Array<{
+        id: string;
+        content: string;
+        createdAt: number;
+        user: {
+          id: string;
+          username: string;
+          avatar: string;
+        };
+      }>;
+      upvotes: number;
+      isUpvoted?: boolean;
+      isFavorited?: boolean;
+      topic: string;
+    }, any>(`/api/communities/${data.communityId}/threads`, data);
+  }
+}
+
 // 导出单例实例
 export const apiService = new ApiService();
 export const workService = new WorkService();
@@ -563,6 +877,263 @@ export const userService = new UserService();
 export const categoryService = new CategoryService();
 export const commentService = new CommentService();
 export const searchService = new SearchService();
+export const communityService = new CommunityService();
+
+// 事件服务
+class EventService extends ApiService {
+  /**
+   * 创建活动
+   */
+  async createEvent(eventData: any): Promise<any> {
+    return this.post<any, any>('/api/events', eventData);
+  }
+
+  /**
+   * 更新活动
+   */
+  async updateEvent(eventId: string, eventData: any): Promise<any> {
+    return this.put<any, any>(`/api/events/${eventId}`, eventData);
+  }
+
+  /**
+   * 发布活动
+   */
+  async publishEvent(eventId: string, publishData?: any): Promise<any> {
+    return this.post<any, any>(`/api/events/${eventId}/publish`, publishData || {});
+  }
+
+  /**
+   * 发布活动到津脉平台
+   */
+  async publishToJinmaiPlatform(eventId: string, data: {
+    title: string;
+    description: string;
+    startDate: string;
+    endDate: string;
+    requirements: string;
+    rewards: string;
+    visibility: 'public' | 'private';
+  }): Promise<{
+    success: boolean;
+    message: string;
+    platformEventId: string;
+  }> {
+    return this.post<{
+      success: boolean;
+      message: string;
+      platformEventId: string;
+    }, any>(`/api/events/${eventId}/publish/jinmai`, data);
+  }
+
+  /**
+   * 获取活动列表
+   */
+  async getEvents(params?: any): Promise<any[]> {
+    return this.get<any[]>('/api/events', params);
+  }
+
+  /**
+   * 获取活动详情
+   */
+  async getEvent(eventId: string): Promise<any> {
+    return this.get<any>(`/api/events/${eventId}`);
+  }
+
+  /**
+   * 获取用户创建的活动
+   */
+  async getUserEvents(userId: string, params?: any): Promise<any[]> {
+    return this.get<any[]>(`/api/users/${userId}/events`, params);
+  }
+
+  /**
+   * 用户注册参与活动
+   */
+  async registerForEvent(eventId: string, userId: string): Promise<{
+    success: boolean;
+    message: string;
+    registrationId: string;
+    status: 'pending' | 'approved' | 'rejected';
+  }> {
+    const result = await this.post<{
+      success: boolean;
+      message: string;
+      registrationId: string;
+      status: 'pending' | 'approved' | 'rejected';
+    }, any>(`/api/events/${eventId}/register`, { userId });
+    void historyService.record('register_event', { eventId, userId });
+    return result;
+  }
+
+  /**
+   * 提交作品到活动
+   */
+  async submitEventWork(eventId: string, data: {
+    workId: string;
+    userId: string;
+    description: string;
+  }): Promise<{
+    success: boolean;
+    message: string;
+    submissionId: string;
+    status: 'pending' | 'approved' | 'rejected';
+  }> {
+    const result = await this.post<{
+      success: boolean;
+      message: string;
+      submissionId: string;
+      status: 'pending' | 'approved' | 'rejected';
+    }, any>(`/api/events/${eventId}/submit`, data);
+    void historyService.record('submit_event_work', { eventId, ...data });
+    return result;
+  }
+
+  /**
+   * 获取活动参与者列表
+   */
+  async getEventParticipants(eventId: string, params?: {
+    page?: number;
+    limit?: number;
+    status?: 'pending' | 'approved' | 'rejected';
+  }): Promise<Array<{
+    userId: string;
+    username: string;
+    avatar: string;
+    registrationDate: string;
+    status: 'pending' | 'approved' | 'rejected';
+    submissionCount: number;
+  }>> {
+    return this.get<Array<{
+      userId: string;
+      username: string;
+      avatar: string;
+      registrationDate: string;
+      status: 'pending' | 'approved' | 'rejected';
+      submissionCount: number;
+    }>>(`/api/events/${eventId}/participants`, params);
+  }
+
+  /**
+   * 获取活动提交作品列表
+   */
+  async getEventSubmissions(eventId: string, params?: {
+    page?: number;
+    limit?: number;
+    status?: 'pending' | 'approved' | 'rejected';
+  }): Promise<Array<{
+    submissionId: string;
+    workId: string;
+    workTitle: string;
+    workThumbnail: string;
+    userId: string;
+    username: string;
+    submissionDate: string;
+    status: 'pending' | 'approved' | 'rejected';
+    score?: number;
+  }>> {
+    return this.get<Array<{
+      submissionId: string;
+      workId: string;
+      workTitle: string;
+      workThumbnail: string;
+      userId: string;
+      username: string;
+      submissionDate: string;
+      status: 'pending' | 'approved' | 'rejected';
+      score?: number;
+    }>>(`/api/events/${eventId}/submissions`, params);
+  }
+
+  /**
+   * 审核活动参与者
+   */
+  async approveParticipant(eventId: string, registrationId: string): Promise<{
+    success: boolean;
+    message: string;
+  }> {
+    return this.post<{
+      success: boolean;
+      message: string;
+    }, any>(`/api/events/${eventId}/participants/${registrationId}/approve`, {});
+  }
+
+  /**
+   * 拒绝活动参与者
+   */
+  async rejectParticipant(eventId: string, registrationId: string, reason: string): Promise<{
+    success: boolean;
+    message: string;
+  }> {
+    return this.post<{
+      success: boolean;
+      message: string;
+    }, any>(`/api/events/${eventId}/participants/${registrationId}/reject`, { reason });
+  }
+
+  /**
+   * 审核活动提交作品
+   */
+  async reviewSubmission(eventId: string, submissionId: string, data: {
+    status: 'approved' | 'rejected';
+    score?: number;
+    feedback?: string;
+  }): Promise<{
+    success: boolean;
+    message: string;
+  }> {
+    return this.post<{
+      success: boolean;
+      message: string;
+    }, any>(`/api/events/${eventId}/submissions/${submissionId}/review`, data);
+  }
+
+  /**
+   * 获取活动统计数据
+   */
+  async getEventStats(eventId: string): Promise<{
+    participantCount: number;
+    submissionCount: number;
+    approvedParticipants: number;
+    approvedSubmissions: number;
+    engagementRate: number;
+    byDate: Array<{
+      date: string;
+      registrations: number;
+      submissions: number;
+    }>;
+  }> {
+    return this.get<{
+      participantCount: number;
+      submissionCount: number;
+      approvedParticipants: number;
+      approvedSubmissions: number;
+      engagementRate: number;
+      byDate: Array<{
+        date: string;
+        registrations: number;
+        submissions: number;
+      }>;
+    }>(`/api/events/${eventId}/stats`);
+  }
+
+  /**
+   * 同步活动数据
+   */
+  async syncEventData(eventId: string): Promise<{
+    success: boolean;
+    message: string;
+    syncedAt: string;
+  }> {
+    return this.post<{
+      success: boolean;
+      message: string;
+      syncedAt: string;
+    }, any>(`/api/events/${eventId}/sync`, {});
+  }
+}
+
+// 导出单例实例
+export const eventService = new EventService();
 
 // 导出服务类型
-export type { ApiService, WorkService, UserService, CategoryService, CommentService, SearchService };
+export type { ApiService, WorkService, UserService, CategoryService, CommentService, SearchService, CommunityService, EventService };

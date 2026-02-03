@@ -26,7 +26,7 @@ const STEPS = [
   },
   { 
     title: '丰富的创作工具', 
-    desc: '在这里切换不同的创作模式：设计工坊、灵感探索、品牌向导等，满足各种创作需求。', 
+    desc: '在这里切换不同的创作模式：设计工坊、作品之心、品牌向导等，满足各种创作需求。', 
     icon: 'palette',
     targetPath: '/create',
     primaryText: '下一步',
@@ -62,9 +62,9 @@ const STEPS = [
   },
   { 
     title: '发现灵感', 
-    desc: '在探索页面，您可以搜索感兴趣的内容，或从热门标签中寻找创作灵感。', 
+    desc: '在津脉广场，您可以搜索感兴趣的内容，或从热门标签中寻找创作灵感。', 
     icon: 'search',
-    targetPath: '/explore',
+    targetPath: '/square',
     primaryText: '下一步',
     targetId: 'guide-step-explore-search',
     placement: 'bottom'
@@ -73,7 +73,7 @@ const STEPS = [
     title: '热门标签', 
     desc: '点击热门标签，快速筛选出特定风格的优秀作品，发现更多精彩。', 
     icon: 'tags',
-    targetPath: '/explore',
+    targetPath: '/square',
     primaryText: '看报表',
     targetId: 'guide-step-explore-tags',
     placement: 'bottom'
@@ -99,7 +99,7 @@ const STEPS = [
 ];
 
 export default function OnboardingGuide() {
-  const { isDark } = useTheme();
+  const { isDark, theme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
   const { 
@@ -115,6 +115,52 @@ export default function OnboardingGuide() {
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
   const [isLocating, setIsLocating] = useState(false);
   const guideRef = useRef<HTMLDivElement>(null);
+
+  // 主题样式映射
+  const themeStyles: Record<string, { accent: string; text: string; lightBg: string; border: string; shadow: string; stroke: string; progressBar: string; progressBg: string }> = {
+    light: {
+      accent: 'bg-red-600 hover:bg-red-700',
+      text: 'text-red-600',
+      lightBg: 'bg-red-100',
+      border: 'border-red-200',
+      shadow: 'shadow-red-500/30',
+      stroke: '#ef4444',
+      progressBar: 'bg-red-500',
+      progressBg: 'bg-red-200'
+    },
+    blue: {
+      accent: 'bg-blue-600 hover:bg-blue-700',
+      text: 'text-blue-600',
+      lightBg: 'bg-blue-100',
+      border: 'border-blue-200',
+      shadow: 'shadow-blue-500/30',
+      stroke: '#3b82f6',
+      progressBar: 'bg-blue-500',
+      progressBg: 'bg-blue-200'
+    },
+    green: {
+      accent: 'bg-green-600 hover:bg-green-700',
+      text: 'text-green-600',
+      lightBg: 'bg-green-100',
+      border: 'border-green-200',
+      shadow: 'shadow-green-500/30',
+      stroke: '#22c55e',
+      progressBar: 'bg-green-500',
+      progressBg: 'bg-green-200'
+    },
+    pixel: {
+      accent: 'bg-purple-600 hover:bg-purple-700',
+      text: 'text-purple-600',
+      lightBg: 'bg-purple-100',
+      border: 'border-purple-200',
+      shadow: 'shadow-purple-500/30',
+      stroke: '#9333ea',
+      progressBar: 'bg-purple-500',
+      progressBg: 'bg-purple-200'
+    }
+  };
+
+  const currentStyle = themeStyles[theme as string] || themeStyles.light;
 
   // 监听步骤变化，自动跳转路由并定位元素
   useEffect(() => {
@@ -320,7 +366,7 @@ export default function OnboardingGuide() {
         break;
 
       case 'center':
-        top = targetRect.top + (targetRect.height / 2) - (popoverHeight / 2);
+        top = targetRect.top + (targetRect.width / 2) - (popoverHeight / 2);
         left = targetRect.left + (targetRect.width / 2) - (popoverWidth / 2);
         break;
         
@@ -391,7 +437,7 @@ export default function OnboardingGuide() {
               height={targetRect.height + 8}
               rx="8"
               fill="transparent"
-              stroke="#ef4444" // red-500
+              stroke={currentStyle.stroke}
               strokeWidth="2"
               initial={{ pathLength: 0, opacity: 0 }}
               animate={{ pathLength: 1, opacity: 1 }}
@@ -436,7 +482,7 @@ export default function OnboardingGuide() {
 
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center space-x-2">
-              <span className="flex items-center justify-center w-8 h-8 rounded-full bg-red-100 text-red-600 font-bold text-sm">
+              <span className={`flex items-center justify-center w-8 h-8 rounded-full ${currentStyle.lightBg} ${currentStyle.text} font-bold text-sm`}>
                 <i className={`fas fa-${currentStepData.icon}`}></i>
               </span>
               <span className="text-sm font-semibold text-gray-500 dark:text-gray-400">
@@ -463,9 +509,9 @@ export default function OnboardingGuide() {
                    key={idx} 
                    className={`h-1.5 rounded-full transition-all duration-300 ${
                      idx === currentStep 
-                       ? 'w-6 bg-red-500' 
+                       ? `w-6 ${currentStyle.progressBar}` 
                        : idx < currentStep 
-                         ? 'w-1.5 bg-red-200' 
+                         ? `w-1.5 ${currentStyle.progressBg}` 
                          : 'w-1.5 bg-gray-200 dark:bg-gray-700'
                    }`} 
                  />
@@ -485,7 +531,7 @@ export default function OnboardingGuide() {
                )}
                <button
                  onClick={handleNext}
-                 className="px-5 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg shadow-lg shadow-red-500/30 transition-all hover:scale-105 active:scale-95"
+                 className={`px-5 py-2 text-sm font-medium text-white ${currentStyle.accent} rounded-lg shadow-lg ${currentStyle.shadow} transition-all hover:scale-105 active:scale-95`}
                >
                  {currentStepData.primaryText}
                </button>

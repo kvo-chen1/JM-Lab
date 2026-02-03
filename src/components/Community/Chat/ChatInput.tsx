@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useCallback, memo, useReducer } from 'react';
 import ReactMarkdown from 'react-markdown';
 import type { ChatMessage } from '@/pages/Community';
 
@@ -19,48 +19,283 @@ interface Emoji {
   isCustom?: boolean;
 }
 
-export const ChatInput: React.FC<ChatInputProps> = ({
+// 文件上传状态类型
+interface FileUploadState {
+  file: File;
+  progress: number;
+  status: 'uploading' | 'success' | 'failed' | 'paused';
+  url?: string;
+  chunks?: Array<{
+    index: number;
+    size: number;
+    start: number;
+    end: number;
+    uploaded: boolean;
+  }>;
+  totalChunks?: number;
+  uploadedChunks?: number;
+}
+
+// 组件状态类型
+interface ChatInputState {
+  text: string;
+  images: {
+    files: File[];
+    previews: string[];
+    showPreview: boolean;
+  };
+  files: {
+    items: FileUploadState[];
+    showUpload: boolean;
+  };
+  richText: {
+    isRichTextMode: boolean;
+    showPreview: boolean;
+  };
+  tags: {
+    selected: string[];
+    currentTopic: string;
+  };
+  emoji: {
+    showPanel: boolean;
+    emojis: Emoji[];
+    customEmojis: Emoji[];
+    favoriteEmojis: Emoji[];
+    currentCategory: string;
+    searchTerm: string;
+    showCustomUpload: boolean;
+    customFile: File | null;
+    customName: string;
+  };
+}
+
+// 初始状态
+const initialState: ChatInputState = {
+  text: '',
+  images: {
+    files: [],
+    previews: [],
+    showPreview: false
+  },
+  files: {
+    items: [],
+    showUpload: false
+  },
+  richText: {
+    isRichTextMode: false,
+    showPreview: false
+  },
+  tags: {
+    selected: [],
+    currentTopic: ''
+  },
+  emoji: {
+    showPanel: false,
+    emojis: [],
+    customEmojis: [],
+    favoriteEmojis: [],
+    currentCategory: 'recent',
+    searchTerm: '',
+    showCustomUpload: false,
+    customFile: null,
+    customName: ''
+  }
+};
+
+// Action类型
+type ChatInputAction =
+  | { type: 'SET_TEXT'; payload: string }
+  | { type: 'SET_IMAGES'; payload: { files: File[]; previews: string[]; showPreview: boolean } }
+  | { type: 'ADD_IMAGE'; payload: { file: File; preview: string } }
+  | { type: 'REMOVE_IMAGE'; payload: number }
+  | { type: 'SET_FILES'; payload: { items: FileUploadState[]; showUpload: boolean } }
+  | { type: 'UPDATE_FILE'; payload: { index: number; file: FileUploadState } }
+  | { type: 'REMOVE_FILE'; payload: number }
+  | { type: 'TOGGLE_RICH_TEXT'; payload?: boolean }
+  | { type: 'TOGGLE_PREVIEW' }
+  | { type: 'SET_TAGS'; payload: string[] }
+  | { type: 'SET_TOPIC'; payload: string }
+  | { type: 'TOGGLE_EMOJI_PANEL' }
+  | { type: 'SET_EMOJIS'; payload: Emoji[] }
+  | { type: 'SET_CUSTOM_EMOJIS'; payload: Emoji[] }
+  | { type: 'SET_FAVORITE_EMOJIS'; payload: Emoji[] }
+  | { type: 'SET_EMOJI_CATEGORY'; payload: string }
+  | { type: 'SET_EMOJI_SEARCH'; payload: string }
+  | { type: 'TOGGLE_CUSTOM_EMOJI_UPLOAD' }
+  | { type: 'SET_CUSTOM_EMOJI_FILE'; payload: File | null }
+  | { type: 'SET_CUSTOM_EMOJI_NAME'; payload: string }
+  | { type: 'RESET' };
+
+// Reducer函数
+function chatInputReducer(state: ChatInputState, action: ChatInputAction): ChatInputState {
+  switch (action.type) {
+    case 'SET_TEXT':
+      return { ...state, text: action.payload };
+    case 'SET_IMAGES':
+      return { ...state, images: action.payload };
+    case 'ADD_IMAGE':
+      return {
+        ...state,
+        images: {
+          files: [...state.images.files, action.payload.file],
+          previews: [...state.images.previews, action.payload.preview],
+          showPreview: true
+        }
+      };
+    case 'REMOVE_IMAGE':
+      const newFiles = [...state.images.files];
+      const newPreviews = [...state.images.previews];
+      newFiles.splice(action.payload, 1);
+      newPreviews.splice(action.payload, 1);
+      return {
+        ...state,
+        images: {
+          files: newFiles,
+          previews: newPreviews,
+          showPreview: newFiles.length > 0
+        }
+      };
+    case 'SET_FILES':
+      return { ...state, files: action.payload };
+    case 'UPDATE_FILE':
+      const updatedItems = [...state.files.items];
+      updatedItems[action.payload.index] = action.payload.file;
+      return {
+        ...state,
+        files: {
+          ...state.files,
+          items: updatedItems
+        }
+      };
+    case 'REMOVE_FILE':
+      const remainingItems = [...state.files.items];
+      remainingItems.splice(action.payload, 1);
+      return {
+        ...state,
+        files: {
+          items: remainingItems,
+          showUpload: remainingItems.length > 0
+        }
+      };
+    case 'TOGGLE_RICH_TEXT':
+      return {
+        ...state,
+        richText: {
+          ...state.richText,
+          isRichTextMode: action.payload !== undefined ? action.payload : !state.richText.isRichTextMode
+        }
+      };
+    case 'TOGGLE_PREVIEW':
+      return {
+        ...state,
+        richText: {
+          ...state.richText,
+          showPreview: !state.richText.showPreview
+        }
+      };
+    case 'SET_TAGS':
+      return {
+        ...state,
+        tags: {
+          ...state.tags,
+          selected: action.payload
+        }
+      };
+    case 'SET_TOPIC':
+      return {
+        ...state,
+        tags: {
+          ...state.tags,
+          currentTopic: action.payload
+        }
+      };
+    case 'TOGGLE_EMOJI_PANEL':
+      return {
+        ...state,
+        emoji: {
+          ...state.emoji,
+          showPanel: !state.emoji.showPanel
+        }
+      };
+    case 'SET_EMOJIS':
+      return {
+        ...state,
+        emoji: {
+          ...state.emoji,
+          emojis: action.payload
+        }
+      };
+    case 'SET_CUSTOM_EMOJIS':
+      return {
+        ...state,
+        emoji: {
+          ...state.emoji,
+          customEmojis: action.payload
+        }
+      };
+    case 'SET_FAVORITE_EMOJIS':
+      return {
+        ...state,
+        emoji: {
+          ...state.emoji,
+          favoriteEmojis: action.payload
+        }
+      };
+    case 'SET_EMOJI_CATEGORY':
+      return {
+        ...state,
+        emoji: {
+          ...state.emoji,
+          currentCategory: action.payload
+        }
+      };
+    case 'SET_EMOJI_SEARCH':
+      return {
+        ...state,
+        emoji: {
+          ...state.emoji,
+          searchTerm: action.payload
+        }
+      };
+    case 'TOGGLE_CUSTOM_EMOJI_UPLOAD':
+      return {
+        ...state,
+        emoji: {
+          ...state.emoji,
+          showCustomUpload: !state.emoji.showCustomUpload
+        }
+      };
+    case 'SET_CUSTOM_EMOJI_FILE':
+      return {
+        ...state,
+        emoji: {
+          ...state.emoji,
+          customFile: action.payload
+        }
+      };
+    case 'SET_CUSTOM_EMOJI_NAME':
+      return {
+        ...state,
+        emoji: {
+          ...state.emoji,
+          customName: action.payload
+        }
+      };
+    case 'RESET':
+      return initialState;
+    default:
+      return state;
+  }
+}
+
+const availableTags = ['国潮', '非遗', '极简', '赛博朋克', '3D艺术', '插画', 'UI设计'];
+
+const ChatInput: React.FC<ChatInputProps> = memo(({
   isDark,
   onSend,
   placeholder = "发送消息..."
 }) => {
-  const [text, setText] = useState('');
-  const [selectedImages, setSelectedImages] = useState<File[]>([]);
-  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
-  const [showImagePreview, setShowImagePreview] = useState(false);
-  // 更新selectedFiles状态类型，支持断点续传相关属性
-  const [selectedFiles, setSelectedFiles] = useState<Array<{
-    file: File;
-    progress: number;
-    status: 'uploading' | 'success' | 'failed' | 'paused';
-    url?: string;
-    chunks?: Array<{
-      index: number;
-      size: number;
-      start: number;
-      end: number;
-      uploaded: boolean;
-    }>;
-    totalChunks?: number;
-    uploadedChunks?: number;
-  }>>([]);
-  const [showFileUpload, setShowFileUpload] = useState(false);
-  // 富文本编辑器状态
-  const [isRichTextMode, setIsRichTextMode] = useState(false);
-  const [showPreview, setShowPreview] = useState(false);
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [availableTags] = useState<string[]>(['国潮', '非遗', '极简', '赛博朋克', '3D艺术', '插画', 'UI设计']);
-  const [currentTopic, setCurrentTopic] = useState<string>('');
-  // 表情包状态
-  const [showEmojiPanel, setShowEmojiPanel] = useState(false);
-  const [emojis, setEmojis] = useState<Emoji[]>([]);
-  const [customEmojis, setCustomEmojis] = useState<Emoji[]>([]);
-  const [favoriteEmojis, setFavoriteEmojis] = useState<Emoji[]>([]);
-  const [currentCategory, setCurrentCategory] = useState<string>('recent');
-  const [emojiSearchTerm, setEmojiSearchTerm] = useState<string>('');
-  const [showCustomEmojiUpload, setShowCustomEmojiUpload] = useState(false);
-  const [customEmojiFile, setCustomEmojiFile] = useState<File | null>(null);
-  const [customEmojiName, setCustomEmojiName] = useState<string>('');
+  const [state, dispatch] = useReducer(chatInputReducer, initialState);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -79,54 +314,72 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       { id: '7', url: 'https://via.placeholder.com/64', name: '666', category: 'number' },
       { id: '8', url: 'https://via.placeholder.com/64', name: 'OK', category: 'hand' },
     ];
-    setEmojis(mockEmojis);
+    dispatch({ type: 'SET_EMOJIS', payload: mockEmojis });
     
     // 从localStorage加载收藏的表情包
     const savedFavorites = localStorage.getItem('favoriteEmojis');
     if (savedFavorites) {
-      setFavoriteEmojis(JSON.parse(savedFavorites));
+      dispatch({ type: 'SET_FAVORITE_EMOJIS', payload: JSON.parse(savedFavorites) });
     }
     
     // 从localStorage加载自定义表情包
     const savedCustom = localStorage.getItem('customEmojis');
     if (savedCustom) {
-      setCustomEmojis(JSON.parse(savedCustom));
+      dispatch({ type: 'SET_CUSTOM_EMOJIS', payload: JSON.parse(savedCustom) });
     }
   }, []);
 
   // 保存收藏的表情包到localStorage
   useEffect(() => {
-    localStorage.setItem('favoriteEmojis', JSON.stringify(favoriteEmojis));
-  }, [favoriteEmojis]);
+    if (state.emoji.favoriteEmojis.length > 0) {
+      // 使用防抖减少频繁写入
+      const timer = setTimeout(() => {
+        localStorage.setItem('favoriteEmojis', JSON.stringify(state.emoji.favoriteEmojis));
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [state.emoji.favoriteEmojis]);
 
   // 保存自定义表情包到localStorage
   useEffect(() => {
-    localStorage.setItem('customEmojis', JSON.stringify(customEmojis));
-  }, [customEmojis]);
+    if (state.emoji.customEmojis.length > 0) {
+      // 使用防抖减少频繁写入
+      const timer = setTimeout(() => {
+        localStorage.setItem('customEmojis', JSON.stringify(state.emoji.customEmojis));
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [state.emoji.customEmojis]);
 
   // 切换表情包收藏状态
-  const toggleFavorite = (emoji: Emoji) => {
-    setFavoriteEmojis(prev => {
-      if (prev.some(e => e.id === emoji.id)) {
-        return prev.filter(e => e.id !== emoji.id);
+  const toggleFavorite = useCallback((emoji: Emoji) => {
+    dispatch(state => {
+      const favorites = state.emoji.favoriteEmojis;
+      let newFavorites;
+      if (favorites.some(e => e.id === emoji.id)) {
+        newFavorites = favorites.filter(e => e.id !== emoji.id);
       } else {
-        return [...prev, { ...emoji, isFavorite: true }];
+        newFavorites = [...favorites, { ...emoji, isFavorite: true }];
       }
+      return { type: 'SET_FAVORITE_EMOJIS', payload: newFavorites };
     });
-  };
+  }, []);
 
   // 搜索表情包
-  const filteredEmojis = emojis.filter(emoji => {
-    const matchesSearch = emoji.name.toLowerCase().includes(emojiSearchTerm.toLowerCase());
-    const matchesCategory = currentCategory === 'recent' ? true : emoji.category === currentCategory;
+  const filteredEmojis = state.emoji.emojis.filter(emoji => {
+    const matchesSearch = emoji.name.toLowerCase().includes(state.emoji.searchTerm.toLowerCase());
+    const matchesCategory = state.emoji.currentCategory === 'recent' ? true : emoji.category === state.emoji.currentCategory;
     return matchesSearch && matchesCategory;
   });
 
   // 处理表情包选择
-  const selectEmoji = (emoji: Emoji) => {
+  const selectEmoji = useCallback((emoji: Emoji) => {
     // 添加到最近使用（简化实现）
-    if (currentCategory === 'recent') {
-      setEmojis(prev => [emoji, ...prev.filter(e => e.id !== emoji.id)]);
+    if (state.emoji.currentCategory === 'recent') {
+      dispatch(state => {
+        const newEmojis = [emoji, ...state.emoji.emojis.filter(e => e.id !== emoji.id)];
+        return { type: 'SET_EMOJIS', payload: newEmojis };
+      });
     }
     
     // 发送表情包
@@ -136,14 +389,14 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       images: [{ url: emoji.url, name: emoji.name, size: 0 }]
     };
     onSend(message);
-  };
+  }, [state.emoji.currentCategory, onSend]);
 
   // 处理自定义表情包上传
-  const handleCustomEmojiUpload = () => {
-    if (!customEmojiFile || !customEmojiName) return;
+  const handleCustomEmojiUpload = useCallback(() => {
+    if (!state.emoji.customFile || !state.emoji.customName) return;
     
     // 检查文件大小
-    if (customEmojiFile.size > 2 * 1024 * 1024) { // 2MB限制
+    if (state.emoji.customFile.size > 2 * 1024 * 1024) { // 2MB限制
       alert('表情包大小不能超过2MB');
       return;
     }
@@ -154,19 +407,25 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       const newEmoji: Emoji = {
         id: `custom-${Date.now()}`,
         url: event.target?.result as string,
-        name: customEmojiName,
+        name: state.emoji.customName,
         category: 'custom',
         isCustom: true,
         uploader: 'currentUser'
       };
       
-      setCustomEmojis(prev => [...prev, newEmoji]);
-      setShowCustomEmojiUpload(false);
-      setCustomEmojiFile(null);
-      setCustomEmojiName('');
+      dispatch(state => {
+        const newCustomEmojis = [...state.emoji.customEmojis, newEmoji];
+        return {
+          type: 'SET_CUSTOM_EMOJIS',
+          payload: newCustomEmojis
+        };
+      });
+      dispatch({ type: 'TOGGLE_CUSTOM_EMOJI_UPLOAD' });
+      dispatch({ type: 'SET_CUSTOM_EMOJI_FILE', payload: null });
+      dispatch({ type: 'SET_CUSTOM_EMOJI_NAME', payload: '' });
     };
-    reader.readAsDataURL(customEmojiFile);
-  };
+    reader.readAsDataURL(state.emoji.customFile);
+  }, [state.emoji.customFile, state.emoji.customName]);
 
   // 获取表情包分类
   const emojiCategories = ['recent', 'face', 'hand', 'heart', 'number', 'custom'];
@@ -180,83 +439,88 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   };
 
   // 富文本格式化功能
-  const formatText = (format: string) => {
+  const formatText = useCallback((format: string) => {
     const textarea = textareaRef.current;
     if (!textarea) return;
     
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
-    const selectedText = text;
+    const selectedText = state.text;
     
     let newText = '';
     let cursorPos = 0;
     
     switch (format) {
       case 'bold':
-        newText = `${text.slice(0, start)}**${selectedText}**${text.slice(end)}`;
+        newText = `${state.text.slice(0, start)}**${selectedText}**${state.text.slice(end)}`;
         cursorPos = start + 2 + selectedText.length + 2;
         break;
       case 'italic':
-        newText = `${text.slice(0, start)}*${selectedText}*${text.slice(end)}`;
+        newText = `${state.text.slice(0, start)}*${selectedText}*${state.text.slice(end)}`;
         cursorPos = start + 1 + selectedText.length + 1;
         break;
       case 'h1':
-        newText = `${text.slice(0, start)}# ${selectedText}${text.slice(end)}`;
+        newText = `${state.text.slice(0, start)}# ${selectedText}${state.text.slice(end)}`;
         cursorPos = start + 2 + selectedText.length;
         break;
       case 'h2':
-        newText = `${text.slice(0, start)}## ${selectedText}${text.slice(end)}`;
+        newText = `${state.text.slice(0, start)}## ${selectedText}${state.text.slice(end)}`;
         cursorPos = start + 3 + selectedText.length;
         break;
       case 'h3':
-        newText = `${text.slice(0, start)}### ${selectedText}${text.slice(end)}`;
+        newText = `${state.text.slice(0, start)}### ${selectedText}${state.text.slice(end)}`;
         cursorPos = start + 4 + selectedText.length;
         break;
       case 'link':
-        newText = `${text.slice(0, start)}[${selectedText || '链接文本'}](https://example.com)${text.slice(end)}`;
+        newText = `${state.text.slice(0, start)}[${selectedText || '链接文本'}](https://example.com)${state.text.slice(end)}`;
         cursorPos = start + 2 + (selectedText || '链接文本').length + 1;
         break;
       case 'ul':
-        newText = `${text.slice(0, start)}- ${selectedText}${text.slice(end)}`;
+        newText = `${state.text.slice(0, start)}- ${selectedText}${state.text.slice(end)}`;
         cursorPos = start + 2 + selectedText.length;
         break;
       case 'ol':
-        newText = `${text.slice(0, start)}1. ${selectedText}${text.slice(end)}`;
+        newText = `${state.text.slice(0, start)}1. ${selectedText}${state.text.slice(end)}`;
         cursorPos = start + 3 + selectedText.length;
         break;
       case 'code':
-        newText = `${text.slice(0, start)}\`${selectedText}\`${text.slice(end)}`;
+        newText = `${state.text.slice(0, start)}\`${selectedText}\`${state.text.slice(end)}`;
         cursorPos = start + 1 + selectedText.length + 1;
         break;
       default:
         return;
     }
     
-    setText(newText);
+    dispatch({ type: 'SET_TEXT', payload: newText });
     setTimeout(() => {
       textarea.focus();
       textarea.setSelectionRange(cursorPos, cursorPos);
     }, 0);
-  };
+  }, [state.text]);
 
   // 切换标签
-  const toggleTag = (tag: string) => {
-    setSelectedTags(prev => {
-      if (prev.includes(tag)) {
-        return prev.filter(t => t !== tag);
+  const toggleTag = useCallback((tag: string) => {
+    dispatch(state => {
+      let newTags;
+      if (state.tags.selected.includes(tag)) {
+        newTags = state.tags.selected.filter(t => t !== tag);
       } else {
-        return [...prev, tag];
+        newTags = [...state.tags.selected, tag];
       }
+      return { type: 'SET_TAGS', payload: newTags };
     });
-  };
+  }, []);
 
   // 移除标签
-  const removeTag = (tag: string) => {
-    setSelectedTags(prev => prev.filter(t => t !== tag));
-  };
+  const removeTag = useCallback((tag: string) => {
+    dispatch(state => {
+      const newTags = state.tags.selected.filter(t => t !== tag);
+      return { type: 'SET_TAGS', payload: newTags };
+    });
+  }, []);
 
   // 处理图片选择
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
@@ -286,38 +550,29 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       reader.onload = (event) => {
         previews.push(event.target?.result as string);
         if (previews.length === newImages.length) {
-          setImagePreviews(previews);
-          setShowImagePreview(true);
+          dispatch({ 
+            type: 'SET_IMAGES', 
+            payload: { 
+              files: newImages, 
+              previews: previews, 
+              showPreview: true 
+            } 
+          });
         }
       };
       reader.readAsDataURL(file);
     }
-    setSelectedImages(newImages);
-  };
+  }, []);
 
   // 断点续传配置
   const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB per chunk
 
   // 处理文件选择
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    const newFiles: Array<{
-      file: File;
-      progress: number;
-      status: 'uploading' | 'success' | 'failed' | 'paused';
-      url?: string;
-      chunks?: {
-        index: number;
-        size: number;
-        start: number;
-        end: number;
-        uploaded: boolean;
-      }[];
-      totalChunks?: number;
-      uploadedChunks?: number;
-    }> = [];
+    const newFiles: FileUploadState[] = [];
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
@@ -359,38 +614,53 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         uploadedChunks: 0
       });
     }
-    setSelectedFiles(newFiles);
-    setShowFileUpload(newFiles.length > 0);
+    
+    dispatch({ 
+      type: 'SET_FILES', 
+      payload: { 
+        items: newFiles, 
+        showUpload: newFiles.length > 0 
+      } 
+    });
+    
     // 开始分块上传
     newFiles.forEach((fileObj, index) => {
       uploadFileChunks(index);
     });
-  };
+  }, []);
 
   // 分块上传函数
-  const uploadFileChunks = (index: number) => {
-    setSelectedFiles(prev => {
-      const newFiles = [...prev];
-      const fileObj = newFiles[index];
-      if (!fileObj.chunks || !fileObj.totalChunks) return newFiles;
+  const uploadFileChunks = useCallback((index: number) => {
+    dispatch(state => {
+      const fileObj = state.files.items[index];
+      if (!fileObj.chunks || !fileObj.totalChunks) return state;
       
       // 查找未上传的块
       const nextChunk = fileObj.chunks.find(chunk => !chunk.uploaded);
       if (!nextChunk) {
         // 所有块上传完成
-        newFiles[index].status = 'success';
-        newFiles[index].progress = 100;
-        // 模拟生成文件URL
-        newFiles[index].url = URL.createObjectURL(newFiles[index].file);
-        return newFiles;
+        const updatedItems = [...state.files.items];
+        updatedItems[index] = {
+          ...fileObj,
+          status: 'success' as const,
+          progress: 100,
+          url: URL.createObjectURL(fileObj.file)
+        };
+        return { 
+          type: 'SET_FILES', 
+          payload: { 
+            items: updatedItems, 
+            showUpload: updatedItems.length > 0 
+          } 
+        };
       }
       
       // 模拟上传单个块
       setTimeout(() => {
-        setSelectedFiles(prev => {
-          const newFiles = [...prev];
-          const fileObj = newFiles[index];
-          if (!fileObj.chunks || !fileObj.totalChunks) return newFiles;
+        dispatch(state => {
+          const updatedItems = [...state.files.items];
+          const fileObj = updatedItems[index];
+          if (!fileObj.chunks || !fileObj.totalChunks) return state;
           
           // 更新块状态
           fileObj.chunks[nextChunk.index].uploaded = true;
@@ -409,77 +679,110 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             uploadFileChunks(index);
           }
           
-          return newFiles;
+          return { 
+            type: 'SET_FILES', 
+            payload: { 
+              items: updatedItems, 
+              showUpload: updatedItems.length > 0 
+            } 
+          };
         });
       }, 500);
       
-      return newFiles;
+      return state;
     });
-  };
+  }, []);
 
   // 暂停文件上传
-  const pauseFileUpload = (index: number) => {
-    setSelectedFiles(prev => {
-      const newFiles = [...prev];
-      newFiles[index].status = 'paused';
-      return newFiles;
+  const pauseFileUpload = useCallback((index: number) => {
+    dispatch(state => {
+      const updatedItems = [...state.files.items];
+      updatedItems[index] = {
+        ...updatedItems[index],
+        status: 'paused' as const
+      };
+      return { 
+        type: 'SET_FILES', 
+        payload: { 
+          items: updatedItems, 
+          showUpload: updatedItems.length > 0 
+        } 
+      };
     });
-  };
+  }, []);
 
   // 恢复文件上传
-  const resumeFileUpload = (index: number) => {
-    setSelectedFiles(prev => {
-      const newFiles = [...prev];
-      newFiles[index].status = 'uploading';
-      return newFiles;
+  const resumeFileUpload = useCallback((index: number) => {
+    dispatch(state => {
+      const updatedItems = [...state.files.items];
+      updatedItems[index] = {
+        ...updatedItems[index],
+        status: 'uploading' as const
+      };
+      return { 
+        type: 'SET_FILES', 
+        payload: { 
+          items: updatedItems, 
+          showUpload: updatedItems.length > 0 
+        } 
+      };
     });
     // 继续上传
     uploadFileChunks(index);
-  };
+  }, [uploadFileChunks]);
 
   // 重试文件上传
-  const retryFileUpload = (index: number) => {
-    setSelectedFiles(prev => {
-      const newFiles = [...prev];
-      const fileObj = newFiles[index];
-      if (!fileObj.chunks) return newFiles;
+  const retryFileUpload = useCallback((index: number) => {
+    dispatch(state => {
+      const updatedItems = [...state.files.items];
+      const fileObj = updatedItems[index];
+      if (!fileObj.chunks) return state;
       
       // 重置所有块的上传状态
       fileObj.chunks.forEach(chunk => {
         chunk.uploaded = false;
       });
-      fileObj.uploadedChunks = 0;
-      fileObj.progress = 0;
-      fileObj.status = 'uploading';
+      updatedItems[index] = {
+        ...fileObj,
+        uploadedChunks: 0,
+        progress: 0,
+        status: 'uploading' as const
+      };
       
-      return newFiles;
+      return { 
+        type: 'SET_FILES', 
+        payload: { 
+          items: updatedItems, 
+          showUpload: updatedItems.length > 0 
+        } 
+      };
     });
     // 重新开始上传
     uploadFileChunks(index);
-  };
+  }, [uploadFileChunks]);
 
   // 处理发送消息
-  const handleSend = () => {
-    if (!text.trim() && selectedImages.length === 0 && selectedFiles.length === 0) return;
+  const handleSend = useCallback(() => {
+    if (!state.text.trim() && state.images.files.length === 0 && state.files.items.length === 0) return;
 
     const message: Partial<ChatMessage> = {
-      text,
-      type: selectedImages.length > 0 ? 'image' : selectedFiles.length > 0 ? 'file' : isRichTextMode ? 'rich_text' : 'text',
-      richContent: isRichTextMode ? text : undefined,
+      text: state.text,
+      type: state.images.files.length > 0 ? 'image' : state.files.items.length > 0 ? 'file' : state.richText.isRichTextMode ? 'rich_text' : 'text',
+      richContent: state.richText.isRichTextMode ? state.text : undefined,
     };
 
     // 添加图片内容
-    if (selectedImages.length > 0) {
-      message.images = selectedImages.map((file, index) => ({
-        url: imagePreviews[index],
+    if (state.images.files.length > 0) {
+      message.images = state.images.files.map((file, index) => ({
+        url: state.images.previews[index],
         name: file.name,
         size: file.size
       }));
     }
 
     // 添加文件内容
-    if (selectedFiles.length > 0) {
-      message.files = selectedFiles.map(fileObj => ({
+    if (state.files.items.length > 0) {
+      message.files = state.files.items.map(fileObj => ({
         url: fileObj.url || '',
         name: fileObj.file.name,
         size: fileObj.file.size,
@@ -490,56 +793,57 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     }
 
     // 添加标签和话题
-    if (selectedTags.length > 0) {
-      message.text += `\n\n#${selectedTags.join(' #')}`;
+    if (state.tags.selected.length > 0) {
+      message.text += `\n\n#${state.tags.selected.join(' #')}`;
     }
-    if (currentTopic) {
-      message.text += `\n\n话题：${currentTopic}`;
+    if (state.tags.currentTopic) {
+      message.text += `\n\n话题：${state.tags.currentTopic}`;
     }
 
     onSend(message);
-    setText('');
-    setSelectedImages([]);
-    setImagePreviews([]);
-    setShowImagePreview(false);
-    setSelectedFiles([]);
-    setShowFileUpload(false);
-    setSelectedTags([]);
-    setCurrentTopic('');
-    setIsRichTextMode(false);
-    setShowPreview(false);
-  };
+    dispatch({ type: 'RESET' });
+  }, [state.text, state.images.files, state.images.previews, state.files.items, state.tags.selected, state.tags.currentTopic, state.richText.isRichTextMode, onSend]);
 
   // 移除选中的图片
-  const removeImage = (index: number) => {
-    const newImages = [...selectedImages];
-    const newPreviews = [...imagePreviews];
-    newImages.splice(index, 1);
-    newPreviews.splice(index, 1);
-    setSelectedImages(newImages);
-    setImagePreviews(newPreviews);
-    if (newImages.length === 0) {
-      setShowImagePreview(false);
-    }
-  };
+  const removeImage = useCallback((index: number) => {
+    dispatch(state => {
+      const newFiles = [...state.images.files];
+      const newPreviews = [...state.images.previews];
+      newFiles.splice(index, 1);
+      newPreviews.splice(index, 1);
+      return { 
+        type: 'SET_IMAGES', 
+        payload: { 
+          files: newFiles, 
+          previews: newPreviews, 
+          showPreview: newFiles.length > 0 
+        } 
+      };
+    });
+  }, []);
 
   // 移除选中的文件
-  const removeFile = (index: number) => {
-    const newFiles = [...selectedFiles];
-    newFiles.splice(index, 1);
-    setSelectedFiles(newFiles);
-    if (newFiles.length === 0) {
-      setShowFileUpload(false);
-    }
-  };
+  const removeFile = useCallback((index: number) => {
+    dispatch(state => {
+      const updatedItems = [...state.files.items];
+      updatedItems.splice(index, 1);
+      return { 
+        type: 'SET_FILES', 
+        payload: { 
+          items: updatedItems, 
+          showUpload: updatedItems.length > 0 
+        } 
+      };
+    });
+  }, []);
 
   // 渲染文件上传进度
   const renderFileUploads = () => {
-    if (!showFileUpload || selectedFiles.length === 0) return null;
+    if (!state.files.showUpload || state.files.items.length === 0) return null;
     
     return (
       <div className="mb-2 space-y-2">
-        {selectedFiles.map((fileObj, index) => (
+        {state.files.items.map((fileObj, index) => (
           <div key={index} className={`p-3 rounded-lg ${isDark ? 'bg-gray-600/50' : 'bg-gray-100'}`}>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -654,7 +958,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
   // 渲染富文本工具栏
   const renderRichTextToolbar = () => {
-    if (!isRichTextMode) return null;
+    if (!state.richText.isRichTextMode) return null;
     
     return (
       <div className={`flex flex-wrap gap-1 p-2 rounded-t-lg ${isDark ? 'bg-gray-600 border-b border-gray-500' : 'bg-gray-200 border-b border-gray-300'}`}>
@@ -723,13 +1027,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         </button>
         <div className="ml-auto flex gap-1">
           <button 
-            onClick={() => setShowPreview(!showPreview)}
+            onClick={() => dispatch({ type: 'TOGGLE_PREVIEW' })}
             className={`px-3 py-1 rounded text-sm ${isDark ? 'hover:bg-gray-500 text-gray-300' : 'hover:bg-gray-300 text-gray-700'}`}
           >
-            {showPreview ? '编辑' : '预览'}
+            {state.richText.showPreview ? '编辑' : '预览'}
           </button>
           <button 
-            onClick={() => setIsRichTextMode(false)}
+            onClick={() => dispatch({ type: 'TOGGLE_RICH_TEXT', payload: false })}
             className={`px-3 py-1 rounded text-sm ${isDark ? 'hover:bg-gray-500 text-gray-300' : 'hover:bg-gray-300 text-gray-700'}`}
           >
             退出富文本
@@ -741,12 +1045,12 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
   // 渲染标签选择
   const renderTagSelection = () => {
-    if (!isRichTextMode) return null;
+    if (!state.richText.isRichTextMode) return null;
     
     return (
       <div className={`p-2 rounded-b-lg ${isDark ? 'bg-gray-600 border-b border-gray-500' : 'bg-gray-200 border-b border-gray-300'}`}>
         <div className="flex flex-wrap gap-1 mb-2">
-          {selectedTags.map(tag => (
+          {state.tags.selected.map(tag => (
             <div key={tag} className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs ${isDark ? 'bg-blue-900/50 text-blue-300' : 'bg-blue-100 text-blue-700'}`}>
               <span>{tag}</span>
               <button 
@@ -764,8 +1068,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               key={tag}
               onClick={() => toggleTag(tag)}
               className={`px-2 py-1 rounded-full text-xs transition-colors ${isDark ? 
-                selectedTags.includes(tag) ? 'bg-blue-900/50 text-blue-300' : 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 
-                selectedTags.includes(tag) ? 'bg-blue-100 text-blue-700' : 'bg-white text-gray-700 hover:bg-gray-100'}`}
+                state.tags.selected.includes(tag) ? 'bg-blue-900/50 text-blue-300' : 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 
+                state.tags.selected.includes(tag) ? 'bg-blue-100 text-blue-700' : 'bg-white text-gray-700 hover:bg-gray-100'}`}
             >
               {tag}
             </button>
@@ -774,8 +1078,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         <div className="mt-2">
           <input 
             type="text"
-            value={currentTopic}
-            onChange={e => setCurrentTopic(e.target.value)}
+            value={state.tags.currentTopic}
+            onChange={e => dispatch({ type: 'SET_TOPIC', payload: e.target.value })}
             placeholder="添加话题..."
             className={`w-full px-2 py-1 rounded text-sm ${isDark ? 'bg-gray-700 border border-gray-500 text-white placeholder-gray-400' : 'bg-white border border-gray-300 text-gray-700 placeholder-gray-400'}`}
           />
@@ -787,9 +1091,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   return (
     <div className={`px-4 pb-6 pt-2 ${isDark ? 'bg-gray-700' : 'bg-white'}`}>
       {/* Image Preview */}
-      {showImagePreview && imagePreviews.length > 0 && (
+      {state.images.showPreview && state.images.previews.length > 0 && (
         <div className="mb-2 flex gap-2 overflow-x-auto pb-2">
-          {imagePreviews.map((preview, index) => (
+          {state.images.previews.map((preview, index) => (
             <div key={index} className="relative group">
               <img 
                 src={preview} 
@@ -811,21 +1115,21 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       {renderFileUploads()}
 
       {/* Rich Text Editor */}
-      {isRichTextMode ? (
+      {state.richText.isRichTextMode ? (
         <div className={`rounded-lg overflow-hidden ${isDark ? 'bg-gray-600' : 'bg-white'}`}>
           {renderRichTextToolbar()}
           {renderTagSelection()}
           
           <div className={`p-2 ${isDark ? 'bg-gray-600' : 'bg-white'}`}>
-            {showPreview ? (
-              <div className={`p-3 rounded-lg max-h-[200px] overflow-y-auto ${isDark ? 'bg-gray-700 text-gray-200' : 'bg-gray-100 text-gray-800'}`}>
-                <ReactMarkdown>{text}</ReactMarkdown>
+            {state.richText.showPreview ? (
+              <div className={`p-3 rounded-lg max-h-[200px] overflow-y-auto ${isDark ? 'bg-gray-700 text-gray-200' : 'bg-gray-100 text-gray-800'}`} style={{ fontSize: '1rem', lineHeight: '1.5' }}>
+                <ReactMarkdown>{state.text}</ReactMarkdown>
               </div>
             ) : (
               <textarea
                 ref={textareaRef}
-                value={text}
-                onChange={e => setText(e.target.value)}
+                value={state.text}
+                onChange={e => dispatch({ type: 'SET_TEXT', payload: e.target.value })}
                 onKeyDown={e => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault();
@@ -834,7 +1138,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 }}
                 placeholder={placeholder}
                 className={`w-full min-h-[100px] max-h-[200px] bg-transparent border-none focus:ring-0 focus:outline-none px-2 py-1 resize-y ${isDark ? 'text-white placeholder-gray-400' : 'text-gray-900 placeholder-gray-500'}`}
-                rows={isRichTextMode ? 6 : 1}
+                style={{ fontSize: '1rem', lineHeight: '1.4', fontWeight: '400' }}
+                rows={state.richText.isRichTextMode ? 6 : 1}
               />
             )}
           </div>
@@ -844,32 +1149,32 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         <div className={`flex items-center justify-between mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
           <div className="flex items-center gap-2">
             <button 
-              onClick={() => setIsRichTextMode(!isRichTextMode)}
+              onClick={() => dispatch({ type: 'TOGGLE_RICH_TEXT', payload: true })}
               className={`px-3 py-1 rounded-full text-sm ${isDark ? 
-                isRichTextMode ? 'bg-blue-900/50 text-blue-300' : 'hover:bg-gray-600 text-gray-300' : 
-                isRichTextMode ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-200 text-gray-700'}`}
+                state.richText.isRichTextMode ? 'bg-blue-900/50 text-blue-300' : 'hover:bg-gray-600 text-gray-300' : 
+                state.richText.isRichTextMode ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-200 text-gray-700'}`}
             >
-              {isRichTextMode ? '富文本模式' : '使用富文本'}
+              {state.richText.isRichTextMode ? '富文本模式' : '使用富文本'}
             </button>
           </div>
         </div>
       )}
 
       {/* 表情包面板 */}
-      {showEmojiPanel && (
+      {state.emoji.showPanel && (
         <div className={`mb-2 rounded-lg overflow-hidden ${isDark ? 'bg-gray-600 border border-gray-500' : 'bg-white border border-gray-300'}`}>
           {/* 表情包工具栏 */}
           <div className={`p-2 ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
             <div className="flex items-center gap-2">
               <input 
                 type="text" 
-                value={emojiSearchTerm} 
-                onChange={e => setEmojiSearchTerm(e.target.value)}
+                value={state.emoji.searchTerm} 
+                onChange={e => dispatch({ type: 'SET_EMOJI_SEARCH', payload: e.target.value })}
                 placeholder="搜索表情包..."
                 className={`flex-1 px-3 py-1 rounded-full text-sm ${isDark ? 'bg-gray-600 text-white placeholder-gray-400' : 'bg-white text-gray-700 placeholder-gray-500'}`}
               />
               <button 
-                onClick={() => setShowEmojiPanel(false)}
+                onClick={() => dispatch({ type: 'TOGGLE_EMOJI_PANEL' })}
                 className={`w-8 h-8 rounded-full flex items-center justify-center ${isDark ? 'hover:bg-gray-600 text-gray-300' : 'hover:bg-gray-300 text-gray-700'}`}
               >
                 <i className="fas fa-times"></i>
@@ -881,34 +1186,34 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               {emojiCategories.map(category => (
                 <button 
                   key={category}
-                  onClick={() => setCurrentCategory(category)}
+                  onClick={() => dispatch({ type: 'SET_EMOJI_CATEGORY', payload: category })}
                   className={`px-3 py-1 rounded-full text-xs transition-colors ${isDark ? 
-                    currentCategory === category ? 'bg-blue-900/50 text-blue-300' : 'hover:bg-gray-600 text-gray-300' : 
-                    currentCategory === category ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-300 text-gray-700'}`}
+                    state.emoji.currentCategory === category ? 'bg-blue-900/50 text-blue-300' : 'hover:bg-gray-600 text-gray-300' : 
+                    state.emoji.currentCategory === category ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-300 text-gray-700'}`}
                 >
                   {categoryNames[category as keyof typeof categoryNames]}
                 </button>
               ))}
               <button 
-                onClick={() => setShowCustomEmojiUpload(!showCustomEmojiUpload)}
+                onClick={() => dispatch({ type: 'TOGGLE_CUSTOM_EMOJI_UPLOAD' })}
                 className={`px-3 py-1 rounded-full text-xs transition-colors ${isDark ? 
-                  showCustomEmojiUpload ? 'bg-blue-900/50 text-blue-300' : 'hover:bg-gray-600 text-gray-300' : 
-                  showCustomEmojiUpload ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-300 text-gray-700'}`}
+                  state.emoji.showCustomUpload ? 'bg-blue-900/50 text-blue-300' : 'hover:bg-gray-600 text-gray-300' : 
+                  state.emoji.showCustomUpload ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-300 text-gray-700'}`}
               >
-                {showCustomEmojiUpload ? '取消上传' : '上传自定义'}
+                {state.emoji.showCustomUpload ? '取消上传' : '上传自定义'}
               </button>
             </div>
           </div>
           
           {/* 自定义表情包上传 */}
-          {showCustomEmojiUpload && (
+          {state.emoji.showCustomUpload && (
             <div className={`p-3 ${isDark ? 'bg-gray-600' : 'bg-white'}`}>
               <div className="space-y-2">
                 <div>
                   <input 
                     type="text" 
-                    value={customEmojiName} 
-                    onChange={e => setCustomEmojiName(e.target.value)}
+                    value={state.emoji.customName} 
+                    onChange={e => dispatch({ type: 'SET_CUSTOM_EMOJI_NAME', payload: e.target.value })}
                     placeholder="表情包名称..."
                     className={`w-full px-3 py-2 rounded-lg text-sm ${isDark ? 'bg-gray-700 text-white border border-gray-500' : 'bg-white text-gray-700 border border-gray-300'}`}
                   />
@@ -918,7 +1223,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                     type="file" 
                     ref={emojiInputRef}
                     accept="image/jpeg,image/png,image/gif" 
-                    onChange={(e) => setCustomEmojiFile(e.target.files?.[0] || null)}
+                    onChange={(e) => dispatch({ type: 'SET_CUSTOM_EMOJI_FILE', payload: e.target.files?.[0] || null })}
                     className={`w-full ${isDark ? 'text-gray-300' : 'text-gray-700'}`}
                   />
                 </div>
@@ -933,11 +1238,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           )}
           
           {/* 表情包列表 */}
-          {!showCustomEmojiUpload && (
+          {!state.emoji.showCustomUpload && (
             <div className="p-2 max-h-[200px] overflow-y-auto">
               {/* 响应式网格布局 */}
               <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-8 lg:grid-cols-8 gap-2">
-                {(currentCategory === 'custom' ? customEmojis : filteredEmojis).map(emoji => (
+                {(state.emoji.currentCategory === 'custom' ? state.emoji.customEmojis : filteredEmojis).map(emoji => (
                   <div 
                     key={emoji.id} 
                     className={`relative p-2 rounded-lg cursor-pointer hover:bg-gray-500/10 ${isDark ? 'hover:bg-gray-500/20' : 'hover:bg-gray-200'}`}
@@ -968,11 +1273,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           )}
           
           {/* 收藏的表情包 */}
-          {favoriteEmojis.length > 0 && currentCategory !== 'custom' && !showCustomEmojiUpload && (
+          {state.emoji.favoriteEmojis.length > 0 && state.emoji.currentCategory !== 'custom' && !state.emoji.showCustomUpload && (
             <div className={`p-2 border-t ${isDark ? 'border-gray-500 bg-gray-700/50' : 'border-gray-300 bg-gray-100/50'}`}>
               <h4 className={`text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>收藏的表情包</h4>
               <div className="flex gap-2 overflow-x-auto pb-2">
-                {favoriteEmojis.map(emoji => (
+                {state.emoji.favoriteEmojis.map(emoji => (
                   <div 
                     key={emoji.id} 
                     className={`relative p-2 rounded-lg cursor-pointer hover:bg-gray-500/10 ${isDark ? 'hover:bg-gray-500/20' : 'hover:bg-gray-200'}`}
@@ -1003,7 +1308,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       )}
 
       {/* Input Area */}
-      {!isRichTextMode && (
+      {!state.richText.isRichTextMode && (
         <div className={`flex items-center gap-2 p-2 rounded-xl ${isDark ? 'bg-gray-600' : 'bg-gray-100'}`}>
           {/* Upload Buttons */}
           <div className="flex gap-2">
@@ -1038,17 +1343,17 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               onChange={handleFileSelect}
             />
             <button 
-              onClick={() => setIsRichTextMode(true)}
+              onClick={() => dispatch({ type: 'TOGGLE_RICH_TEXT', payload: true })}
               className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${isDark ? 'text-gray-300 hover:text-white hover:bg-gray-500' : 'text-gray-500 hover:text-gray-800 hover:bg-gray-200'}`}
               title="富文本"
             >
               <i className="fas fa-sticky-note text-sm"></i>
             </button>
             <button 
-              onClick={() => setShowEmojiPanel(!showEmojiPanel)}
+              onClick={() => dispatch({ type: 'TOGGLE_EMOJI_PANEL' })}
               className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${isDark ? 
-                showEmojiPanel ? 'bg-blue-900/50 text-blue-300' : 'text-gray-300 hover:text-white hover:bg-gray-500' : 
-                showEmojiPanel ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:text-gray-800 hover:bg-gray-200'}`}
+                state.emoji.showPanel ? 'bg-blue-900/50 text-blue-300' : 'text-gray-300 hover:text-white hover:bg-gray-500' : 
+                state.emoji.showPanel ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:text-gray-800 hover:bg-gray-200'}`}
               title="表情包"
             >
               <i className="fas fa-smile text-sm"></i>
@@ -1056,8 +1361,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           </div>
 
           <input
-              value={text}
-              onChange={e => setText(e.target.value)}
+              value={state.text}
+              onChange={e => dispatch({ type: 'SET_TEXT', payload: e.target.value })}
               onKeyDown={e => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault();
@@ -1066,7 +1371,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               }}
               placeholder={placeholder}
               className={`flex-1 bg-transparent border-none focus:ring-0 focus:outline-none px-3 py-2 ${isDark ? 'text-white placeholder-gray-400' : 'text-gray-900 placeholder-gray-500'}`}
-            style={{ fontSize: '0.9rem' }}
+              style={{ fontSize: '1rem', lineHeight: '1.4', fontWeight: '400' }}
           />
         </div>
       )}
@@ -1074,13 +1379,18 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       {/* Send Button */}
       <button 
         onClick={handleSend}
-        disabled={selectedFiles.some(f => f.status === 'uploading') || (!text.trim() && selectedImages.length === 0 && selectedFiles.length === 0)}
+        disabled={state.files.items.some(f => f.status === 'uploading') || (!state.text.trim() && state.images.files.length === 0 && state.files.items.length === 0)}
         className={`mt-2 px-4 py-1.5 rounded-full font-medium transition-colors w-full ${isDark ? 
-          (selectedFiles.some(f => f.status === 'uploading') || (!text.trim() && selectedImages.length === 0 && selectedFiles.length === 0)) ? 'bg-gray-500 text-gray-300 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white' : 
-          (selectedFiles.some(f => f.status === 'uploading') || (!text.trim() && selectedImages.length === 0 && selectedFiles.length === 0)) ? 'bg-gray-400 text-gray-600 cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-600 text-white'}`}
+          (state.files.items.some(f => f.status === 'uploading') || (!state.text.trim() && state.images.files.length === 0 && state.files.items.length === 0)) ? 'bg-gray-500 text-gray-300 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white' : 
+          (state.files.items.some(f => f.status === 'uploading') || (!state.text.trim() && state.images.files.length === 0 && state.files.items.length === 0)) ? 'bg-gray-400 text-gray-600 cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-600 text-white'}`}
       >
         发送
       </button>
     </div>
   );
-};
+});
+
+// 添加displayName便于调试
+ChatInput.displayName = 'ChatInput';
+
+export { ChatInput };

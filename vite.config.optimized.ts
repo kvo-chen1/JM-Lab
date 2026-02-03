@@ -12,6 +12,11 @@ import { ViteImageOptimizer } from 'vite-plugin-image-optimizer';
 import path from 'path';
 import { compression } from 'vite-plugin-compression2';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
+import zlib from 'zlib';
+import { terser } from 'rollup-plugin-terser';
+import tailwindcss from 'tailwindcss';
+import autoprefixer from 'autoprefixer';
+import cssnano from 'cssnano';
 
 /**
  * 构建环境配置
@@ -396,7 +401,7 @@ function getCompressionPlugins() {
       threshold: 1024,
       compressionOptions: {
         params: {
-          [require('zlib').constants.BROTLI_PARAM_QUALITY]: 11
+          [zlib.constants.BROTLI_PARAM_QUALITY]: 11
         }
       },
       filename: '[path][base].br'
@@ -543,7 +548,7 @@ function getRollupOptions() {
     // 优化插件
     plugins: [
       // 代码压缩优化
-      require('rollup-plugin-terser').terser({
+      terser({
         compress: {
           drop_console: getBuildEnvironment() === BUILD_ENVIRONMENTS.PRODUCTION,
           drop_debugger: getBuildEnvironment() === BUILD_ENVIRONMENTS.PRODUCTION,
@@ -843,9 +848,9 @@ export default defineConfig(({ command, mode }) => {
       
       postcss: {
         plugins: [
-          require('tailwindcss'),
-          require('autoprefixer'),
-          ...(isProduction ? [require('cssnano')] : [])
+          tailwindcss,
+          autoprefixer,
+          ...(isProduction ? [cssnano] : [])
         ]
       },
       

@@ -1,5 +1,5 @@
 // RBAC服务功能测试脚本
-const rbacService = require('./src/services/rbacService.ts');
+import rbacService from './src/services/rbacService.js';
 
 console.log('=== RBAC服务功能测试 ===\n');
 

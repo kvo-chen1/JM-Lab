@@ -1,4 +1,4 @@
-import { userDB, notificationDB, friendDB, achievementDB } from '../database.mjs';
+import { userDB, notificationDB, friendDB, achievementDB, activityDB } from '../database.mjs';
 
 /**
  * Initialize user space and data for a new user.
@@ -62,7 +62,10 @@ export async function initializeUserSpace(userId) {
     // 3. Initialize Achievements (optional - grant "Newcomer" badge if exists)
     // For now, we just ensure the table is ready (implicit).
     
-    // 4. Mark as initialized
+    // 4. No default activity participations - users start with empty list
+    // Users will only have activity entries after they actually participate
+    
+    // 5. Mark as initialized
     // We need to update the user metadata. 
     // userDB.updateById might not support metadata update directly if not added to the list.
     // Let's check userDB.updateById in database.mjs.

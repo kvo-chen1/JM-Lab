@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 
 // 通知类型
@@ -55,6 +55,11 @@ export interface NotificationSettings {
   showPreview: boolean;
 }
 
+// 添加通知的选项接口
+export interface AddNotificationOptions {
+  onActionClick?: () => void;
+}
+
 // 上下文接口
 interface NotificationContextType {
   notifications: Notification[];
@@ -69,7 +74,7 @@ interface NotificationContextType {
   updateSettings: (settings: Partial<NotificationSettings>) => void;
   updateNotificationTypeSetting: (type: NotificationType, enabled: boolean) => void;
   updateNotificationPrioritySetting: (priority: NotificationPriority, enabled: boolean) => void;
-  addNotification: (notification: Omit<Notification, 'id' | 'createdAt' | 'status'>) => void;
+  addNotification: (notification: Omit<Notification, 'id' | 'createdAt' | 'status'>, options?: AddNotificationOptions) => void;
   getUnreadNotifications: () => Notification[];
   getReadNotifications: () => Notification[];
   getArchivedNotifications: () => Notification[];
@@ -141,7 +146,10 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
   const unreadCount = notifications.filter(n => n.status === 'unread').length;
 
   // 添加通知
-  const addNotification = (notification: Omit<Notification, 'id' | 'createdAt' | 'status'>) => {
+  const addNotification = useCallback((
+    notification: Omit<Notification, 'id' | 'createdAt' | 'status'>,
+    options?: AddNotificationOptions
+  ) => {
     const newNotification: Notification = {
       ...notification,
       id: `notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -153,32 +161,34 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
 
     // 显示 toast 通知
     if (settings.desktopNotifications) {
-      toast({
-        title: newNotification.title,
+      const toastFn =
+        newNotification.priority === 'urgent' || newNotification.priority === 'high'
+          ? toast.warning
+          : toast.info;
+
+      toastFn(newNotification.title, {
         description: newNotification.content,
         duration: 5000,
-        type: newNotification.priority === 'urgent' || newNotification.priority === 'high' ? 'warning' : 'info',
         action: {
           label: '查看',
           onClick: () => {
             markAsRead(newNotification.id);
-            if (newNotification.link) {
-              // 检查是否为内部链接
+            // 优先使用传入的自定义回调
+            if (options?.onActionClick) {
+              options.onActionClick();
+            } else if (newNotification.link) {
+              // 如果没有自定义回调，使用默认导航
               try {
                 const notificationUrl = new URL(newNotification.link, window.location.origin);
                 const currentOrigin = window.location.origin;
-                
+
                 if (notificationUrl.origin === currentOrigin) {
-                  // 内部链接使用history.pushState实现无刷新跳转
-                  window.history.pushState({}, '', notificationUrl.pathname + notificationUrl.search + notificationUrl.hash);
-                  // 触发popstate事件，让React Router检测到路径变化
-                  window.dispatchEvent(new PopStateEvent('popstate'));
+                  // 使用 window.location.href 进行导航，确保页面正确跳转
+                  window.location.href = newNotification.link;
                 } else {
-                  // 外部链接使用window.location.href
                   window.location.href = newNotification.link;
                 }
-              } catch (error) {
-                // 处理无效URL的情况
+              } catch {
                 window.location.href = newNotification.link;
               }
             }
@@ -186,68 +196,68 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
         }
       });
     }
-  };
+  }, [settings.desktopNotifications]);
 
   // 标记为已读
-  const markAsRead = (id: string) => {
+  const markAsRead = useCallback((id: string) => {
     setNotifications(prev => prev.map(notification => 
       notification.id === id 
         ? { ...notification, status: 'read', readAt: new Date() }
         : notification
     ));
-  };
+  }, []);
 
   // 标记为未读
-  const markAsUnread = (id: string) => {
+  const markAsUnread = useCallback((id: string) => {
     setNotifications(prev => prev.map(notification => 
       notification.id === id 
         ? { ...notification, status: 'unread', readAt: undefined }
         : notification
     ));
-  };
+  }, []);
 
   // 标记所有为已读
-  const markAllAsRead = () => {
+  const markAllAsRead = useCallback(() => {
     setNotifications(prev => prev.map(notification => 
       notification.status === 'unread' 
         ? { ...notification, status: 'read', readAt: new Date() }
         : notification
     ));
-  };
+  }, []);
 
   // 归档通知
-  const archiveNotification = (id: string) => {
+  const archiveNotification = useCallback((id: string) => {
     setNotifications(prev => prev.map(notification => 
       notification.id === id 
         ? { ...notification, status: 'archived' }
         : notification
     ));
-  };
+  }, []);
 
   // 删除通知
-  const deleteNotification = (id: string) => {
+  const deleteNotification = useCallback((id: string) => {
     setNotifications(prev => prev.filter(notification => notification.id !== id));
-  };
+  }, []);
 
   // 恢复通知
-  const restoreNotification = (id: string) => {
+  const restoreNotification = useCallback((id: string) => {
     setNotifications(prev => prev.map(notification => 
       notification.id === id 
         ? { ...notification, status: 'unread' }
         : notification
     ));
-  };
+  }, []);
 
   // 更新设置
-  const updateSettings = (newSettings: Partial<NotificationSettings>) => {
+  const updateSettings = useCallback((newSettings: Partial<NotificationSettings>) => {
     setSettings(prev => ({
       ...prev,
       ...newSettings
     }));
-  };
+  }, []);
 
   // 更新通知类型设置
-  const updateNotificationTypeSetting = (type: NotificationType, enabled: boolean) => {
+  const updateNotificationTypeSetting = useCallback((type: NotificationType, enabled: boolean) => {
     setSettings(prev => ({
       ...prev,
       types: {
@@ -255,10 +265,10 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
         [type]: enabled
       }
     }));
-  };
+  }, []);
 
   // 更新通知优先级设置
-  const updateNotificationPrioritySetting = (priority: NotificationPriority, enabled: boolean) => {
+  const updateNotificationPrioritySetting = useCallback((priority: NotificationPriority, enabled: boolean) => {
     setSettings(prev => ({
       ...prev,
       priorities: {
@@ -266,22 +276,22 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
         [priority]: enabled
       }
     }));
-  };
+  }, []);
 
   // 获取未读通知
-  const getUnreadNotifications = () => {
+  const getUnreadNotifications = useCallback(() => {
     return notifications.filter(n => n.status === 'unread');
-  };
+  }, [notifications]);
 
   // 获取已读通知
-  const getReadNotifications = () => {
+  const getReadNotifications = useCallback(() => {
     return notifications.filter(n => n.status === 'read');
-  };
+  }, [notifications]);
 
   // 获取归档通知
-  const getArchivedNotifications = () => {
+  const getArchivedNotifications = useCallback(() => {
     return notifications.filter(n => n.status === 'archived');
-  };
+  }, [notifications]);
 
   // 上下文值
   const contextValue: NotificationContextType = {
@@ -317,4 +327,29 @@ export const useNotifications = () => {
     throw new Error('useNotifications must be used within a NotificationProvider');
   }
   return context;
+};
+
+// 带导航功能的通知钩子
+export const useNotificationWithNavigate = () => {
+  const context = useContext(NotificationContext);
+  if (context === undefined) {
+    throw new Error('useNotificationWithNavigate must be used within a NotificationProvider');
+  }
+  
+  return {
+    ...context,
+    // 包装 addNotification 以支持导航
+    addNotificationWithNavigate: (
+      notification: Omit<Notification, 'id' | 'createdAt' | 'status'>,
+      navigate: (path: string) => void
+    ) => {
+      context.addNotification(notification, {
+        onActionClick: () => {
+          if (notification.link) {
+            navigate(notification.link);
+          }
+        }
+      });
+    }
+  };
 };

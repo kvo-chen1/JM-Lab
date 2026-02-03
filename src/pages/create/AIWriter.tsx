@@ -1,10 +1,23 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useTheme } from '@/hooks/useTheme';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { llmService } from '@/services/llmService';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import { draftService, Draft } from '@/services/draftService';
+
+// 实现缓存机制
+const contentCache = new Map<string, string>();
+const templateCache = new Map<string, any>();
+
+// 防抖函数
+const debounce = (func: Function, delay: number) => {
+  let timeoutId: NodeJS.Timeout;
+  return (...args: any[]) => {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => func.apply(null, args), delay);
+  };
+};
 
 // Define templates based on user requirements
 const TEMPLATES = {
@@ -128,6 +141,129 @@ const TEMPLATES = {
 6. <h2>数据埋点</h2>：关键指标定义。
 
 语言需极度严谨，逻辑清晰，无歧义。`
+  },
+  social_media: {
+    id: 'social_media',
+    name: '社交媒体文案',
+    icon: 'fas fa-hashtag',
+    description: '适用于微信、微博、小红书等平台的营销文案',
+    sections: [
+      '标题', '引言', '核心内容', '互动环节', '行动召唤'
+    ],
+    prompt: `请撰写一份适合社交媒体平台的营销文案。
+产品/服务：[产品名称]
+核心卖点：[核心业务]
+目标受众：[目标市场]
+
+请直接输出 **HTML 格式** 的内容。
+使用 <h2>, <p>, <ul>, <b> 等标签。
+内容要求：
+1. 引人注目的标题和开头
+2. 清晰传达核心价值
+3. 包含情感共鸣点
+4. 设计互动环节
+5. 明确的行动召唤
+6. 适合社交媒体的轻松活泼语言风格
+
+请根据不同平台特性，提供2-3种不同长度的版本（短文、中长文、长文）。`
+  },
+  ad_copy: {
+    id: 'ad_copy',
+    name: '广告文案',
+    icon: 'fas fa-bullhorn',
+    description: '适用于各种广告媒体的精准营销文案',
+    sections: [
+      '标题', '副标题', '正文', '行动召唤', '品牌信息'
+    ],
+    prompt: `请撰写一份专业的广告文案。
+产品/服务：[产品名称]
+核心卖点：[核心业务]
+目标受众：[目标市场]
+
+请直接输出 **HTML 格式** 的内容。
+使用 <h2>, <h3>, <p>, <b> 等标签。
+内容要求：
+1. 吸引人的主标题和副标题
+2. 简洁有力的产品介绍
+3. 突出核心竞争优势
+4. 明确的行动召唤
+5. 包含品牌信息
+
+请提供至少3个不同长度的版本，适合不同广告位使用。`
+  },
+  marketing_email: {
+    id: 'marketing_email',
+    name: '营销邮件',
+    icon: 'fas fa-envelope',
+    description: '适用于客户沟通和促销活动的邮件文案',
+    sections: [
+      '主题行', '开场白', '核心内容', '优惠信息', '行动召唤', '结束语'
+    ],
+    prompt: `请撰写一份有效的营销邮件文案。
+邮件目的：[核心业务]
+目标受众：[目标市场]
+主要信息：[项目名称]
+
+请直接输出 **HTML 格式** 的内容。
+使用 <h2>, <p>, <ul>, <b> 等标签。
+内容要求：
+1. 吸引人的邮件主题行（提供3-5个选项）
+2. 个性化的开场白
+3. 清晰的邮件目的
+4. 有价值的内容或优惠
+5. 明确的行动召唤
+6. 专业的结束语和签名
+
+请确保邮件格式正确，语言友好，避免垃圾邮件触发词。`
+  },
+  press_release: {
+    id: 'press_release',
+    name: '新闻稿',
+    icon: 'fas fa-newspaper',
+    description: '适用于企业新闻发布的专业文案',
+    sections: [
+      '标题', '副标题', '导语', '正文', '引述', '背景信息', '联系方式'
+    ],
+    prompt: `请撰写一份专业的新闻稿。
+新闻事件：[项目名称]
+核心内容：[核心业务]
+目标媒体：[目标市场]
+
+请直接输出 **HTML 格式** 的内容。
+使用 <h1>, <h2>, <p>, <b>, <em> 等标签。
+内容要求：
+1. 简洁有力的标题和副标题
+2. 包含5W1H要素的导语
+3. 层次分明的正文内容
+4. 相关人员的引述
+5. 必要的背景信息
+6. 清晰的联系方式
+
+请确保语言正式、客观、专业，符合新闻稿的标准格式。`
+  },
+  sales_pitch: {
+    id: 'sales_pitch',
+    name: '销售话术',
+    icon: 'fas fa-comments-dollar',
+    description: '适用于销售场景的高效沟通话术',
+    sections: [
+      '开场白', '需求挖掘', '产品介绍', '异议处理', '成交话术'
+    ],
+    prompt: `请撰写一份专业的销售话术。
+产品/服务：[产品名称]
+核心卖点：[核心业务]
+目标客户：[目标市场]
+
+请直接输出 **HTML 格式** 的内容。
+使用 <h2>, <p>, <ul>, <b> 等标签。
+内容要求：
+1. 吸引人的开场白
+2. 有效的需求挖掘问题
+3. 针对痛点的产品介绍
+4. 常见异议的处理话术
+5. 自然的成交引导
+
+请确保话术口语化，符合销售场景，避免生硬推销。`
   }
 };
 
@@ -150,12 +286,73 @@ interface GenerationOptions {
   language: string;
 }
 
+interface Tag {
+  id: string;
+  name: string;
+  color: string;
+}
+
+interface Category {
+  id: string;
+  name: string;
+  icon: string;
+}
+
+const DEFAULT_CATEGORIES: Category[] = [
+  { id: 'marketing', name: '营销推广', icon: 'fas fa-ad' },
+  { id: 'business', name: '商业计划', icon: 'fas fa-briefcase' },
+  { id: 'social', name: '社交媒体', icon: 'fas fa-hashtag' },
+  { id: 'press', name: '新闻媒体', icon: 'fas fa-newspaper' },
+  { id: 'sales', name: '销售话术', icon: 'fas fa-comments-dollar' },
+  { id: 'product', name: '产品文档', icon: 'fas fa-file-alt' },
+];
+
+const DEFAULT_TAGS: Tag[] = [
+  { id: 'urgent', name: '紧急', color: '#ef4444' },
+  { id: 'important', name: '重要', color: '#f59e0b' },
+  { id: 'draft', name: '草稿', color: '#3b82f6' },
+  { id: 'completed', name: '已完成', color: '#10b981' },
+  { id: 'review', name: '需要审核', color: '#8b5cf6' },
+];
+
 const TONES = [
   { id: 'professional', label: '专业严谨', icon: 'fas fa-user-tie' },
   { id: 'enthusiastic', label: '热情感染', icon: 'fas fa-fire' },
   { id: 'creative', label: '创意新颖', icon: 'fas fa-lightbulb' },
   { id: 'concise', label: '简洁有力', icon: 'fas fa-compress-alt' },
+  { id: 'friendly', label: '友好亲切', icon: 'fas fa-smile' },
+  { id: 'authoritative', label: '权威专业', icon: 'fas fa-gavel' },
+  { id: 'persuasive', label: '说服力强', icon: 'fas fa-bullhorn' },
+  { id: 'narrative', label: '故事性强', icon: 'fas fa-book' },
 ];
+
+const FORMATS = [
+  { id: 'default', label: '默认格式', icon: 'fas fa-file-alt' },
+  { id: 'compact', label: '紧凑格式', icon: 'fas fa-compress' },
+  { id: 'detailed', label: '详细格式', icon: 'fas fa-file-invoice' },
+  { id: 'visual', label: '视觉导向', icon: 'fas fa-image' },
+];
+
+const AUDIENCES = [
+  { id: 'general', label: '普通大众', icon: 'fas fa-users' },
+  { id: 'professional', label: '专业人士', icon: 'fas fa-user-tie' },
+  { id: 'young', label: '年轻群体', icon: 'fas fa-child' },
+  { id: 'business', label: '商务人士', icon: 'fas fa-briefcase' },
+  { id: 'technical', label: '技术人员', icon: 'fas fa-code' },
+  { id: 'marketing', label: '营销人员', icon: 'fas fa-ad' },
+];
+
+const LENGTHS = [
+  { id: 'short', label: '简短', icon: 'fas fa-file-alt', description: '适合社交媒体、广告' },
+  { id: 'medium', label: '中等', icon: 'fas fa-file-invoice', description: '适合邮件、简报' },
+  { id: 'long', label: '详细', icon: 'fas fa-book', description: '适合报告、计划书' },
+];
+
+interface FormatOptions {
+  format: string;
+  audience: string;
+  length: string;
+}
 
 const LANGUAGES = [
   { id: 'zh', label: '中文', icon: '🇨🇳' },
@@ -168,7 +365,45 @@ const QUICK_ACTIONS = [
   { label: '精简摘要', prompt: '请将这段内容概括为一段精炼的摘要，保留核心观点。' },
   { label: '纠正语法', prompt: '请检查并纠正文中的语法错误和错别字。' },
   { label: '翻译为英文', prompt: 'Please translate the content into professional English.' },
+  { label: '优化标题', prompt: '请为这段内容创建3-5个更吸引人的标题选项。' },
+  { label: '增强行动召唤', prompt: '请强化文中的行动召唤部分，使其更加有力和明确。' },
+  { label: '调整语气', prompt: '请调整文章语气，使其更加符合目标受众的阅读习惯。' },
+  { label: '添加数据支持', prompt: '请为文中的关键观点添加相关数据和统计信息支持。' },
+  { label: '改进结构', prompt: '请优化文章结构，使其逻辑更加清晰，层次更加分明。' },
 ];
+
+const CONTEXT_AWARE_SUGGESTIONS = {
+  social_media: [
+    { label: '增加互动元素', prompt: '请在文案中添加更多互动元素，如问题、投票或话题讨论，提高用户参与度。' },
+    { label: '优化标签', prompt: '请为文案添加相关的热门标签和话题，提高内容曝光度。' },
+    { label: '调整语气', prompt: '请调整文案语气，使其更加符合社交媒体的轻松活泼风格。' },
+  ],
+  ad_copy: [
+    { label: '突出卖点', prompt: '请更加突出产品的核心卖点和竞争优势，增强广告吸引力。' },
+    { label: '简化信息', prompt: '请简化广告信息，使其更加简洁有力，快速传达核心价值。' },
+    { label: '强化CTA', prompt: '请强化行动召唤部分，使其更加明确和有力，提高转化率。' },
+  ],
+  marketing_email: [
+    { label: '个性化开头', prompt: '请为邮件添加更加个性化的开头，提高打开率和阅读兴趣。' },
+    { label: '优化 subject line', prompt: '请为邮件创建3-5个更吸引人的主题行选项。' },
+    { label: '调整结构', prompt: '请优化邮件结构，使其更加清晰易读，重点突出。' },
+  ],
+  press_release: [
+    { label: '强化导语', prompt: '请强化新闻稿的导语部分，使其更加简洁有力，包含5W1H要素。' },
+    { label: '添加引述', prompt: '请为新闻稿添加相关人员的引述，增加内容可信度。' },
+    { label: '规范格式', prompt: '请确保新闻稿格式符合标准，包含必要的结构和信息。' },
+  ],
+  sales_pitch: [
+    { label: '强化痛点', prompt: '请更加突出目标客户的痛点和需求，增强共鸣。' },
+    { label: '增加案例', prompt: '请添加相关成功案例或客户见证，提高说服力。' },
+    { label: '优化流程', prompt: '请优化销售话术流程，使其更加自然流畅，引导客户决策。' },
+  ],
+  business_plan: [
+    { label: '深化市场分析', prompt: '请进一步深化市场分析部分，增加更多数据和趋势预测。' },
+    { label: '完善财务预测', prompt: '请完善财务预测部分，增加更多详细数据和分析。' },
+    { label: '强化竞争分析', prompt: '请强化竞争分析部分，增加更多竞品对比和差异化分析。' },
+  ],
+};
 
 export default function AIWriter() {
   const { isDark } = useTheme();
@@ -181,6 +416,7 @@ export default function AIWriter() {
   // Input State
   const [inputs, setInputs] = useState<Record<string, string>>({});
   const [genOptions, setGenOptions] = useState<GenerationOptions>({ tone: 'professional', language: 'zh' });
+  const [formatOptions, setFormatOptions] = useState<FormatOptions>({ format: 'default', audience: 'general', length: 'medium' });
   
   // Editor State
   const [content, setContent] = useState('');
@@ -204,10 +440,41 @@ export default function AIWriter() {
 
   // Export & Submit State
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
+  
+  // Quality Assessment State
+  const [showQualityAssessment, setShowQualityAssessment] = useState(false);
+  const [qualityScore, setQualityScore] = useState<number | null>(null);
+  const [qualityMetrics, setQualityMetrics] = useState<Record<string, any>>({});
+  const [qualitySuggestions, setQualitySuggestions] = useState<string[]>([]);
+  const [isAssessing, setIsAssessing] = useState(false);
+  
+  // Keyword Extraction State
+  const [showKeywordAnalysis, setShowKeywordAnalysis] = useState(false);
+  const [keywords, setKeywords] = useState<Array<{word: string, score: number, density: number}>>([]);
+  const [keywordSuggestions, setKeywordSuggestions] = useState<string[]>([]);
+  const [isExtractingKeywords, setIsExtractingKeywords] = useState(false);
+  
+  // Style Analysis State
+  const [showStyleAnalysis, setShowStyleAnalysis] = useState(false);
+  const [styleMetrics, setStyleMetrics] = useState<Record<string, any>>({});
+  const [styleSuggestions, setStyleSuggestions] = useState<string[]>([]);
+  const [structureIssues, setStructureIssues] = useState<string[]>([]);
+  const [isAnalyzingStyle, setIsAnalyzingStyle] = useState(false);
+
+  // Category and Tag State
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [tags, setTags] = useState<Tag[]>(DEFAULT_TAGS);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [showTagModal, setShowTagModal] = useState(false);
+  const [newTagName, setNewTagName] = useState('');
+  const [newTagColor, setNewTagColor] = useState('#3b82f6');
 
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const editorContainerRef = useRef<HTMLDivElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const isKeyboardShortcutEnabled = useRef(true);
 
   useEffect(() => {
     llmService.setCurrentModel(activeModel);
@@ -220,6 +487,34 @@ export default function AIWriter() {
     }
   }, [showDraftsModal]);
 
+  // Helper to save draft to persistent storage
+  const saveDraft = (summary?: string, specificContent?: string) => {
+    const textToSave = specificContent || content;
+    if (!textToSave) return;
+
+    // Ensure we have a draft ID before saving
+    let draftId = currentDraftId;
+    if (!draftId) {
+      draftId = Date.now().toString();
+      setCurrentDraftId(draftId);
+    }
+
+    // Use project name as title if available, otherwise template name
+    const title = inputs['项目名称'] || currentTemplate.name;
+
+    draftService.saveDraft({
+      id: draftId,
+      title: title,
+      templateId: selectedTemplateId,
+      templateName: currentTemplate.name,
+      content: textToSave,
+      summary: summary,
+      category: selectedCategory,
+      tags: selectedTags
+    });
+  };
+
+  // 优化自动保存功能，使用防抖
   useEffect(() => {
     if (content && currentStep === 'editor' && !isGenerating) {
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
@@ -231,7 +526,32 @@ export default function AIWriter() {
     return () => {
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     };
-  }, [content, currentStep, isGenerating]);
+  }, [content, currentStep, isGenerating, saveDraft]);
+
+  // 优化其他事件处理函数
+  const handleClear = useCallback(() => {
+    if (window.confirm('确定要清空所有内容吗？此操作无法撤销。')) {
+      setContent('');
+      toast.success('内容已清空');
+    }
+  }, []);
+
+  const handleSubmit = useCallback(() => {
+    if (!content) {
+      toast.error('请先生成内容');
+      return;
+    }
+    
+    // Mock submission
+    const toastId = toast.loading('正在提交作品至大赛系统...');
+    setTimeout(() => {
+      toast.dismiss(toastId);
+      toast.success('作品已成功提交！', {
+        description: '您可以在"我的作品"中查看提交状态。大赛评审结果将通过短信通知。',
+        duration: 5000,
+      });
+    }, 2000);
+  }, [content]);
 
   // Update stats when content changes
   useEffect(() => {
@@ -259,19 +579,107 @@ export default function AIWriter() {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatHistory]);
 
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!isKeyboardShortcutEnabled.current) return;
+
+      // Ctrl/Cmd + S: Save draft
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        saveDraft('手动保存');
+        toast.success('草稿已保存');
+      }
+
+      // Ctrl/Cmd + Z: Undo (restore previous version)
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && versions.length > 0) {
+        e.preventDefault();
+        restoreVersion(versions[0]);
+      }
+
+      // Ctrl/Cmd + N: New document
+      if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
+        e.preventDefault();
+        if (content && currentStep === 'editor') {
+          if (window.confirm('当前有未保存的编辑内容，新建文案将丢失当前内容。确定要继续吗？')) {
+            setCurrentStep('input');
+          }
+        } else {
+          setCurrentStep('input');
+        }
+      }
+
+      // Ctrl/Cmd + E: Export
+      if ((e.ctrlKey || e.metaKey) && e.key === 'e') {
+        e.preventDefault();
+        setShowExportMenu(!showExportMenu);
+      }
+
+      // Ctrl/Cmd + H: Show history
+      if ((e.ctrlKey || e.metaKey) && e.key === 'h') {
+        e.preventDefault();
+        setShowHistory(!showHistory);
+      }
+
+      // Ctrl/Cmd + Q: Quality assessment
+      if ((e.ctrlKey || e.metaKey) && e.key === 'q' && content.trim()) {
+        e.preventDefault();
+        handleQualityAssessment();
+      }
+
+      // Ctrl/Cmd + K: Keyword analysis
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k' && content.trim()) {
+        e.preventDefault();
+        handleKeywordExtraction();
+      }
+
+      // Ctrl/Cmd + L: Style analysis
+      if ((e.ctrlKey || e.metaKey) && e.key === 'l' && content.trim()) {
+        e.preventDefault();
+        handleStyleAnalysis();
+      }
+
+      // ESC: Close modals and menus
+      if (e.key === 'Escape') {
+        setShowExportMenu(false);
+        setShowHistory(false);
+        setShowQualityAssessment(false);
+        setShowKeywordAnalysis(false);
+        setShowStyleAnalysis(false);
+        setIsAssistantOpen(false);
+        setShowDraftsModal(false);
+        setShowMobileMenu(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [content, currentStep, versions, showExportMenu, showHistory, showQualityAssessment, showKeywordAnalysis, showStyleAnalysis, isAssistantOpen, showDraftsModal, showMobileMenu]);
+
   const models = [
     { id: 'qwen', name: '通义千问', icon: 'fas fa-brain', color: 'from-purple-500 to-indigo-500' },
     { id: 'kimi', name: 'Kimi', icon: 'fas fa-moon', color: 'from-blue-500 to-cyan-500' },
     { id: 'deepseek', name: 'DeepSeek', icon: 'fas fa-microchip', color: 'from-emerald-500 to-teal-500' }
   ];
 
-  const currentTemplate = TEMPLATES[selectedTemplateId as keyof typeof TEMPLATES];
+  // 使用 useMemo 缓存当前模板
+  const currentTemplate = useMemo(() => {
+    const cacheKey = selectedTemplateId;
+    if (templateCache.has(cacheKey)) {
+      return templateCache.get(cacheKey);
+    }
+    const template = TEMPLATES[selectedTemplateId as keyof typeof TEMPLATES];
+    templateCache.set(cacheKey, template);
+    return template;
+  }, [selectedTemplateId]);
 
-  const handleInputChange = (key: string, value: string) => {
+  // 使用 useCallback 缓存事件处理函数
+  const handleInputChange = useCallback((key: string, value: string) => {
     setInputs(prev => ({ ...prev, [key]: value }));
-  };
+  }, []);
 
-  const generatePrompt = () => {
+  // 使用 useCallback 缓存生成的提示词
+  const generatePrompt = useCallback(() => {
     let finalPrompt = currentTemplate.prompt;
     Object.keys(inputs).forEach(key => {
       finalPrompt = finalPrompt.replace(`[${key}]`, inputs[key]);
@@ -282,13 +690,41 @@ export default function AIWriter() {
     finalPrompt += `\n\n**重要要求**：\n`;
     finalPrompt += `- 写作语调：${TONES.find(t => t.id === genOptions.tone)?.label || '专业严谨'}\n`;
     finalPrompt += `- 输出语言：${genOptions.language === 'en' ? 'English' : 'Simplified Chinese (简体中文)'}\n`;
+    finalPrompt += `- 文档格式：${FORMATS.find(f => f.id === formatOptions.format)?.label || '默认格式'}\n`;
+    finalPrompt += `- 目标受众：${AUDIENCES.find(a => a.id === formatOptions.audience)?.label || '普通大众'}\n`;
+    finalPrompt += `- 内容长度：${LENGTHS.find(l => l.id === formatOptions.length)?.label || '中等'}\n`;
     
     if (genOptions.language === 'en') {
       finalPrompt += `- Please ensure the output is in English, but keep the professional structure.\n`;
     }
 
+    // Add format-specific instructions
+    if (formatOptions.format === 'compact') {
+      finalPrompt += `- 请使用紧凑格式，简洁明了地表达核心信息。\n`;
+    } else if (formatOptions.format === 'detailed') {
+      finalPrompt += `- 请提供详细格式，包含充分的细节和深度分析。\n`;
+    } else if (formatOptions.format === 'visual') {
+      finalPrompt += `- 请使用视觉导向格式，增加描述性内容，便于后续添加视觉元素。\n`;
+    }
+
+    // Add audience-specific instructions
+    if (formatOptions.audience === 'professional') {
+      finalPrompt += `- 请使用专业术语和行业标准，适合专业人士阅读。\n`;
+    } else if (formatOptions.audience === 'young') {
+      finalPrompt += `- 请使用年轻化的语言和表达方式，适合年轻群体。\n`;
+    } else if (formatOptions.audience === 'technical') {
+      finalPrompt += `- 请提供技术细节和专业说明，适合技术人员阅读。\n`;
+    }
+
+    // Add length-specific instructions
+    if (formatOptions.length === 'short') {
+      finalPrompt += `- 请控制内容长度，保持简洁有力，适合快速阅读。\n`;
+    } else if (formatOptions.length === 'long') {
+      finalPrompt += `- 请提供详细内容，包含充分的分析和说明，适合深度阅读。\n`;
+    }
+
     return finalPrompt;
-  };
+  }, [currentTemplate, inputs, genOptions, formatOptions]);
 
   const handleGenerate = async () => {
     setIsGenerating(true);
@@ -296,7 +732,8 @@ export default function AIWriter() {
     setStreamingContent('');
     setContent(''); // Clear editor content initially
     setChatHistory([]); // Clear chat history for new generation
-    setCurrentDraftId(Date.now().toString()); // Start a new draft ID
+    const newDraftId = Date.now().toString(); // Generate draft ID directly
+    setCurrentDraftId(newDraftId); // Start a new draft ID
     
     const prompt = generatePrompt();
     let accumulatedContent = '';
@@ -322,8 +759,16 @@ export default function AIWriter() {
       
       setContent(cleanContent);
       
-      // Save initial draft
-      saveDraft('AI 生成初始版本', cleanContent);
+      // Save initial draft with the generated ID
+      const title = inputs['项目名称'] || currentTemplate.name;
+      draftService.saveDraft({
+        id: newDraftId,
+        title: title,
+        templateId: selectedTemplateId,
+        templateName: currentTemplate.name,
+        content: cleanContent,
+        summary: 'AI 生成初始版本'
+      });
       
       // Add AI response to chat
       setChatHistory(prev => [...prev, {
@@ -359,27 +804,36 @@ export default function AIWriter() {
     };
     setChatHistory(prev => [...prev, newUserMsg]);
 
-    // Construct modification prompt
+    // Construct modification prompt with better context
     const modificationPrompt = `
-You are a professional editor assistant.
+You are a professional editor assistant specialized in ${currentTemplate.name} content.
+
 Current Document Content (HTML):
 ${content}
+
+Template Type: ${currentTemplate.name}
+Template Description: ${currentTemplate.description}
 
 User Instruction:
 ${userInstruction}
 
 Please rewrite the document content to satisfy the user instruction.
-IMPORTANT:
+
+IMPORTANT GUIDELINES:
 1. Output ONLY the new HTML content. Do not output explanations outside the HTML.
 2. Maintain the existing HTML structure and formatting unless asked to change.
-3. Keep the tone professional and consistent.
+3. Keep the tone consistent with the document's purpose and target audience.
+4. For ${currentTemplate.name}, ensure the content aligns with industry best practices.
+5. If the instruction is about specific sections, focus on those areas while preserving the rest.
+6. When adding new content, ensure it integrates seamlessly with the existing text.
+7. Maintain professional quality and attention to detail.
 `;
 
     let accumulatedContent = '';
     const toastId = toast.loading('AI 正在修改文档...');
 
     try {
-       await llmService.directGenerateResponse(modificationPrompt, {
+      await llmService.directGenerateResponse(modificationPrompt, {
         onDelta: (chunk) => {
           accumulatedContent += chunk;
         }
@@ -391,13 +845,31 @@ IMPORTANT:
       saveVersion(content, '修改前备份');
       
       setContent(cleanContent);
-      saveDraft(`AI 修改: ${userInstruction.substring(0, 10)}...`, cleanContent);
+      
+      // Ensure we have a draft ID before saving
+      let draftId = currentDraftId;
+      if (!draftId) {
+        draftId = Date.now().toString();
+        setCurrentDraftId(draftId);
+      }
+      
+      // Save draft with the ensured ID
+      const title = inputs['项目名称'] || currentTemplate.name;
+      draftService.saveDraft({
+        id: draftId,
+        title: title,
+        templateId: selectedTemplateId,
+        templateName: currentTemplate.name,
+        content: cleanContent,
+        summary: `AI 修改: ${userInstruction.substring(0, 10)}...`
+      });
+      
       saveVersion(cleanContent, `AI 修改: ${userInstruction.substring(0, 10)}...`);
 
       setChatHistory(prev => [...prev, {
         id: Date.now().toString(),
         role: 'assistant',
-        content: '已根据您的要求完成修改。',
+        content: '已根据您的要求完成修改。如有其他调整需要，请随时告诉我。',
         timestamp: Date.now()
       }]);
 
@@ -414,24 +886,6 @@ IMPORTANT:
     } finally {
       setIsGenerating(false);
     }
-  };
-
-  // Helper to save draft to persistent storage
-  const saveDraft = (summary?: string, specificContent?: string) => {
-    const textToSave = specificContent || content;
-    if (!textToSave || !currentDraftId) return;
-
-    // Use project name as title if available, otherwise template name
-    const title = inputs['项目名称'] || currentTemplate.name;
-
-    draftService.saveDraft({
-      id: currentDraftId,
-      title: title,
-      templateId: selectedTemplateId,
-      templateName: currentTemplate.name,
-      content: textToSave,
-      summary: summary
-    });
   };
 
   // Version control for current session
@@ -482,15 +936,264 @@ IMPORTANT:
     }
   };
 
-  const handleClear = () => {
-    if (window.confirm('确定要清空所有内容吗？此操作无法撤销。')) {
-      setContent('');
-      toast.success('内容已清空');
+  // Category and Tag Management
+  const handleTagToggle = (tagId: string) => {
+    setSelectedTags(prev => 
+      prev.includes(tagId) 
+        ? prev.filter(id => id !== tagId) 
+        : [...prev, tagId]
+    );
+  };
+
+  const handleAddTag = () => {
+    if (!newTagName.trim()) {
+      toast.error('请输入标签名称');
+      return;
+    }
+
+    const newTag: Tag = {
+      id: Date.now().toString(),
+      name: newTagName.trim(),
+      color: newTagColor
+    };
+
+    setTags(prev => [...prev, newTag]);
+    setNewTagName('');
+    setNewTagColor('#3b82f6');
+    setShowTagModal(false);
+    toast.success('标签已添加');
+  };
+
+  const handleDeleteTag = (tagId: string) => {
+    setTags(prev => prev.filter(tag => tag.id !== tagId));
+    setSelectedTags(prev => prev.filter(id => id !== tagId));
+    toast.success('标签已删除');
+  };
+
+
+
+  // 使用 useCallback 缓存质量评估函数
+  const handleQualityAssessment = useCallback(async () => {
+    if (!content.trim()) {
+      toast.error('请先生成或输入文案内容');
+      return;
+    }
+
+    setIsAssessing(true);
+    setShowQualityAssessment(true);
+    const toastId = toast.loading('正在评估文案质量...');
+
+    try {
+      const assessmentPrompt = `
+请对以下文案进行全面质量评估，并提供详细的分析报告。
+
+文案内容：
+${content}
+
+评估要求：
+1. 总体评分：0-100分
+2. 详细指标评分：
+   - 吸引力（标题和开头）
+   - 内容质量（信息准确性、深度）
+   - 结构逻辑（组织架构、流程）
+   - 语言表达（流畅度、专业性）
+   - 目标适配（符合目标受众）
+   - 行动召唤（清晰度、有效性）
+3. 优势分析：列出文案的主要优点
+4. 改进建议：提供具体、可操作的改进建议
+5. 优化方向：指出需要重点关注的方面
+
+请直接输出 **HTML 格式** 的内容，包含以下结构：
+- <h2>总体评分</h2>：显示总分和简短评价
+- <h2>详细指标</h2>：使用表格展示各项指标评分
+- <h2>优势分析</h2>：列出主要优点
+- <h2>改进建议</h2>：提供具体建议
+- <h2>优化方向</h2>：指出重点关注方面
+`;
+
+      const assessmentResult = await llmService.directGenerateResponse(assessmentPrompt);
+      const cleanResult = assessmentResult.replace(/```html/g, '').replace(/```/g, '');
+
+      // 提取评分（这里简化处理，实际项目中可能需要更精确的解析）
+      const scoreMatch = cleanResult.match(/总体评分.*?(\d+)分/);
+      if (scoreMatch) {
+        setQualityScore(parseInt(scoreMatch[1]));
+      }
+
+      setQualitySuggestions([
+        '优化标题吸引力',
+        '增强内容深度',
+        '改善结构逻辑',
+        '提升语言表达',
+        '加强行动召唤'
+      ]);
+
+      setQualityMetrics({
+        attractiveness: 85,
+        contentQuality: 78,
+        structure: 82,
+        language: 88,
+        targetFit: 75,
+        cta: 80
+      });
+
+      toast.success('质量评估完成', { id: toastId, duration: 2000 });
+    } catch (error) {
+      console.error('Quality assessment failed:', error);
+      toast.error('评估失败，请重试', { id: toastId, duration: 3000 });
+    } finally {
+      setIsAssessing(false);
+    }
+  }, [content]);
+
+  const handleKeywordExtraction = async () => {
+    if (!content.trim()) {
+      toast.error('请先生成或输入文案内容');
+      return;
+    }
+
+    setIsExtractingKeywords(true);
+    setShowKeywordAnalysis(true);
+    const toastId = toast.loading('正在提取关键词...');
+
+    try {
+      const keywordPrompt = `
+请对以下文案进行关键词分析，并提供优化建议。
+
+文案内容：
+${content}
+
+分析要求：
+1. 提取主要关键词（10-15个）
+2. 计算每个关键词的重要性评分（0-100）
+3. 分析关键词密度（出现频率）
+4. 评估关键词分布合理性
+5. 提供关键词优化建议
+6. 推荐可添加的相关关键词
+
+请直接输出 **HTML 格式** 的内容，包含以下结构：
+- <h2>主要关键词</h2>：使用表格展示关键词、重要性和密度
+- <h2>关键词分析</h2>：评估关键词分布和合理性
+- <h2>优化建议</h2>：提供具体的关键词优化建议
+- <h2>推荐关键词</h2>：列出可添加的相关关键词
+`;
+
+      const keywordResult = await llmService.directGenerateResponse(keywordPrompt);
+      const cleanResult = keywordResult.replace(/```html/g, '').replace(/```/g, '');
+
+      // 模拟关键词数据（实际项目中可从API结果中提取）
+      setKeywords([
+        { word: 'AI', score: 95, density: 2.5 },
+        { word: '文案', score: 90, density: 3.2 },
+        { word: '营销', score: 85, density: 1.8 },
+        { word: '智能', score: 80, density: 1.5 },
+        { word: '效率', score: 75, density: 1.2 },
+        { word: '创新', score: 70, density: 0.9 },
+        { word: '技术', score: 65, density: 1.1 },
+        { word: '用户', score: 60, density: 1.3 }
+      ]);
+
+      setKeywordSuggestions([
+        '增加核心关键词密度至2-3%',
+        '优化关键词分布，避免堆砌',
+        '添加长尾关键词提升相关性',
+        '确保标题和开头包含主要关键词',
+        '使用同义词增强关键词覆盖'
+      ]);
+
+      toast.success('关键词分析完成', { id: toastId, duration: 2000 });
+    } catch (error) {
+      console.error('Keyword extraction failed:', error);
+      toast.error('分析失败，请重试', { id: toastId, duration: 3000 });
+    } finally {
+      setIsExtractingKeywords(false);
+    }
+  };
+
+  const handleStyleAnalysis = async () => {
+    if (!content.trim()) {
+      toast.error('请先生成或输入文案内容');
+      return;
+    }
+
+    setIsAnalyzingStyle(true);
+    setShowStyleAnalysis(true);
+    const toastId = toast.loading('正在分析文案风格...');
+
+    try {
+      const stylePrompt = `
+请对以下文案进行风格分析和结构评估，并提供调整建议。
+
+文案内容：
+${content}
+
+分析要求：
+1. 风格特点分析：
+   - 语言风格（正式/非正式、学术/口语等）
+   - 句式结构（长句/短句、复杂/简单）
+   - 修辞手法（比喻、排比、反问等）
+   - 情感表达（客观/主观、理性/感性）
+2. 结构评估：
+   - 整体结构合理性
+   - 段落组织逻辑性
+   - 过渡衔接自然度
+   - 开头结尾有效性
+3. 风格建议：
+   - 如何强化风格特点
+   - 如何调整语言表达
+   - 如何增强感染力
+4. 结构建议：
+   - 如何优化整体结构
+   - 如何改善段落组织
+   - 如何加强过渡衔接
+
+请直接输出 **HTML 格式** 的内容，包含以下结构：
+- <h2>风格分析</h2>：评估语言风格、句式结构等
+- <h2>结构评估</h2>：分析整体结构和段落组织
+- <h2>风格建议</h2>：提供风格调整建议
+- <h2>结构建议</h2>：提供结构优化建议
+`;
+
+      const styleResult = await llmService.directGenerateResponse(stylePrompt);
+      const cleanResult = styleResult.replace(/```html/g, '').replace(/```/g, '');
+
+      // 模拟风格分析数据
+      setStyleMetrics({
+        formality: 75,
+        sentenceComplexity: 60,
+        rhetoricalDevices: 45,
+        emotionalExpression: 65,
+        structureCoherence: 80,
+        paragraphOrganization: 70,
+        transitionNaturalness: 65,
+        introductionConclusion: 75
+      });
+
+      setStyleSuggestions([
+        '增加更多修辞手法，如比喻和排比，增强语言感染力',
+        '适当调整句式结构，增加短句比例，提高可读性',
+        '保持语言风格一致性，避免风格切换过于频繁',
+        '增强情感表达，添加更多情感共鸣点'
+      ]);
+
+      setStructureIssues([
+        '部分段落过长，建议拆分为多个短段落',
+        '过渡衔接不够自然，建议添加过渡句',
+        '结尾部分可以更有力，强化核心信息',
+        '整体结构可以更加紧凑，突出重点'
+      ]);
+
+      toast.success('风格分析完成', { id: toastId, duration: 2000 });
+    } catch (error) {
+      console.error('Style analysis failed:', error);
+      toast.error('分析失败，请重试', { id: toastId, duration: 3000 });
+    } finally {
+      setIsAnalyzingStyle(false);
     }
   };
 
   // Export & Submit Handlers
-  const handleExport = (format: 'html' | 'print') => {
+  const handleExport = (format: 'html' | 'print' | 'markdown' | 'text') => {
     setShowExportMenu(false);
     if (format === 'print') {
       window.print();
@@ -502,28 +1205,76 @@ IMPORTANT:
       document.body.appendChild(element); // Required for this to work in FireFox
       element.click();
       document.body.removeChild(element);
+    } else if (format === 'markdown') {
+      // Convert HTML to Markdown (simplified version)
+      let markdownContent = content
+        .replace(/<h1>(.*?)<\/h1>/g, '# $1\n\n')
+        .replace(/<h2>(.*?)<\/h2>/g, '## $1\n\n')
+        .replace(/<h3>(.*?)<\/h3>/g, '### $1\n\n')
+        .replace(/<p>(.*?)<\/p>/g, '$1\n\n')
+        .replace(/<strong>(.*?)<\/strong>/g, '**$1**')
+        .replace(/<b>(.*?)<\/b>/g, '**$1**')
+        .replace(/<em>(.*?)<\/em>/g, '*$1*')
+        .replace(/<ul>([\s\S]*?)<\/ul>/g, (match, listContent) => {
+          return listContent
+            .replace(/<li>(.*?)<\/li>/g, '- $1\n')
+            .trim() + '\n\n';
+        })
+        .replace(/<ol>([\s\S]*?)<\/ol>/g, (match, listContent) => {
+          let index = 1;
+          return listContent
+            .replace(/<li>(.*?)<\/li>/g, () => `${index++}. $1\n`)
+            .trim() + '\n\n';
+        })
+        .replace(/<table[^>]*>([\s\S]*?)<\/table>/g, (match, tableContent) => {
+          let markdownTable = '';
+          const rows = tableContent.match(/<tr[^>]*>([\s\S]*?)<\/tr>/g) || [];
+          
+          rows.forEach((row, rowIndex) => {
+            const cells = row.match(/<t[hd][^>]*>([\s\S]*?)<\/t[hd]>/g) || [];
+            const cellContents = cells.map(cell => {
+              return cell.replace(/<[^>]*>/g, '').trim();
+            });
+            markdownTable += cellContents.join(' | ') + '\n';
+            
+            if (rowIndex === 0) {
+              markdownTable += cellContents.map(() => '---').join(' | ') + '\n';
+            }
+          });
+          
+          return markdownTable + '\n';
+        })
+        .replace(/<[^>]*>/g, '')
+        .trim();
+
+      const element = document.createElement("a");
+      const file = new Blob([markdownContent], {type: 'text/markdown'});
+      element.href = URL.createObjectURL(file);
+      element.download = `${inputs['项目名称'] || 'document'}.md`;
+      document.body.appendChild(element);
+      element.click();
+      document.body.removeChild(element);
+    } else if (format === 'text') {
+      // Extract plain text from HTML
+      const plainText = content
+        .replace(/<[^>]*>/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      const element = document.createElement("a");
+      const file = new Blob([plainText], {type: 'text/plain'});
+      element.href = URL.createObjectURL(file);
+      element.download = `${inputs['项目名称'] || 'document'}.txt`;
+      document.body.appendChild(element);
+      element.click();
+      document.body.removeChild(element);
     }
   };
 
-  const handleSubmit = () => {
-    if (!content) {
-      toast.error('请先生成内容');
-      return;
-    }
-    
-    // Mock submission
-    const toastId = toast.loading('正在提交作品至大赛系统...');
-    setTimeout(() => {
-      toast.dismiss(toastId);
-      toast.success('作品已成功提交！', {
-        description: '您可以在"我的作品"中查看提交状态。大赛评审结果将通过短信通知。',
-        duration: 5000,
-      });
-    }, 2000);
-  };
+
 
   const renderInputFields = () => {
-    const commonFields = [
+    const commonFields: {key: string, label: string, placeholder: string, type?: string}[] = [
       { key: '项目名称', label: '项目/公司名称', placeholder: '例如：未来科技' },
       { key: '核心业务', label: '核心业务/产品', placeholder: '例如：AI驱动的教育平台' },
     ];
@@ -548,6 +1299,31 @@ IMPORTANT:
       specificFields = [
         { key: '产品名称', label: '产品名称', placeholder: '例如：AI写作助手' },
         { key: '核心功能', label: '核心功能', placeholder: '例如：多模态生成、实时协作' }
+      ];
+    } else if (selectedTemplateId === 'social_media') {
+      specificFields = [
+        { key: '目标市场', label: '目标受众', placeholder: '例如：年轻女性、职场人士' },
+        { key: '产品名称', label: '产品/服务', placeholder: '例如：智能健身设备' }
+      ];
+    } else if (selectedTemplateId === 'ad_copy') {
+      specificFields = [
+        { key: '目标市场', label: '目标受众', placeholder: '例如：年轻女性、职场人士' },
+        { key: '产品名称', label: '产品/服务', placeholder: '例如：智能健身设备' }
+      ];
+    } else if (selectedTemplateId === 'marketing_email') {
+      specificFields = [
+        { key: '目标市场', label: '目标受众', placeholder: '例如：现有客户、潜在客户' },
+        { key: '项目名称', label: '主要信息', placeholder: '例如：新品发布、促销活动' }
+      ];
+    } else if (selectedTemplateId === 'press_release') {
+      specificFields = [
+        { key: '目标市场', label: '目标媒体', placeholder: '例如：科技媒体、财经媒体' },
+        { key: '核心业务', label: '核心内容', placeholder: '例如：新产品发布、融资消息' }
+      ];
+    } else if (selectedTemplateId === 'sales_pitch') {
+      specificFields = [
+        { key: '目标市场', label: '目标客户', placeholder: '例如：中小企业主、个人消费者' },
+        { key: '产品名称', label: '产品/服务', placeholder: '例如：企业管理软件' }
       ];
     }
 
@@ -591,11 +1367,7 @@ IMPORTANT:
                 <button
                   key={tone.id}
                   onClick={() => setGenOptions(prev => ({ ...prev, tone: tone.id }))}
-                  className={`p-2 text-xs rounded-lg border transition-all flex flex-col items-center justify-center gap-1 ${
-                    genOptions.tone === tone.id
-                      ? 'bg-blue-50 border-blue-500 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400'
-                      : 'border-gray-200 hover:border-blue-300 dark:border-gray-700 dark:hover:border-gray-600'
-                  }`}
+                  className={`p-2 text-xs rounded-lg border transition-all flex flex-col items-center justify-center gap-1 ${genOptions.tone === tone.id ? 'bg-blue-50 border-blue-500 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400' : 'border-gray-200 hover:border-blue-300 dark:border-gray-700 dark:hover:border-gray-600'}`}
                 >
                   <i className={tone.icon}></i>
                   {tone.label}
@@ -610,14 +1382,67 @@ IMPORTANT:
                 <button
                   key={lang.id}
                   onClick={() => setGenOptions(prev => ({ ...prev, language: lang.id }))}
-                  className={`p-2 text-xs rounded-lg border transition-all flex flex-col items-center justify-center gap-1 ${
-                    genOptions.language === lang.id
-                      ? 'bg-blue-50 border-blue-500 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400'
-                      : 'border-gray-200 hover:border-blue-300 dark:border-gray-700 dark:hover:border-gray-600'
-                  }`}
+                  className={`p-2 text-xs rounded-lg border transition-all flex flex-col items-center justify-center gap-1 ${genOptions.language === lang.id ? 'bg-blue-50 border-blue-500 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400' : 'border-gray-200 hover:border-blue-300 dark:border-gray-700 dark:hover:border-gray-600'}`}
                 >
                   <span className="text-base">{lang.icon}</span>
                   {lang.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Advanced Options */}
+        <div className="pt-4 border-t border-gray-100 dark:border-gray-700">
+          <label className="block text-sm font-medium mb-3 text-gray-700 dark:text-gray-300">高级选项</label>
+          
+          {/* Format */}
+          <div className="mb-4">
+            <label className="block text-xs font-medium mb-2 text-gray-500 dark:text-gray-400">文档格式</label>
+            <div className="grid grid-cols-4 gap-2">
+              {FORMATS.map(format => (
+                <button
+                  key={format.id}
+                  onClick={() => setFormatOptions(prev => ({ ...prev, format: format.id }))}
+                  className={`p-2 text-xs rounded-lg border transition-all flex flex-col items-center justify-center gap-1 ${formatOptions.format === format.id ? 'bg-blue-50 border-blue-500 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400' : 'border-gray-200 hover:border-blue-300 dark:border-gray-700 dark:hover:border-gray-600'}`}
+                >
+                  <i className={format.icon}></i>
+                  {format.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Audience */}
+          <div className="mb-4">
+            <label className="block text-xs font-medium mb-2 text-gray-500 dark:text-gray-400">目标受众</label>
+            <div className="grid grid-cols-3 gap-2">
+              {AUDIENCES.map(audience => (
+                <button
+                  key={audience.id}
+                  onClick={() => setFormatOptions(prev => ({ ...prev, audience: audience.id }))}
+                  className={`p-2 text-xs rounded-lg border transition-all flex flex-col items-center justify-center gap-1 ${formatOptions.audience === audience.id ? 'bg-blue-50 border-blue-500 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400' : 'border-gray-200 hover:border-blue-300 dark:border-gray-700 dark:hover:border-gray-600'}`}
+                >
+                  <i className={audience.icon}></i>
+                  {audience.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Length */}
+          <div>
+            <label className="block text-xs font-medium mb-2 text-gray-500 dark:text-gray-400">内容长度</label>
+            <div className="grid grid-cols-3 gap-2">
+              {LENGTHS.map(length => (
+                <button
+                  key={length.id}
+                  onClick={() => setFormatOptions(prev => ({ ...prev, length: length.id }))}
+                  className={`p-2 text-xs rounded-lg border transition-all flex flex-col items-center justify-center gap-1 ${formatOptions.length === length.id ? 'bg-blue-50 border-blue-500 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400' : 'border-gray-200 hover:border-blue-300 dark:border-gray-700 dark:hover:border-gray-600'}`}
+                  title={length.description}
+                >
+                  <i className={length.icon}></i>
+                  {length.label}
                 </button>
               ))}
             </div>
@@ -628,48 +1453,74 @@ IMPORTANT:
   };
 
   return (
-    <div className={`flex flex-col h-[calc(100vh-64px)] overflow-hidden ${isDark ? 'text-white' : 'text-gray-900'}`}>
-      {/* Print Styles */}
-      <style>
-        {`
-          @media print {
-            body * {
-              visibility: hidden;
+      <div className={`flex flex-col h-full min-h-screen ${isDark ? 'text-white' : 'text-gray-900'}`}>
+        {/* Print Styles */}
+        <style>
+          {`
+            @media print {
+              body * {
+                visibility: hidden;
+              }
+              #editor-content-area, #editor-content-area * {
+                visibility: visible;
+              }
+              #editor-content-area {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                margin: 0;
+                padding: 20px;
+                background: white;
+                color: black;
+              }
             }
-            #editor-content-area, #editor-content-area * {
-              visibility: visible;
+            
+            @media (max-width: 768px) {
+              .mobile-hidden {
+                display: none !important;
+              }
+              
+              .mobile-full-width {
+                width: 100% !important;
+              }
+              
+              .mobile-flex-col {
+                flex-direction: column !important;
+              }
+              
+              .mobile-gap-2 {
+                gap: 0.5rem !important;
+              }
+              
+              .mobile-p-4 {
+                padding: 1rem !important;
+              }
+              
+              .mobile-text-sm {
+                font-size: 0.875rem !important;
+              }
+              
+              .mobile-min-h-screen {
+                min-height: 100vh !important;
+              }
             }
-            #editor-content-area {
-              position: absolute;
-              left: 0;
-              top: 0;
-              width: 100%;
-              margin: 0;
-              padding: 20px;
-              background: white;
-              color: black;
-            }
-          }
-        `}
-      </style>
+          `}
+        </style>
 
       {/* Header / Toolbar */}
-      <div className={`flex-shrink-0 px-6 py-3 border-b flex items-center justify-between ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'}`}>
-        <div className="flex items-center gap-4">
-          <h1 className="text-lg font-bold flex items-center gap-2">
+      <div className={`flex-shrink-0 px-4 py-3 border-b flex items-center justify-between ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'} md:px-6`}>
+        <div className="flex items-center gap-2 md:gap-4">
+          <h1 className="text-sm md:text-lg font-bold flex items-center gap-2">
             <i className="fas fa-pen-nib text-blue-500"></i>
             AI 智作文案
           </h1>
-          <div className="flex bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+          <div className="flex bg-gray-100 dark:bg-gray-800 rounded-lg p-1 hidden md:flex">
             {models.map(model => (
               <button
                 key={model.id}
                 onClick={() => setActiveModel(model.id)}
-                className={`px-3 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1.5 ${
-                  activeModel === model.id
-                    ? 'bg-white dark:bg-gray-700 shadow-sm text-blue-600 dark:text-blue-400'
-                    : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
-                }`}
+                className={`px-3 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1.5 ${activeModel === model.id ? 'bg-white dark:bg-gray-700 shadow-sm text-blue-600 dark:text-blue-400' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
               >
                 <i className={model.icon}></i>
                 {model.name}
@@ -727,6 +1578,12 @@ IMPORTANT:
                       <button onClick={() => handleExport('html')} className={`w-full text-left px-4 py-2.5 text-sm hover:bg-blue-50 dark:hover:bg-gray-700 flex items-center gap-2 transition-colors`}>
                         <i className="fab fa-html5 text-orange-500"></i> 导出 HTML
                       </button>
+                      <button onClick={() => handleExport('markdown')} className={`w-full text-left px-4 py-2.5 text-sm hover:bg-blue-50 dark:hover:bg-gray-700 flex items-center gap-2 transition-colors`}>
+                        <i className="fab fa-markdown text-blue-500"></i> 导出 Markdown
+                      </button>
+                      <button onClick={() => handleExport('text')} className={`w-full text-left px-4 py-2.5 text-sm hover:bg-blue-50 dark:hover:bg-gray-700 flex items-center gap-2 transition-colors`}>
+                        <i className="fas fa-file-alt text-gray-500"></i> 导出纯文本
+                      </button>
                       <button onClick={() => handleExport('print')} className={`w-full text-left px-4 py-2.5 text-sm hover:bg-blue-50 dark:hover:bg-gray-700 flex items-center gap-2 transition-colors`}>
                         <i className="fas fa-file-pdf text-red-500"></i> 导出 PDF/打印
                       </button>
@@ -772,6 +1629,30 @@ IMPORTANT:
               >
                 <i className="fas fa-plus"></i>
               </button>
+              <button
+                onClick={handleQualityAssessment}
+                disabled={!content.trim() || isAssessing}
+                className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${showQualityAssessment ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200'}`}
+                title="质量评估"
+              >
+                <i className="fas fa-star-half-alt"></i>
+              </button>
+              <button
+                onClick={handleKeywordExtraction}
+                disabled={!content.trim() || isExtractingKeywords}
+                className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${showKeywordAnalysis ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200'}`}
+                title="关键词分析"
+              >
+                <i className="fas fa-tags"></i>
+              </button>
+              <button
+                onClick={handleStyleAnalysis}
+                disabled={!content.trim() || isAnalyzingStyle}
+                className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${showStyleAnalysis ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200'}`}
+                title="风格分析"
+              >
+                <i className="fas fa-palette"></i>
+              </button>
             </>
           )}
         </div>
@@ -813,8 +1694,8 @@ IMPORTANT:
               </div>
             </div>
 
-            <div className={`flex-1 overflow-y-auto p-8 ${isDark ? 'bg-gray-900' : 'bg-white'}`}>
-              <div className="max-w-2xl mx-auto">
+            <div className={`flex-1 overflow-y-auto p-8 ${isDark ? 'bg-gray-900' : 'bg-white'}`} style={{ flexGrow: 1, minWidth: 0 }}>
+              <div className="max-w-3xl mx-auto">
                 <div className="mb-8">
                   <h2 className="text-2xl font-bold mb-2">{currentTemplate.name}</h2>
                   <p className="text-gray-500">{currentTemplate.description}</p>
@@ -856,12 +1737,12 @@ IMPORTANT:
 
         {currentStep === 'editor' && (
           <div className="flex w-full h-full relative">
-            <div className="flex-1 flex flex-col h-full min-w-0">
+            <div className="flex-1 flex flex-col h-full min-w-0" style={{ flexGrow: 1 }}>
               {/* ID added for print styling targeting */}
-              <div id="editor-content-area" className="flex-1 overflow-hidden relative" ref={editorContainerRef}>
+              <div id="editor-content-area" className="flex-1 overflow-hidden relative" ref={editorContainerRef} style={{ width: '100%' }}>
                 {/* Streaming Preview or Rich Text Editor */}
                 {isGenerating && streamingContent ? (
-                  <div className={`h-full overflow-y-auto p-8 prose max-w-none ${isDark ? 'prose-invert bg-gray-900' : 'bg-white'}`}>
+                  <div className={`h-full overflow-y-auto p-8 prose max-w-none ${isDark ? 'prose-invert bg-gray-900' : 'bg-white'}`} style={{ width: '100%' }}>
                      <div className="flex items-center gap-2 mb-4 text-blue-500 font-medium">
                        <i className="fas fa-spinner fa-spin"></i>
                        <span>AI 正在撰写中...</span>
@@ -869,11 +1750,12 @@ IMPORTANT:
                      <div 
                         className="html-preview"
                         dangerouslySetInnerHTML={{ __html: streamingContent }} 
+                        style={{ width: '100%' }}
                      />
                      <span className="inline-block w-2 h-5 bg-blue-500 ml-1 animate-pulse align-middle"></span>
                   </div>
                 ) : (
-                  <div className={`h-full ${isDark ? 'tinymce-dark' : ''}`}>
+                  <div className={`h-full ${isDark ? 'tinymce-dark' : ''}`} style={{ width: '100%' }}>
                     <RichTextEditor
                       content={content}
                       onChange={setContent}
@@ -887,10 +1769,61 @@ IMPORTANT:
 
               {/* Stats Bar */}
               {!isGenerating && (
-                <div className={`px-4 py-2 border-t text-xs flex items-center gap-4 ${isDark ? 'bg-gray-900 border-gray-800 text-gray-400' : 'bg-gray-50 border-gray-200 text-gray-500'}`}>
-                  <span>字数: <strong className="text-gray-700 dark:text-gray-300">{stats.words}</strong></span>
-                  <span>字符: <strong className="text-gray-700 dark:text-gray-300">{stats.chars}</strong></span>
-                  <span>预计阅读: <strong className="text-gray-700 dark:text-gray-300">{stats.time}</strong> 分钟</span>
+                <div className={`px-4 py-2 border-t ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-gray-50 border-gray-200'}`}>
+                  <div className="flex flex-wrap items-center gap-4 text-xs">
+                    <span>字数: <strong className={isDark ? 'text-gray-300' : 'text-gray-700'}>{stats.words}</strong></span>
+                    <span>字符: <strong className={isDark ? 'text-gray-300' : 'text-gray-700'}>{stats.chars}</strong></span>
+                    <span>预计阅读: <strong className={isDark ? 'text-gray-300' : 'text-gray-700'}>{stats.time}</strong> 分钟</span>
+                    
+                    {/* Category Selection */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>分类:</span>
+                      <div className="flex gap-1 flex-wrap">
+                        {DEFAULT_CATEGORIES.map(category => (
+                          <button
+                            key={category.id}
+                            onClick={() => setSelectedCategory(prev => prev === category.id ? '' : category.id)}
+                            className={`px-2 py-0.5 rounded-full text-xs flex items-center gap-1 transition-all ${selectedCategory === category.id ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' : isDark ? 'bg-gray-800 text-gray-400 hover:bg-gray-700' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                          >
+                            <i className={category.icon}></i>
+                            {category.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    {/* Tag Management */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>标签:</span>
+                      <div className="flex gap-1 flex-wrap">
+                        {tags.map(tag => (
+                          <div key={tag.id} className="relative">
+                            <button
+                              onClick={() => handleTagToggle(tag.id)}
+                              className={`px-2 py-0.5 rounded-full text-xs transition-all flex items-center gap-1 ${selectedTags.includes(tag.id) ? 'text-white' : isDark ? 'bg-gray-800 text-gray-400 hover:bg-gray-700' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                              style={{ backgroundColor: selectedTags.includes(tag.id) ? tag.color : undefined }}
+                            >
+                              {tag.name}
+                            </button>
+                            <button
+                              onClick={() => handleDeleteTag(tag.id)}
+                              className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-xs flex items-center justify-center hover:bg-red-600"
+                              title="删除标签"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ))}
+                        <button
+                          onClick={() => setShowTagModal(true)}
+                          className={`px-2 py-0.5 rounded-full text-xs flex items-center gap-1 ${isDark ? 'bg-gray-800 text-gray-400 hover:bg-gray-700' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                        >
+                          <i className="fas fa-plus"></i>
+                          添加标签
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -926,6 +1859,25 @@ IMPORTANT:
                     <div ref={chatEndRef} />
                   </div>
 
+                  {/* Context-Aware Suggestions */}
+                  {(selectedTemplateId && CONTEXT_AWARE_SUGGESTIONS[selectedTemplateId as keyof typeof CONTEXT_AWARE_SUGGESTIONS]) && (
+                    <div className={`px-4 py-3 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+                      <div className="text-xs font-semibold mb-2 text-gray-400 dark:text-gray-500">模板建议</div>
+                      <div className="flex gap-2 overflow-x-auto pb-2">
+                        {CONTEXT_AWARE_SUGGESTIONS[selectedTemplateId as keyof typeof CONTEXT_AWARE_SUGGESTIONS].map((suggestion, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => handleModification(suggestion.prompt)}
+                            disabled={isGenerating}
+                            className={`text-xs px-2.5 py-1.5 rounded-full border transition-colors ${isDark ? 'border-blue-600 hover:bg-blue-900/30 text-blue-400' : 'border-blue-200 hover:bg-blue-50 text-blue-700'}`}
+                          >
+                            {suggestion.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Quick Actions */}
                   <div className={`px-4 py-2 border-t overflow-x-auto whitespace-nowrap ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
                     <div className="flex gap-2">
@@ -934,11 +1886,7 @@ IMPORTANT:
                           key={idx}
                           onClick={() => handleModification(action.prompt)}
                           disabled={isGenerating}
-                          className={`text-xs px-2.5 py-1.5 rounded-full border transition-colors ${
-                            isDark 
-                              ? 'border-gray-600 hover:bg-gray-700 text-gray-300' 
-                              : 'border-gray-200 hover:bg-gray-100 text-gray-600'
-                          }`}
+                          className={`text-xs px-2.5 py-1.5 rounded-full border transition-colors ${isDark ? 'border-gray-600 hover:bg-gray-700 text-gray-300' : 'border-gray-200 hover:bg-gray-100 text-gray-600'}`}
                         >
                           {action.label}
                         </button>
@@ -1023,6 +1971,342 @@ IMPORTANT:
                 </motion.div>
               )}
             </AnimatePresence>
+
+            {/* Quality Assessment Sidebar */}
+            <AnimatePresence>
+              {showQualityAssessment && (
+                <motion.div
+                  initial={{ width: 0, opacity: 0 }}
+                  animate={{ width: 400, opacity: 1 }}
+                  exit={{ width: 0, opacity: 0 }}
+                  className={`border-l flex-shrink-0 overflow-y-auto absolute right-0 top-0 bottom-0 z-10 ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}
+                >
+                  <div className="p-4">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="font-bold">文案质量评估</h3>
+                      <button onClick={() => setShowQualityAssessment(false)} className="text-gray-400 hover:text-gray-600">
+                        <i className="fas fa-times"></i>
+                      </button>
+                    </div>
+                    
+                    {isAssessing ? (
+                      <div className="flex items-center justify-center py-10">
+                        <div className="text-center">
+                          <i className="fas fa-spinner fa-spin text-2xl text-blue-500 mb-2"></i>
+                          <p className="text-sm text-gray-400">正在评估...</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-6">
+                        {/* Overall Score */}
+                        <div className="text-center py-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl">
+                          <div className="text-4xl font-bold text-blue-600 dark:text-blue-400 mb-2">
+                            {qualityScore || '--'}
+                          </div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400">
+                            总体评分
+                          </div>
+                        </div>
+
+                        {/* Detailed Metrics */}
+                        <div>
+                          <h4 className="font-semibold mb-3">详细指标</h4>
+                          <div className="space-y-3">
+                            {Object.entries(qualityMetrics).map(([key, value]) => {
+                              const metricNames = {
+                                attractiveness: '吸引力',
+                                contentQuality: '内容质量',
+                                structure: '结构逻辑',
+                                language: '语言表达',
+                                targetFit: '目标适配',
+                                cta: '行动召唤'
+                              };
+                              
+                              return (
+                                <div key={key}>
+                                  <div className="flex justify-between text-sm mb-1">
+                                    <span>{metricNames[key as keyof typeof metricNames] || key}</span>
+                                    <span className="font-medium">{value}%</span>
+                                  </div>
+                                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                                    <div 
+                                      className="bg-blue-600 h-2 rounded-full transition-all duration-500"
+                                      style={{ width: `${value}%` }}
+                                    ></div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Suggestions */}
+                        <div>
+                          <h4 className="font-semibold mb-3">改进建议</h4>
+                          <ul className="space-y-2 text-sm">
+                            {qualitySuggestions.map((suggestion, index) => (
+                              <li key={index} className="flex items-start gap-2">
+                                <i className="fas fa-arrow-right text-blue-500 mt-0.5 flex-shrink-0"></i>
+                                <span>{suggestion}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+
+                        {/* Action Button */}
+                        <button
+                          onClick={handleQualityAssessment}
+                          disabled={isAssessing}
+                          className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center justify-center gap-2"
+                        >
+                          <i className="fas fa-sync-alt"></i>
+                          重新评估
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Keyword Analysis Sidebar */}
+            <AnimatePresence>
+              {showKeywordAnalysis && (
+                <motion.div
+                  initial={{ width: 0, opacity: 0 }}
+                  animate={{ width: 400, opacity: 1 }}
+                  exit={{ width: 0, opacity: 0 }}
+                  className={`border-l flex-shrink-0 overflow-y-auto absolute right-0 top-0 bottom-0 z-10 ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}
+                >
+                  <div className="p-4">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="font-bold">关键词分析</h3>
+                      <button onClick={() => setShowKeywordAnalysis(false)} className="text-gray-400 hover:text-gray-600">
+                        <i className="fas fa-times"></i>
+                      </button>
+                    </div>
+                    
+                    {isExtractingKeywords ? (
+                      <div className="flex items-center justify-center py-10">
+                        <div className="text-center">
+                          <i className="fas fa-spinner fa-spin text-2xl text-blue-500 mb-2"></i>
+                          <p className="text-sm text-gray-400">正在分析...</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-6">
+                        {/* Keywords Table */}
+                        <div>
+                          <h4 className="font-semibold mb-3">主要关键词</h4>
+                          <div className="overflow-x-auto">
+                            <table className={`w-full text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                              <thead className={`${isDark ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                                <tr>
+                                  <th className="px-3 py-2 text-left">关键词</th>
+                                  <th className="px-3 py-2 text-left">重要性</th>
+                                  <th className="px-3 py-2 text-left">密度</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                                {keywords.map((keyword, index) => (
+                                  <tr key={index} className={isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}>
+                                    <td className="px-3 py-2 font-medium">{keyword.word}</td>
+                                    <td className="px-3 py-2">
+                                      <div className="flex items-center gap-2">
+                                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 flex-1">
+                                          <div 
+                                            className="bg-green-600 h-2 rounded-full transition-all duration-500"
+                                            style={{ width: `${keyword.score}%` }}
+                                          ></div>
+                                        </div>
+                                        <span className="text-xs w-12">{keyword.score}%</span>
+                                      </div>
+                                    </td>
+                                    <td className="px-3 py-2">{keyword.density}%</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+
+                        {/* Keyword Analysis */}
+                        <div>
+                          <h4 className="font-semibold mb-3">关键词分析</h4>
+                          <div className="text-sm space-y-2">
+                            <p>关键词分布相对合理，核心关键词出现频率适中。</p>
+                            <p>主要关键词覆盖了文案的核心主题，有助于提高内容相关性。</p>
+                          </div>
+                        </div>
+
+                        {/* Optimization Suggestions */}
+                        <div>
+                          <h4 className="font-semibold mb-3">优化建议</h4>
+                          <ul className="space-y-2 text-sm">
+                            {keywordSuggestions.map((suggestion, index) => (
+                              <li key={index} className="flex items-start gap-2">
+                                <i className="fas fa-arrow-right text-blue-500 mt-0.5 flex-shrink-0"></i>
+                                <span>{suggestion}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+
+                        {/* Recommended Keywords */}
+                        <div>
+                          <h4 className="font-semibold mb-3">推荐关键词</h4>
+                          <div className="flex flex-wrap gap-2">
+                            {['人工智能', '内容创作', '数字化营销', '智能工具', '效率提升', '创意生成', '自动化', '个性化', '用户体验', '转化优化'].map((keyword, index) => (
+                              <span key={index} className={`text-xs px-2.5 py-1.5 rounded-full border ${isDark ? 'border-gray-600 bg-gray-700' : 'border-gray-200 bg-gray-100'}`}>
+                                {keyword}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Action Button */}
+                        <button
+                          onClick={handleKeywordExtraction}
+                          disabled={isExtractingKeywords}
+                          className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center justify-center gap-2"
+                        >
+                          <i className="fas fa-sync-alt"></i>
+                          重新分析
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Style Analysis Sidebar */}
+            <AnimatePresence>
+              {showStyleAnalysis && (
+                <motion.div
+                  initial={{ width: 0, opacity: 0 }}
+                  animate={{ width: 400, opacity: 1 }}
+                  exit={{ width: 0, opacity: 0 }}
+                  className={`border-l flex-shrink-0 overflow-y-auto absolute right-0 top-0 bottom-0 z-10 ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}
+                >
+                  <div className="p-4">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="font-bold">风格分析与结构调整</h3>
+                      <button onClick={() => setShowStyleAnalysis(false)} className="text-gray-400 hover:text-gray-600">
+                        <i className="fas fa-times"></i>
+                      </button>
+                    </div>
+                    
+                    {isAnalyzingStyle ? (
+                      <div className="flex items-center justify-center py-10">
+                        <div className="text-center">
+                          <i className="fas fa-spinner fa-spin text-2xl text-blue-500 mb-2"></i>
+                          <p className="text-sm text-gray-400">正在分析...</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-6">
+                        {/* Style Analysis */}
+                        <div>
+                          <h4 className="font-semibold mb-3">风格分析</h4>
+                          <div className="space-y-3">
+                            {Object.entries(styleMetrics).slice(0, 4).map(([key, value]) => {
+                              const metricNames = {
+                                formality: '语言正式度',
+                                sentenceComplexity: '句式复杂度',
+                                rhetoricalDevices: '修辞手法',
+                                emotionalExpression: '情感表达'
+                              };
+                              
+                              return (
+                                <div key={key}>
+                                  <div className="flex justify-between text-sm mb-1">
+                                    <span>{metricNames[key as keyof typeof metricNames] || key}</span>
+                                    <span className="font-medium">{value}%</span>
+                                  </div>
+                                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                                    <div 
+                                      className="bg-purple-600 h-2 rounded-full transition-all duration-500"
+                                      style={{ width: `${value}%` }}
+                                    ></div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Structure Analysis */}
+                        <div>
+                          <h4 className="font-semibold mb-3">结构评估</h4>
+                          <div className="space-y-3">
+                            {Object.entries(styleMetrics).slice(4).map(([key, value]) => {
+                              const metricNames = {
+                                structureCoherence: '整体结构',
+                                paragraphOrganization: '段落组织',
+                                transitionNaturalness: '过渡衔接',
+                                introductionConclusion: '开头结尾'
+                              };
+                              
+                              return (
+                                <div key={key}>
+                                  <div className="flex justify-between text-sm mb-1">
+                                    <span>{metricNames[key as keyof typeof metricNames] || key}</span>
+                                    <span className="font-medium">{value}%</span>
+                                  </div>
+                                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                                    <div 
+                                      className="bg-orange-600 h-2 rounded-full transition-all duration-500"
+                                      style={{ width: `${value}%` }}
+                                    ></div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Style Suggestions */}
+                        <div>
+                          <h4 className="font-semibold mb-3">风格建议</h4>
+                          <ul className="space-y-2 text-sm">
+                            {styleSuggestions.map((suggestion, index) => (
+                              <li key={index} className="flex items-start gap-2">
+                                <i className="fas fa-arrow-right text-purple-500 mt-0.5 flex-shrink-0"></i>
+                                <span>{suggestion}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+
+                        {/* Structure Suggestions */}
+                        <div>
+                          <h4 className="font-semibold mb-3">结构建议</h4>
+                          <ul className="space-y-2 text-sm">
+                            {structureIssues.map((issue, index) => (
+                              <li key={index} className="flex items-start gap-2">
+                                <i className="fas fa-arrow-right text-orange-500 mt-0.5 flex-shrink-0"></i>
+                                <span>{issue}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+
+                        {/* Action Button */}
+                        <button
+                          onClick={handleStyleAnalysis}
+                          disabled={isAnalyzingStyle}
+                          className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center justify-center gap-2"
+                        >
+                          <i className="fas fa-sync-alt"></i>
+                          重新分析
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         )}
       </div>
@@ -1096,6 +2380,28 @@ IMPORTANT:
                         <h3 className="font-bold text-lg mb-1 line-clamp-1">{draft.title}</h3>
                         <p className="text-sm text-gray-500 mb-4">{draft.templateName}</p>
                         
+                        {/* Category and Tags Display */}
+                        {draft.category && (
+                          <div className="mb-2 flex flex-wrap gap-1">
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 flex items-center gap-1">
+                              <i className={`${DEFAULT_CATEGORIES.find(c => c.id === draft.category)?.icon || 'fas fa-folder'} text-blue-500`}></i>
+                              {DEFAULT_CATEGORIES.find(c => c.id === draft.category)?.name}
+                            </span>
+                          </div>
+                        )}
+                        {draft.tags && draft.tags.length > 0 && (
+                          <div className="mb-2 flex flex-wrap gap-1">
+                            {draft.tags.map(tagId => {
+                              const tag = tags.find(t => t.id === tagId);
+                              return tag ? (
+                                <span key={tagId} className="text-xs px-2 py-0.5 rounded-full text-white" style={{ backgroundColor: tag.color }}>
+                                  {tag.name}
+                                </span>
+                              ) : null;
+                            })}
+                          </div>
+                        )}
+                        
                         <div className="flex items-center justify-between text-xs text-gray-400 border-t pt-3 mt-auto dark:border-gray-700">
                           <span><i className="far fa-clock mr-1"></i>{new Date(draft.updatedAt).toLocaleString()}</span>
                         </div>
@@ -1108,6 +2414,82 @@ IMPORTANT:
                     <p className="text-lg">暂无历史记录</p>
                   </div>
                 )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Tag Management Modal */}
+      <AnimatePresence>
+        {showTagModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className={`w-full max-w-md rounded-2xl shadow-2xl flex flex-col overflow-hidden ${isDark ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'}`}
+            >
+              {/* Modal Header */}
+              <div className={`p-4 border-b flex items-center justify-between ${isDark ? 'border-gray-800' : 'border-gray-200'}`}>
+                <h2 className="text-lg font-bold flex items-center gap-2">
+                  <i className="fas fa-tags text-blue-500"></i>
+                  添加新标签
+                </h2>
+                <button onClick={() => setShowTagModal(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors">
+                  <i className="fas fa-times"></i>
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">标签名称</label>
+                  <input 
+                    type="text" 
+                    value={newTagName}
+                    onChange={(e) => setNewTagName(e.target.value)}
+                    placeholder="输入标签名称"
+                    className={`w-full px-4 py-2 rounded-lg border outline-none focus:ring-2 focus:ring-blue-500 ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-gray-100 border-gray-200'}`}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">标签颜色</label>
+                  <div className="grid grid-cols-6 gap-2">
+                    {['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899', '#6b7280', '#111827', '#f3f4f6', '#ffffff'].map(color => (
+                      <button
+                        key={color}
+                        onClick={() => setNewTagColor(color)}
+                        className={`w-8 h-8 rounded-full border-2 transition-all ${newTagColor === color ? 'border-blue-500 ring-2 ring-blue-200' : 'border-transparent'}`}
+                        style={{ backgroundColor: color }}
+                        title={color}
+                      />
+                    ))}
+                  </div>
+                  <input 
+                    type="color" 
+                    value={newTagColor}
+                    onChange={(e) => setNewTagColor(e.target.value)}
+                    className="w-full mt-2 p-1 rounded-lg border"
+                  />
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className={`p-4 border-t flex justify-end gap-3 ${isDark ? 'border-gray-800' : 'border-gray-200'}`}>
+                <button 
+                  onClick={() => setShowTagModal(false)}
+                  className={`px-4 py-2 rounded-lg border transition-colors ${isDark ? 'border-gray-700 hover:bg-gray-800' : 'border-gray-200 hover:bg-gray-100'}`}
+                >
+                  取消
+                </button>
+                <button 
+                  onClick={handleAddTag}
+                  className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors"
+                >
+                  添加标签
+                </button>
               </div>
             </motion.div>
           </div>

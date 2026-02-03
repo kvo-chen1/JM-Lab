@@ -1,37 +1,34 @@
-// 移除控制台日志增强代码，减少可能的错误
-
-// 移除全局three.js引入，改为在需要的组件中按需引入
-
-// Service Worker 清理逻辑已移除，避免不必要的缓存失效
-
-// 导入国际化配置
-import './i18n/i18n';
-import { setupApi } from './lib/setupApi';
-import { initPerformanceMonitor } from './utils/performanceMonitor';
-
-// Initialize API middleware
-setupApi();
-
-// Initialize Performance Monitor
-initPerformanceMonitor();
-
+// 优先加载 React 核心模块
 import { StrictMode } from "react";
+import * as ReactDOMClient from "react-dom/client";
+
+// 加载样式文件
+import "./index.css";
 import "./styles/tianjin.css";
 import "./styles/neo.css";
-import * as ReactDOMClient from "react-dom/client";
+
+// 加载路由和核心组件
 import { BrowserRouter } from "react-router-dom";
 import { Toaster } from 'sonner';
 import App from "./App.tsx";
+
+// 加载上下文提供者
 import { AuthProvider } from './contexts/authContext.tsx';
 import { WorkflowProvider } from './contexts/workflowContext.tsx';
 import { FriendProvider } from './contexts/friendContext.tsx';
-import { LanguageProvider } from './contexts/LanguageContext';
+import { LanguageProvider } from './contexts/LanguageContext.tsx';
 import { ChatProvider } from './contexts/chatContext.tsx';
-import "./index.css";
+import { ThemeProvider } from './hooks/useTheme';
+
+// 加载错误边界
+import ErrorBoundary from './components/ErrorBoundary';
+
 // 动态加载Font Awesome CSS，避免阻塞初始渲染
 import('@fortawesome/fontawesome-free/css/all.min.css').catch(err => console.error('Failed to load Font Awesome CSS:', err));
-import ErrorBoundary from './components/ErrorBoundary';
-import { ThemeProvider } from './hooks/useTheme';
+
+// 加载工具模块
+import { setupApi } from './lib/setupApi';
+import { initPerformanceMonitor } from './utils/performanceMonitor';
 
 // 简化的全局对象初始化
 // 使用类型断言来避免TypeScript错误
@@ -42,50 +39,71 @@ if (typeof window !== 'undefined') {
 
 import { registerSW } from 'virtual:pwa-register';
 
-// 注册 Service Worker
+// 注册 Service Worker - 延迟执行以避免阻塞初始渲染
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
-  const updateSW = registerSW({
-    onNeedRefresh() {
-      // 当有新内容时提示用户
-      if (confirm('新版本可用，是否刷新？')) {
-        updateSW(true);
-      }
-    },
-    onOfflineReady() {
-      console.log('App ready to work offline');
-    },
-  });
+  // 使用 requestIdleCallback 或 setTimeout 延迟注册
+  const registerServiceWorker = () => {
+    const updateSW = registerSW({
+      onNeedRefresh() {
+        // 当有新内容时提示用户
+        if (confirm('新版本可用，是否刷新？')) {
+          updateSW(true);
+        }
+      },
+      onOfflineReady() {
+        console.log('App ready to work offline');
+      },
+    });
+  };
+
+  if ('requestIdleCallback' in window) {
+    requestIdleCallback(registerServiceWorker, { timeout: 5000 });
+  } else {
+    setTimeout(registerServiceWorker, 3000);
+  }
+}
+
+// 延迟初始化非关键模块
+if ('requestIdleCallback' in window) {
+  requestIdleCallback(() => {
+    setupApi();
+    initPerformanceMonitor();
+  }, { timeout: 3000 });
+} else {
+  setTimeout(() => {
+    setupApi();
+    initPerformanceMonitor();
+  }, 2000);
 }
 
 // 应用渲染
 const root = document.getElementById("root");
 if (root) {
-  // 安全获取createRoot
-  const createRoot = ReactDOMClient.createRoot || (ReactDOMClient as any).default?.createRoot;
-  
-  if (createRoot) {
-    // 使用createRoot直接渲染，不进行hydration
-    createRoot(root).render(
-      <ErrorBoundary>
+  try {
+    // 使用直接的方式渲染应用
+    ReactDOMClient.createRoot(root).render(
+      <StrictMode>
         <LanguageProvider>
           <ThemeProvider>
-            <BrowserRouter>
-                <AuthProvider>
-                  <FriendProvider>
-                    <ChatProvider>
-                      <WorkflowProvider>
+            <AuthProvider>
+              <BrowserRouter>
+                <FriendProvider>
+                  <ChatProvider>
+                    <WorkflowProvider>
+                      <ErrorBoundary>
                         <App />
-                      </WorkflowProvider>
-                    </ChatProvider>
-                  </FriendProvider>
-                </AuthProvider>
+                      </ErrorBoundary>
+                    </WorkflowProvider>
+                  </ChatProvider>
+                </FriendProvider>
               </BrowserRouter>
+            </AuthProvider>
           </ThemeProvider>
         </LanguageProvider>
-      </ErrorBoundary>
+      </StrictMode>
     );
-  } else {
-    console.error('Failed to resolve createRoot from react-dom/client', ReactDOMClient);
+  } catch (error) {
+    console.error('Error rendering app:', error);
     root.innerHTML = '<div style="padding: 20px; color: red;">System Error: Failed to initialize React. Please refresh.</div>';
   }
 } else {

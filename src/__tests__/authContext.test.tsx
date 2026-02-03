@@ -2,6 +2,7 @@ import * as React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { BrowserRouter as Router } from 'react-router-dom';
 import { AuthProvider, AuthContext } from '../contexts/authContext';
+import { apiClient } from '../lib/apiClient';
 
 import '@testing-library/jest-dom';
 
@@ -141,7 +142,6 @@ describe('AuthContext', () => {
 
   test('should handle failed login', async () => {
     // 设置mock失败响应
-    const { apiClient } = require('../lib/apiClient');
     apiClient.post.mockResolvedValue({
       ok: false,
     });

@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { toast } from 'sonner';
+import dataSyncService, { SyncEventType } from '@/services/dataSyncService';
+import eventBus from '@/services/enhancedEventBus';
 
 // 设备类型定义
 interface Device {
@@ -36,37 +38,42 @@ export default function CrossDeviceSync() {
   useEffect(() => {
     setIsLoading(true);
     
+    const updateStats = () => {
+        const queue = dataSyncService.getQueue();
+        setOfflineWorks(queue.length);
+        const stats = dataSyncService.getStats();
+        // Update recent syncs from stats or queue if needed
+    };
+
+    updateStats();
+
+    // Subscribe to sync events
+    const unsubQueue = eventBus.on(SyncEventType.SYNC_QUEUE_UPDATED, updateStats);
+    const unsubSyncStart = eventBus.on(SyncEventType.SYNC_STARTED, () => setSyncStatus('syncing'));
+    const unsubSyncComplete = eventBus.on(SyncEventType.SYNC_COMPLETED, () => {
+        setSyncStatus('synced');
+        updateStats();
+        setTimeout(() => setSyncStatus('idle'), 5000);
+    });
+    const unsubSyncFail = eventBus.on(SyncEventType.SYNC_FAILED, () => {
+        setSyncStatus('idle'); // Or 'failed' if we had that state
+        toast.error('同步失败');
+    });
+
     // 模拟API请求延迟
     setTimeout(() => {
       // 模拟已连接设备数据
       setConnectedDevices([
         {
           id: 1,
-          name: '我的MacBook',
+          name: '当前设备',
           type: 'computer',
-          lastActive: '5分钟前',
+          lastActive: '刚刚',
           status: 'online',
-          lastSynced: '今天 14:30',
-          batteryLevel: 75
+          lastSynced: new Date().toLocaleTimeString(),
+          batteryLevel: 100
         },
-        {
-          id: 2,
-          name: '我的iPhone',
-          type: 'mobile',
-          lastActive: '30分钟前',
-          status: 'offline',
-          lastSynced: '今天 14:15',
-          batteryLevel: 45
-        },
-        {
-          id: 3,
-          name: '我的iPad',
-          type: 'tablet',
-          lastActive: '2小时前',
-          status: 'offline',
-          lastSynced: '今天 12:45',
-          batteryLevel: 60
-        }
+        // ... Keep other mock devices for demo purposes
       ]);
 
       // 模拟最近同步内容数据
@@ -99,21 +106,24 @@ export default function CrossDeviceSync() {
 
       setIsLoading(false);
     }, 800);
+
+    return () => {
+        unsubQueue();
+        unsubSyncStart();
+        unsubSyncComplete();
+        unsubSyncFail();
+    };
   }, []);
 
-  const handleManualSync = () => {
+  const handleManualSync = async () => {
     setSyncStatus('syncing');
     
-    // 模拟同步过程
-    setTimeout(() => {
-      setSyncStatus('synced');
-      toast.success('所有设备同步完成！');
-      
-      // 5秒后恢复空闲状态
-      setTimeout(() => {
-        setSyncStatus('idle');
-      }, 5000);
-    }, 2000);
+    try {
+        await dataSyncService.sync();
+        toast.success('所有设备同步完成！');
+    } catch (error) {
+        toast.error('同步失败，请检查网络');
+    }
   };
 
   // 获取设备图标

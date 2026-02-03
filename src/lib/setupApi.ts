@@ -59,6 +59,32 @@ export function setupApi() {
   };
   
   apiClient.middleware.register({
+    name: 'DataConsistencyCheck',
+    process: async (context, next) => {
+      // Add user identity token to request if available
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      if (token) {
+        context.headers['Authorization'] = `Bearer ${token}`;
+      }
+      
+      const response = await next();
+      
+      // Consistency Check: Verify response metadata if available
+      // Note: This relies on backend sending these headers.
+      // If backend is not set up to send them, this is a client-side preparation.
+      
+      // const responseUserId = response.headers?.get('x-user-id');
+      // const currentUserId = ... get from store ...
+      // if (responseUserId && responseUserId !== currentUserId) {
+      //   console.error('Data consistency violation: User ID mismatch');
+      //   // Handle violation (e.g. logout, alert)
+      // }
+      
+      return response;
+    }
+  });
+
+  apiClient.middleware.register({
     name: 'GlobalErrorHandling',
     process: async (context, next) => {
       try {

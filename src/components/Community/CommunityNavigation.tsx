@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useState, useEffect, useMemo } from 'react';
+import { motion } from 'framer-motion';
 
 interface CommunityNavigationProps {
   isDark: boolean;
@@ -11,91 +11,14 @@ interface CommunityNavigationProps {
   selectedTag?: string;
   onSelectTag?: (tag: string) => void;
   tags?: string[];
+  // Search props
+  search?: string;
+  setSearch?: (value: string) => void;
+  onSearchSubmit?: (query: string) => void;
+  // Management props
+  onOpenManagement?: () => void;
+  hasManagementPermission?: boolean;
 }
-
-// 预定义话题分类（提取到组件外，避免重复创建）
-const TOPIC_CATEGORIES = {
-  '设计相关': ['设计', 'UI', 'UX', '插画', '3D', '赛博朋克', '极简', '国潮', '非遗'],
-  '艺术文化': ['艺术', '文化', '音乐', '摄影', '写作'],
-  '科技数码': ['科技', '数码', 'AI', '编程', '互联网'],
-  '生活方式': ['生活', '美食', '旅行', '时尚', '健康'],
-  '其他': []
-};
-
-// 动画变体
-const categoryVariants = {
-  expanded: {
-    height: 'auto',
-    opacity: 1,
-    transition: {
-      duration: 0.3,
-      ease: 'easeOut'
-    }
-  },
-  collapsed: {
-    height: 0,
-    opacity: 0,
-    transition: {
-      duration: 0.3,
-      ease: 'easeIn'
-    }
-  }
-};
-
-const tagVariants = {
-  hidden: { opacity: 0, y: -10 },
-  visible: { 
-    opacity: 1, 
-    y: 0,
-    transition: { duration: 0.2 }
-  }
-};
-
-const iconVariants = {
-  collapsed: { rotate: 0 },
-  expanded: { rotate: 180 }
-};
-
-// 话题分类函数（提取为独立函数，提高可维护性）
-const categorizeTopics = (topicList: string[]): Record<string, string[]> => {
-  // 初始化分类结果
-  const categorized: Record<string, string[]> = {
-    '设计相关': [],
-    '艺术文化': [],
-    '科技数码': [],
-    '生活方式': [],
-    '其他': []
-  };
-
-  // 对每个话题进行分类
-  topicList.forEach(topic => {
-    let assigned = false;
-    
-    // 检查是否匹配预定义分类
-    for (const [category, keywords] of Object.entries(TOPIC_CATEGORIES)) {
-      if (keywords.some(keyword => topic.includes(keyword))) {
-        categorized[category].push(topic);
-        assigned = true;
-        break;
-      }
-    }
-    
-    // 如果没有匹配的分类，放入其他
-    if (!assigned) {
-      categorized['其他'].push(topic);
-    }
-  });
-
-  // 移除空分类
-  const result: Record<string, string[]> = {};
-  for (const [category, topics] of Object.entries(categorized)) {
-    if (topics.length > 0) {
-      result[category] = topics;
-    }
-  }
-
-  return result;
-};
 
 export const CommunityNavigation: React.FC<CommunityNavigationProps> = ({
   isDark,
@@ -105,71 +28,181 @@ export const CommunityNavigation: React.FC<CommunityNavigationProps> = ({
   onSelectChannel,
   selectedTag,
   onSelectTag,
-  tags = []
+  tags = [],
+  search = '',
+  setSearch,
+  onSearchSubmit,
+  onOpenManagement,
+  hasManagementPermission = false
 }) => {
   const discoveryChannels = [
-    { id: 'communities', icon: 'fas fa-th-large', label: '社群广场' }, // 新增
+    { id: 'communities', icon: 'fas fa-th-large', label: '社群广场' },
     { id: 'feed', icon: 'fas fa-stream', label: '综合动态' },
     { id: 'hot', icon: 'fas fa-fire', label: '热门话题' },
     { id: 'fresh', icon: 'fas fa-clock', label: '最新发布' },
   ];
+  
+  const communityChannels = [
+    { id: 'feed', icon: 'fas fa-stream', label: '帖子' },
+    { id: 'chat', icon: 'fas fa-comment-dots', label: '聊天' },
+    { id: 'members', icon: 'fas fa-users', label: '成员' },
+    { id: 'announcements', icon: 'fas fa-bullhorn', label: '公告' },
+  ];
 
-  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['设计相关']));
-  const [categorySearch, setCategorySearch] = useState<Record<string, string>>({});
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [searchHistory, setSearchHistory] = useState<string[]>([]);
+  const [searchSuggestions, setSearchSuggestions] = useState<string[]>([]);
 
-  const toggleCategory = (category: string) => {
-    const newExpanded = new Set(expandedCategories);
-    if (newExpanded.has(category)) {
-      newExpanded.delete(category);
-    } else {
-      newExpanded.add(category);
-    }
-    setExpandedCategories(newExpanded);
-  };
-
-  const filteredTags = (categoryTags: string[], category: string) => {
-    const search = categorySearch[category] || '';
-    if (!search) return categoryTags;
-    return categoryTags.filter(tag => 
-      tag.toLowerCase().includes(search.toLowerCase())
-    );
-  };
-
-  const handleSearchChange = (category: string, value: string) => {
-    setCategorySearch(prev => ({ ...prev, [category]: value }));
-    if (value && !expandedCategories.has(category)) {
-      setExpandedCategories(prev => new Set([...prev, category]));
-    }
-  };
-
-  const handleCategoryClick = (category: string) => {
-    if (expandedCategories.has(category)) {
-      if (categorySearch[category]) {
-        setCategorySearch(prev => ({ ...prev, [category]: '' }));
-      } else {
-        toggleCategory(category);
+  // 加载搜索历史
+  useEffect(() => {
+    try {
+      const savedHistory = localStorage.getItem('searchHistory');
+      if (savedHistory) {
+        setSearchHistory(JSON.parse(savedHistory));
       }
-    } else {
-      toggleCategory(category);
+    } catch (error) {
+      console.error('Failed to parse search history:', error);
+      // 如果解析失败，可能是数据损坏，尝试重置
+      localStorage.removeItem('searchHistory');
+      setSearchHistory([]);
     }
+  }, []);
+
+  // 保存搜索历史
+  const saveSearchHistory = (query: string) => {
+    if (!query.trim()) return;
+    
+    const newHistory = [query, ...searchHistory.filter(item => item !== query)].slice(0, 5);
+    setSearchHistory(newHistory);
+    localStorage.setItem('searchHistory', JSON.stringify(newHistory));
   };
 
-  const getHotTopics = () => {
-    return categorizeTopics(tags);
+  // 清除搜索历史
+  const clearSearchHistory = () => {
+    setSearchHistory([]);
+    localStorage.removeItem('searchHistory');
   };
 
-  const categorizedTopics = useMemo(() => {
-    return categorizeTopics(tags);
-  }, [tags]);
+  // 生成搜索建议
+  useEffect(() => {
+    if (search.trim()) {
+      // 基于标签和常用搜索词生成建议
+      const allSuggestions = [
+        ...tags,
+        '设计', 'UI', 'UX', '创意', '科技', 'AI', '编程', '艺术', '文化', '音乐', '摄影'
+      ];
+      
+      const filtered = allSuggestions
+        .filter(item => item.toLowerCase().includes(search.toLowerCase()))
+        .filter(item => item !== search)
+        .slice(0, 5);
+      
+      setSearchSuggestions(filtered);
+    } else {
+      setSearchSuggestions([]);
+    }
+  }, [search, tags]);
+
+  // 处理搜索提交
+  const handleSearchSubmit = (query: string) => {
+    saveSearchHistory(query);
+    onSearchSubmit?.(query);
+    setIsSearchFocused(false);
+  };
 
   return (
     <div className={`w-64 flex-shrink-0 flex flex-col h-full lg:h-screen ${isDark ? 'bg-gray-800 bg-opacity-95' : 'bg-white'} border-r ${isDark ? 'border-gray-700' : 'border-gray-100'} transition-all duration-300 shadow-sm`}>
       {/* Header */}
-      <div className={`h-14 flex items-center px-5 font-bold text-lg ${isDark ? 'text-white' : 'text-gray-900'} border-b ${isDark ? 'border-gray-700' : 'border-gray-100'}`}>
-        {mode === 'discovery' ? '发现社群' : communityName || '社群详情'}
-      </div>
+      <motion.div 
+        className={`h-14 flex items-center px-5 font-bold text-lg ${isDark ? 'text-white' : 'text-gray-900'} border-b ${isDark ? 'border-gray-700' : 'border-gray-100'} transition-all duration-300`}
+      >
+        <div className="w-full">
+          {mode === 'discovery' ? '发现社群' : communityName || '社群详情'}
+        </div>
+      </motion.div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {/* Search Bar */}
+        <div className="relative">
+          <div className="relative">
+            <i className={`fas fa-search absolute left-3 top-1/2 -translate-y-1/2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}></i>
+            <input
+              placeholder={mode === 'discovery' ? "搜索社群或话题..." : "搜索社群内容..."}
+              value={search}
+              onChange={(e) => setSearch?.(e.target.value)}
+              onFocus={() => setIsSearchFocused(true)}
+              onBlur={() => setTimeout(() => setIsSearchFocused(false), 200)}
+              onKeyPress={(e) => e.key === 'Enter' && search && handleSearchSubmit(search)}
+              className={`w-full pl-10 pr-4 py-2.5 rounded-xl border focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all ${isDark ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-500' : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400 shadow-sm'}`}
+            />
+            {search && (
+              <button
+                onClick={() => setSearch?.('')}
+                className={`absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 ${isDark ? 'text-gray-500 hover:text-gray-300' : ''}`}
+              >
+                <i className="fas fa-times-circle"></i>
+              </button>
+            )}
+          </div>
+
+          {/* Search Suggestions */}
+          {isSearchFocused && (search || searchHistory.length > 0 || searchSuggestions.length > 0) && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className={`absolute top-full left-0 right-0 mt-1 rounded-xl shadow-lg z-50 ${isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'}`}
+            >
+              {/* Search History */}
+              {!search && searchHistory.length > 0 && (
+                <div className="p-2">
+                  <div className="flex justify-between items-center px-3 py-2">
+                    <h4 className={`text-xs font-semibold ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>搜索历史</h4>
+                    <button
+                      onClick={clearSearchHistory}
+                      className={`text-xs ${isDark ? 'text-gray-400 hover:text-gray-300' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                      清除
+                    </button>
+                  </div>
+                  {searchHistory.map((item, index) => (
+                    <button
+                      key={index}
+                      onClick={() => {
+                        setSearch?.(item);
+                        handleSearchSubmit(item);
+                      }}
+                      className={`w-full flex items-center px-3 py-2 text-sm hover:rounded-lg ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
+                    >
+                      <i className="fas fa-history mr-2 text-gray-400 w-4"></i>
+                      <span>{item}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Search Suggestions */}
+              {searchSuggestions.length > 0 && (
+                <div className="p-2">
+                  <h4 className={`text-xs font-semibold px-3 py-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>搜索建议</h4>
+                  {searchSuggestions.map((suggestion, index) => (
+                    <button
+                      key={index}
+                      onClick={() => {
+                        setSearch?.(suggestion);
+                        handleSearchSubmit(suggestion);
+                      }}
+                      className={`w-full flex items-center px-3 py-2 text-sm hover:rounded-lg ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
+                    >
+                      <i className="fas fa-search mr-2 text-gray-400 w-4"></i>
+                      <span>{suggestion}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </motion.div>
+          )}
+        </div>
         {/* Main Channels - Only show in discovery mode */}
         {mode === 'discovery' && (
             <div className={`rounded-xl ${isDark ? 'bg-gray-900/60' : 'bg-gray-50'} p-3.5 transition-all duration-300 shadow-sm`}>
@@ -178,7 +211,7 @@ export const CommunityNavigation: React.FC<CommunityNavigationProps> = ({
                 </div>
                 <div className="space-y-2">
                     {discoveryChannels.map(channel => (
-                        <button
+                        <motion.button
                             key={channel.id}
                             onClick={() => onSelectChannel(channel.id)}
                             className={`w-full flex items-center px-4 py-3 rounded-xl transition-all duration-250 ease-in-out group ${activeChannel === channel.id ? (
@@ -187,148 +220,92 @@ export const CommunityNavigation: React.FC<CommunityNavigationProps> = ({
                                 isDark ? 'hover:bg-gray-750 text-gray-200' : 'hover:bg-gray-100 text-gray-900 shadow-sm'
                             )}`}
                         >
-                            <i className={`${channel.icon} w-5 text-center mr-2 opacity-100 transition-all duration-250 group-hover:scale-105`}></i>
+                            <i className={`${channel.icon} w-5 text-center mr-2 opacity-100 transition-all duration-250`}></i>
                             <span className="font-medium text-sm flex-1 truncate">{channel.label}</span>
-                            {channel.isExternal && (
-                                <i className="fas fa-external-link-alt w-4 text-center ml-auto opacity-60 text-xs transition-opacity group-hover:opacity-80" title="跳转到创作者社区"></i>
-                            )}
-                        </button>
+                        </motion.button>
+                    ))}
+                </div>
+            </div>
+        )}
+        
+        {/* Community Channels - Only show in community mode */}
+        {mode === 'community' && (
+            <div className={`rounded-xl ${isDark ? 'bg-gray-900/60' : 'bg-gray-50'} p-3.5 transition-all duration-300 shadow-sm`}>
+                <div className={`px-2 py-1.5 text-xs font-semibold uppercase tracking-wider mb-3 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                    频道
+                </div>
+                <div className="space-y-2">
+                    {communityChannels.map(channel => (
+                        <motion.button
+                            key={channel.id}
+                            onClick={() => onSelectChannel(channel.id)}
+                            className={`w-full flex items-center px-4 py-3 rounded-xl transition-all duration-250 ease-in-out group ${activeChannel === channel.id ? (
+                                isDark ? 'bg-primary-500 text-white shadow-lg shadow-primary-500/30' : 'bg-primary-500 text-white shadow-lg shadow-primary-500/20'
+                            ) : (
+                                isDark ? 'hover:bg-gray-750 text-gray-200' : 'hover:bg-gray-100 text-gray-900 shadow-sm'
+                            )}`}
+                        >
+                            <i className={`${channel.icon} w-5 text-center mr-2 opacity-100 transition-all duration-250`}></i>
+                            <span className="font-medium text-sm flex-1 truncate">{channel.label}</span>
+                        </motion.button>
                     ))}
                 </div>
             </div>
         )}
 
-        {/* Categorized Topics - Show in both modes */}
+        {/* Tags Section */}
         {tags.length > 0 && (
           <div className={`rounded-xl ${isDark ? 'bg-gray-900/60' : 'bg-gray-50'} p-3.5 transition-all duration-300 shadow-sm`}>
             <div className={`px-2 py-1.5 text-xs font-semibold uppercase tracking-wider mb-3 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
               {mode === 'discovery' ? '热门分类' : '热门话题'}
             </div>
-            
-            {/* 显示分类后的话题 */}
-            {Object.entries(categorizedTopics).map(([category, categoryTags]) => (
-              <div key={category} className="mb-3 last:mb-0">
-                {/* 分类标题 - 可点击，用于筛选该分类下的所有内容 */}
-                <button
-                  onClick={() => handleCategoryClick(category)}
-                  className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-250 ease-in-out group touch-manipulation min-h-[44px] ${expandedCategories.has(category) ? (
-                    isDark ? 'bg-primary-500/20 text-primary-300' : 'bg-primary-100 text-primary-600'
+            <div className="space-y-2">
+              {tags.slice(0, 5).map((tag) => (
+                <motion.button
+                  key={tag}
+                  onClick={() => onSelectTag?.(tag)}
+                  className={`w-full flex items-center px-4 py-3 rounded-xl transition-all duration-250 ease-in-out group ${selectedTag === tag ? (
+                    isDark ? 'bg-primary-500/25 text-primary-300 shadow-lg' : 'bg-primary-100 text-primary-700 shadow-md'
                   ) : (
-                    isDark ? 'text-gray-300 hover:text-primary-400 hover:bg-primary-500/10' : 'text-gray-700 hover:text-primary-500 hover:bg-primary-50'
+                    isDark ? 'hover:bg-gray-750 text-gray-200' : 'hover:bg-gray-100 text-gray-900 shadow-sm hover:shadow-md'
                   )}`}
                 >
-                  <div className="flex items-center gap-2">
-                    <motion.span 
-                      animate={expandedCategories.has(category) ? 'expanded' : 'collapsed'}
-                      variants={iconVariants}
-                      className="text-xs transition-colors"
-                    >
-                      <i className="fas fa-chevron-down"></i>
-                    </motion.span>
-                    <span className="transition-transform duration-200 group-hover:translate-x-1">{category}</span>
-                  </div>
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${expandedCategories.has(category) ? (
-                    isDark ? 'bg-primary-500/30' : 'bg-primary-200'
-                  ) : (
-                    isDark ? 'bg-gray-700' : 'bg-gray-200'
-                  )} transition-all duration-200 group-hover:scale-105`}>
-                    {categoryTags.length}
+                  <span className={`inline-block w-5 font-semibold transition-all duration-200 ${selectedTag === tag ? (isDark ? 'text-primary-400' : 'text-primary-500') : ''}`}>
+                    #
                   </span>
-                </button>
-                
-                {/* 分类下的搜索框 */}
-                <AnimatePresence>
-                  {expandedCategories.has(category) && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: 'auto', opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.2 }}
-                      className="overflow-hidden"
-                    >
-                      <div className="mt-2 mb-3 relative">
-                        <i className={`fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}></i>
-                        <input
-                          type="text"
-                          placeholder="搜索话题..."
-                          value={categorySearch[category] || ''}
-                          onChange={(e) => handleSearchChange(category, e.target.value)}
-                          className={`w-full pl-9 pr-3 py-2 text-sm rounded-lg border transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500/50 ${isDark ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-500' : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'}`}
-                        />
-                        {categorySearch[category] && (
-                          <button
-                            onClick={() => handleSearchChange(category, '')}
-                            className={`absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-full transition-colors ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
-                          >
-                            <i className="fas fa-times text-xs"></i>
-                          </button>
-                        )}
-                      </div>
-                    </motion.div>
+                  <span className="ml-1 text-sm font-medium truncate flex-1">{tag}</span>
+                  {selectedTag === tag && (
+                    <span className={`text-xs ${isDark ? 'text-primary-400' : 'text-primary-500'}`}>
+                      <i className="fas fa-check"></i>
+                    </span>
                   )}
-                </AnimatePresence>
+                </motion.button>
+              ))}
+            </div>
+          </div>
+        )}
 
-                {/* 分类下的话题列表 */}
-                <AnimatePresence>
-                  {expandedCategories.has(category) && (
-                    <motion.div
-                      initial="hidden"
-                      animate="visible"
-                      exit="hidden"
-                      variants={{
-                        visible: { transition: { staggerChildren: 0.05 } }
-                      }}
-                      className="space-y-1.5"
-                    >
-                      {filteredTags(categoryTags, category).map((tag, index) => (
-                        <motion.button
-                          key={tag}
-                          variants={tagVariants}
-                          onClick={() => onSelectTag?.(tag)}
-                          className={`w-full flex items-center px-4 py-3 rounded-xl transition-all duration-250 ease-in-out group touch-manipulation min-h-[44px] ${selectedTag === tag ? (
-                              isDark ? 'bg-primary-500/25 text-primary-300 shadow-lg' : 'bg-primary-100 text-primary-700 shadow-md'
-                          ) : selectedTag === `category:${category}` ? (
-                              isDark ? 'bg-primary-500/15 text-primary-300' : 'bg-primary-50 text-primary-600'
-                          ) : (
-                              isDark ? 'hover:bg-gray-750 text-gray-200' : 'hover:bg-gray-100 text-gray-900 shadow-sm hover:shadow-md'
-                          )}`}
-                        >
-                        <div className="flex items-center">
-                          <span className={`inline-block w-5 font-semibold transition-all duration-200 group-hover:opacity-100 group-hover:scale-110 ${selectedTag === tag || selectedTag === `category:${category}` ? (isDark ? 'text-primary-400' : 'text-primary-500') : ''}`}>
-                            #
-                          </span>
-                          <span className="ml-1 text-sm font-medium truncate flex-1">{tag}</span>
-                          {selectedTag === tag && (
-                            <motion.span
-                              initial={{ scale: 0 }}
-                              animate={{ scale: 1 }}
-                              className={`text-xs ${isDark ? 'text-primary-400' : 'text-primary-500'}`}
-                            >
-                              <i className="fas fa-check"></i>
-                            </motion.span>
-                          )}
-                        </div>
-                        </motion.button>
-                      ))}
-                      
-                      {filteredTags(categoryTags, category).length === 0 && (
-                        <motion.div
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          className={`text-center py-4 text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}
-                        >
-                          <i className="fas fa-search mb-2 block text-lg opacity-50"></i>
-                          没有找到相关话题
-                        </motion.div>
-                      )}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            ))}
+        {/* Management Section */}
+        {hasManagementPermission && mode === 'community' && (
+          <div className={`rounded-xl ${isDark ? 'bg-gray-900/60' : 'bg-gray-50'} p-3.5 transition-all duration-300 shadow-sm`}>
+            <div className={`px-2 py-1.5 text-xs font-semibold uppercase tracking-wider mb-3 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+              管理
+            </div>
+            <div className="space-y-2">
+              <motion.button
+                onClick={() => onOpenManagement?.()}
+                className={`w-full flex items-center px-4 py-3 rounded-xl transition-all duration-250 ease-in-out group ${isDark ? 'hover:bg-gray-750 text-gray-200' : 'hover:bg-gray-100 text-gray-900 shadow-sm'}`}
+              >
+                <i className="fas fa-cog w-5 text-center mr-2 opacity-100 transition-all duration-250"></i>
+                <span className="font-medium text-sm flex-1 truncate">社区管理</span>
+              </motion.button>
+            </div>
           </div>
         )}
       </div>
     </div>
   );
 };
+
+// 添加displayName便于调试
+CommunityNavigation.displayName = 'CommunityNavigation';

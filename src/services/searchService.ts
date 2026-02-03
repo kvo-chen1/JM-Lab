@@ -1,5 +1,5 @@
 import { SearchResultType } from '@/components/SearchBar'
-import { mockWorks } from '@/mock/works'
+import { workService } from '@/services/apiService'
 
 // 搜索结果类型
 export interface SearchResult {
@@ -34,12 +34,26 @@ class SearchService {
   ]
 
   // 从作品中提取所有标签
-  private getAllTags(): string[] {
-    const tagsSet = new Set<string>()
-    mockWorks.forEach(work => {
-      work.tags.forEach(tag => tagsSet.add(tag))
-    })
-    return Array.from(tagsSet)
+  private async getAllTags(): Promise<string[]> {
+    try {
+      const works = await workService.getWorks();
+      const tagsSet = new Set<string>();
+      works.forEach(work => {
+        if (work.tags) {
+          work.tags.forEach(tag => tagsSet.add(tag));
+        }
+      });
+      return Array.from(tagsSet);
+    } catch (error) {
+      console.error('获取标签失败:', error);
+      return [];
+    }
+  }
+
+  // 同步版本的getAllTags，用于需要立即返回的场景
+  private getAllTagsSync(): string[] {
+    // 返回一些默认标签，实际应用中可以从缓存或其他地方获取
+    return ['国潮设计', '纹样设计', '品牌设计', '非遗传承', '插画设计', '工艺创新', '老字号品牌', 'IP设计', '包装设计'];
   }
 
   // 分析查询意图，确定主要结果类型
@@ -52,10 +66,10 @@ class SearchService {
     // 1. 检查是否是特殊页面
     const specialPages = [
       { name: '共创向导', path: '/wizard', icon: 'fas fa-magic' },
-      { name: '共创广场', path: '/square', icon: 'fas fa-users' },
+      { name: '津脉广场', path: '/square', icon: 'fas fa-users' },
       { name: '创作中心', path: '/create', icon: 'fas fa-wand-magic-sparkles' },
       { name: '探索作品', path: '/explore', icon: 'fas fa-compass' },
-      { name: '工具中心', path: '/tools', icon: 'fas fa-tools' }
+
     ]
     
     const exactPage = specialPages.find(page => page.name.toLowerCase() === lowerQuery)
@@ -97,7 +111,7 @@ class SearchService {
     }
 
     // 3. 检查是否是精确的标签名
-    const exactTag = this.getAllTags().find(tag => tag.toLowerCase() === lowerQuery)
+    const exactTag = this.getAllTagsSync().find(tag => tag.toLowerCase() === lowerQuery)
     if (exactTag) {
       primaryType = SearchResultType.TAG
       confidence = 0.85
@@ -111,16 +125,8 @@ class SearchService {
 
     // 4. 生成搜索建议
     if (suggestedResults.length === 0) {
-      // 从作品标题中搜索
-      const workSuggestions = mockWorks
-        .filter(work => work.title.toLowerCase().includes(lowerQuery))
-        .slice(0, 3)
-        .map(work => ({
-          id: work.id.toString(),
-          text: work.title,
-          type: SearchResultType.WORK,
-          icon: 'fas fa-image'
-        }))
+      // 从作品标题中搜索 - 暂时使用空数组，后续可以从API获取
+      const workSuggestions: SearchResult[] = []
 
       // 从用户名中搜索
       const userSuggestions = this.mockUsers
@@ -134,7 +140,7 @@ class SearchService {
         }))
 
       // 从标签中搜索
-      const tagSuggestions = this.getAllTags()
+      const tagSuggestions = this.getAllTagsSync()
         .filter(tag => tag.toLowerCase().includes(lowerQuery))
         .slice(0, 2)
         .map(tag => ({
@@ -158,10 +164,10 @@ class SearchService {
       // 5. 搜索特殊页面
       const specialPages = [
         { name: '共创向导', path: '/wizard', icon: 'fas fa-magic' },
-        { name: '共创广场', path: '/square', icon: 'fas fa-users' },
+        { name: '津脉广场', path: '/square', icon: 'fas fa-users' },
         { name: '创作中心', path: '/create', icon: 'fas fa-wand-magic-sparkles' },
         { name: '探索作品', path: '/explore', icon: 'fas fa-compass' },
-        { name: '工具中心', path: '/tools', icon: 'fas fa-tools' }
+
       ]
       
       const pageSuggestions = specialPages
@@ -239,90 +245,107 @@ class SearchService {
 
     switch (type) {
       case SearchResultType.WORK:
-        return `/explore?search=${encodedQuery}`
+        return `/square?search=${encodedQuery}`
       case SearchResultType.USER:
         return `/user?name=${encodedQuery}`
       case SearchResultType.CATEGORY:
-        return `/explore?category=${encodedQuery}`
+        return `/square?category=${encodedQuery}`
       case SearchResultType.TAG:
-        return `/explore?tag=${encodedQuery}`
+        return `/square?tag=${encodedQuery}`
       case SearchResultType.PAGE:
         // 特殊页面直接返回路径
         const specialPages = [
           { name: '共创向导', path: '/wizard' },
-          { name: '共创广场', path: '/square' },
+          { name: '津脉广场', path: '/square' },
           { name: '创作中心', path: '/create' },
-          { name: '探索作品', path: '/explore' },
-          { name: '工具中心', path: '/tools' }
+          { name: '探索作品', path: '/square' },
+
         ]
         const page = specialPages.find(p => p.name.toLowerCase() === query.toLowerCase())
-        return page ? page.path : `/search?query=${encodedQuery}`
+        return page ? page.path : `/square?search=${encodedQuery}`
       default:
-        return `/search?query=${encodedQuery}`
+        return `/square?search=${encodedQuery}`
     }
   }
 
   // 搜索所有类型的结果
-  searchAll(query: string): {
-    works: typeof mockWorks
+  async searchAll(query: string): Promise<{
+    works: any[]
     users: typeof SearchService.prototype.mockUsers
     categories: string[]
     tags: string[]
-  } {
+  }> {
     const lowerQuery = query.toLowerCase().trim()
 
-    // 搜索作品并按相关性排序
-    const works = mockWorks
-      .map(work => {
-        let score = 0;
-        const titleLower = work.title.toLowerCase();
-        const descLower = work.description?.toLowerCase() || '';
-        const creatorLower = work.creator.toLowerCase();
-        
-        // 精确匹配权重
-        if (titleLower === lowerQuery) score += 100;
-        if (creatorLower === lowerQuery) score += 80;
-        if (work.tags.some(tag => tag.toLowerCase() === lowerQuery)) score += 60;
-        
-        // 前缀匹配权重
-        if (titleLower.startsWith(lowerQuery)) score += 50;
-        if (creatorLower.startsWith(lowerQuery)) score += 40;
-        if (work.tags.some(tag => tag.toLowerCase().startsWith(lowerQuery))) score += 30;
-        
-        // 包含匹配权重
-        if (titleLower.includes(lowerQuery)) score += 20;
-        if (descLower.includes(lowerQuery)) score += 15;
-        if (work.tags.some(tag => tag.toLowerCase().includes(lowerQuery))) score += 10;
-        if (creatorLower.includes(lowerQuery)) score += 10;
-        
-        // 热门度加权
-        score += work.likes * 0.1 + work.views * 0.01;
-        
-        return { ...work, score };
-      })
-      .filter(work => work.score > 0)
-      .sort((a, b) => b.score - a.score)
+    try {
+      // 从API获取作品数据
+      const worksData = await workService.getWorks();
+      
+      // 确保worksData是数组
+      const safeWorksData = Array.isArray(worksData) ? worksData : [];
+      
+      // 搜索作品并按相关性排序
+      const works = safeWorksData
+        .map(work => {
+          let score = 0;
+          const titleLower = work.title?.toLowerCase() || '';
+          const descLower = work.description?.toLowerCase() || '';
+          const creatorLower = work.author?.username?.toLowerCase() || work.creator?.toLowerCase() || '';
+          const tags = work.tags || [];
+          
+          // 精确匹配权重
+          if (titleLower === lowerQuery) score += 100;
+          if (creatorLower === lowerQuery) score += 80;
+          if (tags.some(tag => tag.toLowerCase() === lowerQuery)) score += 60;
+          
+          // 前缀匹配权重
+          if (titleLower.startsWith(lowerQuery)) score += 50;
+          if (creatorLower.startsWith(lowerQuery)) score += 40;
+          if (tags.some(tag => tag.toLowerCase().startsWith(lowerQuery))) score += 30;
+          
+          // 包含匹配权重
+          if (titleLower.includes(lowerQuery)) score += 20;
+          if (descLower.includes(lowerQuery)) score += 15;
+          if (tags.some(tag => tag.toLowerCase().includes(lowerQuery))) score += 10;
+          if (creatorLower.includes(lowerQuery)) score += 10;
+          
+          // 热门度加权
+          score += (work.likes || 0) * 0.1 + (work.views || 0) * 0.01;
+          
+          return { ...work, score };
+        })
+        .filter(work => work.score > 0)
+        .sort((a, b) => b.score - a.score);
 
-    // 搜索用户
-    const users = this.mockUsers.filter(user => 
-      user.name.toLowerCase().includes(lowerQuery)
-    )
+      // 搜索用户
+      const users = this.mockUsers.filter(user => 
+        user.name.toLowerCase().includes(lowerQuery)
+      )
 
-    // 搜索分类
-    const categories = this.mockCategories.filter(category => 
-      category.toLowerCase().includes(lowerQuery)
-    )
+      // 搜索分类
+      const categories = this.mockCategories.filter(category => 
+        category.toLowerCase().includes(lowerQuery)
+      )
 
-    // 搜索标签
-    const tags = this.getAllTags().filter(tag => 
-      tag.toLowerCase().includes(lowerQuery)
-    )
+      // 搜索标签
+      const tags = this.getAllTagsSync().filter(tag => 
+        tag.toLowerCase().includes(lowerQuery)
+      )
 
-    return {
-      works,
-      users,
-      categories,
-      tags
+      return {
+        works,
+        users,
+        categories,
+        tags
+      };
+    } catch (error) {
+      console.error('搜索失败:', error);
+      return {
+        works: [],
+        users: [],
+        categories: [],
+        tags: []
+      };
     }
   }
 

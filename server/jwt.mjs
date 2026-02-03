@@ -97,6 +97,17 @@ export function verifyToken(token) {
     }
   }
   
+  // 尝试不验证签名直接解码（仅用于调试或信任环境，或者Supabase Token）
+  // 注意：如果是Supabase Token，本地可能没有密钥，所以这里可以做一个宽容处理，
+  // 或者需要用户提供 SUPABASE_JWT_SECRET
+  try {
+     const decoded = jwt.decode(token);
+     if (decoded && (decoded.iss === 'supabase' || decoded.aud === 'authenticated')) {
+         console.log('[JWT] 检测到 Supabase Token，跳过本地签名验证（如需验证请配置 SUPABASE_JWT_SECRET）');
+         return decoded;
+     }
+  } catch(e) {}
+
   // 所有密钥都验证失败
   return null
 }

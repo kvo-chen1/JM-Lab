@@ -4,9 +4,13 @@ import { AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
-import { componentPreloader } from '@/utils/performanceOptimization';
+import { componentPreloader } from '@/utils/performanceOptimization.tsx';
 import { useCreateStore } from '@/pages/create/hooks/useCreateStore';
 import HistoryPanel from '@/pages/create/components/HistoryPanel';
+import { CreatePostModal } from '@/components/Community/Modals/CreatePostModal';
+import postsApi, { Post } from '@/services/postService';
+import { toast } from 'sonner';
+import { AuthContext } from '@/contexts/authContext';
 
 export default function CreateLayout() {
   const { isDark, theme } = useTheme();
@@ -15,6 +19,38 @@ export default function CreateLayout() {
   const shareDesign = useCreateStore((state) => state.shareDesign);
   const selectedResult = useCreateStore((state) => state.selectedResult);
   const [showHistory, setShowHistory] = useState(false);
+  const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
+  const { user } = useContext(AuthContext);
+
+  const handlePublish = async (data: any) => {
+    try {
+      const newPost: Partial<Post> = {
+        title: data.title,
+        description: data.content,
+        thumbnail: data.images?.[0] || 'https://images.unsplash.com/photo-1558655146-d09347e0c766?q=80&w=2560&auto=format&fit=crop',
+        category: data.contentType === 'video' ? 'video' : 'design',
+        tags: [data.topic],
+        date: new Date().toISOString().split('T')[0],
+        likes: 0,
+        views: 0,
+        comments: [],
+        shares: 0,
+        // author: user?.name || '当前用户',
+        // authorAvatar: user?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${Date.now()}`,
+        isLiked: false,
+        isBookmarked: false,
+        videoUrl: data.contentType === 'video' && data.images?.[0] ? data.images[0] : undefined
+      };
+
+      // 传入当前用户对象
+      await postsApi.addPost(newPost as Post, user || undefined);
+      toast.success('发布成功！已发布到广场');
+      setIsPublishModalOpen(false);
+    } catch (error) {
+      toast.error('发布失败');
+      console.error(error);
+    }
+  };
 
   // 预取路由
   const prefetchRoute = (id: string) => {
@@ -24,7 +60,7 @@ export default function CreateLayout() {
   const navItems = [
     { path: '/create', label: '设计工坊', icon: 'layer-group', exact: true },
     { path: '/create/ai-writer', label: 'AI 智作文案', icon: 'pen-nib' },
-    { path: '/create/inspiration', label: '灵感探索', icon: 'bolt' },
+    { path: '/create/inspiration', label: '作品之心', icon: 'bolt' },
     { path: '/create/wizard', label: '品牌向导', icon: 'hat-wizard' },
     { path: '/create-activity', label: '创建活动', icon: 'calendar-plus', exact: true },
   ];
@@ -116,6 +152,15 @@ export default function CreateLayout() {
       <AnimatePresence>
         {showHistory && <HistoryPanel onClose={() => setShowHistory(false)} />}
       </AnimatePresence>
+
+      <CreatePostModal
+        isOpen={isPublishModalOpen}
+        onClose={() => setIsPublishModalOpen(false)}
+        onSubmit={handlePublish}
+        isDark={isDark}
+        topics={['国潮', '非遗', '极简', '赛博朋克']}
+        initialImages={selectedResult ? [String(selectedResult)] : []}
+      />
 
       {/* 移动端底部导航栏 */}
       <div className={clsx(

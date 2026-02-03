@@ -1,18 +1,62 @@
 import { useState, useContext, useEffect, useMemo, useCallback, memo } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { motion } from 'framer-motion'
 import { useTheme } from '@/hooks/useTheme'
 import { AuthContext } from '@/contexts/authContext'
 import { toast } from 'sonner'
 import { markPrefetched, isPrefetched } from '@/services/prefetch'
-import { componentPreloader } from '@/utils/performanceOptimization'
+import { componentPreloader } from '@/utils/performanceOptimization.tsx'
 import { throttle } from '@/utils/performance'
 import clsx from 'clsx'
 import { TianjinImage } from './TianjinStyleComponents'
 import useLanguage from '@/contexts/LanguageContext'
 import { useTranslation } from 'react-i18next'
-import { navigationGroups } from '@/config/navigationConfig'
+import { navigationGroups, bottomNavItems } from '@/config/navigationConfig'
+import { navItemIdToTranslationKey, navGroupIdToTranslationKey } from '@/utils/navigationUtils'
+import {
+  ANIMATION_VARIANTS,
+  INTERACTION_VARIANTS,
+  getResponsiveDuration,
+  getResponsiveDelay
+} from '@/config/animationConfig'
+import {
+  useScreenReader,
+  createAriaAttributes,
+  useHighContrast,
+  useReducedMotion
+} from '@/utils/accessibility'
 
 import PWAInstallButton from './PWAInstallButton'
+
+// 响应式动画速度控制
+const useResponsiveAnimation = () => {
+  const [isMobile, setIsMobile] = useState(true);
+  const [isTablet, setIsTablet] = useState(false);
+
+  useEffect(() => {
+    const checkDevice = () => {
+      const width = window.innerWidth;
+      setIsMobile(width < 768);
+      setIsTablet(width >= 768 && width < 1024);
+    };
+
+    checkDevice();
+    window.addEventListener('resize', checkDevice);
+    return () => window.removeEventListener('resize', checkDevice);
+  }, []);
+
+  // 根据设备类型返回动画持续时间
+  const getDuration = (defaultDuration: number) => {
+    return getResponsiveDuration(defaultDuration, isMobile, isTablet);
+  };
+
+  // 根据设备类型返回动画延迟时间
+  const getDelay = (defaultDelay: number) => {
+    return getResponsiveDelay(defaultDelay, isMobile, isTablet);
+  };
+
+  return { isMobile, isTablet, getDuration, getDelay };
+};
 
 interface MobileLayoutProps {
   children: React.ReactNode
@@ -25,6 +69,12 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
   const navigate = useNavigate()
   const { t } = useTranslation()
   const { currentLanguage, changeLanguage, languages } = useLanguage()
+  const { getDuration, getDelay } = useResponsiveAnimation()
+  
+  // 无障碍功能
+  const { announce } = useScreenReader()
+  const { isHighContrast, highContrastClasses } = useHighContrast()
+  const { prefersReducedMotion, motionSafeClasses } = useReducedMotion()
   
   const [showMobileNav, setShowMobileNav] = useState(true)
   const [search, setSearch] = useState('')
@@ -34,6 +84,8 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
   const [isListening, setIsListening] = useState(false)
   const [scrollProgress, setScrollProgress] = useState(0)
   const [showSidebarDrawer, setShowSidebarDrawer] = useState(false)
+  const [showNavbar, setShowNavbar] = useState(true)
+  const [lastScrollY, setLastScrollY] = useState(0)
   // 通知数据类型
   type Notification = {
     id: string
@@ -103,47 +155,18 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
       return
     }
 
-    if (!user.id.startsWith('phone_user_')) {
-      const fetchNotifications = async () => {
-        try {
-          const token = localStorage.getItem('token');
-          const response = await fetch('/api/notifications', {
-            headers: { 'Authorization': `Bearer ${token}` }
-          });
-          const data = await response.json();
-          if (data.code === 0 && data.data && Array.isArray(data.data.list)) {
-            const mappedNotifications: Notification[] = data.data.list.map((n: any) => ({
-              id: n.id.toString(),
-              title: n.title,
-              description: n.content,
-              time: new Date(n.created_at).toLocaleString(),
-              read: n.is_read,
-              type: 'info', // 默认类型
-              category: 'system', // 默认分类
-              timestamp: new Date(n.created_at).getTime(),
-              sound: false
-            }));
-            setNotifications(mappedNotifications);
-          }
-        } catch (error) {
-          console.error('Failed to fetch notifications:', error);
-        }
-      };
-      fetchNotifications();
-    } else {
-       // Phone user: load mock data
-       const now = Date.now()
-       setNotifications([
-        { id: 'n1', title: t('notification.newMessage'), description: t('notification.newMessageDesc'), time: t('notification.justNow'), read: false, type: 'info', category: 'message', timestamp: now },
-        { id: 'n2', title: t('notification.systemNotification'), description: t('notification.systemNotificationDesc'), time: `1 ${t('notification.hoursAgo')}`, read: false, type: 'success', category: 'system', timestamp: now - 3600000 },
-        { id: 'n3', title: t('notification.workLiked'), description: t('notification.workLikedNewDesc'), time: `2 ${t('notification.hoursAgo')}`, read: false, type: 'success', category: 'like', timestamp: now - 7200000 },
-        { id: 'n4', title: t('notification.newMember'), description: t('notification.newMemberDesc'), time: `30 ${t('notification.minutesAgo')}`, read: false, type: 'info', category: 'join', timestamp: now - 1800000 },
-        { id: 'n5', title: t('notification.mention'), description: t('notification.mentionDesc'), time: `3 ${t('notification.hoursAgo')}`, read: true, type: 'info', category: 'mention', timestamp: now - 10800000 },
-        { id: 'n6', title: t('notification.taskCompleted'), description: t('notification.taskCompletedDesc'), time: `4 ${t('notification.hoursAgo')}`, read: true, type: 'success', category: 'task', timestamp: now - 14400000 },
-        { id: 'n7', title: t('notification.pointsAdded'), description: t('notification.pointsAddedDesc'), time: `5 ${t('notification.hoursAgo')}`, read: false, type: 'success', category: 'points', timestamp: now - 18000000 },
-        { id: 'n8', title: t('notification.uploadFailed'), description: t('notification.uploadFailedDesc'), time: `6 ${t('notification.hoursAgo')}`, read: false, type: 'error', category: 'creation', timestamp: now - 21600000 },
-      ])
-    }
+    // 无论用户类型，都使用模拟数据，避免API调用失败导致页面加载问题
+    const now = Date.now()
+    setNotifications([
+      { id: 'n1', title: t('notification.newMessage'), description: t('notification.newMessageDesc'), time: t('notification.justNow'), read: false, type: 'info', category: 'message', timestamp: now },
+      { id: 'n2', title: t('notification.systemNotification'), description: t('notification.systemNotificationDesc'), time: `1 ${t('notification.hoursAgo')}`, read: false, type: 'success', category: 'system', timestamp: now - 3600000 },
+      { id: 'n3', title: t('notification.workLiked'), description: t('notification.workLikedNewDesc'), time: `2 ${t('notification.hoursAgo')}`, read: false, type: 'success', category: 'like', timestamp: now - 7200000 },
+      { id: 'n4', title: t('notification.newMember'), description: t('notification.newMemberDesc'), time: `30 ${t('notification.minutesAgo')}`, read: false, type: 'info', category: 'join', timestamp: now - 1800000 },
+      { id: 'n5', title: t('notification.mention'), description: t('notification.mentionDesc'), time: `3 ${t('notification.hoursAgo')}`, read: true, type: 'info', category: 'mention', timestamp: now - 10800000 },
+      { id: 'n6', title: t('notification.taskCompleted'), description: t('notification.taskCompletedDesc'), time: `4 ${t('notification.hoursAgo')}`, read: true, type: 'success', category: 'task', timestamp: now - 14400000 },
+      { id: 'n7', title: t('notification.pointsAdded'), description: t('notification.pointsAddedDesc'), time: `5 ${t('notification.hoursAgo')}`, read: false, type: 'success', category: 'points', timestamp: now - 18000000 },
+      { id: 'n8', title: t('notification.uploadFailed'), description: t('notification.uploadFailedDesc'), time: `6 ${t('notification.hoursAgo')}`, read: false, type: 'error', category: 'creation', timestamp: now - 21600000 },
+    ])
   }, [user, t]);
 
   // 过滤后的通知
@@ -216,7 +239,7 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
       )}>
         {showImage ? (
           <img
-            key={user.avatar} // 添加 key 确保 URL 变化时重新渲染 img 标签
+            key={user?.avatar} // 添加 key 确保 URL 变化时重新渲染 img 标签
             src={user.avatar}
             alt={user.username || t('common.user')}
             className="w-full h-full object-cover"
@@ -240,13 +263,24 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
   // 使用节流优化滚动事件处理
   const handleScroll = useCallback(
     throttle(() => {
-      setIsScrolled(window.scrollY > 100)
+      const currentScrollY = window.scrollY
+      setIsScrolled(currentScrollY > 100)
       // 计算滚动进度
       const scrollHeight = document.documentElement.scrollHeight - document.documentElement.clientHeight
-      const progress = scrollHeight > 0 ? (window.scrollY / scrollHeight) * 100 : 0
+      const progress = scrollHeight > 0 ? (currentScrollY / scrollHeight) * 100 : 0
       setScrollProgress(progress)
+      
+      // 导航栏滚动隐藏/显示逻辑
+      if (currentScrollY > lastScrollY && currentScrollY > 100) {
+        // 向下滚动且超过100px，隐藏导航栏
+        setShowNavbar(false)
+      } else if (currentScrollY < lastScrollY || currentScrollY < 50) {
+        // 向上滚动或在顶部，显示导航栏
+        setShowNavbar(true)
+      }
+      setLastScrollY(currentScrollY)
     }, 100), // 100ms 内最多执行一次
-    []
+    [lastScrollY]
   )
 
   useEffect(() => {
@@ -314,7 +348,7 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
       return
     }
     const encodedSearch = encodeURIComponent(search.trim())
-    navigate(`/explore?search=${encodedSearch}`)
+    navigate(`/square?search=${encodedSearch}`)
     setSearch('')
     setShowSearch(false)
   }, [search, navigate, t])
@@ -327,7 +361,9 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
   return (
     <div className={clsx(
       'min-h-screen flex flex-col',
-      themeStyles.background
+      themeStyles.background,
+      highContrastClasses,
+      motionSafeClasses
     )}>
       {/* 滚动进度指示器 - 优化视觉效果 */}
       <div className="fixed top-0 left-0 right-0 h-1 z-50 pointer-events-none">
@@ -345,7 +381,7 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
       {/* 顶部搜索栏 - 增强视觉层次感 */}
       {showSearch ? (
         <div className={clsx(
-          'sticky top-0 z-40 border-b py-2 px-3 transition-all duration-300 ease-in-out',
+          'fixed top-0 left-0 right-0 z-60 border-b py-2 px-3 transition-all duration-300 ease-in-out',
           isDark ? 'bg-gray-900/98 backdrop-blur-xl border-gray-800 shadow-xl' : 
           theme === 'pink' ? 'bg-pink-50/98 backdrop-blur-xl border-pink-200 shadow-xl' : 
           'bg-white/98 backdrop-blur-xl border-gray-200 shadow-xl'
@@ -370,9 +406,9 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
                       placeholder={t('header.searchPlaceholder')}
                       className={clsx(
                         'w-full pl-10 pr-14 py-2.5 rounded-full focus:outline-none focus:ring-3 focus:ring-offset-0 transition-all duration-300',
-                        isDark ? 'bg-gray-800 text-white placeholder-gray-400 focus:ring-blue-500/50' : 
-                        theme === 'pink' ? 'bg-pink-200 text-pink-900 placeholder-pink-700 focus:ring-pink-500/50' : 
-                        'bg-gray-200 text-gray-900 placeholder-gray-700 focus:ring-orange-500/50'
+                        isDark ? 'bg-white text-gray-900 placeholder-gray-400 focus:ring-blue-500/50' : 
+                        theme === 'pink' ? 'bg-white text-pink-900 placeholder-pink-700 focus:ring-pink-500/50' : 
+                        'bg-white text-gray-900 placeholder-gray-700 focus:ring-orange-500/50'
                       )}
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
@@ -381,7 +417,7 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
                     <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-lg">
                       <i className={clsx(
                         'fas fa-search',
-                        isDark ? 'text-gray-400' : 
+                        isDark ? 'text-gray-600' : 
                         theme === 'pink' ? 'text-pink-500' : 
                         'text-orange-500'
                       )}></i>
@@ -406,7 +442,7 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
         </div>
       ) : (
         <div className={clsx(
-          'sticky top-0 z-40 border-b py-1.5 px-2 transition-all duration-300 ease-in-out',
+          'sticky top-0 z-60 border-b py-1.5 px-2 transition-all duration-300 ease-in-out',
           isDark ? 'bg-gray-800/95 backdrop-blur-2xl border-gray-700 shadow-lg' : 
           theme === 'pink' ? 'bg-pink-100/95 backdrop-blur-2xl border-pink-200 shadow-lg' : 
           'bg-white/95 backdrop-blur-2xl border-gray-200 shadow-lg'
@@ -986,7 +1022,7 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
                   <h3 className={clsx('text-sm font-semibold uppercase tracking-wider flex items-center', 
                     isDark ? 'text-gray-300' : theme === 'pink' ? 'text-pink-700' : 'text-gray-600')}>
                     <i className={`fas fa-chevron-down mr-1.5 text-xs transition-transform duration-300 ${expandedGroup === group.id ? 'transform rotate-180' : ''}`}></i>
-                    {group.title}
+                    {t(navGroupIdToTranslationKey[group.id] || group.title)}
                   </h3>
                   <span className={clsx(
                     'text-[10px] px-1.5 py-0.5 rounded-full',
@@ -1024,7 +1060,7 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
                           onClick={() => setShowSidebarDrawer(false)}
                         >
                           <i className={`${item.icon} mr-2.5 text-base transition-transform duration-200 hover:scale-110`}></i>
-                          <span className="flex-1 transition-all duration-200 text-sm">{item.label}</span>
+                          <span className="flex-1 transition-all duration-200 text-sm">{t(navItemIdToTranslationKey[item.id] || item.label)}</span>
                           {item.external && (
                             <i className="fas fa-external-link-alt text-[10px] opacity-50"></i>
                           )}
@@ -1048,91 +1084,139 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
         {children}
       </main>
       
-      {/* 底部导航 - 优化交互体验 */}
-      <div className={clsx(
-        'fixed bottom-0 inset-x-0 md:hidden z-[90] transition-all duration-300 ease-in-out',
-        showMobileNav ? 'translate-y-0' : 'translate-y-full'
-      )}>
-        <div className={clsx(
-          'backdrop-blur-xl border-t shadow-[0_-4px_20px_rgba(0,0,0,0.05)] pb-[env(safe-area-inset-bottom)]',
-          isDark 
-            ? 'bg-gray-900/85 border-gray-800/50' 
-            : theme === 'pink' ? 'bg-white/85 border-pink-200/50' : 'bg-white/85 border-gray-200/50'
-        )}>
-          <ul className="grid grid-cols-5 py-1 px-2">
-            {[
-              { to: '/', icon: 'home', label: t('common.home'), prefetch: 'home' },
-              { to: '/explore', icon: 'compass', label: t('common.explore'), prefetch: 'explore' },
-              { to: '/create', icon: 'plus', label: t('common.create'), prefetch: 'create', isSpecial: true },
-              { to: '/community?context=cocreation&tab=joined', icon: 'comments', label: t('common.community'), prefetch: 'community' },
-              { to: '/tianjin', icon: 'landmark', label: '天津专区', prefetch: 'tianjin' }
-            ].map((item) => (
-              <li key={item.to} className="flex items-center justify-center">
-                <NavLink 
-                  to={item.to} 
-                  onTouchStart={() => prefetchRoute(item.prefetch)}
-                  className={({ isActive }) => clsx(
-                    'flex flex-col items-center justify-center w-full h-[56px] rounded-xl transition-all duration-300 relative',
-                    item.isSpecial ? '' : 'active:scale-90'
-                  )}
-                  end={item.to === '/'}
-                >
-                  {({ isActive }) => {
-                    // 特殊处理创作按钮
-                    if (item.isSpecial) {
-                      return (
-                        <div className="relative -mt-6">
-                          <div className={clsx(
-                            'w-12 h-12 rounded-full flex items-center justify-center shadow-lg transition-all duration-300',
-                            isDark ? 'bg-blue-600 text-white' : theme === 'pink' ? 'bg-pink-500 text-white' : 'bg-orange-500 text-white',
-                            isActive ? 'scale-110 ring-4 ring-opacity-30' : 'scale-100',
-                            isActive ? (isDark ? 'ring-blue-500' : theme === 'pink' ? 'ring-pink-500' : 'ring-orange-500') : ''
-                          )}>
-                            <i className={clsx("fas fa-plus text-xl transition-transform duration-300", isActive ? "rotate-90" : "")}></i>
-                          </div>
-                          <span className={clsx(
-                            'text-[10px] font-medium mt-1 block text-center transition-colors',
-                            isActive 
-                              ? (isDark ? 'text-blue-400' : theme === 'pink' ? 'text-pink-600' : 'text-orange-600') 
-                              : (isDark ? 'text-gray-400' : 'text-gray-500')
-                          )}>{item.label}</span>
-                        </div>
-                      );
-                    }
-
-                    const activeColor = isDark ? 'text-blue-400' : theme === 'pink' ? 'text-pink-600' : 'text-orange-600';
-                    const inactiveColor = isDark ? 'text-gray-400' : 'text-gray-500';
-                    
-                    return (
-                      <>
-                        <div className={clsx(
-                          'relative transition-all duration-300',
-                          isActive ? '-translate-y-1' : 'translate-y-0'
-                        )}>
-                          <i className={clsx(
-                            `fas fa-${item.icon} text-xl transition-colors duration-300`,
-                            isActive ? activeColor : inactiveColor
-                          )}></i>
-                          {isActive && (
-                            <span className={clsx(
-                              'absolute -bottom-2 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full',
-                              isDark ? 'bg-blue-400' : theme === 'pink' ? 'bg-pink-500' : 'bg-orange-500'
-                            )}></span>
+      {/* 底部导航栏 - 移动端专属 */}
+      <motion.nav 
+        className={clsx(
+          'fixed bottom-0 left-0 right-0 z-40 border-t px-2 py-1 transition-all duration-300 ease-in-out md:hidden',
+          isDark ? 'bg-gray-900/95 backdrop-blur-xl border-gray-800 shadow-lg' : 
+          theme === 'pink' ? 'bg-pink-100/95 backdrop-blur-xl border-pink-200 shadow-lg' : 
+          'bg-white/95 backdrop-blur-xl border-gray-200 shadow-lg',
+          showNavbar ? 'shadow-lg' : 'shadow-none'
+        )} 
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+        initial={{ y: 100, opacity: 0 }}
+        animate={{ 
+          y: showNavbar ? 0 : 100, 
+          opacity: showNavbar ? 1 : 0,
+          boxShadow: showNavbar ? '0 -4px 20px rgba(0, 0, 0, 0.1)' : '0 0 0 rgba(0, 0, 0, 0)'
+        }}
+        transition={{ 
+          duration: getDuration(0.3), 
+          type: 'spring', 
+          stiffness: 120, 
+          damping: 20
+        }}
+      >
+        <div className="flex items-center justify-around">
+          {bottomNavItems.map((item, index) => {
+            const isCreateButton = item.id === 'create';
+            return (
+              <NavLink
+                key={item.id}
+                to={item.path}
+                onTouchStart={() => prefetchRoute(item.id)}
+                className={({ isActive }) => clsx(
+                  'flex flex-col items-center justify-center px-3 py-2 transition-all duration-300 hover:scale-105 active:scale-95 flex-1 group',
+                  isActive && !isCreateButton 
+                    ? (isDark ? 'text-white' : theme === 'pink' ? 'text-pink-600' : 'text-red-600') 
+                    : !isCreateButton 
+                    ? (isDark ? 'text-gray-400' : theme === 'pink' ? 'text-pink-700' : 'text-gray-700')
+                    : ''
+                )}
+                end={item.path === '/'}
+                aria-label={item.label}
+              >
+                {({ isActive }) => (
+                  <> 
+                    {isCreateButton ? (
+                      <div className="relative -mt-6">
+                        <motion.div 
+                          className={clsx(
+                            'w-14 h-14 rounded-full flex items-center justify-center shadow-lg transition-all duration-300',
+                            isDark ? 'bg-gradient-to-tr from-red-600 to-red-500 text-white' : 
+                            theme === 'pink' ? 'bg-gradient-to-tr from-pink-500 to-pink-400 text-white' : 
+                            'bg-gradient-to-tr from-red-600 to-red-500 text-white'
                           )}
-                        </div>
-                        <span className={clsx(
-                          'text-[10px] font-medium mt-1 transition-all duration-300',
-                          isActive ? clsx(activeColor, 'scale-105') : inactiveColor
-                        )}>{item.label}</span>
+                          whileHover={{ scale: 1.1, rotate: 5, boxShadow: '0 4px 20px rgba(239, 68, 68, 0.4)' }}
+                          whileTap={{ scale: 0.95 }}
+                          initial={{ y: 50, opacity: 0, scale: 0 }}
+                          animate={{ y: 0, opacity: 1, scale: 1 }}
+                          transition={{ duration: getDuration(0.5), delay: getDelay(index * 0.1), type: 'spring', stiffness: 150 }}
+                        >
+                          <motion.i 
+                            className={clsx(item.icon, "text-xl")}
+                            animate={{ rotate: [0, 5, -5, 0] }}
+                            transition={{ duration: 1, repeat: Infinity, delay: 2 + index * 0.5 }}
+                          ></motion.i>
+                        </motion.div>
+                        <motion.span 
+                          className={clsx(
+                            'text-[10px] font-medium mt-1 block text-center transition-colors',
+                            isDark ? 'text-gray-400' : theme === 'pink' ? 'text-pink-700' : 'text-gray-700'
+                          )}
+                          initial={{ y: 20, opacity: 0 }}
+                          animate={{ y: 0, opacity: 1 }}
+                          transition={{ duration: getDuration(0.3), delay: getDelay(index * 0.1 + 0.3) }}
+                        >{item.label}</motion.span>
+                      </div>
+                    ) : (
+                      <>
+                        <motion.div 
+                          className={clsx(
+                            'w-8 h-8 flex items-center justify-center rounded-full transition-all duration-300',
+                            isActive && !isCreateButton && (
+                              isDark ? 'bg-red-900/30' : 
+                              theme === 'pink' ? 'bg-pink-200' : 
+                              'bg-red-100'
+                            )
+                          )}
+                          whileHover={{ scale: 1.1, y: -2 }}
+                          whileTap={{ scale: 0.9 }}
+                          initial={{ y: 30, opacity: 0, scale: 0.8 }}
+                          animate={{ y: 0, opacity: 1, scale: 1 }}
+                          transition={{ duration: getDuration(0.4), delay: getDelay(index * 0.1), type: 'spring' }}
+                        >
+                          <motion.i 
+                            className={clsx(item.icon, "text-lg")}
+                            animate={{ y: [0, -2, 0] }}
+                            transition={{ duration: 1, repeat: Infinity, delay: 1 + index * 0.3 }}
+                          ></motion.i>
+                          {isActive && !isCreateButton && (
+                            <motion.div
+                              className={clsx(
+                                'absolute bottom-0 w-1.5 h-1.5 rounded-full',
+                                isDark ? 'bg-white' : 
+                                theme === 'pink' ? 'bg-pink-600' : 
+                                'bg-red-600'
+                              )}
+                              initial={{ scale: 0 }}
+                              animate={{ scale: 1 }}
+                              transition={{ duration: 0.3 }}
+                            />
+                          )}
+                        </motion.div>
+                        <motion.span 
+                          className={clsx(
+                            'text-[10px] font-medium mt-1 block text-center transition-colors',
+                            isActive && !isCreateButton && (
+                              isDark ? 'text-white font-semibold' : 
+                              theme === 'pink' ? 'text-pink-600 font-semibold' : 
+                              'text-red-600 font-semibold'
+                            )
+                          )}
+                          initial={{ y: 20, opacity: 0 }}
+                          animate={{ y: 0, opacity: 1 }}
+                          transition={{ duration: getDuration(0.3), delay: getDelay(index * 0.1 + 0.2) }}
+                        >{item.label}</motion.span>
                       </>
-                    );
-                  }}
-                </NavLink>
-              </li>
-            ))}
-          </ul>
+                    )}
+                  </>
+                )}
+              </NavLink>
+            );
+          })}
         </div>
-      </div>
+      </motion.nav>
       
       {/* PWA状态指示器 - 暂时隐藏 */}
       {/* <PWAStatusIndicator position="bottom-right" /> */}

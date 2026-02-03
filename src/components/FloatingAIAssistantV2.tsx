@@ -22,7 +22,7 @@ const PATH_TO_PAGE_KEY: Record<string, string> = {
   '/dashboard': 'dashboard',
   '/settings': 'settings',
   '/neo': 'neo',
-  '/tools': 'tools',
+
   '/wizard': 'wizard',
   '/square': 'square'
 }

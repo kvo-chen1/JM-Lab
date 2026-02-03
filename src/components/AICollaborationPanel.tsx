@@ -22,7 +22,7 @@ interface AICollaborationPanelProps {
 }
 
 export default function AICollaborationPanel({ isOpen, onClose, onContentGenerated, context }: AICollaborationPanelProps) {
-  const { isDark } = useTheme()
+  const { isDark, theme } = useTheme()
   const navigate = useNavigate()
   const { t, i18n } = useTranslation()
   const { user } = useContext(AuthContext)
@@ -46,7 +46,7 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
   // 个性化设置相关状态
   const [showSettings, setShowSettings] = useState(false)
   const [personality, setPersonality] = useState<AssistantPersonality>('friendly')
-  const [theme, setTheme] = useState<AssistantTheme>('auto')
+  const [assistantTheme, setAssistantTheme] = useState<AssistantTheme>('auto')
   const [showPresetQuestions, setShowPresetQuestions] = useState(true)
   const [enableTypingEffect, setEnableTypingEffect] = useState(true)
   const [autoScroll, setAutoScroll] = useState(true)
@@ -56,6 +56,49 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
   const [feedbackVisible, setFeedbackVisible] = useState<{[key: number]: boolean}>({})
   const [feedbackRatings, setFeedbackRatings] = useState<{[key: number]: number}>({})
   const [feedbackComments, setFeedbackComments] = useState<{[key: number]: string}>({})
+
+  // 动态主题样式
+  const themeStyles = (() => {
+    switch (theme) {
+      case 'green':
+        return {
+          headerGradient: 'bg-gradient-to-r from-green-500 via-emerald-500 to-teal-600',
+          buttonGradient: 'bg-gradient-to-r from-green-600 to-teal-600',
+          activeSessionLight: 'bg-gradient-to-r from-green-50 to-teal-50',
+          activeSessionDark: 'bg-gradient-to-r from-green-900/30 to-teal-900/30',
+          hoverLight: 'hover:bg-green-50',
+          hoverDark: 'hover:bg-green-900/20',
+          textAccent: 'text-green-600',
+          borderAccent: 'focus:ring-green-500',
+          spinner: 'text-green-500'
+        }
+      case 'pixel':
+        return {
+          headerGradient: 'bg-gradient-to-r from-purple-600 via-fuchsia-600 to-pink-600',
+          buttonGradient: 'bg-gradient-to-r from-purple-600 to-pink-600',
+          activeSessionLight: 'bg-gradient-to-r from-purple-50 to-pink-50',
+          activeSessionDark: 'bg-gradient-to-r from-purple-900/30 to-pink-900/30',
+          hoverLight: 'hover:bg-purple-50',
+          hoverDark: 'hover:bg-purple-900/20',
+          textAccent: 'text-purple-600',
+          borderAccent: 'focus:ring-purple-500',
+          spinner: 'text-purple-500'
+        }
+      case 'blue':
+      default:
+        return {
+          headerGradient: 'bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-600',
+          buttonGradient: 'bg-gradient-to-r from-blue-600 to-purple-600',
+          activeSessionLight: 'bg-gradient-to-r from-blue-50 to-purple-50',
+          activeSessionDark: 'bg-gradient-to-r from-blue-900/30 to-purple-900/30',
+          hoverLight: 'hover:bg-blue-50',
+          hoverDark: 'hover:bg-blue-900/20',
+          textAccent: 'text-blue-600',
+          borderAccent: 'focus:ring-blue-500',
+          spinner: 'text-blue-500'
+        }
+    }
+  })()
   
   const presetQuestions = (() => {
     const path = context?.path
@@ -147,7 +190,7 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
   useEffect(() => {
     const config = llmService.getConfig()
     setPersonality(config.personality)
-    setTheme(config.theme)
+    setAssistantTheme(config.theme)
     setShowPresetQuestions(config.show_preset_questions)
     setEnableTypingEffect(config.enable_typing_effect)
     setAutoScroll(config.auto_scroll)
@@ -157,7 +200,7 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
   const saveSettings = () => {
     llmService.updateConfig({
       personality,
-      theme,
+      theme: assistantTheme,
       show_preset_questions: showPresetQuestions,
       enable_typing_effect: enableTypingEffect,
       auto_scroll: autoScroll
@@ -172,7 +215,7 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
         setPersonality(value)
         break
       case 'theme':
-        setTheme(value)
+        setAssistantTheme(value)
         break
       case 'showPresetQuestions':
         setShowPresetQuestions(value)
@@ -242,11 +285,11 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
       '/marketplace': `你好！我是津小脉，欢迎来到文创市集。在这里你可以购买精美的文创产品，或成为卖家展示你的作品。有什么购物或销售方面的问题吗？`,
       '/community': `你好！我是津小脉，欢迎来到社区。这里是创作者的聚集地，你可以参与讨论、分享作品或参与活动。需要我帮你了解社区功能吗？`,
       '/my-works': `你好！我是津小脉，欢迎来到我的作品页面。在这里你可以管理和查看你的创作成果。需要我帮你了解作品管理功能吗？`,
-      '/explore': `你好！我是津小脉，欢迎来到探索页面。在这里你可以发现各类优秀作品，按照不同维度筛选内容。需要我帮你了解搜索和筛选功能吗？`,
+
       '/create': `你好！我是津小脉，欢迎来到创作中心。现在你可以开始你的创作之旅，使用各种AI辅助工具和素材。需要我帮你了解创作工具的使用方法吗？`,
       '/dashboard': `你好！我是津小脉，欢迎来到仪表盘。这里展示了你的创作数据和平台动态。需要我帮你解读数据或了解平台动态吗？`,
       '/neo': `你好！我是津小脉，欢迎来到灵感引擎。在这里你可以获得创作灵感和AI辅助建议。需要我帮你激发创意吗？`,
-      '/tools': `你好！我是津小脉，欢迎来到工具页面。这里汇聚了各种创作辅助工具。需要我帮你了解工具的使用方法吗？`
+
     };
     
     const path = context?.path || '';
@@ -640,7 +683,7 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
             style={{ borderLeft: '1px solid', maxWidth: '100%', borderRadius: '2xl 0 0 2xl' }}
           >
             {/* 面板头部 */}
-            <div className="p-4 border-b dark:border-gray-800/50 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-600 text-white shadow-lg relative overflow-hidden rounded-t-2xl">
+            <div className={`p-4 border-b dark:border-gray-800/50 ${themeStyles.headerGradient} text-white shadow-lg relative overflow-hidden rounded-t-2xl`}>
               {/* 装饰性背景元素 */}
               <div className="absolute top-0 left-0 w-full h-full opacity-20">
                 <div className="absolute top-[-30%] left-[-30%] w-96 h-96 rounded-full bg-white blur-3xl"></div>
@@ -710,7 +753,7 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
                   {sessions.map(session => (
                     <motion.div
                       key={session.id}
-                      className={`p-3.5 cursor-pointer border-b dark:border-gray-800/50 transition-all duration-300 rounded-l-lg ${currentSession?.id === session.id ? (isDark ? 'bg-gradient-to-r from-blue-900/30 to-purple-900/30 text-white' : 'bg-gradient-to-r from-blue-50 to-purple-50 text-gray-900') : (isDark ? 'hover:bg-gray-800 text-gray-200' : 'hover:bg-gray-50 text-gray-900')}`}
+                      className={`p-3.5 cursor-pointer border-b dark:border-gray-800/50 transition-all duration-300 rounded-l-lg ${currentSession?.id === session.id ? (isDark ? `${themeStyles.activeSessionDark} text-white` : `${themeStyles.activeSessionLight} text-gray-900`) : (isDark ? `hover:bg-gray-800 text-gray-200` : `hover:bg-gray-50 text-gray-900`)}`}
                       whileHover={{ x: 5 }}
                       onClick={() => switchSession(session.id)}
                       initial={{ opacity: 0, x: -10 }}
@@ -722,7 +765,7 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
                           <p className="text-sm font-medium truncate flex items-center gap-2">
                             {currentSession?.id === session.id && (
                               <motion.span 
-                                className="w-2 h-2 rounded-full bg-blue-500"
+                                className={`w-2 h-2 rounded-full ${themeStyles.spinner.replace('text-', 'bg-')}`}
                                 animate={{ scale: [1, 1.2, 1] }}
                                 transition={{ repeat: Infinity, duration: 1.5 }}
                               ></motion.span>
@@ -789,7 +832,7 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
                         onChange={(e) => setEditingSessionName(e.target.value)}
                         onKeyPress={(e) => e.key === 'Enter' && renameSession()}
                         onBlur={renameSession}
-                        className={`flex-1 text-sm p-1 border rounded ${isDark ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-300 text-black'} focus:outline-none focus:ring-1 focus:ring-blue-500`}
+                        className={`flex-1 text-sm p-1 border rounded ${isDark ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-300 text-black'} focus:outline-none focus:ring-1 ${themeStyles.borderAccent}`}
                         autoFocus
                       />
                       <button
@@ -817,7 +860,7 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
                             setIsEditingSessionName(true)
                             setEditingSessionName(currentSession?.name || '')
                           }}
-                          className="ml-2 text-xs text-gray-400 hover:text-blue-500 transition-colors"
+                          className={`ml-2 text-xs text-gray-400 hover:${themeStyles.textAccent} transition-colors`}
                         >
                           <i className="fas fa-pen"></i>
                         </button>
@@ -1006,7 +1049,7 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
                             <button
                               key={themeOption}
                               onClick={() => handleSettingChange('theme', themeOption)}
-                              className={`p-2 rounded-lg transition-all ${theme === themeOption ? 
+                              className={`p-2 rounded-lg transition-all ${assistantTheme === themeOption ? 
                                 (isDark ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white') : 
                                 (isDark ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-100 hover:bg-gray-200 text-gray-700')
                               }`}
@@ -1173,7 +1216,7 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
                         onChange={(e) => setInput(e.target.value)}
                         onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
                         placeholder={t('aiCollab.placeholders.input')}
-                        className={`w-full min-h-[56px] sm:min-h-[64px] max-h-[150px] sm:max-h-[200px] p-3 sm:p-4 rounded-2xl border resize-none shadow-sm ${isDark ? 'bg-gray-800 border-gray-700/50 text-white placeholder-gray-500' : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'} focus:outline-none focus:ring-3 focus:ring-blue-500/30 focus:border-blue-500 transition-all duration-300`}
+                        className={`w-full min-h-[56px] sm:min-h-[64px] max-h-[150px] sm:max-h-[200px] p-3 sm:p-4 rounded-2xl border resize-none shadow-sm ${isDark ? 'bg-gray-800 border-gray-700/50 text-white placeholder-gray-500' : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'} focus:outline-none focus:ring-3 focus:ring-blue-500/30 ${themeStyles.borderAccent} transition-all duration-300`}
                         disabled={isGenerating}
                         style={{ resize: 'none' }}
                       />
@@ -1187,7 +1230,7 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
                     <motion.button
                       onClick={sendMessage}
                       disabled={isGenerating || !input.trim()}
-                      className={`px-3.5 sm:px-4.5 py-3 sm:py-3.5 rounded-2xl transition-all duration-300 font-medium shadow-md flex-shrink-0 ${isGenerating || !input.trim() ? (isDark ? 'bg-gray-700 text-gray-400 cursor-not-allowed' : 'bg-gray-300 text-gray-500 cursor-not-allowed') : (isDark ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white' : 'bg-gradient-to-r from-blue-600 to-purple-600 text-white')}`}
+                      className={`px-3.5 sm:px-4.5 py-3 sm:py-3.5 rounded-2xl transition-all duration-300 font-medium shadow-md flex-shrink-0 ${isGenerating || !input.trim() ? (isDark ? 'bg-gray-700 text-gray-400 cursor-not-allowed' : 'bg-gray-300 text-gray-500 cursor-not-allowed') : `${themeStyles.buttonGradient} text-white`}`}
                       whileHover={!isGenerating && input.trim() ? { scale: 1.05, boxShadow: '0 8px 20px rgba(99, 102, 241, 0.3)' } : {}}
                       whileTap={!isGenerating && input.trim() ? { scale: 0.98 } : {}}
                       transition={{ type: 'spring', stiffness: 300, damping: 15 }}

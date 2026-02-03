@@ -4,29 +4,39 @@ import { scoreAuthenticity } from '@/services/authenticityService'
 import { useTheme } from '@/hooks/useTheme'
 import { llmService } from '@/services/llmService'
 import voiceService from '@/services/voiceService'
-import { createVideoTask, pollVideoTask, DoubaoVideoContent } from '@/services/doubao'
+import doubao, { createVideoTask, pollVideoTask, DoubaoVideoContent } from '@/services/doubao'
 import { TianjinImage } from '@/components/TianjinStyleComponents'
 import { toast } from 'sonner'
 import errorService from '@/services/errorService'
 import GradientHero from '@/components/GradientHero'
 import NeoLeftSidebar from '@/components/NeoLeftSidebar'
 import NeoRightSidebar from '@/components/NeoRightSidebar'
+import ImageEditor from '@/components/ImageEditor'
 import { motion, AnimatePresence } from 'framer-motion'
 import { tianjinActivityService, Activity } from '@/services/tianjinActivityService'
 
+interface ErrorBoundaryProps {
+  children: React.ReactNode;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
 // 错误边界组件
-class ErrorBoundary extends React.Component {
-  constructor(props) {
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = { hasError: false, error: null };
   }
 
-  static getDerivedStateFromError(error) {
+  static getDerivedStateFromError(error: Error) {
     // 更新状态，下次渲染时显示备用UI
     return { hasError: true, error };
   }
 
-  componentDidCatch(error, errorInfo) {
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     // 记录错误信息
     console.error('Error caught by ErrorBoundary:', error, errorInfo);
     errorService.logError(error, { scope: 'neo-error-boundary', errorInfo });
@@ -129,7 +139,88 @@ const saveStylePresets = (presets: StylePreset[]) => {
 
 export default function Neo() {
   // 获取主题信息
-  const { isDark } = useTheme()
+  const { isDark, theme } = useTheme()
+  
+  const themeStyles = {
+    light: {
+      bg: 'bg-white',
+      pageBg: 'bg-slate-50',
+      border: 'border-slate-200',
+      text: 'text-slate-900',
+      textSecondary: 'text-slate-500',
+      accent: 'blue-600',
+      accentBg: 'bg-blue-600',
+      accentLight: 'bg-blue-50',
+      hover: 'hover:bg-slate-50',
+      button: 'bg-slate-900 text-white hover:bg-slate-800',
+      cardBg: 'bg-white',
+      inputBg: 'bg-white',
+      ring: 'ring-blue-500'
+    },
+    dark: {
+      bg: 'bg-slate-900',
+      pageBg: 'bg-black',
+      border: 'border-slate-800',
+      text: 'text-white',
+      textSecondary: 'text-slate-400',
+      accent: 'blue-500',
+      accentBg: 'bg-blue-500',
+      accentLight: 'bg-blue-900/30',
+      hover: 'hover:bg-slate-800',
+      button: 'bg-white text-slate-900 hover:bg-slate-100',
+      cardBg: 'bg-slate-900',
+      inputBg: 'bg-slate-800',
+      ring: 'ring-blue-500'
+    },
+    blue: {
+      bg: 'bg-blue-50',
+      pageBg: 'bg-blue-100',
+      border: 'border-blue-200',
+      text: 'text-blue-900',
+      textSecondary: 'text-blue-600',
+      accent: 'blue-600',
+      accentBg: 'bg-blue-600',
+      accentLight: 'bg-blue-100',
+      hover: 'hover:bg-blue-100',
+      button: 'bg-blue-600 text-white hover:bg-blue-700',
+      cardBg: 'bg-white/80 backdrop-blur-sm',
+      inputBg: 'bg-white/50',
+      ring: 'ring-blue-500'
+    },
+    green: {
+      bg: 'bg-emerald-50',
+      pageBg: 'bg-emerald-100',
+      border: 'border-emerald-200',
+      text: 'text-emerald-900',
+      textSecondary: 'text-emerald-600',
+      accent: 'emerald-600',
+      accentBg: 'bg-emerald-600',
+      accentLight: 'bg-emerald-100',
+      hover: 'hover:bg-emerald-100',
+      button: 'bg-emerald-600 text-white hover:bg-emerald-700',
+      cardBg: 'bg-white/80 backdrop-blur-sm',
+      inputBg: 'bg-white/50',
+      ring: 'ring-emerald-500'
+    },
+    pixel: {
+      bg: 'bg-zinc-100',
+      pageBg: 'bg-zinc-200',
+      border: 'border-zinc-900 border-2',
+      text: 'text-zinc-900 font-mono',
+      textSecondary: 'text-zinc-600 font-mono',
+      accent: 'indigo-600',
+      accentBg: 'bg-indigo-600',
+      accentLight: 'bg-indigo-200',
+      hover: 'hover:bg-zinc-200',
+      button: 'bg-zinc-900 text-white border-2 border-transparent hover:border-zinc-900 hover:bg-white hover:text-zinc-900 font-mono',
+      cardBg: 'bg-white border-2 border-zinc-900 shadow-[4px_4px_0px_0px_rgba(24,24,27,1)]',
+      inputBg: 'bg-white border-2 border-zinc-900',
+      ring: 'ring-zinc-900'
+    }
+  }
+
+  const currentStyle = themeStyles[theme as keyof typeof themeStyles] || themeStyles.light
+
   const location = useLocation()
   
   // 检查是否在创作中心内
@@ -191,6 +282,10 @@ export default function Neo() {
     quality: 'high' as 'low' | 'medium' | 'high',
     resolution: 'original' as 'original' | '480p' | '720p' | '1080p'
   })
+  
+  // 图片编辑状态
+  const [editingImageUrl, setEditingImageUrl] = useState<string | null>(null);
+
   const [batchExportModalOpen, setBatchExportModalOpen] = useState(false)
   const [selectedExportItems, setSelectedExportItems] = useState<number[]>([])
   
@@ -917,6 +1012,86 @@ export default function Neo() {
   const [scale, setScale] = useState(1)
   const [filter, setFilter] = useState('none')
   const [filteredImages, setFilteredImages] = useState<string[]>([])
+  const [showPlanLibrary, setShowPlanLibrary] = useState(false)
+  const [savedPlans, setSavedPlans] = useState<Array<{ id: string; title: string; query: string; aiText: string; ts: number }>>([])
+
+  // 保存到方案库
+  const saveToPlanLibrary = () => {
+    if (!prompt.trim()) {
+      toast.warning('暂无内容可保存')
+      return
+    }
+    
+    // 从本地存储加载现有方案
+    const existingPlans = JSON.parse(localStorage.getItem('TOOLS_SAVED_PLANS') || '[]')
+    
+    // 创建新方案
+    const newPlan = {
+      id: String(Date.now()),
+      title: prompt.split('\n')[0] || '未命名方案',
+      query: prompt,
+      aiText: '',
+      ts: Date.now()
+    }
+    
+    // 添加到方案库并限制数量
+    const updatedPlans = [newPlan, ...existingPlans].slice(0, 20)
+    setSavedPlans(updatedPlans)
+    
+    try {
+      localStorage.setItem('TOOLS_SAVED_PLANS', JSON.stringify(updatedPlans))
+      toast.success('已保存到方案库')
+    } catch (error) {
+      console.error('保存方案库失败:', error)
+      toast.error('保存失败，请稍后再试')
+    }
+  }
+
+  // Load saved plans from local storage
+  useEffect(() => {
+    try {
+      const plansRaw = localStorage.getItem('TOOLS_SAVED_PLANS');
+      if (plansRaw) {
+        const plans = JSON.parse(plansRaw);
+        setSavedPlans(plans);
+      }
+    } catch (error) {
+      console.error('加载方案库失败:', error);
+    }
+  }, []);
+
+  // Apply plan to prompt
+  const applyPlan = (planId: string) => {
+    const plan = savedPlans.find(x => x.id === planId);
+    if (plan) {
+      setPrompt(plan.aiText || plan.query);
+      setShowPlanLibrary(false);
+      toast.success('已应用方案');
+    }
+  };
+
+  // 从方案库中删除方案
+  const removePlan = (planId: string) => {
+    const nextPlans = savedPlans.filter(x => x.id !== planId);
+    setSavedPlans(nextPlans);
+    try {
+      localStorage.setItem('TOOLS_SAVED_PLANS', JSON.stringify(nextPlans));
+      toast.success('已从方案库中删除');
+    } catch (error) {
+      console.error('保存方案库失败:', error);
+    }
+  };
+
+  // 清空方案库
+  const clearPlans = () => {
+    setSavedPlans([]);
+    try {
+      localStorage.removeItem('TOOLS_SAVED_PLANS');
+      toast.success('已清空方案库');
+    } catch (error) {
+      console.error('清空方案库失败:', error);
+    }
+  };
   const [originalImage, setOriginalImage] = useState('')
   const [showEditPanel, setShowEditPanel] = useState(false)
   // 视频参数自定义
@@ -1274,20 +1449,30 @@ export default function Neo() {
   // 图片编辑工具功能函数
   const openImageEditor = (index: number) => {
     setEditingImageIndex(index)
-    setOriginalImage(images[index])
-    setFilteredImages([...images])
-    setRotation(0)
-    setScale(1)
-    setFilter('none')
-    setCropParams({ x: 0, y: 0, width: 0, height: 0 })
-    setShowEditPanel(true)
+    setEditingImageUrl(images[index])
   }
 
   const closeImageEditor = () => {
     setEditingImageIndex(null)
-    setShowEditPanel(false)
-    setOriginalImage('')
-    setFilteredImages([])
+    setEditingImageUrl(null)
+  }
+
+  const handleEditorSave = (newUrl: string) => {
+    if (editingImageIndex !== null) {
+      setImages(prev => {
+        const next = [...prev]
+        next[editingImageIndex] = newUrl
+        return next
+      })
+      // 同时保存到历史记录
+      saveHistory({
+        url: newUrl, // 这里可能是base64，对于演示没问题，生产环境应上传
+        image: newUrl,
+        createdAt: Date.now(),
+        type: 'image'
+      })
+    }
+    closeImageEditor()
   }
 
   const applyCrop = () => {
@@ -1841,7 +2026,7 @@ export default function Neo() {
 
   return (
     <div 
-      className={`flex flex-col h-full ${isDark ? 'bg-gray-950 text-white' : 'bg-gray-50 text-gray-900'}`}
+      className={`flex flex-col h-full ${currentStyle.pageBg} ${currentStyle.text}`}
       style={{
         '--primary-color': isDark ? '#ef4444' : '#ef4444',
         '--secondary-color': isDark ? '#f97316' : '#f97316',
@@ -1882,33 +2067,33 @@ export default function Neo() {
       {/* 快捷工具模态框 */}
       {showToolsModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className={`w-full max-w-lg rounded-2xl shadow-2xl ${isDark ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}>
-            <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+          <div className={`w-full max-w-lg rounded-2xl shadow-2xl ${currentStyle.cardBg} ${currentStyle.text}`}>
+            <div className={`p-6 border-b ${currentStyle.border} flex justify-between items-center`}>
               <h3 className="text-xl font-bold">快捷工具</h3>
               <button onClick={() => setShowToolsModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
                 <i className="fas fa-times text-xl"></i>
               </button>
             </div>
             <div className="p-6 grid grid-cols-2 gap-4">
-               <button onClick={() => { setShowToolsModal(false); optimizePrompt(); }} className={`p-4 rounded-xl border flex flex-col items-center gap-3 transition-all hover:scale-105 ${isDark ? 'border-slate-700 hover:bg-slate-800' : 'border-slate-200 hover:bg-slate-50'}`}>
+               <button onClick={() => { setShowToolsModal(false); optimizePrompt(); }} className={`p-4 rounded-xl border flex flex-col items-center gap-3 transition-all hover:scale-105 ${currentStyle.border} ${currentStyle.hover}`}>
                  <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xl">
                    <i className="fas fa-magic"></i>
                  </div>
                  <span className="font-medium">提示词优化</span>
                </button>
-               <button onClick={() => { setShowToolsModal(false); testDoubaoVQA(); }} className={`p-4 rounded-xl border flex flex-col items-center gap-3 transition-all hover:scale-105 ${isDark ? 'border-slate-700 hover:bg-slate-800' : 'border-slate-200 hover:bg-slate-50'}`}>
+               <button onClick={() => { setShowToolsModal(false); testDoubaoVQA(); }} className={`p-4 rounded-xl border flex flex-col items-center gap-3 transition-all hover:scale-105 ${currentStyle.border} ${currentStyle.hover}`}>
                  <div className="w-12 h-12 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center text-xl">
                    <i className="fas fa-image"></i>
                  </div>
                  <span className="font-medium">图片反推</span>
                </button>
-               <button className={`p-4 rounded-xl border flex flex-col items-center gap-3 transition-all hover:scale-105 opacity-50 cursor-not-allowed ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
+               <button className={`p-4 rounded-xl border flex flex-col items-center gap-3 transition-all hover:scale-105 opacity-50 cursor-not-allowed ${currentStyle.border}`}>
                  <div className="w-12 h-12 rounded-full bg-green-100 text-green-600 flex items-center justify-center text-xl">
                    <i className="fas fa-eraser"></i>
                  </div>
                  <span className="font-medium">背景移除 (开发中)</span>
                </button>
-               <button className={`p-4 rounded-xl border flex flex-col items-center gap-3 transition-all hover:scale-105 opacity-50 cursor-not-allowed ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
+               <button className={`p-4 rounded-xl border flex flex-col items-center gap-3 transition-all hover:scale-105 opacity-50 cursor-not-allowed ${currentStyle.border}`}>
                  <div className="w-12 h-12 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-xl">
                    <i className="fas fa-expand"></i>
                  </div>
@@ -1922,8 +2107,8 @@ export default function Neo() {
       {/* 创作统计模态框 */}
       {showStatsModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className={`w-full max-w-2xl rounded-2xl shadow-2xl ${isDark ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}>
-            <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+          <div className={`w-full max-w-2xl rounded-2xl shadow-2xl ${currentStyle.cardBg} ${currentStyle.text}`}>
+            <div className={`p-6 border-b ${currentStyle.border} flex justify-between items-center`}>
               <h3 className="text-xl font-bold">创作统计</h3>
               <button onClick={() => setShowStatsModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
                 <i className="fas fa-times text-xl"></i>
@@ -1966,7 +2151,7 @@ export default function Neo() {
       )}
 
       {/* 移动端头部 */}
-      <div className={`md:hidden h-16 flex items-center justify-between px-4 border-b z-50 sticky top-0 ${isDark ? 'bg-gray-900 border-gray-800 text-white' : 'bg-white border-gray-200 text-gray-900'} shadow-sm`}>
+      <div className={`md:hidden h-16 flex items-center justify-between px-4 border-b z-50 sticky top-0 ${currentStyle.bg} ${currentStyle.border} ${currentStyle.text} shadow-sm`}>
         <div className="flex items-center gap-3">
           <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-2 -ml-2 rounded-lg hover:bg-gray-200/20 dark:hover:bg-gray-800/50 transition-colors">
             <i className={`fas ${mobileMenuOpen ? 'fa-times' : 'fa-bars'} text-lg`}></i>
@@ -2030,10 +2215,10 @@ export default function Neo() {
               {/* Header Area */}
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                  <div>
-                    <h2 className={`text-2xl font-bold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                    <h2 className={`text-2xl font-bold tracking-tight ${currentStyle.text}`}>
                        {activeTab === 'create' ? '开始创作' : activeTab === 'results' ? '生成结果' : '历史记录'}
                     </h2>
-                    <p className={`text-sm mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                    <p className={`text-sm mt-1 ${currentStyle.textSecondary}`}>
                        {activeTab === 'create' ? '释放你的想象力，探索津门文化的无限可能' : activeTab === 'results' ? '查看刚刚生成的精彩作品' : '回顾过往的创作历程'}
                     </p>
                  </div>
@@ -2065,9 +2250,9 @@ export default function Neo() {
               <div className="xl:col-span-4 space-y-6">
                 
                 {/* Presets Card */}
-                <div className={`p-5 rounded-2xl border ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'} shadow-sm`}>
+                <div className={`p-5 rounded-2xl border ${currentStyle.cardBg} ${currentStyle.border} shadow-sm`}>
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className={`font-semibold flex items-center gap-2 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+                    <h3 className={`font-semibold flex items-center gap-2 ${currentStyle.text}`}>
                       <i className="fas fa-palette text-purple-500"></i> 风格预设
                     </h3>
                     <button 
@@ -2130,11 +2315,11 @@ export default function Neo() {
                 </div>
 
                 {/* Brand & Tags Card */}
-                <div className={`p-5 rounded-2xl border ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'} shadow-sm space-y-6`}>
+                <div className={`p-5 rounded-2xl border ${currentStyle.cardBg} ${currentStyle.border} shadow-sm space-y-6`}>
                    {/* Brand Selection */}
                    <div>
                       <div className="flex items-center justify-between mb-3">
-                         <label className={`text-sm font-semibold flex items-center gap-2 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+                         <label className={`text-sm font-semibold flex items-center gap-2 ${currentStyle.text}`}>
                             <i className="fas fa-store text-amber-500"></i> 选择品牌
                          </label>
                          {brand && brand !== 'custom' && (
@@ -2209,7 +2394,7 @@ export default function Neo() {
                    {/* Tags Selection */}
                    <div>
                       <div className="flex items-center justify-between mb-3">
-                         <label className={`text-sm font-semibold flex items-center gap-2 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+                         <label className={`text-sm font-semibold flex items-center gap-2 ${currentStyle.text}`}>
                             <i className="fas fa-tags text-blue-500"></i> 创作标签
                          </label>
                          {tags.length > 0 && (
@@ -2298,7 +2483,7 @@ export default function Neo() {
                {/* Create Tab Content */}
                <div className="block space-y-6">
                  {/* Main Input Card */}
-                <div className={`p-1 rounded-2xl ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'} border shadow-sm`}>
+                <div className={`p-1 rounded-2xl ${currentStyle.cardBg} ${currentStyle.border} border shadow-sm`}>
                   
                   {/* Mode Selector */}
                   <div className="flex p-2 gap-2 border-b border-slate-100 dark:border-slate-800">
@@ -2400,6 +2585,28 @@ export default function Neo() {
                        {/* Floating Actions */}
                        <div className="absolute bottom-4 right-4 flex items-center gap-2">
                           <button
+                            onClick={() => {
+                              saveToPlanLibrary()
+                              // 保存后自动打开方案库
+                              setTimeout(() => setShowPlanLibrary(true), 300)
+                            }}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all
+                               ${isDark ? 'bg-slate-800 text-green-400 hover:bg-slate-700' : 'bg-green-50 text-green-600 hover:bg-green-100'}
+                            `}
+                          >
+                             <i className="fas fa-save"></i>
+                             保存到方案库
+                          </button>
+                          <button
+                            onClick={() => setShowPlanLibrary(true)}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all
+                               ${isDark ? 'bg-slate-800 text-blue-400 hover:bg-slate-700' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}
+                            `}
+                          >
+                             <i className="fas fa-bookmark"></i>
+                             方案库
+                          </button>
+                          <button
                             onClick={optimizePrompt}
                             disabled={optimizing || isGenerating}
                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all
@@ -2490,7 +2697,7 @@ export default function Neo() {
 
             {/* AI Copywriting Section */}
             <motion.div 
-              className={`mt-6 rounded-2xl ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'} border shadow-sm p-5`}
+              className={`mt-6 rounded-2xl ${currentStyle.cardBg} ${currentStyle.border} border shadow-sm p-5`}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.2 }}
@@ -3129,7 +3336,7 @@ export default function Neo() {
               animate={{ width: 320, opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
               transition={{ duration: 0.3, ease: "easeInOut" }}
-              className="flex-shrink-0 h-full z-20 hidden xl:block shadow-xl overflow-hidden"
+              className="flex-shrink-0 h-full z-20 hidden lg:block shadow-xl overflow-hidden"
             >
                <NeoRightSidebar
                 brand={brand}
@@ -3217,204 +3424,12 @@ export default function Neo() {
       )}
       
       {/* 图片编辑面板 */}
-      {showEditPanel && editingImageIndex !== null && originalImage && (
-        <div className="fixed inset-0 z-50 overflow-hidden flex flex-col bg-black/90 backdrop-blur-sm">
-          {/* 编辑面板头部 */}
-          <div className={`flex items-center justify-between p-4 ${isDark ? 'bg-gray-900' : 'bg-white'} border-b ${isDark ? 'border-gray-800' : 'border-gray-200'}`}>
-            <h2 className="text-xl font-bold">图片编辑器</h2>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={resetEdit}
-                className={`text-sm px-3 py-2 rounded transition-colors ${isDark ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'} transition-all duration-200 hover:scale-105`}
-              >
-                重置
-              </button>
-              <button
-                onClick={saveEditedImage}
-                className={`text-sm px-3 py-2 rounded transition-colors ${isDark ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-green-600 hover:bg-green-700 text-white'} transition-all duration-200 hover:scale-105`}
-              >
-                保存
-              </button>
-              <button
-                onClick={closeImageEditor}
-                className={`p-2 rounded-full ${isDark ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'} transition-all duration-200 hover:scale-110`}
-                aria-label="关闭"
-              >
-                <i className="fas fa-times"></i>
-              </button>
-            </div>
-          </div>
-          
-          {/* 编辑面板内容 */}
-          <div className="flex-1 flex overflow-hidden">
-            {/* 编辑工具 */}
-            <div className={`w-64 p-4 overflow-y-auto ${isDark ? 'bg-gray-800' : 'bg-gray-50'} border-r ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
-              {/* 编辑模式切换 */}
-              <div className="mb-6">
-                <h3 className="text-sm font-medium mb-3 block">编辑模式</h3>
-                <div className="flex flex-wrap gap-2">
-                  {(['crop', 'rotate', 'filter', 'resize'] as const).map(mode => (
-                    <button
-                      key={mode}
-                      onClick={() => setEditMode(mode)}
-                      className={`text-xs px-3 py-2 rounded-full transition-colors ${editMode === mode ? (isDark ? 'bg-red-600 text-white' : 'bg-red-600 text-white') : (isDark ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300')} transition-all duration-200 hover:scale-105`}
-                    >
-                      {mode === 'crop' && '裁剪'}
-                      {mode === 'rotate' && '旋转'}
-                      {mode === 'filter' && '滤镜'}
-                      {mode === 'resize' && '缩放'}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              
-              {/* 裁剪工具 */}
-              {editMode === 'crop' && (
-                <div className="mb-6">
-                  <h3 className="text-sm font-medium mb-3 block">裁剪设置</h3>
-                  <div className="space-y-3">
-                    <div>
-                      <label className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">裁剪比例</label>
-                      <div className="grid grid-cols-3 gap-2">
-                        {(['自由', '1:1', '4:3', '16:9', '3:4', '9:16'] as const).map(ratio => (
-                          <button
-                            key={ratio}
-                            className={`text-xs px-2 py-1.5 rounded transition-colors ${isDark ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'} transition-all duration-200 hover:scale-105`}
-                          >
-                            {ratio}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    <div>
-                      <button
-                        onClick={applyCrop}
-                        className={`w-full text-xs px-3 py-2 rounded transition-colors ${isDark ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-red-600 hover:bg-red-700 text-white'} transition-all duration-200 hover:scale-105`}
-                      >
-                        应用裁剪
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-              
-              {/* 旋转工具 */}
-              {editMode === 'rotate' && (
-                <div className="mb-6">
-                  <h3 className="text-sm font-medium mb-3 block">旋转设置</h3>
-                  <div className="space-y-3">
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        onClick={() => applyRotation(90)}
-                        className={`text-xs px-3 py-2 rounded transition-colors ${isDark ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'} transition-all duration-200 hover:scale-105`}
-                      >
-                        旋转 90°
-                      </button>
-                      <button
-                        onClick={() => applyRotation(180)}
-                        className={`text-xs px-3 py-2 rounded transition-colors ${isDark ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'} transition-all duration-200 hover:scale-105`}
-                      >
-                        旋转 180°
-                      </button>
-                      <button
-                        onClick={() => applyRotation(-90)}
-                        className={`text-xs px-3 py-2 rounded transition-colors ${isDark ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'} transition-all duration-200 hover:scale-105`}
-                      >
-                        旋转 -90°
-                      </button>
-                    </div>
-                    <div>
-                      <label className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">当前角度: {rotation}°</label>
-                    </div>
-                  </div>
-                </div>
-              )}
-              
-              {/* 滤镜工具 */}
-              {editMode === 'filter' && (
-                <div className="mb-6">
-                  <h3 className="text-sm font-medium mb-3 block">滤镜效果</h3>
-                  <div className="grid grid-cols-2 gap-2">
-                    {(['none', '复古', '黑白', '明亮', '对比度', '饱和度', '暖色调', '冷色调', '模糊', '锐化'] as const).map(filterName => (
-                      <button
-                        key={filterName}
-                        onClick={() => applyFilter(filterName)}
-                        className={`text-xs px-3 py-2 rounded transition-colors ${filter === filterName ? (isDark ? 'bg-purple-600 text-white' : 'bg-purple-600 text-white') : (isDark ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300')} transition-all duration-200 hover:scale-105`}
-                      >
-                        {filterName === 'none' && '原图'}
-                        {filterName === '复古' && '复古'}
-                        {filterName === '黑白' && '黑白'}
-                        {filterName === '明亮' && '明亮'}
-                        {filterName === '对比度' && '对比度'}
-                        {filterName === '饱和度' && '饱和度'}
-                        {filterName === '暖色调' && '暖色调'}
-                        {filterName === '冷色调' && '冷色调'}
-                        {filterName === '模糊' && '模糊'}
-                        {filterName === '锐化' && '锐化'}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-              
-              {/* 缩放工具 */}
-              {editMode === 'resize' && (
-                <div className="mb-6">
-                  <h3 className="text-sm font-medium mb-3 block">缩放设置</h3>
-                  <div className="space-y-3">
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        onClick={() => applyScale(-0.1)}
-                        className={`text-xs px-3 py-2 rounded transition-colors ${isDark ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'} transition-all duration-200 hover:scale-105`}
-                      >
-                        缩小
-                      </button>
-                      <button
-                        onClick={() => applyScale(0.1)}
-                        className={`text-xs px-3 py-2 rounded transition-colors ${isDark ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'} transition-all duration-200 hover:scale-105`}
-                      >
-                        放大
-                      </button>
-                    </div>
-                    <div>
-                      <label className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">当前缩放: {(scale * 100).toFixed(0)}%</label>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-            
-            {/* 预览区域 */}
-            <div className="flex-1 flex items-center justify-center p-8 overflow-hidden">
-              <div 
-                className="relative transition-all duration-300 ease-out"
-                style={{
-                  transform: `rotate(${rotation}deg) scale(${scale})`,
-                  maxWidth: '100%',
-                  maxHeight: '100%'
-                }}
-              >
-                <img 
-                  src={originalImage} 
-                  alt="编辑预览" 
-                  className="max-w-full max-h-full object-contain shadow-xl"
-                  style={{
-                    filter: filter === 'none' ? 'none' : 
-                            filter === '复古' ? 'sepia(100%)' : 
-                            filter === '黑白' ? 'grayscale(100%)' : 
-                            filter === '明亮' ? 'brightness(1.3)' : 
-                            filter === '对比度' ? 'contrast(1.5)' : 
-                            filter === '饱和度' ? 'saturate(2)' : 
-                            filter === '暖色调' ? 'sepia(30%) brightness(1.1)' : 
-                            filter === '冷色调' ? 'blur(1px) brightness(1.1)' : 
-                            filter === '模糊' ? 'blur(3px)' : 
-                            filter === '锐化' ? 'sharpen(2)' : 'none'
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
+      {editingImageUrl && (
+        <ImageEditor 
+          imageUrl={editingImageUrl}
+          onSave={handleEditorSave}
+          onCancel={closeImageEditor}
+        />
       )}
       
       {/* 批量导出模态框 */}
@@ -3719,6 +3734,88 @@ export default function Neo() {
           </div>
         </div>
       )}
+
+      {/* Plan Library Modal */}
+      <AnimatePresence>
+        {showPlanLibrary && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+            onClick={() => setShowPlanLibrary(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className={`w-full max-w-md rounded-2xl p-6 max-h-[80vh] overflow-y-auto ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100'} border shadow-2xl`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-bold text-lg">我的方案库 ({savedPlans.length})</h3>
+                <div className="flex items-center gap-2">
+                  {savedPlans.length > 0 && (
+                    <button 
+                      onClick={clearPlans} 
+                      className="text-xs text-red-500 hover:underline"
+                    >
+                      清空全部
+                    </button>
+                  )}
+                  <button 
+                    onClick={() => setShowPlanLibrary(false)}
+                    className={`p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800`}
+                  >
+                    <i className="fas fa-times"></i>
+                  </button>
+                </div>
+              </div>
+              
+              {savedPlans.length > 0 ? (
+                <div className="space-y-3">
+                  {savedPlans.map(plan => (
+                    <motion.div
+                      key={plan.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className={`p-3 rounded-xl border ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}
+                    >
+                      <div className="flex justify-between items-start mb-2">
+                        <h4 className="font-medium text-sm line-clamp-1">{plan.title}</h4>
+                        <span className="text-xs opacity-60">{new Date(plan.ts).toLocaleDateString()}</span>
+                      </div>
+                      <p className="text-xs opacity-70 line-clamp-2 mb-3">{plan.aiText || plan.query}</p>
+                      <div className="flex items-center justify-between">
+                        <div className="flex gap-2">
+                          <button 
+                            onClick={() => removePlan(plan.id)} 
+                            className="text-gray-400 hover:text-red-500 text-xs"
+                          >
+                            <i className="fas fa-trash"></i>
+                          </button>
+                        </div>
+                        <button 
+                          onClick={() => applyPlan(plan.id)}
+                          className="text-xs font-medium text-blue-600 hover:underline"
+                        >
+                          应用到输入框
+                        </button>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-12 opacity-50">
+                  <i className="fas fa-bookmark text-4xl mb-3 text-gray-300 dark:text-gray-700"></i>
+                  <p className="text-sm">暂无保存的方案</p>
+                  <p className="text-xs mt-2 opacity-70">在工具页面生成并保存创意方案后，将显示在这里</p>
+                </div>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 </div>
 )
 }

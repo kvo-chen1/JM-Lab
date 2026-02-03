@@ -12,6 +12,8 @@ import MockupPanel from './panels/MockupPanel';
 import TilePanel from './panels/TilePanel';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toolOptions } from "../data";
+import CreateWorkForm from '@/components/CreateWorkForm';
+import { toast } from 'sonner';
 
 export default function PropertiesPanel() {
   const { isDark } = useTheme();
@@ -52,6 +54,14 @@ export default function PropertiesPanel() {
         return <MockupPanel />;
       case 'tile':
         return <TilePanel />;
+      case 'upload':
+        return (
+          <CreateWorkForm 
+            embedded={true} 
+            onClose={() => updateState({ activeTool: 'sketch' })} 
+            onSuccess={() => {}} 
+          />
+        );
       default:
         return (
           <div className="flex flex-col items-center justify-center h-64 text-center opacity-50">

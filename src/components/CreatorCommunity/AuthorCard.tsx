@@ -1,4 +1,4 @@
-// 创作者社区作者卡片组件
+// 津脉社区作者卡片组件
 import React, { useState } from 'react'
 import { User, CheckCircle, Users, Plus, UserCheck, MessageCircle, Send, UserPlus } from 'lucide-react'
 import LazyImage from '../LazyImage'

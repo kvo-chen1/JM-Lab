@@ -1,49 +1,65 @@
 // src/components/ui/Card.tsx
 
-import { ReactNode } from 'react';
+import { ReactNode, HTMLAttributes } from 'react';
 import { clsx } from 'clsx';
+import { componentVariants } from '@/utils/designSystem';
+
+// 卡片变体类型
+export type CardVariant = keyof typeof componentVariants.card.variants.variant;
+
+// 卡片大小类型
+export type CardSize = keyof typeof componentVariants.card.variants.size;
+
+// 卡片阴影类型
+export type CardShadow = keyof typeof componentVariants.card.variants.shadow;
 
 // 卡片属性接口
-interface CardProps {
+interface CardProps extends HTMLAttributes<HTMLDivElement> {
   children: ReactNode;
-  className?: string;
-  variant?: 'default' | 'elevated' | 'outlined';
+  variant?: CardVariant;
+  size?: CardSize;
+  shadow?: CardShadow;
   padding?: 'small' | 'medium' | 'large';
+  className?: string;
 }
 
 // 卡片头部属性接口
-interface CardHeaderProps {
+interface CardHeaderProps extends HTMLAttributes<HTMLDivElement> {
   children: ReactNode;
   className?: string;
 }
 
 // 卡片标题属性接口
-interface CardTitleProps {
+interface CardTitleProps extends HTMLAttributes<HTMLHeadingElement> {
   children: ReactNode;
   className?: string;
   level?: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6';
 }
 
 // 卡片正文属性接口
-interface CardBodyProps {
+interface CardBodyProps extends HTMLAttributes<HTMLDivElement> {
   children: ReactNode;
   className?: string;
 }
 
 // 卡片底部属性接口
-interface CardFooterProps {
+interface CardFooterProps extends HTMLAttributes<HTMLDivElement> {
+  children: ReactNode;
+  className?: string;
+}
+
+// 卡片描述属性接口
+interface CardDescriptionProps extends HTMLAttributes<HTMLParagraphElement> {
   children: ReactNode;
   className?: string;
 }
 
 // 卡片组件
-const Card = ({ children, className, variant = 'default', padding = 'medium' }: CardProps) => {
-  // 变体样式映射
-  const variantClasses = {
-    default: 'bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700',
-    elevated: 'bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-md hover:shadow-lg transition-shadow duration-300',
-    outlined: 'bg-transparent rounded-xl border border-gray-300 dark:border-gray-600'
-  };
+const Card = ({ children, variant = 'default', size = 'default', shadow = 'default', padding = 'medium', className, ...props }: CardProps) => {
+  // 获取卡片变体样式
+  const variantConfig = componentVariants.card.variants.variant[variant];
+  const sizeConfig = componentVariants.card.variants.size[size];
+  const shadowConfig = componentVariants.card.variants.shadow[shadow];
 
   // 内边距样式映射
   const paddingClasses = {
@@ -53,50 +69,66 @@ const Card = ({ children, className, variant = 'default', padding = 'medium' }: 
   };
 
   return (
-    <div className={clsx(variantClasses[variant], paddingClasses[padding], className)}>
+    <div className={clsx(
+      'transition-all duration-200',
+      variantConfig,
+      sizeConfig,
+      shadowConfig,
+      paddingClasses[padding],
+      className
+    )} {...props}>
       {children}
     </div>
   );
 };
 
 // 卡片头部组件
-const CardHeader = ({ children, className }: CardHeaderProps) => {
+const CardHeader = ({ children, className, ...props }: CardHeaderProps) => {
   return (
-    <div className={clsx('flex flex-col space-y-2', className)}>
+    <div className={clsx('flex flex-col space-y-2', className)} {...props}>
       {children}
     </div>
   );
 };
 
 // 卡片标题组件
-const CardTitle = ({ children, className, level = 'h3' }: CardTitleProps) => {
-  const Tag = level;
+const CardTitle = ({ children, className, level = 'h3', ...props }: CardTitleProps) => {
+  const Tag = level as keyof JSX.IntrinsicElements;
   return (
-    <Tag className={clsx('text-xl font-semibold text-gray-900 dark:text-white', className)}>
+    <Tag className={clsx('text-xl font-semibold text-foreground', className)} {...props}>
       {children}
     </Tag>
   );
 };
 
 // 卡片正文组件
-const CardBody = ({ children, className }: CardBodyProps) => {
+const CardBody = ({ children, className, ...props }: CardBodyProps) => {
   return (
-    <div className={clsx('space-y-4', className)}>
+    <div className={clsx('space-y-4', className)} {...props}>
       {children}
     </div>
   );
 };
 
 // 卡片底部组件
-const CardFooter = ({ children, className }: CardFooterProps) => {
+const CardFooter = ({ children, className, ...props }: CardFooterProps) => {
   return (
-    <div className={clsx('flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700', className)}>
+    <div className={clsx('flex items-center justify-between pt-4 border-t border-border', className)} {...props}>
       {children}
     </div>
   );
 };
 
+// 卡片描述组件
+const CardDescription = ({ children, className, ...props }: CardDescriptionProps) => {
+  return (
+    <p className={clsx('text-sm text-muted-foreground', className)} {...props}>
+      {children}
+    </p>
+  );
+};
+
 // 导出卡片组件及其子组件
-export { Card, CardHeader, CardTitle, CardBody, CardFooter };
+export { Card, CardHeader, CardTitle, CardBody, CardFooter, CardDescription };
 
 export default Card;

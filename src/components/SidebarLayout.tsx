@@ -1,17 +1,67 @@
 import { useEffect, useMemo, useRef, useState, useContext, memo, useCallback } from 'react'
+import { motion } from 'framer-motion'
 import { debounce } from '@/lib/utils'
 import { TianjinImage } from '@/components/TianjinStyleComponents'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useTheme } from '@/hooks/useTheme'
-import { themeOrder } from '@/config/themeConfig'
+import { themeOrder, themeConfig } from '@/config/themeConfig'
 import { AuthContext } from '@/contexts/authContext'
+import { useFriendContext } from '@/contexts/friendContext'
 import { usePrefetch } from '@/hooks/usePrefetch'
 import ErrorFeedback from '@/components/ErrorFeedback'
 import { toast } from 'sonner'
-import CreatorDashboard from './CreatorDashboard'
-import useLanguage from '@/contexts/LanguageContext'
+
 import { useTranslation } from 'react-i18next'
-import { navigationGroups } from '@/config/navigationConfig'
+import { navigationGroups, bottomNavItems } from '@/config/navigationConfig'
+import { navItemIdToTranslationKey, navGroupIdToTranslationKey } from '@/utils/navigationUtils'
+import {
+  ANIMATION_VARIANTS,
+  INTERACTION_VARIANTS,
+  getResponsiveDuration,
+  getResponsiveDelay
+} from '@/config/animationConfig'
+import {
+  useKeyboardNavigation,
+  useScreenReader,
+  createAriaAttributes,
+  useHighContrast,
+  useReducedMotion
+} from '@/utils/accessibility'
+
+// 响应式动画速度控制
+const useResponsiveAnimation = () => {
+  const [deviceInfo, setDeviceInfo] = useState({
+    isMobile: false,
+    isTablet: false
+  });
+
+  useEffect(() => {
+    const checkDevice = () => {
+      const width = window.innerWidth;
+      setDeviceInfo({
+        isMobile: width < 768,
+        isTablet: width >= 768 && width < 1024
+      });
+    };
+
+    checkDevice();
+    const debouncedCheck = debounce(checkDevice, 100);
+    window.addEventListener('resize', debouncedCheck);
+    return () => window.removeEventListener('resize', debouncedCheck);
+  }, []);
+
+  // 根据设备类型返回动画持续时间
+  const getDuration = useCallback((defaultDuration: number) => {
+    return getResponsiveDuration(defaultDuration, deviceInfo.isMobile, deviceInfo.isTablet);
+  }, [deviceInfo]);
+
+  // 根据设备类型返回动画延迟时间
+  const getDelay = useCallback((defaultDelay: number) => {
+    return getResponsiveDelay(defaultDelay, deviceInfo.isMobile, deviceInfo.isTablet);
+  }, [deviceInfo]);
+
+  return { ...deviceInfo, getDuration, getDelay };
+};
 
 import SearchBar, { SearchSuggestion } from '@/components/SearchBar'
 import searchService from '@/services/searchService'
@@ -28,18 +78,27 @@ interface SidebarLayoutProps {
 export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
   const { theme = 'light', isDark = false, toggleTheme = () => {}, setTheme = () => {} } = useTheme()
   const { isAuthenticated, user, logout, updateUser } = useContext(AuthContext)
+  const { friendRequests, getFriendRequests } = useFriendContext()
   const { t } = useTranslation()
   const location = useLocation()
   const navigate = useNavigate()
   const [isMounted, setIsMounted] = useState(false)
+  const { getDuration, getDelay } = useResponsiveAnimation()
+  
+  // 无障碍功能
+  const { announce } = useScreenReader()
+  const { isHighContrast, highContrastClasses } = useHighContrast()
+  const { prefersReducedMotion, motionSafeClasses } = useReducedMotion()
+  
+  // 侧边栏容器引用
+  const sidebarRef = useRef<HTMLDivElement>(null)
   // 初始化默认值，确保服务器端和客户端渲染一致
   const [collapsed, setCollapsed] = useState<boolean>(false)
-  const [hovered, setHovered] = useState<boolean>(false)
   const [width, setWidth] = useState<number>(180)
   // 添加固定状态
   const [isPinned, setIsPinned] = useState<boolean>(false)
-  // 自动收缩定时器引用
-  const interactionTimeout = useRef<NodeJS.Timeout | null>(null)
+  // 主题下拉菜单状态
+  const [showThemeDropdown, setShowThemeDropdown] = useState<boolean>(false)
   
   // 在客户端挂载后从localStorage加载保存的状态
   useEffect(() => {
@@ -49,20 +108,32 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
     setIsMounted(true)
     
     // 从localStorage批量读取保存的状态，减少localStorage操作次数
-    const savedCollapsed = localStorage.getItem('sidebarCollapsed')
-    const savedPinned = localStorage.getItem('sidebarPinned')
-    const savedWidth = localStorage.getItem('sidebarWidth')
-    
-    if (savedCollapsed) {
-      setCollapsed(JSON.parse(savedCollapsed))
+    try {
+      const savedState = localStorage.getItem('sidebarState')
+      if (savedState) {
+        const state = JSON.parse(savedState)
+        if (state.collapsed !== undefined) setCollapsed(state.collapsed)
+        if (state.width) setWidth(Math.min(Math.max(state.width, 180), 320))
+      }
+    } catch (error) {
+      console.error('Failed to load sidebar state:', error)
+    }
+  }, [])
+
+  // 点击外部关闭主题下拉菜单
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const themeButton = document.querySelector('.theme-dropdown-button')
+      const themeDropdown = document.querySelector('.theme-dropdown-menu')
+      
+      if (themeButton && themeDropdown && !themeButton.contains(event.target as Node) && !themeDropdown.contains(event.target as Node)) {
+        setShowThemeDropdown(false)
+      }
     }
     
-    if (savedPinned) {
-      setIsPinned(JSON.parse(savedPinned))
-    }
-    
-    if (savedWidth) {
-      setWidth(Math.min(Math.max(parseInt(savedWidth), 180), 320))
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
     }
   }, [])
   const dragging = useRef(false)
@@ -70,20 +141,23 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
   const [search, setSearch] = useState('')
   
   // 使用防抖函数优化localStorage写入
-  const debouncedSave = useCallback(debounce((key: string, value: any) => {
+  const debouncedSaveState = useCallback(debounce(() => {
     if (typeof localStorage === 'undefined') return
-    localStorage.setItem(key, JSON.stringify(value))
-  }, 200), [])
+    try {
+      const state = {
+        collapsed,
+        width
+      }
+      localStorage.setItem('sidebarState', JSON.stringify(state))
+    } catch (error) {
+      console.error('Failed to save sidebar state:', error)
+    }
+  }, 200), [collapsed, width])
   
-  // 保存折叠状态到localStorage
+  // 保存侧边栏状态到localStorage
   useEffect(() => {
-    debouncedSave('sidebarCollapsed', collapsed)
-  }, [collapsed, debouncedSave])
-  
-  // 保存固定状态到localStorage
-  useEffect(() => {
-    debouncedSave('sidebarPinned', isPinned)
-  }, [isPinned, debouncedSave])
+    debouncedSaveState()
+  }, [collapsed, width, debouncedSaveState])
   // 初始化最近搜索为[]，确保服务器端和客户端渲染一致
   const [recentSearches, setRecentSearches] = useState<string[]>([])
   
@@ -112,15 +186,65 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
       // 使用搜索服务生成搜索建议
       const generatedSuggestions = searchService.generateSuggestions(value)
       setSearchSuggestions(generatedSuggestions)
-      setShowSearchDropdown(true)
     } else {
       setSearchSuggestions([])
-      setShowSearchDropdown(false)
     }
+    setShowSearchDropdown(true)
   }
+
+  // 使用防抖函数保存最近搜索
+  const saveRecentSearches = useCallback((searches: string[]) => {
+    if (typeof localStorage === 'undefined') return
+    try {
+      localStorage.setItem('recentSearches', JSON.stringify(searches))
+    } catch (error) {
+      console.error('Failed to save recent searches:', error)
+    }
+  }, [])
+
+  // 计算显示的建议列表（包含最近搜索和热门推荐）
+  const displaySuggestions = useMemo(() => {
+    if (search.trim()) {
+      return searchSuggestions;
+    }
+    
+    // 最近搜索
+    const recent = recentSearches.map((s, i) => ({
+      id: `recent-${i}`,
+      text: s,
+      type: 'tag' as any,
+      icon: 'fas fa-history',
+      group: '最近搜索',
+      onRemove: (e: any) => {
+        e.stopPropagation();
+        const newRecent = recentSearches.filter(item => item !== s);
+        setRecentSearches(newRecent);
+        saveRecentSearches(newRecent);
+      }
+    }));
+
+    // 如果没有最近搜索，显示热门推荐
+    if (recent.length === 0) {
+      return [
+        { id: 'hot-1', text: '国潮设计', type: 'tag' as any, icon: 'fas fa-fire', group: '为你推荐的点子' },
+        { id: 'hot-2', text: '非遗传承', type: 'tag' as any, icon: 'fas fa-fire', group: '为你推荐的点子' },
+        { id: 'hot-3', text: 'AI创作', type: 'tag' as any, icon: 'fas fa-fire', group: '为你推荐的点子' },
+        { id: 'hot-4', text: '年画', type: 'tag' as any, icon: 'fas fa-fire', group: '为你推荐的点子' }
+      ];
+    }
+
+    // 组合最近搜索和推荐（如果有空间）
+    const recommendations = [
+        { id: 'rec-1', text: '插画艺术', type: 'tag' as any, icon: 'fas fa-search', group: 'Pinterest 上的热门' },
+        { id: 'rec-2', text: '界面设计', type: 'tag' as any, icon: 'fas fa-search', group: 'Pinterest 上的热门' },
+        { id: 'rec-3', text: '摄影技巧', type: 'tag' as any, icon: 'fas fa-search', group: 'Pinterest 上的热门' }
+    ];
+
+    return [...recent, ...recommendations];
+  }, [search, searchSuggestions, recentSearches, saveRecentSearches]);
   
   // 处理搜索建议选择
-  const handleSuggestionSelect = (suggestion: SearchSuggestion) => {
+  const handleSuggestionSelect = useCallback((suggestion: SearchSuggestion) => {
     setSearch(suggestion.text)
     setShowSearchDropdown(false)
     
@@ -139,11 +263,10 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
     // 更新最近搜索
     setRecentSearches((prev) => {
       const next = [suggestion.text, ...prev.filter((x) => x !== suggestion.text)].slice(0, 6)
-      // 使用防抖函数保存到localStorage，减少操作次数
-      debouncedSave('recentSearches', next)
+      saveRecentSearches(next)
       return next
     })
-  }  
+  }, [navigate, saveRecentSearches])  
   // 中文注释：处理搜索框聚焦和失焦事件
   useEffect(() => {
     // 只在浏览器环境中添加事件监听
@@ -163,9 +286,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
   const [showNotifications, setShowNotifications] = useState(false)
   // 中文注释：滚动超过一定距离后显示“回到顶部”悬浮按钮，提升长页可用性
   const [showBackToTop, setShowBackToTop] = useState(false)
-  // 中文注释：快捷键提示弹层（提高功能可发现性）
-  const [showShortcuts, setShowShortcuts] = useState(false)
-  const shortcutsRef = useRef<HTMLDivElement | null>(null)
+
   // 中文注释：问题反馈弹层显示状态
   const [showFeedback, setShowFeedback] = useState(false)
 
@@ -197,19 +318,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
   // 语言菜单状态
   const [showLanguageMenu, setShowLanguageMenu] = useState(false)
   
-  useEffect(() => {
-    // 只在浏览器环境中添加事件监听
-    if (typeof document === 'undefined') return
-    
-    const handler = (e: MouseEvent) => {
-      if (!shortcutsRef.current) return
-      if (!shortcutsRef.current.contains(e.target as Node)) {
-        setShowShortcuts(false)
-      }
-    }
-    if (showShortcuts) document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [showShortcuts])
+
   
   // 点击外部关闭语言菜单
   useEffect(() => {
@@ -291,10 +400,20 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
   }, [notifications, debouncedSave])
   */
 
+  // 使用防抖函数保存通知设置
+  const debouncedSaveNotificationSettings = useCallback(debounce(() => {
+    if (typeof localStorage === 'undefined') return
+    try {
+      localStorage.setItem('notificationSettings', JSON.stringify(notificationSettings))
+    } catch (error) {
+      console.error('Failed to save notification settings:', error)
+    }
+  }, 200), [notificationSettings])
+  
   // 保存通知设置到本地存储 - 使用防抖函数优化
   useEffect(() => {
-    debouncedSave('notificationSettings', notificationSettings)
-  }, [notificationSettings, debouncedSave])
+    debouncedSaveNotificationSettings()
+  }, [notificationSettings, debouncedSaveNotificationSettings])
   useEffect(() => {
     // 只在浏览器环境中添加事件监听
     if (typeof document === 'undefined') return
@@ -382,8 +501,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
     const onUp = () => {
       dragging.current = false
       document.body.style.cursor = 'default'
-      // 拖拽结束后保存宽度到localStorage，使用防抖函数优化
-      debouncedSave('sidebarWidth', width)
+      // 拖拽结束后保存状态，利用现有的debouncedSaveState逻辑
     }
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
@@ -391,7 +509,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
     }
-  }, [width, collapsed, debouncedSave])
+  }, [width, collapsed])
 
   // 添加通知动画效果
   const [newNotification, setNewNotification] = useState<Notification | null>(null)
@@ -475,7 +593,6 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
       // ESC 键关闭各种弹出内容
       if (e.key === 'Escape') {
         if (showNotifications) setShowNotifications(false)
-        if (showShortcuts) setShowShortcuts(false)
         if (showFeedback) setShowFeedback(false)
         if (showUserMenu) setShowUserMenu(false)
         if (showSearchDropdown) setShowSearchDropdown(false)
@@ -491,9 +608,9 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
           '4': '/create/inspiration',
           '5': '/create/wizard',
           '6': '/square',
-          '7': '/knowledge',
-          '8': '/tianjin',
-          '9': '/leaderboard',
+          '7': '/tianjin',
+          '8': '/leaderboard',
+          '9': '/about',
           '0': '/about',
         }
         const dest = map[e.key]
@@ -506,7 +623,6 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
             '/create/inspiration': 'neo',
             '/create/wizard': 'wizard',
             '/square': 'square',
-            '/knowledge': 'knowledge',
             '/tianjin': 'tianjin',
             '/leaderboard': 'leaderboard',
             '/about': 'about'
@@ -519,7 +635,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [toggleTheme, showNotifications, showShortcuts, showFeedback, showUserMenu, showSearchDropdown, prefetchRoute, navigate, setCollapsed])
+  }, [toggleTheme, showNotifications, showFeedback, showUserMenu, showSearchDropdown, prefetchRoute, navigate, setCollapsed])
 
   // 中文注释：当滚动距离超过 480px 时展示“回到顶部”按钮
   useEffect(() => {
@@ -549,62 +665,16 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
     `${isDark ? 'bg-gradient-to-r from-red-900/30 to-transparent text-white border-l-2 border-red-500 font-medium shadow-md' : 'bg-gradient-to-r from-red-50 to-red-100 text-[var(--text-primary)] border-b-2 border-red-600 font-semibold shadow-sm relative overflow-hidden group active-nav-item'} border-t border-transparent`
   ), [isDark])
 
-  const { currentLanguage, changeLanguage, languages } = useLanguage()
-  const [showLanguageDropdown, setShowLanguageDropdown] = useState(false)
 
-  // 导航项ID到翻译键名的映射
-  const navItemIdToTranslationKey: Record<string, string> = {
-    // 核心导航
-    'home': 'sidebar.home',
-    'explore': 'sidebar.exploreWorks',
-    'create': 'sidebar.creationCenter',
-    'inspiration': 'sidebar.inspirationEngine',
-    'knowledge': 'sidebar.culturalKnowledge',
-    
-    // 创作工具
-    'tools': 'sidebar.creativeTools',
-    
-    // 共创功能
-    'guide': 'sidebar.coCreationGuide',
-    'square': 'sidebar.coCreationSquare',
-    'community': 'sidebar.coCreationCommunity',
-    'creator-community': 'sidebar.creatorCommunity',
-    
-    // 天津特色
-    'tianjin': 'sidebar.tianjinSpecialZone',
-    'tianjin-map': 'sidebar.tianjinMap',
-    'events': 'sidebar.culturalActivities',
-    'news': 'sidebar.culturalNews',
-    
-    // 更多服务
-    'particle-art': 'sidebar.particleArt',
-    'leaderboard': 'sidebar.popularityRanking',
-    'games': 'sidebar.funGames',
-    'lab': 'sidebar.newWindowLab',
-    'points-mall': 'sidebar.pointsMall',
-    'brand': 'sidebar.brandCooperation',
-    'business': 'sidebar.businessCooperation',
-    'about': 'sidebar.aboutUs'
-  }
 
-  // 导航分组ID到翻译键名的映射
-  const navGroupIdToTranslationKey: Record<string, string> = {
-    'platform': 'sidebar.platform',
-    'creation': 'sidebar.creationCenter', // Reusing existing key if possible or new one
-    'community': 'sidebar.community',
-    'events': 'sidebar.events',
-    'discovery': 'sidebar.discovery',
-    'entertainment': 'sidebar.entertainment',
-    'more': 'sidebar.moreServices'
-  }
+
 
   const title = useMemo(() => {
     const p = location.pathname
     if (p === '/') return t('common.home')
     if (p.startsWith('/explore')) return t('common.explore')
-    if (p.startsWith('/tools')) return t('sidebar.creativeTools')
+
     if (p.startsWith('/about')) return t('common.about')
-    if (p.startsWith('/knowledge')) return t('sidebar.culturalKnowledge')
     if (p.startsWith('/tianjin/map')) return t('sidebar.tianjinMap')
     if (p.startsWith('/tianjin')) return t('sidebar.tianjinSpecialZone')
     if (p.startsWith('/square')) return t('sidebar.coCreationSquare')
@@ -619,7 +689,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
     if (p.startsWith('/drafts')) return t('common.drafts')
     if (p.startsWith('/generate')) return t('common.aiGenerationEngine')
     if (p.startsWith('/create/inspiration')) return t('sidebar.inspirationEngine')
-    if (p.startsWith('/lab')) return t('sidebar.newWindowLab')
+
     if (p.startsWith('/wizard')) return t('sidebar.coCreationGuide')
     if (p.startsWith('/admin')) return t('common.adminConsole')
     return t('common.appName')
@@ -654,12 +724,12 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
     // 更新最近搜索
     setRecentSearches((prev) => {
       const next = [q, ...prev.filter((x) => x !== q)].slice(0, 6)
-      try { localStorage.setItem('recentSearches', JSON.stringify(next)) } catch {}
+      saveRecentSearches(next)
       return next
     })
     
     setShowSearchDropdown(false)
-  }, [search, navigate])
+  }, [search, navigate, saveRecentSearches])
 
   // 中文注释：根据查询参数精确判断当前激活的社群类型，避免两个导航同时高亮
   const isCommunityActive = (ctx: 'cocreation' | 'creator') => {
@@ -668,90 +738,88 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
   }
 
   return (
-    <div className={`flex min-h-screen ${isDark ? 'bg-gradient-to-br from-[#0b0e13] via-[#0e1218] to-[#0b0e13] text-gray-100' : theme === 'pink' ? 'bg-gradient-to-br from-[#fff0f5] via-[#ffe4ec] to-[#fff0f5] text-gray-900' : 'bg-white text-gray-900'}`}>
+    <div className={`flex min-h-screen ${isDark ? 'bg-gradient-to-br from-[#0b0e13] via-[#0e1218] to-[#0b0e13] text-gray-100' : theme === 'pink' ? 'bg-gradient-to-br from-[#fff0f5] via-[#ffe4ec] to-[#fff0f5] text-gray-900' : 'bg-white text-gray-900'} ${highContrastClasses} ${motionSafeClasses}`}>
       {/* 仅在桌面端显示侧边栏 */}
       <aside 
+        ref={sidebarRef}
         className={`hidden md:flex flex-col ${isDark ? 'bg-[#10151d]/95 backdrop-blur-sm border-gray-800' : theme === 'pink' ? 'bg-white/90 backdrop-blur-sm border-pink-200' : 'bg-white border-gray-200'} border-r relative ring-1 z-10 ${isDark ? 'ring-gray-800' : theme === 'pink' ? 'ring-pink-200' : 'ring-gray-200'}`} 
-        onMouseEnter={() => {
-          setHovered(true);
-          setCollapsed(false);
-          // 清除任何待处理的定时器
-          if (interactionTimeout.current) {
-            clearTimeout(interactionTimeout.current);
-            interactionTimeout.current = null;
-          }
-        }}
-        onMouseLeave={() => {
-          setHovered(false);
-          // 固定状态下不禁用自动收缩
-          if (!isPinned) {
-            // 设置定时器，2秒后自动收缩
-            interactionTimeout.current = setTimeout(() => {
-              setCollapsed(true);
-            }, 2000);
-          }
-        }}
-        style={{ width: (collapsed && !hovered && !isPinned) ? 72 : width, transition: 'width 0.2s ease-in-out' }}
+        style={{ width: collapsed ? 72 : width, transition: 'width 0.2s ease-in-out' }}
+        role="navigation"
+        aria-label={t('sidebar.navigation')}
       >
         <div className={`px-4 py-3 flex items-center justify-between rounded-lg transition-colors group ${isDark ? 'hover:bg-gray-800/60' : theme === 'pink' ? 'hover:bg-pink-50' : 'hover:bg-gray-50'}`}>
           <div className="flex items-center space-x-2 overflow-hidden">
-            {(!collapsed || hovered || isPinned) && <span className={`font-extrabold bg-gradient-to-r ${isDark ? 'from-red-400 to-rose-500' : 'from-red-600 to-rose-500'} bg-clip-text text-transparent tracking-tight whitespace-nowrap`}>{t('common.appNameBrand')}</span>}
-            {(!collapsed || hovered || isPinned) && <span className={`font-bold ${isDark ? 'text-white' : ''} whitespace-nowrap`}>{t('common.appNameProduct')}</span>}
+            {!collapsed && <span className={`font-extrabold bg-gradient-to-r ${isDark ? 'from-red-400 to-rose-500' : 'from-red-600 to-rose-500'} bg-clip-text text-transparent tracking-tight whitespace-nowrap`}>{t('common.appNameBrand')}</span>}
+            {!collapsed && <span className={`font-bold ${isDark ? 'text-white' : ''} whitespace-nowrap`}>{t('common.appNameProduct')}</span>}
           </div>
           <div className="flex items-center space-x-1">
-            {/* 固定/收缩按钮 */}
+            {/* 展开/收缩按钮 */}
             <button
-              className={`p-2 rounded-lg ring-1 transition-all ${isDark ? 'hover:bg-gray-800/70 ring-gray-800 hover:ring-2' : 'hover:bg-gray-100 ring-gray-200 hover:ring-2'} hover:shadow-sm ${isPinned ? 'ring-blue-500' : ''}`}
+              className={`p-2 rounded-lg ring-1 transition-all ${isDark ? 'hover:bg-gray-800/70 ring-gray-800 hover:ring-2' : 'hover:bg-gray-100 ring-gray-200 hover:ring-2'} hover:shadow-sm ${!collapsed ? 'ring-blue-500' : ''}`}
               onClick={() => {
-                const newPinnedState = !isPinned;
-                setIsPinned(newPinnedState);
-                if (newPinnedState) {
-                  // 固定时展开导航栏
-                  setCollapsed(false);
-                } else {
-                  // 取消固定时立即收缩
-                  setCollapsed(true);
-                  // 清除任何待处理的定时器
-                  if (interactionTimeout.current) {
-                    clearTimeout(interactionTimeout.current);
-                    interactionTimeout.current = null;
-                  }
-                }
+                setCollapsed(!collapsed);
               }}
-              aria-label={isPinned ? '收缩侧边栏' : '固定侧边栏'}
-              title={isPinned ? '收缩侧边栏' : '固定侧边栏'}
+              aria-label={collapsed ? '展开侧边栏' : '收缩侧边栏'}
+              title={collapsed ? '展开侧边栏' : '收缩侧边栏'}
             >
-              <i className={`fas ${isPinned ? 'fa-thumbtack rotate-45 text-blue-500' : 'fa-thumbtack'} ${isDark ? 'text-white' : 'text-gray-500'} transition-transform group-hover:scale-110`}></i>
+              <i className={`fas ${collapsed ? 'fa-toggle-off' : 'fa-toggle-on text-blue-500'} ${isDark ? 'text-white' : 'text-gray-500'} transition-transform group-hover:scale-110`}></i>
             </button>
 
           </div>
         </div>
 
-        <nav className="px-2 pt-2 pb-4 space-y-4">
+        <nav className="px-2 pt-3 pb-4 space-y-3">
           {navigationGroups.map((group) => (
-            <div key={group.id} className={`rounded-lg ${isDark ? 'bg-[#1e293b]/60 backdrop-blur-sm border border-gray-700/50' : 'bg-gray-50'} p-3 transition-all duration-300`}>
-              {(!collapsed || hovered || isPinned) && group.id !== 'platform' && group.id !== 'creation' && (
-                <h3 className={`${isDark ? 'text-[10px] text-gray-300' : 'text-[11px] text-blue-600'} font-medium mb-1 uppercase tracking-wide flex items-center transition-all duration-300 ease-in-out opacity-100`}>
-                  <span className="mr-2 w-1.5 h-1.5 rounded-full bg-current"></span>
-                  {t(navGroupIdToTranslationKey[group.id] || group.id)}
-                </h3>
+            <motion.div 
+              key={group.id} 
+              className={`rounded-xl ${isDark ? 'bg-[#1e293b]/60 backdrop-blur-md border border-gray-700/50' : 'bg-gray-50 border border-gray-100'} p-3 transition-all duration-300 hover:shadow-md dark:hover:shadow-lg hover:shadow-gray-100/50 dark:hover:shadow-gray-800/30`}
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: getDuration(0.3), delay: getDelay(0.1) }}
+            >
+              {!collapsed && (
+                <motion.h3 
+                  className={`${isDark ? 'text-[10px] text-gray-300' : 'text-[11px] text-blue-600'} font-semibold mb-2 uppercase tracking-wider flex items-center transition-all duration-300 ease-in-out opacity-100`}
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: getDuration(0.2), delay: getDelay(0.1) }}
+                >
+                  <span className="mr-2 w-1.5 h-1.5 rounded-full bg-current animate-pulse"></span>
+                  <span className="relative overflow-hidden">
+                    <span className="relative z-10">{t(navGroupIdToTranslationKey[group.id] || group.title)}</span>
+                    <span className="absolute bottom-0 left-0 w-full h-0.5 bg-current transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left"></span>
+                  </span>
+                </motion.h3>
               )}
-              <div className="space-y-1">
-                {group.items.map((item) => (
+              <div className="space-y-1.5">
+                {group.items.map((item, index) => (
                   <NavLink 
                     key={item.id}
                     to={`${item.path}${item.search || ''}`}
-                    title={collapsed && !hovered && !isPinned ? t(navItemIdToTranslationKey[item.id] || item.id) : undefined} 
+                    title={collapsed ? item.label : undefined} 
                     onMouseEnter={() => debouncedPrefetch(item.id)} 
-                    className={({ isActive }) => `${navItemClass} ${isActive ? activeClass : (isDark ? 'text-gray-200' : 'text-gray-700')} relative overflow-hidden group ${(collapsed && !hovered && !isPinned) ? 'justify-center px-2 py-2.5' : ''}`}
+                    className={({ isActive }) => `${navItemClass} ${isActive ? activeClass : (isDark ? 'text-gray-200' : 'text-gray-700')} relative overflow-hidden group ${collapsed ? 'justify-center px-2 py-2.5' : ''}`}
                     end
                   > 
-                    <i className={`fas ${item.icon} ${(collapsed && !hovered && !isPinned) ? 'mr-0' : 'mr-2'} transition-all duration-300 group-hover:scale-110 group-hover:rotate-5`}></i>
-                    {(!collapsed || hovered || isPinned) && <span className="transition-all duration-300 ease-in-out opacity-100">{t(navItemIdToTranslationKey[item.id] || item.id)}</span>}
+                    <i className={`fas ${item.icon} ${collapsed ? 'mr-0' : 'mr-3'} transition-all duration-300 group-hover:scale-110 group-hover:rotate-5 text-current`}></i>
+                    {!collapsed && (
+                      <span 
+                        className="transition-all duration-300 ease-in-out opacity-100 truncate font-medium"
+                      >
+                        {t(navItemIdToTranslationKey[item.id] || item.label)}
+                      </span>
+                    )}
+                    {item.badge && (
+                      <span 
+                        className={`ml-auto px-2 py-0.5 text-xs rounded-full ${isDark ? 'bg-red-900/30 text-red-400' : 'bg-red-100 text-red-700'} font-medium`}
+                      >
+                        {item.badge}
+                      </span>
+                    )}
                   </NavLink>
                 ))}
               </div>
-            </div>
+            </motion.div>
           ))}
         </nav>
 
@@ -768,169 +836,160 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
       </aside>
       {/* 中文注释：恢复点击自动收起功能，但优化实现方式避免跳动 */}
       <div 
-        className="flex-1 min-w-0 md:pb-0 pt-0 flex flex-col overflow-y-auto relative z-10"
+        className="flex-1 min-w-0 md:pb-0 pb-16 flex flex-col overflow-y-auto relative z-10"
         onClick={(e) => {
           // 确保点击的不是内部的可交互元素
           const target = e.target as HTMLElement;
-          // 只在点击主内容区域且非固定状态时收起侧边栏，不拦截导航链接等可交互元素
-          if (!isPinned && !collapsed && !target.closest('button, input, a, [role="menu"], [role="dialog"], nav, [data-discover="true"]')) {
+          // 只在点击主内容区域且侧边栏展开时收起侧边栏，不拦截导航链接等可交互元素
+          if (!collapsed && !target.closest('button, input, a, [role="menu"], [role="dialog"], nav, [data-discover="true"]')) {
             setCollapsed(true);
           }
         }}
       >
         {/* 中文注释：暗色头部采用半透明背景与毛玻璃，弱化硬边 */}
-        <header className={`sticky top-0 z-40 ${isDark ? 'bg-[#10151d]/95 backdrop-blur-sm text-white' : theme === 'pink' ? 'bg-white/80 backdrop-blur-sm' : 'bg-white'} border-b ${isDark ? 'border-gray-700' : theme === 'pink' ? 'border-pink-200' : 'border-gray-200'} px-4 py-3`}>
+        <motion.header 
+          className={`sticky top-0 z-50 ${isDark ? 'bg-[#10151d]/95 backdrop-blur-sm text-white' : theme === 'pink' ? 'bg-white/80 backdrop-blur-sm' : 'bg-white'} border-b ${isDark ? 'border-gray-700' : theme === 'pink' ? 'border-pink-200' : 'border-gray-200'} px-4 py-3 shadow-sm`}
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: getDuration(0.5), delay: getDelay(0.1) }}
+        >
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3 flex-shrink-0">
-              <button
-                className={`p-2 rounded-lg ${isDark ? 'hover:bg-gray-800/70 ring-1 ring-gray-700 text-white' : 'hover:bg-gray-50 ring-1 ring-gray-200'}`}
-                onClick={() => setCollapsed(!collapsed)}
-                aria-label={t('sidebar.toggle')}
-              >
-                <i className="fas fa-bars"></i>
-              </button>
-              <h2 className="text-lg font-bold whitespace-nowrap">{title}</h2>
-            </div>
-            <div className="flex items-center space-x-3 flex-1 justify-end min-w-0">
+            <motion.div 
+              className="flex items-center space-x-3 flex-1 min-w-0"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: getDuration(0.3), delay: getDelay(0.2) }}
+            >
               {/* 中文注释：搜索框 - 使用增强的SearchBar组件 */}
-              <div className="relative search-container max-w-md w-full">
+              <motion.div 
+                className="relative search-container w-full z-50"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: getDuration(0.3), delay: getDelay(0.2) }}
+              >
                 <SearchBar
                   search={search}
                   setSearch={handleSearchChange}
                   showSuggest={showSearchDropdown}
                   setShowSuggest={setShowSearchDropdown}
-                  suggestions={searchSuggestions}
+                  suggestions={displaySuggestions}
                   isDark={isDark}
                   onSearch={onSearchSubmit}
                   onSuggestionSelect={handleSuggestionSelect}
                 />
-              </div>
+              </motion.div>
+            </motion.div>
+            <motion.div 
+              className="flex items-center space-x-2 flex-shrink-0"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: getDuration(0.3), delay: getDelay(0.2) }}
+            >
+              <div className="flex items-center space-x-3">
               {/* 主题切换按钮 */}
-              <button
-                onClick={() => {
-                  // 直接切换主题
-                  const currentIndex = themeOrder.indexOf(theme as typeof themeOrder[number]);
-                  const nextIndex = (currentIndex + 1) % themeOrder.length;
-                  setTheme(themeOrder[nextIndex]);
-                }}
-                className={`p-2 rounded-lg transition-all duration-300 flex items-center ${isDark ? 'bg-gray-800 hover:bg-gray-700 ring-1 ring-gray-700 text-gray-100 hover:ring-gray-600' : theme === 'blue' ? 'bg-blue-50 hover:bg-blue-100 ring-1 ring-blue-200 text-blue-800 hover:ring-blue-300' : theme === 'green' ? 'bg-green-50 hover:bg-green-100 ring-1 ring-green-200 text-green-800 hover:ring-green-300' : 'bg-white hover:bg-gray-50 ring-1 ring-gray-200 text-gray-900 hover:ring-gray-300'}`}
-                aria-label={t('header.toggleTheme')}
-                title={t('header.toggleTheme')}
-              >
-                <i className={`fas ${theme === 'dark' ? 'fa-sun' : theme === 'light' ? 'fa-moon' : theme === 'blue' ? 'fa-water' : theme === 'green' ? 'fa-leaf' : 'fa-circle-half-stroke'} transition-transform duration-300 hover:scale-110`}></i>
-              </button>
-              
-              {/* 语言切换器 */}
-              <div className="relative">
-                <button
-                  className={`p-2 rounded-lg ${isDark ? 'hover:bg-gray-800 ring-1 ring-gray-700' : 'hover:bg-gray-50 ring-1 ring-gray-200'} flex items-center space-x-1`}
-                  aria-label={t('common.language')}
-                  onClick={() => setShowLanguageDropdown(v => !v)}
-                  title={t('common.language')}
+              <motion.div className="relative">
+                <motion.button
+                  className={`theme-dropdown-button p-2 rounded-lg transition-all duration-300 flex items-center space-x-1 ${isDark ? 'bg-gray-800 hover:bg-gray-700 ring-1 ring-gray-700 text-gray-100 hover:ring-gray-600' : theme === 'blue' ? 'bg-blue-50 hover:bg-blue-100 ring-1 ring-blue-200 text-blue-800 hover:ring-blue-300' : theme === 'green' ? 'bg-green-50 hover:bg-green-100 ring-1 ring-green-200 text-green-800 hover:ring-green-300' : 'bg-white hover:bg-gray-50 ring-1 ring-gray-200 text-gray-900 hover:ring-gray-300'}`}
+                  aria-label={t('header.toggleTheme')}
+                  onClick={() => setShowThemeDropdown(v => !v)}
+                  title={t('header.toggleTheme')}
+                  whileHover={{ scale: 1.1, y: -2 }}
+                  whileTap={{ scale: 0.95 }}
                 >
-                  <i className="fas fa-globe"></i>
-                  <span>{currentLanguage.toUpperCase()}</span>
-                  <i className={`fas fa-chevron-down transition-transform duration-200 ${showLanguageDropdown ? 'rotate-180' : ''}`}></i>
-                </button>
-                {showLanguageDropdown && (
-                  <div className={`absolute right-0 mt-2 w-32 rounded-xl shadow-lg ring-1 ${isDark ? 'bg-gray-800 ring-gray-700' : 'bg-white ring-gray-200'}`} role="menu" aria-label={t('common.language')}>
+                  <i className={`fas ${theme === 'dark' ? 'fa-sun' : theme === 'light' ? 'fa-moon' : theme === 'blue' ? 'fa-water' : theme === 'green' ? 'fa-leaf' : 'fa-dungeon'} transition-transform duration-300 hover:scale-110`}></i>
+                  <i className={`fas fa-chevron-down transition-transform duration-200 ${showThemeDropdown ? 'rotate-180' : ''}`}></i>
+                </motion.button>
+                {showThemeDropdown && (
+                  <motion.div 
+                    className={`theme-dropdown-menu absolute right-0 mt-2 w-40 rounded-xl shadow-lg ring-1 ${isDark ? 'bg-gray-800 ring-gray-700' : 'bg-white ring-gray-200'}`} 
+                    role="menu" 
+                    aria-label={t('header.toggleTheme')}
+                    initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    transition={{ duration: getDuration(0.2), delay: getDelay(0.1) }}
+                  >
                     <ul className="py-1">
-                      {languages.map(lang => (
-                        <li key={lang.code}>
+                      {themeConfig.map((themeOption, index) => (
+                        <motion.li 
+                          key={themeOption.value}
+                          initial={{ opacity: 0, x: 10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ duration: getDuration(0.1), delay: getDelay(0.05 * index) }}
+                        >
                           <button
-                            className={`w-full text-left px-4 py-2 ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'} ${currentLanguage === lang.code ? (isDark ? 'bg-gray-700 text-white' : 'bg-gray-50 font-semibold') : ''}`}
+                            className={`w-full text-left px-4 py-2 flex items-center space-x-2 ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'} ${theme === themeOption.value ? (isDark ? 'bg-gray-700 text-white' : 'bg-gray-50 font-semibold') : ''}`}
                             onClick={() => {
-                              changeLanguage(lang.code)
-                              setShowLanguageDropdown(false)
+                              setTheme(themeOption.value);
+                              setShowThemeDropdown(false);
                             }}
                             role="menuitem"
                           >
-                            {lang.name}
+                            <i className={themeOption.icon}></i>
+                            <span>{themeOption.label}</span>
                           </button>
-                        </li>
+                        </motion.li>
                       ))}
                     </ul>
-                  </div>
+                  </motion.div>
                 )}
-              </div>
+              </motion.div>
               
-              {/* 中文注释：快捷键提示入口 */}
-              <div className="relative" ref={shortcutsRef}>
-                <button
-                  className={`p-2 rounded-lg ${isDark ? 'hover:bg-gray-800 ring-1 ring-gray-700' : 'hover:bg-gray-50 ring-1 ring-gray-200'}`}
-                  aria-label={t('header.viewShortcuts')}
-                  aria-expanded={showShortcuts}
-                  onClick={() => setShowShortcuts(v => !v)}
-                  title={t('header.shortcuts')}
-                >
-                  <i className="fas fa-keyboard"></i>
-                </button>
-                {showShortcuts && (
-                  <div className={`absolute right-0 mt-2 w-64 rounded-xl shadow-lg ring-1 ${isDark ? 'bg-gray-800 ring-gray-700' : 'bg-white ring-gray-200'}`} role="dialog" aria-label={t('header.shortcuts')}>
-                    <div className="px-4 py-3 border-b flex items-center justify-between">
-                      <span className="font-medium">{t('header.shortcuts')}</span>
-                      <button className={`text-xs px-2 py-1 rounded ${isDark ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-900'}`} onClick={() => setShowShortcuts(false)}>{t('header.close')}</button>
-                    </div>
-                    <ul className="px-4 py-2 text-sm space-y-1">
-                      <li className={`${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{t('header.shortcutsDetails.focusSearch')}</li>
-                      <li className={`${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{t('header.shortcutsDetails.toggleTheme')}</li>
 
-                      <li className={`${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{t('header.shortcutsDetails.quickNav')}</li>
-                      <li className={`${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{t('header.shortcutsDetails.mobileNav')}</li>
-                    </ul>
-                  </div>
-                )}
-              </div>
+              
               {/* 中文注释：问题反馈入口 */}
-              <button
+              <motion.button
                 className={`p-2 rounded-lg ${isDark ? 'hover:bg-gray-800 ring-1 ring-gray-700' : 'hover:bg-gray-50 ring-1 ring-gray-200'}`}
                 aria-label={t('header.feedback')}
                 title={t('header.feedback')}
                 onClick={() => setShowFeedback(true)}
+                whileHover={{ scale: 1.1, y: -2 }}
+                whileTap={{ scale: 0.95 }}
               >
                 <i className="fas fa-bug"></i>
-              </button>
-
-              <button
-                title={t('header.share')}
-                aria-label={t('header.sharePage')}
-                className={`p-2 rounded-lg ${isDark ? 'hover:bg-gray-800 ring-1 ring-gray-700' : 'hover:bg-gray-50 ring-1 ring-gray-200'}`}
-                onClick={() => {
-                  try {
-                    const url = window.location.href
-                    if (navigator.share && window.isSecureContext) {
-                      navigator.share({
-                        title: document.title,
-                        url: url
-                      })
-                    } else {
-                      navigator.clipboard.writeText(url)
-                      // 复制分享链接成功后的提示
-                      toast.success(t('toast.shareSuccess'))
-                    }
-                  } catch {
-                    // 分享失败时的错误提示
-                    toast.error(t('toast.shareFailed'))
-                  }
-                }}
+              </motion.button>
+              {/* 好友管理按钮 */}
+              <motion.button
+                className={`p-2 rounded-lg transition-all duration-300 hover:scale-110 ${isDark ? 'bg-gray-800/70 ring-1 ring-gray-700 hover:bg-gray-700 hover:ring-blue-500' : 'bg-white/70 ring-1 ring-gray-200 hover:bg-gray-50 hover:ring-blue-500'} hover:shadow-md relative`}
+                aria-label="好友管理"
+                title="好友管理"
+                onClick={() => navigate('/friends')}
+                whileHover={{ scale: 1.1, y: -2 }}
+                whileTap={{ scale: 0.95 }}
               >
-                <i className="fas fa-share-nodes"></i>
-              </button>
-              <div className="relative" ref={notifRef}>
-                <button
+                <i className="fas fa-user-friends transition-transform duration-300 hover:scale-110"></i>
+                {friendRequests && friendRequests.length > 0 && (
+                  <motion.span 
+                    className="absolute -top-0.5 -right-0.5 inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-600 text-white text-xs font-bold shadow-lg"
+                    initial={{ scale: 0 }}
+                    animate={{ scale: [1, 1.2, 1] }}
+                    transition={{ duration: 0.5, repeat: Infinity, repeatDelay: 2 }}
+                  >
+                    {friendRequests.length}
+                  </motion.span>
+                )}
+              </motion.button>
+              <motion.div className="relative" ref={notifRef}>
+                <motion.button
                   className={`p-2 rounded-lg transition-all duration-300 hover:scale-110 ${isDark ? 'bg-gray-800/70 ring-1 ring-gray-700 hover:bg-gray-700 hover:ring-blue-500' : 'bg-white/70 ring-1 ring-gray-200 hover:bg-gray-50 hover:ring-blue-500'} hover:shadow-md relative`}
                   aria-label={t('header.notifications')}
                   aria-expanded={showNotifications}
                   onClick={() => setShowNotifications(v => !v)}
                   title={`${unreadCount > 0 ? t('notification.unreadCount', { count: unreadCount }) : t('notification.view')}`}
+                  whileHover={{ scale: 1.1, y: -2 }}
+                  whileTap={{ scale: 0.95 }}
                 >
                   <i className="fas fa-bell transition-transform duration-300 hover:scale-110"></i>
                   {unreadCount > 0 && (
-                    <span className="absolute -top-0.5 -right-0.5 inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-600 text-white text-xs font-bold shadow-lg animate-pulse">
+                    <motion.span 
+                      className="absolute -top-0.5 -right-0.5 inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-600 text-white text-xs font-bold shadow-lg"
+                      initial={{ scale: 0 }}
+                      animate={{ scale: [1, 1.2, 1] }}
+                      transition={{ duration: 0.5, repeat: Infinity, repeatDelay: 2 }}
+                    >
                       {unreadCount}
-                    </span>
+                    </motion.span>
                   )}
-                </button>
+                </motion.button>
                 {showNotifications && (
                   <NotificationPanel
                     notifications={notifications}
@@ -942,34 +1001,26 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                     setNotificationSettings={setNotificationSettings}
                   />
                 )}
-              </div>
+              </motion.div>
               
-              {/* 好友管理按钮 */}
-              <NavLink
-                to="/friends"
-                className={`p-2 rounded-lg transition-all duration-300 hover:scale-110 ${isDark ? 'bg-gray-800/70 ring-1 ring-gray-700 hover:bg-gray-700 hover:ring-blue-500' : 'bg-white/70 ring-1 ring-gray-200 hover:bg-gray-50 hover:ring-blue-500'} hover:shadow-md`}
-                aria-label="好友管理"
-                title="好友管理"
-              >
-                <i className="fas fa-users transition-transform duration-300 hover:scale-110"></i>
-              </NavLink>
+              {/* 创作者仪表盘 - 已移除 */}
               
-              {/* 创作者仪表盘 */}
-              <CreatorDashboard />
               {isAuthenticated ? (
-                <div className="relative" ref={userMenuRef}>
-                  <button
+                <motion.div className="relative" ref={userMenuRef}>
+                  <motion.button
                     className="flex items-center space-x-2"
                     aria-label="用户菜单"
                     aria-expanded={showUserMenu}
                     onClick={() => setShowUserMenu(v => !v)}
+                    whileHover={{ scale: 1.1, y: -2 }}
+                    whileTap={{ scale: 0.95 }}
                   >
                     {user?.avatar && user.avatar.trim() ? (
-                      <div className="relative h-8 w-8 rounded-full">
+                      <div className="relative h-8 w-8 rounded-full ring-2 ring-offset-2 ring-offset-background ring-primary/50">
                         <img 
                           src={user.avatar} 
                           alt={user?.username || '用户头像'} 
-                          className="h-full w-full rounded-full object-cover"
+                          className="h-full w-full rounded-full object-cover transition-transform duration-300 hover:scale-110"
                           loading="lazy"
                           onError={(e) => {
                             const target = e.target as HTMLImageElement;
@@ -985,60 +1036,89 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                         />
                       </div>
                     ) : (
-                      <div className={`h-8 w-8 rounded-full flex items-center justify-center text-white font-bold ${isDark ? 'bg-blue-600' : 'bg-orange-500'}`}>
+                      <div className={`h-8 w-8 rounded-full flex items-center justify-center text-white font-bold ${isDark ? 'bg-blue-600' : 'bg-orange-500'} ring-2 ring-offset-2 ring-offset-background ring-primary/50`}>
                         {user?.username?.charAt(0) || 'U'}
                       </div>
                     )}
-                  </button>
+                  </motion.button>
                   {showUserMenu && (
-                    <div className={`absolute right-0 mt-2 w-56 rounded-xl shadow-lg ring-1 ${isDark ? 'bg-gray-800 ring-gray-700' : 'bg-white ring-gray-200'}`} role="menu" aria-label="用户菜单">
-                      <div className="px-4 py-3 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}">
+                    <motion.div 
+                      className={`absolute right-0 mt-2 w-56 rounded-xl shadow-lg ring-1 ${isDark ? 'bg-gray-800 ring-gray-700' : 'bg-white ring-gray-200'}`} 
+                      role="menu" 
+                      aria-label="用户菜单"
+                      initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      transition={{ duration: getDuration(0.2), delay: getDelay(0.1) }}
+                    >
+                      <div className={`px-4 py-3 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
                         <p className="text-sm">{user?.username}</p>
                         <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{user?.email}</p>
                       </div>
                       <ul className="py-1">
-                        <li>
-                          <button className={`w-full text-left px-4 py-2 ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}`} onClick={() => { setShowUserMenu(false); navigate('/dashboard') }}>{t('header.profile')}</button>
-                        </li>
-                        <li>
-                          <button className={`w-full text-left px-4 py-2 ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}`} onClick={() => { setShowUserMenu(false); navigate('/analytics') }}>{t('header.analytics')}</button>
-                        </li>
-                        <li>
-                          <button className={`w-full text-left px-4 py-2 ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}`} onClick={() => { setShowUserMenu(false); navigate('/my-activities') }}>我的活动</button>
-                        </li>
-                        <li>
-                          <button className={`w-full text-left px-4 py-2 ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}`} onClick={() => { setShowUserMenu(false); navigate('/membership') }}>{t('header.membershipCenter')}</button>
-                        </li>
-                        <li>
-                          <button className={`w-full text-left px-4 py-2 ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}`} onClick={() => { setShowUserMenu(false); navigate('/collection') }}>{t('header.myCollection')}</button>
-                        </li>
-                        <li>
-                          <button className={`w-full text-left px-4 py-2 ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}`} onClick={() => { setShowUserMenu(false); window.location.href = '/landing.html' }}>{t('header.backToOfficialWebsite')}</button>
-                        </li>
-                        <li>
-                          <button className={`w-full text-left px-4 py-2 ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}`} onClick={() => { setShowUserMenu(false); navigate('/drafts') }}>{t('common.drafts')}</button>
-                        </li>
-                        <li>
-                          <button className={`w-full text-left px-4 py-2 ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}`} onClick={() => { setShowUserMenu(false); navigate('/settings') }}>{t('header.settings')}</button>
-                        </li>
-                        <li>
+                        {[
+                          { label: t('header.profile'), path: '/dashboard' },
+                          { label: t('header.analytics'), path: '/analytics' },
+                          { label: '我的活动', path: '/my-activities' },
+                          { label: t('header.membershipCenter'), path: '/membership' },
+                          { label: t('header.myCollection'), path: '/collection' },
+                          { label: t('header.backToOfficialWebsite'), path: '/landing.html', isExternal: true },
+                          { label: t('common.drafts'), path: '/drafts' },
+                          { label: t('header.settings'), path: '/settings' }
+                        ].map((item, index) => (
+                          <motion.li 
+                            key={item.path}
+                            initial={{ opacity: 0, x: 10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ duration: getDuration(0.1), delay: getDelay(0.05 * index) }}
+                          >
+                            <button 
+                              className={`w-full text-left px-4 py-2 ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'} transition-all duration-200 hover:bg-primary/5 hover:pl-5`}
+                              onClick={() => {
+                                setShowUserMenu(false);
+                                if (item.isExternal) {
+                                  window.location.href = item.path;
+                                } else {
+                                  navigate(item.path);
+                                }
+                              }}
+                            >
+                              {item.label}
+                            </button>
+                          </motion.li>
+                        ))}
+                        <motion.li
+                          initial={{ opacity: 0, x: 10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ duration: getDuration(0.1), delay: getDelay(0.4) }}
+                        >
                           <PWAInstallButton asMenuItem isDark={isDark} />
-                        </li>
-                        <li className="border-t ${isDark ? 'border-gray-700' : 'border-gray-200'} mt-2">
-                          <button className={`w-full text-left px-4 py-2 text-red-600 ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}`} onClick={() => { setShowUserMenu(false); logout() }}>{t('header.logout')}</button>
-                        </li>
+                        </motion.li>
+                        <motion.li 
+                          className={`border-t ${isDark ? 'border-gray-700' : 'border-gray-200'} mt-2`}
+                          initial={{ opacity: 0, x: 10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ duration: getDuration(0.1), delay: getDelay(0.45) }}
+                        >
+                          <button className={`w-full text-left px-4 py-2 text-red-600 ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'} transition-all duration-200 hover:bg-red-50 hover:pl-5`} onClick={() => { setShowUserMenu(false); logout() }}>{t('header.logout')}</button>
+                        </motion.li>
                       </ul>
-                    </div>
+                    </motion.div>
                   )}
-                </div>
+                </motion.div>
               ) : (
-                <NavLink to="/login" className={`px-3 py-1 rounded-md ${isDark ? 'bg-gray-800 ring-1 ring-gray-700' : 'bg-white ring-1 ring-gray-200'}`}>
+                <NavLink 
+                  to="/login" 
+                  className={`px-3 py-1 rounded-md ${isDark ? 'bg-gray-800 ring-1 ring-gray-700 text-white' : 'bg-white ring-1 ring-gray-200 text-gray-900'} transition-all duration-300 hover:bg-primary/10 hover:ring-primary/50 hover:shadow-sm`}
+                >
                   {t('header.login')}
                 </NavLink>
               )}
-            </div>
+              </div>
+            </motion.div>
           </div>
-        </header>
+          {/* 面包屑导航 */}
+
+        </motion.header>
 
         {children}
         {/* 中文注释：全局“回到顶部”悬浮按钮（自适应暗色/浅色主题） */}
@@ -1056,6 +1136,23 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
         {showFeedback && (
           <ErrorFeedback onClose={() => setShowFeedback(false)} autoShow={true} />
         )}
+
+        {/* 移动端底部导航栏 */}
+        <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 dark:bg-gray-900 dark:border-gray-800 z-50">
+          <div className="flex justify-around items-center h-16">
+            {bottomNavItems.map((item) => (
+              <NavLink
+                key={item.id}
+                to={item.path}
+                className={({ isActive }) => `flex flex-col items-center justify-center px-3 py-2 transition-all ${isActive ? 'text-primary font-medium' : 'text-gray-600 dark:text-gray-400'}`}
+                title={item.label}
+              >
+                <i className={`fas ${item.icon} text-lg mb-1`}></i>
+                <span className="text-xs">{item.label}</span>
+              </NavLink>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   )

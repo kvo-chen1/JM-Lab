@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback, memo } from 'react';
 import type { ChatMessage } from '@/pages/Community';
 import { MessageBubble } from './MessageBubble';
 import { ChatInput } from './ChatInput';
@@ -12,9 +12,11 @@ interface ChatSectionProps {
   onAddReaction?: (messageId: string, reaction: string) => void;
   onReplyToMessage?: (messageId: string, content: string) => void;
   currentUser: { name: string };
+  unreadCount?: number;
+  onMarkAsRead?: () => void;
 }
 
-export const ChatSection: React.FC<ChatSectionProps> = ({
+const ChatSection: React.FC<ChatSectionProps> = memo(({
   isDark,
   channelName,
   messages,
@@ -22,27 +24,55 @@ export const ChatSection: React.FC<ChatSectionProps> = ({
   retrySendMessage,
   onAddReaction,
   onReplyToMessage,
-  currentUser
+  currentUser,
+  unreadCount = 0,
+  onMarkAsRead
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [replyingTo, setReplyingTo] = useState<{ id: string; user: string } | null>(null);
+  const [hasMarkedAsRead, setHasMarkedAsRead] = useState(false);
 
+  // 优化滚动逻辑，使用requestAnimationFrame避免布局抖动
   useEffect(() => {
     if (scrollRef.current) {
-        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      const scrollToBottom = () => {
+        scrollRef.current!.scrollTop = scrollRef.current!.scrollHeight;
+      };
+      
+      if (typeof requestAnimationFrame === 'function') {
+        requestAnimationFrame(scrollToBottom);
+      } else {
+        scrollToBottom();
+      }
     }
   }, [messages]);
 
-  // 处理回复消息
-  const handleReplyClick = (messageId: string) => {
+  // 标记消息为已读
+  useEffect(() => {
+    if (unreadCount > 0 && onMarkAsRead && !hasMarkedAsRead) {
+      // 当用户查看聊天时，标记消息为已读
+      setTimeout(() => {
+        onMarkAsRead();
+        setHasMarkedAsRead(true);
+      }, 500);
+    }
+  }, [unreadCount, onMarkAsRead, hasMarkedAsRead]);
+
+  // 当消息更新时，重置已读状态
+  useEffect(() => {
+    setHasMarkedAsRead(false);
+  }, [messages]);
+
+  // 使用useCallback缓存函数，减少不必要的重新渲染
+  const handleReplyClick = useCallback((messageId: string) => {
     const message = messages.find(msg => msg.id === messageId);
     if (message) {
       setReplyingTo({ id: messageId, user: message.user });
     }
-  };
+  }, [messages]);
 
-  // 处理发送消息
-  const handleSend = (message: Partial<ChatMessage>) => {
+  // 使用useCallback缓存函数，减少不必要的重新渲染
+  const handleSend = useCallback((message: Partial<ChatMessage>) => {
     if (replyingTo) {
       // 如果是回复消息，使用onReplyToMessage
       if (onReplyToMessage && message.text) {
@@ -53,7 +83,12 @@ export const ChatSection: React.FC<ChatSectionProps> = ({
       // 否则使用普通发送
       onSendMessage(message);
     }
-  };
+  }, [replyingTo, onReplyToMessage, onSendMessage]);
+
+  // 使用useCallback缓存取消回复函数
+  const handleCancelReply = useCallback(() => {
+    setReplyingTo(null);
+  }, []);
 
   return (
     <div className="flex flex-col h-full min-h-[calc(100vh-56px)] lg:h-screen">
@@ -62,13 +97,23 @@ export const ChatSection: React.FC<ChatSectionProps> = ({
         <div className="flex items-center gap-2">
             <i className="fas fa-hashtag text-gray-400"></i>
             <span className="font-bold">{channelName}</span>
+            {unreadCount > 0 && (
+                <span className={`ml-2 px-2 py-0.5 rounded-full text-xs font-medium ${isDark ? 'bg-blue-500 text-white' : 'bg-blue-100 text-blue-800'}`}>
+                    {unreadCount}
+                </span>
+            )}
             <span className="hidden sm:inline text-xs text-gray-500 ml-2 border-l pl-2 border-gray-500/30">欢迎来到 {channelName} 频道</span>
         </div>
         
-        <div className="ml-auto flex items-center gap-3 md:gap-4 text-gray-500">
-             <button className="p-2 rounded-full hover:bg-gray-200/20 transition-colors"><i className="fas fa-bell"></i></button>
-             <button className="p-2 rounded-full hover:bg-gray-200/20 transition-colors"><i className="fas fa-thumbtack"></i></button>
-             <button className="p-2 rounded-full hover:bg-gray-200/20 transition-colors lg:hidden"><i className="fas fa-users"></i></button>
+        <div className="ml-auto flex items-center gap-3 md:gap-4">
+             <button className="p-2 rounded-full hover:bg-gray-200/20 transition-colors text-gray-500 relative">
+                <i className="fas fa-bell"></i>
+                {unreadCount > 0 && (
+                    <span className={`absolute -top-1 -right-1 w-2 h-2 rounded-full ${isDark ? 'bg-blue-500' : 'bg-red-500'}`}></span>
+                )}
+             </button>
+             <button className="p-2 rounded-full hover:bg-gray-200/20 transition-colors text-gray-500"><i className="fas fa-thumbtack"></i></button>
+             <button className="p-2 rounded-full hover:bg-gray-200/20 transition-colors text-gray-500 lg:hidden"><i className="fas fa-users"></i></button>
         </div>
       </div>
 
@@ -107,7 +152,7 @@ export const ChatSection: React.FC<ChatSectionProps> = ({
               <span>回复 @{replyingTo.user}</span>
             </div>
             <button 
-              onClick={() => setReplyingTo(null)}
+              onClick={handleCancelReply}
               className="text-sm hover:underline"
             >
               取消
@@ -122,4 +167,9 @@ export const ChatSection: React.FC<ChatSectionProps> = ({
       </div>
     </div>
   );
-};
+});
+
+// 添加displayName便于调试
+ChatSection.displayName = 'ChatSection';
+
+export { ChatSection };

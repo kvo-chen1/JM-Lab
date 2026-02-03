@@ -2,6 +2,7 @@
  * 成就服务模块 - 提供创作成就相关功能
  */
 import apiClient from '../lib/apiClient';
+import { toast } from 'sonner';
 
 // 创作者等级类型定义
 export interface CreatorLevel {
@@ -171,6 +172,9 @@ class AchievementService {
   private readonly MAX_DISCOUNT_RATIO = 0.3; // 30%
 
   private initialized = false;
+  
+  // 上次的等级，用于检测等级变化
+  private lastLevel: number = 1;
 
   constructor() {
     this.resetState();
@@ -185,6 +189,7 @@ class AchievementService {
     }));
     this.pointsRecords = [];
     this.userPoints = 0;
+    this.lastLevel = 1;
   }
 
   // 初始化数据（从后端获取）
@@ -232,7 +237,12 @@ class AchievementService {
     try {
       const response = await apiClient.get<{ total: number, records: any[] }>('/api/user/points');
       if (response.ok && response.data) {
-        this.userPoints = response.data.total;
+        // 保存旧积分和等级
+        const oldPoints = this.userPoints;
+        const oldLevel = this.lastLevel;
+        
+        // 更新积分数据，确保total是数字
+        this.userPoints = typeof response.data.total === 'number' ? response.data.total : 0;
         this.pointsRecords = response.data.records.map(r => ({
           id: r.id,
           source: r.source,
@@ -243,9 +253,20 @@ class AchievementService {
           balanceAfter: r.balance_after,
           created_at: Number(r.created_at)
         }));
+        
+        // 检测等级变化
+        const newLevelInfo = this.getCreatorLevelInfo();
+        this.lastLevel = newLevelInfo.currentLevel.level;
+        
+        // 如果等级提升，显示通知
+        if (newLevelInfo.currentLevel.level > oldLevel) {
+          this.showLevelUpNotification(newLevelInfo.currentLevel);
+        }
       }
     } catch (error) {
       console.error('Fetch points stats failed:', error);
+      // 确保在获取失败时，积分值为0
+      this.userPoints = 0;
     }
   }
 
@@ -377,18 +398,21 @@ class AchievementService {
     // 找到当前等级和下一个等级
     let currentLevel: CreatorLevel = this.creatorLevels[0];
     let nextLevel: CreatorLevel | null = null;
+    let currentLevelIndex = 0;
     
+    // 遍历所有等级，找到当前等级和其索引
     for (let i = 0; i < this.creatorLevels.length; i++) {
       if (currentPoints >= this.creatorLevels[i].requiredPoints) {
         currentLevel = this.creatorLevels[i];
-        if (i < this.creatorLevels.length - 1) {
-          nextLevel = this.creatorLevels[i + 1];
-        } else {
-          nextLevel = null;
-        }
+        currentLevelIndex = i;
       } else {
         break;
       }
+    }
+    
+    // 找到下一个等级
+    if (currentLevelIndex < this.creatorLevels.length - 1) {
+      nextLevel = this.creatorLevels[currentLevelIndex + 1];
     }
     
     // 计算升级进度
@@ -398,7 +422,8 @@ class AchievementService {
     if (nextLevel) {
       pointsToNextLevel = nextLevel.requiredPoints - currentPoints;
       const levelRange = nextLevel.requiredPoints - currentLevel.requiredPoints;
-      levelProgress = Math.min(100, Math.round(((currentPoints - currentLevel.requiredPoints) / levelRange) * 100));
+      // 确保进度计算正确，当currentPoints等于currentLevel.requiredPoints时，进度为0%
+      levelProgress = Math.min(100, Math.max(0, Math.round(((currentPoints - currentLevel.requiredPoints) / levelRange) * 100)));
     } else {
       pointsToNextLevel = 0;
       levelProgress = 100;
@@ -644,6 +669,22 @@ class AchievementService {
     return [...this.consumptionRecords]
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
       .slice(offset, offset + limit);
+  }
+  
+  // 显示等级提升通知
+  private showLevelUpNotification(level: CreatorLevel): void {
+    toast.success(
+      `🎉 等级提升！`,
+      {
+        description: `恭喜您升级为${level.icon} ${level.name}`,
+        duration: 5000,
+        style: {
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          color: 'white',
+        },
+        icon: level.icon,
+      }
+    );
   }
 }
 

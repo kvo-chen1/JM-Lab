@@ -1,6 +1,9 @@
 // This test should be run in a browser environment
 // Create a test HTML file to verify version checking
-const fs = require('fs');
+import fs from 'fs';
+import path from 'path';
+
+const __dirname = path.dirname(new URL(import.meta.url).pathname);
 
 const htmlContent = `
 <!DOCTYPE html>

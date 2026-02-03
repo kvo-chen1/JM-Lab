@@ -32,9 +32,12 @@ CREATE TABLE IF NOT EXISTS communities (
     name VARCHAR(255) NOT NULL,
     description TEXT,
     cover TEXT,
+    avatar TEXT,
     tags TEXT[],
     members_count INTEGER DEFAULT 0,
     privacy VARCHAR(20) DEFAULT 'public' CHECK (privacy IN ('public', 'private')),
+    join_approval_required BOOLEAN DEFAULT false,
+    creator_id UUID REFERENCES users(id) ON DELETE CASCADE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -50,6 +53,7 @@ CREATE TABLE IF NOT EXISTS community_members (
     community_id VARCHAR(50) REFERENCES communities(id) ON DELETE CASCADE,
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
     role VARCHAR(20) DEFAULT 'member' CHECK (role IN ('owner', 'admin', 'member')),
+    status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
     joined_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     is_muted BOOLEAN DEFAULT FALSE,
     is_pinned BOOLEAN DEFAULT FALSE,

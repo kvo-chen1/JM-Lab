@@ -174,7 +174,7 @@ export const eventSchema = baseEntitySchema.extend({
   title: z.string().min(1).max(200),
   description: z.string().min(10).max(1000),
   startTime: z.date(),
-  endTime: z.date().gt(z.ref('startTime')),
+  endTime: z.date(),
   location: z.string().optional(),
   organizerId: z.string().uuid(),
   participants: z.number().int().min(0),

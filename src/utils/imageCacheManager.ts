@@ -1,5 +1,9 @@
 // 使用浏览器内置的performance API
-// import { performance } from './performance';
+const performance = typeof window !== 'undefined' ? window.performance : {
+  now: () => Date.now(),
+  mark: () => {},
+  measure: () => {}
+} as Performance;
 
 interface ImageCacheEntry {
   src: string;

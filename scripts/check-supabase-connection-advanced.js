@@ -61,9 +61,9 @@ async function runDiagnostics() {
 
   // 1. Configuration Check
   log('Checking configuration...');
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_ANON_KEY;
-  const dbUrl = process.env.POSTGRES_URL_NON_POOLING || process.env.POSTGRES_URL;
+  const supabaseUrl = process.env.VITE_SUPABASE_URL;
+  const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY;
+  const dbUrl = process.env.DATABASE_URL;
   
   if (!supabaseUrl || !supabaseKey) {
     log('Missing SUPABASE_URL or SUPABASE_ANON_KEY in environment variables.', 'ERROR');

@@ -102,6 +102,14 @@ class AnalyticsService {
 
   // 初始化模拟数据
   private initMockData(): void {
+    // 禁用模拟数据，初始为空数组
+    this.dataPoints = [];
+    
+    // 如果需要保留模拟数据逻辑，可以加一个开关
+    // const enableMock = false;
+    // if (!enableMock) return;
+
+    /* Original Mock Logic - Commented Out
     const now = Date.now();
     const daysInYear = 365;
     const categories = ['国潮设计', '非遗传承', '老字号品牌', 'IP设计', '插画设计'];
@@ -133,6 +141,7 @@ class AnalyticsService {
         });
       });
     }
+    */
   }
 
   // 获取数据点

@@ -1,27 +1,32 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 192 192" fill="none">
-  <!-- 渐变背景 -->
-  <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-    <stop offset="0%" stop-color="#2563eb" />
-    <stop offset="100%" stop-color="#1e40af" />
-  </linearGradient>
-  <rect width="192" height="192" rx="32" fill="url(#bgGradient)"/>
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <filter id="roughEdge">
+      <feTurbulence type="fractalNoise" baseFrequency="0.05" numOctaves="2" result="noise" />
+      <feDisplacementMap in="SourceGraphic" in2="noise" scale="5" />
+    </filter>
+  </defs>
+
+  <!-- Background: Paper Texture -->
+  <rect width="512" height="512" fill="#FAFAF9"/>
   
-  <!-- 简约现代的JZ图标 - 居中布局 -->
-  <g transform="translate(36 36)">
-    <!-- 左侧J字母 - 现代简约风格 -->
-    <path d="M32 32V88H56V32H32Z" fill="white"/>
-    <path d="M32 88V104H56V88H32Z" fill="white"/>
-    
-    <!-- 右侧Z字母 - 现代简约风格 -->
-    <path d="M64 32L88 32L64 56L88 80H64V56H48V80H32V32H48V56H64V32Z" fill="white"/>
-    
-    <!-- 环绕的圆环 - 现代设计 -->
-    <circle cx="64" cy="64" r="36" fill="none" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" opacity="0.3"/>
-    
-    <!-- 顶部装饰线 -->
-    <path d="M24 24L104 24" fill="none" stroke="white" stroke-width="4" stroke-linecap="round"/>
-    
-    <!-- 底部装饰线 -->
-    <path d="M24 104L104 104" fill="none" stroke="white" stroke-width="4" stroke-linecap="round"/>
+  <!-- Background Graphic: Stylized Roof & Clouds (Grey) -->
+  <g opacity="0.3">
+    <!-- Roof Top -->
+    <path d="M256 100 L400 180 H112 L256 100Z" fill="#A8A29E"/>
+    <!-- Roof Eaves -->
+    <path d="M60 190 C120 190, 180 160, 256 150 C332 160, 392 190, 452 190" stroke="#A8A29E" stroke-width="12" stroke-linecap="round" fill="none"/>
+    <!-- Clouds -->
+    <path d="M120 300 C100 300, 80 320, 80 340 C80 360, 100 380, 120 380 H160 C180 380, 200 360, 200 340" fill="none" stroke="#A8A29E" stroke-width="8"/>
+    <path d="M392 320 C412 320, 432 340, 432 360 C432 380, 412 400, 392 400 H352" fill="none" stroke="#A8A29E" stroke-width="8"/>
+    <!-- Bottom Structure -->
+    <path d="M180 400 H332 L352 430 H160 L180 400Z" fill="#A8A29E"/>
   </g>
+
+  <!-- Seal Border (Red, Rough) -->
+  <rect x="50" y="50" width="412" height="412" rx="40" stroke="#B91C1C" stroke-width="24" fill="none" filter="url(#roughEdge)"/>
+  
+  <!-- Character "津" (Red, Center) -->
+  <!-- Using a standard serif/kaiti font stack to simulate calligraphy -->
+  <text x="50%" y="60%" font-family="KaiTi, STKaiti, BiauKai, 'Noto Serif SC', serif" font-size="340" font-weight="900" fill="#B91C1C" text-anchor="middle" dominant-baseline="central" filter="url(#roughEdge)">津</text>
+  
 </svg>

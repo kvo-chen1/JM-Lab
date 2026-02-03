@@ -3,20 +3,19 @@ import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useNavigate } from 'react-router-dom';
 import GradientHero from '@/components/GradientHero';
-import eventCalendarService, { CulturalEvent } from '@/services/eventCalendarService';
+import { CulturalEvent } from '@/services/eventCalendarService';
+import { tianjinActivityService } from '@/services/tianjinActivityService';
 import TianjinCreativeActivities from '@/components/TianjinCreativeActivities';
+import TianjinHistoricalScene from '@/components/TianjinHistoricalScene';
 import ErrorBoundary from '@/components/ErrorBoundary';
 
-// 主题类型定义
-type ThemeType = 'light' | 'dark';
-
 export default function Tianjin() {
-  const { isDark, theme } = useTheme();
+  const { isDark } = useTheme();
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [upcomingEvents, setUpcomingEvents] = useState<CulturalEvent[]>([]);
   const [isMobile, setIsMobile] = useState(false);
-  const [activeTab, setActiveTab] = useState<'templates' | 'offline' | 'brands'>('offline');
+  const [activeTab, setActiveTab] = useState<'templates' | 'offline' | 'brands' | 'historical'>('offline');
 
   // 检测设备类型
   useEffect(() => {
@@ -30,94 +29,51 @@ export default function Tianjin() {
   }, []);
 
   useEffect(() => {
-    // 使用专门针对"近期津城热点"的定制数据，而非通用的活动数据
-    const tianjinHotspots: CulturalEvent[] = [
-      {
-        id: 'hotspot-001',
-        title: '津湾广场灯光秀',
-        description: '海河畔的璀璨明珠，光影交织的视觉盛宴，展现天津现代与历史的交融之美。',
-        type: 'theme',
-        status: 'ongoing',
-        startDate: '每周五-周日',
-        endDate: '长期',
-        organizer: '天津市文旅局',
-        // 替换为Pexels高清实景图：城市夜景（更稳定的图源）
-        image: 'https://images.pexels.com/photos/169190/pexels-photo-169190.jpeg?auto=compress&cs=tinysrgb&w=800',
-        tags: ['灯光秀', '夜游', '打卡'],
-        culturalElements: ['海河文化', '现代光影'],
-        participantCount: 9999,
-        hasPrize: false,
+    const loadHotspots = async () => {
+      const data = await tianjinActivityService.getHotspots();
+      // 适配 CulturalEvent 接口
+      const events: CulturalEvent[] = data.map(item => ({
+        id: item.id,
+        title: item.title,
+        description: item.description,
+        type: item.type as any,
+        status: item.status as any,
+        startDate: item.startDate,
+        endDate: item.endDate,
+        organizer: item.organizer,
+        image: item.image,
+        tags: item.tags,
+        culturalElements: item.culturalElements,
+        participantCount: item.participantCount,
+        hasPrize: item.hasPrize,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
-      },
-      {
-        id: 'hotspot-002',
-        title: '五大道海棠节',
-        description: '漫步万国建筑博览群，共赴一场春日花约，感受"万国建筑博览会"的独特魅力。',
-        type: 'theme',
-        status: 'upcoming',
-        startDate: '2025-04-01',
-        endDate: '2025-04-10',
-        organizer: '和平区旅游局',
-        // 替换为Pexels高清实景图：春日花卉（更稳定的图源）
-        image: 'https://images.pexels.com/photos/2058498/pexels-photo-2058498.jpeg?auto=compress&cs=tinysrgb&w=800',
-        tags: ['赏花', '摄影', '历史街区'],
-        culturalElements: ['洋楼文化', '海棠花'],
-        participantCount: 5000,
-        hasPrize: false,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      },
-      {
-        id: 'hotspot-003',
-        title: '西北角早点美食节',
-        description: '碳水快乐星球，寻找最地道的天津老味，体验"津门第一早"的烟火气。',
-        type: 'theme',
-        status: 'ongoing',
-        startDate: '长期开放',
-        endDate: '长期',
-        organizer: '红桥区商务局',
-        // 替换为Pexels高清实景图：中式面点（更稳定的图源）
-        image: 'https://images.pexels.com/photos/2291599/pexels-photo-2291599.jpeg?auto=compress&cs=tinysrgb&w=800',
-        tags: ['美食', '早点', '老味'],
-        culturalElements: ['津味美食', '市井文化'],
-        participantCount: 8888,
-        hasPrize: false,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      }
-    ];
-    setUpcomingEvents(tianjinHotspots);
+      }));
+      setUpcomingEvents(events);
+    };
+    loadHotspots();
   }, []);
 
   return (
     <div className={`min-h-screen ${isDark ? 'bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white' : 'bg-gradient-to-br from-gray-50 via-white to-gray-100 text-gray-900'}`}>
 
-      
       {/* 主内容区 */}
       <main className="container mx-auto px-4 py-8">
-        {/* 天津特色专区渐变英雄区 */}
+        {/* 特色专区渐变英雄区 */}
         <GradientHero 
-          title="天津特色专区"
-          subtitle="探索天津特色文化、老字号与非遗传承"
+          title="特色专区"
+          subtitle="探索特色文化、老字号与非遗传承"
           theme="heritage"
           stats={[
-            { label: '津门老字号', value: '精选' },
-            { label: '天津元素', value: '资产' },
+            { label: '老字号', value: '精选' },
+            { label: '特色元素', value: '资产' },
             { label: '非遗传承', value: '导览' },
-            { label: '津味应用', value: '共创' }
+            { label: '特色应用', value: '共创' }
           ]}
           pattern={true}
           size="lg"
           // 中文注释：使用Pexels高清"红灯笼夜景"作为背景图，替代原AI生成图片，营造沉浸式氛围
           backgroundImage="https://images.pexels.com/photos/6688844/pexels-photo-6688844.jpeg?auto=compress&cs=tinysrgb&w=1920"
-          actions={[
-            {
-              label: '探索老字号地图',
-              onClick: () => navigate('/tianjin/map'),
-              primary: true
-            }
-          ]}
         >
           {/* 手机端搜索框 */}
           {isMobile && (
@@ -156,11 +112,12 @@ export default function Tianjin() {
                   {[
                     { id: 'offline', name: '线下体验' },
                     { id: 'templates', name: '地域模板' },
-                    { id: 'brands', name: '老字号联名' }
+                    { id: 'brands', name: '老字号联名' },
+                    { id: 'historical', name: '历史场景' }
                   ].map((tab) => (
                     <button
                       key={tab.id}
-                      onClick={() => setActiveTab(tab.id as 'templates' | 'offline' | 'brands')}
+                      onClick={() => setActiveTab(tab.id as any)}
                       role="tab"
                       aria-selected={activeTab === tab.id}
                       title={tab.name}
@@ -180,7 +137,7 @@ export default function Tianjin() {
         </GradientHero>
 
         {/* 近期热门活动预览 - 导流模块 */}
-        {!isMobile && (
+        {!isMobile && upcomingEvents.length > 0 && (
           <section className="mt-8">
             <div className="flex justify-between items-center mb-4 px-2">
               <h2 className="text-xl font-bold flex items-center">
@@ -263,29 +220,30 @@ export default function Tianjin() {
               )}
             </div>
             
-            {/* 天津地图入口 */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.2 }}
-              className="mb-8 hidden md:block"
-            >
-              <div className={`p-6 rounded-2xl shadow-lg ${isDark ? 'bg-gray-800/80 backdrop-blur-sm border border-gray-700' : 'bg-white/80 backdrop-blur-sm border border-gray-200'}`}>
-                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                  <div>
-                    <h2 className="text-xl font-bold mb-2">探索天津老字号历史地图</h2>
-                    <p className={`mb-4 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>通过交互式地图了解天津老字号的历史分布与文化传承</p>
-                  </div>
-                  <button
-                    onClick={() => navigate('/tianjin/map')}
-                    className={`px-6 py-3 rounded-lg font-semibold transition-all duration-300 ${isDark ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-red-500 hover:bg-red-600 text-white'} flex items-center gap-2`}
-                  >
-                    <i className="fas fa-map-marked-alt"></i>
-                    查看天津地图
-                  </button>
+            {/* 电脑端标签页导航 */}
+            {!isMobile && (
+              <div className="mb-6">
+                <div className="flex space-x-2 overflow-x-auto scrollbar-hide scroll-smooth snap-x snap-mandatory pb-2">
+                  {[
+                    { id: 'offline', name: '线下体验' },
+                    { id: 'templates', name: '地域模板' },
+                    { id: 'brands', name: '老字号联名' },
+                    { id: 'historical', name: '历史场景' }
+                  ].map((tab) => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id as any)}
+                      role="tab"
+                      aria-selected={activeTab === tab.id}
+                      title={tab.name}
+                      className={`px-6 py-3 rounded-full text-sm font-semibold text-left transition-all duration-300 whitespace-nowrap snap-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 ${activeTab === tab.id ? 'bg-red-500 text-white shadow-lg scale-105' : 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-900 dark:text-white shadow-sm'} focus-visible:ring-offset-2 focus-visible:ring-offset-white`}
+                    >
+                      {tab.name}
+                    </button>
+                  ))}
                 </div>
               </div>
-            </motion.div>
+            )}
 
             {/* 活动内容 */}
             <motion.div
@@ -294,7 +252,14 @@ export default function Tianjin() {
               transition={{ duration: 0.5, delay: 0.3 }}
             >
               <ErrorBoundary>
-                <TianjinCreativeActivities search={searchTerm} activeTab={activeTab} />
+                {activeTab === 'historical' ? (
+                  <TianjinHistoricalScene />
+                ) : (
+                  <TianjinCreativeActivities 
+                    search={searchTerm} 
+                    activeTab={activeTab as any} 
+                  />
+                )}
               </ErrorBoundary>
             </motion.div>
           </div>

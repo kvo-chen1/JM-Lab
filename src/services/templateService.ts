@@ -80,7 +80,7 @@ class TemplateService {
         createdAt: Date.now(),
         updatedAt: Date.now(),
         usageCount: 0,
-        thumbnail: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1920x1080&prompt=Yangliuqing%20New%20Year%20Painting%20style%20template%2C%20traditional%20Chinese%20red%20and%20gold%20colors%2C%20modern%20design',
+
         version: '1.0.0',
         useCases: ['包装设计', '海报设计', '文创产品'],
         language: 'zh-CN',
@@ -105,7 +105,7 @@ class TemplateService {
         createdAt: Date.now(),
         updatedAt: Date.now(),
         usageCount: 0,
-        thumbnail: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1920x1080&prompt=Tianjin%20snacks%20IP%20design%20template%2C%20cartoon%20style%2C%20colorful',
+
         version: '1.0.0',
         useCases: ['IP设计', '文创产品', '品牌推广'],
         language: 'zh-CN',
@@ -129,7 +129,7 @@ class TemplateService {
         createdAt: Date.now(),
         updatedAt: Date.now(),
         usageCount: 0,
-        thumbnail: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1920x1080&prompt=Guochao%20brand%20packaging%20template%2C%20traditional%20Chinese%20elements%2C%20modern%20design',
+
         version: '1.0.0',
         useCases: ['产品包装', '礼盒设计', '品牌推广'],
         language: 'zh-CN',

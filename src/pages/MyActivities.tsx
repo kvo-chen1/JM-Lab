@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { TianjinButton } from '@/components/TianjinStyleComponents';
 import { ActivityParticipation } from '@/types';
 import { toast } from 'sonner';
+import { AuthContext } from '@/contexts/authContext';
+import eventBus from '@/services/enhancedEventBus';
 
 // 模拟数据
 const MOCK_PARTICIPATIONS: ActivityParticipation[] = [
@@ -106,17 +108,113 @@ const MOCK_PARTICIPATIONS: ActivityParticipation[] = [
 export default function MyActivities() {
   const { isDark } = useTheme();
   const navigate = useNavigate();
+  const { user } = useContext(AuthContext);
   const [activeTab, setActiveTab] = useState<'all' | 'in_progress' | 'completed' | 'awarded'>('all');
   const [participations, setParticipations] = useState<ActivityParticipation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    // 模拟API调用
-    setTimeout(() => {
-      setParticipations(MOCK_PARTICIPATIONS);
+  // 提取为公共函数
+  const fetchActivities = async () => {
+    if (!user?.id) {
+      setParticipations([]);
       setLoading(false);
-    }, 800);
-  }, []);
+      setRefreshing(false);
+      return;
+    }
+
+    try {
+      // 尝试从后端API获取活动数据
+      const response = await fetch(`/api/activities/participations`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token') || ''}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.code === 0 && data.data) {
+          setParticipations(data.data);
+          setLoading(false);
+          setRefreshing(false);
+          return;
+        }
+      }
+
+      // 如果API调用失败，使用空数组
+      console.log('API调用失败，使用空数组');
+      setParticipations([]);
+      setLoading(false);
+      setRefreshing(false);
+    } catch (error) {
+      console.error('获取活动数据失败:', error);
+      toast.error('获取活动数据失败，请稍后重试');
+      // 出错时使用空数组
+      setParticipations([]);
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  // 为新用户初始化活动数据
+  useEffect(() => {
+    fetchActivities();
+  }, [user]);
+
+  // 监听用户登录事件和活动注册事件，确保数据初始化
+  useEffect(() => {
+    const handleLogin = () => {
+      // 用户登录后重新加载数据
+      setTimeout(fetchActivities, 500);
+    };
+
+    const handleActivityRegistered = () => {
+      // 活动注册成功后重新加载数据
+      fetchActivities();
+    };
+
+    eventBus.on('auth:login', handleLogin);
+    eventBus.on('auth:register', handleLogin);
+    eventBus.on('activity:registered', handleActivityRegistered);
+
+    return () => {
+      eventBus.off('auth:login', handleLogin);
+      eventBus.off('auth:register', handleLogin);
+      eventBus.off('activity:registered', handleActivityRegistered);
+    };
+  }, [user]);
+
+  // 处理取消报名
+  const handleCancelRegistration = async (participationId: string) => {
+    if (window.confirm('确定要取消报名吗？')) {
+      try {
+        // 模拟API调用
+        await new Promise(resolve => setTimeout(resolve, 500));
+        // 实际逻辑应调用API
+        // await fetch(`/api/activities/participations/${participationId}/cancel`, {
+        //   method: 'POST',
+        //   headers: {
+        //     'Authorization': `Bearer ${localStorage.getItem('token') || ''}`,
+        //     'Content-Type': 'application/json',
+        //   },
+        // });
+        toast.success('已取消报名');
+        // 重新加载数据
+        fetchActivities();
+      } catch (error) {
+        console.error('取消报名失败:', error);
+        toast.error('取消报名失败，请稍后重试');
+      }
+    }
+  };
+
+  // 处理手动刷新
+  const handleRefresh = () => {
+    setRefreshing(true);
+    fetchActivities();
+  };
 
   const filteredList = participations.filter(p => {
     if (activeTab === 'all') return true;
@@ -145,24 +243,39 @@ export default function MyActivities() {
         
         {/* 头部标题 */}
         <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold font-serif mb-2">我的活动</h1>
-            <p className={`${isDark ? 'text-gray-400' : 'text-gray-500'}`}>管理您的参与进度，展示您的才华</p>
+            <div>
+              <h1 className="text-3xl font-bold font-serif mb-2">我的活动</h1>
+              <p className={`${isDark ? 'text-gray-400' : 'text-gray-500'}`}>管理您的参与进度，展示您的才华</p>
+            </div>
+            <div className="flex gap-3">
+              <button 
+                onClick={handleRefresh}
+                disabled={refreshing}
+                className={`px-4 py-2 rounded-lg border ${isDark ? 'border-gray-700 hover:bg-gray-800' : 'border-gray-200 hover:bg-gray-50'} transition-colors flex items-center ${refreshing ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                <i className={`fas ${refreshing ? 'fa-spinner fa-spin' : 'fa-sync-alt'} mr-2`}></i>
+                刷新
+              </button>
+              <button 
+                onClick={() => navigate('/activities')}
+                className={`px-4 py-2 rounded-lg border ${isDark ? 'border-gray-700 hover:bg-gray-800' : 'border-gray-200 hover:bg-gray-50'} transition-colors flex items-center`}
+              >
+                <i className="fas fa-calendar-plus mr-2"></i>
+                主办方中心
+              </button>
+              <TianjinButton onClick={() => navigate('/events')}>
+                <i className="fas fa-compass mr-2"></i>
+                发现更多活动
+              </TianjinButton>
+              <button 
+                onClick={() => navigate('/admin?tab=campaigns')}
+                className={`px-4 py-2 rounded-lg border ${isDark ? 'border-gray-700 hover:bg-gray-800' : 'border-gray-200 hover:bg-gray-50'} transition-colors flex items-center`}
+              >
+                <i className="fas fa-cog mr-2"></i>
+                活动管理
+              </button>
+            </div>
           </div>
-          <div className="flex gap-3">
-            <button 
-              onClick={() => navigate('/activities')}
-              className={`px-4 py-2 rounded-lg border ${isDark ? 'border-gray-700 hover:bg-gray-800' : 'border-gray-200 hover:bg-gray-50'} transition-colors flex items-center`}
-            >
-              <i className="fas fa-calendar-plus mr-2"></i>
-              主办方中心
-            </button>
-            <TianjinButton onClick={() => navigate('/events')}>
-              <i className="fas fa-compass mr-2"></i>
-              发现更多活动
-            </TianjinButton>
-          </div>
-        </div>
 
         {/* 数据概览看板 */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -347,12 +460,7 @@ export default function MyActivities() {
 
                       {item.status === 'registered' && (
                         <button 
-                          onClick={() => {
-                            if(window.confirm('确定要取消报名吗？')) {
-                              toast.success('已取消报名');
-                              // 实际逻辑应调用API
-                            }
-                          }}
+                          onClick={() => handleCancelRegistration(item.id)}
                           className="text-xs text-gray-400 hover:text-red-500 text-center mt-2"
                         >
                           取消报名

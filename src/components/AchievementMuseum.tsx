@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useContext } from 'react';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { toast } from 'sonner';
 import achievementService from '../services/achievementService';
 import { TianjinImage } from './TianjinStyleComponents';
+import { AuthContext } from '@/contexts/authContext';
 
 // 3D模型展示的成就类型定义
 interface AchievementExhibit {
@@ -18,6 +19,7 @@ interface AchievementExhibit {
 
 export default function AchievementMuseum() {
   const { isDark } = useTheme();
+  const { user, isAuthenticated } = useContext(AuthContext);
   const [achievements, setAchievements] = useState<any[]>([]);
   const [exhibits, setExhibits] = useState<AchievementExhibit[]>([]);
   const [stats, setStats] = useState<any>(null);
@@ -25,54 +27,66 @@ export default function AchievementMuseum() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedAchievement, setSelectedAchievement] = useState<any>(null);
   const [showAchievementDetail, setShowAchievementDetail] = useState(false);
-  const [shareOptions, setShareOptions] = useState<string[]>(['copy', 'twitter', 'facebook', 'linkedin']);
+  const [shareOptions, setShareOptions] = useState<string[]>(['copy', 'twitter', 'facebook', 'linkedin', 'wechat', 'qq']);
   const [exportFormat, setExportFormat] = useState<'image' | 'pdf' | 'json'>('image');
+  const [filterRarity, setFilterRarity] = useState<string>('all');
+  const [filterCategory, setFilterCategory] = useState<string>('all');
 
-  // 模拟加载数据
+  // 加载数据
   useEffect(() => {
-    setIsLoading(true);
-    
-    // 模拟API请求延迟
-    setTimeout(() => {
-      // 获取成就数据
-      const allAchievements = achievementService.getAllAchievements();
-      setAchievements(allAchievements);
-      
-      // 获取成就统计
-      const achievementStats = achievementService.getAchievementStats();
-      setStats(achievementStats);
-      
-      // 模拟展品数据
-      setExhibits([
-        {
-          id: 1,
-          name: '国潮插画系列',
-          description: '结合传统中国元素与现代设计风格的插画作品',
-          image: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1920x1080&prompt=Achievement%20exhibit%20example%201%203D%20model',
-          year: 2025,
-          category: '插画设计'
-        },
-        {
-          id: 2,
-          name: '传统纹样创新',
-          description: '基于传统纹样进行创新设计的图案集合',
-          image: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1920x1080&prompt=Achievement%20exhibit%20example%202%203D%20model',
-          year: 2025,
-          category: '纹样设计'
-        },
-        {
-          id: 3,
-          name: '老字号品牌焕新',
-          description: '为老字号品牌设计的现代化视觉识别系统',
-          image: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1920x1080&prompt=Achievement%20exhibit%20example%203%203D%20model',
-          year: 2025,
-          category: '品牌设计'
+    const loadData = async () => {
+      setIsLoading(true);
+      try {
+        // 如果用户已登录，从后端获取最新成就数据
+        if (isAuthenticated && user?.id) {
+          await achievementService.fetchUserAchievements(user.id);
         }
-      ]);
+        
+        // 从服务获取成就数据（包括本地计算的统计）
+        const allAchievements = achievementService.getAllAchievements();
+        setAchievements(allAchievements);
+        
+        // 获取成就统计
+        const achievementStats = achievementService.getAchievementStats();
+        setStats(achievementStats);
+        
+        // 模拟展品数据 (这部分暂无后端接口，保持模拟)
+        setExhibits([
+          {
+            id: 1,
+            name: '国潮插画系列',
+            description: '结合传统中国元素与现代设计风格的插画作品',
+            image: '/images/tianjin/culture-1.jpg', // Placeholder
+            year: 2025,
+            category: '插画设计'
+          },
+          {
+            id: 2,
+            name: '传统纹样创新',
+            description: '基于传统纹样进行创新设计的图案集合',
+            image: '/images/tianjin/culture-2.jpg', // Placeholder
+            year: 2025,
+            category: '纹样设计'
+          },
+          {
+            id: 3,
+            name: '老字号品牌焕新',
+            description: '为老字号品牌设计的现代化视觉识别系统',
+            image: '/images/tianjin/culture-3.jpg', // Placeholder
+            year: 2025,
+            category: '品牌设计'
+          }
+        ]);
+      } catch (error) {
+        console.error('Failed to load achievements:', error);
+        toast.error('加载成就数据失败');
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-      setIsLoading(false);
-    }, 800);
-  }, []);
+    loadData();
+  }, [isAuthenticated, user]);
 
   // 获取成就稀有度对应的颜色
   const getRarityColor = (rarity: string) => {
@@ -139,6 +153,21 @@ export default function AchievementMuseum() {
         }, 1500);
         break;
     }
+  };
+
+  // 筛选成就
+  const getFilteredAchievements = () => {
+    let filtered = achievements;
+    
+    if (filterRarity !== 'all') {
+      filtered = filtered.filter(achievement => achievement.rarity === filterRarity);
+    }
+    
+    if (filterCategory !== 'all') {
+      filtered = filtered.filter(achievement => achievement.category === filterCategory);
+    }
+    
+    return filtered;
   };
   
   // 打开成就详情
@@ -349,21 +378,56 @@ export default function AchievementMuseum() {
             </div>
           </div>
 
+          {/* 成就筛选 */}
+          <div className={`mb-6 p-4 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* 稀有度筛选 */}
+              <div>
+                <select
+                  value={filterRarity}
+                  onChange={(e) => setFilterRarity(e.target.value)}
+                  className={`w-full px-4 py-2 rounded-lg border ${isDark ? 'bg-gray-600 border-gray-500' : 'bg-white border-gray-300'} focus:outline-none focus:ring-2 focus:ring-red-500`}
+                >
+                  <option value="all">所有稀有度</option>
+                  <option value="common">普通</option>
+                  <option value="rare">稀有</option>
+                  <option value="epic">史诗</option>
+                  <option value="legendary">传说</option>
+                </select>
+              </div>
+              
+              {/* 分类筛选 */}
+              <div>
+                <select
+                  value={filterCategory}
+                  onChange={(e) => setFilterCategory(e.target.value)}
+                  className={`w-full px-4 py-2 rounded-lg border ${isDark ? 'bg-gray-600 border-gray-500' : 'bg-white border-gray-300'} focus:outline-none focus:ring-2 focus:ring-red-500`}
+                >
+                  <option value="all">所有分类</option>
+                  <option value="creation">创作</option>
+                  <option value="community">社区</option>
+                  <option value="achievement">成就</option>
+                  <option value="special">特殊</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          
           {/* 成就列表 */}
-          <h4 className="font-medium mb-4">全部成就</h4>
+          <h4 className="font-medium mb-4">全部成就 ({getFilteredAchievements().length} 项)</h4>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {achievements.map((achievement) => (
+            {getFilteredAchievements().map((achievement) => (
               <motion.div
                 key={achievement.id}
-                className={`p-4 rounded-xl border ${
-                  achievement.isUnlocked
+                className={`p-4 rounded-xl border cursor-pointer ${achievement.isUnlocked
                     ? `${isDark ? 'border-gray-700 bg-gray-700' : 'border-gray-200 bg-white'}`
                     : `${isDark ? 'border-gray-700 bg-gray-700/50' : 'border-gray-200 bg-gray-50'} opacity-70`
-                } transition-all hover:shadow-md`}
+                  } transition-all hover:shadow-md`}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, delay: 0.1 * achievement.id }}
                 whileHover={{ y: -2 }}
+                onClick={() => openAchievementDetail(achievement)}
               >
                 <div className="flex items-start">
                   <div className={`w-10 h-10 rounded-full ${getRarityColor(achievement.rarity)} flex items-center justify-center mr-3 flex-shrink-0`}>
@@ -373,9 +437,7 @@ export default function AchievementMuseum() {
                     <div className="flex justify-between items-start mb-1">
                       <h5 className="font-medium">{achievement.name}</h5>
                       {achievement.isUnlocked && (
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${
-                          isDark ? 'bg-green-900/30 text-green-300' : 'bg-green-100 text-green-600'
-                        }`}>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${isDark ? 'bg-green-900/30 text-green-300' : 'bg-green-100 text-green-600'}`}>
                           已解锁
                         </span>
                       )}
@@ -400,29 +462,103 @@ export default function AchievementMuseum() {
                           解锁时间: {achievement.unlockedAt}
                         </p>
                       )}
-                      {achievement.isUnlocked && (
-                        <div className="flex gap-2 mt-3">
-                          <button
-                            className={`text-xs px-2 py-1 rounded ${isDark ? 'bg-gray-600 hover:bg-gray-500' : 'bg-gray-200 hover:bg-gray-300'} transition-colors flex items-center gap-1`}
-                            onClick={() => shareAchievement(achievement, 'copy')}
-                          >
-                            <i className="fas fa-share-alt"></i>
-                            分享
-                          </button>
-                          <button
-                            className={`text-xs px-2 py-1 rounded ${isDark ? 'bg-gray-600 hover:bg-gray-500' : 'bg-gray-200 hover:bg-gray-300'} transition-colors flex items-center gap-1`}
-                            onClick={() => exportAchievement(achievement, 'image')}
-                          >
-                            <i className="fas fa-download"></i>
-                            导出
-                          </button>
-                        </div>
-                      )}
                   </div>
                 </div>
               </motion.div>
             ))}
           </div>
+          
+          {/* 成就详情模态框 */}
+          {showAchievementDetail && selectedAchievement && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                className={`w-full max-w-md rounded-2xl ${isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'} p-6 shadow-xl`}
+              >
+                <div className="flex justify-between items-start mb-4">
+                  <h3 className="text-xl font-bold">{selectedAchievement.name}</h3>
+                  <button
+                    onClick={closeAchievementDetail}
+                    className={`p-2 rounded-full ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}
+                  >
+                    <i className="fas fa-times"></i>
+                  </button>
+                </div>
+                
+                <div className="flex items-center mb-6">
+                  <div className={`w-16 h-16 rounded-full ${getRarityColor(selectedAchievement.rarity)} flex items-center justify-center mr-4`}>
+                    <i className={`fas fa-${selectedAchievement.icon} text-2xl`}></i>
+                  </div>
+                  <div>
+                    <span className={`inline-block px-3 py-1 rounded-full text-xs mb-2 ${getRarityColor(selectedAchievement.rarity)}`}>
+                      {selectedAchievement.rarity === 'common' ? '普通' : selectedAchievement.rarity === 'rare' ? '稀有' : selectedAchievement.rarity === 'epic' ? '史诗' : '传说'}
+                    </span>
+                    {selectedAchievement.isUnlocked ? (
+                      <span className={`inline-block px-3 py-1 rounded-full text-xs ${isDark ? 'bg-green-900/30 text-green-300' : 'bg-green-100 text-green-600'}`}>
+                        已解锁
+                      </span>
+                    ) : (
+                      <span className={`inline-block px-3 py-1 rounded-full text-xs ${isDark ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                        未解锁
+                      </span>
+                    )}
+                  </div>
+                </div>
+                
+                <div className="mb-6">
+                  <h4 className="font-medium mb-2">成就描述</h4>
+                  <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                    {selectedAchievement.description}
+                  </p>
+                </div>
+                
+                <div className="mb-6">
+                  <h4 className="font-medium mb-2">解锁条件</h4>
+                  <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                    {selectedAchievement.criteria}
+                  </p>
+                  <div className="mt-2">
+                    <div className="flex justify-between text-xs mb-1">
+                      <span>进度</span>
+                      <span>{selectedAchievement.progress}%</span>
+                    </div>
+                    <div className={`h-2 rounded-full ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                      <div 
+                        className={`h-full rounded-full ${getRarityColor(selectedAchievement.rarity).split(' ')[0]}`}
+                        style={{ width: `${selectedAchievement.progress}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                </div>
+                
+                {selectedAchievement.isUnlocked && selectedAchievement.unlockedAt && (
+                  <div className="mb-6">
+                    <h4 className="font-medium mb-2">解锁信息</h4>
+                    <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                      解锁时间: {selectedAchievement.unlockedAt}
+                    </p>
+                  </div>
+                )}
+                
+                <div className="flex gap-2 mt-6">
+                  <button
+                    onClick={() => shareAchievement(selectedAchievement, 'copy')}
+                    className={`flex-1 py-2 rounded-lg text-sm transition-colors ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}
+                  >
+                    <i className="fas fa-share-alt mr-1"></i>分享
+                  </button>
+                  <button
+                    onClick={() => exportAchievement(selectedAchievement, 'image')}
+                    className={`flex-1 py-2 rounded-lg text-sm transition-colors ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}
+                  >
+                    <i className="fas fa-download mr-1"></i>导出
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
         </div>
       )}
 
@@ -537,7 +673,7 @@ export default function AchievementMuseum() {
             </p>
             <div className="mb-8">
               <TianjinImage 
-                src="https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=landscape_16_9&prompt=VR%20virtual%20museum%20experience%20of%20art%20exhibition" 
+
                 alt="VR博物馆体验" 
                 className="rounded-xl w-full max-h-96 object-cover mx-auto"
               />

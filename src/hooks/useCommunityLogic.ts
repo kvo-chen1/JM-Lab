@@ -1,47 +1,49 @@
 import { useState, useEffect, useMemo, useContext, useCallback } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { AuthContext } from '@/contexts/authContext';
+import { useNotifications, useNotificationWithNavigate } from '@/contexts/NotificationContext';
 import type { Thread, ChatMessage } from '@/pages/Community';
-import { Community, recommendedCommunities } from '@/mock/communities';
 import { useChatStore } from '@/stores/chatStore';
-
-export const CREATOR_COMMUNITY_ID = 'creator-community';
-
-export const CREATOR_COMMUNITY_DATA = {
-  id: CREATOR_COMMUNITY_ID,
-  name: '创作者社区',
-  description: '分享创作灵感，交流创作经验',
-  memberCount: 1234,
-  topic: '创作',
-  avatar: 'https://api.dicebear.com/7.x/shapes/svg?seed=creator',
-  isActive: true,
-  isSpecial: true, // Mark as special to handle differently if needed
-  theme: {
-    primaryColor: '#3B82F6', // 蓝色主题
-    secondaryColor: '#60A5FA',
-    backgroundColor: '', // 使用默认背景色
-    textColor: '' // 使用默认文字颜色
-  },
-  layoutType: 'standard',
-  enabledModules: {
-    posts: true,
-    chat: true,
-    members: true,
-    announcements: true
-  }
-};
-
-// Mock Data for Discovery
-const RECOMMENDED_TAGS = ['国潮', '非遗', '极简', '赛博朋克', '3D艺术', '插画', 'UI设计'];
+import { apiService } from '@/services/apiService';
+import { communityService } from '@/services/communityService';
+import { websocketService } from '@/services/websocketService';
+import recommendationService from '@/services/recommendationService';
+import type { Community } from '@/services/communityService';
 
 // 本地存储键名
 const STORAGE_KEYS = {
   JOINED_COMMUNITIES: 'jmzf_joined_communities',
-  THREADS: 'jmzf_threads',
-  FAVORITED_THREADS: 'jmzf_favorited_threads',
-  MESSAGES: 'jmzf_messages'
+  FAVORITED_THREADS: 'jmzf_favorited_threads'
 };
+
+// 津脉社区默认数据 - 从API获取，这里只定义结构
+export interface JinmaiCommunityData {
+  id: string;
+  name: string;
+  description: string;
+  memberCount: number;
+  topic: string;
+  avatar: string;
+  isActive: boolean;
+  isSpecial: boolean;
+  theme: {
+    primaryColor: string;
+    secondaryColor: string;
+    backgroundColor: string;
+    textColor: string;
+  };
+  layoutType: 'standard' | 'compact' | 'expanded';
+  enabledModules: {
+    posts: boolean;
+    chat: boolean;
+    members: boolean;
+    announcements: boolean;
+  };
+}
+
+// 推荐标签
+const RECOMMENDED_TAGS = ['国潮', '非遗', '极简', '赛博朋克', '3D艺术', '插画', 'UI设计'];
 
 // 评论类型扩展
 interface Comment {
@@ -55,134 +57,6 @@ interface Comment {
   replyTo?: string;
   communityId: string; // 添加社群ID字段，关联到所属社群
 }
-
-// 模拟线程数据
-const MOCK_THREADS: (Thread & { comments?: Comment[] })[] = [
-  {
-    id: 't-1',
-    title: '如何创建高质量的国潮设计作品？',
-    content: '分享一些国潮设计的技巧和经验，希望能帮助大家创作更好的作品。',
-    topic: '国潮',
-    createdAt: Date.now() - 3600000, // 1小时前
-    replies: [
-      { id: 'r-1', content: '非常有用的建议，谢谢分享！', createdAt: Date.now() - 1800000 }
-    ],
-    upvotes: 15,
-    communityId: CREATOR_COMMUNITY_ID, // 关联到创作者社区
-    comments: [
-      {
-        id: 'c-1',
-        content: '太棒了！学到了很多国潮设计的技巧。',
-        createdAt: Date.now() - 1200000,
-        user: '用户1',
-        avatar: '',
-        upvotes: 5,
-        communityId: CREATOR_COMMUNITY_ID // 评论关联到同一社群
-      },
-      {
-        id: 'c-2',
-        content: '请问如何选择合适的国潮配色呢？',
-        createdAt: Date.now() - 600000,
-        user: '用户2',
-        avatar: '',
-        upvotes: 2,
-        communityId: CREATOR_COMMUNITY_ID, // 评论关联到同一社群
-        replies: [
-          {
-            id: 'c-3',
-            content: '可以参考中国传统色彩体系，比如故宫色卡。',
-            createdAt: Date.now() - 300000,
-            user: '用户1',
-            avatar: '',
-            upvotes: 3,
-            replyTo: 'c-2',
-            communityId: CREATOR_COMMUNITY_ID // 回复也关联到同一社群
-          }
-        ]
-      }
-    ]
-  },
-  {
-    id: 't-2',
-    title: '非遗文化元素在现代设计中的应用',
-    content: '探讨非遗文化元素如何更好地融入现代设计中。',
-    topic: '非遗',
-    createdAt: Date.now() - 7200000, // 2小时前
-    replies: [],
-    upvotes: 10,
-    communityId: CREATOR_COMMUNITY_ID, // 关联到创作者社区
-    comments: [
-      {
-        id: 'c-4',
-        content: '非遗文化是我们的宝贵财富，应该更多地融入现代设计。',
-        createdAt: Date.now() - 3600000,
-        user: '用户3',
-        avatar: '',
-        upvotes: 4,
-        communityId: CREATOR_COMMUNITY_ID // 评论关联到同一社群
-      }
-    ]
-  },
-  {
-    id: 't-3',
-    title: '极简设计的核心原则',
-    content: '极简设计不仅仅是简单，而是在简单中追求完美。',
-    topic: '极简',
-    createdAt: Date.now() - 10800000, // 3小时前
-    replies: [
-      { id: 'r-2', content: '说得很对，极简设计需要更多的思考和细节打磨。', createdAt: Date.now() - 5400000 }
-    ],
-    upvotes: 8,
-    communityId: 'community-1', // 关联到其他社群
-    comments: []
-  },
-  {
-    id: 't-4',
-    title: '赛博朋克风格的色彩搭配技巧',
-    content: '分享赛博朋克风格设计中的色彩运用方法。',
-    topic: '赛博朋克',
-    createdAt: Date.now() - 14400000, // 4小时前
-    replies: [],
-    upvotes: 12,
-    communityId: 'community-2', // 关联到其他社群
-    comments: []
-  },
-  {
-    id: 't-5',
-    title: '3D艺术创作的新趋势',
-    content: '探讨3D艺术在设计领域的最新应用和趋势。',
-    topic: '3D艺术',
-    createdAt: Date.now() - 18000000, // 5小时前
-    replies: [],
-    upvotes: 6,
-    communityId: 'community-3', // 关联到其他社群
-    comments: []
-  },
-  {
-    id: 't-6',
-    title: '插画创作中的故事性表达',
-    content: '如何在插画中更好地讲述故事。',
-    topic: '插画',
-    createdAt: Date.now() - 21600000, // 6小时前
-    replies: [
-      { id: 'r-3', content: '这个主题很有趣，期待更多的分享！', createdAt: Date.now() - 10800000 }
-    ],
-    upvotes: 9,
-    communityId: CREATOR_COMMUNITY_ID, // 关联到创作者社区
-    comments: []
-  },
-  {
-    id: 't-7',
-    title: 'UI设计中的用户体验优化',
-    content: '分享一些UI设计中提升用户体验的小技巧。',
-    topic: 'UI设计',
-    createdAt: Date.now() - 25200000, // 7小时前
-    replies: [],
-    upvotes: 11,
-    communityId: CREATOR_COMMUNITY_ID, // 关联到创作者社区
-    comments: []
-  }
-];
 
 // 本地存储工具函数
 const localStorageUtils = {
@@ -207,17 +81,115 @@ const localStorageUtils = {
   }
 };
 
+// 社区数据更新工具函数
+const communityUtils = {
+  // 更新社区列表中的特定社区
+  updateCommunityInList: (communities: Community[], community: Community): Community[] => {
+    const existingIndex = communities.findIndex(c => c.id === community.id);
+    if (existingIndex >= 0) {
+      const updated = [...communities];
+      updated[existingIndex] = community;
+      return updated;
+    }
+    return [community, ...communities];
+  }
+};
+
+// 通知工具函数
+const notificationUtils = {
+  // 发送帖子相关通知
+  sendPostNotification: (
+    addNotification: any,
+    addNotificationWithNavigate: ((notification: any, navigateFn: (path: string) => void) => void) | null,
+    navigate: (path: string) => void,
+    user: any,
+    type: string,
+    title: string,
+    content: string,
+    thread: any
+  ) => {
+    if (!user || !thread) return;
+    
+    const notification = {
+      type,
+      title,
+      content,
+      senderId: user.id,
+      senderName: user.username,
+      recipientId: thread.authorId || 'community',
+      communityId: thread.communityId,
+      postId: thread.id,
+      priority: type === 'post_liked' ? 'low' : 'medium',
+      link: `/community/${thread.communityId}/post/${thread.id}`
+    };
+    
+    if (addNotificationWithNavigate) {
+      addNotificationWithNavigate(notification, navigate);
+    } else {
+      addNotification(notification);
+    }
+  },
+  
+  // 发送社群相关通知
+  sendCommunityNotification: (
+    addNotification: any,
+    addNotificationWithNavigate: ((notification: any, navigateFn: (path: string) => void) => void) | null,
+    navigate: (path: string) => void,
+    user: any,
+    type: string,
+    title: string,
+    content: string,
+    communityId: string
+  ) => {
+    if (!user || !communityId) return;
+    
+    const notification = {
+      type,
+      title,
+      content,
+      senderId: user.id,
+      senderName: user.username,
+      recipientId: 'admin',
+      communityId,
+      priority: 'medium',
+      link: `/community/${communityId}`
+    };
+    
+    if (addNotificationWithNavigate) {
+      addNotificationWithNavigate(notification, navigate);
+    } else {
+      addNotification(notification);
+    }
+  }
+};
+
 export const useCommunityLogic = () => {
   const { user } = useContext(AuthContext);
   const location = useLocation();
+  const navigate = useNavigate();
   const searchParams = new URLSearchParams(location.search);
+  
+  // 通知系统 - 使用带导航功能的 hook
+  let notificationsContext;
+  let addNotificationWithNavigate: ((notification: any, navigateFn: (path: string) => void) => void) | null = null;
+  try {
+    notificationsContext = useNotificationWithNavigate();
+    addNotificationWithNavigate = notificationsContext.addNotificationWithNavigate;
+  } catch (error) {
+    // 如果不在NotificationProvider内，使用默认值
+    notificationsContext = {
+      addNotification: () => {},
+      unreadCount: 0
+    };
+  }
+  const { addNotification, unreadCount } = notificationsContext;
 
   // --- State: Navigation ---
   const [activeCommunityId, setActiveCommunityId] = useState<string | null>(null);
   const [activeChannel, setActiveChannel] = useState<string>('communities'); // Default to 'communities'
   
   // Derived State: Mode
-  const mode: 'community' | 'discovery' = (activeCommunityId && activeCommunityId !== CREATOR_COMMUNITY_ID) ? 'community' : 'discovery';
+  const mode: 'community' | 'discovery' = activeCommunityId ? 'community' : 'discovery';
 
   // --- State: Data ---
   const [joinedCommunities, setJoinedCommunities] = useState<Community[]>([]);
@@ -225,33 +197,39 @@ export const useCommunityLogic = () => {
   const [selectedTag, setSelectedTag] = useState<string>('国潮');
   const [favoritedThreads, setFavoritedThreads] = useState<string[]>([]); // 收藏的帖子ID列表
   const [search, setSearch] = useState(''); // 搜索关键词
+  const [allCommunities, setAllCommunities] = useState<Community[]>([]); // For Discovery
+  
+  // Loading and Error States
+  const [loading, setLoading] = useState({
+    communities: false,
+    threads: false,
+    comments: false
+  });
+  const [errors, setErrors] = useState({
+    communities: null as string | null,
+    threads: null as string | null,
+    comments: null as string | null
+  });
 
-  // 直接使用mock数据作为初始值，确保每次刷新都能获取最新的社群列表
-  const [allCommunities, setAllCommunities] = useState<Community[]>(JSON.parse(JSON.stringify(recommendedCommunities))); // For Discovery
+  // 确保津脉社区数据从API获取，失败时使用默认数据
+  // useEffect(() => {
+  //   const fetchCreatorCommunity = async () => {
+  //     // Removed Creator Community logic
+  //   };
+  //   fetchCreatorCommunity();
+  // }, []);
 
-  // Ensure Creator Community is always in the lists or accessible
-  useEffect(() => {
-    // We can ensure it's in allCommunities if not present
-    setAllCommunities(prev => {
-      if (prev.find(c => c.id === CREATOR_COMMUNITY_ID)) return prev;
-      return [CREATOR_COMMUNITY_DATA as any, ...prev];
-    });
-    
-    // We can also ensure it's in joinedCommunities if we want it pinned, 
-    // or just let the user join it. For now, let's auto-join/pin it for visibility
-    setJoinedCommunities(prev => {
-      if (prev.find(c => c.id === CREATOR_COMMUNITY_ID)) return prev;
-      return [CREATOR_COMMUNITY_DATA as any, ...prev];
-    });
-  }, []);
+  // 确保页面加载时就有默认数据 - 已移除，使用真实数据
 
   // --- Chat Store Integration ---
+  const [chatStoreError, setChatStoreError] = useState<Error | null>(null);
+  
   const { 
-    messages: chatStoreMessages, 
-    sendMessage: storeSendMessage, 
-    setActiveChannel: storeSetActiveChannel,
-    subscribeToChannel: storeSubscribe,
-    fetchMessages: storeFetchMessages
+    messages: chatStoreMessages = [], 
+    sendMessage: storeSendMessage = async () => {}, 
+    setActiveChannel: storeSetActiveChannel = () => {},
+    subscribeToChannel: storeSubscribe = () => {},
+    fetchMessages: storeFetchMessages = async () => {}
   } = useChatStore();
 
   // Modal States
@@ -260,50 +238,73 @@ export const useCommunityLogic = () => {
 
   // --- Data Loading and Persistence ---
   useEffect(() => {
-    // Load data from localStorage
-    const loadData = () => {
-      // 使用安全的recommendedCommunities，确保它不是undefined
-      const safeRecommendedCommunities = recommendedCommunities || [];
-      
-      // Load joined communities
-      const savedJoinedCommunities = localStorageUtils.get<Community[]>(STORAGE_KEYS.JOINED_COMMUNITIES, []);
-      if (savedJoinedCommunities.length > 0) {
-        setJoinedCommunities(savedJoinedCommunities);
-      } else {
-        // Initialize with some communities for the sidebar
-        const initialCommunities = safeRecommendedCommunities.slice(0, 5);
-        setJoinedCommunities(initialCommunities);
-        localStorageUtils.set(STORAGE_KEYS.JOINED_COMMUNITIES, initialCommunities);
-      }
-      
-      // Load all communities for discovery - 使用深拷贝确保数据独立性
-      setAllCommunities(JSON.parse(JSON.stringify(safeRecommendedCommunities)));
-      
-      // Load Threads with comments
-      const savedThreads = localStorageUtils.get<(Thread & { comments?: Comment[] })[]>(STORAGE_KEYS.THREADS, []);
-      if (savedThreads.length > 0) {
-        setThreads(savedThreads);
-      } else {
-        // 添加模拟数据，包含评论
-        setThreads(MOCK_THREADS);
-        localStorageUtils.set(STORAGE_KEYS.THREADS, MOCK_THREADS);
-      }
+    // Load data from localStorage and API
+    const loadData = async () => {
+      try {
+        // Load favorited threads from localStorage
+        const savedFavoritedThreads = localStorageUtils.get<string[]>(STORAGE_KEYS.FAVORITED_THREADS, []);
+        setFavoritedThreads(savedFavoritedThreads);
+        
+        // Fetch communities from API
+        setLoading(prev => ({ ...prev, communities: true }));
+        setErrors(prev => ({ ...prev, communities: null }));
+        
+        const communitiesData = await communityService.getCommunities();
+        if (communitiesData) {
+          setAllCommunities(communitiesData);
+        }
 
-      // Load favorited threads
-      const savedFavoritedThreads = localStorageUtils.get<string[]>(STORAGE_KEYS.FAVORITED_THREADS, []);
-      setFavoritedThreads(savedFavoritedThreads);
+        // Fetch user joined communities if logged in
+        if (user?.id) {
+          try {
+            const userCommunities = await communityService.getUserCommunities(user.id);
+            if (userCommunities) {
+              setJoinedCommunities(userCommunities);
+            }
+          } catch (err) {
+            console.error('Failed to fetch user communities:', err);
+            toast.error('加载已加入社区失败');
+          }
+        } else {
+            setJoinedCommunities([]);
+        }
+        
+        // Fetch threads from API if in a community
+        if (activeCommunityId) {
+          setLoading(prev => ({ ...prev, threads: true }));
+          setErrors(prev => ({ ...prev, threads: null }));
+          
+          try {
+            const threadsData = await communityService.getThreadsByCommunity(activeCommunityId);
+            if (threadsData) {
+              setThreads(threadsData);
+            }
+          } catch (err) {
+            console.error('Failed to fetch threads:', err);
+            setErrors(prev => ({ ...prev, threads: '加载帖子数据失败' }));
+          } finally {
+            setLoading(prev => ({ ...prev, threads: false }));
+          }
+        }
+      } catch (error) {
+        console.error('Error loading community data:', error);
+        setErrors(prev => ({
+          ...prev,
+          communities: '加载社区数据失败',
+          threads: '加载帖子数据失败'
+        }));
+        toast.error('加载社区数据失败，请刷新页面重试');
+      } finally {
+        setLoading(prev => ({ ...prev, communities: false }));
+      }
     };
 
     loadData();
-  }, []);
+  }, [user?.id, activeCommunityId]); // Add user and activeCommunityId dependency
 
   // 数据持久化 - 使用useCallback优化性能
   const saveJoinedCommunities = useCallback((communities: Community[]) => {
     localStorageUtils.set(STORAGE_KEYS.JOINED_COMMUNITIES, communities);
-  }, []);
-
-  const saveThreads = useCallback((threadsData: (Thread & { comments?: Comment[] })[]) => {
-    localStorageUtils.set(STORAGE_KEYS.THREADS, threadsData);
   }, []);
 
   const saveFavoritedThreads = useCallback((favorites: string[]) => {
@@ -311,30 +312,77 @@ export const useCommunityLogic = () => {
   }, []);
 
   // 优化localStorage写入，减少不必要的写入操作
+  // 使用防抖函数减少频繁写入
   useEffect(() => {
-    saveJoinedCommunities(joinedCommunities);
+    const timer = setTimeout(() => {
+      saveJoinedCommunities(joinedCommunities);
+    }, 500);
+    return () => clearTimeout(timer);
   }, [joinedCommunities, saveJoinedCommunities]);
 
   useEffect(() => {
-    saveThreads(threads);
-  }, [threads, saveThreads]);
-
-  useEffect(() => {
-    saveFavoritedThreads(favoritedThreads);
+    const timer = setTimeout(() => {
+      saveFavoritedThreads(favoritedThreads);
+    }, 500);
+    return () => clearTimeout(timer);
   }, [favoritedThreads, saveFavoritedThreads]);
 
   // Map store messages to UI ChatMessage type
+  // 使用useMemo缓存计算结果，减少不必要的重新计算
   const messages: ChatMessage[] = useMemo(() => {
-    return chatStoreMessages.map(msg => ({
+    // 限制消息数量，只显示最近的100条消息
+    const recentMessages = chatStoreMessages.slice(-100);
+    return recentMessages.map(msg => ({
       id: msg.id,
       user: msg.sender?.username || 'Unknown',
       text: msg.content,
       avatar: msg.sender?.avatar_url || '',
       createdAt: new Date(msg.created_at).getTime(),
-      type: 'text', // Default to text for now
-      sendStatus: 'sent'
+      type: msg.type || 'text',
+      images: msg.images,
+      files: msg.files,
+      richContent: msg.richContent,
+      sendStatus: msg.sendStatus || 'sent'
     }));
   }, [chatStoreMessages]);
+  
+  // WebSocket连接管理
+  useEffect(() => {
+    if (user) {
+      // 连接WebSocket
+      websocketService.connect();
+      
+      // 监听消息事件
+      websocketService.on('message:new', (data) => {
+        console.log('收到新消息:', data);
+        // 消息已通过chatStore处理，这里可以添加额外的逻辑
+      });
+      
+      // 监听消息状态更新事件
+      websocketService.on('message:status', (data) => {
+        console.log('消息状态更新:', data);
+        // 处理消息状态更新
+      });
+      
+      // 监听社群更新事件
+      websocketService.on('community:updated', (data) => {
+        console.log('社群更新:', data);
+        // 重新加载社群数据
+        apiService.getCommunity(data.communityId).then(({ data: updatedCommunity }) => {
+          if (updatedCommunity) {
+            setJoinedCommunities(prev => prev.map(c => 
+              c.id === data.communityId ? updatedCommunity : c
+            ));
+          }
+        });
+      });
+    }
+    
+    return () => {
+      // 组件卸载时断开WebSocket连接
+      websocketService.disconnect();
+    };
+  }, [user]);
 
   // Sync active channel with ChatStore
   useEffect(() => {
@@ -348,14 +396,13 @@ export const useCommunityLogic = () => {
 
   // --- Actions ---
 
-  const handleSelectCommunity = useCallback((id: string | null) => {
+  const handleSelectCommunity = useCallback(async (id: string | null) => {
     if (id) {
       // 检查用户是否已经加入该社群
       const isJoined = joinedCommunities.some(c => c.id === id);
       if (isJoined) {
         setActiveCommunityId(id);
-        // 不再设置channel，使用默认值
-        // Fetch community specific data here
+        // 切换社群后，useEffect 会自动触发 loadData 加载帖子数据
       } else {
         // 用户未加入该社群，不允许进入
         toast.error('请先加入该社群');
@@ -369,32 +416,106 @@ export const useCommunityLogic = () => {
 
   const handleSelectChannel = useCallback((channel: string) => {
     setActiveChannel(channel);
-    if (channel === 'creators') {
-      setActiveCommunityId(CREATOR_COMMUNITY_ID);
-    }
+    // Removed creator community switch
   }, []);
 
-  const handleUpvote = useCallback((id: string) => {
-    setThreads(prev => prev.map(t => 
-        t.id === id ? { ...t, upvotes: (t.upvotes || 0) + 1 } : t
-    ));
-  }, []);
-
-  const handleToggleFavorite = useCallback((id: string) => {
-    setFavoritedThreads(prev => {
-      if (prev.includes(id)) {
-        // 取消收藏
-        const newFavorites = prev.filter(threadId => threadId !== id);
-        toast.success('已取消收藏');
-        return newFavorites;
-      } else {
-        // 添加收藏
-        const newFavorites = [...prev, id];
-        toast.success('收藏成功');
-        return newFavorites;
+  const handleUpvote = useCallback(async (id: string) => {
+    try {
+      // 乐观更新
+      setThreads(prev => prev.map(t => 
+          t.id === id ? { ...t, upvotes: (t.upvotes || 0) + 1 } : t
+      ));
+      
+      // 调用API
+      await apiService.upvoteThread(id);
+      
+      // 记录用户行为，用于推荐系统
+      if (user) {
+        const thread = threads.find(t => t.id === id);
+        if (thread) {
+          recommendationService.recordUserAction({
+            userId: user.id,
+            itemId: id,
+            itemType: 'post',
+            actionType: 'like',
+            metadata: thread
+          });
+          
+          // 发送通知给帖子作者
+          if (thread.authorId && thread.authorId !== user.id) {
+            notificationUtils.sendPostNotification(
+              addNotification,
+              addNotificationWithNavigate,
+              navigate,
+              user,
+              'post_liked',
+              '帖子被点赞',
+              `${user.username} 点赞了你的帖子《${thread.title}》`,
+              thread
+            );
+          }
+        }
       }
-    });
-  }, []);
+    } catch (error) {
+      console.error('Error upvoting thread:', error);
+      // 回滚更新
+      setThreads(prev => prev.map(t => 
+          t.id === id ? { ...t, upvotes: Math.max(0, (t.upvotes || 1) - 1) } : t
+      ));
+      toast.error('点赞失败');
+    }
+  }, [threads, user, addNotification]);
+
+  const handleToggleFavorite = useCallback(async (id: string) => {
+    try {
+      const isCurrentlyFavorited = favoritedThreads.includes(id);
+      
+      // 乐观更新
+      const newFavorites = isCurrentlyFavorited 
+        ? favoritedThreads.filter(threadId => threadId !== id)
+        : [...favoritedThreads, id];
+      
+      setFavoritedThreads(newFavorites);
+      
+      // 调用API
+      if (isCurrentlyFavorited) {
+        await apiService.unfavoriteThread(id);
+        toast.success('已取消收藏');
+        
+        // 记录用户取消收藏行为
+        if (user) {
+          recommendationService.recordUserAction({
+            userId: user.id,
+            itemId: id,
+            itemType: 'post',
+            actionType: 'dislike',
+            value: -5
+          });
+        }
+      } else {
+        await apiService.favoriteThread(id);
+        toast.success('收藏成功');
+        
+        // 记录用户收藏行为
+        if (user) {
+          const thread = threads.find(t => t.id === id);
+          if (thread) {
+            recommendationService.recordUserAction({
+              userId: user.id,
+              itemId: id,
+              itemType: 'post',
+              actionType: 'save',
+              metadata: thread
+            });
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error toggling favorite:', error);
+      // 回滚更新
+      toast.error('操作失败');
+    }
+  }, [favoritedThreads, threads, user]);
 
   // 检查帖子是否被收藏
   const isThreadFavorited = useCallback((id: string) => {
@@ -402,94 +523,146 @@ export const useCommunityLogic = () => {
   }, [favoritedThreads]);
 
   // 发表评论
-  const handleAddComment = useCallback((threadId: string, content: string, replyTo?: string) => {
+  const handleAddComment = useCallback(async (threadId: string, content: string, replyTo?: string) => {
+    if (!user) {
+      toast.error('请先登录');
+      return;
+    }
+    
     // 查找帖子，获取所属社群ID
     const thread = threads.find(t => t.id === threadId);
     if (!thread) return;
     
-    const newComment: Comment = {
-      id: `c-${Date.now()}`,
-      content,
-      createdAt: Date.now(),
-      user: user?.username || 'Guest',
-      avatar: user?.avatar || '',
-      upvotes: 0,
-      replyTo,
-      communityId: thread.communityId // 关联到帖子所属的社群ID
-    };
+    try {
+      setLoading(prev => ({ ...prev, comments: true }));
+      
+      // 调用API
+      const newComment = await apiService.addComment(threadId, content, replyTo);
+      
+      if (newComment) {
+        const commentObj: Comment = {
+          id: newComment.id,
+          content: newComment.content,
+          createdAt: new Date(newComment.created_at).getTime(),
+          user: user.username || 'Guest',
+          avatar: user.avatar || '',
+          upvotes: 0,
+          replyTo,
+          communityId: thread.communityId // 关联到帖子所属的社群ID
+        };
 
-    setThreads(prev => prev.map(thread => {
-      if (thread.id === threadId) {
-        if (!thread.comments) {
-          return {
-            ...thread,
-            comments: [newComment]
-          };
-        } else if (replyTo) {
-          // 查找并回复指定评论
-          const findAndReply = (comments: Comment[]): Comment[] => {
-            return comments.map(comment => {
-              if (comment.id === replyTo) {
-                return {
-                  ...comment,
-                  replies: [...(comment.replies || []), newComment]
-                };
-              } else if (comment.replies) {
-                return {
-                  ...comment,
-                  replies: findAndReply(comment.replies)
-                };
-              }
-              return comment;
-            });
-          };
+        setThreads(prev => prev.map(thread => {
+          if (thread.id === threadId) {
+            if (!thread.comments) {
+              return {
+                ...thread,
+                comments: [commentObj]
+              };
+            } else if (replyTo) {
+              // 查找并回复指定评论
+              const findAndReply = (comments: Comment[]): Comment[] => {
+                return comments.map(comment => {
+                  if (comment.id === replyTo) {
+                    return {
+                      ...comment,
+                      replies: [...(comment.replies || []), commentObj]
+                    };
+                  } else if (comment.replies) {
+                    return {
+                      ...comment,
+                      replies: findAndReply(comment.replies)
+                    };
+                  }
+                  return comment;
+                });
+              };
 
-          return {
-            ...thread,
-            comments: findAndReply(thread.comments)
-          };
-        } else {
-          // 添加新评论
-          return {
-            ...thread,
-            comments: [newComment, ...thread.comments]
-          };
+              return {
+                ...thread,
+                comments: findAndReply(thread.comments)
+              };
+            } else {
+              // 添加新评论
+              return {
+                ...thread,
+                comments: [commentObj, ...thread.comments]
+              };
+            }
+          }
+          return thread;
+        }));
+
+        toast.success('评论成功！');
+        
+        // 记录用户评论行为，用于推荐系统
+        recommendationService.recordUserAction({
+          userId: user.id,
+          itemId: threadId,
+          itemType: 'post',
+          actionType: 'comment',
+          metadata: thread
+        });
+        
+        // 发送通知给帖子作者
+        if (thread.authorId && thread.authorId !== user.id) {
+          notificationUtils.sendPostNotification(
+            addNotification,
+            addNotificationWithNavigate,
+            navigate,
+            user,
+            'post_commented',
+            '帖子被评论',
+            `${user.username} 评论了你的帖子《${thread.title}》`,
+            thread
+          );
         }
       }
-      return thread;
-    }));
-
-    toast.success('评论成功！');
-  }, [user, threads]);
+    } catch (error) {
+      console.error('Error adding comment:', error);
+      toast.error('评论失败');
+    } finally {
+      setLoading(prev => ({ ...prev, comments: false }));
+    }
+  }, [user, threads, addNotification]);
 
   // 评论点赞
-  const handleCommentUpvote = useCallback((threadId: string, commentId: string) => {
-    const findAndUpvote = (comments: Comment[]): Comment[] => {
-      return comments.map(comment => {
-        if (comment.id === commentId) {
+  const handleCommentUpvote = useCallback(async (threadId: string, commentId: string) => {
+    try {
+      // 乐观更新
+      const findAndUpvote = (comments: Comment[]): Comment[] => {
+        return comments.map(comment => {
+          if (comment.id === commentId) {
+            return {
+              ...comment,
+              upvotes: comment.upvotes + 1
+            };
+          } else if (comment.replies) {
+            return {
+              ...comment,
+              replies: findAndUpvote(comment.replies)
+            };
+          }
+          return comment;
+        });
+      };
+
+      setThreads(prev => prev.map(thread => {
+        if (thread.id === threadId && thread.comments) {
           return {
-            ...comment,
-            upvotes: comment.upvotes + 1
-          };
-        } else if (comment.replies) {
-          return {
-            ...comment,
-            replies: findAndUpvote(comment.replies)
+            ...thread,
+            comments: findAndUpvote(thread.comments)
           };
         }
-        return comment;
-      });
-    };
-
-    setThreads(prev => prev.map(thread => {
-      if (thread.id === threadId && thread.comments) {
-        return {
-          ...thread,
-          comments: findAndUpvote(thread.comments)
-        };
-      }
-      return thread;
-    }));
+        return thread;
+      }));
+      
+      // 调用API
+      await apiService.upvoteComment(commentId);
+    } catch (error) {
+      console.error('Error upvoting comment:', error);
+      // 回滚更新
+      toast.error('点赞失败');
+    }
   }, []);
 
     // 权限管理功能
@@ -517,8 +690,23 @@ export const useCommunityLogic = () => {
   
   // 增强的内容审核机制，支持自定义规则
   const contentModeration = useCallback((message: Partial<ChatMessage>, communityId?: string): { approved: boolean; reason?: string } => {
-      // 敏感词列表（示例）
-      const sensitiveWords = ['违规', '敏感', '不良', '色情', '暴力', '政治'];
+      // 敏感词列表（增强版）
+      const sensitiveWords = [
+        // 违法违规
+        '违规', '违法', '犯罪', '赌博', '吸毒', '贩毒', '嫖娼', '卖淫',
+        // 色情内容
+        '色情', '黄色', '情色', '成人', '裸露', '性感', '艳照', '淫荡',
+        // 暴力内容
+        '暴力', '血腥', '恐怖', '杀人', '自杀', '自残', '打架', '斗殴',
+        // 政治敏感
+        '政治', '政府', '国家', '领导人', '抗议', '游行', '示威', '颠覆',
+        // 不良信息
+        '不良', '垃圾', '广告', '推广', '营销', '诈骗', '骗人', '虚假',
+        // 侮辱诽谤
+        '侮辱', '诽谤', '辱骂', '诅咒', '歧视', '偏见', '仇恨', '攻击',
+        // 其他敏感
+        '敏感', '保密', '隐私', '个人信息', '身份证', '手机号', '银行卡'
+      ];
       
       // 检查文本内容
       const text = message.text || '';
@@ -532,6 +720,19 @@ export const useCommunityLogic = () => {
           return { approved: false, reason: '消息长度超过限制' };
       }
       
+      // 检查链接
+      const urlRegex = /(https?:\/\/[\w\-]+(\.[\w\-]+)+([\w\-.,@?^=%&:/~+#]*[\w\-@?^=%&/~+#])?)/gi;
+      const urls = text.match(urlRegex);
+      if (urls && urls.length > 3) {
+          return { approved: false, reason: '消息包含过多链接' };
+      }
+      
+      // 检查重复内容
+      const repeatedPattern = /(\w+)\1{4,}/;
+      if (repeatedPattern.test(text)) {
+          return { approved: false, reason: '消息包含重复内容' };
+      }
+      
       // 预留社群自定义审核规则的接口
       // 实际应用中，这里可以根据社群ID获取该社群的自定义审核规则
       if (communityId) {
@@ -539,21 +740,56 @@ export const useCommunityLogic = () => {
         const strictCommunities = ['community-1', 'community-2'];
         if (strictCommunities.includes(communityId)) {
           // 更严格的审核逻辑
+          const strictSensitiveWords = ['广告', '推广', '营销', '链接', '网址'];
+          const hasStrictSensitiveWords = strictSensitiveWords.some(word => text.includes(word));
+          if (hasStrictSensitiveWords) {
+              return { approved: false, reason: '该社群不允许此类内容' };
+          }
         }
       }
       
       return { approved: true };
   }, []);
   
-  // 个性化推荐接口，预留用于未来扩展
+  // 个性化推荐接口，使用推荐服务实现
   const getRecommendedPosts = useCallback((communityId: string, limit: number = 10) => {
-    // 简化的推荐逻辑，实际应用中应该使用推荐算法
-    // 这里简单返回该社群的热门帖子
-    const communityPosts = threads.filter(t => t.communityId === communityId);
-    return [...communityPosts]
-      .sort((a, b) => (b.upvotes || 0) - (a.upvotes || 0))
-      .slice(0, limit);
-  }, [threads]);
+    if (!user) {
+      // 如果用户未登录，返回热门帖子
+      const communityPosts = threads.filter(t => t.communityId === communityId);
+      return [...communityPosts]
+        .sort((a, b) => (b.upvotes || 0) - (a.upvotes || 0))
+        .slice(0, limit);
+    }
+    
+    try {
+      // 使用推荐服务生成个性化推荐
+      const recommendations = recommendationService.getRecommendations(user.id, {
+        limit,
+        strategy: 'hybrid',
+        includeDiverse: true
+      });
+      
+      // 过滤出当前社群的推荐内容
+      const communityRecommendations = recommendations
+        .filter(item => item.type === 'post' && item.metadata?.communityId === communityId)
+        .map(item => item.metadata);
+      
+      return communityRecommendations.length > 0 ? communityRecommendations : [
+        // 回退：如果没有推荐，返回热门帖子
+        ...threads
+          .filter(t => t.communityId === communityId)
+          .sort((a, b) => (b.upvotes || 0) - (a.upvotes || 0))
+          .slice(0, limit)
+      ];
+    } catch (error) {
+      console.error('Error getting recommendations:', error);
+      // 出错时返回热门帖子
+      const communityPosts = threads.filter(t => t.communityId === communityId);
+      return [...communityPosts]
+        .sort((a, b) => (b.upvotes || 0) - (a.upvotes || 0))
+        .slice(0, limit);
+    }
+  }, [threads, user]);
 
   const handleSendMessage = useCallback(async (message: Partial<ChatMessage>) => {
       if (!user) {
@@ -561,8 +797,13 @@ export const useCommunityLogic = () => {
         return;
       }
 
+      if (!activeCommunityId) {
+        toast.error('请先选择社群');
+        return;
+      }
+
       // 检查创建消息的权限
-      const canCreateMessage = checkPermission(activeCommunityId || CREATOR_COMMUNITY_ID, 'comment');
+      const canCreateMessage = checkPermission(activeCommunityId, 'comment');
       if (!canCreateMessage) {
         toast.error('您没有发送消息的权限');
         return;
@@ -583,9 +824,19 @@ export const useCommunityLogic = () => {
       }
   }, [user, contentModeration, storeSendMessage, activeCommunityId, checkPermission]);
   
-  const submitCreateThread = useCallback((data: { title: string; content: string; topic: string; contentType: string; images?: Array<string> }) => {
-      // 确保有活跃社群ID，如果没有则使用创作者社区ID作为默认值
-      const currentCommunityId = activeCommunityId || CREATOR_COMMUNITY_ID;
+  const submitCreateThread = useCallback(async (data: { title: string; content: string; topic: string; contentType: string; images?: Array<string> }) => {
+      // 确保有活跃社群ID
+      if (!activeCommunityId) {
+        toast.error('请先选择社群');
+        return;
+      }
+      const currentCommunityId = activeCommunityId;
+      
+      // 确保用户已登录
+      if (!user?.id) {
+        toast.error('请先登录后再发布帖子');
+        return;
+      }
       
       // 检查创建帖子的权限
       const canCreatePost = checkPermission(currentCommunityId, 'create_post');
@@ -601,20 +852,56 @@ export const useCommunityLogic = () => {
         return;
       }
       
-      const newThread: Thread = {
-          id: `t-${Date.now()}`,
+      try {
+        // 调用API创建帖子
+        const newThread = await communityService.createThread({
           title: data.title,
           content: data.content,
           topic: data.topic,
-          createdAt: Date.now(),
-          replies: [],
-          upvotes: 0,
-          images: data.images,
-          communityId: currentCommunityId // 自动关联当前活跃社群ID
-      };
-      setThreads(prev => [newThread, ...prev]);
-      toast.success('发布成功！');
-  }, [activeCommunityId, contentModeration, checkPermission]);
+          communityId: currentCommunityId,
+          images: data.images
+        }, user.id, user.username || '用户', user.avatar || '');
+        
+        if (newThread) {
+          setThreads(prev => [newThread, ...prev]);
+          toast.success('发布成功！');
+          setIsCreatePostOpen(false);
+
+          // 发送通知给社群成员（这里简化处理，实际应该获取社群成员列表并发送通知）
+          if (user && addNotificationWithNavigate) {
+            addNotificationWithNavigate({
+              type: 'post_created',
+              title: '新帖子发布',
+              content: `${user.username} 发布了新帖子《${data.title}》`,
+              senderId: user.id,
+              senderName: user.username,
+              recipientId: 'community', // 社群通知
+              communityId: currentCommunityId,
+              postId: newThread.id,
+              priority: 'low',
+              link: `/community/${currentCommunityId}/post/${newThread.id}`
+            }, navigate);
+          } else if (user) {
+            addNotification({
+              type: 'post_created',
+              title: '新帖子发布',
+              content: `${user.username} 发布了新帖子《${data.title}》`,
+              senderId: user.id,
+              senderName: user.username,
+              recipientId: 'community', // 社群通知
+              communityId: currentCommunityId,
+              postId: newThread.id,
+              priority: 'low',
+              link: `/community/${currentCommunityId}/post/${newThread.id}`
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Error creating thread:', error);
+        const message = error instanceof Error ? error.message : '发布失败';
+        toast.error(message);
+      }
+  }, [activeCommunityId, contentModeration, checkPermission, user, addNotification, navigate, addNotificationWithNavigate]);
 
   // 重试发送失败消息
   const retrySendMessage = useCallback((messageId: string) => {
@@ -622,23 +909,48 @@ export const useCommunityLogic = () => {
   }, []);
 
   // 添加消息反应
-  const handleAddReaction = useCallback((messageId: string, reaction: string) => {
-    toast.info('表情互动功能开发中...');
-  }, []);
+  const handleAddReaction = useCallback(async (messageId: string, reaction: string) => {
+    try {
+      // 调用API添加反应
+      const result = await apiService.addReaction(messageId, reaction, user?.id || '');
+      
+      if (result) {
+        // 这里可以添加乐观更新逻辑，直接更新本地状态
+        // 实际应用中，消息会通过WebSocket实时更新
+        toast.success('添加反应成功');
+      }
+    } catch (error) {
+      console.error('Error adding reaction:', error);
+      toast.error('添加反应失败');
+    }
+  }, [user?.id]);
 
   // 回复消息
-  const handleReplyToMessage = useCallback((messageId: string, content: string) => {
-    toast.info('回复功能开发中...');
-  }, []);
+  const handleReplyToMessage = useCallback(async (messageId: string, content: string) => {
+    try {
+      // 调用API回复消息
+      const result = await apiService.replyToMessage(messageId, content, user?.id || '');
+      
+      if (result) {
+        // 这里可以添加乐观更新逻辑，直接更新本地状态
+        // 实际应用中，消息会通过WebSocket实时更新
+        toast.success('回复消息成功');
+      }
+    } catch (error) {
+      console.error('Error replying to message:', error);
+      toast.error('回复消息失败');
+    }
+  }, [user?.id]);
 
   const handleCreateCommunity = useCallback(() => {
       setIsCreateCommunityOpen(true);
   }, []);
   
-  const submitCreateCommunity = useCallback((data: {
+  const submitCreateCommunity = useCallback(async (data: {
     name: string; 
     description: string; 
     tags: string[];
+    bookmarks?: Array<{ id: string; name: string; icon: string }>;
     theme?: {
       primaryColor?: string;
       secondaryColor?: string;
@@ -650,24 +962,64 @@ export const useCommunityLogic = () => {
       members?: boolean;
       announcements?: boolean;
     };
+    visibility?: 'public' | 'private' | 'invite-only';
+    avatar?: string;
+    coverImage?: string;
+    guidelines?: string[];
   }) => {
-      const newCommunity: Community = {
-          id: `c-${Date.now()}`,
-          name: data.name,
-          description: data.description,
-          memberCount: 1,
-          topic: data.tags[0] || '其他',
-          avatar: 'https://picsum.photos/seed/community/200/200',
-          isActive: true,
-          // 添加自定义风格字段
-          theme: data.theme,
-          layoutType: data.layoutType,
-          enabledModules: data.enabledModules
-      };
-      setJoinedCommunities(prev => [newCommunity, ...prev]);
-      toast.success('社群创建成功！');
-      setActiveCommunityId(newCommunity.id);
-  }, []);
+    if (!user?.id) {
+      toast.error('请先登录后再创建社群');
+      return;
+    }
+
+    // 检查图片大小，避免Base64过长导致请求失败
+    // 限制为 100KB (约 133333 个字符)
+    const MAX_IMAGE_SIZE = 100 * 1024; 
+    if (data.avatar && data.avatar.length > MAX_IMAGE_SIZE * 1.37) { // Base64 膨胀系数约 1.37
+        toast.error('头像图片过大，请使用小于 100KB 的图片');
+        return;
+    }
+    if (data.coverImage && data.coverImage.length > MAX_IMAGE_SIZE * 1.37) {
+        toast.error('封面图片过大，请使用小于 100KB 的图片');
+        return;
+    }
+
+    try {
+      console.log('Submitting community data:', data);
+      
+      // 调用API创建社群
+      const newCommunity = await communityService.createCommunity({
+        name: data.name,
+        description: data.description,
+        tags: data.tags,
+        theme: data.theme,
+        layoutType: data.layoutType,
+        enabledModules: data.enabledModules,
+        avatar: data.avatar,
+        coverImage: data.coverImage,
+        // 传递额外字段，即使 communityService 可能暂时忽略它们
+        visibility: data.visibility,
+        guidelines: data.guidelines,
+        bookmarks: data.bookmarks
+      }, user.id);
+      
+      if (newCommunity) {
+        setJoinedCommunities(prev => [newCommunity, ...prev]);
+        setAllCommunities(prev => [newCommunity, ...prev]);
+        toast.success('社群创建成功！');
+        setActiveCommunityId(newCommunity.id);
+        setIsCreateCommunityOpen(false);
+      }
+    } catch (error) {
+      console.error('Error creating community:', error);
+      const message = error instanceof Error ? error.message : '社群创建失败';
+      if (message.includes('未授权') || message.toUpperCase().includes('UNAUTHORIZED') || message.includes('401')) {
+        toast.error('登录状态已失效，请重新登录');
+        return;
+      }
+      toast.error(message || '社群创建失败');
+    }
+  }, [user?.id]);
 
   const handleCreateThread = useCallback(() => {
       setIsCreatePostOpen(true);
@@ -675,21 +1027,53 @@ export const useCommunityLogic = () => {
 
 
 
-  const handleJoinCommunity = useCallback((id: string) => {
+  const handleJoinCommunity = useCallback(async (id: string) => {
       const community = allCommunities.find(c => c.id === id);
       if (!community) return;
 
+      if (!user?.id) {
+        toast.error('请先登录后再操作');
+        return;
+      }
+
       const isJoined = joinedCommunities.some(c => c.id === id);
-      if (isJoined) {
+      try {
+        if (isJoined) {
           // Leave
+          await communityService.leaveCommunity(id, user.id);
           setJoinedCommunities(prev => prev.filter(c => c.id !== id));
           toast.success('已退出社群');
-      } else {
+        } else {
           // Join
-          setJoinedCommunities(prev => [...prev, community]);
-          toast.success('已加入社群');
+          const result = await communityService.joinCommunity(id, user.id);
+          
+          if (result.status === 'approved') {
+            setJoinedCommunities(prev => [...prev, community]);
+            toast.success('已加入社群');
+          } else {
+            toast.success('加入请求已提交，等待管理员审核');
+          }
+          
+          // 发送通知给社群管理员（这里简化处理，实际应该获取社群管理员并发送通知）
+          if (user) {
+            notificationUtils.sendCommunityNotification(
+              addNotification,
+              addNotificationWithNavigate,
+              navigate,
+              user,
+              'member_joined',
+              '新成员加入',
+              `${user.username} ${result.requiresApproval ? '申请加入' : '加入了'}社群 ${community.name}`,
+              id
+            );
+          }
+        }
+      } catch (error) {
+        console.error('Error joining/leaving community:', error);
+        const message = error instanceof Error ? error.message : (isJoined ? '退出社群失败' : '加入社群失败');
+        toast.error(message);
       }
-  }, [allCommunities, joinedCommunities]);
+  }, [allCommunities, joinedCommunities, user, addNotification, navigate, addNotificationWithNavigate]);
 
   // --- Selectors ---
   
@@ -729,11 +1113,11 @@ export const useCommunityLogic = () => {
     // 合并推荐标签和帖子话题，去重并保持推荐标签在前
     const uniqueTags = [...new Set([...RECOMMENDED_TAGS, ...threadTopics])];
     return uniqueTags;
-  }, [threads]);
+  }, [threads]); // 注意：threads是activeThreads，已经是useMemo缓存的结果
 
   const activeCommunity = useMemo(() => {
-      return joinedCommunities.find(c => c.id === activeCommunityId);
-  }, [joinedCommunities, activeCommunityId]);
+      return joinedCommunities.find(c => c.id === activeCommunityId) || allCommunities.find(c => c.id === activeCommunityId);
+  }, [joinedCommunities, allCommunities, activeCommunityId]);
 
   return {
     user,
@@ -752,6 +1136,10 @@ export const useCommunityLogic = () => {
     isThreadFavorited,
     search,
     setSearch,
+    
+    // Loading and Error States
+    loading,
+    errors,
     
     // Modal States
     isCreatePostOpen,
@@ -781,6 +1169,7 @@ export const useCommunityLogic = () => {
     contentModeration,
     getRecommendedPosts,
     
-    activeCommunity
+    activeCommunity,
+    unreadNotificationCount: unreadCount
   };
 };

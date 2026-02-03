@@ -301,6 +301,22 @@ export default function Admin() {
               <i className="fas fa-search absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
             </div>
             
+            <button 
+              onClick={() => navigate('/events')}
+              className={`px-4 py-2 rounded-lg ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-white hover:bg-gray-100'} transition-colors flex items-center`}
+            >
+              <i className="fas fa-globe mr-2"></i>
+              津脉活动
+            </button>
+            
+            <button 
+              onClick={() => navigate('/my-activities')}
+              className={`px-4 py-2 rounded-lg ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-white hover:bg-gray-100'} transition-colors flex items-center`}
+            >
+              <i className="fas fa-user mr-2"></i>
+              我的活动
+            </button>
+            
             <div className="relative">
               <button className={`p-2 rounded-full ${isDark ? 'bg-gray-800' : 'bg-white'} transition-colors`}>
                 <i className="far fa-bell"></i>

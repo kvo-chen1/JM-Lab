@@ -774,7 +774,7 @@ export const TianjinAvatar: React.FC<{
   // 生成基于用户名的默认头像URL
   const getDefaultAvatarUrl = (username: string) => {
     // 使用DiceBear API生成基于用户名的头像
-    const seed = encodeURIComponent(username.trim() || 'user');
+    const seed = encodeURIComponent((username || 'user').trim());
     // 支持多种风格，根据主题选择不同风格
     const style = isDark ? 'avataaars' : 'avataaars';
     return `https://api.dicebear.com/7.x/${style}/svg?seed=${seed}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`;

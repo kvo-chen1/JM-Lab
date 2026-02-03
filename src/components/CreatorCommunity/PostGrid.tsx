@@ -1,4 +1,4 @@
-// 创作者社区帖子列表组件
+// 津脉社区帖子列表组件
 import React, { useState, useEffect, useCallback } from 'react'
 import { Heart, MessageCircle, Eye, Grid, List } from 'lucide-react'
 import LazyImage from '../LazyImage'
@@ -43,7 +43,7 @@ const PostCard: React.FC<{
   // 处理作者点击
   const handleAuthorClick = (e: React.MouseEvent) => {
     e.stopPropagation()
-    onAuthorClick?.(post.author_id)
+    onAuthorClick?.(post.user_id || post.author_id || post.author?.id)
   }
 
   if (viewMode === 'grid') {

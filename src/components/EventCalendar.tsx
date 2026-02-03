@@ -2,8 +2,12 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { toast } from 'sonner';
-import eventCalendarService, { CulturalEvent, EventType, EventStatus } from '@/services/eventCalendarService';
+import { useEventService } from '@/hooks/useEventService';
+import { Event } from '@/types';
 import { TianjinImage } from './TianjinStyleComponents';
+
+// 活动类型
+import type { EventType, EventStatus } from '@/services/eventCalendarService';
 
 // 活动日历组件
 export default function EventCalendar() {
@@ -11,66 +15,134 @@ export default function EventCalendar() {
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'upcoming' | 'ongoing' | 'completed'>('upcoming');
   const [selectedEventType, setSelectedEventType] = useState<EventType | 'all'>('all');
-  const [events, setEvents] = useState<CulturalEvent[]>([]);
-  const [filteredEvents, setFilteredEvents] = useState<CulturalEvent[]>([]);
-  const [selectedEvent, setSelectedEvent] = useState<CulturalEvent | null>(null);
+  const [events, setEvents] = useState<Event[]>([]);
+  const [filteredEvents, setFilteredEvents] = useState<Event[]>([]);
+  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [isEventDetailsOpen, setIsEventDetailsOpen] = useState(false);
   const [searchKeyword, setSearchKeyword] = useState('');
+  
+  const { getEvents } = useEventService();
 
   // 加载活动数据
   useEffect(() => {
-    setIsLoading(true);
-    
-    // 模拟API请求延迟
-    setTimeout(() => {
-      const allEvents = eventCalendarService.getAllEvents();
-      setEvents(allEvents);
-      setFilteredEvents(allEvents);
-      setIsLoading(false);
-    }, 600);
-  }, []);
+    const loadEvents = async () => {
+      setIsLoading(true);
+      try {
+        console.log('开始获取活动数据...');
+        // 获取所有活动
+        const allEvents = await getEvents();
+        console.log('API 返回的所有活动:', allEvents);
+        
+        // 确保是数组
+        const eventsArray = Array.isArray(allEvents) ? allEvents : [];
+        console.log('处理后的活动数组:', eventsArray);
+        
+        // 过滤出已发布的活动
+        const publishedEvents = eventsArray.filter(event => {
+          return event && event.status === 'published';
+        });
+        console.log('已发布的活动:', publishedEvents);
+        
+        setEvents(publishedEvents);
+        setFilteredEvents(publishedEvents);
+      } catch (error) {
+        console.error('加载活动失败:', error);
+        // 出错时设置空数组，避免渲染错误
+        setEvents([]);
+        setFilteredEvents([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadEvents();
+  }, [getEvents]);
 
   // 筛选事件
   useEffect(() => {
     let result = [...events];
+    const now = new Date();
 
     // 按状态筛选
     if (activeTab === 'upcoming') {
-      result = result.filter(event => event.status === 'upcoming');
+      result = result.filter(event => {
+        try {
+          const eventStart = new Date(event.startTime);
+          return eventStart > now;
+        } catch (error) {
+          console.error('Date parse error (startTime):', error);
+          return false;
+        }
+      });
     } else if (activeTab === 'ongoing') {
-      result = result.filter(event => event.status === 'ongoing');
+      result = result.filter(event => {
+        try {
+          const eventStart = new Date(event.startTime);
+          const eventEnd = new Date(event.endTime);
+          return eventStart <= now && eventEnd >= now;
+        } catch (error) {
+          console.error('Date parse error (ongoing):', error);
+          return false;
+        }
+      });
     } else if (activeTab === 'completed') {
-      result = result.filter(event => event.status === 'completed');
+      result = result.filter(event => {
+        try {
+          const eventEnd = new Date(event.endTime);
+          return eventEnd < now;
+        } catch (error) {
+          console.error('Date parse error (endTime):', error);
+          return false;
+        }
+      });
     }
 
     // 按类型筛选
     if (selectedEventType !== 'all') {
-      result = result.filter(event => event.type === selectedEventType);
+      // 这里需要根据实际的 Event 类型结构调整
+      // 暂时注释掉，因为新的 Event 类型可能没有 type 字段
+      // result = result.filter(event => event.type === selectedEventType);
     }
 
     // 按关键词搜索
     if (searchKeyword) {
       const keyword = searchKeyword.toLowerCase();
-      result = result.filter(event => 
-        event.title.toLowerCase().includes(keyword) ||
-        event.description.toLowerCase().includes(keyword) ||
-        event.tags.some(tag => tag.toLowerCase().includes(keyword)) ||
-        event.culturalElements.some(element => element.toLowerCase().includes(keyword))
-      );
+      result = result.filter(event => {
+        try {
+          return (
+            event.title.toLowerCase().includes(keyword) ||
+            event.description.toLowerCase().includes(keyword) ||
+            (event.tags && event.tags.some(tag => tag.toLowerCase().includes(keyword)))
+          );
+        } catch (error) {
+          console.error('Filter error:', error);
+          return true;
+        }
+      });
     }
 
     setFilteredEvents(result);
   }, [activeTab, selectedEventType, events, searchKeyword]);
 
   // 处理活动点击
-  const handleEventClick = (event: CulturalEvent) => {
+  const handleEventClick = (event: Event) => {
     setSelectedEvent(event);
     setIsEventDetailsOpen(true);
   };
 
   // 处理活动注册
-  const handleRegisterEvent = (eventId: string) => {
-    toast.success('活动注册成功！');
+  const handleRegisterEvent = async (eventId: string) => {
+    try {
+      // 模拟API调用
+      await new Promise(resolve => setTimeout(resolve, 500));
+      toast.success('活动注册成功！');
+      // 发布活动注册成功事件
+      import('@/services/enhancedEventBus').then(({ default: eventBus }) => {
+        eventBus.emit('activity:registered', { eventId });
+      });
+    } catch (error) {
+      toast.error('活动注册失败，请稍后重试');
+    }
   };
 
   // 处理活动提交
@@ -163,7 +235,7 @@ export default function EventCalendar() {
         </div>
         {/* 电脑端标题和搜索 */}
         <div className="hidden sm:flex flex-col md:flex-row justify-between items-start md:items-center space-y-3 sm:space-y-0">
-          <h2 className="text-lg sm:text-xl font-bold">文化主题活动日历</h2>
+          <h2 className="text-lg sm:text-xl font-bold">津脉活动</h2>
           <div className="relative w-full md:w-64">
             <input 
               type="text"
@@ -244,7 +316,7 @@ export default function EventCalendar() {
               {/* 事件图片 */}
               <div className="relative">
                 <TianjinImage
-                  src={event.image}
+                  src={event.media && event.media.length > 0 ? event.media[0].url : 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=traditional%20chinese%20cultural%20event%20banner&image_size=landscape_16_9'}
                   alt={event.title}
                   className="w-full h-36 sm:h-48 object-cover"
                   ratio="landscape"
@@ -252,15 +324,15 @@ export default function EventCalendar() {
                 {/* 事件标签 */}
                 <div className="absolute top-2 left-2 flex gap-1.5">
                   <span className={`text-[10px] sm:text-xs px-2 py-1 rounded-full ${isDark ? 'bg-gray-900 bg-opacity-80' : 'bg-white bg-opacity-90'}`}>
-                    <i className={`fas fa-${getEventTypeIcon(event.type)} mr-1`}></i>
-                    {getEventTypeDisplayName(event.type)}
+                    <i className="fas fa-calendar-alt mr-1"></i>
+                    {event.type === 'online' ? '线上活动' : '线下活动'}
                   </span>
-                  <span className={`text-[10px] sm:text-xs px-2 py-1 rounded-full ${event.status === 'upcoming' 
+                  <span className={`text-[10px] sm:text-xs px-2 py-1 rounded-full ${activeTab === 'upcoming' 
                     ? 'bg-green-600 text-white' 
-                    : event.status === 'ongoing' 
+                    : activeTab === 'ongoing' 
                     ? 'bg-yellow-600 text-white' 
                     : 'bg-gray-600 text-white'}`}>
-                    {event.status === 'upcoming' ? '即将开始' : event.status === 'ongoing' ? '进行中' : '已结束'}
+                    {activeTab === 'upcoming' ? '即将开始' : activeTab === 'ongoing' ? '进行中' : '已结束'}
                   </span>
                 </div>
               </div>
@@ -276,21 +348,19 @@ export default function EventCalendar() {
                 <div className="space-y-1.5 sm:space-y-2 mb-3 sm:mb-4">
                   <div className="flex items-center text-xs sm:text-sm">
                     <i className="fas fa-calendar-alt text-red-500 mr-2 w-5 text-center"></i>
-                    <span>{event.startDate} {event.endDate !== event.startDate ? `至 ${event.endDate}` : ''}</span>
+                    <span>{new Date(event.startTime).toLocaleDateString('zh-CN')} {new Date(event.endTime).toLocaleDateString('zh-CN') !== new Date(event.startTime).toLocaleDateString('zh-CN') ? `至 ${new Date(event.endTime).toLocaleDateString('zh-CN')}` : ''}</span>
                   </div>
-                  {event.startTime && event.endTime && (
-                    <div className="flex items-center text-xs sm:text-sm">
-                      <i className="fas fa-clock text-red-500 mr-2 w-5 text-center"></i>
-                      <span>{event.startTime} - {event.endTime}</span>
-                    </div>
-                  )}
+                  <div className="flex items-center text-xs sm:text-sm">
+                    <i className="fas fa-clock text-red-500 mr-2 w-5 text-center"></i>
+                    <span>{new Date(event.startTime).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })} - {new Date(event.endTime).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</span>
+                  </div>
                   {event.location && (
                     <div className="flex items-center text-xs sm:text-sm">
                       <i className="fas fa-map-marker-alt text-red-500 mr-2 w-5 text-center"></i>
                       <span className="line-clamp-1">{event.location}</span>
                     </div>
                   )}
-                  {event.onlineLink && (
+                  {event.type === 'online' && (
                     <div className="flex items-center text-xs sm:text-sm">
                       <i className="fas fa-link text-red-500 mr-2 w-5 text-center"></i>
                       <span className="line-clamp-1 text-blue-500 hover:underline">线上活动</span>
@@ -300,12 +370,12 @@ export default function EventCalendar() {
 
                 {/* 标签和参与人数 */}
                 <div className="flex flex-wrap gap-1.5 sm:gap-2 mb-3 sm:mb-4">
-                  {event.tags.slice(0, 3).map((tag, index) => (
+                  {event.tags && event.tags.slice(0, 3).map((tag, index) => (
                     <span key={index} className={`text-[10px] sm:text-xs px-2 py-0.5 rounded-full ${isDark ? 'bg-gray-600' : 'bg-gray-100'}`}>
                       {tag}
                     </span>
                   ))}
-                  {event.tags.length > 3 && (
+                  {event.tags && event.tags.length > 3 && (
                     <span className={`text-[10px] sm:text-xs px-2 py-0.5 rounded-full ${isDark ? 'bg-gray-600' : 'bg-gray-100'}`}>
                       +{event.tags.length - 3}
                     </span>
@@ -316,14 +386,9 @@ export default function EventCalendar() {
                 <div className="flex items-center justify-between text-xs sm:text-sm">
                   <span className={`${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                     <i className="fas fa-users mr-1"></i>
-                    {event.participantCount}人已参与
+                    {event.participantCount || 0}人已参与
                     {event.maxParticipants && ` / ${event.maxParticipants}`}
                   </span>
-                  {event.hasPrize && (
-                    <span className="text-[10px] sm:text-xs bg-yellow-100 text-yellow-600 px-2 py-0.5 rounded-full">
-                      <i className="fas fa-gift mr-1"></i>有奖励
-                    </span>
-                  )}
                 </div>
               </div>
             </motion.div>
@@ -366,7 +431,7 @@ export default function EventCalendar() {
 
             {/* 活动图片 */}
             <TianjinImage
-              src={selectedEvent.image}
+              src={selectedEvent.media && selectedEvent.media.length > 0 ? selectedEvent.media[0].url : 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=traditional%20chinese%20cultural%20event%20banner&image_size=landscape_16_9'}
               alt={selectedEvent.title}
               className="w-full h-36 sm:h-48 lg:h-64 object-cover rounded-lg mb-4 sm:mb-6"
               ratio="landscape"
@@ -378,19 +443,19 @@ export default function EventCalendar() {
                 <div>
                   <h4 className="text-xs sm:text-sm font-medium mb-2">活动类型</h4>
                   <span className={`px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm ${isDark ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                    <i className={`fas fa-${getEventTypeIcon(selectedEvent.type)} mr-1`}></i>
-                    {getEventTypeDisplayName(selectedEvent.type)}
+                    <i className="fas fa-calendar-alt mr-1"></i>
+                    {selectedEvent.type === 'online' ? '线上活动' : '线下活动'}
                   </span>
                 </div>
 
                 <div>
                   <h4 className="text-xs sm:text-sm font-medium mb-2">活动状态</h4>
-                  <span className={`px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm ${selectedEvent.status === 'upcoming' 
+                  <span className={`px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm ${activeTab === 'upcoming' 
                     ? 'bg-green-600 text-white' 
-                    : selectedEvent.status === 'ongoing' 
+                    : activeTab === 'ongoing' 
                     ? 'bg-yellow-600 text-white' 
                     : 'bg-gray-600 text-white'}`}>
-                    {selectedEvent.status === 'upcoming' ? '即将开始' : selectedEvent.status === 'ongoing' ? '进行中' : '已结束'}
+                    {activeTab === 'upcoming' ? '即将开始' : activeTab === 'ongoing' ? '进行中' : '已结束'}
                   </span>
                 </div>
 
@@ -399,14 +464,12 @@ export default function EventCalendar() {
                   <div className="space-y-1">
                     <div className="flex items-center text-xs sm:text-sm">
                       <i className="fas fa-calendar-alt text-red-500 mr-2 w-5 text-center"></i>
-                      <span>{selectedEvent.startDate} {selectedEvent.endDate !== selectedEvent.startDate ? `至 ${selectedEvent.endDate}` : ''}</span>
+                      <span>{new Date(selectedEvent.startTime).toLocaleDateString('zh-CN')} {new Date(selectedEvent.endTime).toLocaleDateString('zh-CN') !== new Date(selectedEvent.startTime).toLocaleDateString('zh-CN') ? `至 ${new Date(selectedEvent.endTime).toLocaleDateString('zh-CN')}` : ''}</span>
                     </div>
-                    {selectedEvent.startTime && selectedEvent.endTime && (
-                      <div className="flex items-center text-xs sm:text-sm">
-                        <i className="fas fa-clock text-red-500 mr-2 w-5 text-center"></i>
-                        <span>{selectedEvent.startTime} - {selectedEvent.endTime}</span>
-                      </div>
-                    )}
+                    <div className="flex items-center text-xs sm:text-sm">
+                      <i className="fas fa-clock text-red-500 mr-2 w-5 text-center"></i>
+                      <span>{new Date(selectedEvent.startTime).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })} - {new Date(selectedEvent.endTime).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</span>
+                    </div>
                   </div>
                 </div>
 
@@ -419,12 +482,10 @@ export default function EventCalendar() {
                         <span className="line-clamp-1">{selectedEvent.location}</span>
                       </div>
                     )}
-                    {selectedEvent.onlineLink && (
+                    {selectedEvent.type === 'online' && (
                       <div className="flex items-center text-xs sm:text-sm">
                         <i className="fas fa-link text-red-500 mr-2 w-5 text-center"></i>
-                        <a href={selectedEvent.onlineLink} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline line-clamp-1">
-                          {selectedEvent.onlineLink}
-                        </a>
+                        <span className="line-clamp-1 text-blue-500 hover:underline">线上活动</span>
                       </div>
                     )}
                   </div>
@@ -433,42 +494,39 @@ export default function EventCalendar() {
 
               <div className="space-y-3 sm:space-y-4">
                 <div>
-                  <h4 className="text-xs sm:text-sm font-medium mb-2">主办方</h4>
-                  <div className="flex items-center">
-                    <i className="fas fa-building text-red-500 mr-2 text-base"></i>
-                    <span className="text-xs sm:text-sm">{selectedEvent.organizer}</span>
-                  </div>
-                </div>
-
-                <div>
                   <h4 className="text-xs sm:text-sm font-medium mb-2">参与情况</h4>
                   <div className="flex items-center text-xs sm:text-sm">
                     <i className="fas fa-users text-red-500 mr-2 w-5 text-center"></i>
                     <span>
-                      {selectedEvent.participantCount}人已参与
+                      {selectedEvent.participantCount || 0}人已参与
                       {selectedEvent.maxParticipants && ` / ${selectedEvent.maxParticipants}`}
                     </span>
                   </div>
                 </div>
 
-                {selectedEvent.registrationDeadline && (
-                  <div>
-                    <h4 className="text-xs sm:text-sm font-medium mb-2">报名截止</h4>
-                    <div className="flex items-center text-xs sm:text-sm">
-                      <i className="fas fa-clock text-red-500 mr-2 w-5 text-center"></i>
-                      <span>{selectedEvent.registrationDeadline}</span>
-                    </div>
+                <div>
+                  <h4 className="text-xs sm:text-sm font-medium mb-2">联系方式</h4>
+                  <div className="space-y-1">
+                    {selectedEvent.contactName && (
+                      <div className="flex items-center text-xs sm:text-sm">
+                        <i className="fas fa-user text-red-500 mr-2 w-5 text-center"></i>
+                        <span>{selectedEvent.contactName}</span>
+                      </div>
+                    )}
+                    {selectedEvent.contactPhone && (
+                      <div className="flex items-center text-xs sm:text-sm">
+                        <i className="fas fa-phone text-red-500 mr-2 w-5 text-center"></i>
+                        <span>{selectedEvent.contactPhone}</span>
+                      </div>
+                    )}
+                    {selectedEvent.contactEmail && (
+                      <div className="flex items-center text-xs sm:text-sm">
+                        <i className="fas fa-envelope text-red-500 mr-2 w-5 text-center"></i>
+                        <span>{selectedEvent.contactEmail}</span>
+                      </div>
+                    )}
                   </div>
-                )}
-
-                {selectedEvent.hasPrize && selectedEvent.prizeDescription && (
-                  <div>
-                    <h4 className="text-xs sm:text-sm font-medium mb-2">奖励设置</h4>
-                    <div className={`p-2 sm:p-3 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-yellow-50'}`}>
-                      <p className="text-xs sm:text-sm whitespace-pre-line">{selectedEvent.prizeDescription}</p>
-                    </div>
-                  </div>
-                )}
+                </div>
               </div>
             </div>
 
@@ -478,22 +536,18 @@ export default function EventCalendar() {
               <p className={`text-xs sm:text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{selectedEvent.description}</p>
             </div>
 
-            {/* 文化元素 */}
-            {selectedEvent.culturalElements.length > 0 && (
+            {/* 活动内容 */}
+            {selectedEvent.content && (
               <div className="mb-4 sm:mb-6">
-                <h4 className="text-xs sm:text-sm font-medium mb-2">文化元素</h4>
-                <div className="flex flex-wrap gap-1.5 sm:gap-2">
-                  {selectedEvent.culturalElements.map((element, index) => (
-                    <span key={index} className={`px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm ${isDark ? 'bg-gray-700' : 'bg-blue-50 text-blue-600'}`}>
-                      {element}
-                    </span>
-                  ))}
+                <h4 className="text-xs sm:text-sm font-medium mb-2">活动内容</h4>
+                <div className={`p-3 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                  <div className="text-xs sm:text-sm" dangerouslySetInnerHTML={{ __html: selectedEvent.content }}></div>
                 </div>
               </div>
             )}
 
             {/* 活动标签 */}
-            {selectedEvent.tags.length > 0 && (
+            {selectedEvent.tags && selectedEvent.tags.length > 0 && (
               <div className="mb-4 sm:mb-6">
                 <h4 className="text-xs sm:text-sm font-medium mb-2">标签</h4>
                 <div className="flex flex-wrap gap-1.5 sm:gap-2">
@@ -503,36 +557,6 @@ export default function EventCalendar() {
                     </span>
                   ))}
                 </div>
-              </div>
-            )}
-
-            {/* 活动规则 */}
-            {selectedEvent.rules && selectedEvent.rules.length > 0 && (
-              <div className="mb-4 sm:mb-6">
-                <h4 className="text-xs sm:text-sm font-medium mb-2">活动规则</h4>
-                <ul className={`space-y-1.5 sm:space-y-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                  {selectedEvent.rules.map((rule, index) => (
-                    <li key={index} className="flex items-start text-xs sm:text-sm">
-                      <i className="fas fa-check-circle text-green-500 mr-2 mt-1 flex-shrink-0"></i>
-                      <span>{rule}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {/* 作品要求 */}
-            {selectedEvent.requirements && selectedEvent.requirements.length > 0 && (
-              <div className="mb-4 sm:mb-6">
-                <h4 className="text-xs sm:text-sm font-medium mb-2">作品要求</h4>
-                <ul className={`space-y-1.5 sm:space-y-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                  {selectedEvent.requirements.map((req, index) => (
-                    <li key={index} className="flex items-start text-xs sm:text-sm">
-                      <i className="fas fa-check-circle text-green-500 mr-2 mt-1 flex-shrink-0"></i>
-                      <span>{req}</span>
-                    </li>
-                  ))}
-                </ul>
               </div>
             )}
 

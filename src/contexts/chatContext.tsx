@@ -38,7 +38,13 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     
     const fetchUnread = async () => {
       try {
-        const res = await apiClient.get('/api/messages/unread');
+        const res = await apiClient.get('/api/messages/unread', {
+          cache: {
+            enabled: true,
+            ttl: 15000, // 缓存15秒
+            staleTtl: 30000 // 过期后可再使用30秒
+          }
+        });
         if (res.data?.ok) {
           const counts: Record<string, number> = {};
           res.data.data.forEach((item: any) => {
@@ -52,7 +58,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
 
     fetchUnread();
-    const interval = setInterval(fetchUnread, 10000); // 每10秒刷新一次
+    const interval = setInterval(fetchUnread, 30000); // 每30秒刷新一次
     return () => clearInterval(interval);
   }, [currentUser]);
 
@@ -66,7 +72,13 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const fetchMessages = async () => {
       setLoading(true);
       try {
-        const res = await apiClient.get(`/api/messages/${currentChatFriendId}?limit=50`);
+        const res = await apiClient.get(`/api/messages/${currentChatFriendId}?limit=50`, {
+          cache: {
+            enabled: true,
+            ttl: 5000, // 缓存5秒
+            staleTtl: 10000 // 过期后可再使用10秒
+          }
+        });
         if (res.data?.ok) {
           setMessages(res.data.data);
           // 标记为已读
@@ -86,18 +98,34 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // 轮询当前聊天的消息
     const interval = setInterval(async () => {
       try {
-        // 使用 offset=0, limit=50 获取最新消息
-        const res = await apiClient.get(`/api/messages/${currentChatFriendId}?limit=50`);
+        // 获取最新消息，使用更大的缓存时间
+        const res = await apiClient.get(`/api/messages/${currentChatFriendId}?limit=50`, {
+          cache: {
+            enabled: true,
+            ttl: 5000, // 缓存5秒
+            staleTtl: 10000 // 过期后可再使用10秒
+          }
+        });
         if (res.data?.ok) {
-          // 这里简单替换，实际可以用更智能的合并
-          setMessages(res.data.data);
-          // 标记为已读
+          // 智能合并消息，避免闪烁
+          setMessages(prevMessages => {
+            const newMessages = res.data.data;
+            const latestOldMessageId = prevMessages.length > 0 ? prevMessages[prevMessages.length - 1].id : 0;
+            const newOnlyMessages = newMessages.filter((msg: Message) => msg.id > latestOldMessageId);
+            
+            if (newOnlyMessages.length > 0) {
+              // 有新消息，合并
+              return [...prevMessages, ...newOnlyMessages];
+            }
+            return prevMessages;
+          });
+          // 只在有新消息时标记为已读
           await apiClient.post('/api/messages/read', { friendId: currentChatFriendId });
         }
       } catch (e) {
         console.error('轮询消息失败', e);
       }
-    }, 3000); // 聊天时每3秒刷新一次
+    }, 8000); // 减少轮询频率到8秒
 
     return () => clearInterval(interval);
   }, [currentUser, currentChatFriendId]);

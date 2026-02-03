@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS communities (
     name VARCHAR(255) NOT NULL,
     description TEXT,
     cover TEXT,
+    avatar TEXT,
     tags TEXT[],
     members_count INTEGER DEFAULT 0,
     privacy VARCHAR(20) DEFAULT 'public' CHECK (privacy IN ('public', 'private')),

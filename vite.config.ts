@@ -6,10 +6,9 @@ import { visualizer } from 'rollup-plugin-visualizer'
 import { ViteImageOptimizer } from 'vite-plugin-image-optimizer'
 import viteCompression from 'vite-plugin-compression'
 import path from 'path'
-import { createRequire } from 'node:module'
-
-const require = createRequire(import.meta.url)
-const LOCAL_API_PORT = process.env.LOCAL_API_PORT || '3021'
+// import { createRequire } from 'node:module'
+// const require = createRequire(import.meta.url)
+const LOCAL_API_PORT = process.env.LOCAL_API_PORT || '3022'
 // 使用127.0.0.1而不是localhost，避免IPv6连接问题
 const LOCAL_API_TARGET = `http://127.0.0.1:${LOCAL_API_PORT}`
 
@@ -21,48 +20,46 @@ export default defineConfig({
     ViteImageOptimizer({
       // 启用WebP和AVIF格式转换
       png: {
-        quality: 80,
+        quality: 75,
         compressionLevel: 9,
         force: true
       },
       jpeg: {
-        quality: 80,
-        force: true
-      },
-      webp: {
-        quality: 85,
-        force: true
-      },
-      avif: {
         quality: 75,
         force: true
       },
-      // 暂时禁用响应式图片生成以加快构建速度
-      generateResponsiveImages: false,
+      webp: {
+        quality: 80,
+        force: true
+      },
+      avif: {
+        quality: 70,
+        force: true
+      },
+      // 启用响应式图片生成以提升不同设备上的加载性能
+      generateResponsiveImages: true,
       // 响应式图片尺寸配置
-      /*
       responsive: {
         adapter: {
           name: 'sharp',
           options: {
-            sizes: [320, 640, 1024, 1600, 2048],
+            sizes: [320, 640, 1024, 1600],
             format: ['webp', 'avif'],
-            quality: [85, 75]
+            quality: [80, 70]
           }
         }
       },
-      */
       svg: {
-        quality: 85,
+        quality: 80,
         force: true
       },
       gif: {
-        quality: 85,
+        quality: 80,
         force: true
       },
       // 仅在构建时优化
       disable: process.env.NODE_ENV === 'development',
-      // 仅优化src目录下的图片
+      // 优化所有目录下的图片
       include: /\.(png|jpe?g|gif|svg|webp|avif)$/i,
       // 排除node_modules目录和有问题的图片
       exclude: [/node_modules/, /placeholder-image\.jpg$/]
@@ -252,7 +249,6 @@ export default defineConfig({
       }
     }),
     // 启用 Gzip 压缩
-    /*
     viteCompression({
       verbose: true,
       disable: process.env.NODE_ENV === 'development',
@@ -268,48 +264,35 @@ export default defineConfig({
       algorithm: 'brotliCompress',
       ext: '.br',
     }),
-    */
   ],
   resolve: {
     // 为数据库相关的 Node.js 原生模块创建别名，避免在浏览器环境中打包
     alias: {
       '@': path.resolve(__dirname, './src'),
+      'react': path.resolve(__dirname, 'node_modules/react'),
+      'react-dom': path.resolve(__dirname, 'node_modules/react-dom'),
       'better-sqlite3': '@/utils/databaseStub',
       'mongodb': '@/utils/databaseStub',
       'pg': '@/utils/databaseStub',
       '@neondatabase/serverless': '@/utils/databaseStub',
       'ws': '@/utils/databaseStub',
-      // Fix: point to actual file in node_modules to avoid export map issues
-      'react-reconciler/constants': 'react-reconciler/constants.js', 
-      // Fix: ensure scheduler resolves to the correct entry point
-      scheduler: require.resolve('scheduler')
+      // React相关依赖使用默认解析
+      // scheduler: require.resolve('scheduler')
     }
   },
-  define: {
-    // 定义Three.js 0.181+版本中缺失的编码常量
-    // 这些常量在新版本中已被移除，但@react-three/drei仍在使用
-    'THREE.LinearEncoding': '1',
-    'THREE.sRGBEncoding': '3',
-    'THREE.GammaEncoding': '2'
-  },
+
   build: {
     // 优化构建输出
     minify: 'esbuild', // 使用esbuild替代terser加快构建速度
-    /*
-    terserOptions: {
-      compress: {
-        drop_console: true, // 移除console.log
-        drop_debugger: true, // 移除debugger
-        pure_funcs: ['console.debug', 'console.info'], // 移除特定console方法
-        passes: 2 // 执行多次压缩
-      },
-      mangle: {
-        toplevel: true, // 顶级变量名混淆
-        keep_classnames: false,
-        keep_fnames: false
-      }
+    // 启用更高级的esbuild压缩选项
+    esbuild: {
+      minify: true,
+      minifyIdentifiers: true,
+      minifySyntax: true,
+      minifyWhitespace: true,
+      // 移除console.log和debugger
+      drop: ['console', 'debugger'],
     },
-    */
     // 禁用brotli大小计算以加快构建
     brotliSize: false, 
     // 优化 CSS 构建
@@ -326,10 +309,19 @@ export default defineConfig({
     reportCompressedSize: false, 
     // 调整资产内联限制，减少内联资源数量
     assetsInlineLimit: 4096, // 内联小于4KB的资源
-    // 禁用动态导入 polyfill，减少不必要的代码
+    // 启用模块预加载
     modulePreload: {
-      polyfill: false
+      polyfill: false,
+      resolveDependencies: (filename, deps, context) => {
+        // 优化模块预加载策略
+        return deps.filter(dep => {
+          // 只预加载关键依赖
+          return !dep.includes('node_modules') || dep.includes('react') || dep.includes('react-dom')
+        })
+      }
     },
+    // 启用动态导入支持
+    dynamicImportVars: true,
     // 启用更严格的 tree-shaking
     ssr: false,
     // 优化构建目标，使用更现代的ES版本
@@ -357,61 +349,52 @@ export default defineConfig({
         entryFileNames: 'entries/[name]-[hash:8].js',
         // 启用动态导入支持
         dynamicImportInCjs: true,
+        // 优化chunk分割策略
+        // manualChunks: {
+          // 将核心React库分离到单独的chunk中
+          // 'react-core': ['react', 'react-dom', 'react-router-dom'],
+          // 将状态管理库分离到单独的chunk中
+          // 'state-management': ['zustand'],
+          // 将UI库分离到单独的chunk中
+          // 'ui-libraries': ['@headlessui/react', 'lucide-react'],
+          // 将动画库分离到单独的chunk中
+          // 'animation': ['framer-motion'],
+          // 将图表库分离到单独的chunk中
+          // 'charts': ['recharts'],
+          // 将国际化库分离到单独的chunk中
+          // 'i18n': ['i18next', 'react-i18next', 'i18next-browser-languagedetector'],
+          // 将工具库分离到单独的chunk中
+          // 'utils': ['clsx', 'zod', 'date-fns', 'dayjs'],
+          // 将样式库分离到单独的chunk中
+          // 'style': ['tailwind-merge'],
+          // 将Supabase相关库分离到单独的chunk中
+          // 'supabase': ['@supabase/supabase-js'],
+          // 将媒体相关库分离到单独的chunk中
+          // 'media': ['@tinymce/tinymce-react'],
+          // 将短信服务相关库分离到单独的chunk中
+          // 'sms': ['@alicloud/dysmsapi20170525', '@alicloud/tea-typescript', '@alicloud/tea-util', 'tencentcloud-sdk-nodejs-sms', 'twilio'],
+          // 将地图相关库分离到单独的chunk中
+          // 'maps': ['@amap/amap-jsapi-loader'],
+          // 将虚拟列表相关库分离到单独的chunk中
+          // 'virtual-lists': ['react-virtuoso', 'react-window'],
+          // 将密码处理库分离到单独的chunk中
+          // 'security': ['bcryptjs', 'jsonwebtoken'],
+          // 将字体图标库分离到单独的chunk中
+          // 'icons': ['@fortawesome/fontawesome-free'],
+          // 将手势库分离到单独的chunk中
+          // 'gestures': ['@use-gesture/react'],
+          // 将protobuf库分离到单独的chunk中
+          // 'protobuf': ['@bufbuild/protobuf'],
+          // 将PWA相关库分离到单独的chunk中
+          // 'pwa': ['workbox-window'],
+
+          // 将压缩库分离到单独的chunk中
+          // 'compression': [],
+        // },
       },
       // 优化插件配置
       plugins: [
-        // 自定义插件：处理@react-three/fiber和@react-three/drei对stub文件的导入问题
-        {
-          name: 'resolve-stub-files',
-          resolveId(source, importer) {
-            if (importer && (importer.includes('@react-three/fiber') || importer.includes('@react-three/drei'))) {
-              if (source === '@/utils/reactReconcilerStub') {
-                return path.resolve(__dirname, './src/utils/reactReconcilerStub.ts');
-              } else if (source === '@/utils/reactReconcilerConstantsStub') {
-                return path.resolve(__dirname, './src/utils/reactReconcilerConstantsStub.ts');
-              }
-            }
-            return null;
-          }
-        },
-        // 自定义插件：替换Three.js 0.181+版本中缺失的编码常量
-        {
-          name: 'replace-three-encoding-constants',
-          transform(code, id) {
-            // 只处理@react-three/drei和@react-three/fiber的文件
-            // Also handle pre-bundled deps if they contain drei code (though unlikely to be caught here if optimized)
-            if (id.includes('@react-three/drei') || id.includes('@react-three/fiber') || id.includes('three-stdlib')) {
-              // 处理从three导入编码常量的情况
-              // 匹配导入语句，如: import { Vector3, LinearEncoding } from 'three';
-              // 使用 [\s\S]+? 匹配多行内容
-              code = code.replace(/import\s+\{([\s\S]+?)\}\s+from\s+['"]three['"];/g, (match, imports) => {
-                // 移除编码常量
-                const filteredImports = imports.split(',').map(imp => imp.trim())
-                  .filter(imp => !['LinearEncoding', 'sRGBEncoding', 'GammaEncoding'].includes(imp))
-                  .join(', ');
-                
-                // 重新构建导入语句
-                return `import { ${filteredImports} } from 'three';`;
-              });
-              
-              // 替换代码中使用的编码常量，但避免替换变量名
-              // 只替换作为常量使用的情况，如: texture.encoding = sRGBEncoding;
-              code = code
-                // 处理THREE.前缀的情况
-                .replace(/THREE\.LinearEncoding/g, '3000') // 1 -> 3000 (LinearSRGBColorSpace)
-                .replace(/THREE\.sRGBEncoding/g, '3001') // 3 -> 3001 (SRGBColorSpace)
-                .replace(/THREE\.GammaEncoding/g, '3007'); // 2 -> 3007 (NoColorSpace/Gamma is deprecated)
-                
-               // 处理直接使用的情况 (LinearEncoding) -> 3000
-              // 使用负向回顾断言避免替换变量声明
-              code = code
-                .replace(/(?<!(const|let|var|function|class|import|export)\s+)\bLinearEncoding\b/g, '3000')
-                .replace(/(?<!(const|let|var|function|class|import|export)\s+)\bsRGBEncoding\b/g, '3001')
-                .replace(/(?<!(const|let|var|function|class|import|export)\s+)\bGammaEncoding\b/g, '3007');
-            }
-            return code;
-          }
-        },
+
         // 只在ANALYZE模式下启用构建分析插件
         process.env.ANALYZE === 'true' && visualizer({
           filename: 'bundle-visualizer.html',
@@ -423,108 +406,72 @@ export default defineConfig({
       ].filter(Boolean) as any[]
     },
   },
+  define: {
+    'process.env': {}
+  },
   // 优化开发体验和构建速度
   optimizeDeps: {
-    // 预构建依赖 - 只包含核心依赖，减少预构建时间
+    // 预构建依赖 - 包含所有可能需要转换的依赖
     include: [
       'react', 'react-dom', 'react-router-dom', 
       'clsx', 'tailwind-merge', 
       'framer-motion',
-      'react-reconciler', 'scheduler'
+      'zustand',
+      'i18next', 'react-i18next',
+      '@headlessui/react',
+      'zod',
+      'date-fns', 'dayjs',
+      'lucide-react',
+      'react-virtuoso', 'react-window',
+      '@supabase/supabase-js',
+      '@fortawesome/fontawesome-free',
+      '@tinymce/tinymce-react',
+      '@amap/amap-jsapi-loader',
+      '@alicloud/dysmsapi20170525',
+      '@alicloud/tea-typescript',
+      '@alicloud/tea-util',
+      'tencentcloud-sdk-nodejs-sms',
+      'twilio',
+      'node-fetch',
+      'nodemailer',
+      'jsonwebtoken',
+      'bcryptjs',
+      'ws',
+      'recharts',
+      'react-markdown',
+      'workbox-window'
     ],
-    // 禁用预构建的依赖，包括数据库依赖和可能存在兼容性问题的库
+    // 禁用预构建的依赖，包括数据库依赖
     exclude: [
-      'better-sqlite3', 'mongodb', 'pg', '@neondatabase/serverless',
-      '@mediapipe/hands', '@tensorflow/tfjs-core', '@tensorflow/tfjs-backend-webgl',
-      'three', '@react-three/fiber'
-      // '@react-three/drei' should be optimized to handle its CJS deps like stats.js
+      'better-sqlite3', 'mongodb', 'pg', '@neondatabase/serverless'
     ],
-    // 优化依赖构建，增加并发数
+    // 优化依赖构建
     esbuildOptions: {
-      target: 'es2022', // 使用更现代的ES版本
-      // 优化大型依赖的构建
+      target: 'es2022',
+      format: 'esm', // 强制使用ES模块格式
       treeShaking: true,
-      // 优化 esbuild 配置
-      minify: false, // 禁用预构建时的压缩，加快预构建速度
-      minifySyntax: false,
-      minifyIdentifiers: false,
-      minifyWhitespace: false,
-      // 启用更严格的 tree-shaking
       pure: process.env.NODE_ENV === 'production' ? ['console.log', 'console.warn', 'console.error'] : [],
-      plugins: [
-        {
-          name: 'three-stdlib-encoding-fix',
-          setup(build) {
-            build.onLoad({ filter: /three-stdlib/ }, async (args) => {
-              const fs = require('fs/promises');
-              let code = await fs.readFile(args.path, 'utf8');
-              
-              // Remove LinearEncoding, sRGBEncoding, GammaEncoding from 'three' imports
-              // Match pattern: import { ... } from 'three'; or "three"
-              code = code.replace(/import\s+\{([^}]+)\}\s+from\s+['"]three['"]/g, (match, imports) => {
-                const filtered = imports.split(',')
-                  .map(i => i.trim())
-                  .filter(i => !['LinearEncoding', 'sRGBEncoding', 'GammaEncoding'].includes(i))
-                  .join(',');
-                // If filtered is empty, we might leave "import { } from 'three'" which is valid but useless.
-                return `import { ${filtered} } from 'three'`;
-              });
-              
-              // Replace usages with numeric constants, but be careful not to replace const declarations
-              // Wrong: const LinearEncoding = 3000; -> const 3000 = 3000; (Syntax Error)
-              // We should only replace usage, not definition if it happens to be defined locally.
-              // However, three-stdlib usually defines them by importing or just using them.
-              // In KTX2Loader.js: const LinearEncoding = 3000; might exist if they are polyfilling.
-              
-              // Improved regex: Negative lookbehind to avoid replacing variable declarations? 
-              // JS doesn't support variable lookbehind well in all envs, but we can match context.
-              // Or better: Remove the declaration lines if they exist?
-              
-              // Strategy: 
-              // 1. Remove "const LinearEncoding = ..." lines if they are just re-exports or polyfills matching standard values.
-              // 2. Replace other usages.
-              
-              // Let's try to just replace "LinearEncoding" where it is NOT preceded by "const ", "let ", "var ", "function ", "class ".
-              // But esbuild regex is limited? No, we are in node.js here.
-              
-              code = code.replace(/(?<!(const|let|var|function|class|import)\s+)\bLinearEncoding\b/g, '3000')
-                         .replace(/(?<!(const|let|var|function|class|import)\s+)\bsRGBEncoding\b/g, '3001')
-                         .replace(/(?<!(const|let|var|function|class|import)\s+)\bGammaEncoding\b/g, '3007');
-              
-              // Also handle cases where they might be properties of an object but not the key definition?
-              // e.g. { LinearEncoding: 3000 } -> { 3000: 3000 } is valid JS object literal but maybe not what we want.
-              // But usually it's used as value: encoding: LinearEncoding
-              
-              // Special case for KTX2Loader which seems to define: const LinearEncoding = 3000;
-              // We can just remove those lines if they match known patterns.
-              code = code.replace(/const\s+LinearEncoding\s*=\s*3000\s*;/g, '')
-                         .replace(/const\s+sRGBEncoding\s*=\s*3001\s*;/g, '')
-                         .replace(/const\s+GammaEncoding\s*=\s*3007\s*;/g, '');
-                         
-              return { contents: code, loader: 'js' };
-            });
-          }
-        }
-      ]
+      minify: process.env.NODE_ENV === 'production',
+      minifySyntax: process.env.NODE_ENV === 'production',
+      minifyIdentifiers: process.env.NODE_ENV === 'production',
+      minifyWhitespace: process.env.NODE_ENV === 'production',
     },
   },
   // 开发服务器配置
   server: {
     // 启用 gzip 压缩
     compress: true,
-    // 设置端口为3000
-    port: 3000,
+    // 设置端口为3005，避开常用端口缓存
+    port: 3005,
     // 自动打开浏览器，直接打开landing.html
     open: '/landing.html',
     // 优化热更新
     hmr: {
       timeout: 3000,
       overlay: true,
-      // 确保HMR连接正常，允许Trae IDE自动刷新
-      clientPort: 3000,
       // 强制使用WebSocket连接，确保IDE能正确接收更新
       protocol: 'ws',
-      // 禁用客户端自动重连，让IDE处理连接
+      // 启用客户端自动重连
       reconnect: true,
       // 启用完整重载作为后备选项
       fullReload: true,
@@ -539,11 +486,67 @@ export default defineConfig({
         target: LOCAL_API_TARGET,
         changeOrigin: true
       },
+      '/api/works': {
+        target: LOCAL_API_TARGET,
+        changeOrigin: true
+      },
       '/api/friends': {
         target: LOCAL_API_TARGET,
         changeOrigin: true
       },
       '/api/messages': {
+        target: LOCAL_API_TARGET,
+        changeOrigin: true
+      },
+      '/api/activities': {
+        target: LOCAL_API_TARGET,
+        changeOrigin: true
+      },
+      '/api/communities': {
+        target: LOCAL_API_TARGET,
+        changeOrigin: true
+      },
+      '/api/community': {
+        target: LOCAL_API_TARGET,
+        changeOrigin: true
+      },
+      '/api/posts': {
+        target: LOCAL_API_TARGET,
+        changeOrigin: true
+      },
+      '/api/ai': {
+        target: LOCAL_API_TARGET,
+        changeOrigin: true
+      },
+      '/api/templates': {
+        target: LOCAL_API_TARGET,
+        changeOrigin: true
+      },
+      '/api/upload': {
+        target: LOCAL_API_TARGET,
+        changeOrigin: true
+      },
+      '/api/notifications': {
+        target: LOCAL_API_TARGET,
+        changeOrigin: true
+      },
+      '/api/categories': {
+        target: LOCAL_API_TARGET,
+        changeOrigin: true
+      },
+      '/api/stats': {
+        target: LOCAL_API_TARGET,
+        changeOrigin: true
+      },
+      '/api/search': {
+        target: LOCAL_API_TARGET,
+        changeOrigin: true
+      },
+      '/api/events': {
+        target: LOCAL_API_TARGET,
+        changeOrigin: true
+      },
+      '/api/moderation': {
         target: LOCAL_API_TARGET,
         changeOrigin: true
       },
@@ -630,6 +633,7 @@ export default defineConfig({
       },
     },
   },
+
   // 预览服务器配置
   preview: {
     // 启用 gzip 压缩
@@ -646,6 +650,10 @@ export default defineConfig({
         target: LOCAL_API_TARGET,
         changeOrigin: true
       },
+      '/api/works': {
+        target: LOCAL_API_TARGET,
+        changeOrigin: true
+      },
       '/api/friends': {
         target: LOCAL_API_TARGET,
         changeOrigin: true
@@ -655,6 +663,10 @@ export default defineConfig({
         changeOrigin: true
       },
       '/api/doubao': {
+        target: LOCAL_API_TARGET,
+        changeOrigin: true
+      },
+      '/api/communities': {
         target: LOCAL_API_TARGET,
         changeOrigin: true
       },
@@ -739,7 +751,7 @@ export default defineConfig({
         '@neondatabase/serverless': '@/utils/databaseStub',
         'ws': '@/utils/databaseStub',
         'react-reconciler/constants': 'react-reconciler/constants.js',
-        scheduler: require.resolve('scheduler')
+        scheduler: path.resolve(__dirname, 'node_modules', 'scheduler')
       }
     }
   },

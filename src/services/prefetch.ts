@@ -78,7 +78,7 @@ export function smartPrefetch(
   preloadFn: (path: string) => void
 ) {
   // 仅预加载高频访问路由，减少预加载数量
-  const highFrequencyRoutes = ['/', '/explore', '/tools', '/neo', '/wizard'];
+  const highFrequencyRoutes = ['/', '/explore', '/neo', '/wizard'];
   
   // 获取预测的路由列表，只取前1个最可能访问的路由，减少预加载数量
   const predictedRoutes = (ROUTE_PREDICTIONS[currentPath] || [])

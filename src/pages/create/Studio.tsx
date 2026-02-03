@@ -8,6 +8,7 @@ import CollaborationPanel from '@/components/CollaborationPanel';
 import AIReview from '@/components/AIReview';
 import ModelSelector from '@/components/ModelSelector';
 import InspirationPanel from '@/components/InspirationPanel';
+import CreateWorkForm from '@/components/CreateWorkForm';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useSearchParams } from 'react-router-dom';
 import { useAutoSave } from '@/hooks/useAutoSave';
@@ -24,6 +25,7 @@ export default function Studio() {
     showAIReview, 
     showModelSelector,
     showInspirationPanel,
+    showPublishModal,
     prompt,
     aiExplanation,
     selectedResult,
@@ -38,6 +40,7 @@ export default function Studio() {
   useEffect(() => {
     const toolParam = searchParams.get('tool');
     const promptParam = searchParams.get('prompt');
+    const eventParam = searchParams.get('event');
     
     if (toolParam) {
       setActiveTool(toolParam as any);
@@ -46,7 +49,11 @@ export default function Studio() {
     if (promptParam) {
       setPrompt(promptParam);
     }
-  }, [searchParams, setActiveTool, setPrompt]);
+    
+    if (eventParam) {
+      updateState({ currentEventId: eventParam });
+    }
+  }, [searchParams, setActiveTool, setPrompt, updateState]);
   
   return (
     <div className={`flex h-full ${isDark ? 'bg-gray-950' : 'bg-gray-50'}`}>
@@ -115,6 +122,21 @@ export default function Studio() {
             isOpen={showModelSelector}
             onClose={() => updateState({ showModelSelector: false })} 
           />
+        )}
+        {showPublishModal && selectedResult && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+             <div className="relative w-full max-w-2xl">
+                <CreateWorkForm 
+                  onClose={() => updateState({ showPublishModal: false })}
+                  onSuccess={() => {
+                    updateState({ showPublishModal: false });
+                  }}
+                  initialImage={generatedResults.find(r => r.id === selectedResult)?.thumbnail}
+                  initialTitle={`AI创作-${new Date().toLocaleDateString()}`}
+                  initialDescription={prompt}
+                />
+             </div>
+          </div>
         )}
       </AnimatePresence>
     </div>

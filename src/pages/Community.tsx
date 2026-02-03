@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useMemo } from 'react';
+import React, { lazy, Suspense, useMemo, useState, useCallback } from 'react';
 import { useTheme } from '@/hooks/useTheme';
 import { CommunityLayout } from '@/components/Community/CommunityLayout';
 import { CommunitySidebar } from '@/components/Community/CommunitySidebar';
@@ -9,10 +9,12 @@ import { ChatSection } from '@/components/Community/Chat/ChatSection';
 import { CreatePostModal } from '@/components/Community/Modals/CreatePostModal';
 import { CreateCommunityModal } from '@/components/Community/Modals/CreateCommunityModal';
 import { DiscoverySection } from '@/components/Community/Discovery/DiscoverySection';
-import { useCommunityLogic, CREATOR_COMMUNITY_ID } from '@/hooks/useCommunityLogic';
+import { NotificationCenter } from '@/components/Community/Notification/NotificationCenter';
+import { useCommunityLogic } from '@/hooks/useCommunityLogic';
 import { motion } from 'framer-motion';
-
-const CreatorSection = lazy(() => import('@/components/Community/Creator/CreatorSection'));
+import CommunityManagement from '@/components/CommunityManagement';
+import { CommunitySkeleton } from '@/components/Community/CommunitySkeleton';
+import ErrorBoundary from '@/components/ErrorBoundary';
 
 // Export types used in other files
 export type Thread = {
@@ -26,6 +28,9 @@ export type Thread = {
   upvotes?: number;
   images?: Array<string>;
   communityId: string; // 添加社群ID字段，关联到所属社群
+  author?: string; // 作者用户名
+  authorAvatar?: string; // 作者头像
+  authorId?: string; // 作者ID
 };
 
 export type ChatMessage = {
@@ -71,11 +76,7 @@ export type ChatMessage = {
 // Re-export Community type from mock data for compatibility
 export type { Community } from '@/mock/communities';
 
-const LoadingFallback = () => (
-  <div className="flex items-center justify-center h-full w-full min-h-[500px]">
-    <div className="w-10 h-10 border-4 border-t-blue-500 border-gray-300 rounded-full animate-spin"></div>
-  </div>
-);
+const LoadingFallback = () => <CommunitySkeleton />;
 
 // 页面过渡动画组件
 const PageTransition = ({ children }: { children: React.ReactNode }) => (
@@ -89,7 +90,8 @@ const PageTransition = ({ children }: { children: React.ReactNode }) => (
   </motion.div>
 );
 
-export default function CommunityPage() {
+// 社区页面主组件，集成通知系统
+const CommunityPageWithNotifications = React.memo(function CommunityPageWithNotifications() {
   const { isDark } = useTheme();
   const {
       user,
@@ -126,7 +128,15 @@ export default function CommunityPage() {
       setIsCreateCommunityOpen,
       search,
       setSearch,
+      unreadNotificationCount,
+      checkPermission,
     } = useCommunityLogic();
+
+  // 通知系统状态
+  const [isNotificationCenterOpen, setIsNotificationCenterOpen] = useState(false);
+  
+  // 社区管理面板状态
+  const [isManagementPanelOpen, setIsManagementPanelOpen] = useState(false);
 
   // 使用useMemo优化性能，减少不必要的计算
   const filteredThreads = useMemo(() => {
@@ -156,6 +166,16 @@ export default function CommunityPage() {
     // 在社群模式下，threads已经通过useCommunityLogic中的activeThreads筛选过了
     return threads;
   }, [threads, mode, selectedTag]);
+  
+  // 使用useCallback缓存事件处理函数，减少不必要的重新渲染
+  const handleSearchSubmit = useCallback((query: string) => {
+    console.log('Search submitted:', query);
+    // 可以在这里添加额外的搜索逻辑
+  }, []);
+  
+  const handleOpenManagement = useCallback(() => {
+    setIsManagementPanelOpen(true);
+  }, []);
 
   return (
     <>
@@ -180,28 +200,36 @@ export default function CommunityPage() {
           selectedTag={selectedTag}
           onSelectTag={setSelectedTag}
           tags={tags}
+          search={search}
+          setSearch={setSearch}
+          onSearchSubmit={handleSearchSubmit}
+          onOpenManagement={handleOpenManagement}
+          hasManagementPermission={activeCommunity?.creatorId === user?.id || user?.role === 'admin'}
         />
       }
       infoSidebar={
-        activeCommunity && activeCommunityId !== CREATOR_COMMUNITY_ID ? (
+        activeCommunity ? (
             <CommunityInfoSidebar
             isDark={isDark}
             community={activeCommunity}
-            onlineCount={12} // Mock
+            onlineCount={activeCommunity?.memberCount || 0} // 使用成员数量作为在线数
             isJoined={joinedCommunities.some(c => c.id === activeCommunityId)}
             onJoinCommunity={onJoinCommunity}
+            // isAdmin={activeCommunityId ? checkPermission(activeCommunityId, 'manage_community') : false}
+            isAdmin={activeCommunityId && typeof checkPermission === 'function' ? checkPermission(activeCommunityId, 'manage_community') : false}
             />
         ) : undefined
       }
       activeCommunity={activeCommunity} // 传递活跃社群信息，用于自定义风格
       search={search}
       setSearch={setSearch}
+      user={user} // 传递用户信息，用于通知系统
+      unreadNotificationCount={unreadNotificationCount}
     >
-      <Suspense fallback={<LoadingFallback />}>
+      <ErrorBoundary>
+        <Suspense fallback={<LoadingFallback />}>
         <PageTransition>
-          {activeCommunityId === CREATOR_COMMUNITY_ID ? (
-             <CreatorSection currentUser={user} />
-          ) : mode === 'discovery' ? (
+          {mode === 'discovery' ? (
             activeChannel === 'communities' ? (
               <DiscoverySection 
                   isDark={isDark}
@@ -221,9 +249,11 @@ export default function CommunityPage() {
               onToggleFavorite={onToggleFavorite}
               onAddComment={onAddComment}
               onOpenThread={(id) => console.log('Open thread', id)}
+              onViewThread={(id) => console.log('View thread', id)}
               onCreateThread={onCreateThread}
               isThreadFavorited={isThreadFavorited}
               activeCommunity={activeCommunity} // 传递活跃社群信息，用于自定义风格
+              user={user} // 传递用户信息，用于显示头像
             />
             )
           ) : (
@@ -247,15 +277,20 @@ export default function CommunityPage() {
                       onToggleFavorite={onToggleFavorite}
                       onAddComment={onAddComment}
                       onOpenThread={(id) => console.log('Open thread', id)}
+                      onViewThread={(id) => console.log('View thread', id)}
                       onCreateThread={onCreateThread}
                       isThreadFavorited={isThreadFavorited}
                       activeCommunity={activeCommunity} // 传递活跃社群信息，用于自定义风格
+                      user={user} // 传递用户信息，用于显示头像
                  />
              )
           )}
         </PageTransition>
-      </Suspense>
+        </Suspense>
+      </ErrorBoundary>
     </CommunityLayout>
+
+    
 
     {/* Modals */}
     <CreatePostModal 
@@ -273,6 +308,26 @@ export default function CommunityPage() {
         onSubmit={submitCreateCommunity}
         isDark={isDark}
     />
+    
+    {/* 社区管理面板 */}
+    {isManagementPanelOpen && activeCommunity && (
+      <CommunityManagement
+        isOpen={isManagementPanelOpen}
+        onClose={() => setIsManagementPanelOpen(false)}
+        community={activeCommunity}
+        isDark={isDark}
+      />
+    )}
     </>
+  );
+});
+
+// 添加displayName便于调试
+CommunityPageWithNotifications.displayName = 'CommunityPageWithNotifications';
+
+// 导出社区页面
+export default function CommunityPage() {
+  return (
+    <CommunityPageWithNotifications />
   );
 }

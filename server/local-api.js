@@ -1,8 +1,8 @@
 // Minimal local proxy server for Ark Doubao APIs
 // Runs at http://localhost:3001 and exposes /api/doubao/* endpoints
 
-const http = require('http')
-const { URL } = require('url')
+import http from 'node:http'
+import { URL } from 'node:url'
 
 const PORT = 3001
 const BASE_URL = process.env.DOUBAO_BASE_URL || 'https://ark.cn-beijing.volces.com/api/v3'

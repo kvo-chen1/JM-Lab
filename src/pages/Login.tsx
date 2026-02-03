@@ -1,23 +1,19 @@
-import { useState, useContext, useEffect } from 'react';
+import React, { useState, useContext, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '@/contexts/authContext';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
 export default function Login() {
   const { toggleTheme, isDark } = useTheme();
-  const { login, loginWithCode, sendEmailOtp, sendSmsOtp, isAuthenticated, quickLogin } = useContext(AuthContext);
+  const { login, loginWithCode, sendEmailOtp, isAuthenticated, quickLogin } = useContext(AuthContext);
   const navigate = useNavigate();
   
-  // 登录方式：email - 邮箱登录，phone - 手机号验证码登录
-  const [loginMethod, setLoginMethod] = useState<'email' | 'phone'>('email');
-  // 邮箱登录类型：password - 密码登录，code - 验证码登录
-  const [emailLoginType, setEmailLoginType] = useState<'password' | 'code'>('password');
+  // 邮箱登录类型：只保留验证码登录
+  const [emailLoginType] = useState<'password' | 'code'>('code');
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSendingCode, setIsSendingCode] = useState(false);
@@ -25,19 +21,15 @@ export default function Login() {
   // 表单验证状态
   interface ErrorsState {
     email: string;
-    password: string;
-    phone: string;
     code: string;
   }
-  const [errors, setErrors] = useState<ErrorsState>({ email: '', password: '', phone: '', code: '' });
+  const [errors, setErrors] = useState<ErrorsState>({ email: '', code: '' });
   // 输入框焦点状态
   interface FocusedState {
     email: boolean;
-    password: boolean;
-    phone: boolean;
     code: boolean;
   }
-  const [focused, setFocused] = useState<FocusedState>({ email: false, password: false, phone: false, code: false });
+  const [focused, setFocused] = useState<FocusedState>({ email: false, code: false });
   
   // 倒计时计时器
   useEffect(() => {
@@ -50,48 +42,23 @@ export default function Login() {
     };
   }, [countdown]);
   
-  // 发送验证码（支持手机号和邮箱）
-  const handleSendCode = async (type: 'phone' | 'email') => {
-    // 验证输入
-    if (type === 'phone') {
-      if (!phone || errors.phone) {
-        setErrors(prev => ({ ...prev, phone: '请输入有效的手机号' }));
-        return;
-      }
-    } else {
-      if (!email || errors.email) {
-        setErrors(prev => ({ ...prev, email: '请输入有效的邮箱' }));
-        return;
-      }
+  const handleSendCode = async () => {
+    if (!email || errors.email) {
+      setErrors(prev => ({ ...prev, email: '请输入有效的邮箱' }));
+      return;
     }
     
     setIsSendingCode(true);
     try {
-      if (type === 'email') {
-        // 使用Supabase内置的邮箱验证码发送功能
-        const result = await sendEmailOtp(email);
-        if (result.success) {
-          toast.success('邮箱验证码发送成功，请注意查收');
-          setCountdown(60); // 60秒倒计时
-        } else {
-          toast.error(result.error || '邮箱验证码发送失败');
-        }
+      const result = await sendEmailOtp(email);
+      if (result.success) {
+        toast.success('邮箱验证码发送成功，请注意查收');
+        setCountdown(60);
       } else {
-        // 使用后端API发送手机验证码
-        const result = await sendSmsOtp(phone);
-        if (result.success) {
-          if (result.mockCode) {
-            toast.success(`短信验证码发送成功: ${result.mockCode}`);
-          } else {
-            toast.success('短信验证码发送成功');
-          }
-          setCountdown(60); // 60秒倒计时
-        } else {
-          toast.error(result.error || '短信验证码发送失败');
-        }
+        toast.error(result.error || '邮箱验证码发送失败');
       }
     } catch (error) {
-      toast.error(`${type === 'phone' ? '短信' : '邮箱'}验证码发送失败，请稍后重试`);
+      toast.error('邮箱验证码发送失败，请稍后重试');
     } finally {
       setIsSendingCode(false);
     }
@@ -111,18 +78,6 @@ export default function Login() {
     return '';
   };
 
-  const validatePassword = (value: string) => {
-    if (!value) return '请输入密码';
-    return '';
-  };
-
-  const validatePhone = (value: string) => {
-    if (!value) return '请输入手机号';
-    const phoneRegex = /^1[3-9]\d{9}$/;
-    if (!phoneRegex.test(value)) return '请输入有效的手机号';
-    return '';
-  };
-
   const validateCode = (value: string) => {
     if (!value) return '请输入验证码';
     if (value.length !== 6) return '验证码长度为6位';
@@ -137,18 +92,6 @@ export default function Login() {
     setErrors(prev => ({ ...prev, email: validateEmail(value) }));
   };
 
-  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setPassword(value);
-    setErrors(prev => ({ ...prev, password: validatePassword(value) }));
-  };
-
-  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setPhone(value);
-    setErrors(prev => ({ ...prev, phone: validatePhone(value) }));
-  };
-
   const handleCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setCode(value);
@@ -157,89 +100,41 @@ export default function Login() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (loginMethod === 'email') {
-      // 邮箱登录验证
-      const emailError = validateEmail(email);
-      let passwordError = '';
-      let codeError = '';
-      
-      if (emailLoginType === 'password') {
-        // 密码登录验证
-        passwordError = validatePassword(password);
-      } else {
-        // 验证码登录验证
-        codeError = validateCode(code);
-      }
-      
-      if (emailError || passwordError || codeError) {
-        setErrors(prev => ({ 
-          ...prev, 
-          email: emailError, 
-          password: passwordError, 
-          code: codeError 
-        }));
-        toast.error('请检查输入信息');
-        return;
-      }
-      
-      setIsLoading(true);
-      
-      try {
-        if (emailLoginType === 'password') {
-          // 邮箱密码登录
-          const success = await login(email, password);
-          
-          if (success) {
-            toast.success('登录成功！');
-            navigate('/');
-          } else {
-            toast.error('邮箱或密码错误，请重试');
-          }
+
+    const emailError = validateEmail(email);
+    const codeError = validateCode(code);
+
+    if (emailError || codeError) {
+      setErrors(prev => ({
+        ...prev,
+        email: emailError,
+        code: codeError
+      }));
+      toast.error('请检查输入信息');
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const success = await loginWithCode('email', email, code);
+
+      if (success) {
+        toast.success('登录成功！');
+        // 检查用户是否为新用户，如果是则重定向到信息完善页面
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        if (user.isNewUser) {
+          navigate('/complete-profile');
         } else {
-          // 邮箱验证码登录
-          const success = await loginWithCode('email', email, code);
-          
-          if (success) {
-            toast.success('登录成功！');
-            navigate('/');
-          } else {
-            toast.error('邮箱或验证码错误，请重试');
-          }
-        }
-      } catch (error) {
-        toast.error('登录失败，请稍后重试');
-      } finally {
-        setIsLoading(false);
-      }
-    } else {
-      // 手机号验证码登录验证
-      const phoneError = validatePhone(phone);
-      const codeError = validateCode(code);
-      
-      if (phoneError || codeError) {
-        setErrors(prev => ({ ...prev, phone: phoneError, code: codeError }));
-        toast.error('请检查输入信息');
-        return;
-      }
-      
-      setIsLoading(true);
-      
-      try {
-        // 手机号验证码登录
-        const success = await loginWithCode('phone', phone, code);
-        
-        if (success) {
-          toast.success('登录成功！');
           navigate('/');
-        } else {
-          toast.error('手机号或验证码错误，请重试');
         }
-      } catch (error) {
-        toast.error('登录失败，请稍后重试');
-      } finally {
-        setIsLoading(false);
+      } else {
+        toast.error('邮箱或验证码错误，请重试');
       }
+    } catch (error) {
+      toast.error('登录失败，请稍后重试');
+    } finally {
+      setIsLoading(false);
     }
   };
   
@@ -248,7 +143,8 @@ export default function Login() {
     visible: { 
       opacity: 1,
       transition: { 
-        staggerChildren: 0.1
+        staggerChildren: 0.15,
+        delayChildren: 0.2
       }
     }
   };
@@ -258,281 +154,211 @@ export default function Login() {
     visible: { 
       y: 0, 
       opacity: 1,
-      transition: { type: 'spring', stiffness: 100 }
+      transition: { 
+        type: 'spring', 
+        stiffness: 100,
+        damping: 12
+      }
+    }
+  };
+  
+  const buttonVariants = {
+    hover: { 
+      scale: 1.02,
+      transition: { duration: 0.2 }
+    },
+    tap: { 
+      scale: 0.98,
+      transition: { duration: 0.1 }
+    }
+  };
+  
+  const inputVariants = {
+    focus: { 
+      boxShadow: '0 0 0 3px rgba(239, 68, 68, 0.1)',
+      transition: { duration: 0.2 }
     }
   };
   
   return (
-    <div className={`min-h-screen flex items-center justify-center p-4 ${isDark ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'}`}>
+    <div className={`min-h-screen flex items-center justify-center p-4 ${isDark ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'} transition-colors duration-300`}>
       <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -top-20 -right-20 w-96 h-96 bg-red-600 opacity-10 rounded-full blur-3xl"></div>
-        <div className="absolute -bottom-20 -left-20 w-96 h-96 bg-blue-600 opacity-10 rounded-full blur-3xl"></div>
+        <div className="absolute -top-40 -right-40 w-[40rem] h-[40rem] bg-gradient-to-br from-red-600 to-purple-600 opacity-10 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute -bottom-40 -left-40 w-[40rem] h-[40rem] bg-gradient-to-tr from-blue-600 to-teal-400 opacity-10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }}></div>
       </div>
       
       <motion.div 
-        className={`relative z-10 w-full max-w-md ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-xl p-8 border ${isDark ? 'border-gray-700' : 'border-gray-100'}`}
+        className={`relative z-10 w-full max-w-md ${isDark ? 'bg-gray-800/90 backdrop-blur-sm' : 'bg-white/95 backdrop-blur-sm'} rounded-2xl shadow-2xl p-8 border ${isDark ? 'border-gray-700' : 'border-gray-100'} transition-all duration-300`}
         initial="hidden"
         animate="visible"
         variants={containerVariants}
+        whileHover={{ y: -5, boxShadow: '0 20px 40px rgba(0, 0, 0, 0.1)' }}
       >
-        <div className="flex justify-between items-center mb-8">
-          <div className="flex items-center space-x-1">
-            <span className="text-xl font-bold text-red-600">AI</span>
-            <span className="text-xl font-bold">共创</span>
-          </div>
+        <div className="flex justify-between items-center mb-6">
+          <motion.div 
+            className="flex items-center space-x-2"
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.5, delay: 0.1 }}
+          >
+            <div className="w-8 h-8 bg-gradient-to-br from-red-600 to-purple-600 rounded-lg flex items-center justify-center shadow-lg">
+              <span className="text-white font-bold">AI</span>
+            </div>
+            <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-700 dark:from-white dark:to-gray-300">共创</span>
+          </motion.div>
           
-          <button 
+          <motion.button 
             onClick={toggleTheme}
-            className={`p-2 rounded-full ${isDark ? 'bg-gray-700 text-yellow-400' : 'bg-gray-100 text-gray-700'} transition-colors`}
+            className={`p-2 rounded-full ${isDark ? 'bg-gray-700 text-yellow-400' : 'bg-gray-100 text-gray-700'} transition-all duration-300`}
             aria-label="切换主题"
+            whileHover={{ scale: 1.1, rotate: 15 }}
+            whileTap={{ scale: 0.95 }}
           >
             {isDark ? <i className="fas fa-sun"></i> : <i className="fas fa-moon"></i>}
-          </button>
+          </motion.button>
         </div>
         
         <motion.h1 
-          className="text-2xl font-bold mb-6"
+          className="text-[clamp(1.5rem,4vw,2rem)] font-bold mb-2 leading-tight"
           variants={itemVariants}
         >
           欢迎回来
         </motion.h1>
         
         <motion.p 
-          className="mb-8 opacity-70"
+          className="mb-6 text-gray-600 dark:text-gray-300 text-sm"
           variants={itemVariants}
         >
           登录您的AI共创平台账号，继续您的创作之旅
         </motion.p>
         
-        {/* 登录方式切换 */}
-        <div className="mb-6">
-          <div className={`flex rounded-xl overflow-hidden border ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+        {/* 登录方式切换 - 移除手机号选项 */}
+        <motion.div 
+          className="mb-6"
+          variants={itemVariants}
+        >
+          <div className={`flex rounded-xl overflow-hidden border ${isDark ? 'border-gray-700' : 'border-gray-200'} shadow-sm`}>
             <button
               type="button"
-              onClick={() => setLoginMethod('email')}
-              className={`flex-1 py-2 px-4 transition-colors ${loginMethod === 'email' ? 'bg-red-600 text-white' : isDark ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+              className={`flex-1 py-2 px-4 transition-all duration-300 bg-gradient-to-r from-red-600 to-purple-600 text-white font-medium text-sm shadow-md`}
             >
               邮箱登录
             </button>
-            <button
-              type="button"
-              onClick={() => setLoginMethod('phone')}
-              className={`flex-1 py-2 px-4 transition-colors ${loginMethod === 'phone' ? 'bg-red-600 text-white' : isDark ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
-            >
-              手机号验证码
-            </button>
           </div>
-        </div>
+        </motion.div>
         
         <motion.form 
           onSubmit={handleSubmit}
-          className="space-y-6"
+          className="space-y-4"
           variants={itemVariants}
         >
-          {/* 邮箱登录表单 */}
-          {loginMethod === 'email' ? (
-            <>
-              {/* 邮箱输入 */}
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <label htmlFor="email" className="block text-sm font-medium">邮箱</label>
-                  {errors.email && (
-                    <span className="text-xs text-red-500">{errors.email}</span>
-                  )}
-                </div>
-                <input
-                  type="email"
-                  id="email"
-                  value={email}
-                  onChange={handleEmailChange}
-                  onFocus={() => setFocused(prev => ({ ...prev, email: true }))}
-                  onBlur={() => setFocused(prev => ({ ...prev, email: false }))}
-                  className={cn(
-                    "w-full px-4 py-3 rounded-xl transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors",
-                    isDark 
-                      ? `bg-gray-700 border ${errors.email ? 'border-red-500' : focused.email ? 'border-red-500' : 'border-gray-600'} text-white placeholder-gray-400` 
-                      : `bg-gray-50 border ${errors.email ? 'border-red-500' : focused.email ? 'border-red-500' : 'border-gray-200'} text-gray-900 placeholder-gray-400`
-                  )}
-                  placeholder="请输入您的邮箱"
-                  autoComplete="email"
-                  inputMode="email"
-                  autoCapitalize="none"
-                  autoCorrect="off"
-                  enterKeyHint="next"
-                  required
-                />
-              </div>
-              
-              {/* 邮箱登录类型切换 */}
-              <div className={`flex rounded-lg overflow-hidden border ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
-                <button
-                  type="button"
-                  onClick={() => setEmailLoginType('password')}
-                  className={`flex-1 py-1.5 px-4 text-sm transition-colors ${emailLoginType === 'password' ? 'bg-red-600 text-white' : isDark ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
-                >
-                  密码登录
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEmailLoginType('code')}
-                  className={`flex-1 py-1.5 px-4 text-sm transition-colors ${emailLoginType === 'code' ? 'bg-red-600 text-white' : isDark ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
-                >
-                  验证码登录
-                </button>
-              </div>
-              
-              {/* 根据邮箱登录类型显示不同字段 */}
-              {emailLoginType === 'password' ? (
-                /* 密码登录 */
-                <div>
-                  <div className="flex justify-between items-center mb-2">
-                    <label htmlFor="password" className="block text-sm font-medium">密码</label>
-                    <Link to="/forgot-password" className="text-sm text-red-600 hover:text-red-700 transition-colors">忘记密码？</Link>
-                  </div>
-                  <input
-                    type="password"
-                    id="password"
-                    value={password}
-                    onChange={handlePasswordChange}
-                    onFocus={() => setFocused(prev => ({ ...prev, password: true }))}
-                    onBlur={() => setFocused(prev => ({ ...prev, password: false }))}
-                    className={cn(
-                      "w-full px-4 py-3 rounded-xl transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors",
-                      isDark 
-                        ? `bg-gray-700 border ${errors.password ? 'border-red-500' : focused.password ? 'border-red-500' : 'border-gray-600'} text-white placeholder-gray-400` 
-                        : `bg-gray-50 border ${errors.password ? 'border-red-500' : focused.password ? 'border-red-500' : 'border-gray-200'} text-gray-900 placeholder-gray-400`
-                    )}
-                    placeholder="请输入您的密码"
-                    autoComplete="current-password"
-                    autoCapitalize="none"
-                    autoCorrect="off"
-                    enterKeyHint="done"
-                    required
-                  />
-                  {errors.password && (
-                    <span className="text-xs text-red-500 mt-1 block">{errors.password}</span>
-                  )}
-                </div>
-              ) : (
-                /* 验证码登录 */
-                <div>
-                  <div className="flex justify-between items-center mb-2">
-                    <label htmlFor="code" className="block text-sm font-medium">验证码</label>
-                    {errors.code && (
-                      <span className="text-xs text-red-500">{errors.code}</span>
-                    )}
-                  </div>
-                  <div className="flex space-x-3">
-                    <input
-                      type="text"
-                      id="code"
-                      value={code}
-                      onChange={handleCodeChange}
-                      onFocus={() => setFocused(prev => ({ ...prev, code: true }))}
-                      onBlur={() => setFocused(prev => ({ ...prev, code: false }))}
-                      className={cn(
-                        "flex-1 px-4 py-3 rounded-xl transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors",
-                        isDark 
-                          ? `bg-gray-700 border ${errors.code ? 'border-red-500' : focused.code ? 'border-red-500' : 'border-gray-600'} text-white placeholder-gray-400` 
-                          : `bg-gray-50 border ${errors.code ? 'border-red-500' : focused.code ? 'border-red-500' : 'border-gray-200'} text-gray-900 placeholder-gray-400`
-                      )}
-                      placeholder="请输入验证码"
-                      autoComplete="one-time-code"
-                      inputMode="numeric"
-                      enterKeyHint="done"
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleSendCode('email')}
-                      disabled={isSendingCode || countdown > 0}
-                      className={`px-4 py-3 rounded-xl transition-colors whitespace-nowrap ${isSendingCode || countdown > 0 ? (isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-400') : (isDark ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700')}`}
-                    >
-                      {isSendingCode ? '发送中...' : countdown > 0 ? `${countdown}秒后重发` : '获取验证码'}
-                    </button>
-                  </div>
-                </div>
+          <div className="relative">
+            <div className="flex justify-between items-center mb-2">
+              <label htmlFor="email" className="block text-xs font-medium text-gray-700 dark:text-gray-300">邮箱</label>
+              {errors.email && (
+                <span className="text-xs text-red-500 flex items-center">
+                  <i className="fas fa-exclamation-circle mr-1"></i>
+                  {errors.email}
+                </span>
               )}
-            </>
-          ) : (
-            /* 手机号验证码登录表单 */
-            <>
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <label htmlFor="phone" className="block text-sm font-medium">手机号</label>
-                  {errors.phone && (
-                    <span className="text-xs text-red-500">{errors.phone}</span>
-                  )}
+            </div>
+            <motion.div
+              className="relative"
+              whileFocus={{ scale: 1.01 }}
+            >
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                <i className="fas fa-envelope text-sm"></i>
+              </div>
+              <input
+                type="email"
+                id="email"
+                value={email}
+                onChange={handleEmailChange}
+                onFocus={() => setFocused(prev => ({ ...prev, email: true }))}
+                onBlur={() => setFocused(prev => ({ ...prev, email: false }))}
+                className={cn(
+                  "w-full pl-10 pr-4 py-3 rounded-xl transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-red-500/30",
+                  isDark
+                    ? `bg-gray-700/50 border ${errors.email ? 'border-red-500' : focused.email ? 'border-red-400' : 'border-gray-600'} text-white placeholder-gray-400`
+                    : `bg-white border ${errors.email ? 'border-red-500' : focused.email ? 'border-red-400' : 'border-gray-200'} text-gray-900 placeholder-gray-400 shadow-sm`
+                )}
+                placeholder="请输入您的邮箱"
+                autoComplete="email"
+                inputMode="email"
+                autoCapitalize="none"
+                autoCorrect="off"
+                enterKeyHint="next"
+                required
+              />
+            </motion.div>
+          </div>
+
+          <div className="relative">
+            <div className="flex justify-between items-center mb-2">
+              <label htmlFor="code" className="block text-xs font-medium text-gray-700 dark:text-gray-300">验证码</label>
+              {errors.code && (
+                <span className="text-xs text-red-500 flex items-center">
+                  <i className="fas fa-exclamation-circle mr-1"></i>
+                  {errors.code}
+                </span>
+              )}
+            </div>
+            <div className="flex space-x-2">
+              <motion.div
+                className="flex-1 relative"
+                whileFocus={{ scale: 1.01 }}
+              >
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                  <i className="fas fa-shield-alt text-sm"></i>
                 </div>
                 <input
-                  type="tel"
-                  id="phone"
-                  value={phone}
-                  onChange={handlePhoneChange}
-                  onFocus={() => setFocused(prev => ({ ...prev, phone: true }))}
-                  onBlur={() => setFocused(prev => ({ ...prev, phone: false }))}
+                  type="text"
+                  id="code"
+                  value={code}
+                  onChange={handleCodeChange}
+                  onFocus={() => setFocused(prev => ({ ...prev, code: true }))}
+                  onBlur={() => setFocused(prev => ({ ...prev, code: false }))}
                   className={cn(
-                    "w-full px-4 py-3 rounded-xl transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors",
-                    isDark 
-                      ? `bg-gray-700 border ${errors.phone ? 'border-red-500' : focused.phone ? 'border-red-500' : 'border-gray-600'} text-white placeholder-gray-400` 
-                      : `bg-gray-50 border ${errors.phone ? 'border-red-500' : focused.phone ? 'border-red-500' : 'border-gray-200'} text-gray-900 placeholder-gray-400`
+                    "w-full pl-10 pr-4 py-3 rounded-xl transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-red-500/30",
+                    isDark
+                      ? `bg-gray-700/50 border ${errors.code ? 'border-red-500' : focused.code ? 'border-red-400' : 'border-gray-600'} text-white placeholder-gray-400`
+                      : `bg-white border ${errors.code ? 'border-red-500' : focused.code ? 'border-red-400' : 'border-gray-200'} text-gray-900 placeholder-gray-400 shadow-sm`
                   )}
-                  placeholder="请输入您的手机号"
-                  autoComplete="tel"
-                  inputMode="tel"
-                  autoCapitalize="none"
-                  autoCorrect="off"
-                  enterKeyHint="next"
+                  placeholder="请输入验证码"
+                  autoComplete="one-time-code"
+                  inputMode="numeric"
+                  enterKeyHint="done"
                   required
                 />
-              </div>
-              
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <label htmlFor="code" className="block text-sm font-medium">验证码</label>
-                  {errors.code && (
-                    <span className="text-xs text-red-500">{errors.code}</span>
-                  )}
-                </div>
-                <div className="flex space-x-3">
-                  <input
-                    type="text"
-                    id="code"
-                    value={code}
-                    onChange={handleCodeChange}
-                    onFocus={() => setFocused(prev => ({ ...prev, code: true }))}
-                    onBlur={() => setFocused(prev => ({ ...prev, code: false }))}
-                    className={cn(
-                      "flex-1 px-4 py-3 rounded-xl transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors",
-                      isDark 
-                        ? `bg-gray-700 border ${errors.code ? 'border-red-500' : focused.code ? 'border-red-500' : 'border-gray-600'} text-white placeholder-gray-400` 
-                        : `bg-gray-50 border ${errors.code ? 'border-red-500' : focused.code ? 'border-red-500' : 'border-gray-200'} text-gray-900 placeholder-gray-400`
-                    )}
-                    placeholder="请输入验证码"
-                    autoComplete="one-time-code"
-                    inputMode="numeric"
-                    enterKeyHint="done"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => handleSendCode('phone')}
-                    disabled={isSendingCode || countdown > 0}
-                    className={`px-4 py-3 rounded-xl transition-colors whitespace-nowrap ${isSendingCode || countdown > 0 ? (isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-400') : (isDark ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700')}`}
-                  >
-                    {isSendingCode ? '发送中...' : countdown > 0 ? `${countdown}秒后重发` : '获取验证码'}
-                  </button>
-                </div>
-              </div>
-            </>
-          )}
+              </motion.div>
+              <motion.button
+                type="button"
+                onClick={handleSendCode}
+                disabled={isSendingCode || countdown > 0}
+                className={cn(
+                  "px-3 py-3 rounded-xl transition-all duration-300 font-medium whitespace-nowrap text-sm",
+                  isSendingCode || countdown > 0 
+                    ? (isDark ? 'bg-gray-700 text-gray-400 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed') 
+                    : (isDark ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700 shadow-sm')
+                )}
+                whileHover={!isSendingCode && countdown === 0 ? { scale: 1.05 } : {}}
+                whileTap={!isSendingCode && countdown === 0 ? { scale: 0.95 } : {}}
+              >
+                {isSendingCode ? (
+                  <div className="flex items-center">
+                    <i className="fas fa-spinner fa-spin mr-1"></i>
+                    发送中...
+                  </div>
+                ) : countdown > 0 ? `${countdown}秒后重发` : '获取验证码'}
+              </motion.button>
+            </div>
+          </div>
           
           <motion.button
             type="submit"
             disabled={isLoading}
-            className="w-full bg-red-600 hover:bg-red-700 text-white font-medium py-3 px-4 rounded-xl transition-colors flex items-center justify-center"
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
+            className="w-full bg-gradient-to-r from-red-600 to-purple-600 hover:from-red-700 hover:to-purple-700 text-white font-medium py-3 px-4 rounded-xl transition-all duration-300 shadow-lg flex items-center justify-center"
+            variants={buttonVariants}
           >
             {isLoading ? (
               <>
@@ -540,77 +366,62 @@ export default function Login() {
                 登录中...
               </>
             ) : (
-              '登录'
+              <>
+                <i className="fas fa-sign-in-alt mr-2"></i>
+                登录
+              </>
             )}
           </motion.button>
         </motion.form>
         
         <motion.div 
-          className="mt-8 text-center"
+          className="mt-6 text-center"
           variants={itemVariants}
         >
-          <p className="opacity-70">
-            还没有账号？{' '}
-            <Link to="/register" className="text-red-600 hover:text-red-700 font-medium transition-colors">
-              立即注册
-            </Link>
-          </p>
+          <div className="bg-gradient-to-r from-red-50 to-purple-50 dark:from-gray-800/50 dark:to-gray-700/50 rounded-xl p-3 shadow-sm">
+            <p className="text-gray-700 dark:text-gray-300 text-xs flex items-center justify-center">
+              <i className="fas fa-lightbulb text-yellow-500 mr-1"></i>
+              首次登录？直接输入邮箱即可，系统会自动为您创建账号
+            </p>
+          </div>
         </motion.div>
         
         <motion.div 
-          className="mt-12"
+          className="mt-8"
           variants={itemVariants}
         >
-          <div className="flex items-center justify-center mb-6">
+          <div className="flex items-center justify-center mb-4">
             <div className={`flex-1 h-px ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}></div>
-            <span className="px-4 text-sm opacity-60">或使用以下方式登录</span>
+            <span className="px-4 text-xs opacity-60">或使用以下方式登录</span>
             <div className={`flex-1 h-px ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}></div>
           </div>
           
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-4 gap-3">
             {
               [
-                { name: 'github', color: 'bg-gray-800', icon: 'fa-github' },
-                { name: 'google', color: 'bg-red-500', icon: 'fa-google' },
-                { name: 'twitter', color: 'bg-blue-400', icon: 'fa-twitter' },
-                { name: 'discord', color: 'bg-indigo-600', icon: 'fa-discord' },
-                { name: 'wechat', color: 'bg-green-500', icon: 'fa-weixin' },
-                { name: 'alipay', color: 'bg-blue-500', icon: 'fa-alipay' },
-                { name: 'qq', color: 'bg-blue-400', icon: 'fa-qq' },
-                { name: 'weibo', color: 'bg-red-500', icon: 'fa-weibo' },
+                { name: 'github', color: 'bg-gradient-to-br from-gray-800 to-gray-600', icon: 'fa-github', label: 'GitHub' },
+                { name: 'google', color: 'bg-gradient-to-br from-red-500 to-orange-400', icon: 'fa-google', label: 'Google' },
+                { name: 'wechat', color: 'bg-gradient-to-br from-green-500 to-teal-400', icon: 'fa-weixin', label: '微信' },
+                { name: 'alipay', color: 'bg-gradient-to-br from-blue-500 to-blue-400', icon: 'fa-alipay', label: '支付宝' },
               ].map((item) => (
                 <motion.button
                   key={item.name}
-                  className={`h-14 sm:h-12 rounded-xl ${item.color} flex items-center justify-center text-white transition-transform min-h-[44px]`}
-                  whileHover={{ scale: 1.05 }}
+                  className={`h-12 rounded-xl ${item.color} flex flex-col items-center justify-center text-white transition-all duration-300 shadow-md`}
+                  whileHover={{ scale: 1.08, y: -2, boxShadow: '0 10px 25px rgba(0, 0, 0, 0.2)' }}
                   whileTap={{ scale: 0.95 }}
-                  aria-label={`使用${item.name}登录`}
+                  aria-label={`使用${item.label}登录`}
                   onClick={async () => {
                     // 所有第三方登录都使用 quickLogin（包括GitHub）
                     const ok = await quickLogin(item.name as any)
                     if (!ok) {
-                      toast.error(`${item.name} 登录暂未开放`)
+                      toast.error(`${item.label} 登录暂未开放`)
                     }
                   }}
                 >
-                  <i className={`fab ${item.icon} text-xl`}></i>
+                  <i className={`fab ${item.icon} text-lg`}></i>
                 </motion.button>
               ))
             }
-          </div>
-          <div className="mt-4">
-            <button 
-              onClick={async () => {
-                const ok = await quickLogin('phone')
-                if (ok) {
-                  toast.success('手机号一键登录成功！')
-                  navigate('/')
-                }
-              }}
-              className={`w-full ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} text-gray-800 font-medium py-3 px-4 rounded-xl transition-colors`}
-            >
-              手机号一键登录
-            </button>
           </div>
         </motion.div>
       </motion.div>

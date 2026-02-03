@@ -1,306 +1,145 @@
-import React, { useEffect, useRef } from 'react';
+// src/components/ThemePreviewModal.tsx
+
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Theme, themeConfig } from '@/config/themeConfig';
+import { useTheme } from '@/hooks/useTheme';
+import { themeConfig } from '@/config/themeConfig';
+import { ANIMATION_VARIANTS } from '@/config/animationConfig';
 
 interface ThemePreviewModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSelectTheme: (theme: Theme) => void;
-  currentTheme: Theme;
 }
 
-const ThemePreviewModal: React.FC<ThemePreviewModalProps> = ({
-  isOpen,
-  onClose,
-  onSelectTheme,
-  currentTheme
-}) => {
-  const modalRef = useRef<HTMLDivElement>(null);
+const ThemePreviewModal: React.FC<ThemePreviewModalProps> = ({ isOpen, onClose }) => {
+  const { theme, setTheme, previewTheme, resetPreview } = useTheme();
+  const [previewing, setPreviewing] = useState<string | null>(null);
 
-  // 点击模态框外部关闭
-  const handleClickOutside = (event: React.MouseEvent) => {
-    if (modalRef.current && !modalRef.current.contains(event.target as Node)) {
-      onClose();
-    }
+  // 处理主题预览
+  const handlePreview = (themeValue: string) => {
+    setPreviewing(themeValue);
+    previewTheme(themeValue as any);
   };
 
-  // 点击ESC键关闭
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        onClose();
-      }
-    };
+  // 处理主题选择
+  const handleSelect = (themeValue: string) => {
+    setTheme(themeValue as any);
+    setPreviewing(null);
+    resetPreview();
+    onClose();
+  };
 
-    if (isOpen) {
-      document.addEventListener('keydown', handleKeyDown);
-      document.body.style.overflow = 'hidden'; // 防止背景滚动
+  // 处理模态框关闭
+  const handleClose = () => {
+    if (previewing) {
+      resetPreview();
+      setPreviewing(null);
     }
-
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-      document.body.style.overflow = '';
-    };
-  }, [isOpen, onClose]);
-
-  // 主题预览卡片组件
-  const ThemeCard = ({ themeValue, label, icon }: { themeValue: Theme; label: string; icon: string }) => {
-    // 为每个主题定义明确的样式
-    const themeStyles = {
-      light: {
-        bg: '#ffffff',
-        text: '#111827',
-        textSecondary: '#6b7280',
-        cardBg: '#f9fafb',
-        primary: '#dc2626',
-        secondary: '#7c3aed'
-      },
-      dark: {
-        bg: '#0f172a',
-        text: '#f1f5f9',
-        textSecondary: '#94a3b8',
-        cardBg: '#1e293b',
-        primary: '#f87171',
-        secondary: '#a78bfa'
-      },
-      pink: {
-        bg: '#fff5f7',
-        text: '#831843',
-        textSecondary: '#db2777',
-        cardBg: '#ffffff',
-        primary: '#ec4899',
-        secondary: '#f472b6'
-      },
-      blue: {
-        bg: '#f0f9ff',
-        text: '#0c4a6e',
-        textSecondary: '#0369a1',
-        cardBg: '#e0f2fe',
-        primary: '#0ea5e9',
-        secondary: '#3b82f6'
-      },
-      green: {
-        bg: '#f0fdf4',
-        text: '#15803d',
-        textSecondary: '#16a34a',
-        cardBg: '#dcfce7',
-        primary: '#22c55e',
-        secondary: '#10b981'
-      },
-      auto: {
-        bg: '#f3f4f6',
-        text: '#111827',
-        textSecondary: '#6b7280',
-        cardBg: '#ffffff',
-        primary: '#dc2626',
-        secondary: '#7c3aed'
-      }
-    };
-
-    const currentStyle = themeStyles[themeValue];
-
-    return (
-      <motion.div
-        key={themeValue}
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.9 }}
-        transition={{ duration: 0.3 }}
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.98 }}
-        className="relative cursor-pointer rounded-2xl overflow-hidden shadow-md border border-transparent transition-all duration-300 hover:shadow-xl hover:translate-y-[-2px] active:translate-y-0"
-        style={{
-          backgroundColor: currentStyle.bg,
-          color: currentStyle.text,
-          borderColor: currentTheme === themeValue ? currentStyle.primary : 'transparent',
-          boxShadow: currentTheme === themeValue ? `0 0 0 2px ${currentStyle.primary}40` : undefined
-        }}
-        onClick={() => onSelectTheme(themeValue)}
-      >
-        {/* 主题预览内容 */}
-        <div 
-          className="p-6 min-h-[200px] flex flex-col justify-between relative overflow-hidden"
-          style={{
-            backgroundColor: currentStyle.bg
-          }}
-        >
-          {/* 主题背景效果 */}
-          <div className="absolute inset-0 opacity-30">
-            <div 
-              className="absolute top-0 left-0 w-full h-full bg-gradient-to-br"
-              style={{
-                backgroundImage: `linear-gradient(135deg, ${currentStyle.primary}20, ${currentStyle.secondary}20)`
-              }}
-            ></div>
-            {themeValue === 'auto' && (
-              <div className="absolute top-0 right-0 w-1/2 h-1/2 bg-black opacity-50 rounded-bl-full"></div>
-            )}
-          </div>
-
-          {/* 主题标题和图标 */}
-          <div className="relative z-10">
-            <div className="flex items-center gap-3 mb-4">
-              <i className={`${icon} text-3xl`} style={{ color: currentStyle.text }}></i>
-              <h3 className="text-xl font-bold" style={{ color: currentStyle.text }}>{label}</h3>
-            </div>
-            
-            {/* 主题预览内容 */}
-            <div className="space-y-3">
-              {/* 预览卡片 */}
-              <div 
-                className="p-3 rounded-lg" 
-                style={{ 
-                  backgroundColor: currentStyle.cardBg,
-                  borderRadius: '0.75rem'
-                }}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium" style={{ color: currentStyle.text }}>预览标题</span>
-                  <span className="text-xs" style={{ color: currentStyle.textSecondary }}>示例文本</span>
-                </div>
-                <div 
-                  className="w-full rounded-full h-2" 
-                  style={{ 
-                    backgroundColor: `${currentStyle.textSecondary}30`,
-                    borderRadius: '9999px'
-                  }}
-                >
-                  <div 
-                    className="h-2 rounded-full w-3/4" 
-                    style={{ 
-                      backgroundColor: currentStyle.primary,
-                      borderRadius: '9999px'
-                    }}
-                  ></div>
-                </div>
-              </div>
-              
-              {/* 预览按钮组 */}
-              <div className="flex gap-2">
-                <button 
-                  className="px-4 py-2 rounded-lg text-sm font-medium text-white shadow-sm hover:shadow-md transition-all duration-200 transform hover:scale-105 active:scale-95" 
-                  style={{ 
-                    backgroundColor: currentStyle.primary,
-                    borderRadius: '0.75rem',
-                    boxShadow: `0 2px 4px ${currentStyle.primary}40`
-                  }}
-                >按钮</button>
-                <button 
-                  className="px-4 py-2 rounded-lg text-sm font-medium text-white shadow-sm hover:shadow-md transition-all duration-200 transform hover:scale-105 active:scale-95" 
-                  style={{ 
-                    backgroundColor: currentStyle.primary,
-                    borderRadius: '0.75rem',
-                    boxShadow: `0 2px 4px ${currentStyle.primary}40`
-                  }}
-                >按钮</button>
-              </div>
-            </div>
-          </div>
-          
-          {/* 选择指示器 */}
-          <div className="relative z-10 mt-4">
-            {currentTheme === themeValue && (
-              <motion.div
-                initial={{ scale: 0, opacity: 0, rotate: -90 }}
-                animate={{ scale: 1, opacity: 1, rotate: 0 }}
-                transition={{ type: 'spring', stiffness: 400, damping: 20 }}
-                className="absolute -bottom-2 -right-2 bg-white border-2 rounded-full p-1 shadow-lg"
-                style={{ 
-                  borderColor: currentStyle.primary, 
-                  backgroundColor: '#ffffff',
-                  boxShadow: `0 4px 12px ${currentStyle.primary}30`
-                }}
-              >
-                <i className="fas fa-check text-lg" style={{ color: currentStyle.primary }}></i>
-              </motion.div>
-            )}
-          </div>
-        </div>
-        
-        {/* 主题标签 */}
-        <div 
-          className="px-6 py-2.5 text-center text-sm font-medium"
-          style={{ 
-            backgroundColor: `${currentStyle.textSecondary}08`,
-            color: currentStyle.text,
-            borderTop: `1px solid ${currentStyle.textSecondary}10`
-          }}
-        >
-          {label}
-        </div>
-      </motion.div>
-    );
+    onClose();
   };
 
   return (
     <AnimatePresence>
       {isOpen && (
         <motion.div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.3 }}
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-          onClick={handleClickOutside}
+          onClick={handleClose}
         >
           <motion.div
-            ref={modalRef}
-            initial={{ y: 50, opacity: 0, scale: 0.95 }}
-            animate={{ y: 0, opacity: 1, scale: 1 }}
-            exit={{ y: 50, opacity: 0, scale: 0.95 }}
-            transition={{ duration: 0.4, type: 'spring', stiffness: 300, damping: 20 }}
-            className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-y-auto"
+            className="relative w-full max-w-md rounded-2xl bg-white dark:bg-gray-800 shadow-2xl overflow-hidden"
+            initial={{ scale: 0.9, y: 20, opacity: 0 }}
+            animate={{ scale: 1, y: 0, opacity: 1 }}
+            exit={{ scale: 0.95, y: 20, opacity: 0 }}
+            transition={ANIMATION_VARIANTS.modal.transition}
+            onClick={(e) => e.stopPropagation()}
           >
             {/* 模态框头部 */}
-            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
-              <h2 className="text-2xl font-bold">选择主题</h2>
-              <motion.button
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
-                onClick={onClose}
-                className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                主题预览
+              </h3>
+              <button
+                className="p-2 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                onClick={handleClose}
               >
-                <i className="fas fa-times text-lg"></i>
-              </motion.button>
+                <i className="fas fa-times"></i>
+              </button>
             </div>
 
             {/* 模态框内容 */}
-            <div className="p-6">
-              <p className="text-gray-600 dark:text-gray-400 mb-6">
-                预览并选择您喜欢的主题，点击卡片即可应用
+            <div className="px-6 py-4 space-y-4">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                选择并预览不同的主题效果，找到最适合你的风格
               </p>
 
-              {/* 主题预览网格 */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {themeConfig.map(({ value, label, icon }) => (
-                  <ThemeCard
-                    key={value}
-                    themeValue={value}
-                    label={label}
-                    icon={icon}
-                  />
-                ))}
+              {/* 主题列表 */}
+              <div className="space-y-2">
+                {themeConfig.map((themeOption) => {
+                  const isSelected = theme === themeOption.value;
+                  const isPreviewing = previewing === themeOption.value;
+
+                  return (
+                    <motion.div
+                      key={themeOption.value}
+                      className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-all duration-200 ${isSelected ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : isPreviewing ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20' : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50'}`}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div className={`p-2 rounded-full ${isSelected || isPreviewing ? 'bg-blue-100 dark:bg-blue-900/50' : 'bg-gray-100 dark:bg-gray-700'}`}>
+                          <i className={`${themeOption.icon} ${isSelected || isPreviewing ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400'}`}></i>
+                        </div>
+                        <div>
+                          <h4 className="font-medium text-gray-900 dark:text-white">
+                            {themeOption.label}
+                          </h4>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            {themeOption.description}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <button
+                          className={`px-3 py-1 text-xs rounded-full transition-colors ${isPreviewing ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300' : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+                          onClick={() => handlePreview(themeOption.value)}
+                        >
+                          预览
+                        </button>
+                        {isSelected && (
+                          <span className="px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300">
+                            当前
+                          </span>
+                        )}
+                      </div>
+                    </motion.div>
+                  );
+                })}
               </div>
             </div>
 
             {/* 模态框底部 */}
-            <div className="flex justify-end gap-4 p-6 border-t border-gray-200 dark:border-gray-700">
-              <motion.button
-                whileHover={{ scale: 1.03 }}
-                whileTap={{ scale: 0.97 }}
-                onClick={onClose}
-                className="px-6 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-end space-x-3">
+              <button
+                className="px-4 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                onClick={handleClose}
               >
                 取消
-              </motion.button>
-              <motion.button
-                whileHover={{ scale: 1.03 }}
-                whileTap={{ scale: 0.97 }}
-                onClick={() => onSelectTheme(currentTheme)}
-                className="px-6 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+              </button>
+              <button
+                className="px-4 py-2 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+                onClick={() => {
+                  if (previewing) {
+                    handleSelect(previewing);
+                  } else {
+                    handleClose();
+                  }
+                }}
               >
-                应用当前主题
-              </motion.button>
+                {previewing ? '应用主题' : '关闭'}
+              </button>
             </div>
           </motion.div>
         </motion.div>

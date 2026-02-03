@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pinterest Search Bar Demo</title>
+    <link rel="stylesheet" href="search-bar.css">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding-top: 100px;
+            margin: 0;
+            background-color: #ffffff;
+        }
+        h1 {
+            color: #111;
+            margin-bottom: 40px;
+        }
+        .demo-container {
+            width: 100%;
+        }
+        .instructions {
+            margin-top: 50px;
+            color: #555;
+            font-size: 14px;
+            line-height: 1.6;
+            max-width: 600px;
+            background: #f9f9f9;
+            padding: 20px;
+            border-radius: 16px;
+        }
+        code {
+            background: #eee;
+            padding: 2px 4px;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Pinterest Search Bar</h1>
+
+    <div id="search-container" class="demo-container"></div>
+
+    <div class="instructions">
+        <h3>Interactions:</h3>
+        <ul>
+            <li><strong>Focus:</strong> Click to see border and shadow.</li>
+            <li><strong>Type:</strong> Type text to see the clear button and simulated results.</li>
+            <li><strong>Clear:</strong> Click the "×" button to clear.</li>
+            <li><strong>Shortcuts:</strong> Press <code>/</code> to focus, <code>Esc</code> to clear/blur.</li>
+            <li><strong>Mock Search:</strong> Results appear after 800ms delay (simulating API).</li>
+        </ul>
+    </div>
+
+    <script type="module">
+        import { PinterestSearchBar } from './search-bar.js';
+
+        // Initialize the search bar
+        const searchBar = new PinterestSearchBar('search-container', {
+            placeholder: 'Search for ideas...',
+            onSearch: async (query) => {
+                // Example of custom search logic or use default mock
+                // We'll just return a promise to simulate delay
+                return new Promise(resolve => {
+                    setTimeout(() => {
+                         const mockData = [
+                            'Chicken dinner recipes',
+                            'Home decor ideas',
+                            'Summer outfits',
+                            'Travel photography',
+                            'DIY crafts',
+                            'Healthy snacks',
+                            'Wedding inspiration',
+                            'Tattoo ideas',
+                            'Minimalist design',
+                            'Vintage aesthetic'
+                        ];
+                        const results = mockData.filter(item => 
+                            item.toLowerCase().includes(query.toLowerCase())
+                        );
+                        resolve(results);
+                    }, 800);
+                });
+            }
+        });
+
+        console.log('Search Bar Initialized', searchBar);
+    </script>
+</body>
+</html>

@@ -1,103 +1,74 @@
 import React, { useState, useEffect } from 'react';
-import offlineService, { OfflineData } from '@/services/offlineService';
 import { useTheme } from '@/hooks/useTheme';
 import { toast } from 'sonner';
+import { historyService, HistoryItem, HistoryFilter } from '@/services/historyService';
 
 export default function OperationHistory() {
   const { isDark } = useTheme();
-  const [history, setHistory] = useState<any[]>([]); // Changed type to allow mixed data
+  const [history, setHistory] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [filter, setFilter] = useState<HistoryFilter>({});
+  const [keyword, setKeyword] = useState('');
 
   const loadHistory = async () => {
-    // 1. Load local offline data
-    const offlineItems = offlineService.getAllOfflineData();
-    
-    // 2. Load server data (Points + Activities)
+    setIsLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      if (token) {
-        const [pointsRes, activitiesRes] = await Promise.all([
-          fetch('/api/user/points/history', { headers: { 'Authorization': `Bearer ${token}` } }),
-          fetch('/api/user/activities', { headers: { 'Authorization': `Bearer ${token}` } })
-        ]);
-
-        let serverItems: any[] = [];
-
-        if (pointsRes.ok) {
-          const res = await pointsRes.json();
-          if (res.code === 0) {
-            serverItems.push(...res.data.map((item: any) => ({
-              id: `points_${item.id}`,
-              type: 'points',
-              operationType: item.type,
-              status: 'synced',
-              data: { description: item.description, points: item.points },
-              createdAt: new Date(item.created_at).getTime(),
-              syncedAt: new Date(item.created_at).getTime(),
-              isServer: true
-            })));
-          }
-        }
-
-        if (activitiesRes.ok) {
-          const res = await activitiesRes.json();
-          if (res.code === 0) {
-            serverItems.push(...res.data.map((item: any) => ({
-              id: `activity_${item.id}`,
-              type: 'activity',
-              operationType: item.action_type,
-              status: 'synced',
-              data: { description: item.details?.description || item.action_type, ...item.details },
-              createdAt: new Date(item.created_at).getTime(),
-              syncedAt: new Date(item.created_at).getTime(),
-              isServer: true
-            })));
-          }
-        }
-            
-        // Merge: Offline pending/failed items + Server items
-        // Filter out offline items that are already synced
-        const pendingOffline = offlineItems.filter(i => i.status !== 'synced');
-        
-        setHistory([...pendingOffline, ...serverItems].sort((a, b) => b.createdAt - a.createdAt));
-        return;
-      }
+      // Use historyService to fetch data (merges server and local pending)
+      const items = await historyService.getHistory(filter);
+      
+      const formattedItems = items.map(item => ({
+        id: item.id || `local_${item.timestamp}`,
+        type: 'history',
+        operationType: item.action_type,
+        status: item.synced === false ? 'pending' : 'synced', // If synced is undefined (from server), it's synced
+        data: item.content,
+        createdAt: item.timestamp,
+        syncedAt: item.synced !== false ? item.timestamp : undefined,
+        isServer: !!item.id
+      }));
+      
+      setHistory(formattedItems);
     } catch (e) {
-      console.error('Failed to load server history', e);
+      console.error('Failed to load history', e);
+      toast.error('加载历史记录失败');
+    } finally {
+      setIsLoading(false);
     }
-    
-    // Fallback to just offline items if server fetch fails
-    setHistory(offlineItems);
   };
 
   useEffect(() => {
     loadHistory();
-    // ... (rest of useEffect)监听离线服务状态变化，以便在同步完成时更新列表
-    const unsubscribe = offlineService.addStatusListener(() => {
-      loadHistory();
-    });
-    
-    // 监听本地存储变化（用于多标签页同步）
-    window.addEventListener('storage', loadHistory);
-    
-    // 每5秒自动刷新一次，确保“刚刚”等时间显示准确
-    const timer = setInterval(loadHistory, 5000);
+    const interval = setInterval(loadHistory, 30000); // Auto refresh
+    return () => clearInterval(interval);
+  }, [filter]); // Reload when filter changes
 
-    return () => {
-      unsubscribe();
-      window.removeEventListener('storage', loadHistory);
-      clearInterval(timer);
-    };
-  }, []);
-
-  const handleClearHistory = () => {
-    if (window.confirm('确定要清空所有操作记录吗？')) {
-      offlineService.clearHistory();
-      loadHistory();
-      toast.success('操作记录已清空');
-    }
+  const handleSearch = () => {
+    setFilter(prev => ({ ...prev, keyword }));
   };
 
+  const handleExport = () => {
+    const csvContent = "data:text/csv;charset=utf-8," 
+        + "Time,Action,Content\n"
+        + history.map(e => `${new Date(e.createdAt).toLocaleString()},${e.operationType},${JSON.stringify(e.data).replace(/,/g, ' ')}`).join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "history_export.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // ... (keep helper functions like getStatusIcon, getStatusText, formatTime)
+
+  const getActionDescription = (item: any) => {
+      // Generic description based on content
+      if (item.data?.description) return item.data.description;
+      if (item.data?.title) return `${item.operationType}: ${item.data.title}`;
+      return `${item.operationType}`;
+  };
+
+  // Helper functions
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'pending': return 'fa-clock text-yellow-500';
@@ -112,7 +83,7 @@ export default function OperationHistory() {
     switch (status) {
       case 'pending': return '等待同步';
       case 'syncing': return '正在同步';
-      case 'synced': return '已同步'; // Changed from '同步成功' to be more generic
+      case 'synced': return '已同步';
       case 'failed': return '同步失败';
       default: return '未知状态';
     }
@@ -128,63 +99,34 @@ export default function OperationHistory() {
     return new Date(timestamp).toLocaleDateString();
   };
 
-  const getActionDescription = (item: any) => {
-    // Server item
-    if (item.isServer) {
-      if (item.type === 'points') {
-        const points = item.data?.points ? ` (+${item.data.points}分)` : '';
-        return (item.data?.description || '积分变动') + points;
-      }
-      if (item.type === 'activity') {
-        const actionMap: Record<string, string> = {
-          'login': '登录系统',
-          'create_work': '发布作品',
-          'like_work': '点赞作品',
-          'follow_user': '关注用户',
-          'update_profile': '更新资料'
-        };
-        const actionName = actionMap[item.operationType] || item.operationType;
-        const details = item.data?.title ? ` "${item.data.title}"` : '';
-        return `${actionName}${details}`;
-      }
-      return item.data?.description || '未知操作';
-    }
-
-    // Offline item
-    const entityMap: Record<string, string> = {
-      'post': '作品',
-      'comment': '评论',
-      'like': '点赞'
-    };
-    
-    const typeMap: Record<string, string> = {
-      'create': '发布',
-      'update': '更新',
-      'delete': '删除'
-    };
-
-    const entityName = entityMap[item.type] || item.type;
-    const actionName = item.operationType ? (typeMap[item.operationType] || item.operationType) : '操作';
-    
-    return `${actionName}${entityName}`;
-  };
-
   return (
     <div className={`rounded-xl p-4 shadow-sm border ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200'}`}>
-      <div className="flex justify-between items-center mb-4">
-        <h4 className="text-sm font-semibold text-gray-600 dark:text-gray-300 flex items-center">
-          <i className="fas fa-history text-purple-500 mr-2"></i>
-          操作历史
-        </h4>
-        {history.length > 0 && (
-          <button 
-            onClick={handleClearHistory}
-            className="text-xs text-gray-500 hover:text-red-500 transition-colors"
-            title="清空历史"
-          >
-            <i className="fas fa-trash-alt"></i>
-          </button>
-        )}
+      <div className="flex flex-col gap-4 mb-4">
+        <div className="flex justify-between items-center">
+          <h4 className="text-sm font-semibold text-gray-600 dark:text-gray-300 flex items-center">
+            <i className="fas fa-history text-purple-500 mr-2"></i>
+            操作历史
+          </h4>
+          <div className="flex gap-2">
+             <button onClick={handleExport} className="text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600">
+               导出
+             </button>
+             <button onClick={loadHistory} className="text-xs text-gray-500 hover:text-purple-500">
+               <i className={`fas fa-sync ${isLoading ? 'fa-spin' : ''}`}></i>
+             </button>
+          </div>
+        </div>
+        
+        <div className="flex gap-2">
+            <input 
+                type="text" 
+                placeholder="搜索关键词..." 
+                value={keyword}
+                onChange={(e) => setKeyword(e.target.value)}
+                className="text-xs p-1 rounded border flex-1"
+            />
+            <button onClick={handleSearch} className="text-xs bg-gray-200 px-2 rounded">搜索</button>
+        </div>
       </div>
 
       <div className="space-y-3 max-h-60 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent">
@@ -227,11 +169,6 @@ export default function OperationHistory() {
                   }`}>
                     {getStatusText(item.status)}
                   </span>
-                  {item.syncedAt && (
-                    <span className="text-[10px] text-gray-400">
-                      完成于 {new Date(item.syncedAt).toLocaleTimeString()}
-                    </span>
-                  )}
                 </div>
               </div>
             </div>

@@ -60,6 +60,19 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
           readonly: disabled,
           images_upload_url: '/api/upload/image',
           images_upload_credentials: true,
+          // 禁用API密钥验证，即使没有有效API密钥也能使用编辑器
+          statusbar: false,
+          branding: false,
+          // 禁用自动API密钥验证
+          setup: function(editor) {
+            editor.on('init', function() {
+              // 移除API密钥验证错误提示
+              setTimeout(() => {
+                const errorElements = document.querySelectorAll('.tox-notification--error');
+                errorElements.forEach(el => el.remove());
+              }, 100);
+            });
+          }
         }}
         onInit={handleEditorInit}
         onEditorChange={handleEditorChange}

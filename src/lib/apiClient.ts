@@ -3,6 +3,7 @@ import errorService from '../services/errorService';
 import securityService from '../services/securityService';
 import { recordNetworkRequest } from '../utils/performanceMonitor';
 import eventBus from './eventBus'; // 导入事件总线
+import { supabase } from '@/lib/supabase';
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 
@@ -472,11 +473,13 @@ export async function apiRequest<TResp, TBody = unknown>(
       // 记录缓存命中
       console.log(`API Cache Hit: ${method} ${path} (stale: ${cachedResult.isStale})`);
       
-      // 发布缓存命中事件
-      eventBus.publish('数据:刷新', { 
-        type: 'api-cache-hit', 
-        payload: { path, method, stale: cachedResult.isStale } 
-      });
+      // 发布缓存命中事件（只在开发环境发布）
+      if (import.meta.env.DEV) {
+        eventBus.publish('数据:刷新', { 
+          type: 'api-cache-hit', 
+          payload: { path, method, stale: cachedResult.isStale } 
+        });
+      }
       
       // 如果数据过期但未失效，返回缓存数据并在后台重新验证
       if (cachedResult.isStale) {
@@ -486,11 +489,13 @@ export async function apiRequest<TResp, TBody = unknown>(
             console.warn('Cache revalidation failed:', error);
             // 记录缓存重新验证错误
             console.error(`Cache Revalidation Failed: ${method} ${path}`, error);
-            // 发布缓存重新验证失败事件
-            eventBus.publish('数据:刷新', { 
-              type: 'api-cache-revalidation-failed', 
-              payload: { path, method, error: error.message } 
-            });
+            // 发布缓存重新验证失败事件（只在开发环境发布）
+            if (import.meta.env.DEV) {
+              eventBus.publish('数据:刷新', { 
+                type: 'api-cache-revalidation-failed', 
+                payload: { path, method, error: error.message } 
+              });
+            }
           });
       }
       
@@ -530,11 +535,13 @@ export async function apiRequest<TResp, TBody = unknown>(
         const startTime = performance.now()
         const timestamp = Date.now()
         
-        // 发布请求开始事件
-        eventBus.publish('数据:刷新', { 
-          type: 'api-request-start', 
-          payload: { path, method, url: target, body: options.body, timestamp } 
-        });
+        // 发布请求开始事件（只在开发环境发布）
+        if (import.meta.env.DEV) {
+          eventBus.publish('数据:刷新', { 
+            type: 'api-request-start', 
+            payload: { path, method, url: target, body: options.body, timestamp } 
+          });
+        }
         
         console.log(`API Client: 开始请求 ${method} ${target}`)
         console.log(`API Client: 请求参数`, options.body)
@@ -545,7 +552,25 @@ export async function apiRequest<TResp, TBody = unknown>(
         const signature = await securityService.generateSignature(signatureData, timestamp)
         
         // 获取认证令牌
-        const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+        let token = null
+        try {
+          token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+          
+          // 如果本地 token 缺失，尝试从 Supabase session 获取
+          if (!token && typeof window !== 'undefined' && supabase) {
+             const { data } = await supabase.auth.getSession();
+             if (data?.session?.access_token) {
+               console.log('[API Client] 使用 Supabase Session Token 作为回退');
+               token = data.session.access_token;
+               // 临时写入 localStorage 避免频繁调用 async getSession
+               try {
+                 localStorage.setItem('token', token);
+               } catch (e) {}
+             }
+          }
+        } catch (error) {
+          console.warn('Failed to get token:', error)
+        }
         
         // 添加安全头和认证头
         const secureHeaders = {
@@ -608,6 +633,10 @@ export async function apiRequest<TResp, TBody = unknown>(
           if (typeof data === 'object' && data !== null && 'ok' in data && 'data' in data) {
             const apiResponse = data as ApiResponse<TResp>
             responseData = apiResponse.data
+          }
+          // 处理{code: 0, data: ...}格式的响应
+          else if (typeof data === 'object' && data !== null && 'code' in data && 'data' in data) {
+            responseData = data.data
           } else {
             // 否则，直接将响应数据作为data字段
             responseData = data
@@ -619,11 +648,13 @@ export async function apiRequest<TResp, TBody = unknown>(
               ttl: cacheOptions.ttl,
               staleTtl: cacheOptions.staleTtl
             })
-            // 发布缓存更新事件
-            eventBus.publish('数据:刷新', { 
-              type: 'api-cache-updated', 
-              payload: { path, method, cacheKey: requestKey } 
-            });
+            // 发布缓存更新事件（只在开发环境发布）
+            if (import.meta.env.DEV) {
+              eventBus.publish('数据:刷新', { 
+                type: 'api-cache-updated', 
+                payload: { path, method, cacheKey: requestKey } 
+              });
+            }
           }
           
           // 记录网络请求性能数据
@@ -638,11 +669,13 @@ export async function apiRequest<TResp, TBody = unknown>(
             retries: 0,
           })
           
-          // 发布请求成功事件
-          eventBus.publish('数据:刷新', { 
-            type: 'api-request-success', 
-            payload: { path, method, url: target, status: res.status, data: responseData, duration } 
-          });
+          // 发布请求成功事件（只在开发环境发布）
+          if (import.meta.env.DEV) {
+            eventBus.publish('数据:刷新', { 
+              type: 'api-request-success', 
+              payload: { path, method, url: target, status: res.status, data: responseData, duration } 
+            });
+          }
           
           // 返回统一格式的响应
           return { ok: true, status: res.status, data: responseData as TResp, fromCache: false }
@@ -698,11 +731,13 @@ export async function apiRequest<TResp, TBody = unknown>(
           error: errorMessage,
         })
         
-        // 发布请求失败事件
-        eventBus.publish('数据:刷新', { 
-          type: 'api-request-error', 
-          payload: { path, method, url: target, status: res.status, error: errorMessage, data: errorData, duration } 
-        });
+        // 发布请求失败事件（只在开发环境发布）
+        if (import.meta.env.DEV) {
+          eventBus.publish('数据:刷新', { 
+            type: 'api-request-error', 
+            payload: { path, method, url: target, status: res.status, error: errorMessage, data: errorData, duration } 
+          });
+        }
         
         // 抛出错误
         throw error
@@ -725,12 +760,14 @@ export async function apiRequest<TResp, TBody = unknown>(
           error: error instanceof Error ? error.message : 'Unknown error',
         })
         
-        // 发布请求重试事件
-        const errorObj = error as Error
-        eventBus.publish('数据:刷新', { 
-          type: 'api-request-retry', 
-          payload: { path, method, attempt, retries, error: errorObj.message, timeoutMs } 
-        });
+        // 发布请求重试事件（只在开发环境发布）
+        if (import.meta.env.DEV) {
+          const errorObj = error as Error
+          eventBus.publish('数据:刷新', { 
+            type: 'api-request-retry', 
+            payload: { path, method, attempt, retries, error: errorObj.message, timeoutMs } 
+          });
+        }
         
         // 如果是最后一次尝试，或者错误不可重试，抛出错误
         if (attempt > retries || !retryableErrors.some(code => error instanceof Error && error.message.includes(code))) {
@@ -745,11 +782,13 @@ export async function apiRequest<TResp, TBody = unknown>(
           const finalError = error as Error
           const finalErrorMessage = finalError.message || 'Unknown error'
           
-          // 发布请求最终失败事件
-          eventBus.publish('数据:刷新', { 
-            type: 'api-request-failed', 
-            payload: { path, method, url: useFallback ? altUrl : url, error: finalErrorMessage, retries: attempt - 1 } 
-          });
+          // 发布请求最终失败事件（只在开发环境发布）
+          if (import.meta.env.DEV) {
+            eventBus.publish('数据:刷新', { 
+              type: 'api-request-failed', 
+              payload: { path, method, url: useFallback ? altUrl : url, error: finalErrorMessage, retries: attempt - 1 } 
+            });
+          }
           
           return {
             ok: false,
@@ -770,10 +809,13 @@ export async function apiRequest<TResp, TBody = unknown>(
     
     // 这个return语句理论上不会被执行，因为while循环中已经处理了所有情况
     const finalErrorMessage = 'Max retries exceeded'
-    eventBus.publish('数据:刷新', { 
-      type: 'api-request-failed', 
-      payload: { path, method, url: useFallback ? altUrl : url, error: finalErrorMessage, retries: retries } 
-    });
+    // 发布请求失败事件（只在开发环境发布）
+    if (import.meta.env.DEV) {
+      eventBus.publish('数据:刷新', { 
+        type: 'api-request-failed', 
+        payload: { path, method, url: useFallback ? altUrl : url, error: finalErrorMessage, retries: retries } 
+      });
+    }
     
     return {
       ok: false,

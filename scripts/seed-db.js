@@ -1,138 +1,172 @@
-
 import { getDB, closeDB } from '../server/database.mjs';
-import { createClient } from '@supabase/supabase-js';
+// import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 import dotenv from 'dotenv';
 dotenv.config();
 
+// Simple mock UUID generator if crypto.randomUUID is not available (Node < 14.17)
+const uuidv4 = crypto.randomUUID || (() => {
+  return '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, c =>
+    (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
+  );
+});
+
 async function seed() {
   console.log('🌱 Starting Database Seeding...');
   const db = await getDB();
-  const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
+  // const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
   
   try {
-    // 1. Ensure Tables are created
+    // 1. Ensure Tables are created (Handled by getDB init logic, but we can verify)
     console.log('Database initialized and tables ensured.');
 
     // 2. Get or Create User
     console.log('Finding/Creating seed user...');
-    let user = (await db.query('SELECT * FROM users LIMIT 1')).rows[0];
+    
+    // SQLite specific query syntax or generic?
+    // server/database.mjs wraps better-sqlite3 instance for SQLite type
+    // We should use the abstraction if possible, but getDB returns raw db instance.
+    // Let's assume we are in SQLite mode for now as per plan.
+    
+    let user;
+    try {
+        // Try generic query first (works for PG)
+        // For SQLite, db.query is NOT standard better-sqlite3 method. better-sqlite3 uses db.prepare().
+        // We need to check what db object we have.
+        
+        if (db.prepare) {
+            // SQLite
+            user = db.prepare('SELECT * FROM users LIMIT 1').get();
+        } else {
+            // Postgres / Generic
+            user = (await db.query('SELECT * FROM users LIMIT 1')).rows[0];
+        }
+    } catch (e) {
+        console.log('Error fetching user, maybe table empty:', e.message);
+    }
     
     if (!user) {
-      console.log('No users found in public.users. Attempting to create via Supabase Auth...');
+      console.log('No users found. Creating local seed user...');
       const email = `seed_${Date.now()}@example.com`;
-      const password = 'password123';
+      const userId = uuidv4();
+      const now = Date.now(); // SQLite uses INTEGER for timestamps in our schema
       
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-      });
-      
-      if (error) {
-        console.error('Supabase Auth SignUp failed:', error.message);
-        // Fallback: If SignUp fails (e.g. rate limit), maybe we can't seed users.
-        throw error;
+      if (db.prepare) {
+          // SQLite
+          db.prepare(`
+            INSERT INTO users (id, username, email, password_hash, created_at, updated_at, membership_level, membership_status)
+            VALUES (?, ?, ?, ?, ?, ?, 'free', 'active')
+          `).run(userId, 'TestUser', email, 'hash123', now, now);
+          user = { id: userId, username: 'TestUser' };
+      } else {
+          // Postgres
+          const res = await db.query(`
+            INSERT INTO users (id, username, email, password_hash, created_at, updated_at, membership_level, membership_status)
+            VALUES ($1, $2, $3, $4, NOW(), NOW(), 'free', 'active')
+            RETURNING *
+          `, [userId, 'TestUser', email, 'hash123']);
+          user = res.rows[0];
       }
-      
-      const authUserId = data.user?.id;
-      if (!authUserId) throw new Error('No user ID returned from Supabase');
-      
-      console.log(`Created Auth User: ${authUserId}`);
-      
-      // Wait for trigger (if any) or Insert manually
-      // We try to insert manually, but if it conflicts (trigger already did it), we handle it.
-      // If constraint exists, we MUST use authUserId.
-      
-      try {
-        const res = await db.query(`
-          INSERT INTO users (id, username, email, password_hash, created_at, updated_at)
-          VALUES ($1, $2, $3, $4, $5, $6)
-          ON CONFLICT (id) DO UPDATE SET updated_at = $6
-          RETURNING *
-        `, [authUserId, 'testuser_' + Date.now(), email, 'hash123', new Date(), new Date()]);
-        user = res.rows[0];
-      } catch (err) {
-        // If insert failed, maybe trigger handled it but we missed reading it?
-        // Or maybe constraint violation?
-        console.log('Manual insert failed (might be handled by trigger or constraint):', err.message);
-        // Try fetching again
-        await new Promise(r => setTimeout(r, 1000));
-        user = (await db.query('SELECT * FROM users WHERE id = $1', [authUserId])).rows[0];
-      }
+      console.log(`Created Seed User: ${user.username} (${user.id})`);
+    } else {
+        console.log(`Using existing user: ${user.username} (${user.id})`);
     }
-    console.log(`Using user: ${user.username} (${user.id})`);
 
     // 3. Categories
     console.log('Seeding Categories...');
-    const categories = ['Tutorials', 'Showcase', 'Discussion', 'Help'];
+    const categories = ['设计相关', '艺术文化', '科技数码', '生活方式'];
     const categoryIds = {};
+    const now = Date.now();
+    
     for (const name of categories) {
-      const res = await db.query(`
-        INSERT INTO categories (name, created_at, updated_at)
-        VALUES ($1, $2, $3)
-        ON CONFLICT (name) DO UPDATE SET updated_at = $3
-        RETURNING id
-      `, [name, Date.now(), Date.now()]);
-      categoryIds[name] = res.rows[0].id;
+      let catId;
+      if (db.prepare) {
+          // SQLite
+          try {
+            db.prepare('INSERT INTO categories (name, created_at, updated_at) VALUES (?, ?, ?)').run(name, now, now);
+          } catch (e) { /* ignore constraint error */ }
+          const row = db.prepare('SELECT id FROM categories WHERE name = ?').get(name);
+          catId = row.id;
+      } else {
+          // Postgres
+          const res = await db.query(`
+            INSERT INTO categories (name, created_at, updated_at)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (name) DO UPDATE SET updated_at = $3
+            RETURNING id
+          `, [name, now, now]);
+          catId = res.rows[0].id;
+      }
+      categoryIds[name] = catId;
     }
 
-    // 4. Tags
-    console.log('Seeding Tags...');
-    const tags = ['AI', 'Video', 'Sora', 'Runway', 'Pika'];
-    const tagIds = {};
-    for (const name of tags) {
-      const res = await db.query(`
-        INSERT INTO tags (name, created_at, updated_at)
-        VALUES ($1, $2, $3)
-        ON CONFLICT (name) DO UPDATE SET updated_at = $3
-        RETURNING id
-      `, [name, Date.now(), Date.now()]);
-      tagIds[name] = res.rows[0].id;
-    }
-
-    // 5. Posts
+    // 4. Posts
     console.log('Seeding Posts...');
     const postTitles = [
-      'Getting Started with AI Video',
-      'My Latest Sora Creation',
-      'How to optimize prompts for Runway',
-      'Pika vs Runway: A Comparison'
+      '津门老字号的数字化转型之路',
+      '如何用 AI 赋能传统泥人张制作',
+      '杨柳青画社：百年传承的新生',
+      '天津之眼：城市地标的文化解读'
     ];
     
     for (let i = 0; i < postTitles.length; i++) {
       const title = postTitles[i];
       const categoryName = categories[i % categories.length];
       const catId = categoryIds[categoryName];
+      const content = `这是关于 ${title} 的详细内容。津脉社区致力于连接传统文化与现代科技...`;
       
-      const res = await db.query(`
-        INSERT INTO posts (title, content, user_id, category_id, views, likes_count, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-        RETURNING id
-      `, [
-        title, 
-        `This is the content for ${title}. AI video generation is amazing!`,
-        user.id,
-        catId,
-        Math.floor(Math.random() * 1000),
-        Math.floor(Math.random() * 100),
-        Date.now(),
-        Date.now()
-      ]);
-      const postId = res.rows[0].id;
-      
-      // Add some comments
-      await db.query(`
-        INSERT INTO comments (content, user_id, post_id, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, $5)
-      `, ['Great post!', user.id, postId, Date.now(), Date.now()]);
-      
-      // Add some likes
-      try {
-        await db.query(`
-            INSERT INTO likes (user_id, post_id, created_at)
-            VALUES ($1, $2, $3)
-        `, [user.id, postId, Date.now()]);
-      } catch (e) { /* ignore duplicate likes */ }
+      if (db.prepare) {
+          // SQLite
+          db.prepare(`
+            INSERT INTO posts (title, content, user_id, category_id, views, likes_count, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          `).run(title, content, user.id, catId, Math.floor(Math.random() * 1000), Math.floor(Math.random() * 100), now, now);
+      } else {
+          // Postgres
+          await db.query(`
+            INSERT INTO posts (title, content, user_id, category_id, views, likes_count, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+          `, [
+            title, 
+            content,
+            user.id,
+            catId,
+            Math.floor(Math.random() * 1000),
+            Math.floor(Math.random() * 100),
+            now,
+            now
+          ]);
+      }
+    }
+
+    // 5. Communities
+    console.log('Seeding Communities...');
+    const communities = []; // Mock data removed as requested
+
+    for (const comm of communities) {
+      if (db.prepare) {
+          // SQLite
+          db.prepare(`
+            INSERT INTO communities (id, name, description, avatar_url, topic, member_count, is_special, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+              name = excluded.name,
+              description = excluded.description,
+              avatar_url = excluded.avatar_url,
+              member_count = excluded.member_count
+          `).run(comm.id, comm.name, comm.description, comm.avatar_url, comm.topic, comm.member_count, comm.is_special, now, now);
+      } else {
+          // Postgres
+          await db.query(`
+            INSERT INTO communities (id, name, description, avatar_url, topic, member_count, is_special, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)
+            ON CONFLICT(id) DO UPDATE SET
+              name = EXCLUDED.name,
+              description = EXCLUDED.description,
+              avatar_url = EXCLUDED.avatar_url,
+              member_count = EXCLUDED.member_count
+          `, [comm.id, comm.name, comm.description, comm.avatar_url, comm.topic, comm.member_count, comm.is_special, now]);
+      }
     }
 
     console.log('✅ Seeding complete!');

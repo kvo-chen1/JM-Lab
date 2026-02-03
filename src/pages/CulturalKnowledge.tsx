@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import GradientHero from '@/components/GradientHero';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { mockWorks } from '@/mock/works';
+import { workService } from '@/services/apiService';
 import TianjinCreativeActivities from '@/components/TianjinCreativeActivities';
 
 // 示例数据：非遗故事
@@ -822,9 +822,12 @@ export default function CulturalKnowledge() {
   
   const [activeTab, setActiveTab] = useState<TabType>('stories');
   // 作品展示数量控制，直接显示所有作品
-  const [displayedWorksCount, setDisplayedWorksCount] = useState<number>(mockWorks.length);
+  const [displayedWorksCount, setDisplayedWorksCount] = useState<number>(0);
   // 每次加载更多的作品数量（已不再使用）
   const worksPerLoad = 16;
+  // 作品数据
+  const [works, setWorks] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   
   // 从location.state中获取activeTab参数，用于左侧导航直接切换到文化资讯
   useEffect(() => {
@@ -838,10 +841,26 @@ export default function CulturalKnowledge() {
   useEffect(() => {
     if (type && Object.values<TabType>(['stories', 'tutorials', 'elements', 'encyclopedia', 'figures', 'works', 'crafts', 'assets']).includes(type as TabType)) {
       setActiveTab(type as TabType);
-      // 切换标签时显示所有作品
-      setDisplayedWorksCount(mockWorks.length);
     }
   }, [type]);
+  
+  // 加载作品数据
+  useEffect(() => {
+    const loadWorks = async () => {
+      setIsLoading(true);
+      try {
+        const worksData = await workService.getWorks();
+        setWorks(worksData);
+        setDisplayedWorksCount(worksData.length);
+      } catch (error) {
+        console.error('加载作品失败:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    loadWorks();
+  }, []);
   
   // 选中的非遗故事
   const [selectedStory, setSelectedStory] = useState<any>(null);
@@ -862,7 +881,7 @@ export default function CulturalKnowledge() {
     setSelectedFigure(null);
     setSelectedTutorial(null);
     // 切换标签时显示所有作品
-    setDisplayedWorksCount(mockWorks.length);
+    setDisplayedWorksCount(works.length);
   };
   
   // 处理故事点击
@@ -887,7 +906,7 @@ export default function CulturalKnowledge() {
     setSelectedTutorial(null);
   };
   
-  // 检测是否为天津特色专区
+  // 检测是否为特色专区
   const isTianjin = location.pathname.startsWith('/tianjin');
 
   return (
@@ -897,8 +916,8 @@ export default function CulturalKnowledge() {
         
         {/* 中文注释：新增统一的渐变英雄区 */}
         <GradientHero
-          title={isTianjin ? "天津特色专区" : "文化知识库"}
-          subtitle={isTianjin ? "探索天津特色文化、老字号与非遗传承" : "系统化了解老字号、非遗与城市文化的故事与资产"}
+          title={isTianjin ? "特色专区" : "文化知识库"}
+          subtitle={isTianjin ? "探索特色文化、老字号与非遗传承" : "系统化了解老字号、非遗与城市文化的故事与资产"}
           badgeText="Beta"
           theme={isTianjin ? "red" : "indigo"}
           size="lg"
@@ -906,10 +925,10 @@ export default function CulturalKnowledge() {
           // 中文注释：使用可靠的图片服务确保背景图显示
           backgroundImage="https://picsum.photos/seed/culture/1920/1080"
           stats={isTianjin ? [
-            { label: '津门老字号', value: '精选' },
-            { label: '天津元素', value: '资产' },
+            { label: '老字号', value: '精选' },
+            { label: '特色元素', value: '资产' },
             { label: '非遗传承', value: '导览' },
-            { label: '津味应用', value: '共创' },
+            { label: '特色应用', value: '共创' }
           ] : [
             { label: '专题', value: '精选' },
             { label: '元素', value: '资产' },
@@ -1472,7 +1491,7 @@ export default function CulturalKnowledge() {
               </div>
               {/* 移动端专属修改：使用 columns-2 实现瀑布流，md以上保持 Grid */}
               <div className="block columns-2 gap-3 space-y-3 md:grid md:grid-cols-2 lg:grid-cols-4 md:gap-8 md:space-y-0">
-                {mockWorks.slice(0, displayedWorksCount).map((work) => (
+                {works.slice(0, displayedWorksCount).map((work) => (
                   <motion.div
                     key={work.id}
                     whileHover={{ y: -5 }}

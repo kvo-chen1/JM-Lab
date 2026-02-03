@@ -8,6 +8,8 @@ interface CacheItem<T = any> {
   data: T
   timestamp: number
   ttl: number // 过期时间（毫秒）
+  lastAccess?: number // 最后访问时间，用于LRU策略
+  version?: string // 缓存版本，用于版本控制
 }
 
 // 缓存配置类型
@@ -15,35 +17,69 @@ interface CacheConfig {
   defaultTtl: number // 默认过期时间（毫秒）
   defaultStrategy: CacheStrategy
   maxMemoryItems: number // 内存缓存最大项数
+  namespace?: string // 缓存命名空间
+  enableLru?: boolean // 是否启用LRU策略
+  enableVersioning?: boolean // 是否启用版本控制
+  defaultVersion?: string // 默认缓存版本
 }
 
-// 内存缓存存储
+// 内存缓存存储 - 实现LRU策略
 class MemoryCache {
   private cache = new Map<string, CacheItem>()
   private maxItems: number
+  private enableLru: boolean
 
-  constructor(maxItems: number = 100) {
+  constructor(maxItems: number = 100, enableLru: boolean = true) {
     this.maxItems = maxItems
+    this.enableLru = enableLru
   }
 
   set(key: string, value: CacheItem) {
     // 移除过期项
     this.removeExpiredItems()
 
-    // 如果缓存已满，移除最旧的项
+    // 更新最后访问时间
+    const now = Date.now()
+    const cacheItem = {
+      ...value,
+      lastAccess: now
+    }
+
+    // 如果缓存已满，使用LRU策略移除项
     if (this.cache.size >= this.maxItems) {
-      const oldestKey = this.cache.keys().next().value
-      if (oldestKey) {
-        this.cache.delete(oldestKey)
+      if (this.enableLru) {
+        // 找到最后访问时间最早的项
+        let oldestKey: string | undefined
+        let oldestTime = Infinity
+        
+        for (const [k, item] of this.cache.entries()) {
+          if (item.lastAccess && item.lastAccess < oldestTime) {
+            oldestTime = item.lastAccess
+            oldestKey = k
+          }
+        }
+        
+        if (oldestKey) {
+          this.cache.delete(oldestKey)
+        }
+      } else {
+        // 简单移除第一个项
+        const firstKey = this.cache.keys().next().value
+        if (firstKey) {
+          this.cache.delete(firstKey)
+        }
       }
     }
 
-    this.cache.set(key, value)
+    this.cache.set(key, cacheItem)
   }
 
   get(key: string): CacheItem | undefined {
     const item = this.cache.get(key)
     if (item && !this.isExpired(item)) {
+      // 更新最后访问时间
+      item.lastAccess = Date.now()
+      this.cache.set(key, item)
       return item
     }
     // 如果过期了，移除该项
@@ -57,6 +93,10 @@ class MemoryCache {
 
   clear() {
     this.cache.clear()
+  }
+
+  getSize(): number {
+    return this.cache.size
   }
 
   private isExpired(item: CacheItem): boolean {
@@ -82,9 +122,25 @@ export class CacheService {
     this.config = {
       defaultTtl: config?.defaultTtl || 30 * 60 * 1000, // 默认30分钟
       defaultStrategy: config?.defaultStrategy || 'memory',
-      maxMemoryItems: config?.maxMemoryItems || 100
+      maxMemoryItems: config?.maxMemoryItems || 100,
+      namespace: config?.namespace || 'app',
+      enableLru: config?.enableLru || true,
+      enableVersioning: config?.enableVersioning || false,
+      defaultVersion: config?.defaultVersion || '1.0'
     }
-    this.memoryCache = new MemoryCache(this.config.maxMemoryItems)
+    this.memoryCache = new MemoryCache(this.config.maxMemoryItems, this.config.enableLru)
+  }
+
+  /**
+   * 生成带命名空间和版本的缓存键
+   */
+  private generateKey(key: string, version?: string): string {
+    const cacheVersion = version || (this.config.enableVersioning ? this.config.defaultVersion : undefined)
+    const parts = [this.config.namespace, key]
+    if (cacheVersion) {
+      parts.push(cacheVersion)
+    }
+    return parts.join(':')
   }
 
   /**
@@ -96,35 +152,39 @@ export class CacheService {
     options?: {
       ttl?: number
       strategy?: CacheStrategy
+      version?: string
     }
   ): void {
     const ttl = options?.ttl || this.config.defaultTtl
     const strategy = options?.strategy || this.config.defaultStrategy
+    const version = options?.version
 
     if (strategy === 'none') {
       return
     }
 
+    const cacheKey = this.generateKey(key, version)
     const cacheItem: CacheItem<T> = {
       data,
       timestamp: Date.now(),
-      ttl
+      ttl,
+      version: version
     }
 
     switch (strategy) {
       case 'memory':
-        this.memoryCache.set(key, cacheItem)
+        this.memoryCache.set(cacheKey, cacheItem)
         break
       case 'localStorage':
         try {
-          localStorage.setItem(key, JSON.stringify(cacheItem))
+          localStorage.setItem(cacheKey, JSON.stringify(cacheItem))
         } catch (error) {
           console.error('Failed to set localStorage:', error)
         }
         break
       case 'sessionStorage':
         try {
-          sessionStorage.setItem(key, JSON.stringify(cacheItem))
+          sessionStorage.setItem(cacheKey, JSON.stringify(cacheItem))
         } catch (error) {
           console.error('Failed to set sessionStorage:', error)
         }
@@ -137,28 +197,33 @@ export class CacheService {
    */
   get<T>(
     key: string,
-    strategy?: CacheStrategy
+    options?: {
+      strategy?: CacheStrategy
+      version?: string
+    }
   ): T | null {
-    const cacheStrategy = strategy || this.config.defaultStrategy
+    const strategy = options?.strategy || this.config.defaultStrategy
+    const version = options?.version
 
-    if (cacheStrategy === 'none') {
+    if (strategy === 'none') {
       return null
     }
 
+    const cacheKey = this.generateKey(key, version)
     let cacheItem: CacheItem<T> | undefined
 
-    switch (cacheStrategy) {
+    switch (strategy) {
       case 'memory':
-        cacheItem = this.memoryCache.get(key) as CacheItem<T> | undefined
+        cacheItem = this.memoryCache.get(cacheKey) as CacheItem<T> | undefined
         break
       case 'localStorage':
         try {
-          const item = localStorage.getItem(key)
+          const item = localStorage.getItem(cacheKey)
           if (item) {
             cacheItem = JSON.parse(item) as CacheItem<T>
             // 检查是否过期
             if (this.isExpired(cacheItem)) {
-              localStorage.removeItem(key)
+              localStorage.removeItem(cacheKey)
               cacheItem = undefined
             }
           }
@@ -168,12 +233,12 @@ export class CacheService {
         break
       case 'sessionStorage':
         try {
-          const item = sessionStorage.getItem(key)
+          const item = sessionStorage.getItem(cacheKey)
           if (item) {
             cacheItem = JSON.parse(item) as CacheItem<T>
             // 检查是否过期
             if (this.isExpired(cacheItem)) {
-              sessionStorage.removeItem(key)
+              sessionStorage.removeItem(cacheKey)
               cacheItem = undefined
             }
           }
@@ -189,27 +254,33 @@ export class CacheService {
   /**
    * 删除缓存
    */
-  delete(key: string, strategy?: CacheStrategy): void {
-    const cacheStrategy = strategy || this.config.defaultStrategy
+  delete(key: string, options?: {
+    strategy?: CacheStrategy
+    version?: string
+  }): void {
+    const strategy = options?.strategy || this.config.defaultStrategy
+    const version = options?.version
 
-    if (cacheStrategy === 'none') {
+    if (strategy === 'none') {
       return
     }
 
-    switch (cacheStrategy) {
+    const cacheKey = this.generateKey(key, version)
+
+    switch (strategy) {
       case 'memory':
-        this.memoryCache.delete(key)
+        this.memoryCache.delete(cacheKey)
         break
       case 'localStorage':
         try {
-          localStorage.removeItem(key)
+          localStorage.removeItem(cacheKey)
         } catch (error) {
           console.error('Failed to delete localStorage:', error)
         }
         break
       case 'sessionStorage':
         try {
-          sessionStorage.removeItem(key)
+          sessionStorage.removeItem(cacheKey)
         } catch (error) {
           console.error('Failed to delete sessionStorage:', error)
         }
@@ -218,7 +289,7 @@ export class CacheService {
 
     // 同时删除其他策略中的相同键
     if (strategy) {
-      this.deleteFromOtherStrategies(key, strategy)
+      this.deleteFromOtherStrategies(key, strategy, version)
     }
   }
 
@@ -230,12 +301,14 @@ export class CacheService {
       // 清除所有策略的缓存
       this.memoryCache.clear()
       try {
-        localStorage.clear()
+        // 只清除当前命名空间的缓存
+        this.clearNamespaceFromStorage(localStorage)
       } catch (error) {
         console.error('Failed to clear localStorage:', error)
       }
       try {
-        sessionStorage.clear()
+        // 只清除当前命名空间的缓存
+        this.clearNamespaceFromStorage(sessionStorage)
       } catch (error) {
         console.error('Failed to clear sessionStorage:', error)
       }
@@ -247,14 +320,14 @@ export class CacheService {
           break
         case 'localStorage':
           try {
-            localStorage.clear()
+            this.clearNamespaceFromStorage(localStorage)
           } catch (error) {
             console.error('Failed to clear localStorage:', error)
           }
           break
         case 'sessionStorage':
           try {
-            sessionStorage.clear()
+            this.clearNamespaceFromStorage(sessionStorage)
           } catch (error) {
             console.error('Failed to clear sessionStorage:', error)
           }
@@ -264,10 +337,30 @@ export class CacheService {
   }
 
   /**
+   * 从存储中清除指定命名空间的缓存
+   */
+  private clearNamespaceFromStorage(storage: Storage): void {
+    const keysToRemove: string[] = []
+    const namespacePrefix = `${this.config.namespace}:`
+    
+    for (let i = 0; i < storage.length; i++) {
+      const key = storage.key(i)
+      if (key && key.startsWith(namespacePrefix)) {
+        keysToRemove.push(key)
+      }
+    }
+    
+    keysToRemove.forEach(key => storage.removeItem(key))
+  }
+
+  /**
    * 检查缓存是否存在且未过期
    */
-  has(key: string, strategy?: CacheStrategy): boolean {
-    return this.get(key, strategy) !== null
+  has(key: string, options?: {
+    strategy?: CacheStrategy
+    version?: string
+  }): boolean {
+    return this.get(key, options) !== null
   }
 
   /**
@@ -278,11 +371,13 @@ export class CacheService {
     data: any
     ttl?: number
     strategy?: CacheStrategy
+    version?: string
   }>): void {
     items.forEach(item => {
       this.set(item.key, item.data, {
         ttl: item.ttl,
-        strategy: item.strategy
+        strategy: item.strategy,
+        version: item.version
       })
     })
   }
@@ -296,10 +391,11 @@ export class CacheService {
     options?: {
       ttl?: number
       strategy?: CacheStrategy
+      version?: string
     }
   ): Promise<T> {
     // 先检查缓存
-    const cachedData = this.get<T>(key, options?.strategy)
+    const cachedData = this.get<T>(key, options)
     if (cachedData) {
       return Promise.resolve(cachedData)
     }
@@ -318,16 +414,28 @@ export class CacheService {
     memoryItems?: number
     localStorageItems?: number
     sessionStorageItems?: number
+    namespace?: string
   } {
-    const stats: any = {}
+    const stats: any = {
+      namespace: this.config.namespace
+    }
 
     if (!strategy || strategy === 'memory') {
-      stats.memoryItems = this.memoryCache['cache'].size
+      stats.memoryItems = this.memoryCache.getSize()
     }
 
     if (!strategy || strategy === 'localStorage') {
       try {
-        stats.localStorageItems = localStorage.length
+        // 只统计当前命名空间的缓存项
+        const namespacePrefix = `${this.config.namespace}:`
+        let count = 0
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i)
+          if (key && key.startsWith(namespacePrefix)) {
+            count++
+          }
+        }
+        stats.localStorageItems = count
       } catch (error) {
         console.error('Failed to get localStorage stats:', error)
       }
@@ -335,7 +443,16 @@ export class CacheService {
 
     if (!strategy || strategy === 'sessionStorage') {
       try {
-        stats.sessionStorageItems = sessionStorage.length
+        // 只统计当前命名空间的缓存项
+        const namespacePrefix = `${this.config.namespace}:`
+        let count = 0
+        for (let i = 0; i < sessionStorage.length; i++) {
+          const key = sessionStorage.key(i)
+          if (key && key.startsWith(namespacePrefix)) {
+            count++
+          }
+        }
+        stats.sessionStorageItems = count
       } catch (error) {
         console.error('Failed to get sessionStorage stats:', error)
       }
@@ -347,11 +464,14 @@ export class CacheService {
   /**
    * 从其他策略中删除相同键
    */
-  private deleteFromOtherStrategies(key: string, excludeStrategy: CacheStrategy): void {
+  private deleteFromOtherStrategies(key: string, excludeStrategy: CacheStrategy, version?: string): void {
     const strategies: CacheStrategy[] = ['memory', 'localStorage', 'sessionStorage']
     strategies.forEach(strategy => {
       if (strategy !== excludeStrategy) {
-        this.delete(key, strategy)
+        this.delete(key, {
+          strategy: strategy,
+          version: version
+        })
       }
     })
   }

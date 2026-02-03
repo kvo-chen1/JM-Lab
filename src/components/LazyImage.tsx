@@ -129,7 +129,7 @@ const LazyImage: React.FC<LazyImageProps> = React.memo(({
     }
     
     // 检查URL是否是trae-api的文本生成图片API
-    if (src.includes('/api/proxy/trae-api/api/ide/v1/text_to_image') || src.includes('trae-api-sg.mchost.guru')) {
+    if (src.includes('/api/proxy/trae-api/api/ide/v1/text_to_image') || src.includes('trae-api-sg.mchost.guru') || src.includes('trae-api-cn.mchost.guru')) {
       // 对于AI生成图片API，返回原始URL，让后端处理
       return src;
     }
@@ -236,7 +236,7 @@ const LazyImage: React.FC<LazyImageProps> = React.memo(({
   // 图片加载失败处理
   const handleError = (event: React.SyntheticEvent<HTMLImageElement, Event>) => {
     if (onError) {
-      onError();
+      onError(event);
     }
     
     // 只有当disableFallback为false时，才显示错误状态UI
@@ -246,7 +246,9 @@ const LazyImage: React.FC<LazyImageProps> = React.memo(({
     }
     
     // 阻止事件冒泡，避免影响父组件
-    event.stopPropagation();
+    if (event && typeof event.stopPropagation === 'function') {
+      event.stopPropagation();
+    }
   };
   
   // 当src变化时重置加载状态

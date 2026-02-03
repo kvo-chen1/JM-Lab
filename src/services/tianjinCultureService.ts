@@ -39,7 +39,7 @@ const tianjinKnowledgeBase: KnowledgeItem[] = [
     category: '文化遗产',
     subcategory: '传统美术',
     content: '杨柳青年画是中国著名的民间木版年画之一，起源于天津市杨柳青镇，具有悠久的历史和独特的艺术风格。其特点是色彩鲜艳、线条流畅、形象生动，内容多以吉祥喜庆、历史故事、神话传说等为主题。杨柳青年画的制作工艺复杂，包括勾、刻、印、画、裱等多个环节，是中国民间艺术的瑰宝。',
-    imageUrl: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=landscape_4_3&prompt=Yangliuqing%20New%20Year%20Painting%2C%20traditional%20Chinese%20art%2C%20vibrant%20colors%2C%20high%20detail',
+
     relatedItems: ['泥人张彩塑', '天津风筝魏'],
     sources: ['《中国民间美术史》', '《天津地方志》'],
     createdAt: Date.now(),
@@ -51,7 +51,7 @@ const tianjinKnowledgeBase: KnowledgeItem[] = [
     category: '传统技艺',
     subcategory: '雕塑艺术',
     content: '泥人张彩塑是天津著名的民间传统手工艺品，创始于清代道光年间，以张明山为代表。其作品以细腻的手法、逼真的形象和丰富的色彩著称，题材广泛，包括历史人物、民间故事、神话传说等。泥人张彩塑的制作工艺精湛，从取土、和泥、塑造到彩绘，每一个环节都需要高超的技艺和丰富的经验。',
-    imageUrl: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=landscape_4_3&prompt=Nirenzhang%20clay%20sculpture%2C%20traditional%20Chinese%20craft%2C%20detailed%20figures%2C%20vibrant%20colors',
+
     relatedItems: ['杨柳青年画', '天津风筝魏'],
     sources: ['《中国传统工艺全集》', '《天津民间艺术志》'],
     createdAt: Date.now(),
@@ -74,7 +74,7 @@ const tianjinKnowledgeBase: KnowledgeItem[] = [
     category: '建筑风格',
     subcategory: '现代建筑',
     content: '天津之眼是世界上唯一建在桥上的摩天轮，位于天津市红桥区海河畔，是天津的标志性建筑之一。摩天轮直径110米，轮外装挂48个360度透明座舱，每个座舱可乘坐8人，旋转一周约需30分钟。天津之眼不仅是一个游乐设施，也是欣赏天津城市风光的绝佳地点，尤其是夜晚灯光亮起时，美轮美奂。',
-    imageUrl: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=landscape_4_3&prompt=Tianjin%20Eye%20Ferris%20wheel%20at%20night%2C%20beautiful%20lights%2C%20Tianjin%20China%2C%20high%20detail',
+
     relatedItems: ['海河', '天津夜景'],
     sources: ['天津旅游局官方网站', '《天津城市规划志》'],
     createdAt: Date.now(),
@@ -86,7 +86,7 @@ const tianjinKnowledgeBase: KnowledgeItem[] = [
     category: '地方小吃',
     subcategory: '传统美食',
     content: '狗不理包子是天津著名的传统小吃，始创于清代咸丰年间，以其皮薄、馅大、味道鲜美而闻名。其特点是选用优质面粉制作皮料，馅料讲究，制作工艺精细，每个包子有18个褶。狗不理包子的名称来源于创始人高贵有（乳名“狗子”），因其生意繁忙，顾不上搭理顾客，久而久之被称为“狗不理”。',
-    imageUrl: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=landscape_4_3&prompt=Goubuli%20steamed%20buns%2C%20traditional%20Chinese%20food%2C%20delicious%20looking',
+
     relatedItems: ['十八街麻花', '耳朵眼炸糕'],
     sources: ['《天津小吃志》', '《中国名小吃大全》'],
     createdAt: Date.now(),
@@ -98,7 +98,7 @@ const tianjinKnowledgeBase: KnowledgeItem[] = [
     category: '建筑风格',
     subcategory: '近代建筑',
     content: '五大道位于天津市和平区，是天津近代建筑的集中地，拥有英、法、意、德、西班牙等国各式建筑2000多栋，其中风貌建筑300余栋。这些建筑风格多样，包括哥特式、罗马式、巴洛克式、文艺复兴式等，被誉为“万国建筑博览馆”。五大道是天津历史文化的重要载体，反映了天津近代的发展历程和多元文化融合的特点。',
-    imageUrl: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=landscape_4_3&prompt=Wudadao%20historical%20buildings%2C%20Tianjin%20China%2C%20European%20style%20architecture%2C%20tree-lined%20streets%2C%20high%20detail',
+
     relatedItems: ['意式风情区', '天津租界历史'],
     sources: ['《天津近代建筑志》', '《五大道历史文化街区保护规划》'],
     createdAt: Date.now(),
@@ -121,7 +121,7 @@ const tianjinKnowledgeBase: KnowledgeItem[] = [
     category: '宗教信仰',
     subcategory: '道教',
     content: '天津天后宫俗称“娘娘宫”，位于南开区古文化街中心，是天津市区最古老的建筑群之一，也是中国北方最大的妈祖庙。天后宫始建于元代，明永乐年间重建，是天津城市发展的历史见证。天后宫内供奉着海神妈祖，每年农历三月二十三日是妈祖诞辰，届时会举行盛大的庙会活动，吸引众多信徒和游客前来朝拜。',
-    imageUrl: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=landscape_4_3&prompt=Tianjin%20Tianhou%20Palace%2C%20traditional%20Chinese%20architecture%2C%20red%20walls%20and%20yellow%20roofs%2C%20high%20detail',
+
     relatedItems: ['古文化街', '妈祖文化'],
     sources: ['《天津天后宫志》', '《中国道教宫观志》'],
     createdAt: Date.now(),

@@ -7,7 +7,7 @@ import LazyImage from './LazyImage';
 import { llmService } from '../services/llmService';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { mockWorks } from '@/mock/works';
+import { workService } from '../services/apiService';
 
 // Review result type definition
 interface AIReviewResult {
@@ -60,18 +60,8 @@ const AIReview: React.FC<AIReviewProps> = ({ workId, prompt, aiExplanation, sele
   // 加载相似作品数据
   useEffect(() => {
     if (reviewResult?.similarWorks && reviewResult.similarWorks.length > 0) {
-      // 使用mock数据丰富相似作品信息
-      const enrichedWorks = reviewResult.similarWorks.map(work => {
-        // 尝试从mockWorks中找到匹配的作品
-        const matchedWork = mockWorks.find(mockWork => mockWork.title.includes(work.title) || mockWork.id === work.id);
-        return {
-          ...work,
-          id: matchedWork?.id || work.id,
-          thumbnail: matchedWork?.thumbnail || work.thumbnail,
-          title: matchedWork?.title || work.title
-        };
-      });
-      setSimilarWorks(enrichedWorks);
+      // 直接使用API返回的相似作品信息
+      setSimilarWorks(reviewResult.similarWorks);
     }
   }, [reviewResult]);
   
@@ -80,7 +70,7 @@ const AIReview: React.FC<AIReviewProps> = ({ workId, prompt, aiExplanation, sele
     try {
       setLoadingWorks(true);
       // 跳转到作品详情页面
-      navigate(`/explore/${workId}`);
+      navigate(`/works/${workId}`);
     } catch (error) {
       console.error('Failed to navigate to work detail:', error);
       toast.error('跳转到作品详情失败，请稍后重试');
@@ -108,34 +98,65 @@ const AIReview: React.FC<AIReviewProps> = ({ workId, prompt, aiExplanation, sele
         // Generate review result with more realistic scoring based on actual content
         const generatedScore = Math.max(70, Math.min(95, Math.floor(Math.random() * 25) + 75));
         
-        // 从mockWorks中随机选择3个作品作为相似作品
-        const randomWorks = [...mockWorks].sort(() => 0.5 - Math.random()).slice(0, 3);
+        // 从API获取作品数据，随机选择3个作品作为相似作品
+        const fetchSimilarWorks = async () => {
+          try {
+            const worksData = await workService.getWorks();
+            const randomWorks = [...worksData].sort(() => 0.5 - Math.random()).slice(0, 3);
+            
+            setReviewResult({
+              overallScore: generatedScore,
+              culturalFit: {
+                score: Math.max(65, Math.min(95, generatedScore + Math.floor(Math.random() * 10) - 5)),
+                details: (t('review.culturalFitDetails', { returnObjects: true }) as unknown) as string[]
+              },
+              creativity: {
+                score: Math.max(65, Math.min(95, generatedScore + Math.floor(Math.random() * 10) - 5)),
+                details: (t('review.creativityDetails', { returnObjects: true }) as unknown) as string[]
+              },
+              aesthetics: {
+                score: Math.max(65, Math.min(95, generatedScore + Math.floor(Math.random() * 10) - 5)),
+                details: (t('review.aestheticsDetails', { returnObjects: true }) as unknown) as string[]
+              },
+              suggestions: issues.length > 0 ? issues : (t('review.suggestions', { returnObjects: true }) as unknown) as string[],
+              commercialPotential: {
+                score: Math.max(65, Math.min(95, generatedScore + Math.floor(Math.random() * 10) - 5)),
+                analysis: (t('review.commercialAnalysisDetails', { returnObjects: true }) as unknown) as string[]
+              },
+              similarWorks: randomWorks.map(work => ({
+                id: work.id,
+                thumbnail: work.thumbnail || work.imageUrl,
+                title: work.title
+              }))
+            });
+          } catch (error) {
+            console.error('获取相似作品失败:', error);
+            // 如果API调用失败，使用默认的相似作品
+            setReviewResult({
+              overallScore: generatedScore,
+              culturalFit: {
+                score: Math.max(65, Math.min(95, generatedScore + Math.floor(Math.random() * 10) - 5)),
+                details: (t('review.culturalFitDetails', { returnObjects: true }) as unknown) as string[]
+              },
+              creativity: {
+                score: Math.max(65, Math.min(95, generatedScore + Math.floor(Math.random() * 10) - 5)),
+                details: (t('review.creativityDetails', { returnObjects: true }) as unknown) as string[]
+              },
+              aesthetics: {
+                score: Math.max(65, Math.min(95, generatedScore + Math.floor(Math.random() * 10) - 5)),
+                details: (t('review.aestheticsDetails', { returnObjects: true }) as unknown) as string[]
+              },
+              suggestions: issues.length > 0 ? issues : (t('review.suggestions', { returnObjects: true }) as unknown) as string[],
+              commercialPotential: {
+                score: Math.max(65, Math.min(95, generatedScore + Math.floor(Math.random() * 10) - 5)),
+                analysis: (t('review.commercialAnalysisDetails', { returnObjects: true }) as unknown) as string[]
+              },
+              similarWorks: []
+            });
+          }
+        };
         
-        setReviewResult({
-          overallScore: generatedScore,
-          culturalFit: {
-            score: Math.max(65, Math.min(95, generatedScore + Math.floor(Math.random() * 10) - 5)),
-            details: (t('review.culturalFitDetails', { returnObjects: true }) as unknown) as string[]
-          },
-          creativity: {
-            score: Math.max(65, Math.min(95, generatedScore + Math.floor(Math.random() * 10) - 5)),
-            details: (t('review.creativityDetails', { returnObjects: true }) as unknown) as string[]
-          },
-          aesthetics: {
-            score: Math.max(65, Math.min(95, generatedScore + Math.floor(Math.random() * 10) - 5)),
-            details: (t('review.aestheticsDetails', { returnObjects: true }) as unknown) as string[]
-          },
-          suggestions: issues.length > 0 ? issues : (t('review.suggestions', { returnObjects: true }) as unknown) as string[],
-          commercialPotential: {
-            score: Math.max(65, Math.min(95, generatedScore + Math.floor(Math.random() * 10) - 5)),
-            analysis: (t('review.commercialAnalysisDetails', { returnObjects: true }) as unknown) as string[]
-          },
-          similarWorks: randomWorks.map(work => ({
-            id: work.id,
-            thumbnail: work.thumbnail,
-            title: work.title
-          }))
-        });
+        fetchSimilarWorks();
       } catch (error) {
         console.error('Failed to generate review:', error);
         setError('Failed to generate AI review. Please try again later.');
@@ -222,35 +243,67 @@ const AIReview: React.FC<AIReviewProps> = ({ workId, prompt, aiExplanation, sele
                     const issues = llmService.diagnoseCreationIssues(creationDescription);
                     const generatedScore = Math.max(70, Math.min(95, Math.floor(Math.random() * 25) + 75));
                     
-                    // 从mockWorks中随机选择3个作品作为相似作品
-                    const randomWorks = [...mockWorks].sort(() => 0.5 - Math.random()).slice(0, 3);
+                    // 从API获取作品数据，随机选择3个作品作为相似作品
+                    const fetchSimilarWorks = async () => {
+                      try {
+                        const worksData = await workService.getWorks();
+                        const randomWorks = [...worksData].sort(() => 0.5 - Math.random()).slice(0, 3);
+                        
+                        setReviewResult({
+                          overallScore: generatedScore,
+                          culturalFit: {
+                            score: Math.max(65, Math.min(95, generatedScore + Math.floor(Math.random() * 10) - 5)),
+                            details: (t('review.culturalFitDetails', { returnObjects: true }) as unknown) as string[]
+                          },
+                          creativity: {
+                            score: Math.max(65, Math.min(95, generatedScore + Math.floor(Math.random() * 10) - 5)),
+                            details: (t('review.creativityDetails', { returnObjects: true }) as unknown) as string[]
+                          },
+                          aesthetics: {
+                            score: Math.max(65, Math.min(95, generatedScore + Math.floor(Math.random() * 10) - 5)),
+                            details: (t('review.aestheticsDetails', { returnObjects: true }) as unknown) as string[]
+                          },
+                          suggestions: issues.length > 0 ? issues : (t('review.suggestions', { returnObjects: true }) as unknown) as string[],
+                          commercialPotential: {
+                            score: Math.max(65, Math.min(95, generatedScore + Math.floor(Math.random() * 10) - 5)),
+                            analysis: (t('review.commercialAnalysisDetails', { returnObjects: true }) as unknown) as string[]
+                          },
+                          similarWorks: randomWorks.map(work => ({
+                            id: work.id,
+                            thumbnail: work.thumbnail || work.imageUrl,
+                            title: work.title
+                          }))
+                        });
+                      } catch (error) {
+                        console.error('获取相似作品失败:', error);
+                        // 如果API调用失败，使用默认的相似作品
+                        setReviewResult({
+                          overallScore: generatedScore,
+                          culturalFit: {
+                            score: Math.max(65, Math.min(95, generatedScore + Math.floor(Math.random() * 10) - 5)),
+                            details: (t('review.culturalFitDetails', { returnObjects: true }) as unknown) as string[]
+                          },
+                          creativity: {
+                            score: Math.max(65, Math.min(95, generatedScore + Math.floor(Math.random() * 10) - 5)),
+                            details: (t('review.creativityDetails', { returnObjects: true }) as unknown) as string[]
+                          },
+                          aesthetics: {
+                            score: Math.max(65, Math.min(95, generatedScore + Math.floor(Math.random() * 10) - 5)),
+                            details: (t('review.aestheticsDetails', { returnObjects: true }) as unknown) as string[]
+                          },
+                          suggestions: issues.length > 0 ? issues : (t('review.suggestions', { returnObjects: true }) as unknown) as string[],
+                          commercialPotential: {
+                            score: Math.max(65, Math.min(95, generatedScore + Math.floor(Math.random() * 10) - 5)),
+                            analysis: (t('review.commercialAnalysisDetails', { returnObjects: true }) as unknown) as string[]
+                          },
+                          similarWorks: []
+                        });
+                      } finally {
+                        setIsLoading(false);
+                      }
+                    };
                     
-                    setReviewResult({
-                      overallScore: generatedScore,
-                      culturalFit: {
-                      score: Math.max(65, Math.min(95, generatedScore + Math.floor(Math.random() * 10) - 5)),
-                      details: (t('review.culturalFitDetails', { returnObjects: true }) as unknown) as string[]
-                    },
-                    creativity: {
-                      score: Math.max(65, Math.min(95, generatedScore + Math.floor(Math.random() * 10) - 5)),
-                      details: (t('review.creativityDetails', { returnObjects: true }) as unknown) as string[]
-                    },
-                    aesthetics: {
-                      score: Math.max(65, Math.min(95, generatedScore + Math.floor(Math.random() * 10) - 5)),
-                      details: (t('review.aestheticsDetails', { returnObjects: true }) as unknown) as string[]
-                    },
-                    suggestions: issues.length > 0 ? issues : (t('review.suggestions', { returnObjects: true }) as unknown) as string[],
-                    commercialPotential: {
-                      score: Math.max(65, Math.min(95, generatedScore + Math.floor(Math.random() * 10) - 5)),
-                      analysis: (t('review.commercialAnalysisDetails', { returnObjects: true }) as unknown) as string[]
-                    },
-                      similarWorks: randomWorks.map(work => ({
-                        id: work.id,
-                        thumbnail: work.thumbnail,
-                        title: work.title
-                      }))
-                    });
-                    setIsLoading(false);
+                    fetchSimilarWorks();
                   }, 800);
                 }}
                 className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white transition-colors"
@@ -493,14 +546,20 @@ const AIReview: React.FC<AIReviewProps> = ({ workId, prompt, aiExplanation, sele
                     <p className="text-sm text-gray-500">暂无推荐参考作品</p>
                     <button 
                       className="mt-3 text-sm text-red-600 hover:text-red-700 transition-colors"
-                      onClick={() => {
+                      onClick={async () => {
                         // 重新生成推荐作品
-                        const randomWorks = [...mockWorks].sort(() => 0.5 - Math.random()).slice(0, 3);
-                        setSimilarWorks(randomWorks.map(work => ({
-                          id: work.id,
-                          thumbnail: work.thumbnail,
-                          title: work.title
-                        })));
+                        try {
+                          const worksData = await workService.getWorks();
+                          const randomWorks = [...worksData].sort(() => 0.5 - Math.random()).slice(0, 3);
+                          setSimilarWorks(randomWorks.map(work => ({
+                            id: work.id,
+                            thumbnail: work.thumbnail || work.imageUrl,
+                            title: work.title
+                          })));
+                        } catch (error) {
+                          console.error('刷新推荐作品失败:', error);
+                          toast.error('刷新推荐作品失败，请稍后重试');
+                        }
                       }}
                     >
                       刷新推荐
@@ -665,13 +724,13 @@ const AIReview: React.FC<AIReviewProps> = ({ workId, prompt, aiExplanation, sele
                       title: t('review.timeHonoredBrandCompetition'), 
                       deadline: t('review.timeHonoredBrandCompetitionDeadline'), 
                       reward: t('review.timeHonoredBrandCompetitionReward'),
-                      image: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Design%20competition%20poster%20traditional%20Chinese%20elements'
+
                     },
                     { 
                       title: t('review.nationalTrendDesignCamp'), 
                       deadline: t('review.nationalTrendDesignCampDeadline'), 
                       reward: t('review.nationalTrendDesignCampReward'),
-                      image: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Cultural%20creative%20design%20workshop'
+
                     }
                   ].map((activity, index) => (
                     <div key={index} className={`rounded-lg overflow-hidden ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>

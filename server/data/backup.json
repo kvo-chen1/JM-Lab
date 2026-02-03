@@ -1,0 +1,36 @@
+{
+  "users": [],
+  "favorites": [],
+  "video_tasks": [],
+  "friend_requests": [],
+  "friends": [],
+  "messages": [],
+  "user_status": [
+    {
+      "user_id": "dd7a4c75-1f5a-46ca-bdd7-d442766e8d9d",
+      "status": "online",
+      "last_seen": "2026-01-30T09:03:15.673Z",
+      "updated_at": "2026-01-30T09:03:15.673Z"
+    },
+    {
+      "user_id": "1a352013-e4c0-482e-ae31-5a55af930653",
+      "status": "online",
+      "last_seen": "2026-02-03T08:17:06.632Z",
+      "updated_at": "2026-02-03T08:17:06.632Z"
+    },
+    {
+      "user_id": "4aa957f1-a9ed-4ed4-a1ff-653e101a305c",
+      "status": "online",
+      "last_seen": "2026-02-03T08:17:14.011Z",
+      "updated_at": "2026-02-03T08:17:14.011Z"
+    }
+  ],
+  "posts": [],
+  "comments": [],
+  "likes": [],
+  "tags": [],
+  "post_tags": [],
+  "communities": [],
+  "community_members": [],
+  "works": []
+}

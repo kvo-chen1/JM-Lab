@@ -23,7 +23,7 @@ export default function CanvasArea() {
   const [selectedFilter, setSelectedFilter] = useState('normal');
   const [selectedBackground, setSelectedBackground] = useState('transparent');
   const [selectedLayout, setSelectedLayout] = useState('center');
-  const [isStylePanelExpanded, setIsStylePanelExpanded] = useState(false);
+  const [isStylePanelExpanded, setIsStylePanelExpanded] = useState(true);
   
   // 纹样属性状态 - 从全局状态获取
   const patternOpacity = useCreateStore((state) => state.patternOpacity);
@@ -216,6 +216,14 @@ export default function CanvasArea() {
             <i className="fas fa-magic text-purple-500"></i>
             <span className="hidden sm:inline">AI点评</span>
           </button>
+          
+          <button 
+            onClick={() => useCreateStore.getState().updateState({ showPublishModal: true })}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2 transition-all ${isDark ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm'}`}
+          >
+            <i className="fas fa-globe"></i>
+            <span className="hidden sm:inline">发布到广场</span>
+          </button>
 
           <div className={`h-4 w-px mx-1 ${isDark ? 'bg-gray-800' : 'bg-gray-300'}`}></div>
 
@@ -281,7 +289,7 @@ export default function CanvasArea() {
                                   selectedFilter === 'vintage' ? 'sepia(50%) contrast(120%) brightness(90%)' : 'none'
                         }}
                       />
-                       
+                        
                       {/* 纹样叠加层 */}
                       {selectedPatternId && activeTool === 'pattern' && (
                         <motion.div 
@@ -300,9 +308,9 @@ export default function CanvasArea() {
                           }}
                         />
                       )}
-                       
+                        
                       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors pointer-events-none"></div>
-                       
+                        
                       {/* Floating Actions on Image */}
                       <div className="absolute bottom-6 right-6 flex gap-3 opacity-0 group-hover:opacity-100 transition-all duration-300 ease-out transform translate-y-4 group-hover:translate-y-0">
                         {activeTool === 'pattern' && selectedResult && (
@@ -341,9 +349,8 @@ export default function CanvasArea() {
                 )}
               </div>
 
-              {/* 纹样属性控制面板 */}
               {selectedPatternId && activeTool === 'pattern' && (
-                <motion.div 
+                <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.4, delay: 0.15, ease: "easeOut" }}
@@ -584,15 +591,42 @@ export default function CanvasArea() {
                   </div>
                 </motion.div>
                 
-                {/* 样式预览区 - 精简显示 - 手机端隐藏 */}
+                {/* 样式预览区 - 可折叠 - 手机端隐藏 */}
                 <motion.div 
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.4, delay: 0.2, ease: "easeOut" }}
                   className={`hidden md:block w-full backdrop-blur-md p-3 rounded-2xl border mb-3 shadow-lg ${isDark ? 'bg-black/50 border-white/20' : 'bg-white/50 border-gray-200'}`}
                 >
-                  <h3 className="text-sm font-semibold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}">样式预览</h3>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {/* 标题栏带折叠按钮 */}
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>样式预览</h3>
+                    <motion.button
+                      onClick={() => setIsStylePanelExpanded(!isStylePanelExpanded)}
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      className={`p-1.5 rounded-full transition-colors ${isDark ? 'hover:bg-white/10' : 'hover:bg-gray-100'}`}
+                      aria-label={isStylePanelExpanded ? '折叠面板' : '展开面板'}
+                    >
+                      <motion.i 
+                        className={`fas ${isStylePanelExpanded ? 'fa-chevron-up' : 'fa-chevron-down'} text-xs`}
+                        animate={{ rotate: isStylePanelExpanded ? 0 : 180 }}
+                        transition={{ duration: 0.3 }}
+                      />
+                    </motion.button>
+                  </div>
+                  
+                  {/* 样式选项网格 - 带折叠动画 */}
+                  <AnimatePresence>
+                    {isStylePanelExpanded && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.3, ease: "easeInOut" }}
+                        className="overflow-hidden"
+                      >
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {/* 边框样式 */}
                     {['none', 'thin', 'thick', 'rounded'].map((borderStyle, index) => (
                       <motion.button
@@ -600,7 +634,7 @@ export default function CanvasArea() {
                         initial={{ opacity: 0, scale: 0.9 }}
                         animate={{ opacity: 1, scale: 1 }}
                         transition={{ duration: 0.2, delay: 0.05 * index, ease: "easeOut" }}
-                        whileHover={{ scale: 1.05, y: -2 }}
+
                         whileTap={{ scale: 0.95 }}
                         onClick={() => setSelectedBorderStyle(borderStyle)}
                         className={`flex flex-col items-center justify-center p-2 rounded-lg transition-all shadow-sm ${isDark ? `bg-gray-800 hover:bg-gray-700 text-white ${selectedBorderStyle === borderStyle ? 'ring-2 ring-[#C02C38]' : ''}` : `bg-white hover:bg-gray-50 text-gray-900 ${selectedBorderStyle === borderStyle ? 'ring-2 ring-[#C02C38]' : ''}`}`}
@@ -670,488 +704,37 @@ export default function CanvasArea() {
                       </motion.button>
                     ))}
                   </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </motion.div>
-                
-                {/* Action Buttons - 手机端隐藏 */}
-                <motion.div 
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.4, delay: 0.3, ease: "easeOut" }}
-                  className={`hidden md:block w-full backdrop-blur-md p-4 rounded-2xl border shadow-lg ${isDark ? 'bg-black/50 border-white/20' : 'bg-white/50 border-gray-200'}`}
-                >
-                  <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
-                    {/* Download Button */}
-                    <motion.button
-                      whileHover={{ scale: 1.05, y: -2 }}
-                      whileTap={{ scale: 0.95 }}
-                      initial={{ opacity: 0, scale: 0.9, y: 10 }}
-                      animate={{ opacity: 1, scale: 1, y: 0 }}
-                      transition={{ duration: 0.3, delay: 0.35, ease: "easeOut" }}
-                      onClick={() => {
-                        if (!selectedResult) return;
-                        
-                        const selectedImage = generatedResults.find(r => r.id === selectedResult);
-                        if (!selectedImage) return;
-                        
-                        // 创建下载选项面板
-                        const downloadPanel = document.createElement('div');
-                        downloadPanel.className = 'fixed inset-0 bg-black/50 backdrop-blur-md z-50 flex items-center justify-center p-4';
-                        
-                        downloadPanel.innerHTML = `
-                          <div class="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl p-6 max-w-md w-full">
-                            <h3 class="text-xl font-bold mb-4 dark:text-white">下载设计</h3>
-                            
-                            <div class="space-y-4">
-                              <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">下载格式</label>
-                                <div class="grid grid-cols-3 gap-2">
-                                  <button class="format-btn px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" data-format="png">
-                                    PNG
-                                  </button>
-                                  <button class="format-btn px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" data-format="jpg">
-                                    JPG
-                                  </button>
-                                  <button class="format-btn px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" data-format="svg">
-                                    SVG
-                                  </button>
-                                </div>
-                              </div>
-                              
-                              <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">下载质量</label>
-                                <div class="grid grid-cols-3 gap-2">
-                                  <button class="quality-btn px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" data-quality="low">
-                                    低
-                                  </button>
-                                  <button class="quality-btn px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" data-quality="medium">
-                                    中
-                                  </button>
-                                  <button class="quality-btn px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors" data-quality="high">
-                                    高
-                                  </button>
-                                </div>
-                              </div>
-                              
-                              <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">下载类型</label>
-                                <div class="grid grid-cols-2 gap-2">
-                                  <button class="type-btn px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors" data-type="original">
-                                    原图
-                                  </button>
-                                  <button class="type-btn px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" data-type="with-pattern">
-                                    带纹样
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-                            
-                            <div class="mt-6 flex justify-end gap-3">
-                              <button id="closeDownloadPanel" class="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 transition-colors">取消</button>
-                              <button id="confirmDownload" class="px-4 py-2 bg-[#C02C38] hover:bg-[#E60012] text-white rounded-lg transition-colors">下载</button>
-                            </div>
-                          </div>
-                        `;
-                        
-                        document.body.appendChild(downloadPanel);
-                        
-                        // 初始化选中状态
-                        let selectedFormat = 'png';
-                        let selectedQuality = 'high';
-                        let selectedType = 'original';
-                        
-                        // 添加事件监听
-                        const closeButton = downloadPanel.querySelector('#closeDownloadPanel');
-                        const confirmButton = downloadPanel.querySelector('#confirmDownload');
-                        const formatButtons = downloadPanel.querySelectorAll('.format-btn');
-                        const qualityButtons = downloadPanel.querySelectorAll('.quality-btn');
-                        const typeButtons = downloadPanel.querySelectorAll('.type-btn');
-                        
-                        // 关闭按钮
-                        if (closeButton) {
-                          closeButton.addEventListener('click', () => {
-                            document.body.removeChild(downloadPanel);
-                          });
-                        }
-                        
-                        // 格式选择
-                        formatButtons.forEach(btn => {
-                          btn.addEventListener('click', () => {
-                            // 移除其他按钮的选中状态
-                            formatButtons.forEach(b => b.className = b.className.replace('bg-blue-500 text-white', 'bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white'));
-                            // 添加当前按钮的选中状态
-                            btn.className = btn.className.replace('bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white', 'bg-blue-500 text-white');
-                            selectedFormat = btn.getAttribute('data-format') || 'png';
-                          });
-                        });
-                        
-                        // 质量选择
-                        qualityButtons.forEach(btn => {
-                          btn.addEventListener('click', () => {
-                            // 移除其他按钮的选中状态
-                            qualityButtons.forEach(b => b.className = b.className.replace('bg-blue-500 text-white', 'bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white'));
-                            // 添加当前按钮的选中状态
-                            btn.className = btn.className.replace('bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white', 'bg-blue-500 text-white');
-                            selectedQuality = btn.getAttribute('data-quality') || 'high';
-                          });
-                        });
-                        
-                        // 类型选择
-                        typeButtons.forEach(btn => {
-                          btn.addEventListener('click', () => {
-                            // 移除其他按钮的选中状态
-                            typeButtons.forEach(b => b.className = b.className.replace('bg-blue-500 text-white', 'bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white'));
-                            // 添加当前按钮的选中状态
-                            btn.className = btn.className.replace('bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white', 'bg-blue-500 text-white');
-                            selectedType = btn.getAttribute('data-type') || 'original';
-                          });
-                        });
-                        
-                        // 确认下载
-                        if (confirmButton) {
-                          confirmButton.addEventListener('click', () => {
-                            // 执行下载
-                            const link = document.createElement('a');
-                            link.href = selectedImage.thumbnail;
-                            link.download = `design_${Date.now()}.${selectedFormat}`;
-                            document.body.appendChild(link);
-                            link.click();
-                            document.body.removeChild(link);
-                            
-                            // 关闭面板
-                            document.body.removeChild(downloadPanel);
-                          });
-                        }
-                        
-                        // 点击面板外部关闭
-                        downloadPanel.addEventListener('click', (e) => {
-                          if (e.target === downloadPanel) {
-                            document.body.removeChild(downloadPanel);
-                          }
-                        });
-                      }}
-                      disabled={!selectedResult}
-                      className={`px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 transition-all shadow-md ${selectedResult ? (isDark ? 'bg-[#C02C38] hover:bg-[#E60012] text-white hover:shadow-lg' : 'bg-[#C02C38] hover:bg-[#E60012] text-white hover:shadow-lg') : (isDark ? 'bg-gray-800 text-gray-500 cursor-not-allowed' : 'bg-gray-200 text-gray-500 cursor-not-allowed')}`}
-                    >
-                      <i className="fas fa-download"></i>
-                      <span>下载设计</span>
-                    </motion.button>
-                  
-                  {/* Edit Button */}
-                  <motion.button
-                    whileHover={{ scale: 1.05, y: -2 }}
-                    whileTap={{ scale: 0.95 }}
-                    initial={{ opacity: 0, scale: 0.9, y: 10 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    transition={{ duration: 0.3, delay: 0.4, ease: "easeOut" }}
-                    onClick={() => {
-                      if (!selectedResult) return;
-                       
-                      const selectedImage = generatedResults.find(r => r.id === selectedResult);
-                      if (!selectedImage) return;
-                       
-                      // 创建编辑面板
-                      const editPanel = document.createElement('div');
-                      editPanel.className = 'fixed inset-0 bg-black/50 backdrop-blur-md z-50 flex items-center justify-center p-4';
-                       
-                      editPanel.innerHTML = `
-                        <div class="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl p-6 max-w-2xl w-full">
-                          <h3 class="text-xl font-bold mb-4 dark:text-white">编辑设计</h3>
-                          
-                          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            {/* 预览区域 */}
-                            <div class="bg-gray-100 dark:bg-gray-800 rounded-xl p-4 flex items-center justify-center">
-                              <img src="${selectedImage.thumbnail}" alt="Design Preview" class="max-w-full max-h-[40vh] object-contain rounded-lg" />
-                            </div>
-                            
-                            {/* 编辑控件 */}
-                            <div class="space-y-4">
-                              {/* 亮度调整 */}
-                              <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">亮度</label>
-                                <div class="flex items-center gap-2">
-                                  <i class="fas fa-sun text-yellow-500"></i>
-                                  <input type="range" id="brightness" min="0" max="200" value="100" class="flex-1" />
-                                  <span id="brightness-value" class="text-sm text-gray-600 dark:text-gray-400 w-10">100%</span>
-                                </div>
-                              </div>
-                              
-                              {/* 对比度调整 */}
-                              <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">对比度</label>
-                                <div class="flex items-center gap-2">
-                                  <i class="fas fa-adjust"></i>
-                                  <input type="range" id="contrast" min="0" max="200" value="100" class="flex-1" />
-                                  <span id="contrast-value" class="text-sm text-gray-600 dark:text-gray-400 w-10">100%</span>
-                                </div>
-                              </div>
-                              
-                              {/* 饱和度调整 */}
-                              <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">饱和度</label>
-                                <div class="flex items-center gap-2">
-                                  <i class="fas fa-palette"></i>
-                                  <input type="range" id="saturation" min="0" max="200" value="100" class="flex-1" />
-                                  <span id="saturation-value" class="text-sm text-gray-600 dark:text-gray-400 w-10">100%</span>
-                                </div>
-                              </div>
-                              
-                              {/* 旋转调整 */}
-                              <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">旋转</label>
-                                <div class="flex items-center gap-2">
-                                  <i class="fas fa-undo-alt"></i>
-                                  <input type="range" id="rotate" min="0" max="360" value="0" class="flex-1" />
-                                  <span id="rotate-value" class="text-sm text-gray-600 dark:text-gray-400 w-10">0°</span>
-                                </div>
-                              </div>
-                              
-                              {/* 裁剪选项 */}
-                              <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">裁剪</label>
-                                <div class="grid grid-cols-3 gap-2">
-                                  <button class="crop-btn px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" data-crop="original">
-                                    原图
-                                  </button>
-                                  <button class="crop-btn px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" data-crop="square">
-                                    正方形
-                                  </button>
-                                  <button class="crop-btn px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" data-crop="16:9">
-                                    16:9
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                          
-                          <div class="mt-6 flex justify-end gap-3">
-                            <button id="closeEditPanel" class="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 transition-colors">取消</button>
-                            <button id="resetEdit" class="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition-colors">重置</button>
-                            <button id="saveEdit" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">保存</button>
-                          </div>
-                        </div>
-                      `;
-                       
-                      document.body.appendChild(editPanel);
-                       
-                      // 添加事件监听
-                      const closeButton = editPanel.querySelector('#closeEditPanel');
-                      const resetButton = editPanel.querySelector('#resetEdit');
-                      const saveButton = editPanel.querySelector('#saveEdit');
-                      const brightnessSlider = editPanel.querySelector('#brightness') as HTMLInputElement;
-                      const brightnessValue = editPanel.querySelector('#brightness-value');
-                      const contrastSlider = editPanel.querySelector('#contrast') as HTMLInputElement;
-                      const contrastValue = editPanel.querySelector('#contrast-value');
-                      const saturationSlider = editPanel.querySelector('#saturation') as HTMLInputElement;
-                      const saturationValue = editPanel.querySelector('#saturation-value');
-                      const rotateSlider = editPanel.querySelector('#rotate') as HTMLInputElement;
-                      const rotateValue = editPanel.querySelector('#rotate-value');
-                      const cropButtons = editPanel.querySelectorAll('.crop-btn');
-                       
-                      // 关闭按钮
-                      if (closeButton) {
-                        closeButton.addEventListener('click', () => {
-                          document.body.removeChild(editPanel);
-                        });
-                      }
-                      
-                      // 重置按钮
-                      if (resetButton) {
-                        resetButton.addEventListener('click', () => {
-                          brightnessSlider.value = '100';
-                          contrastSlider.value = '100';
-                          saturationSlider.value = '100';
-                          rotateSlider.value = '0';
-                          
-                          if (brightnessValue) brightnessValue.textContent = '100%';
-                          if (contrastValue) contrastValue.textContent = '100%';
-                          if (saturationValue) saturationValue.textContent = '100%';
-                          if (rotateValue) rotateValue.textContent = '0°';
-                        });
-                      }
-                      
-                      // 保存按钮
-                      if (saveButton) {
-                        saveButton.addEventListener('click', () => {
-                          // 这里可以实现保存编辑后的图片
-                          const brightness = brightnessSlider.value;
-                          const contrast = contrastSlider.value;
-                          const saturation = saturationSlider.value;
-                          const rotate = rotateSlider.value;
-                          
-                          console.log('Save edit:', { brightness, contrast, saturation, rotate });
-                          
-                          // 关闭面板
-                          document.body.removeChild(editPanel);
-                        });
-                      }
-                      
-                      // 亮度调整
-                      if (brightnessSlider && brightnessValue) {
-                        brightnessSlider.addEventListener('input', () => {
-                          brightnessValue.textContent = `${brightnessSlider.value}%`;
-                        });
-                      }
-                      
-                      // 对比度调整
-                      if (contrastSlider && contrastValue) {
-                        contrastSlider.addEventListener('input', () => {
-                          contrastValue.textContent = `${contrastSlider.value}%`;
-                        });
-                      }
-                      
-                      // 饱和度调整
-                      if (saturationSlider && saturationValue) {
-                        saturationSlider.addEventListener('input', () => {
-                          saturationValue.textContent = `${saturationSlider.value}%`;
-                        });
-                      }
-                      
-                      // 旋转调整
-                      if (rotateSlider && rotateValue) {
-                        rotateSlider.addEventListener('input', () => {
-                          rotateValue.textContent = `${rotateSlider.value}°`;
-                        });
-                      }
-                      
-                      // 裁剪选项
-                      cropButtons.forEach(btn => {
-                        btn.addEventListener('click', () => {
-                          // 移除其他按钮的选中状态
-                          cropButtons.forEach(b => b.className = b.className.replace('bg-blue-500 text-white', 'bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white'));
-                          // 添加当前按钮的选中状态
-                          btn.className = btn.className.replace('bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white', 'bg-blue-500 text-white');
-                        });
-                      });
-                      
-                      // 点击面板外部关闭
-                      editPanel.addEventListener('click', (e) => {
-                        if (e.target === editPanel) {
-                          document.body.removeChild(editPanel);
-                        }
-                      });
-                    }}
-                    disabled={!selectedResult}
-                    className={`px-5 py-3 rounded-xl text-sm font-semibold flex items-center gap-2 transition-all shadow-md ${selectedResult ? (isDark ? 'bg-blue-600 hover:bg-blue-700 text-white hover:shadow-lg' : 'bg-blue-600 hover:bg-blue-700 text-white hover:shadow-lg') : (isDark ? 'bg-gray-800 text-gray-500 cursor-not-allowed' : 'bg-gray-200 text-gray-500 cursor-not-allowed')}`}
-                  >
-                    <i className="fas fa-edit"></i>
-                    <span>编辑设计</span>
-                  </motion.button>
-                  
-                  {/* Save to Drafts Button */}
-                  <motion.button
-                    whileHover={{ scale: 1.05, y: -2 }}
-                    whileTap={{ scale: 0.95 }}
-                    initial={{ opacity: 0, scale: 0.9, y: 10 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    transition={{ duration: 0.3, delay: 0.45, ease: "easeOut" }}
-                    onClick={() => {
-                      saveToDrafts();
-                    }}
-                    disabled={!selectedResult}
-                    className={`px-5 py-3 rounded-xl text-sm font-semibold flex items-center gap-2 transition-all shadow-md ${selectedResult ? (isDark ? 'bg-green-600 hover:bg-green-700 text-white hover:shadow-lg' : 'bg-green-600 hover:bg-green-700 text-white hover:shadow-lg') : (isDark ? 'bg-gray-800 text-gray-500 cursor-not-allowed' : 'bg-gray-200 text-gray-500 cursor-not-allowed')}`}
-                  >
-                    <i className="fas fa-save"></i>
-                    <span>保存草稿</span>
-                  </motion.button>
-                  
-                  {/* Share Button */}
-                  <motion.button
-                    whileHover={{ scale: 1.05, y: -2 }}
-                    whileTap={{ scale: 0.95 }}
-                    initial={{ opacity: 0, scale: 0.9, y: 10 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    transition={{ duration: 0.3, delay: 0.5, ease: "easeOut" }}
-                    onClick={() => {
-                      shareDesign();
-                    }}
-                    disabled={!selectedResult}
-                    className={`px-5 py-3 rounded-xl text-sm font-semibold flex items-center gap-2 transition-all shadow-md ${selectedResult ? (isDark ? 'bg-purple-600 hover:bg-purple-700 text-white hover:shadow-lg' : 'bg-purple-600 hover:bg-purple-700 text-white hover:shadow-lg') : (isDark ? 'bg-gray-800 text-gray-500 cursor-not-allowed' : 'bg-gray-200 text-gray-500 cursor-not-allowed')}`}
-                  >
-                    <i className="fas fa-share-alt"></i>
-                    <span>分享设计</span>
-                  </motion.button>
-                  
-                  {/* Submit to Activity Button */}
-                  {eventId && (
-                    <motion.button
-                      whileHover={{ scale: 1.05, y: -2 }}
-                      whileTap={{ scale: 0.95 }}
-                      initial={{ opacity: 0, scale: 0.9, y: 10 }}
-                      animate={{ opacity: 1, scale: 1, y: 0 }}
-                      transition={{ duration: 0.3, delay: 0.6, ease: "easeOut" }}
-                      onClick={() => {
-                        if (!selectedResult) return;
-                        if(window.confirm('确定要将此作品提交到活动吗？')) {
-                            // 模拟提交成功
-                            const toast = document.createElement('div');
-                            toast.className = 'fixed top-20 right-6 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg z-50 transition-all duration-300 ease-in-out';
-                            toast.textContent = '作品提交成功！正在返回活动页面...';
-                            document.body.appendChild(toast);
-                            setTimeout(() => {
-                                toast.style.opacity = '0';
-                                setTimeout(() => document.body.removeChild(toast), 300);
-                            }, 2000);
-                            
-                            // 延迟跳转回我的活动页面
-                            setTimeout(() => {
-                                window.location.href = '/my-activities';
-                            }, 1500);
-                        }
-                      }}
-                      disabled={!selectedResult}
-                      className={`px-5 py-3 rounded-xl text-sm font-semibold flex items-center gap-2 transition-all shadow-md ${selectedResult ? 'bg-red-600 hover:bg-red-700 text-white hover:shadow-lg' : (isDark ? 'bg-gray-800 text-gray-500 cursor-not-allowed' : 'bg-gray-200 text-gray-500 cursor-not-allowed')}`}
-                    >
-                      <i className="fas fa-trophy"></i>
-                      <span>提交参赛</span>
-                    </motion.button>
-                  )}
-
-                  {/* Apply to Other Tools Button */}
-                  <motion.button
-                    whileHover={{ scale: 1.05, y: -2 }}
-                    whileTap={{ scale: 0.95 }}
-                    initial={{ opacity: 0, scale: 0.9, y: 10 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    transition={{ duration: 0.3, delay: 0.55, ease: "easeOut" }}
-                    onClick={() => {
-                      // 显示工具选择菜单
-                      applyToOtherTool();
-                    }}
-                    disabled={!selectedResult}
-                    className={`px-5 py-3 rounded-xl text-sm font-semibold flex items-center gap-2 transition-all shadow-md ${selectedResult ? (isDark ? 'bg-yellow-600 hover:bg-yellow-700 text-white hover:shadow-lg' : 'bg-yellow-600 hover:bg-yellow-700 text-white hover:shadow-lg') : (isDark ? 'bg-gray-800 text-gray-500 cursor-not-allowed' : 'bg-gray-200 text-gray-500 cursor-not-allowed')}`}
-                  >
-                    <i className="fas fa-tools"></i>
-                    <span>其他工具</span>
-                  </motion.button>
-                </div>
-              </motion.div>
+              </div>
             </div>
-          </div>
+          )}
+        </AnimatePresence>
+
+        {/* Loading Overlay */}
+        <AnimatePresence>
+          {isGenerating && (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white/80 dark:bg-gray-950/80 backdrop-blur-md"
+            >
+              <div className="relative w-20 h-20 mb-6">
+                <div className="absolute inset-0 border-4 border-gray-200 rounded-full"></div>
+                <div className="absolute inset-0 border-4 border-[#C02C38] border-t-transparent rounded-full animate-spin"></div>
+                <div className="absolute inset-0 flex items-center justify-center">
+                   <i className="fas fa-magic text-[#C02C38] animate-pulse"></i>
+                </div>
+              </div>
+              <p className="font-bold text-lg text-[#C02C38] tracking-widest animate-pulse">AI GENERATING</p>
+              <p className="text-sm text-gray-500 mt-2">正在为您构建创意方案...</p>
+            </motion.div>
           )}
         </AnimatePresence>
       </div>
-
-      {/* Loading Overlay */}
-      <AnimatePresence>
-        {isGenerating && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white/80 dark:bg-gray-950/80 backdrop-blur-md"
-          >
-            <div className="relative w-20 h-20 mb-6">
-              <div className="absolute inset-0 border-4 border-gray-200 rounded-full"></div>
-              <div className="absolute inset-0 border-4 border-[#C02C38] border-t-transparent rounded-full animate-spin"></div>
-              <div className="absolute inset-0 flex items-center justify-center">
-                 <i className="fas fa-magic text-[#C02C38] animate-pulse"></i>
-              </div>
-            </div>
-            <p className="font-bold text-lg text-[#C02C38] tracking-widest animate-pulse">AI GENERATING</p>
-            <p className="text-sm text-gray-500 mt-2">正在为您构建创意方案...</p>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }

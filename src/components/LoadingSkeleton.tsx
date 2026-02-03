@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { performanceMonitor } from '@/utils/performanceOptimization';
+import { performanceMonitor } from '@/utils/performanceOptimization.tsx';
 
 interface LoadingSkeletonProps {
   variant?: 'text' | 'rectangular' | 'circular' | 'card' | 'list' | 'grid';

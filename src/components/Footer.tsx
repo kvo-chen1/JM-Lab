@@ -70,7 +70,7 @@ export default function Footer({ variant = 'full', simpleText }: FooterProps) {
           <div>
             <h4 className="font-bold mb-4">{t('footer.platformFeatures')}</h4>
             <ul className="space-y-2 opacity-70">
-              <li><Link to="/tools" className="hover:text-red-600 transition-colors">{t('footer.aiCreationTools')}</Link></li>
+
               <li><Link to="/explore" className="hover:text-red-600 transition-colors">{t('footer.workExhibition')}</Link></li>
               <li><Link to="/square" className="hover:text-red-600 transition-colors">{t('footer.creatorCommunity')}</Link></li>
               <li><Link to="/business" className="hover:text-red-600 transition-colors">{t('footer.brandCooperation')}</Link></li>

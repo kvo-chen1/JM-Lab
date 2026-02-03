@@ -1,4 +1,4 @@
-// 创作者社区评论组件
+// 津脉社区评论组件
 import React, { useState, useEffect } from 'react'
 import { Heart, MessageCircle, Send, MoreVertical, Flag, Trash2 } from 'lucide-react'
 import LazyImage from '../LazyImage'

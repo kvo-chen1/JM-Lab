@@ -65,17 +65,24 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 
       // 默认降级UI - 使用硬编码文本，避免依赖i18n
       return (
-        <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white">
-          <div className="w-full max-w-md text-center">
-            <div className="text-6xl mb-4">⚠️</div>
-            <h1 className="text-2xl font-bold mb-2">应用程序发生错误</h1>
-            <p className="mb-6 text-gray-600 dark:text-gray-400">
-              抱歉，应用程序遇到了一个问题。请尝试刷新页面或联系支持团队。
+        <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 text-gray-900 dark:text-white">
+          <div className="w-full max-w-md text-center animate-fadeIn">
+            <div className="relative mb-8">
+              <div className="w-24 h-24 mx-auto bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mb-6 shadow-lg">
+                <div className="text-4xl">❌</div>
+              </div>
+              <div className="absolute -top-2 -right-2 w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center animate-pulse">
+                <div className="text-2xl">⚡</div>
+              </div>
+            </div>
+            <h1 className="text-[clamp(1.5rem,3vw,2.5rem)] font-bold mb-3 text-gray-800 dark:text-gray-100">应用程序发生错误</h1>
+            <p className="mb-8 text-gray-600 dark:text-gray-400 leading-relaxed">
+              抱歉，应用程序遇到了一个问题。请尝试刷新页面或联系我们的支持团队获取帮助。
             </p>
-            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8">
               <button
                 onClick={() => window.location.reload()}
-                className="px-6 py-3 rounded-lg font-medium bg-blue-500 hover:bg-blue-600 text-white transition-colors"
+                className="px-8 py-3.5 rounded-lg font-medium bg-blue-500 hover:bg-blue-600 text-white transition-all duration-300 transform hover:scale-105 shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2"
               >
                 刷新页面
               </button>
@@ -84,15 +91,18 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
                   const feedbackButton = document.querySelector('[title="用户反馈"]') as HTMLElement;
                   feedbackButton?.click();
                 }}
-                className="px-6 py-3 rounded-lg font-medium bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 transition-colors"
+                className="px-8 py-3.5 rounded-lg font-medium bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 transition-all duration-300 transform hover:scale-105 shadow-md hover:shadow-lg border border-gray-200 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2"
               >
                 联系支持
               </button>
             </div>
             {this.state.error && (
-              <details className="mt-6 p-4 rounded-lg text-left bg-gray-100 dark:bg-gray-800">
-                <summary className="cursor-pointer font-medium">错误详情</summary>
-                <pre className="mt-2 whitespace-pre-wrap text-sm">
+              <details className="mt-6 p-4 rounded-xl text-left bg-white dark:bg-gray-800 shadow-md border border-gray-100 dark:border-gray-700 transition-all duration-300">
+                <summary className="cursor-pointer font-medium flex items-center gap-2 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">
+                  <span className="text-sm font-semibold px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded">🔍</span>
+                  错误详情
+                </summary>
+                <pre className="mt-4 whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-900 p-4 rounded-lg overflow-auto max-h-64">
                   {this.state.error.toString()}
                   {this.state.errorInfo?.componentStack && (
                     <>
@@ -117,6 +127,9 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
                 </pre>
               </details>
             )}
+            <div className="mt-8 text-xs text-gray-500 dark:text-gray-500">
+              <p>错误ID: {Date.now().toString(36).substring(2, 10)}</p>
+            </div>
           </div>
         </div>
       );

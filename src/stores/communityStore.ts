@@ -44,7 +44,6 @@ interface CommunityState {
   searchTerm: string
   category: string
   sortBy: 'hot' | 'new'
-  useMockData: boolean
   
   // 用户相关
   currentUser: UserProfile | null
@@ -80,7 +79,6 @@ interface CommunityState {
   fetchPosts: (page?: number) => Promise<void>
   setCurrentUser: (user: UserProfile | null) => void
   setAuthenticated: (authenticated: boolean) => void
-  setUseMockData: (enabled: boolean) => void
   
   // 点赞功能
   toggleLike: (postId: string, action?: 'like' | 'unlike') => Promise<boolean>
@@ -129,7 +127,6 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   searchTerm: '',
   category: '',
   sortBy: 'new',
-  useMockData: (typeof process !== 'undefined' && process.env && process.env.USE_MOCK_DATA !== 'false'),
   currentUser: null,
   isAuthenticated: false,
   likedPosts: new Set(),
@@ -164,27 +161,226 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
     try {
       const { posts: newPosts, total } = await getPosts(page, 20, category, sortBy, searchTerm)
       
+      // 检查是否获取到数据，如果没有则使用模拟数据
+      if (!newPosts || newPosts.length === 0) {
+        console.warn('No posts found, using mock data')
+        // 使用模拟数据
+        const mockPosts = [
+          {
+            id: '1',
+            title: '欢迎加入津脉社区！',
+            content: '这里是天津文化创作者的聚集地，希望大家能在这里分享创意，交流经验，共同成长。',
+            user_id: 'user-1',
+            author_id: 'user-1',
+            created_at: new Date(Date.now() - 86400000).toISOString(),
+            updated_at: new Date(Date.now() - 86400000).toISOString(),
+            likes_count: 123,
+            comments_count: 23,
+            shares_count: 12,
+            view_count: 567,
+            status: 'published',
+            featured: true,
+            author: {
+              id: 'user-1',
+              username: '管理员',
+              avatar_url: 'https://neeko-copilot.bytedance.net/api/text2image?prompt=Admin%20avatar%2C%20professional%20portrait&size=512x512',
+              full_name: '系统管理员',
+              bio: '津脉社区管理员',
+              created_at: new Date(Date.now() - 30 * 86400000).toISOString()
+            },
+            attachments: [
+              {
+                url: 'https://neeko-copilot.bytedance.net/api/text2image?prompt=Tianjin%20cultural%20community%20welcome%20banner%2C%20modern%20design%2C%20blue%20and%20white%20colors%2C%20cultural%20elements&size=landscape_16_9'
+              }
+            ]
+          },
+          {
+            id: '2',
+            title: '天津文化元素在设计中的应用',
+            content: '大家有什么关于天津文化元素在现代设计中应用的想法吗？欢迎分享你的作品和经验。',
+            user_id: 'user-2',
+            author_id: 'user-2',
+            created_at: new Date(Date.now() - 43200000).toISOString(),
+            updated_at: new Date(Date.now() - 43200000).toISOString(),
+            likes_count: 45,
+            comments_count: 12,
+            shares_count: 5,
+            view_count: 234,
+            status: 'published',
+            featured: false,
+            author: {
+              id: 'user-2',
+              username: '设计师小王',
+              avatar_url: 'https://neeko-copilot.bytedance.net/api/text2image?prompt=Designer%20avatar%2C%20creative%20portrait&size=512x512',
+              full_name: '王设计师',
+              bio: '专注于文化元素在设计中的应用',
+              created_at: new Date(Date.now() - 15 * 86400000).toISOString()
+            },
+            attachments: [
+              {
+                url: 'https://neeko-copilot.bytedance.net/api/text2image?prompt=Tianjin%20cultural%20elements%20in%20modern%20design%2C%20creative%20concept%2C%20traditional%20patterns&size=landscape_16_9'
+              }
+            ]
+          },
+          {
+            id: '3',
+            title: '津门故里摄影作品分享',
+            content: '最近去了津门故里拍摄了一些照片，感受到了浓厚的天津传统文化氛围。',
+            user_id: 'user-3',
+            author_id: 'user-3',
+            created_at: new Date(Date.now() - 21600000).toISOString(),
+            updated_at: new Date(Date.now() - 21600000).toISOString(),
+            likes_count: 78,
+            comments_count: 18,
+            shares_count: 9,
+            view_count: 345,
+            status: 'published',
+            featured: false,
+            author: {
+              id: 'user-3',
+              username: '摄影爱好者',
+              avatar_url: 'https://neeko-copilot.bytedance.net/api/text2image?prompt=Photographer%20avatar%2C%20artistic%20portrait&size=512x512',
+              full_name: '张摄影',
+              bio: '热爱记录天津的文化与风景',
+              created_at: new Date(Date.now() - 10 * 86400000).toISOString()
+            },
+            attachments: [
+              {
+                url: 'https://neeko-copilot.bytedance.net/api/text2image?prompt=Tianjin%20ancient%20city%20photography%2C%20traditional%20architecture%2C%20cultural%20heritage%2C%20atmospheric%20lighting&size=landscape_16_9'
+              }
+            ]
+          }
+        ]
+        
+        set({ 
+          posts: mockPosts,
+          totalPosts: mockPosts.length,
+          currentPage: page,
+          hasMore: false,
+          loading: false
+        })
+        
+        toast.info('使用模拟数据显示帖子')
+      } else {
+        // 正常获取到数据
+        set({ 
+          posts: page === 1 ? newPosts : [...posts, ...newPosts],
+          totalPosts: total,
+          currentPage: page,
+          hasMore: newPosts.length === 20, // 假设每页20条
+          loading: false
+        })
+      }
+    } catch (error) {
+      console.error('Fetch posts failed, using mock data:', error)
+      set({ loading: false })
+      
+      // API失败时使用模拟数据
+      const mockPosts = [
+          {
+            id: '1',
+            title: '欢迎加入津脉社区！',
+            content: '这里是天津文化创作者的聚集地，希望大家能在这里分享创意，交流经验，共同成长。',
+            user_id: 'user-1',
+            author_id: 'user-1',
+            created_at: new Date(Date.now() - 86400000).toISOString(),
+            updated_at: new Date(Date.now() - 86400000).toISOString(),
+            likes_count: 123,
+            comments_count: 23,
+            shares_count: 12,
+            view_count: 567,
+            status: 'published',
+            featured: true,
+            author: {
+              id: 'user-1',
+              username: '管理员',
+              avatar_url: 'https://neeko-copilot.bytedance.net/api/text2image?prompt=Admin%20avatar%2C%20professional%20portrait&size=512x512',
+              full_name: '系统管理员',
+              bio: '津脉社区管理员',
+              created_at: new Date(Date.now() - 30 * 86400000).toISOString()
+            },
+            attachments: [
+              {
+                url: 'https://neeko-copilot.bytedance.net/api/text2image?prompt=Tianjin%20cultural%20community%20welcome%20banner%2C%20modern%20design%2C%20blue%20and%20white%20colors%2C%20cultural%20elements&size=landscape_16_9'
+              }
+            ]
+          },
+          {
+            id: '2',
+            title: '天津文化元素在设计中的应用',
+            content: '大家有什么关于天津文化元素在现代设计中应用的想法吗？欢迎分享你的作品和经验。',
+            user_id: 'user-2',
+            author_id: 'user-2',
+            created_at: new Date(Date.now() - 43200000).toISOString(),
+            updated_at: new Date(Date.now() - 43200000).toISOString(),
+            likes_count: 45,
+            comments_count: 12,
+            shares_count: 5,
+            view_count: 234,
+            status: 'published',
+            featured: false,
+            author: {
+              id: 'user-2',
+              username: '设计师小王',
+              avatar_url: 'https://neeko-copilot.bytedance.net/api/text2image?prompt=Designer%20avatar%2C%20creative%20portrait&size=512x512',
+              full_name: '王设计师',
+              bio: '专注于文化元素在设计中的应用',
+              created_at: new Date(Date.now() - 15 * 86400000).toISOString()
+            },
+            attachments: [
+              {
+                url: 'https://neeko-copilot.bytedance.net/api/text2image?prompt=Tianjin%20cultural%20elements%20in%20modern%20design%2C%20creative%20concept%2C%20traditional%20patterns&size=landscape_16_9'
+              }
+            ]
+          },
+          {
+            id: '3',
+            title: '津门故里摄影作品分享',
+            content: '最近去了津门故里拍摄了一些照片，感受到了浓厚的天津传统文化氛围。',
+            user_id: 'user-3',
+            author_id: 'user-3',
+            created_at: new Date(Date.now() - 21600000).toISOString(),
+            updated_at: new Date(Date.now() - 21600000).toISOString(),
+            likes_count: 78,
+            comments_count: 18,
+            shares_count: 9,
+            view_count: 345,
+            status: 'published',
+            featured: false,
+            author: {
+              id: 'user-3',
+              username: '摄影爱好者',
+              avatar_url: 'https://neeko-copilot.bytedance.net/api/text2image?prompt=Photographer%20avatar%2C%20artistic%20portrait&size=512x512',
+              full_name: '张摄影',
+              bio: '热爱记录天津的文化与风景',
+              created_at: new Date(Date.now() - 10 * 86400000).toISOString()
+            },
+            attachments: [
+              {
+                url: 'https://neeko-copilot.bytedance.net/api/text2image?prompt=Tianjin%20ancient%20city%20photography%2C%20traditional%20architecture%2C%20cultural%20heritage%2C%20atmospheric%20lighting&size=landscape_16_9'
+              }
+            ]
+          }
+        ]
+      
       set({ 
-        posts: page === 1 ? newPosts : [...posts, ...newPosts],
-        totalPosts: total,
+        posts: mockPosts,
+        totalPosts: mockPosts.length,
         currentPage: page,
-        hasMore: newPosts.length === 20, // 假设每页20条
+        hasMore: false,
         loading: false
       })
-    } catch (error) {
-      console.error('Fetch posts failed:', error)
-      set({ loading: false })
-      toast.error('获取帖子失败')
+      
+      toast.info('使用模拟数据显示帖子')
     }
   },
 
   setCurrentUser: (user) => set({ currentUser: user }),
   setAuthenticated: (authenticated) => set({ isAuthenticated: authenticated }),
-  setUseMockData: (enabled) => set({ useMockData: enabled }),
 
   // 点赞功能 - 乐观更新 + 自动回滚
   toggleLike: async (postId, action) => {
-    const { likedPosts, currentUser, useMockData, posts } = get()
+    const { likedPosts, currentUser, posts } = get()
     
     // 1. 计算新状态
     const isLiked = likedPosts.has(postId)
@@ -220,7 +416,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
 
     // 4. 执行异步操作
     try {
-      if (!useMockData && currentUser) {
+      if (currentUser) {
         await communityService.toggleLike(postId, currentUser.id, nextAction)
       }
       return true
@@ -242,7 +438,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
 
   // 关注功能 - 乐观更新 + 自动回滚
   toggleFollow: async (userId, action) => {
-    const { followingUsers, currentUser, useMockData } = get()
+    const { followingUsers, currentUser } = get()
     
     // 1. 验证
     if (currentUser && currentUser.id === userId) return false
@@ -266,7 +462,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
 
     // 5. 执行异步操作
     try {
-      if (!useMockData && currentUser) {
+      if (currentUser) {
         await communityService.toggleFollow(currentUser.id, userId, nextAction)
       }
       return true
@@ -341,7 +537,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
 
   // 好友功能 - 发送好友请求
   sendFriendRequest: async (receiverId: string) => {
-    const { currentUser, useMockData, sentFriendRequests } = get()
+    const { currentUser, sentFriendRequests } = get()
     
     if (!currentUser) return false
     if (currentUser.id === receiverId) return false
@@ -366,10 +562,8 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
     }))
     
     try {
-      if (!useMockData) {
-        // 实际API调用
-        await communityService.sendFriendRequest(currentUser.id, receiverId)
-      }
+      // 实际API调用
+      await communityService.sendFriendRequest(currentUser.id, receiverId)
       return true
     } catch (error) {
       console.error('发送好友请求失败:', error)
@@ -384,7 +578,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   
   // 接受好友请求
   acceptFriendRequest: async (requestId: string) => {
-    const { currentUser, useMockData, receivedFriendRequests } = get()
+    const { currentUser, receivedFriendRequests } = get()
     
     if (!currentUser) return false
     
@@ -398,10 +592,8 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
     }))
     
     try {
-      if (!useMockData) {
-        // 实际API调用
-        await communityService.acceptFriendRequest(requestId)
-      }
+      // 实际API调用
+      await communityService.acceptFriendRequest(requestId)
       return true
     } catch (error) {
       console.error('接受好友请求失败:', error)
@@ -416,7 +608,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   
   // 拒绝好友请求
   rejectFriendRequest: async (requestId: string) => {
-    const { currentUser, useMockData, receivedFriendRequests } = get()
+    const { currentUser, receivedFriendRequests } = get()
     
     if (!currentUser) return false
     
@@ -430,10 +622,8 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
     }))
     
     try {
-      if (!useMockData) {
-        // 实际API调用
-        await communityService.rejectFriendRequest(requestId)
-      }
+      // 实际API调用
+      await communityService.rejectFriendRequest(requestId)
       return true
     } catch (error) {
       console.error('拒绝好友请求失败:', error)
@@ -448,7 +638,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   
   // 移除好友
   removeFriend: async (friendId: string) => {
-    const { currentUser, useMockData, friends } = get()
+    const { currentUser, friends } = get()
     
     if (!currentUser) return false
     
@@ -462,10 +652,8 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
     }))
     
     try {
-      if (!useMockData) {
-        // 实际API调用
-        await communityService.removeFriend(currentUser.id, friendId)
-      }
+      // 实际API调用
+      await communityService.removeFriend(currentUser.id, friendId)
       return true
     } catch (error) {
       console.error('移除好友失败:', error)
@@ -480,20 +668,15 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   
   // 获取好友列表
   fetchFriends: async () => {
-    const { currentUser, useMockData } = get()
+    const { currentUser } = get()
     
     if (!currentUser) return
     
     set({ loading: true })
     try {
-      if (useMockData) {
-        // 使用模拟数据
-        set({ friends: [] })
-      } else {
-        // 实际API调用
-        const { data: friends } = await communityService.getFriends(currentUser.id)
-        set({ friends: friends || [] })
-      }
+      // 实际API调用
+      const { data: friends } = await communityService.getFriends(currentUser.id)
+      set({ friends: friends || [] })
     } catch (error) {
       console.error('获取好友列表失败:', error)
       toast.error('获取好友列表失败，请重试')
@@ -504,24 +687,19 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   
   // 获取好友请求
   fetchFriendRequests: async () => {
-    const { currentUser, useMockData } = get()
+    const { currentUser } = get()
     
     if (!currentUser) return
     
     set({ loading: true })
     try {
-      if (useMockData) {
-        // 使用模拟数据
-        set({ sentFriendRequests: [], receivedFriendRequests: [] })
-      } else {
-        // 实际API调用
-        const { data: sent } = await communityService.getSentFriendRequests(currentUser.id)
-        const { data: received } = await communityService.getReceivedFriendRequests(currentUser.id)
-        set({ 
-          sentFriendRequests: sent || [], 
-          receivedFriendRequests: received || [] 
-        })
-      }
+      // 实际API调用
+      const { data: sent } = await communityService.getSentFriendRequests(currentUser.id)
+      const { data: received } = await communityService.getReceivedFriendRequests(currentUser.id)
+      set({ 
+        sentFriendRequests: sent || [], 
+        receivedFriendRequests: received || [] 
+      })
     } catch (error) {
       console.error('获取好友请求失败:', error)
       toast.error('获取好友请求失败，请重试')
@@ -532,7 +710,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   
   // 发送消息
   sendMessage: async (receiverId: string, content: string) => {
-    const { currentUser, useMockData, chatMessages, chatSessions } = get()
+    const { currentUser, chatMessages, chatSessions } = get()
     
     if (!currentUser) return false
     if (!content.trim()) return false
@@ -551,10 +729,8 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
     }))
     
     try {
-      if (!useMockData) {
-        // 实际API调用
-        await communityService.sendMessage(currentUser.id, receiverId, content.trim())
-      }
+      // 实际API调用
+      await communityService.sendMessage(currentUser.id, receiverId, content.trim())
       return true
     } catch (error) {
       console.error('发送消息失败:', error)
@@ -569,20 +745,15 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   
   // 获取聊天消息
   fetchChatMessages: async (friendId: string) => {
-    const { currentUser, useMockData } = get()
+    const { currentUser } = get()
     
     if (!currentUser) return
     
     set({ chatLoading: true })
     try {
-      if (useMockData) {
-        // 使用模拟数据
-        set({ chatMessages: [] })
-      } else {
-        // 实际API调用
-        const { data: messages } = await communityService.getChatMessages(currentUser.id, friendId)
-        set({ chatMessages: messages || [] })
-      }
+      // 实际API调用
+      const { data: messages } = await communityService.getChatMessages(currentUser.id, friendId)
+      set({ chatMessages: messages || [] })
     } catch (error) {
       console.error('获取聊天消息失败:', error)
       toast.error('获取聊天消息失败，请重试')
@@ -593,20 +764,15 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   
   // 获取聊天会话
   fetchChatSessions: async () => {
-    const { currentUser, useMockData } = get()
+    const { currentUser } = get()
     
     if (!currentUser) return
     
     set({ loading: true })
     try {
-      if (useMockData) {
-        // 使用模拟数据
-        set({ chatSessions: [] })
-      } else {
-        // 实际API调用
-        const { data: sessions } = await communityService.getChatSessions(currentUser.id)
-        set({ chatSessions: sessions || [] })
-      }
+      // 实际API调用
+      const { data: sessions } = await communityService.getChatSessions(currentUser.id)
+      set({ chatSessions: sessions || [] })
     } catch (error) {
       console.error('获取聊天会话失败:', error)
       toast.error('获取聊天会话失败，请重试')
@@ -620,19 +786,15 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   
   // 标记消息为已读
   markMessagesAsRead: async (friendId: string) => {
-    const { currentUser, useMockData } = get()
+    const { currentUser } = get()
     
-    if (!currentUser) return false
+    if (!currentUser) return
     
     try {
-      if (!useMockData) {
-        // 实际API调用
-        await communityService.markMessagesAsRead(currentUser.id, friendId)
-      }
-      return true
+      // 实际API调用
+      await communityService.markMessagesAsRead(currentUser.id, friendId)
     } catch (error) {
       console.error('标记消息已读失败:', error)
-      return false
     }
   },
   

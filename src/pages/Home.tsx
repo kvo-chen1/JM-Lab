@@ -1,43 +1,52 @@
-import { useState, useRef, useEffect, lazy, Suspense, useMemo, useCallback } from 'react';
+import { useState, useRef, useEffect, lazy, Suspense, useMemo, useCallback, useContext } from 'react';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '@/contexts/authContext';
-import { useContext } from 'react';
 import { toast } from 'sonner';
 import { TianjinImage, TianjinButton, TianjinTag, TianjinAvatar } from '@/components/TianjinStyleComponents';
 import { llmService } from '@/services/llmService'
 import voiceService from '@/services/voiceService'
-import { mockWorks } from '@/mock/works'
+import { workService, userService } from '@/services/apiService'
 import { useTranslation } from 'react-i18next'
 import PromptInput from '@/components/PromptInput'
 import eventBus from '@/lib/eventBus' // 导入事件总线
+import {
+  ANIMATION_VARIANTS,
+  INTERACTION_VARIANTS,
+  SCROLL_TRIGGER_CONFIG,
+  getResponsiveDuration,
+  getResponsiveDelay
+} from '@/config/animationConfig'
 
 // 响应式动画速度控制
 const useResponsiveAnimation = () => {
   const [isMobile, setIsMobile] = useState(false);
+  const [isTablet, setIsTablet] = useState(false);
 
   useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
+    const checkDevice = () => {
+      const width = window.innerWidth;
+      setIsMobile(width < 768);
+      setIsTablet(width >= 768 && width < 1024);
     };
 
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
+    checkDevice();
+    window.addEventListener('resize', checkDevice);
+    return () => window.removeEventListener('resize', checkDevice);
   }, []);
 
   // 根据设备类型返回动画持续时间
   const getDuration = (defaultDuration: number) => {
-    return isMobile ? defaultDuration * 0.4 : defaultDuration;
+    return getResponsiveDuration(defaultDuration, isMobile, isTablet);
   };
 
   // 根据设备类型返回动画延迟时间
   const getDelay = (defaultDelay: number) => {
-    return isMobile ? defaultDelay * 0.5 : defaultDelay;
+    return getResponsiveDelay(defaultDelay, isMobile, isTablet);
   };
 
-  return { isMobile, getDuration, getDelay };
+  return { isMobile, isTablet, getDuration, getDelay };
 };
 
 export default function Home() {
@@ -58,13 +67,20 @@ export default function Home() {
   // 响应式状态
   const [isMounted, setIsMounted] = useState(false);
   
+  // 数据加载状态
+  const [works, setWorks] = useState<any[]>([]);
+  const [popularCreators, setPopularCreators] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  
   useEffect(() => {
     setIsMounted(true);
     
     // 添加事件监听器
     const loginListener = eventBus.subscribe('auth:login', (data) => {
       console.log('Home page received login event:', data);
-      toast.success(`欢迎回来，${data.user.username}!`);
+      const username = data?.user?.username || '用户';
+      toast.success(`欢迎回来，${username}!`);
     });
     
     const logoutListener = eventBus.subscribe('auth:logout', () => {
@@ -84,7 +100,10 @@ export default function Home() {
     
     const dataRefreshListener = eventBus.subscribe('数据:刷新', (data) => {
       console.log('Home page received data refresh event:', data);
-      // 这里可以添加数据刷新逻辑
+      // 只处理特定类型的数据刷新事件，避免无限循环
+      if (data.type === 'work:created' || data.type === 'work:updated' || data.type === 'work:deleted') {
+        fetchData();
+      }
     });
     
     // 清理事件监听器
@@ -95,6 +114,78 @@ export default function Home() {
       eventBus.unsubscribe('作品:发布', workPublishedListener);
       eventBus.unsubscribe('数据:刷新', dataRefreshListener);
     };
+  }, []);
+  
+  // 获取数据 - 优化版，添加缓存机制
+  const fetchData = async () => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      // 尝试从缓存获取数据
+      const cachedData = localStorage.getItem('homePageData');
+      const cacheTimestamp = localStorage.getItem('homePageDataTimestamp');
+      const now = Date.now();
+      const CACHE_DURATION = 5 * 60 * 1000; // 5分钟缓存
+      
+      if (cachedData && cacheTimestamp && (now - parseInt(cacheTimestamp)) < CACHE_DURATION) {
+        // 使用缓存数据
+        const { works: cachedWorks, creators: cachedCreators } = JSON.parse(cachedData);
+        // 确保数据是数组格式
+        setWorks(Array.isArray(cachedWorks) ? cachedWorks : []);
+        setPopularCreators(Array.isArray(cachedCreators) ? cachedCreators : []);
+        setIsLoading(false);
+        return;
+      }
+      
+      // 缓存过期或不存在，从API获取
+      const worksData = await workService.getWorks({ limit: 20 });
+      // 确保worksData是数组
+      setWorks(Array.isArray(worksData) ? worksData : []);
+      
+      // 生成热门创作者数据
+      const creatorsMap = new Map();
+      // 确保worksData是数组后再进行操作
+      if (Array.isArray(worksData)) {
+        worksData.forEach(work => {
+          if (work.creator) {
+            if (!creatorsMap.has(work.creator)) {
+              creatorsMap.set(work.creator, {
+                name: work.creator,
+                avatar: work.creatorAvatar || '',
+                likes: 0
+              });
+            }
+            const creator = creatorsMap.get(work.creator);
+            creator.likes += work.likes || 0;
+          }
+        });
+      }
+      
+      const creatorsArray = Array.from(creatorsMap.values())
+        .sort((a, b) => b.likes - a.likes)
+        .slice(0, 5);
+      setPopularCreators(creatorsArray);
+      
+      // 缓存数据
+      const dataToCache = {
+        works: worksData,
+        creators: creatorsArray
+      };
+      localStorage.setItem('homePageData', JSON.stringify(dataToCache));
+      localStorage.setItem('homePageDataTimestamp', now.toString());
+    } catch (err) {
+      console.error('获取数据失败:', err);
+      setError('获取数据失败，请稍后重试');
+      toast.error('获取数据失败，请稍后重试');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // 初始加载数据
+  useEffect(() => {
+    fetchData();
   }, []);
   
   // 创作提示词输入状态
@@ -148,12 +239,12 @@ export default function Home() {
     
     // 发布创作生成事件
     eventBus.publish('请求:开始', {
-      url: '/tools',
+      url: '/create',
       method: 'GET',
       options: { query: p, from: 'home' }
     });
     
-    navigate(`/tools?from=home&query=${encodeURIComponent(p)}`);
+    navigate(`/create?from=home&prompt=${encodeURIComponent(p)}`);
   }, [navigate]);
   
   const handleOptimizeClick = async () => {
@@ -266,13 +357,28 @@ export default function Home() {
   };
 
   // 数据Memo
-  const gallery = useMemo(() => mockWorks.slice(0, 12), []);
-  const popularCreators = useMemo(() => 
-    Array.from(new Set(mockWorks.map(w => w.creator))).slice(0, 5).map(name => {
-      const w = mockWorks.find(work => work.creator === name);
-      return { name, avatar: w?.creatorAvatar || '', likes: 1000 + Math.floor(Math.random() * 500) };
-    })
-  , []);
+  const gallery = useMemo(() => works.slice(0, 12), [works]);
+  
+  // 优化动画性能的自定义Hook
+  const useOptimizedAnimation = () => {
+    const { isMobile } = useResponsiveAnimation();
+    
+    // 为移动设备提供更轻量的动画配置
+    const getAnimationConfig = (baseConfig: any) => {
+      if (isMobile) {
+        return {
+          ...baseConfig,
+          duration: baseConfig.duration * 0.7,
+          delay: baseConfig.delay * 0.5,
+          // 简化动画类型以提高性能
+          type: 'tween'
+        };
+      }
+      return baseConfig;
+    };
+    
+    return { getAnimationConfig };
+  };
 
   // Section Component
   const Section = ({ title, children, className = '' }: { title: string, children: React.ReactNode, className?: string }) => (
@@ -303,7 +409,7 @@ export default function Home() {
           style={{ y: heroY, opacity: heroOpacity }}
           className="absolute inset-0 z-0"
         >
-          <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-transparent z-10"></div>
+          <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/30 to-transparent z-10"></div>
           <div className={`absolute inset-0 bg-gradient-to-t ${isDark ? 'from-gray-950' : 'from-white'} to-transparent z-10 h-32 bottom-0`}></div>
           
           <img 
@@ -317,22 +423,28 @@ export default function Home() {
               target.src = 'https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=1600&q=80'; 
             }}
           />
+          
+          {/* Simplified Background Effect - Performance Optimized */}
+        <div className="absolute inset-0 z-5 bg-gradient-to-b from-white/5 via-transparent to-transparent"></div>
         </motion.div>
 
         {/* Hero Content */}
         <div className="relative z-20 max-w-5xl w-full px-4 text-center">
           <motion.h1 
-            initial={{ y: 20, opacity: 0 }}
+            initial={{ y: 30, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: getDuration(0.8), ease: "easeOut" }}
+            transition={{ duration: getDuration(0.56), ease: "easeOut", delay: 0 }}
             className="text-5xl md:text-7xl lg:text-8xl font-black text-white mb-6 drop-shadow-2xl tracking-tight"
           >
-            {t('common.welcome')}
+            <span className="block">{t('common.welcome')}</span>
+            <span className="block mt-2 bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
+              释放创意潜能
+            </span>
           </motion.h1>
           <motion.p 
-            initial={{ y: 20, opacity: 0 }}
+            initial={{ y: 30, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: getDuration(0.8), delay: getDelay(0.2), ease: "easeOut" }}
+            transition={{ duration: getDuration(0.56), delay: 0.05, ease: "easeOut" }}
             className="text-lg md:text-2xl text-white/90 mb-12 font-light tracking-wide max-w-2xl mx-auto"
           >
             {t('home.exploreTianjinCulture')}
@@ -340,12 +452,12 @@ export default function Home() {
 
           {/* Search Bar - Glassmorphism with Enhanced Animations */}
           <motion.div 
-            initial={{ y: 30, opacity: 0, scale: 0.95 }}
+            initial={{ y: 40, opacity: 0, scale: 0.95 }}
             animate={{ y: 0, opacity: 1, scale: 1 }}
-            transition={{ duration: getDuration(0.8), delay: getDelay(0.4), type: 'spring', stiffness: 100 }}
-            className="w-full max-w-3xl mx-auto backdrop-blur-xl bg-white/10 border border-white/20 rounded-3xl p-2 shadow-2xl transition-all duration-500 hover:bg-white/15 focus-within:bg-white/15 focus-within:border-white/30 focus-within:shadow-3xl hover:shadow-3xl"
+            transition={{ duration: getDuration(0.56), delay: 0.1, type: 'spring', stiffness: 140 }}
+            className="w-full max-w-3xl mx-auto backdrop-blur-xl bg-white/10 border border-white/20 rounded-3xl p-3 shadow-2xl transition-all duration-200 hover:bg-white/15 focus-within:bg-white/15 focus-within:border-white/30 focus-within:shadow-3xl hover:shadow-3xl"
           >
-            <div className="flex flex-col md:flex-row gap-2">
+            <div className="flex flex-col md:flex-row gap-3">
               <div className="flex-grow relative">
                 <input 
                   type="text" 
@@ -353,78 +465,89 @@ export default function Home() {
                   onChange={(e) => setSearch(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && handleGenerateClick()}
                   placeholder="输入灵感，开启创作之旅..." 
-                  className="w-full h-14 bg-transparent text-white placeholder-white/60 px-6 text-lg outline-none transition-all duration-300"
+                  className="w-full h-16 bg-transparent text-white placeholder-white/60 px-6 text-lg outline-none transition-all duration-300"
                 />
-                <div className="absolute right-4 top-1/2 transform -translate-y-1/2 flex items-center gap-3">
+                <div className="absolute right-4 top-1/2 transform -translate-y-1/2 flex items-center gap-4">
+                  <motion.button 
+                    onClick={toggleInspire}
+                    className={`p-2 rounded-full transition-all ${inspireOn ? 'bg-yellow-500/20 text-yellow-400' : 'text-white/60 hover:bg-white/10'}`}
+                    aria-label={inspireOn ? "关闭灵感加持" : "开启灵感加持"}
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.95 }}
+                    transition={{ duration: 0.1 }}
+                  >
+                    <i className="fas fa-bolt text-xl"></i>
+                  </motion.button>
                   <motion.button 
                     onClick={handleVoiceInput}
-                    className={`transition-all ${isListening ? 'text-red-500' : 'text-white/60'}`}
+                    className={`p-2 rounded-full transition-all ${isListening ? 'bg-red-500/20 text-red-400' : 'text-white/60 hover:bg-white/10'}`}
                     aria-label={isListening ? "停止语音输入" : "开始语音输入"}
                     whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.95 }}
                     animate={isListening ? { scale: [1, 1.1, 1], rotate: [0, 5, -5, 0] } : {}}
-                    transition={isListening ? { duration: 0.5, repeat: Infinity } : {}}
+                    transition={isListening ? { duration: 0.35, repeat: Infinity } : { duration: 0.1 }}
                   >
                     <i className="fas fa-microphone text-xl"></i>
                   </motion.button>
                   {search && (
                     <motion.button 
                       onClick={clearAllTags}
-                      className="text-white/60 hover:text-white transition-colors"
+                      className="p-2 rounded-full text-white/60 hover:bg-white/10 transition-colors"
                       aria-label="清除所有内容"
                       whileHover={{ scale: 1.1, rotate: 90 }}
                       whileTap={{ scale: 0.95 }}
                       initial={{ opacity: 0, scale: 0.5 }}
                       animate={{ opacity: 1, scale: 1 }}
+                      transition={{ duration: 0.2 }}
                     >
                       <i className="fas fa-times-circle text-xl"></i>
                     </motion.button>
                   )}
                 </div>
               </div>
-              <div className="flex gap-2 p-1">
+              <div className="flex gap-3 p-1">
                 <motion.button 
                   onClick={handleInspireClick}
-                  className="h-12 px-6 rounded-2xl bg-white/20 hover:bg-white/30 text-white font-medium transition-all backdrop-blur-sm flex items-center gap-2"
+                  className="h-16 px-8 rounded-2xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-medium transition-all shadow-lg flex items-center gap-2"
                   whileHover={{ scale: 1.03, y: -2 }}
                   whileTap={{ scale: 0.98 }}
                   initial={{ opacity: 0, x: 10 }}
                   animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.6 }}
+                  transition={{ delay: 0.15, duration: 0.15 }}
                 >
-                  <motion.i className="fas fa-bolt" animate={{ rotate: [0, 10, -10, 0] }} transition={{ duration: 1, repeat: Infinity, delay: 1 }}></motion.i> 灵感
+                  <i className="fas fa-lightbulb text-xl"></i> 灵感
                 </motion.button>
                 <motion.button 
                   onClick={handleGenerateClick}
-                  className="h-12 px-8 rounded-2xl bg-white text-black hover:bg-gray-100 font-bold transition-all shadow-lg flex items-center gap-2"
+                  className="h-16 px-8 rounded-2xl bg-white text-black hover:bg-gray-100 font-bold transition-all shadow-xl flex items-center gap-2"
                   whileHover={{ scale: 1.03, y: -2, boxShadow: '0 10px 30px -5px rgba(255, 255, 255, 0.3)' }}
                   whileTap={{ scale: 0.98 }}
                   initial={{ opacity: 0, x: 10 }}
                   animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.7 }}
+                  transition={{ delay: 0.18, duration: 0.15 }}
                 >
-                  <i className="fas fa-wand-magic-sparkles"></i> 生成
+                  <i className="fas fa-wand-magic-sparkles text-xl"></i> 生成
                 </motion.button>
               </div>
             </div>
             {/* Quick Tags inside search bar area */}
-            <div className="flex gap-2 px-4 sm:px-6 pb-2 sm:pb-3 mt-2 overflow-x-auto scrollbar-hide scroll-smooth snap-x snap-mandatory">
+            <div className="flex gap-3 px-4 sm:px-6 pb-2 sm:pb-3 mt-3 overflow-x-auto scrollbar-hide scroll-smooth snap-x snap-mandatory">
               {quickTags.map((tag, i) => (
                 <motion.button
                   key={i}
                   onClick={() => toggleTag(tag)}
-                  className={`text-xs sm:text-xs px-2 sm:px-3 py-1.5 sm:py-1 min-w-max rounded-full border transition-all ${selectedTags.includes(tag) ? 'bg-white text-black border-white' : 'bg-transparent text-white/70 border-white/20 hover:bg-white/10'}`}
+                  className={`text-xs sm:text-sm px-3 sm:px-4 py-2 min-w-max rounded-full border transition-all ${selectedTags.includes(tag) ? 'bg-white text-black border-white shadow-lg' : 'bg-transparent text-white/70 border-white/20 hover:bg-white/10'}`}
                   whileHover={{ scale: 1.05, y: -2 }}
                   whileTap={{ scale: 0.95 }}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.8 + i * 0.05 }}
+                  transition={{ delay: 0.2 + i * 0.02, duration: 0.15 }}
                   layoutId={`tag-${tag}`}
                   style={{
                     // 优化移动端触摸目标
                     touchAction: 'manipulation',
                     // 确保在移动设备上有足够的点击区域
-                    minHeight: '32px',
+                    minHeight: '36px',
                     // 平滑滚动
                     scrollSnapAlign: 'start'
                   }}
@@ -434,6 +557,54 @@ export default function Home() {
               ))}
             </div>
           </motion.div>
+          
+          {/* Hero Stats */}
+          <motion.div 
+            initial={{ opacity: 0, y: 40 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: getDuration(0.56), delay: 0.25 }}
+            className="flex flex-wrap justify-center gap-10 mt-16 text-white/80"
+          >
+            <motion.div 
+              whileHover={{ scale: 1.1, y: -5 }}
+              className="flex flex-col items-center p-4 rounded-xl hover:bg-white/10 transition-all"
+            >
+              <motion.div 
+                animate={{ scale: [1, 1.05, 1] }}
+                transition={{ duration: 1.4, repeat: Infinity }}
+                className="text-3xl md:text-4xl font-bold text-white mb-2"
+              >
+                1000+
+              </motion.div>
+              <span className="text-sm text-white/70">创作作品</span>
+            </motion.div>
+            <motion.div 
+              whileHover={{ scale: 1.1, y: -5 }}
+              className="flex flex-col items-center p-4 rounded-xl hover:bg-white/10 transition-all"
+            >
+              <motion.div 
+                animate={{ scale: [1, 1.05, 1] }}
+                transition={{ duration: 1.4, repeat: Infinity, delay: 0.35 }}
+                className="text-3xl md:text-4xl font-bold text-white mb-2"
+              >
+                500+
+              </motion.div>
+              <span className="text-sm text-white/70">活跃创作者</span>
+            </motion.div>
+            <motion.div 
+              whileHover={{ scale: 1.1, y: -5 }}
+              className="flex flex-col items-center p-4 rounded-xl hover:bg-white/10 transition-all"
+            >
+              <motion.div 
+                animate={{ scale: [1, 1.05, 1] }}
+                transition={{ duration: 1.4, repeat: Infinity, delay: 0.7 }}
+                className="text-3xl md:text-4xl font-bold text-white mb-2"
+              >
+                50+
+              </motion.div>
+              <span className="text-sm text-white/70">文化活动</span>
+            </motion.div>
+          </motion.div>
         </div>
       </div>
 
@@ -442,7 +613,23 @@ export default function Home() {
         
         {/* 1. 创作中心 (Creative Hub) - Highlighted Cards */}
         <div className="max-w-7xl mx-auto px-4 md:px-6 mb-32">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <motion.div 
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: getDuration(0.42) }}
+            className="text-center mb-12"
+          >
+            <h2 className={`text-3xl md:text-4xl font-bold ${isDark ? 'text-white' : 'text-gray-900'} mb-4 mt-24`}>
+              <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                创作中心
+              </span>
+            </h2>
+            <p className={`text-lg ${isDark ? 'text-gray-400' : 'text-gray-600'} max-w-2xl mx-auto`}>
+              探索我们的核心创作工具，释放你的创意潜能
+            </p>
+          </motion.div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {[
               { title: '创作工具', desc: 'AI辅助文案与图像生成', icon: 'tools', path: '/create', img: 'https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=800&q=80' },
               { title: '灵感引擎', desc: '基于文化大数据的创意推荐', icon: 'bolt', path: '/neo', img: 'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?w=800&q=80' },
@@ -453,50 +640,65 @@ export default function Home() {
                 initial={{ opacity: 0, y: 50, scale: 0.95 }}
                 whileInView={{ opacity: 1, y: 0, scale: 1 }}
                 viewport={{ once: true, margin: '-100px' }}
-                transition={{ duration: getDuration(0.6), delay: getDelay(idx * 0.2), type: 'spring', stiffness: 100 }}
-                whileHover={{ y: -10, scale: 1.02, boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)' }}
-                className={`relative h-80 rounded-3xl overflow-hidden cursor-pointer group shadow-2xl ${isDark ? 'bg-gray-900' : 'bg-white'}`}
+                transition={{ duration: getDuration(0.42), delay: idx * 0.05, type: 'spring', stiffness: 140 }}
+                whileHover={{ y: -15, scale: 1.03, boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', transition: { duration: 0.15 } }}
+                className={`relative h-96 rounded-3xl overflow-hidden cursor-pointer group shadow-2xl ${isDark ? 'bg-gray-900' : 'bg-white'}`}
                 onClick={() => navigate(item.path)}
               >
                 <motion.div
                   initial={{ scale: 1.1 }}
                   whileInView={{ scale: 1 }}
-                  transition={{ duration: getDuration(0.8), delay: getDelay(idx * 0.2 + 0.2) }}
+                  transition={{ duration: getDuration(0.56), delay: getDelay(idx * 0.14 + 0.14) }}
                   className="overflow-hidden"
                 >
                   <TianjinImage 
                     src={item.img} 
                     alt={item.title} 
-                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 opacity-80 group-hover:opacity-100" 
+                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 opacity-80 group-hover:opacity-100"
                     fallbackSrc="/images/placeholder-image.jpg"
+                    loading="lazy"
+                    priority={false}
                   />
                 </motion.div>
                 <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-8 flex flex-col justify-end">
                   <motion.div 
                     initial={{ opacity: 0, scale: 0 }}
                     whileInView={{ opacity: 1, scale: 1 }}
-                    transition={{ duration: 0.5, delay: idx * 0.2 + 0.4, type: 'spring' }}
-                    whileHover={{ scale: 1.1 }}
-                    className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center mb-4 text-white"
+                    transition={{ duration: 0.35, delay: idx * 0.05 + 0.1, type: 'spring' }}
+                    whileHover={{ scale: 1.1, rotate: 5, transition: { duration: 0.15 } }}
+                    className={`w-16 h-16 rounded-full bg-gradient-to-br ${idx === 0 ? 'from-blue-500 to-cyan-500' : idx === 1 ? 'from-purple-500 to-pink-500' : 'from-orange-500 to-red-500'} backdrop-blur-md flex items-center justify-center mb-6 text-white shadow-lg`}
                   >
-                    <i className={`fas fa-${item.icon} text-xl`}></i>
+                    <i className={`fas fa-${item.icon} text-2xl`}></i>
                   </motion.div>
                   <motion.h3 
                     initial={{ opacity: 0, y: 20 }}
                     whileInView={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.5, delay: idx * 0.2 + 0.5 }}
-                    className="text-2xl font-bold text-white mb-2"
+                    transition={{ duration: 0.35, delay: idx * 0.05 + 0.15 }}
+                    className="text-2xl md:text-3xl font-bold text-white mb-3"
                   >
                     {item.title}
                   </motion.h3>
                   <motion.p 
                     initial={{ opacity: 0, y: 20 }}
                     whileInView={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.5, delay: idx * 0.2 + 0.6 }}
-                    className="text-white/70 text-sm font-medium"
+                    transition={{ duration: 0.35, delay: idx * 0.05 + 0.2 }}
+                    className="text-white/70 text-sm md:text-base font-medium mb-6"
                   >
                     {item.desc}
                   </motion.p>
+                  <motion.div 
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.35, delay: idx * 0.05 + 0.25 }}
+                    whileHover={{ x: 10, transition: { duration: 0.15 } }}
+                    className="flex items-center gap-3 text-white/90"
+                  >
+                    <span className="text-sm font-medium">立即探索</span>
+                    <motion.i 
+                      className="fas fa-arrow-right text-sm"
+                      whileHover={{ x: 2 }}
+                    ></motion.i>
+                  </motion.div>
                 </div>
               </motion.div>
             ))}
@@ -511,15 +713,15 @@ export default function Home() {
               initial={{ opacity: 0, x: -100, scale: 0.9 }}
               whileInView={{ opacity: 1, x: 0, scale: 1 }}
               viewport={{ once: true, margin: '-100px' }}
-              transition={{ duration: getDuration(0.7), type: 'spring', stiffness: 100 }}
-              whileHover={{ scale: 1.02 }}
+              transition={{ duration: getDuration(0.49), delay: 0, type: 'spring', stiffness: 140 }}
+              whileHover={{ scale: 1.02, transition: { duration: 0.15 } }}
               className="lg:col-span-7 h-64 md:h-80 lg:h-full lg:row-span-1 relative rounded-3xl overflow-hidden cursor-pointer group shadow-xl" 
               onClick={() => navigate('/cultural-knowledge')}
             >
                <motion.div
                  initial={{ scale: 1.1 }}
                  whileInView={{ scale: 1 }}
-                 transition={{ duration: getDuration(1), delay: getDelay(0.2) }}
+                 transition={{ duration: getDuration(0.7), delay: getDelay(0.14) }}
                  className="absolute inset-0 overflow-hidden"
                >
                  <TianjinImage 
@@ -573,9 +775,9 @@ export default function Home() {
                 initial={{ opacity: 0, x: 100, scale: 0.9 }}
                 whileInView={{ opacity: 1, x: 0, scale: 1 }}
                 viewport={{ once: true, margin: '-100px' }}
-                transition={{ duration: getDuration(0.7), delay: getDelay(0.2), type: 'spring', stiffness: 100 }}
-                whileHover={{ y: -5, scale: 1.02 }}
-                className={`flex-1 rounded-3xl p-8 relative overflow-hidden cursor-pointer group transition-all duration-500 ${isDark ? 'bg-gray-900' : 'bg-white border border-gray-100'} shadow-xl hover:shadow-2xl`} 
+                transition={{ duration: getDuration(0.49), delay: 0.05, type: 'spring', stiffness: 140 }}
+                whileHover={{ y: -5, scale: 1.02, transition: { duration: 0.15 } }}
+                className={`flex-1 rounded-3xl p-8 relative overflow-hidden cursor-pointer group transition-all duration-200 ${isDark ? 'bg-gray-900' : 'bg-white border border-gray-100'} shadow-xl hover:shadow-2xl`} 
                 onClick={() => navigate('/tianjin-map')}
               >
                 {/* Background Image Overlay */}
@@ -623,9 +825,9 @@ export default function Home() {
                 initial={{ opacity: 0, x: 100, scale: 0.9 }}
                 whileInView={{ opacity: 1, x: 0, scale: 1 }}
                 viewport={{ once: true, margin: '-100px' }}
-                transition={{ duration: getDuration(0.7), delay: getDelay(0.4), type: 'spring', stiffness: 100 }}
-                whileHover={{ y: -5, scale: 1.02 }}
-                className={`flex-1 rounded-3xl p-8 relative overflow-hidden cursor-pointer group transition-all duration-500 ${isDark ? 'bg-gray-900' : 'bg-white border border-gray-100'} shadow-xl hover:shadow-2xl`} 
+                transition={{ duration: getDuration(0.49), delay: 0.1, type: 'spring', stiffness: 140 }}
+                whileHover={{ y: -5, scale: 1.02, transition: { duration: 0.15 } }}
+                className={`flex-1 rounded-3xl p-8 relative overflow-hidden cursor-pointer group transition-all duration-200 ${isDark ? 'bg-gray-900' : 'bg-white border border-gray-100'} shadow-xl hover:shadow-2xl`} 
                 onClick={() => navigate('/cultural-news')}
               >
                 {/* Background Image Overlay */}
@@ -711,8 +913,8 @@ export default function Home() {
                   initial={{ opacity: 0, y: 50, scale: 0.9 }}
                   whileInView={{ opacity: 1, y: 0, scale: 1 }}
                   viewport={{ once: true, margin: '-100px' }}
-                  transition={{ duration: getDuration(0.6), delay: getDelay(idx * 0.15), type: 'spring', stiffness: 100 }}
-                  whileHover={{ y: -8, scale: 1.02 }}
+                  transition={{ duration: getDuration(0.42), delay: idx * 0.03, type: 'spring', stiffness: 140 }}
+                  whileHover={{ y: -8, scale: 1.02, transition: { duration: 0.15 } }}
                   className="w-full md:w-auto min-w-[320px] md:min-w-[420px] snap-center cursor-pointer group"
                   onClick={() => navigate(item.link)}
                 >
@@ -723,8 +925,8 @@ export default function Home() {
                      <motion.div
                        initial={{ scale: 1.2 }}
                        whileInView={{ scale: 1 }}
-                       transition={{ duration: getDuration(0.8), delay: getDelay(idx * 0.15 + 0.2) }}
-                       whileHover={{ scale: 1.1 }}
+                       transition={{ duration: getDuration(0.56), delay: getDelay(idx * 0.105 + 0.14) }}
+                       whileHover={{ scale: 1.1, transition: { duration: 0.2 } }}
                        className="overflow-hidden"
                      >
                        <TianjinImage src={item.img} alt={item.title} className="w-full h-full object-cover transition-transform duration-1000" fallbackSrc="/images/placeholder-image.jpg" />
@@ -737,20 +939,20 @@ export default function Home() {
                       <motion.div 
                         initial={{ opacity: 0, x: -20, scale: 0.8 }}
                         whileInView={{ opacity: 1, x: 0, scale: 1 }}
-                        transition={{ duration: 0.5, delay: idx * 0.15 + 0.4 }}
-                        whileHover={{ scale: 1.1 }}
+                        transition={{ duration: 0.35, delay: idx * 0.03 + 0.05 }}
+                        whileHover={{ scale: 1.1, transition: { duration: 0.15 } }}
                         className="absolute top-4 left-4"
                       >
                         <TianjinTag color={item.tagColor as any} className="backdrop-blur-md shadow-lg border-white/20 text-white font-bold tracking-wider">
                           {item.tag}
                         </TianjinTag>
                       </motion.div>
-                      
+                       
                       {/* Status/Date Badge */}
                       <motion.div 
                         initial={{ opacity: 0, x: 20, scale: 0.8 }}
                         whileInView={{ opacity: 1, x: 0, scale: 1 }}
-                        transition={{ duration: 0.5, delay: idx * 0.15 + 0.5 }}
+                        transition={{ duration: 0.35, delay: idx * 0.03 + 0.08 }}
                         className="absolute top-4 right-4 bg-black/40 backdrop-blur-md text-white/90 text-xs font-medium px-3 py-1.5 rounded-full border border-white/10 flex items-center gap-1.5"
                       >
                         <span className={`w-1.5 h-1.5 rounded-full ${item.date === '进行中' ? 'bg-green-500 animate-pulse' : 'bg-yellow-500'}`}></span>
@@ -761,20 +963,20 @@ export default function Home() {
                       <motion.div 
                         initial={{ opacity: 0, y: 50 }}
                         whileInView={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.6, delay: idx * 0.15 + 0.6 }}
+                        transition={{ duration: 0.42, delay: idx * 0.03 + 0.12 }}
                         className="absolute bottom-0 left-0 w-full p-6"
                       >
                         <motion.div 
                           initial={{ opacity: 0, y: 20 }}
                           whileInView={{ opacity: 1, y: 0 }}
-                          transition={{ duration: 0.5, delay: idx * 0.15 + 0.7 }}
+                          transition={{ duration: 0.35, delay: idx * 0.03 + 0.15 }}
                           className="flex items-center gap-3 mb-2"
                         >
                            <motion.div 
                              initial={{ opacity: 0, scale: 0 }}
                              whileInView={{ opacity: 1, scale: 1 }}
-                             transition={{ duration: 0.4, delay: idx * 0.15 + 0.8 }}
-                             whileHover={{ scale: 1.2, rotate: 5 }}
+                             transition={{ duration: 0.28, delay: idx * 0.03 + 0.18 }}
+                             whileHover={{ scale: 1.2, rotate: 5, transition: { duration: 0.15 } }}
                              className={`w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-md bg-white/20 text-white border border-white/20`}
                            >
                              <i className={`fas fa-${item.icon}`}></i>
@@ -782,7 +984,7 @@ export default function Home() {
                            <motion.h3 
                              initial={{ opacity: 0, x: 20 }}
                              whileInView={{ opacity: 1, x: 0 }}
-                             transition={{ duration: 0.5, delay: idx * 0.15 + 0.9 }}
+                             transition={{ duration: 0.35, delay: idx * 0.03 + 0.21 }}
                              className="text-2xl font-bold text-white tracking-tight"
                            >
                              {item.title}
@@ -791,16 +993,16 @@ export default function Home() {
                         <motion.div 
                           initial={{ opacity: 0, y: 20 }}
                           whileInView={{ opacity: 1, y: 0 }}
-                          transition={{ duration: 0.5, delay: idx * 0.15 + 1.0 }}
+                          transition={{ duration: 0.35, delay: idx * 0.03 + 0.24 }}
                           className="flex justify-between items-center pl-1"
                         >
                           <p className="text-white/80 text-sm font-medium">{item.sub}</p>
                           <motion.span 
-                            whileHover={{ scale: 1, rotate: 0 }}
+                            whileHover={{ scale: 1, rotate: 0, transition: { duration: 0.15 } }}
                             initial={{ opacity: 0, scale: 0.5, rotate: 45 }}
                             whileInView={{ opacity: 1, scale: 1, rotate: 0 }}
-                            transition={{ duration: 0.4, delay: idx * 0.15 + 1.1 }}
-                            className="w-8 h-8 rounded-full bg-white text-black flex items-center justify-center transition-all duration-300"
+                            transition={{ duration: 0.28, delay: idx * 0.03 + 0.27 }}
+                            className="w-8 h-8 rounded-full bg-white text-black flex items-center justify-center transition-all duration-150"
                           >
                             <i className="fas fa-arrow-right text-sm"></i>
                           </motion.span>
@@ -846,8 +1048,8 @@ export default function Home() {
                    initial={{ opacity: 0, y: 30, scale: 0.9 }}
                    whileInView={{ opacity: 1, y: 0, scale: 1 }}
                    viewport={{ once: true }}
-                   transition={{ duration: getDuration(0.5), delay: getDelay(idx * 0.1) }}
-                   whileHover={{ y: -5, scale: 1.05 }}
+                   transition={{ duration: getDuration(0.35), delay: idx * 0.02 }}
+                   whileHover={{ y: -5, scale: 1.05, transition: { duration: 0.15 } }}
                    className="flex flex-col items-center min-w-[100px] snap-center cursor-pointer group"
                  >
                     <div className="relative mb-3">
@@ -862,7 +1064,7 @@ export default function Home() {
                       <motion.div 
                         initial={{ opacity: 0, scale: 0 }}
                         whileInView={{ opacity: 1, scale: 1 }}
-                        transition={{ duration: 0.4, delay: idx * 0.1 + 0.3 }}
+                        transition={{ duration: 0.28, delay: idx * 0.02 + 0.05 }}
                         className="absolute -bottom-2 -right-2 bg-white dark:bg-gray-800 rounded-full p-1 shadow-sm"
                       >
                         <div className="bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 w-5 h-5 rounded-full flex items-center justify-center text-[10px]">
@@ -1162,7 +1364,7 @@ export default function Home() {
           </div>
           
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 md:gap-6">
-            {gallery.map((item, idx) => (
+            {Array.isArray(gallery) && gallery.map((item, idx) => (
               <motion.div 
                 key={item.id}
                 initial={{ opacity: 0, y: 50, scale: 0.9 }}

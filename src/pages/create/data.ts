@@ -3,22 +3,22 @@ import { GeneratedResult, TraditionalPattern, AIFilter, ToolType } from './types
 export const aiGeneratedResults: GeneratedResult[] = [
   {
     id: 1,
-    thumbnail: 'https://images.unsplash.com/photo-1606787366850-de6330128bfc?w=600&h=400&fit=crop',
+    thumbnail: 'https://picsum.photos/id/1015/600/400',
     score: 85,
   },
   {
     id: 2,
-    thumbnail: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1024x1024&prompt=AI%20generated%20traditional%20Chinese%20design%202',
+    thumbnail: 'https://picsum.photos/id/1002/600/400',
     score: 78,
   },
   {
     id: 3,
-    thumbnail: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1024x1024&prompt=AI%20generated%20traditional%20Chinese%20design%203',
+    thumbnail: 'https://picsum.photos/id/1003/600/400',
     score: 92,
   },
   {
     id: 4,
-    thumbnail: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1024x1024&prompt=AI%20generated%20traditional%20Chinese%20design%204',
+    thumbnail: 'https://picsum.photos/id/1004/600/400',
     score: 75,
   },
 ];
@@ -27,37 +27,37 @@ export const traditionalPatterns: TraditionalPattern[] = [
   {
     id: 1,
     name: '云纹',
-    thumbnail: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Traditional%20Chinese%20cloud%20pattern',
+    thumbnail: 'https://images.unsplash.com/photo-1606787366850-de6330128bfc?w=300&h=200&fit=crop',
     description: '象征吉祥如意，常用于传统服饰和建筑',
   },
   {
     id: 2,
     name: '龙纹',
-    thumbnail: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Traditional%20Chinese%20dragon%20pattern',
+    thumbnail: 'https://images.unsplash.com/photo-1515405295579-ba7b45403062?w=300&h=200&fit=crop',
     description: '象征权力与尊贵，中国传统文化的重要象征',
   },
   {
     id: 3,
     name: '凤纹',
-    thumbnail: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Traditional%20Chinese%20phoenix%20pattern',
+    thumbnail: 'https://images.unsplash.com/photo-1544967082-d9d25d867d66?w=300&h=200&fit=crop',
     description: '象征美好与幸福，常与龙纹配合使用',
   },
   {
     id: 4,
     name: '回纹',
-    thumbnail: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Traditional%20Chinese%20key%20pattern',
+    thumbnail: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=300&h=200&fit=crop',
     description: '寓意吉祥绵延，是传统装饰中常见的纹样',
   },
   {
     id: 5,
     name: '花卉纹',
-    thumbnail: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Traditional%20Chinese%20flower%20pattern',
+    thumbnail: 'https://images.unsplash.com/photo-1490750967868-88aa4486c946?w=300&h=200&fit=crop',
     description: '象征自然与生机，常见牡丹、莲花等纹样',
   },
   {
     id: 6,
     name: '几何纹',
-    thumbnail: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Traditional%20Chinese%20geometric%20pattern',
+    thumbnail: 'https://images.unsplash.com/photo-1557672172-298e090bd0f1?w=300&h=200&fit=crop',
     description: '简洁明快，富有节奏感和韵律感',
   },
 ];
@@ -190,6 +190,7 @@ export const stylePresets = [
 
 export const toolOptions: Array<{ id: ToolType; name: string; icon: string }> = [
   { id: 'sketch', name: '一键设计', icon: 'magic' },
+  { id: 'upload', name: '上传作品', icon: 'upload' },
   { id: 'pattern', name: '纹样嵌入', icon: 'th' },
   { id: 'filter', name: 'AI滤镜', icon: 'filter' },
   { id: 'trace', name: '文化溯源', icon: 'book-open' },

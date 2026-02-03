@@ -2,21 +2,21 @@ import React, { useState, useEffect, Suspense, lazy, useRef, useCallback } from 
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
 import { Toaster } from "sonner";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { debounce } from '@/lib/utils';
 
 import { Routes, Route, Outlet, useLocation, useNavigationType, Link, Navigate } from "react-router-dom";
-// 导入mock数据和postService用于初始化
-import { mockWorks } from '@/mock/works';
+// 导入postService用于初始化
 import postsApi from '@/services/postService';
 import { addPost } from '@/services/postService';
 import { Post } from '@/services/postService';
+import dataSyncService from '@/services/dataSyncService';
 // 导入性能优化工具
 import { createLazyComponent, ROUTE_PRIORITIES, performanceOptimizer } from '@/utils/performanceOptimization';
 // 导入通知上下文
 import { NotificationProvider } from '@/contexts/NotificationContext';
 // 导入主题上下文
-import { ThemeProvider } from '@/hooks/useTheme';
+
 // 导入Toaster样式
 import "sonner/dist/styles.css";
 
@@ -29,22 +29,51 @@ import Home from "@/pages/Home";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
 import ForgotPassword from "@/pages/ForgotPassword";
+import CompleteProfile from "@/pages/CompleteProfile";
+
+// 导入Three.js组件懒加载工具
+import { createLazyThreeComponent } from '@/components/lazy/LazyThreeComponent';
 
 // 优化懒加载策略：根据页面访问频率和大小重新分类
 
-// 1. 高频访问页面 - 静态导入核心页面，确保稳定性
-import Dashboard from "@/pages/Dashboard";
-import Explore from "@/pages/Explore";
-import WorkDetail from "@/pages/WorkDetail";
-import Community from "@/pages/Community";
-import Square from "@/pages/Square";
-import Tools from "@/pages/Tools";
-import Friends from "@/pages/Friends";
-import PostDetail from "@/pages/PostDetail";
+// 1. 高频访问页面 - 只保留最核心的页面同步加载
+// 将WorkDetail、PostDetail改为懒加载，进一步减少初始加载时间
+const WorkDetail = createLazyComponent(() => import(/* webpackChunkName: "pages-core" */ "@/pages/WorkDetail"), {
+  priority: ROUTE_PRIORITIES.HIGH,
+  name: 'work-detail'
+});
+const PostDetail = createLazyComponent(() => import(/* webpackChunkName: "pages-core" */ "@/pages/PostDetail"), {
+  priority: ROUTE_PRIORITIES.HIGH,
+  name: 'post-detail'
+});
 
-// 2. 高频访问但较大的页面 - 核心工具页面直接加载
-import Create from "@/pages/create/index.tsx";
-import Studio from "@/pages/create/Studio";
+// 2. 其他高频页面改为懒加载
+const Dashboard = createLazyComponent(() => import(/* webpackChunkName: "pages-core" */ "@/pages/Dashboard"), {
+  priority: ROUTE_PRIORITIES.HIGH,
+  name: 'dashboard'
+});
+const Community = createLazyComponent(() => import(/* webpackChunkName: "pages-core" */ "@/pages/Community"), {
+  priority: ROUTE_PRIORITIES.HIGH,
+  name: 'community'
+});
+const Square = createLazyComponent(() => import(/* webpackChunkName: "pages-core" */ "@/pages/Square"), {
+  priority: ROUTE_PRIORITIES.HIGH,
+  name: 'square'
+});
+const Friends = createLazyComponent(() => import(/* webpackChunkName: "pages-core" */ "@/pages/Friends"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'friends'
+});
+
+// 3. 核心工具页面改为懒加载
+const Create = createLazyComponent(() => import(/* webpackChunkName: "pages-create" */ "@/pages/create"), {
+  priority: ROUTE_PRIORITIES.HIGH,
+  name: 'create'
+});
+const Studio = createLazyComponent(() => import(/* webpackChunkName: "pages-create" */ "@/pages/create/Studio"), {
+  priority: ROUTE_PRIORITIES.HIGH,
+  name: 'studio'
+});
 const AIWriter = createLazyComponent(() => import(/* webpackChunkName: "pages-create" */ "@/pages/create/AIWriter"), {
   priority: ROUTE_PRIORITIES.HIGH,
   name: 'ai-writer'
@@ -109,10 +138,7 @@ const CulturalKnowledge = createLazyComponent(() => import(/* webpackChunkName: 
 });
 // 直接导入 Tianjin 组件，避免动态导入问题
 import Tianjin from "@/pages/Tianjin";
-const TianjinMap = createLazyComponent(() => import(/* webpackChunkName: "pages-cultural" */ "@/pages/TianjinMap"), {
-  priority: ROUTE_PRIORITIES.HIGH,
-  name: 'tianjin-map'
-});
+
 const CulturalEvents = createLazyComponent(() => import(/* webpackChunkName: "pages-cultural" */ "@/pages/CulturalEvents"), {
   priority: ROUTE_PRIORITIES.HIGH,
   name: 'events'
@@ -150,9 +176,7 @@ const MembershipPayment = createLazyComponent(() => import(/* webpackChunkName: 
 const MembershipBenefits = createLazyComponent(() => import(/* webpackChunkName: "pages-membership" */ "@/pages/MembershipBenefits"), {
   priority: ROUTE_PRIORITIES.MEDIUM
 });
-const Incentives = createLazyComponent(() => import(/* webpackChunkName: "pages-membership" */ "@/pages/Incentives"), {
-  priority: ROUTE_PRIORITIES.MEDIUM
-});
+
 const PointsMall = createLazyComponent(() => import(/* webpackChunkName: "pages-membership" */ "@/pages/PointsMall"), {
   priority: ROUTE_PRIORITIES.MEDIUM
 });
@@ -178,19 +202,16 @@ const AuthorProfile = createLazyComponent(() => import(/* webpackChunkName: "pag
   priority: ROUTE_PRIORITIES.MEDIUM
 });
 
-// 实验和特色功能 - 懒加载
-const Lab = createLazyComponent(() => import(/* webpackChunkName: "pages-experimental" */ "@/pages/Lab"), {
-  priority: ROUTE_PRIORITIES.LOW
+
+const ParticleArt = createLazyThreeComponent(() => import(/* webpackChunkName: "pages-experimental" */ "@/pages/ParticleArt"), {
+  priority: ROUTE_PRIORITIES.LOW,
+  name: 'particle-art'
 });
-const ParticleArt = createLazyComponent(() => import(/* webpackChunkName: "pages-experimental" */ "@/pages/ParticleArt"), {
-  priority: ROUTE_PRIORITIES.LOW
+const Games = createLazyThreeComponent(() => import(/* webpackChunkName: "pages-experimental" */ "@/pages/Games"), {
+  priority: ROUTE_PRIORITIES.LOW,
+  name: 'games'
 });
-const Games = createLazyComponent(() => import(/* webpackChunkName: "pages-experimental" */ "@/pages/Games"), {
-  priority: ROUTE_PRIORITIES.LOW
-});
-const CollaborationDemo = createLazyComponent(() => import(/* webpackChunkName: "pages-experimental" */ "@/pages/CollaborationDemo"), {
-  priority: ROUTE_PRIORITIES.LOW
-});
+
 
 
 
@@ -255,23 +276,7 @@ const LazyComponent = React.memo(({
         {fallback}
       </div>
     }>
-      <ErrorBoundary fallback={
-        <div className="min-h-screen flex flex-col items-center justify-center p-4">
-          <div className="w-full max-w-md text-center">
-            <div className="text-6xl mb-4">❌</div>
-            <h2 className="text-2xl font-bold mb-2">页面加载失败</h2>
-            <p className="text-gray-600 dark:text-gray-400 mb-6">
-              抱歉，页面加载过程中出现错误。
-            </p>
-            <button 
-              onClick={() => window.location.reload()} 
-              className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-            >
-              重试
-            </button>
-          </div>
-        </div>
-      }>
+      <ErrorBoundary>
         {children}
       </ErrorBoundary>
     </Suspense>
@@ -290,8 +295,8 @@ import MobileLayout from '@/components/MobileLayout';
 import PrivateRoute from '@/components/PrivateRoute';
 import AdminRoute from '@/components/AdminRoute';
 
-// 创作者仪表盘组件 - 懒加载
-const CreatorDashboard = createLazyComponent(() => import(/* webpackChunkName: "components-core" */ '@/components/CreatorDashboard'), {
+// 社群管理面板组件 - 懒加载
+const CommunityAdminPanel = createLazyComponent(() => import(/* webpackChunkName: "components-community" */ '@/components/community/Admin/CommunityAdminPanel'), {
   priority: ROUTE_PRIORITIES.MEDIUM
 });
 // PWA 安装按钮组件 - 懒加载
@@ -321,23 +326,50 @@ const JinmenCulturePopup = createLazyComponent(() => import(/* webpackChunkName:
 import { GuideProvider } from '@/contexts/GuideContext';
 import OnboardingGuide from '@/components/OnboardingGuide';
 import { AuthContext } from '@/contexts/authContext';
+import { EventProvider } from '@/contexts/EventContext';
+import { ThemeProvider } from '@/hooks/useTheme';
 
 export default function App() {
   const location = useLocation();
-  const { isAuthenticated } = React.useContext(AuthContext);
+  const { isAuthenticated, user } = React.useContext(AuthContext);
   // 添加响应式布局状态 - 服务器端和客户端初始状态必须一致
   const [isMobile, setIsMobile] = useState(false);
   // 添加用户反馈状态
   const [showFeedback, setShowFeedback] = useState(false);
   
-  // 优化：延迟初始化mock数据，减少初始加载时间
+  // 性能优化：延迟初始化非关键数据
   useEffect(() => {
-    // 初始化性能优化器
-    performanceOptimizer.initialize();
+    // 初始化数据同步服务
+    dataSyncService.initialize();
+
+    // 使用 requestIdleCallback 在浏览器空闲时初始化性能优化器
+    if ('requestIdleCallback' in window) {
+      requestIdleCallback(() => {
+        performanceOptimizer.initialize();
+      }, { timeout: 3000 });
+    } else {
+      // 降级方案：延迟初始化
+      setTimeout(() => {
+        performanceOptimizer.initialize();
+      }, 1000);
+    }
     
-    // 设置更长延迟，在应用完全渲染后再初始化非核心数据
+    // 更长的延迟初始化非核心数据，避免阻塞首屏渲染
     const initTimer = setTimeout(async () => {
       try {
+        // 紧急清理：检查localStorage使用情况
+        try {
+            const testKey = '__test_storage__';
+            localStorage.setItem(testKey, 'test');
+            localStorage.removeItem(testKey);
+        } catch (e) {
+            console.warn('LocalStorage is full, performing cleanup...');
+            // 清理非关键数据
+            localStorage.removeItem('ai_creation_platform_errors');
+            localStorage.removeItem('ai_creation_platform_alerts');
+            // 可以添加其他非关键数据的清理
+        }
+
         // 检查localStorage中是否已有数据
         const storedPosts = localStorage.getItem('posts');
         if (!storedPosts) {
@@ -347,7 +379,7 @@ export default function App() {
       } catch (error) {
         console.error('初始化数据失败:', error);
       }
-    }, 2000); // 延迟2秒执行，让应用完全渲染后再处理
+    }, 5000); // 延迟5秒执行，确保首屏完全渲染后再处理
     
     return () => clearTimeout(initTimer);
   }, []);
@@ -387,9 +419,9 @@ export default function App() {
         <div className="rounded-xl p-4 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700">
           <h4 className="font-medium mb-2">快速链接</h4>
           <ul className="space-y-2">
-            <li><a href="/explore" className="text-sm text-blue-600 dark:text-blue-400 hover:underline">浏览作品</a></li>
+            <li><a href="/square" className="text-sm text-blue-600 dark:text-blue-400 hover:underline">浏览作品</a></li>
             <li><a href="/create" className="text-sm text-blue-600 dark:text-blue-400 hover:underline">创作中心</a></li>
-            <li><a href="/tools" className="text-sm text-blue-600 dark:text-blue-400 hover:underline">AI工具</a></li>
+
             <li><a href="/tianjin" className="text-sm text-blue-600 dark:text-blue-400 hover:underline">天津特色</a></li>
           </ul>
         </div>
@@ -476,13 +508,14 @@ export default function App() {
   const rootClass: string = 'relative min-h-screen transition-colors duration-300';
 
   return (
-    <ThemeProvider>
       <NotificationProvider>
         <GuideProvider>
-          <div className={rootClass} style={{ backgroundColor: 'var(--bg-primary, #ffffff)' }}>
-          <Analytics />
-          <SpeedInsights />
-          <Routes location={location} key={location.pathname}>
+          <EventProvider>
+            <ThemeProvider>
+              <div className={rootClass} style={{ backgroundColor: 'var(--bg-primary, #ffffff)' }}>
+            <Analytics />
+            <SpeedInsights />
+            <Routes location={location} key={location.pathname}>
           {/* 核心页面直接渲染，无需懒加载，添加缓存和动画 */}
           {/* 确保根路径是第一个路由，提高匹配优先级 */}
           <Route path="/" element={
@@ -509,9 +542,9 @@ export default function App() {
         <Route path="/search" element={
           <AnimatedPage>
             {isMobile ? (
-              <MobileLayout><SearchResults /></MobileLayout>
+              <MobileLayout><LazyComponent><SearchResults /></LazyComponent></MobileLayout>
             ) : (
-              <SidebarLayout><SearchResults /></SidebarLayout>
+              <SidebarLayout><LazyComponent><SearchResults /></LazyComponent></SidebarLayout>
             )}
           </AnimatedPage>
         } />
@@ -520,6 +553,7 @@ export default function App() {
         <Route path="/login" element={<AnimatedPage><Login /></AnimatedPage>} />
         <Route path="/register" element={<AnimatedPage><Register /></AnimatedPage>} />
         <Route path="/forgot-password" element={<AnimatedPage><ForgotPassword /></AnimatedPage>} />
+        <Route path="/complete-profile" element={<AnimatedPage><CompleteProfile /></AnimatedPage>} />
 
         
         {/* 使用布局的页面，为所有子路由添加动画 */}
@@ -532,41 +566,34 @@ export default function App() {
             )}
           </AnimatedPage>
         }>
-          <Route path="/explore" element={<Explore />} />
-          <Route path="/explore/:id" element={<LazyComponent fallback={<WorkDetailSkeleton />}><WorkDetail /></LazyComponent>} />
+
           <Route path="/works/:id" element={<LazyComponent fallback={<WorkDetailSkeleton />}><WorkDetail /></LazyComponent>} />
           <Route path="/about" element={<LazyComponent><About /></LazyComponent>} />
-          <Route path="/tools" element={<PrivateRoute><Tools /></PrivateRoute>} />
           <Route path="/neo" element={<Navigate to="/create/inspiration" replace />} />
-          <Route path="/square" element={<PrivateRoute><Square /></PrivateRoute>} />
-          <Route path="/square/:id" element={<PrivateRoute><Square /></PrivateRoute>} />
-          <Route path="/community" element={<PrivateRoute><Community /></PrivateRoute>} />
-          <Route path="/friends" element={<PrivateRoute><Friends /></PrivateRoute>} />
-          <Route path="/post/:id" element={<PostDetail />} />
+          <Route path="/square" element={<LazyComponent><PrivateRoute><Square /></PrivateRoute></LazyComponent>} />
+          <Route path="/square/:id" element={<LazyComponent><PrivateRoute><Square /></PrivateRoute></LazyComponent>} />
+          <Route path="/community" element={<LazyComponent><PrivateRoute><Community /></PrivateRoute></LazyComponent>} />
+          <Route path="/community/:id/admin" element={<LazyComponent><PrivateRoute><CommunityAdminPanel /></PrivateRoute></LazyComponent>} />
+          <Route path="/friends" element={<LazyComponent><PrivateRoute><Friends /></PrivateRoute></LazyComponent>} />
+          <Route path="/post/:id" element={<LazyComponent><PostDetail /></LazyComponent>} />
           <Route path="/creator-community" element={<Navigate to="/community" replace />} />
-          <Route path="/dashboard" element={<LazyComponent fallback={<DashboardSkeleton />}><PrivateRoute><Dashboard /></PrivateRoute></LazyComponent>} />          <Route path="/profile" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/create" element={<PrivateRoute><Create /></PrivateRoute>}>
-            <Route index element={<Studio />} />
-            <Route path="ai-writer" element={<LazyComponent><AIWriter /></LazyComponent>} />
-            <Route path="inspiration" element={<LazyComponent><Neo /></LazyComponent>} />
-            <Route path="wizard" element={<LazyComponent><Wizard /></LazyComponent>} />
-          </Route>
-          <Route path="/create-activity" element={<LazyComponent><PrivateRoute><CreateLayout /></PrivateRoute></LazyComponent>}>
-            <Route index element={<AnimatedPage><CreateActivity /></AnimatedPage>} />
-          </Route>
+          <Route path="/dashboard" element={<LazyComponent fallback={<DashboardSkeleton />}><PrivateRoute><Dashboard /></PrivateRoute></LazyComponent>} />
+          <Route path="/profile" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/create/*" element={<LazyComponent><PrivateRoute><Create /></PrivateRoute></LazyComponent>} />
+          <Route path="/create-activity" element={<LazyComponent><PrivateRoute><AnimatedPage><CreateActivity /></AnimatedPage></PrivateRoute></LazyComponent>} />
           <Route path="/creates" element={<Navigate to="/create" replace />} />
           <Route path="/wizard" element={<Navigate to="/create/wizard" replace />} />
           
           {/* 大型组件和低频访问页面使用懒加载 */}
           <Route path="/particle-art" element={<LazyComponent><ParticleArt /></LazyComponent>} />
-          <Route path="/collaboration" element={<LazyComponent><CollaborationDemo /></LazyComponent>} />
+
           <Route path="/privacy" element={<LazyComponent><Privacy /></LazyComponent>} />
           <Route path="/terms" element={<LazyComponent><Terms /></LazyComponent>} />
           <Route path="/help" element={<LazyComponent><Help /></LazyComponent>} />
           <Route path="/leaderboard" element={<LazyComponent><Leaderboard /></LazyComponent>} />
           <Route path="/games" element={<LazyComponent><Games /></LazyComponent>} />
-          <Route path="/lab" element={<LazyComponent><PrivateRoute><Lab /></PrivateRoute></LazyComponent>} />
-          <Route path="/author/:id" element={<LazyComponent><AuthorProfile /></LazyComponent>} />
+
+          <Route path="/author/:id" element={<LazyComponent><AuthorProfile currentUser={user} /></LazyComponent>} />
 
           <Route path="/brand" element={<LazyComponent><PrivateRoute><BrandGuide /></PrivateRoute></LazyComponent>} />
           <Route path="/business" element={<LazyComponent><BusinessCooperation /></LazyComponent>} />
@@ -574,7 +601,7 @@ export default function App() {
           <Route path="/input" element={<LazyComponent><PrivateRoute><InputHub /></PrivateRoute></LazyComponent>} />
           <Route path="/generate" element={<LazyComponent><PrivateRoute><Generation /></PrivateRoute></LazyComponent>} />
           <Route path="/authenticity" element={<LazyComponent><PrivateRoute><Authenticity /></PrivateRoute></LazyComponent>} />
-          <Route path="/incentives" element={<LazyComponent><PrivateRoute><Incentives /></PrivateRoute></LazyComponent>} />
+
           <Route path="/drafts" element={<LazyComponent><PrivateRoute><Drafts /></PrivateRoute></LazyComponent>} />
           <Route path="/settings" element={<LazyComponent><PrivateRoute><Settings /></PrivateRoute></LazyComponent>} />
           {/* 账户设置相关路由 */}
@@ -584,15 +611,14 @@ export default function App() {
           <Route path="/analytics" element={<LazyComponent><PrivateRoute><AnalyticsPage /></PrivateRoute></LazyComponent>} />
           <Route path="/collection" element={<LazyComponent><PrivateRoute><UserCollection /></PrivateRoute></LazyComponent>} />
           <Route path="/collections" element={<LazyComponent><PrivateRoute><UserCollection /></PrivateRoute></LazyComponent>} />
-          <Route path="/knowledge" element={<LazyComponent><PrivateRoute><CulturalKnowledge /></PrivateRoute></LazyComponent>} />
-          <Route path="/knowledge/:type/:id" element={<LazyComponent><PrivateRoute><CulturalKnowledge /></PrivateRoute></LazyComponent>} />
-          <Route path="/cultural-knowledge" element={<LazyComponent><PrivateRoute><CulturalKnowledge /></PrivateRoute></LazyComponent>} />
+          <Route path="/knowledge" element={<LazyComponent><CulturalKnowledge /></LazyComponent>} />
+          <Route path="/knowledge/:type/:id" element={<LazyComponent><CulturalKnowledge /></LazyComponent>} />
+          <Route path="/cultural-knowledge" element={<LazyComponent><CulturalKnowledge /></LazyComponent>} />
           <Route path="/news" element={<LazyComponent><CulturalNewsPage /></LazyComponent>} />
           <Route path="/news/:id" element={<LazyComponent><NewsDetail /></LazyComponent>} />
           <Route path="/cultural-news" element={<LazyComponent><CulturalNewsPage /></LazyComponent>} />
           <Route path="/tianjin" element={<LazyComponent><Tianjin /></LazyComponent>} />
-          <Route path="/tianjin/map" element={<LazyComponent><TianjinMap /></LazyComponent>} />
-          <Route path="/tianjin-map" element={<LazyComponent><TianjinMap /></LazyComponent>} />
+
           <Route path="/events" element={<LazyComponent><CulturalEvents /></LazyComponent>} />
           <Route path="/events/:id" element={<LazyComponent><EventDetail /></LazyComponent>} />
           <Route path="/cultural-events" element={<LazyComponent><CulturalEvents /></LazyComponent>} />
@@ -658,8 +684,6 @@ export default function App() {
         </ErrorBoundary>
       )}
       
-
-
       {/* 全局命令面板 */}
       <CommandPalette />
       
@@ -668,8 +692,9 @@ export default function App() {
       
       <OnboardingGuide />
     </div>
-    </GuideProvider>
-    </NotificationProvider>
-    </ThemeProvider>
+            </ThemeProvider>
+          </EventProvider>
+        </GuideProvider>
+      </NotificationProvider>
 );
 }

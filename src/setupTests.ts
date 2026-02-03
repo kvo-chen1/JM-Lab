@@ -1,5 +1,6 @@
-require('@testing-library/jest-dom');
-const React = require('react');
+import '@testing-library/jest-dom';
+import React from 'react';
+import { TextEncoder, TextDecoder } from 'util';
 
 // Simple mocks for Three.js related libraries
 jest.mock('three', () => ({
@@ -128,11 +129,11 @@ global.IntersectionObserver = jest.fn(() => ({
 
 // Mock TextEncoder and TextDecoder for JSDOM environment
 if (typeof global.TextEncoder === 'undefined') {
-  global.TextEncoder = require('util').TextEncoder;
+  global.TextEncoder = TextEncoder;
 }
 
 if (typeof global.TextDecoder === 'undefined') {
-  global.TextDecoder = require('util').TextDecoder;
+  global.TextDecoder = TextDecoder;
 }
 
 // Mock import.meta.env for testing environment

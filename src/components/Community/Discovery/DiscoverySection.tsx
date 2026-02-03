@@ -143,55 +143,45 @@ export const DiscoverySection: React.FC<DiscoverySectionProps> = ({
 
   return (
     <div className="max-w-6xl mx-auto py-3 md:py-8 px-3 md:px-4">
+      {/* Filter Categories - Responsive */}
+      <div className="mb-6 overflow-x-auto no-scrollbar -mx-3 px-3 md:mx-0 md:px-0">
+        <div className="flex gap-2 min-w-max">
+          {COMMUNITY_CATEGORIES.map(cat => (
+            <button
+              key={cat.id}
+              onClick={() => setCategory(cat.id)}
+              className={`px-4 py-2 text-sm font-medium rounded-full transition-all whitespace-nowrap ${category === cat.id ? (isDark ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' : 'bg-blue-600 text-white shadow-lg shadow-blue-500/30') : (isDark ? 'bg-gray-800 text-gray-400 hover:bg-gray-700' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200')}`}
+            >
+              {cat.name}
+            </button>
+          ))}
+        </div>
+      </div>
+      
       <div className="mb-3 md:mb-8">
-        <h2 className={`hidden sm:block text-lg md:text-2xl font-bold mb-3 md:mb-6 ${isDark ? 'text-white' : 'text-gray-900'}`}>社群</h2>
-        
-        <div className="flex flex-col gap-3">
-          
-          {/* 分类筛选 - 只在电脑端显示 */}
-          <div className="hidden sm:block overflow-x-auto no-scrollbar">
-            <div className="flex gap-2 py-1 min-w-max">
-              {COMMUNITY_CATEGORIES.map(cat => (
-                <button
-                  key={cat.id}
-                  onClick={() => setCategory(cat.id)}
-                  className={`px-3 py-1.5 text-xs md:text-sm font-medium rounded-full transition-all ${category === cat.id ? (isDark ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-600') : (isDark ? 'bg-gray-800 text-gray-400 hover:bg-gray-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200')}`}
-                >
-                  {cat.name}
-                </button>
-              ))}
-            </div>
-          </div>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <h2 className={`text-xl md:text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+            发现社群
+          </h2>
           
           {/* 排序选项 */}
-          <div className="flex rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex-wrap">
-            <button
-              onClick={() => setSort('members')}
-              className={`flex-1 py-2.5 text-sm font-medium transition-colors ${sort === 'members' ? 'bg-blue-600 text-white' : isDark ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
-            >
-              按人数
-            </button>
-            <div className={`w-px ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}></div>
-            <button
-              onClick={() => setSort('recommended')}
-              className={`flex-1 py-2.5 text-sm font-medium transition-colors ${sort === 'recommended' ? 'bg-blue-600 text-white' : isDark ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
-            >
-              推荐
-            </button>
-            <div className={`w-px ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}></div>
-            <button
-              onClick={() => setSort('newest')}
-              className={`flex-1 py-2.5 text-sm font-medium transition-colors ${sort === 'newest' ? 'bg-blue-600 text-white' : isDark ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
-            >
-              最新
-            </button>
-            <div className={`w-px ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}></div>
-            <button
-              onClick={() => setSort('name')}
-              className={`flex-1 py-2.5 text-sm font-medium transition-colors ${sort === 'name' ? 'bg-blue-600 text-white' : isDark ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
-            >
-              按名称
-            </button>
+          <div className="flex rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-1 shadow-sm min-w-[300px] md:min-w-[400px]">
+            {
+              [
+                { id: 'members', label: '按人数' },
+                { id: 'recommended', label: '推荐' },
+                { id: 'newest', label: '最新' },
+                { id: 'name', label: '按名称' }
+              ].map((opt) => (
+                <button
+                  key={opt.id}
+                  onClick={() => setSort(opt.id as any)}
+                  className={`flex-1 px-6 py-2 text-sm md:text-base font-medium rounded-lg transition-all duration-300 flex items-center justify-center ${sort === opt.id ? (isDark ? 'bg-blue-600 text-white shadow-md' : 'bg-blue-50 text-blue-700 shadow-sm') : (isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-600 hover:text-gray-900')}`}
+                >
+                  {opt.label}
+                </button>
+              ))
+            }
           </div>
         </div>
       </div>

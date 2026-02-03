@@ -1,10 +1,9 @@
 import { createClient } from '@supabase/supabase-js'
 
-// 使用process.env代替import.meta.env，以支持Jest测试环境
-const env = typeof process !== 'undefined' && process.env ? process.env : {} as any
-const supabaseUrl = env.VITE_SUPABASE_URL || ''
-const supabaseKey = env.VITE_SUPABASE_ANON_KEY || ''
-const shouldLogDetails = env.NODE_ENV === 'development'
+// 使用 import.meta.env 获取环境变量 (Vite)
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || ''
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
+const shouldLogDetails = import.meta.env.DEV
 
 if (!supabaseUrl || !supabaseKey) {
   console.warn('⚠️ Supabase environment variables are missing. Please check your .env file.')
@@ -20,24 +19,38 @@ export interface User {
   id: string;
   username: string;
   email: string;
-  avatar_url?: string;
+  avatar_url?: string | null;
   bio?: string;
+  is_verified?: boolean;
+  metadata?: Record<string, any>;
   created_at: string;
   updated_at: string;
-  last_login?: string;
-  role: 'user' | 'admin' | 'moderator';
-  is_active: boolean;
 }
 
 export interface Post {
   id: string;
-  user_id: string;
+  author_id: string;
   title: string;
   content: string;
+  category?: string | null;
+  attachments?: any[];
+  status?: 'draft' | 'published' | 'archived';
+  view_count?: number;
   created_at: string;
   updated_at: string;
   likes_count?: number;
   comments_count?: number;
+}
+
+export interface UserHistory {
+  id: string;
+  user_id: string;
+  action_type: string;
+  content: Record<string, any>;
+  session_id?: string | null;
+  created_at: string;
+  timestamp: number;
+  checksum?: string | null;
 }
 
 // 示例：获取用户列表

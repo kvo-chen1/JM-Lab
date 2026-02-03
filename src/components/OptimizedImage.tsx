@@ -1,387 +1,167 @@
-/**
- * 优化图片组件
- * 支持懒加载、格式优化、响应式图片等功能
- */
+// src/components/OptimizedImage.tsx
 
-import React, { useEffect, useRef, useState } from 'react';
-import { imageOptimizer, lazyImageManager, OptimizedImageResult, ImageOptimizationOptions } from '@/utils/imageOptimization';
+import { useState, useEffect, useRef, ImgHTMLAttributes, useCallback } from 'react';
+import { resourceOptimizer } from '@/utils/performanceOptimization.tsx';
 
-interface OptimizedImageProps {
+interface OptimizedImageProps extends ImgHTMLAttributes<HTMLImageElement> {
   src: string;
   alt: string;
-  className?: string;
-  width?: number;
-  height?: number;
-  loading?: 'lazy' | 'eager';
-  decoding?: 'async' | 'sync' | 'auto';
-  formats?: string[];
-  sizes?: number[];
+  priority?: boolean;
+  placeholder?: string;
+  aspectRatio?: string;
   quality?: number;
-  responsive?: boolean;
-  preload?: boolean;
-  onLoad?: () => void;
-  onError?: () => void;
-  placeholder?: 'blur' | 'solid' | 'none';
-  blurDataURL?: string;
-  objectFit?: 'contain' | 'cover' | 'fill' | 'none' | 'scale-down';
-  objectPosition?: string;
+  sizes?: string;
+  loading?: 'lazy' | 'eager' | 'auto';
+  webp?: boolean;
+  cache?: boolean;
+  blur?: number;
+  transitionDuration?: number;
 }
 
-/**
- * 优化的图片组件
- * 自动处理格式转换、懒加载、响应式图片等功能
- */
-export const OptimizedImage: React.FC<OptimizedImageProps> = ({
+// 图片缓存
+const imageCache = new Map<string, string>();
+
+const OptimizedImage = ({
   src,
   alt,
-  className = '',
-  width,
-  height,
-  loading = 'lazy',
-  decoding = 'async',
-  formats = ['avif', 'webp', 'jpg'],
-  sizes = [320, 640, 1024, 1600],
+  priority = false,
+  placeholder,
+  aspectRatio,
   quality = 85,
-  responsive = true,
-  preload = false,
-  onLoad,
+  sizes,
+  loading = 'lazy',
+  webp = true,
+  cache = true,
+  blur = 0,
+  transitionDuration = 300,
+  className,
   onError,
-  placeholder = 'blur',
-  blurDataURL,
-  objectFit = 'cover',
-  objectPosition = 'center'
-}) => {
+  onLoad,
+  ...props
+}: OptimizedImageProps) => {
+  const [optimizedSrc, setOptimizedSrc] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isError, setIsError] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
-  const [optimizedImage, setOptimizedImage] = useState<OptimizedImageResult | null>(null);
-  const [isLoaded, setIsLoaded] = useState(false);
-  const [hasError, setHasError] = useState(false);
 
-  useEffect(() => {
-    let isMounted = true;
+  // 优化图片加载的回调函数
+  const optimizeImage = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setIsError(false);
 
-    // 优化图片
-    imageOptimizer.optimizeImage(src, alt, {
-      formats,
-      sizes,
-      quality,
-      lazy: loading === 'lazy',
-      preload,
-      responsive
-    }).then(result => {
-      if (isMounted) {
-        setOptimizedImage(result);
+      // 检查缓存
+      const cacheKey = `${src}-${quality}-${webp}`;
+      if (cache && imageCache.has(cacheKey)) {
+        setOptimizedSrc(imageCache.get(cacheKey)!);
+        return;
       }
-    }).catch(error => {
-      console.warn('Failed to optimize image:', error);
-      if (isMounted) {
-        // 回退到原始图片
-        setOptimizedImage({
-          src,
-          alt,
-          loading,
-          decoding
-        });
+
+      // 优化图片加载
+      const optimized = await resourceOptimizer.optimizeImage(src, {
+        quality,
+        priority: priority ? 'high' : 'medium',
+        webp: webp
+      });
+
+      // 缓存结果
+      if (cache) {
+        imageCache.set(cacheKey, optimized);
       }
-    });
 
-    return () => {
-      isMounted = false;
-    };
-  }, [src, alt, formats, sizes, quality, loading, preload, responsive]);
-
-  useEffect(() => {
-    if (!imgRef.current || !optimizedImage) return;
-
-    const img = imgRef.current;
-
-    // 设置懒加载
-    if (loading === 'lazy') {
-      img.dataset.src = optimizedImage.src;
-      lazyImageManager.observeImage(img);
+      setOptimizedSrc(optimized);
+    } catch (error) {
+      // 安全处理错误，避免输出大量内存地址信息
+      console.error('Image optimization failed:', error instanceof Error ? error.message : String(error));
+      setIsError(true);
+      setOptimizedSrc(src); // 降级到原始图片
+    } finally {
+      setIsLoading(false);
     }
+  }, [src, quality, priority, webp, cache]);
 
-    // 监听加载事件
-    const handleLoad = () => {
-      setIsLoaded(true);
-      onLoad?.();
-    };
+  useEffect(() => {
+    if (src) {
+      optimizeImage();
+    }
+  }, [src, optimizeImage]);
 
-    const handleError = () => {
-      setHasError(true);
-      onError?.();
-    };
+  const handleError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+    setIsError(true);
+    setOptimizedSrc(src); // 降级到原始图片
+    if (onError) {
+      onError(e);
+    }
+  };
 
-    img.addEventListener('load', handleLoad);
-    img.addEventListener('error', handleError);
-
-    return () => {
-      img.removeEventListener('load', handleLoad);
-      img.removeEventListener('error', handleError);
-    };
-  }, [optimizedImage, loading, onLoad, onError]);
-
-  if (!optimizedImage) {
-    return (
-      <div 
-        className={`image-placeholder ${className}`}
-        style={{
-          width: width || '100%',
-          height: height || '200px',
-          backgroundColor: '#f3f4f6',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center'
-        }}
-      >
-        <div className="animate-pulse bg-gray-200 w-full h-full rounded"></div>
-      </div>
-    );
-  }
-
-  const imageClasses = [
-    className,
-    isLoaded ? 'loaded' : '',
-    hasError ? 'error' : '',
-    loading === 'lazy' ? 'lazy' : '',
-    'optimized-image'
-  ].filter(Boolean).join(' ');
-
-  const imageStyle: React.CSSProperties = {
-    objectFit,
-    objectPosition,
-    transition: 'opacity 0.3s ease-in-out',
-    opacity: isLoaded ? 1 : placeholder === 'blur' ? 0.7 : 0.5
+  const handleLoad = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+    setIsLoading(false);
+    if (onLoad) {
+      onLoad(e);
+    }
   };
 
   return (
-    <div className="image-container" style={{ position: 'relative', overflow: 'hidden' }}>
+    <div
+      className={className}
+      style={{
+        aspectRatio,
+        position: 'relative',
+        overflow: 'hidden'
+      }}
+    >
       {/* 占位符 */}
-      {placeholder === 'blur' && !isLoaded && (
+      {isLoading && placeholder && (
         <div
-          className="image-placeholder"
+          className="absolute inset-0 flex items-center justify-center bg-gray-100 dark:bg-gray-800"
           style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            backgroundColor: '#f3f4f6',
-            filter: 'blur(20px)',
-            transform: 'scale(1.1)',
-            backgroundImage: blurDataURL ? `url(${blurDataURL})` : undefined,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            zIndex: 1
+            filter: blur > 0 ? `blur(${blur}px)` : 'none'
           }}
+        >
+          {placeholder.includes('http') ? (
+            <img
+              src={placeholder}
+              alt="Placeholder"
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="text-gray-400 dark:text-gray-500">
+              {placeholder}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 图片 */}
+      {optimizedSrc && (
+        <img
+          ref={imgRef}
+          src={optimizedSrc}
+          alt={alt}
+          className={`w-full h-full object-cover transition-opacity ${isLoading ? 'opacity-0' : 'opacity-100'}`}
+          style={{
+            transitionDuration: `${transitionDuration}ms`
+          }}
+          loading={loading}
+          fetchPriority={priority ? 'high' : 'auto'}
+          sizes={sizes}
+          onError={handleError}
+          onLoad={handleLoad}
+          {...props}
         />
       )}
 
-      {/* 主图片 */}
-      <img
-        ref={imgRef}
-        src={loading === 'lazy' ? undefined : optimizedImage.src}
-        data-src={loading === 'lazy' ? optimizedImage.src : undefined}
-        srcSet={optimizedImage.srcSet}
-        sizes={optimizedImage.sizes}
-        alt={optimizedImage.alt}
-        className={imageClasses}
-        width={width}
-        height={height}
-        loading={optimizedImage.loading}
-        decoding={optimizedImage.decoding}
-        style={imageStyle}
-      />
-
       {/* 错误状态 */}
-      {hasError && (
+      {isError && !optimizedSrc && (
         <div
-          className="image-error"
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: '#f3f4f6',
-            color: '#6b7280',
-            fontSize: '14px'
-          }}
+          className="absolute inset-0 flex items-center justify-center bg-gray-100 dark:bg-gray-800"
         >
-          <div className="text-center">
-            <div style={{ fontSize: '24px', marginBottom: '8px' }}>🖼️</div>
-            <div>图片加载失败</div>
+          <div className="text-gray-400 dark:text-gray-500">
+            <i className="fas fa-image text-2xl"></i>
+            <p className="mt-2 text-sm">图片加载失败</p>
           </div>
         </div>
       )}
-    </div>
-  );
-};
-
-/**
- * 图片网格组件
- * 支持批量图片优化和懒加载
- */
-interface ImageGridProps {
-  images: Array<{
-    src: string;
-    alt: string;
-    width?: number;
-    height?: number;
-  }>;
-  columns?: number;
-  gap?: number;
-  className?: string;
-  onImageClick?: (index: number) => void;
-}
-
-export const OptimizedImageGrid: React.FC<ImageGridProps> = ({
-  images,
-  columns = 3,
-  gap = 16,
-  className = '',
-  onImageClick
-}) => {
-  const [optimizedImages, setOptimizedImages] = useState<OptimizedImageResult[]>([]);
-
-  useEffect(() => {
-    // 批量优化图片
-    imageOptimizer.optimizeImages(
-      images.map(img => ({
-        src: img.src,
-        alt: img.alt,
-        options: {
-          formats: ['webp', 'jpg'],
-          sizes: [320, 640, 1024],
-          quality: 80,
-          lazy: true,
-          responsive: true
-        }
-      }))
-    ).then(results => {
-      setOptimizedImages(results);
-    });
-  }, [images]);
-
-  const gridStyle: React.CSSProperties = {
-    display: 'grid',
-    gridTemplateColumns: `repeat(${columns}, 1fr)`,
-    gap: `${gap}px`,
-    width: '100%'
-  };
-
-  return (
-    <div className={`optimized-image-grid ${className}`} style={gridStyle}>
-      {optimizedImages.map((image, index) => (
-        <div
-          key={index}
-          className="image-grid-item"
-          style={{
-            position: 'relative',
-            overflow: 'hidden',
-            borderRadius: '8px',
-            cursor: onImageClick ? 'pointer' : 'default'
-          }}
-          onClick={() => onImageClick?.(index)}
-        >
-          <OptimizedImage
-            src={image.src}
-            alt={image.alt}
-            width={images[index].width}
-            height={images[index].height}
-            loading="lazy"
-            placeholder="blur"
-            objectFit="cover"
-          />
-        </div>
-      ))}
-    </div>
-  );
-};
-
-/**
- * 背景图片优化组件
- */
-interface OptimizedBackgroundProps {
-  src: string;
-  alt: string;
-  className?: string;
-  children?: React.ReactNode;
-  overlay?: boolean;
-  overlayOpacity?: number;
-  options?: ImageOptimizationOptions;
-}
-
-export const OptimizedBackground: React.FC<OptimizedBackgroundProps> = ({
-  src,
-  alt,
-  className = '',
-  children,
-  overlay = false,
-  overlayOpacity = 0.5,
-  options = {}
-}) => {
-  const [backgroundImage, setBackgroundImage] = useState<string>('');
-  const [isLoaded, setIsLoaded] = useState(false);
-
-  useEffect(() => {
-    imageOptimizer.optimizeImage(src, alt, {
-      formats: ['webp', 'jpg'],
-      sizes: [1024, 1600],
-      quality: 85,
-      responsive: true,
-      ...options
-    }).then(result => {
-      setBackgroundImage(result.src);
-      
-      // 预加载背景图片
-      const img = new Image();
-      img.onload = () => setIsLoaded(true);
-      img.onerror = () => setIsLoaded(true); // 即使加载失败也显示内容
-      img.src = result.src;
-    });
-  }, [src, alt, options]);
-
-  const backgroundStyle: React.CSSProperties = {
-    position: 'relative',
-    backgroundImage: backgroundImage ? `url(${backgroundImage})` : undefined,
-    backgroundSize: 'cover',
-    backgroundPosition: 'center',
-    backgroundRepeat: 'no-repeat',
-    opacity: isLoaded ? 1 : 0.7,
-    transition: 'opacity 0.3s ease-in-out'
-  };
-
-  return (
-    <div className={`optimized-background ${className}`} style={backgroundStyle}>
-      {/* 遮罩层 */}
-      {overlay && (
-        <div
-          className="background-overlay"
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, ${overlayOpacity})',
-            zIndex: 1
-          }}
-        />
-      )}
-
-      {/* 内容 */}
-      <div
-        className="background-content"
-        style={{
-          position: 'relative',
-          zIndex: overlay ? 2 : 1
-        }}
-      >
-        {children}
-      </div>
     </div>
   );
 };

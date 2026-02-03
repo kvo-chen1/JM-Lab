@@ -4,8 +4,9 @@ import Studio from './Studio';
 import AIWriter from './AIWriter';
 import Wizard from '../Wizard';
 import Inspiration from '../Neo'; // Correctly point to Inspiration Engine
+import PlanLibrary from './components/PlanLibrary';
 
-export default function CreateRoutes() {
+function Create() {
   return (
     <Routes>
       <Route element={<CreateLayout />}>
@@ -13,7 +14,10 @@ export default function CreateRoutes() {
         <Route path="ai-writer" element={<AIWriter />} />
         <Route path="inspiration" element={<Inspiration />} />
         <Route path="wizard" element={<Wizard />} />
+        <Route path="plan-library" element={<PlanLibrary />} />
       </Route>
     </Routes>
   );
 }
+
+export default Create;

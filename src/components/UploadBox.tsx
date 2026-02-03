@@ -164,31 +164,44 @@ export default function UploadBox({ accept, onFile, title, description, previewU
             <i className={`${icon} text-lg md:text-xl`}></i>
           </div>
           <div className="flex-1 w-full">
-            <div className="text-sm font-medium">{description || '拖拽文件到此，或点击选择'}</div>
-            <div className={`text-xs mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{accept}</div>
+            <div className={`text-sm font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{description || '拖拽文件到此，或点击选择'}</div>
+            <div className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{accept.replace(/,\s*/g, ' ')}</div>
           </div>
           <button
             type="button"
-            className="w-full md:w-auto ml-0 md:ml-4 px-4 py-2.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-medium whitespace-nowrap transition-all duration-300 transform hover:scale-105 shadow-md hover:shadow-lg disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none"
+            className={`w-full md:w-auto ml-0 md:ml-4 px-5 py-2.5 rounded-xl text-sm font-bold whitespace-nowrap transition-all duration-300 transform hover:scale-105 shadow-md hover:shadow-lg disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none ${isDark ? 'bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white' : 'bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white'}`}
             onClick={(e) => { e.stopPropagation(); inputRef.current?.click() }}
             disabled={uploading}
           >
-            {uploading ? '上传中...' : '选择文件'}
+            {uploading ? (
+              <span className="flex items-center gap-2">
+                <i className="fas fa-spinner fa-spin"></i>
+                上传中...
+              </span>
+            ) : (
+              <span className="flex items-center gap-2">
+                <i className="fas fa-cloud-upload-alt"></i>
+                选择文件
+              </span>
+            )}
           </button>
         </div>
 
         {/* 图片预览 */}
         {variant === 'image' && allPreviews.length > 0 && (
-          <div className="mt-4 flex gap-3 overflow-x-auto pb-2">
+          <div className="mt-4 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
             {allPreviews.map((preview, index) => (
-              <div key={index} className="relative flex-shrink-0 w-24 h-24 rounded-lg overflow-hidden border">
+              <div key={index} className="relative group aspect-square rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 shadow-sm">
                 <img 
                   src={preview} 
                   alt={`预览 ${index + 1}`} 
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                   loading="lazy" 
                   decoding="async" 
                 />
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <i className="fas fa-check text-white text-xl"></i>
+                </div>
               </div>
             ))}
           </div>

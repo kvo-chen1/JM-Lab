@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useTheme } from '@/hooks/useTheme';
 import { motion, AnimatePresence } from 'framer-motion';
 import BRANDS from '@/lib/brands';
-import { useWorkflow } from '@/contexts/workflowContext.tsx';
+import { useWorkflow } from '@/contexts/workflowContext';
 import voiceService from '@/services/voiceService';
 import UploadBox from '@/components/UploadBox';
 import { scoreAuthenticity } from '@/services/authenticityService';
@@ -61,7 +61,7 @@ export default function Wizard() {
     const title = publishInfo.title || `${state.brandName || '作品'} - 生成变体`;
     const selectedVariant = selectedVariantIndex >= 0 && state.variants ? state.variants[selectedVariantIndex] : state.variants?.[0];
     const baseThumb = selectedVariant?.image || state.imageUrl || '';
-    const thumb = baseThumb || `https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?prompt=${encodeURIComponent(title)}&image_size=1024x1024`;
+    const thumb = baseThumb;
     
     // Simulate competition entry
     if (publishInfo.competitionId) {
@@ -313,7 +313,7 @@ export default function Wizard() {
                       <div className="relative aspect-video rounded-xl overflow-hidden shadow-lg group">
                         {(() => {
                           const brand = BRANDS.find(b => b.id === state.brandId || b.name === (state.brandName || ''));
-                          const src = brand?.image || `https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?prompt=${encodeURIComponent(`Tianjin ${state.brandName || 'brand'} product shot, cultural style`)}&image_size=1920x1080`;
+                          const src = brand?.image || '';
                           return (
                             <motion.div 
                               initial={{ scale: 1 }}
@@ -448,7 +448,7 @@ export default function Wizard() {
                    <div className={`p-4 rounded-2xl ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'} border shadow-sm sticky top-24`}>
                       <h3 className="font-bold text-sm mb-3">实时预览</h3>
                       <TianjinImage 
-                        src={`https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?prompt=${encodeURIComponent(`${state.brandName} ${state.inputText}`)}&image_size=1920x1080`}
+
                         alt="preview"
                         ratio="landscape"
                         className="w-full rounded-xl"

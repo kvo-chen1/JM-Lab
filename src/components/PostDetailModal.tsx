@@ -1,10 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
-import { Post } from '@/services/postService';
+import postsApi, { Post } from '@/services/postService';
 import { TianjinAvatar, TianjinButton, TianjinImage } from '@/components/TianjinStyleComponents';
 import LazyImage from './LazyImage';
+import LazyVideo from './LazyVideo';
 import { toast } from 'sonner';
+import PostGrid from './PostGrid';
+import type { UserProfile } from '@/lib/supabase';
+import type { User as AuthUser } from '@/contexts/authContext';
 
 interface PostDetailModalProps {
   post: Post | null;
@@ -15,6 +19,7 @@ interface PostDetailModalProps {
   onShare?: (id: string) => void;
   loading?: boolean;
   error?: string | null;
+  currentUser?: UserProfile | AuthUser | null;
 }
 
 const PostDetailModal: React.FC<PostDetailModalProps> = ({
@@ -26,11 +31,35 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
   onShare,
   loading = false,
   error = null,
+  currentUser,
 }) => {
   const { isDark } = useTheme();
   const [commentText, setCommentText] = useState('');
   const [isImageFull, setIsImageFull] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [relatedPosts, setRelatedPosts] = useState<Post[]>([]);
   const commentInputRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  // Load related posts
+  useEffect(() => {
+    const loadRelated = async () => {
+      if (post) {
+        try {
+          const all = await postsApi.getPosts();
+          // Filter out current post and shuffle or pick similar tags
+          const related = all
+            .filter(p => p.id !== post.id)
+            .sort(() => Math.random() - 0.5)
+            .slice(0, 8);
+          setRelatedPosts(related);
+        } catch (e) {
+          console.error('Failed to load related posts', e);
+        }
+      }
+    };
+    loadRelated();
+  }, [post]);
 
   // Reset state when modal opens/closes or post changes
   useEffect(() => {
@@ -76,27 +105,30 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 lg:p-8">
+        <div className="fixed inset-0 z-50 overflow-y-auto custom-scrollbar">
           {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="absolute inset-0 bg-black/60 backdrop-blur-md"
+            className="fixed inset-0 bg-black/60 backdrop-blur-md"
           />
 
-          {/* Modal Container */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            transition={{ type: "spring", duration: 0.5, bounce: 0.3 }}
-            className={`relative w-full h-full max-w-7xl max-h-[90vh] overflow-hidden rounded-none sm:rounded-2xl shadow-2xl flex flex-col lg:flex-row ${
-              isDark ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'
-            }`}
-            onClick={(e) => e.stopPropagation()}
-          >
+          {/* Modal Container Wrapper for Scrolling */}
+          <div className="min-h-full w-full flex flex-col items-center py-8 px-4 sm:px-6 pointer-events-none">
+            {/* Modal Content */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              transition={{ type: "spring", duration: 0.5, bounce: 0.3 }}
+              className={`pointer-events-auto relative w-full max-w-6xl rounded-2xl shadow-2xl flex flex-col lg:flex-row overflow-hidden mb-8 shrink-0 ${
+                isDark ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'
+              }`}
+              style={{ minHeight: '600px' }}
+              onClick={(e) => e.stopPropagation()}
+            >
             {/* Loading State */}
             {loading && (
               <div className="absolute inset-0 z-10 flex items-center justify-center bg-inherit">
@@ -123,22 +155,55 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
 
             {post && (
               <>
-                {/* Left: Image Viewer */}
+                {/* Left: Media Viewer */}
                 <div className={`relative flex-1 bg-black flex items-center justify-center overflow-hidden group ${isImageFull ? 'fixed inset-0 z-50' : ''}`}>
-                  {/* Blurred Background for Image */}
+                  {/* Blurred Background for Media */}
                   <div 
                     className="absolute inset-0 bg-cover bg-center opacity-30 blur-3xl scale-110"
                     style={{ backgroundImage: `url(${post.thumbnail})` }}
                   />
                   
-                  {/* Main Image */}
-                  <img 
-                    src={post.thumbnail} 
-                    alt={post.title} 
-                    className={`absolute inset-0 w-full h-full object-cover shadow-2xl transition-transform duration-300 ${isImageFull ? 'scale-100' : 'group-hover:scale-[1.02]'}`}
-                  />
+                  {/* Media Content */}
+                  {post.category === 'video' ? (
+                    <div className="relative w-full h-full">
+                      <LazyVideo 
+                        ref={videoRef}
+                        src={post.videoUrl || post.thumbnail}
+                        poster={post.thumbnail}
+                        alt={post.title}
+                        className={`absolute inset-0 w-full h-full object-contain shadow-2xl ${isImageFull ? 'scale-100' : 'group-hover:scale-[1.02]'}`}
+                        controls={true}
+                        autoPlay={false}
+                        muted={false}
+                        playsInline={true}
+                        onPlay={() => setIsPlaying(true)}
+                        onPause={() => setIsPlaying(false)}
+                      />
+                      {/* Video Play/Pause Overlay */}
+                      {!isPlaying && (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <button
+                            onClick={() => videoRef.current?.play()}
+                            className="w-20 h-20 rounded-full bg-black/50 text-white hover:bg-black/70 backdrop-blur-sm transition-colors flex items-center justify-center"
+                          >
+                            <i className="fas fa-play text-3xl"></i>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    // Image Content
+                    <LazyImage 
+                      src={post.thumbnail} 
+                      alt={post.title} 
+                      className={`absolute inset-0 w-full h-full object-cover shadow-2xl transition-transform duration-300 ${isImageFull ? 'scale-100' : 'group-hover:scale-[1.02]'}`}
+                      priority={true}
+                      quality="high"
+                      bare
+                    />
+                  )}
 
-                  {/* Image Controls */}
+                  {/* Media Controls */}
                   <div className="absolute top-4 right-4 z-20 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button 
                       onClick={() => setIsImageFull(!isImageFull)}
@@ -157,7 +222,7 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
                     )}
                   </div>
                   
-                  {/* Mobile Close Button (Overlay on Image) */}
+                  {/* Mobile Close Button (Overlay on Media) */}
                   <div className="lg:hidden absolute top-4 left-4 z-20">
                      <button 
                       onClick={onClose}
@@ -179,14 +244,14 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
                       </h2>
                       <div className="flex items-center gap-2">
                          <TianjinAvatar 
-                           src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${post.id}`} 
+                           src={typeof post.author === 'object' ? (post.author?.avatar || '') : `https://api.dicebear.com/7.x/avataaars/svg?seed=${post.author || post.id}`}
                            alt="Author" 
                            size="sm" 
                            variant="gradient"
                          />
                          <div className="text-xs">
                             <div className={`font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-                               {post.author || '津门创作者'}
+                               {typeof post.author === 'object' ? post.author?.username : (post.author || '津门创作者')}
                             </div>
                             <div className="opacity-50 text-[10px]">
                                {post.date} · {post.category === 'design' ? '设计' : '其他'}
@@ -219,8 +284,12 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
                            <span className="text-[10px] opacity-60">点赞</span>
                         </div>
                         <div className="flex flex-col items-center flex-1 border-r border-gray-200 dark:border-gray-700 last:border-0">
-                           <span className="text-lg font-bold">{post.views || Math.floor(Math.random() * 1000)}</span>
+                           <span className="text-lg font-bold">{post.views || 0}</span>
                            <span className="text-[10px] opacity-60">浏览</span>
+                        </div>
+                        <div className="flex flex-col items-center flex-1 border-r border-gray-200 dark:border-gray-700 last:border-0">
+                           <span className="text-lg font-bold">{post.commentCount || 0}</span>
+                           <span className="text-[10px] opacity-60">评论</span>
                         </div>
                         <div className="flex flex-col items-center flex-1">
                            <span className="text-lg font-bold">{post.shares || 0}</span>
@@ -255,12 +324,12 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
                               <i className="far fa-comment text-blue-500"></i>
                               评论 
                               <span className="bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-xs font-medium px-2.5 py-0.5 rounded-full">
-                                {post.comments.length}
+                                {post.commentCount || (post.comments?.length || 0)}
                               </span>
                            </h3>
                         </div>
                         
-                        {post.comments.length === 0 ? (
+                        {(!post.comments || post.comments.length === 0) ? (
                            <div className="flex flex-col items-center justify-center py-10 text-center bg-gray-50 dark:bg-gray-800/50 rounded-xl">
                               <i className="far fa-comment-dots text-3xl mb-3 text-gray-400 dark:text-gray-500"></i>
                               <h4 className="text-sm font-medium mb-1">暂无评论</h4>
@@ -274,18 +343,23 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
                            </div>
                         ) : (
                            <div className="space-y-5">
-                              {post.comments.map(comment => (
+                              {(post.comments || []).map(comment => {
+                                 // 兼容处理 avatar_url (UserProfile) 和 avatar (AuthUser)
+                                 const avatarUrl = currentUser && ('avatar_url' in currentUser) 
+                                    ? currentUser.avatar_url 
+                                    : currentUser?.avatar;
+                                 return (
                                  <div key={comment.id} className="flex gap-3 pb-4 border-b last:border-b-0 last:pb-0 border-gray-100 dark:border-gray-800">
                                     <TianjinAvatar 
-                                       src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${comment.id}`} 
-                                       alt={`用户${comment.id.slice(-4)}`} 
+                                       src={avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${comment.id}`} 
+                                       alt={currentUser?.username || '用户'} 
                                        size="sm" 
                                        variant="gradient"
                                     />
                                     <div className="flex-1">
                                        <div className="flex items-center justify-between mb-1">
                                           <div className={`text-sm font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-                                             用户{comment.id.slice(-4)}
+                                             {currentUser?.username || currentUser?.email?.split('@')[0] || '我'}
                                           </div>
                                           <div className="text-xs text-gray-500 dark:text-gray-400">
                                              {new Date(comment.date).toLocaleString()}
@@ -306,7 +380,8 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
                                        </div>
                                     </div>
                                  </div>
-                              ))}
+                                 );
+                              })}
                            </div>
                         )}
                      </div>
@@ -353,12 +428,12 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
                              onClick={() => commentInputRef.current?.focus()}
                            >
                               <i className="far fa-comment text-xl"></i>
-                              <span className="text-xs font-medium">{post.comments.length > 0 ? post.comments.length : '评论'}</span>
+                              <span className="text-xs font-medium">{post.commentCount || (post.comments?.length || 0) > 0 ? post.commentCount || (post.comments?.length || 0) : '评论'}</span>
                            </button>
                            <button 
                              className={`flex items-center gap-1.5 transition-transform active:scale-95 ${post.isBookmarked ? 'text-yellow-500' : 'opacity-70 hover:opacity-100'}`}
                            >
-                              <i className={`${post.isBookmarked ? 'fas' : 'far'} fa-star text-xl`}></i>
+                              <i className={`${post.isBookmarked ? 'fas' : 'far'} fa-bookmark text-xl`}></i>
                               <span className="text-xs font-medium">{post.isBookmarked ? '已收藏' : '收藏'}</span>
                            </button>
                         </div>
@@ -373,7 +448,36 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
                 </div>
               </>
             )}
-          </motion.div>
+            </motion.div>
+
+            {/* Related Works Section */}
+            {post && relatedPosts.length > 0 && (
+              <div className="w-full max-w-6xl pointer-events-auto">
+                <h3 className={`text-lg font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                  相似作品
+                </h3>
+                <PostGrid 
+                  posts={relatedPosts}
+                  onLike={onLike}
+                  onComment={(id) => {
+                     // In a real app, this might navigate to another post
+                     // For now we just close and reopen (or rely on parent to handle if it was cleaner)
+                     // But here we can't easily switch the modal content from inside without parent help unless we navigate
+                     window.location.href = `/square/${id}`;
+                  }}
+                  onShare={onShare || (() => {})}
+                  onBookmark={() => {}}
+                  onPostClick={(id) => {
+                     window.location.href = `/square/${id}`;
+                  }}
+                  favorites={[]} 
+                  isLoading={false}
+                  isLoadingMore={false}
+                  hasMore={false}
+                />
+              </div>
+            )}
+          </div>
         </div>
       )}
     </AnimatePresence>

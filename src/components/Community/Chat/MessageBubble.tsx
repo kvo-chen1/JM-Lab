@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo, useCallback, useState } from 'react';
 import type { ChatMessage } from '@/pages/Community';
 import { TianjinAvatar } from '@/components/TianjinStyleComponents';
 
@@ -12,7 +12,7 @@ interface MessageBubbleProps {
   onReplyToMessage?: (messageId: string) => void;
 }
 
-export const MessageBubble: React.FC<MessageBubbleProps> = ({
+const MessageBubble: React.FC<MessageBubbleProps> = memo(({
   isDark,
   message,
   isMe,
@@ -21,6 +21,38 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   onAddReaction,
   onReplyToMessage
 }) => {
+  const [showReactionMenu, setShowReactionMenu] = useState(false);
+  // 使用useCallback缓存函数，减少不必要的重新渲染
+  const handleRetrySend = useCallback(() => {
+    if (retrySendMessage && message.id) {
+      retrySendMessage(message.id);
+    }
+  }, [retrySendMessage, message.id]);
+
+  // 使用useCallback缓存函数，减少不必要的重新渲染
+  const handleAddReaction = useCallback((reaction: string) => {
+    if (onAddReaction && message.id) {
+      onAddReaction(message.id, reaction);
+    }
+  }, [onAddReaction, message.id]);
+
+  // 使用useCallback缓存函数，减少不必要的重新渲染
+  const handleReplyTo = useCallback(() => {
+    if (onReplyToMessage && message.id) {
+      onReplyToMessage(message.id);
+    }
+  }, [onReplyToMessage, message.id]);
+
+  // 使用useCallback缓存函数，减少不必要的重新渲染
+  const handleImageClick = useCallback((url: string) => {
+    window.open(url, '_blank');
+  }, []);
+
+  // 使用useCallback缓存函数，减少不必要的重新渲染
+  const handleFileClick = useCallback((url: string) => {
+    window.open(url, '_blank');
+  }, []);
+
   // 渲染发送状态
   const renderSendStatus = () => {
     if (!isMe) return null;
@@ -34,7 +66,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             <span><i className="fas fa-exclamation-circle"></i> 发送失败</span>
             {retrySendMessage && message.id && (
               <button 
-                onClick={() => retrySendMessage(message.id!)}
+                onClick={handleRetrySend}
                 className="hover:text-blue-400 hover:underline"
               >
                 重试
@@ -61,7 +93,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               src={image.url} 
               alt={`Image ${index + 1}`} 
               className="max-w-[200px] max-h-[200px] object-cover rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
-              onClick={() => window.open(image.url, '_blank')}
+              onClick={() => handleImageClick(image.url)}
             />
             {image.name && (
               <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs p-1 rounded-b-lg truncate">
@@ -84,10 +116,10 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           <div 
             key={index} 
             className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-gray-500/10 ${isDark ? 'bg-gray-700/50' : 'bg-gray-100'}`}
-            onClick={() => window.open(file.url, '_blank')}
+            onClick={() => handleFileClick(file.url)}
           >
             <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isDark ? 'bg-gray-600' : 'bg-blue-100'}`}>
-              <i className="fas fa-file text-xl ${isDark ? 'text-gray-300' : 'text-blue-600'}"></i>
+              <i className={`fas fa-file text-xl ${isDark ? 'text-gray-300' : 'text-blue-600'}`}></i>
             </div>
             <div className="flex-1 min-w-0">
               <div className="text-sm font-medium truncate">{file.name}</div>
@@ -144,15 +176,24 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   // 渲染反应按钮
   const renderReactions = () => {
     const reactions = message.reactions || {};
-    const reactionOptions = ['👍', '❤️', '😂', '🎉', '😮', '😢'];
+    const reactionOptions = ['👍', '❤️', '😂', '🎉', '😮', '😢', '🔥', '👏', '👀', '🤔'];
+    
+    const toggleReactionMenu = () => {
+      setShowReactionMenu(!showReactionMenu);
+    };
+    
+    const handleReactionSelect = (reaction: string) => {
+      handleAddReaction(reaction);
+      setShowReactionMenu(false);
+    };
     
     return (
-      <div className="flex gap-1 mt-1">
+      <div className="flex gap-1 mt-1 relative">
         {/* 已有的反应 */}
         {Object.entries(reactions).map(([reaction, users]) => (
           <button 
             key={reaction}
-            onClick={() => onAddReaction && message.id && onAddReaction(message.id, reaction)}
+            onClick={() => handleAddReaction(reaction)}
             className={`text-xs px-1.5 py-0.5 rounded-full flex items-center gap-1 border transition-all ${isDark ? 'bg-gray-700 border-gray-600 hover:bg-gray-600' : 'bg-gray-100 border-gray-200 hover:bg-gray-200'}`}
           >
             <span>{reaction}</span>
@@ -161,11 +202,29 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         ))}
         
         {/* 添加反应按钮 */}
-        <button 
-          className={`text-xs px-1.5 py-0.5 rounded-full flex items-center gap-1 border transition-all ${isDark ? 'bg-gray-700 border-gray-600 hover:bg-gray-600' : 'bg-gray-100 border-gray-200 hover:bg-gray-200'}`}
-        >
-          <span>😀</span>
-        </button>
+        <div className="relative">
+          <button 
+            onClick={toggleReactionMenu}
+            className={`text-xs px-1.5 py-0.5 rounded-full flex items-center gap-1 border transition-all ${isDark ? 'bg-gray-700 border-gray-600 hover:bg-gray-600' : 'bg-gray-100 border-gray-200 hover:bg-gray-200'}`}
+          >
+            <span>😀</span>
+          </button>
+          
+          {/* 表情选择菜单 */}
+          {showReactionMenu && (
+            <div className={`absolute bottom-full mb-1 right-0 z-10 grid grid-cols-5 gap-1 p-2 rounded-lg shadow-lg ${isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'}`}>
+              {reactionOptions.map((reaction) => (
+                <button
+                  key={reaction}
+                  onClick={() => handleReactionSelect(reaction)}
+                  className={`w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-200/20 transition-colors ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
+                >
+                  <span className="text-lg">{reaction}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     );
   };
@@ -175,7 +234,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     return (
       <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
         <button 
-          onClick={() => onReplyToMessage && message.id && onReplyToMessage(message.id)}
+          onClick={handleReplyTo}
           className={`text-xs px-2 py-1 rounded hover:bg-gray-200/20 transition-colors ${isDark ? 'text-gray-400 hover:text-gray-300' : 'text-gray-600 hover:text-gray-900'}`}
         >
           回复
@@ -245,4 +304,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       </div>
     </div>
   );
-};
+});
+
+// 添加displayName便于调试
+MessageBubble.displayName = 'MessageBubble';
+
+export { MessageBubble };

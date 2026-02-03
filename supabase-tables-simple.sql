@@ -259,9 +259,9 @@ ON CONFLICT (membership_level, benefit) DO NOTHING;
 
 -- 插入推荐社群数据
 INSERT INTO communities (id, name, description, cover, tags, members_count) VALUES
-('c-guochao', '国潮设计社群', '讨论国潮视觉、品牌联名与配色体系', 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1920x1080&prompt=Guochao%20design%20community%20banner', ARRAY['国潮', '联名', '品牌'], 1286),
-('c-heritage', '非遗数字化社群', '分享非遗数字化案例与教育传播', 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1920x1080&prompt=Intangible%20heritage%20digital%20community%20banner', ARRAY['非遗', '教育', '海报'], 986),
-('c-ip', 'IP联名与授权', '围绕IP设计与商业授权的合作讨论', 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1920x1080&prompt=IP%20collaboration%20and%20licensing%20community%20banner', ARRAY['IP', '联名', '授权'], 742),
-('c-peking-opera', '京剧视觉社群', '京剧元素的现代视觉化与海报设计讨论', 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1920x1080&prompt=Peking%20opera%20visual%20community%20banner%2C%20bold%20graphics', ARRAY['京剧', '戏曲', '海报'], 812),
-('c-jingdezhen', '景德镇陶瓷文创社群', '蓝白瓷与陶瓷文创的设计分享与交流', 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1920x1080&prompt=Jingdezhen%20ceramics%20community%20banner%2C%20blue%20and%20white', ARRAY['景德镇', '陶瓷', '文创'], 654)
+('c-guochao', '国潮设计社群', '讨论国潮视觉、品牌联名与配色体系', 'https://images.unsplash.com/photo-1621351183012-347e4539a253?w=1920&h=1080&fit=crop&q=80', ARRAY['国潮', '联名', '品牌'], 1286),
+('c-heritage', '非遗数字化社群', '分享非遗数字化案例与教育传播', 'https://images.unsplash.com/photo-1583847268964-b28dc8f51f92?w=1920&h=1080&fit=crop&q=80', ARRAY['非遗', '教育', '海报'], 986),
+('c-ip', 'IP联名与授权', '围绕IP设计与商业授权的合作讨论', 'https://images.unsplash.com/photo-1600880292089-90a7e086ee0c?w=1920&h=1080&fit=crop&q=80', ARRAY['IP', '联名', '授权'], 742),
+('c-peking-opera', '京剧视觉社群', '京剧元素的现代视觉化与海报设计讨论', 'https://images.unsplash.com/photo-1617802698761-3245966143c6?w=1920&h=1080&fit=crop&q=80', ARRAY['京剧', '戏曲', '海报'], 812),
+('c-jingdezhen', '景德镇陶瓷文创社群', '蓝白瓷与陶瓷文创的设计分享与交流', 'https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=1920&h=1080&fit=crop&q=80', ARRAY['景德镇', '陶瓷', '文创'], 654)
 ON CONFLICT (id) DO NOTHING;

@@ -1,8 +1,8 @@
-import React, { useContext } from 'react';
+import React, { useContext, useState, useEffect } from 'react';
 import { useTheme } from '@/hooks/useTheme';
 import { AuthContext } from '@/contexts/authContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { themeOrder } from '@/config/themeConfig';
+import { themeOrder, themeConfig } from '@/config/themeConfig';
 
 interface NeoLeftSidebarProps {
   activeTab: 'create' | 'results' | 'history';
@@ -25,6 +25,24 @@ const NeoLeftSidebar: React.FC<NeoLeftSidebarProps> = ({
 }) => {
   const { theme, isDark, setTheme } = useTheme();
   const { isAuthenticated, user } = useContext(AuthContext);
+  const [showThemeDropdown, setShowThemeDropdown] = useState<boolean>(false);
+
+  // 点击外部关闭主题下拉菜单
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const themeButton = document.querySelector('.neo-theme-dropdown-button');
+      const themeDropdown = document.querySelector('.neo-theme-dropdown-menu');
+      
+      if (themeButton && themeDropdown && !themeButton.contains(event.target as Node) && !themeDropdown.contains(event.target as Node)) {
+        setShowThemeDropdown(false);
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   // 导航项配置
   const navItems = [
@@ -221,19 +239,46 @@ const NeoLeftSidebar: React.FC<NeoLeftSidebarProps> = ({
       <div className={`p-3 border-t ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
         <div className="space-y-1">
           {/* 主题切换 */}
-          <button
-            onClick={() => {
-              const currentIndex = themeOrder.indexOf(theme as typeof themeOrder[number]);
-              const nextIndex = (currentIndex + 1) % themeOrder.length;
-              setTheme(themeOrder[nextIndex]);
-            }}
-            className={`group flex items-center w-full p-3 rounded-xl transition-all duration-200
-              ${isDark ? 'text-slate-400 hover:bg-slate-800 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}
-            title="切换主题"
-          >
-            <i className={`fas ${theme === 'dark' ? 'fa-sun' : theme === 'light' ? 'fa-moon' : theme === 'blue' ? 'fa-water' : 'fa-leaf'} w-6 text-center text-lg ${collapsed ? 'mx-auto' : 'mr-3'}`}></i>
-            {!collapsed && <span className="font-medium">切换主题</span>}
-          </button>
+          <div className="relative">
+            <button
+              className={`neo-theme-dropdown-button group flex items-center w-full p-3 rounded-xl transition-all duration-200
+                ${isDark ? 'text-slate-400 hover:bg-slate-800 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}
+              title="切换主题"
+              onClick={() => setShowThemeDropdown(v => !v)}
+            >
+              <i className={`fas ${theme === 'dark' ? 'fa-sun' : theme === 'light' ? 'fa-moon' : theme === 'blue' ? 'fa-water' : theme === 'green' ? 'fa-leaf' : 'fa-dungeon'} w-6 text-center text-lg ${collapsed ? 'mx-auto' : 'mr-3'}`}></i>
+              {!collapsed && (
+                <div className="flex items-center justify-between w-full">
+                  <span className="font-medium">切换主题</span>
+                  <i className={`fas fa-chevron-down transition-transform duration-200 ${showThemeDropdown ? 'rotate-180' : ''}`}></i>
+                </div>
+              )}
+              {collapsed && (
+                <i className={`fas fa-chevron-down transition-transform duration-200 ${showThemeDropdown ? 'rotate-180' : ''} absolute right-3`}></i>
+              )}
+            </button>
+            {showThemeDropdown && (
+              <div className={`neo-theme-dropdown-menu absolute left-0 right-0 mt-2 rounded-xl shadow-lg ring-1 ${isDark ? 'bg-slate-800 ring-slate-700' : 'bg-white ring-slate-200'}`} role="menu" aria-label="切换主题">
+                <ul className="py-1">
+                  {themeConfig.map(themeOption => (
+                    <li key={themeOption.value}>
+                      <button
+                        className={`w-full text-left px-4 py-2 flex items-center space-x-2 ${isDark ? 'hover:bg-slate-700' : 'hover:bg-slate-100'} ${theme === themeOption.value ? (isDark ? 'bg-slate-700 text-white' : 'bg-slate-100 font-semibold') : ''}`}
+                        onClick={() => {
+                          setTheme(themeOption.value);
+                          setShowThemeDropdown(false);
+                        }}
+                        role="menuitem"
+                      >
+                        <i className={themeOption.icon}></i>
+                        <span>{themeOption.label}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
 
           {/* 辅助面板开关 */}
           <button

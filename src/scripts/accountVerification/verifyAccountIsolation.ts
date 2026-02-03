@@ -533,6 +533,6 @@ export async function runAccountIsolationVerification(): Promise<VerificationRep
 }
 
 // 如果直接运行脚本，则执行验证
-if (typeof require !== 'undefined' && require.main === module) {
+if (typeof process !== 'undefined' && process.argv && process.argv[1] && process.argv[1].includes('verifyAccountIsolation')) {
   runAccountIsolationVerification();
 }

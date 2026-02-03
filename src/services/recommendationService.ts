@@ -349,7 +349,7 @@ export function generateContentBasedRecommendations(userId: string, limit: numbe
     }
     
     // 根据互动数据调整分数
-    score += (post.likes * 0.01) + (post.views * 0.001) + (post.shares * 0.02);
+    score += (post.likes * 0.01) + (post.views * 0.001) + (post.shares * 0.02) + (post.upvotes || 0) * 0.01;
     
     // 新鲜度权重
     if (post.createdAt) {

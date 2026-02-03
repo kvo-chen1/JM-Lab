@@ -46,17 +46,17 @@ export const CommunityInfoSidebar: React.FC<CommunityInfoSidebarProps> = ({
   weeklyInteractions = 0,
   createdDate = '',
   creator = '',
+  isAdmin = false,
 }) => {
   if (!community) return null;
 
   const navigate = useNavigate();
   
-  // 模拟当前用户是社群管理员
-  const isAdmin = true;
-  
   // 状态管理
   const [expandedRules, setExpandedRules] = useState<number[]>([]);
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
+
+  const displayHotPosts: HotPost[] = [];
   
   // 处理用户点击事件
   const handleUserClick = (username: string) => {
@@ -86,30 +86,20 @@ export const CommunityInfoSidebar: React.FC<CommunityInfoSidebarProps> = ({
     { id: 'events', title: '近期活动' }
   ];
   
-  // 模拟版规数据
+  // 模拟版规数据 - 已替换为默认通用版规
   const rules: Rule[] = communityGuidelines.length > 0 ? 
     communityGuidelines.map((content, index) => ({
       id: index + 1,
       title: `规则 ${index + 1}`,
       content
     })) : [
-    { id: 1, title: '仅限表情包', content: '本社群仅允许发布与《Apex英雄》相关的表情包，请勿发布其他类型的内容。' },
-    { id: 2, title: '一般准则', content: '请遵守基本的网络礼仪，尊重他人，不得发布攻击性、歧视性或违法内容。' },
-    { id: 3, title: '帖子内容必须与《Apex英雄》相关', content: '所有帖子内容必须与《Apex英雄》游戏相关，无关内容将被删除。' },
-    { id: 4, title: '无重复帖子', content: '请勿发布重复内容，相同或相似的帖子将被合并或删除。' },
-    { id: 5, title: '泄露和剧透', content: '请勿发布游戏未正式发布的内容或剧透信息，违者将被警告或封禁。' },
-    { id: 6, title: '文明交流', content: '请使用文明用语，不得进行人身攻击或辱骂他人。' },
-    { id: 7, title: '禁止广告', content: '请勿在社群内发布任何形式的广告或推广内容。' }
+    { id: 1, title: '文明交流', content: '请遵守基本的网络礼仪，尊重他人，不得发布攻击性、歧视性或违法内容。' },
+    { id: 2, title: '内容相关', content: '请发布与本社区主题相关的内容，无关内容可能会被管理员移除。' },
+    { id: 3, title: '原创保护', content: '鼓励原创内容，转载请注明出处，尊重知识产权。' },
+    { id: 4, title: '禁止广告', content: '未经允许，请勿在社群内发布商业广告或推广信息。' }
   ];
   
-  // 模拟热门帖子数据
-  const hotPosts: HotPost[] = [
-    { id: '1', title: '这个表情包太搞笑了，哈哈哈哈', comments: 234, upvotes: 1567 },
-    { id: '2', title: '有没有一起组队玩的？', comments: 89, upvotes: 456 },
-    { id: '3', title: '新赛季的更新内容大家怎么看？', comments: 156, upvotes: 892 },
-    { id: '4', title: '分享一个我做的Apex表情包', comments: 67, upvotes: 345 },
-    { id: '5', title: '这个英雄的新皮肤太帅了！', comments: 123, upvotes: 789 }
-  ];
+
   
   // 切换版规展开/折叠状态
   const toggleRuleExpansion = (id: number) => {
@@ -161,11 +151,11 @@ export const CommunityInfoSidebar: React.FC<CommunityInfoSidebarProps> = ({
               <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>在线</div>
             </div>
             <div className="text-center">
-              <div className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{weeklyVisitors > 0 ? weeklyVisitors.toLocaleString() : '7.6K'}</div>
+              <div className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{weeklyVisitors > 0 ? weeklyVisitors.toLocaleString() : '0'}</div>
               <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>每周访客</div>
             </div>
             <div className="text-center">
-              <div className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{weeklyInteractions > 0 ? weeklyInteractions.toLocaleString() : '148'}</div>
+              <div className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{weeklyInteractions > 0 ? weeklyInteractions.toLocaleString() : '0'}</div>
               <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>每周互动</div>
             </div>
           </div>
@@ -261,7 +251,7 @@ export const CommunityInfoSidebar: React.FC<CommunityInfoSidebarProps> = ({
             </button>
             {expandedSection === 'hot-posts' && (
               <div className="space-y-3 p-3">
-                {hotPosts.map((post, index) => (
+                {displayHotPosts.length > 0 ? displayHotPosts.map((post, index) => (
                   <div key={index} className={`p-3 rounded-lg transition-colors cursor-pointer ${isDark ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-200 hover:bg-gray-300'}`}>
                     <div className={`text-sm font-medium mb-2 line-clamp-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                       {post.title}
@@ -277,7 +267,11 @@ export const CommunityInfoSidebar: React.FC<CommunityInfoSidebarProps> = ({
                       </span>
                     </div>
                   </div>
-                ))}
+                )) : (
+                  <div className={`text-xs text-center py-2 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                    暂无热门帖子
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -331,7 +325,7 @@ export const CommunityInfoSidebar: React.FC<CommunityInfoSidebarProps> = ({
             </button>
             {expandedSection === 'active-members' && (
               <div className="space-y-3 p-3">
-                {['设计师小明', '插画师小陈', '数字艺术家小张', '品牌设计师老王', '策展人李四', '游戏爱好者王五'].map((name, index) => (
+                {members.length > 0 ? members.map((name, index) => (
                   <div 
                     key={index} 
                     className="flex items-center gap-3 opacity-90 hover:opacity-100 cursor-pointer transition-colors hover:bg-gray-200 dark:hover:bg-gray-800 rounded-md p-1.5"
@@ -352,7 +346,11 @@ export const CommunityInfoSidebar: React.FC<CommunityInfoSidebarProps> = ({
                         {name}
                       </span>
                   </div>
-                ))}
+                )) : (
+                  <div className={`text-xs text-center py-2 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                    暂无活跃成员
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -370,20 +368,23 @@ export const CommunityInfoSidebar: React.FC<CommunityInfoSidebarProps> = ({
             </button>
             {expandedSection === 'events' && (
               <div className="space-y-3 p-3">
-                {[
-                  { title: 'Apex表情包创作大赛', date: '2026-01-25' },
-                  { title: '新赛季组队活动', date: '2026-01-30' },
-                  { title: '社群周年庆典', date: '2026-02-07' }
-                ].map((event, index) => (
-                  <div key={index} className={`p-3 rounded-lg transition-colors cursor-pointer ${isDark ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-200 hover:bg-gray-300'}`}>
-                    <div className={`text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                      {event.title}
+                {/* TODO: Fetch real events from API */}
+                {[].length > 0 ? (
+                  [].map((event: any, index) => (
+                    <div key={index} className={`p-3 rounded-lg transition-colors cursor-pointer ${isDark ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-200 hover:bg-gray-300'}`}>
+                      <div className={`text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                        {event.title}
+                      </div>
+                      <div className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                        {event.date}
+                      </div>
                     </div>
-                    <div className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
-                      {event.date}
-                    </div>
+                  ))
+                ) : (
+                  <div className={`text-xs text-center py-2 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                    暂无近期活动
                   </div>
-                ))}
+                )}
               </div>
             )}
           </div>
@@ -397,19 +398,31 @@ export const CommunityInfoSidebar: React.FC<CommunityInfoSidebarProps> = ({
               管理功能
           </h3>
           <div className="grid grid-cols-2 gap-2">
-            <button className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-colors ${isDark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100'}`}>
+            <button 
+              className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-colors ${isDark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100'}`}
+              onClick={() => navigate(`/community/${community.id}/admin?tab=members`)}
+            >
               <i className="fas fa-users text-xs"></i>
               <span>管理成员</span>
             </button>
-            <button className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-colors ${isDark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100'}`}>
+            <button 
+              className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-colors ${isDark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100'}`}
+              onClick={() => navigate(`/community/${community.id}/admin?tab=announcement`)}
+            >
               <i className="fas fa-bullhorn text-xs"></i>
               <span>发布公告</span>
             </button>
-            <button className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-colors ${isDark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-900'}`}>
+            <button 
+              className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-colors ${isDark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-900'}`}
+              onClick={() => navigate(`/community/${community.id}/admin?tab=moderation`)}
+            >
               <i className="fas fa-shield-alt text-xs"></i>
               <span>审核管理</span>
             </button>
-            <button className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-colors ${isDark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100'}`}>
+            <button 
+              className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-colors ${isDark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100'}`}
+              onClick={() => navigate(`/community/${community.id}/admin?tab=settings`)}
+            >
               <i className="fas fa-cog text-xs"></i>
               <span>社群设置</span>
             </button>

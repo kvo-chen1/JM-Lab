@@ -1,0 +1,251 @@
+:root {
+  --pb-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", Helvetica, "ヒラギノ角ゴ Pro W3", "Hiragino Kaku Gothic Pro", メイリオ, Meiryo, "ＭＳ Ｐゴシック", Arial, sans-serif;
+  --pb-bg-default: #ffffff;
+  --pb-bg-hover: #f5f5f5;
+  --pb-bg-active: #ffffff;
+  --pb-border-radius: 24px;
+  --pb-height: 48px;
+  --pb-icon-color: #767676;
+  --pb-icon-hover: #111111;
+  --pb-text-color: #111111;
+  --pb-placeholder-color: #767676;
+  --pb-focus-border: #78909c; /* Fallback or specific color if needed, but Pinterest uses shadow mostly */
+  --pb-focus-shadow: 0 0 0 4px rgba(0, 132, 255, 0.5); /* Pinterest uses a specific blueish shadow often, or rgba(17,17,17,0.08) as per requirement */
+  --pb-clear-bg: #cdcdcd;
+  --pb-clear-hover: #767676;
+  --pb-transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  --pb-skeleton-bg: #efefef;
+}
+
+/* Dark mode variables override */
+.dark {
+  --pb-bg-default: #ffffff;
+  --pb-bg-hover: #f5f5f5;
+  --pb-bg-active: #ffffff;
+  --pb-icon-color: #767676;
+  --pb-icon-hover: #111111;
+  --pb-text-color: #111111;
+  --pb-placeholder-color: #767676;
+  --pb-focus-shadow: 0 0 0 4px rgba(0, 132, 255, 0.5);
+  --pb-clear-bg: #cdcdcd;
+  --pb-clear-hover: #767676;
+  --pb-skeleton-bg: #efefef;
+}
+
+.pinterest-search-wrapper {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  position: relative;
+  z-index: 1000;
+  /* padding: 20px 0; Removed padding to fit into header */
+}
+
+.pinterest-search-bar {
+  font-family: var(--pb-font-family);
+  height: var(--pb-height);
+  background-color: var(--pb-bg-default);
+  border-radius: var(--pb-border-radius);
+  display: flex;
+  align-items: center;
+  padding: 0 0 0 16px;
+  position: relative;
+  box-sizing: border-box;
+  transition: var(--pb-transition);
+  border: 1px solid #e0e0e0;
+  width: 100%;
+}
+
+/* Responsive Width handled by parent or Tailwind classes, but we can keep max-width logic if needed */
+/* In this context, we let the parent container control the width, but enforce the style */
+
+.pinterest-search-bar:hover:not(.focused) {
+  background-color: var(--pb-bg-hover);
+}
+
+.pinterest-search-bar:hover:not(.focused) .search-icon {
+  fill: var(--pb-icon-hover);
+}
+
+.pinterest-search-bar.focused {
+  background-color: var(--pb-bg-active);
+  /* Pinterest focused state: usually white bg + shadow, no border color change or subtle */
+  box-shadow: 0 0 0 4px rgba(17, 17, 17, 0.08); 
+}
+
+.dark .pinterest-search-bar.focused {
+   box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.1);
+}
+
+.pinterest-search-bar.focused .search-icon {
+  fill: var(--pb-icon-hover);
+}
+
+.pinterest-search-bar .search-icon-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 12px;
+}
+
+.pinterest-search-bar .search-icon {
+  width: 16px;
+  height: 16px;
+  fill: var(--pb-icon-color);
+  transition: fill 200ms ease;
+}
+
+.pinterest-search-bar input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 400;
+  color: var(--pb-text-color);
+  outline: none;
+  height: 100%;
+  padding: 0;
+  min-width: 0;
+}
+
+.pinterest-search-bar input::placeholder {
+  color: var(--pb-placeholder-color);
+  opacity: 1;
+}
+
+.pinterest-search-bar .clear-btn {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background-color: var(--pb-clear-bg);
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  margin: 0 14px 0 8px;
+  padding: 0;
+  opacity: 0;
+  visibility: hidden;
+  transform: scale(0.8);
+  transition: opacity 200ms ease, transform 200ms ease, background-color 200ms ease;
+  flex-shrink: 0;
+}
+
+.pinterest-search-bar .clear-btn.visible {
+  opacity: 1;
+  visibility: visible;
+  transform: scale(1);
+}
+
+.pinterest-search-bar .clear-btn:hover {
+  background-color: var(--pb-clear-hover);
+}
+
+.pinterest-search-bar .clear-btn svg {
+  width: 10px;
+  height: 10px;
+  fill: #ffffff;
+  display: block;
+}
+
+/* Suggestion Box Styles to match Pinterest */
+.pinterest-suggestions {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  width: 100%;
+  background: var(--pb-bg-active);
+  border-radius: 16px;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+  padding: 16px;
+  box-sizing: border-box;
+  z-index: 9999;
+  max-height: 400px;
+  overflow-y: auto;
+  opacity: 0;
+  transform: translateY(-10px);
+  transition: opacity 200ms ease, transform 200ms ease;
+  visibility: hidden;
+}
+
+.pinterest-suggestions.visible {
+  visibility: visible;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.dark .pinterest-suggestions {
+    background: #212121;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+}
+
+/* Suggestion Group Styles */
+.suggestion-group {
+    margin-bottom: 12px;
+}
+
+.suggestion-group:last-child {
+    margin-bottom: 0;
+}
+
+.suggestion-group-title {
+    font-size: 14px;
+    font-weight: 400;
+    color: var(--pb-text-color);
+    padding: 8px 12px;
+    margin-bottom: 4px;
+}
+
+.suggestion-item {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    color: var(--pb-text-color);
+    font-weight: 700; /* Pinterest suggestions are often bold */
+}
+
+.suggestion-item:hover {
+    background-color: var(--pb-bg-default);
+}
+
+.suggestion-icon {
+    margin-right: 12px;
+    color: var(--pb-icon-color);
+    width: 16px;
+    display: flex;
+    justify-content: center;
+}
+
+.remove-btn {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: none;
+    background: transparent;
+    color: var(--pb-icon-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    margin-left: 8px;
+    opacity: 0;
+    transition: all 0.2s;
+}
+
+.suggestion-item:hover .remove-btn {
+    opacity: 1;
+}
+
+.remove-btn:hover {
+    background-color: rgba(0,0,0,0.1);
+    color: var(--pb-text-color);
+}
+
+.dark .remove-btn:hover {
+    background-color: rgba(255,255,255,0.1);
+}

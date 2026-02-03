@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { toast } from 'sonner';
-import websocketService from '@/services/websocketService';
+import { websocketService } from '@/services/websocketService';
 
 // 导入WebSocket消息类型
 interface WebSocketMessage {
@@ -93,6 +93,9 @@ const CollaborativeEditor: React.FC<CollaborativeEditorProps> = React.memo(({
 
   // WebSocket连接管理
   useEffect(() => {
+    // 只在客户端挂载后连接WebSocket
+    if (!isMounted) return;
+    
     // 连接WebSocket
     websocketService.connect(sessionId, userId, username);
     
@@ -119,7 +122,7 @@ const CollaborativeEditor: React.FC<CollaborativeEditorProps> = React.memo(({
     return () => {
       websocketService.disconnect();
     };
-  }, [sessionId, userId, username]);
+  }, [sessionId, userId, username, isMounted]);
 
   // 处理WebSocket消息
   const handleWebSocketMessage = useCallback((message: WebSocketMessage) => {
@@ -360,10 +363,13 @@ const CollaborativeEditor: React.FC<CollaborativeEditorProps> = React.memo(({
     if (readOnly) return;
     
     const target = event.target as HTMLDivElement;
-    const newContent = target.innerHTML || '';
+    const newContent = target.textContent || '';
     
     setContent(newContent);
     onContentChange?.(newContent);
+    
+    // 发送文本编辑操作到 WebSocket 服务
+    websocketService.sendTextEdit('insert', 0, newContent, content.length);
     
     // 更新历史记录（节流处理，避免频繁更新）
     if (contentChangeTimeoutRef.current) {
@@ -567,7 +573,6 @@ const CollaborativeEditor: React.FC<CollaborativeEditorProps> = React.memo(({
           contentEditable={!readOnly}
           suppressContentEditableWarning
           className={`min-h-[200px] p-4 rounded-lg border-2 focus:outline-none focus:border-red-500 transition-colors ${isDark ? 'bg-gray-900 border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'} ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`}
-          dangerouslySetInnerHTML={{ __html: content || '' }}
           onInput={handleTextInput}
           onKeyDown={handleKeyDown}
           onMouseUp={handleMouseUp}
@@ -579,7 +584,9 @@ const CollaborativeEditor: React.FC<CollaborativeEditorProps> = React.memo(({
           }}
           aria-label="协作编辑器"
           aria-describedby={typingUsers.length > 0 ? 'typing-status' : undefined}
-        />
+        >
+          {content}
+        </div>
       </div>
 
       {/* 操作提示 */}

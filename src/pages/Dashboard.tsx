@@ -5,6 +5,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { AuthContext } from '@/contexts/authContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import CreatorProfile from '../components/CreatorProfile';
+import OptimizedImage from '../components/OptimizedImage';
 import achievementService from '../services/achievementService';
 import analyticsService from '../services/analyticsService';
 import taskService, { Task } from '../services/taskService';
@@ -37,6 +38,8 @@ export default function Dashboard() {
   const [achievements, setAchievements] = useState(() => achievementService.getUnlockedAchievements());
   const [pointsStats, setPointsStats] = useState(() => achievementService.getPointsStats());
   const [worksPerformance, setWorksPerformance] = useState(() => analyticsService.getWorksPerformance(3));
+  // 新增：图表数据状态
+  const [analyticsChartData, setAnalyticsChartData] = useState<any[] | null>(null);
   const [activePeriod, setActivePeriod] = useState<'周' | '月' | '年'>('月');
   const [noviceTasks, setNoviceTasks] = useState<Task[]>([]);
   const [dailyTasks, setDailyTasks] = useState<Task[]>([]);
@@ -58,18 +61,29 @@ export default function Dashboard() {
     if (isRealUser && user?.id) {
       const fetchUserData = async () => {
         try {
-          const [worksRes, statsRes] = await Promise.all([
+          setIsLoading(true);
+          // 并行请求所有用户数据
+          const [worksRes, statsRes, achievementsRes, tasksRes, analyticsRes] = await Promise.all([
             fetch(`/api/user/works?userId=${user.id}`),
-            fetch(`/api/user/stats?userId=${user.id}`)
+            fetch(`/api/user/stats?userId=${user.id}`),
+            fetch(`/api/user/achievements?userId=${user.id}`),
+            fetch(`/api/user/tasks?userId=${user.id}`),
+            fetch(`/api/user/analytics?userId=${user.id}`)
           ]);
           
+          // 处理作品数据
           if (worksRes.ok) {
             const worksData = await worksRes.json();
             if (worksData.code === 0) {
-              setRealUserWorks(worksData.data);
+              setRealUserWorks(worksData.data || []);
+            } else {
+              console.warn('Works API returned error:', worksData.message);
             }
+          } else {
+            console.warn('Works API request failed:', worksRes.status);
           }
           
+          // 处理统计数据
           if (statsRes.ok) {
             const statsData = await statsRes.json();
             if (statsData.code === 0) {
@@ -77,34 +91,100 @@ export default function Dashboard() {
               setRealUserStats(data);
               
               // Update level info with real data
-              if (data.level) {
-                setCreatorLevelInfo({
+              if (data) {
+                setCreatorLevelInfo(prev => ({
+                  ...prev,
                   currentLevel: { 
-                    id: data.level, 
-                    name: `创作Lv.${data.level}`, 
-                    icon: data.level === 1 ? 'seedling' : data.level === 2 ? 'tree' : 'crown',
-                    requiredPoints: 0 
+                    ...prev.currentLevel,
+                    id: data.level || 1, 
+                    name: `创作Lv.${data.level || 1}`, 
+                    icon: (data.level || 1) === 1 ? 'seedling' : (data.level || 1) === 2 ? 'tree' : 'crown',
                   },
-                  nextLevel: data.level < 4 ? { 
-                    id: data.level + 1, 
-                    name: `创作Lv.${data.level + 1}`, 
-                    requiredPoints: data.next_level_points 
+                  nextLevel: (data.level || 1) < 4 ? { 
+                    ...prev.nextLevel!,
+                    id: (data.level || 1) + 1, 
+                    name: `创作Lv.${(data.level || 1) + 1}`, 
+                    requiredPoints: data.next_level_points || 100
                   } : null,
-                  currentPoints: data.points,
-                  pointsToNextLevel: data.next_level_points - data.points,
-                  levelProgress: data.level_progress
-                });
+                  currentPoints: data.points || 0,
+                  pointsToNextLevel: (data.next_level_points || 100) - (data.points || 0),
+                  levelProgress: data.level_progress || 0
+                }));
               }
+            } else {
+              console.warn('Stats API returned error:', statsData.message);
             }
+          } else {
+            console.warn('Stats API request failed:', statsRes.status);
+          }
+          
+          // 处理成就数据
+          if (achievementsRes.ok) {
+            const achievementsData = await achievementsRes.json();
+            if (achievementsData.code === 0) {
+              setAchievements(achievementsData.data.achievements || []);
+              setPointsStats(achievementsData.data.pointsStats || pointsStats);
+            } else {
+              console.warn('Achievements API returned error:', achievementsData.message);
+            }
+          } else {
+            console.warn('Achievements API request failed:', achievementsRes.status);
+          }
+          
+          // 处理任务数据
+          if (tasksRes.ok) {
+            const tasksData = await tasksRes.json();
+            if (tasksData.code === 0) {
+              setNoviceTasks(tasksData.data.noviceTasks || []);
+              setDailyTasks(tasksData.data.dailyTasks || []);
+            } else {
+              console.warn('Tasks API returned error:', tasksData.message);
+            }
+          } else {
+            console.warn('Tasks API request failed:', tasksRes.status);
+          }
+          
+          // 处理分析数据
+          if (analyticsRes.ok) {
+            const analyticsData = await analyticsRes.json();
+            if (analyticsData.code === 0) {
+              const data = analyticsData.data;
+              // 智能处理不同格式的返回数据
+              if (Array.isArray(data)) {
+                setWorksPerformance(data);
+              } else if (data && typeof data === 'object') {
+                // 如果包含 works 字段且是数组
+                if (Array.isArray(data.works)) {
+                  setWorksPerformance(data.works);
+                }
+                // 如果包含 chartData 字段
+                if (Array.isArray(data.chartData)) {
+                  setAnalyticsChartData(data.chartData);
+                }
+                // 如果 data 本身包含 list 字段（常见分页格式）
+                if (Array.isArray(data.list)) {
+                  setWorksPerformance(data.list);
+                }
+              }
+            } else {
+              console.warn('Analytics API returned error:', analyticsData.message);
+            }
+          } else {
+            console.warn('Analytics API request failed:', analyticsRes.status);
           }
         } catch (error) {
           console.error('Failed to fetch real user data:', error);
+          // 错误时保持现有状态，不清除数据
+        } finally {
+          setIsLoading(false);
         }
       };
       
       fetchUserData();
+    } else {
+      setIsLoading(false);
     }
-  }, [isRealUser, user?.id]);
+  }, [isRealUser, user?.id, pointsStats, worksPerformance]);
 
   // 点击外部关闭菜单
   useEffect(() => {
@@ -128,21 +208,21 @@ export default function Dashboard() {
   };
   
   // 准备积分来源饼图数据
-  const pointsSourceStats = achievementService.getPointsSourceStats();
+  const pointsSourceStats = pointsStats?.pointsSourceStats || achievementService.getPointsSourceStats();
   
   // 根据activePeriod计算当前图表数据
   const chartData = () => {
-    if (isRealUser) {
-      // Return empty data for real users initially (until analytics API is ready)
-      return [
-        { name: '一月', views: 0, likes: 0, comments: 0 },
-        { name: '二月', views: 0, likes: 0, comments: 0 },
-        { name: '三月', views: 0, likes: 0, comments: 0 },
-        { name: '四月', views: 0, likes: 0, comments: 0 },
-        { name: '五月', views: 0, likes: 0, comments: 0 },
-        { name: '六月', views: 0, likes: 0, comments: 0 }
-      ];
+    // 检查是否有真实的分析数据
+    if (isRealUser && analyticsChartData && analyticsChartData.length > 0) {
+      return analyticsChartData;
     }
+    
+    // 兼容旧逻辑：如果worksPerformance中有chartData（虽然类型定义不支持，但运行时可能存在）
+    if (isRealUser && worksPerformance && (worksPerformance as any).chartData) {
+      return (worksPerformance as any).chartData;
+    }
+    
+    // 如果没有真实数据，返回基于时间段的默认数据
     switch (activePeriod) {
       case '周':
         return [
@@ -175,12 +255,12 @@ export default function Dashboard() {
     }
   };
   const pieData = [
-    { name: '成就', value: pointsSourceStats.achievement, color: '#60a5fa' },
-    { name: '任务', value: pointsSourceStats.task, color: '#34d399' },
-    { name: '每日', value: pointsSourceStats.daily, color: '#fbbf24' },
-    { name: '消费', value: pointsSourceStats.consumption, color: '#f87171' },
-    { name: '兑换', value: pointsSourceStats.exchange, color: '#a78bfa' },
-    { name: '其他', value: pointsSourceStats.other, color: '#94a3b8' }
+    { name: '成就', value: pointsSourceStats.achievement || 0, color: '#60a5fa' },
+    { name: '任务', value: pointsSourceStats.task || 0, color: '#34d399' },
+    { name: '每日', value: pointsSourceStats.daily || 0, color: '#fbbf24' },
+    { name: '消费', value: pointsSourceStats.consumption || 0, color: '#f87171' },
+    { name: '兑换', value: pointsSourceStats.exchange || 0, color: '#a78bfa' },
+    { name: '其他', value: pointsSourceStats.other || 0, color: '#94a3b8' }
   ].filter(item => item.value > 0);
   
   // 检查是否已登录并加载数据
@@ -243,18 +323,18 @@ export default function Dashboard() {
           <div className="lg:col-span-12">
             {/* 欢迎区域 */}
         <motion.div 
-          className={`mb-8 p-6 rounded-2xl ${isDark ? 'bg-gradient-to-br from-gray-800 to-gray-900 backdrop-blur-sm border border-gray-700' : 'bg-gradient-to-br from-white to-red-50 shadow-md border border-red-50'} relative overflow-hidden`}
+          className={`mb-6 sm:mb-8 p-4 sm:p-6 rounded-2xl ${isDark ? 'bg-gradient-to-br from-gray-800 to-gray-900 backdrop-blur-sm border border-gray-700' : 'bg-gradient-to-br from-white to-red-50 shadow-md border border-red-50'} relative overflow-hidden`}
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
           {/* 装饰元素 */}
-          <div className="absolute top-0 right-0 w-48 h-48 bg-red-500/10 rounded-full blur-3xl -mr-16 -mt-16"></div>
-          <div className="absolute bottom-0 left-0 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl -ml-8 -mb-8"></div>
+          <div className="absolute top-0 right-0 w-32 sm:w-48 h-32 sm:h-48 bg-red-500/10 rounded-full blur-3xl -mr-8 sm:-mr-16 -mt-8 sm:-mt-16"></div>
+          <div className="absolute bottom-0 left-0 w-24 sm:w-32 h-24 sm:h-32 bg-blue-500/10 rounded-full blur-3xl -ml-4 sm:-ml-8 -mb-4 sm:-mb-8"></div>
           
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center relative z-10">
-        <div>
-          <h1 className="text-2xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-red-600 to-orange-600">欢迎回来，{user?.username}！</h1>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center relative z-10 gap-4">
+        <div className="flex-1">
+          <h1 className="text-xl sm:text-2xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-red-600 to-orange-600">欢迎回来，{user?.username}！</h1>
           <p className={`${isDark ? 'text-gray-300' : 'text-gray-600'} text-sm leading-relaxed`}>
             今天是个创作的好日子，您有 <span className="text-red-600 font-medium animate-pulse">0</span> 个作品待完成
           </p>
@@ -263,7 +343,7 @@ export default function Dashboard() {
         <motion.button
           id="guide-step-dashboard-create"
           onClick={handleCreateNew}
-          className="mt-4 md:mt-0 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white px-6 py-3 rounded-full flex items-center gap-2 transition-all duration-300 min-h-[44px] shadow-lg hover:shadow-xl hover:shadow-red-500/20"
+          className="w-full sm:w-auto mt-2 sm:mt-0 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white px-4 sm:px-6 py-3 rounded-full flex items-center justify-center gap-2 transition-all duration-300 min-h-[48px] shadow-lg hover:shadow-xl hover:shadow-red-500/20"
           whileHover={{ scale: 1.05, y: -2 }}
           whileTap={{ scale: 0.98 }}
           aria-label="开始创作"
@@ -282,24 +362,25 @@ export default function Dashboard() {
           transition={{ duration: 0.5, delay: 0.1 }}
         >
           {/* 装饰元素 */}
-          <div className="absolute top-0 right-0 w-48 h-48 bg-red-500/10 rounded-full blur-3xl -mr-16 -mt-16"></div>
-          <div className="flex flex-col md:flex-row items-center md:items-start p-2 md:p-0">
-              <div className="relative mb-6 md:mb-0 md:mr-6">
+          <div className="absolute top-0 right-0 w-32 sm:w-48 h-32 sm:h-48 bg-red-500/10 rounded-full blur-3xl -mr-8 sm:-mr-16 -mt-8 sm:-mt-16"></div>
+          <div className="flex flex-col md:flex-row items-center md:items-start p-3 md:p-0 gap-4 sm:gap-6">
+              <div className="relative">
                 {user?.avatar && user.avatar.trim() ? (
-                  <div className="relative w-24 h-24 rounded-full group">
+                  <div className="relative w-20 sm:w-24 h-20 sm:h-24 rounded-full group">
                     <div className="absolute inset-0 rounded-full bg-gradient-to-r from-red-500 to-orange-500 blur-sm opacity-0 group-hover:opacity-100 transition-opacity duration-300 animate-pulse"></div>
-                    <img 
-                      src={user.avatar} 
-                      alt={user.username || '用户头像'} 
-                      className="w-full h-full rounded-full object-cover border-4 border-red-600 transition-transform duration-300 group-hover:scale-105 relative z-10"
-                      loading="lazy" decoding="async"
+                    <OptimizedImage
+                      src={user.avatar}
+                      alt={user.username || '用户头像'}
+                      priority={true}
+                      placeholder="加载中..."
+                      className="w-full h-full rounded-full object-cover border-3 sm:border-4 border-red-600 transition-transform duration-300 group-hover:scale-105 relative z-10"
                       onError={(e) => {
-                        const target = e.target as HTMLImageElement;
+                        const target = e.currentTarget as HTMLImageElement;
                         target.style.display = 'none';
                         const parent = target.parentElement;
                         if (parent) {
                           const defaultAvatar = document.createElement('div');
-                          defaultAvatar.className = `absolute inset-0 rounded-full flex items-center justify-center text-white font-bold text-3xl border-4 border-red-600 bg-gradient-to-r from-blue-600 to-red-600`;
+                          defaultAvatar.className = `absolute inset-0 rounded-full flex items-center justify-center text-white font-bold text-2xl sm:text-3xl border-3 sm:border-4 border-red-600 bg-gradient-to-r from-blue-600 to-red-600`;
                           defaultAvatar.textContent = user?.username?.charAt(0) || 'U';
                           parent.appendChild(defaultAvatar);
                         }
@@ -307,12 +388,12 @@ export default function Dashboard() {
                     />
                   </div>
                 ) : (
-                  <div className={`w-24 h-24 rounded-full flex items-center justify-center text-white font-bold text-3xl bg-gradient-to-r from-blue-600 to-red-600 border-4 border-red-600 relative overflow-hidden group`}>
+                  <div className={`w-20 sm:w-24 h-20 sm:h-24 rounded-full flex items-center justify-center text-white font-bold text-2xl sm:text-3xl bg-gradient-to-r from-blue-600 to-red-600 border-3 sm:border-4 border-red-600 relative overflow-hidden group`}>
                     <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                     {user?.username?.charAt(0) || 'U'}
                   </div>
                 )}
-                <div className="absolute -bottom-2 -right-2 bg-red-600 text-white w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shadow-lg group-hover:scale-110 transition-transform duration-200">
+                <div className="absolute -bottom-1 -right-1 sm:-bottom-2 sm:-right-2 bg-red-600 text-white w-8 sm:w-10 h-8 sm:h-10 rounded-full flex items-center justify-center text-xs sm:text-sm font-bold shadow-lg group-hover:scale-110 transition-transform duration-200">
                   {creatorLevelInfo.levelProgress}%
                 </div>
               </div>
@@ -334,14 +415,8 @@ export default function Dashboard() {
                   </div>
                   
                   <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3 w-full sm:w-auto">
-                    {/* 会员中心入口 */}
-                    <Link 
-                      to="/membership"
-                      className={`w-full px-4 py-3 rounded-lg min-h-[44px] bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white transition-all duration-300 text-sm flex items-center justify-center gap-2 shadow-md hover:shadow-lg hover:shadow-red-500/20 hover:-translate-y-1`}
-                    >
-                      <i className="fas fa-crown"></i>
-                      会员中心
-                    </Link>
+
+                    
                     
                     {/* 安装应用按钮 - 仅在可安装时显示 */}
                     <PWAInstallButton variant="dashboard" isDark={isDark} />
@@ -366,17 +441,21 @@ export default function Dashboard() {
               <div className="mb-5">
                 <div className="flex justify-between text-sm mb-2">
                   <span className={`font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{creatorLevelInfo.currentLevel.name}</span>
-                  <span className="text-right text-sm">{creatorLevelInfo.nextLevel ? `${creatorLevelInfo.nextLevel.name} (${creatorLevelInfo.nextLevel.requiredPoints}积分)` : '已达最高等级'}</span>
+                  <span className="text-right text-sm">
+                    {creatorLevelInfo.nextLevel ? (
+                      `${creatorLevelInfo.nextLevel.name} (${Math.max(0, creatorLevelInfo.nextLevel.requiredPoints - creatorLevelInfo.currentPoints)}积分升级)`
+                    ) : '已达最高等级'}
+                  </span>
                 </div>
                 <div className={`h-3 rounded-full ${isDark ? 'bg-gray-700/80' : 'bg-gray-200'} mb-1 overflow-hidden`}>
                   <motion.div 
                     className="h-full rounded-full bg-gradient-to-r from-blue-500 via-purple-500 to-red-600 flex items-center justify-end pr-2"
                     initial={{ width: 0 }}
-                    animate={{ width: `${creatorLevelInfo.levelProgress}%` }}
+                    animate={{ width: `${Math.min(100, Math.max(0, creatorLevelInfo.levelProgress))}%` }}
                     transition={{ duration: 1, delay: 0.5 }}
                   >
-                    {creatorLevelInfo.levelProgress > 0 && (
-                      <span className="text-xs text-white font-bold">{creatorLevelInfo.levelProgress}%</span>
+                    {creatorLevelInfo.levelProgress > 5 && (
+                      <span className="text-xs text-white font-bold">{Math.round(creatorLevelInfo.levelProgress)}%</span>
                     )}
                   </motion.div>
                 </div>
@@ -430,36 +509,38 @@ export default function Dashboard() {
         </motion.div>
         
         {/* 数据概览 */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          {[
-            { title: '总浏览量', value: isRealUser ? (realUserStats?.views_count || 0).toLocaleString() : '0', icon: 'eye', color: 'blue' },
-            { title: '获赞总数', value: isRealUser ? (realUserStats?.likes_count || 0).toLocaleString() : '0', icon: 'thumbs-up', color: 'red' },
-            { title: '作品总数', value: isRealUser ? (realUserStats?.works_count || 0).toLocaleString() : '0', icon: 'image', color: 'green' },
-          ].map((stat, index) => (
-            <motion.div
-              key={index}
-              className={`p-6 rounded-2xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-md`}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.1 * index }}
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className={`text-sm mb-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{stat.title}</p>
-                  <h3 className="text-2xl font-bold">{stat.value}</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
+          {
+            [
+              { title: '总浏览量', value: isRealUser ? (realUserStats?.views_count || realUserStats?.total_views || 0).toLocaleString() : '0', icon: 'eye', color: 'blue' },
+              { title: '获赞总数', value: isRealUser ? (realUserStats?.likes_count || realUserStats?.total_likes || 0).toLocaleString() : '0', icon: 'thumbs-up', color: 'red' },
+              { title: '作品总数', value: isRealUser ? (realUserStats?.works_count || realUserStats?.total_works || realUserWorks.length || 0).toLocaleString() : '0', icon: 'image', color: 'green' },
+            ].map((stat, index) => (
+              <motion.div
+                key={index}
+                className={`p-4 sm:p-6 rounded-2xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-md`}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.1 * index }}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className={`text-sm mb-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{stat.title}</p>
+                    <h3 className="text-xl sm:text-2xl font-bold">{stat.value}</h3>
+                  </div>
+                  <div className={`p-2 sm:p-3 rounded-full bg-${stat.color}-100 text-${stat.color}-600`}>
+                    <i className={`far fa-${stat.icon} text-lg sm:text-xl`}></i>
+                  </div>
                 </div>
-                <div className={`p-3 rounded-full bg-${stat.color}-100 text-${stat.color}-600`}>
-                  <i className={`far fa-${stat.icon} text-xl`}></i>
+                <div className="mt-3 sm:mt-4 text-sm">
+                  <span className="text-green-500 flex items-center">
+                    <i className="fas fa-arrow-up mr-1"></i>12.5%
+                  </span>
+                  <span className={`ml-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>较上月</span>
                 </div>
-              </div>
-              <div className="mt-4 text-sm">
-                <span className="text-green-500 flex items-center">
-                  <i className="fas fa-arrow-up mr-1"></i>12.5%
-                </span>
-                <span className={`ml-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>较上月</span>
-              </div>
-            </motion.div>
-          ))}
+              </motion.div>
+            ))
+          }
         </div>
         
         {/* 图表和最近作品 */}
@@ -560,13 +641,14 @@ export default function Dashboard() {
                   <div className="flex items-start">
                     <div className="relative">
                       <div className="w-16 h-16 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-500 group-hover:border-red-300 transition-colors">
-                        <img 
-                          src={work.thumbnail} 
-                          alt={work.title} 
+                        <OptimizedImage
+                          src={work.thumbnail}
+                          alt={work.title}
+                          placeholder={work.title.charAt(0)}
+                          aspectRatio="1/1"
                           className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
-                          loading="lazy" decoding="async"
                           onError={(e) => {
-                            const target = e.target as HTMLImageElement;
+                            const target = e.currentTarget as HTMLImageElement;
                             target.style.display = 'none';
                             const parent = target.parentElement;
                             if (parent) {
@@ -777,7 +859,7 @@ export default function Dashboard() {
               <div className={`p-5 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
                 <h3 className="text-sm font-medium mb-2">成就完成率</h3>
                 <div className="flex items-end justify-between">
-                  <div className="text-2xl font-bold">{achievementService.getAchievementStats().completionRate}%</div>
+                  <div className="text-2xl font-bold">{pointsStats?.completionRate || achievementService.getAchievementStats().completionRate}%</div>
                   <div className="text-sm text-green-500">
                     <i className="fas fa-arrow-up mr-1"></i>+5%
                   </div>
@@ -786,7 +868,7 @@ export default function Dashboard() {
                   <div className={`h-2 rounded-full ${isDark ? 'bg-gray-600' : 'bg-gray-200'}`}>
                     <div 
                       className="h-full rounded-full bg-gradient-to-r from-blue-500 to-red-600" 
-                      style={{ width: `${achievementService.getAchievementStats().completionRate}%` }}
+                      style={{ width: `${pointsStats?.completionRate || achievementService.getAchievementStats().completionRate}%` }}
                     ></div>
                   </div>
                 </div>
@@ -796,17 +878,16 @@ export default function Dashboard() {
               <div className={`p-5 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
                 <h3 className="text-sm font-medium mb-2">已解锁成就</h3>
                 <div className="flex items-end justify-between">
-                  <div className="text-2xl font-bold">{achievementService.getUnlockedAchievements().length}</div>
+                  <div className="text-2xl font-bold">{achievements.length}</div>
                   <div className="text-sm text-gray-500">
-                    / {achievementService.getAllAchievements().length}
+                    / {pointsStats?.totalAchievements || achievementService.getAllAchievements().length}
                   </div>
                 </div>
                 <div className="mt-3 grid grid-cols-5 gap-1">
-                  {achievementService.getAllAchievements().map((achievement, index) => (
+                  {Array.from({ length: pointsStats?.totalAchievements || achievementService.getAllAchievements().length }).map((_, index) => (
                     <div 
                       key={index} 
-                      className={`h-4 rounded-md ${achievement.isUnlocked ? 'bg-green-500' : isDark ? 'bg-gray-600' : 'bg-gray-200'}`} 
-                      title={achievement.name}
+                      className={`h-4 rounded-md ${index < achievements.length ? 'bg-green-500' : isDark ? 'bg-gray-600' : 'bg-gray-200'}`} 
                     ></div>
                   ))}
                 </div>
@@ -1032,7 +1113,7 @@ export default function Dashboard() {
             </div>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {worksPerformance.map((work) => (
+            {Array.isArray(worksPerformance) && worksPerformance.map((work) => (
               <motion.div 
                 key={work.workId} 
                 className={`p-5 rounded-xl ${isDark ? 'bg-gray-700/80 backdrop-blur-sm border border-gray-600' : 'bg-white shadow-sm border border-gray-100'} transition-all hover:shadow-xl hover:border-red-200 group`}

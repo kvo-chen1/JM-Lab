@@ -1,8 +1,9 @@
 import * as React from 'react';
-import { useState, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import { TianjinImage } from './TianjinStyleComponents';
+import { communityService } from '@/services/communityService';
 
 // 类型定义
 export type CommunityRole = 'admin' | 'editor' | 'member';
@@ -24,83 +25,114 @@ export type Community = {
   id: string;
   name: string;
   description: string;
-  cover: string;
-  tags: string[];
-  bookmarks: Array<{
-    id: string;
-    name: string;
-    icon: string;
-  }>;
-  members: number;
+  memberCount: number;
+  topic: string;
+  avatar: string;
+  isActive: boolean;
+  isSpecial: boolean;
+  theme: {
+    primaryColor: string;
+    secondaryColor: string;
+    backgroundColor: string;
+    textColor: string;
+  };
+  layoutType: 'standard' | 'compact' | 'expanded';
+  enabledModules: {
+    posts: boolean;
+    chat: boolean;
+    members: boolean;
+    announcements: boolean;
+  };
+  creatorId?: string;
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 interface CommunityManagementProps {
+  isOpen: boolean;
+  onClose: () => void;
+  community: Community;
   isDark: boolean;
-  userCommunities: Community[];
-  onUserCommunitiesChange: (communities: Community[]) => void;
-  joinedCommunities: string[];
-  onJoinedCommunitiesChange: (communities: string[]) => void;
-  adminStore: Record<string, string[]>;
-  onAdminStoreChange: (store: Record<string, string[]>) => void;
-  memberStore: Record<string, string[]>;
-  onMemberStoreChange: (store: Record<string, string[]>) => void;
-  roleStore: Record<string, Record<string, CommunityRole>>;
-  onRoleStoreChange: (store: Record<string, Record<string, CommunityRole>>) => void;
-  permissionStore: Record<string, CommunityRolePermissions>;
-  onPermissionStoreChange: (store: Record<string, CommunityRolePermissions>) => void;
-  announceStore: Record<string, string>;
-  onAnnounceStoreChange: (store: Record<string, string>) => void;
-  privacyStore: Record<string, 'public' | 'private'>;
-  onPrivacyStoreChange: (store: Record<string, 'public' | 'private'>) => void;
-  currentEmail: string;
-  communityTab: 'recommended' | 'user' | 'joined';
-  onCommunityTabChange: (tab: 'recommended' | 'user' | 'joined') => void;
 }
 
 const CommunityManagement: React.FC<CommunityManagementProps> = ({
-  isDark,
-  userCommunities,
-  onUserCommunitiesChange,
-  joinedCommunities,
-  onJoinedCommunitiesChange,
-  adminStore,
-  onAdminStoreChange,
-  memberStore,
-  onMemberStoreChange,
-  roleStore,
-  onRoleStoreChange,
-  permissionStore,
-  onPermissionStoreChange,
-  announceStore,
-  onAnnounceStoreChange,
-  privacyStore,
-  onPrivacyStoreChange,
-  currentEmail,
-  communityTab,
-  onCommunityTabChange
+  isOpen,
+  onClose,
+  community,
+  isDark
 }) => {
   // 状态管理
-  const [newCommunityName, setNewCommunityName] = useState('');
-  const [newCommunityDesc, setNewCommunityDesc] = useState('');
-  const [newCommunityTags, setNewCommunityTags] = useState('');
-  const [editDraft, setEditDraft] = useState<{ 
-    id: string; 
-    name: string; 
-    desc: string; 
-    tags: string;
-    bookmarks: Array<{
-      id: string;
-      name: string;
-      icon: string;
-    }>
-  } | null>(null);
-  const [manageCommunityId, setManageCommunityId] = useState<string | null>(null);
   const [newMemberEmail, setNewMemberEmail] = useState('');
-  const [expandedMembersId, setExpandedMembersId] = useState<string | null>(null);
   const [selectedRole, setSelectedRole] = useState<CommunityRole>('member');
   const [showPermissionSettings, setShowPermissionSettings] = useState(false);
   const [inviteLink, setInviteLink] = useState('');
+  const [announcement, setAnnouncement] = useState('');
+  const [joinApprovalRequired, setJoinApprovalRequired] = useState(false);
+  const [pendingRequests, setPendingRequests] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
   
+  // 本地存储状态
+  const [adminStore, setAdminStore] = useState<Record<string, string[]>>({
+    [community.id]: ['user@example.com'] // 默认管理员
+  });
+  const [memberStore, setMemberStore] = useState<Record<string, string[]>>({
+    [community.id]: ['user@example.com'] // 默认成员
+  });
+  const [roleStore, setRoleStore] = useState<Record<string, Record<string, CommunityRole>>>({
+    [community.id]: {
+      'user@example.com': 'admin' // 默认角色
+    }
+  });
+  const [permissionStore, setPermissionStore] = useState<Record<string, CommunityRolePermissions>>({
+    [community.id]: {
+      admin: [
+        'manage_members', 'manage_posts', 'manage_announcements', 'manage_settings', 
+        'manage_guidelines', 'view_analytics', 'create_posts', 'comment_posts', 'like_posts'
+      ],
+      editor: [
+        'manage_posts', 'view_analytics', 'create_posts', 'comment_posts', 'like_posts'
+      ],
+      member: [
+        'create_posts', 'comment_posts', 'like_posts'
+      ]
+    }
+  });
+  const [announceStore, setAnnounceStore] = useState<Record<string, string>>({
+    [community.id]: ''
+  });
+  const [privacyStore, setPrivacyStore] = useState<Record<string, 'public' | 'private'>>({
+    [community.id]: 'public'
+  });
+  
+  // 获取当前用户邮箱（从localStorage或其他地方获取）
+  const currentEmail = localStorage.getItem('userEmail') || 'user@example.com';
+
+  // 加载社区设置和待审核请求
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        
+        // 加载社区设置
+        const communityData = await communityService.getCommunity(community.id);
+        if (communityData) {
+          // 假设getCommunity返回的对象包含joinApprovalRequired字段
+          setJoinApprovalRequired(communityData.joinApprovalRequired || false);
+        }
+        
+        // 加载待审核的加入请求
+        const requests = await communityService.getPendingJoinRequests(community.id);
+        setPendingRequests(requests);
+      } catch (error) {
+        console.error('加载数据失败:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadData();
+  }, [community.id]);
+
   // 默认角色权限
   const defaultRolePermissions: CommunityRolePermissions = {
     admin: [
@@ -118,248 +150,6 @@ const CommunityManagement: React.FC<CommunityManagementProps> = ({
   // 判断是否为管理员
   const isAdmin = (communityId: string) => {
     return adminStore[communityId]?.includes(currentEmail) || false;
-  };
-
-  // 创建新社群
-  const createCommunity = () => {
-    const name = newCommunityName.trim();
-    const desc = newCommunityDesc.trim();
-    const tags = newCommunityTags.split(',').map(t => t.trim()).filter(Boolean);
-    
-    if (!name) { toast.warning('请输入社群名称'); return; }
-    if (!desc) { toast.warning('请输入社群简介'); return; }
-    
-    const id = `uc-${Date.now()}`;
-    const cover = 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1920x1080&prompt=User%20community%20banner%20minimal%20style';
-    
-    const newCommunity: Community = { 
-      id, 
-      name, 
-      description: desc, 
-      cover, 
-      tags, 
-      bookmarks: [],
-      members: 1 
-    };
-    
-    // 更新状态
-    onUserCommunitiesChange([newCommunity, ...userCommunities]);
-    onJoinedCommunitiesChange([...joinedCommunities, id]);
-    
-    if (currentEmail) {
-      onAdminStoreChange({ 
-        ...adminStore, 
-        [id]: [currentEmail] 
-      });
-      onMemberStoreChange({ 
-        ...memberStore, 
-        [id]: [currentEmail] 
-      });
-      
-      // 初始化角色设置
-      onRoleStoreChange({ 
-        ...roleStore, 
-        [id]: { [currentEmail]: 'admin' } 
-      });
-      
-      // 初始化权限设置
-      onPermissionStoreChange({ 
-        ...permissionStore, 
-        [id]: defaultRolePermissions 
-      });
-    }
-    
-    // 设置默认隐私设置
-    onPrivacyStoreChange({ 
-      ...privacyStore, 
-      [id]: 'public' 
-    });
-    
-    // 重置表单
-    setNewCommunityName('');
-    setNewCommunityDesc('');
-    setNewCommunityTags('');
-    
-    onCommunityTabChange('user');
-    toast.success('已创建社群');
-  };
-
-  // 删除社群
-  const deleteCommunity = (communityId: string) => {
-    const confirmDelete = window.confirm('确定要删除这个社群吗？此操作不可恢复。');
-    if (!confirmDelete) return;
-    
-    // 更新状态
-    onUserCommunitiesChange(userCommunities.filter(c => c.id !== communityId));
-    onJoinedCommunitiesChange(joinedCommunities.filter(id => id !== communityId));
-    
-    // 删除相关存储
-    const updatedAdminStore = { ...adminStore };
-    const updatedMemberStore = { ...memberStore };
-    const updatedAnnounceStore = { ...announceStore };
-    const updatedPrivacyStore = { ...privacyStore };
-    
-    delete updatedAdminStore[communityId];
-    delete updatedMemberStore[communityId];
-    delete updatedAnnounceStore[communityId];
-    delete updatedPrivacyStore[communityId];
-    
-    onAdminStoreChange(updatedAdminStore);
-    onMemberStoreChange(updatedMemberStore);
-    onAnnounceStoreChange(updatedAnnounceStore);
-    onPrivacyStoreChange(updatedPrivacyStore);
-    
-    toast.success('社群已删除');
-  };
-
-  // 编辑社群信息
-  const updateCommunity = (communityId: string, name: string, description: string, tags: string[]) => {
-    if (!name.trim()) { toast.warning('社群名称不能为空'); return; }
-    if (!description.trim()) { toast.warning('社群简介不能为空'); return; }
-    
-    onUserCommunitiesChange(userCommunities.map(c => {
-      if (c.id !== communityId) return c;
-      return { ...c, name: name.trim(), description: description.trim(), tags };
-    }));
-    
-    toast.success('社群信息已更新');
-  };
-
-  // 邀请成员加入社群
-  const inviteMember = (communityId: string, email: string) => {
-    if (!email.trim()) { toast.warning('请输入邮箱地址'); return; }
-    
-    const updatedMemberStore = {
-      ...memberStore,
-      [communityId]: [...(memberStore[communityId] || []), email.trim()]
-    };
-    
-    onMemberStoreChange(updatedMemberStore);
-    
-    // 设置成员角色
-    const updatedRoleStore = {
-      ...roleStore,
-      [communityId]: {
-        ...(roleStore[communityId] || {}),
-        [email.trim()]: selectedRole
-      }
-    };
-    
-    onRoleStoreChange(updatedRoleStore);
-    
-    // 更新社群成员数量
-    onUserCommunitiesChange(userCommunities.map(c => {
-      if (c.id !== communityId) return c;
-      return { ...c, members: (memberStore[communityId] || []).length + 1 };
-    }));
-    
-    toast.success('邀请已发送');
-    setNewMemberEmail('');
-  };
-
-  // 移除社群成员
-  const removeMember = (communityId: string, email: string) => {
-    const updatedMemberStore = {
-      ...memberStore,
-      [communityId]: (memberStore[communityId] || []).filter(m => m !== email)
-    };
-    
-    onMemberStoreChange(updatedMemberStore);
-    
-    // 移除成员角色
-    const updatedRoleStore = { ...roleStore };
-    if (updatedRoleStore[communityId]) {
-      const { [email]: removedRole, ...remainingRoles } = updatedRoleStore[communityId];
-      updatedRoleStore[communityId] = remainingRoles;
-      onRoleStoreChange(updatedRoleStore);
-    }
-    
-    // 更新社群成员数量
-    onUserCommunitiesChange(userCommunities.map(c => {
-      if (c.id !== communityId) return c;
-      return { ...c, members: (updatedMemberStore[communityId] || []).length };
-    }));
-    
-    toast.success('成员已移除');
-  };
-
-  // 升级成员为管理员
-  const promoteToAdmin = (communityId: string, email: string) => {
-    const updatedAdminStore = {
-      ...adminStore,
-      [communityId]: [...(adminStore[communityId] || []), email]
-    };
-    
-    onAdminStoreChange(updatedAdminStore);
-    
-    // 更新角色为管理员
-    const updatedRoleStore = {
-      ...roleStore,
-      [communityId]: {
-        ...(roleStore[communityId] || {}),
-        [email]: 'admin'
-      }
-    };
-    
-    onRoleStoreChange(updatedRoleStore);
-    toast.success('成员已升级为管理员');
-  };
-
-  // 降级管理员为普通成员
-  const demoteFromAdmin = (communityId: string, email: string) => {
-    const updatedAdminStore = {
-      ...adminStore,
-      [communityId]: (adminStore[communityId] || []).filter(a => a !== email)
-    };
-    
-    onAdminStoreChange(updatedAdminStore);
-    
-    // 更新角色为普通成员
-    const updatedRoleStore = {
-      ...roleStore,
-      [communityId]: {
-        ...(roleStore[communityId] || {}),
-        [email]: 'member'
-      }
-    };
-    
-    onRoleStoreChange(updatedRoleStore);
-    toast.success('管理员已降级为普通成员');
-  };
-
-  // 设置成员角色
-  const setMemberRole = (communityId: string, email: string, role: CommunityRole) => {
-    const updatedRoleStore = {
-      ...roleStore,
-      [communityId]: {
-        ...(roleStore[communityId] || {}),
-        [email]: role
-      }
-    };
-    
-    onRoleStoreChange(updatedRoleStore);
-    
-    // 如果设置为管理员，确保在adminStore中
-    if (role === 'admin') {
-      if (!adminStore[communityId]?.includes(email)) {
-        const updatedAdminStore = {
-          ...adminStore,
-          [communityId]: [...(adminStore[communityId] || []), email]
-        };
-        onAdminStoreChange(updatedAdminStore);
-      }
-    } else {
-      // 如果从管理员降级，确保从adminStore中移除
-      if (adminStore[communityId]?.includes(email)) {
-        const updatedAdminStore = {
-          ...adminStore,
-          [communityId]: (adminStore[communityId] || []).filter(a => a !== email)
-        };
-        onAdminStoreChange(updatedAdminStore);
-      }
-    }
-    
-    toast.success(`成员角色已更新为${role}`);
   };
 
   // 生成邀请链接
@@ -388,70 +178,12 @@ const CommunityManagement: React.FC<CommunityManagementProps> = ({
       }
     };
     
-    onPermissionStoreChange(updatedPermissionStore);
+    setPermissionStore(updatedPermissionStore);
     toast.success('角色权限已更新');
-  };
-
-  // 开始编辑社群
-  const startEditCommunity = (community: Community) => {
-    setEditDraft({
-      id: community.id,
-      name: community.name,
-      desc: community.description,
-      tags: community.tags.join(','),
-      bookmarks: community.bookmarks || []
-    });
-  };
-
-  // 取消编辑社群
-  const cancelEditCommunity = () => {
-    setEditDraft(null);
-  };
-
-  // 保存编辑社群
-  const saveEditCommunity = () => {
-    if (!editDraft) return;
-    
-    const name = editDraft.name.trim();
-    const desc = editDraft.desc.trim();
-    const tags = editDraft.tags.split(',').map(t => t.trim()).filter(Boolean);
-    
-    if (!name || !desc) {
-      toast.warning('名称与简介不能为空');
-      return;
-    }
-    
-    const updatedCommunities = userCommunities.map(c => 
-      c.id === editDraft.id 
-        ? { ...c, name, description: desc, tags, bookmarks: editDraft.bookmarks } 
-        : c
-    );
-    
-    onUserCommunitiesChange(updatedCommunities);
-    toast.success('已保存社群信息');
-    setEditDraft(null);
-  };
-
-  // 打开管理面板
-  const openManage = (communityId: string) => {
-    setManageCommunityId(communityId);
-    setNewMemberEmail('');
-  };
-
-  // 关闭管理面板
-  const closeManage = () => {
-    setManageCommunityId(null);
-    setNewMemberEmail('');
   };
 
   // 添加成员
   const addMember = () => {
-    if (!manageCommunityId) return;
-    if (!isAdmin(manageCommunityId)) {
-      toast.warning('仅管理员可添加成员');
-      return;
-    }
-    
     const email = newMemberEmail.trim().toLowerCase();
     if (!email || !email.includes('@')) {
       toast.warning('请输入有效邮箱');
@@ -460,430 +192,470 @@ const CommunityManagement: React.FC<CommunityManagementProps> = ({
     
     const updatedMemberStore = {
       ...memberStore,
-      [manageCommunityId]: Array.from(new Set([
-        ...(memberStore[manageCommunityId] || []), 
+      [community.id]: Array.from(new Set([
+        ...(memberStore[community.id] || []), 
         email
       ]))
     };
     
-    onMemberStoreChange(updatedMemberStore);
+    setMemberStore(updatedMemberStore);
+    
+    // 设置成员角色
+    const updatedRoleStore = {
+      ...roleStore,
+      [community.id]: {
+        ...(roleStore[community.id] || {}),
+        [email]: selectedRole
+      }
+    };
+    
+    setRoleStore(updatedRoleStore);
+    
     setNewMemberEmail('');
     toast.success('已添加成员');
   };
 
   // 移除成员
   const removeMemberFromManaged = (email: string) => {
-    if (!manageCommunityId) return;
-    if (!isAdmin(manageCommunityId)) {
-      toast.warning('仅管理员可移除成员');
-      return;
-    }
-    
     const updatedMemberStore = {
       ...memberStore,
-      [manageCommunityId]: (memberStore[manageCommunityId] || []).filter(e => e !== email)
+      [community.id]: (memberStore[community.id] || []).filter(e => e !== email)
     };
     
-    onMemberStoreChange(updatedMemberStore);
+    setMemberStore(updatedMemberStore);
+    
+    // 移除成员角色
+    const updatedRoleStore = { ...roleStore };
+    if (updatedRoleStore[community.id]) {
+      const { [email]: removedRole, ...remainingRoles } = updatedRoleStore[community.id];
+      updatedRoleStore[community.id] = remainingRoles;
+      setRoleStore(updatedRoleStore);
+    }
+    
     toast.success('已移除成员');
   };
 
   // 设置社群公告
   const setAnnouncementForManaged = (text: string) => {
-    if (!manageCommunityId) return;
-    if (!isAdmin(manageCommunityId)) {
-      toast.warning('仅管理员可设置公告');
-      return;
-    }
-    
     const updatedAnnounceStore = {
       ...announceStore,
-      [manageCommunityId]: text
+      [community.id]: text
     };
     
-    onAnnounceStoreChange(updatedAnnounceStore);
+    setAnnounceStore(updatedAnnounceStore);
     toast.success('公告已更新');
   };
 
   // 切换社群隐私设置
   const togglePrivacyForManaged = () => {
-    if (!manageCommunityId) return;
-    if (!isAdmin(manageCommunityId)) {
-      toast.warning('仅管理员可切换隐私');
-      return;
-    }
-    
-    const currentPrivacy = privacyStore[manageCommunityId] || 'public';
+    const currentPrivacy = privacyStore[community.id] || 'public';
     const updatedPrivacyStore: Record<string, 'public' | 'private'> = {
       ...privacyStore,
-      [manageCommunityId]: currentPrivacy === 'public' ? 'private' : 'public'
+      [community.id]: currentPrivacy === 'public' ? 'private' : 'public'
     };
     
-    onPrivacyStoreChange(updatedPrivacyStore);
+    setPrivacyStore(updatedPrivacyStore);
     toast.success(`社群已切换为${currentPrivacy === 'public' ? '私密' : '公开'}模式`);
   };
 
-  // 切换管理员角色
-  const toggleAdminRole = (email: string) => {
-    if (!manageCommunityId) return;
-    if (!isAdmin(manageCommunityId)) {
-      toast.warning('仅管理员可更改角色');
-      return;
-    }
-    
-    const currentAdmins = adminStore[manageCommunityId] || [];
-    const updatedAdmins = currentAdmins.includes(email)
-      ? currentAdmins.filter(e => e !== email)
-      : [...currentAdmins, email];
-    
-    const updatedAdminStore = {
-      ...adminStore,
-      [manageCommunityId]: updatedAdmins
+  // 设置成员角色
+  const setMemberRole = (email: string, role: CommunityRole) => {
+    const updatedRoleStore = {
+      ...roleStore,
+      [community.id]: {
+        ...(roleStore[community.id] || {}),
+        [email]: role
+      }
     };
     
-    onAdminStoreChange(updatedAdminStore);
-    toast.success('管理员角色已更新');
+    setRoleStore(updatedRoleStore);
+    
+    // 如果设置为管理员，确保在adminStore中
+    if (role === 'admin') {
+      if (!adminStore[community.id]?.includes(email)) {
+        const updatedAdminStore = {
+          ...adminStore,
+          [community.id]: [...(adminStore[community.id] || []), email]
+        };
+        setAdminStore(updatedAdminStore);
+      }
+    } else {
+      // 如果从管理员降级，确保从adminStore中移除
+      if (adminStore[community.id]?.includes(email)) {
+        const updatedAdminStore = {
+          ...adminStore,
+          [community.id]: (adminStore[community.id] || []).filter(a => a !== email)
+        };
+        setAdminStore(updatedAdminStore);
+      }
+    }
+    
+    toast.success(`成员角色已更新为${role}`);
   };
 
-  // 切换成员列表展开状态
-  const toggleMembersExpanded = (communityId: string) => {
-    setExpandedMembersId(expandedMembersId === communityId ? null : communityId);
+  // 更新审核设置
+  const updateJoinApprovalSetting = async (value: boolean) => {
+    try {
+      setLoading(true);
+      await communityService.updateJoinApprovalSetting(community.id, value);
+      setJoinApprovalRequired(value);
+      toast.success(`审核设置已${value ? '开启' : '关闭'}`);
+    } catch (error) {
+      console.error('更新审核设置失败:', error);
+      toast.error('更新审核设置失败');
+    } finally {
+      setLoading(false);
+    }
   };
+
+  // 批准加入请求
+  const approveJoinRequest = async (requestId: string) => {
+    try {
+      setLoading(true);
+      await communityService.approveJoinRequest(requestId, community.id);
+      setPendingRequests(prev => prev.filter(req => req.id !== requestId));
+      toast.success('已批准加入请求');
+    } catch (error) {
+      console.error('批准加入请求失败:', error);
+      toast.error('批准加入请求失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 拒绝加入请求
+  const rejectJoinRequest = async (requestId: string) => {
+    try {
+      setLoading(true);
+      await communityService.rejectJoinRequest(requestId);
+      setPendingRequests(prev => prev.filter(req => req.id !== requestId));
+      toast.success('已拒绝加入请求');
+    } catch (error) {
+      console.error('拒绝加入请求失败:', error);
+      toast.error('拒绝加入请求失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!isOpen) return null;
 
   return (
-    <>
-      {/* 创建新社群表单 */}
-      {communityTab === 'user' && (
-        <div className={`${isDark ? 'bg-gray-700' : 'bg-white/70'} p-4 rounded-xl mb-4 ring-1 ${isDark ? 'ring-gray-700' : 'ring-rose-200'}`}>
-          <div className="text-sm opacity-70 mb-2">创建新社群</div>
-          <div className="grid grid-cols-1 gap-3">
-            <input 
-              value={newCommunityName} 
-              onChange={e => setNewCommunityName(e.target.value)} 
-              placeholder="社群名称" 
-              className={`${isDark ? 'bg-gray-800 text-white ring-1 ring-gray-700' : 'bg-white text-gray-900 ring-1 ring-gray-300'} px-3 py-2 h-12 rounded-lg focus:outline-none focus:ring-2 ${isDark ? 'focus:ring-purple-500' : 'focus:ring-pink-300'}`} 
-            />
-            <input 
-              value={newCommunityDesc} 
-              onChange={e => setNewCommunityDesc(e.target.value)} 
-              placeholder="社群简介" 
-              className={`${isDark ? 'bg-gray-800 text-white ring-1 ring-gray-700' : 'bg-white text-gray-900 ring-1 ring-gray-300'} px-3 py-2 h-12 rounded-lg focus:outline-none focus:ring-2 ${isDark ? 'focus:ring-purple-500' : 'focus:ring-pink-300'}`} 
-            />
-            <input 
-              value={newCommunityTags} 
-              onChange={e => setNewCommunityTags(e.target.value)} 
-              placeholder="标签（逗号分隔）" 
-              className={`${isDark ? 'bg-gray-800 text-white ring-1 ring-gray-700' : 'bg-white text-gray-900 ring-1 ring-gray-300'} px-3 py-2 h-12 rounded-lg focus:outline-none focus:ring-2 ${isDark ? 'focus:ring-purple-500' : 'focus:ring-pink-300'}`} 
-            />
-          </div>
-          <div className="mt-3 flex justify-end">
-            <button 
-              onClick={createCommunity} 
-              className="px-6 py-3 rounded-lg bg-gradient-to-r from-red-600 to-pink-600 text-white transition-colors hover:opacity-90 min-h-[48px] font-medium"
-            >
-              创建
-            </button>
+    <div className={`fixed inset-0 z-50 ${isDark ? 'bg-black/70' : 'bg-black/50'} backdrop-blur-sm flex items-center justify-center p-0 md:p-4`}>
+      <motion.div 
+        className={`${isDark ? 'bg-gray-800' : 'bg-white'} shadow-lg p-6 max-w-2xl w-full h-full md:h-auto md:max-h-[80vh] overflow-y-auto rounded-none md:rounded-2xl`}
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.9 }}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-medium">社群管理 - {community.name}</h3>
+          <button 
+            onClick={onClose} 
+            className={`${isDark ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-900'} text-xl`}
+          >
+            ×
+          </button>
+        </div>
+        
+        {/* 社群信息 */}
+        <div className="mb-6">
+          <h4 className="font-medium mb-3">社群信息</h4>
+          <div className={`${isDark ? 'bg-gray-700' : 'bg-gray-100'} p-4 rounded-lg`}>
+            <div className="flex items-center gap-4">
+              <TianjinImage 
+                src={community.avatar} 
+                alt={community.name} 
+                className="w-16 h-16 rounded-lg object-cover"
+              />
+              <div className="flex-1">
+                <h5 className="font-medium text-lg mb-1">{community.name}</h5>
+                <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-2`}>{community.description}</p>
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs px-2 py-1 rounded-full ${isDark ? 'bg-gray-600' : 'bg-gray-200'}`}>
+                    {community.memberCount} 成员
+                  </span>
+                  <span className={`text-xs px-2 py-1 rounded-full ${isDark ? 'bg-gray-600' : 'bg-gray-200'}`}>
+                    {community.topic}
+                  </span>
+                  <span className={`text-xs px-2 py-1 rounded-full ${isDark ? 'bg-gray-600' : 'bg-gray-200'}`}>
+                    {privacyStore[community.id] === 'private' ? '私密' : '公开'}
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-      )}
-
-      {/* 自建社群列表 */}
-      {communityTab === 'user' && (
-        <>
-          {userCommunities.length === 0 ? (
-            <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>暂无自建社群，快来创建吧～</div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {userCommunities.map(c => (
-                <motion.div 
-                  key={c.id} 
-                  className={`${isDark ? 'bg-gray-800' : 'bg-white/80'} ring-1 ${isDark ? 'ring-gray-700' : 'ring-rose-200'} rounded-xl overflow-hidden shadow-sm`} 
-                  whileHover={{ y: -4 }}
-                >
-                  <TianjinImage 
-                    src={c.cover || c.avatar} 
-                    alt={c.name} 
-                    className="w-full aspect-[4/3] object-cover" 
-                  />
-                  <div className="p-4">
-                    <div className="font-medium mb-1 flex items-center gap-2">
-                      <span className="truncate">{c.name}</span>
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-rose-100 text-rose-700'} ring-1 ${isDark ? 'ring-gray-700' : 'ring-rose-200'}`}>个人</span>
-                    </div>
-                    <div className={`text-sm mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'} line-clamp-2`}>{c.description}</div>
-                    <div className="flex flex-wrap gap-2 mb-3">
-                      {c.tags.slice(0, 3).map((t, i) => (
-                        <span key={i} className={`text-xs px-2 py-1 rounded-full ${isDark ? 'bg-gray-700 text-gray-200' : 'bg-gray-100 text-gray-700'}`}>#{t}</span>
-                      ))}
-                    </div>
-                    
-                    {/* 成员列表 */}
-                    <div className="mb-3">
-                      <div 
-                        className="text-xs opacity-70 flex items-center gap-1 cursor-pointer" 
-                        onClick={() => toggleMembersExpanded(c.id)}
-                      >
-                        <span>成员 {memberStore[c.id]?.length || 1} 人</span>
-                        <span>{expandedMembersId === c.id ? '▼' : '▶'}</span>
-                      </div>
-                      {expandedMembersId === c.id && (
-                        <div className="mt-2 space-y-1 text-xs max-h-[120px] overflow-y-auto">
-                          {[currentEmail, ...(memberStore[c.id] || [])].map((email, i) => (
-                            <div key={i} className="flex items-center justify-between">
-                              <span className="truncate">{email}</span>
-                              <span className={`px-1.5 py-0.5 rounded ${isDark ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                                {adminStore[c.id]?.includes(email) ? '管理员' : '成员'}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    
-                    <div className="flex items-center justify-between">
-                      <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                        {privacyStore[c.id] === 'private' ? '私密' : '公开'}
-                      </div>
-                      <div className="flex items-center gap-1 flex-wrap">
-                        {editDraft?.id === c.id ? (
-                          <>
-                            <button onClick={saveEditCommunity} className={`text-xs px-2 py-0.5 rounded-full ${isDark ? 'bg-green-600 text-white' : 'bg-green-500 text-white'}`}>保存</button>
-                            <button onClick={cancelEditCommunity} className={`text-xs px-2 py-0.5 rounded-full ${isDark ? 'bg-gray-700 text-white' : 'bg-gray-200 text-gray-800'}`}>取消</button>
-                          </>
-                        ) : (
-                          <>
-                            <button onClick={() => startEditCommunity(c)} className={`text-xs px-2 py-0.5 rounded-full ${isDark ? 'bg-gray-700 text-white' : 'bg-gray-200 text-gray-800'}`}>编辑</button>
-                            <button onClick={() => openManage(c.id)} className={`text-xs px-2 py-0.5 rounded-full ${isDark ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white'}`}>管理</button>
-                            <button onClick={() => deleteCommunity(c.id)} className={`text-xs px-2 py-0.5 rounded-full ${isDark ? 'bg-red-600 text-white' : 'bg-red-500 text-white'}`}>删除</button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          )}
-        </>
-      )}
-
-      {/* 管理面板 */}
-      {manageCommunityId && (
-        <div className={`fixed inset-0 z-50 ${isDark ? 'bg-black/70' : 'bg-black/50'} backdrop-blur-sm flex items-center justify-center p-0 md:p-4`}>
-          <motion.div 
-            className={`${isDark ? 'bg-gray-800' : 'bg-white'} shadow-lg p-6 max-w-2xl w-full h-full md:h-auto md:max-h-[80vh] overflow-y-auto rounded-none md:rounded-2xl`}
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9 }}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-medium">社群管理</h3>
-              <button 
-                onClick={closeManage} 
-                className={`${isDark ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-900'} text-xl`}
+        
+        {/* 成员管理 */}
+        <div className="mb-6">
+          <h4 className="font-medium mb-3">成员管理</h4>
+          
+          {/* 邀请成员 */}
+          <div className={`${isDark ? 'bg-gray-700' : 'bg-gray-100'} p-3 rounded-lg mb-4`}>
+            <h5 className="text-sm font-medium mb-2">邀请成员</h5>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <input 
+                value={newMemberEmail} 
+                onChange={e => setNewMemberEmail(e.target.value)} 
+                placeholder="添加成员邮箱" 
+                className={`${isDark ? 'bg-gray-600 text-white ring-1 ring-gray-500' : 'bg-white text-gray-900 ring-1 ring-gray-300'} px-3 py-2 rounded-lg focus:outline-none focus:ring-2 ${isDark ? 'focus:ring-purple-500' : 'focus:ring-pink-300'}`} 
+              />
+              <select
+                value={selectedRole}
+                onChange={(e) => setSelectedRole(e.target.value as CommunityRole)}
+                className={`${isDark ? 'bg-gray-600 text-white ring-1 ring-gray-500' : 'bg-white text-gray-900 ring-1 ring-gray-300'} px-3 py-2 rounded-lg focus:outline-none focus:ring-2 ${isDark ? 'focus:ring-purple-500' : 'focus:ring-pink-300'}`}
               >
-                ×
+                <option value="member">普通成员</option>
+                <option value="editor">编辑</option>
+                <option value="admin">管理员</option>
+              </select>
+              <button 
+                onClick={addMember} 
+                className={`${isDark ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white'} px-3 py-2 rounded-lg text-sm`}
+              >
+                邀请
               </button>
             </div>
             
-            {/* 成员管理 */}
-            <div className="mb-6">
-              <h4 className="font-medium mb-3">成员管理</h4>
-              
-              {/* 邀请成员 */}
-              <div className="bg-gray-100 dark:bg-gray-700/50 p-3 rounded-lg mb-4">
-                <h5 className="text-sm font-medium mb-2">邀请成员</h5>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <input 
-                    value={newMemberEmail} 
-                    onChange={e => setNewMemberEmail(e.target.value)} 
-                    placeholder="添加成员邮箱" 
-                    className={`${isDark ? 'bg-gray-700 text-white ring-1 ring-gray-600' : 'bg-white text-gray-900 ring-1 ring-gray-300'} px-3 py-2 rounded-lg focus:outline-none focus:ring-2 ${isDark ? 'focus:ring-purple-500' : 'focus:ring-pink-300'}`} 
-                  />
-                  <select
-                    value={selectedRole}
-                    onChange={(e) => setSelectedRole(e.target.value as CommunityRole)}
-                    className={`${isDark ? 'bg-gray-700 text-white ring-1 ring-gray-600' : 'bg-white text-gray-900 ring-1 ring-gray-300'} px-3 py-2 rounded-lg focus:outline-none focus:ring-2 ${isDark ? 'focus:ring-purple-500' : 'focus:ring-pink-300'}`}
-                  >
-                    <option value="member">普通成员</option>
-                    <option value="editor">编辑</option>
-                    <option value="admin">管理员</option>
-                  </select>
-                  <button 
-                    onClick={addMember} 
-                    className={`${isDark ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white'} px-3 py-2 rounded-lg text-sm`}
-                  >
-                    邀请
-                  </button>
-                </div>
-                
-                {/* 邀请链接 */}
-                <div className="mt-4">
-                  <div className="flex items-center gap-2">
-                    <input 
-                      value={inviteLink} 
-                      readOnly
-                      className={`flex-1 ${isDark ? 'bg-gray-700 text-white ring-1 ring-gray-600' : 'bg-white text-gray-900 ring-1 ring-gray-300'} px-3 py-2 rounded-lg focus:outline-none focus:ring-2 ${isDark ? 'focus:ring-purple-500' : 'focus:ring-pink-300'}`} 
-                    />
-                    <button 
-                      onClick={() => generateInviteLink(manageCommunityId!)} 
-                      className={`${isDark ? 'bg-green-600 text-white' : 'bg-green-500 text-white'} px-3 py-2 rounded-lg text-sm`}
-                    >
-                      生成邀请链接
-                    </button>
+            {/* 邀请链接 */}
+            <div className="mt-4">
+              <div className="flex items-center gap-2">
+                <input 
+                  value={inviteLink} 
+                  readOnly
+                  className={`flex-1 ${isDark ? 'bg-gray-600 text-white ring-1 ring-gray-500' : 'bg-white text-gray-900 ring-1 ring-gray-300'} px-3 py-2 rounded-lg focus:outline-none focus:ring-2 ${isDark ? 'focus:ring-purple-500' : 'focus:ring-pink-300'}`} 
+                />
+                <button 
+                  onClick={() => generateInviteLink(community.id)} 
+                  className={`${isDark ? 'bg-green-600 text-white' : 'bg-green-500 text-white'} px-3 py-2 rounded-lg text-sm`}
+                >
+                  生成邀请链接
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          {/* 成员列表 */}
+          <div className={`${isDark ? 'bg-gray-700' : 'bg-gray-100'} p-3 rounded-lg`}>
+            <h5 className="text-sm font-medium mb-2">成员列表</h5>
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {[currentEmail, ...(memberStore[community.id] || [])].map((email, i) => {
+                const memberRole = roleStore[community.id]?.[email] || 'member';
+                return (
+                  <div key={i} className={`flex items-center justify-between p-2 rounded-lg ${isDark ? 'bg-gray-600' : 'bg-gray-200'}`}>
+                    <div className="flex items-center gap-2">
+                      <div className="text-sm">{email}</div>
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${isDark ? 
+                        memberRole === 'admin' ? 'bg-purple-600 text-white' : 
+                        memberRole === 'editor' ? 'bg-blue-600 text-white' : 
+                        'bg-green-600 text-white' : 
+                        memberRole === 'admin' ? 'bg-purple-500 text-white' : 
+                        memberRole === 'editor' ? 'bg-blue-500 text-white' : 
+                        'bg-green-500 text-white'}`}>
+                        {memberRole === 'admin' ? '管理员' : memberRole === 'editor' ? '编辑' : '成员'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {email !== currentEmail && (
+                        <>
+                          <select
+                            value={memberRole}
+                            onChange={(e) => setMemberRole(email, e.target.value as CommunityRole)}
+                            className={`${isDark ? 'bg-gray-600 text-white ring-1 ring-gray-500' : 'bg-white text-gray-900 ring-1 ring-gray-300'} px-2 py-1 rounded-lg text-xs focus:outline-none focus:ring-2 ${isDark ? 'focus:ring-purple-500' : 'focus:ring-pink-300'}`}
+                          >
+                            <option value="member">普通成员</option>
+                            <option value="editor">编辑</option>
+                            <option value="admin">管理员</option>
+                          </select>
+                          <button 
+                            onClick={() => removeMemberFromManaged(email)} 
+                            className={`text-xs px-2 py-1 rounded-full ${isDark ? 'bg-red-600 text-white' : 'bg-red-500 text-white'}`}
+                          >
+                            移除
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+        
+        {/* 角色权限设置 */}
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="font-medium">角色权限设置</h4>
+            <button
+              onClick={() => setShowPermissionSettings(!showPermissionSettings)}
+              className={`text-sm ${isDark ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-500'}`}
+            >
+              {showPermissionSettings ? '收起' : '展开'}
+            </button>
+          </div>
+          
+          {showPermissionSettings && (
+            <div className={`${isDark ? 'bg-gray-700' : 'bg-gray-100'} p-3 rounded-lg`}>
+              {(['admin', 'editor', 'member'] as CommunityRole[]).map((role) => (
+                <div key={role} className="space-y-2 mb-4">
+                  <h5 className="text-sm font-medium capitalize">{role} 权限</h5>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {([
+                      { key: 'manage_members', label: '管理成员' },
+                      { key: 'manage_posts', label: '管理帖子' },
+                      { key: 'manage_announcements', label: '管理公告' },
+                      { key: 'manage_settings', label: '管理设置' },
+                      { key: 'manage_guidelines', label: '管理版规' },
+                      { key: 'view_analytics', label: '查看分析' },
+                      { key: 'create_posts', label: '创建帖子' },
+                      { key: 'comment_posts', label: '评论帖子' },
+                      { key: 'like_posts', label: '点赞帖子' }
+                    ] as { key: CommunityPermission; label: string }[]).map((permission) => {
+                      const currentPermissions = permissionStore[community.id]?.[role] || defaultRolePermissions[role];
+                      const hasPermission = currentPermissions.includes(permission.key);
+                      
+                      return (
+                        <div key={permission.key} className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={hasPermission}
+                            onChange={(e) => {
+                              const updatedPermissions = e.target.checked
+                                ? [...currentPermissions, permission.key]
+                                : currentPermissions.filter(p => p !== permission.key);
+                              updateRolePermissions(community.id, role, updatedPermissions);
+                            }}
+                            className={`${isDark ? 'accent-purple-500' : 'accent-pink-500'}`}
+                          />
+                          <label className="text-sm">{permission.label}</label>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
+              ))}
+            </div>
+          )}
+        </div>
+        
+        {/* 社群设置 */}
+        <div className="mb-6">
+          <h4 className="font-medium mb-3">社群设置</h4>
+          <div className={`${isDark ? 'bg-gray-700' : 'bg-gray-100'} p-3 rounded-lg`}>
+            {/* 隐私设置 */}
+            <div className="mb-4">
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-sm">隐私设置</div>
+                <button 
+                  onClick={togglePrivacyForManaged} 
+                  className={`text-xs px-3 py-1 rounded-full ${privacyStore[community.id] === 'private' ? (isDark ? 'bg-gray-600 text-white' : 'bg-gray-200 text-gray-800') : (isDark ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white')}`}
+                >
+                  {privacyStore[community.id] === 'private' ? '私密' : '公开'}
+                </button>
               </div>
-              
-              {/* 成员列表 */}
-              <div className="bg-gray-100 dark:bg-gray-700/50 p-3 rounded-lg">
-                <h5 className="text-sm font-medium mb-2">成员列表</h5>
-                <div className="space-y-2 max-h-96 overflow-y-auto">
-                  {[currentEmail, ...(memberStore[manageCommunityId] || [])].map((email, i) => {
-                    const memberRole = roleStore[manageCommunityId!]?.[email] || 'member';
-                    return (
-                      <div key={i} className={`flex items-center justify-between p-2 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                        <div className="flex items-center gap-2">
-                          <div className="text-sm">{email}</div>
-                          <span className={`text-xs px-2 py-0.5 rounded-full ${isDark ? 
-                            memberRole === 'admin' ? 'bg-purple-600 text-white' : 
-                            memberRole === 'editor' ? 'bg-blue-600 text-white' : 
-                            'bg-green-600 text-white' : 
-                            memberRole === 'admin' ? 'bg-purple-500 text-white' : 
-                            memberRole === 'editor' ? 'bg-blue-500 text-white' : 
-                            'bg-green-500 text-white'}`}>
-                            {memberRole === 'admin' ? '管理员' : memberRole === 'editor' ? '编辑' : '成员'}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {email !== currentEmail && (
-                            <>
-                              <select
-                                value={memberRole}
-                                onChange={(e) => setMemberRole(manageCommunityId!, email, e.target.value as CommunityRole)}
-                                className={`${isDark ? 'bg-gray-700 text-white ring-1 ring-gray-600' : 'bg-white text-gray-900 ring-1 ring-gray-300'} px-2 py-1 rounded-lg text-xs focus:outline-none focus:ring-2 ${isDark ? 'focus:ring-purple-500' : 'focus:ring-pink-300'}`}
-                              >
-                                <option value="member">普通成员</option>
-                                <option value="editor">编辑</option>
-                                <option value="admin">管理员</option>
-                              </select>
-                              <button 
-                                onClick={() => removeMemberFromManaged(email)} 
-                                className={`text-xs px-2 py-1 rounded-full ${isDark ? 'bg-red-600 text-white' : 'bg-red-500 text-white'}`}
-                              >
-                                移除
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+              <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                {privacyStore[community.id] === 'private' ? '仅邀请成员可加入' : '所有人可加入'}
               </div>
             </div>
             
-            {/* 角色权限设置 */}
-            <div className="mb-6">
-              <div className="flex items-center justify-between mb-3">
-                <h4 className="font-medium">角色权限设置</h4>
-                <button
-                  onClick={() => setShowPermissionSettings(!showPermissionSettings)}
-                  className={`text-sm ${isDark ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-500'}`}
+            {/* 审核设置 */}
+            <div className="mb-4">
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-sm">加入审核</div>
+                <button 
+                  onClick={() => updateJoinApprovalSetting(!joinApprovalRequired)} 
+                  className={`text-xs px-3 py-1 rounded-full ${joinApprovalRequired ? (isDark ? 'bg-green-600 text-white' : 'bg-green-500 text-white') : (isDark ? 'bg-gray-600 text-white' : 'bg-gray-200 text-gray-800')}`}
+                  disabled={loading}
                 >
-                  {showPermissionSettings ? '收起' : '展开'}
+                  {joinApprovalRequired ? '开启' : '关闭'}
                 </button>
               </div>
-              
-              {showPermissionSettings && (
-                <div className="space-y-4 bg-gray-100 dark:bg-gray-700/50 p-3 rounded-lg">
-                  {(['admin', 'editor', 'member'] as CommunityRole[]).map((role) => (
-                    <div key={role} className="space-y-2">
-                      <h5 className="text-sm font-medium capitalize">{role} 权限</h5>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                        {([
-                          { key: 'manage_members', label: '管理成员' },
-                          { key: 'manage_posts', label: '管理帖子' },
-                          { key: 'manage_announcements', label: '管理公告' },
-                          { key: 'manage_settings', label: '管理设置' },
-                          { key: 'manage_guidelines', label: '管理版规' },
-                          { key: 'view_analytics', label: '查看分析' },
-                          { key: 'create_posts', label: '创建帖子' },
-                          { key: 'comment_posts', label: '评论帖子' },
-                          { key: 'like_posts', label: '点赞帖子' }
-                        ] as { key: CommunityPermission; label: string }[]).map((permission) => {
-                          const currentPermissions = permissionStore[manageCommunityId!]?.[role] || defaultRolePermissions[role];
-                          const hasPermission = currentPermissions.includes(permission.key);
-                          
-                          return (
-                            <div key={permission.key} className="flex items-center gap-2">
-                              <input
-                                type="checkbox"
-                                checked={hasPermission}
-                                onChange={(e) => {
-                                  const updatedPermissions = e.target.checked
-                                    ? [...currentPermissions, permission.key]
-                                    : currentPermissions.filter(p => p !== permission.key);
-                                  updateRolePermissions(manageCommunityId!, role, updatedPermissions);
-                                }}
-                                className={`${isDark ? 'accent-purple-500' : 'accent-pink-500'}`}
-                              />
-                              <label className="text-sm">{permission.label}</label>
+              <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                {joinApprovalRequired ? '需要管理员审核才能加入' : '无需审核，直接加入'}
+              </div>
+            </div>
+            
+            {/* 公告设置 */}
+            <div>
+              <div className="text-sm mb-2">社群公告</div>
+              <textarea 
+                value={announceStore[community.id] || ''} 
+                onChange={e => setAnnouncementForManaged(e.target.value)} 
+                placeholder="输入社群公告" 
+                className={`w-full h-20 ${isDark ? 'bg-gray-600 text-white ring-1 ring-gray-500' : 'bg-white text-gray-900 ring-1 ring-gray-300'} px-3 py-2 rounded-lg focus:outline-none focus:ring-2 ${isDark ? 'focus:ring-purple-500' : 'focus:ring-pink-300'}`} 
+              />
+            </div>
+          </div>
+        </div>
+        
+        {/* 待审核加入请求 */}
+        {joinApprovalRequired && (
+          <div className="mb-6">
+            <h4 className="font-medium mb-3">待审核加入请求</h4>
+            <div className={`${isDark ? 'bg-gray-700' : 'bg-gray-100'} p-3 rounded-lg`}>
+              {loading ? (
+                <div className="text-center py-4">加载中...</div>
+              ) : pendingRequests.length > 0 ? (
+                <div className="space-y-3 max-h-96 overflow-y-auto">
+                  {pendingRequests.map((request) => (
+                    <div key={request.id} className={`p-3 rounded-lg ${isDark ? 'bg-gray-600' : 'bg-gray-200'}`}>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isDark ? 'bg-gray-500' : 'bg-gray-300'}`}>
+                            {request.user?.avatar ? (
+                              <img src={request.user.avatar} alt={request.user.username} className="w-full h-full rounded-full object-cover" />
+                            ) : (
+                              <span className="text-sm">{request.user?.username?.[0] || '?'}</span>
+                            )}
+                          </div>
+                          <div>
+                            <div className="text-sm font-medium">{request.user?.username || '未知用户'}</div>
+                            <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                              {new Date(request.joined_at).toLocaleString()}
                             </div>
-                          );
-                        })}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button 
+                            onClick={() => approveJoinRequest(request.id)} 
+                            className={`text-xs px-3 py-1 rounded-full ${isDark ? 'bg-green-600 text-white' : 'bg-green-500 text-white'}`}
+                            disabled={loading}
+                          >
+                            批准
+                          </button>
+                          <button 
+                            onClick={() => rejectJoinRequest(request.id)} 
+                            className={`text-xs px-3 py-1 rounded-full ${isDark ? 'bg-red-600 text-white' : 'bg-red-500 text-white'}`}
+                            disabled={loading}
+                          >
+                            拒绝
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))}
                 </div>
+              ) : (
+                <div className={`text-center py-4 text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                  暂无待审核的加入请求
+                </div>
               )}
             </div>
-            
-            {/* 社群设置 */}
-            <div className="mb-6">
-              <h4 className="font-medium mb-3">社群设置</h4>
-              <div className="space-y-4">
-                {/* 隐私设置 */}
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="text-sm">隐私设置</div>
-                    <button 
-                      onClick={togglePrivacyForManaged} 
-                      className={`text-xs px-3 py-1 rounded-full ${privacyStore[manageCommunityId] === 'private' ? (isDark ? 'bg-gray-600 text-white' : 'bg-gray-200 text-gray-800') : (isDark ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white')}`}
-                    >
-                      {privacyStore[manageCommunityId] === 'private' ? '私密' : '公开'}
-                    </button>
-                  </div>
-                  <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                    {privacyStore[manageCommunityId] === 'private' ? '仅邀请成员可加入' : '所有人可加入'}
-                  </div>
-                </div>
-                
-                {/* 公告设置 */}
-                <div>
-                  <div className="text-sm mb-2">社群公告</div>
-                  <textarea 
-                    value={announceStore[manageCommunityId] || ''} 
-                    onChange={e => setAnnouncementForManaged(e.target.value)} 
-                    placeholder="输入社群公告" 
-                    className={`w-full h-20 ${isDark ? 'bg-gray-700 text-white ring-1 ring-gray-600' : 'bg-white text-gray-900 ring-1 ring-gray-300'} px-3 py-2 rounded-lg focus:outline-none focus:ring-2 ${isDark ? 'focus:ring-purple-500' : 'focus:ring-pink-300'}`} 
-                  />
-                </div>
-              </div>
-            </div>
-            
-            <div className="flex justify-end">
-              <button 
-                onClick={closeManage} 
-                className={`px-4 py-2 rounded-lg ${isDark ? 'bg-gray-700 text-white' : 'bg-gray-200 text-gray-800'} transition-colors hover:opacity-90`}
-              >
-                关闭
-              </button>
-            </div>
-          </motion.div>
+          </div>
+        )}
+        
+        <div className="flex justify-end">
+          <button 
+            onClick={onClose} 
+            className={`px-4 py-2 rounded-lg ${isDark ? 'bg-gray-600 text-white' : 'bg-gray-200 text-gray-800'} transition-colors hover:opacity-90`}
+          >
+            关闭
+          </button>
         </div>
-      )}
-    </>
+      </motion.div>
+    </div>
   );
 };
 

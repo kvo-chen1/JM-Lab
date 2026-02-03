@@ -29,6 +29,86 @@ export default function InspirationPanel({ onClose, onApply, className = '' }: I
   const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
   const [generatedItems, setGeneratedItems] = useState<Array<{ image: string; video: string; isGeneratingVideo: boolean }>>([]);
   const [activeTab, setActiveTab] = useState<'generate' | 'explore'>('generate');
+  const [showPlanLibrary, setShowPlanLibrary] = useState(false);
+  const [savedPlans, setSavedPlans] = useState<Array<{ id: string; title: string; query: string; aiText: string; ts: number }>>([]);
+
+  // Load saved plans from local storage
+  useEffect(() => {
+    try {
+      const plansRaw = localStorage.getItem('TOOLS_SAVED_PLANS');
+      if (plansRaw) {
+        const plans = JSON.parse(plansRaw);
+        setSavedPlans(plans);
+      }
+    } catch (error) {
+      console.error('加载方案库失败:', error);
+    }
+  }, []);
+
+  // Apply plan to prompt
+  const applyPlan = (planId: string) => {
+    const plan = savedPlans.find(x => x.id === planId);
+    if (plan) {
+      setPrompt(plan.aiText || plan.query);
+      setShowPlanLibrary(false);
+      toast.success('已应用方案');
+    }
+  };
+  
+  // 保存到方案库
+  const saveToPlanLibrary = () => {
+    if (!prompt.trim()) {
+      toast.warning('暂无内容可保存');
+      return;
+    }
+    
+    // 从本地存储加载现有方案
+    const existingPlans = JSON.parse(localStorage.getItem('TOOLS_SAVED_PLANS') || '[]');
+    
+    // 创建新方案
+    const newPlan = {
+      id: String(Date.now()),
+      title: prompt.split('\n')[0] || '未命名方案',
+      query: prompt,
+      aiText: '',
+      ts: Date.now()
+    };
+    
+    // 添加到方案库并限制数量
+    const updatedPlans = [newPlan, ...existingPlans].slice(0, 20);
+    setSavedPlans(updatedPlans);
+    
+    try {
+      localStorage.setItem('TOOLS_SAVED_PLANS', JSON.stringify(updatedPlans));
+      toast.success('已保存到方案库');
+    } catch (error) {
+      console.error('保存方案库失败:', error);
+      toast.error('保存失败，请稍后再试');
+    }
+  };
+  
+  // 从方案库中删除方案
+  const removePlan = (planId: string) => {
+    const nextPlans = savedPlans.filter(x => x.id !== planId);
+    setSavedPlans(nextPlans);
+    try {
+      localStorage.setItem('TOOLS_SAVED_PLANS', JSON.stringify(nextPlans));
+      toast.success('已从方案库中删除');
+    } catch (error) {
+      console.error('保存方案库失败:', error);
+    }
+  };
+  
+  // 清空方案库
+  const clearPlans = () => {
+    setSavedPlans([]);
+    try {
+      localStorage.removeItem('TOOLS_SAVED_PLANS');
+      toast.success('已清空方案库');
+    } catch (error) {
+      console.error('清空方案库失败:', error);
+    }
+  };
 
   // Load random suggestions on mount
   useEffect(() => {
@@ -223,6 +303,21 @@ export default function InspirationPanel({ onClose, onApply, className = '' }: I
                     placeholder="描述你想要的画面，例如：一只拿着糖葫芦的赛博朋克风格醒狮..."
                     className="w-full h-32 p-4 rounded-xl bg-transparent border-none resize-none focus:ring-0 text-sm leading-relaxed"
                   />
+                  {/* Plan Library Button */}
+                  <div className="absolute top-4 right-4 flex items-center gap-2">
+                    <button 
+                      onClick={() => {
+                        saveToPlanLibrary();
+                        // 保存后自动打开方案库
+                        setTimeout(() => setShowPlanLibrary(true), 300);
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all
+                               bg-blue-50 text-blue-600 hover:bg-blue-100
+                            "
+                    >
+                      <i className="fas fa-bookmark"></i>方案库
+                    </button>
+                  </div>
                   {/* Suggestions Pills */}
                   {aiSuggestions.length > 0 && (
                     <div className="px-3 pb-3 flex overflow-x-auto gap-2 scrollbar-hide">
@@ -400,6 +495,88 @@ export default function InspirationPanel({ onClose, onApply, className = '' }: I
           )}
         </AnimatePresence>
       </div>
+
+      {/* Plan Library Modal */}
+      <AnimatePresence>
+        {showPlanLibrary && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+            onClick={() => setShowPlanLibrary(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className={`w-full max-w-md rounded-2xl p-6 max-h-[80vh] overflow-y-auto ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100'} border shadow-2xl`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-bold text-lg">我的方案库 ({savedPlans.length})</h3>
+                <div className="flex items-center gap-2">
+                  {savedPlans.length > 0 && (
+                    <button 
+                      onClick={clearPlans} 
+                      className="text-xs text-red-500 hover:underline"
+                    >
+                      清空全部
+                    </button>
+                  )}
+                  <button 
+                    onClick={() => setShowPlanLibrary(false)}
+                    className={`p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800`}
+                  >
+                    <i className="fas fa-times"></i>
+                  </button>
+                </div>
+              </div>
+              
+              {savedPlans.length > 0 ? (
+                <div className="space-y-3">
+                  {savedPlans.map(plan => (
+                    <motion.div
+                      key={plan.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className={`p-3 rounded-xl border ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}
+                    >
+                      <div className="flex justify-between items-start mb-2">
+                        <h4 className="font-medium text-sm line-clamp-1">{plan.title}</h4>
+                        <span className="text-xs opacity-60">{new Date(plan.ts).toLocaleDateString()}</span>
+                      </div>
+                      <p className="text-xs opacity-70 line-clamp-2 mb-3">{plan.aiText || plan.query}</p>
+                      <div className="flex items-center justify-between">
+                        <div className="flex gap-2">
+                          <button 
+                            onClick={() => removePlan(plan.id)} 
+                            className="text-gray-400 hover:text-red-500 text-xs"
+                          >
+                            <i className="fas fa-trash"></i>
+                          </button>
+                        </div>
+                        <button 
+                          onClick={() => applyPlan(plan.id)}
+                          className="text-xs font-medium text-blue-600 hover:underline"
+                        >
+                          应用到输入框
+                        </button>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-12 opacity-50">
+                  <i className="fas fa-bookmark text-4xl mb-3 text-gray-300 dark:text-gray-700"></i>
+                  <p className="text-sm">暂无保存的方案</p>
+                  <p className="text-xs mt-2 opacity-70">点击「方案库」按钮保存当前内容到方案库</p>
+                </div>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

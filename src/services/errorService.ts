@@ -107,6 +107,20 @@ class ErrorLogger {
     this.clearCache();
   }
 
+  // 处理循环引用的函数
+  private safeStringify(obj: any): string {
+    const seen = new WeakSet();
+    return JSON.stringify(obj, (key, value) => {
+      if (typeof value === 'object' && value !== null) {
+        if (seen.has(value)) {
+          return '[Circular]';
+        }
+        seen.add(value);
+      }
+      return value;
+    });
+  }
+
   // 保存错误日志到本地存储 - 优化：实现分级存储策略
   private saveErrors(): void {
     try {
@@ -131,10 +145,25 @@ class ErrorLogger {
         ...lowPriorityErrors.slice(0, totalReservedLow)
       ].sort((a, b) => b.timestamp - a.timestamp);
 
-      // 保存到本地存储
-      localStorage.setItem(this.storageKey, JSON.stringify(finalErrors));
+      // 保存到本地存储，使用safeStringify处理循环引用
+      localStorage.setItem(this.storageKey, this.safeStringify(finalErrors));
     } catch (error) {
-      console.error('Failed to save error logs:', error);
+      const isQuotaError =
+        error instanceof Error &&
+        (error.name === 'QuotaExceededError' || error.message.includes('quota'));
+
+      if (!isQuotaError) {
+        console.error('Failed to save error logs:', error);
+      }
+
+      if (isQuotaError) {
+        try {
+          localStorage.removeItem(this.storageKey);
+          const emergencyErrors = this.errors.slice(0, 5);
+          localStorage.setItem(this.storageKey, this.safeStringify(emergencyErrors));
+        } catch {
+        }
+      }
     }
     // 清除缓存
     this.clearCache();
@@ -398,6 +427,15 @@ class ErrorLogger {
       localStorage.setItem(this.alertsStorageKey, JSON.stringify(this.alerts));
     } catch (error) {
       console.error('Failed to save alerts:', error);
+      if (error instanceof Error && (error.name === 'QuotaExceededError' || error.message.includes('quota'))) {
+          try {
+              // 清空预警历史
+              this.alerts = [];
+              localStorage.removeItem(this.alertsStorageKey);
+          } catch (e) {
+              console.warn('LocalStorage is full and cleanup failed.');
+          }
+      }
     }
   }
 

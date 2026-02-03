@@ -1,17 +1,24 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useContext } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTheme } from '@/hooks/useTheme';
 import { motion } from 'framer-motion';
 import eventCalendarService, { CulturalEvent } from '@/services/eventCalendarService';
+import { useEventService } from '@/hooks/useEventService';
+import { AuthContext } from '@/contexts/authContext';
+import { toast } from 'sonner';
 
 // 活动详情页面
 export default function EventDetail() {
   const { id } = useParams<{ id: string }>();
   const { isDark } = useTheme();
   const navigate = useNavigate();
+  const { isAuthenticated, user } = useContext(AuthContext);
+  const { registerForEvent, getEventParticipants } = useEventService();
   const [event, setEvent] = useState<CulturalEvent | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRegistering, setIsRegistering] = useState(false);
+  const [participants, setParticipants] = useState<any[]>([]);
+  const [hasRegistered, setHasRegistered] = useState(false);
 
   // 加载活动数据
   useEffect(() => {
@@ -24,12 +31,68 @@ export default function EventDetail() {
       setIsLoading(false);
     }, 500);
   }, [id]);
+  
+  // 加载参与者数据
+  useEffect(() => {
+    if (event) {
+      const loadParticipants = async () => {
+        try {
+          const participantsData = await getEventParticipants(event.id);
+          setParticipants(participantsData);
+          
+          // 检查当前用户是否已经报名
+          if (user) {
+            const userRegistered = participantsData.some(p => p.userId === user.id);
+            setHasRegistered(userRegistered);
+          }
+        } catch (error) {
+          console.error('加载参与者数据失败:', error);
+        }
+      };
+      
+      loadParticipants();
+    }
+  }, [event, user, getEventParticipants]);
 
-  const handleRegister = () => {
-    // 模拟注册过程
+  const handleRegister = async () => {
+    // 检查用户是否登录
+    if (!isAuthenticated || !user) {
+      toast.warning('请先登录后再参与活动');
+      navigate('/login', { state: { redirect: `/events/${id}` } });
+      return;
+    }
+    
+    // 检查活动是否已满
+    if (event?.maxParticipants && event?.participantCount >= event?.maxParticipants) {
+      toast.error('活动参与人数已达上限');
+      return;
+    }
+    
+    // 检查用户是否已经报名
+    if (hasRegistered) {
+      toast.info('您已经报名参加了此活动');
+      navigate('/create', {
+        state: {
+          event: event?.id,
+          prompt: `为活动 "${event?.title}" 创建作品`
+        }
+      });
+      return;
+    }
+    
+    // 开始注册过程
     setIsRegistering(true);
-    setTimeout(() => {
-      setIsRegistering(false);
+    
+    try {
+      // 调用注册API
+      await registerForEvent(event?.id!, {
+        userId: user.id,
+        userName: user.name || user.username,
+        userAvatar: user.avatar
+      });
+      
+      toast.success('报名成功！');
+      
       // 注册成功后导航到创作页面
       navigate('/create', {
         state: {
@@ -37,7 +100,12 @@ export default function EventDetail() {
           prompt: `为活动 "${event?.title}" 创建作品`
         }
       });
-    }, 1500);
+    } catch (error) {
+      toast.error('报名失败，请稍后重试');
+      console.error('报名失败:', error);
+    } finally {
+      setIsRegistering(false);
+    }
   };
 
   if (isLoading) {
@@ -151,6 +219,11 @@ export default function EventDetail() {
                       </>
                     ) : event.maxParticipants && event.participantCount >= event.maxParticipants ? (
                       '活动已满'
+                    ) : hasRegistered ? (
+                      <>
+                        <i className="fas fa-check-circle"></i>
+                        已参与
+                      </>
                     ) : (
                       <>
                         <i className="fas fa-user-plus"></i>
@@ -160,7 +233,12 @@ export default function EventDetail() {
                   </button>
                 )}
                 <button
-                  onClick={() => navigate('/create')}
+                  onClick={() => navigate('/create', {
+                    state: {
+                      event: event.id,
+                      prompt: `为活动 "${event.title}" 创建作品`
+                    }
+                  })}
                   className={`flex-1 py-3 px-6 rounded-lg font-medium transition-all duration-300 flex items-center justify-center gap-2 ${isDark 
                     ? 'bg-gray-700 hover:bg-gray-600 text-white' 
                     : 'bg-white hover:bg-gray-100 text-gray-900 border border-gray-300'}`}
@@ -218,6 +296,43 @@ export default function EventDetail() {
                   </div>
                 </div>
               </div>
+            </div>
+            
+            {/* 参与者列表 */}
+            <div className={`p-6 rounded-2xl shadow-lg ${isDark ? 'bg-gray-800' : 'bg-white'} border ${isDark ? 'border-gray-700' : 'border-gray-200'} mb-6`}>
+              <h3 className={`text-sm font-medium mb-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>参与者 ({participants.length})</h3>
+              <div className="space-y-3 max-h-60 overflow-y-auto">
+                {participants.length > 0 ? (
+                  participants.slice(0, 5).map((participant, idx) => (
+                    <div key={idx} className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full overflow-hidden">
+                        <img 
+                          src={participant.userAvatar || 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=40x40&prompt=User%20avatar%20placeholder'} 
+                          alt={participant.userName} 
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className={`text-sm font-medium truncate ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                          {participant.userName}
+                        </h4>
+                        <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                          {new Date(participant.registeredAt).toLocaleDateString('zh-CN')}
+                        </p>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className={`text-center py-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                    <p className="text-sm">暂无参与者</p>
+                  </div>
+                )}
+              </div>
+              {participants.length > 5 && (
+                <div className={`text-center mt-3 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                  <p className="text-xs">还有 {participants.length - 5} 人参与</p>
+                </div>
+              )}
             </div>
 
             {/* 相关推荐 */}

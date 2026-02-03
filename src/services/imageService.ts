@@ -844,4 +844,36 @@ class ImageService {
 // 创建单例实例
 const imageService = new ImageService();
 
+// 图片上传功能扩展
+export const uploadImage = async (file: File): Promise<string> => {
+  try {
+    // 动态导入 supabase 避免循环依赖
+    const { supabase } = await import('@/lib/supabase');
+    
+    // 生成唯一文件名
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+    const filePath = `${fileName}`;
+
+    // 上传到 community-images bucket
+    const { error: uploadError } = await supabase.storage
+      .from('community-images')
+      .upload(filePath, file);
+
+    if (uploadError) {
+      throw uploadError;
+    }
+
+    // 获取公开 URL
+    const { data } = supabase.storage
+      .from('community-images')
+      .getPublicUrl(filePath);
+
+    return data.publicUrl;
+  } catch (error) {
+    console.error('Image upload failed:', error);
+    throw error;
+  }
+};
+
 export default imageService;

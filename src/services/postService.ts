@@ -1066,7 +1066,6 @@ export async function deleteComment(postId: string, commentId: string): Promise<
  * 创建作品
  */
 export async function createWork(workData: Omit<Work, 'id' | 'createdAt' | 'updatedAt' | 'likes' | 'comments' | 'views' | 'userId' | 'isPublic' | 'type'>, imageFile: File): Promise<Work> {
-  try {
     // 模拟图片上传
     const uploadImage = async (file: File): Promise<string> => {
       return new Promise((resolve) => {
@@ -1261,7 +1260,6 @@ export async function createWork(workData: Omit<Work, 'id' | 'createdAt' | 'upda
 
       return fallbackWork;
     }
-  }
 }
 
 /**
@@ -1445,6 +1443,88 @@ export async function createWorkWithUrl(workData: Omit<Work, 'id' | 'createdAt' 
 
       return fallbackWork;
     }
+  } catch (error) {
+    console.error('创建作品失败:', error);
+    
+    // Fallback: Create locally
+    const timestamp = Date.now();
+    const id = timestamp;
+    const idStr = timestamp.toString();
+    const fallbackThumbnail = imageUrl || 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Fallback&image_size=1920x1080';
+    
+    const fallbackWork: Work = {
+      id: idStr,
+      title: workData.title,
+      userId: 'current-user',
+      thumbnailUrl: fallbackThumbnail,
+      likes: 0,
+      comments: 0,
+      views: 0,
+      categoryId: workData.categoryId,
+      tags: workData.tags || ['其他'],
+      isFeatured: false,
+      description: workData.description || '',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      isPublic: true,
+      type: 'image',
+      category: workData.category || 'other',
+      creator: '我',
+      creatorAvatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix',
+      thumbnail: fallbackThumbnail,
+      featured: false
+    };
+
+    const newPost: Post = {
+      id: idStr,
+      title: workData.title,
+      thumbnail: fallbackThumbnail,
+      likes: 0,
+      comments: [],
+      date: new Date().toISOString().slice(0, 10),
+      isLiked: false,
+      isBookmarked: false,
+      category: (workData.categoryId || 'other') as PostCategory,
+      tags: workData.tags || ['其他'],
+      description: workData.description || '',
+      views: 0,
+      shares: 0,
+      isFeatured: false,
+      isDraft: false,
+      completionStatus: 'published',
+      creativeDirection: '',
+      culturalElements: [],
+      colorScheme: [],
+      toolsUsed: [],
+      publishType: 'explore',
+      communityId: null,
+      moderationStatus: 'approved',
+      rejectionReason: null,
+      scheduledPublishDate: null,
+      visibility: 'public',
+      commentCount: 0,
+      engagementRate: 0,
+      trendingScore: 0,
+      reach: 0,
+      moderator: null,
+      reviewedAt: null,
+      recommendationScore: 0,
+      recommendedFor: [],
+      author: {
+        id: 'current-user',
+        username: '我',
+        email: 'me@example.com',
+        avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix'
+      }
+    };
+
+    const localRaw = safeLocalStorageGet(KEY);
+    const localPosts: Post[] = localRaw ? JSON.parse(localRaw) : [];
+    localPosts.unshift(newPost);
+    safeLocalStorageSet(KEY, JSON.stringify(localPosts));
+    clearAllCaches();
+
+    return fallbackWork;
   }
 }
 

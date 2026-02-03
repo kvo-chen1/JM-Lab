@@ -296,7 +296,7 @@ import PrivateRoute from '@/components/PrivateRoute';
 import AdminRoute from '@/components/AdminRoute';
 
 // 社群管理面板组件 - 懒加载
-const CommunityAdminPanel = createLazyComponent(() => import(/* webpackChunkName: "components-community" */ '@/components/community/Admin/CommunityAdminPanel'), {
+const CommunityAdminPanel = createLazyComponent(() => import(/* webpackChunkName: "components-community" */ '@/components/Community/Admin/CommunityAdminPanel'), {
   priority: ROUTE_PRIORITIES.MEDIUM
 });
 // PWA 安装按钮组件 - 懒加载

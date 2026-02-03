@@ -42,6 +42,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   return (
     <div className={`space-y-2 ${height === '100%' ? 'h-full flex flex-col' : ''}`}>
       <Editor
+        apiKey="equzoje2vbh50zcncs9mhg3ex32lr0y7sagjxhxtqrxbc3tp"
         value={editorContent}
         init={{
           height: height,
@@ -75,17 +76,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
           },
           // 禁用API密钥验证，即使没有有效API密钥也能使用编辑器
           statusbar: false,
-          branding: false,
-          // 禁用自动API密钥验证
-          setup: function(editor) {
-            editor.on('init', function() {
-              // 移除API密钥验证错误提示
-              setTimeout(() => {
-                const errorElements = document.querySelectorAll('.tox-notification--error');
-                errorElements.forEach(el => el.remove());
-              }, 100);
-            });
-          }
+          branding: false
         }}
         onInit={handleEditorInit}
         onEditorChange={handleEditorChange}

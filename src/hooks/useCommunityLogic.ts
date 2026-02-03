@@ -1075,6 +1075,52 @@ export const useCommunityLogic = () => {
       }
   }, [allCommunities, joinedCommunities, user, addNotification, navigate, addNotificationWithNavigate]);
 
+  const handleDeleteCommunity = useCallback(async (id: string) => {
+      if (!user?.id) {
+        toast.error('请先登录后再操作');
+        return;
+      }
+
+      // 检查用户是否有权限删除该社群
+      const community = joinedCommunities.find(c => c.id === id);
+      if (!community) {
+        toast.error('社群不存在或您不是成员');
+        return;
+      }
+
+      const isCreator = community.creatorId === user.id;
+      const isAdmin = user.role === 'admin';
+      
+      if (!isCreator && !isAdmin) {
+        toast.error('您没有权限删除该社群');
+        return;
+      }
+
+      if (!confirm('确定要删除该社群吗？此操作不可恢复。')) {
+        return;
+      }
+
+      try {
+        await communityService.deleteCommunity(id);
+        
+        // 更新本地状态
+        setJoinedCommunities(prev => prev.filter(c => c.id !== id));
+        setAllCommunities(prev => prev.filter(c => c.id !== id));
+        
+        // 如果删除的是当前活跃社群，切换到发现模式
+        if (activeCommunityId === id) {
+          setActiveCommunityId(null);
+          setActiveChannel('communities');
+        }
+        
+        toast.success('社群删除成功');
+      } catch (error) {
+        console.error('Error deleting community:', error);
+        const message = error instanceof Error ? error.message : '删除社群失败';
+        toast.error(message);
+      }
+  }, [user, joinedCommunities, activeCommunityId]);
+
   // --- Selectors ---
   
   // Filter threads based on active context
@@ -1152,6 +1198,7 @@ export const useCommunityLogic = () => {
     onSelectChannel: handleSelectChannel,
     onCreateCommunity: handleCreateCommunity,
     onJoinCommunity: handleJoinCommunity, // Export this
+    onDeleteCommunity: handleDeleteCommunity, // Export delete community method
     submitCreateCommunity,
     onUpvote: handleUpvote,
     onToggleFavorite: handleToggleFavorite,

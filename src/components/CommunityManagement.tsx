@@ -53,13 +53,15 @@ interface CommunityManagementProps {
   onClose: () => void;
   community: Community;
   isDark: boolean;
+  onDeleteCommunity?: () => void;
 }
 
 const CommunityManagement: React.FC<CommunityManagementProps> = ({
   isOpen,
   onClose,
   community,
-  isDark
+  isDark,
+  onDeleteCommunity
 }) => {
   // 状态管理
   const [newMemberEmail, setNewMemberEmail] = useState('');
@@ -646,10 +648,18 @@ const CommunityManagement: React.FC<CommunityManagementProps> = ({
           </div>
         )}
         
-        <div className="flex justify-end">
+        <div className="flex justify-end gap-3">
+          {onDeleteCommunity && (
+            <button 
+              onClick={onDeleteCommunity} 
+              className={`px-4 py-2 rounded-lg ${isDark ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-red-500 text-white hover:bg-red-600'} transition-colors`}
+            >
+              删除社群
+            </button>
+          )}
           <button 
             onClick={onClose} 
-            className={`px-4 py-2 rounded-lg ${isDark ? 'bg-gray-600 text-white' : 'bg-gray-200 text-gray-800'} transition-colors hover:opacity-90`}
+            className={`px-4 py-2 rounded-lg ${isDark ? 'bg-gray-600 text-white hover:bg-gray-700' : 'bg-gray-200 text-gray-800 hover:bg-gray-300'} transition-colors`}
           >
             关闭
           </button>

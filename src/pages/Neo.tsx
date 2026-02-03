@@ -14,6 +14,8 @@ import NeoRightSidebar from '@/components/NeoRightSidebar'
 import ImageEditor from '@/components/ImageEditor'
 import { motion, AnimatePresence } from 'framer-motion'
 import { tianjinActivityService, Activity } from '@/services/tianjinActivityService'
+import userStatsService from '@/services/userStatsService'
+import { workService } from '@/services/apiService'
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
@@ -386,6 +388,67 @@ export default function Neo() {
   // 工具箱状态
   const [showToolsModal, setShowToolsModal] = useState(false)
   const [showStatsModal, setShowStatsModal] = useState(false)
+  
+  // 统计数据状态
+  const [statsData, setStatsData] = useState({
+    worksCount: 0,
+    followersCount: 0,
+    followingCount: 0,
+    favoritesCount: 0,
+    todayPointsUsed: 0,
+    totalGenerations: 0,
+    hotTags: [] as Array<{name: string, count: number}>,
+    isLoading: false,
+    error: null as string | null
+  })
+
+  // 获取统计数据
+  const fetchStatsData = async () => {
+    setStatsData(prev => ({ ...prev, isLoading: true, error: null }));
+    try {
+      // 获取用户统计数据
+      const userStats = await userStatsService.getUserStats(user?.id || 'current-user');
+      
+      // 获取发布统计数据
+      const publishStats = await workService.getPublishStats();
+      
+      // 计算总生成次数（作品数 + 历史记录数）
+      const totalGenerations = userStats.worksCount + videoHistory.length;
+      
+      // 模拟今日消耗积分（实际应从API获取）
+      const todayPointsUsed = Math.floor(Math.random() * 50) + 5;
+      
+      // 生成热门标签数据
+      const hotTags = [
+        { name: '赛博朋克', count: Math.floor(Math.random() * 50) + 20 },
+        { name: '杨柳青年画', count: Math.floor(Math.random() * 50) + 20 },
+        { name: '泥人张', count: Math.floor(Math.random() * 50) + 20 },
+        { name: '水墨风', count: Math.floor(Math.random() * 50) + 20 },
+        { name: '未来主义', count: Math.floor(Math.random() * 50) + 20 },
+        { name: '传统纹样', count: Math.floor(Math.random() * 50) + 20 }
+      ];
+      
+      setStatsData({
+        worksCount: userStats.worksCount,
+        followersCount: userStats.followersCount,
+        followingCount: userStats.followingCount,
+        favoritesCount: userStats.favoritesCount,
+        todayPointsUsed,
+        totalGenerations,
+        hotTags,
+        isLoading: false,
+        error: null
+      });
+    } catch (error) {
+      console.error('获取统计数据失败:', error);
+      setStatsData(prev => ({
+        ...prev,
+        isLoading: false,
+        error: '获取统计数据失败，请稍后重试'
+      }));
+      toast.error('获取统计数据失败');
+    }
+  };
 
   // 处理功能点击
   const handleFeatureClick = (featureId: string) => {
@@ -394,6 +457,7 @@ export default function Neo() {
     } else if (featureId === 'tools') {
       setShowToolsModal(true);
     } else if (featureId === 'stats') {
+      fetchStatsData();
       setShowStatsModal(true);
     }
   };
@@ -2118,29 +2182,29 @@ export default function Neo() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className={`p-4 rounded-xl ${isDark ? 'bg-slate-800' : 'bg-slate-50'}`}>
                   <div className="text-slate-500 text-xs mb-1">总生成次数</div>
-                  <div className="text-2xl font-bold">{videoHistory.length + 128}</div>
+                  <div className="text-2xl font-bold">{statsData.totalGenerations}</div>
                 </div>
                 <div className={`p-4 rounded-xl ${isDark ? 'bg-slate-800' : 'bg-slate-50'}`}>
                   <div className="text-slate-500 text-xs mb-1">今日消耗积分</div>
-                  <div className="text-2xl font-bold text-orange-500">45</div>
+                  <div className="text-2xl font-bold text-orange-500">{statsData.todayPointsUsed}</div>
                 </div>
                 <div className={`p-4 rounded-xl ${isDark ? 'bg-slate-800' : 'bg-slate-50'}`}>
                   <div className="text-slate-500 text-xs mb-1">收藏作品</div>
-                  <div className="text-2xl font-bold text-red-500">{videoHistory.filter(h => h.isFavorite).length}</div>
+                  <div className="text-2xl font-bold text-red-500">{statsData.favoritesCount}</div>
                 </div>
                 <div className={`p-4 rounded-xl ${isDark ? 'bg-slate-800' : 'bg-slate-50'}`}>
-                  <div className="text-slate-500 text-xs mb-1">平均评分</div>
-                  <div className="text-2xl font-bold text-yellow-500">4.8</div>
+                  <div className="text-slate-500 text-xs mb-1">作品总数</div>
+                  <div className="text-2xl font-bold text-green-500">{statsData.worksCount}</div>
                 </div>
               </div>
               
               <div>
                 <h4 className="font-medium mb-3">热门标签分布</h4>
                 <div className="flex flex-wrap gap-2">
-                  {['赛博朋克', '杨柳青年画', '泥人张', '水墨风', '未来主义', '传统纹样'].map((tag, i) => (
+                  {statsData.hotTags.map((tag, i) => (
                     <div key={i} className={`px-3 py-1 rounded-full text-sm flex items-center gap-2 ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
-                      <span>{tag}</span>
-                      <span className="opacity-50 text-xs">{Math.floor(Math.random() * 50) + 10}</span>
+                      <span>{tag.name}</span>
+                      <span className="opacity-50 text-xs">{tag.count}</span>
                     </div>
                   ))}
                 </div>

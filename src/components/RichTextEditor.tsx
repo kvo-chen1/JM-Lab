@@ -42,7 +42,6 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   return (
     <div className={`space-y-2 ${height === '100%' ? 'h-full flex flex-col' : ''}`}>
       <Editor
-        apiKey={import.meta.env.VITE_TINYMCE_API_KEY || 'no-api-key'}
         value={editorContent}
         init={{
           height: height,
@@ -58,8 +57,22 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
           content_style: 'body { font-family:Helvetica,Arial,sans-serif; font-size:14px }',
           placeholder: placeholder,
           readonly: disabled,
-          images_upload_url: '/api/upload/image',
-          images_upload_credentials: true,
+          // 使用自定义图片上传处理函数，使用base64编码
+          images_upload_handler: function (blobInfo, success, failure) {
+            const reader = new FileReader();
+            reader.onload = function () {
+              const base64 = reader.result;
+              if (typeof base64 === 'string') {
+                success(base64);
+              } else {
+                failure('图片上传失败');
+              }
+            };
+            reader.onerror = function () {
+              failure('图片上传失败');
+            };
+            reader.readAsDataURL(blobInfo.blob());
+          },
           // 禁用API密钥验证，即使没有有效API密钥也能使用编辑器
           statusbar: false,
           branding: false,

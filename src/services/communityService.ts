@@ -1147,5 +1147,49 @@ export const communityService = {
       message: '#ec4899'
     };
     return colorMap[type] || '#6b7280';
+  },
+
+  // 删除社区功能
+  async deleteCommunity(communityId: string): Promise<void> {
+    // 首先删除社区成员关联
+    try {
+      const { error: membersError } = await supabase
+        .from('community_members')
+        .delete()
+        .eq('community_id', communityId);
+      
+      if (membersError) {
+        console.error('删除社区成员失败:', membersError);
+        // 继续执行，不因为成员删除失败而中断
+      }
+    } catch (error) {
+      console.error('删除社区成员时发生错误:', error);
+    }
+
+    // 删除社区相关的帖子
+    try {
+      const { error: postsError } = await supabase
+        .from('posts')
+        .delete()
+        .eq('community_id', communityId);
+      
+      if (postsError) {
+        console.error('删除社区帖子失败:', postsError);
+        // 继续执行，不因为帖子删除失败而中断
+      }
+    } catch (error) {
+      console.error('删除社区帖子时发生错误:', error);
+    }
+
+    // 删除社区本身
+    const { error: communityError } = await supabase
+      .from('communities')
+      .delete()
+      .eq('id', communityId);
+    
+    if (communityError) {
+      console.error('删除社区失败:', communityError);
+      throw communityError;
+    }
   }
 };

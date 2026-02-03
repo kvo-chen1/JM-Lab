@@ -109,7 +109,46 @@ const PostItem = memo(({ post, index, onLike, onComment, onShare, onBookmark, on
           />
         )}
         
-
+        {/* 悬停操作按钮 */}
+        <div className="absolute inset-0 bg-black bg-opacity-0 hover:bg-opacity-20 transition-all duration-300 flex items-center justify-center opacity-0 hover:opacity-100">
+          <div className="flex gap-2">
+            <button
+              onClick={handleLike}
+              className={`w-10 h-10 flex items-center justify-center rounded-full bg-white text-gray-900 transition-transform hover:scale-110`}
+              title="点赞"
+            >
+              <i className="fas fa-heart"></i>
+            </button>
+            <button
+              onClick={handleComment}
+              className={`w-10 h-10 flex items-center justify-center rounded-full bg-white text-gray-900 transition-transform hover:scale-110`}
+              title="评论"
+            >
+              <i className="fas fa-comment"></i>
+            </button>
+            <button
+              onClick={handleBookmark}
+              className={`w-10 h-10 flex items-center justify-center rounded-full bg-white text-gray-900 transition-transform hover:scale-110 ${isBookmarked ? 'text-red-500' : ''}`}
+              title={isBookmarked ? "取消收藏" : "收藏"}
+            >
+              <i className={isBookmarked ? 'fas fa-bookmark' : 'far fa-bookmark'}></i>
+            </button>
+            <button
+              onClick={handleShare}
+              className={`w-10 h-10 flex items-center justify-center rounded-full bg-white text-gray-900 transition-transform hover:scale-110`}
+              title="分享"
+            >
+              <i className="fas fa-share"></i>
+            </button>
+            <button
+              onClick={handleDelete}
+              className={`w-10 h-10 flex items-center justify-center rounded-full bg-white text-red-500 transition-transform hover:scale-110`}
+              title="删除"
+            >
+              <i className="fas fa-trash"></i>
+            </button>
+          </div>
+        </div>
       </div>
       
       {/* 卡片内容 */}

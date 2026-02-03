@@ -109,6 +109,7 @@ const CommunityPageWithNotifications = React.memo(function CommunityPageWithNoti
       onSelectChannel,
       onCreateCommunity,
       onJoinCommunity,
+      onDeleteCommunity,
       submitCreateCommunity,
       onUpvote,
       onToggleFavorite,
@@ -316,6 +317,10 @@ const CommunityPageWithNotifications = React.memo(function CommunityPageWithNoti
         onClose={() => setIsManagementPanelOpen(false)}
         community={activeCommunity}
         isDark={isDark}
+        onDeleteCommunity={() => {
+          onDeleteCommunity(activeCommunity.id);
+          setIsManagementPanelOpen(false);
+        }}
       />
     )}
     </>

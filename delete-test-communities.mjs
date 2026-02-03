@@ -7,7 +7,10 @@ async function deleteTestCommunities() {
     // 要删除的社群名称
     const communityNames = [
       '测试社群1770030488359',
-      '测试社群1770029869992'
+      '测试社群1770029869992',
+      '111',
+      '1111',
+      '测试社群'
     ];
     
     let deletedCount = 0;

@@ -1742,7 +1742,7 @@ ${content}
               <div id="editor-content-area" className="flex-1 overflow-hidden relative" ref={editorContainerRef} style={{ width: '100%' }}>
                 {/* Streaming Preview or Rich Text Editor */}
                 {isGenerating && streamingContent ? (
-                  <div className={`h-full overflow-y-auto p-8 prose max-w-none ${isDark ? 'prose-invert bg-gray-900' : 'bg-white'}`} style={{ width: '100%' }}>
+                  <div className={`h-full overflow-y-auto p-8 ${isDark ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'}`} style={{ width: '100%' }}>
                      <div className="flex items-center gap-2 mb-4 text-blue-500 font-medium">
                        <i className="fas fa-spinner fa-spin"></i>
                        <span>AI 正在撰写中...</span>
@@ -1861,15 +1861,15 @@ ${content}
 
                   {/* Context-Aware Suggestions */}
                   {(selectedTemplateId && CONTEXT_AWARE_SUGGESTIONS[selectedTemplateId as keyof typeof CONTEXT_AWARE_SUGGESTIONS]) && (
-                    <div className={`px-4 py-3 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
-                      <div className="text-xs font-semibold mb-2 text-gray-400 dark:text-gray-500">模板建议</div>
-                      <div className="flex gap-2 overflow-x-auto pb-2">
+                    <div className={`px-4 py-4 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+                      <div className="text-sm font-semibold mb-3 text-gray-500 dark:text-gray-400">模板建议</div>
+                      <div className="grid grid-cols-1 gap-2">
                         {CONTEXT_AWARE_SUGGESTIONS[selectedTemplateId as keyof typeof CONTEXT_AWARE_SUGGESTIONS].map((suggestion, idx) => (
                           <button
                             key={idx}
                             onClick={() => handleModification(suggestion.prompt)}
                             disabled={isGenerating}
-                            className={`text-xs px-2.5 py-1.5 rounded-full border transition-colors ${isDark ? 'border-blue-600 hover:bg-blue-900/30 text-blue-400' : 'border-blue-200 hover:bg-blue-50 text-blue-700'}`}
+                            className={`text-sm px-4 py-2.5 rounded-lg border transition-all ${isDark ? 'border-blue-600 hover:bg-blue-900/30 text-blue-400' : 'border-blue-200 hover:bg-blue-50 text-blue-700'}`}
                           >
                             {suggestion.label}
                           </button>
@@ -1879,14 +1879,15 @@ ${content}
                   )}
 
                   {/* Quick Actions */}
-                  <div className={`px-4 py-2 border-t overflow-x-auto whitespace-nowrap ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
-                    <div className="flex gap-2">
+                  <div className={`px-4 py-4 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+                    <div className="text-sm font-semibold mb-3 text-gray-500 dark:text-gray-400">快速操作</div>
+                    <div className="grid grid-cols-2 gap-2">
                       {QUICK_ACTIONS.map((action, idx) => (
                         <button
                           key={idx}
                           onClick={() => handleModification(action.prompt)}
                           disabled={isGenerating}
-                          className={`text-xs px-2.5 py-1.5 rounded-full border transition-colors ${isDark ? 'border-gray-600 hover:bg-gray-700 text-gray-300' : 'border-gray-200 hover:bg-gray-100 text-gray-600'}`}
+                          className={`text-xs px-3 py-2 rounded-lg border transition-colors ${isDark ? 'border-gray-600 hover:bg-gray-700 text-gray-300' : 'border-gray-200 hover:bg-gray-100 text-gray-600'}`}
                         >
                           {action.label}
                         </button>
@@ -1895,6 +1896,7 @@ ${content}
                   </div>
 
                   <div className={`p-4 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+                    <div className="text-sm font-semibold mb-3 text-gray-500 dark:text-gray-400">修改要求</div>
                     <div className="relative">
                       <textarea
                         value={chatInput}
@@ -1906,7 +1908,7 @@ ${content}
                           }
                         }}
                         placeholder="输入修改要求，如'让第一段更精简'..."
-                        className={`w-full p-3 pr-10 rounded-lg border resize-none focus:ring-2 focus:ring-blue-500 outline-none ${
+                        className={`w-full p-4 pr-12 rounded-lg border resize-none focus:ring-2 focus:ring-blue-500 outline-none ${
                           isDark ? 'bg-gray-900 border-gray-600 text-white placeholder-gray-500' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400'
                         }`}
                         rows={3}
@@ -1915,16 +1917,16 @@ ${content}
                       <button
                         onClick={() => handleModification()}
                         disabled={!chatInput.trim() || isGenerating}
-                        className={`absolute bottom-3 right-3 w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+                        className={`absolute bottom-4 right-4 w-10 h-10 rounded-full flex items-center justify-center transition-all ${
                           !chatInput.trim() || isGenerating
                             ? 'bg-gray-300 text-gray-500 dark:bg-gray-700'
                             : 'bg-blue-600 text-white hover:bg-blue-700'
                         }`}
                       >
-                        {isGenerating ? <i className="fas fa-spinner fa-spin text-xs"></i> : <i className="fas fa-paper-plane text-xs"></i>}
+                        {isGenerating ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-paper-plane"></i>}
                       </button>
                     </div>
-                    <p className="text-xs text-gray-400 mt-2 text-center">
+                    <p className="text-xs text-gray-400 mt-3 text-center">
                       AI 可能产生不准确的信息，请核对重要内容。
                     </p>
                   </div>

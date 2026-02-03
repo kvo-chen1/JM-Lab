@@ -203,13 +203,6 @@ export async function getPosts(): Promise<Post[]> {
   // Define fetch logic
   const fetchFromStorage = async () => {
     try {
-      // 清除本地存储中的模拟数据
-      safeLocalStorageSet(KEY, '[]');
-      safeLocalStorageSet('jmzf_tags_cache', '');
-      safeLocalStorageSet('user', '');
-      safeLocalStorageSet('jmzf_user_bookmarks', '[]');
-      safeLocalStorageSet('jmzf_user_likes', '[]');
-
       // 从API获取作品
       let apiPosts: Post[] = [];
       try {
@@ -262,7 +255,21 @@ export async function getPosts(): Promise<Post[]> {
         }));
       } catch (e) {
         console.warn('从API获取作品失败:', e);
-        apiPosts = [];
+        // API失败时，从本地存储获取数据
+        const localRaw = safeLocalStorageGet(KEY);
+        if (localRaw) {
+          apiPosts = JSON.parse(localRaw);
+        } else {
+          apiPosts = [];
+        }
+      }
+
+      // 如果API返回空数组，尝试从本地存储获取
+      if (apiPosts.length === 0) {
+        const localRaw = safeLocalStorageGet(KEY);
+        if (localRaw) {
+          apiPosts = JSON.parse(localRaw);
+        }
       }
 
       // 排序：按日期倒序
@@ -276,6 +283,17 @@ export async function getPosts(): Promise<Post[]> {
       return apiPosts;
     } catch (error) {
       console.error('获取帖子失败:', error);
+      // 发生错误时，尝试从本地存储获取
+      const localRaw = safeLocalStorageGet(KEY);
+      if (localRaw) {
+        const localPosts = JSON.parse(localRaw);
+        localPosts.sort((a, b) => {
+          const dateA = a.date ? new Date(a.date).getTime() : 0;
+          const dateB = b.date ? new Date(b.date).getTime() : 0;
+          return dateB - dateA;
+        });
+        return localPosts;
+      }
       return [];
     }
   };
@@ -979,9 +997,6 @@ export async function addComment(postId: string, content: string, parentId?: str
   return undefined;
 }
 
-/**
- * 点赞评论
- */
 export async function likeComment(postId: string, commentId: string): Promise<Post | undefined> {
   const posts = await getPosts();
   const postIdx = posts.findIndex(p => p.id === postId);
@@ -1267,7 +1282,6 @@ export async function createWork(workData: Omit<Work, 'id' | 'createdAt' | 'upda
  * 支持直接使用URL或Base64作为图片，绕过File对象
  */
 export async function createWorkWithUrl(workData: Omit<Work, 'id' | 'createdAt' | 'updatedAt' | 'likes' | 'comments' | 'views' | 'userId' | 'isPublic' | 'type'>, imageUrl: string): Promise<Work> {
-  try {
     // 确保tags至少有一个
     const tags = workData.tags && workData.tags.length > 0 ? workData.tags : ['其他'];
 
@@ -1443,89 +1457,6 @@ export async function createWorkWithUrl(workData: Omit<Work, 'id' | 'createdAt' 
 
       return fallbackWork;
     }
-  } catch (error) {
-    console.error('创建作品失败:', error);
-    
-    // Fallback: Create locally
-    const timestamp = Date.now();
-    const id = timestamp;
-    const idStr = timestamp.toString();
-    const fallbackThumbnail = imageUrl || 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Fallback&image_size=1920x1080';
-    
-    const fallbackWork: Work = {
-      id: idStr,
-      title: workData.title,
-      userId: 'current-user',
-      thumbnailUrl: fallbackThumbnail,
-      likes: 0,
-      comments: 0,
-      views: 0,
-      categoryId: workData.categoryId,
-      tags: workData.tags || ['其他'],
-      isFeatured: false,
-      description: workData.description || '',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      isPublic: true,
-      type: 'image',
-      category: workData.category || 'other',
-      creator: '我',
-      creatorAvatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix',
-      thumbnail: fallbackThumbnail,
-      featured: false
-    };
-
-    const newPost: Post = {
-      id: idStr,
-      title: workData.title,
-      thumbnail: fallbackThumbnail,
-      likes: 0,
-      comments: [],
-      date: new Date().toISOString().slice(0, 10),
-      isLiked: false,
-      isBookmarked: false,
-      category: (workData.categoryId || 'other') as PostCategory,
-      tags: workData.tags || ['其他'],
-      description: workData.description || '',
-      views: 0,
-      shares: 0,
-      isFeatured: false,
-      isDraft: false,
-      completionStatus: 'published',
-      creativeDirection: '',
-      culturalElements: [],
-      colorScheme: [],
-      toolsUsed: [],
-      publishType: 'explore',
-      communityId: null,
-      moderationStatus: 'approved',
-      rejectionReason: null,
-      scheduledPublishDate: null,
-      visibility: 'public',
-      commentCount: 0,
-      engagementRate: 0,
-      trendingScore: 0,
-      reach: 0,
-      moderator: null,
-      reviewedAt: null,
-      recommendationScore: 0,
-      recommendedFor: [],
-      author: {
-        id: 'current-user',
-        username: '我',
-        email: 'me@example.com',
-        avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix'
-      }
-    };
-
-    const localRaw = safeLocalStorageGet(KEY);
-    const localPosts: Post[] = localRaw ? JSON.parse(localRaw) : [];
-    localPosts.unshift(newPost);
-    safeLocalStorageSet(KEY, JSON.stringify(localPosts));
-    clearAllCaches();
-
-    return fallbackWork;
-  }
 }
 
 /**

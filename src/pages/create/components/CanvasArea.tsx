@@ -23,7 +23,7 @@ export default function CanvasArea() {
   const [selectedFilter, setSelectedFilter] = useState('normal');
   const [selectedBackground, setSelectedBackground] = useState('transparent');
   const [selectedLayout, setSelectedLayout] = useState('center');
-  const [isStylePanelExpanded, setIsStylePanelExpanded] = useState(true);
+  const [isStylePanelExpanded, setIsStylePanelExpanded] = useState(false);
   
   // 纹样属性状态 - 从全局状态获取
   const patternOpacity = useCreateStore((state) => state.patternOpacity);

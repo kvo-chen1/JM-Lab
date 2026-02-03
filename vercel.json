@@ -70,13 +70,7 @@
     }
   ],
 
-  "functions": {
-    "api/index.js": {
-      "maxDuration": 30,
-      "memory": 1024,
-      "runtime": "nodejs18.x"
-    }
-  },
+
   "build": {
     "env": {
       "NODE_ENV": "production"

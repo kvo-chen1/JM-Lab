@@ -4008,19 +4008,7 @@ async function route(req, res, u, path) {
   }
 
   // 获取作品列表 (用于探索页面)
-  if (req.method === 'GET' && path === '/api/works') {
-    try {
-      // In a real app, we would query the works table with pagination and filters.
-      // For now, we return a mock list of works.
-      
-      // 返回空数组
-      sendJson(res, 200, { code: 0, data: [] })
-    } catch (e) {
-      console.error('[API] Get works failed:', e)
-      sendJson(res, 500, { code: 1, message: '获取作品失败' })
-    }
-    return
-  }
+
 
   // 点赞作品
   if (req.method === 'POST' && path.match(/^\/api\/works\/\d+\/like$/)) {

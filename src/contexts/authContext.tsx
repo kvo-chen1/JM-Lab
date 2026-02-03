@@ -741,8 +741,15 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     const avatarValue = userData?.avatar;
     const avatarUrl = typeof avatarValue === 'string' ? avatarValue : '';
     
+    // 确保用户ID存在且不是临时ID
+    if (!userData?.id || typeof userData.id !== 'string' || userData.id.includes('user_') && userData.id.includes('_')) {
+      console.error('无效的用户ID，登录失败');
+      toast.error('登录失败：无效的用户信息');
+      return false;
+    }
+    
     const userWithMembership = {
-      id: userData?.id || `user_${Date.now()}`,
+      id: userData.id,
       username: userData?.username || userData?.email?.split('@')[0] || '用户',
       email: userData?.email || '',
       avatar: avatarUrl,

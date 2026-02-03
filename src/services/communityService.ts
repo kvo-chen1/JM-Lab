@@ -253,6 +253,13 @@ export const communityService = {
     bookmarks?: Array<{ id: string; name: string; icon: string }>;
     joinApprovalRequired?: boolean;
   }, userId: string): Promise<Community> {
+    // 验证用户ID
+    if (!userId || typeof userId !== 'string' || userId.trim() === '' || (userId.includes('user_') && userId.includes('_'))) {
+      const error = new Error('Invalid user ID: User must be properly authenticated');
+      console.error('Invalid user ID for community creation:', userId);
+      throw error;
+    }
+
     // 准备插入的数据，适配数据库表结构
     const insertData: any = {
         id: `community-${Date.now()}`,

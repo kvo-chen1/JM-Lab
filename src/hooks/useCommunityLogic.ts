@@ -972,6 +972,12 @@ export const useCommunityLogic = () => {
       return;
     }
 
+    // 检查用户ID是否为临时ID
+    if (user.id.includes('user_') && user.id.includes('_')) {
+      toast.error('登录状态异常，请重新登录后再创建社群');
+      return;
+    }
+
     // 检查图片大小，避免Base64过长导致请求失败
     // 限制为 100KB (约 133333 个字符)
     const MAX_IMAGE_SIZE = 100 * 1024; 
@@ -986,6 +992,7 @@ export const useCommunityLogic = () => {
 
     try {
       console.log('Submitting community data:', data);
+      console.log('User ID:', user.id);
       
       // 调用API创建社群
       const newCommunity = await communityService.createCommunity({
@@ -1015,6 +1022,10 @@ export const useCommunityLogic = () => {
       const message = error instanceof Error ? error.message : '社群创建失败';
       if (message.includes('未授权') || message.toUpperCase().includes('UNAUTHORIZED') || message.includes('401')) {
         toast.error('登录状态已失效，请重新登录');
+        return;
+      }
+      if (message.includes('foreign key constraint') || message.includes('creator_id_fkey') || message.includes('Key is not present in table "users"')) {
+        toast.error('登录状态异常，请重新登录后再创建社群');
         return;
       }
       toast.error(message || '社群创建失败');

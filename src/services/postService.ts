@@ -1081,8 +1081,9 @@ export async function createWork(workData: Omit<Work, 'id' | 'createdAt' | 'upda
 
     // 上传图片
     const thumbnail = await uploadImage(imageFile);
-    // Declare imageUrl for fallback scope
-    const imageUrl = thumbnail;
+    
+    // 确保tags至少有一个
+    const tags = workData.tags && workData.tags.length > 0 ? workData.tags : ['其他'];
 
     // 使用API服务创建作品
     // apiService.createWork expects Omit<Work, 'id'>
@@ -1098,153 +1099,168 @@ export async function createWork(workData: Omit<Work, 'id' | 'createdAt' | 'upda
       comments: 0,
       isPublic: true,
       type: 'image',
-      isFeatured: false
-    };
-
-    const createdWork = await workService.createWork(workToCreate);
-
-    // 保存到本地存储
-    const localRaw = safeLocalStorageGet(KEY);
-    const localPosts: Post[] = localRaw ? JSON.parse(localRaw) : [];
-
-    const newPost: Post = {
-      id: createdWork.id.toString(),
-      title: createdWork.title,
-      thumbnail: createdWork.thumbnail,
-      likes: createdWork.likes,
-      comments: [],
-      date: new Date().toISOString().slice(0, 10),
-      isLiked: false,
-      isBookmarked: false,
-      category: createdWork.category as PostCategory,
-      tags: createdWork.tags,
-      description: createdWork.description || '',
-      views: createdWork.views,
-      shares: 0,
-      isFeatured: createdWork.featured,
-      isDraft: false,
-      completionStatus: 'published' as const,
-      creativeDirection: '',
-      culturalElements: [],
-      colorScheme: [],
-      toolsUsed: [],
-      downloadCount: 0,
-      publishType: 'explore' as const,
-      communityId: null,
-      moderationStatus: 'approved',
-      rejectionReason: null,
-      scheduledPublishDate: null,
-      visibility: 'public',
-      commentCount: 0,
-      engagementRate: 0,
-      trendingScore: 0,
-      reach: 0,
-      moderator: null,
-      reviewedAt: null,
-      recommendationScore: 0,
-      recommendedFor: []
-    };
-
-    localPosts.unshift(newPost);
-    safeLocalStorageSet(KEY, JSON.stringify(localPosts));
-
-    // 清除缓存
-    clearAllCaches();
-
-    return createdWork;
-  } catch (error) {
-    console.error('创建作品失败，尝试本地保存:', error);
-    
-    // Fallback: Create locally
-    const timestamp = Date.now();
-    const id = timestamp;
-    const idStr = timestamp.toString();
-
-    // Construct Work object (for return)
-    const fallbackWork: Work = {
-      id: id,
-      title: workData.title,
-      creator: '我',
-      creatorAvatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix',
-      thumbnail: imageUrl,
-      likes: 0,
-      comments: 0,
-      views: 0,
-      category: workData.category,
-      tags: workData.tags,
-      featured: false,
-      description: workData.description,
-    };
-
-    // Construct Post object (for storage)
-    const newPost: Post = {
-      id: idStr,
-      title: workData.title,
-      thumbnail: imageUrl,
-      likes: 0,
-      comments: [],
-      date: new Date().toISOString().slice(0, 10),
-      isLiked: false,
-      isBookmarked: false,
-      category: workData.category as PostCategory,
-      tags: workData.tags,
-      description: workData.description || '',
-      views: 0,
-      shares: 0,
       isFeatured: false,
-      isDraft: false,
-      completionStatus: 'published',
-      creativeDirection: '',
-      culturalElements: [],
-      colorScheme: [],
-      toolsUsed: [],
-      publishType: 'explore',
-      communityId: null,
-      moderationStatus: 'approved',
-      rejectionReason: null,
-      scheduledPublishDate: null,
-      visibility: 'public',
-      commentCount: 0,
-      engagementRate: 0,
-      trendingScore: 0,
-      reach: 0,
-      moderator: null,
-      reviewedAt: null,
-      recommendationScore: 0,
-      recommendedFor: [],
-      author: {
-        id: 'current-user',
-        username: '我',
-        email: 'me@example.com',
-        avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix'
-      }
+      tags: tags
     };
 
-    // Save to localStorage
-    const localRaw = safeLocalStorageGet(KEY);
-    const localPosts: Post[] = localRaw ? JSON.parse(localRaw) : [];
-    localPosts.unshift(newPost);
-    safeLocalStorageSet(KEY, JSON.stringify(localPosts));
+    try {
+      const createdWork = await workService.createWork(workToCreate);
 
-    // Clear cache
-    clearAllCaches();
+      // 保存到本地存储
+      const localRaw = safeLocalStorageGet(KEY);
+      const localPosts: Post[] = localRaw ? JSON.parse(localRaw) : [];
 
-    // 添加到同步队列
-    dataSyncService.addOperation({
-      id: `sync_create_work_${idStr}`,
-      type: 'create',
-      entityType: 'work',
-      entityId: idStr,
-      payload: { ...workData, thumbnail: imageUrl },
-      timestamp: Date.now(),
-      priority: 'high',
-      status: 'pending',
-      retryCount: 0,
-      maxRetries: 5,
-      lastAttempt: 0
-    });
+      const newPost: Post = {
+        id: createdWork.id.toString(),
+        title: createdWork.title,
+        thumbnail: createdWork.thumbnail || createdWork.thumbnailUrl || '',
+        likes: createdWork.likes,
+        comments: [],
+        date: createdWork.createdAt ? new Date(createdWork.createdAt).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+        isLiked: false,
+        isBookmarked: false,
+        category: (createdWork.categoryId || workData.categoryId || 'other') as PostCategory,
+        tags: createdWork.tags || tags,
+        description: createdWork.description || '',
+        views: createdWork.views,
+        shares: 0,
+        isFeatured: createdWork.isFeatured || false,
+        isDraft: false,
+        completionStatus: 'published' as const,
+        creativeDirection: '',
+        culturalElements: [],
+        colorScheme: [],
+        toolsUsed: [],
+        downloadCount: 0,
+        publishType: 'explore' as const,
+        communityId: null,
+        moderationStatus: 'approved',
+        rejectionReason: null,
+        scheduledPublishDate: null,
+        visibility: 'public',
+        commentCount: 0,
+        engagementRate: 0,
+        trendingScore: 0,
+        reach: 0,
+        moderator: null,
+        reviewedAt: null,
+        recommendationScore: 0,
+        recommendedFor: []
+      };
 
-    return fallbackWork;
+      localPosts.unshift(newPost);
+      safeLocalStorageSet(KEY, JSON.stringify(localPosts));
+
+      // 清除缓存
+      clearAllCaches();
+
+      return createdWork;
+    } catch (apiError) {
+      console.error('API创建作品失败，尝试本地保存:', apiError);
+      
+      // Fallback: Create locally
+      const timestamp = Date.now();
+      const id = timestamp;
+      const idStr = timestamp.toString();
+
+      // Construct Work object (for return)
+      const fallbackWork: Work = {
+        id: id,
+        title: workData.title,
+        creator: '我',
+        creatorAvatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix',
+        thumbnail: thumbnail,
+        likes: 0,
+        comments: 0,
+        views: 0,
+        category: workData.category || 'other',
+        tags: tags,
+        featured: false,
+        description: workData.description || '',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        userId: 'current-user',
+        thumbnailUrl: thumbnail,
+        isPublic: true,
+        type: 'image',
+        isFeatured: false,
+        categoryId: workData.categoryId
+      };
+
+      // Construct Post object (for storage)
+      const newPost: Post = {
+        id: idStr,
+        title: workData.title,
+        thumbnail: thumbnail,
+        likes: 0,
+        comments: [],
+        date: new Date().toISOString().slice(0, 10),
+        isLiked: false,
+        isBookmarked: false,
+        category: (workData.categoryId || 'other') as PostCategory,
+        tags: tags,
+        description: workData.description || '',
+        views: 0,
+        shares: 0,
+        isFeatured: false,
+        isDraft: false,
+        completionStatus: 'published',
+        creativeDirection: '',
+        culturalElements: [],
+        colorScheme: [],
+        toolsUsed: [],
+        publishType: 'explore',
+        communityId: null,
+        moderationStatus: 'approved',
+        rejectionReason: null,
+        scheduledPublishDate: null,
+        visibility: 'public',
+        commentCount: 0,
+        engagementRate: 0,
+        trendingScore: 0,
+        reach: 0,
+        moderator: null,
+        reviewedAt: null,
+        recommendationScore: 0,
+        recommendedFor: [],
+        author: {
+          id: 'current-user',
+          username: '我',
+          email: 'me@example.com',
+          avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix'
+        }
+      };
+
+      // Save to localStorage
+      const localRaw = safeLocalStorageGet(KEY);
+      const localPosts: Post[] = localRaw ? JSON.parse(localRaw) : [];
+      localPosts.unshift(newPost);
+      safeLocalStorageSet(KEY, JSON.stringify(localPosts));
+
+      // Clear cache
+      clearAllCaches();
+
+      // 添加到同步队列
+      try {
+        dataSyncService.addOperation({
+          id: `sync_create_work_${idStr}`,
+          type: 'create',
+          entityType: 'work',
+          entityId: idStr,
+          payload: { ...workToCreate },
+          timestamp: Date.now(),
+          priority: 'high',
+          status: 'pending',
+          retryCount: 0,
+          maxRetries: 5,
+          lastAttempt: 0
+        });
+      } catch (syncError) {
+        console.error('添加同步操作失败:', syncError);
+      }
+
+      return fallbackWork;
+    }
   }
 }
 
@@ -1254,6 +1270,9 @@ export async function createWork(workData: Omit<Work, 'id' | 'createdAt' | 'upda
  */
 export async function createWorkWithUrl(workData: Omit<Work, 'id' | 'createdAt' | 'updatedAt' | 'likes' | 'comments' | 'views' | 'userId' | 'isPublic' | 'type'>, imageUrl: string): Promise<Work> {
   try {
+    // 确保tags至少有一个
+    const tags = workData.tags && workData.tags.length > 0 ? workData.tags : ['其他'];
+
     // 使用API服务创建作品
     const workToCreate: Omit<Work, 'id'> = {
       ...workData,
@@ -1266,154 +1285,166 @@ export async function createWorkWithUrl(workData: Omit<Work, 'id' | 'createdAt' 
       comments: 0,
       isPublic: true,
       type: 'image',
-      isFeatured: false
-    };
-
-    const createdWork = await workService.createWork(workToCreate);
-
-    // 保存到本地存储
-    const localRaw = safeLocalStorageGet(KEY);
-    const localPosts: Post[] = localRaw ? JSON.parse(localRaw) : [];
-
-    const newPost: Post = {
-      id: createdWork.id.toString(),
-      title: createdWork.title,
-      thumbnail: createdWork.thumbnailUrl || '',
-      likes: createdWork.likes,
-      comments: [],
-      date: createdWork.createdAt ? new Date(createdWork.createdAt).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
-      isLiked: false,
-      isBookmarked: false,
-      category: (createdWork.categoryId || 'other') as PostCategory,
-      tags: createdWork.tags || [],
-      description: createdWork.description || '',
-      views: createdWork.views,
-      shares: 0,
-      isFeatured: createdWork.isFeatured || false,
-      isDraft: false,
-      completionStatus: 'published' as const,
-      creativeDirection: '',
-      culturalElements: [],
-      colorScheme: [],
-      toolsUsed: [],
-      downloadCount: 0,
-      publishType: 'explore' as const,
-      communityId: null,
-      moderationStatus: 'approved',
-      rejectionReason: null,
-      scheduledPublishDate: null,
-      visibility: 'public',
-      commentCount: 0,
-      engagementRate: 0,
-      trendingScore: 0,
-      reach: 0,
-      moderator: null,
-      reviewedAt: null,
-      recommendationScore: 0,
-      recommendedFor: []
-    };
-
-    localPosts.unshift(newPost);
-    safeLocalStorageSet(KEY, JSON.stringify(localPosts));
-
-    // 清除缓存
-    clearAllCaches();
-
-    return createdWork;
-  } catch (error) {
-    console.error('创建作品失败，尝试本地保存:', error);
-    
-    // Fallback: Create locally if we have a thumbnail
-    // Better approach: Since this is a mock environment fix, let's assume we can generate a mock URL or use a placeholder.
-    const fallbackThumbnail = imageUrl || 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Fallback&image_size=1920x1080';
-
-    const timestamp = Date.now();
-    const id = timestamp;
-    const idStr = timestamp.toString();
-
-    const fallbackWork: Work = {
-      id: idStr,
-      title: workData.title,
-      userId: 'current-user',
-      thumbnailUrl: fallbackThumbnail,
-      likes: 0,
-      comments: 0,
-      views: 0,
-      categoryId: workData.categoryId,
-      tags: workData.tags,
       isFeatured: false,
-      description: workData.description,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      isPublic: true,
-      type: 'image'
+      tags: tags
     };
 
-    const newPost: Post = {
-      id: idStr,
-      title: workData.title,
-      thumbnail: fallbackThumbnail,
-      likes: 0,
-      comments: [],
-      date: new Date().toISOString().slice(0, 10),
-      isLiked: false,
-      isBookmarked: false,
-      category: (workData.categoryId || 'other') as PostCategory,
-      tags: workData.tags || [],
-      description: workData.description || '',
-      views: 0,
-      shares: 0,
-      isFeatured: false,
-      isDraft: false,
-      completionStatus: 'published',
-      creativeDirection: '',
-      culturalElements: [],
-      colorScheme: [],
-      toolsUsed: [],
-      publishType: 'explore',
-      communityId: null,
-      moderationStatus: 'approved',
-      rejectionReason: null,
-      scheduledPublishDate: null,
-      visibility: 'public',
-      commentCount: 0,
-      engagementRate: 0,
-      trendingScore: 0,
-      reach: 0,
-      moderator: null,
-      reviewedAt: null,
-      recommendationScore: 0,
-      recommendedFor: [],
-      author: {
-        id: 'current-user',
-        username: '我',
-        email: 'me@example.com',
-        avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix'
+    try {
+      const createdWork = await workService.createWork(workToCreate);
+
+      // 保存到本地存储
+      const localRaw = safeLocalStorageGet(KEY);
+      const localPosts: Post[] = localRaw ? JSON.parse(localRaw) : [];
+
+      const newPost: Post = {
+        id: createdWork.id.toString(),
+        title: createdWork.title,
+        thumbnail: createdWork.thumbnailUrl || '',
+        likes: createdWork.likes,
+        comments: [],
+        date: createdWork.createdAt ? new Date(createdWork.createdAt).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+        isLiked: false,
+        isBookmarked: false,
+        category: (createdWork.categoryId || workData.categoryId || 'other') as PostCategory,
+        tags: createdWork.tags || tags,
+        description: createdWork.description || '',
+        views: createdWork.views,
+        shares: 0,
+        isFeatured: createdWork.isFeatured || false,
+        isDraft: false,
+        completionStatus: 'published' as const,
+        creativeDirection: '',
+        culturalElements: [],
+        colorScheme: [],
+        toolsUsed: [],
+        downloadCount: 0,
+        publishType: 'explore' as const,
+        communityId: null,
+        moderationStatus: 'approved',
+        rejectionReason: null,
+        scheduledPublishDate: null,
+        visibility: 'public',
+        commentCount: 0,
+        engagementRate: 0,
+        trendingScore: 0,
+        reach: 0,
+        moderator: null,
+        reviewedAt: null,
+        recommendationScore: 0,
+        recommendedFor: []
+      };
+
+      localPosts.unshift(newPost);
+      safeLocalStorageSet(KEY, JSON.stringify(localPosts));
+
+      // 清除缓存
+      clearAllCaches();
+
+      return createdWork;
+    } catch (apiError) {
+      console.error('创建作品失败，尝试本地保存:', apiError);
+      
+      // Fallback: Create locally if we have a thumbnail
+      // Better approach: Since this is a mock environment fix, let's assume we can generate a mock URL or use a placeholder.
+      const fallbackThumbnail = imageUrl || 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Fallback&image_size=1920x1080';
+
+      const timestamp = Date.now();
+      const id = timestamp;
+      const idStr = timestamp.toString();
+
+      const fallbackWork: Work = {
+        id: idStr,
+        title: workData.title,
+        userId: 'current-user',
+        thumbnailUrl: fallbackThumbnail,
+        likes: 0,
+        comments: 0,
+        views: 0,
+        categoryId: workData.categoryId,
+        tags: tags,
+        isFeatured: false,
+        description: workData.description || '',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        isPublic: true,
+        type: 'image',
+        category: workData.category || 'other',
+        creator: '我',
+        creatorAvatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix',
+        thumbnail: fallbackThumbnail,
+        featured: false
+      };
+
+      const newPost: Post = {
+        id: idStr,
+        title: workData.title,
+        thumbnail: fallbackThumbnail,
+        likes: 0,
+        comments: [],
+        date: new Date().toISOString().slice(0, 10),
+        isLiked: false,
+        isBookmarked: false,
+        category: (workData.categoryId || 'other') as PostCategory,
+        tags: tags,
+        description: workData.description || '',
+        views: 0,
+        shares: 0,
+        isFeatured: false,
+        isDraft: false,
+        completionStatus: 'published',
+        creativeDirection: '',
+        culturalElements: [],
+        colorScheme: [],
+        toolsUsed: [],
+        publishType: 'explore',
+        communityId: null,
+        moderationStatus: 'approved',
+        rejectionReason: null,
+        scheduledPublishDate: null,
+        visibility: 'public',
+        commentCount: 0,
+        engagementRate: 0,
+        trendingScore: 0,
+        reach: 0,
+        moderator: null,
+        reviewedAt: null,
+        recommendationScore: 0,
+        recommendedFor: [],
+        author: {
+          id: 'current-user',
+          username: '我',
+          email: 'me@example.com',
+          avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix'
+        }
+      };
+
+      const localRaw = safeLocalStorageGet(KEY);
+      const localPosts: Post[] = localRaw ? JSON.parse(localRaw) : [];
+      localPosts.unshift(newPost);
+      safeLocalStorageSet(KEY, JSON.stringify(localPosts));
+      clearAllCaches();
+
+      // 添加到同步队列
+      try {
+        dataSyncService.addOperation({
+          id: `sync_create_work_${idStr}`,
+          type: 'create',
+          entityType: 'work',
+          entityId: idStr,
+          payload: { ...workToCreate },
+          timestamp: Date.now(),
+          priority: 'high',
+          status: 'pending',
+          retryCount: 0,
+          maxRetries: 5,
+          lastAttempt: 0
+        });
+      } catch (syncError) {
+        console.error('添加同步操作失败:', syncError);
       }
-    };
 
-    const localRaw = safeLocalStorageGet(KEY);
-    const localPosts: Post[] = localRaw ? JSON.parse(localRaw) : [];
-    localPosts.unshift(newPost);
-    safeLocalStorageSet(KEY, JSON.stringify(localPosts));
-    clearAllCaches();
-
-    // 添加到同步队列
-    dataSyncService.addOperation({
-      id: `sync_create_work_${idStr}`,
-      type: 'create',
-      entityType: 'work',
-      entityId: idStr,
-      payload: { ...workData, thumbnail: fallbackThumbnail },
-      timestamp: Date.now(),
-      priority: 'high',
-      status: 'pending',
-      retryCount: 0,
-      maxRetries: 5,
-      lastAttempt: 0
-    });
-
-    return fallbackWork;
+      return fallbackWork;
+    }
   }
 }
 

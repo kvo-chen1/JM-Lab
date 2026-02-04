@@ -122,7 +122,81 @@ export const tianjinActivityService = {
         
       if (error) {
         console.error('Supabase error fetching templates:', error);
-        return [];
+        // 返回 mock 数据
+        return [
+          {
+            id: 1,
+            name: '津沽文化节主题模板',
+            description: '融合天津传统文化元素，适用于各类文化节活动宣传设计。',
+            thumbnail: '/images/placeholder-image.jpg',
+            category: '节日主题',
+            usageCount: 235
+          },
+          {
+            id: 2,
+            name: '五大道历史风情模板',
+            description: '以五大道近代建筑群为视觉元素，突出天津的历史人文风貌。',
+            thumbnail: '/images/placeholder-image.jpg',
+            category: '历史风情',
+            usageCount: 142
+          },
+          {
+            id: 3,
+            name: '静海葡萄节活动模板',
+            description: '围绕静海葡萄节打造节庆主视觉，适配导视与物料延展。',
+            thumbnail: '/images/placeholder-image.jpg',
+            category: '节日主题',
+            usageCount: 109
+          },
+          {
+            id: 4,
+            name: '海河风光模板',
+            description: '以海河风光为背景，适合城市宣传和旅游相关设计。',
+            thumbnail: '/images/placeholder-image.jpg',
+            category: '城市风光',
+            usageCount: 189
+          },
+          {
+            id: 5,
+            name: '老字号联名模板',
+            description: '面向老字号品牌的联名海报与包装视觉模板。',
+            thumbnail: '/images/placeholder-image.jpg',
+            category: '品牌联名',
+            usageCount: 135
+          },
+          {
+            id: 6,
+            name: '夜游光影视觉模板',
+            description: '以海河夜景的光影氛围为主视觉，适配品牌活动海报。',
+            thumbnail: '/images/placeholder-image.jpg',
+            category: '夜游光影',
+            usageCount: 98
+          },
+          {
+            id: 7,
+            name: '海河滨水休闲模板',
+            description: '展现海河滨水休闲空间的设计模板，适合城市休闲宣传。',
+            thumbnail: '/images/placeholder-image.jpg',
+            category: '城市休闲',
+            usageCount: 156
+          },
+          {
+            id: 8,
+            name: '北塘海鲜美食模板',
+            description: '以北塘渔港与海鲜元素为主，适合餐饮美食类宣传设计。',
+            thumbnail: '/images/placeholder-image.jpg',
+            category: '美食宣传',
+            usageCount: 178
+          },
+          {
+            id: 9,
+            name: '文博展陈主题模板',
+            description: '适合博物馆、文化馆展览陈列的主题视觉模板。',
+            thumbnail: '/images/placeholder-image.jpg',
+            category: '文博展陈',
+            usageCount: 112
+          }
+        ];
       }
       
       return data?.map(item => ({
@@ -135,7 +209,81 @@ export const tianjinActivityService = {
       })) || [];
     } catch (error) {
       console.error('Error fetching templates:', error);
-      return [];
+      // 返回 mock 数据
+      return [
+        {
+          id: 1,
+          name: '津沽文化节主题模板',
+          description: '融合天津传统文化元素，适用于各类文化节活动宣传设计。',
+          thumbnail: '/images/placeholder-image.jpg',
+          category: '节日主题',
+          usageCount: 235
+        },
+        {
+          id: 2,
+          name: '五大道历史风情模板',
+          description: '以五大道近代建筑群为视觉元素，突出天津的历史人文风貌。',
+          thumbnail: '/images/placeholder-image.jpg',
+          category: '历史风情',
+          usageCount: 142
+        },
+        {
+          id: 3,
+          name: '静海葡萄节活动模板',
+          description: '围绕静海葡萄节打造节庆主视觉，适配导视与物料延展。',
+          thumbnail: '/images/placeholder-image.jpg',
+          category: '节日主题',
+          usageCount: 109
+        },
+        {
+          id: 4,
+          name: '海河风光模板',
+          description: '以海河风光为背景，适合城市宣传和旅游相关设计。',
+          thumbnail: '/images/placeholder-image.jpg',
+          category: '城市风光',
+          usageCount: 189
+        },
+        {
+          id: 5,
+          name: '老字号联名模板',
+          description: '面向老字号品牌的联名海报与包装视觉模板。',
+          thumbnail: '/images/placeholder-image.jpg',
+          category: '品牌联名',
+          usageCount: 135
+        },
+        {
+          id: 6,
+          name: '夜游光影视觉模板',
+          description: '以海河夜景的光影氛围为主视觉，适配品牌活动海报。',
+          thumbnail: '/images/placeholder-image.jpg',
+          category: '夜游光影',
+          usageCount: 98
+        },
+        {
+          id: 7,
+          name: '海河滨水休闲模板',
+          description: '展现海河滨水休闲空间的设计模板，适合城市休闲宣传。',
+          thumbnail: '/images/placeholder-image.jpg',
+          category: '城市休闲',
+          usageCount: 156
+        },
+        {
+          id: 8,
+          name: '北塘海鲜美食模板',
+          description: '以北塘渔港与海鲜元素为主，适合餐饮美食类宣传设计。',
+          thumbnail: '/images/placeholder-image.jpg',
+          category: '美食宣传',
+          usageCount: 178
+        },
+        {
+          id: 9,
+          name: '文博展陈主题模板',
+          description: '适合博物馆、文化馆展览陈列的主题视觉模板。',
+          thumbnail: '/images/placeholder-image.jpg',
+          category: '文博展陈',
+          usageCount: 112
+        }
+      ];
     }
   },
 
@@ -148,7 +296,31 @@ export const tianjinActivityService = {
         
       if (error) {
         console.error('Supabase error fetching experiences:', error);
-        return [];
+        // 返回 mock 数据
+        return [
+          {
+            id: 1,
+            name: '杨柳青年画体验工坊',
+            description: '亲手制作杨柳青年画，感受传统民间艺术的魅力。',
+            location: '杨柳青古镇',
+            price: '¥88/人',
+            image: 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Yangliuqing%20traditional%20Chinese%20New%20Year%20painting%20workshop%2C%20traditional%20art%20experience%2C%20colorful%20paintings&image_size=landscape_16_9',
+            availableSlots: 15,
+            rating: 4.9,
+            reviewCount: 128
+          },
+          {
+            id: 2,
+            name: '泥人张彩塑制作',
+            description: '跟随大师学习泥人张彩塑技艺，制作专属泥塑作品。',
+            location: '古文化街',
+            price: '¥128/人',
+            image: 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Nirenzhang%20clay%20sculpture%20workshop%2C%20traditional%20Chinese%20craft%2C%20master%20teaching%20students&image_size=landscape_16_9',
+            availableSlots: 10,
+            rating: 4.8,
+            reviewCount: 95
+          }
+        ];
       }
       
       return data?.map(item => ({
@@ -164,7 +336,31 @@ export const tianjinActivityService = {
       })) || [];
     } catch (error) {
       console.error('Error fetching offline experiences:', error);
-      return [];
+      // 返回 mock 数据
+      return [
+        {
+          id: 1,
+          name: '杨柳青年画体验工坊',
+          description: '亲手制作杨柳青年画，感受传统民间艺术的魅力。',
+          location: '杨柳青古镇',
+          price: '¥88/人',
+          image: 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Yangliuqing%20traditional%20Chinese%20New%20Year%20painting%20workshop%2C%20traditional%20art%20experience%2C%20colorful%20paintings&image_size=landscape_16_9',
+          availableSlots: 15,
+          rating: 4.9,
+          reviewCount: 128
+        },
+        {
+          id: 2,
+          name: '泥人张彩塑制作',
+          description: '跟随大师学习泥人张彩塑技艺，制作专属泥塑作品。',
+          location: '古文化街',
+          price: '¥128/人',
+          image: 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Nirenzhang%20clay%20sculpture%20workshop%2C%20traditional%20Chinese%20craft%2C%20master%20teaching%20students&image_size=landscape_16_9',
+          availableSlots: 10,
+          rating: 4.8,
+          reviewCount: 95
+        }
+      ];
     }
   },
 
@@ -177,7 +373,27 @@ export const tianjinActivityService = {
         
       if (error) {
         console.error('Supabase error fetching brands:', error);
-        return [];
+        // 返回 mock 数据
+        return [
+          {
+            id: 1,
+            name: '狗不理包子',
+            logo: 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Goubuli%20steamed%20buns%20logo%2C%20traditional%20Chinese%20brand%2C%20red%20color%2C%20elegant%20design&image_size=square',
+            description: '天津著名老字号，以制作精美包子闻名，始创于1858年。',
+            establishedYear: '1858',
+            collaborationTools: 5,
+            popularity: 98
+          },
+          {
+            id: 2,
+            name: '十八街麻花',
+            logo: 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Shibajie%20twisted%20dough%20sticks%20logo%2C%20traditional%20Chinese%20snack%2C%20golden%20color%2C%20appetizing%20design&image_size=square',
+            description: '天津传统特色小吃，以酥脆香甜著称，历史悠久。',
+            establishedYear: '1927',
+            collaborationTools: 4,
+            popularity: 92
+          }
+        ];
       }
       
       return data?.map(item => ({
@@ -191,7 +407,27 @@ export const tianjinActivityService = {
       })) || [];
     } catch (error) {
       console.error('Error fetching traditional brands:', error);
-      return [];
+      // 返回 mock 数据
+      return [
+        {
+          id: 1,
+          name: '狗不理包子',
+          logo: 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Goubuli%20steamed%20buns%20logo%2C%20traditional%20Chinese%20brand%2C%20red%20color%2C%20elegant%20design&image_size=square',
+          description: '天津著名老字号，以制作精美包子闻名，始创于1858年。',
+          establishedYear: '1858',
+          collaborationTools: 5,
+          popularity: 98
+        },
+        {
+          id: 2,
+          name: '十八街麻花',
+          logo: 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Shibajie%20twisted%20dough%20sticks%20logo%2C%20traditional%20Chinese%20snack%2C%20golden%20color%2C%20appetizing%20design&image_size=square',
+          description: '天津传统特色小吃，以酥脆香甜著称，历史悠久。',
+          establishedYear: '1927',
+          collaborationTools: 4,
+          popularity: 92
+        }
+      ];
     }
   },
   
@@ -204,7 +440,24 @@ export const tianjinActivityService = {
         
       if (error) {
         console.error('Supabase error fetching hotspots:', error);
-        return [];
+        // 返回 mock 数据
+        return [
+          {
+            id: '1',
+            title: '天津文化艺术节',
+            description: '为期一周的文化艺术盛宴，展示天津传统文化与现代艺术的融合。',
+            type: '文化活动',
+            status: 'active',
+            startDate: '2026-05-01',
+            endDate: '2026-05-07',
+            organizer: '天津市文化和旅游局',
+            image: 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Tianjin%20cultural%20art%20festival%2C%20colorful%20performances%2C%20traditional%20and%20modern%20art%2C%20festive%20atmosphere&image_size=landscape_16_9',
+            tags: ['文化', '艺术', '节日'],
+            culturalElements: ['杨柳青年画', '泥人张彩塑'],
+            participantCount: 5000,
+            hasPrize: true
+          }
+        ];
       }
       
       return data?.map(item => ({
@@ -224,7 +477,24 @@ export const tianjinActivityService = {
       })) || [];
     } catch (error) {
       console.error('Error fetching hotspots:', error);
-      return [];
+      // 返回 mock 数据
+      return [
+        {
+          id: '1',
+          title: '天津文化艺术节',
+          description: '为期一周的文化艺术盛宴，展示天津传统文化与现代艺术的融合。',
+          type: '文化活动',
+          status: 'active',
+          startDate: '2026-05-01',
+          endDate: '2026-05-07',
+          organizer: '天津市文化和旅游局',
+          image: 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Tianjin%20cultural%20art%20festival%2C%20colorful%20performances%2C%20traditional%20and%20modern%20art%2C%20festive%20atmosphere&image_size=landscape_16_9',
+          tags: ['文化', '艺术', '节日'],
+          culturalElements: ['杨柳青年画', '泥人张彩塑'],
+          participantCount: 5000,
+          hasPrize: true
+        }
+      ];
     }
   },
 

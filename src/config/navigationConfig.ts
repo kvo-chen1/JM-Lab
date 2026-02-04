@@ -43,7 +43,7 @@ export const tianjinNavItems: NavItem[] = [
   { id: 'tianjin', path: '/tianjin', label: '特色专区', icon: 'fas fa-landmark', priority: 'high' },
 
   { id: 'knowledge', path: '/knowledge', label: '文化知识', icon: 'fas fa-book', priority: 'medium' },
-  { id: 'news', path: '/cultural-news', label: '文化资讯', icon: 'fas fa-newspaper', priority: 'low' }
+
 ];
 
 // 激励与福利导航项

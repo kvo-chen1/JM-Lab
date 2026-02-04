@@ -476,8 +476,60 @@ class TaskService {
     if (task && task.reward) {
       pointsService.addPoints(task.reward.points, '任务完成', 'task', `完成任务：${task.title}`, taskId);
       
-      // TODO: 添加徽章奖励逻辑
+      // 发放徽章奖励
+      if (task.reward.badge) {
+        try {
+          const badgeService = require('./badgeService').default;
+          badgeService.grantBadge(userId, task.reward.badge, '任务完成');
+        } catch (error) {
+          console.error('发放徽章奖励失败:', error);
+        }
+      }
     }
+  }
+
+  /**
+   * 自动更新任务进度
+   * 当用户执行相关操作时，自动更新对应的任务进度
+   */
+  updateProgressAutomatically(userId: string, action: {
+    type: 'create' | 'share' | 'like' | 'comment' | 'follow' | 'login';
+    count?: number;
+    targetId?: string;
+  }) {
+    const { type, count = 1 } = action;
+    
+    // 获取所有活跃任务
+    const activeTasks = this.tasks.filter(task => 
+      task.status === 'active' && 
+      task.requirements.type === type
+    );
+    
+    // 更新每个相关任务的进度
+    activeTasks.forEach(task => {
+      const currentProgress = this.taskProgress.find(
+        p => p.userId === userId && p.taskId === task.id
+      )?.progress || 0;
+      
+      // 计算新的进度
+      const newProgress = Math.min(currentProgress + count, task.requirements.count);
+      
+      // 更新进度
+      this.updateTaskProgress(userId, task.id, newProgress);
+    });
+  }
+
+  /**
+   * 批量更新任务进度
+   */
+  batchUpdateProgress(userId: string, actions: Array<{
+    type: 'create' | 'share' | 'like' | 'comment' | 'follow' | 'login';
+    count?: number;
+    targetId?: string;
+  }>) {
+    actions.forEach(action => {
+      this.updateProgressAutomatically(userId, action);
+    });
   }
 
   /**

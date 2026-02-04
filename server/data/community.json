@@ -1,21 +1,5 @@
 {
-  "tags": [
-    "国潮设计",
-    "非遗传承",
-    "品牌联名",
-    "校园活动",
-    "文旅推广"
-  ],
-  "tagDetails": [
-    { "label": "国潮设计", "group": "风格", "weight": 90, "desc": "融合传统元素的现代设计" },
-    { "label": "非遗传承", "group": "题材", "weight": 85, "desc": "围绕非遗项目的创作与传播" },
-    { "label": "品牌联名", "group": "商业", "weight": 70, "desc": "与品牌合作的联名设计" },
-    { "label": "校园活动", "group": "活动", "weight": 60, "desc": "高校社团、演出与赛事" },
-    { "label": "文旅推广", "group": "文旅", "weight": 65, "desc": "城市与景区文旅推广设计" }
-  ],
-  "featured": [
-    { "name": "国潮共创组", "members": 128, "path": "/community?group=guochao", "official": true, "topic": "国潮", "tags": ["联名","高校"], "cover": "" },
-    { "name": "非遗研究社", "members": 96, "path": "/community?group=heritage", "official": false, "topic": "非遗", "tags": ["研究","传播"], "cover": "" },
-    { "name": "品牌联名工坊", "members": 73, "path": "/community?group=brand", "official": false, "topic": "品牌", "tags": ["合作","周边"], "cover": "" }
-  ]
+  "tags": [],
+  "tagDetails": [],
+  "featured": []
 }

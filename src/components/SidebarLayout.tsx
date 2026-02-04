@@ -355,9 +355,19 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
       const fetchNotifications = async () => {
         try {
           const token = localStorage.getItem('token');
+          // 如果没有 token，不调用需要认证的 API
+          if (!token) {
+            setNotifications([]);
+            return;
+          }
           const response = await fetch('/api/notifications', {
             headers: { 'Authorization': `Bearer ${token}` }
           });
+          // 如果返回 401，静默处理，不显示错误
+          if (response.status === 401) {
+            setNotifications([]);
+            return;
+          }
           const data = await response.json();
           if (data.code === 0 && data.data && Array.isArray(data.data.list)) {
             const mappedNotifications: Notification[] = data.data.list.map((n: any) => ({

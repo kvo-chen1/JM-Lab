@@ -20,7 +20,7 @@ async function testKimiAPI() {
     console.log('测试请求:', JSON.stringify(payload, null, 2));
     
     // 调用本地代理的Kimi API
-    const response = await fetch('http://localhost:3020/api/kimi/chat/completions', {
+    const response = await fetch('http://localhost:3022/api/kimi/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'

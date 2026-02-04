@@ -277,23 +277,9 @@ const LazyImage: React.FC<LazyImageProps> = React.memo(({
     // 使用共享的Intersection Observer实例，降低初始延迟
     initSharedObserver();
     
-    // 如果containerRef已经存在，检查可见性
-    if (containerRef.current) {
-      // 检查图片是否已经在视口中
-      const rect = containerRef.current.getBoundingClientRect();
-      const isInViewport = rect.top < window.innerHeight + 300 && rect.bottom > -300;
-      
-      if (isInViewport) {
-        setIsVisible(true);
-      } else if (sharedObserver) {
-        // 添加到共享observer，减少预加载距离以节省资源
-        observerTargets.set(containerRef.current, () => setIsVisible(true));
-        sharedObserver.observe(containerRef.current);
-      } else {
-        // 降级方案：直接加载图片
-        setIsVisible(true);
-      }
-    }
+    // 直接设置为可见，确保图片能够加载
+    // 这样可以避免IntersectionObserver的兼容性问题
+    setIsVisible(true);
     
     // 清理函数
     return () => {

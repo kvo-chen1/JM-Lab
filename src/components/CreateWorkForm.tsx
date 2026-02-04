@@ -77,15 +77,15 @@ const CreateWorkForm: React.FC<CreateWorkFormProps> = ({
   // 处理文件选择
   const handleFileSelect = (file: File) => {
     // 验证文件类型
-    const validTypes = ['image/jpeg', 'image/jpg', 'image/png'];
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'video/mp4', 'video/webm', 'video/ogg'];
     if (!validTypes.includes(file.type)) {
-      toast.error('仅支持 JPG、PNG 格式的图片');
+      toast.error('仅支持 JPG、PNG 格式的图片和 MP4、WebM、OGG 格式的视频');
       return;
     }
     
     // 验证文件大小
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('图片大小不能超过 5MB');
+    if (file.size > 50 * 1024 * 1024) {
+      toast.error('文件大小不能超过 50MB');
       return;
     }
     
@@ -93,11 +93,7 @@ const CreateWorkForm: React.FC<CreateWorkFormProps> = ({
     setErrors(prev => ({ ...prev, image: '' }));
     
     // 创建预览
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setImagePreview(reader.result as string);
-    };
-    reader.readAsDataURL(file);
+    setImagePreview(URL.createObjectURL(file));
   };
   
   // 处理点击选择文件
@@ -138,7 +134,7 @@ const CreateWorkForm: React.FC<CreateWorkFormProps> = ({
     }
     
     if (!image && !imagePreview) {
-      newErrors.image = '请上传作品图片';
+      newErrors.image = '请上传作品文件';
     }
     
     setErrors(newErrors);
@@ -153,8 +149,15 @@ const CreateWorkForm: React.FC<CreateWorkFormProps> = ({
     console.log('[CreateWorkForm] handleSubmit called');
     console.log('[CreateWorkForm] image:', image);
     console.log('[CreateWorkForm] imagePreview:', imagePreview);
+    console.log('[CreateWorkForm] user:', user);
     
     if (!validateForm()) {
+      return;
+    }
+    
+    if (!user) {
+      toast.error('请先登录后再发布作品');
+      setSubmitError('请先登录后再发布作品');
       return;
     }
     
@@ -242,13 +245,26 @@ const CreateWorkForm: React.FC<CreateWorkFormProps> = ({
       
       // 关闭表单
       onClose();
-    } catch (error) {
+    } catch (error: any) {
       console.error('发布作品失败:', error);
       clearInterval(progressInterval);
       // 保持进度条在90%并显示错误
       setUploadProgress(90); 
-      setSubmitError('发布失败，请重试');
-      toast.error('发布失败，请重试');
+      
+      // 更具体的错误提示
+      if (error.message.includes('请先登录')) {
+        setSubmitError('请先登录后再发布作品');
+        toast.error('请先登录后再发布作品');
+      } else if (error.message.includes('401') || error.message.includes('403')) {
+        setSubmitError('登录已过期，请重新登录后重试');
+        toast.error('登录已过期，请重新登录后重试');
+      } else if (error.message.includes('网络')) {
+        setSubmitError('网络连接失败，请检查网络后重试');
+        toast.error('网络连接失败，请检查网络后重试');
+      } else {
+        setSubmitError('发布失败，请重试');
+        toast.error('发布失败，请重试');
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -317,10 +333,10 @@ const CreateWorkForm: React.FC<CreateWorkFormProps> = ({
         </AnimatePresence>
 
         <form onSubmit={handleSubmit}>
-          {/* 图片上传区域 */}
+          {/* 作品文件上传区域 */}
           <div className="mb-6">
             <div className="flex justify-between items-center mb-2">
-              <label className="text-sm font-bold text-gray-700 dark:text-gray-200">作品图片</label>
+              <label className="text-sm font-bold text-gray-700 dark:text-gray-200">作品文件</label>
               {errors.image && <span className="text-xs text-red-500">{errors.image}</span>}
             </div>
             <div
@@ -341,17 +357,29 @@ const CreateWorkForm: React.FC<CreateWorkFormProps> = ({
                 type="file" 
                 ref={fileInputRef} 
                 className="hidden" 
-                accept="image/jpeg,image/jpg,image/png" 
+                accept="image/jpeg,image/jpg,image/png,video/mp4,video/webm,video/ogg" 
                 onChange={handleFileInputChange}
               />
               
               {imagePreview ? (
                 <div className="relative group">
-                  <img 
-                    src={imagePreview} 
-                    alt="预览" 
-                    className="w-full max-h-[300px] object-contain bg-gray-100 dark:bg-gray-900/50"
-                  />
+                  {image && image.type.startsWith('video/') ? (
+                    <video 
+                      src={imagePreview} 
+                      alt="预览" 
+                      className="w-full max-h-[300px] object-contain bg-gray-100 dark:bg-gray-900/50"
+                      controls
+                      autoPlay
+                      muted
+                      loop
+                    />
+                  ) : (
+                    <img 
+                      src={imagePreview} 
+                      alt="预览" 
+                      className="w-full max-h-[300px] object-contain bg-gray-100 dark:bg-gray-900/50"
+                    />
+                  )}
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-200 flex items-start justify-end p-3">
                     <button 
                       type="button" 
@@ -371,8 +399,8 @@ const CreateWorkForm: React.FC<CreateWorkFormProps> = ({
                   <div className="w-16 h-16 rounded-full bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center mb-4 text-blue-500 dark:text-blue-400">
                     <i className="fas fa-cloud-upload-alt text-2xl"></i>
                   </div>
-                  <p className="font-medium text-gray-700 dark:text-gray-200 mb-1">点击或拖拽上传图片</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">支持 JPG、PNG，最大 5MB</p>
+                  <p className="font-medium text-gray-700 dark:text-gray-200 mb-1">点击或拖拽上传文件</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">支持 JPG、PNG 图片和 MP4、WebM、OGG 视频，最大 50MB</p>
                 </div>
               )}
             </div>

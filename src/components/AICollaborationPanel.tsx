@@ -682,114 +682,165 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
             transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
             style={{ borderLeft: '1px solid', maxWidth: '100%', borderRadius: '2xl 0 0 2xl' }}
           >
-            {/* 面板头部 */}
-            <div className={`p-4 border-b dark:border-gray-800/50 ${themeStyles.headerGradient} text-white shadow-lg relative overflow-hidden rounded-t-2xl`}>
-              {/* 装饰性背景元素 */}
-              <div className="absolute top-0 left-0 w-full h-full opacity-20">
-                <div className="absolute top-[-30%] left-[-30%] w-96 h-96 rounded-full bg-white blur-3xl"></div>
-                <div className="absolute bottom-[-30%] right-[-30%] w-96 h-96 rounded-full bg-white blur-3xl"></div>
-                <div className="absolute top-1/2 left-1/2 w-80 h-80 rounded-full bg-white opacity-5 blur-3xl transform -translate-x-1/2 -translate-y-1/2"></div>
+            {/* 面板头部 - 优化为更高级的设计 */}
+            <div className={`p-5 border-b dark:border-gray-800/50 ${themeStyles.headerGradient} text-white shadow-xl relative overflow-hidden`}>
+              {/* 装饰性背景元素 - 更精致的渐变 */}
+              <div className="absolute top-0 left-0 w-full h-full">
+                <div className="absolute top-[-50%] left-[-20%] w-[500px] h-[500px] rounded-full bg-white/10 blur-[100px]"></div>
+                <div className="absolute bottom-[-50%] right-[-20%] w-[400px] h-[400px] rounded-full bg-white/10 blur-[80px]"></div>
+                <div className="absolute top-1/2 left-1/3 w-[300px] h-[300px] rounded-full bg-white/5 blur-[60px]"></div>
               </div>
+              
+              {/* 网格背景纹理 */}
+              <div className="absolute inset-0 opacity-[0.03]" style={{
+                backgroundImage: `linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)`,
+                backgroundSize: '20px 20px'
+              }}></div>
+              
               <div className="relative flex items-center justify-between z-10">
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-4">
+                  {/* 头像优化 - 添加发光效果 */}
                   <motion.div 
-                    className="w-12 h-12 rounded-full bg-gradient-to-br from-white/40 to-white/20 backdrop-blur-md flex items-center justify-center shadow-xl border border-white/30"
-                    whileHover={{ scale: 1.1, boxShadow: '0 0 20px rgba(255, 255, 255, 0.4)' }}
+                    className="relative w-14 h-14"
+                    whileHover={{ scale: 1.05 }}
                     transition={{ type: 'spring', stiffness: 400, damping: 10 }}
                   >
-                    <i className="fas fa-robot text-white text-xl animate-pulse-slow"></i>
+                    {/* 发光背景 */}
+                    <div className="absolute inset-0 rounded-full bg-white/30 blur-xl"></div>
+                    <div className="relative w-full h-full rounded-full bg-gradient-to-br from-white/40 to-white/10 backdrop-blur-md flex items-center justify-center shadow-2xl border border-white/40">
+                      <span className="text-white font-bold text-xl">津</span>
+                    </div>
+                    {/* 在线状态指示 */}
+                    <div className={`absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full border-2 border-white ${serviceStatus === 'ok' ? 'bg-green-400' : serviceStatus === 'error' ? 'bg-red-400' : 'bg-yellow-400'}`}>
+                      <div className={`absolute inset-0 rounded-full animate-ping ${serviceStatus === 'ok' ? 'bg-green-400' : serviceStatus === 'error' ? 'bg-red-400' : 'bg-yellow-400'}`} style={{ animationDuration: '2s' }}></div>
+                    </div>
                   </motion.div>
-                  <h2 className="text-xl font-bold tracking-tight">津小脉</h2>
+                  
+                  <div className="flex flex-col">
+                    <h2 className="text-xl font-bold tracking-tight">津小脉</h2>
+                    <span className="text-xs text-white/70 font-medium">AI 创意助手</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <motion.span
-                    className={`text-xs px-3 py-1.5 rounded-full font-medium transition-all duration-300 ${serviceStatus === 'ok' ? 'bg-green-100 text-green-800 hover:bg-green-200' : serviceStatus === 'error' ? 'bg-red-100 text-red-800 hover:bg-red-200' : 'bg-gray-100 text-gray-800 hover:bg-gray-200'}`}
-                    whileHover={{ scale: 1.05 }}
+                
+                <div className="flex items-center gap-3">
+                  {/* 状态指示器优化 */}
+                  <motion.div
+                    className={`flex items-center gap-2 px-4 py-2 rounded-full backdrop-blur-sm border border-white/20 ${serviceStatus === 'ok' ? 'bg-green-500/20' : serviceStatus === 'error' ? 'bg-red-500/20' : 'bg-gray-500/20'}`}
+                    whileHover={{ scale: 1.02 }}
                   >
-                    {serviceStatus === 'ok' ? '已连接' : serviceStatus === 'error' ? '连接错误' : '未知状态'}
-                  </motion.span>
-                  <motion.button
-                    onClick={() => checkAIService(true)}
-                    className={`p-2 rounded-full transition-all duration-300 ${isDark ? 'hover:bg-white/15' : 'hover:bg-white/20'}`}
-                    aria-label={t('aiCollab.actions.checkService')}
-                    whileHover={{ scale: 1.15, boxShadow: '0 0 15px rgba(255, 255, 255, 0.3)' }}
-                    whileTap={{ scale: 0.95 }}
-                  >
-                    <i className="fas fa-heartbeat animate-pulse text-white"></i>
-                  </motion.button>
-                  <motion.button
-                    onClick={onClose}
-                    className={`p-2 rounded-full transition-all duration-300 ${isDark ? 'hover:bg-white/15' : 'hover:bg-white/20'}`}
-                    aria-label={t('aiCollab.actions.close')}
-                    whileHover={{ scale: 1.15, boxShadow: '0 0 15px rgba(255, 255, 255, 0.3)' }}
-                    whileTap={{ scale: 0.95 }}
-                  >
-                    <i className="fas fa-times text-white"></i>
-                  </motion.button>
+                    <div className={`w-2 h-2 rounded-full ${serviceStatus === 'ok' ? 'bg-green-400' : serviceStatus === 'error' ? 'bg-red-400' : 'bg-yellow-400'}`}>
+                      {serviceStatus === 'ok' && <div className="w-full h-full rounded-full bg-green-400 animate-pulse"></div>}
+                    </div>
+                    <span className="text-xs font-medium">
+                      {serviceStatus === 'ok' ? '在线' : serviceStatus === 'error' ? '离线' : '检查中'}
+                    </span>
+                  </motion.div>
+                  
+                  {/* 操作按钮组 */}
+                  <div className="flex items-center gap-1 bg-white/10 backdrop-blur-sm rounded-full p-1 border border-white/20">
+                    <motion.button
+                      onClick={() => checkAIService(true)}
+                      className="p-2.5 rounded-full hover:bg-white/20 transition-all duration-300"
+                      aria-label={t('aiCollab.actions.checkService')}
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.95 }}
+                    >
+                      <i className="fas fa-heartbeat text-white/90 text-sm"></i>
+                    </motion.button>
+                    <div className="w-px h-4 bg-white/20"></div>
+                    <motion.button
+                      onClick={onClose}
+                      className="p-2.5 rounded-full hover:bg-white/20 transition-all duration-300"
+                      aria-label={t('aiCollab.actions.close')}
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.95 }}
+                    >
+                      <i className="fas fa-times text-white/90 text-sm"></i>
+                    </motion.button>
+                  </div>
                 </div>
               </div>
             </div>
             
             {/* 面板内容 */}
             <div className="flex flex-1 overflow-hidden">
-              {/* 左侧会话列表 - 响应式设计 */}
-              <div className={`w-64 border-r dark:border-gray-800 flex flex-col md:flex ${showSessionList ? 'block' : 'hidden'}`}>
-                {/* 会话列表头部 */}
-                <div className="p-3 border-b dark:border-gray-800">
+              {/* 左侧会话列表 - 优化设计 */}
+              <div className={`w-72 border-r dark:border-gray-800/50 flex flex-col bg-gray-50/50 dark:bg-gray-900/50 backdrop-blur-sm ${showSessionList ? 'block' : 'hidden'}`}>
+                {/* 会话列表头部 - 优化样式 */}
+                <div className="p-4 border-b dark:border-gray-800/50 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-medium">{t('aiCollab.labels.sessions')}</h3>
-                    <button
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-md">
+                        <i className="fas fa-comments text-white text-sm"></i>
+                      </div>
+                      <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200">会话列表</h3>
+                    </div>
+                    <motion.button
                       onClick={() => setShowNewSessionModal(true)}
-                      className={`p-1.5 rounded-full ${isDark ? 'bg-green-900/20 text-green-400 hover:bg-green-900/30' : 'bg-green-50 text-green-600 hover:bg-green-100'}`}
+                      className="p-2 rounded-xl bg-indigo-500 hover:bg-indigo-600 text-white shadow-md hover:shadow-lg transition-all"
                       aria-label={t('aiCollab.actions.newSession')}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
                     >
-                      <i className="fas fa-plus"></i>
-                    </button>
+                      <i className="fas fa-plus text-xs"></i>
+                    </motion.button>
                   </div>
                 </div>
                 
-                {/* 会话列表 */}
-                <div className="flex-1 overflow-y-auto">
-                  {sessions.map(session => (
+                {/* 会话列表 - 优化卡片样式 */}
+                <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                  {sessions.map((session, idx) => (
                     <motion.div
                       key={session.id}
-                      className={`p-3.5 cursor-pointer border-b dark:border-gray-800/50 transition-all duration-300 rounded-l-lg ${currentSession?.id === session.id ? (isDark ? `${themeStyles.activeSessionDark} text-white` : `${themeStyles.activeSessionLight} text-gray-900`) : (isDark ? `hover:bg-gray-800 text-gray-200` : `hover:bg-gray-50 text-gray-900`)}`}
-                      whileHover={{ x: 5 }}
+                      className={`group relative p-3.5 cursor-pointer rounded-xl transition-all duration-300 border ${currentSession?.id === session.id 
+                        ? (isDark 
+                          ? 'bg-gradient-to-r from-indigo-900/40 to-purple-900/40 border-indigo-500/30 shadow-lg shadow-indigo-500/10' 
+                          : 'bg-gradient-to-r from-indigo-50 to-purple-50 border-indigo-200 shadow-md shadow-indigo-200/50') 
+                        : (isDark 
+                          ? 'bg-gray-800/40 border-gray-700/30 hover:border-gray-600 hover:bg-gray-800/60' 
+                          : 'bg-white border-gray-200/50 hover:border-gray-300 hover:shadow-sm')
+                      }`}
+                      whileHover={{ x: 3, scale: 1.01 }}
                       onClick={() => switchSession(session.id)}
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ duration: 0.3 }}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.3, delay: idx * 0.05 }}
                     >
-                      <div className="flex items-center justify-between">
+                      {/* 活跃指示条 */}
+                      {currentSession?.id === session.id && (
+                        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 rounded-full bg-gradient-to-b from-indigo-500 to-purple-500"></div>
+                      )}
+                      
+                      <div className="flex items-center justify-between pl-2">
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate flex items-center gap-2">
-                            {currentSession?.id === session.id && (
-                              <motion.span 
-                                className={`w-2 h-2 rounded-full ${themeStyles.spinner.replace('text-', 'bg-')}`}
-                                animate={{ scale: [1, 1.2, 1] }}
-                                transition={{ repeat: Infinity, duration: 1.5 }}
-                              ></motion.span>
-                            )}
+                          <p className="text-sm font-medium truncate flex items-center gap-2 text-gray-800 dark:text-gray-200">
                             {session.name}
                           </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">
-                            {t('aiCollab.labels.messageCount', { count: session.messages.length })}
-                          </p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
+                              {session.messages.length} 条消息
+                            </span>
+                            {currentSession?.id === session.id && (
+                              <motion.span 
+                                className="w-1.5 h-1.5 rounded-full bg-green-400"
+                                animate={{ scale: [1, 1.3, 1], opacity: [1, 0.7, 1] }}
+                                transition={{ repeat: Infinity, duration: 2 }}
+                              ></motion.span>
+                            )}
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2 ml-2">
-                          <motion.button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              deleteSession(session.id)
-                            }}
-                            className="p-1.5 rounded-full text-gray-400 hover:text-red-500 transition-colors hover:bg-red-50 dark:hover:bg-red-900/20"
-                            aria-label={t('aiCollab.actions.deleteSession')}
-                            whileHover={{ scale: 1.1 }}
-                            whileTap={{ scale: 0.9 }}
-                          >
-                            <i className="fas fa-trash text-sm"></i>
-                          </motion.button>
-                        </div>
+                        <motion.button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            deleteSession(session.id)
+                          }}
+                          className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
+                          aria-label={t('aiCollab.actions.deleteSession')}
+                          whileHover={{ scale: 1.1 }}
+                          whileTap={{ scale: 0.9 }}
+                        >
+                          <i className="fas fa-trash text-xs"></i>
+                        </motion.button>
                       </div>
                     </motion.div>
                   ))}
@@ -811,94 +862,92 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
               
               {/* 右侧对话区域 */}
               <div className="flex-1 flex flex-col">
-                {/* 对话头部 */}
-                <div className="p-3 border-b dark:border-gray-800">
-                  {/* 移动端会话列表切换按钮 */}
-                  <div className="flex items-center justify-between mb-2">
-                    <button
-                      onClick={() => setShowSessionList(!showSessionList)}
-                      className={`p-2 rounded-full text-sm font-medium mb-2 ${isDark ? 'bg-gray-800 text-gray-200 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}
-                    >
-                      <i className={`fas fa-${showSessionList ? 'chevron-left' : 'chevron-right'}`}></i>
-                      <span className="hidden sm:inline">{t('aiCollab.labels.sessions')}</span>
-                    </button>
-                  </div>
-                  {isEditingSessionName ? (
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="text"
-                        value={editingSessionName}
-                        onChange={(e) => setEditingSessionName(e.target.value)}
-                        onKeyPress={(e) => e.key === 'Enter' && renameSession()}
-                        onBlur={renameSession}
-                        className={`flex-1 text-sm p-1 border rounded ${isDark ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-300 text-black'} focus:outline-none focus:ring-1 ${themeStyles.borderAccent}`}
-                        autoFocus
-                      />
-                      <button
-                        onClick={renameSession}
-                        className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                {/* 对话头部 - 优化设计 */}
+                <div className="p-4 border-b dark:border-gray-800/50 bg-white/60 dark:bg-gray-900/60 backdrop-blur-sm">
+                  <div className="flex items-center justify-between">
+                    {/* 左侧：返回按钮和会话名称 */}
+                    <div className="flex items-center gap-3">
+                      <motion.button
+                        onClick={() => setShowSessionList(!showSessionList)}
+                        className={`p-2.5 rounded-xl ${isDark ? 'bg-gray-800/80 text-gray-300 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'} transition-all shadow-sm`}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
                       >
-                        {t('aiCollab.actions.save')}
-                      </button>
-                      <button
-                        onClick={() => {
-                          setIsEditingSessionName(false)
-                          setEditingSessionName(currentSession?.name || '')
-                        }}
-                        className="text-xs px-2 py-1 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
-                      >
-                        {t('aiCollab.actions.cancel')}
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-sm font-medium">
-                        {currentSession?.name}
-                        <button
-                          onClick={() => {
-                            setIsEditingSessionName(true)
-                            setEditingSessionName(currentSession?.name || '')
-                          }}
-                          className={`ml-2 text-xs text-gray-400 hover:${themeStyles.textAccent} transition-colors`}
-                        >
-                          <i className="fas fa-pen"></i>
-                        </button>
-                      </h3>
-                      <div className="flex items-center gap-2">
-                          {/* 使用模板按钮 */}
-                          <button
-                            onClick={() => setShowTemplates(!showTemplates)}
-                            className={`p-1.5 rounded-full ${isDark ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-                            aria-label={t('aiCollab.actions.useTemplate')}
-                          >
-                            <i className="fas fa-file-alt"></i>
-                          </button>
-                          
-                          {/* 设置按钮 */}
-                          <button
-                            onClick={() => setShowSettings(!showSettings)}
-                            className={`p-1.5 rounded-full ${isDark ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-                            aria-label="设置"
-                          >
-                            <i className="fas fa-cog"></i>
-                          </button>
-                          
-                          {/* 导出会话按钮 */}
-                          <button
-                            onClick={() => setShowExportOptions(!showExportOptions)}
-                            className={`p-1.5 rounded-full ${isDark ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-                            aria-label={t('aiCollab.actions.export')}
-                          >
-                            <i className="fas fa-download"></i>
-                          </button>
-                          
-                          <div className="text-xs text-gray-500 dark:text-gray-400">
-                            {formatTime(Date.now())}
-                          </div>
+                        <i className={`fas fa-${showSessionList ? 'chevron-left' : 'bars'} text-sm`}></i>
+                      </motion.button>
+                      
+                      {isEditingSessionName ? (
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={editingSessionName}
+                            onChange={(e) => setEditingSessionName(e.target.value)}
+                            onKeyPress={(e) => e.key === 'Enter' && renameSession()}
+                            onBlur={renameSession}
+                            className={`text-sm px-3 py-1.5 border rounded-lg ${isDark ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-300 text-black'} focus:outline-none focus:ring-2 focus:ring-indigo-500/30`}
+                            autoFocus
+                          />
                         </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200">
+                            {currentSession?.name}
+                          </h3>
+                          <motion.button
+                            onClick={() => {
+                              setIsEditingSessionName(true)
+                              setEditingSessionName(currentSession?.name || '')
+                            }}
+                            className="p-1.5 rounded-lg text-gray-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-all"
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.9 }}
+                          >
+                            <i className="fas fa-pen text-xs"></i>
+                          </motion.button>
+                        </div>
+                      )}
                     </div>
-                  )}
+                    
+                    {/* 右侧：操作按钮组 */}
+                    <div className="flex items-center gap-1.5 bg-gray-100/80 dark:bg-gray-800/80 rounded-xl p-1">
+                      <motion.button
+                        onClick={() => setShowTemplates(!showTemplates)}
+                        className="p-2 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-700 hover:shadow-sm transition-all"
+                        aria-label={t('aiCollab.actions.useTemplate')}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        title="模板"
+                      >
+                        <i className="fas fa-file-alt text-sm"></i>
+                      </motion.button>
+                      
+                      <div className="w-px h-4 bg-gray-300 dark:bg-gray-600"></div>
+                      
+                      <motion.button
+                        onClick={() => setShowSettings(!showSettings)}
+                        className="p-2 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-700 hover:shadow-sm transition-all"
+                        aria-label="设置"
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        title="设置"
+                      >
+                        <i className="fas fa-cog text-sm"></i>
+                      </motion.button>
+                      
+                      <div className="w-px h-4 bg-gray-300 dark:bg-gray-600"></div>
+                      
+                      <motion.button
+                        onClick={() => setShowExportOptions(!showExportOptions)}
+                        className="p-2 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-700 hover:shadow-sm transition-all"
+                        aria-label={t('aiCollab.actions.export')}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        title="导出"
+                      >
+                        <i className="fas fa-download text-sm"></i>
+                      </motion.button>
+                    </div>
+                  </div>
                 </div>
                 
                 {/* 消息列表 */}
@@ -1207,50 +1256,78 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
                   <div ref={messagesEndRef} />
                 </div>
                 
-                {/* 输入区域 */}
-                <div className="p-3 sm:p-3.5 border-t dark:border-gray-800/50 bg-gradient-to-b from-transparent to-gray-50 dark:to-gray-900">
-                  <div className="flex items-end gap-2 sm:gap-2">
+                {/* 输入区域 - 优化设计 */}
+                <div className="p-4 border-t dark:border-gray-800/50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md">
+                  <div className="flex items-end gap-3">
                     <div className="flex-1 relative">
-                      <textarea
-                        value={input}
-                        onChange={(e) => setInput(e.target.value)}
-                        onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
-                        placeholder={t('aiCollab.placeholders.input')}
-                        className={`w-full min-h-[56px] sm:min-h-[64px] max-h-[150px] sm:max-h-[200px] p-3 sm:p-4 rounded-2xl border resize-none shadow-sm ${isDark ? 'bg-gray-800 border-gray-700/50 text-white placeholder-gray-500' : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'} focus:outline-none focus:ring-3 focus:ring-blue-500/30 ${themeStyles.borderAccent} transition-all duration-300`}
-                        disabled={isGenerating}
-                        style={{ resize: 'none' }}
-                      />
-                      <div className="absolute right-3 sm:right-4 bottom-3 sm:bottom-4">
+                      {/* 输入框容器 - 添加发光效果 */}
+                      <div className="relative group">
+                        <div className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-2xl opacity-0 group-focus-within:opacity-30 blur transition-opacity duration-300"></div>
+                        <textarea
+                          value={input}
+                          onChange={(e) => setInput(e.target.value)}
+                          onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
+                          placeholder={t('aiCollab.placeholders.input')}
+                          className={`relative w-full min-h-[60px] max-h-[200px] p-4 pr-12 rounded-xl border resize-none shadow-sm transition-all duration-300 ${isDark ? 'bg-gray-800/90 border-gray-700 text-white placeholder-gray-500 focus:border-indigo-500' : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400 focus:border-indigo-500'} focus:outline-none focus:ring-2 focus:ring-indigo-500/20`}
+                          disabled={isGenerating}
+                          style={{ resize: 'none' }}
+                        />
+                      </div>
+                      
+                      {/* 语音输入按钮 - 优化位置 */}
+                      <div className="absolute right-3 bottom-3">
                         <SpeechInput 
                           onTextRecognized={(text) => setInput(prev => prev + text)} 
                           language={i18n.language.startsWith('zh') ? 'zh-CN' : 'en-US'}
                         />
                       </div>
                     </div>
+                    
+                    {/* 发送按钮 - 优化样式 */}
                     <motion.button
                       onClick={sendMessage}
                       disabled={isGenerating || !input.trim()}
-                      className={`px-3.5 sm:px-4.5 py-3 sm:py-3.5 rounded-2xl transition-all duration-300 font-medium shadow-md flex-shrink-0 ${isGenerating || !input.trim() ? (isDark ? 'bg-gray-700 text-gray-400 cursor-not-allowed' : 'bg-gray-300 text-gray-500 cursor-not-allowed') : `${themeStyles.buttonGradient} text-white`}`}
-                      whileHover={!isGenerating && input.trim() ? { scale: 1.05, boxShadow: '0 8px 20px rgba(99, 102, 241, 0.3)' } : {}}
+                      className={`px-5 py-4 rounded-xl transition-all duration-300 font-semibold shadow-lg flex-shrink-0 flex items-center gap-2 ${isGenerating || !input.trim() 
+                        ? (isDark ? 'bg-gray-700 text-gray-400 cursor-not-allowed' : 'bg-gray-200 text-gray-400 cursor-not-allowed') 
+                        : 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:shadow-indigo-500/30 hover:shadow-xl'
+                      }`}
+                      whileHover={!isGenerating && input.trim() ? { scale: 1.02, y: -1 } : {}}
                       whileTap={!isGenerating && input.trim() ? { scale: 0.98 } : {}}
-                      transition={{ type: 'spring', stiffness: 300, damping: 15 }}
+                      transition={{ type: 'spring', stiffness: 400, damping: 17 }}
                     >
                       {isGenerating ? (
-                        <div className="flex items-center gap-1.5">
-                          <motion.i 
-                            className="fas fa-spinner fa-spin text-sm"
+                        <div className="flex items-center gap-2">
+                          <motion.div
+                            className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full"
                             animate={{ rotate: 360 }}
                             transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
-                          ></motion.i>
-                          <span className="hidden sm:inline text-sm">生成中...</span>
+                          />
+                          <span className="text-sm">生成中</span>
                         </div>
                       ) : (
-                        <div className="flex items-center gap-1.5">
-                          <span className="hidden sm:inline">发送</span>
-                          <i className="fas fa-paper-plane"></i>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm">发送</span>
+                          <i className="fas fa-paper-plane text-sm"></i>
                         </div>
                       )}
                     </motion.button>
+                  </div>
+                  
+                  {/* 快捷提示 */}
+                  <div className="flex items-center justify-between mt-2 px-1">
+                    <div className="flex items-center gap-4 text-xs text-gray-400">
+                      <span className="flex items-center gap-1">
+                        <i className="fas fa-keyboard"></i>
+                        Enter 发送
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <i className="fas fa-level-down-alt rotate-90"></i>
+                        Shift + Enter 换行
+                      </span>
+                    </div>
+                    <div className="text-xs text-gray-400">
+                      支持 Markdown 格式
+                    </div>
                   </div>
                 </div>
               </div>

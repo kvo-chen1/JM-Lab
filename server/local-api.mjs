@@ -2,6 +2,7 @@ import 'dotenv/config'
 import fs from 'fs'
 import pathModule from 'path'
 import dotenv from 'dotenv'
+import { Readable } from 'stream'
 
 // Load .env.local if it exists
 if (fs.existsSync('.env.local')) {
@@ -79,7 +80,7 @@ async function proxyFetch(path, method, body) {
 async function kimiFetch(path, method, body, res) {
   try {
     const base = process.env.KIMI_BASE_URL || KIMI_BASE_URL
-    const key = process.env.KIMI_API_KEY || KIMI_API_KEY
+    const key = process.env.KIMI_API_KEY || process.env.VITE_KIMI_API_KEY || ''
     
     console.log(`[kimiFetch] Request: ${method} ${base}${path}`)
     console.log(`[kimiFetch] Headers: Authorization: Bearer ${key ? key.substring(0, 5) + '...' : 'undefined'}`)
@@ -138,7 +139,7 @@ async function kimiFetch(path, method, body, res) {
 
 async function deepseekFetch(path, method, body, res) {
   const base = process.env.DEEPSEEK_BASE_URL || DEEPSEEK_BASE_URL
-  const key = process.env.DEEPSEEK_API_KEY || DEEPSEEK_API_KEY
+  const key = process.env.DEEPSEEK_API_KEY || process.env.VITE_DEEPSEEK_API_KEY || ''
   const resp = await fetch(`${base}${path}`, {
     method,
     headers: {
@@ -423,7 +424,6 @@ function proxyStream(resp, res) {
   if (resp.body.pipe) {
     resp.body.pipe(res)
   } else {
-    const Readable = require('stream').Readable
     Readable.fromWeb(resp.body).pipe(res)
   }
 }
@@ -811,6 +811,25 @@ async function route(req, res, u, path) {
     return
   }
 
+  // 获取用户积分记录
+  if (req.method === 'GET' && path === '/api/user/points') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+    
+    try {
+      const records = await achievementDB.getPointsRecords(decoded.userId)
+      const total = await achievementDB.getUserTotalPoints(decoded.userId)
+      sendJson(res, 200, { code: 0, data: { total, records } })
+    } catch (e) {
+      console.error('[API] Get points failed:', e)
+      sendJson(res, 500, { code: 1, message: '获取积分失败' })
+    }
+    return
+  }
+
   // 发送邮箱验证码 - 支持 /api/auth/send-email-code 路径
   if (req.method === 'POST' && (path === '/api/auth/send-email-code' || path === '/api/auth/send-code')) {
     try {
@@ -995,6 +1014,26 @@ async function route(req, res, u, path) {
   // 健康检查
   if (req.method === 'GET' && path === '/api/health/ping') {
     sendJson(res, 200, { ok: true, message: 'pong', port: PORT })
+    return
+  }
+
+  // LLM健康检查
+  if (req.method === 'GET' && path === '/api/health/llms') {
+    const status = {
+      kimi: {
+        configured: !!((process.env.KIMI_API_KEY || process.env.VITE_KIMI_API_KEY)),
+        baseUrl: process.env.KIMI_BASE_URL || KIMI_BASE_URL
+      },
+      deepseek: {
+        configured: !!((process.env.DEEPSEEK_API_KEY || process.env.VITE_DEEPSEEK_API_KEY)),
+        baseUrl: process.env.DEEPSEEK_BASE_URL || DEEPSEEK_BASE_URL
+      },
+      qwen: {
+        configured: !!((process.env.DASHSCOPE_API_KEY || process.env.VITE_QWEN_API_KEY)),
+        baseUrl: 'https://dashscope.aliyuncs.com'
+      }
+    }
+    sendJson(res, 200, { ok: true, status })
     return
   }
 
@@ -1412,6 +1451,66 @@ async function route(req, res, u, path) {
     return
   }
 
+  // 处理Kimi模型的聊天补全请求
+  if (req.method === 'POST' && path === '/api/kimi/chat/completions') {
+    const keyPresent = (process.env.KIMI_API_KEY || KIMI_API_KEY)
+    if (!keyPresent) { sendJson(res, 500, { error: 'CONFIG_MISSING' }); return }
+    const b = await readBody(req)
+    
+    const r = await kimiFetch('/chat/completions', 'POST', {
+      model: b.model || 'moonshot-v1-32k',
+      messages: Array.isArray(b.messages) ? b.messages : [],
+      temperature: b.temperature,
+      top_p: b.top_p,
+      max_tokens: b.max_tokens,
+      stream: b.stream || false
+    }, res)
+    
+    if (r.isStream) {
+      console.log('[Kimi] Streaming response sent');
+      return
+    }
+    
+    if (!r.ok) { 
+      console.error('[Kimi] Upstream API Error:', r.status, JSON.stringify(r.data));
+      sendJson(res, r.status, { error: (r.data?.code) || (r.data?.message) || 'SERVER_ERROR', data: r.data }); 
+      return 
+    }
+    
+    sendJson(res, 200, { ok: true, data: r.data })
+    return
+  }
+
+  // 处理DeepSeek模型的聊天补全请求
+  if (req.method === 'POST' && path === '/api/deepseek/chat/completions') {
+    const keyPresent = (process.env.DEEPSEEK_API_KEY || DEEPSEEK_API_KEY)
+    if (!keyPresent) { sendJson(res, 500, { error: 'CONFIG_MISSING' }); return }
+    const b = await readBody(req)
+    
+    const r = await deepseekFetch('/chat/completions', 'POST', {
+      model: b.model || 'deepseek-chat',
+      messages: Array.isArray(b.messages) ? b.messages : [],
+      temperature: b.temperature,
+      top_p: b.top_p,
+      max_tokens: b.max_tokens,
+      stream: b.stream || false
+    }, res)
+    
+    if (r.isStream) {
+      console.log('[DeepSeek] Streaming response sent');
+      return
+    }
+    
+    if (!r.ok) { 
+      console.error('[DeepSeek] Upstream API Error:', r.status, JSON.stringify(r.data));
+      sendJson(res, r.status, { error: (r.data?.code) || (r.data?.message) || 'SERVER_ERROR', data: r.data }); 
+      return 
+    }
+    
+    sendJson(res, 200, { ok: true, data: r.data })
+    return
+  }
+
   // 处理千问视频生成请求
   if (req.method === 'POST' && path === '/api/qwen/videos/generate') {
     const b = await readBody(req)
@@ -1489,36 +1588,7 @@ async function route(req, res, u, path) {
   // 获取社区列表
   if (req.method === 'GET' && path === '/api/communities') {
     try {
-      let communities = await communityDB.getAllCommunities()
-      
-      // 如果数据库为空，尝试加载 mock 数据
-      if (!communities || communities.length === 0) {
-        console.log('[API] Communities empty, trying mock data...')
-        try {
-          const mockDataPath = pathModule.join(process.cwd(), 'server', 'data', 'community.json')
-          console.log('[API] Mock data path:', mockDataPath)
-          if (fs.existsSync(mockDataPath)) {
-            const mockData = JSON.parse(fs.readFileSync(mockDataPath, 'utf-8'))
-            console.log('[API] Mock data loaded, featured count:', mockData.featured?.length)
-            if (mockData.featured) {
-              communities = mockData.featured.map((c, index) => ({
-                id: c.id || `mock-${index}`,
-                name: c.name,
-                description: c.desc || c.topic || '',
-                avatar: c.cover || c.avatar,
-                member_count: c.members,
-                topic: c.topic,
-                is_active: true,
-                is_special: c.official,
-                tags: c.tags || []
-              }))
-            }
-          }
-        } catch (err) {
-          console.error('[API] Failed to load mock communities:', err)
-        }
-      }
-
+      const communities = await communityDB.getAllCommunities()
       sendJson(res, 200, { code: 0, data: communities || [] })
     } catch (e) {
       console.error('[API] Get communities failed:', e)

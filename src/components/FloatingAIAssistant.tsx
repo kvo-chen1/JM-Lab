@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { llmService, Message, AssistantPersonality, AssistantTheme, ConnectionStatus } from '@/services/llmService';
+import { MessageBubble, ChatInput } from '@/components/chat';
 
 interface FloatingAIAssistantProps {
   // 可以添加一些自定义配置属性
@@ -1322,146 +1323,20 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
                     }}
                   >
                     {messages.map((message, index) => (
-                      <motion.div
-                    key={index}
-                    className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'} ${windowWidth < 768 ? 'mb-2' : 'mb-4'}`}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: windowWidth < 768 ? index * 0.05 : index * 0.1, duration: windowWidth < 768 ? 0.2 : 0.3, ease: [0.4, 0, 0.2, 1] }}
-                  >
-                    <div className="max-w-[88%]">
-                      <motion.div
-                        className={`${windowWidth < 768 ? 'p-3' : 'p-4.5'} rounded-2xl ${message.role === 'user' ? 
-                          (isDark ? 'bg-gradient-to-br from-blue-600 to-purple-600 text-white shadow-lg' : 'bg-gradient-to-br from-blue-500 to-purple-500 text-white shadow-lg') : 
-                          (message.isError ? 
-                            (isDark ? 'bg-gradient-to-br from-red-600/90 to-red-700/90 text-white border border-red-500/50 shadow-lg' : 'bg-gradient-to-br from-red-100/90 to-red-200/90 text-red-800 border border-red-300/50 shadow-lg') : 
-                            (isDark ? 'bg-gray-700/90 text-gray-200 border border-gray-600/50' : 'bg-gray-100/90 text-gray-800 border border-gray-200/50')
-                          )
-                        } transition-all relative group`}
-                        whileHover={{ scale: 1.01, boxShadow: message.role === 'user' ? '0 10px 25px rgba(99, 102, 241, 0.3)' : message.isError ? (isDark ? '0 10px 25px rgba(239, 68, 68, 0.4)' : '0 10px 25px rgba(239, 68, 68, 0.2)') : (isDark ? '0 10px 25px rgba(0, 0, 0, 0.3)' : '0 10px 25px rgba(0, 0, 0, 0.1)') }}
-                      >
-                        {/* 复制按钮 */}
-                        <motion.button
-                          onClick={() => handleCopyMessage(index)}
-                          className={`absolute top-1.5 right-1.5 p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-all duration-200 ${isDark ? 'bg-gray-600/80 hover:bg-gray-500 text-white' : 'bg-gray-200/80 hover:bg-gray-300 text-gray-800'} text-xs`}
-                          whileHover={{ scale: 1.1 }}
-                          whileTap={{ scale: 0.95 }}
-                          aria-label="复制消息"
-                        >
-                          <i className={`fas ${copiedMessage === index ? 'fa-check' : 'fa-copy'} text-xs`}></i>
-                        </motion.button>
-                        <div className={`whitespace-pre-wrap leading-relaxed ${windowWidth < 768 ? 'text-sm' : 'text-sm'}`}>
-                          {message.content}
-                        </div>
-                        
-                        {/* 重试按钮 - 仅针对AI错误消息显示 */}
-                        {message.isError && message.role === 'assistant' && (
-                          <div className="mt-3 flex justify-end">
-                            <motion.button
-                              onClick={() => {
-                                // 重新发送上一条用户消息
-                                if (index > 0 && messages[index - 1].role === 'user') {
-                                  setInputMessage(messages[index - 1].content);
-                                  setMessages(prev => prev.slice(0, index));
-                                  setTimeout(() => handleSendMessage(), 100);
-                                }
-                              }}
-                              className={`px-3 py-1.5 text-xs rounded-full transition-all ${isDark ? 'bg-red-600/80 hover:bg-red-500 text-white' : 'bg-red-100 hover:bg-red-200 text-red-800'}`}
-                              whileHover={{ scale: 1.05 }}
-                              whileTap={{ scale: 0.95 }}
-                            >
-                              <i className="fas fa-redo mr-1"></i> 重试
-                            </motion.button>
-                          </div>
-                        )}
-                      </motion.div>
-                          
-                          {/* 只有AI回复显示评分功能 */}
-                          {message.role === 'assistant' && (
-                            <div className={`mt-2 flex flex-col items-end ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                              {/* 评分按钮 */}
-                              {!feedbackRatings[index] && (
-                                <div className="flex gap-1">
-                                  <button
-                                    onClick={() => handleRating(index, 1)}
-                                    className={`p-1 rounded-full transition-all ${isDark ? 'hover:text-red-400' : 'hover:text-red-500'}`}
-                                    aria-label="非常不满意"
-                                  >
-                                    <i className="fas fa-thumbs-down text-xs"></i>
-                                  </button>
-                                  <button
-                                    onClick={() => handleRating(index, 2)}
-                                    className={`p-1 rounded-full transition-all ${isDark ? 'hover:text-yellow-400' : 'hover:text-yellow-500'}`}
-                                    aria-label="不满意"
-                                  >
-                                    <i className="fas fa-thumbs-down-half-alt text-xs"></i>
-                                  </button>
-                                  <button
-                                    onClick={() => handleRating(index, 3)}
-                                    className={`p-1 rounded-full transition-all ${isDark ? 'hover:text-blue-400' : 'hover:text-blue-500'}`}
-                                    aria-label="一般"
-                                  >
-                                    <i className="fas fa-meh text-xs"></i>
-                                  </button>
-                                  <button
-                                    onClick={() => handleRating(index, 4)}
-                                    className={`p-1 rounded-full transition-all ${isDark ? 'hover:text-green-400' : 'hover:text-green-500'}`}
-                                    aria-label="满意"
-                                  >
-                                    <i className="fas fa-thumbs-up-half-alt text-xs"></i>
-                                  </button>
-                                  <button
-                                    onClick={() => handleRating(index, 5)}
-                                    className={`p-1 rounded-full transition-all ${isDark ? 'hover:text-green-400' : 'hover:text-green-500'}`}
-                                    aria-label="非常满意"
-                                  >
-                                    <i className="fas fa-thumbs-up text-xs"></i>
-                                  </button>
-                                </div>
-                              )}
-                              
-                              {/* 评分结果显示 */}
-                              {feedbackRatings[index] && (
-                                <div className="flex items-center gap-2">
-                                  <span className="text-xs">
-                                    {feedbackRatings[index] === 1 && '非常不满意'}
-                                    {feedbackRatings[index] === 2 && '不满意'}
-                                    {feedbackRatings[index] === 3 && '一般'}
-                                    {feedbackRatings[index] === 4 && '满意'}
-                                    {feedbackRatings[index] === 5 && '非常满意'}
-                                  </span>
-                                  <i className={`fas fa-star text-yellow-400 text-xs`}></i>
-                                </div>
-                              )}
-                              
-                              {/* 反馈评论输入框 */}
-                              {feedbackVisible[index] && (
-                                <div className="mt-2 w-full">
-                                  <div className="flex gap-1">
-                                    <input
-                                      type="text"
-                                      placeholder="有什么建议可以告诉我..."
-                                      className={`flex-1 px-3 py-1.5 text-xs rounded-lg ${isDark ? 'bg-gray-700 border border-gray-600 text-gray-200 placeholder-gray-500' : 'bg-gray-100 border border-gray-200 text-gray-800 placeholder-gray-500'} focus:outline-none focus:ring-1 focus:ring-blue-500`}
-                                      value={feedbackComments[index] || ''}
-                                      onChange={(e) => setFeedbackComments(prev => ({
-                                        ...prev,
-                                        [index]: e.target.value
-                                      }))}
-                                      onKeyPress={(e) => e.key === 'Enter' && handleFeedbackSubmit(index)}
-                                    />
-                                    <button
-                                      onClick={() => handleFeedbackSubmit(index)}
-                                      className={`px-3 py-1.5 text-xs rounded-lg transition-all ${isDark ? 'bg-gray-600 hover:bg-gray-500 text-gray-200' : 'bg-gray-200 hover:bg-gray-300 text-gray-800'}`}
-                                    >
-                                      提交
-                                    </button>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </motion.div>
+                      <MessageBubble
+                        key={index}
+                        type={message.isError ? 'error' : message.role === 'user' ? 'user' : 'assistant'}
+                        content={message.content}
+                        timestamp={new Date(message.timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                        isLoading={false}
+                        onRetry={message.isError ? () => {
+                          if (index > 0 && messages[index - 1].role === 'user') {
+                            setInputMessage(messages[index - 1].content);
+                            setMessages(prev => prev.slice(0, index));
+                            setTimeout(() => handleSendMessage(), 100);
+                          }
+                        } : undefined}
+                      />
                     ))}
 
                     {/* 正在生成指示器 */}
@@ -1707,81 +1582,19 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
               </div>
             )}
 
-            {/* 输入区域 - 手机端优化 */}
-            <div className={`${windowWidth < 768 ? 'p-3' : 'p-3'} border-t ${isDark ? 'border-gray-700 bg-gray-900' : 'border-gray-200 bg-white'} shadow-inner`}>
-              <div className="relative">
-                <div className="flex gap-2 items-center">
-                  <div className="flex-1 relative">
-                    <input
-                      ref={inputRef}
-                      type="text"
-                      value={inputMessage}
-                      onChange={handleInputChange}
-                      onKeyPress={handleKeyPress}
-                      onKeyDown={handleKeyDown}
-                      placeholder={windowWidth < 768 ? "输入你的创意想法，与AI进行多轮对话..." : "输入你的问题..."}
-                      disabled={isGenerating}
-                      className={`w-full px-4 py-4 pr-16 rounded-full border ${isDark ? 'border-gray-700 bg-gray-800 text-white placeholder-gray-500 focus:border-blue-500' : 'border-gray-300 bg-white text-gray-900 placeholder-gray-500 focus:border-blue-500'} focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all shadow-sm text-sm touch-manipulation`}
-                      style={{
-                        // 优化移动端触摸体验
-                        WebkitTapHighlightColor: 'transparent',
-                        touchAction: 'manipulation',
-                        // 优化手机端输入框样式
-                        borderRadius: '24px',
-                        boxShadow: windowWidth < 768 ? (isDark ? 'inset 0 2px 4px rgba(0, 0, 0, 0.3)' : 'inset 0 2px 4px rgba(0, 0, 0, 0.05)') : 'none'
-                      }}
-                    />
-                    
-                    {/* 语音输入按钮 - 优化位置和样式 */}
-                    {windowWidth < 768 && (
-                      <motion.button
-                        onClick={handleVoiceInput}
-                        disabled={isGenerating}
-                        className={`absolute right-2 top-1/2 transform -translate-y-1/2 p-2 rounded-full ${isDark ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'} transition-all shadow-md`}
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.95 }}
-                        aria-label="语音输入"
-                        style={{
-                          WebkitTapHighlightColor: 'transparent',
-                          touchAction: 'manipulation'
-                        }}
-                      >
-                        <i className="fas fa-microphone text-sm"></i>
-                      </motion.button>
-                    )}
-                  </div>
-                  <motion.button
-                    onClick={handleSendMessage}
-                    disabled={isGenerating || !inputMessage.trim()}
-                    className={`${windowWidth < 768 ? 'p-4 w-14 h-14' : 'p-2.5'} rounded-full transition-all duration-300 shadow-lg flex items-center justify-center ${isGenerating ? 
-                      (isDark ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white') : 
-                      (isGenerating || !inputMessage.trim() ? 
-                        (isDark ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-300 text-gray-500 cursor-not-allowed') : 
-                        (isDark ? 'bg-gradient-to-br from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white' : 'bg-gradient-to-br from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white')
-                      )
-                    }`}
-                    whileHover={{ scale: isGenerating || !inputMessage.trim() ? 1 : 1.1 }}
-                    whileTap={{ scale: isGenerating || !inputMessage.trim() ? 1 : 0.95 }}
-                    whileTouchStart={{ scale: 0.95 }}
-                    whileTouchEnd={{ scale: 1 }}
-                    aria-label="发送"
-                    animate={isGenerating ? { rotate: 360 } : { rotate: 0 }}
-                    transition={isGenerating ? { duration: 1, repeat: Infinity, ease: "linear" } : {}}
-                    style={{
-                      // 优化移动端触摸体验
-                      WebkitTapHighlightColor: 'transparent',
-                      touchAction: 'manipulation',
-                      // 优化手机端发送按钮样式
-                      boxShadow: windowWidth < 768 ? (isGenerating || !inputMessage.trim() ? 'none' : (isDark ? '0 4px 12px rgba(99, 102, 241, 0.4)' : '0 4px 12px rgba(99, 102, 241, 0.3)')) : 'none'
-                    }}
-                  >
-                    {isGenerating ? (
-                      <i className="fas fa-spinner fa-spin text-base"></i>
-                    ) : (
-                      <i className="fas fa-paper-plane text-base"></i>
-                    )}
-                  </motion.button>
-                </div>
+            {/* 输入区域 - 使用新的ChatInput组件 */}
+            <div className={`${windowWidth < 768 ? 'p-3' : 'p-4'} border-t ${isDark ? 'border-gray-700 bg-gray-900' : 'border-gray-200 bg-white'} shadow-inner`}>
+              <ChatInput
+                value={inputMessage}
+                onChange={setInputMessage}
+                onSend={handleSendMessage}
+                onVoiceStart={handleVoiceInput}
+                placeholder="输入你的创意想法，与AI进行多轮对话..."
+                disabled={isGenerating}
+                isLoading={isGenerating}
+                maxLength={2000}
+                showVoiceButton={true}
+              />
                 
                 {/* 自动完成建议列表 */}
                 <AnimatePresence>

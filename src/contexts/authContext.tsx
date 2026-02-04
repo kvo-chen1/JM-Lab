@@ -76,6 +76,8 @@ export interface User {
   membershipStart?: string;
   membershipEnd?: string;
   membershipStatus: 'active' | 'expired' | 'pending';
+  // 安全相关字段
+  twoFactorEnabled?: boolean;
 }
 
 // AuthContext 类型定义
@@ -100,6 +102,8 @@ interface AuthContextType {
   // 新增：双因素认证相关方法
   enableTwoFactorAuth: () => Promise<boolean>;
   verifyTwoFactorCode: (code: string) => Promise<boolean>;
+  resendTwoFactorCode: () => Promise<boolean>;
+  disableTwoFactorAuth: () => Promise<boolean>;
   // 新增：刷新令牌方法
   refreshToken: () => Promise<boolean>;
   // 新增：重置密码方法
@@ -132,6 +136,8 @@ export const AuthContext = createContext<AuthContextType>({
   getMembershipBenefits: () => [],
   enableTwoFactorAuth: async () => false,
   verifyTwoFactorCode: async () => false,
+  resendTwoFactorCode: async () => false,
+  disableTwoFactorAuth: async () => false,
   refreshToken: async () => false,
   resetPassword: async () => ({ success: false, error: '默认重置密码方法未实现' }),
   isLoading: true,
@@ -1279,11 +1285,23 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   // 新增：启用双因素认证
   const enableTwoFactorAuth = async (): Promise<boolean> => {
     try {
-      // Supabase提供了双因素认证功能，这里简化实现
-      if (isDevelopment()) {
-        console.log('Supabase双因素认证功能已准备就绪');
+      if (!user?.email) {
+        console.error('用户邮箱不存在');
+        return false;
       }
-      return true;
+      
+      // 发送验证码到用户邮箱
+      const { success, error, mockCode } = await sendEmailOtp(user.email);
+      
+      if (success) {
+        if (isDevelopment() && mockCode) {
+          console.log('双因素认证验证码已发送，开发环境模拟代码:', mockCode);
+        }
+        return true;
+      } else {
+        console.error('发送验证码失败:', error);
+        return false;
+      }
     } catch (error) {
       console.error('启用双因素认证失败:', error);
       return false;
@@ -1293,13 +1311,61 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   // 新增：验证双因素认证代码
   const verifyTwoFactorCode = async (code: string): Promise<boolean> => {
     try {
-      // Supabase会自动处理双因素认证代码验证
-      if (isDevelopment()) {
-        console.log('使用Supabase验证双因素认证代码:', code);
+      if (!user?.email) {
+        console.error('用户邮箱不存在');
+        return false;
       }
-      return true;
+      
+      // 验证验证码
+      const { success } = await loginWithCode('email', user.email, code);
+      
+      if (success) {
+        // 保存双因素认证状态到用户信息
+        updateUser({ twoFactorEnabled: true });
+        return true;
+      } else {
+        console.error('验证码验证失败');
+        return false;
+      }
     } catch (error) {
       console.error('验证双因素认证代码失败:', error);
+      return false;
+    }
+  };
+
+  // 新增：重新发送双因素认证验证码
+  const resendTwoFactorCode = async (): Promise<boolean> => {
+    try {
+      if (!user?.email) {
+        console.error('用户邮箱不存在');
+        return false;
+      }
+      
+      const { success, error, mockCode } = await sendEmailOtp(user.email);
+      
+      if (success) {
+        if (isDevelopment() && mockCode) {
+          console.log('双因素认证验证码已重新发送，开发环境模拟代码:', mockCode);
+        }
+        return true;
+      } else {
+        console.error('重新发送验证码失败:', error);
+        return false;
+      }
+    } catch (error) {
+      console.error('重新发送验证码失败:', error);
+      return false;
+    }
+  };
+
+  // 新增：禁用双因素认证
+  const disableTwoFactorAuth = async (): Promise<boolean> => {
+    try {
+      // 保存双因素认证状态到用户信息
+      updateUser({ twoFactorEnabled: false });
+      return true;
+    } catch (error) {
+      console.error('禁用双因素认证失败:', error);
       return false;
     }
   };

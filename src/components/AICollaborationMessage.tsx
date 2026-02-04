@@ -46,53 +46,89 @@ const AICollaborationMessage: React.FC<AICollaborationMessageProps> = ({
   };
 
   const isUser = message.role === 'user';
+  const isError = message.isError;
 
   return (
     <motion.div
-      className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-4`}
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.1 }}
+      className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-6`}
+      initial={{ opacity: 0, y: 20, scale: 0.95 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ 
+        type: 'spring',
+        stiffness: 350,
+        damping: 25,
+        delay: index * 0.05 
+      }}
     >
-      <div className={`flex items-start gap-3 max-w-[85%] ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
-        {/* 头像 */}
-        <div className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shadow-md overflow-hidden ${
-          isUser 
-            ? (isDark ? 'border border-white/30' : 'border border-white/50') 
-            : (isDark ? 'bg-gradient-to-br from-blue-600 to-purple-600 text-white' : 'bg-gradient-to-br from-blue-500 to-purple-500 text-white')
-        }`}>
+      <div className={`flex items-start gap-4 max-w-[85%] ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
+        {/* 头像 - 优化样式 */}
+        <motion.div 
+          className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shadow-lg overflow-hidden ${
+            isUser 
+              ? 'bg-gradient-to-br from-blue-500 to-cyan-500 ring-2 ring-white/30' 
+              : 'bg-gradient-to-br from-indigo-500 to-purple-600 ring-2 ring-white/30'
+          }`}
+          whileHover={{ scale: 1.1 }}
+          transition={{ type: 'spring', stiffness: 400, damping: 10 }}
+        >
           {isUser ? (
-            <img 
-              src={userAvatar || ''} 
-              alt="用户头像" 
-              className="w-full h-full object-cover rounded-full"
-            />
+            userAvatar ? (
+              <img 
+                src={userAvatar} 
+                alt="用户头像" 
+                className="w-full h-full object-cover rounded-full"
+              />
+            ) : (
+              <i className="fas fa-user text-white text-sm"></i>
+            )
           ) : (
-            <i className="fas fa-robot text-base"></i>
+            <span className="text-white font-bold">津</span>
           )}
-        </div>
+        </motion.div>
 
         {/* 消息内容 */}
         <div className={`flex-1 min-w-0 flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
+          {/* 气泡 - 优化圆角和阴影 */}
           <motion.div 
-            className={`relative rounded-2xl p-3.5 sm:p-4.5 shadow-sm group ${isUser ? (isDark ? 'bg-gradient-to-br from-blue-600 to-purple-600 text-white shadow-blue-900/20' : 'bg-gradient-to-br from-blue-500 to-purple-500 text-white shadow-blue-500/20') : (isDark ? 'bg-gray-800 text-gray-100 border border-gray-700/50 shadow-gray-900/20' : 'bg-white text-gray-800 border border-gray-100 shadow-gray-200/50')}`}
+            className={`relative rounded-2xl p-4 shadow-md transition-shadow duration-300 hover:shadow-lg ${
+              isUser 
+                ? 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white rounded-tr-sm' 
+                : isError
+                  ? 'bg-gradient-to-br from-red-50 to-red-100 text-red-900 border border-red-200 rounded-tl-sm'
+                  : isDark 
+                    ? 'bg-gray-800/95 text-gray-100 border border-gray-700/50 rounded-tl-sm backdrop-blur-sm' 
+                    : 'bg-white/95 text-gray-800 border border-gray-200/50 rounded-tl-sm backdrop-blur-sm shadow-gray-200/50'
+            }`}
             whileHover={{ scale: 1.01 }}
             transition={{ type: 'spring', stiffness: 300, damping: 15 }}
           >
             
-            {/* AI 消息的 Markdown 渲染 */}
+            {/* 用户消息 */}
             {isUser ? (
               <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
+            ) : isError ? (
+              /* 错误消息 */
+              <div className="space-y-3">
+                <div className="flex items-start gap-3">
+                  <i className="fas fa-exclamation-circle text-red-500 mt-1 text-lg"></i>
+                  <div className="flex-1">
+                    <p className="font-semibold text-red-900 mb-2">抱歉，我暂时无法回答你的问题</p>
+                    <div className="text-sm text-red-700 whitespace-pre-wrap leading-relaxed">
+                      {message.content}
+                    </div>
+                  </div>
+                </div>
+              </div>
             ) : (
+              /* AI 消息的 Markdown 渲染 */
               <div className={`markdown-body text-sm leading-relaxed ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
                 <ReactMarkdown
                   components={{
-                    // 代码块样式
                     code({node, className, children, ...props}) {
                       const match = /language-(\w+)/.exec(className || '');
                       const isInline = !match && !String(children).includes('\n');
                       return isInline ? (
-                        <code className={`px-1.5 py-0.5 rounded text-xs font-mono ${isDark ? 'bg-gray-700 text-blue-300' : 'bg-gray-100 text-blue-600'}`} {...props}>
+                        <code className={`px-1.5 py-0.5 rounded-md text-xs font-mono ${isDark ? 'bg-gray-700 text-blue-300' : 'bg-gray-100 text-blue-600'}`} {...props}>
                           {children}
                         </code>
                       ) : (
@@ -100,7 +136,7 @@ const AICollaborationMessage: React.FC<AICollaborationMessageProps> = ({
                           <div className={`absolute top-0 right-0 px-2 py-1 text-xs text-gray-500 bg-opacity-50 rounded-bl-md rounded-tr-md ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
                             {match ? match[1] : 'text'}
                           </div>
-                          <pre className={`p-3.5 sm:p-4.5 rounded-xl overflow-x-auto text-xs font-mono ${isDark ? 'bg-gray-900 border border-gray-700/50' : 'bg-gray-50 border border-gray-200/50'}`}>
+                          <pre className={`p-3.5 rounded-xl overflow-x-auto text-xs font-mono ${isDark ? 'bg-gray-900/80 border border-gray-700/50' : 'bg-gray-50 border border-gray-200/50'}`}>
                             <code className={className} {...props}>
                               {children}
                             </code>
@@ -108,19 +144,16 @@ const AICollaborationMessage: React.FC<AICollaborationMessageProps> = ({
                         </div>
                       );
                     },
-                    // 链接样式
-                    a: ({node, ...props}) => <a className="text-blue-500 hover:underline" target="_blank" rel="noopener noreferrer" {...props} />,
-                    // 列表样式
-                    ul: ({node, ...props}) => <ul className="list-disc list-outside ml-4 mb-2 space-y-1" {...props} />,
-                    ol: ({node, ...props}) => <ol className="list-decimal list-outside ml-4 mb-2 space-y-1" {...props} />,
-                    li: ({node, ...props}) => <li className="mb-1" {...props} />,
-                    // 标题样式
-                    h1: ({node, ...props}) => <h1 className="text-lg sm:text-xl font-bold mb-2 mt-4 pb-2 border-b border-gray-200 dark:border-gray-700" {...props} />,
-                    h2: ({node, ...props}) => <h2 className="text-base sm:text-lg font-bold mb-2 mt-3" {...props} />,
-                    h3: ({node, ...props}) => <h3 className="text-sm sm:text-base font-bold mb-1 mt-2" {...props} />,
-                    // 段落样式
-                    p: ({node, ...props}) => <p className="mb-2 last:mb-0" {...props} />,
-                    blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-gray-300 dark:border-gray-600 pl-4 italic text-gray-500 dark:text-gray-400 my-2" {...props} />,
+                    a: ({node, ...props}) => <a className="text-blue-500 hover:underline font-medium" target="_blank" rel="noopener noreferrer" {...props} />,
+                    ul: ({node, ...props}) => <ul className="list-disc list-outside ml-4 mb-3 space-y-1.5" {...props} />,
+                    ol: ({node, ...props}) => <ol className="list-decimal list-outside ml-4 mb-3 space-y-1.5" {...props} />,
+                    li: ({node, ...props}) => <li className="mb-1 leading-relaxed" {...props} />,
+                    h1: ({node, ...props}) => <h1 className="text-lg font-bold mb-3 mt-4 pb-2 border-b border-gray-200 dark:border-gray-700" {...props} />,
+                    h2: ({node, ...props}) => <h2 className="text-base font-bold mb-2 mt-3 text-indigo-600 dark:text-indigo-400" {...props} />,
+                    h3: ({node, ...props}) => <h3 className="text-sm font-bold mb-2 mt-2 text-gray-700 dark:text-gray-300" {...props} />,
+                    p: ({node, ...props}) => <p className="mb-3 last:mb-0 leading-relaxed" {...props} />,
+                    blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-indigo-400 dark:border-indigo-500 pl-4 italic text-gray-600 dark:text-gray-400 my-3 bg-gray-50/50 dark:bg-gray-800/50 py-2 pr-3 rounded-r-lg" {...props} />,
+                    strong: ({node, ...props}) => <strong className="font-semibold text-indigo-600 dark:text-indigo-400" {...props} />,
                   }}
                 >
                   {message.content}
@@ -128,79 +161,108 @@ const AICollaborationMessage: React.FC<AICollaborationMessageProps> = ({
               </div>
             )}
 
-            {/* 复制按钮 - 仅 AI 消息显示 */}
+            {/* 复制按钮 - 优化位置和样式 */}
             {!isUser && (
-              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity sm:opacity-100">
-                <button
-                  onClick={handleCopy}
-                  className={`p-1.5 rounded-lg transition-colors ${isDark ? 'hover:bg-gray-700 text-gray-400 hover:text-white' : 'hover:bg-gray-100 text-gray-400 hover:text-gray-800'}`}
-                  title="复制内容"
-                >
-                  {isCopied ? <i className="fas fa-check text-green-500"></i> : <i className="fas fa-copy"></i>}
-                </button>
-              </div>
+              <motion.button
+                onClick={handleCopy}
+                className={`absolute top-2 right-2 p-2 rounded-lg transition-all opacity-0 group-hover:opacity-100 ${isDark ? 'hover:bg-gray-700 text-gray-400 hover:text-white' : 'hover:bg-gray-100 text-gray-400 hover:text-gray-800'}`}
+                title="复制内容"
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                {isCopied ? <i className="fas fa-check text-green-500"></i> : <i className="fas fa-copy text-xs"></i>}
+              </motion.button>
             )}
           </motion.div>
 
-          {/* 时间戳 */}
-          <div className={`mt-1 text-xs text-gray-400 opacity-75 px-1`}>
+          {/* 时间戳 - 优化样式 */}
+          <div className={`mt-1.5 text-xs text-gray-400 px-1 font-medium`}>
             {formatTime(message.timestamp)}
           </div>
 
           {/* 评分和反馈区域 - 仅 AI 消息显示 */}
-          {!isUser && (
-            <div className={`mt-1 w-full max-w-full ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
-              <div className="flex flex-col gap-1.5">
+          {!isUser && onRating && (
+            <div className={`mt-2 w-full`}>
+              <AnimatePresence>
                 {/* 评分按钮 */}
-                {!feedbackRating && onRating && (
-                  <div className="flex gap-1 pt-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-300">
-                    <button onClick={() => onRating(index, 1)} className={`p-1.5 rounded-full transition-all hover:scale-110 ${isDark ? 'hover:bg-gray-700 text-gray-500 hover:text-red-400' : 'hover:bg-gray-100 text-gray-400 hover:text-red-500'}`} title="非常不满意"><i className="fas fa-thumbs-down"></i></button>
-                    <button onClick={() => onRating(index, 2)} className={`p-1.5 rounded-full transition-all hover:scale-110 ${isDark ? 'hover:bg-gray-700 text-gray-500 hover:text-red-300' : 'hover:bg-gray-100 text-gray-400 hover:text-red-400'}`} title="不满意"><i className="fas fa-frown"></i></button>
-                    <button onClick={() => onRating(index, 3)} className={`p-1.5 rounded-full transition-all hover:scale-110 ${isDark ? 'hover:bg-gray-700 text-gray-500 hover:text-blue-400' : 'hover:bg-gray-100 text-gray-400 hover:text-blue-500'}`} title="一般"><i className="fas fa-meh"></i></button>
-                    <button onClick={() => onRating(index, 4)} className={`p-1.5 rounded-full transition-all hover:scale-110 ${isDark ? 'hover:bg-gray-700 text-gray-500 hover:text-green-300' : 'hover:bg-gray-100 text-gray-400 hover:text-green-400'}`} title="满意"><i className="fas fa-smile"></i></button>
-                    <button onClick={() => onRating(index, 5)} className={`p-1.5 rounded-full transition-all hover:scale-110 ${isDark ? 'hover:bg-gray-700 text-gray-500 hover:text-green-400' : 'hover:bg-gray-100 text-gray-400 hover:text-green-500'}`} title="非常满意"><i className="fas fa-thumbs-up"></i></button>
-                  </div>
+                {!feedbackRating && (
+                  <motion.div 
+                    className="flex gap-1 pt-1"
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                  >
+                    {[
+                      { icon: 'fa-thumbs-down', color: 'red', title: '非常不满意' },
+                      { icon: 'fa-frown', color: 'orange', title: '不满意' },
+                      { icon: 'fa-meh', color: 'blue', title: '一般' },
+                      { icon: 'fa-smile', color: 'green', title: '满意' },
+                      { icon: 'fa-thumbs-up', color: 'green', title: '非常满意' },
+                    ].map((item, i) => (
+                      <motion.button 
+                        key={i}
+                        onClick={() => onRating(index, i + 1)} 
+                        className={`p-2 rounded-full transition-all ${isDark ? 'hover:bg-gray-700 text-gray-500' : 'hover:bg-gray-100 text-gray-400'}`}
+                        title={item.title}
+                        whileHover={{ scale: 1.2 }}
+                        whileTap={{ scale: 0.9 }}
+                      >
+                        <i className={`fas ${item.icon}`}></i>
+                      </motion.button>
+                    ))}
+                  </motion.div>
                 )}
                 
                 {/* 评分结果显示 */}
                 {feedbackRating && (
-                  <div className="flex items-center gap-2 pt-1">
-                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${isDark ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
+                  <motion.div 
+                    className="flex items-center gap-2 pt-1"
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                  >
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${isDark ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
                       {feedbackRating === 1 && '非常不满意'}
                       {feedbackRating === 2 && '不满意'}
                       {feedbackRating === 3 && '一般'}
                       {feedbackRating === 4 && '满意'}
                       {feedbackRating === 5 && '非常满意'}
                     </span>
-                    <div className="flex text-yellow-400 text-xs">
+                    <div className="flex text-yellow-400 text-xs gap-0.5">
                       {[...Array(feedbackRating)].map((_, i) => <i key={i} className="fas fa-star"></i>)}
                     </div>
-                  </div>
+                  </motion.div>
                 )}
                 
                 {/* 反馈评论输入框 */}
                 {isFeedbackVisible && onFeedbackSubmit && (
-                  <div className="pt-1 pb-1">
-                    <div className="flex gap-1.5 items-stretch">
+                  <motion.div 
+                    className="pt-2 pb-1"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                  >
+                    <div className="flex gap-2 items-stretch">
                       <input
                         type="text"
                         placeholder="有什么建议可以告诉我..."
-                        className={`flex-1 px-3 py-2 text-xs rounded-lg ${isDark ? 'bg-gray-800 text-gray-200 placeholder-gray-500 border border-gray-700' : 'bg-white text-gray-800 placeholder-gray-400 border border-gray-200'} focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all`}
+                        className={`flex-1 px-4 py-2.5 text-sm rounded-xl ${isDark ? 'bg-gray-800 text-gray-200 placeholder-gray-500 border border-gray-700' : 'bg-white text-gray-800 placeholder-gray-400 border border-gray-200'} focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-all`}
                         value={feedbackComment || ''}
                         onChange={(e) => onFeedbackCommentChange && onFeedbackCommentChange(index, e.target.value)}
                         onKeyPress={(e) => e.key === 'Enter' && onFeedbackSubmit(index, feedbackComment || '')}
                         autoFocus
                       />
-                      <button
+                      <motion.button
                         onClick={() => onFeedbackSubmit(index, feedbackComment || '')}
-                        className={`px-3 py-1.5 text-xs rounded-lg transition-all ${isDark ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-blue-500 hover:bg-blue-600 text-white'} font-medium`}
+                        className={`px-4 py-2 text-sm rounded-xl transition-all font-medium ${isDark ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : 'bg-indigo-500 hover:bg-indigo-600 text-white'}`}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
                       >
                         提交
-                      </button>
+                      </motion.button>
                     </div>
-                  </div>
+                  </motion.div>
                 )}
-              </div>
+              </AnimatePresence>
             </div>
           )}
         </div>

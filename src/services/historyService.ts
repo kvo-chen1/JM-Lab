@@ -94,10 +94,17 @@ class HistoryService {
         user = { id: userId };
     } else {
         try {
+            // 先检查是否有活跃会话，避免未登录时产生 403 错误
+            const { data: sessionData } = await supabase.auth.getSession();
+            if (!sessionData?.session) {
+                return; // 无会话，直接返回
+            }
+            // 有会话时再获取用户信息
             const { data } = await supabase.auth.getUser();
             user = data.user;
         } catch (e) {
-            console.error('Auth check failed', e);
+            // 静默处理认证错误，避免控制台显示 403 错误
+            return;
         }
     }
 
@@ -187,8 +194,10 @@ class HistoryService {
       if (!this.db) return;
 
       // Check for active session first
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData?.session) return; // Don't sync if not logged in
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return; // Don't sync if not logged in
+      if (!user) return;
 
       this.isSyncing = true;
       

@@ -98,20 +98,15 @@ export default function Square() {
     }
   }, [tagClicks, sortTagsByClicks])
   
-  // 中文注释：精选社群数据（从本地API加载；失败回退本地静态）
+  // 中文注释：精选社群数据（从API加载）
   type FeaturedCommunity = { name: string; members: number; path: string; official?: boolean; topic?: string; tags?: string[]; cover?: string; avatar?: string }
-  const DEFAULT_FEATURED: FeaturedCommunity[] = [
-    { name: '国潮共创组', members: 128, path: '/community?group=guochao' },
-    { name: '非遗研究社', members: 96, path: '/community?group=heritage' },
-    { name: '品牌联名工坊', members: 73, path: '/community?group=brand' },
-  ]
   const FEATURED_CACHE_KEY = 'jmzf_featured_cache'
   const FEATURED_CACHE_TIMEOUT = 10 * 60 * 1000 // 10分钟缓存
-  
-  const [featuredCommunities, setFeaturedCommunities] = useState<FeaturedCommunity[]>(DEFAULT_FEATURED)
+
+  const [featuredCommunities, setFeaturedCommunities] = useState<FeaturedCommunity[]>([])
   const [featLoading, setFeatLoading] = useState(false)
   const [featError, setFeatError] = useState<string | null>(null)
-  
+
   // 优化：加载精选社群数据，使用useCallback稳定它
   const loadFeaturedCommunities = useCallback(async () => {
     // 检查缓存
@@ -125,32 +120,30 @@ export default function Square() {
         }
       }
     } catch {}
-    
+
     setFeatLoading(true)
     setFeatError(null)
-    
-    // 直接使用默认数据，避免调用不存在的API
+
+    // 从API获取数据
     try {
-      // 模拟网络延迟
-      // await new Promise(resolve => setTimeout(resolve, 300));
-      
-      const items = DEFAULT_FEATURED;
-      
+      const response = await apiClient.get('/communities/featured')
+      const items = response.data || []
+
       // 缓存结果
       localStorage.setItem(FEATURED_CACHE_KEY, JSON.stringify({
         data: items,
         timestamp: Date.now()
       }))
-      
+
       setFeaturedCommunities(items)
     } catch (e) {
-      setFeaturedCommunities(DEFAULT_FEATURED)
+      setFeaturedCommunities([])
       setFeatError('加载失败')
     } finally {
       setFeatLoading(false)
     }
   }, [])
-  
+
   // 合并标签和社群加载的useEffect，避免重复
   useEffect(() => {
     const loadData = async () => {

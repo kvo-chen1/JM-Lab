@@ -94,9 +94,7 @@ const Neo = createLazyComponent(() => import(/* webpackChunkName: "pages-other" 
   name: 'neo'
 });
 
-const NewsDetail = createLazyComponent(() => import(/* webpackChunkName: "pages-cultural" */ "@/pages/NewsDetail"), {
-  priority: ROUTE_PRIORITIES.HIGH
-});
+
 const EventDetail = createLazyComponent(() => import(/* webpackChunkName: "pages-cultural" */ "@/pages/EventDetail"), {
   priority: ROUTE_PRIORITIES.HIGH
 });
@@ -146,10 +144,7 @@ const CulturalEvents = createLazyComponent(() => import(/* webpackChunkName: "pa
   priority: ROUTE_PRIORITIES.HIGH,
   name: 'events'
 });
-const CulturalNewsPage = createLazyComponent(() => import(/* webpackChunkName: "pages-cultural" */ "@/pages/CulturalNewsPage"), {
-  priority: ROUTE_PRIORITIES.HIGH,
-  name: 'news'
-});
+
 
 // 活动相关 - 静态导入
 import CreateActivity from "@/pages/CreateActivity";
@@ -644,7 +639,7 @@ export default function App() {
           <Route path="/drafts" element={<LazyComponent><PrivateRoute><Drafts /></PrivateRoute></LazyComponent>} />
           <Route path="/settings" element={<LazyComponent><PrivateRoute><Settings /></PrivateRoute></LazyComponent>} />
           {/* 账户设置相关路由 */}
-          <Route path="/profile/edit" element={<LazyComponent fallback={<ProfileSkeleton />}><PrivateRoute><ProfileEdit /></PrivateRoute></LazyComponent>} />
+          <Route path="/profile/edit" element={<ErrorBoundary><AnimatedPage><PrivateRoute><ProfileEdit /></PrivateRoute></AnimatedPage></ErrorBoundary>} />
           <Route path="/password/change" element={<LazyComponent><PrivateRoute><ChangePassword /></PrivateRoute></LazyComponent>} />
           <Route path="/account/security" element={<LazyComponent><PrivateRoute><AccountSecurity /></PrivateRoute></LazyComponent>} />
           <Route path="/analytics" element={<LazyComponent><PrivateRoute><AnalyticsPage /></PrivateRoute></LazyComponent>} />
@@ -654,9 +649,7 @@ export default function App() {
           <Route path="/knowledge" element={<LazyComponent><CulturalKnowledge /></LazyComponent>} />
           <Route path="/knowledge/:type/:id" element={<LazyComponent><CulturalKnowledge /></LazyComponent>} />
           <Route path="/cultural-knowledge" element={<LazyComponent><CulturalKnowledge /></LazyComponent>} />
-          <Route path="/news" element={<LazyComponent><CulturalNewsPage /></LazyComponent>} />
-          <Route path="/news/:id" element={<LazyComponent><NewsDetail /></LazyComponent>} />
-          <Route path="/cultural-news" element={<LazyComponent><CulturalNewsPage /></LazyComponent>} />
+
           <Route path="/tianjin" element={<LazyComponent><Tianjin /></LazyComponent>} />
 
           <Route path="/events" element={<LazyComponent><CulturalEvents /></LazyComponent>} />

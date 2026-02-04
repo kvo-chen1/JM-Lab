@@ -35,6 +35,20 @@ export interface CreatorLevelInfo {
   currentPoints: number;
   pointsToNextLevel: number;
   levelProgress: number; // 0-100%
+  totalLevels: number;
+  levelUpNotifications: LevelUpNotification[];
+}
+
+// 等级提升通知类型
+export interface LevelUpNotification {
+  id: string;
+  userId: string;
+  fromLevel: number;
+  toLevel: number;
+  points: number;
+  notifiedAt: number;
+  isRead: boolean;
+  createdAt: number;
 }
 
 // 积分记录类型定义
@@ -76,12 +90,17 @@ export interface ConsumptionRecord {
 class AchievementService {
   // 创作者等级数据
   private creatorLevels: CreatorLevel[] = [
-    { level: 1, name: '创作新手', icon: '🌱', requiredPoints: 0, 权益: ['基础创作工具', '作品发布权限', '社区评论权限'], description: '刚刚开始创作之旅的新手' },
-    { level: 2, name: '创作爱好者', icon: '✏️', requiredPoints: 100, 权益: ['高级创作工具', '模板库访问', '作品打赏权限'], description: '热爱创作的积极用户' },
-    { level: 3, name: '创作达人', icon: '🌟', requiredPoints: 300, 权益: ['AI创意助手', '专属客服支持', '作品推广机会'], description: '创作能力突出的达人' },
-    { level: 4, name: '创作大师', icon: '🎨', requiredPoints: 800, 权益: ['限量模板使用权', '线下活动邀请', '品牌合作机会'], description: '创作领域的大师级人物' },
-    { level: 5, name: '创作传奇', icon: '👑', requiredPoints: 2000, 权益: ['平台荣誉认证', '定制化创作工具', 'IP孵化支持'], description: '创作界的传奇人物' }
+    { level: 1, name: '创作新手', icon: '🌱', requiredPoints: 0, 权益: ['基础创作工具', '作品发布权限', '社区评论权限', '每日签到奖励'], description: '刚刚开始创作之旅的新手' },
+    { level: 2, name: '创作爱好者', icon: '✏️', requiredPoints: 100, 权益: ['高级创作工具', '模板库访问', '作品打赏权限', '积分商城9折'], description: '热爱创作的积极用户' },
+    { level: 3, name: '创作达人', icon: '🌟', requiredPoints: 300, 权益: ['AI创意助手', '专属客服支持', '作品推广机会', '积分商城8折', '徽章解锁权限'], description: '创作能力突出的达人' },
+    { level: 4, name: '创作精英', icon: '🏆', requiredPoints: 600, 权益: ['精英创作工具', '优先活动邀请', '作品商业化机会', '积分商城7折', '专属创作空间'], description: '创作领域的精英人物' },
+    { level: 5, name: '创作大师', icon: '🎨', requiredPoints: 1000, 权益: ['大师创作工具', '线下活动邀请', '品牌合作机会', '积分商城6折', '大师认证标识'], description: '创作领域的大师级人物' },
+    { level: 6, name: '创作宗师', icon: '👑', requiredPoints: 2000, 权益: ['宗师创作工具', '全球作品展示', '平台顾问身份', '积分商城5折', '定制化创作工具'], description: '创作界的宗师级人物' },
+    { level: 7, name: '创作传奇', icon: '💎', requiredPoints: 5000, 权益: ['传奇创作工具', 'IP孵化支持', '平台荣誉殿堂', '积分商城4折', '专属商务合作'], description: '创作界的传奇人物' }
   ];
+
+  // 等级提升通知数据
+  private levelUpNotifications: LevelUpNotification[] = [];
 
   // 基础成就定义 (静态数据)
   private baseAchievements: Omit<Achievement, 'progress' | 'isUnlocked' | 'unlockedAt'>[] = [
@@ -392,7 +411,7 @@ class AchievementService {
   }
 
   // 获取创作者等级信息
-  getCreatorLevelInfo(): CreatorLevelInfo {
+  getCreatorLevelInfo(userId: string = 'current'): CreatorLevelInfo {
     const currentPoints = this.calculateUserPoints();
     
     // 找到当前等级和下一个等级
@@ -429,13 +448,47 @@ class AchievementService {
       levelProgress = 100;
     }
     
+    // 获取用户的等级提升通知
+    const userNotifications = this.levelUpNotifications.filter(
+      notification => notification.userId === userId
+    ).sort((a, b) => b.notifiedAt - a.notifiedAt);
+
     return {
       currentLevel,
       nextLevel,
       currentPoints,
       pointsToNextLevel,
-      levelProgress
+      levelProgress,
+      totalLevels: this.creatorLevels.length,
+      levelUpNotifications: userNotifications
     };
+  }
+
+  // 记录等级提升通知
+  private recordLevelUpNotification(userId: string, fromLevel: number, toLevel: number, points: number): LevelUpNotification {
+    const notification: LevelUpNotification = {
+      id: `level-up-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      userId,
+      fromLevel,
+      toLevel,
+      points,
+      notifiedAt: Date.now(),
+      isRead: false,
+      createdAt: Date.now()
+    };
+
+    this.levelUpNotifications.push(notification);
+    return notification;
+  }
+
+  // 标记等级提升通知为已读
+  markLevelUpNotificationAsRead(notificationId: string): boolean {
+    const notification = this.levelUpNotifications.find(n => n.id === notificationId);
+    if (notification) {
+      notification.isRead = true;
+      return true;
+    }
+    return false;
   }
 
   // 获取所有创作者等级

@@ -106,8 +106,8 @@
     {
       "user_id": "f19c81f2-6c28-477f-9ec4-d0fc0a9a4b48",
       "status": "online",
-      "last_seen": "2026-02-04T10:46:10.449Z",
-      "updated_at": "2026-02-04T10:46:10.449Z"
+      "last_seen": "2026-02-04T11:11:30.535Z",
+      "updated_at": "2026-02-04T11:11:30.535Z"
     },
     {
       "user_id": "6c576fec-7fd7-4945-a3ee-c229a2324f0c",
@@ -142,8 +142,14 @@
     {
       "user_id": "c09a66db-96d9-4f7d-a3db-7a920fdf228e",
       "status": "online",
-      "last_seen": "2026-02-04T10:32:25.710Z",
-      "updated_at": "2026-02-04T10:32:25.710Z"
+      "last_seen": "2026-02-04T11:17:41.803Z",
+      "updated_at": "2026-02-04T11:17:41.803Z"
+    },
+    {
+      "user_id": "8c946a1f-a8f6-4e3d-9f20-42f2a6a0b298",
+      "status": "online",
+      "last_seen": "2026-02-04T12:32:16.402Z",
+      "updated_at": "2026-02-04T12:32:16.402Z"
     }
   ],
   "posts": [],

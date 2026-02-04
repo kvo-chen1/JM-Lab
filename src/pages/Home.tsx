@@ -820,55 +820,7 @@ export default function Home() {
                 </motion.div>
               </motion.div>
               
-              {/* Cultural News Card */}
-              <motion.div 
-                initial={{ opacity: 0, x: 100, scale: 0.9 }}
-                whileInView={{ opacity: 1, x: 0, scale: 1 }}
-                viewport={{ once: true, margin: '-100px' }}
-                transition={{ duration: getDuration(0.49), delay: 0.1, type: 'spring', stiffness: 140 }}
-                whileHover={{ y: -5, scale: 1.02, transition: { duration: 0.15 } }}
-                className={`flex-1 rounded-3xl p-8 relative overflow-hidden cursor-pointer group transition-all duration-200 ${isDark ? 'bg-gray-900' : 'bg-white border border-gray-100'} shadow-xl hover:shadow-2xl`} 
-                onClick={() => navigate('/cultural-news')}
-              >
-                {/* Background Image Overlay */}
-                <div className="absolute inset-0 opacity-[0.2] group-hover:opacity-[0.3] transition-opacity duration-500 bg-[url('https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=800&q=80')] bg-cover bg-center"></div>
-                
-                <div className="relative z-10 h-full flex flex-col justify-center">
-                   <motion.div 
-                     initial={{ opacity: 0, scale: 0 }}
-                     whileInView={{ opacity: 1, scale: 1 }}
-                     transition={{ duration: 0.5, delay: 0.7, type: 'spring' }}
-                     whileHover={{ scale: 1.1 }}
-                     className="w-12 h-12 rounded-2xl bg-gradient-to-br from-purple-100 to-purple-50 text-purple-600 flex items-center justify-center mb-4 shadow-sm"
-                   >
-                     <i className="fas fa-newspaper text-xl"></i>
-                   </motion.div>
-                   <motion.h4 
-                     initial={{ opacity: 0, y: 20 }}
-                     whileInView={{ opacity: 1, y: 0 }}
-                     transition={{ duration: 0.5, delay: 0.8 }}
-                     className={`text-2xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'} group-hover:text-purple-600 transition-colors`}
-                   >
-                     文化资讯速递
-                   </motion.h4>
-                   <motion.p 
-                     initial={{ opacity: 0, y: 20 }}
-                     whileInView={{ opacity: 1, y: 0 }}
-                     transition={{ duration: 0.5, delay: 0.9 }}
-                     className={`text-base ${isDark ? 'text-gray-400' : 'text-gray-600'} group-hover:text-gray-900 dark:group-hover:text-gray-300 transition-colors`}
-                   >
-                     获取最新的老字号动态与展览信息。
-                   </motion.p>
-                </div>
-                <motion.div 
-                  initial={{ opacity: 0, scale: 0, rotate: -45 }}
-                  whileInView={{ opacity: 0.05, scale: 1, rotate: -12 }}
-                  transition={{ duration: 0.8, delay: 1.0 }}
-                  className="absolute -right-4 -bottom-4 transform group-hover:scale-110 group-hover:rotate-0 transition-all duration-700"
-                >
-                   <i className="fas fa-newspaper text-9xl text-purple-600"></i>
-                </motion.div>
-              </motion.div>
+
             </div>
           </div>
         </Section>

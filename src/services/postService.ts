@@ -431,41 +431,62 @@ import eventBus from '@/lib/eventBus';
 
 async function ensureSupabaseSessionUserId(): Promise<string | null> {
   try {
-    const { data } = await supabase.auth.getSession()
-    const sessionUserId = data?.session?.user?.id
-    if (sessionUserId) return sessionUserId
+    // 首先检查当前会话
+    const { data: sessionData } = await supabase.auth.getSession()
+    const sessionUserId = sessionData?.session?.user?.id
+    if (sessionUserId) {
+      console.log('[postService] Using existing session:', sessionUserId);
+      return sessionUserId
+    }
 
+    // 如果没有会话，尝试从本地存储恢复
     if (typeof window !== 'undefined') {
       const access_token = localStorage.getItem('token')
       const refresh_token = localStorage.getItem('refreshToken')
 
       if (access_token && refresh_token) {
         console.log('[postService] Attempting to restore session from local tokens...');
-        const { data: sessionData, error } = await supabase.auth.setSession({
-          access_token,
-          refresh_token,
-        })
+        try {
+          const { data: restoredSession, error } = await supabase.auth.setSession({
+            access_token,
+            refresh_token,
+          })
 
-        if (error) {
-          console.error('[postService] Failed to restore session:', error.message);
-          // 如果恢复会话失败，说明 refresh token 可能已失效
-          // 发布登出事件，让 AuthContext 处理清理工作
-          eventBus.publish('auth:logout', undefined);
+          if (error) {
+            console.error('[postService] Failed to restore session:', error.message);
+            // 会话恢复失败，清理无效令牌
+            localStorage.removeItem('token');
+            localStorage.removeItem('refreshToken');
+            return null;
+          }
+
+          if (restoredSession?.session?.user?.id) {
+            console.log('[postService] Session restored successfully:', restoredSession.session.user.id);
+            return restoredSession.session.user.id
+          }
+        } catch (error) {
+          console.error('[postService] Exception during session restoration:', error);
+          // 清理可能无效的令牌
+          localStorage.removeItem('token');
+          localStorage.removeItem('refreshToken');
           return null;
-        }
-
-        if (sessionData?.session?.user?.id) {
-          console.log('[postService] Session restored successfully');
-          return sessionData.session.user.id
         }
       }
     }
 
-    const { data: userData, error: userError } = await supabase.auth.getUser()
-    if (userError) {
-       console.warn('[postService] getUser failed:', userError.message);
+    // 最后尝试获取用户信息
+    try {
+      const { data: userData, error: userError } = await supabase.auth.getUser()
+      if (userError) {
+         console.warn('[postService] getUser failed:', userError.message);
+         return null;
+      }
+      console.log('[postService] Using user from getUser:', userData?.user?.id);
+      return userData?.user?.id || null
+    } catch (error) {
+      console.error('[postService] Exception during getUser:', error);
+      return null;
     }
-    return userData?.user?.id || null
   } catch (err) {
     console.error('[postService] ensureSupabaseSessionUserId exception:', err);
     return null
@@ -476,193 +497,213 @@ async function ensureSupabaseSessionUserId(): Promise<string | null> {
 export async function addPost(p: Partial<Post>, currentUser?: User): Promise<Post | undefined> {
   console.log('[addPost] Called with:', { title: p.title, category: p.category, userId: currentUser?.id });
 
-  const supabaseUserId = await ensureSupabaseSessionUserId()
-  
-  // 容错处理：如果无法获取Supabase会话ID，但传入了当前用户，尝试使用当前用户ID
-  // 这允许本地登录用户尝试进行操作（取决于后端/RLS配置）
-  const finalUserId = supabaseUserId || currentUser?.id;
+  try {
+    const supabaseUserId = await ensureSupabaseSessionUserId()
+    
+    // 容错处理：如果无法获取Supabase会话ID，但传入了当前用户，尝试使用当前用户ID
+    // 这允许本地登录用户尝试进行操作（取决于后端/RLS配置）
+    const finalUserId = supabaseUserId || currentUser?.id;
 
-  if (!finalUserId) {
-    throw new Error('请先登录后再发布作品')
-  }
-  
-  // 如果没有用户ID，使用一个默认的用户ID
-  if (!currentUser?.id || currentUser.id === 'current-user') {
-    console.warn('[addPost] No valid user ID provided, using default user ID');
-    currentUser = {
-      id: finalUserId, // 使用获取到的ID
-      username: '默认用户',
-      email: 'default@example.com',
-      membershipLevel: 'free',
-      membershipStatus: 'active'
-    };
-  }
-
-  // 确保ID一致
-  if (currentUser.id !== finalUserId) {
-    currentUser = {
-      ...currentUser,
-      id: finalUserId,
+    if (!finalUserId) {
+      throw new Error('请先登录后再发布作品')
     }
-  }
+    
+    // 如果没有用户ID，使用一个默认的用户ID
+    if (!currentUser?.id || currentUser.id === 'current-user') {
+      console.warn('[addPost] No valid user ID provided, using default user ID');
+      currentUser = {
+        id: finalUserId, // 使用获取到的ID
+        username: '默认用户',
+        email: 'default@example.com',
+        membershipLevel: 'free',
+        membershipStatus: 'active'
+      };
+    }
 
-  console.log('[addPost] Using user:', currentUser.id);
-  
-  // 首先添加到 posts 表
-  const insertData: any = {
-    title: p.title,
-    content: p.description, // Mapping description to content
-    author_id: currentUser.id,
-    user_id: currentUser.id, // Redundant but safe
-    category: p.category,
-    images: p.thumbnail ? [p.thumbnail] : [],
-    attachments: p.thumbnail ? [{ type: 'image', url: p.thumbnail }] : [],
-    status: 'published',
-    created_at: new Date().toISOString(), // 使用标准的 ISO 8601 日期时间字符串
-    updated_at: new Date().toISOString(),
-    likes_count: 0,
-    view_count: 0,
-    comments_count: 0
-  };
-  
-  // 只有在表中有tags列时才添加tags
-  // 先尝试不带tags插入，如果失败再尝试其他方式
-  console.log('[addPost] Inserting post data:', insertData);
-  
-  const { data, error } = await supabase
-    .from('posts')
-    .insert(insertData)
-    .select()
-    .single();
-
-  // 准备本地API数据
-  // 将tags和media转换为JSON字符串，因为数据库期望TEXT类型
-  // 使用标准的ISO 8601日期时间字符串格式
-  const workData = {
-    title: p.title,
-    description: p.description,
-    cover_url: p.thumbnail,
-    thumbnail: p.thumbnail,
-    creator_id: currentUser.id,
-    user_id: currentUser.id,
-    category: p.category,
-    tags: JSON.stringify(p.tags || []),
-    media: JSON.stringify(p.thumbnail ? [p.thumbnail] : []),
-    likes: 0,
-    views_count: 0,
-    comments_count: 0,
-    created_at: new Date().toISOString() // 使用标准的ISO 8601日期时间字符串
-  };
-
-  // 然后尝试添加到 Supabase
-  let supabasePostId: string | null = null;
-  if (!error && data) {
-    // ... (success logic)
-    console.log('[addPost] Successfully added post to Supabase:', data);
-    console.log('[addPost] Post ID:', data.id);
-    supabasePostId = data.id.toString();
-
-    // 处理标签
-    if (p.tags && p.tags.length > 0) {
-      // ... (tag logic)
-      try {
-        console.log('[addPost] Processing tags:', p.tags);
-        const tagPromises = p.tags.map(async (tagName) => {
-          // 1. 尝试获取现有标签
-          let { data: existingTag } = await supabase
-            .from('tags')
-            .select('id')
-            .eq('name', tagName)
-            .single();
-
-          // 2. 如果不存在，创建新标签
-          if (!existingTag) {
-            const { data: newTag, error: tagError } = await supabase
-              .from('tags')
-              .insert({ name: tagName })
-              .select('id')
-              .single();
-            
-            if (tagError) {
-               // 忽略重复键错误，并发情况下可能已存在
-               if (tagError.code === '23505') {
-                 const { data: retryTag } = await supabase
-                   .from('tags')
-                   .select('id')
-                   .eq('name', tagName)
-                   .single();
-                 existingTag = retryTag;
-               } else {
-                 console.error('Error creating tag:', tagName, tagError);
-               }
-            } else {
-              existingTag = newTag;
-            }
-          }
-
-          // 3. 关联标签到帖子
-          if (existingTag) {
-            await supabase
-              .from('post_tags')
-              .insert({
-                post_id: data.id,
-                tag_id: existingTag.id
-              });
-          }
-        });
-
-        await Promise.all(tagPromises);
-        console.log('[addPost] Tags processed successfully');
-      } catch (tagErr) {
-        console.error('Error processing tags:', tagErr);
+    // 确保ID一致
+    if (currentUser.id !== finalUserId) {
+      currentUser = {
+        ...currentUser,
+        id: finalUserId,
       }
     }
-  } else {
-    console.error('[addPost] Supabase insert failed:', error);
-    // 抛出错误，以便前端捕获并提示用户
-    throw new Error(error?.message || '发布作品失败，请检查网络或登录状态');
-  }
 
-  // 使用Supabase的ID
-  const finalId = supabasePostId || Date.now().toString();
+    console.log('[addPost] Using user:', currentUser.id);
+    
+    // 首先添加到 posts 表
+    const insertData: any = {
+      title: p.title,
+      content: p.description, // Mapping description to content
+      author_id: currentUser.id,
+      user_id: currentUser.id, // Redundant but safe
+      category: p.category,
+      images: p.thumbnail ? [p.thumbnail] : [],
+      attachments: p.thumbnail ? [{ type: 'image', url: p.thumbnail }] : [],
+      status: 'published',
+      created_at: new Date().toISOString(), // 使用标准的 ISO 8601 日期时间字符串
+      updated_at: new Date().toISOString(),
+      likes_count: 0,
+      view_count: 0,
+      comments_count: 0
+    };
+    
+    // 只有在表中有tags列时才添加tags
+    // 先尝试不带tags插入，如果失败再尝试其他方式
+    console.log('[addPost] Inserting post data:', insertData);
+    
+    const { data, error } = await supabase
+      .from('posts')
+      .insert(insertData)
+      .select()
+      .single();
 
-  // Return mapped post
-  // 使用 Supabase 的 created_at 或当前时间
-  const postDate = data?.created_at ? new Date(data.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
-  
-  return {
-      ...p,
-      id: finalId,
-      author: currentUser,
-      date: postDate,
+    // 处理插入错误
+    if (error) {
+      console.error('[addPost] Supabase insert failed:', error);
+      
+      // 处理认证相关错误
+      if (error.message.includes('401') || error.message.includes('403') || error.message.includes('unauthorized') || error.message.includes('RLS')) {
+        throw new Error('登录已过期，请重新登录后重试');
+      }
+      
+      // 处理其他错误
+      throw new Error(error.message || '发布作品失败，请检查网络或登录状态');
+    }
+
+    // 准备本地API数据
+    // 将tags和media转换为JSON字符串，因为数据库期望TEXT类型
+    // 使用标准的ISO 8601日期时间字符串格式
+    const workData = {
+      title: p.title,
+      description: p.description,
+      cover_url: p.thumbnail,
+      thumbnail: p.thumbnail,
+      creator_id: currentUser.id,
+      user_id: currentUser.id,
+      category: p.category,
+      tags: JSON.stringify(p.tags || []),
+      media: JSON.stringify(p.thumbnail ? [p.thumbnail] : []),
       likes: 0,
-      comments: [],
-      isLiked: false,
-      isBookmarked: false,
-      views: 0,
-      shares: 0,
-      isFeatured: false,
-      isDraft: false,
-      completionStatus: 'published',
-      creativeDirection: '',
-      culturalElements: [],
-      colorScheme: [],
-      toolsUsed: [],
-      publishType: 'explore',
-      communityId: null,
-      moderationStatus: 'approved',
-      rejectionReason: null,
-      scheduledPublishDate: null,
-      visibility: 'public',
-      commentCount: 0,
-      engagementRate: 0,
-      trendingScore: 0,
-      reach: 0,
-      moderator: null,
-      reviewedAt: null,
-      recommendationScore: 0,
-      recommendedFor: []
-  } as Post;
+      views_count: 0,
+      comments_count: 0,
+      created_at: new Date().toISOString() // 使用标准的ISO 8601日期时间字符串
+    };
+
+    // 然后尝试添加到 Supabase
+    let supabasePostId: string | null = null;
+    if (data) {
+      // ... (success logic)
+      console.log('[addPost] Successfully added post to Supabase:', data);
+      console.log('[addPost] Post ID:', data.id);
+      supabasePostId = data.id.toString();
+
+      // 处理标签
+      if (p.tags && p.tags.length > 0) {
+        // ... (tag logic)
+        try {
+          console.log('[addPost] Processing tags:', p.tags);
+          const tagPromises = p.tags.map(async (tagName) => {
+            // 1. 尝试获取现有标签
+            let { data: existingTag } = await supabase
+              .from('tags')
+              .select('id')
+              .eq('name', tagName)
+              .single();
+
+            // 2. 如果不存在，创建新标签
+            if (!existingTag) {
+              const { data: newTag, error: tagError } = await supabase
+                .from('tags')
+                .insert({ name: tagName })
+                .select('id')
+                .single();
+              
+              if (tagError) {
+                 // 忽略重复键错误，并发情况下可能已存在
+                 if (tagError.code === '23505') {
+                   const { data: retryTag } = await supabase
+                     .from('tags')
+                     .select('id')
+                     .eq('name', tagName)
+                     .single();
+                   existingTag = retryTag;
+                 } else {
+                   console.error('Error creating tag:', tagName, tagError);
+                 }
+              } else {
+                existingTag = newTag;
+              }
+            }
+
+            // 3. 关联标签到帖子
+            if (existingTag) {
+              await supabase
+                .from('post_tags')
+                .insert({
+                  post_id: data.id,
+                  tag_id: existingTag.id
+                });
+            }
+          });
+
+          await Promise.all(tagPromises);
+          console.log('[addPost] Tags processed successfully');
+        } catch (tagErr) {
+          console.error('Error processing tags:', tagErr);
+        }
+      }
+    }
+
+    // 使用Supabase的ID
+    const finalId = supabasePostId || Date.now().toString();
+
+    // Return mapped post
+    // 使用 Supabase 的 created_at 或当前时间
+    const postDate = data?.created_at ? new Date(data.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+    
+    return {
+        ...p,
+        id: finalId,
+        author: currentUser,
+        date: postDate,
+        likes: 0,
+        comments: [],
+        isLiked: false,
+        isBookmarked: false,
+        views: 0,
+        shares: 0,
+        isFeatured: false,
+        isDraft: false,
+        completionStatus: 'published',
+        creativeDirection: '',
+        culturalElements: [],
+        colorScheme: [],
+        toolsUsed: [],
+        publishType: 'explore',
+        communityId: null,
+        moderationStatus: 'approved',
+        rejectionReason: null,
+        scheduledPublishDate: null,
+        visibility: 'public',
+        commentCount: 0,
+        engagementRate: 0,
+        trendingScore: 0,
+        reach: 0,
+        moderator: null,
+        reviewedAt: null,
+        recommendationScore: 0,
+        recommendedFor: []
+    } as Post;
+  } catch (error: any) {
+    console.error('[addPost] Error:', error);
+    
+    // 重新抛出错误，以便前端捕获并提示用户
+    if (error.message.includes('请先登录') || error.message.includes('登录已过期')) {
+      throw error;
+    } else {
+      throw new Error('发布作品失败，请检查网络或登录状态');
+    }
+  }
 }
 
 export async function likePost(id: string, userId: string): Promise<Post | undefined> {

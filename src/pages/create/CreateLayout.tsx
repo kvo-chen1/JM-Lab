@@ -44,6 +44,10 @@ export default function CreateLayout() {
 
       // 传入当前用户对象
       await postsApi.addPost(newPost as Post, user || undefined);
+      
+      // 触发更新事件，通知广场页面刷新
+      window.dispatchEvent(new Event('square-posts-updated'));
+      
       toast.success('发布成功！已发布到广场');
       setIsPublishModalOpen(false);
     } catch (error) {

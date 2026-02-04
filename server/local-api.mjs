@@ -821,6 +821,65 @@ async function route(req, res, u, path) {
       return
     }
 
+    // 创建作品
+    if (req.method === 'POST' && path === '/api/works') {
+      const decoded = verifyRequestToken(req)
+      if (!decoded) {
+        sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+        return
+      }
+      
+      try {
+        const b = await readBody(req);
+        
+        // 插入到数据库
+        const newWork = await workDB.createWork({
+          title: b.title,
+          description: b.description || b.content || '',
+          cover_url: b.cover_url || b.thumbnail || '',
+          thumbnail: b.thumbnail || b.cover_url || '',
+          creator_id: decoded.userId,
+          category: b.category || 'other',
+          tags: b.tags || [],
+          media: b.media || b.images || []
+        })
+        
+        // Award Points
+        await achievementDB.addPointsRecord({
+          userId: decoded.userId,
+          source: 'creation',
+          type: 'earn',
+          points: 50,
+          description: '发布新作品'
+        })
+        
+        // Add notification
+        await notificationDB.addNotification({
+          userId: decoded.userId,
+          title: '作品发布成功',
+          content: '恭喜！您的作品已发布，获得50积分！',
+          type: 'success'
+        })
+
+        // Log Activity
+        await activityDB.logActivity({
+          userId: decoded.userId,
+          actionType: 'create_work',
+          entityType: 'work',
+          entityId: String(newWork.id), 
+          details: { title: newWork.title, description: '发布新作品' },
+          ipAddress: req.socket.remoteAddress,
+          userAgent: req.headers['user-agent']
+        })
+
+        sendJson(res, 200, { code: 0, data: newWork })
+      } catch (e) {
+        console.error('[API] Create work failed:', e)
+        sendJson(res, 500, { code: 1, message: '发布作品失败: ' + e.message })
+      }
+      return
+    }
+
     // ==========================================
     // 好友系统 API
     // ==========================================
@@ -4003,7 +4062,7 @@ async function route(req, res, u, path) {
     return
   }
 
-  // 创建作品 (Mock implementation for now, just to award points)
+  // 创建作品
   if (req.method === 'POST' && path === '/api/works') {
     const decoded = verifyRequestToken(req)
     if (!decoded) {
@@ -4012,9 +4071,19 @@ async function route(req, res, u, path) {
     }
     
     try {
-      // In a real app, we would insert into works table. 
-      // For now, we assume success and award points.
-      // We should probably parse the body to get title/content
+      const b = await readBody(req);
+      
+      // 插入到数据库
+      const newWork = await workDB.createWork({
+        title: b.title,
+        description: b.description || b.content || '',
+        cover_url: b.cover_url || b.thumbnail || '',
+        thumbnail: b.thumbnail || b.cover_url || '',
+        creator_id: decoded.userId,
+        category: b.category || 'other',
+        tags: b.tags || [],
+        media: b.media || b.images || []
+      })
       
       // Award Points
       await achievementDB.addPointsRecord({
@@ -4038,22 +4107,78 @@ async function route(req, res, u, path) {
         userId: decoded.userId,
         actionType: 'create_work',
         entityType: 'work',
-        entityId: 'new_work', // In real app use returned ID
-        details: { title: req.body.title || 'Untitled', description: '发布新作品' },
+        entityId: String(newWork.id), 
+        details: { title: newWork.title, description: '发布新作品' },
         ipAddress: req.socket.remoteAddress,
         userAgent: req.headers['user-agent']
       })
 
-      sendJson(res, 200, { code: 0, data: { id: Date.now(), ...req.body } }) // Echo back
+      sendJson(res, 200, { code: 0, data: newWork })
     } catch (e) {
       console.error('[API] Create work failed:', e)
-      sendJson(res, 500, { code: 1, message: '发布作品失败' })
+      sendJson(res, 500, { code: 1, message: '发布作品失败: ' + e.message })
     }
     return
   }
 
-  // 获取作品列表 (用于探索页面)
+  // 创建作品
+  if (req.method === 'POST' && path === '/api/works') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+    
+    try {
+      const b = await readBody(req);
+      
+      // 插入到数据库
+      const newWork = await workDB.createWork({
+        title: b.title,
+        description: b.description || b.content || '',
+        cover_url: b.cover_url || b.thumbnail || '',
+        thumbnail: b.thumbnail || b.cover_url || '',
+        creator_id: decoded.userId,
+        category: b.category || 'other',
+        tags: b.tags || [],
+        media: b.media || b.images || []
+      })
+      
+      // Award Points
+      await achievementDB.addPointsRecord({
+        userId: decoded.userId,
+        source: 'creation',
+        type: 'earn',
+        points: 50,
+        description: '发布新作品'
+      })
+      
+      // Add notification
+      await notificationDB.addNotification({
+        userId: decoded.userId,
+        title: '作品发布成功',
+        content: '恭喜！您的作品已发布，获得50积分！',
+        type: 'success'
+      })
 
+      // Log Activity
+      await activityDB.logActivity({
+        userId: decoded.userId,
+        actionType: 'create_work',
+        entityType: 'work',
+        entityId: String(newWork.id), 
+        details: { title: newWork.title, description: '发布新作品' },
+        ipAddress: req.socket.remoteAddress,
+        userAgent: req.headers['user-agent']
+      })
+
+      sendJson(res, 200, { code: 0, data: newWork })
+    } catch (e) {
+      console.error('[API] Create work failed:', e)
+      sendJson(res, 500, { code: 1, message: '发布作品失败: ' + e.message })
+    }
+    return
+  }
 
   // 点赞作品
   if (req.method === 'POST' && path.match(/^\/api\/works\/\d+\/like$/)) {

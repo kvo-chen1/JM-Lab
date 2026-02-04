@@ -94,7 +94,62 @@ export interface Post {
  */
 export async function getPosts(category?: string, currentUserId?: string): Promise<Post[]> {
   try {
-    // 1. Fetch Posts with Author
+    // 从本地 API 获取作品数据
+    try {
+      const response = await fetch('http://localhost:3022/api/works');
+      if (response.ok) {
+        const data = await response.json();
+        if (data.code === 0 && Array.isArray(data.data)) {
+          // 转换从 works 表获取的数据为 Post 类型
+          return data.data.map((work: any) => ({
+            id: work.id.toString(),
+            title: work.title || 'Untitled',
+            thumbnail: work.cover_url || work.thumbnail || '',
+            likes: work.likes || 0,
+            comments: [],
+            date: work.created_at ? new Date(work.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+            author: {
+              id: work.creator_id || work.user_id || 'unknown',
+              username: work.username || 'User',
+              email: '',
+              avatar: work.avatar_url || ''
+            },
+            isLiked: false,
+            isBookmarked: false,
+            category: (work.category as PostCategory) || 'other',
+            tags: work.tags || [],
+            description: work.description || '',
+            views: work.views_count || work.views || 0,
+            shares: 0,
+            isFeatured: false,
+            isDraft: false,
+            completionStatus: 'published',
+            creativeDirection: '',
+            culturalElements: [],
+            colorScheme: [],
+            toolsUsed: [],
+            publishType: 'explore',
+            communityId: work.community_id,
+            moderationStatus: 'approved',
+            rejectionReason: null,
+            scheduledPublishDate: null,
+            visibility: 'public',
+            commentCount: work.comments_count || work.comments || 0,
+            engagementRate: 0,
+            trendingScore: 0,
+            reach: 0,
+            moderator: null,
+            reviewedAt: null,
+            recommendationScore: 0,
+            recommendedFor: []
+          }));
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching works from local API:', error);
+    }
+
+    // 备用方案：从 Supabase posts 表获取数据
     let query = supabase
       .from('posts')
       .select(`
@@ -104,40 +159,20 @@ export async function getPosts(category?: string, currentUserId?: string): Promi
       .order('created_at', { ascending: false });
 
     if (category && category !== 'all') {
-      // Assuming category is stored in 'category' column text
       query = query.eq('category', category);
     }
 
     const { data: dbPosts, error } = await query;
 
     if (error) {
-      console.error('Error fetching posts:', error);
+      console.error('Error fetching posts from Supabase:', error);
       return [];
     }
 
     if (!dbPosts) return [];
 
-    // 2. Fetch User Likes and Bookmarks if user is logged in
-    const likedPostIds = new Set<number>();
-    const bookmarkedPostIds = new Set<number>();
-
-    if (currentUserId && currentUserId !== 'current-user' && currentUserId !== 'anonymous') {
-      const { data: likes } = await supabase
-        .from('likes')
-        .select('post_id')
-        .eq('user_id', currentUserId);
-      
-      const { data: bookmarks } = await supabase
-        .from('bookmarks')
-        .select('post_id')
-        .eq('user_id', currentUserId);
-
-      likes?.forEach(l => likedPostIds.add(l.post_id));
-      bookmarks?.forEach(b => bookmarkedPostIds.add(b.post_id));
-    }
-
-    // 3. Map to Post interface
-    const posts: Post[] = dbPosts.map((p: any) => {
+    // 转换从 posts 表获取的数据为 Post 类型
+    return dbPosts.map((p: any) => {
       const authorData = p.author || {
         id: p.author_id || 'unknown',
         username: 'Unknown User',
@@ -145,14 +180,13 @@ export async function getPosts(category?: string, currentUserId?: string): Promi
         avatar: ''
       };
 
-      // Handle attachments/images for thumbnail
       let thumbnail = '';
       if (p.attachments && Array.isArray(p.attachments) && p.attachments.length > 0) {
           thumbnail = p.attachments[0].url || p.attachments[0];
       } else if (p.images && Array.isArray(p.images) && p.images.length > 0) {
           thumbnail = p.images[0];
       } else if (typeof p.attachments === 'string') {
-          thumbnail = p.attachments; // unlikely but possible legacy
+          thumbnail = p.attachments;
       }
 
       return {
@@ -160,7 +194,7 @@ export async function getPosts(category?: string, currentUserId?: string): Promi
         title: p.title || 'Untitled',
         thumbnail: thumbnail,
         likes: p.likes_count || 0,
-        comments: [], // Comments are fetched separately usually, or we can fetch count
+        comments: [],
         date: p.created_at ? p.created_at.split('T')[0] : new Date().toISOString().split('T')[0],
         author: {
           id: authorData.id,
@@ -168,14 +202,14 @@ export async function getPosts(category?: string, currentUserId?: string): Promi
           email: authorData.email || '',
           avatar: authorData.avatar || authorData.avatar_url || ''
         },
-        isLiked: likedPostIds.has(p.id),
-        isBookmarked: bookmarkedPostIds.has(p.id),
+        isLiked: false,
+        isBookmarked: false,
         category: (p.category as PostCategory) || 'other',
         tags: p.tags || [],
         description: p.content || '',
         views: p.view_count || 0,
         shares: 0,
-        isFeatured: false, // Map if exists
+        isFeatured: false,
         isDraft: p.status === 'draft',
         completionStatus: p.status === 'published' ? 'published' : 'draft',
         creativeDirection: '',
@@ -198,8 +232,6 @@ export async function getPosts(category?: string, currentUserId?: string): Promi
         recommendedFor: []
       };
     });
-
-    return posts;
   } catch (err) {
     console.error('Unexpected error in getPosts:', err);
     return [];
@@ -341,6 +373,7 @@ export async function addPost(p: Partial<Post>, currentUser?: User): Promise<Pos
     return undefined;
   }
 
+  // 首先添加到 posts 表
   const { data, error } = await supabase
     .from('posts')
     .insert({
@@ -361,6 +394,32 @@ export async function addPost(p: Partial<Post>, currentUser?: User): Promise<Pos
   if (error) {
     console.error('Error adding post to Supabase:', error);
     return undefined;
+  }
+
+  // 同时添加到 works 表，确保津脉广场页面能够显示
+  try {
+    const workData = {
+      title: p.title,
+      description: p.description,
+      cover_url: p.thumbnail,
+      thumbnail: p.thumbnail,
+      creator_id: currentUser.id,
+      category: p.category,
+      tags: p.tags,
+      media: p.thumbnail ? [p.thumbnail] : []
+    };
+
+    // 发送请求到本地 API 添加到 works 表
+    await fetch('http://localhost:3022/api/works', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      },
+      body: JSON.stringify(workData)
+    });
+  } catch (error) {
+    console.error('Error adding post to works table:', error);
   }
 
   // Return mapped post

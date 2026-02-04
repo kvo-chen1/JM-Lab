@@ -27,6 +27,9 @@ import {
   useHighContrast,
   useReducedMotion
 } from '@/utils/accessibility'
+import { userService } from '@/services/apiService'
+import { uploadImage } from '@/services/imageService'
+import { supabase } from '@/lib/supabase'
 
 // 响应式动画速度控制
 const useResponsiveAnimation = () => {
@@ -452,14 +455,41 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
   const onAvatarFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    const reader = new FileReader()
-    reader.onload = () => {
-      const url = String(reader.result || '')
-      if (url) {
-        updateUser({ avatar: url })
+
+    try {
+      // 1. 上传图片到 Storage
+      const avatarUrl = await uploadImage(file);
+      
+      // 2. 更新后端数据库
+      await userService.updateUser({ avatar: avatarUrl });
+      
+      // 3. 更新 Supabase Auth Metadata
+      if (supabase) {
+        await supabase.auth.updateUser({
+          data: { avatar: avatarUrl }
+        });
       }
+      
+      // 4. 更新本地状态
+      updateUser({ avatar: avatarUrl });
+      
+      toast.success('头像更新成功');
+    } catch (error) {
+      console.error('更换头像失败:', error);
+      toast.error('更换头像失败，请重试');
+      
+      // 降级处理：如果上传失败，尝试使用 Base64 (仅本地预览，无法持久化)
+      const reader = new FileReader()
+      reader.onload = () => {
+        const url = String(reader.result || '')
+        if (url) {
+          updateUser({ avatar: url })
+          toast.info('已使用本地预览，请检查网络后重试持久化保存');
+        }
+      }
+      reader.readAsDataURL(file)
     }
-    reader.readAsDataURL(file)
+
     setShowUserMenu(false)
     e.target.value = ''
   }
@@ -836,7 +866,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
       </aside>
       {/* 中文注释：恢复点击自动收起功能，但优化实现方式避免跳动 */}
       <div 
-        className="flex-1 min-w-0 md:pb-0 pb-16 flex flex-col overflow-y-auto relative z-10"
+        className="flex-1 min-w-0 md:pb-0 pb-16 flex flex-col relative z-10"
         onClick={(e) => {
           // 确保点击的不是内部的可交互元素
           const target = e.target as HTMLElement;
@@ -848,7 +878,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
       >
         {/* 中文注释：暗色头部采用半透明背景与毛玻璃，弱化硬边 */}
         <motion.header 
-          className={`sticky top-0 z-50 ${isDark ? 'bg-[#10151d]/95 backdrop-blur-sm text-white' : theme === 'pink' ? 'bg-white/80 backdrop-blur-sm' : 'bg-white'} border-b ${isDark ? 'border-gray-700' : theme === 'pink' ? 'border-pink-200' : 'border-gray-200'} px-4 py-3 shadow-sm`}
+          className={`fixed top-0 left-0 right-0 z-500 ${isDark ? 'bg-[#10151d]/95 backdrop-blur-sm text-white' : theme === 'pink' ? 'bg-white/80 backdrop-blur-sm' : 'bg-white'} border-b ${isDark ? 'border-gray-700' : theme === 'pink' ? 'border-pink-200' : 'border-gray-200'} px-4 py-3 shadow-sm`}
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: getDuration(0.5), delay: getDelay(0.1) }}
@@ -1120,7 +1150,9 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
 
         </motion.header>
 
-        {children}
+        <div className="pt-20">
+          {children}
+        </div>
         {/* 中文注释：全局“回到顶部”悬浮按钮（自适应暗色/浅色主题） */}
         {showBackToTop && (
           <button

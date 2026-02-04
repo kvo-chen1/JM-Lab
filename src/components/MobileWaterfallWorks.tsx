@@ -51,9 +51,8 @@ export const MobileWaterfallWorks: React.FC<MobileWaterfallWorksProps> = ({
   showNewWorkIndicator = false
 }) => {
   const { width } = useResponsive();
-  const { theme } = useTheme();
+  const { isDark } = useTheme();
   const navigate = useNavigate();
-  const isDark = theme === 'dark';
   
   // 分享相关状态
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);

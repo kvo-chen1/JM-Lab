@@ -5,6 +5,21 @@ import { Link, useNavigate } from 'react-router-dom'
 import { userService } from '@/services/apiService'
 import { validationService } from '@/services/validationService'
 import { useAnalyticsStore } from '@/stores/useAnalyticsStore'
+import { uploadImage } from '@/services/imageService'
+import { supabase } from '@/lib/supabase'
+
+// 辅助函数：base64 转 File
+const dataURLtoFile = (dataurl: string, filename: string): File => {
+  const arr = dataurl.split(',')
+  const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg'
+  const bstr = atob(arr[1])
+  let n = bstr.length
+  const u8arr = new Uint8Array(n)
+  while (n--) {
+    u8arr[n] = bstr.charCodeAt(n)
+  }
+  return new File([u8arr], filename, { type: mime })
+}
 
 export default function ProfileEdit() {
   const { user, updateUser } = useContext(AuthContext)
@@ -126,13 +141,29 @@ export default function ProfileEdit() {
     setSuccess('')
     
     try {
+      let finalAvatarUrl = avatarPreview;
+
+      // 如果是 base64 图片，上传到 Supabase Storage
+      if (avatarPreview && avatarPreview.startsWith('data:image')) {
+        try {
+          // 将 base64 转为 File
+          const file = dataURLtoFile(avatarPreview, `avatar-${Date.now()}.jpg`);
+          // 上传图片
+          finalAvatarUrl = await uploadImage(file);
+          console.log('头像上传成功:', finalAvatarUrl);
+        } catch (uploadError) {
+          console.error('头像上传失败，降级使用 base64:', uploadError);
+          // 如果上传失败，继续使用 base64，但可能会因为太长而导致后续 API 失败
+        }
+      }
+
       const updatedUser = {
         id: user?.id,
         username: formData.username,
         phone: formData.phone,
         age: formData.age ? parseInt(formData.age) : undefined,
         interests: formData.interests ? formData.interests.split(',').map(interest => interest.trim()) : [],
-        avatar: avatarPreview
+        avatar: finalAvatarUrl
       }
       
       // 前端数据验证
@@ -147,6 +178,26 @@ export default function ProfileEdit() {
       // 先调用后端 API 持久化
       await userService.updateUser(updatedUser);
       
+      // 同步更新 Supabase Auth User Metadata
+      if (supabase) {
+        const { error: authUpdateError } = await supabase.auth.updateUser({
+          data: {
+            avatar: finalAvatarUrl,
+            username: updatedUser.username,
+            phone: updatedUser.phone,
+            age: updatedUser.age,
+            interests: updatedUser.interests
+          }
+        });
+        
+        if (authUpdateError) {
+          console.error('Supabase Auth Metadata 更新失败:', authUpdateError);
+          // 不中断流程，因为数据库已经更新
+        } else {
+          console.log('Supabase Auth Metadata 更新成功');
+        }
+      }
+
       // 记录用户行为日志
       await logUserAction('profile_update', { 
         userId: user?.id,

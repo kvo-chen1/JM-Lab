@@ -3,6 +3,7 @@ import { useTheme } from '@/hooks/useTheme'
 import { motion } from 'framer-motion'
 import { useNavigate, useParams } from 'react-router-dom'
 import { AuthContext } from '@/contexts/AuthContext'
+import { useAnalyticsStore } from '@/stores/useAnalyticsStore'
 // 使用更简洁的懒加载方式
 const ProductMockupPreview = lazy(() => import('@/components/ProductMockupPreview'))
 // 使用默认导入包装命名导出
@@ -19,6 +20,7 @@ export default function WorkDetail() {
   const navigate = useNavigate()
   const { id } = useParams()
   const { user, isAuthenticated } = useContext(AuthContext)
+  const { logUserAction } = useAnalyticsStore()
   const [liked, setLiked] = useState(false)
   const [likes, setLikes] = useState(0)
   const [bookmarked, setBookmarked] = useState(false)
@@ -122,6 +124,8 @@ export default function WorkDetail() {
           // 调用API点赞，同时更新本地缓存
           if (isAuthenticated && user) {
              await postsApi.likePost(stringId, user.id);
+             // 记录行为日志
+             logUserAction('like_work', { workId: stringId, userId: user.id });
           } else {
              await apiService.likeWork(stringId);
           }
@@ -129,6 +133,7 @@ export default function WorkDetail() {
           // 调用API取消点赞，同时更新本地缓存
           if (isAuthenticated && user) {
              await postsApi.unlikePost(stringId, user.id);
+             logUserAction('unlike_work', { workId: stringId, userId: user.id });
           } else {
              await apiService.unlikeWork(stringId);
           }

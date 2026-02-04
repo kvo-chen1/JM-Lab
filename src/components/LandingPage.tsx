@@ -384,7 +384,7 @@ const LandingPage = () => {
         {/* Background Image Layer - Desaturated and darkened */}
         <div 
           className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-30 mix-blend-luminosity" 
-          style={{ backgroundImage: "url('/images/cultural-bg.jpg')" }}
+          style={{ backgroundImage: "url('images/cultural-bg.jpg')" }}
         ></div>
         
         {/* Dark Gradient Overlay */}

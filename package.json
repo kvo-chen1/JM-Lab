@@ -15,7 +15,7 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "test:ci": "jest --ci --coverage",
-    "vercel-build": "pnpm build",
+    "vercel-build": "pnpm install --no-frozen-lockfile && pnpm build",
     "ts-node": "ts-node --esm --experimental-specifier-resolution=node --project tsconfig.node.json",
     "test:e2e": "playwright test --reporter=line",
     "clean:scan": "node .trae/skills/redundancy-cleaner/index.js scan",

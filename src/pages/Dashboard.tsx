@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useNavigate, Link } from 'react-router-dom';
 import { AuthContext } from '@/contexts/authContext';
+import { useGuide } from '@/contexts/GuideContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import CreatorProfile from '../components/CreatorProfile';
 import OptimizedImage from '../components/OptimizedImage';
@@ -32,6 +33,7 @@ export default function Dashboard() {
   const { isDark } = useTheme();
   const { isAuthenticated, user } = useContext(AuthContext);
   const navigate = useNavigate();
+  const { startGuide } = useGuide();
   const [isLoading, setIsLoading] = useState(true);
   const [showCreatorProfile, setShowCreatorProfile] = useState(false);
   const [creatorLevelInfo, setCreatorLevelInfo] = useState(() => achievementService.getCreatorLevelInfo());
@@ -1042,7 +1044,17 @@ export default function Dashboard() {
                         whileHover={{ scale: task.status !== 'completed' ? 1.05 : 1 }}
                         whileTap={{ scale: task.status !== 'completed' ? 0.95 : 1 }}
                         onClick={() => {
-                          // TODO: 跳转到对应任务
+                          // 跳转到对应任务页面
+                          if (task.id === 'novice-guide') {
+                            // 触发新手引导
+                            startGuide();
+                          } else if (task.id === 'novice-first-post') {
+                            navigate('/create');
+                          } else if (task.id === 'novice-invite') {
+                            navigate('/community');
+                          } else if (task.id === 'novice-event') {
+                            navigate('/events');
+                          }
                         }}
                       >
                         {task.status === 'completed' ? '已完成' : '去完成'}
@@ -1079,7 +1091,18 @@ export default function Dashboard() {
                         whileHover={{ scale: task.status !== 'completed' ? 1.05 : 1 }}
                         whileTap={{ scale: task.status !== 'completed' ? 0.95 : 1 }}
                         onClick={() => {
-                          // TODO
+                          // 跳转到对应任务页面
+                          if (task.id === 'daily-login') {
+                            navigate('/dashboard');
+                          } else if (task.id === 'daily-view-5') {
+                            navigate('/explore');
+                          } else if (task.id === 'daily-comment') {
+                            navigate('/explore');
+                          } else if (task.id === 'daily-share') {
+                            navigate('/explore');
+                          } else if (task.id === 'official-daily-1') {
+                            navigate('/create');
+                          }
                         }}
                       >
                         {task.status === 'completed' ? '已完成' : '去完成'}

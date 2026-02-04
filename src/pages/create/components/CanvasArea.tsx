@@ -5,6 +5,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { useCreateStore } from '../hooks/useCreateStore';
 import { traditionalPatterns } from '../data';
 import { toast } from 'sonner';
+import HistoryPanel from './HistoryPanel';
 
 export default function CanvasArea() {
   const { isDark } = useTheme();
@@ -18,6 +19,7 @@ export default function CanvasArea() {
   const activeTool = useCreateStore((state) => state.activeTool);
   const selectedPatternId = useCreateStore((state) => state.selectedPatternId);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   
   // 样式预览状态管理
   const [selectedBorderStyle, setSelectedBorderStyle] = useState('none');
@@ -222,6 +224,22 @@ export default function CanvasArea() {
           >
             <i className="fas fa-magic text-purple-500"></i>
             <span className="hidden sm:inline">AI点评</span>
+          </button>
+          
+          <button 
+            onClick={() => setShowHistory(true)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2 transition-all ${isDark ? 'bg-gray-800 hover:bg-gray-700 text-gray-300' : 'bg-white hover:bg-gray-50 text-gray-600 shadow-sm border border-gray-200'}`}
+          >
+            <i className="fas fa-box-archive text-yellow-500"></i>
+            <span className="hidden sm:inline">草稿箱</span>
+          </button>
+          
+          <button 
+            onClick={() => setShowHistory(true)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2 transition-all ${isDark ? 'bg-gray-800 hover:bg-gray-700 text-gray-300' : 'bg-white hover:bg-gray-50 text-gray-600 shadow-sm border border-gray-200'}`}
+          >
+            <i className="fas fa-history text-green-500"></i>
+            <span className="hidden sm:inline">历史记录</span>
           </button>
           
           <button 
@@ -742,6 +760,11 @@ export default function CanvasArea() {
           )}
         </AnimatePresence>
       </div>
+
+      {/* History Panel */}
+      <AnimatePresence>
+        {showHistory && <HistoryPanel onClose={() => setShowHistory(false)} />}
+      </AnimatePresence>
     </div>
   );
 }

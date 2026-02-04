@@ -475,6 +475,41 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
     // 处理 Supabase session
     const handleSupabaseSession = async (session: any) => {
+      // 检查并确保 public.users 中存在用户记录（自动修复机制）
+      if (session?.user?.id && supabase) {
+        try {
+          const { data: existingUser, error: checkError } = await supabase
+            .from('users')
+            .select('id')
+            .eq('id', session.user.id)
+            .maybeSingle();
+
+          if (!existingUser && !checkError) {
+            console.log('用户在 public.users 表中缺失，正在自动修复...');
+            const userData = session.user.user_metadata || {};
+            // 尝试插入用户记录
+            const { error: insertError } = await supabase.from('users').insert({
+              id: session.user.id,
+              email: session.user.email,
+              username: userData.username || session.user.email?.split('@')[0] || `user_${session.user.id.substring(0, 8)}`,
+              avatar_url: userData.avatar_url || '',
+              metadata: userData,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            });
+            
+            if (insertError) {
+               console.error('自动修复用户记录插入失败:', insertError);
+            } else {
+               console.log('用户记录自动修复成功');
+            }
+          }
+        } catch (err) {
+          console.error('自动修复用户记录异常:', err);
+          // 不中断登录流程
+        }
+      }
+
       // 直接使用 session 数据，移除后端桥接
       const userWithMembership = createUserFromSession(session);
       

@@ -204,7 +204,7 @@ export const communityService = {
             method: 'GET',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${localStorage.getItem('auth_token') || ''}`
+              'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
             }
           });
           
@@ -270,51 +270,86 @@ export const communityService = {
             realUserId = user.id;
             currentUser = user;
         } else {
-             // 如果 getUser 失败，尝试刷新 session 或者抛出错误
-             // 但为了兼容性，暂时只记录警告
-             console.warn('supabase.auth.getUser() returned no user');
+             // 如果 getUser 失败，尝试刷新 session
+             try {
+               const { data: { session }, error: refreshError } = await supabase.auth.refreshSession();
+               if (session && session.user) {
+                 realUserId = session.user.id;
+                 currentUser = session.user;
+               } else {
+                 throw new Error('User not authenticated');
+               }
+             } catch (refreshError) {
+               console.warn('Failed to refresh auth session:', refreshError);
+               throw new Error('用户认证状态异常，请退出后重新登录');
+             }
         }
     } catch (e) {
         console.warn('Failed to get supabase user, using provided userId', e);
+        throw new Error('用户认证状态异常，请退出后重新登录');
     }
 
     // 尝试修复 23503 错误：确保用户存在于 public.users 表中
     // 某些外键约束可能指向 public.users 而不是 auth.users，或者触发器未执行
-    if (currentUser) {
-        try {
-            // 检查 public.users 是否存在该用户
-            const { data: profile, error: profileError } = await supabase
-                .from('users')
-                .select('id')
-                .eq('id', realUserId)
-                .single();
+    try {
+        // 检查 public.users 是否存在该用户
+        const { data: profile, error: profileError } = await supabase
+            .from('users')
+            .select('id')
+            .eq('id', realUserId)
+            .maybeSingle();
+        
+        if (!profile) {
+            console.log('User profile missing in public.users, attempting to sync/create...', realUserId);
             
-            if (!profile || profileError) {
-                console.log('User profile missing in public.users, attempting to sync...', realUserId);
-                
+            // 准备用户数据
+            let email = `missing_${realUserId}@example.com`; // 默认占位邮箱
+            let username = `User_${realUserId.substring(0, 8)}`;
+            let avatarUrl = '';
+            
+            if (currentUser) {
                 const metadata = currentUser.user_metadata || {};
-                const username = metadata.username || metadata.name || currentUser.email?.split('@')[0] || 'User';
-                
-                const { error: upsertError } = await supabase
-                    .from('users')
-                    .upsert({
-                        id: realUserId,
-                        email: currentUser.email,
-                        username: username,
-                        avatar_url: metadata.avatar_url || metadata.avatar || '',
-                        created_at: new Date().toISOString(),
-                        updated_at: new Date().toISOString()
-                    });
-                    
-                if (upsertError) {
-                    console.error('Failed to sync user profile:', upsertError);
-                } else {
-                    console.log('User profile synced successfully');
+                email = currentUser.email || email;
+                username = metadata.username || metadata.name || currentUser.email?.split('@')[0] || username;
+                avatarUrl = metadata.avatar_url || metadata.avatar || '';
+            } else {
+                // 如果没有 currentUser，尝试从 localStorage 获取
+                try {
+                    const localUserStr = localStorage.getItem('user');
+                    if (localUserStr) {
+                        const localUser = JSON.parse(localUserStr);
+                        if (localUser.id === realUserId) {
+                            email = localUser.email || email;
+                            username = localUser.username || username;
+                            avatarUrl = localUser.avatar || '';
+                        }
+                    }
+                } catch (e) {
+                    // 忽略 localStorage 读取错误
                 }
             }
-        } catch (syncError) {
-            console.error('Error during profile sync check:', syncError);
+            
+            const { error: upsertError } = await supabase
+                .from('users')
+                .upsert({
+                    id: realUserId,
+                    email: email,
+                    username: username,
+                    avatar_url: avatarUrl,
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                });
+                
+            if (upsertError) {
+                console.error('Failed to sync user profile:', upsertError);
+                throw new Error('用户认证状态异常，请退出后重新登录');
+            } else {
+                console.log('User profile synced successfully');
+            }
         }
+    } catch (syncError) {
+        console.error('Error during profile sync check:', syncError);
+        throw new Error('用户认证状态异常，请退出后重新登录');
     }
 
     // 准备插入的数据，适配数据库表实际存在的列
@@ -512,7 +547,7 @@ export const communityService = {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${localStorage.getItem('auth_token') || ''}`
+              'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
             }
           });
           
@@ -616,7 +651,7 @@ export const communityService = {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${localStorage.getItem('auth_token') || ''}`
+              'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
             }
           });
           
@@ -797,6 +832,104 @@ export const communityService = {
     communityId: string;
     images?: Array<string>;
   }, userId: string, username: string, avatar: string): Promise<Thread> {
+    // 验证用户ID
+    if (!userId || typeof userId !== 'string' || userId.trim() === '' || (userId.includes('user_') && userId.includes('_'))) {
+      const error = new Error('Invalid user ID: User must be properly authenticated');
+      console.error('Invalid user ID for thread creation:', userId);
+      throw error;
+    }
+
+    // 获取当前真实的 Supabase 用户 ID，以防止前端存储的 ID 与数据库不一致
+    let realUserId = userId;
+    let currentUser = null;
+    
+    try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user && user.id) {
+            realUserId = user.id;
+            currentUser = user;
+        } else {
+             // 如果 getUser 失败，尝试刷新 session
+             try {
+               const { data: { session }, error: refreshError } = await supabase.auth.refreshSession();
+               if (session && session.user) {
+                 realUserId = session.user.id;
+                 currentUser = session.user;
+               } else {
+                 throw new Error('User not authenticated');
+               }
+             } catch (refreshError) {
+               console.warn('Failed to refresh auth session:', refreshError);
+               throw new Error('用户认证状态异常，请退出后重新登录');
+             }
+        }
+    } catch (e) {
+        console.warn('Failed to get supabase user, using provided userId', e);
+        throw new Error('用户认证状态异常，请退出后重新登录');
+    }
+
+    // 尝试修复 23503 错误：确保用户存在于 public.users 表中
+    try {
+        // 检查 public.users 是否存在该用户
+        const { data: profile, error: profileError } = await supabase
+            .from('users')
+            .select('id')
+            .eq('id', realUserId)
+            .maybeSingle();
+        
+        if (!profile) {
+            console.log('User profile missing in public.users, attempting to sync/create...', realUserId);
+            
+            // 准备用户数据
+            let email = `missing_${realUserId}@example.com`; // 默认占位邮箱
+            let username = `User_${realUserId.substring(0, 8)}`;
+            let avatarUrl = '';
+            
+            if (currentUser) {
+                const metadata = currentUser.user_metadata || {};
+                email = currentUser.email || email;
+                username = metadata.username || metadata.name || currentUser.email?.split('@')[0] || username;
+                avatarUrl = metadata.avatar_url || metadata.avatar || '';
+            } else {
+                // 如果没有 currentUser，尝试从 localStorage 获取
+                try {
+                    const localUserStr = localStorage.getItem('user');
+                    if (localUserStr) {
+                        const localUser = JSON.parse(localUserStr);
+                        if (localUser.id === realUserId) {
+                            email = localUser.email || email;
+                            username = localUser.username || username;
+                            avatarUrl = localUser.avatar || '';
+                        }
+                    }
+                } catch (e) {
+                    // 忽略 localStorage 读取错误
+                }
+            }
+            
+            const { error: upsertError } = await supabase
+                .from('users')
+                .upsert({
+                    id: realUserId,
+                    email: email,
+                    username: username,
+                    avatar_url: avatarUrl,
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                });
+                
+            if (upsertError) {
+                console.error('Failed to sync user profile:', upsertError);
+                throw new Error('用户认证状态异常，请退出后重新登录');
+            } else {
+                console.log('User profile synced successfully');
+            }
+        }
+    } catch (syncError) {
+        console.error('Error during profile sync check:', syncError);
+        throw new Error('用户认证状态异常，请退出后重新登录');
+    }
+
     const { data: newThread, error } = await supabase
       .from('posts')
       .insert({
@@ -804,13 +937,20 @@ export const communityService = {
         content: data.content,
         topic: data.topic,
         community_id: data.communityId,
-        user_id: userId,
+        user_id: realUserId,
         images: data.images
       })
       .select()
       .single();
     
-    if (error) throw error;
+    if (error) {
+        console.error('Supabase create thread error:', error);
+        // 处理外键约束错误 (用户ID不存在)
+        if (error.code === '23503') {
+             throw new Error('用户认证状态异常，请尝试退出后重新登录');
+        }
+        throw error;
+    }
     
     return {
       id: newThread.id,
@@ -824,7 +964,7 @@ export const communityService = {
       communityId: newThread.community_id,
       author: username,
       authorAvatar: avatar,
-      authorId: userId,
+      authorId: realUserId,
       comments: []
     };
   },

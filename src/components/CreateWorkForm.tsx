@@ -216,6 +216,9 @@ const CreateWorkForm: React.FC<CreateWorkFormProps> = ({
         }
       });
       
+      // 触发更新事件，通知广场页面刷新
+      window.dispatchEvent(new Event('square-posts-updated'));
+      
       // 调用成功回调
       if (publishedWork) {
         onSuccess(publishedWork);

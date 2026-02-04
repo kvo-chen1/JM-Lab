@@ -850,29 +850,66 @@ export const uploadImage = async (file: File): Promise<string> => {
     // 动态导入 supabase 避免循环依赖
     const { supabase } = await import('@/lib/supabase');
     
+    // 检查 supabase 是否配置正确
+    if (!supabase || !supabase.storage) {
+      console.warn('Supabase not configured, using base64 fallback');
+      // 使用 base64 作为备用方案
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          resolve(reader.result as string);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+    
     // 生成唯一文件名
     const fileExt = file.name.split('.').pop();
     const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
     const filePath = `${fileName}`;
 
-    // 上传到 community-images bucket
-    const { error: uploadError } = await supabase.storage
-      .from('community-images')
-      .upload(filePath, file);
+    try {
+      // 上传到 community-images bucket
+      const { error: uploadError } = await supabase.storage
+        .from('community-images')
+        .upload(filePath, file);
 
-    if (uploadError) {
-      throw uploadError;
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      // 获取公开 URL
+      const { data } = supabase.storage
+        .from('community-images')
+        .getPublicUrl(filePath);
+
+      return data.publicUrl;
+    } catch (storageError) {
+      console.error('Supabase storage error:', storageError);
+      // 存储错误时使用 base64 作为备用方案
+      console.warn('Using base64 fallback due to storage error');
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          resolve(reader.result as string);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
     }
-
-    // 获取公开 URL
-    const { data } = supabase.storage
-      .from('community-images')
-      .getPublicUrl(filePath);
-
-    return data.publicUrl;
   } catch (error) {
     console.error('Image upload failed:', error);
-    throw error;
+    // 任何错误都使用 base64 作为最终备用方案
+    console.warn('Using base64 fallback due to upload error');
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        resolve(reader.result as string);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
   }
 };
 

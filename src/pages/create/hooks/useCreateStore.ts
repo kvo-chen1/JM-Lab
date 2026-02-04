@@ -69,6 +69,8 @@ const initialState: CreateState = {
   showModelSelector: false,
   showInspirationPanel: false,
   showPublishModal: false,
+  showDraftsModal: false,
+  showHistoryModal: false,
   showPropertiesPanel: true,
   isPrecheckEnabled: true,
   precheckResult: null,

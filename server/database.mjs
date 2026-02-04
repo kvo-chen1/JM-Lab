@@ -916,6 +916,33 @@ async function createPostgreSQLTables(pool) {
         );
       `)
 
+      // 创建作品表
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS works (
+          id SERIAL PRIMARY KEY,
+          title VARCHAR(255) NOT NULL,
+          description TEXT,
+          thumbnail TEXT,
+          creator_id UUID NOT NULL,
+          category VARCHAR(100),
+          tags TEXT,
+          views INTEGER DEFAULT 0,
+          likes INTEGER DEFAULT 0,
+          comments INTEGER DEFAULT 0,
+          created_at BIGINT NOT NULL,
+          updated_at BIGINT NOT NULL,
+          FOREIGN KEY (creator_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+      `)
+      
+      // 确保必要的列存在
+      await client.query(`ALTER TABLE IF EXISTS works ADD COLUMN IF NOT EXISTS cover_url TEXT;`)
+      await client.query(`ALTER TABLE IF EXISTS works ADD COLUMN IF NOT EXISTS media TEXT;`)
+      
+      await client.query('CREATE INDEX IF NOT EXISTS idx_works_creator_id ON works(creator_id);')
+      await client.query('CREATE INDEX IF NOT EXISTS idx_works_created_at ON works(created_at);')
+      await client.query('CREATE INDEX IF NOT EXISTS idx_works_category ON works(category);')
+
       // 创建分类表
       await client.query(`
         CREATE TABLE IF NOT EXISTS categories (
@@ -1532,9 +1559,9 @@ export const userDB = {
         if (password_hash) addPgField('password_hash', password_hash)
         if (phone !== undefined) addPgField('phone', phone)
         if (avatar_url !== undefined) addPgField('avatar_url', avatar_url)
-        if (interests !== undefined) addPgField('interests', Array.isArray(interests) ? JSON.stringify(interests) : interests)
+        if (interests !== undefined) addPgField('interests', interests)
         if (age !== undefined) addPgField('age', age)
-        if (tags !== undefined) addPgField('tags', Array.isArray(tags) ? JSON.stringify(tags) : tags)
+        if (tags !== undefined) addPgField('tags', tags)
         if (membership_level) addPgField('membership_level', membership_level)
         if (membership_status) addPgField('membership_status', membership_status)
         if (membership_start) addPgField('membership_start', membership_start)
@@ -1580,9 +1607,9 @@ export const userDB = {
         if (password_hash) { neonUpdateFields.push(`password_hash = $${neonParamIndex++}`); neonParams.push(password_hash) }
         if (phone !== undefined) { neonUpdateFields.push(`phone = $${neonParamIndex++}`); neonParams.push(phone) }
         if (avatar_url !== undefined) { neonUpdateFields.push(`avatar_url = $${neonParamIndex++}`); neonParams.push(avatar_url) }
-        if (interests !== undefined) { neonUpdateFields.push(`interests = $${neonParamIndex++}`); neonParams.push(Array.isArray(interests) ? JSON.stringify(interests) : interests) }
+        if (interests !== undefined) { neonUpdateFields.push(`interests = $${neonParamIndex++}`); neonParams.push(interests) }
         if (age !== undefined) { neonUpdateFields.push(`age = $${neonParamIndex++}`); neonParams.push(age) }
-        if (tags !== undefined) { neonUpdateFields.push(`tags = $${neonParamIndex++}`); neonParams.push(Array.isArray(tags) ? JSON.stringify(tags) : tags) }
+        if (tags !== undefined) { neonUpdateFields.push(`tags = $${neonParamIndex++}`); neonParams.push(tags) }
         if (membership_level) { neonUpdateFields.push(`membership_level = $${neonParamIndex++}`); neonParams.push(membership_level) }
         if (membership_status) { neonUpdateFields.push(`membership_status = $${neonParamIndex++}`); neonParams.push(membership_status) }
         if (membership_start) { neonUpdateFields.push(`membership_start = $${neonParamIndex++}`); neonParams.push(membership_start) }
@@ -2726,6 +2753,135 @@ export const messageDB = {
 }
 
 export const workDB = {
+  async createWork(workData) {
+    const db = await getDB()
+    const { title, description, cover_url, thumbnail, creator_id, category, tags, media } = workData
+    const now = Date.now()
+    const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
+    
+    switch (typeKey) {
+      case DB_TYPE.SQLITE:
+        // Ensure table exists
+        db.exec(`
+          CREATE TABLE IF NOT EXISTS works (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            description TEXT,
+            cover_url TEXT,
+            thumbnail TEXT,
+            creator_id TEXT NOT NULL,
+            category TEXT,
+            tags TEXT,
+            media TEXT,
+            views INTEGER DEFAULT 0,
+            likes INTEGER DEFAULT 0,
+            comments INTEGER DEFAULT 0,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL
+          )
+        `);
+        
+        // 检查并添加缺失的列
+        try {
+          // 尝试添加 cover_url 列
+          db.exec(`ALTER TABLE works ADD COLUMN IF NOT EXISTS cover_url TEXT`);
+          // 尝试添加 media 列
+          db.exec(`ALTER TABLE works ADD COLUMN IF NOT EXISTS media TEXT`);
+        } catch (e) {
+          console.log('Column already exists or error adding column:', e.message);
+        }
+        
+        // 检查哪些列存在
+        let columns = [];
+        try {
+          const tableInfo = db.prepare(`PRAGMA table_info(works)`).all();
+          columns = tableInfo.map((col) => col.name);
+        } catch (e) {
+          console.error('Error getting table info:', e);
+        }
+        
+        // 根据实际列结构构建插入语句
+        const hasCoverUrl = columns.includes('cover_url');
+        const hasMedia = columns.includes('media');
+        
+        let insertSql, insertParams;
+        if (hasCoverUrl && hasMedia) {
+          // 所有列都存在
+          insertSql = `
+            INSERT INTO works (title, description, cover_url, thumbnail, creator_id, category, tags, media, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `;
+          insertParams = [
+            title, description, cover_url, thumbnail || cover_url, creator_id, category, 
+            tags ? JSON.stringify(tags) : '[]', 
+            media ? JSON.stringify(media) : '[]', 
+            now, now
+          ];
+        } else if (hasCoverUrl) {
+          // 只有 cover_url 列存在
+          insertSql = `
+            INSERT INTO works (title, description, cover_url, thumbnail, creator_id, category, tags, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `;
+          insertParams = [
+            title, description, cover_url, thumbnail || cover_url, creator_id, category, 
+            tags ? JSON.stringify(tags) : '[]', 
+            now, now
+          ];
+        } else {
+          // 都不存在（使用原始表结构）
+          insertSql = `
+            INSERT INTO works (title, description, thumbnail, creator_id, category, tags, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          `;
+          insertParams = [
+            title, description, thumbnail || cover_url, creator_id, category, 
+            tags ? JSON.stringify(tags) : '[]', 
+            now, now
+          ];
+        }
+        
+        const result = db.prepare(insertSql).run(...insertParams);
+        return { id: result.lastInsertRowid, ...workData, created_at: now, updated_at: now }
+        
+      case DB_TYPE.POSTGRESQL:
+        // 首先检查并添加缺失的列
+        try {
+          await db.query(`ALTER TABLE works ADD COLUMN IF NOT EXISTS cover_url TEXT`);
+          await db.query(`ALTER TABLE works ADD COLUMN IF NOT EXISTS media TEXT`);
+        } catch (e) {
+          console.log('Column already exists or error adding column:', e.message);
+        }
+        
+        // 然后执行插入
+        const { rows } = await db.query(`
+          INSERT INTO works (title, description, cover_url, thumbnail, creator_id, category, tags, media, created_at, updated_at)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)
+          RETURNING *
+        `, [
+          title, description, cover_url, thumbnail || cover_url, creator_id, category, 
+          tags ? JSON.stringify(tags) : '[]', 
+          media ? JSON.stringify(media) : '[]', 
+          now
+        ])
+        return rows[0]
+        
+      case DB_TYPE.MEMORY:
+        const newWork = {
+          id: Date.now(), // Simple numeric ID
+          title, description, cover_url, thumbnail: thumbnail || cover_url, creator_id, category, tags, media,
+          views: 0, likes: 0, comments: 0,
+          created_at: now, updated_at: now
+        }
+        if (!memoryStore.works) memoryStore.works = []
+        memoryStore.works.push(newWork)
+        saveMemoryStore()
+        return newWork
+        
+      default: throw new Error(`Unsupported DB Type: ${config.dbType}`)
+    }
+  },
+
   async getWorks(limit = 50, offset = 0) {
     const db = await getDB()
     const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType

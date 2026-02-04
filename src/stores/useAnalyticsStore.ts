@@ -80,11 +80,33 @@ export const useAnalyticsStore = create<AnalyticsState>()(
               if (newData) {
                 set((state) => {
                   const updatedPoints = [...state.dataPoints, newData];
-                  // 重新计算统计指标
-                  const newStats = analyticsService.getMetricsStats(updatedPoints);
+                  
+                  // 增量聚合逻辑 (Incremental Aggregation)
+                  // 仅基于新数据更新统计指标，而不是全量重算
+                  // Only update stats based on new data, avoid full recalculation
+                  const prevStats = state.stats;
+                  const newTotal = prevStats.total + newData.value;
+                  const newCount = state.dataPoints.length + 1;
+                  const newAverage = newTotal / newCount;
+                  
+                  // 更新峰值和谷值
+                  const newPeak = Math.max(prevStats.peak, newData.value);
+                  const newTrough = Math.min(prevStats.trough, newData.value);
+                  
+                  // 趋势判断 (简单移动平均)
+                  // Trend detection (Simple Moving Average)
+                  const newTrend = newData.value > prevStats.average ? 'up' : newData.value < prevStats.average ? 'down' : 'stable';
+
                   return {
                     dataPoints: updatedPoints,
-                    stats: newStats
+                    stats: {
+                      ...prevStats,
+                      total: newTotal,
+                      average: newAverage,
+                      peak: newPeak,
+                      trough: newTrough,
+                      trend: newTrend
+                    }
                   };
                 });
               }

@@ -8,6 +8,16 @@ import { toast } from 'sonner';
 import { AuthContext } from '@/contexts/authContext';
 import eventBus from '@/services/enhancedEventBus';
 
+// 格式化数字显示
+const formatNumber = (num: number): string => {
+  if (num >= 1000000) {
+    return (num / 1000000).toFixed(1) + 'M';
+  } else if (num >= 1000) {
+    return (num / 1000).toFixed(1) + 'k';
+  }
+  return num.toString();
+};
+
 // 模拟数据
 const MOCK_PARTICIPATIONS: ActivityParticipation[] = [
   {
@@ -279,30 +289,32 @@ export default function MyActivities() {
 
         {/* 数据概览看板 */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          {[
-            { label: '累计参与', value: participations.length, icon: 'fa-flag', color: 'text-blue-500', bg: 'bg-blue-100 dark:bg-blue-900/30' },
-            { label: '获得奖项', value: participations.filter(p => p.status === 'awarded').length, icon: 'fa-trophy', color: 'text-yellow-500', bg: 'bg-yellow-100 dark:bg-yellow-900/30' },
-            { label: '作品浏览', value: '12.5k', icon: 'fa-eye', color: 'text-green-500', bg: 'bg-green-100 dark:bg-green-900/30' },
-            { label: '社群互动', value: '86', icon: 'fa-comments', color: 'text-purple-500', bg: 'bg-purple-100 dark:bg-purple-900/30' },
-          ].map((stat, idx) => (
-            <motion.div
-              key={idx}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: idx * 0.1 }}
-              className={`p-6 rounded-xl shadow-sm ${isDark ? 'bg-gray-800' : 'bg-white'}`}
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className={`text-sm font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{stat.label}</p>
-                  <p className="text-3xl font-bold mt-1">{stat.value}</p>
+          {
+            [
+              { label: '累计参与', value: participations.length, icon: 'fa-flag', color: 'text-blue-500', bg: 'bg-blue-100 dark:bg-blue-900/30' },
+              { label: '获得奖项', value: participations.filter(p => p.status === 'awarded').length, icon: 'fa-trophy', color: 'text-yellow-500', bg: 'bg-yellow-100 dark:bg-yellow-900/30' },
+              { label: '作品浏览', value: participations.reduce((sum, p) => sum + p.event.viewCount, 0), icon: 'fa-eye', color: 'text-green-500', bg: 'bg-green-100 dark:bg-green-900/30' },
+              { label: '社群互动', value: participations.reduce((sum, p) => sum + p.event.likeCount + p.event.shareCount, 0), icon: 'fa-comments', color: 'text-purple-500', bg: 'bg-purple-100 dark:bg-purple-900/30' },
+            ].map((stat, idx) => (
+              <motion.div
+                key={idx}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: idx * 0.1 }}
+                className={`p-6 rounded-xl shadow-sm ${isDark ? 'bg-gray-800' : 'bg-white'}`}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className={`text-sm font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{stat.label}</p>
+                    <p className="text-3xl font-bold mt-1">{typeof stat.value === 'number' ? formatNumber(stat.value) : stat.value}</p>
+                  </div>
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center ${stat.bg}`}>
+                    <i className={`fas ${stat.icon} ${stat.color} text-xl`}></i>
+                  </div>
                 </div>
-                <div className={`w-12 h-12 rounded-full flex items-center justify-center ${stat.bg}`}>
-                  <i className={`fas ${stat.icon} ${stat.color} text-xl`}></i>
-                </div>
-              </div>
-            </motion.div>
-          ))}
+              </motion.div>
+            ))
+          }
         </div>
 
         {/* 标签页切换 */}

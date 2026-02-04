@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { useTheme } from '@/hooks/useTheme';
-import { AuthContext } from '@/contexts/AuthContext';
+import { AuthContext } from '@/contexts/authContext';
 import { Work } from '@/mock/works';
 import postsApi from '@/services/postService';
 

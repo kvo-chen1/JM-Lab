@@ -150,6 +150,12 @@
       "status": "online",
       "last_seen": "2026-02-04T12:32:16.402Z",
       "updated_at": "2026-02-04T12:32:16.402Z"
+    },
+    {
+      "user_id": "9e9af701-0234-40c1-9bea-196c6c55d0bf",
+      "status": "online",
+      "last_seen": "2026-02-04T12:47:32.793Z",
+      "updated_at": "2026-02-04T12:47:32.793Z"
     }
   ],
   "posts": [],

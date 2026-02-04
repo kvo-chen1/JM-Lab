@@ -64,6 +64,93 @@ export default function Square() {
     })
   }, [])
   
+  // 搜索建议处理
+  const displaySuggestions = useMemo(() => {
+    const recent = recentSearches.map((item, index) => ({
+      id: `recent-${index}`,
+      text: item,
+      type: 'recent' as any,
+      icon: 'fas fa-history',
+      group: '最近搜索'
+    }))
+    
+    const hot = [
+      { id: 'hot-1', text: 'AI 创作', type: 'tag' as any, icon: 'fas fa-fire', group: '热门搜索' },
+      { id: 'hot-2', text: '国潮设计', type: 'tag' as any, icon: 'fas fa-fire', group: '热门搜索' },
+      { id: 'hot-3', text: '非遗传承', type: 'tag' as any, icon: 'fas fa-fire', group: '热门搜索' },
+      { id: 'hot-4', text: '年画', type: 'tag' as any, icon: 'fas fa-fire', group: '热门搜索' }
+    ]
+    
+    const recommendations = [
+      { id: 'rec-1', text: '插画艺术', type: 'tag' as any, icon: 'fas fa-search', group: '推荐搜索' },
+      { id: 'rec-2', text: '界面设计', type: 'tag' as any, icon: 'fas fa-search', group: '推荐搜索' },
+      { id: 'rec-3', text: '摄影技巧', type: 'tag' as any, icon: 'fas fa-search', group: '推荐搜索' }
+    ]
+    
+    return [...recent, ...hot, ...recommendations]
+  }, [recentSearches])
+  
+  // 处理搜索提交
+  const onSearchSubmit = useCallback((query: string) => {
+    if (!query.trim()) return
+    const q = query.trim()
+    
+    const classification = searchService.classifyQuery(q)
+    
+    if (classification.suggestedResults.length === 1 && classification.confidence > 0.9) {
+      const suggestion = classification.suggestedResults[0]
+      const url = searchService.generateRedirectUrl(suggestion.text, suggestion.type)
+      navigate(url)
+    } else {
+      navigate(`/search?query=${encodeURIComponent(q)}`)
+    }
+    
+    searchService.trackSearchEvent({
+      query: q,
+      resultType: classification.primaryType,
+      clicked: false,
+      timestamp: Date.now()
+    })
+    
+    setRecentSearches((prev) => {
+      const next = [q, ...prev.filter((x) => x !== q)].slice(0, 6)
+      try {
+        localStorage.setItem('recentSearches', JSON.stringify(next))
+      } catch {
+        // 忽略存储错误
+      }
+      return next
+    })
+    
+    setShowSearchDropdown(false)
+  }, [navigate])
+  
+  // 处理搜索建议选择
+  const handleSuggestionSelect = useCallback((suggestion: any) => {
+    setSearch(suggestion.text)
+    setShowSearchDropdown(false)
+    
+    const url = searchService.generateRedirectUrl(suggestion.text, suggestion.type)
+    navigate(url)
+    
+    searchService.trackSearchEvent({
+      query: suggestion.text,
+      resultType: suggestion.type,
+      clicked: true,
+      timestamp: Date.now()
+    })
+    
+    setRecentSearches((prev) => {
+      const next = [suggestion.text, ...prev.filter((x) => x !== suggestion.text)].slice(0, 6)
+      try {
+        localStorage.setItem('recentSearches', JSON.stringify(next))
+      } catch {
+        // 忽略存储错误
+      }
+      return next
+    })
+  }, [navigate])
+  
   // 优化：懒加载标签数据，使用useCallback稳定它
   const loadTags = useCallback(async () => {
     // 检查缓存
@@ -203,7 +290,6 @@ export default function Square() {
   const [title, setTitle] = useState('') // 新帖子标题（中文注释：用于创建新帖子）
   const [thumb, setThumb] = useState('') // 新帖子缩略图URL（中文注释：用于展示封面）
   const [sortBy, setSortBy] = useState<'hot' | 'new'>('hot') // 排序方式（中文注释：hot按点赞、new按日期）
-  const [search, setSearch] = useState('') // 搜索关键词（中文注释：支持标题/评论/风格/题材）
   const [showSuggest, setShowSuggest] = useState(false) // 中文注释：是否显示搜索联想下拉
   const [commentText, setCommentText] = useState<Record<string, string>>({})
   const [page, setPage] = useState(1) // 中文注释：分页页码

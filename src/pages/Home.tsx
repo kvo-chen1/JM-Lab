@@ -11,11 +11,6 @@ import { workService, userService } from '@/services/apiService'
 import { useTranslation } from 'react-i18next'
 import PromptInput from '@/components/PromptInput'
 import eventBus from '@/lib/eventBus' // 导入事件总线
-import searchService from '@/services/searchService'
-import { lazy, Suspense } from 'react'
-
-// 懒加载组件
-const SearchBar = lazy(() => import('@/components/SearchBar'))
 import {
   ANIMATION_VARIANTS,
   INTERACTION_VARIANTS,

@@ -2,7 +2,7 @@ import React, { useMemo, useState, useEffect, Suspense, lazy, useCallback, useCo
 import { useTheme } from '@/hooks/useTheme'
 import { motion } from 'framer-motion'
 import { useNavigate, useParams } from 'react-router-dom'
-import { AuthContext } from '@/contexts/AuthContext'
+import { AuthContext } from '@/contexts/authContext'
 import { useAnalyticsStore } from '@/stores/useAnalyticsStore'
 // 使用更简洁的懒加载方式
 const ProductMockupPreview = lazy(() => import('@/components/ProductMockupPreview'))

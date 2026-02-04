@@ -207,10 +207,6 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
 
   // 计算显示的建议列表（包含最近搜索和热门推荐）
   const displaySuggestions = useMemo(() => {
-    if (search.trim()) {
-      return searchSuggestions;
-    }
-    
     // 最近搜索
     const recent = recentSearches.map((s, i) => ({
       id: `recent-${i}`,
@@ -226,24 +222,32 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
       }
     }));
 
-    // 如果没有最近搜索，显示热门推荐
-    if (recent.length === 0) {
-      return [
-        { id: 'hot-1', text: '国潮设计', type: 'tag' as any, icon: 'fas fa-fire', group: '为你推荐的点子' },
-        { id: 'hot-2', text: '非遗传承', type: 'tag' as any, icon: 'fas fa-fire', group: '为你推荐的点子' },
-        { id: 'hot-3', text: 'AI创作', type: 'tag' as any, icon: 'fas fa-fire', group: '为你推荐的点子' },
-        { id: 'hot-4', text: '年画', type: 'tag' as any, icon: 'fas fa-fire', group: '为你推荐的点子' }
-      ];
-    }
+    // 热门推荐
+    const hotRecommendations = [
+      { id: 'hot-1', text: '国潮设计', type: 'tag' as any, icon: 'fas fa-fire', group: '为你推荐的点子' },
+      { id: 'hot-2', text: '非遗传承', type: 'tag' as any, icon: 'fas fa-fire', group: '为你推荐的点子' },
+      { id: 'hot-3', text: 'AI创作', type: 'tag' as any, icon: 'fas fa-fire', group: '为你推荐的点子' },
+      { id: 'hot-4', text: '年画', type: 'tag' as any, icon: 'fas fa-fire', group: '为你推荐的点子' }
+    ];
 
-    // 组合最近搜索和推荐（如果有空间）
-    const recommendations = [
+    // 通用推荐
+    const generalRecommendations = [
         { id: 'rec-1', text: '插画艺术', type: 'tag' as any, icon: 'fas fa-search', group: 'Pinterest 上的热门' },
         { id: 'rec-2', text: '界面设计', type: 'tag' as any, icon: 'fas fa-search', group: 'Pinterest 上的热门' },
         { id: 'rec-3', text: '摄影技巧', type: 'tag' as any, icon: 'fas fa-search', group: 'Pinterest 上的热门' }
     ];
 
-    return [...recent, ...recommendations];
+    if (search.trim()) {
+      // 有搜索内容时，返回搜索建议
+      return searchSuggestions.length > 0 ? searchSuggestions : hotRecommendations;
+    } else {
+      // 无搜索内容时，返回最近搜索和推荐
+      if (recent.length > 0) {
+        return [...recent, ...generalRecommendations];
+      } else {
+        return hotRecommendations;
+      }
+    }
   }, [search, searchSuggestions, recentSearches, saveRecentSearches]);
   
   // 处理搜索建议选择

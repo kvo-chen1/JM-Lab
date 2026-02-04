@@ -1688,3 +1688,38 @@ process.on('SIGTERM', () => {
     process.exit(0)
   })
 })
+
+// 导出handler函数，供Vercel Serverless Function使用
+export default async function handler(req, res) {
+  // 设置CORS头
+  res.setHeader('Access-Control-Allow-Origin', '*')
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+  
+  // 处理OPTIONS请求
+  if (req.method === 'OPTIONS') {
+    res.statusCode = 204
+    res.end()
+    return
+  }
+  
+  try {
+    // 解析URL
+    const protocol = req.headers['x-forwarded-proto'] || 'http'
+    const host = req.headers.host || `localhost:${PORT}`
+    const u = new URL(req.url, `${protocol}://${host}`)
+    const path = u.pathname
+    
+    console.log('[API] Vercel Request:', req.method, path)
+    
+    // 调用路由处理函数
+    await route(req, res, u, path)
+  } catch (error) {
+    console.error('API error:', error)
+    if (!res.headersSent) {
+      res.statusCode = 500
+      res.setHeader('Content-Type', 'application/json')
+      res.end(JSON.stringify({ error: 'SERVER_ERROR', message: '服务器内部错误' }))
+    }
+  }
+}

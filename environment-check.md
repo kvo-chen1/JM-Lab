@@ -9,31 +9,31 @@
 **`.env` 文件**：
 ```
 # Supabase Configuration
-VITE_SUPABASE_URL=https://YOUR_PROJECT_ID.supabase.co
-VITE_SUPABASE_ANON_KEY=YOUR_ANON_KEY
+VITE_SUPABASE_URL=https://rtfbaxvkqoqogplvwjx.supabase.co
+VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ0ZmJheHZrcW9xb2dwbHZ3anh4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUyMDA0MDgsImV4cCI6MjA4MDc3NjQwOH0.zc7z-V1s1rP7EfbW-A7eBdU6quq
 
 # Optional: For Next.js compatibility
-NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT_ID.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=YOUR_ANON_KEY
+NEXT_PUBLIC_SUPABASE_URL=https://rtfbaxvkqoqogplvwjx.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ0ZmJheHZrcW9xb2dwbHZ3anh4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUyMDA0MDgsImV4cCI6MjA4MDc3NjQwOH0.zc7z-V1s1rP7EfbW-A7eBdU6quq
 ```
 
 **`.env.local` 文件**：
 ```
 # Supabase Configuration
-VITE_SUPABASE_URL=https://YOUR_PROJECT_ID.supabase.co
-VITE_SUPABASE_ANON_KEY=YOUR_ANON_KEY
-SUPABASE_SERVICE_ROLE_KEY=YOUR_SERVICE_ROLE_KEY
+VITE_SUPABASE_URL=https://pptqdicaaewtnaiflfcs.supabase.co
+VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBwdHFkaWNhYWV3dG5haWZsZmNzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY0OTE1MzIsImV4cCI6MjA4MjA2NzUzMn0.hXdokiVrdl8mc5DNa3SjJtsfJpXmNhfJ3ztfHP6YV8c
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBwdHFkaWNhYWV3dG5haWZsZmNzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NjQ5MTUzMiwiZXhwIjoyMDgyMDY3NTMyfQ.Plz64E2BkfbgiyaBNyL2L2grVTPO-U8fcdDxa-MjgX4
 ```
 
 **`.env.production` 文件**：
 ```
 # 添加了Supabase配置
-VITE_SUPABASE_URL=https://YOUR_PROJECT_ID.supabase.co
-VITE_SUPABASE_ANON_KEY=YOUR_ANON_KEY
+VITE_SUPABASE_URL=https://pptqdicaaewtnaiflfcs.supabase.co
+VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBwdHFkaWNhYWV3dG5haWZsZmNzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY0OTE1MzIsImV4cCI6MjA4MjA2NzUzMn0.hXdokiVrdl8mc5DNa3SjJtsfJpXmNhfJ3ztfHP6YV8c
 
 # For Next.js compatibility
-NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT_ID.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=YOUR_ANON_KEY
+NEXT_PUBLIC_SUPABASE_URL=https://pptqdicaaewtnaiflfcs.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBwdHFkaWNhYWV3dG5haWZsZmNzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY0OTE1MzIsImV4cCI6MjA4MjA2NzUzMn0.hXdokiVrdl8mc5DNa3SjJtsfJpXmNhfJ3ztfHP6YV8c
 ```
 
 ### 1.2 应用程序代码中的环境变量引用
@@ -79,9 +79,9 @@ if (nextPublicKey) {
 
 | 环境变量名称 | 描述 | 本地值示例 |
 | --- | --- | --- |
-| NEXT_PUBLIC_SUPABASE_URL | Supabase项目URL | https://YOUR_PROJECT_ID.supabase.co |
+| NEXT_PUBLIC_SUPABASE_URL | Supabase项目URL | https://pptqdicaaewtnaiflfcs.supabase.co |
 | NEXT_PUBLIC_SUPABASE_ANON_KEY 或 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY | Supabase匿名访问密钥 | 完整的JWT密钥 |
-| VITE_SUPABASE_URL | Supabase项目URL（备选） | https://YOUR_PROJECT_ID.supabase.co |
+| VITE_SUPABASE_URL | Supabase项目URL（备选） | https://pptqdicaaewtnaiflfcs.supabase.co |
 | VITE_SUPABASE_ANON_KEY | Supabase匿名访问密钥（备选） | 完整的JWT密钥 |
 
 ### 2.2 检查步骤

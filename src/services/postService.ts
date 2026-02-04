@@ -427,6 +427,8 @@ export async function createWorkWithUrl(workData: any, imageUrl: string, userId?
   }, { id: userId } as User);
 }
 
+import eventBus from '@/lib/eventBus';
+
 async function ensureSupabaseSessionUserId(): Promise<string | null> {
   try {
     const { data } = await supabase.auth.getSession()
@@ -438,20 +440,34 @@ async function ensureSupabaseSessionUserId(): Promise<string | null> {
       const refresh_token = localStorage.getItem('refreshToken')
 
       if (access_token && refresh_token) {
+        console.log('[postService] Attempting to restore session from local tokens...');
         const { data: sessionData, error } = await supabase.auth.setSession({
           access_token,
           refresh_token,
         })
 
-        if (!error && sessionData?.session?.user?.id) {
+        if (error) {
+          console.error('[postService] Failed to restore session:', error.message);
+          // 如果恢复会话失败，说明 refresh token 可能已失效
+          // 发布登出事件，让 AuthContext 处理清理工作
+          eventBus.publish('auth:logout', undefined);
+          return null;
+        }
+
+        if (sessionData?.session?.user?.id) {
+          console.log('[postService] Session restored successfully');
           return sessionData.session.user.id
         }
       }
     }
 
-    const { data: userData } = await supabase.auth.getUser()
+    const { data: userData, error: userError } = await supabase.auth.getUser()
+    if (userError) {
+       console.warn('[postService] getUser failed:', userError.message);
+    }
     return userData?.user?.id || null
-  } catch {
+  } catch (err) {
+    console.error('[postService] ensureSupabaseSessionUserId exception:', err);
     return null
   }
 }
@@ -461,7 +477,12 @@ export async function addPost(p: Partial<Post>, currentUser?: User): Promise<Pos
   console.log('[addPost] Called with:', { title: p.title, category: p.category, userId: currentUser?.id });
 
   const supabaseUserId = await ensureSupabaseSessionUserId()
-  if (!supabaseUserId) {
+  
+  // 容错处理：如果无法获取Supabase会话ID，但传入了当前用户，尝试使用当前用户ID
+  // 这允许本地登录用户尝试进行操作（取决于后端/RLS配置）
+  const finalUserId = supabaseUserId || currentUser?.id;
+
+  if (!finalUserId) {
     throw new Error('请先登录后再发布作品')
   }
   
@@ -469,7 +490,7 @@ export async function addPost(p: Partial<Post>, currentUser?: User): Promise<Pos
   if (!currentUser?.id || currentUser.id === 'current-user') {
     console.warn('[addPost] No valid user ID provided, using default user ID');
     currentUser = {
-      id: 'default-user',
+      id: finalUserId, // 使用获取到的ID
       username: '默认用户',
       email: 'default@example.com',
       membershipLevel: 'free',
@@ -477,10 +498,11 @@ export async function addPost(p: Partial<Post>, currentUser?: User): Promise<Pos
     };
   }
 
-  if (currentUser.id !== supabaseUserId) {
+  // 确保ID一致
+  if (currentUser.id !== finalUserId) {
     currentUser = {
       ...currentUser,
-      id: supabaseUserId,
+      id: finalUserId,
     }
   }
 

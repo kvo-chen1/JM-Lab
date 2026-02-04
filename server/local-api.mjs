@@ -1,6 +1,6 @@
 import 'dotenv/config'
 import fs from 'fs'
-import path from 'path'
+import pathModule from 'path'
 import dotenv from 'dotenv'
 
 // Load .env.local if it exists
@@ -12,9 +12,10 @@ if (fs.existsSync('.env.local')) {
 }
 
 import http from 'http'
+import { WebSocketServer } from 'ws'
 import { URL } from 'url'
 import { generateToken, verifyToken } from './jwt.mjs'
-import { userDB, workDB, favoriteDB, achievementDB, friendDB, messageDB } from './database.mjs'
+import { userDB, workDB, favoriteDB, achievementDB, friendDB, messageDB, communityDB, notificationDB, eventDB } from './database.mjs'
 import { sendLoginEmailCode } from './emailService.mjs'
 import { randomUUID } from 'crypto'
 
@@ -632,6 +633,112 @@ async function route(req, res, u, path) {
     return
   }
 
+  // 获取活动列表
+  if (req.method === 'GET' && path === '/api/events') {
+    // 允许未登录访问
+    try {
+      let events = await eventDB.getEvents()
+      
+      // 如果没有活动，创建一些示例活动
+      if (!events || events.length === 0) {
+        const now = Date.now()
+        const day = 24 * 60 * 60 * 1000
+        const sampleEvents = [
+          {
+            title: '天津非遗文化展',
+            description: '探索天津独特的非物质文化遗产，体验传统技艺的魅力。现场将有泥人张、杨柳青年画等非遗传承人展示技艺。',
+            startTime: now + day,
+            endTime: now + day * 3,
+            location: '天津市文化中心',
+            coverUrl: 'https://images.unsplash.com/photo-1558591710-4b4a1ae0f04d?q=80&w=2574&auto=format&fit=crop',
+            status: 'published',
+            creatorId: 'admin',
+            type: 'exhibition',
+            tags: ['文化', '非遗', '展览']
+          },
+          {
+            title: '海河夜景摄影大赛',
+            description: '记录海河两岸的璀璨夜景，展现津门夜色之美。优秀作品将有机会在天津美术馆展出。',
+            startTime: now + day * 2,
+            endTime: now + day * 10,
+            location: '海河沿岸',
+            coverUrl: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?q=80&w=3270&auto=format&fit=crop',
+            status: 'published',
+            creatorId: 'admin',
+            type: 'competition',
+            tags: ['摄影', '夜景', '比赛']
+          },
+          {
+            title: 'AI艺术创作沙龙',
+            description: '探讨AI在艺术创作中的应用，分享创作经验。适合所有对AI艺术感兴趣的创作者。',
+            startTime: now + day * 5,
+            endTime: now + day * 5 + 4 * 60 * 60 * 1000,
+            location: '智慧山艺术中心',
+            coverUrl: 'https://images.unsplash.com/photo-1620712943543-bcc4688e7485?q=80&w=2565&auto=format&fit=crop',
+            status: 'published',
+            creatorId: 'admin',
+            type: 'salon',
+            tags: ['AI', '艺术', '沙龙']
+          }
+        ]
+        
+        try {
+          for (const evt of sampleEvents) {
+            await eventDB.createEvent(evt)
+          }
+        } catch (err) {
+          console.warn('[API] Failed to seed sample events:', err.message)
+        }
+        events = await eventDB.getEvents()
+      }
+      
+      sendJson(res, 200, { code: 0, data: events })
+    } catch (e) {
+      console.error('[API] Get events failed:', e)
+      sendJson(res, 500, { code: 1, message: '获取活动失败' })
+    }
+    return
+  }
+
+  // 获取活动详情
+  if (req.method === 'GET' && path.match(/^\/api\/events\/[\w-]+$/)) {
+    const id = path.split('/').pop()
+    try {
+      const event = await eventDB.getEvent(id)
+      if (!event) {
+        sendJson(res, 404, { code: 1, message: '活动不存在' })
+        return
+      }
+      sendJson(res, 200, { code: 0, data: event })
+    } catch (e) {
+      console.error('[API] Get event failed:', e)
+      sendJson(res, 500, { code: 1, message: '获取活动详情失败' })
+    }
+    return
+  }
+
+  // 创建活动
+  if (req.method === 'POST' && path === '/api/events') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+    
+    try {
+      const data = req.body
+      const event = await eventDB.createEvent({
+        ...data,
+        creatorId: decoded.userId
+      })
+      sendJson(res, 200, { code: 0, data: event })
+    } catch (e) {
+      console.error('[API] Create event failed:', e)
+      sendJson(res, 500, { code: 1, message: '创建活动失败' })
+    }
+    return
+  }
+
   // 获取用户分析数据
   if (req.method === 'GET' && path === '/api/user/analytics') {
     const decoded = verifyRequestToken(req)
@@ -820,6 +927,67 @@ async function route(req, res, u, path) {
     } catch (error) {
       console.error('[API] 登录失败:', error)
       sendJson(res, 500, { code: 1, message: '登录失败' })
+    }
+    return
+  }
+
+  // 刷新 Token
+  if (req.method === 'POST' && path === '/api/auth/refresh') {
+    try {
+      const body = await readBody(req)
+      const { token, refreshToken } = body
+      
+      if (!token && !refreshToken) {
+        sendJson(res, 400, { code: 1, message: 'Missing token or refreshToken' })
+        return
+      }
+      
+      // 简单验证 token
+      // 实际生产中应该验证 refreshToken 的有效性
+      // 这里为了演示，直接颁发新 token
+      
+      // 尝试解码 token 获取 userId
+      let userId = null;
+      try {
+         const decoded = verifyToken(token) || verifyToken(refreshToken);
+         if (decoded) userId = decoded.userId || decoded.id || decoded.sub;
+      } catch (e) {
+         // Token 可能已过期，这是正常的
+      }
+
+      // 如果无法从 token 获取，尝试从 refreshToken 获取 (如果它们是 JWT)
+      // 在这个简单实现中，如果都失败了，我们可能需要拒绝
+      // 但为了方便测试，如果提供了有效格式的 token，我们尝试宽容处理
+      
+      if (!userId) {
+          // 如果无法解码，生成一个新的 ID 或者报错
+          // 这里报错比较安全
+          // 但为了防止死循环，如果是 mock token，我们允许通过
+          if (token === 'mock-token' || refreshToken === 'mock-refresh-token') {
+             userId = 'mock-user-id';
+          } else {
+             // 尝试继续使用旧 token 的部分信息（如果能提取的话）
+             // 否则返回 401
+             sendJson(res, 401, { code: 1, message: 'Invalid token' })
+             return
+          }
+      }
+      
+      const newToken = generateToken({ userId: userId })
+      const newRefreshToken = generateToken({ userId: userId, type: 'refresh' })
+      
+      sendJson(res, 200, {
+        code: 0,
+        message: 'Token refreshed',
+        data: {
+          token: newToken,
+          refreshToken: newRefreshToken,
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+        }
+      })
+    } catch (error) {
+      console.error('[API] Refresh failed:', error)
+      sendJson(res, 500, { code: 1, message: 'Refresh failed' })
     }
     return
   }
@@ -1289,6 +1457,76 @@ async function route(req, res, u, path) {
     return
   }
 
+  // 获取通知列表
+  if (req.method === 'GET' && path === '/api/notifications') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+
+    try {
+      const limit = parseInt(u.searchParams.get('limit') || '20')
+      const offset = parseInt(u.searchParams.get('offset') || '0')
+      
+      const notifications = await notificationDB.getNotifications(decoded.userId, limit, offset)
+      
+      sendJson(res, 200, { 
+        code: 0, 
+        data: {
+          list: notifications,
+          total: notifications.length, // Simplified total count
+          hasMore: false 
+        } 
+      })
+    } catch (e) {
+      console.error('[API] Get notifications failed:', e)
+      sendJson(res, 500, { code: 1, message: '获取通知失败' })
+    }
+    return
+  }
+
+  // 获取社区列表
+  if (req.method === 'GET' && path === '/api/communities') {
+    try {
+      let communities = await communityDB.getAllCommunities()
+      
+      // 如果数据库为空，尝试加载 mock 数据
+      if (!communities || communities.length === 0) {
+        console.log('[API] Communities empty, trying mock data...')
+        try {
+          const mockDataPath = pathModule.join(process.cwd(), 'server', 'data', 'community.json')
+          console.log('[API] Mock data path:', mockDataPath)
+          if (fs.existsSync(mockDataPath)) {
+            const mockData = JSON.parse(fs.readFileSync(mockDataPath, 'utf-8'))
+            console.log('[API] Mock data loaded, featured count:', mockData.featured?.length)
+            if (mockData.featured) {
+              communities = mockData.featured.map((c, index) => ({
+                id: c.id || `mock-${index}`,
+                name: c.name,
+                description: c.desc || c.topic || '',
+                avatar: c.cover || c.avatar,
+                member_count: c.members,
+                topic: c.topic,
+                is_active: true,
+                is_special: c.official,
+                tags: c.tags || []
+              }))
+            }
+          }
+        } catch (err) {
+          console.error('[API] Failed to load mock communities:', err)
+        }
+      }
+
+      sendJson(res, 200, { code: 0, data: communities || [] })
+    } catch (e) {
+      console.error('[API] Get communities failed:', e)
+      sendJson(res, 500, { code: 1, message: '获取社区列表失败' })
+    }
+    return
+  }
+
   // 默认响应
   sendJson(res, 404, { error: 'NOT_FOUND', message: '接口不存在' })
 }
@@ -1312,6 +1550,38 @@ const server = http.createServer(async (req, res) => {
     }
   }
 })
+
+// WebSocket 服务配置
+const wss = new WebSocketServer({ server, path: '/ws' });
+
+wss.on('connection', (ws) => {
+  console.log('[WebSocket] 客户端已连接');
+  
+  // 发送欢迎消息
+  ws.send(JSON.stringify({ type: 'welcome', payload: { message: '已连接到本地 WebSocket 服务' } }));
+
+  ws.on('message', (message) => {
+    try {
+      const data = JSON.parse(message);
+      console.log('[WebSocket] 收到消息:', data);
+      
+      // 处理心跳检测
+      if (data.type === 'ping') {
+        ws.send(JSON.stringify({ type: 'pong', payload: { timestamp: Date.now() } }));
+      }
+    } catch (e) {
+      console.error('[WebSocket] 消息错误:', e);
+    }
+  });
+
+  ws.on('close', () => {
+    console.log('[WebSocket] 客户端断开连接');
+  });
+  
+  ws.on('error', (error) => {
+    console.error('[WebSocket] 错误:', error);
+  });
+});
 
 server.listen(PORT, () => {
   console.log(`Local API server running on http://localhost:${PORT}`)

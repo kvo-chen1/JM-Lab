@@ -26,7 +26,7 @@ $shadow-hover: 0 12px 24px rgba(0, 0, 0, 0.12);
   transition: transform $transition-duration $transition-ease, opacity 0.5s ease;
   will-change: transform, opacity;
   box-sizing: border-box;
-  padding: $spacing-base / 2; // 用于制造间距
+  padding: math.div($spacing-base, 2); // 用于制造间距
 }
 
 // 卡片内部样式

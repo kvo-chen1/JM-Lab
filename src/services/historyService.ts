@@ -177,64 +177,7 @@ class HistoryService {
   }
 
   async syncPendingHistory(): Promise<void> {
-    if (this.isSyncing || !navigator.onLine) return;
-    if (!this.db) await this.initDB();
-    if (!this.db) return;
-
-    this.isSyncing = true;
-    try {
-      // Get all pending items
-      const pendingItems = await new Promise<any[]>((resolve, reject) => {
-        const transaction = this.db!.transaction(['pending_history'], 'readonly');
-        const store = transaction.objectStore('pending_history');
-        const request = store.getAll();
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
-      });
-
-      if (pendingItems.length === 0) {
-        this.isSyncing = false;
-        return;
-      }
-
-      // Batch insert (or one by one)
-      // Supabase supports batch insert
-      const itemsToSync = pendingItems.map(i => ({
-          user_id: i.user_id,
-          action_type: i.action_type,
-          content: i.content,
-          session_id: i.session_id,
-          timestamp: i.timestamp,
-          checksum: i.checksum
-      }));
-
-      const { error } = await supabase.from('user_history').insert(itemsToSync);
-
-      if (!error) {
-        // Clear pending items
-        // Since we synced all, we can clear all.
-        // Wait, if new items were added during sync?
-        // Ideally we should delete by key.
-        // But since this is triggered by 'online' event and isSyncing is true, new items go to DB but won't trigger concurrent sync.
-        // However, it's safer to rely on retrySync logic which uses cursor and keys.
-        // So I will just clear here for now to match the "bulk success" logic.
-        const deleteTx = this.db!.transaction(['pending_history'], 'readwrite');
-        deleteTx.objectStore('pending_history').clear();
-      } else {
-        console.error('Sync failed', error);
-        // If error is 400 (Bad Request) or 409 (Conflict), it implies schema mismatch or data issue.
-        // We should probably discard these items to prevent infinite loop of errors.
-        if (error.code && (error.code.startsWith('PGRST') || error.code === '23505' || error.message.includes('400') || error.message.includes('409') || error.message.includes('Conflict'))) {
-             console.warn('Non-retriable error, clearing pending items to avoid loop:', error);
-             const deleteTx = this.db!.transaction(['pending_history'], 'readwrite');
-             deleteTx.objectStore('pending_history').clear();
-        }
-      }
-    } catch (e) {
-      console.error('Sync error', e);
-    } finally {
-      this.isSyncing = false;
-    }
+    return this.retrySync();
   }
 
   // Refined sync method using cursor/keys
@@ -242,6 +185,10 @@ class HistoryService {
       if (this.isSyncing || !navigator.onLine) return;
       if (!this.db) await this.initDB();
       if (!this.db) return;
+
+      // Check for active session first
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return; // Don't sync if not logged in
 
       this.isSyncing = true;
       
@@ -256,8 +203,11 @@ class HistoryService {
         request.onsuccess = async (event) => {
             const cursor = (event.target as IDBRequest).result;
             if (cursor) {
-                batch.push(cursor.value);
-                keysToDelete.push(cursor.key);
+                // Only sync items for current user
+                if (cursor.value.user_id === user.id) {
+                    batch.push(cursor.value);
+                    keysToDelete.push(cursor.key);
+                }
                 cursor.continue();
             } else {
                 // Done reading

@@ -57,13 +57,6 @@ coverage/
 .vercel
 .env*.local
 
-# Local-only configs / backups
-mcp.config.json
-server/data/backup.json
-*.backup
-test-email-send.js
-server/local-api-simple.mjs
-
 # Temporary files
 temp.tsx
 test-map.html

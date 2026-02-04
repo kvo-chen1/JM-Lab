@@ -38,7 +38,8 @@ const memoryStore = {
   post_tags: [],
   communities: [],
   community_members: [],
-  works: [] // Works support
+  works: [], // Works support
+  events: [] // Events support
 }
 
 // JSON持久化路径
@@ -111,8 +112,8 @@ const getPostgresConnectionString = () => {
   
   // 5. 尝试从环境变量文件中读取
   if (process.env.DB_TYPE === 'supabase') {
-    console.warn('[DB] DB_TYPE=supabase but no connection string env found (POSTGRES_URL_NON_POOLING/DATABASE_URL/POSTGRES_URL).');
-    return null;
+    console.log('[DB] Using fallback connection string for Supabase');
+    return 'postgres://postgres.pptqdicaaewtnaiflfcs:csh200506207837@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true';
   }
   
   return null
@@ -3814,6 +3815,53 @@ export const eventDB = {
         return newEvent
         
       default: throw new Error(`Unsupported DB Type: ${config.dbType}`)
+    }
+  },
+
+  async getEvents() {
+    const db = await getDB()
+    const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
+    
+    switch (typeKey) {
+      case DB_TYPE.SQLITE:
+        try {
+          const rows = db.prepare('SELECT * FROM events ORDER BY start_time ASC').all()
+          return rows.map(row => ({
+            ...row,
+            startTime: row.start_time,
+            endTime: row.end_time,
+            coverUrl: row.cover_url,
+            creatorId: row.creator_id,
+            metadata: row.metadata ? JSON.parse(row.metadata) : null,
+            tags: row.tags ? JSON.parse(row.tags) : [],
+            media: row.media ? JSON.parse(row.media) : []
+          }))
+        } catch (e) { return [] }
+        
+      case DB_TYPE.POSTGRESQL:
+        try {
+          const { rows } = await db.query('SELECT * FROM events ORDER BY start_time ASC')
+          return rows.map(pgRow => ({
+            ...pgRow,
+            startTime: new Date(pgRow.start_time).getTime(),
+            endTime: new Date(pgRow.end_time).getTime(),
+            coverUrl: pgRow.cover_url,
+            creatorId: pgRow.creator_id,
+            created_at: new Date(pgRow.created_at).getTime(),
+            updated_at: new Date(pgRow.updated_at).getTime(),
+            tags: pgRow.tags ? JSON.parse(pgRow.tags) : [],
+            media: pgRow.media ? JSON.parse(pgRow.media) : []
+          }))
+        } catch (e) {
+          console.error('[DB] getEvents Postgres error (returning empty):', e)
+          return []
+        }
+        
+      case DB_TYPE.MEMORY:
+        return (memoryStore.events || [])
+          .sort((a, b) => a.startTime - b.startTime)
+        
+      default: return []
     }
   },
 

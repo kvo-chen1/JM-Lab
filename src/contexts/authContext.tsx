@@ -407,6 +407,17 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           if (userData && isAuthFlag === 'true') {
             const userWithAvatar = { ...userData, avatar: userData.avatar || '' };
             safeLocalStorage.setItem('user', JSON.stringify(userWithAvatar));
+            
+            // 尝试恢复 Supabase session
+            const storedToken = safeLocalStorage.getItem('token');
+            const storedRefreshToken = safeLocalStorage.getItem('refreshToken');
+            if (storedToken && storedRefreshToken && supabase) {
+              supabase.auth.setSession({
+                access_token: storedToken,
+                refresh_token: storedRefreshToken
+              }).catch(err => console.warn('恢复 Supabase session 失败:', err));
+            }
+
             updateAuthState(userWithAvatar, true, false);
           } else {
             updateAuthState(null, false, false);
@@ -416,6 +427,15 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         
         // 生产环境：验证本地 token
         if (token && userData && isAuthFlag === 'true') {
+          // 尝试恢复 Supabase session
+          const storedRefreshToken = safeLocalStorage.getItem('refreshToken');
+          if (token && storedRefreshToken && supabase) {
+             supabase.auth.setSession({
+               access_token: token,
+               refresh_token: storedRefreshToken
+             }).catch(err => console.warn('恢复 Supabase session 失败:', err));
+          }
+
           // 强制检查 ID 格式 (必须是 UUID)
           const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
           if (!uuidRegex.test(userData.id)) {
@@ -494,7 +514,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     // 尝试刷新 token
     const tryRefreshToken = async (token: string, localUser: User) => {
       const refreshToken = safeLocalStorage.getItem('refreshToken');
-      if (!refreshToken) return;
+      if (!refreshToken) {
+        // 没有刷新令牌，直接登出
+        console.warn('Token无效且无刷新令牌，强制登出');
+        logout();
+        return;
+      }
       
       try {
         const refreshResponse = await fetch('/api/auth/refresh', {
@@ -510,9 +535,15 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           
           // 重新验证
           await verifyTokenAndUpdate(refreshData.data.token, localUser);
+        } else {
+          console.error('Token 刷新失败 (API返回错误):', refreshData.message);
+          // 刷新失败，强制登出
+          logout();
         }
       } catch (error) {
-        console.error('Token 刷新失败:', error);
+        console.error('Token 刷新失败 (网络或其它错误):', error);
+        // 刷新失败，强制登出
+        logout();
       }
     };
 

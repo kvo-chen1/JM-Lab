@@ -1,0 +1,64 @@
+name: Deploy to Vercel
+
+on:
+  # 当推送到main分支时触发部署
+  push:
+    branches: [ main ]
+  # 允许手动触发部署
+  workflow_dispatch:
+
+# 设置权限
+permissions:
+  contents: read
+  deployments: write
+
+# 只允许一个并发部署
+concurrency:
+  group: "vercel-deploy"
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      # 检出代码
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 设置Node.js环境
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          # 缓存依赖
+          cache: "pnpm"
+
+      # 安装pnpm
+      - name: Install pnpm
+        run: npm install -g pnpm
+
+      # 安装依赖
+      - name: Install dependencies
+        run: pnpm install
+
+      # 运行类型检查
+      - name: Run type check
+        run: pnpm typecheck
+
+      # 构建项目
+      - name: Build project
+        run: pnpm build
+
+      # 部署到Vercel
+      - name: Deploy to Vercel
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          # 生产环境部署
+          vercel-args: '--prod'
+          # 工作目录
+          working-directory: .
+          # 启用调试模式
+          vercel-debug: true

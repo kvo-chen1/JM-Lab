@@ -31,6 +31,7 @@ export interface Community {
   joinApprovalRequired?: boolean;
   cover?: string;
   tags?: string[];
+  bookmarks?: Array<{ id: string; name: string; icon: string }>;
 }
 
 // 帖子类型定义
@@ -93,7 +94,7 @@ export const communityService = {
         backgroundColor: community.theme?.backgroundColor || '#f3f4f6',
         textColor: community.theme?.textColor || '#1f2937'
       },
-      layoutType: 'standard',
+      layoutType: (community.layout_type as 'standard' | 'compact' | 'expanded') || 'standard',
       enabledModules: {
         posts: true,
         chat: true,
@@ -132,11 +133,12 @@ export const communityService = {
         
         if (membersError && members.length === 0) {
           console.error('Error fetching community members:', membersError);
-          // 尝试使用本地 API 服务器
-          throw new Error('Supabase API 失败，尝试使用本地 API');
+          return [];
         }
         
+        // 如果 Supabase 返回空数组，说明用户没有加入任何社区，直接返回空数组
         if (!members || members.length === 0) {
+          console.log('User has no communities');
           return [];
         }
 
@@ -150,8 +152,7 @@ export const communityService = {
         
         if (communitiesError) {
           console.error('Error fetching communities details:', communitiesError);
-          // 尝试使用本地 API 服务器
-          throw new Error('Supabase API 失败，尝试使用本地 API');
+          return [];
         }
 
         // 建立ID到社区数据的映射，以便保持排序
@@ -159,7 +160,7 @@ export const communityService = {
 
         // 3. 组合数据并返回
         return members
-          .map(item => {
+          .map((item): Community | null => {
             const community = communityMap.get(item.community_id);
             if (!community) return null;
             
@@ -180,7 +181,7 @@ export const communityService = {
                 backgroundColor: community.theme?.backgroundColor || '#f3f4f6',
                 textColor: community.theme?.textColor || '#1f2937'
               },
-              layoutType: 'standard',
+              layoutType: (community.layout_type as 'standard' | 'compact' | 'expanded') || 'standard',
               enabledModules: {
                 posts: true,
                 chat: true,
@@ -195,34 +196,8 @@ export const communityService = {
           })
           .filter((item): item is Community => item !== null);
       } catch (supabaseError) {
-        console.error('Supabase API 失败，尝试使用本地 API:', supabaseError);
-        
-        // 尝试使用本地 API 服务器
-        try {
-          // 注意：使用正确的端口，本地 API 服务器在 3022 端口运行
-          const response = await fetch('http://localhost:3022/api/communities/user', {
-            method: 'GET',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
-            }
-          });
-          
-          if (!response.ok) {
-            throw new Error('本地 API 请求失败');
-          }
-          
-          const data = await response.json();
-          if (data.ok && data.data) {
-            return data.data;
-          } else {
-            throw new Error('本地 API 返回数据格式错误');
-          }
-        } catch (localApiError) {
-          console.error('本地 API 失败:', localApiError);
-          // 如果所有 API 都失败，返回空数组
-          return [];
-        }
+        console.error('Supabase API failed:', supabaseError);
+        throw supabaseError;
       }
     } catch (error) {
       console.error('getUserCommunities failed:', error);
@@ -254,7 +229,7 @@ export const communityService = {
     joinApprovalRequired?: boolean;
   }, userId: string): Promise<Community> {
     // 验证用户ID
-    if (!userId || typeof userId !== 'string' || userId.trim() === '' || (userId.includes('user_') && userId.includes('_'))) {
+    if (!userId || typeof userId !== 'string' || userId.trim() === '') {
       const error = new Error('Invalid user ID: User must be properly authenticated');
       console.error('Invalid user ID for community creation:', userId);
       throw error;
@@ -263,12 +238,14 @@ export const communityService = {
     // 获取当前真实的 Supabase 用户 ID，以防止前端存储的 ID 与数据库不一致
     let realUserId = userId;
     let currentUser = null;
+    let supabaseAuthenticated = false;
     
     try {
         const { data: { user } } = await supabase.auth.getUser();
         if (user && user.id) {
             realUserId = user.id;
             currentUser = user;
+            supabaseAuthenticated = true;
         } else {
              // 如果 getUser 失败，尝试刷新 session
              try {
@@ -276,31 +253,65 @@ export const communityService = {
                if (session && session.user) {
                  realUserId = session.user.id;
                  currentUser = session.user;
+                 supabaseAuthenticated = true;
                } else {
-                 throw new Error('User not authenticated');
+                 console.warn('No Supabase session found, will use local user data');
                }
              } catch (refreshError) {
-               console.warn('Failed to refresh auth session:', refreshError);
-               throw new Error('用户认证状态异常，请退出后重新登录');
+               console.warn('Failed to refresh auth session, will use local user data:', refreshError);
              }
         }
     } catch (e) {
-        console.warn('Failed to get supabase user, using provided userId', e);
-        throw new Error('用户认证状态异常，请退出后重新登录');
+        console.warn('Failed to get supabase user, will use local user data:', e);
+    }
+    
+    // 如果没有 Supabase 认证，尝试从 localStorage 获取用户信息
+    if (!supabaseAuthenticated) {
+        try {
+            const localUserStr = localStorage.getItem('user');
+            if (localUserStr) {
+                const localUser = JSON.parse(localUserStr);
+                if (localUser.id === userId) {
+                    console.log('Using local user data for community creation:', localUser.id);
+                    realUserId = localUser.id;
+                    currentUser = {
+                        id: localUser.id,
+                        email: localUser.email,
+                        user_metadata: {
+                            username: localUser.username,
+                            avatar: localUser.avatar
+                        }
+                    };
+                }
+            }
+        } catch (localError) {
+            console.warn('Failed to get local user data:', localError);
+        }
     }
 
     // 尝试修复 23503 错误：确保用户存在于 public.users 表中
     // 某些外键约束可能指向 public.users 而不是 auth.users，或者触发器未执行
-    try {
-        // 检查 public.users 是否存在该用户
-        const { data: profile, error: profileError } = await supabase
-            .from('users')
-            .select('id')
-            .eq('id', realUserId)
-            .maybeSingle();
-        
-        if (!profile) {
-            console.log('User profile missing in public.users, attempting to sync/create...', realUserId);
+    let profileSynced = false;
+    let syncAttempts = 0;
+    const maxSyncAttempts = 3;
+    
+    while (!profileSynced && syncAttempts < maxSyncAttempts) {
+        syncAttempts++;
+        try {
+            // 检查 public.users 是否存在该用户
+            const { data: profile, error: profileError } = await supabase
+                .from('users')
+                .select('id')
+                .eq('id', realUserId)
+                .maybeSingle();
+            
+            if (profile) {
+                console.log('User profile exists in public.users:', realUserId);
+                profileSynced = true;
+                break;
+            }
+            
+            console.log(`User profile missing in public.users (attempt ${syncAttempts}), attempting to sync/create...`, realUserId);
             
             // 准备用户数据
             let email = `missing_${realUserId}@example.com`; // 默认占位邮箱
@@ -312,26 +323,30 @@ export const communityService = {
                 email = currentUser.email || email;
                 username = metadata.username || metadata.name || currentUser.email?.split('@')[0] || username;
                 avatarUrl = metadata.avatar_url || metadata.avatar || '';
-            } else {
-                // 如果没有 currentUser，尝试从 localStorage 获取
-                try {
-                    const localUserStr = localStorage.getItem('user');
-                    if (localUserStr) {
-                        const localUser = JSON.parse(localUserStr);
-                        if (localUser.id === realUserId) {
-                            email = localUser.email || email;
-                            username = localUser.username || username;
-                            avatarUrl = localUser.avatar || '';
-                        }
-                    }
-                } catch (e) {
-                    // 忽略 localStorage 读取错误
-                }
             }
             
-            const { error: upsertError } = await supabase
+            // 尝试从 localStorage 获取用户信息（补充或替代 currentUser）
+            try {
+                const localUserStr = localStorage.getItem('user');
+                if (localUserStr) {
+                    const localUser = JSON.parse(localUserStr);
+                    // 如果 localStorage 中的用户ID与当前用户匹配，或者 currentUser 为空
+                    if (localUser.id === realUserId || !currentUser) {
+                        email = localUser.email || email;
+                        username = localUser.username || username;
+                        avatarUrl = localUser.avatar || avatarUrl;
+                        console.log('Using localStorage user data:', { username, email });
+                    }
+                }
+            } catch (e) {
+                // 忽略 localStorage 读取错误
+                console.warn('Failed to read user from localStorage:', e);
+            }
+            
+            // 尝试插入用户资料
+            const { error: insertError } = await supabase
                 .from('users')
-                .upsert({
+                .insert({
                     id: realUserId,
                     email: email,
                     username: username,
@@ -340,16 +355,45 @@ export const communityService = {
                     updated_at: new Date().toISOString()
                 });
                 
-            if (upsertError) {
-                console.error('Failed to sync user profile:', upsertError);
-                throw new Error('用户认证状态异常，请退出后重新登录');
+            if (insertError) {
+                console.error(`Failed to insert user profile (attempt ${syncAttempts}):`, insertError);
+                // 如果是重复键错误，说明用户已存在
+                if (insertError.code === '23505') {
+                    console.log('User already exists, considering sync successful');
+                    profileSynced = true;
+                    break;
+                }
+                // 等待一下再重试
+                if (syncAttempts < maxSyncAttempts) {
+                    await new Promise(resolve => setTimeout(resolve, 500 * syncAttempts));
+                }
             } else {
-                console.log('User profile synced successfully');
+                console.log('User profile inserted successfully');
+                // 验证插入是否成功
+                const { data: verifyProfile } = await supabase
+                    .from('users')
+                    .select('id')
+                    .eq('id', realUserId)
+                    .maybeSingle();
+                
+                if (verifyProfile) {
+                    console.log('User profile verified in database');
+                    profileSynced = true;
+                    break;
+                } else {
+                    console.warn('User profile insert reported success but not found in verification');
+                }
+            }
+        } catch (syncError) {
+            console.error(`Error during profile sync check (attempt ${syncAttempts}):`, syncError);
+            if (syncAttempts < maxSyncAttempts) {
+                await new Promise(resolve => setTimeout(resolve, 500 * syncAttempts));
             }
         }
-    } catch (syncError) {
-        console.error('Error during profile sync check:', syncError);
-        throw new Error('用户认证状态异常，请退出后重新登录');
+    }
+    
+    if (!profileSynced) {
+        console.error('Failed to sync user profile after all attempts');
     }
 
     // 准备插入的数据，适配数据库表实际存在的列
@@ -359,9 +403,8 @@ export const communityService = {
         cover: data.coverImage,
         avatar: data.avatar,
         tags: data.tags,
-        members_count: 1,
-        member_count: 1,
-        privacy: data.visibility || 'public', // 使用数据库中存在的 privacy 列
+        member_count: 1, // 使用正确的列名
+        privacy: data.visibility || 'public',
         is_active: true,
         is_special: false,
         creator_id: realUserId,
@@ -402,7 +445,7 @@ export const communityService = {
     
     // 添加创建者为成员（添加错误处理，确保即使失败也不影响主流程）
     try {
-      await supabase
+      const { error: memberInsertError } = await supabase
         .from('community_members')
         .insert({
           community_id: newCommunity.id,
@@ -410,8 +453,20 @@ export const communityService = {
           role: 'owner'
           // 移除 status 字段，因为表中不存在
         });
+      
+      if (memberInsertError) {
+        console.error('Error adding community member:', memberInsertError);
+        // 如果是重复键错误，说明成员已存在，不算错误
+        if (memberInsertError.code === '23505') {
+          console.log('Creator already exists as member, continuing...');
+        } else {
+          console.error('Failed to add creator as member:', memberInsertError);
+        }
+      } else {
+        console.log('Creator added as member successfully');
+      }
     } catch (memberError) {
-      console.error('Error adding community member:', memberError);
+      console.error('Exception adding community member:', memberError);
       // 继续执行，不抛出错误，确保社群创建成功
     }
     
@@ -432,12 +487,12 @@ export const communityService = {
         backgroundColor: '#f3f4f6',
         textColor: '#1f2937'
       },
-      layoutType: data.layoutType || 'standard',
-      enabledModules: data.enabledModules || {
-        posts: true,
-        chat: true,
-        members: true,
-        announcements: true
+      layoutType: (data.layoutType as 'standard' | 'compact' | 'expanded') || 'standard',
+      enabledModules: {
+        posts: data.enabledModules?.posts ?? true,
+        chat: data.enabledModules?.chat ?? true,
+        members: data.enabledModules?.members ?? true,
+        announcements: data.enabledModules?.announcements ?? true
       },
       isSpecial: newCommunity.is_special || false,
       creatorId: realUserId,
@@ -504,31 +559,38 @@ export const communityService = {
         
         if (joinError) {
           console.error('加入社区失败:', joinError);
-          // 尝试使用本地 API 服务器
-          throw new Error('Supabase API 失败，尝试使用本地 API');
+          throw joinError;
         }
         
         // 如果不需要审核，尝试更新成员计数
         if (!requiresApproval) {
           try {
-            // 尝试更新 member_count
-            const { error: countError } = await supabase
+            // 获取当前计数
+            const { data: current, error: fetchError } = await supabase
               .from('communities')
-              .update({ member_count: supabase.raw('member_count + 1') })
-              .eq('id', communityId);
-            
-            if (countError) {
-              console.error('更新 member_count 失败:', countError);
-              // 尝试更新 members_count（向后兼容）
-              try {
-                await supabase
-                  .from('communities')
-                  .update({ members_count: supabase.raw('members_count + 1') })
-                  .eq('id', communityId);
-              } catch (err) {
-                console.error('更新 members_count 失败:', err);
-                // 不抛出错误，因为加入已经成功
-              }
+              .select('member_count, members_count')
+              .eq('id', communityId)
+              .single();
+              
+            if (!fetchError && current) {
+                // 尝试更新 member_count
+                const { error: countError } = await supabase
+                .from('communities')
+                .update({ member_count: (current.member_count || 0) + 1 })
+                .eq('id', communityId);
+                
+                if (countError) {
+                    console.error('更新 member_count 失败:', countError);
+                    // 尝试更新 members_count（向后兼容）
+                    try {
+                        await supabase
+                        .from('communities')
+                        .update({ members_count: (current.members_count || 0) + 1 })
+                        .eq('id', communityId);
+                    } catch (err) {
+                        console.error('更新 members_count 失败:', err);
+                    }
+                }
             }
           } catch (err) {
             console.error('更新成员计数失败:', err);
@@ -538,37 +600,8 @@ export const communityService = {
         
         return { requiresApproval, status };
       } catch (supabaseError) {
-        console.error('Supabase API 失败，尝试使用本地 API:', supabaseError);
-        
-        // 尝试使用本地 API 服务器
-        try {
-          // 使用正确的端口 3022
-          const response = await fetch(`http://localhost:3022/api/communities/${communityId}/join`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
-            }
-          });
-          
-          if (!response.ok) {
-            throw new Error('本地 API 请求失败');
-          }
-          
-          const data = await response.json();
-          if (data.ok) {
-            return {
-              requiresApproval: data.requiresApproval || false,
-              status: data.status || 'approved'
-            };
-          } else {
-            throw new Error(data.message || '加入社群失败');
-          }
-        } catch (localApiError) {
-          console.error('本地 API 失败:', localApiError);
-          // 如果所有 API 都失败，返回默认值
-          return { requiresApproval: false, status: 'approved' };
-        }
+        console.error('Supabase API failed:', supabaseError);
+        throw supabaseError;
       }
     } catch (error) {
       console.error('joinCommunity 整体错误:', error);
@@ -613,29 +646,36 @@ export const communityService = {
 
         if (leaveError) {
           console.error('退出社区失败:', leaveError);
-          // 尝试使用本地 API 服务器
-          throw new Error('Supabase API 失败，尝试使用本地 API');
+          throw leaveError;
         }
 
         // 尝试更新成员计数
         try {
-          // 尝试更新 member_count
-          const { error: countError } = await supabase
+          // 获取当前计数
+          const { data: current, error: fetchError } = await supabase
             .from('communities')
-            .update({ member_count: supabase.raw('member_count - 1') })
-            .eq('id', communityId);
-          
-          if (countError) {
-            console.error('更新 member_count 失败:', countError);
-            // 尝试更新 members_count（向后兼容）
-            try {
-              await supabase
+            .select('member_count, members_count')
+            .eq('id', communityId)
+            .single();
+
+          if (!fetchError && current) {
+            // 尝试更新 member_count
+            const { error: countError } = await supabase
                 .from('communities')
-                .update({ members_count: supabase.raw('members_count - 1') })
+                .update({ member_count: Math.max(0, (current.member_count || 0) - 1) })
                 .eq('id', communityId);
-            } catch (err) {
-              console.error('更新 members_count 失败:', err);
-              // 不抛出错误，因为退出已经成功
+            
+            if (countError) {
+                console.error('更新 member_count 失败:', countError);
+                // 尝试更新 members_count（向后兼容）
+                try {
+                await supabase
+                    .from('communities')
+                    .update({ members_count: Math.max(0, (current.members_count || 0) - 1) })
+                    .eq('id', communityId);
+                } catch (err) {
+                console.error('更新 members_count 失败:', err);
+                }
             }
           }
         } catch (err) {
@@ -643,31 +683,8 @@ export const communityService = {
           // 不抛出错误，因为退出已经成功
         }
       } catch (supabaseError) {
-        console.error('Supabase API 失败，尝试使用本地 API:', supabaseError);
-        
-        // 尝试使用本地 API 服务器
-        try {
-          const response = await fetch(`http://localhost:3022/api/communities/${communityId}/leave`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
-            }
-          });
-          
-          if (!response.ok) {
-            throw new Error('本地 API 请求失败');
-          }
-          
-          const data = await response.json();
-          if (!data.ok) {
-            throw new Error(data.message || '退出社群失败');
-          }
-        } catch (localApiError) {
-          console.error('本地 API 失败:', localApiError);
-          // 如果所有 API 都失败，抛出原始错误
-          throw supabaseError;
-        }
+        console.error('Supabase API failed:', supabaseError);
+        throw supabaseError;
       }
     } catch (error) {
       console.error('leaveCommunity 整体错误:', error);
@@ -701,7 +718,7 @@ export const communityService = {
         backgroundColor: community.theme?.backgroundColor || '#f3f4f6',
         textColor: community.theme?.textColor || '#1f2937'
       },
-      layoutType: 'standard',
+      layoutType: (community.layout_type as 'standard' | 'compact' | 'expanded') || 'standard',
       enabledModules: {
         posts: true,
         chat: true,
@@ -747,10 +764,18 @@ export const communityService = {
     if (updateError) throw updateError;
     
     // 更新成员计数
-    await supabase
+    const { data: current } = await supabase
       .from('communities')
-      .update({ member_count: supabase.raw('member_count + 1') })
-      .eq('id', communityId);
+      .select('member_count')
+      .eq('id', communityId)
+      .single();
+      
+    if (current) {
+        await supabase
+        .from('communities')
+        .update({ member_count: (current.member_count || 0) + 1 })
+        .eq('id', communityId);
+    }
   },
 
   // 拒绝加入请求
@@ -810,8 +835,8 @@ export const communityService = {
         backgroundColor: updatedCommunity.theme?.backgroundColor || '#f3f4f6',
         textColor: updatedCommunity.theme?.textColor || '#1f2937'
       },
-      layoutType: 'standard',
-      enabledModules: {
+      layoutType: (updatedCommunity.layout_type as 'standard' | 'compact' | 'expanded') || 'standard',
+      enabledModules: updatedCommunity.enabled_modules || {
         posts: true,
         chat: true,
         members: true,
@@ -833,7 +858,7 @@ export const communityService = {
     images?: Array<string>;
   }, userId: string, username: string, avatar: string): Promise<Thread> {
     // 验证用户ID
-    if (!userId || typeof userId !== 'string' || userId.trim() === '' || (userId.includes('user_') && userId.includes('_'))) {
+    if (!userId || typeof userId !== 'string' || userId.trim() === '') {
       const error = new Error('Invalid user ID: User must be properly authenticated');
       console.error('Invalid user ID for thread creation:', userId);
       throw error;
@@ -842,43 +867,64 @@ export const communityService = {
     // 获取当前真实的 Supabase 用户 ID，以防止前端存储的 ID 与数据库不一致
     let realUserId = userId;
     let currentUser = null;
+    let authVerified = false;
     
     try {
         const { data: { user } } = await supabase.auth.getUser();
         if (user && user.id) {
             realUserId = user.id;
             currentUser = user;
+            authVerified = true;
+            console.log('Supabase auth verified, userId:', realUserId);
         } else {
-             // 如果 getUser 失败，尝试刷新 session
-             try {
-               const { data: { session }, error: refreshError } = await supabase.auth.refreshSession();
-               if (session && session.user) {
-                 realUserId = session.user.id;
-                 currentUser = session.user;
-               } else {
-                 throw new Error('User not authenticated');
-               }
-             } catch (refreshError) {
-               console.warn('Failed to refresh auth session:', refreshError);
-               throw new Error('用户认证状态异常，请退出后重新登录');
-             }
+            // 如果 getUser 失败，尝试刷新 session
+            try {
+                const { data: { session }, error: refreshError } = await supabase.auth.refreshSession();
+                if (session && session.user) {
+                    realUserId = session.user.id;
+                    currentUser = session.user;
+                    authVerified = true;
+                    console.log('Supabase session refreshed, userId:', realUserId);
+                } else {
+                    console.warn('No supabase session available, using provided userId');
+                }
+            } catch (refreshError) {
+                console.warn('Failed to refresh auth session, using provided userId:', refreshError);
+            }
         }
     } catch (e) {
-        console.warn('Failed to get supabase user, using provided userId', e);
-        throw new Error('用户认证状态异常，请退出后重新登录');
+        console.warn('Failed to get supabase user, using provided userId:', e);
+    }
+    
+    // 如果 Supabase 认证失败，但前端传入了有效的 userId，则信任前端
+    // 这种情况可能发生在开发环境或某些特殊情况下
+    if (!authVerified && userId && typeof userId === 'string' && userId.trim() !== '') {
+        console.log('Using frontend provided userId:', userId);
+        realUserId = userId;
     }
 
     // 尝试修复 23503 错误：确保用户存在于 public.users 表中
-    try {
-        // 检查 public.users 是否存在该用户
-        const { data: profile, error: profileError } = await supabase
-            .from('users')
-            .select('id')
-            .eq('id', realUserId)
-            .maybeSingle();
-        
-        if (!profile) {
-            console.log('User profile missing in public.users, attempting to sync/create...', realUserId);
+    let profileSynced = false;
+    let syncAttempts = 0;
+    const maxSyncAttempts = 3;
+    
+    while (!profileSynced && syncAttempts < maxSyncAttempts) {
+        syncAttempts++;
+        try {
+            // 检查 public.users 是否存在该用户
+            const { data: profile, error: profileError } = await supabase
+                .from('users')
+                .select('id')
+                .eq('id', realUserId)
+                .maybeSingle();
+            
+            if (profile) {
+                console.log('User profile exists in public.users:', realUserId);
+                profileSynced = true;
+                break;
+            }
+            
+            console.log(`User profile missing in public.users (attempt ${syncAttempts}), attempting to sync/create...`, realUserId);
             
             // 准备用户数据
             let email = `missing_${realUserId}@example.com`; // 默认占位邮箱
@@ -890,44 +936,83 @@ export const communityService = {
                 email = currentUser.email || email;
                 username = metadata.username || metadata.name || currentUser.email?.split('@')[0] || username;
                 avatarUrl = metadata.avatar_url || metadata.avatar || '';
-            } else {
-                // 如果没有 currentUser，尝试从 localStorage 获取
-                try {
-                    const localUserStr = localStorage.getItem('user');
-                    if (localUserStr) {
-                        const localUser = JSON.parse(localUserStr);
-                        if (localUser.id === realUserId) {
-                            email = localUser.email || email;
-                            username = localUser.username || username;
-                            avatarUrl = localUser.avatar || '';
-                        }
-                    }
-                } catch (e) {
-                    // 忽略 localStorage 读取错误
-                }
             }
             
-            const { error: upsertError } = await supabase
+            // 尝试从 localStorage 获取用户信息（补充或替代 currentUser）
+            try {
+                const localUserStr = localStorage.getItem('user');
+                if (localUserStr) {
+                    const localUser = JSON.parse(localUserStr);
+                    // 如果 localStorage 中的用户ID与当前用户匹配，或者 currentUser 为空
+                    if (localUser.id === realUserId || !currentUser) {
+                        email = localUser.email || email;
+                        username = localUser.username || username;
+                        avatarUrl = localUser.avatar || avatarUrl;
+                        console.log('Using localStorage user data for thread creation:', { username, email });
+                    }
+                }
+            } catch (e) {
+                // 忽略 localStorage 读取错误
+                console.warn('Failed to read user from localStorage:', e);
+            }
+            
+            // 尝试插入用户数据
+            const insertData: any = {
+                id: realUserId,
+                email: email,
+                username: username,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            };
+            
+            // 只在 avatarUrl 存在时添加 avatar 字段
+            if (avatarUrl) {
+                insertData.avatar_url = avatarUrl;
+            }
+            
+            const { error: insertError } = await supabase
                 .from('users')
-                .upsert({
-                    id: realUserId,
-                    email: email,
-                    username: username,
-                    avatar_url: avatarUrl,
-                    created_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString()
-                });
+                .insert(insertData);
                 
-            if (upsertError) {
-                console.error('Failed to sync user profile:', upsertError);
-                throw new Error('用户认证状态异常，请退出后重新登录');
+            if (insertError) {
+                console.error(`Failed to insert user profile (attempt ${syncAttempts}):`, insertError);
+                // 如果是重复键错误，说明用户已存在
+                if (insertError.code === '23505') {
+                    console.log('User already exists, considering sync successful');
+                    profileSynced = true;
+                    break;
+                }
+                // 等待一下再重试
+                if (syncAttempts < maxSyncAttempts) {
+                    await new Promise(resolve => setTimeout(resolve, 500 * syncAttempts));
+                }
             } else {
-                console.log('User profile synced successfully');
+                console.log('User profile inserted successfully');
+                // 验证插入是否成功
+                const { data: verifyProfile } = await supabase
+                    .from('users')
+                    .select('id')
+                    .eq('id', realUserId)
+                    .maybeSingle();
+                
+                if (verifyProfile) {
+                    console.log('User profile verified in database');
+                    profileSynced = true;
+                    break;
+                } else {
+                    console.warn('User profile insert reported success but not found in verification');
+                }
+            }
+        } catch (syncError) {
+            console.error(`Error during profile sync check (attempt ${syncAttempts}):`, syncError);
+            if (syncAttempts < maxSyncAttempts) {
+                await new Promise(resolve => setTimeout(resolve, 500 * syncAttempts));
             }
         }
-    } catch (syncError) {
-        console.error('Error during profile sync check:', syncError);
-        throw new Error('用户认证状态异常，请退出后重新登录');
+    }
+    
+    if (!profileSynced) {
+        console.error('Failed to sync user profile after all attempts');
     }
 
     const { data: newThread, error } = await supabase
@@ -1119,14 +1204,21 @@ export const communityService = {
     // 或者从friend_requests表中删除已接受的请求
     
     // 示例实现（假设使用friend_requests表）
-    const { error } = await supabase
+    // 删除方向1
+    const { error: error1 } = await supabase
       .from('friend_requests')
       .delete()
-      .or(`sender_id.eq.${userId},sender_id.eq.${friendId}`)
-      .or(`receiver_id.eq.${userId},receiver_id.eq.${friendId}`)
-      .eq('status', 'accepted');
+      .match({ sender_id: userId, receiver_id: friendId });
+      
+    if (error1) throw error1;
+
+    // 删除方向2
+    const { error: error2 } = await supabase
+      .from('friend_requests')
+      .delete()
+      .match({ sender_id: friendId, receiver_id: userId });
     
-    if (error) throw error;
+    if (error2) throw error2;
   },
 
   async getFriends(userId: string): Promise<{ data: UserProfile[] | null; error: any }> {
@@ -1145,7 +1237,7 @@ export const communityService = {
     
     // 处理数据，提取好友列表
     const friends: UserProfile[] = [];
-    data.forEach(request => {
+    data.forEach((request: any) => {
       if (request.sender && request.sender.id !== userId) {
         friends.push(request.sender as UserProfile);
       }
@@ -1206,10 +1298,8 @@ export const communityService = {
         sender:users!sender_id(*),
         receiver:users!receiver_id(*)
       `)
-      .or(
-        `sender_id.eq.${userId},sender_id.eq.${friendId}`,
-        `receiver_id.eq.${userId},receiver_id.eq.${friendId}`
-      )
+      .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
+      .or(`sender_id.eq.${friendId},receiver_id.eq.${friendId}`)
       .order('created_at', { ascending: true });
     
     return { data, error };

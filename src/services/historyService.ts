@@ -103,6 +103,12 @@ class HistoryService {
 
     if (!user) return; // Only record for logged in users
 
+    // 检查用户ID是否为有效的UUID格式
+    const isValidUUID = (id: string): boolean => {
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      return uuidRegex.test(id);
+    };
+
     const timestamp = Date.now();
     const sessionId = this.getSessionId();
     const checksum = await this.generateChecksum({ user_id: user.id, actionType, content, timestamp, sessionId });
@@ -119,26 +125,33 @@ class HistoryService {
 
     // Try sending to server first
     try {
-      const { error } = await supabase.from('user_history').insert({
-          user_id: item.user_id,
-          action_type: item.action_type,
-          content: item.content,
-          session_id: item.session_id,
-          timestamp: item.timestamp, // Ensure timestamp is included as it is non-nullable
-          checksum: item.checksum
-      });
+      // 只在用户ID为有效UUID格式时才向Supabase插入记录
+      if (isValidUUID(user.id)) {
+        const { error } = await supabase.from('user_history').insert({
+            user_id: item.user_id,
+            action_type: item.action_type,
+            content: item.content,
+            session_id: item.session_id,
+            timestamp: item.timestamp, // Ensure timestamp is included as it is non-nullable
+            checksum: item.checksum
+        });
 
-      if (error) {
-          // If 400 error, don't retry locally to avoid loop
-          if (error.code?.startsWith('PGRST') || error.message?.includes('400')) {
-              console.warn('Invalid history item, skipping:', error);
-              return;
-          }
-          throw error;
+        if (error) {
+            // If 400 error, don't retry locally to avoid loop
+            if (error.code?.startsWith('PGRST') || error.message?.includes('400')) {
+                console.warn('Invalid history item, skipping:', error);
+                return;
+            }
+            throw error;
+        }
+        
+        item.synced = true;
+        await this.cacheHistory([item]);
+      } else {
+        // 用户ID格式不正确，只保存到本地
+        console.warn('Invalid user ID format, saving history locally only:', user.id);
+        await this.saveToPending(item);
       }
-      
-      item.synced = true;
-      await this.cacheHistory([item]);
 
     } catch (e) {
       console.warn('Failed to sync history to server, saving locally:', e);
@@ -211,7 +224,7 @@ class HistoryService {
         console.error('Sync failed', error);
         // If error is 400 (Bad Request) or 409 (Conflict), it implies schema mismatch or data issue.
         // We should probably discard these items to prevent infinite loop of errors.
-        if (error.code && (error.code.startsWith('PGRST') || error.code === '23505' || error.message.includes('400'))) {
+        if (error.code && (error.code.startsWith('PGRST') || error.code === '23505' || error.message.includes('400') || error.message.includes('409') || error.message.includes('Conflict'))) {
              console.warn('Non-retriable error, clearing pending items to avoid loop:', error);
              const deleteTx = this.db!.transaction(['pending_history'], 'readwrite');
              deleteTx.objectStore('pending_history').clear();
@@ -263,8 +276,8 @@ class HistoryService {
                          const deleteTx = this.db!.transaction(['pending_history'], 'readwrite');
                          const deleteStore = deleteTx.objectStore('pending_history');
                          keysToDelete.forEach(key => deleteStore.delete(key));
-                    } else if (error.message?.includes('400') || error.code?.startsWith('PGRST')) {
-                        // 严重错误（如 Schema 不匹配），清理这些无法同步的任务，防止死循环
+                    } else if (error.message?.includes('400') || error.code?.startsWith('PGRST') || error.code === '23505' || error.message?.includes('409') || error.message?.includes('Conflict')) {
+                        // 严重错误（如 Schema 不匹配、重复数据），清理这些无法同步的任务，防止死循环
                         console.error('Non-retriable sync error, clearing batch:', error);
                         const deleteTx = this.db!.transaction(['pending_history'], 'readwrite');
                         const deleteStore = deleteTx.objectStore('pending_history');

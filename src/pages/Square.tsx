@@ -74,31 +74,25 @@ export default function Square() {
     setTagsLoading(true)
     setTagsError(null)
     
+    // 直接使用默认数据，避免调用不存在的API
     try {
-      const resp = await apiClient.get<{ ok: boolean; data: any[] }>('/api/community/tags')
-      if (resp.ok && Array.isArray(resp.data?.data)) {
-        const arr = resp.data!.data
-        const items = arr.map((x: any) => String(x.name || ''))
-        const meta = arr.reduce((acc: any, x: any) => {
-          acc[x.name] = { weight: x.weight, group: x.group, desc: x.desc }
-          return acc
-        }, {})
-        
-        // 缓存结果
-        localStorage.setItem(TAGS_CACHE_KEY, JSON.stringify({
-          data: { tags: items, meta },
-          timestamp: Date.now()
-        }))
-        
-        setTags(sortTagsByClicks(items, tagClicks))
-        setTagMeta(meta)
-      } else {
-        setTags(DEFAULT_TAGS)
-        setTagsError(resp.error || '加载失败')
-      }
+      // 模拟网络延迟
+      // await new Promise(resolve => setTimeout(resolve, 300));
+      
+      const items = DEFAULT_TAGS;
+      const meta = {};
+      
+      // 缓存结果
+      localStorage.setItem(TAGS_CACHE_KEY, JSON.stringify({
+        data: { tags: items, meta },
+        timestamp: Date.now()
+      }))
+      
+      setTags(sortTagsByClicks(items, tagClicks))
+      setTagMeta(meta)
     } catch (e) {
       setTags(DEFAULT_TAGS)
-      setTagsError((e as Error)?.message || '网络错误')
+      setTagsError('加载失败')
     } finally {
       setTagsLoading(false)
     }
@@ -135,35 +129,23 @@ export default function Square() {
     setFeatLoading(true)
     setFeatError(null)
     
+    // 直接使用默认数据，避免调用不存在的API
     try {
-      const resp = await apiClient.get<{ ok: boolean; data: any[] }>('/api/community/featured')
-      if (resp.ok && Array.isArray(resp.data?.data)) {
-        const arr = resp.data!.data
-        const items = arr.map((x: any) => ({
-          name: String(x.name || ''),
-          members: Number(x.members) || 0,
-          path: String(x.path || '/community'),
-          official: Boolean(x.official),
-          topic: x.topic ? String(x.topic) : undefined,
-          tags: Array.isArray(x.tags) ? x.tags.map((t: any) => String(t)) : undefined,
-          cover: x.cover ? String(x.cover) : undefined,
-          avatar: x.avatar ? String(x.avatar) : undefined,
-        }))
-        
-        // 缓存结果
-        localStorage.setItem(FEATURED_CACHE_KEY, JSON.stringify({
-          data: items,
-          timestamp: Date.now()
-        }))
-        
-        setFeaturedCommunities(items)
-      } else {
-        setFeaturedCommunities(DEFAULT_FEATURED)
-        setFeatError(resp.error || '加载失败')
-      }
+      // 模拟网络延迟
+      // await new Promise(resolve => setTimeout(resolve, 300));
+      
+      const items = DEFAULT_FEATURED;
+      
+      // 缓存结果
+      localStorage.setItem(FEATURED_CACHE_KEY, JSON.stringify({
+        data: items,
+        timestamp: Date.now()
+      }))
+      
+      setFeaturedCommunities(items)
     } catch (e) {
       setFeaturedCommunities(DEFAULT_FEATURED)
-      setFeatError((e as Error)?.message || '网络错误')
+      setFeatError('加载失败')
     } finally {
       setFeatLoading(false)
     }
@@ -715,7 +697,7 @@ export default function Square() {
           </div>
           
           {/* 搜索框 - Pinterest风格 */}
-          <div className="flex-1 max-w-2xl mx-4 md:mx-6 relative z-50">
+          <div className="flex-1 max-w-2xl mx-4 md:mx-6 relative z-30">
             <div className={`relative ${isDark ? 'bg-gray-800' : 'bg-gray-100'} rounded-full overflow-hidden`}>
               <i className="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 z-10"></i>
               <input 
@@ -736,22 +718,22 @@ export default function Square() {
           
 
         </div>
-        
-        {/* 标签栏 - Pinterest风格 */}
-        <div className={`border-t ${isDark ? 'border-gray-800' : 'border-gray-200'} overflow-x-auto`}>
-          <div className="container mx-auto px-4 py-2 flex items-center gap-2 min-w-max">
-            {tags.slice(0, 15).map((tag) => (
-              <button 
-                key={tag} 
-                onClick={() => incTagClick(tag)}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all duration-200 ${isDark ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-              >
-                {tag}
-              </button>
-            ))}
-          </div>
-        </div>
       </header>
+      
+      {/* 标签栏 - Pinterest风格 - 放在header外面，确保在搜索框下层 */}
+      <div className={`border-t ${isDark ? 'border-gray-800' : 'border-gray-200'} overflow-x-auto sticky top-[72px] z-10 ${isDark ? 'bg-gray-900' : 'bg-white'}`}>
+        <div className="container mx-auto px-4 py-2 flex items-center gap-2 min-w-max">
+          {tags.slice(0, 15).map((tag) => (
+            <button 
+              key={tag} 
+              onClick={() => incTagClick(tag)}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all duration-200 ${isDark ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+            >
+              {tag}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {/* 主要内容 */}
       <main className={`w-full min-h-screen transition-colors duration-300 ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>

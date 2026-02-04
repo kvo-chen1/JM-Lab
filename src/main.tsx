@@ -30,6 +30,9 @@ import('@fortawesome/fontawesome-free/css/all.min.css').catch(err => console.err
 import { setupApi } from './lib/setupApi';
 import { initPerformanceMonitor } from './utils/performanceMonitor';
 
+// 导入 supabase 以暴露到 window 对象（用于调试）
+import './lib/supabase';
+
 // 简化的全局对象初始化
 // 使用类型断言来避免TypeScript错误
 if (typeof window !== 'undefined') {

@@ -65,7 +65,7 @@ const NeoLeftSidebar: React.FC<NeoLeftSidebarProps> = ({
 
   return (
     <motion.aside 
-      className={`h-full flex flex-col border-r z-20 transition-colors duration-300
+      className={`h-full flex flex-col border-r z-10 transition-colors duration-300
         ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`}
       initial={collapsed ? "collapsed" : "expanded"}
       animate={collapsed ? "collapsed" : "expanded"}

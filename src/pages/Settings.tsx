@@ -1,15 +1,35 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useContext } from 'react'
 import { useTheme } from '@/hooks/useTheme'
 import { themeOrder } from '@/config/themeConfig'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useGuide } from '@/contexts/GuideContext'
+import { AuthContext } from '@/contexts/authContext'
+import { toast } from 'sonner'
+import { 
+  Download, 
+  Trash2, 
+  AlertTriangle, 
+  X,
+  Check
+} from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
 
 import ModelSelector from '@/components/ModelSelector'
 
 export default function Settings() {
   const { theme, isDark, toggleTheme, setTheme, availableThemes } = useTheme()
   const { startGuide } = useGuide()
+  const { user, logout } = useContext(AuthContext)
+  const navigate = useNavigate()
   const [showModelSelector, setShowModelSelector] = useState(false)
+  
+  // 数据导出状态
+  const [isExporting, setIsExporting] = useState(false)
+  
+  // 账号注销确认
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleteConfirmText, setDeleteConfirmText] = useState('')
+  const [isDeleting, setIsDeleting] = useState(false)
   
   // 通知设置
   const [notificationsEnabled, setNotificationsEnabled] = useState<boolean>(() => {
@@ -102,7 +122,7 @@ export default function Settings() {
   useEffect(() => {
     localStorage.setItem('performanceMonitoring', JSON.stringify(performanceMonitoring))
   }, [performanceMonitoring])
-  
+
   // 清除缓存功能
   const handleClearCache = () => {
     localStorage.clear()
@@ -110,6 +130,76 @@ export default function Settings() {
     localStorage.setItem('theme', theme)
     // 刷新页面
     window.location.reload()
+  }
+
+  // 导出个人数据
+  const handleExportData = async () => {
+    setIsExporting(true)
+    try {
+      const res = await fetch(`/api/user/export?userId=${user?.id}`)
+      if (res.ok) {
+        const data = await res.json()
+        if (data.code === 0) {
+          // 创建下载链接
+          const blob = new Blob([JSON.stringify(data.data, null, 2)], { type: 'application/json' })
+          const url = window.URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          a.href = url
+          a.download = `user-data-${user?.username || 'export'}-${new Date().toISOString().split('T')[0]}.json`
+          document.body.appendChild(a)
+          a.click()
+          window.URL.revokeObjectURL(url)
+          document.body.removeChild(a)
+          toast.success('数据导出成功')
+        } else {
+          toast.error(data.message || '导出失败')
+        }
+      } else {
+        toast.error('导出失败，请稍后重试')
+      }
+    } catch (error) {
+      console.error('Export error:', error)
+      toast.error('导出失败，请稍后重试')
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
+  // 注销账号
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmText !== '注销账号') {
+      toast.error('请输入"注销账号"以确认')
+      return
+    }
+
+    setIsDeleting(true)
+    try {
+      const res = await fetch(`/api/user/delete`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ userId: user?.id }),
+      })
+
+      if (res.ok) {
+        const data = await res.json()
+        if (data.code === 0) {
+          toast.success('账号已注销')
+          logout()
+          navigate('/')
+        } else {
+          toast.error(data.message || '注销失败')
+        }
+      } else {
+        toast.error('注销失败，请稍后重试')
+      }
+    } catch (error) {
+      console.error('Delete account error:', error)
+      toast.error('注销失败，请稍后重试')
+    } finally {
+      setIsDeleting(false)
+    }
   }
   
   return (
@@ -294,7 +384,36 @@ export default function Settings() {
                 <span>账号安全设置</span>
                 <i className="fas fa-chevron-right text-sm opacity-50"></i>
               </Link>
+              <button 
+                onClick={handleExportData}
+                disabled={isExporting}
+                className={`w-full text-left px-4 py-2 rounded-lg ${isDark ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'} transition-colors flex items-center justify-between disabled:opacity-50`}
+              >
+                <span>导出个人数据</span>
+                {isExporting ? (
+                  <i className="fas fa-spinner fa-spin text-sm"></i>
+                ) : (
+                  <i className="fas fa-download text-sm opacity-50"></i>
+                )}
+              </button>
             </div>
+          </div>
+
+          {/* 危险操作区域 */}
+          <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-md p-6 border-2 border-red-200 dark:border-red-900/30`}>
+            <h2 className="font-medium mb-3 text-red-600 dark:text-red-400">危险操作</h2>
+            <div className="space-y-3">
+              <button 
+                onClick={() => setShowDeleteConfirm(true)}
+                className="w-full text-left px-4 py-2 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors flex items-center justify-between"
+              >
+                <span>注销账号</span>
+                <i className="fas fa-exclamation-triangle text-sm"></i>
+              </button>
+            </div>
+            <p className={`text-xs mt-3 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+              注销账号后，您的所有数据将被永久删除，无法恢复
+            </p>
           </div>
           
           {/* 高级设置 */}
@@ -345,6 +464,82 @@ export default function Settings() {
       {showModelSelector && (
         <ModelSelector isOpen={showModelSelector} onClose={() => setShowModelSelector(false)} />
       )}
+
+      {/* 注销账号确认对话框 */}
+      <AnimatePresence>
+        {showDeleteConfirm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+            onClick={() => setShowDeleteConfirm(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className={`max-w-md w-full rounded-2xl p-6 ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-xl`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                  <AlertTriangle className="w-6 h-6 text-red-600" />
+                </div>
+                <h3 className="text-xl font-bold text-red-600">注销账号</h3>
+              </div>
+              
+              <p className={`mb-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                此操作将永久删除您的账号和所有相关数据，包括：
+              </p>
+              
+              <ul className={`list-disc list-inside mb-6 space-y-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                <li>个人资料和设置</li>
+                <li>所有作品和草稿</li>
+                <li>收藏和点赞记录</li>
+                <li>消息和通知</li>
+                <li>积分和成就</li>
+              </ul>
+              
+              <div className="mb-6">
+                <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                  请输入 "注销账号" 以确认
+                </label>
+                <input
+                  type="text"
+                  value={deleteConfirmText}
+                  onChange={(e) => setDeleteConfirmText(e.target.value)}
+                  className={`w-full px-4 py-2 rounded-lg border ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'} focus:outline-none focus:ring-2 focus:ring-red-500`}
+                  placeholder="注销账号"
+                />
+              </div>
+              
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className={`flex-1 py-2 rounded-lg transition-colors ${isDark ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-800'}`}
+                >
+                  取消
+                </button>
+                <button
+                  onClick={handleDeleteAccount}
+                  disabled={isDeleting || deleteConfirmText !== '注销账号'}
+                  className="flex-1 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {isDeleting ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <i className="fas fa-spinner fa-spin"></i>
+                      处理中...
+                    </span>
+                  ) : (
+                    '确认注销'
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   )
 }

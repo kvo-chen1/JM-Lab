@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useCreateStore } from '../../hooks/useCreateStore';
 import tianjinCultureService from '@/services/tianjinCultureService';
-import { KnowledgeItem, KNOWLEDGE_CATEGORIES } from '@/services/tianjinCultureService';
+import { KnowledgeItem, KNOWLEDGE_CATEGORIES, CATEGORY_CONFIG } from '@/services/tianjinCultureService';
 import { LoadingSkeleton } from '@/components/LoadingSkeleton';
 
 const CulturalTracePanel: React.FC = () => {
@@ -19,14 +19,61 @@ const CulturalTracePanel: React.FC = () => {
     return tianjinCultureService.getKnowledgeById(traceSelectedKnowledgeId);
   }, [traceSelectedKnowledgeId]);
 
-  // const [selectedCategory, setSelectedCategory] = useState<string>(KNOWLEDGE_CATEGORIES[0]); // Removed
-  // const [selectedKnowledge, setSelectedKnowledge] = useState<KnowledgeItem | null>(null); // Removed
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<KnowledgeItem[]>([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'list' | 'detail'>('list');
+  
+  // 分类横向滚动相关
+  const categoryScrollRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+  
+  // 收藏和浏览历史状态
+  const [favorites, setFavorites] = useState<string[]>([]);
+  const [viewHistory, setViewHistory] = useState<string[]>([]);
+  const [showFavorites, setShowFavorites] = useState(false);
+  
+  // 从localStorage加载收藏和历史
+  useEffect(() => {
+    const storedFavorites = localStorage.getItem('cultural_trace_favorites');
+    const storedHistory = localStorage.getItem('cultural_trace_history');
+    if (storedFavorites) {
+      setFavorites(JSON.parse(storedFavorites));
+    }
+    if (storedHistory) {
+      setViewHistory(JSON.parse(storedHistory));
+    }
+  }, []);
+  
+  // 检查是否可以滚动
+  const checkScrollability = () => {
+    if (categoryScrollRef.current) {
+      const { scrollLeft, scrollWidth, clientWidth } = categoryScrollRef.current;
+      setCanScrollLeft(scrollLeft > 0);
+      setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 10);
+    }
+  };
+  
+  useEffect(() => {
+    checkScrollability();
+    window.addEventListener('resize', checkScrollability);
+    return () => window.removeEventListener('resize', checkScrollability);
+  }, []);
+  
+  // 滚动分类标签
+  const scrollCategories = (direction: 'left' | 'right') => {
+    if (categoryScrollRef.current) {
+      const scrollAmount = 200;
+      categoryScrollRef.current.scrollBy({
+        left: direction === 'left' ? -scrollAmount : scrollAmount,
+        behavior: 'smooth'
+      });
+      setTimeout(checkScrollability, 300);
+    }
+  };
 
   // 保存最近搜索
   const saveRecentSearch = (query: string) => {
@@ -38,7 +85,6 @@ const CulturalTracePanel: React.FC = () => {
     ].slice(0, 5);
     
     setRecentSearches(updatedSearches);
-    // 实际项目中应该保存到localStorage
   };
 
   // 搜索功能
@@ -65,6 +111,32 @@ const CulturalTracePanel: React.FC = () => {
   const [isDataLoading, setIsDataLoading] = useState(true);
   const [knowledgeItems, setKnowledgeItems] = useState<KnowledgeItem[]>([]);
   
+  // 保存收藏到localStorage
+  const saveFavorites = (newFavorites: string[]) => {
+    setFavorites(newFavorites);
+    localStorage.setItem('cultural_trace_favorites', JSON.stringify(newFavorites));
+  };
+  
+  // 保存浏览历史到localStorage
+  const saveViewHistory = (newHistory: string[]) => {
+    setViewHistory(newHistory);
+    localStorage.setItem('cultural_trace_history', JSON.stringify(newHistory));
+  };
+  
+  // 切换收藏状态
+  const toggleFavorite = (knowledgeId: string) => {
+    const newFavorites = favorites.includes(knowledgeId)
+      ? favorites.filter(id => id !== knowledgeId)
+      : [...favorites, knowledgeId];
+    saveFavorites(newFavorites);
+  };
+  
+  // 添加到浏览历史
+  const addToHistory = (knowledgeId: string) => {
+    const newHistory = [knowledgeId, ...viewHistory.filter(id => id !== knowledgeId)].slice(0, 20);
+    saveViewHistory(newHistory);
+  };
+  
   // 获取文化知识列表
   useEffect(() => {
     setIsDataLoading(true);
@@ -80,13 +152,25 @@ const CulturalTracePanel: React.FC = () => {
   }, [selectedCategory]);
   
   // 最终显示的知识列表
-  const displayedItems = searchQuery ? searchResults : knowledgeItems;
+  const displayedItems = React.useMemo(() => {
+    if (searchQuery) return searchResults;
+    if (showFavorites) {
+      return favorites
+        .map(id => tianjinCultureService.getKnowledgeById(id))
+        .filter((item): item is KnowledgeItem => item !== undefined);
+    }
+    return knowledgeItems;
+  }, [searchQuery, searchResults, showFavorites, favorites, knowledgeItems]);
 
   // 处理知识项选择
   const handleKnowledgeSelect = (knowledge: KnowledgeItem) => {
-    setSelectedKnowledge(knowledge);
-    updateState({ culturalInfoText: knowledge.content });
+    updateState({ traceSelectedKnowledgeId: knowledge.id, culturalInfoText: knowledge.content });
+    addToHistory(knowledge.id);
     setShowSearchResults(false);
+    // 移动端自动切换到详情标签
+    if (window.innerWidth < 1024) {
+      setActiveTab('detail');
+    }
   };
 
   // 处理搜索提交
@@ -99,11 +183,10 @@ const CulturalTracePanel: React.FC = () => {
 
   // 处理分类切换
   const handleCategoryChange = (category: string) => {
-    setSelectedCategory(category);
+    updateState({ traceSelectedCategoryId: category, traceSelectedKnowledgeId: null });
     setSearchQuery('');
     setShowSearchResults(false);
-    // 重置选择的知识项
-    setSelectedKnowledge(null);
+    setShowFavorites(false);
   };
 
   return (
@@ -125,7 +208,7 @@ const CulturalTracePanel: React.FC = () => {
           <input
             type="text"
             placeholder="搜索文化知识..."
-            className={`w-full pl-10 pr-4 py-2.5 rounded-lg text-sm border shadow-sm ${isDark 
+            className={`w-full pl-10 pr-24 py-3 rounded-xl text-sm border shadow-sm ${isDark 
               ? 'bg-gray-800/90 border-gray-700 text-white focus:border-[#C02C38] focus:ring-[#C02C38]/30' 
               : 'bg-white/90 border-gray-200 text-gray-900 focus:border-[#C02C38] focus:ring-[#C02C38]/30'} focus:outline-none focus:ring-2 transition-all duration-300 backdrop-blur-sm`}
             value={searchQuery}
@@ -134,127 +217,297 @@ const CulturalTracePanel: React.FC = () => {
             aria-label="搜索文化知识"
           />
           
-          {isLoading ? (
-            <div className="absolute right-4 top-1/2 -translate-y-1/2">
-              <i className="fas fa-spinner fa-spin text-sm opacity-70"></i>
-            </div>
-          ) : (
-            <button 
-              type="submit"
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-sm opacity-70 hover:opacity-100 transition-opacity"
-            >
-              <i className="fas fa-search"></i>
-            </button>
-          )}
+          {/* 搜索操作按钮组 */}
+          <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+            {searchQuery && (
+              <motion.button
+                type="button"
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                onClick={() => {
+                  setSearchQuery('');
+                  setShowSearchResults(false);
+                }}
+                className={`p-1.5 rounded-lg transition-colors ${isDark ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-400'}`}
+              >
+                <i className="fas fa-times text-xs"></i>
+              </motion.button>
+            )}
+            
+            {isLoading ? (
+              <div className="p-2">
+                <i className="fas fa-spinner fa-spin text-sm opacity-70"></i>
+              </div>
+            ) : (
+              <button 
+                type="submit"
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${searchQuery 
+                  ? 'bg-[#C02C38] text-white hover:bg-[#A0232F]' 
+                  : isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-500'}`}
+                disabled={!searchQuery}
+              >
+                搜索
+              </button>
+            )}
+          </div>
           
           {/* 搜索结果下拉 */}
-          {showSearchResults && searchResults.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className={`absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-50 max-h-60 overflow-y-auto`}
-            >
-              {searchResults.slice(0, 5).map((result) => (
-                <motion.div
-                  key={result.id}
-                  onClick={() => handleKnowledgeSelect(result)}
-                  className={`p-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors`}
-                  whileHover={{ x: 4 }}
-                >
-                  <h5 className="text-sm font-medium">{result.title}</h5>
-                  <p className="text-xs opacity-70 mt-1 line-clamp-2">{result.content}</p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-[9px] px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded">
-                      {result.category}
-                    </span>
-                    <span className="text-[9px] px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded">
-                      {result.subcategory}
-                    </span>
+          <AnimatePresence>
+            {showSearchResults && searchResults.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: -10, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -10, scale: 0.98 }}
+                transition={{ duration: 0.2 }}
+                className={`absolute top-full left-0 right-0 mt-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl z-50 max-h-72 overflow-y-auto`}
+              >
+                {/* 搜索结果头部 */}
+                <div className={`sticky top-0 px-4 py-2 border-b ${isDark ? 'border-gray-700 bg-gray-800/95' : 'border-gray-100 bg-white/95'} backdrop-blur-sm flex items-center justify-between`}>
+                  <span className="text-xs opacity-60">找到 {searchResults.length} 个结果</span>
+                  <button 
+                    onClick={() => setShowSearchResults(false)}
+                    className="text-xs opacity-50 hover:opacity-100 transition-opacity"
+                  >
+                    <i className="fas fa-times"></i>
+                  </button>
+                </div>
+                
+                {searchResults.slice(0, 6).map((result, idx) => (
+                  <motion.div
+                    key={result.id}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: idx * 0.03 }}
+                    onClick={() => handleKnowledgeSelect(result)}
+                    className={`p-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/80 transition-all border-b last:border-b-0 ${isDark ? 'border-gray-700/50' : 'border-gray-100'} ${idx === 0 ? 'bg-[#C02C38]/5 dark:bg-[#C02C38]/10' : ''}`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div 
+                        className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                        style={{ backgroundColor: CATEGORY_CONFIG[result.category]?.bgColor || 'rgba(192, 44, 56, 0.1)' }}
+                      >
+                        <i 
+                          className={`fas fa-${CATEGORY_CONFIG[result.category]?.icon || 'tag'} text-xs`}
+                          style={{ color: CATEGORY_CONFIG[result.category]?.color || '#C02C38' }}
+                        ></i>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h5 className="text-sm font-medium truncate">{result.title}</h5>
+                        <p className="text-xs opacity-60 mt-0.5 line-clamp-1">{result.content}</p>
+                        <div className="flex items-center gap-2 mt-1.5">
+                          <span 
+                            className="text-[10px] px-1.5 py-0.5 rounded-full"
+                            style={{ 
+                              backgroundColor: CATEGORY_CONFIG[result.category]?.bgColor,
+                              color: CATEGORY_CONFIG[result.category]?.color
+                            }}
+                          >
+                            {result.category}
+                          </span>
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
+                            {result.subcategory}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+                
+                {searchResults.length > 6 && (
+                  <div className={`px-4 py-2 text-center text-xs ${isDark ? 'text-gray-400 border-t border-gray-700' : 'text-gray-500 border-t border-gray-100'}`}>
+                    还有 {searchResults.length - 6} 个结果，请使用更精确的关键词
                   </div>
-                </motion.div>
-              ))}
-            </motion.div>
-          )}
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
           
           {/* 空搜索结果 */}
-          {showSearchResults && searchResults.length === 0 && searchQuery && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className={`absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-50 p-4 text-center`}
-            >
-              <i className="fas fa-search text-2xl opacity-50 mb-2"></i>
-              <p className="text-sm">未找到相关知识</p>
-              <p className="text-xs opacity-70 mt-1">尝试使用其他关键词搜索</p>
-            </motion.div>
-          )}
+          <AnimatePresence>
+            {showSearchResults && searchResults.length === 0 && searchQuery && !isLoading && (
+              <motion.div
+                initial={{ opacity: 0, y: -10, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -10, scale: 0.98 }}
+                className={`absolute top-full left-0 right-0 mt-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl z-50 p-6 text-center`}
+              >
+                <div className="w-12 h-12 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center mx-auto mb-3">
+                  <i className="fas fa-search text-xl opacity-40"></i>
+                </div>
+                <p className="text-sm font-medium mb-1">未找到相关知识</p>
+                <p className="text-xs opacity-60">尝试使用其他关键词或浏览分类</p>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </form>
         
         {/* 最近搜索 */}
         {!searchQuery && recentSearches.length > 0 && (
-          <div className="mb-3">
-            <h5 className="text-xs font-medium mb-2">最近搜索</h5>
-            <div className="flex flex-wrap gap-2">
-              {recentSearches.map((search, index) => (
-                <motion.button
-                  key={index}
-                  onClick={() => {
-                    setSearchQuery(search);
-                    saveRecentSearch(search);
-                  }}
-                  className={`px-3 py-1 rounded-full text-xs ${isDark ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'} transition-colors`}
-                  whileTap={{ scale: 0.95 }}
-                >
-                  {search}
-                  <span 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setRecentSearches(recentSearches.filter((_, i) => i !== index));
-                    }}
-                    className="ml-1 text-gray-400 hover:text-gray-500"
-                  >
-                    <i className="fas fa-times text-[8px]"></i>
-                  </span>
-                </motion.button>
-              ))}
+          <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-4"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <h5 className="text-xs font-medium flex items-center gap-1.5">
+                <i className="fas fa-history text-[#C02C38]"></i>
+                最近搜索
+              </h5>
+              <button
+                onClick={() => setRecentSearches([])}
+                className="text-[10px] opacity-50 hover:opacity-100 transition-opacity"
+              >
+                清空
+              </button>
             </div>
-          </div>
+            <div className="flex flex-wrap gap-2">
+              <AnimatePresence mode="popLayout">
+                {recentSearches.map((search, index) => (
+                  <motion.button
+                    key={search}
+                    layout
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.8 }}
+                    onClick={() => {
+                      setSearchQuery(search);
+                      saveRecentSearch(search);
+                    }}
+                    className={`group px-3 py-1.5 rounded-full text-xs flex items-center gap-1.5 transition-all ${isDark 
+                      ? 'bg-gray-800/80 text-gray-300 hover:bg-gray-700' 
+                      : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'} hover:shadow-sm`}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    <i className="fas fa-search text-[10px] opacity-50"></i>
+                    <span>{search}</span>
+                    <span 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setRecentSearches(recentSearches.filter((_, i) => i !== index));
+                      }}
+                      className="ml-0.5 w-4 h-4 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-200 dark:hover:bg-gray-600"
+                    >
+                      <i className="fas fa-times text-[8px]"></i>
+                    </span>
+                  </motion.button>
+                ))}
+              </AnimatePresence>
+            </div>
+          </motion.div>
         )}
         
         {/* 分类选择 */}
         <div className="mb-5">
-          <h5 className="text-xs font-medium mb-3 flex items-center gap-1.5">
-            <i className="fas fa-tags text-[#C02C38]"></i>
-            知识分类
-          </h5>
-          <div className="flex flex-wrap gap-2">
-            {KNOWLEDGE_CATEGORIES.map((category, index) => (
+          <div className="flex items-center justify-between mb-3">
+            <h5 className="text-xs font-medium flex items-center gap-1.5">
+              <i className="fas fa-tags text-[#C02C38]"></i>
+              {showFavorites ? '我的收藏' : '知识分类'}
+              <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${isDark ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-500'}`}>
+                {showFavorites ? favorites.length : knowledgeItems.length}
+              </span>
+            </h5>
+            <div className="flex items-center gap-2">
+              {/* 收藏夹切换按钮 */}
               <motion.button
-                key={category}
-                onClick={() => handleCategoryChange(category)}
-                className={`px-4 py-2.5 rounded-lg text-xs whitespace-nowrap transition-all duration-300 ease-in-out flex items-center gap-1.5 font-medium ${isDark 
-                  ? selectedCategory === category 
-                    ? 'bg-[#C02C38] text-white shadow-md' 
-                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-gray-300' 
-                  : selectedCategory === category 
-                    ? 'bg-[#C02C38] text-white shadow-md' 
-                    : 'bg-white text-gray-700 hover:bg-gray-50 hover:text-gray-900 border border-gray-200'}`}
+                onClick={() => setShowFavorites(!showFavorites)}
+                className={`px-2.5 py-1.5 rounded-lg text-xs flex items-center gap-1.5 transition-all ${showFavorites
+                  ? 'bg-gradient-to-r from-yellow-400 to-orange-500 text-white'
+                  : isDark
+                    ? 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                    : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'}`}
                 whileTap={{ scale: 0.95 }}
                 whileHover={{ scale: 1.02 }}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05, duration: 0.3 }}
-                tabIndex={0}
-                role="tab"
-                aria-selected={selectedCategory === category}
               >
-                <i className={`fas fa-${index % 4 === 0 ? 'tag' : index % 4 === 1 ? 'book' : index % 4 === 2 ? 'history' : 'culture'} text-xs`}></i>
-                <span>{category}</span>
+                <i className={`fas ${showFavorites ? 'fa-star' : 'fa-star-o'}`}></i>
+                <span>收藏</span>
+                {favorites.length > 0 && (
+                  <span className={`text-[9px] px-1 rounded-full ${showFavorites ? 'bg-white/20' : 'bg-[#C02C38] text-white'}`}>
+                    {favorites.length}
+                  </span>
+                )}
               </motion.button>
-            ))}
+              
+              {(canScrollLeft || canScrollRight) && !showFavorites && (
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => scrollCategories('left')}
+                    disabled={!canScrollLeft}
+                    className={`p-1 rounded transition-all ${canScrollLeft
+                      ? 'text-gray-500 hover:text-[#C02C38] hover:bg-[#C02C38]/10'
+                      : 'text-gray-300 cursor-not-allowed'}`}
+                  >
+                    <i className="fas fa-chevron-left text-xs"></i>
+                  </button>
+                  <button
+                    onClick={() => scrollCategories('right')}
+                    disabled={!canScrollRight}
+                    className={`p-1 rounded transition-all ${canScrollRight
+                      ? 'text-gray-500 hover:text-[#C02C38] hover:bg-[#C02C38]/10'
+                      : 'text-gray-300 cursor-not-allowed'}`}
+                  >
+                    <i className="fas fa-chevron-right text-xs"></i>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
+          
+          {/* 分类标签或收藏提示 */}
+          {!showFavorites ? (
+            <div
+              ref={categoryScrollRef}
+              onScroll={checkScrollability}
+              className="flex gap-2 overflow-x-auto scrollbar-hide pb-1"
+              style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+            >
+              {KNOWLEDGE_CATEGORIES.map((category, index) => {
+                const config = CATEGORY_CONFIG[category];
+                const isSelected = selectedCategory === category;
+                return (
+                  <motion.button
+                    key={category}
+                    onClick={() => handleCategoryChange(category)}
+                    className={`px-4 py-2.5 rounded-xl text-xs whitespace-nowrap transition-all duration-300 ease-in-out flex items-center gap-2 font-medium flex-shrink-0 ${isDark
+                      ? isSelected
+                        ? 'shadow-lg'
+                        : 'hover:bg-gray-800'
+                      : isSelected
+                        ? 'shadow-lg'
+                        : 'hover:bg-gray-50 border border-gray-200'}`}
+                    style={{
+                      backgroundColor: isSelected ? config.color : isDark ? 'rgba(31, 41, 55, 0.8)' : 'white',
+                      color: isSelected ? 'white' : isDark ? '#9CA3AF' : '#374151',
+                      borderColor: isSelected ? config.color : undefined
+                    }}
+                    whileTap={{ scale: 0.95 }}
+                    whileHover={{ scale: 1.02, y: -1 }}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.03, duration: 0.3 }}
+                    tabIndex={0}
+                    role="tab"
+                    aria-selected={isSelected}
+                    title={config.description}
+                  >
+                    <i className={`fas fa-${config.icon} text-xs`} style={{ color: isSelected ? 'white' : config.color }}></i>
+                    <span>{category}</span>
+                  </motion.button>
+                );
+              })}
+            </div>
+          ) : (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className={`p-3 rounded-xl text-xs ${isDark ? 'bg-gray-800/50 text-gray-400' : 'bg-gray-50 text-gray-500'}`}
+            >
+              <i className="fas fa-info-circle mr-1.5"></i>
+              {favorites.length > 0
+                ? `您已收藏 ${favorites.length} 条文化知识，在列表中查看`
+                : '您还没有收藏任何知识，点击知识卡片上的收藏按钮添加'}
+            </motion.div>
+          )}
         </div>
       </div>
 
@@ -267,7 +520,7 @@ const CulturalTracePanel: React.FC = () => {
             <div className="flex items-center justify-between mb-3">
               <h4 className="text-sm font-medium flex items-center gap-2">
                 <i className="fas fa-list-ul text-xs"></i>
-                {searchQuery ? '搜索结果' : '相关知识'}
+                {searchQuery ? '搜索结果' : showFavorites ? '我的收藏' : '相关知识'}
                 <span className="text-xs opacity-70 font-normal">({displayedItems.length})</span>
               </h4>
               {searchQuery && (
@@ -304,7 +557,7 @@ const CulturalTracePanel: React.FC = () => {
                 ))
               ) : (
                 // 实际数据渲染
-                displayedItems.map((item) => (
+                displayedItems.map((item, idx) => (
                   <motion.div
                     key={item.id}
                     onClick={() => handleKnowledgeSelect(item)}
@@ -319,7 +572,7 @@ const CulturalTracePanel: React.FC = () => {
                     whileTap={{ scale: 0.98 }}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.2 }}
+                    transition={{ duration: 0.2, delay: idx * 0.03 }}
                     aria-selected={selectedKnowledge?.id === item.id}
                     role="listitem"
                   >
@@ -353,81 +606,153 @@ const CulturalTracePanel: React.FC = () => {
               )}
               {!isDataLoading && displayedItems.length === 0 && (
                 <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5 }}
-                  className="text-center py-12"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
+                  className="text-center py-12 px-4"
                 >
-                  <div className={`w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-5 ${isDark ? 'bg-gray-800/50' : 'bg-gray-100'}`}>
-                    <i className="fas fa-book-open text-4xl opacity-50"></i>
+                  {/* 动态空状态插画 */}
+                  <div className="relative mb-6">
+                    <motion.div 
+                      className={`w-28 h-28 rounded-2xl mx-auto flex items-center justify-center ${isDark ? 'bg-gradient-to-br from-gray-800 to-gray-900' : 'bg-gradient-to-br from-gray-50 to-gray-100'}`}
+                      animate={{ 
+                        rotate: [0, -5, 5, 0],
+                        scale: [1, 1.02, 1]
+                      }}
+                      transition={{ 
+                        duration: 4,
+                        repeat: Infinity,
+                        ease: "easeInOut"
+                      }}
+                    >
+                      <i className={`fas ${searchQuery ? 'fa-search' : 'fa-book-open'} text-5xl bg-gradient-to-br from-[#C02C38] to-[#E85D75] bg-clip-text text-transparent`}></i>
+                    </motion.div>
+                    {/* 装饰元素 */}
+                    <motion.div 
+                      className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-[#C02C38]/20"
+                      animate={{ scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5] }}
+                      transition={{ duration: 2, repeat: Infinity }}
+                    />
+                    <motion.div 
+                      className="absolute -bottom-1 -left-3 w-4 h-4 rounded-full bg-blue-400/30"
+                      animate={{ scale: [1, 1.3, 1], opacity: [0.3, 0.8, 0.3] }}
+                      transition={{ duration: 2.5, repeat: Infinity, delay: 0.5 }}
+                    />
                   </div>
-                  <p className="text-base font-medium mb-3">{searchQuery ? '未找到相关知识' : '暂无相关知识'}</p>
-                  <p className="text-sm opacity-70 mb-6">{searchQuery ? '尝试使用其他关键词搜索' : '尝试切换其他分类或使用搜索'}</p>
                   
-                  {!searchQuery ? (
-                    <div className="flex flex-col gap-3">
-                      <motion.button
-                        onClick={() => {
-                          const randomCategory = KNOWLEDGE_CATEGORIES[Math.floor(Math.random() * KNOWLEDGE_CATEGORIES.length)];
-                          setSelectedCategory(randomCategory);
-                        }}
-                        className={`px-5 py-3 rounded-lg text-sm font-medium ${isDark 
-                          ? 'bg-[#C02C38] text-white' 
-                          : 'bg-[#C02C38] text-white'} transition-all duration-300 shadow-md hover:shadow-lg`}
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                      >
-                        <i className="fas fa-random mr-2"></i>
-                        随机浏览一个分类
-                      </motion.button>
-                      <motion.button
-                        onClick={() => {
-                          const searchInput = document.querySelector('input[type="text"]') as HTMLInputElement;
-                          searchInput?.focus();
-                        }}
-                        className={`px-5 py-3 rounded-lg text-sm font-medium ${isDark 
-                          ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' 
-                          : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'} transition-all duration-300`}
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                      >
-                        <i className="fas fa-search mr-2"></i>
-                        开始搜索
-                      </motion.button>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      <div className="flex flex-wrap gap-2 justify-center">
-                        {['天津', '民俗', '历史', '建筑', '饮食', '艺术'].map((keyword) => (
-                          <motion.button
-                            key={keyword}
-                            onClick={() => {
-                              setSearchQuery(keyword);
-                              saveRecentSearch(keyword);
-                            }}
-                            className={`px-4 py-2 rounded-lg text-sm font-medium ${isDark 
-                              ? 'bg-gray-800/80 hover:bg-gray-700/90 text-gray-300' 
-                              : 'bg-white hover:bg-gray-50 text-gray-700 border border-gray-200'} transition-all duration-200 shadow-sm`}
-                            whileTap={{ scale: 0.95 }}
-                            whileHover={{ scale: 1.05 }}
-                          >
-                            {keyword}
-                          </motion.button>
-                        ))}
+                  <h4 className="text-lg font-semibold mb-2">
+                    {searchQuery ? '未找到相关知识' : showFavorites ? '暂无收藏' : '暂无相关知识'}
+                  </h4>
+                  <p className="text-sm opacity-60 mb-6 max-w-xs mx-auto leading-relaxed">
+                    {searchQuery 
+                      ? `未找到与 "${searchQuery}" 相关的知识，试试其他关键词` 
+                      : showFavorites
+                        ? '您还没有收藏任何知识，点击知识卡片上的收藏按钮添加'
+                        : '该分类下暂时没有内容，浏览其他分类或搜索试试'}
+                  </p>
+                  
+                  {/* 智能推荐区域 */}
+                  <div className="space-y-4">
+                    {/* 热门分类推荐 */}
+                    {!searchQuery && !showFavorites && (
+                      <div className="mb-4">
+                        <p className="text-xs opacity-50 mb-3">推荐分类</p>
+                        <div className="flex flex-wrap gap-2 justify-center">
+                          {KNOWLEDGE_CATEGORIES.slice(0, 5).map((category, idx) => {
+                            const config = CATEGORY_CONFIG[category];
+                            return (
+                              <motion.button
+                                key={category}
+                                onClick={() => handleCategoryChange(category)}
+                                className={`px-3 py-2 rounded-lg text-xs font-medium transition-all duration-200 ${isDark 
+                                  ? 'bg-gray-800/80 hover:bg-gray-700' 
+                                  : 'bg-white hover:bg-gray-50 border border-gray-200'}`}
+                                style={{ color: config.color }}
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: idx * 0.05 }}
+                              >
+                                <i className={`fas fa-${config.icon} mr-1.5`}></i>
+                                {category}
+                              </motion.button>
+                            );
+                          })}
+                        </div>
                       </div>
-                      <motion.button
-                        onClick={() => setSearchQuery('')}
-                        className={`px-5 py-3 rounded-lg text-sm font-medium ${isDark 
-                          ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' 
-                          : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'} transition-all duration-300`}
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                      >
-                        <i className="fas fa-times mr-2"></i>
-                        清除搜索
-                      </motion.button>
+                    )}
+                    
+                    {/* 操作按钮 */}
+                    <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                      {!searchQuery ? (
+                        <>
+                          <motion.button
+                            onClick={() => {
+                              const randomCategory = KNOWLEDGE_CATEGORIES[Math.floor(Math.random() * KNOWLEDGE_CATEGORIES.length)];
+                              updateState({ traceSelectedCategoryId: randomCategory, traceSelectedKnowledgeId: null });
+                            }}
+                            className="px-5 py-3 rounded-xl text-sm font-medium bg-gradient-to-r from-[#C02C38] to-[#E85D75] text-white shadow-lg shadow-[#C02C38]/25 hover:shadow-xl hover:shadow-[#C02C38]/30 transition-all duration-300"
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                          >
+                            <i className="fas fa-dice mr-2"></i>
+                            随机探索
+                          </motion.button>
+                          <motion.button
+                            onClick={() => {
+                              const searchInput = document.querySelector('input[type="text"]') as HTMLInputElement;
+                              searchInput?.focus();
+                            }}
+                            className={`px-5 py-3 rounded-xl text-sm font-medium transition-all duration-300 ${isDark 
+                              ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' 
+                              : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'}`}
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                          >
+                            <i className="fas fa-search mr-2"></i>
+                            搜索知识
+                          </motion.button>
+                        </>
+                      ) : (
+                        <>
+                          <div className="flex flex-wrap gap-2 justify-center mb-2">
+                            <p className="text-xs opacity-50 w-full mb-1">试试这些关键词</p>
+                            {['天津', '民俗', '历史', '建筑', '饮食', '艺术'].map((keyword, idx) => (
+                              <motion.button
+                                key={keyword}
+                                onClick={() => {
+                                  setSearchQuery(keyword);
+                                  saveRecentSearch(keyword);
+                                }}
+                                className={`px-3 py-1.5 rounded-lg text-xs ${isDark 
+                                  ? 'bg-gray-800/80 hover:bg-gray-700 text-gray-300' 
+                                  : 'bg-white hover:bg-gray-50 text-gray-600 border border-gray-200'} transition-all duration-200`}
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                                initial={{ opacity: 0, scale: 0.9 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                transition={{ delay: idx * 0.03 }}
+                              >
+                                {keyword}
+                              </motion.button>
+                            ))}
+                          </div>
+                          <motion.button
+                            onClick={() => setSearchQuery('')}
+                            className={`px-5 py-2.5 rounded-xl text-sm font-medium ${isDark 
+                              ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' 
+                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'} transition-all duration-300`}
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                          >
+                            <i className="fas fa-undo mr-2"></i>
+                            清除搜索
+                          </motion.button>
+                        </>
+                      )}
                     </div>
-                  )}
+                  </div>
                 </motion.div>
               )}
             </div>
@@ -451,7 +776,14 @@ const CulturalTracePanel: React.FC = () => {
                 <div className="border-b border-gray-200 dark:border-gray-700 pb-4">
                   <h5 className="text-base font-semibold leading-tight mb-2">{selectedKnowledge.title}</h5>
                   <div className="flex items-center text-xs opacity-70 space-x-2 flex-wrap">
-                    <span className={`px-2 py-0.5 rounded-full bg-[#C02C38]/10 text-[#C02C38]`}>
+                    <span 
+                      className="px-2 py-0.5 rounded-full"
+                      style={{ 
+                        backgroundColor: CATEGORY_CONFIG[selectedKnowledge.category]?.bgColor || 'rgba(192, 44, 56, 0.1)',
+                        color: CATEGORY_CONFIG[selectedKnowledge.category]?.color || '#C02C38'
+                      }}
+                    >
+                      <i className={`fas fa-${CATEGORY_CONFIG[selectedKnowledge.category]?.icon || 'tag'} mr-1`}></i>
                       {selectedKnowledge.category}
                     </span>
                     <span className={`px-2 py-0.5 rounded-full ${isDark ? 'bg-gray-700/80 text-gray-300' : 'bg-gray-100 text-gray-700'}`}>
@@ -522,24 +854,36 @@ const CulturalTracePanel: React.FC = () => {
                 
                 {/* 操作按钮 */}
                 <div className="flex gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-                  <button
-                    className={`flex-1 py-2.5 rounded-lg text-sm flex items-center justify-center gap-2 ${isDark 
-                      ? 'bg-[#C02C38] hover:bg-[#A0232F] text-white' 
-                      : 'bg-[#C02C38] hover:bg-[#A0232F] text-white'} transition-all duration-300 shadow-md hover:shadow-lg`}
-                    aria-label="收藏"
+                  <motion.button
+                    onClick={() => selectedKnowledge && toggleFavorite(selectedKnowledge.id)}
+                    className={`flex-1 py-2.5 rounded-xl text-sm flex items-center justify-center gap-2 transition-all duration-300 ${favorites.includes(selectedKnowledge?.id || '')
+                      ? 'bg-gradient-to-r from-yellow-400 to-orange-500 text-white shadow-lg shadow-orange-500/25'
+                      : isDark
+                        ? 'bg-gray-800/80 hover:bg-gray-700/90 text-gray-300'
+                        : 'bg-white/80 hover:bg-gray-50 text-gray-700'} shadow-md hover:shadow-lg`}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    aria-label={favorites.includes(selectedKnowledge?.id || '') ? '取消收藏' : '收藏'}
                   >
-                    <i className="fas fa-bookmark"></i>
-                    <span>收藏</span>
-                  </button>
-                  <button
-                    className={`flex-1 py-2.5 rounded-lg text-sm flex items-center justify-center gap-2 ${isDark 
-                      ? 'bg-gray-800/80 hover:bg-gray-700/90 text-gray-300' 
+                    <i className={`fas ${favorites.includes(selectedKnowledge?.id || '') ? 'fa-star' : 'fa-star-o'}`}></i>
+                    <span>{favorites.includes(selectedKnowledge?.id || '') ? '已收藏' : '收藏'}</span>
+                  </motion.button>
+                  <motion.button
+                    onClick={() => {
+                      if (selectedKnowledge) {
+                        navigator.clipboard.writeText(`${selectedKnowledge.title}\n\n${selectedKnowledge.content}`);
+                      }
+                    }}
+                    className={`flex-1 py-2.5 rounded-xl text-sm flex items-center justify-center gap-2 ${isDark
+                      ? 'bg-gray-800/80 hover:bg-gray-700/90 text-gray-300'
                       : 'bg-white/80 hover:bg-gray-50 text-gray-700'} transition-all duration-300 shadow-md hover:shadow-lg`}
-                    aria-label="分享"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    aria-label="复制内容"
                   >
-                    <i className="fas fa-share"></i>
-                    <span>分享</span>
-                  </button>
+                    <i className="fas fa-copy"></i>
+                    <span>复制</span>
+                  </motion.button>
                 </div>
               </motion.div>
             ) : (
@@ -570,7 +914,6 @@ const CulturalTracePanel: React.FC = () => {
                 ) : (
                   <motion.button
                     onClick={() => {
-                      // 切换到一个有数据的分类
                       const randomCategory = KNOWLEDGE_CATEGORIES[Math.floor(Math.random() * KNOWLEDGE_CATEGORIES.length)];
                       updateState({ traceSelectedCategoryId: randomCategory, traceSelectedKnowledgeId: null });
                     }}
@@ -645,7 +988,7 @@ const CulturalTracePanel: React.FC = () => {
                       key={item.id}
                       onClick={() => {
                         handleKnowledgeSelect(item);
-                        setActiveTab('detail'); // 选择知识项后自动切换到详情标签页
+                        setActiveTab('detail');
                       }}
                       className={`p-4 rounded-lg cursor-pointer transition-all duration-300 ${isDark 
                         ? selectedKnowledge?.id === item.id 
@@ -685,67 +1028,61 @@ const CulturalTracePanel: React.FC = () => {
                   ))
                 )}
                 {!isDataLoading && displayedItems.length === 0 && (
-                <div className="text-center py-10 text-xs opacity-50">
-                  <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 ${isDark ? 'bg-gray-800/50' : 'bg-gray-100'}`}>
-                    <i className="fas fa-book-open text-3xl"></i>
-                  </div>
-                  <p className="text-sm font-medium mb-2">{searchQuery ? '未找到相关知识' : '暂无相关知识'}</p>
-                  <div className="mt-3 space-y-3">
-                    {searchQuery ? (
-                      <div className="space-y-2">
-                        <p>尝试使用其他关键词搜索</p>
-                        <div className="flex flex-wrap gap-2 justify-center mt-3">
-                          {['天津', '民俗', '历史', '建筑', '饮食', '艺术'].map((keyword) => (
-                            <motion.button
-                              key={keyword}
-                              onClick={() => {
-                                setSearchQuery(keyword);
-                                saveRecentSearch(keyword);
-                              }}
-                              className={`px-3 py-1.5 rounded-full text-xs ${isDark 
-                                ? 'bg-gray-800/80 hover:bg-gray-700/90' 
-                                : 'bg-white/80 hover:bg-gray-50'} transition-colors shadow-sm backdrop-blur-sm`}
-                              whileHover={{ scale: 1.05 }}
-                              whileTap={{ scale: 0.95 }}
-                            >
-                              {keyword}
-                            </motion.button>
-                          ))}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <p>尝试切换其他分类或使用搜索</p>
-                        <div className="flex flex-wrap gap-2 justify-center">
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="text-center py-8 px-4"
+                  >
+                    <div className="relative mb-4">
+                      <motion.div 
+                        className={`w-20 h-20 rounded-xl mx-auto flex items-center justify-center ${isDark ? 'bg-gradient-to-br from-gray-800 to-gray-900' : 'bg-gradient-to-br from-gray-50 to-gray-100'}`}
+                        animate={{ rotate: [0, -5, 5, 0], scale: [1, 1.02, 1] }}
+                        transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                      >
+                        <i className={`fas ${searchQuery ? 'fa-search' : 'fa-book-open'} text-4xl bg-gradient-to-br from-[#C02C38] to-[#E85D75] bg-clip-text text-transparent`}></i>
+                      </motion.div>
+                    </div>
+                    <h4 className="text-base font-semibold mb-1">
+                      {searchQuery ? '未找到相关知识' : '暂无相关知识'}
+                    </h4>
+                    <p className="text-xs opacity-60 mb-4">
+                      {searchQuery ? `未找到与 "${searchQuery}" 相关的内容` : '该分类下暂时没有内容'}
+                    </p>
+                    <div className="flex flex-wrap gap-2 justify-center">
+                      {searchQuery ? (
+                        ['天津', '民俗', '历史', '建筑', '饮食', '艺术'].map((keyword) => (
                           <motion.button
-                            onClick={() => updateState({ traceSelectedCategoryId: KNOWLEDGE_CATEGORIES[1], traceSelectedKnowledgeId: null })}
-                            className={`px-4 py-2 rounded-lg text-xs ${isDark 
-                              ? 'bg-[#C02C38]/20 hover:bg-[#C02C38]/30 text-[#C02C38]' 
-                              : 'bg-[#C02C38]/10 hover:bg-[#C02C38]/20 text-[#C02C38]'} transition-colors shadow-sm`}
-                            whileHover={{ scale: 1.05 }}
+                            key={keyword}
+                            onClick={() => {
+                              setSearchQuery(keyword);
+                              saveRecentSearch(keyword);
+                            }}
+                            className={`px-3 py-1.5 rounded-lg text-xs ${isDark 
+                              ? 'bg-gray-800/80 hover:bg-gray-700 text-gray-300' 
+                              : 'bg-white hover:bg-gray-50 text-gray-600 border border-gray-200'} transition-colors`}
                             whileTap={{ scale: 0.95 }}
                           >
-                            <i className="fas fa-random mr-1"></i>
-                            随机浏览一个分类
+                            {keyword}
                           </motion.button>
-                          <button
+                        ))
+                      ) : (
+                        <>
+                          <motion.button
                             onClick={() => {
-                              const searchInput = document.querySelector('input[type="text"]') as HTMLInputElement;
-                              searchInput?.focus();
+                              const randomCategory = KNOWLEDGE_CATEGORIES[Math.floor(Math.random() * KNOWLEDGE_CATEGORIES.length)];
+                              updateState({ traceSelectedCategoryId: randomCategory, traceSelectedKnowledgeId: null });
                             }}
-                            className={`px-4 py-2 rounded-lg text-xs ${isDark 
-                              ? 'bg-gray-800/80 hover:bg-gray-700/90 text-white' 
-                              : 'bg-white/80 hover:bg-gray-50 text-gray-900'} transition-colors shadow-sm`}
+                            className="px-4 py-2 rounded-lg text-xs bg-gradient-to-r from-[#C02C38] to-[#E85D75] text-white shadow-md"
+                            whileTap={{ scale: 0.95 }}
                           >
-                            <i className="fas fa-search mr-1"></i>
-                            开始搜索
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
+                            <i className="fas fa-dice mr-1"></i>
+                            随机探索
+                          </motion.button>
+                        </>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
               </div>
             </div>
           )}

@@ -1,3 +1,4 @@
+import { supabase } from '@/lib/supabase';
 import { useState, useContext, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
@@ -5,8 +6,20 @@ import { useNavigate, Link } from 'react-router-dom';
 import { AuthContext } from '@/contexts/authContext';
 import { useGuide } from '@/contexts/GuideContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { 
+  Bookmark, 
+  Heart, 
+  Settings, 
+  FileText, 
+  Users, 
+  Bell,
+  TrendingUp,
+  Calendar
+} from 'lucide-react';
 import CreatorProfile from '../components/CreatorProfile';
 import OptimizedImage from '../components/OptimizedImage';
+import QuickNavCard from '../components/QuickNavCard';
+import ActivityTimeline, { Activity } from '../components/ActivityTimeline';
 import achievementService from '../services/achievementService';
 import analyticsService from '../services/analyticsService';
 import taskService, { Task } from '../services/taskService';
@@ -53,140 +66,120 @@ export default function Dashboard() {
   // 使用社区逻辑钩子获取动态数据
   const { threads, onUpvote, onToggleFavorite } = useCommunityLogic();
 
+  // 快捷导航数据
+  const [quickNavCounts, setQuickNavCounts] = useState({
+    bookmarks: 0,
+    likes: 0,
+    drafts: 0,
+    friends: 0,
+    notifications: 0,
+  });
+
+  // 最近活动数据
+  const [recentActivities, setRecentActivities] = useState<Activity[]>([]);
+
+  // 数据对比状态
+  const [comparisonData, setComparisonData] = useState({
+    viewsChange: 12.5,
+    likesChange: 8.3,
+    worksChange: -2.1,
+  });
+
   // 判断是否为真实用户（非手机号模拟用户）
   const isRealUser = user && !user.id.startsWith('phone_user_');
   const [realUserWorks, setRealUserWorks] = useState<any[]>([]);
   const [realUserStats, setRealUserStats] = useState<any>(null);
 
-  // 获取真实用户数据
+// Fixed: Removed nested component definition
+  
+  // 获取真实用户数据 - 改为直接查询 Supabase
   useEffect(() => {
     if (isRealUser && user?.id) {
       const fetchUserData = async () => {
         try {
           setIsLoading(true);
-          // 并行请求所有用户数据
-          const [worksRes, statsRes, achievementsRes, tasksRes, analyticsRes] = await Promise.all([
-            fetch(`/api/user/works?userId=${user.id}`),
-            fetch(`/api/user/stats?userId=${user.id}`),
-            fetch(`/api/user/achievements?userId=${user.id}`),
-            fetch(`/api/user/tasks?userId=${user.id}`),
-            fetch(`/api/user/analytics?userId=${user.id}`)
-          ]);
           
-          // 处理作品数据
-          if (worksRes.ok) {
-            const worksData = await worksRes.json();
-            if (worksData.code === 0) {
-              setRealUserWorks(worksData.data || []);
-            } else {
-              console.warn('Works API returned error:', worksData.message);
-            }
-          } else {
-            console.warn('Works API request failed:', worksRes.status);
+          // 1. 获取作品数据
+          const { data: works, error: worksError } = await supabase
+            .from('posts')
+            .select('*')
+            .eq('author_id', user.id)
+            .order('created_at', { ascending: false });
+            
+          if (!worksError && works) {
+             // 转换数据格式以匹配 UI
+             const formattedWorks = works.map(w => ({
+               id: w.id,
+               title: w.title,
+               thumbnail: w.images?.[0] || w.attachments?.[0]?.url || '',
+               status: w.status === 'published' ? '已发布' : '草稿',
+               date: new Date(w.created_at).toLocaleDateString(),
+               views: w.view_count || 0,
+               likes: w.likes_count || 0,
+               metrics: {
+                 views: w.view_count || 0,
+                 likes: w.likes_count || 0,
+                 comments: w.comments_count || 0,
+                 shares: 0,
+                 engagementRate: 0
+               }
+             }));
+             setRealUserWorks(formattedWorks);
           }
-          
-          // 处理统计数据
-          if (statsRes.ok) {
-            const statsData = await statsRes.json();
-            if (statsData.code === 0) {
-              const data = statsData.data;
-              setRealUserStats(data);
-              
-              // Update level info with real data
-              if (data) {
-                setCreatorLevelInfo(prev => ({
-                  ...prev,
-                  currentLevel: { 
-                    ...prev.currentLevel,
-                    id: data.level || 1, 
-                    name: `创作Lv.${data.level || 1}`, 
-                    icon: (data.level || 1) === 1 ? 'seedling' : (data.level || 1) === 2 ? 'tree' : 'crown',
-                  },
-                  nextLevel: (data.level || 1) < 4 ? { 
-                    ...prev.nextLevel!,
-                    id: (data.level || 1) + 1, 
-                    name: `创作Lv.${(data.level || 1) + 1}`, 
-                    requiredPoints: data.next_level_points || 100
-                  } : null,
-                  currentPoints: data.points || 0,
-                  pointsToNextLevel: (data.next_level_points || 100) - (data.points || 0),
-                  levelProgress: data.level_progress || 0
-                }));
-              }
-            } else {
-              console.warn('Stats API returned error:', statsData.message);
-            }
-          } else {
-            console.warn('Stats API request failed:', statsRes.status);
+
+          // 2. 获取统计数据
+          // 使用 RPC 或者分别 count
+          // 简单起见，我们先用 works 聚合
+          if (!worksError && works) {
+             const totalViews = works.reduce((sum, w) => sum + (w.view_count || 0), 0);
+             const totalLikes = works.reduce((sum, w) => sum + (w.likes_count || 0), 0);
+             
+             setRealUserStats({
+               views_count: totalViews,
+               likes_count: totalLikes,
+               works_count: works.length,
+               level: 1, // 暂时硬编码等级
+               points: 0
+             });
           }
-          
-          // 处理成就数据
-          if (achievementsRes.ok) {
-            const achievementsData = await achievementsRes.json();
-            if (achievementsData.code === 0) {
-              setAchievements(achievementsData.data.achievements || []);
-              setPointsStats(achievementsData.data.pointsStats || pointsStats);
-            } else {
-              console.warn('Achievements API returned error:', achievementsData.message);
-            }
-          } else {
-            console.warn('Achievements API request failed:', achievementsRes.status);
-          }
-          
-          // 处理任务数据
-          if (tasksRes.ok) {
-            const tasksData = await tasksRes.json();
-            if (tasksData.code === 0) {
-              setNoviceTasks(tasksData.data.noviceTasks || []);
-              setDailyTasks(tasksData.data.dailyTasks || []);
-            } else {
-              console.warn('Tasks API returned error:', tasksData.message);
-            }
-          } else {
-            console.warn('Tasks API request failed:', tasksRes.status);
-          }
-          
-          // 处理分析数据
-          if (analyticsRes.ok) {
-            const analyticsData = await analyticsRes.json();
-            if (analyticsData.code === 0) {
-              const data = analyticsData.data;
-              // 智能处理不同格式的返回数据
-              if (Array.isArray(data)) {
-                setWorksPerformance(data);
-              } else if (data && typeof data === 'object') {
-                // 如果包含 works 字段且是数组
-                if (Array.isArray(data.works)) {
-                  setWorksPerformance(data.works);
-                }
-                // 如果包含 chartData 字段
-                if (Array.isArray(data.chartData)) {
-                  setAnalyticsChartData(data.chartData);
-                }
-                // 如果 data 本身包含 list 字段（常见分页格式）
-                if (Array.isArray(data.list)) {
-                  setWorksPerformance(data.list);
-                }
-              }
-            } else {
-              console.warn('Analytics API returned error:', analyticsData.message);
-            }
-          } else {
-            console.warn('Analytics API request failed:', analyticsRes.status);
-          }
+
+          // 3. 其他数据（成就、任务等）暂时保持 Mock 或空，避免请求失败
+          // ...
+
         } catch (error) {
           console.error('Failed to fetch real user data:', error);
-          // 错误时保持现有状态，不清除数据
         } finally {
           setIsLoading(false);
         }
       };
       
       fetchUserData();
+      
+      // 加载快捷导航计数 (Count queries)
+      const loadQuickNavCounts = async () => {
+        try {
+          const { count: bookmarkCount } = await supabase.from('bookmarks').select('*', { count: 'exact', head: true }).eq('user_id', user.id);
+          const { count: likeCount } = await supabase.from('likes').select('*', { count: 'exact', head: true }).eq('user_id', user.id);
+          const { count: draftCount } = await supabase.from('posts').select('*', { count: 'exact', head: true }).eq('author_id', user.id).eq('status', 'draft');
+          
+          setQuickNavCounts({
+            bookmarks: bookmarkCount || 0,
+            likes: likeCount || 0,
+            drafts: draftCount || 0,
+            friends: 0, // 暂时不支持好友
+            notifications: 0
+          });
+        } catch (error) {
+          console.error('Failed to load quick nav counts:', error);
+        }
+      };
+      
+      loadQuickNavCounts();
+      // loadRecentActivities(); // 暂时跳过活动，因为它需要复杂的关联查询
     } else {
       setIsLoading(false);
     }
-  }, [isRealUser, user?.id, pointsStats, worksPerformance]);
+  }, [isRealUser, user?.id]);
 
   // 点击外部关闭菜单
   useEffect(() => {
@@ -510,14 +503,83 @@ export default function Dashboard() {
           )}
         </motion.div>
         
+        {/* 快捷导航 */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-6 sm:mb-8">
+          <QuickNavCard
+            title="我的收藏"
+            description="查看收藏的作品"
+            icon={Bookmark}
+            href="/collection"
+            count={quickNavCounts.bookmarks}
+            color="yellow"
+          />
+          <QuickNavCard
+            title="我的点赞"
+            description="查看点赞的作品"
+            icon={Heart}
+            href="/collection?tab=likes"
+            count={quickNavCounts.likes}
+            color="red"
+          />
+          <QuickNavCard
+            title="草稿箱"
+            description="管理未发布作品"
+            icon={FileText}
+            href="/drafts"
+            count={quickNavCounts.drafts}
+            color="purple"
+          />
+          <QuickNavCard
+            title="好友"
+            description="管理好友关系"
+            icon={Users}
+            href="/friends"
+            count={quickNavCounts.friends}
+            color="green"
+          />
+          <QuickNavCard
+            title="消息通知"
+            description="查看未读消息"
+            icon={Bell}
+            href="/notifications"
+            count={quickNavCounts.notifications > 0 ? quickNavCounts.notifications : undefined}
+            color="blue"
+          />
+          <QuickNavCard
+            title="设置"
+            description="账号和偏好设置"
+            icon={Settings}
+            href="/settings"
+            color="orange"
+          />
+        </div>
+
         {/* 数据概览 */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
           {
-            [
-              { title: '总浏览量', value: isRealUser ? (realUserStats?.views_count || realUserStats?.total_views || 0).toLocaleString() : '0', icon: 'eye', color: 'blue' },
-              { title: '获赞总数', value: isRealUser ? (realUserStats?.likes_count || realUserStats?.total_likes || 0).toLocaleString() : '0', icon: 'thumbs-up', color: 'red' },
-              { title: '作品总数', value: isRealUser ? (realUserStats?.works_count || realUserStats?.total_works || realUserWorks.length || 0).toLocaleString() : '0', icon: 'image', color: 'green' },
-            ].map((stat, index) => (
+            ([
+              { 
+                title: '总浏览量', 
+                value: isRealUser ? (realUserStats?.views_count || realUserStats?.total_views || 0).toLocaleString() : '0', 
+                icon: 'eye', 
+                color: 'blue',
+                change: comparisonData.viewsChange 
+              },
+              { 
+                title: '获赞总数', 
+                value: isRealUser ? (realUserStats?.likes_count || realUserStats?.total_likes || 0).toLocaleString() : '0', 
+                icon: 'thumbs-up', 
+                color: 'red',
+                change: comparisonData.likesChange 
+              },
+              { 
+                title: '作品总数', 
+                value: isRealUser ? (realUserStats?.works_count || realUserStats?.total_works || realUserWorks.length || 0).toLocaleString() : '0', 
+                icon: 'image', 
+                color: 'green',
+                change: comparisonData.worksChange 
+              },
+            ] as const).map((stat, index) => (
               <motion.div
                 key={index}
                 className={`p-4 sm:p-6 rounded-2xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-md`}
@@ -535,8 +597,9 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div className="mt-3 sm:mt-4 text-sm">
-                  <span className="text-green-500 flex items-center">
-                    <i className="fas fa-arrow-up mr-1"></i>12.5%
+                  <span className={`flex items-center ${(stat.change || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                    <i className={`fas fa-arrow-${(stat.change || 0) >= 0 ? 'up' : 'down'} mr-1`}></i>
+                    {Math.abs(stat.change || 0)}%
                   </span>
                   <span className={`ml-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>较上月</span>
                 </div>
@@ -1115,6 +1178,30 @@ export default function Dashboard() {
             </div>
           </motion.div>
         </div>
+
+        {/* 最近活动 */}
+        <motion.div 
+          className={`mt-6 p-6 rounded-2xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-md`}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.75 }}
+        >
+          <div className="flex justify-between items-center mb-6">
+            <div className="flex items-center gap-2">
+              <Calendar className="w-5 h-5 text-red-500" />
+              <h2 className="text-xl font-bold">最近活动</h2>
+            </div>
+            <Link 
+              to="/activities" 
+              className="text-red-600 hover:text-red-700 text-sm transition-colors hover:underline"
+              aria-label="查看全部活动"
+            >
+              查看全部
+            </Link>
+          </div>
+          
+          <ActivityTimeline activities={recentActivities} maxItems={5} />
+        </motion.div>
         
         {/* 作品表现分析 */}
         <motion.div 

@@ -44,7 +44,7 @@ class PresenceService {
       .on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
         // console.log('User left:', key, leftPresences);
       })
-      .subscribe(async (status) => {
+      .subscribe(async (status, err) => {
         if (status === 'SUBSCRIBED') {
           await this.channel?.track({
             user_id: user.id,
@@ -55,7 +55,20 @@ class PresenceService {
             last_seen: new Date().toISOString()
           });
         }
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          console.error('Presence channel error:', status, err);
+          // 简单的重连逻辑
+          setTimeout(() => {
+            console.log('Attempting to reconnect presence channel...');
+            this.reconnect(user);
+          }, 5000);
+        }
       });
+  }
+
+  async reconnect(user: { id: string; username?: string; avatar?: string }) {
+    await this.cleanup();
+    this.initialize(user);
   }
 
   private updateOnlineUsers(state: Record<string, any[]>) {

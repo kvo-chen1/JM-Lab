@@ -3,8 +3,9 @@ import CreateLayout from './CreateLayout';
 import Studio from './Studio';
 import AIWriter from './AIWriter';
 import Wizard from '../Wizard';
-import Inspiration from '../Neo'; // Correctly point to Inspiration Engine
+import Inspiration from '../Neo';
 import PlanLibrary from './components/PlanLibrary';
+import CreateActivity from '../CreateActivity';
 
 function Create() {
   return (
@@ -15,6 +16,7 @@ function Create() {
         <Route path="inspiration" element={<Inspiration />} />
         <Route path="wizard" element={<Wizard />} />
         <Route path="plan-library" element={<PlanLibrary />} />
+        <Route path="activity" element={<CreateActivity />} />
       </Route>
     </Routes>
   );

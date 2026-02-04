@@ -183,8 +183,8 @@ const SearchBar: React.FC<SearchBarProps> = memo(({
   const groupKeys = Object.keys(groupedSuggestions);
 
   return (
-    <div className={`pinterest-search-wrapper ${isDark ? 'dark' : ''}`}>
-      <div className={`pinterest-search-bar ${isFocused ? 'focused' : ''}`}>
+    <div className={`pinterest-search-wrapper ${isDark ? 'dark' : ''}`} style={{ position: 'relative', zIndex: 1, overflow: 'visible' }}>
+      <div className={`pinterest-search-bar ${isFocused ? 'focused' : ''}`} style={{ position: 'relative', zIndex: 1, overflow: 'visible' }}>
         
         {/* Search Icon */}
         <div className="search-icon-wrapper">
@@ -218,8 +218,11 @@ const SearchBar: React.FC<SearchBarProps> = memo(({
           </svg>
         </button>
 
-        {/* Search Suggestions Dropdown */}
-        <div className={`pinterest-suggestions ${showSuggest && suggestions.length > 0 ? 'visible' : ''}`}>
+      </div>
+      
+      {/* Search Suggestions Dropdown - Moved outside the search bar to avoid overflow issues */}
+      {showSuggest && suggestions.length > 0 && (
+        <div className="pinterest-suggestions visible" style={{ position: 'absolute', top: '100%', left: 0, width: '100%', zIndex: 99999, overflow: 'visible' }}>
            {groupKeys.length === 1 && groupKeys[0] === 'default' ? (
               // Flat list
               groupedSuggestions['default'].map((suggestion) => (
@@ -247,8 +250,7 @@ const SearchBar: React.FC<SearchBarProps> = memo(({
               ))
            )}
         </div>
-
-      </div>
+      )}
 
       
       {/* Note: Original 'Filter' and 'Search' buttons have been removed to comply with 

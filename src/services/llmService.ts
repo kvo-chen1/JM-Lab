@@ -1990,11 +1990,12 @@ export interface WorkReviewResult {
     const url = images[Date.now() % images.length];
 
     return {
-      created: Date.now(),
-      data: [{ url }],
-      // 添加一个特殊标记，让前端知道这是模拟数据（虽然 GenerateImageResponse 接口可能没定义这个字段，但在 JS 中是有效的）
-      // 为了类型安全，这里不直接加字段，而是通过 url 的特征或者 toast 提示来区分
-    } as any;
+      ok: true,
+      data: {
+        created: Date.now(),
+        data: [{ url }]
+      }
+    };
   }
 
   /**

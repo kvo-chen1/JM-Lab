@@ -53,6 +53,9 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
   const [isCreatingTopic, setIsCreatingTopic] = useState(false);
   const [uploadError, setUploadError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedImageFiles, setSelectedImageFiles] = useState<File[]>([]);
+  const [selectedVideoFiles, setSelectedVideoFiles] = useState<File[]>([]);
+  const [selectedAudioFiles, setSelectedAudioFiles] = useState<File[]>([]);
   
   useEffect(() => {
     if (initialImages && initialImages.length > 0) {

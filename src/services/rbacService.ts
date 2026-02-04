@@ -35,11 +35,72 @@ class RBACService {
   private permissions: Map<string, Permission> = new Map();
   private roles: Map<string, Role> = new Map();
   private userRoles: Map<string, Set<string>> = new Map(); // userId -> roleIds
-  
+  private storageKey = 'rbac_user_roles';
+  private customRolesKey = 'rbac_custom_roles';
+
   constructor() {
     // 初始化系统默认权限和角色
     this.initializeDefaultPermissions();
     this.initializeDefaultRoles();
+    // 从持久化存储加载数据
+    this.loadFromStorage();
+  }
+
+  /**
+   * 从localStorage加载用户角色和自定义角色
+   */
+  private loadFromStorage(): void {
+    try {
+      // 加载用户角色分配
+      const storedUserRoles = localStorage.getItem(this.storageKey);
+      if (storedUserRoles) {
+        const parsed = JSON.parse(storedUserRoles);
+        Object.entries(parsed).forEach(([userId, roleIds]) => {
+          this.userRoles.set(userId, new Set(roleIds as string[]));
+        });
+      }
+
+      // 加载自定义角色
+      const storedCustomRoles = localStorage.getItem(this.customRolesKey);
+      if (storedCustomRoles) {
+        const customRoles: Role[] = JSON.parse(storedCustomRoles);
+        customRoles.forEach(role => {
+          // 只加载非系统角色（自定义角色）
+          if (!role.isSystemRole) {
+            this.roles.set(role.id, role);
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Failed to load RBAC data from storage:', error);
+    }
+  }
+
+  /**
+   * 保存用户角色分配到localStorage
+   */
+  private saveUserRolesToStorage(): void {
+    try {
+      const data: Record<string, string[]> = {};
+      this.userRoles.forEach((roleSet, userId) => {
+        data[userId] = Array.from(roleSet);
+      });
+      localStorage.setItem(this.storageKey, JSON.stringify(data));
+    } catch (error) {
+      console.error('Failed to save user roles to storage:', error);
+    }
+  }
+
+  /**
+   * 保存自定义角色到localStorage
+   */
+  private saveCustomRolesToStorage(): void {
+    try {
+      const customRoles = Array.from(this.roles.values()).filter(role => !role.isSystemRole);
+      localStorage.setItem(this.customRolesKey, JSON.stringify(customRoles));
+    } catch (error) {
+      console.error('Failed to save custom roles to storage:', error);
+    }
   }
   
   /**
@@ -226,16 +287,18 @@ class RBACService {
       console.error(`Role not found: ${roleId}`);
       return false;
     }
-    
+
     // 获取用户角色集合，如果不存在则创建
     let userRoleSet = this.userRoles.get(userId);
     if (!userRoleSet) {
       userRoleSet = new Set<string>();
       this.userRoles.set(userId, userRoleSet);
     }
-    
+
     // 添加角色
     userRoleSet.add(roleId);
+    // 持久化到存储
+    this.saveUserRolesToStorage();
     return true;
   }
   
@@ -248,9 +311,14 @@ class RBACService {
     if (!userRoleSet) {
       return false;
     }
-    
+
     // 移除角色
-    return userRoleSet.delete(roleId);
+    const result = userRoleSet.delete(roleId);
+    if (result) {
+      // 持久化到存储
+      this.saveUserRolesToStorage();
+    }
+    return result;
   }
   
   /**
@@ -263,9 +331,11 @@ class RBACService {
       console.error(`Invalid roles: ${invalidRoles.join(', ')}`);
       return false;
     }
-    
+
     // 替换角色集合
     this.userRoles.set(userId, new Set(roleIds));
+    // 持久化到存储
+    this.saveUserRolesToStorage();
     return true;
   }
   
@@ -388,22 +458,24 @@ class RBACService {
   createRole(role: Omit<Role, 'id'>): Role | null {
     // 生成唯一ID
     const roleId = `role_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
-    
+
     // 验证权限是否都存在
     const invalidPermissions = role.permissions.filter(permId => !this.permissions.has(permId));
     if (invalidPermissions.length > 0) {
       console.error(`Invalid permissions: ${invalidPermissions.join(', ')}`);
       return null;
     }
-    
+
     // 创建新角色
     const newRole: Role = {
       ...role,
       id: roleId
     };
-    
+
     // 添加到角色映射
     this.roles.set(roleId, newRole);
+    // 持久化到存储
+    this.saveCustomRolesToStorage();
     return newRole;
   }
   
@@ -417,7 +489,7 @@ class RBACService {
       console.error(`Role not found: ${roleId}`);
       return false;
     }
-    
+
     // 如果更新了权限，验证所有权限是否存在
     if (roleData.permissions) {
       const invalidPermissions = roleData.permissions.filter(permId => !this.permissions.has(permId));
@@ -426,15 +498,19 @@ class RBACService {
         return false;
       }
     }
-    
+
     // 更新角色信息
     const updatedRole = {
       ...role,
       ...roleData
     };
-    
+
     // 保存更新后的角色
     this.roles.set(roleId, updatedRole);
+    // 如果是自定义角色，持久化到存储
+    if (!updatedRole.isSystemRole) {
+      this.saveCustomRolesToStorage();
+    }
     return true;
   }
   
@@ -447,20 +523,43 @@ class RBACService {
     if (!role) {
       return false;
     }
-    
+
     // 系统内置角色不能删除
     if (role.isSystemRole) {
       console.error(`Cannot delete system role: ${roleId}`);
       return false;
     }
-    
+
     // 从所有用户中移除该角色
     for (const [userId, roleSet] of this.userRoles.entries()) {
       roleSet.delete(roleId);
     }
-    
+
     // 从角色映射中删除
-    return this.roles.delete(roleId);
+    const result = this.roles.delete(roleId);
+    if (result) {
+      // 持久化到存储
+      this.saveCustomRolesToStorage();
+      this.saveUserRolesToStorage();
+    }
+    return result;
+  }
+
+  /**
+   * 清除所有持久化数据（用于测试或重置）
+   */
+  clearPersistedData(): void {
+    try {
+      localStorage.removeItem(this.storageKey);
+      localStorage.removeItem(this.customRolesKey);
+      this.userRoles.clear();
+      // 只保留系统角色
+      const systemRoles = Array.from(this.roles.values()).filter(role => role.isSystemRole);
+      this.roles.clear();
+      systemRoles.forEach(role => this.roles.set(role.id, role));
+    } catch (error) {
+      console.error('Failed to clear persisted RBAC data:', error);
+    }
   }
 }
 

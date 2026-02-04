@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
+import { toast } from 'sonner';
+import { uploadImage } from '@/services/imageService';
 
 interface CreateCommunityModalProps {
   isOpen: boolean;

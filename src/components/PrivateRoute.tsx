@@ -27,40 +27,23 @@ const PrivateRoute = memo(({ component: Component, children }: PrivateRouteProps
     );
   }
   
-  // 开发环境：默认视为已登录，方便测试
-  if (isDevelopment) {
-    console.log('[PrivateRoute] Development mode: Checking for new user');
-    // 开发环境也需要检查新用户状态，以便测试完整信息流程
-    if (user && user.isNewUser && location.pathname !== '/complete-profile') {
-      return <Navigate to="/complete-profile" replace />;
-    }
-    
-    // 开发环境直接返回子组件，不进行认证检查
-    if (children) {
-      return <>{children}</>;
-    }
-    if (Component) {
-      return <Component />;
-    }
-    return null;
-  } else {
-    // 生产环境：严格检查认证状态
-    // 优化重定向逻辑，使用更明确的状态检查
-    if (isAuthenticated === false) {
-      return <Navigate to="/login" state={{ from: location }} replace />;
-    }
-    
-    // 修复：如果isAuthenticated为undefined，也重定向到登录页面，而不是返回null
-    if (isAuthenticated === undefined) {
-      return <Navigate to="/login" state={{ from: location }} replace />;
-    }
-    
-    // 检查用户是否为新用户且需要完善信息
-    if (user && user.isNewUser && location.pathname !== '/complete-profile') {
-      return <Navigate to="/complete-profile" replace />;
-    }
+  // 开发环境和生产环境统一处理认证逻辑，确保安全
+  // 检查认证状态
+  if (isAuthenticated === false || isAuthenticated === undefined) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
   
+  // 检查用户是否为新用户且需要完善信息
+  if (user && user.isNewUser && location.pathname !== '/complete-profile') {
+    return <Navigate to="/complete-profile" replace />;
+  }
+  
+  // 开发环境日志记录（仅用于调试，不影响逻辑）
+  if (isDevelopment) {
+    console.log('[PrivateRoute] Development mode: User authenticated');
+  }
+  
+  // 认证通过，渲染内容
   // 如果有children，直接返回children，用于支持懒加载组件
   if (children) {
     return <>{children}</>;

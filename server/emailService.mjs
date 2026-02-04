@@ -1,57 +1,47 @@
 import nodemailer from 'nodemailer';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import { createLogger } from './utils/logger.mjs';
 
-// 获取当前目录
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// 创建邮件日志记录器
+const emailLogger = createLogger('email');
 
-// 确保日志目录存在
-const logDir = path.join(__dirname, '../logs');
-if (!fs.existsSync(logDir)) {
-  try {
-    fs.mkdirSync(logDir, { recursive: true });
-  } catch (e) {
-    console.error('无法创建日志目录:', e);
-  }
-}
-
-const logFile = path.join(logDir, 'email.log');
-
-// 写入日志
+// 写入日志（保持向后兼容）
 function logEmail(type, data) {
-  const timestamp = new Date().toISOString();
-  const logEntry = `[${timestamp}] [${type}] ${JSON.stringify(data)}\n`;
-  
-  // 同时输出到控制台
-  if (type === 'ERROR') {
-    console.error(logEntry.trim());
-  } else {
-    console.log(logEntry.trim());
-  }
-  
-  try {
-    fs.appendFileSync(logFile, logEntry);
-  } catch (e) {
-    console.error('写入日志文件失败:', e);
+  switch (type) {
+    case 'ERROR':
+      emailLogger.error(data);
+      break;
+    case 'WARN':
+      emailLogger.warn(data);
+      break;
+    case 'DEBUG':
+      emailLogger.debug(data);
+      break;
+    default:
+      emailLogger.info({ type, ...data });
   }
 }
 
-// 邮件服务配置
-const emailConfig = {
-  host: process.env.EMAIL_HOST || 'smtp.example.com',
-  port: Number(process.env.EMAIL_PORT || 587),
-  secure: process.env.EMAIL_SECURE === 'true',
-  auth: {
-    user: process.env.EMAIL_USER || 'your-email@example.com',
-    pass: process.env.EMAIL_PASS || 'your-email-password'
-  },
-  from: process.env.EMAIL_FROM || '"AI共创平台" <no-reply@example.com>'
-};
+// 邮件服务配置和传输器 (Lazy initialization)
+let emailConfig = null;
+let transporter = null;
 
-// 创建邮件传输器
-const transporter = nodemailer.createTransport(emailConfig);
+function getTransporter() {
+  if (transporter) return transporter;
+
+  emailConfig = {
+    host: process.env.EMAIL_HOST || 'smtp.example.com',
+    port: Number(process.env.EMAIL_PORT || 587),
+    secure: process.env.EMAIL_SECURE === 'true',
+    auth: {
+      user: process.env.EMAIL_USER || 'your-email@example.com',
+      pass: process.env.EMAIL_PASS || 'your-email-password'
+    },
+    from: process.env.EMAIL_FROM || '"AI共创平台" <no-reply@example.com>'
+  };
+
+  transporter = nodemailer.createTransport(emailConfig);
+  return transporter;
+}
 
 
 // 邮件发送队列
@@ -131,6 +121,8 @@ async function processEmailQueue() {
  */
 async function sendEmailInternal(to, subject, html) {
   try {
+    const transport = getTransporter();
+
     // 检查配置是否为示例值或不完整，如果是则模拟发送
     if (emailConfig.host === 'smtp.example.com' || emailConfig.auth.user.includes('example.com') || !emailConfig.host || !emailConfig.auth.user) {
        logEmail('MOCK_SEND', { to, subject, status: 'simulated' });
@@ -140,7 +132,7 @@ async function sendEmailInternal(to, subject, html) {
     }
 
     // 设置5秒超时，避免阻塞主流程
-    const sendPromise = transporter.sendMail({
+    const sendPromise = transport.sendMail({
       from: emailConfig.from,
       to,
       subject,

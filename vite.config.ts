@@ -123,8 +123,6 @@ export default defineConfig({
       'pg': '@/utils/databaseStub',
       '@neondatabase/serverless': '@/utils/databaseStub',
       'ws': '@/utils/databaseStub',
-      // React相关依赖使用默认解析
-      // scheduler: require.resolve('scheduler')
     }
   },
 
@@ -196,48 +194,27 @@ export default defineConfig({
         entryFileNames: 'entries/[name]-[hash:8].js',
         // 启用动态导入支持
         dynamicImportInCjs: true,
-        // 优化chunk分割策略
-        // manualChunks: {
+        // 优化chunk分割策略 - 启用代码分割以提升加载性能
+        manualChunks: {
           // 将核心React库分离到单独的chunk中
-          // 'react-core': ['react', 'react-dom', 'react-router-dom'],
+          'react-core': ['react', 'react-dom', 'react-router-dom'],
           // 将状态管理库分离到单独的chunk中
-          // 'state-management': ['zustand'],
+          'state-management': ['zustand'],
           // 将UI库分离到单独的chunk中
-          // 'ui-libraries': ['@headlessui/react', 'lucide-react'],
+          'ui-libraries': ['@headlessui/react', 'lucide-react'],
           // 将动画库分离到单独的chunk中
-          // 'animation': ['framer-motion'],
+          'animation': ['framer-motion'],
           // 将图表库分离到单独的chunk中
-          // 'charts': ['recharts'],
+          'charts': ['recharts'],
           // 将国际化库分离到单独的chunk中
-          // 'i18n': ['i18next', 'react-i18next', 'i18next-browser-languagedetector'],
+          'i18n': ['i18next', 'react-i18next', 'i18next-browser-languagedetector'],
           // 将工具库分离到单独的chunk中
-          // 'utils': ['clsx', 'zod', 'date-fns', 'dayjs'],
+          'utils': ['clsx', 'zod', 'date-fns', 'dayjs'],
           // 将样式库分离到单独的chunk中
-          // 'style': ['tailwind-merge'],
+          'style': ['tailwind-merge'],
           // 将Supabase相关库分离到单独的chunk中
-          // 'supabase': ['@supabase/supabase-js'],
-          // 将媒体相关库分离到单独的chunk中
-          // 'media': ['@tinymce/tinymce-react'],
-          // 将短信服务相关库分离到单独的chunk中
-          // 'sms': ['@alicloud/dysmsapi20170525', '@alicloud/tea-typescript', '@alicloud/tea-util', 'tencentcloud-sdk-nodejs-sms', 'twilio'],
-          // 将地图相关库分离到单独的chunk中
-          // 'maps': ['@amap/amap-jsapi-loader'],
-          // 将虚拟列表相关库分离到单独的chunk中
-          // 'virtual-lists': ['react-virtuoso', 'react-window'],
-          // 将密码处理库分离到单独的chunk中
-          // 'security': ['bcryptjs', 'jsonwebtoken'],
-          // 将字体图标库分离到单独的chunk中
-          // 'icons': ['@fortawesome/fontawesome-free'],
-          // 将手势库分离到单独的chunk中
-          // 'gestures': ['@use-gesture/react'],
-          // 将protobuf库分离到单独的chunk中
-          // 'protobuf': ['@bufbuild/protobuf'],
-          // 将PWA相关库分离到单独的chunk中
-          // 'pwa': ['workbox-window'],
-
-          // 将压缩库分离到单独的chunk中
-          // 'compression': [],
-        // },
+          'supabase': ['@supabase/supabase-js'],
+        },
       },
       // 优化插件配置
       plugins: [
@@ -260,8 +237,8 @@ export default defineConfig({
   optimizeDeps: {
     // 预构建依赖 - 包含所有可能需要转换的依赖
     include: [
-      'react', 'react-dom', 'react-router-dom', 
-      'clsx', 'tailwind-merge', 
+      'react', 'react-dom', 'react-router-dom',
+      'clsx', 'tailwind-merge',
       'framer-motion',
       'zustand',
       'i18next', 'react-i18next',
@@ -274,23 +251,16 @@ export default defineConfig({
       '@fortawesome/fontawesome-free',
       '@tinymce/tinymce-react',
       '@amap/amap-jsapi-loader',
-      '@alicloud/dysmsapi20170525',
-      '@alicloud/tea-typescript',
-      '@alicloud/tea-util',
-      'tencentcloud-sdk-nodejs-sms',
-      'twilio',
-      'node-fetch',
-      'nodemailer',
-      'jsonwebtoken',
-      'bcryptjs',
-      'ws',
       'recharts',
       'react-markdown',
       'workbox-window'
     ],
-    // 禁用预构建的依赖，包括数据库依赖
+    // 禁用预构建的依赖，包括数据库依赖和服务器端依赖
     exclude: [
-      'better-sqlite3', 'mongodb', 'pg', '@neondatabase/serverless'
+      'better-sqlite3', 'mongodb', 'pg', '@neondatabase/serverless',
+      '@alicloud/dysmsapi20170525', '@alicloud/tea-typescript', '@alicloud/tea-util',
+      'tencentcloud-sdk-nodejs-sms', 'twilio',
+      'node-fetch', 'nodemailer', 'jsonwebtoken', 'bcryptjs', 'ws'
     ],
     // 优化依赖构建
     esbuildOptions: {
@@ -323,139 +293,63 @@ export default defineConfig({
       // 启用完整重载作为后备选项
       fullReload: true,
     },
-    // 添加开发服务器代理配置
+    // 安全头部配置
+    headers: {
+      'X-Content-Type-Options': 'nosniff',
+      'X-Frame-Options': 'DENY',
+      'X-XSS-Protection': '1; mode=block',
+      'Referrer-Policy': 'strict-origin-when-cross-origin',
+      'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+      // Content-Security-Policy 防止XSS和数据注入攻击
+      'Content-Security-Policy': [
+        "default-src 'self'",
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com",
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com",
+        "font-src 'self' https://fonts.gstatic.com data:",
+        "img-src 'self' data: blob: https:",
+        "connect-src 'self' ws: wss: http: https:",
+        "media-src 'self' blob:",
+        "frame-ancestors 'none'",
+        "base-uri 'self'",
+        "form-action 'self'"
+      ].join('; '),
+      // Strict-Transport-Security 强制HTTPS
+      'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload',
+    },
+    // 开发服务器代理配置 - 统一的API代理设置
     proxy: {
-      '/api/users': {
-        target: LOCAL_API_TARGET,
-        changeOrigin: true
-      },
-      '/api/auth': {
-        target: LOCAL_API_TARGET,
-        changeOrigin: true
-      },
-      '/api/works': {
-        target: LOCAL_API_TARGET,
-        changeOrigin: true
-      },
-      '/api/friends': {
-        target: LOCAL_API_TARGET,
-        changeOrigin: true
-      },
-      '/api/messages': {
-        target: LOCAL_API_TARGET,
-        changeOrigin: true
-      },
-      '/api/activities': {
-        target: LOCAL_API_TARGET,
-        changeOrigin: true
-      },
-      '/api/communities': {
-        target: LOCAL_API_TARGET,
-        changeOrigin: true
-      },
-      '/api/community': {
-        target: LOCAL_API_TARGET,
-        changeOrigin: true
-      },
-      '/api/posts': {
-        target: LOCAL_API_TARGET,
-        changeOrigin: true
-      },
-      '/api/ai': {
-        target: LOCAL_API_TARGET,
-        changeOrigin: true
-      },
-      '/api/templates': {
-        target: LOCAL_API_TARGET,
-        changeOrigin: true
-      },
-      '/api/upload': {
-        target: LOCAL_API_TARGET,
-        changeOrigin: true
-      },
-      '/api/notifications': {
-        target: LOCAL_API_TARGET,
-        changeOrigin: true
-      },
-      '/api/categories': {
-        target: LOCAL_API_TARGET,
-        changeOrigin: true
-      },
-      '/api/stats': {
-        target: LOCAL_API_TARGET,
-        changeOrigin: true
-      },
-      '/api/search': {
-        target: LOCAL_API_TARGET,
-        changeOrigin: true
-      },
-      '/api/events': {
-        target: LOCAL_API_TARGET,
-        changeOrigin: true
-      },
-      '/api/moderation': {
-        target: LOCAL_API_TARGET,
-        changeOrigin: true
-      },
-      '/api/doubao': {
+      // 统一API代理 - 所有 /api/* 请求转发到本地API服务器
+      '/api': {
         target: LOCAL_API_TARGET,
         changeOrigin: true,
+        timeout: 30000, // 30秒超时
+        proxyTimeout: 30000,
         configure: (proxy, options) => {
-          // 允许所有响应头通过
-          options.onProxyRes = (proxyRes, req, res) => {
-            // 确保响应头被正确设置，特别是对于图片请求
-            proxyRes.headers['Access-Control-Allow-Origin'] = '*';
-          };
+          // 代理请求错误处理
+          proxy.on('error', (err, req, res) => {
+            console.error('[Proxy Error]', err.message, req.url);
+            if (!res.headersSent) {
+              res.writeHead(502, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({
+                error: 'Proxy Error',
+                message: '无法连接到API服务器',
+                timestamp: new Date().toISOString()
+              }));
+            }
+          });
+          // 代理请求日志
+          proxy.on('proxyReq', (proxyReq, req, res) => {
+            console.log(`[Proxy] ${req.method} ${req.url} -> ${LOCAL_API_TARGET}${req.url}`);
+          });
         },
       },
-      '/api/health': {
-        target: LOCAL_API_TARGET,
-        changeOrigin: true
-      },
-      '/api/chat': {
-        target: LOCAL_API_TARGET,
-        changeOrigin: true
-      },
-      '/api/kimi': {
-        target: LOCAL_API_TARGET,
-        changeOrigin: true
-      },
-      '/api/deepseek': {
-        target: LOCAL_API_TARGET,
-        changeOrigin: true
-      },
-      '/api/qwen': {
-        target: LOCAL_API_TARGET,
-        changeOrigin: true
-      },
-      '/api/dashscope': {
-        target: LOCAL_API_TARGET,
-        changeOrigin: true
-      },
-      '/api/openai': {
-        target: LOCAL_API_TARGET,
-        changeOrigin: true
-      },
-      '/api/gemini': {
-        target: LOCAL_API_TARGET,
-        changeOrigin: true
-      },
-      '/api/zhipu': {
-        target: LOCAL_API_TARGET,
-        changeOrigin: true
-      },
-      '/api/anthropic': {
-        target: LOCAL_API_TARGET,
-        changeOrigin: true
-      },
+      // 外部API代理配置
       '/api/proxy/trae-api': {
         target: 'https://trae-api-sg.mchost.guru',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/proxy\/trae-api/, ''),
         configure: (proxy, options) => {
-          // 允许所有响应头通过
           options.onProxyRes = (proxyRes, req, res) => {
-            // 确保响应头被正确设置，特别是对于图片请求
             proxyRes.headers['Access-Control-Allow-Origin'] = '*';
           };
         },
@@ -465,19 +359,17 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/proxy\/unsplash/, ''),
         configure: (proxy, options) => {
-          // 允许所有响应头通过
           options.onProxyRes = (proxyRes, req, res) => {
-            // 确保响应头被正确设置，特别是对于图片请求
             proxyRes.headers['Access-Control-Allow-Origin'] = '*';
           };
         },
       },
-      // WebSocket代理配置
-      '/ws': {
-        target: LOCAL_API_TARGET.replace('http://', 'ws://'),
-        changeOrigin: true,
-        ws: true
-      },
+      // WebSocket代理配置 - 暂时禁用，避免连接失败错误
+      // '/ws': {
+      //   target: LOCAL_API_TARGET.replace('http://', 'ws://'),
+      //   changeOrigin: true,
+      //   ws: true
+      // },
     },
   },
 
@@ -581,24 +473,24 @@ export default defineConfig({
           };
         },
       },
-      // WebSocket代理配置
-      '/ws': {
-        target: LOCAL_API_TARGET.replace('http://', 'ws://'),
-        changeOrigin: true,
-        ws: true
-      },
+      // WebSocket代理配置 - 暂时禁用，避免连接失败错误
+      // '/ws': {
+      //   target: LOCAL_API_TARGET.replace('http://', 'ws://'),
+      //   changeOrigin: true,
+      //   ws: true
+      // },
     },
     // 确保预览服务器也使用相同的resolve配置
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './src'),
+        'react': path.resolve(__dirname, 'node_modules/react'),
+        'react-dom': path.resolve(__dirname, 'node_modules/react-dom'),
         'better-sqlite3': '@/utils/databaseStub',
         'mongodb': '@/utils/databaseStub',
         'pg': '@/utils/databaseStub',
         '@neondatabase/serverless': '@/utils/databaseStub',
         'ws': '@/utils/databaseStub',
-        'react-reconciler/constants': 'react-reconciler/constants.js',
-        scheduler: path.resolve(__dirname, 'node_modules', 'scheduler')
       }
     }
   },

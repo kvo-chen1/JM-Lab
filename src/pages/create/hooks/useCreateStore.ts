@@ -381,18 +381,51 @@ export const useCreateStore = create<CreateState & CreateActions>((set) => ({
   publishToExplore: async (data) => {
     try {
       console.log('Publishing to explore:', data);
-      await new Promise(resolve => setTimeout(resolve, 1000));
       
-      return {
-        success: true,
-        message: '发布成功，正在审核中',
-        moderationStatus: 'pending'
+      const state = get();
+      const selectedImage = state.generatedResults.find(r => r.id === state.selectedResult);
+      
+      if (!selectedImage) {
+        return {
+          success: false,
+          message: '请先选择生成的作品',
+          moderationStatus: 'rejected'
+        };
+      }
+      
+      // 创建新作品
+      const newPost = {
+        title: data.title,
+        description: data.description,
+        thumbnail: selectedImage.url || selectedImage.thumbnail || '',
+        category: data.category || 'design',
+        tags: data.tags || [],
+        culturalElements: data.culturalElements || [],
+        visibility: data.visibility || 'public',
+        status: 'published',
+        publishType: 'explore',
+        isFeatured: data.isFeatured || false,
+        scheduledPublishDate: data.scheduledPublishDate
       };
-    } catch (error) {
+      
+      // 调用 API 保存到 Supabase
+      // 使用 'current-user' 让 postService 处理当前用户 ID
+      const result = await postsApi.addPost(newPost as any, { id: 'current-user' } as any);
+      
+      if (result) {
+        return {
+          success: true,
+          message: '发布成功，正在审核中',
+          moderationStatus: 'pending'
+        };
+      } else {
+        throw new Error('发布失败');
+      }
+    } catch (error: any) {
       console.error('Failed to publish to explore:', error);
       return {
         success: false,
-        message: '发布失败，请重试',
+        message: error.message || '发布失败，请重试',
         moderationStatus: 'rejected'
       };
     }
@@ -401,17 +434,46 @@ export const useCreateStore = create<CreateState & CreateActions>((set) => ({
   publishToCommunity: async (data) => {
     try {
       console.log('Publishing to community:', data);
-      await new Promise(resolve => setTimeout(resolve, 1000));
       
-      return {
-        success: true,
-        message: '发布成功'
+      const state = get();
+      const selectedImage = state.generatedResults.find(r => r.id === state.selectedResult);
+      
+      if (!selectedImage) {
+        return {
+          success: false,
+          message: '请先选择生成的作品'
+        };
+      }
+      
+      // 创建新作品
+      const newPost = {
+        title: data.title,
+        description: data.description,
+        thumbnail: selectedImage.url || selectedImage.thumbnail || '',
+        category: 'design',
+        visibility: data.visibility || 'community',
+        status: 'published',
+        publishType: 'community',
+        communityId: data.communityId,
+        scheduledPublishDate: data.scheduledPublishDate
       };
-    } catch (error) {
+      
+      // 调用 API 保存到 Supabase
+      const result = await postsApi.addPost(newPost as any, { id: 'current-user' } as any);
+      
+      if (result) {
+        return {
+          success: true,
+          message: '发布成功'
+        };
+      } else {
+        throw new Error('发布失败');
+      }
+    } catch (error: any) {
       console.error('Failed to publish to community:', error);
       return {
         success: false,
-        message: '发布失败，请重试'
+        message: error.message || '发布失败，请重试'
       };
     }
   },

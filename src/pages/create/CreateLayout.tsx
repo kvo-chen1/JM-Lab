@@ -23,6 +23,9 @@ export default function CreateLayout() {
   const { user } = useContext(AuthContext);
 
   const handlePublish = async (data: any) => {
+    console.log('[CreateLayout] handlePublish called with:', data);
+    console.log('[CreateLayout] Current user:', user);
+    
     try {
       const newPost: Partial<Post> = {
         title: data.title,
@@ -42,8 +45,11 @@ export default function CreateLayout() {
         videoUrl: data.contentType === 'video' && data.images?.[0] ? data.images[0] : undefined
       };
 
+      console.log('[CreateLayout] Creating post:', newPost);
+      
       // 传入当前用户对象
-      await postsApi.addPost(newPost as Post, user || undefined);
+      const result = await postsApi.addPost(newPost as Post, user || undefined);
+      console.log('[CreateLayout] Post created:', result);
       
       // 触发更新事件，通知广场页面刷新
       window.dispatchEvent(new Event('square-posts-updated'));
@@ -52,7 +58,7 @@ export default function CreateLayout() {
       setIsPublishModalOpen(false);
     } catch (error) {
       toast.error('发布失败');
-      console.error(error);
+      console.error('[CreateLayout] Publish error:', error);
     }
   };
 
@@ -66,7 +72,7 @@ export default function CreateLayout() {
     { path: '/create/ai-writer', label: 'AI 智作文案', icon: 'pen-nib' },
     { path: '/create/inspiration', label: '作品之心', icon: 'bolt' },
     { path: '/create/wizard', label: '品牌向导', icon: 'hat-wizard' },
-    { path: '/create-activity', label: '创建活动', icon: 'calendar-plus', exact: true },
+    { path: '/create/activity', label: '创建活动', icon: 'calendar-plus', exact: true },
   ];
 
   // Determine if we are in the main studio (no scroll) or sub-pages (scrollable)

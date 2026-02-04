@@ -64,13 +64,14 @@ export default function Generation() {
         duration: 5,
         resolution: '720p'
       })
-      if (!result.ok || !result.data?.url) {
+      const videoUrl = result.data?.video_url || result.data?.url
+      if (!result.ok || !videoUrl) {
         const msg = result.error || '视频生成失败'
         toast.error(msg)
         setVariants((arr) => arr.map((it, i) => (i === idx ? { ...it, video: `视频生成失败：${msg}` } : it)))
         return
       }
-      const url = result.data.url
+      const url = videoUrl
       setVariants((arr) => arr.map((it, i) => (i === idx ? { ...it, video: url } : it)))
       toast.success('视频生成完成')
       try {

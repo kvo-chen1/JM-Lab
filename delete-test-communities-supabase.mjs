@@ -1,8 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
 
-// 使用实际的Supabase配置
-const supabaseUrl = 'https://pptqdicaaewtnaiflfcs.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBwdHFkaWNhYWV3dG5haWZsZmNzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NjQ5MTUzMiwiZXhwIjoyMDgyMDY3NTMyfQ.Plz64E2BkfbgiyaBNyL2L2grVTPO-U8fcdDxa-MjgX4';
+const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error('Missing env: SUPABASE_URL (or VITE_/NEXT_PUBLIC_) and SUPABASE_SERVICE_ROLE_KEY (or ANON key)');
+}
 
 // 创建Supabase客户端
 const supabase = createClient(supabaseUrl, supabaseKey);

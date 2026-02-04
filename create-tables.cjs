@@ -14,7 +14,6 @@ if (!supabaseUrl || !serviceRoleKey) {
   console.log('当前环境变量：');
   console.log('VITE_SUPABASE_URL:', process.env.VITE_SUPABASE_URL);
   console.log('NEXT_PUBLIC_SUPABASE_URL:', process.env.NEXT_PUBLIC_SUPABASE_URL);
-  console.log('SUPABASE_SERVICE_ROLE_KEY:', process.env.SUPABASE_SERVICE_ROLE_KEY);
   process.exit(1);
 }
 
@@ -33,15 +32,16 @@ const { Client } = require('pg');
 // 示例：DATABASE_URL=postgresql://postgres:password@hostname:5432/database
 
 // 或者使用Supabase的连接信息手动构建
+const pgConnectionString = process.env.POSTGRES_URL_NON_POOLING || process.env.DATABASE_URL || process.env.POSTGRES_URL;
+
+if (!pgConnectionString) {
+  console.error('请在环境变量中提供 PostgreSQL 连接字符串：POSTGRES_URL_NON_POOLING / DATABASE_URL / POSTGRES_URL');
+  process.exit(1);
+}
+
 const pgClient = new Client({
-  connectionString: supabaseUrl.replace('https://', 'postgresql://'),
-  password: serviceRoleKey,
-  user: 'postgres', // 默认Supabase用户名
-  database: 'postgres', // 默认Supabase数据库名
-  port: 5432,
-  ssl: {
-    rejectUnauthorized: false
-  }
+  connectionString: pgConnectionString,
+  ssl: { rejectUnauthorized: false }
 });
 
 // 直接使用pg客户端执行SQL语句的函数

@@ -42,13 +42,13 @@ supabase init
 1. 登录 Supabase Dashboard
 2. 进入你的项目
 3. 查看浏览器地址栏，URL 格式为：`https://supabase.com/dashboard/project/<your-project-ref>`
-4. 复制 `<your-project-ref>` 部分（例如：`pptqdicaaewtnaiflfcs`）
+4. 复制 `<your-project-ref>` 部分（例如：`your-project-ref`）
 
 ### 链接项目
 
 ```bash
 supabase link --project-ref <your-project-ref>
-# 例如：supabase link --project-ref pptqdicaaewtnaiflfcs
+# 例如：supabase link --project-ref your-project-ref
 ```
 
 系统会提示你输入数据库密码，这是你的 Supabase 项目的数据库密码。

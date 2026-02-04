@@ -17,7 +17,15 @@ export interface KnowledgeItem {
   updatedAt: number;
 }
 
-// 知识库分类
+// 知识库分类配置
+export interface CategoryConfig {
+  name: string;
+  icon: string;
+  color: string;
+  bgColor: string;
+  description: string;
+}
+
 export const KNOWLEDGE_CATEGORIES = [
   '历史人物',
   '历史事件',
@@ -30,6 +38,80 @@ export const KNOWLEDGE_CATEGORIES = [
   '文学艺术',
   '宗教信仰'
 ] as const;
+
+// 分类详细配置
+export const CATEGORY_CONFIG: Record<string, CategoryConfig> = {
+  '历史人物': {
+    name: '历史人物',
+    icon: 'user-tie',
+    color: '#C02C38',
+    bgColor: 'rgba(192, 44, 56, 0.1)',
+    description: '探索天津历史上的重要人物'
+  },
+  '历史事件': {
+    name: '历史事件',
+    icon: 'calendar-alt',
+    color: '#2563EB',
+    bgColor: 'rgba(37, 99, 235, 0.1)',
+    description: '了解影响天津发展的重大事件'
+  },
+  '文化遗产': {
+    name: '文化遗产',
+    icon: 'landmark',
+    color: '#059669',
+    bgColor: 'rgba(5, 150, 105, 0.1)',
+    description: '发现天津珍贵的文化遗产'
+  },
+  '传统技艺': {
+    name: '传统技艺',
+    icon: 'hands',
+    color: '#7C3AED',
+    bgColor: 'rgba(124, 58, 237, 0.1)',
+    description: '传承百年的传统手工艺'
+  },
+  '民俗文化': {
+    name: '民俗文化',
+    icon: 'users',
+    color: '#DC2626',
+    bgColor: 'rgba(220, 38, 38, 0.1)',
+    description: '体验天津独特的民俗风情'
+  },
+  '建筑风格': {
+    name: '建筑风格',
+    icon: 'building',
+    color: '#0891B2',
+    bgColor: 'rgba(8, 145, 178, 0.1)',
+    description: '欣赏天津多元的建筑艺术'
+  },
+  '地方小吃': {
+    name: '地方小吃',
+    icon: 'utensils',
+    color: '#EA580C',
+    bgColor: 'rgba(234, 88, 12, 0.1)',
+    description: '品尝地道的天津美食'
+  },
+  '方言文化': {
+    name: '方言文化',
+    icon: 'comment-dots',
+    color: '#DB2777',
+    bgColor: 'rgba(219, 39, 119, 0.1)',
+    description: '学习有趣的天津方言'
+  },
+  '文学艺术': {
+    name: '文学艺术',
+    icon: 'palette',
+    color: '#9333EA',
+    bgColor: 'rgba(147, 51, 234, 0.1)',
+    description: '感受天津的文学艺术魅力'
+  },
+  '宗教信仰': {
+    name: '宗教信仰',
+    icon: 'place-of-worship',
+    color: '#4F46E5',
+    bgColor: 'rgba(79, 70, 229, 0.1)',
+    description: '了解天津的宗教文化'
+  }
+};
 
 // 天津历史文化知识库数据
 const tianjinKnowledgeBase: KnowledgeItem[] = [

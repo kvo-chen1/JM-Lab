@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { useTheme } from '@/hooks/useTheme';
 import { motion, AnimatePresence } from 'framer-motion';
 import BRANDS from '@/lib/brands';
@@ -9,22 +9,16 @@ import { scoreAuthenticity } from '@/services/authenticityService';
 import postService from '@/services/postService';
 import { useNavigate } from 'react-router-dom';
 import { llmService } from '@/services/llmService';
-import { TianjinImage, TianjinButton } from '@/components/TianjinStyleComponents';
+import { TianjinImage, TianjinButton, YangliuqingCard } from '@/components/TianjinStyleComponents';
 import AISuggestionBox from '@/components/AISuggestionBox';
 import { toast } from 'sonner';
 
-// Mock Data
-const TEMPLATES = [
-  { id: 't1', title: '节日促销海报', style: 'festive promotion poster, vibrant red and gold', icon: 'gifts' },
-  { id: 't2', title: '极简产品包装', style: 'minimalist product packaging design, clean white background', icon: 'box-open' },
-  { id: 't3', title: '社交媒体封面', style: 'social media cover, trendy layout, bold typography', icon: 'hashtag' },
-  { id: 't4', title: '国潮插画KV', style: 'Guochao illustration, traditional chinese patterns mixed with modern art', icon: 'paint-brush' },
-];
-
-const COMPETITIONS = [
-  { id: 'c1', title: '2024 天津文化创意大赛' },
-  { id: 'c2', title: '老字号品牌焕新计划' },
-];
+import { 
+  TEMPLATES, 
+  COMPETITIONS, 
+  CREATIVE_TEMPLATES, 
+  BRAND_FONTS 
+} from '@/constants/creativeData';
 
 export default function Wizard() {
   const { isDark } = useTheme();
@@ -36,11 +30,14 @@ export default function Wizard() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [culturalElements, setCulturalElements] = useState<string[]>([]);
   const [previewRatio, setPreviewRatio] = useState<'landscape' | 'square' | 'portrait'>('landscape');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<'all' | 'food' | 'craft' | 'daily'>('all');
   
   // New States for enhanced features
   const [brandAssets, setBrandAssets] = useState({
     logo: '',
-    colors: ['#D32F2F', '#FFC107', '#212121'], // Default colors
+    colors: ['#D32F2F', '#FFC107', '#212121'],
     font: 'SimSun',
   });
   const [selectedTemplate, setSelectedTemplate] = useState('');
@@ -53,22 +50,47 @@ export default function Wizard() {
   });
   const [isConsistencyChecking, setIsConsistencyChecking] = useState(false);
   const [consistencyScore, setConsistencyScore] = useState<number | null>(null);
+  const [consistencyDetails, setConsistencyDetails] = useState<{item: string; status: 'pass' | 'warn' | 'fail'; message: string}[]>([]);
+  const [isGeneratingVariants, setIsGeneratingVariants] = useState(false);
+  const [generationProgress, setGenerationProgress] = useState(0);
+  const [showColorPicker, setShowColorPicker] = useState(false);
+  const [newColor, setNewColor] = useState('#000000');
 
   const next = () => setStep(s => Math.min(4, s + 1));
   const prev = () => setStep(s => Math.max(1, s - 1));
 
-  const savePost = () => {
+  // Filter brands based on search and category
+  const filteredBrands = useMemo(() => {
+    let brands = BRANDS;
+    if (selectedCategory !== 'all') {
+      const categoryMap: Record<string, string[]> = {
+        food: ['guifaxiang', 'erduoyan', 'guorenzhang', 'goubuli', 'longshunyu', 'hongshunde', 'daoxiangcun', 'quanjude', 'liubiju', 'wangzhihe', 'guangzhoujiujia', 'lianxianglou', 'xinghualou', 'qiaojiashan', 'guanshengyuan', 'dezhoupaji'],
+        craft: ['nirenzhang', 'zhangxiaoqian', 'wangmazi', 'hudiepai', 'ruifuxiang', 'qianxiangyi'],
+        daily: ['laomeihua', 'seagullwatch', 'huili', 'feiyue', 'shanghaiwatch', 'fenghuangbike', 'yongjiubike', 'yingxiong', 'zhonghuapencil', 'yongshengpen', 'hengdeli', 'pechoin'],
+      };
+      brands = brands.filter(b => categoryMap[selectedCategory]?.includes(b.id));
+    }
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      brands = brands.filter(b => 
+        b.name.toLowerCase().includes(query) || 
+        b.story.toLowerCase().includes(query)
+      );
+    }
+    return brands;
+  }, [searchQuery, selectedCategory]);
+
+  const savePost = async () => {
     const title = publishInfo.title || `${state.brandName || '作品'} - 生成变体`;
     const selectedVariant = selectedVariantIndex >= 0 && state.variants ? state.variants[selectedVariantIndex] : state.variants?.[0];
     const baseThumb = selectedVariant?.image || state.imageUrl || '';
     const thumb = baseThumb;
-    
-    // Simulate competition entry
+
     if (publishInfo.competitionId) {
       toast.success(`已报名参加：${COMPETITIONS.find(c => c.id === publishInfo.competitionId)?.title}`);
     }
 
-    const p = postService.addPost({
+    await postService.addPost({
       title,
       thumbnail: thumb,
       category: 'design',
@@ -83,21 +105,18 @@ export default function Wizard() {
     reset();
     navigate('/square');
     toast.success('作品发布成功！');
-    return p;
   };
 
   const runAIHelp = async () => {
     const base = (state.inputText?.trim()) || `${state.brandName || '品牌'} 创意方向与文案`;
     setIsGenerating(true);
-    setAiText(''); // Clear previous text
+    setAiText('');
     try {
-      // 1. Get static recommendations (these work without API)
       const dirs = llmService.generateCreativeDirections(base);
       setAiDirections(dirs);
       const elems = llmService.recommendCulturalElements(base);
       setCulturalElements(elems);
 
-      // 2. Try to generate text response
       const zhPolicy = '请用中文分点回答，避免 Markdown 标题或装饰符（如###、####、** 等），每点精炼。';
       const enLetters = (base.match(/[A-Za-z]/g) || []).length;
       const zhChars = (base.match(/[\u4e00-\u9fa5]/g) || []).length;
@@ -108,10 +127,8 @@ export default function Wizard() {
         await llmService.generateResponse(promptWithPolicy, { onDelta: (chunk: string) => setAiText(chunk) });
       } catch (err) {
         console.warn('LLM generation failed, falling back to mock:', err);
-        // Mock fallback if API fails
         const mockResponse = `基于${state.brandName || '您的品牌'}，为您提供以下创意建议：\n\n1. 视觉风格：建议采用新中式国潮风格，将传统${elems[0] || '纹样'}与现代极简线条结合。\n2. 核心意象：可以提取${state.brandName ? state.brandName.substring(0, 2) : '品牌'}的核心元素进行符号化重构。\n3. 色彩搭配：推荐使用朱红与钛白的撞色搭配，点缀少量金色提升质感。\n4. 营销文案："传承百年匠心，重塑东方美学"，强调品牌的时间沉淀与创新精神。`;
         
-        // Simulate streaming for mock response
         let currentText = '';
         const chars = mockResponse.split('');
         for (let i = 0; i < chars.length; i++) {
@@ -132,7 +149,9 @@ export default function Wizard() {
     const templateStyle = template?.style || '';
     const basePrompt = `${(state.inputText || '').trim()} ${templateStyle} ${(aiText || '').trim()}`.trim() || 'Tianjin cultural design';
     
-    // Set loading state or placeholder variants first
+    setIsGeneratingVariants(true);
+    setGenerationProgress(0);
+    
     const placeholders = [
       { script: '方案A：经典传承', image: '', loading: true },
       { script: '方案B：现代融合', image: '', loading: true },
@@ -148,7 +167,7 @@ export default function Wizard() {
 
     try {
       const newVariants = await Promise.all(styles.map(async (style, index) => {
-        // Use llmService to generate image (it has built-in mock fallback)
+        setGenerationProgress((index + 1) * 25);
         const response = await llmService.generateImage({
           prompt: `${basePrompt} ${style.promptSuffix}`,
           size: '1024x1024',
@@ -156,7 +175,6 @@ export default function Wizard() {
         });
 
         const imageUrl = response.data?.data?.[0]?.url || 
-                        // Fallback to Unsplash if even the service mock fails somehow
                         `https://images.unsplash.com/photo-${index === 0 ? '1535139262971-c51845709a48' : index === 1 ? '1550684848-fac1c5b4e853' : '1515630278258-407f66498911'}?w=800&q=80`;
 
         return {
@@ -167,50 +185,91 @@ export default function Wizard() {
       }));
 
       setState({ variants: newVariants });
+      setGenerationProgress(100);
+      toast.success('创意方案生成完成！');
     } catch (error) {
       console.error('Image generation failed:', error);
       toast.error('生成图片失败，已加载示例图片');
-      // Fallback to hardcoded examples
       setState({ variants: [
         { script: '方案A：经典传承', image: 'https://images.unsplash.com/photo-1535139262971-c51845709a48?w=800&q=80', video: '' },
         { script: '方案B：现代融合', image: 'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?w=800&q=80', video: '' },
         { script: '方案C：未来探索', image: 'https://images.unsplash.com/photo-1515630278258-407f66498911?w=800&q=80', video: '' },
       ] });
+    } finally {
+      setIsGeneratingVariants(false);
     }
   };
 
   const runConsistencyCheck = () => {
     setIsConsistencyChecking(true);
     setTimeout(() => {
+      const score = Math.floor(Math.random() * 20) + 80;
+      setConsistencyScore(score);
+      setConsistencyDetails([
+        { item: 'Logo 完整性', status: 'pass', message: 'Logo 清晰可识别，比例恰当' },
+        { item: '品牌色使用', status: score >= 90 ? 'pass' : 'warn', message: score >= 90 ? '品牌色使用规范' : '建议增加主色占比' },
+        { item: '字体规范', status: score >= 85 ? 'pass' : 'warn', message: score >= 85 ? '字体使用符合规范' : '建议统一字体风格' },
+        { item: '文化元素', status: 'pass', message: '文化元素运用得当' },
+      ]);
       setIsConsistencyChecking(false);
-      setConsistencyScore(Math.floor(Math.random() * 20) + 80); // Random score 80-100
       toast.success('品牌一致性检查完成');
     }, 1500);
   };
 
+  const applyTemplate = (templateId: string) => {
+    const template = CREATIVE_TEMPLATES.find(t => t.id === templateId);
+    if (template) {
+      const content = template.content.replace('${brand}', state.brandName || '品牌');
+      setState({ inputText: content });
+      toast.success(`已应用「${template.name}」模板`);
+    }
+  };
+
+  const addColor = () => {
+    if (brandAssets.colors.length < 6) {
+      setBrandAssets({...brandAssets, colors: [...brandAssets.colors, newColor]});
+      setShowColorPicker(false);
+    } else {
+      toast.error('最多添加6个品牌色');
+    }
+  };
+
+  const removeColor = (index: number) => {
+    if (brandAssets.colors.length > 1) {
+      setBrandAssets({...brandAssets, colors: brandAssets.colors.filter((_, i) => i !== index)});
+    }
+  };
+
   // Steps configuration
   const steps = [
-    { id: 1, title: '选择品牌', icon: 'store' },
-    { id: 2, title: '创意输入', icon: 'pen-nib' },
-    { id: 3, title: '生成变体', icon: 'wand-magic-sparkles' },
-    { id: 4, title: '评分发布', icon: 'star' }
+    { id: 1, title: '选择品牌', icon: 'store', desc: '选择或输入品牌名称' },
+    { id: 2, title: '创意输入', icon: 'pen-nib', desc: '描述您的创意需求' },
+    { id: 3, title: '生成变体', icon: 'wand-magic-sparkles', desc: 'AI生成多种方案' },
+    { id: 4, title: '评分发布', icon: 'star', desc: '评估并发布作品' }
   ];
 
+  const selectedBrand = useMemo(() => {
+    return BRANDS.find(b => b.id === state.brandId || b.name === state.brandName);
+  }, [state.brandId, state.brandName]);
+
   return (
-    <main className={`h-full ${isDark ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'} pb-20`}>
+    <main className={`min-h-screen ${isDark ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'} pb-24`}>
       {/* Header & Stepper */}
       <div className={`sticky top-0 z-20 ${isDark ? 'bg-gray-900/80' : 'bg-white/80'} backdrop-blur-md border-b ${isDark ? 'border-gray-800' : 'border-gray-200'}`}>
-        <div className="container mx-auto px-6 py-4">
+        <div className="container mx-auto px-4 sm:px-6 py-4">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-amber-400 to-red-500 flex items-center justify-center text-white font-bold">
-                <i className="fas fa-hat-wizard"></i>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-400 to-red-500 flex items-center justify-center text-white font-bold shadow-lg shadow-red-500/20">
+                <i className="fas fa-hat-wizard text-lg"></i>
               </div>
-              <h1 className="text-xl font-bold tracking-tight">品牌向导</h1>
+              <div>
+                <h1 className="text-xl font-bold tracking-tight">品牌向导</h1>
+                <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>AI驱动的品牌创意生成工具</p>
+              </div>
             </div>
             
             {/* Stepper */}
-            <div className="flex items-center gap-2 md:gap-4 w-full md:w-auto overflow-x-auto scrollbar-hide">
+            <div className="flex items-center gap-1 md:gap-2 w-full md:w-auto overflow-x-auto scrollbar-hide px-2">
               {steps.map((s, i) => (
                 <div key={s.id} className="flex items-center flex-shrink-0">
                   <div className={`flex items-center gap-2 ${step >= s.id ? (isDark ? 'text-white' : 'text-gray-900') : (isDark ? 'text-gray-600' : 'text-gray-400')}`}>
@@ -233,16 +292,16 @@ export default function Wizard() {
                         />
                       ) : s.id}
                     </motion.div>
-                    <span className="text-sm font-medium hidden sm:block">{s.title}</span>
+                    <div className="hidden sm:block">
+                      <span className="text-sm font-medium">{s.title}</span>
+                      <p className={`text-xs ${step >= s.id ? (isDark ? 'text-gray-400' : 'text-gray-500') : 'opacity-0'}`}>{s.desc}</p>
+                    </div>
                   </div>
                   {i < steps.length - 1 && (
                     <motion.div 
-                      className={`w-10 h-1 mx-2 rounded-full transition-colors duration-500 ${
+                      className={`w-6 md:w-10 h-1 mx-1 md:mx-2 rounded-full transition-colors duration-500 ${
                         step > s.id ? 'bg-red-600' : (isDark ? 'bg-gray-800' : 'bg-gray-200')
                       }`}
-                      initial={{ width: 0 }}
-                      animate={{ width: step > s.id ? 40 : 40 }}
-                      transition={{ duration: 0.5 }}
                     ></motion.div>
                   )}
                 </div>
@@ -252,7 +311,7 @@ export default function Wizard() {
         </div>
       </div>
 
-      <div className="container mx-auto px-6 py-12 max-w-7xl">
+      <div className="container mx-auto px-4 sm:px-6 py-8 max-w-7xl">
         <AnimatePresence mode="wait">
           {step === 1 && (
             <motion.div 
@@ -260,125 +319,298 @@ export default function Wizard() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="space-y-12"
+              className="space-y-8"
             >
-              <div className="text-center space-y-4">
-                <h2 className="text-4xl font-bold">选择一个老字号品牌</h2>
-                <p className={`text-lg ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>或者是输入您自己的品牌名称，我们将为您定制专属创意。</p>
+              {/* Header */}
+              <div className="text-center space-y-3">
+                <h2 className="text-3xl sm:text-4xl font-bold">选择一个老字号品牌</h2>
+                <p className={`text-base sm:text-lg ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>或者输入您自己的品牌名称，我们将为您定制专属创意方案</p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-                {/* Brand Input & Suggestions */}
-                <div className={`p-10 rounded-3xl ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'} border shadow-sm`}>
-                  <label className="block text-lg font-medium mb-4 opacity-70">品牌名称</label>
-                  <div className="relative">
-                    <input
-                      value={state.brandName || ''}
-                      onChange={(e) => {
-                        const name = e.target.value;
-                        const match = BRANDS.find(b => b.name === name);
-                        if (match) setState({ brandId: match.id, brandName: match.name });
-                        else setState({ brandId: undefined, brandName: name });
-                      }}
-                      placeholder="例如：桂发祥十八街麻花"
-                      className={`w-full p-6 pl-14 text-lg rounded-2xl border transition-all ${isDark ? 'bg-gray-900 border-gray-700 focus:border-red-500' : 'bg-gray-50 border-gray-200 focus:border-red-500'} focus:ring-2 focus:ring-red-500/20 outline-none`}
-                    />
-                    <i className="fas fa-search absolute left-5 top-1/2 transform -translate-y-1/2 opacity-40 text-xl"></i>
-                  </div>
-
-                  <div className="mt-8">
-                    <div className="text-sm font-medium mb-4 opacity-50 uppercase tracking-wider">热门推荐</div>
-                    <div className="flex flex-wrap gap-3">
-                      {BRANDS.slice(0, 6).map(b => (
+              <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 lg:gap-8">
+                {/* Left: Brand Selection */}
+                <div className="lg:col-span-3 space-y-6">
+                  {/* Search & Filter */}
+                  <div className={`p-4 sm:p-6 rounded-2xl ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'} border shadow-sm`}>
+                    {/* Category Filter */}
+                    <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
+                      {[
+                        { id: 'all', name: '全部', icon: 'fa-th-large' },
+                        { id: 'food', name: '美食', icon: 'fa-utensils' },
+                        { id: 'craft', name: '工艺', icon: 'fa-hammer' },
+                        { id: 'daily', name: '日用', icon: 'fa-shopping-bag' },
+                      ].map(cat => (
                         <button
-                          key={b.id}
-                          onClick={() => setState({ brandId: b.id, brandName: b.name })}
-                          className={`text-sm px-4 py-2 rounded-full transition-all ${
-                            state.brandName === b.name
+                          key={cat.id}
+                          onClick={() => setSelectedCategory(cat.id as any)}
+                          className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm whitespace-nowrap transition-all ${
+                            selectedCategory === cat.id
                               ? 'bg-red-600 text-white shadow-md shadow-red-500/20'
                               : (isDark ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-100 hover:bg-gray-200 text-gray-700')
                           }`}
                         >
-                          {b.name}
+                          <i className={`fas ${cat.icon}`}></i>
+                          {cat.name}
                         </button>
+                      ))}
+                    </div>
+
+                    {/* Search Input */}
+                    <div className="relative">
+                      <input
+                        value={searchQuery}
+                        onChange={(e) => {
+                          setSearchQuery(e.target.value);
+                          setShowSuggestions(e.target.value.length > 0);
+                        }}
+                        onFocus={() => setShowSuggestions(searchQuery.length > 0)}
+                        placeholder="搜索品牌名称..."
+                        className={`w-full p-4 pl-12 text-base rounded-xl border transition-all ${isDark ? 'bg-gray-900 border-gray-700 focus:border-red-500' : 'bg-gray-50 border-gray-200 focus:border-red-500'} focus:ring-2 focus:ring-red-500/20 outline-none`}
+                      />
+                      <i className="fas fa-search absolute left-4 top-1/2 transform -translate-y-1/2 opacity-40 text-lg"></i>
+                      {searchQuery && (
+                        <button 
+                          onClick={() => { setSearchQuery(''); setShowSuggestions(false); }}
+                          className="absolute right-4 top-1/2 transform -translate-y-1/2 opacity-40 hover:opacity-70"
+                        >
+                          <i className="fas fa-times"></i>
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Search Suggestions */}
+                    <AnimatePresence>
+                      {showSuggestions && searchQuery && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -10 }}
+                          className={`mt-2 p-2 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-100'} max-h-48 overflow-y-auto`}
+                        >
+                          {filteredBrands.slice(0, 5).map(b => (
+                            <button
+                              key={b.id}
+                              onClick={() => {
+                                setState({ brandId: b.id, brandName: b.name });
+                                setSearchQuery(b.name);
+                                setShowSuggestions(false);
+                              }}
+                              className={`w-full text-left px-4 py-3 rounded-lg transition-colors flex items-center gap-3 ${
+                                isDark ? 'hover:bg-gray-600' : 'hover:bg-white'
+                              }`}
+                            >
+                              <img src={b.image} alt={b.name} className="w-10 h-10 rounded-lg object-cover" />
+                              <div>
+                                <div className="font-medium">{b.name}</div>
+                                <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'} truncate max-w-[200px]`}>{b.story}</div>
+                              </div>
+                            </button>
+                          ))}
+                          {filteredBrands.length === 0 && (
+                            <div className="px-4 py-3 text-sm opacity-60">未找到匹配的品牌，将使用自定义品牌</div>
+                          )}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+
+                  {/* Brand Cards Grid */}
+                  <div>
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="font-bold text-lg">
+                        {searchQuery ? '搜索结果' : '热门推荐'}
+                      </h3>
+                      <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        共 {filteredBrands.length} 个品牌
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                      {(searchQuery ? filteredBrands : BRANDS.slice(0, 9)).map(b => (
+                        <motion.button
+                          key={b.id}
+                          onClick={() => setState({ brandId: b.id, brandName: b.name })}
+                          className={`relative p-4 rounded-2xl border-2 text-left transition-all overflow-hidden ${
+                            state.brandName === b.name
+                              ? 'border-red-500 bg-red-50 dark:bg-red-900/20 shadow-lg shadow-red-500/10'
+                              : (isDark ? 'border-gray-700 bg-gray-800 hover:border-gray-600' : 'border-gray-100 bg-white hover:border-gray-200 hover:shadow-md')
+                          }`}
+                          whileHover={{ y: -2 }}
+                          whileTap={{ scale: 0.98 }}
+                        >
+                          <div className="relative aspect-[4/3] rounded-xl overflow-hidden mb-3">
+                            <TianjinImage src={b.image} alt={b.name} ratio="landscape" className="w-full h-full" />
+                            {state.brandName === b.name && (
+                              <div className="absolute inset-0 bg-red-500/20 flex items-center justify-center">
+                                <div className="w-8 h-8 bg-red-600 rounded-full flex items-center justify-center text-white">
+                                  <i className="fas fa-check"></i>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                          <h4 className="font-bold text-sm truncate">{b.name}</h4>
+                          <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'} line-clamp-2 mt-1`}>{b.story}</p>
+                        </motion.button>
                       ))}
                     </div>
                   </div>
                 </div>
 
-                {/* Brand Preview & Assets */}
-                <div className={`p-10 rounded-3xl ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'} border shadow-sm flex flex-col items-center justify-center text-center`}>
-                  {state.brandName ? (
-                    <div className="w-full space-y-6">
-                      <div className="relative aspect-video rounded-xl overflow-hidden shadow-lg group">
-                        {(() => {
-                          const brand = BRANDS.find(b => b.id === state.brandId || b.name === (state.brandName || ''));
-                          const src = brand?.image || '';
-                          return (
-                            <motion.div 
-                              initial={{ scale: 1 }}
-                              whileHover={{ scale: 1.05 }}
-                              transition={{ duration: 0.3 }}
-                            >
-                              <TianjinImage src={src} alt="brand" ratio="landscape" className="w-full h-full object-cover transition-transform duration-500" />
-                            </motion.div>
-                          );
-                        })()}
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent flex flex-col justify-end p-6">
-                          <h3 className="text-white font-bold text-3xl mb-1">{state.brandName}</h3>
+                {/* Right: Brand Preview & Assets */}
+                <div className="lg:col-span-2">
+                  <div className={`sticky top-24 p-6 rounded-2xl ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'} border shadow-sm`}>
+                    {selectedBrand ? (
+                      <div className="space-y-6">
+                        {/* Brand Header */}
+                        <div className="relative aspect-video rounded-xl overflow-hidden shadow-lg">
+                          <TianjinImage src={selectedBrand.image} alt={selectedBrand.name} ratio="landscape" className="w-full h-full" />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent flex flex-col justify-end p-4">
+                            <h3 className="text-white font-bold text-xl">{selectedBrand.name}</h3>
+                          </div>
                         </div>
-                      </div>
-                      
-                      {/* Brand Assets Management */}
-                      <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-700/50' : 'bg-gray-50'} text-left`}>
-                        <h4 className="font-bold mb-3 flex items-center gap-2 text-sm opacity-80">
-                          <i className="fas fa-sliders-h"></i> 品牌资产配置
-                        </h4>
-                        <div className="flex gap-4 items-center mb-3">
-                           <div className="flex-1">
-                              <label className="text-xs opacity-60 mb-1 block">Logo</label>
-                              <div className="flex items-center gap-2">
-                                <div className="w-10 h-10 rounded bg-gray-200 dark:bg-gray-600 flex items-center justify-center overflow-hidden">
-                                  {brandAssets.logo ? <img src={brandAssets.logo} className="w-full h-full object-cover" /> : <i className="fas fa-image opacity-50"></i>}
-                                </div>
+
+                        {/* Brand Story */}
+                        <div>
+                          <h4 className="font-bold mb-2 flex items-center gap-2">
+                            <i className="fas fa-book-open text-red-500"></i> 品牌故事
+                          </h4>
+                          <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'} leading-relaxed`}>
+                            {selectedBrand.story}
+                          </p>
+                        </div>
+
+                        {/* Brand Assets Management */}
+                        <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                          <h4 className="font-bold mb-4 flex items-center gap-2 text-sm">
+                            <i className="fas fa-sliders-h text-blue-500"></i> 品牌资产配置
+                          </h4>
+                          
+                          {/* Logo Upload */}
+                          <div className="mb-4">
+                            <label className="text-xs opacity-60 mb-2 block">品牌 Logo</label>
+                            <div className="flex items-center gap-3">
+                              <div className="w-16 h-16 rounded-xl bg-gray-200 dark:bg-gray-600 flex items-center justify-center overflow-hidden border-2 border-dashed border-gray-300 dark:border-gray-500">
+                                {brandAssets.logo ? (
+                                  <img src={brandAssets.logo} className="w-full h-full object-cover" alt="Logo" />
+                                ) : (
+                                  <i className="fas fa-image opacity-50 text-2xl"></i>
+                                )}
+                              </div>
+                              <div className="flex-1">
                                 <UploadBox 
                                   accept="image/*" 
                                   variant="image" 
                                   compact 
                                   className="flex-1"
-                                  title="更换"
+                                  title={brandAssets.logo ? '更换 Logo' : '上传 Logo'}
                                   onFile={(f) => setBrandAssets({...brandAssets, logo: URL.createObjectURL(f)})} 
                                 />
                               </div>
-                           </div>
-                           <div className="flex-1">
-                              <label className="text-xs opacity-60 mb-1 block">品牌色</label>
-                              <div className="flex gap-1">
-                                {brandAssets.colors.map((c, i) => (
-                                  <div key={i} className="w-6 h-6 rounded-full border border-gray-300 dark:border-gray-600 shadow-sm" style={{backgroundColor: c}}></div>
-                                ))}
-                                <button className="w-6 h-6 rounded-full border border-dashed border-gray-400 flex items-center justify-center text-xs opacity-60 hover:opacity-100">
+                            </div>
+                          </div>
+
+                          {/* Brand Colors */}
+                          <div className="mb-4">
+                            <label className="text-xs opacity-60 mb-2 block">品牌色</label>
+                            <div className="flex flex-wrap gap-2 items-center">
+                              {brandAssets.colors.map((c, i) => (
+                                <div key={i} className="relative group">
+                                  <div 
+                                    className="w-10 h-10 rounded-xl border-2 border-gray-200 dark:border-gray-600 shadow-sm cursor-pointer transition-transform hover:scale-110"
+                                    style={{backgroundColor: c}}
+                                    title={c}
+                                  />
+                                  <button 
+                                    onClick={() => removeColor(i)}
+                                    className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full text-xs opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                                  >
+                                    <i className="fas fa-times text-[8px]"></i>
+                                  </button>
+                                </div>
+                              ))}
+                              {brandAssets.colors.length < 6 && (
+                                <button 
+                                  onClick={() => setShowColorPicker(!showColorPicker)}
+                                  className="w-10 h-10 rounded-xl border-2 border-dashed border-gray-400 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:border-gray-600 transition-colors"
+                                >
                                   <i className="fas fa-plus"></i>
                                 </button>
-                              </div>
-                           </div>
+                              )}
+                            </div>
+                            
+                            {/* Color Picker */}
+                            <AnimatePresence>
+                              {showColorPicker && (
+                                <motion.div
+                                  initial={{ opacity: 0, height: 0 }}
+                                  animate={{ opacity: 1, height: 'auto' }}
+                                  exit={{ opacity: 0, height: 0 }}
+                                  className="mt-3 flex items-center gap-2"
+                                >
+                                  <input 
+                                    type="color" 
+                                    value={newColor}
+                                    onChange={(e) => setNewColor(e.target.value)}
+                                    className="w-10 h-10 rounded-lg cursor-pointer"
+                                  />
+                                  <input 
+                                    type="text" 
+                                    value={newColor}
+                                    onChange={(e) => setNewColor(e.target.value)}
+                                    className={`flex-1 px-3 py-2 rounded-lg text-sm ${isDark ? 'bg-gray-800 border-gray-600' : 'bg-white border-gray-200'} border`}
+                                  />
+                                  <TianjinButton size="sm" onClick={addColor}>添加</TianjinButton>
+                                  <button onClick={() => setShowColorPicker(false)} className="px-2 text-gray-400 hover:text-gray-600">
+                                    <i className="fas fa-times"></i>
+                                  </button>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </div>
+
+                          {/* Brand Font */}
+                          <div>
+                            <label className="text-xs opacity-60 mb-2 block">品牌字体</label>
+                            <select 
+                              value={brandAssets.font}
+                              onChange={(e) => setBrandAssets({...brandAssets, font: e.target.value})}
+                              className={`w-full px-3 py-2 rounded-lg text-sm ${isDark ? 'bg-gray-800 border-gray-600' : 'bg-white border-gray-200'} border`}
+                            >
+                              {BRAND_FONTS.map(f => (
+                                <option key={f.id} value={f.id}>{f.name} - {f.desc}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* Quick Actions */}
+                        <div className="flex gap-2">
+                          <TianjinButton 
+                            variant="secondary" 
+                            fullWidth
+                            onClick={() => setState({ brandId: undefined, brandName: '' })}
+                          >
+                            重新选择
+                          </TianjinButton>
+                          <TianjinButton 
+                            primary 
+                            fullWidth
+                            onClick={next}
+                            rightIcon={<i className="fas fa-arrow-right"></i>}
+                          >
+                            确认选择
+                          </TianjinButton>
                         </div>
                       </div>
-
-                      <div className="space-y-3">
-                        <p className={`text-lg ${isDark ? 'text-gray-400' : 'text-gray-600'} leading-relaxed`}>
-                          {BRANDS.find(b => b.name === state.brandName)?.story || '暂无品牌故事描述'}
-                        </p>
+                    ) : (
+                      <div className="text-center py-12 opacity-50">
+                        <div className="w-24 h-24 rounded-full bg-gradient-to-br from-red-500 to-amber-500 flex items-center justify-center mx-auto mb-6">
+                          <i className="fas fa-store text-white text-4xl"></i>
+                        </div>
+                        <h3 className="text-lg font-bold mb-2">尚未选择品牌</h3>
+                        <p className="text-sm">请在左侧搜索或选择品牌以开始创作</p>
                       </div>
-                    </div>
-                  ) : (
-                    <div className="opacity-40 space-y-4 transform transition-transform hover:opacity-50 hover:scale-105">
-                      <div className="w-20 h-20 rounded-full bg-gradient-to-br from-red-500 to-amber-500 flex items-center justify-center mb-4">
-                        <i className="fas fa-store text-white text-4xl"></i>
-                      </div>
-                      <p className="text-xl">请在左侧输入或选择品牌以预览</p>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               </div>
             </motion.div>
@@ -392,68 +624,177 @@ export default function Wizard() {
               exit={{ opacity: 0, y: -20 }}
               className="space-y-6"
             >
-              {/* Existing Step 2 Content - Simplified for brevity, assume same structure */}
+              {/* Creative Templates */}
+              <div>
+                <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+                  <i className="fas fa-lightbulb text-yellow-500"></i> 创意模板
+                </h3>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                  {CREATIVE_TEMPLATES.map(t => (
+                    <motion.button
+                      key={t.id}
+                      onClick={() => applyTemplate(t.id)}
+                      className={`p-4 rounded-xl border text-left transition-all ${
+                        isDark 
+                          ? 'border-gray-700 bg-gray-800 hover:border-gray-600' 
+                          : 'border-gray-200 bg-white hover:border-red-300 hover:shadow-md'
+                      }`}
+                      whileHover={{ y: -2 }}
+                      whileTap={{ scale: 0.98 }}
+                    >
+                      <div className={`w-10 h-10 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-red-50'} flex items-center justify-center mb-3`}>
+                        <i className={`fas ${t.icon} ${isDark ? 'text-red-400' : 'text-red-600'}`}></i>
+                      </div>
+                      <h4 className="font-bold text-sm">{t.name}</h4>
+                      <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'} mt-1`}>{t.desc}</p>
+                    </motion.button>
+                  ))}
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 space-y-6">
+                  {/* Creative Input */}
                   <div className={`p-6 rounded-2xl ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'} border shadow-sm`}>
                     <div className="flex justify-between items-center mb-4">
-                      <label className="font-bold text-lg">创意描述</label>
+                      <label className="font-bold text-lg flex items-center gap-2">
+                        <i className="fas fa-pen-fancy text-blue-500"></i> 创意描述
+                      </label>
                       <div className="flex gap-2">
-                        <TianjinButton size="sm" variant="ghost" onClick={() => setState({ inputText: '' })}>清空</TianjinButton>
-                        <TianjinButton size="sm" variant="secondary" onClick={() => setState({ inputText: `${state.brandName} 节日KV设计；主色中国红+金色；包含海河地标与回纹元素。` })}>使用模板</TianjinButton>
+                        <TianjinButton size="sm" variant="ghost" onClick={() => setState({ inputText: '' })}>
+                          <i className="fas fa-trash-alt"></i>
+                        </TianjinButton>
                       </div>
                     </div>
                     <textarea
                       value={state.inputText || ''}
                       onChange={(e) => { if (e.target.value.length <= 500) setState({ inputText: e.target.value }) }}
-                      placeholder="描述您的创意需求..."
+                      placeholder="描述您的创意需求，例如：为桂发祥十八街麻花设计春节促销海报，主色调为红色和金色，体现传统年味..."
                       className={`w-full h-40 p-4 rounded-xl border transition-all resize-none ${isDark ? 'bg-gray-900 border-gray-700 focus:border-red-500' : 'bg-gray-50 border-gray-200 focus:border-red-500'} focus:ring-2 focus:ring-red-500/20 outline-none`}
                     />
-                    <div className="mt-4 flex gap-4">
-                      <UploadBox
-                        accept="image/*"
-                        variant="image"
-                        title="参考图"
-                        compact
-                        onFile={(file) => { const url = URL.createObjectURL(file); setState({ imageUrl: url }) }}
-                      />
-                      <UploadBox
-                        accept="audio/*"
-                        variant="audio"
-                        title="语音输入"
-                        compact
-                        onFile={async (file) => { const t = await voiceService.transcribeAudio(file); setState({ inputText: t }) }}
-                      />
+                    <div className="flex justify-between items-center mt-2">
+                      <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                        {(state.inputText || '').length}/500 字
+                      </span>
+                      <div className="flex gap-2">
+                        <UploadBox
+                          accept="image/*"
+                          variant="image"
+                          title="参考图"
+                          compact
+                          onFile={(file) => { const url = URL.createObjectURL(file); setState({ imageUrl: url }) }}
+                        />
+                        <UploadBox
+                          accept="audio/*"
+                          variant="audio"
+                          title="语音输入"
+                          compact
+                          onFile={async (file) => { const t = await voiceService.transcribeAudio(file); setState({ inputText: t }) }}
+                        />
+                      </div>
                     </div>
                   </div>
                   
                   {/* AI Assistance Section */}
-                  <div className={`p-6 rounded-2xl ${isDark ? 'bg-gray-800/50 border-gray-700' : 'bg-blue-50/50 border-blue-100'} border border-dashed`}>
+                  <div className={`p-6 rounded-2xl ${isDark ? 'bg-gray-800/50 border-gray-700' : 'bg-gradient-to-br from-blue-50/80 to-indigo-50/50 border-blue-100'} border border-dashed`}>
                     <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-2 text-blue-600 font-medium"><i className="fas fa-sparkles"></i> AI 创意助理</div>
-                        <TianjinButton size="sm" primary disabled={!state.inputText?.trim() || isGenerating} onClick={runAIHelp} loading={isGenerating}>生成建议</TianjinButton>
+                      <div className="flex items-center gap-2">
+                        <div className={`w-8 h-8 rounded-lg ${isDark ? 'bg-blue-500/20' : 'bg-blue-100'} flex items-center justify-center`}>
+                          <i className={`fas fa-sparkles ${isDark ? 'text-blue-400' : 'text-blue-600'}`}></i>
+                        </div>
+                        <div>
+                          <span className={`font-bold ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>AI 创意助理</span>
+                          <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>基于您的描述生成创意建议</p>
+                        </div>
+                      </div>
+                      <TianjinButton 
+                        size="sm" 
+                        primary 
+                        disabled={!state.inputText?.trim() || isGenerating} 
+                        onClick={runAIHelp} 
+                        loading={isGenerating}
+                        leftIcon={<i className="fas fa-magic"></i>}
+                      >
+                        {aiText ? '重新生成' : '生成建议'}
+                      </TianjinButton>
                     </div>
-                    <div className="mt-2">
-                      <AISuggestionBox 
-                        content={aiText} 
-                        isLoading={isGenerating}
-                        title="创意建议"
-                        onApply={(text) => setState({ inputText: text })}
-                      />
-                    </div>
+                    <AISuggestionBox 
+                      content={aiText} 
+                      isLoading={isGenerating}
+                      title="创意建议"
+                      onApply={(text) => setState({ inputText: text })}
+                    />
                   </div>
+
+                  {/* Cultural Elements */}
+                  {culturalElements.length > 0 && (
+                    <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'} border`}>
+                      <h4 className="font-bold text-sm mb-3 flex items-center gap-2">
+                        <i className="fas fa-landmark text-amber-500"></i> 推荐文化元素
+                      </h4>
+                      <div className="flex flex-wrap gap-2">
+                        {culturalElements.map((elem, i) => (
+                          <span 
+                            key={i}
+                            className={`px-3 py-1 rounded-full text-sm ${isDark ? 'bg-amber-500/20 text-amber-300' : 'bg-amber-50 text-amber-700'} border border-amber-200`}
+                          >
+                            {elem}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
+                {/* Preview Panel */}
                 <div className="space-y-4">
-                   <div className={`p-4 rounded-2xl ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'} border shadow-sm sticky top-24`}>
-                      <h3 className="font-bold text-sm mb-3">实时预览</h3>
-                      <TianjinImage 
-
-                        alt="preview"
-                        ratio="landscape"
-                        className="w-full rounded-xl"
-                      />
-                   </div>
+                  <div className={`p-4 rounded-2xl ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'} border shadow-sm sticky top-24`}>
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="font-bold text-sm">实时预览</h3>
+                      <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+                        {(['landscape', 'square', 'portrait'] as const).map(r => (
+                          <button
+                            key={r}
+                            onClick={() => setPreviewRatio(r)}
+                            className={`px-2 py-1 rounded text-xs transition-all ${
+                              previewRatio === r 
+                                ? 'bg-white dark:bg-gray-600 shadow-sm' 
+                                : 'opacity-50 hover:opacity-100'
+                            }`}
+                          >
+                            <i className={`fas fa-${r === 'landscape' ? 'image' : r === 'square' ? 'square' : 'portrait'}`}></i>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className={`relative rounded-xl overflow-hidden ${isDark ? 'bg-gray-700' : 'bg-gray-100'} flex items-center justify-center`}
+                      style={{ aspectRatio: previewRatio === 'landscape' ? '16/9' : previewRatio === 'square' ? '1/1' : '9/16' }}
+                    >
+                      {state.imageUrl ? (
+                        <img src={state.imageUrl} alt="Preview" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="text-center p-4 opacity-40">
+                          <i className="fas fa-image text-4xl mb-2"></i>
+                          <p className="text-xs">预览区域</p>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Brand Info Summary */}
+                    <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                      <div className="flex items-center gap-3">
+                        {selectedBrand && (
+                          <>
+                            <img src={selectedBrand.image} alt={selectedBrand.name} className="w-10 h-10 rounded-lg object-cover" />
+                            <div>
+                              <div className="font-bold text-sm">{selectedBrand.name}</div>
+                              <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>已选择品牌</div>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </motion.div>
@@ -467,72 +808,137 @@ export default function Wizard() {
               exit={{ opacity: 0, y: -20 }}
               className="space-y-6"
             >
-              <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-                <h2 className="text-2xl font-bold">选择最佳方案</h2>
-                
-                {/* Template Selection */}
-                <div className="flex gap-2 overflow-x-auto pb-2 w-full md:w-auto">
+              {/* Template Selection */}
+              <div>
+                <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+                  <i className="fas fa-layer-group text-purple-500"></i> 选择设计模板
+                </h3>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                   {TEMPLATES.map(t => (
-                    <button
+                    <motion.button
                       key={t.id}
                       onClick={() => setSelectedTemplate(t.id)}
-                      className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm whitespace-nowrap transition-all ${selectedTemplate === t.id ? 'bg-red-50 border-red-500 text-red-600 dark:bg-red-900/20' : 'border-gray-200 dark:border-gray-700 opacity-70 hover:opacity-100'}`}
+                      className={`relative p-4 rounded-xl border-2 text-left transition-all overflow-hidden ${
+                        selectedTemplate === t.id
+                          ? 'border-red-500 bg-red-50 dark:bg-red-900/20 shadow-lg shadow-red-500/10'
+                          : (isDark ? 'border-gray-700 bg-gray-800 hover:border-gray-600' : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-md')
+                      }`}
+                      whileHover={{ y: -2 }}
+                      whileTap={{ scale: 0.98 }}
                     >
-                      <i className={`fas fa-${t.icon}`}></i>
-                      {t.title}
-                    </button>
+                      <div className={`w-12 h-12 rounded-xl ${selectedTemplate === t.id ? 'bg-red-100 dark:bg-red-800' : isDark ? 'bg-gray-700' : 'bg-gray-100'} flex items-center justify-center mb-3`}>
+                        <i className={`fas fa-${t.icon} ${selectedTemplate === t.id ? 'text-red-600 dark:text-red-400' : isDark ? 'text-gray-400' : 'text-gray-600'} text-xl`}></i>
+                      </div>
+                      <h4 className={`font-bold text-sm ${selectedTemplate === t.id ? 'text-red-600 dark:text-red-400' : ''}`}>{t.title}</h4>
+                      <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'} mt-1`}>{t.desc}</p>
+                      {selectedTemplate === t.id && (
+                        <div className="absolute top-2 right-2 w-6 h-6 bg-red-600 rounded-full flex items-center justify-center text-white text-xs">
+                          <i className="fas fa-check"></i>
+                        </div>
+                      )}
+                    </motion.button>
                   ))}
                 </div>
+              </div>
 
+              {/* Generate Button */}
+              <div className="flex justify-center">
                 <TianjinButton 
                   primary 
+                  size="lg"
                   onClick={generateVariants}
-                  leftIcon={<i className="fas fa-sync-alt"></i>}
-                  disabled={state.variants && state.variants.some(v => v.loading)}
+                  disabled={!selectedTemplate || isGeneratingVariants}
+                  loading={isGeneratingVariants}
+                  leftIcon={<i className="fas fa-wand-magic-sparkles"></i>}
+                  className="px-8"
                 >
-                  {state.variants?.length ? '重新生成' : '开始生成'}
+                  {isGeneratingVariants ? `生成中 ${generationProgress}%` : state.variants?.length ? '重新生成方案' : '开始生成创意方案'}
                 </TianjinButton>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {(state.variants || []).map((v, i) => {
-                  const isSelected = selectedVariantIndex === i;
-                  return (
-                    <motion.div 
-                      key={i}
-                      onClick={() => setSelectedVariantIndex(i)}
-                      className={`group relative rounded-2xl overflow-hidden border-2 transition-all cursor-pointer ${
-                        isSelected 
-                          ? 'border-red-500 ring-4 ring-red-500/20 transform -translate-y-2 shadow-xl' 
-                          : `${isDark ? 'border-gray-700 bg-gray-800' : 'border-gray-100 bg-white'} shadow-sm hover:shadow-md`
-                      }`}
-                      whileHover={isSelected ? {} : { y: -4 }}
-                    >
-                      <div className="relative aspect-square overflow-hidden">
-                         <TianjinImage src={v.image} alt={`variant-${i}`} ratio="square" className="w-full h-full object-cover" />
-                         {/* Selection Overlay */}
-                         {isSelected && (
-                           <div className="absolute inset-0 bg-red-500/10 flex items-center justify-center backdrop-blur-[1px]">
-                             <div className="w-12 h-12 bg-red-600 rounded-full flex items-center justify-center text-white shadow-lg scale-110">
-                               <i className="fas fa-check text-xl"></i>
-                             </div>
-                           </div>
-                         )}
-                      </div>
-                      <div className={`p-4 ${isSelected ? (isDark ? 'bg-gray-800' : 'bg-red-50/50') : ''}`}>
-                        <h3 className={`font-bold mb-1 ${isSelected ? 'text-red-600' : ''}`}>{v.script}</h3>
-                        <p className="text-xs opacity-60">包含视觉设计与文案建议</p>
-                      </div>
-                    </motion.div>
-                  );
-                })}
-                {(!state.variants || state.variants.length === 0) && (
-                  <div className="col-span-3 py-16 flex flex-col items-center justify-center opacity-50 border-2 border-dashed rounded-2xl">
-                    <i className="fas fa-image text-4xl mb-4"></i>
-                    <p>点击“开始生成”按钮获取创意设计方案</p>
+              {/* Generation Progress */}
+              {isGeneratingVariants && (
+                <div className={`p-6 rounded-2xl ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'} border`}>
+                  <div className="flex items-center justify-center gap-4">
+                    <div className="w-12 h-12 border-4 border-red-500/30 border-t-red-500 rounded-full animate-spin"></div>
+                    <div>
+                      <h4 className="font-bold">正在生成创意方案</h4>
+                      <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>AI正在根据您的描述创作多种风格方案...</p>
+                    </div>
                   </div>
-                )}
-              </div>
+                  <div className="mt-4 w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                    <div 
+                      className="bg-red-600 h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${generationProgress}%` }}
+                    ></div>
+                  </div>
+                </div>
+              )}
+
+              {/* Variants Grid */}
+              {state.variants && state.variants.length > 0 && !isGeneratingVariants && (
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-bold text-lg">生成的创意方案</h3>
+                    <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                      已选择: {selectedVariantIndex >= 0 ? `方案${String.fromCharCode(65 + selectedVariantIndex)}` : '未选择'}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {state.variants.map((v, i) => {
+                      const isSelected = selectedVariantIndex === i;
+                      return (
+                        <motion.div 
+                          key={i}
+                          onClick={() => setSelectedVariantIndex(i)}
+                          className={`group relative rounded-2xl overflow-hidden border-2 transition-all cursor-pointer ${
+                            isSelected 
+                              ? 'border-red-500 ring-4 ring-red-500/20 shadow-xl' 
+                              : `${isDark ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'} shadow-sm hover:shadow-md`
+                          }`}
+                          whileHover={isSelected ? {} : { y: -4 }}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: i * 0.1 }}
+                        >
+                          <div className="relative aspect-square overflow-hidden">
+                            <TianjinImage src={v.image} alt={`variant-${i}`} ratio="square" className="w-full h-full object-cover" />
+                            {isSelected && (
+                              <div className="absolute inset-0 bg-red-500/10 flex items-center justify-center backdrop-blur-[1px]">
+                                <div className="w-14 h-14 bg-red-600 rounded-full flex items-center justify-center text-white shadow-lg">
+                                  <i className="fas fa-check text-2xl"></i>
+                                </div>
+                              </div>
+                            )}
+                            <div className="absolute top-3 left-3">
+                              <span className={`px-3 py-1 rounded-full text-xs font-bold ${isDark ? 'bg-gray-800/80' : 'bg-white/80'} backdrop-blur-sm`}>
+                                方案{String.fromCharCode(65 + i)}
+                              </span>
+                            </div>
+                          </div>
+                          <div className={`p-4 ${isSelected ? (isDark ? 'bg-red-900/20' : 'bg-red-50') : ''}`}>
+                            <h3 className={`font-bold mb-1 ${isSelected ? 'text-red-600 dark:text-red-400' : ''}`}>{v.script}</h3>
+                            <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>包含视觉设计与文案建议</p>
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Empty State */}
+              {(!state.variants || state.variants.length === 0) && !isGeneratingVariants && (
+                <div className={`py-16 flex flex-col items-center justify-center ${isDark ? 'bg-gray-800/50' : 'bg-gray-50'} border-2 border-dashed rounded-2xl`}>
+                  <div className="w-20 h-20 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center mb-4">
+                    <i className="fas fa-wand-magic-sparkles text-white text-3xl"></i>
+                  </div>
+                  <h3 className="text-lg font-bold mb-2">开始生成创意方案</h3>
+                  <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'} text-center max-w-md`}>
+                    选择上方的设计模板，点击生成按钮，AI将为您创作多种风格的创意方案
+                  </p>
+                </div>
+              )}
             </motion.div>
           )}
 
@@ -542,90 +948,219 @@ export default function Wizard() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="space-y-8"
+              className="space-y-6"
             >
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Left: Scores & Checks */}
                 <div className="space-y-6">
-                    {/* Cultural Score */}
-                    <div className={`p-6 rounded-2xl ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'} border shadow-sm flex items-center gap-6`}>
-                        <div className="w-24 h-24 rounded-full border-4 border-red-500/20 flex items-center justify-center flex-shrink-0">
-                             <span className="text-3xl font-black text-red-600">
-                                {scoreAuthenticity(state.inputText || '', '').score}
-                             </span>
+                  {/* Cultural Score */}
+                  <YangliuqingCard>
+                    <div className="flex items-center gap-6">
+                      <div className="relative w-24 h-24 flex-shrink-0">
+                        <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+                          <path
+                            className={isDark ? 'text-gray-700' : 'text-gray-200'}
+                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="3"
+                          />
+                          <path
+                            className="text-red-500"
+                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="3"
+                            strokeDasharray={`${scoreAuthenticity(state.inputText || '', '').score}, 100`}
+                          />
+                        </svg>
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <span className="text-2xl font-black text-red-600">
+                            {scoreAuthenticity(state.inputText || '', '').score}
+                          </span>
                         </div>
-                        <div>
-                            <h3 className="font-bold text-lg">文化纯正度评分</h3>
-                            <p className="text-sm opacity-60 mt-1">基于天津文化知识库评估，建议加强地方特色元素的运用。</p>
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="font-bold text-lg flex items-center gap-2">
+                          <i className="fas fa-landmark text-amber-500"></i> 文化纯正度评分
+                        </h3>
+                        <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'} mt-1`}>
+                          基于天津文化知识库评估，您的设计展现了良好的文化传承意识
+                        </p>
+                        <div className="flex gap-2 mt-3">
+                          {['传统元素', '地方特色', '文化内涵'].map(tag => (
+                            <span key={tag} className={`px-2 py-1 rounded-full text-xs ${isDark ? 'bg-amber-500/20 text-amber-300' : 'bg-amber-50 text-amber-700'}`}>
+                              {tag}
+                            </span>
+                          ))}
                         </div>
+                      </div>
                     </div>
+                  </YangliuqingCard>
 
-                    {/* Brand Consistency Check */}
-                    <div className={`p-6 rounded-2xl ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'} border shadow-sm`}>
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="font-bold text-lg flex items-center gap-2"><i className="fas fa-shield-alt text-blue-500"></i> 品牌一致性检查</h3>
-                            <TianjinButton size="sm" variant="secondary" onClick={runConsistencyCheck} loading={isConsistencyChecking}>开始检查</TianjinButton>
+                  {/* Brand Consistency Check */}
+                  <div className={`p-6 rounded-2xl ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'} border shadow-sm`}>
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="font-bold text-lg flex items-center gap-2">
+                        <i className="fas fa-shield-alt text-blue-500"></i> 品牌一致性检查
+                      </h3>
+                      <TianjinButton 
+                        size="sm" 
+                        variant="secondary" 
+                        onClick={runConsistencyCheck} 
+                        loading={isConsistencyChecking}
+                        leftIcon={<i className="fas fa-sync-alt"></i>}
+                      >
+                        {consistencyScore !== null ? '重新检查' : '开始检查'}
+                      </TianjinButton>
+                    </div>
+                    
+                    {consistencyScore !== null ? (
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-4">
+                          <div className="flex-1">
+                            <div className="flex justify-between text-sm font-medium mb-1">
+                              <span>品牌匹配度</span>
+                              <span className={consistencyScore >= 90 ? 'text-green-500' : consistencyScore >= 70 ? 'text-yellow-500' : 'text-red-500'}>
+                                {consistencyScore}%
+                              </span>
+                            </div>
+                            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
+                              <div 
+                                className={`h-3 rounded-full transition-all duration-500 ${
+                                  consistencyScore >= 90 ? 'bg-green-500' : consistencyScore >= 70 ? 'bg-yellow-500' : 'bg-red-500'
+                                }`} 
+                                style={{width: `${consistencyScore}%`}}
+                              ></div>
+                            </div>
+                          </div>
                         </div>
                         
-                        {consistencyScore !== null ? (
-                             <div className="space-y-3">
-                                 <div className="flex justify-between text-sm font-medium">
-                                     <span>匹配度</span>
-                                     <span className={consistencyScore >= 90 ? 'text-green-500' : 'text-yellow-500'}>{consistencyScore}%</span>
-                                 </div>
-                                 <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
-                                    <div className={`h-2.5 rounded-full ${consistencyScore >= 90 ? 'bg-green-500' : 'bg-yellow-500'}`} style={{width: `${consistencyScore}%`}}></div>
-                                 </div>
-                                 <ul className="text-sm opacity-80 space-y-1 mt-2">
-                                     <li className="flex items-center gap-2"><i className="fas fa-check-circle text-green-500"></i> Logo 完整性良好</li>
-                                     <li className="flex items-center gap-2"><i className="fas fa-check-circle text-green-500"></i> 品牌色使用规范</li>
-                                     <li className="flex items-center gap-2"><i className="fas fa-exclamation-circle text-yellow-500"></i> 建议增加品牌字体占比</li>
-                                 </ul>
-                             </div>
-                        ) : (
-                            <div className="text-center py-6 opacity-60">
-                                <p>点击“开始检查”分析设计是否符合品牌规范</p>
+                        <div className="space-y-2">
+                          {consistencyDetails.map((detail, i) => (
+                            <div key={i} className={`flex items-center gap-3 p-3 rounded-lg ${isDark ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                              <i className={`fas fa-${detail.status === 'pass' ? 'check-circle text-green-500' : detail.status === 'warn' ? 'exclamation-circle text-yellow-500' : 'times-circle text-red-500'}`}></i>
+                              <div className="flex-1">
+                                <div className="font-medium text-sm">{detail.item}</div>
+                                <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{detail.message}</div>
+                              </div>
                             </div>
-                        )}
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-center py-8">
+                        <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center mx-auto mb-4">
+                          <i className="fas fa-shield-alt text-2xl opacity-40"></i>
+                        </div>
+                        <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                          点击"开始检查"分析设计是否符合品牌规范
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Selected Variant Preview */}
+                  {selectedVariantIndex >= 0 && state.variants && (
+                    <div className={`p-4 rounded-2xl ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'} border`}>
+                      <h4 className="font-bold text-sm mb-3">已选方案预览</h4>
+                      <div className="relative rounded-xl overflow-hidden">
+                        <TianjinImage 
+                          src={state.variants[selectedVariantIndex].image} 
+                          alt="Selected" 
+                          ratio="square" 
+                          className="w-full"
+                        />
+                        <div className="absolute top-3 left-3">
+                          <span className="px-3 py-1 rounded-full text-xs font-bold bg-red-600 text-white">
+                            {state.variants[selectedVariantIndex].script}
+                          </span>
+                        </div>
+                      </div>
                     </div>
+                  )}
                 </div>
 
-                {/* Right: Publish & Participate */}
+                {/* Right: Publish Form */}
                 <div className={`p-6 rounded-2xl ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'} border shadow-sm`}>
-                    <h3 className="font-bold text-lg mb-4">发布作品</h3>
-                    <div className="space-y-4">
-                        <div>
-                            <label className="block text-sm font-medium mb-1 opacity-70">作品标题</label>
-                            <input 
-                                className={`w-full p-3 rounded-lg border ${isDark ? 'bg-gray-900 border-gray-700' : 'bg-gray-50 border-gray-200'}`}
-                                value={publishInfo.title}
-                                onChange={e => setPublishInfo({...publishInfo, title: e.target.value})}
-                                placeholder="给作品起个名字"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium mb-1 opacity-70">作品描述</label>
-                            <textarea 
-                                className={`w-full p-3 rounded-lg border h-24 resize-none ${isDark ? 'bg-gray-900 border-gray-700' : 'bg-gray-50 border-gray-200'}`}
-                                value={publishInfo.description}
-                                onChange={e => setPublishInfo({...publishInfo, description: e.target.value})}
-                                placeholder="分享创作背后的故事..."
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium mb-1 opacity-70">参与赛事 (可选)</label>
-                            <select 
-                                className={`w-full p-3 rounded-lg border ${isDark ? 'bg-gray-900 border-gray-700' : 'bg-gray-50 border-gray-200'}`}
-                                value={publishInfo.competitionId}
-                                onChange={e => setPublishInfo({...publishInfo, competitionId: e.target.value})}
-                            >
-                                <option value="">不参与赛事</option>
-                                {COMPETITIONS.map(c => (
-                                    <option key={c.id} value={c.id}>🏆 {c.title}</option>
-                                ))}
-                            </select>
-                        </div>
+                  <h3 className="font-bold text-lg mb-6 flex items-center gap-2">
+                    <i className="fas fa-upload text-green-500"></i> 发布作品
+                  </h3>
+                  
+                  <div className="space-y-5">
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        <i className="fas fa-heading text-gray-400 mr-1"></i> 作品标题
+                      </label>
+                      <input 
+                        className={`w-full p-3 rounded-xl border transition-all ${isDark ? 'bg-gray-900 border-gray-700 focus:border-red-500' : 'bg-gray-50 border-gray-200 focus:border-red-500'} focus:ring-2 focus:ring-red-500/20 outline-none`}
+                        value={publishInfo.title}
+                        onChange={e => setPublishInfo({...publishInfo, title: e.target.value})}
+                        placeholder={`${state.brandName || '作品'}创意设计方案`}
+                      />
                     </div>
+
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        <i className="fas fa-align-left text-gray-400 mr-1"></i> 作品描述
+                      </label>
+                      <textarea 
+                        className={`w-full p-3 rounded-xl border h-28 resize-none transition-all ${isDark ? 'bg-gray-900 border-gray-700 focus:border-red-500' : 'bg-gray-50 border-gray-200 focus:border-red-500'} focus:ring-2 focus:ring-red-500/20 outline-none`}
+                        value={publishInfo.description}
+                        onChange={e => setPublishInfo({...publishInfo, description: e.target.value})}
+                        placeholder="分享创作背后的故事、设计灵感、文化元素运用..."
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        <i className="fas fa-tags text-gray-400 mr-1"></i> 标签
+                      </label>
+                      <input 
+                        className={`w-full p-3 rounded-xl border transition-all ${isDark ? 'bg-gray-900 border-gray-700 focus:border-red-500' : 'bg-gray-50 border-gray-200 focus:border-red-500'} focus:ring-2 focus:ring-red-500/20 outline-none`}
+                        value={publishInfo.tags}
+                        onChange={e => setPublishInfo({...publishInfo, tags: e.target.value})}
+                        placeholder="国潮, 老字号, 品牌设计（用逗号分隔）"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        <i className="fas fa-trophy text-gray-400 mr-1"></i> 参与赛事 (可选)
+                      </label>
+                      <div className="space-y-2">
+                        {COMPETITIONS.map(c => (
+                          <button
+                            key={c.id}
+                            onClick={() => setPublishInfo({...publishInfo, competitionId: publishInfo.competitionId === c.id ? '' : c.id})}
+                            className={`w-full p-4 rounded-xl border-2 text-left transition-all ${
+                              publishInfo.competitionId === c.id
+                                ? 'border-red-500 bg-red-50 dark:bg-red-900/20'
+                                : (isDark ? 'border-gray-700 hover:border-gray-600' : 'border-gray-200 hover:border-gray-300')
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <div className={`w-10 h-10 rounded-lg ${publishInfo.competitionId === c.id ? 'bg-red-100 dark:bg-red-800' : isDark ? 'bg-gray-700' : 'bg-gray-100'} flex items-center justify-center`}>
+                                  <i className={`fas fa-trophy ${publishInfo.competitionId === c.id ? 'text-red-600 dark:text-red-400' : 'text-gray-400'}`}></i>
+                                </div>
+                                <div>
+                                  <div className="font-bold text-sm">{c.title}</div>
+                                  <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{c.desc}</div>
+                                </div>
+                              </div>
+                              {publishInfo.competitionId === c.id && (
+                                <i className="fas fa-check-circle text-red-500 text-xl"></i>
+                              )}
+                            </div>
+                            <div className={`mt-2 text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                              <i className="fas fa-clock mr-1"></i> 截止日期: {c.deadline}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </motion.div>
@@ -634,14 +1169,41 @@ export default function Wizard() {
       </div>
 
       {/* Sticky Footer Navigation */}
-      <div className={`fixed bottom-0 left-0 right-0 p-4 ${isDark ? 'bg-gray-900/90 border-gray-800' : 'bg-white/90 border-gray-200'} border-t backdrop-blur-md z-30`}>
+      <div className={`fixed bottom-0 left-0 right-0 p-4 ${isDark ? 'bg-gray-900/95 border-gray-800' : 'bg-white/95 border-gray-200'} border-t backdrop-blur-md z-30`}>
         <div className="container mx-auto max-w-5xl flex justify-between items-center">
-          <TianjinButton variant="ghost" onClick={prev} disabled={step === 1} leftIcon={<i className="fas fa-arrow-left"></i>}>上一步</TianjinButton>
-          <div className="flex gap-3">
+          <TianjinButton 
+            variant="ghost" 
+            onClick={prev} 
+            disabled={step === 1} 
+            leftIcon={<i className="fas fa-arrow-left"></i>}
+          >
+            上一步
+          </TianjinButton>
+          
+          <div className="flex items-center gap-4">
+            {/* Step Info */}
+            <span className={`hidden sm:block text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+              步骤 {step}/4: {steps[step-1].title}
+            </span>
+            
             {step === 4 ? (
-              <TianjinButton primary onClick={savePost} rightIcon={<i className="fas fa-check"></i>}>发布并完成</TianjinButton>
+              <TianjinButton 
+                primary 
+                onClick={savePost} 
+                rightIcon={<i className="fas fa-check"></i>}
+                disabled={!publishInfo.title}
+              >
+                发布并完成
+              </TianjinButton>
             ) : (
-              <TianjinButton primary onClick={next} disabled={step === 1 && !state.brandName || step === 2 && !state.inputText} rightIcon={<i className="fas fa-arrow-right"></i>}>下一步</TianjinButton>
+              <TianjinButton 
+                primary 
+                onClick={next} 
+                disabled={(step === 1 && !state.brandName) || (step === 2 && !state.inputText) || (step === 3 && selectedVariantIndex < 0)} 
+                rightIcon={<i className="fas fa-arrow-right"></i>}
+              >
+                下一步
+              </TianjinButton>
             )}
           </div>
         </div>

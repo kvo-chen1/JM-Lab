@@ -150,6 +150,10 @@ const CreateWorkForm: React.FC<CreateWorkFormProps> = ({
     e.preventDefault();
     setSubmitError(null);
     
+    console.log('[CreateWorkForm] handleSubmit called');
+    console.log('[CreateWorkForm] image:', image);
+    console.log('[CreateWorkForm] imagePreview:', imagePreview);
+    
     if (!validateForm()) {
       return;
     }
@@ -176,13 +180,17 @@ const CreateWorkForm: React.FC<CreateWorkFormProps> = ({
         tags,
       };
       
+      console.log('[CreateWorkForm] newWork:', newWork);
+      
       let publishedWork;
       
       if (image) {
         // 如果有文件对象，直接使用
+        console.log('[CreateWorkForm] Using createWork with image file');
         publishedWork = await postsApi.createWork(newWork, image, user?.id);
       } else if (imagePreview) {
         // 如果只有预览图（如来自草稿或URL）
+        console.log('[CreateWorkForm] Using createWorkWithUrl with imagePreview');
         try {
           if (imagePreview.startsWith('data:')) {
              const res = await fetch(imagePreview);
@@ -199,6 +207,11 @@ const CreateWorkForm: React.FC<CreateWorkFormProps> = ({
           // 如果图片处理失败，尝试直接用 createWorkWithUrl 作为最后的 fallback
           publishedWork = await postsApi.createWorkWithUrl(newWork, imagePreview, user?.id);
         }
+      } else {
+        // 没有图片，使用默认图片
+        console.log('[CreateWorkForm] No image, using default image');
+        const defaultImage = 'https://picsum.photos/seed/default/800/600';
+        publishedWork = await postsApi.createWorkWithUrl(newWork, defaultImage, user?.id);
       }
       
       // 完成上传进度

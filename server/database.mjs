@@ -111,8 +111,8 @@ const getPostgresConnectionString = () => {
   
   // 5. 尝试从环境变量文件中读取
   if (process.env.DB_TYPE === 'supabase') {
-    console.log('[DB] Using fallback connection string for Supabase');
-    return 'postgres://postgres.pptqdicaaewtnaiflfcs:csh200506207837@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true';
+    console.warn('[DB] DB_TYPE=supabase but no connection string env found (POSTGRES_URL_NON_POOLING/DATABASE_URL/POSTGRES_URL).');
+    return null;
   }
   
   return null
@@ -837,6 +837,9 @@ async function createPostgreSQLTables(pool) {
           membership_end TIMESTAMP WITH TIME ZONE,
           metadata JSONB
         );
+        
+        -- 为users表启用RLS
+        ALTER TABLE users ENABLE ROW LEVEL SECURITY;
       `);
       
       // 尝试移除可能存在的外键约束
@@ -1068,6 +1071,9 @@ async function createPostgreSQLTables(pool) {
           is_read BOOLEAN DEFAULT FALSE,
           created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
         );
+        
+        -- 为direct_messages表启用RLS
+        ALTER TABLE direct_messages ENABLE ROW LEVEL SECURITY;
       `)
 
       // Friend Requests
@@ -1080,6 +1086,9 @@ async function createPostgreSQLTables(pool) {
           created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
           updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
         );
+        
+        -- 为friend_requests表启用RLS
+        ALTER TABLE friend_requests ENABLE ROW LEVEL SECURITY;
       `)
 
       // Friends
@@ -1094,6 +1103,9 @@ async function createPostgreSQLTables(pool) {
           updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
           UNIQUE(user_id, friend_id)
         );
+        
+        -- 为friends表启用RLS
+        ALTER TABLE friends ENABLE ROW LEVEL SECURITY;
       `)
 
       // User Status
@@ -1153,6 +1165,61 @@ async function createPostgreSQLTables(pool) {
       `)
       await createIndex('CREATE INDEX IF NOT EXISTS idx_user_activities_user_id ON user_activities(user_id);')
       await createIndex('CREATE INDEX IF NOT EXISTS idx_user_activities_created_at ON user_activities(created_at);')
+
+      // 创建RLS策略
+      // 1. users表策略：用户只能访问自己的用户信息
+      await client.query(`
+        CREATE POLICY "Users can view their own profile" ON users
+        FOR SELECT USING (id = COALESCE(current_setting('request.jwt.claim.sub', true), current_setting('request.jwt.claim.userId', true))::uuid);
+      `);
+      
+      await client.query(`
+        CREATE POLICY "Users can update their own profile" ON users
+        FOR UPDATE USING (id = COALESCE(current_setting('request.jwt.claim.sub', true), current_setting('request.jwt.claim.userId', true))::uuid);
+      `);
+
+      // 2. friends表策略：用户只能访问自己的好友关系
+      await client.query(`
+        CREATE POLICY "Users can view their own friends" ON friends
+        FOR SELECT USING (user_id = COALESCE(current_setting('request.jwt.claim.sub', true), current_setting('request.jwt.claim.userId', true))::uuid);
+      `);
+      
+      await client.query(`
+        CREATE POLICY "Users can manage their own friends" ON friends
+        FOR ALL USING (user_id = COALESCE(current_setting('request.jwt.claim.sub', true), current_setting('request.jwt.claim.userId', true))::uuid);
+      `);
+
+      // 3. direct_messages表策略：用户只能访问自己发送或接收的消息
+      await client.query(`
+        CREATE POLICY "Users can view their own messages" ON direct_messages
+        FOR SELECT USING (
+          sender_id = COALESCE(current_setting('request.jwt.claim.sub', true), current_setting('request.jwt.claim.userId', true))::uuid OR
+          receiver_id = COALESCE(current_setting('request.jwt.claim.sub', true), current_setting('request.jwt.claim.userId', true))::uuid
+        );
+      `);
+      
+      await client.query(`
+        CREATE POLICY "Users can send messages" ON direct_messages
+        FOR INSERT WITH CHECK (
+          sender_id = COALESCE(current_setting('request.jwt.claim.sub', true), current_setting('request.jwt.claim.userId', true))::uuid
+        );
+      `);
+
+      // 4. friend_requests表策略：用户只能访问自己发送或接收的好友请求
+      await client.query(`
+        CREATE POLICY "Users can view their friend requests" ON friend_requests
+        FOR SELECT USING (
+          sender_id = COALESCE(current_setting('request.jwt.claim.sub', true), current_setting('request.jwt.claim.userId', true))::uuid OR
+          receiver_id = COALESCE(current_setting('request.jwt.claim.sub', true), current_setting('request.jwt.claim.userId', true))::uuid
+        );
+      `);
+      
+      await client.query(`
+        CREATE POLICY "Users can send friend requests" ON friend_requests
+        FOR INSERT WITH CHECK (
+          sender_id = COALESCE(current_setting('request.jwt.claim.sub', true), current_setting('request.jwt.claim.userId', true))::uuid
+        );
+      `);
 
     } finally {
       client.release()
@@ -2220,7 +2287,7 @@ export const leaderboardDB = {
 
 export const friendDB = {
   async sendRequest(senderId, receiverId) {
-    const db = await getDB()
+    const db = await getDB(senderId)
     const now = Date.now()
     const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
     
@@ -2413,7 +2480,7 @@ export const friendDB = {
   },
 
   async getFriends(userId) {
-    const db = await getDB()
+    const db = await getDB(userId)
     const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
     
     switch (typeKey) {
@@ -2632,7 +2699,7 @@ export const friendDB = {
 
 export const messageDB = {
   async sendMessage(senderId, receiverId, content) {
-    const db = await getDB()
+    const db = await getDB(senderId)
     const now = Date.now()
     const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
     
@@ -2664,7 +2731,7 @@ export const messageDB = {
   },
 
   async getMessages(userId, friendId, limit = 50, offset = 0) {
-    const db = await getDB()
+    const db = await getDB(userId)
     const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
     
     switch (typeKey) {
@@ -2719,7 +2786,7 @@ export const messageDB = {
   },
   
   async getUnreadCount(userId) {
-    const db = await getDB()
+    const db = await getDB(userId)
     const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
     
     switch (typeKey) {
@@ -2754,10 +2821,15 @@ export const messageDB = {
 
 export const workDB = {
   async createWork(workData) {
+    console.log('[workDB.createWork] Called with:', JSON.stringify(workData));
+    console.log('[workDB.createWork] Current dbType:', config.dbType);
+    
     const db = await getDB()
     const { title, description, cover_url, thumbnail, creator_id, category, tags, media } = workData
-    const now = Date.now()
+    const now = workData.created_at || Date.now()
     const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
+    
+    console.log('[workDB.createWork] Using typeKey:', typeKey);
     
     switch (typeKey) {
       case DB_TYPE.SQLITE:
@@ -2845,6 +2917,7 @@ export const workDB = {
         return { id: result.lastInsertRowid, ...workData, created_at: now, updated_at: now }
         
       case DB_TYPE.POSTGRESQL:
+        console.log('[workDB.createWork] PostgreSQL case - db:', db ? 'exists' : 'null');
         // 首先检查并添加缺失的列
         try {
           await db.query(`ALTER TABLE works ADD COLUMN IF NOT EXISTS cover_url TEXT`);
@@ -2854,17 +2927,58 @@ export const workDB = {
         }
         
         // 然后执行插入
-        const { rows } = await db.query(`
-          INSERT INTO works (title, description, cover_url, thumbnail, creator_id, category, tags, media, created_at, updated_at)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)
-          RETURNING *
-        `, [
-          title, description, cover_url, thumbnail || cover_url, creator_id, category, 
-          tags ? JSON.stringify(tags) : '[]', 
-          media ? JSON.stringify(media) : '[]', 
-          now
-        ])
-        return rows[0]
+        console.log('[workDB.createWork] Inserting with params:', { title, creator_id, category, now });
+        try {
+          // 处理 tags 和 media - PostgreSQL数组格式使用 {} 而不是 []
+          let tagsValue = '{}';
+          if (tags) {
+            if (typeof tags === 'string') {
+              // 如果是JSON字符串，转换为PostgreSQL数组格式
+              try {
+                const parsed = JSON.parse(tags);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                  tagsValue = '{' + parsed.map(t => `"${t}"`).join(',') + '}';
+                }
+              } catch (e) {
+                tagsValue = `{${tags}}`;
+              }
+            } else if (Array.isArray(tags) && tags.length > 0) {
+              tagsValue = '{' + tags.map(t => `"${t}"`).join(',') + '}';
+            }
+          }
+          
+          let mediaValue = '{}';
+          if (media) {
+            if (typeof media === 'string') {
+              try {
+                const parsed = JSON.parse(media);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                  mediaValue = '{' + parsed.map(m => `"${m}"`).join(',') + '}';
+                }
+              } catch (e) {
+                mediaValue = `{${media}}`;
+              }
+            } else if (Array.isArray(media) && media.length > 0) {
+              mediaValue = '{' + media.map(m => `"${m}"`).join(',') + '}';
+            }
+          }
+          
+          const { rows } = await db.query(`
+            INSERT INTO works (title, description, cover_url, thumbnail, creator_id, category, tags, media, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)
+            RETURNING *
+          `, [
+            title, description, cover_url, thumbnail || cover_url, creator_id, category, 
+            tagsValue, 
+            mediaValue, 
+            now
+          ])
+          console.log('[workDB.createWork] Insert successful:', rows[0]);
+          return rows[0]
+        } catch (insertError) {
+          console.error('[workDB.createWork] Insert failed:', insertError);
+          throw insertError;
+        }
         
       case DB_TYPE.MEMORY:
         const newWork = {
@@ -2941,6 +3055,20 @@ export const workDB = {
         `, [userId])
         return rows[0] || { works_count: 0, total_likes: 0, total_views: 0, total_comments: 0 }
       default: return { works_count: 0, total_likes: 0, total_views: 0, total_comments: 0 }
+    }
+  },
+
+  async getAllWorks() {
+    const db = await getDB()
+    const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
+    switch (typeKey) {
+      case DB_TYPE.SQLITE:
+        return db.prepare('SELECT w.*, u.username, u.avatar_url FROM works w LEFT JOIN users u ON w.creator_id = u.id ORDER BY w.created_at DESC').all()
+      case DB_TYPE.MEMORY:
+        return (memoryStore.works || []).sort((a, b) => b.created_at - a.created_at)
+      case DB_TYPE.POSTGRESQL:
+        return (await db.query('SELECT w.*, u.username, u.avatar_url FROM works w LEFT JOIN users u ON w.creator_id = u.id ORDER BY w.created_at DESC')).rows
+      default: return []
     }
   }
 }
@@ -3099,7 +3227,7 @@ export const communityDB = {
       case DB_TYPE.POSTGRESQL:
         await db.query(`
           INSERT INTO communities (id, name, description, avatar, member_count, topic, is_active, is_special, created_at, updated_at)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, to_timestamp($9 / 1000.0), to_timestamp($9 / 1000.0))
           ON CONFLICT(id) DO UPDATE SET
             name = EXCLUDED.name,
             description = EXCLUDED.description,
@@ -3107,7 +3235,7 @@ export const communityDB = {
             member_count = EXCLUDED.member_count,
             topic = EXCLUDED.topic,
             is_active = EXCLUDED.is_active,
-            updated_at = EXCLUDED.updated_at
+            updated_at = to_timestamp($9 / 1000.0)
         `, [
           id,
           name,
@@ -3133,11 +3261,14 @@ export const communityDB = {
           created_at: now,
           updated_at: now
         }
+        console.log('[DB] createCommunity MEMORY: creating community', id, 'current communities count =', (memoryStore.communities || []).length);
         const existingIndex = (memoryStore.communities || []).findIndex(c => c.id === id)
         if (existingIndex >= 0) {
           memoryStore.communities[existingIndex] = { ...memoryStore.communities[existingIndex], ...record, updated_at: now }
+          console.log('[DB] createCommunity MEMORY: updated existing community');
         } else {
           memoryStore.communities.push(record)
+          console.log('[DB] createCommunity MEMORY: added new community, total =', memoryStore.communities.length);
         }
         saveMemoryStore()
         return true
@@ -3152,6 +3283,8 @@ export const communityDB = {
     const db = await getDB()
     const now = Date.now()
     const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
+    
+    console.log('[DB] joinCommunity: userId =', userId, 'communityId =', communityId, 'role =', role, 'dbType =', typeKey);
 
     switch (typeKey) {
       case DB_TYPE.SQLITE: {
@@ -3190,13 +3323,18 @@ export const communityDB = {
       case DB_TYPE.MEMORY: {
         const members = memoryStore.community_members || []
         const exists = members.some(m => m.community_id === communityId && m.user_id === userId)
+        console.log('[DB] joinCommunity MEMORY: exists =', exists, 'current members count =', members.length);
         if (!exists) {
           members.push({ community_id: communityId, user_id: userId, role, joined_at: now })
           memoryStore.community_members = members
+          console.log('[DB] joinCommunity MEMORY: added new member, total members =', members.length);
           const community = (memoryStore.communities || []).find(c => c.id === communityId)
           if (community) {
             community.member_count = (community.member_count || 0) + 1
             community.updated_at = now
+            console.log('[DB] joinCommunity MEMORY: updated community member_count =', community.member_count);
+          } else {
+            console.log('[DB] joinCommunity MEMORY: community not found!');
           }
           saveMemoryStore()
         }
@@ -3271,31 +3409,42 @@ export const communityDB = {
   async getUserCommunities(userId) {
     const db = await getDB()
     const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
+    
+    console.log('[DB] getUserCommunities: userId =', userId, 'dbType =', typeKey);
 
     switch (typeKey) {
-      case DB_TYPE.SQLITE:
-        return db.prepare(`
+      case DB_TYPE.SQLITE: {
+        const result = db.prepare(`
           SELECT c.*
           FROM communities c
           INNER JOIN community_members m ON c.id = m.community_id
           WHERE m.user_id = ?
           ORDER BY m.joined_at DESC
         `).all(userId)
-      case DB_TYPE.POSTGRESQL:
-        return (await db.query(`
+        console.log('[DB] getUserCommunities SQLite: found', result.length, 'communities');
+        return result;
+      }
+      case DB_TYPE.POSTGRESQL: {
+        const result = (await db.query(`
           SELECT c.*
           FROM communities c
           INNER JOIN community_members m ON c.id = m.community_id
           WHERE m.user_id = $1
           ORDER BY m.joined_at DESC
         `, [userId])).rows
+        console.log('[DB] getUserCommunities PostgreSQL: found', result.length, 'communities');
+        return result;
+      }
       case DB_TYPE.MEMORY: {
         const memberships = (memoryStore.community_members || []).filter(m => m.user_id === userId)
+        console.log('[DB] getUserCommunities MEMORY: found', memberships.length, 'memberships');
         const byJoinDesc = [...memberships].sort((a, b) => (b.joined_at || 0) - (a.joined_at || 0))
         const communities = memoryStore.communities || []
-        return byJoinDesc
+        const result = byJoinDesc
           .map(m => communities.find(c => c.id === m.community_id))
           .filter(Boolean)
+        console.log('[DB] getUserCommunities MEMORY: found', result.length, 'communities');
+        return result;
       }
       default:
         return []

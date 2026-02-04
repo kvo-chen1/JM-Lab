@@ -14,6 +14,11 @@ export const supabase = createClient(
   supabaseKey || 'placeholder-key'
 )
 
+// 将 supabase 暴露到 window 对象以便调试
+if (typeof window !== 'undefined') {
+  (window as any).supabase = supabase
+}
+
 // Type definitions for Supabase tables
 export interface User {
   id: string;

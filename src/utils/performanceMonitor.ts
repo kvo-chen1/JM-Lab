@@ -1,1008 +1,381 @@
 /**
  * 性能监控工具
- * 用于跟踪和分析应用性能，包括自定义性能指标和定期审计功能
+ * 用于监控应用性能指标和用户体验
  */
 
-// Web Vitals相关类型定义
-declare interface LargestContentfulPaint {
-  renderTime: number;
-  loadTime: number;
-  size: number;
-  element?: Element;
+import { createLogger } from '@/services/errorService';
+
+// 性能指标接口
+interface PerformanceMetrics {
+  // 页面加载指标
+  fcp?: number; // First Contentful Paint
+  lcp?: number; // Largest Contentful Paint
+  fid?: number; // First Input Delay
+  cls?: number; // Cumulative Layout Shift
+  ttfb?: number; // Time to First Byte
+  
+  // 自定义指标
+  resourceLoadTime?: number;
+  apiResponseTime?: number;
+  renderTime?: number;
 }
 
-declare interface LayoutShift {
-  value: number;
-  hadRecentInput: boolean;
-}
-
-declare interface FirstInputDelay {
-  startTime: number;
-  processingStart: number;
-  target?: Element;
-  type: string;
-}
-
-declare interface InteractionToNextPaint {
-  duration: number;
-  target?: Element;
-  type: string;
-}
-
-declare interface PerformanceLongTaskTiming {
-  duration: number;
-  attribution: Array<{
-    entryType: string;
-    name: string;
-    duration: number;
-  }>;
-}
-
-declare interface PerformanceNavigationTiming {
-  responseStart: number;
-  domContentLoadedEventEnd: number;
-  loadEventEnd: number;
-  startTime: number;
-  navigationStart?: number;
-}
-
-/**
- * 自定义性能指标类型
- */
-export type PerformanceMetric = {
+// 性能条目接口
+interface PerformanceEntry {
   name: string;
-  value: number;
-  unit: 'ms' | 'bytes' | 'count' | 'percentage';
-  description?: string;
-  timestamp: number;
-  category?: string; // 新增：指标分类
-  metadata?: Record<string, any>; // 新增：附加元数据
+  startTime: number;
+  duration: number;
+  entryType: string;
+}
+
+// 性能监控配置
+const MONITOR_CONFIG = {
+  // 采样率（0-1）
+  sampleRate: 0.1,
+  // 上报阈值（毫秒）
+  thresholds: {
+    fcp: 1800,
+    lcp: 2500,
+    fid: 100,
+    cls: 0.1,
+    ttfb: 600,
+  },
+  // 最大缓存条目数
+  maxCacheSize: 100,
 };
 
+// 性能数据缓存
+const metricsCache: PerformanceMetrics[] = [];
+
 /**
- * 网络请求性能指标类型
+ * 检查是否启用性能监控
  */
-export type NetworkRequestMetric = {
+function isMonitoringEnabled(): boolean {
+  // 只在生产环境且采样率命中时启用
+  if (import.meta.env.DEV) return false;
+  return Math.random() < MONITOR_CONFIG.sampleRate;
+}
+
+/**
+ * 初始化性能监控
+ */
+export function initPerformanceMonitor(): void {
+  if (!isMonitoringEnabled()) {
+    console.log('[PerformanceMonitor] 性能监控未启用（采样率未命中）');
+    return;
+  }
+
+  console.log('[PerformanceMonitor] 初始化性能监控...');
+
+  // 监控 Web Vitals 指标
+  observeWebVitals();
+  
+  // 监控资源加载
+  observeResourceLoading();
+  
+  // 监控长任务
+  observeLongTasks();
+  
+  // 页面卸载时上报数据
+  window.addEventListener('beforeunload', reportMetrics);
+  
+  // 定期上报（每30秒）
+  setInterval(reportMetrics, 30000);
+}
+
+/**
+ * 监控 Web Vitals 指标
+ */
+function observeWebVitals(): void {
+  // 监听 FCP
+  if ('PerformanceObserver' in window) {
+    try {
+      const fcpObserver = new PerformanceObserver((list) => {
+        const entries = list.getEntries();
+        entries.forEach((entry) => {
+          if (entry.name === 'first-contentful-paint') {
+            recordMetric('fcp', entry.startTime);
+          }
+        });
+      });
+      fcpObserver.observe({ entryTypes: ['paint'] });
+    } catch (e) {
+      console.warn('[PerformanceMonitor] FCP 监控初始化失败:', e);
+    }
+  }
+
+  // 监听 LCP
+  if ('PerformanceObserver' in window) {
+    try {
+      const lcpObserver = new PerformanceObserver((list) => {
+        const entries = list.getEntries();
+        const lastEntry = entries[entries.length - 1];
+        recordMetric('lcp', lastEntry.startTime);
+      });
+      lcpObserver.observe({ entryTypes: ['largest-contentful-paint'] });
+    } catch (e) {
+      console.warn('[PerformanceMonitor] LCP 监控初始化失败:', e);
+    }
+  }
+
+  // 监听 CLS
+  if ('PerformanceObserver' in window) {
+    try {
+      let clsValue = 0;
+      const clsObserver = new PerformanceObserver((list) => {
+        const entries = list.getEntries();
+        entries.forEach((entry: any) => {
+          if (!entry.hadRecentInput) {
+            clsValue += entry.value;
+          }
+        });
+        recordMetric('cls', clsValue);
+      });
+      clsObserver.observe({ entryTypes: ['layout-shift'] });
+    } catch (e) {
+      console.warn('[PerformanceMonitor] CLS 监控初始化失败:', e);
+    }
+  }
+
+  // 监听 FID
+  if ('PerformanceObserver' in window) {
+    try {
+      const fidObserver = new PerformanceObserver((list) => {
+        const entries = list.getEntries();
+        entries.forEach((entry: any) => {
+          recordMetric('fid', entry.processingStart - entry.startTime);
+        });
+      });
+      fidObserver.observe({ entryTypes: ['first-input'] });
+    } catch (e) {
+      console.warn('[PerformanceMonitor] FID 监控初始化失败:', e);
+    }
+  }
+
+  // 获取 TTFB
+  window.addEventListener('load', () => {
+    const navigation = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming;
+    if (navigation) {
+      recordMetric('ttfb', navigation.responseStart - navigation.startTime);
+    }
+  });
+}
+
+/**
+ * 监控资源加载
+ */
+function observeResourceLoading(): void {
+  if ('PerformanceObserver' in window) {
+    try {
+      const resourceObserver = new PerformanceObserver((list) => {
+        const entries = list.getEntries();
+        entries.forEach((entry: any) => {
+          // 只监控慢资源（超过1秒）
+          if (entry.duration > 1000) {
+            console.warn('[PerformanceMonitor] 慢资源加载:', {
+              name: entry.name,
+              duration: entry.duration,
+              size: entry.transferSize,
+            });
+          }
+        });
+      });
+      resourceObserver.observe({ entryTypes: ['resource'] });
+    } catch (e) {
+      console.warn('[PerformanceMonitor] 资源监控初始化失败:', e);
+    }
+  }
+}
+
+/**
+ * 监控长任务
+ */
+function observeLongTasks(): void {
+  if ('PerformanceObserver' in window) {
+    try {
+      const longTaskObserver = new PerformanceObserver((list) => {
+        const entries = list.getEntries();
+        entries.forEach((entry: any) => {
+          console.warn('[PerformanceMonitor] 长任务检测到:', {
+            duration: entry.duration,
+            startTime: entry.startTime,
+          });
+        });
+      });
+      longTaskObserver.observe({ entryTypes: ['longtask'] });
+    } catch (e) {
+      console.warn('[PerformanceMonitor] 长任务监控初始化失败:', e);
+    }
+  }
+}
+
+/**
+ * 记录性能指标
+ */
+function recordMetric(name: keyof PerformanceMetrics, value: number): void {
+  const metrics: PerformanceMetrics = { [name]: value };
+  
+  // 检查是否超过阈值
+  const threshold = MONITOR_CONFIG.thresholds[name as keyof typeof MONITOR_CONFIG.thresholds];
+  if (threshold && value > threshold) {
+    console.warn(`[PerformanceMonitor] ${name} 超过阈值:`, {
+      value,
+      threshold,
+      url: window.location.href,
+    });
+  }
+  
+  // 缓存指标
+  metricsCache.push(metrics);
+  
+  // 限制缓存大小
+  if (metricsCache.length > MONITOR_CONFIG.maxCacheSize) {
+    metricsCache.shift();
+  }
+}
+
+/**
+ * 上报性能指标
+ */
+function reportMetrics(): void {
+  if (metricsCache.length === 0) return;
+  
+  const reportData = {
+    url: window.location.href,
+    timestamp: new Date().toISOString(),
+    userAgent: navigator.userAgent,
+    metrics: [...metricsCache],
+  };
+  
+  // 使用 sendBeacon 上报（如果可用）
+  if (navigator.sendBeacon) {
+    const blob = new Blob([JSON.stringify(reportData)], { type: 'application/json' });
+    navigator.sendBeacon('/api/metrics/performance', blob);
+  } else {
+    // 降级方案：使用 fetch
+    fetch('/api/metrics/performance', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(reportData),
+      keepalive: true,
+    }).catch(() => {
+      // 静默失败
+    });
+  }
+  
+  // 清空缓存
+  metricsCache.length = 0;
+}
+
+/**
+ * 手动测量函数执行时间
+ */
+export function measureFunction<T extends (...args: any[]) => any>(
+  fn: T,
+  name: string
+): T {
+  return function (...args: Parameters<T>): ReturnType<T> {
+    const start = performance.now();
+    const result = fn.apply(this, args);
+    
+    // 处理异步函数
+    if (result instanceof Promise) {
+      return result.finally(() => {
+        const duration = performance.now() - start;
+        console.log(`[PerformanceMonitor] ${name} 执行时间:`, duration.toFixed(2), 'ms');
+      }) as ReturnType<T>;
+    }
+    
+    const duration = performance.now() - start;
+    console.log(`[PerformanceMonitor] ${name} 执行时间:`, duration.toFixed(2), 'ms');
+    return result;
+  } as T;
+}
+
+/**
+ * 创建性能标记
+ */
+export function mark(name: string): void {
+  if (performance.mark) {
+    performance.mark(name);
+  }
+}
+
+/**
+ * 测量两个标记之间的时间
+ */
+export function measure(name: string, startMark: string, endMark: string): number | null {
+  if (performance.measure) {
+    try {
+      const measure = performance.measure(name, startMark, endMark);
+      return measure.duration;
+    } catch (e) {
+      console.warn('[PerformanceMonitor] 测量失败:', e);
+      return null;
+    }
+  }
+  return null;
+}
+
+/**
+ * 获取当前性能数据
+ */
+export function getPerformanceData(): PerformanceMetrics[] {
+  return [...metricsCache];
+}
+
+/**
+ * 网络请求记录接口
+ */
+interface NetworkRequestRecord {
   url: string;
   method: string;
   duration: number;
   status: number;
   size: number;
   timestamp: number;
-  fromCache: boolean;
-  retries: number;
-  error?: string;
-};
+  fromCache?: boolean;
+  retries?: number;
+}
 
 /**
- * 组件渲染性能指标类型
+ * 记录网络请求性能数据
  */
-export type ComponentRenderMetric = {
-  componentName: string;
-  renderTime: number;
-  timestamp: number;
-  renderCount: number;
-  propsSize?: number;
-  isInitialRender: boolean;
-};
-
-/**
- * 内存使用指标类型
- */
-export type MemoryUsageMetric = {
-  usedJSHeapSize: number;
-  totalJSHeapSize: number;
-  jsHeapSizeLimit: number;
-  timestamp: number;
-};
-
-/**
- * 性能监控类
- */
-class PerformanceMonitor {
-  private metrics: PerformanceMetric[] = [];
-  private networkRequests: NetworkRequestMetric[] = [];
-  private componentRenders: ComponentRenderMetric[] = [];
-  private memoryUsage: MemoryUsageMetric[] = [];
-  private observers: PerformanceObserver[] = [];
-  private isInitialized = false;
-  private memoryMonitoringInterval: NodeJS.Timeout | null = null;
-  private componentRenderCounts: Map<string, number> = new Map();
-
-  /**
-   * 初始化性能监控
-   */
-  init() {
-    if (this.isInitialized) return;
-
-    // 优化：只在开发环境启用完整的性能监控
-    const isDev = this.isDevelopmentEnvironment();
-    
-    // 监听核心 Web Vitals - 始终启用，开销较小
-    this.setupWebVitalsObserver();
-    
-    // 监听资源加载性能 - 只在开发环境启用，避免生产环境开销
-    if (isDev) {
-      this.setupResourceObserver();
-      this.setupNavigationObserver();
-      this.setupMemoryMonitoring();
-      this.setupLongTaskObserver();
-    }
-    
-    this.isInitialized = true;
-  }
-
-  /**
-   * 检测当前是否为开发环境，兼容Node.js和浏览器环境
-   */
-  private isDevelopmentEnvironment(): boolean {
-    try {
-      // 检查Node.js环境
-      if (typeof process !== 'undefined' && process.env) {
-        return process.env.NODE_ENV === 'development';
-      }
-      
-      // 检查浏览器环境
-      if (typeof window !== 'undefined') {
-        // 检查import.meta.env.DEV（Vite环境）
-        const windowWithEnv = window as any;
-        if (windowWithEnv.import && windowWithEnv.import.meta?.env?.DEV) {
-          return windowWithEnv.import.meta.env.DEV;
-        }
-        // 检查全局变量
-        return windowWithEnv.DEV || windowWithEnv.__DEV__;
-      }
-      
-      // 默认返回false（生产环境）
-      return false;
-    } catch (error) {
-      // 发生错误时，默认返回false（生产环境）
-      return false;
-    }
-  }
-
-  /**
-   * 清理性能监控资源
-   */
-  cleanup() {
-    // 断开所有观察者连接
-    for (const observer of this.observers) {
-      observer.disconnect();
-    }
-    this.observers = [];
-    
-    // 清除内存监控定时器
-    if (this.memoryMonitoringInterval) {
-      clearInterval(this.memoryMonitoringInterval);
-      this.memoryMonitoringInterval = null;
-    }
-    
-    this.isInitialized = false;
-  }
-
-  /**
-   * 设置 Web Vitals 观察者
-   */
-  private setupWebVitalsObserver() {
-    if ('PerformanceObserver' in window) {
-      try {
-        const observer = new PerformanceObserver((list) => {
-          list.getEntries().forEach((entry) => {
-            // 处理测量类型的条目
-            if (entry.entryType === 'measure') {
-              const measureEntry = entry as PerformanceMeasure;
-              // 记录核心 Web Vitals
-              if (this.isWebVital(measureEntry.name)) {
-                this.recordMetric({
-                  name: measureEntry.name,
-                  value: measureEntry.duration,
-                  unit: 'ms',
-                  description: this.getWebVitalDescription(measureEntry.name),
-                  timestamp: Date.now(),
-                  category: 'web-vitals',
-                });
-              }
-            }
-            // 处理 LCP 条目
-            else if (entry.entryType === 'largest-contentful-paint') {
-              const lcpEntry = entry as unknown as LargestContentfulPaint;
-              this.recordMetric({
-                name: 'LCP',
-                value: lcpEntry.renderTime || lcpEntry.loadTime || 0,
-                unit: 'ms',
-                description: 'Largest Contentful Paint',
-                timestamp: Date.now(),
-                category: 'web-vitals',
-                metadata: {
-                  element: lcpEntry.element?.tagName,
-                  size: lcpEntry.size,
-                },
-              });
-            }
-            // 处理 CLS 条目
-            else if (entry.entryType === 'layout-shift') {
-              const clsEntry = entry as unknown as LayoutShift;
-              if (!clsEntry.hadRecentInput) {
-                this.recordMetric({
-                  name: 'CLS',
-                  value: clsEntry.value,
-                  unit: 'count',
-                  description: 'Cumulative Layout Shift',
-                  timestamp: Date.now(),
-                  category: 'web-vitals',
-                });
-              }
-            }
-            // 处理 FID 条目
-            else if (entry.entryType === 'first-input') {
-              const fidEntry = entry as unknown as FirstInputDelay;
-              this.recordMetric({
-                name: 'FID',
-                value: fidEntry.processingStart - fidEntry.startTime,
-                unit: 'ms',
-                description: 'First Input Delay',
-                timestamp: Date.now(),
-                category: 'web-vitals',
-                metadata: {
-                  target: fidEntry.target?.tagName,
-                  type: fidEntry.type,
-                },
-              });
-            }
-            // 处理 INP 条目
-            else if (entry.entryType === 'event') {
-              const inpEntry = entry as unknown as InteractionToNextPaint;
-              this.recordMetric({
-                name: 'INP',
-                value: inpEntry.duration,
-                unit: 'ms',
-                description: 'Interaction to Next Paint',
-                timestamp: Date.now(),
-                category: 'web-vitals',
-                metadata: {
-                  target: inpEntry.target?.tagName,
-                  type: inpEntry.type,
-                },
-              });
-            }
-          });
-        });
-
-        // 监听 Web Vitals 指标
-        observer.observe({ type: 'measure', buffered: true });
-        observer.observe({ type: 'largest-contentful-paint', buffered: true });
-        observer.observe({ type: 'layout-shift', buffered: true });
-        observer.observe({ type: 'first-input', buffered: true });
-        observer.observe({ type: 'event', buffered: true });
-        
-        this.observers.push(observer);
-      } catch (error) {
-        console.error('Failed to initialize Web Vitals observer:', error);
-      }
-    }
-  }
-
-  /**
-   * 设置资源加载观察者
-   */
-  private setupResourceObserver() {
-    if ('PerformanceObserver' in window) {
-      try {
-        const observer = new PerformanceObserver((list) => {
-          const entries = list.getEntries() as PerformanceResourceTiming[];
-          entries.forEach((entry) => {
-            // 记录资源加载时间
-            this.recordMetric({
-              name: `resource-${entry.name.split('/').pop()}`,
-              value: entry.duration,
-              unit: 'ms',
-              description: `${entry.initiatorType} resource load time`,
-              timestamp: Date.now(),
-              category: 'resource',
-              metadata: {
-                url: entry.name,
-                initiatorType: entry.initiatorType,
-                transferSize: entry.transferSize,
-                encodedBodySize: entry.encodedBodySize,
-                decodedBodySize: entry.decodedBodySize,
-              },
-            });
-          });
-        });
-
-        observer.observe({ type: 'resource', buffered: true });
-        this.observers.push(observer);
-      } catch (error) {
-        console.error('Failed to initialize resource observer:', error);
-      }
-    }
-  }
-
-  /**
-   * 设置导航性能观察者
-   */
-  private setupNavigationObserver() {
-    if ('PerformanceObserver' in window) {
-      try {
-        const observer = new PerformanceObserver((list) => {
-          const entries = list.getEntries() as unknown as PerformanceNavigationTiming[];
-          entries.forEach((entry) => {
-            // 记录导航性能指标
-            this.recordMetric({
-              name: 'TTFB',
-              value: entry.responseStart,
-              unit: 'ms',
-              description: 'Time to First Byte',
-              timestamp: Date.now(),
-              category: 'navigation',
-            });
-            
-            this.recordMetric({
-              name: 'DOMContentLoaded',
-              value: entry.domContentLoadedEventEnd - entry.startTime,
-              unit: 'ms',
-              description: 'DOM Content Loaded Time',
-              timestamp: Date.now(),
-              category: 'navigation',
-            });
-            
-            this.recordMetric({
-              name: 'LoadEvent',
-              value: entry.loadEventEnd - entry.startTime,
-              unit: 'ms',
-              description: 'Load Event Time',
-              timestamp: Date.now(),
-              category: 'navigation',
-            });
-          });
-        });
-
-        observer.observe({ type: 'navigation', buffered: true });
-        this.observers.push(observer);
-      } catch (error) {
-        console.error('Failed to initialize navigation observer:', error);
-      }
-    }
-  }
-
-  /**
-   * 设置长任务观察者
-   */
-  private setupLongTaskObserver() {
-    if ('PerformanceObserver' in window) {
-      try {
-        const observer = new PerformanceObserver((list) => {
-          const entries = list.getEntries() as unknown as PerformanceLongTaskTiming[];
-          entries.forEach((entry) => {
-            // 记录长任务
-            if (entry.duration > 50) {
-              this.recordMetric({
-                name: 'LongTask',
-                value: entry.duration,
-                unit: 'ms',
-                description: 'Long Task Duration',
-                timestamp: Date.now(),
-                category: 'long-task',
-                metadata: {
-                  sources: entry.attribution.map(attribution => ({
-                    type: attribution.entryType,
-                    name: attribution.name,
-                    duration: attribution.duration,
-                  })),
-                },
-              });
-            }
-          });
-        });
-
-        observer.observe({ type: 'longtask', buffered: true });
-        this.observers.push(observer);
-      } catch (error) {
-        console.error('Failed to initialize long task observer:', error);
-      }
-    }
-  }
-
-  /**
-   * 设置内存使用监控
-   */
-  private setupMemoryMonitoring() {
-    if ('performance' in window && 'memory' in performance) {
-      // 立即记录一次内存使用情况
-      this.recordMemoryUsage();
-      
-      // 定期记录内存使用情况（每30秒）
-      this.memoryMonitoringInterval = setInterval(() => {
-        this.recordMemoryUsage();
-      }, 30000);
-    }
-  }
-
-  /**
-   * 记录内存使用情况
-   */
-  private recordMemoryUsage() {
-    if ('performance' in window && 'memory' in performance) {
-      const memoryInfo = (performance as any).memory;
-      const metric: MemoryUsageMetric = {
-        usedJSHeapSize: memoryInfo.usedJSHeapSize,
-        totalJSHeapSize: memoryInfo.totalJSHeapSize,
-        jsHeapSizeLimit: memoryInfo.jsHeapSizeLimit,
-        timestamp: Date.now(),
-      };
-      this.memoryUsage.push(metric);
-      
-      // 限制内存使用记录数量
-      if (this.memoryUsage.length > 100) {
-        this.memoryUsage = this.memoryUsage.slice(-50);
-      }
-      
-      // 同时记录为通用指标
-      this.recordMetric({
-        name: 'MemoryUsage',
-        value: memoryInfo.usedJSHeapSize,
-        unit: 'bytes',
-        description: 'Used JavaScript Heap Size',
-        timestamp: Date.now(),
-        category: 'memory',
-        metadata: {
-          totalJSHeapSize: memoryInfo.totalJSHeapSize,
-          jsHeapSizeLimit: memoryInfo.jsHeapSizeLimit,
-          usagePercentage: (memoryInfo.usedJSHeapSize / memoryInfo.jsHeapSizeLimit) * 100,
-        },
-      });
-    }
-  }
-
-  /**
-   * 检查是否为核心 Web Vital
-   */
-  private isWebVital(name: string): name is 'LCP' | 'FID' | 'CLS' | 'TTFB' | 'INP' {
-    return ['LCP', 'FID', 'CLS', 'TTFB', 'INP'].includes(name);
-  }
-
-  /**
-   * 获取 Web Vital 描述
-   */
-  private getWebVitalDescription(name: string): string {
-    const descriptions: Record<string, string> = {
-      LCP: 'Largest Contentful Paint',
-      FID: 'First Input Delay',
-      CLS: 'Cumulative Layout Shift',
-      TTFB: 'Time to First Byte',
-      INP: 'Interaction to Next Paint',
-    };
-    return descriptions[name] || name;
-  }
-
-  /**
-   * 记录自定义性能指标
-   */
-  recordMetric(metric: PerformanceMetric) {
-    // 优化：只在开发环境记录完整指标，生产环境只记录核心Web Vitals
-    const isDev = this.isDevelopmentEnvironment();
-    if (!isDev && !this.isWebVital(metric.name)) {
-      return;
-    }
-    
-    this.metrics.push(metric);
-    
-    // 优化：进一步限制指标数量，避免内存泄漏
-    if (this.metrics.length > 500) {
-      this.metrics = this.metrics.slice(-200);
-    }
-  }
-
-  /**
-   * 记录网络请求性能
-   */
-  recordNetworkRequest(metric: NetworkRequestMetric) {
-    // 优化：只在开发环境记录完整的网络请求指标
-    const isDev = this.isDevelopmentEnvironment();
-    if (!isDev) return;
-    
-    this.networkRequests.push(metric);
-    
-    // 限制网络请求记录数量
-    if (this.networkRequests.length > 200) {
-      this.networkRequests = this.networkRequests.slice(-100);
-    }
-    
-    // 同时记录为通用指标
-    this.recordMetric({
-      name: `network-${metric.method}-${metric.url.split('/').pop()}`,
-      value: metric.duration,
-      unit: 'ms',
-      description: `${metric.method} request to ${metric.url}`,
-      timestamp: metric.timestamp,
-      category: 'network',
-      metadata: {
-        url: metric.url,
-        method: metric.method,
-        status: metric.status,
-        size: metric.size,
-        fromCache: metric.fromCache,
-        retries: metric.retries,
-      },
+export function recordNetworkRequest(record: NetworkRequestRecord): void {
+  // 只在开发环境记录详细日志
+  if (import.meta.env.DEV) {
+    console.log('[PerformanceMonitor] 网络请求:', {
+      url: record.url,
+      method: record.method,
+      duration: record.duration,
+      status: record.status,
+      fromCache: record.fromCache,
     });
   }
 
-  /**
-   * 记录组件渲染性能
-   */
-  recordComponentRender(metric: ComponentRenderMetric) {
-    // 优化：只在开发环境记录完整的组件渲染指标
-    const isDev = this.isDevelopmentEnvironment();
-    if (!isDev) return;
-    
-    // 更新组件渲染计数
-    const renderCount = this.componentRenderCounts.get(metric.componentName) || 0;
-    this.componentRenderCounts.set(metric.componentName, renderCount + 1);
-    
-    const updatedMetric = {
-      ...metric,
-      renderCount: renderCount + 1,
-    };
-    
-    this.componentRenders.push(updatedMetric);
-    
-    // 限制组件渲染记录数量
-    if (this.componentRenders.length > 200) {
-      this.componentRenders = this.componentRenders.slice(-100);
-    }
-    
-    // 同时记录为通用指标
-    this.recordMetric({
-      name: `component-${metric.componentName}`,
-      value: metric.renderTime,
-      unit: 'ms',
-      description: `${metric.componentName} render time`,
-      timestamp: metric.timestamp,
-      category: 'component',
-      metadata: {
-        componentName: metric.componentName,
-        isInitialRender: metric.isInitialRender,
-        renderCount: updatedMetric.renderCount,
-      },
+  // 检查慢请求（超过1秒）
+  if (record.duration > 1000) {
+    console.warn('[PerformanceMonitor] 慢请求检测到:', {
+      url: record.url,
+      method: record.method,
+      duration: record.duration,
     });
-  }
-
-  /**
-   * 获取所有性能指标
-   */
-  getMetrics(): PerformanceMetric[] {
-    return [...this.metrics];
-  }
-
-  /**
-   * 获取网络请求指标
-   */
-  getNetworkRequests(): NetworkRequestMetric[] {
-    return [...this.networkRequests];
-  }
-
-  /**
-   * 获取组件渲染指标
-   */
-  getComponentRenders(): ComponentRenderMetric[] {
-    return [...this.componentRenders];
-  }
-
-  /**
-   * 获取内存使用指标
-   */
-  getMemoryUsage(): MemoryUsageMetric[] {
-    return [...this.memoryUsage];
-  }
-
-  /**
-   * 清除所有性能指标
-   */
-  clearMetrics() {
-    this.metrics = [];
-    this.networkRequests = [];
-    this.componentRenders = [];
-    this.memoryUsage = [];
-    this.componentRenderCounts.clear();
-  }
-
-  /**
-   * 清除网络请求指标
-   */
-  clearNetworkRequests() {
-    this.networkRequests = [];
-  }
-
-  /**
-   * 清除组件渲染指标
-   */
-  clearComponentRenders() {
-    this.componentRenders = [];
-    this.componentRenderCounts.clear();
-  }
-
-  /**
-   * 清除内存使用指标
-   */
-  clearMemoryUsage() {
-    this.memoryUsage = [];
-  }
-
-  /**
-   * 获取组件渲染统计信息
-   */
-  getComponentRenderStats() {
-    const stats = new Map<string, {
-      renderCount: number;
-      averageRenderTime: number;
-      minRenderTime: number;
-      maxRenderTime: number;
-      initialRenderTime: number | null;
-    }>();
-    
-    for (const metric of this.componentRenders) {
-      if (!stats.has(metric.componentName)) {
-        stats.set(metric.componentName, {
-          renderCount: 0,
-          averageRenderTime: 0,
-          minRenderTime: Infinity,
-          maxRenderTime: 0,
-          initialRenderTime: metric.isInitialRender ? metric.renderTime : null,
-        });
-      }
-      
-      const current = stats.get(metric.componentName)!;
-      current.renderCount++;
-      current.averageRenderTime = (current.averageRenderTime * (current.renderCount - 1) + metric.renderTime) / current.renderCount;
-      current.minRenderTime = Math.min(current.minRenderTime, metric.renderTime);
-      current.maxRenderTime = Math.max(current.maxRenderTime, metric.renderTime);
-      if (metric.isInitialRender) {
-        current.initialRenderTime = metric.renderTime;
-      }
-    }
-    
-    return Object.fromEntries(stats);
-  }
-
-  /**
-   * 获取网络请求统计信息
-   */
-  getNetworkRequestStats() {
-    const stats = {
-      totalRequests: this.networkRequests.length,
-      averageDuration: 0,
-      averageSize: 0,
-      cacheHitRate: 0,
-      successRate: 0,
-      methods: new Map<string, number>(),
-      statusCodes: new Map<number, number>(),
-    };
-    
-    if (stats.totalRequests === 0) return stats;
-    
-    let cacheHits = 0;
-    let successfulRequests = 0;
-    let totalDuration = 0;
-    let totalSize = 0;
-    
-    for (const request of this.networkRequests) {
-      // 方法统计
-      stats.methods.set(request.method, (stats.methods.get(request.method) || 0) + 1);
-      
-      // 状态码统计
-      stats.statusCodes.set(request.status, (stats.statusCodes.get(request.status) || 0) + 1);
-      
-      // 缓存命中率
-      if (request.fromCache) cacheHits++;
-      
-      // 成功率
-      if (request.status >= 200 && request.status < 300) successfulRequests++;
-      
-      // 总时长和总大小
-      totalDuration += request.duration;
-      totalSize += request.size;
-    }
-    
-    stats.averageDuration = totalDuration / stats.totalRequests;
-    stats.averageSize = totalSize / stats.totalRequests;
-    stats.cacheHitRate = cacheHits / stats.totalRequests;
-    stats.successRate = successfulRequests / stats.totalRequests;
-    
-    return {
-      ...stats,
-      methods: Object.fromEntries(stats.methods),
-      statusCodes: Object.fromEntries(stats.statusCodes),
-    };
-  }
-
-  /**
-   * 测量代码执行时间
-   */
-  measureExecutionTime<T>(name: string, fn: () => T): T {
-    const start = performance.now();
-    const result = fn();
-    const end = performance.now();
-    
-    this.recordMetric({
-      name,
-      value: end - start,
-      unit: 'ms',
-      description: `Execution time for ${name}`,
-      timestamp: Date.now(),
-    });
-    
-    return result;
-  }
-
-  /**
-   * 开始性能测量
-   */
-  startMeasure(name: string) {
-    performance.mark(`${name}-start`);
-  }
-
-  /**
-   * 结束性能测量
-   */
-  endMeasure(name: string) {
-    performance.mark(`${name}-end`);
-    performance.measure(name, `${name}-start`, `${name}-end`);
-    
-    const measure = performance.getEntriesByName(name).pop();
-    if (measure) {
-      this.recordMetric({
-        name,
-        value: measure.duration,
-        unit: 'ms',
-        description: `Performance measure for ${name}`,
-        timestamp: Date.now(),
-      });
-    }
-    
-    // 清理标记
-    performance.clearMarks(`${name}-start`);
-    performance.clearMarks(`${name}-end`);
-    performance.clearMeasures(name);
-  }
-
-  /**
-   * 运行性能审计
-   */
-  async runAudit(): Promise<PerformanceAuditResult> {
-    try {
-      // 等待所有资源加载完成
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // 获取性能数据
-      const navigationEntry = performance.getEntriesByType('navigation')[0] as unknown as PerformanceNavigationTiming;
-      const resourceEntries = performance.getEntriesByType('resource') as unknown as PerformanceResourceTiming[];
-      const longTaskEntries = performance.getEntriesByType('longtask') as unknown as PerformanceLongTaskTiming[];
-      
-      // 计算审计结果
-      const auditResult: PerformanceAuditResult = {
-        timestamp: Date.now(),
-        metrics: {
-          // 核心 Web Vitals
-          LCP: this.getMetricValue('LCP') || 0,
-          FID: this.getMetricValue('FID') || 0,
-          CLS: this.getMetricValue('CLS') || 0,
-          TTFB: navigationEntry?.responseStart || 0,
-          INP: this.getMetricValue('INP') || 0,
-          // 导航性能
-          navigationStart: navigationEntry?.startTime || 0,
-          domContentLoaded: navigationEntry?.domContentLoadedEventEnd || 0,
-          loadEvent: navigationEntry?.loadEventEnd || 0,
-          // 资源统计
-          totalResources: resourceEntries.length,
-          totalResourceSize: resourceEntries.reduce((sum, entry) => sum + (entry.transferSize || 0), 0),
-          // 长任务统计
-          longTasks: longTaskEntries.length,
-          totalLongTaskDuration: longTaskEntries.reduce((sum, entry) => sum + entry.duration, 0),
-          // 网络请求统计
-          networkRequests: this.networkRequests.length,
-          averageRequestDuration: this.getNetworkRequestStats().averageDuration,
-          cacheHitRate: this.getNetworkRequestStats().cacheHitRate,
-          // 组件渲染统计
-          componentRenders: this.componentRenders.length,
-          averageComponentRenderTime: this.componentRenders.length > 0 
-            ? this.componentRenders.reduce((sum, entry) => sum + entry.renderTime, 0) / this.componentRenders.length 
-            : 0,
-          // 内存使用
-          memoryUsage: this.memoryUsage.length > 0 
-            ? this.memoryUsage[this.memoryUsage.length - 1].usedJSHeapSize 
-            : 0,
-          // 自定义指标
-          customMetrics: this.metrics,
-        },
-        // 性能评分（基于 Web Vitals）
-        score: this.calculatePerformanceScore(),
-        // 优化建议
-        suggestions: this.generateOptimizationSuggestions(),
-        // 新增：详细统计信息
-        detailedStats: {
-          network: this.getNetworkRequestStats(),
-          components: this.getComponentRenderStats(),
-          memory: this.memoryUsage.length > 0 ? this.memoryUsage[this.memoryUsage.length - 1] : undefined,
-        },
-      };
-      
-      return auditResult;
-    } catch (error) {
-      console.error('Failed to run performance audit:', error);
-      // 返回默认结果
-      return {
-        timestamp: Date.now(),
-        metrics: {
-          LCP: 0,
-          FID: 0,
-          CLS: 0,
-          TTFB: 0,
-          INP: 0,
-          navigationStart: 0,
-          domContentLoaded: 0,
-          loadEvent: 0,
-          totalResources: 0,
-          totalResourceSize: 0,
-          longTasks: 0,
-          totalLongTaskDuration: 0,
-          networkRequests: 0,
-          averageRequestDuration: 0,
-          cacheHitRate: 0,
-          componentRenders: 0,
-          averageComponentRenderTime: 0,
-          memoryUsage: 0,
-          customMetrics: [],
-        },
-        score: 0,
-        suggestions: [],
-        detailedStats: {
-          network: this.getNetworkRequestStats(),
-          components: this.getComponentRenderStats(),
-          memory: undefined,
-        },
-      };
-    }
-  }
-
-  /**
-   * 获取指标值
-   */
-  private getMetricValue(name: string): number | undefined {
-    const metric = this.metrics.find(m => m.name === name);
-    return metric?.value;
-  }
-
-  /**
-   * 计算性能评分
-   */
-  private calculatePerformanceScore(): number {
-    // 基于核心 Web Vitals 计算评分（0-100）
-    let score = 100;
-    
-    // LCP (Good: <2.5s, Needs Improvement: 2.5s-4s, Poor: >4s)
-    const lcp = this.getMetricValue('LCP') || 0;
-    if (lcp > 4000) score -= 30;
-    else if (lcp > 2500) score -= 15;
-    
-    // FID (Good: <100ms, Needs Improvement: 100ms-300ms, Poor: >300ms)
-    const fid = this.getMetricValue('FID') || 0;
-    if (fid > 300) score -= 25;
-    else if (fid > 100) score -= 10;
-    
-    // CLS (Good: <0.1, Needs Improvement: 0.1-0.25, Poor: >0.25)
-    const cls = this.getMetricValue('CLS') || 0;
-    if (cls > 0.25) score -= 25;
-    else if (cls > 0.1) score -= 10;
-    
-    // INP (Good: <200ms, Needs Improvement: 200ms-500ms, Poor: >500ms)
-    const inp = this.getMetricValue('INP') || 0;
-    if (inp > 500) score -= 20;
-    else if (inp > 200) score -= 10;
-    
-    return Math.max(0, Math.min(100, score));
-  }
-
-  /**
-   * 生成优化建议
-   */
-  private generateOptimizationSuggestions(): string[] {
-    const suggestions: string[] = [];
-    
-    const lcp = this.getMetricValue('LCP') || 0;
-    const fid = this.getMetricValue('FID') || 0;
-    const cls = this.getMetricValue('CLS') || 0;
-    const inp = this.getMetricValue('INP') || 0;
-    
-    if (lcp > 2500) {
-      suggestions.push('优化最大内容绘制 (LCP)：考虑优化图片大小、使用 CDN 或预加载关键资源');
-    }
-    
-    if (fid > 100) {
-      suggestions.push('优化首次输入延迟 (FID)：减少主线程阻塞，考虑代码分割或懒加载');
-    }
-    
-    if (cls > 0.1) {
-      suggestions.push('优化累积布局偏移 (CLS)：为图片添加固定尺寸，避免动态插入内容');
-    }
-    
-    if (inp > 200) {
-      suggestions.push('优化交互到下一次绘制 (INP)：减少事件处理器执行时间，使用防抖/节流');
-    }
-    
-    return suggestions;
   }
 }
 
 /**
- * 性能审计结果类型
+ * 清除性能数据
  */
-export type PerformanceAuditResult = {
-  timestamp: number;
-  metrics: {
-    // 核心 Web Vitals
-    LCP: number;
-    FID: number;
-    CLS: number;
-    TTFB: number;
-    INP: number;
-    // 导航性能
-    navigationStart: number;
-    domContentLoaded: number;
-    loadEvent: number;
-    // 资源统计
-    totalResources: number;
-    totalResourceSize: number;
-    // 长任务统计
-    longTasks: number;
-    totalLongTaskDuration: number;
-    // 网络请求统计
-    networkRequests: number;
-    averageRequestDuration: number;
-    cacheHitRate: number;
-    // 组件渲染统计
-    componentRenders: number;
-    averageComponentRenderTime: number;
-    // 内存使用
-    memoryUsage: number;
-    // 自定义指标
-    customMetrics: PerformanceMetric[];
-  };
-  // 性能评分（0-100）
-  score: number;
-  // 优化建议
-  suggestions: string[];
-  // 详细统计信息
-  detailedStats?: {
-    network: ReturnType<PerformanceMonitor['getNetworkRequestStats']>;
-    components: ReturnType<PerformanceMonitor['getComponentRenderStats']>;
-    memory?: MemoryUsageMetric;
-  };
-};
-
-// 导出单例实例
-export const performanceMonitor = new PerformanceMonitor();
-
-// 自动初始化
-export function initPerformanceMonitor() {
-  performanceMonitor.init();
+export function clearPerformanceData(): void {
+  metricsCache.length = 0;
 }
 
-// 导出便捷函数 - 使用 bind 确保 this 上下文正确
-export const recordMetric = performanceMonitor.recordMetric.bind(performanceMonitor);
-export const recordNetworkRequest = performanceMonitor.recordNetworkRequest.bind(performanceMonitor);
-export const recordComponentRender = performanceMonitor.recordComponentRender.bind(performanceMonitor);
-export const getMetrics = performanceMonitor.getMetrics.bind(performanceMonitor);
-export const getNetworkRequests = performanceMonitor.getNetworkRequests.bind(performanceMonitor);
-export const getComponentRenders = performanceMonitor.getComponentRenders.bind(performanceMonitor);
-export const getMemoryUsage = performanceMonitor.getMemoryUsage.bind(performanceMonitor);
-export const getComponentRenderStats = performanceMonitor.getComponentRenderStats.bind(performanceMonitor);
-export const getNetworkRequestStats = performanceMonitor.getNetworkRequestStats.bind(performanceMonitor);
-export const clearMetrics = performanceMonitor.clearMetrics.bind(performanceMonitor);
-export const clearNetworkRequests = performanceMonitor.clearNetworkRequests.bind(performanceMonitor);
-export const clearComponentRenders = performanceMonitor.clearComponentRenders.bind(performanceMonitor);
-export const clearMemoryUsage = performanceMonitor.clearMemoryUsage.bind(performanceMonitor);
-export const measureExecutionTime = performanceMonitor.measureExecutionTime.bind(performanceMonitor);
-export const startMeasure = performanceMonitor.startMeasure.bind(performanceMonitor);
-export const endMeasure = performanceMonitor.endMeasure.bind(performanceMonitor);
-export const runAudit = performanceMonitor.runAudit.bind(performanceMonitor);
-export const cleanup = performanceMonitor.cleanup.bind(performanceMonitor);
+// 导出默认对象
+export default {
+  init: initPerformanceMonitor,
+  measureFunction,
+  mark,
+  measure,
+  getData: getPerformanceData,
+  clear: clearPerformanceData,
+};

@@ -14,6 +14,14 @@ interface User {
   isAdmin?: boolean;
   age?: number;
   tags?: string[];
+  bio?: string;
+  location?: string;
+  occupation?: string;
+  website?: string;
+  github?: string;
+  twitter?: string;
+  coverImage?: string;
+  metadata?: Record<string, any>;
   isNewUser?: boolean;
   worksCount?: number;
   followersCount?: number;
@@ -37,8 +45,7 @@ class ApiService {
    * 设置是否使用模拟数据
    */
   setUseMockData(useMock: boolean): void {
-    // 暂时只记录日志，后续可以接入 mockDataService
-    console.log(`[ApiService] 设置模拟数据模式: ${useMock}`);
+    console.warn('[ApiService] Mock data mode is deprecated and removed.');
   }
 
   /**

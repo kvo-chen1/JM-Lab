@@ -250,6 +250,10 @@ const UserCollection = createLazyComponent(() => import(/* webpackChunkName: "pa
   priority: ROUTE_PRIORITIES.MEDIUM,
   name: 'collections'
 });
+const Notifications = createLazyComponent(() => import(/* webpackChunkName: "pages-other" */ "@/pages/Notifications"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'notifications'
+});
 
 // 特殊功能组件 - 懒加载
 const IPIncubationCenter = createLazyComponent(() => import(/* webpackChunkName: "components-other" */ "@/components/IPIncubationCenter"), {
@@ -351,26 +355,51 @@ export default function App() {
         performanceOptimizer.initialize();
       }, { timeout: 3000 });
     } else {
-      // 降级方案：延迟初始化
-      setTimeout(() => {
+      // 降级方案：使用 requestAnimationFrame 确保在渲染完成后初始化
+      requestAnimationFrame(() => {
         performanceOptimizer.initialize();
-      }, 1000);
+      });
     }
-    
-    // 更长的延迟初始化非核心数据，避免阻塞首屏渲染
-    const initTimer = setTimeout(async () => {
+
+    // 使用 Intersection Observer 检测首屏渲染完成后再初始化非核心数据
+    const initObserver = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            // 首屏内容已渲染，开始初始化非核心数据
+            initNonCriticalData();
+            initObserver.disconnect();
+          }
+        });
+      },
+      { threshold: 0.1 }
+    );
+
+    // 观察根元素，检测首屏渲染
+    const rootElement = document.getElementById('root');
+    if (rootElement) {
+      initObserver.observe(rootElement);
+    }
+
+    // 备用方案：最多等待5秒后强制初始化
+    const backupTimer = setTimeout(() => {
+      initNonCriticalData();
+      initObserver.disconnect();
+    }, 5000);
+
+    // 初始化非核心数据的函数
+    async function initNonCriticalData() {
       try {
         // 紧急清理：检查localStorage使用情况
         try {
-            const testKey = '__test_storage__';
-            localStorage.setItem(testKey, 'test');
-            localStorage.removeItem(testKey);
+          const testKey = '__test_storage__';
+          localStorage.setItem(testKey, 'test');
+          localStorage.removeItem(testKey);
         } catch (e) {
-            console.warn('LocalStorage is full, performing cleanup...');
-            // 清理非关键数据
-            localStorage.removeItem('ai_creation_platform_errors');
-            localStorage.removeItem('ai_creation_platform_alerts');
-            // 可以添加其他非关键数据的清理
+          console.warn('LocalStorage is full, performing cleanup...');
+          // 清理非关键数据
+          localStorage.removeItem('ai_creation_platform_errors');
+          localStorage.removeItem('ai_creation_platform_alerts');
         }
 
         // 检查localStorage中是否已有数据
@@ -382,9 +411,12 @@ export default function App() {
       } catch (error) {
         console.error('初始化数据失败:', error);
       }
-    }, 5000); // 延迟5秒执行，确保首屏完全渲染后再处理
-    
-    return () => clearTimeout(initTimer);
+    }
+
+    return () => {
+      clearTimeout(backupTimer);
+      initObserver.disconnect();
+    };
   }, []);
   
   // 优化：使用防抖函数减少resize事件触发频率
@@ -522,22 +554,26 @@ export default function App() {
           {/* 核心页面直接渲染，无需懒加载，添加缓存和动画 */}
           {/* 确保根路径是第一个路由，提高匹配优先级 */}
           <Route path="/" element={
-            <AnimatedPage>
-              {isMobile ? (
-                <MobileLayout><Home /></MobileLayout>
-              ) : (
-                <SidebarLayout><Home /></SidebarLayout>
-              )}
-            </AnimatedPage>
+            <ErrorBoundary>
+              <AnimatedPage>
+                {isMobile ? (
+                  <MobileLayout><Home /></MobileLayout>
+                ) : (
+                  <SidebarLayout><Home /></SidebarLayout>
+                )}
+              </AnimatedPage>
+            </ErrorBoundary>
           } />
           <Route path="/landing" element={
-            <AnimatedPage>
-              <div className="min-h-screen">
-                {/* 这里将加载landing.html的内容 */}
-                <h1 className="text-2xl font-bold text-center py-10">津脉智坊 - 欢迎页面</h1>
-                <p className="text-center">正在加载 landing 页面内容...</p>
-              </div>
-            </AnimatedPage>
+            <ErrorBoundary>
+              <AnimatedPage>
+                <div className="min-h-screen">
+                  {/* 这里将加载landing.html的内容 */}
+                  <h1 className="text-2xl font-bold text-center py-10">津脉智坊 - 欢迎页面</h1>
+                  <p className="text-center">正在加载 landing 页面内容...</p>
+                </div>
+              </AnimatedPage>
+            </ErrorBoundary>
           } />
 
         
@@ -553,10 +589,10 @@ export default function App() {
         } />
         
         {/* 不需要布局的页面 */}
-        <Route path="/login" element={<AnimatedPage><Login /></AnimatedPage>} />
-        <Route path="/register" element={<AnimatedPage><Register /></AnimatedPage>} />
-        <Route path="/forgot-password" element={<AnimatedPage><ForgotPassword /></AnimatedPage>} />
-        <Route path="/complete-profile" element={<AnimatedPage><CompleteProfile /></AnimatedPage>} />
+        <Route path="/login" element={<ErrorBoundary><AnimatedPage><Login /></AnimatedPage></ErrorBoundary>} />
+        <Route path="/register" element={<ErrorBoundary><AnimatedPage><Register /></AnimatedPage></ErrorBoundary>} />
+        <Route path="/forgot-password" element={<ErrorBoundary><AnimatedPage><ForgotPassword /></AnimatedPage></ErrorBoundary>} />
+        <Route path="/complete-profile" element={<ErrorBoundary><AnimatedPage><CompleteProfile /></AnimatedPage></ErrorBoundary>} />
 
         
         {/* 使用布局的页面，为所有子路由添加动画 */}
@@ -583,7 +619,7 @@ export default function App() {
           <Route path="/dashboard" element={<LazyComponent fallback={<DashboardSkeleton />}><PrivateRoute><Dashboard /></PrivateRoute></LazyComponent>} />
           <Route path="/profile" element={<Navigate to="/dashboard" replace />} />
           <Route path="/create/*" element={<LazyComponent><PrivateRoute><Create /></PrivateRoute></LazyComponent>} />
-          <Route path="/create-activity" element={<LazyComponent><PrivateRoute><AnimatedPage><CreateActivity /></AnimatedPage></PrivateRoute></LazyComponent>} />
+          <Route path="/create-activity" element={<Navigate to="/create/activity" replace />} />
           <Route path="/creates" element={<Navigate to="/create" replace />} />
           <Route path="/wizard" element={<Navigate to="/create/wizard" replace />} />
           
@@ -614,6 +650,7 @@ export default function App() {
           <Route path="/analytics" element={<LazyComponent><PrivateRoute><AnalyticsPage /></PrivateRoute></LazyComponent>} />
           <Route path="/collection" element={<LazyComponent><PrivateRoute><UserCollection /></PrivateRoute></LazyComponent>} />
           <Route path="/collections" element={<LazyComponent><PrivateRoute><UserCollection /></PrivateRoute></LazyComponent>} />
+          <Route path="/notifications" element={<LazyComponent><PrivateRoute><Notifications /></PrivateRoute></LazyComponent>} />
           <Route path="/knowledge" element={<LazyComponent><CulturalKnowledge /></LazyComponent>} />
           <Route path="/knowledge/:type/:id" element={<LazyComponent><CulturalKnowledge /></LazyComponent>} />
           <Route path="/cultural-knowledge" element={<LazyComponent><CulturalKnowledge /></LazyComponent>} />

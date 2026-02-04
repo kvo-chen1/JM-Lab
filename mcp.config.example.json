@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "supabase-mcp": {
+      "type": "supabase",
+      "url": "https://YOUR_PROJECT_ID.supabase.co",
+      "anonKey": "YOUR_ANON_KEY",
+      "serviceRoleKey": "YOUR_SERVICE_ROLE_KEY",
+      "databaseUrl": "postgres://user:pass@host:5432/db?sslmode=require"
+    }
+  }
+}

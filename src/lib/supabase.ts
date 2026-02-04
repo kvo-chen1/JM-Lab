@@ -1,9 +1,12 @@
 // Supabase 客户端配置
-import { createClient } from '@supabase/supabase-js'
+import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
 // 从环境变量获取配置
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || ''
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
+
+// 检查是否在浏览器环境
+const isBrowser = typeof window !== 'undefined'
 
 // 增强的 fetch，带有重试逻辑
 const fetchWithRetry = async (url: RequestInfo | URL, options?: RequestInit, retries = 3, backoff = 300): Promise<Response> => {
@@ -23,82 +26,116 @@ const fetchWithRetry = async (url: RequestInfo | URL, options?: RequestInit, ret
   }
 };
 
+// 创建模拟客户端的工厂函数
+const createMockClient = (reason: string): SupabaseClient => {
+  const mockError = new Error(`${reason} - 请检查 Supabase 配置`)
+
+  return {
+    from: () => ({
+      select: () => ({ eq: () => ({ order: () => ({ limit: () => Promise.resolve({ data: [], error: mockError }) }) }) }),
+      insert: () => ({ select: () => ({ single: () => Promise.resolve({ data: null, error: mockError }) }) }),
+      update: () => ({ eq: () => Promise.resolve({ error: mockError }) }),
+      delete: () => ({ eq: () => Promise.resolve({ error: mockError }) }),
+      upsert: () => ({ select: () => ({ single: () => Promise.resolve({ data: null, error: mockError }) }) }),
+    }),
+    channel: () => ({
+      on: () => ({ subscribe: () => ({ unsubscribe: () => {} }) }),
+      subscribe: () => ({ unsubscribe: () => {} }),
+    }),
+    auth: {
+      getSession: () => Promise.resolve({ data: { session: null }, error: mockError }),
+      getUser: () => Promise.resolve({ data: { user: null }, error: mockError }),
+      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
+      signInWithPassword: () => Promise.resolve({ data: { user: null, session: null }, error: mockError }),
+      signInWithOtp: () => Promise.resolve({ data: { user: null, session: null }, error: mockError }),
+      verifyOtp: () => Promise.resolve({ data: { user: null, session: null }, error: mockError }),
+      signUp: () => Promise.resolve({ data: { user: null, session: null }, error: mockError }),
+      signOut: () => Promise.resolve({ error: null }),
+      updateUser: () => Promise.resolve({ data: { user: null }, error: mockError }),
+      resetPasswordForEmail: () => Promise.resolve({ data: {}, error: mockError }),
+    },
+    storage: {
+      from: () => ({
+        upload: () => Promise.resolve({ data: null, error: mockError }),
+        download: () => Promise.resolve({ data: null, error: mockError }),
+        getPublicUrl: () => ({ data: { publicUrl: '' } }),
+        remove: () => Promise.resolve({ data: null, error: mockError }),
+      }),
+    },
+  } as unknown as SupabaseClient
+}
+
 // 创建 Supabase 客户端 - 带错误处理
-export let supabase: ReturnType<typeof createClient>;
+export let supabase: SupabaseClient
 
 try {
-  if (supabaseUrl && supabaseAnonKey) {
+  if (!supabaseUrl || !supabaseAnonKey) {
+    // 如果环境变量不存在，创建一个安全的模拟客户端
+    console.warn('[Supabase] 环境变量未配置，使用模拟客户端')
+    supabase = createMockClient('Supabase 环境变量未配置')
+  } else {
+    // 验证 URL 格式
+    try {
+      new URL(supabaseUrl)
+    } catch {
+      console.error('[Supabase] URL 格式无效:', supabaseUrl)
+      supabase = createMockClient('Supabase URL 格式无效')
+    }
+
     supabase = createClient(supabaseUrl, supabaseAnonKey, {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
-        detectSessionInUrl: true
+        detectSessionInUrl: true,
+        storageKey: 'sb-auth-token',
       },
       global: {
         headers: {
           'x-application-name': 'creator-community'
         },
-        fetch: fetchWithRetry // 使用带重试的 fetch
+        fetch: fetchWithRetry
       },
       db: {
         schema: 'public'
+      },
+      realtime: {
+        params: {
+          eventsPerSecond: 10
+        }
       }
     })
-  } else {
-    // 如果环境变量不存在，创建一个安全的模拟客户端
-    console.warn('Supabase environment variables not found, using mock client')
-    supabase = {
-      from: () => ({
-        select: () => ({ eq: () => ({ order: () => ({ limit: () => Promise.resolve({ data: [], error: null }) }) }) }),
-        insert: () => ({ select: () => ({ single: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }) }) }),
-        update: () => ({ eq: () => Promise.resolve({ error: new Error('Supabase not configured') }) }),
-        delete: () => ({ eq: () => Promise.resolve({ error: new Error('Supabase not configured') }) })
-      }),
-      channel: () => ({
-        on: () => ({ subscribe: () => ({ unsubscribe: () => {} }) }),
-        subscribe: () => ({ unsubscribe: () => {} })
-      }),
-      auth: {
-        getSession: () => Promise.resolve({ data: { session: null }, error: null }),
-        getUser: () => Promise.resolve({ data: { user: null }, error: null }),
-        onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
-        signInWithPassword: () => Promise.resolve({ data: { user: null, session: null }, error: new Error('Mock client: login failed') }),
-        signInWithOtp: () => Promise.resolve({ data: { user: null, session: null }, error: new Error('Mock client: OTP login failed') }),
-        verifyOtp: () => Promise.resolve({ data: { user: null, session: null }, error: new Error('Mock client: verify failed') }),
-        signUp: () => Promise.resolve({ data: { user: null, session: null }, error: new Error('Mock client: signup failed') }),
-        signOut: () => Promise.resolve({ error: null }),
-        updateUser: () => Promise.resolve({ data: { user: null }, error: new Error('Mock client: update failed') }),
-        resetPasswordForEmail: () => Promise.resolve({ data: {}, error: new Error('Mock client: reset failed') }),
-      }
-    } as any
+
+    // 将 supabase 暴露到 window 对象以便调试（仅开发环境）
+    if (isBrowser && import.meta.env.DEV) {
+      (window as any).supabase = supabase
+    }
+
+    console.log('[Supabase] 客户端初始化成功')
   }
 } catch (error) {
-  console.error('Error creating Supabase client:', error)
-  // 创建一个安全的模拟客户端
-  supabase = {
-    from: () => ({
-      select: () => ({ eq: () => ({ order: () => ({ limit: () => Promise.resolve({ data: [], error: null }) }) }) }),
-      insert: () => ({ select: () => ({ single: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }) }) }),
-      update: () => ({ eq: () => Promise.resolve({ error: new Error('Supabase not configured') }) }),
-      delete: () => ({ eq: () => Promise.resolve({ error: new Error('Supabase not configured') }) })
-    }),
-    channel: () => ({
-      on: () => ({ subscribe: () => ({ unsubscribe: () => {} }) }),
-      subscribe: () => ({ unsubscribe: () => {} })
-    }),
-    auth: {
-      getSession: () => Promise.resolve({ data: { session: null }, error: null }),
-      getUser: () => Promise.resolve({ data: { user: null }, error: null }),
-      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
-      signInWithPassword: () => Promise.resolve({ data: { user: null, session: null }, error: new Error('Mock client: login failed') }),
-      signInWithOtp: () => Promise.resolve({ data: { user: null, session: null }, error: new Error('Mock client: OTP login failed') }),
-      verifyOtp: () => Promise.resolve({ data: { user: null, session: null }, error: new Error('Mock client: verify failed') }),
-      signUp: () => Promise.resolve({ data: { user: null, session: null }, error: new Error('Mock client: signup failed') }),
-      signOut: () => Promise.resolve({ error: null }),
-      updateUser: () => Promise.resolve({ data: { user: null }, error: new Error('Mock client: update failed') }),
-      resetPasswordForEmail: () => Promise.resolve({ data: {}, error: new Error('Mock client: reset failed') }),
+  console.error('[Supabase] 客户端初始化失败:', error)
+  supabase = createMockClient('Supabase 客户端初始化失败')
+}
+
+// 导出配置检查函数
+export const isSupabaseConfigured = (): boolean => {
+  return !!(supabaseUrl && supabaseAnonKey)
+}
+
+// 导出连接测试函数
+export const testSupabaseConnection = async (): Promise<{ success: boolean; error?: string }> => {
+  try {
+    if (!isSupabaseConfigured()) {
+      return { success: false, error: 'Supabase 未配置' }
     }
-  } as any
+    const { error } = await supabase.from('users').select('count', { count: 'exact', head: true })
+    if (error) {
+      return { success: false, error: error.message }
+    }
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
 }
 
 // 数据库表类型定义
@@ -401,4 +438,59 @@ export interface CommentWithAuthor extends Comment {
 // 消息类型（包含发送者信息）
 export interface MessageWithSender extends Message {
   sender: UserProfile
+}
+
+/**
+ * 统一 API 调用封装
+ * 提供错误处理、自动重试和类型安全
+ */
+export async function callSupabase<T>(
+  operationFactory: () => Promise<{ data: T | null; error: any }>,
+  options: {
+    retries?: number;
+    fallbackValue?: T;
+    errorMessage?: string;
+    idempotencyKey?: string;
+  } = {}
+): Promise<T | null> {
+  const { retries = 3, fallbackValue, errorMessage, idempotencyKey } = options;
+
+  try {
+    // 如果提供了幂等性 Key，虽然 Supabase JS SDK 不直接支持注入 Header，
+    // 但在实际业务 RPC 调用中，调用方应确保将其作为参数传递。
+    // 这里保留该参数用于统一接口签名。
+    
+    const { data, error } = await operationFactory();
+
+    if (error) {
+      throw error;
+    }
+
+    return data;
+  } catch (err: any) {
+    // 网络错误或 5xx 错误进行重试
+    if (retries > 0 && (err.message?.includes('fetch') || err.status >= 500)) {
+      console.warn(`Supabase Operation Failed, Retrying... (${retries} attempts left). Error: ${err.message}`);
+      await new Promise(resolve => setTimeout(resolve, 500 * (4 - retries))); // Exponential Backoff-ish
+      return callSupabase(operationFactory, { ...options, retries: retries - 1 });
+    }
+    
+    console.error(`Supabase Operation Failed: ${errorMessage || err.message}`, err);
+
+    if (fallbackValue !== undefined) {
+      return fallbackValue;
+    }
+
+    throw new Error(errorMessage || err.message || 'Supabase operation failed');
+  }
+}
+
+/**
+ * 辅助函数：生成幂等性 Key
+ */
+export function generateIdempotencyKey(): string {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return Date.now().toString(36) + Math.random().toString(36).substring(2);
 }

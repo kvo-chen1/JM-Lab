@@ -1,5 +1,5 @@
 // 测试通义千问图片生成功能的脚本
-const BASE_URL = 'http://localhost:3021';
+const BASE_URL = 'http://localhost:3022';
 
 async function testQwenImageGeneration() {
   console.log('测试通义千问图片生成功能');

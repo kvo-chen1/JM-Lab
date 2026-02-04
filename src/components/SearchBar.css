@@ -56,6 +56,7 @@
   border: 1px solid #e0e0e0;
   width: 100%;
   overflow: visible;
+  z-index: 1;
 }
 
 /* Responsive Width handled by parent or Tailwind classes, but we can keep max-width logic if needed */
@@ -167,16 +168,9 @@
   max-height: 400px;
   min-height: 100px;
   overflow-y: auto;
-  opacity: 0;
-  transform: translateY(-10px);
-  transition: opacity 200ms ease, transform 200ms ease;
-  visibility: hidden;
-}
-
-.pinterest-suggestions.visible {
-  visibility: visible;
   opacity: 1;
   transform: translateY(0);
+  visibility: visible;
 }
 
 .dark .pinterest-suggestions {

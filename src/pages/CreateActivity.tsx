@@ -828,7 +828,7 @@ export default function CreateActivity() {
 
             <div className={`rounded-2xl p-8 ${isDark ? 'bg-gray-800/90' : 'bg-white/90'} backdrop-blur-xl shadow-2xl border ${isDark ? 'border-gray-700/50' : 'border-white/50'} transition-all duration-300`}>
               {/* 当前步骤标题和描述 */}
-              <div className="mb-8 pb-5 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}">
+              <div className={`mb-8 pb-5 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
                 <h2 className="text-2xl font-bold mb-2.5">
                   {steps.find(step => step.id === currentStep)?.name}
                 </h2>

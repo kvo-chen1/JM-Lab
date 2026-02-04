@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { llmService } from '@/services/llmService';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import { draftService, Draft } from '@/services/draftService';
+import { exportToWord } from '@/services/wordExportService';
 
 // 实现缓存机制
 const contentCache = new Map<string, string>();
@@ -19,6 +20,22 @@ const debounce = (func: Function, delay: number) => {
   };
 };
 
+// Template categories with icons and colors
+const TEMPLATE_CATEGORIES = {
+  business: { name: '商业文档', icon: 'fas fa-briefcase', color: 'from-blue-500 to-indigo-500' },
+  marketing: { name: '营销推广', icon: 'fas fa-bullhorn', color: 'from-rose-500 to-pink-500' },
+  social: { name: '社交媒体', icon: 'fas fa-hashtag', color: 'from-violet-500 to-purple-500' },
+  product: { name: '产品文档', icon: 'fas fa-clipboard-list', color: 'from-emerald-500 to-teal-500' },
+  press: { name: '新闻媒体', icon: 'fas fa-newspaper', color: 'from-amber-500 to-orange-500' },
+  sales: { name: '销售话术', icon: 'fas fa-comments-dollar', color: 'from-cyan-500 to-blue-500' },
+  ecommerce: { name: '电商运营', icon: 'fas fa-shopping-bag', color: 'from-fuchsia-500 to-pink-500' },
+  hr: { name: '人力资源', icon: 'fas fa-user-plus', color: 'from-lime-500 to-green-500' },
+  event: { name: '活动策划', icon: 'fas fa-calendar-alt', color: 'from-yellow-500 to-amber-500' },
+  training: { name: '培训教育', icon: 'fas fa-book-reader', color: 'from-teal-500 to-cyan-500' },
+  brand: { name: '品牌建设', icon: 'fas fa-heart', color: 'from-red-500 to-rose-500' },
+  crowdfunding: { name: '众筹融资', icon: 'fas fa-hand-holding-usd', color: 'from-indigo-500 to-violet-500' },
+};
+
 // Define templates based on user requirements
 const TEMPLATES = {
   business_plan: {
@@ -26,6 +43,8 @@ const TEMPLATES = {
     name: '经典商业计划书',
     icon: 'fas fa-briefcase',
     description: '适用于融资、路演的完整标准结构',
+    category: 'business',
+    color: 'from-blue-500 to-indigo-500',
     sections: [
       '执行摘要', '公司概述', '问题与解决方案', '产品介绍', '市场分析', '竞争分析', '商业模式', '财务预测'
     ],
@@ -62,6 +81,8 @@ const TEMPLATES = {
     name: '精益创业画布',
     icon: 'fas fa-th-large',
     description: '适用于早期项目的快速验证与梳理',
+    category: 'business',
+    color: 'from-emerald-500 to-teal-500',
     sections: [
       '问题', '客户细分', '独特卖点', '解决方案', '渠道', '收入来源', '成本结构', '关键指标', '门槛优势'
     ],
@@ -86,6 +107,8 @@ const TEMPLATES = {
     name: '融资路演PPT文案',
     icon: 'fas fa-presentation',
     description: '适用于路演演讲的精简有力文案',
+    category: 'business',
+    color: 'from-violet-500 to-purple-500',
     sections: [
       '封面', '痛点', '解决方案', '市场机会', '产品', '商业模式', '团队', '融资'
     ],
@@ -107,6 +130,8 @@ const TEMPLATES = {
     name: '深度市场分析报告',
     icon: 'fas fa-chart-line',
     description: '专注于行业趋势与竞争格局的深度分析',
+    category: 'business',
+    color: 'from-cyan-500 to-blue-500',
     sections: [
       '行业概况', '市场规模', '趋势分析', '客户画像', 'SWOT分析'
     ],
@@ -123,6 +148,8 @@ const TEMPLATES = {
     name: '产品需求文档 (PRD)',
     icon: 'fas fa-clipboard-list',
     description: '标准化的互联网产品需求定义文档',
+    category: 'product',
+    color: 'from-emerald-500 to-teal-500',
     sections: [
       '文档说明', '产品背景', '用户角色', '功能需求', '非功能需求', '数据埋点'
     ],
@@ -147,6 +174,8 @@ const TEMPLATES = {
     name: '社交媒体文案',
     icon: 'fas fa-hashtag',
     description: '适用于微信、微博、小红书等平台的营销文案',
+    category: 'social',
+    color: 'from-violet-500 to-purple-500',
     sections: [
       '标题', '引言', '核心内容', '互动环节', '行动召唤'
     ],
@@ -172,6 +201,8 @@ const TEMPLATES = {
     name: '广告文案',
     icon: 'fas fa-bullhorn',
     description: '适用于各种广告媒体的精准营销文案',
+    category: 'marketing',
+    color: 'from-rose-500 to-pink-500',
     sections: [
       '标题', '副标题', '正文', '行动召唤', '品牌信息'
     ],
@@ -196,6 +227,8 @@ const TEMPLATES = {
     name: '营销邮件',
     icon: 'fas fa-envelope',
     description: '适用于客户沟通和促销活动的邮件文案',
+    category: 'marketing',
+    color: 'from-amber-500 to-orange-500',
     sections: [
       '主题行', '开场白', '核心内容', '优惠信息', '行动召唤', '结束语'
     ],
@@ -221,6 +254,8 @@ const TEMPLATES = {
     name: '新闻稿',
     icon: 'fas fa-newspaper',
     description: '适用于企业新闻发布的专业文案',
+    category: 'press',
+    color: 'from-amber-500 to-orange-500',
     sections: [
       '标题', '副标题', '导语', '正文', '引述', '背景信息', '联系方式'
     ],
@@ -246,6 +281,8 @@ const TEMPLATES = {
     name: '销售话术',
     icon: 'fas fa-comments-dollar',
     description: '适用于销售场景的高效沟通话术',
+    category: 'sales',
+    color: 'from-cyan-500 to-blue-500',
     sections: [
       '开场白', '需求挖掘', '产品介绍', '异议处理', '成交话术'
     ],
@@ -264,6 +301,165 @@ const TEMPLATES = {
 5. 自然的成交引导
 
 请确保话术口语化，符合销售场景，避免生硬推销。`
+  },
+  ecommerce_product: {
+    id: 'ecommerce_product',
+    name: '电商产品描述',
+    icon: 'fas fa-shopping-bag',
+    description: '适用于淘宝、京东、拼多多等电商平台的商品详情页',
+    category: 'ecommerce',
+    color: 'from-fuchsia-500 to-pink-500',
+    sections: [
+      '产品标题', '核心卖点', '详细参数', '使用场景', '售后保障'
+    ],
+    prompt: `请撰写一份专业的电商产品描述文案。
+产品名称：[产品名称]
+产品类别：[核心业务]
+目标人群：[目标市场]
+
+请直接输出 **HTML 格式** 的内容。
+使用 <h2>, <h3>, <p>, <ul>, <table>, <b> 等标签。
+内容要求：
+1. <h2>产品标题</h2>：包含关键词的吸睛标题（3-5个备选）
+2. <h2>核心卖点</h2>：5-8个产品核心优势，使用图标化表达
+3. <h2>详细参数</h2>：使用表格展示产品规格参数
+4. <h2>使用场景</h2>：描述产品的实际应用场景
+5. <h2>售后保障</h2>：售后服务承诺
+
+语言风格要符合电商平台特点，突出性价比和购买紧迫感。`
+  },
+  recruitment: {
+    id: 'recruitment',
+    name: '招聘文案',
+    icon: 'fas fa-user-plus',
+    description: '适用于各大招聘平台的企业招聘信息',
+    category: 'hr',
+    color: 'from-lime-500 to-green-500',
+    sections: [
+      '公司介绍', '岗位职责', '任职要求', '薪资福利', '应聘方式'
+    ],
+    prompt: `请撰写一份专业的招聘文案。
+职位名称：[产品名称]
+公司名称：[项目名称]
+行业领域：[核心业务]
+
+请直接输出 **HTML 格式** 的内容。
+使用 <h2>, <h3>, <p>, <ul>, <b> 等标签。
+内容要求：
+1. <h2>公司介绍</h2>：企业背景、文化、发展前景
+2. <h2>岗位职责</h2>：详细的工作内容和责任范围
+3. <h2>任职要求</h2>：学历、经验、技能要求（必须/优先）
+4. <h2>薪资福利</h2>：薪酬范围、五险一金、带薪假期、其他福利
+5. <h2>应聘方式</h2>：投递渠道、面试流程、联系方式
+
+语言要专业且有吸引力，体现企业诚意。`
+  },
+  event_planning: {
+    id: 'event_planning',
+    name: '活动策划案',
+    icon: 'fas fa-calendar-alt',
+    description: '适用于各类线上线下活动的完整策划方案',
+    category: 'event',
+    color: 'from-yellow-500 to-amber-500',
+    sections: [
+      '活动概述', '目标受众', '活动流程', '宣传推广', '预算规划'
+    ],
+    prompt: `请撰写一份完整的活动策划案。
+活动名称：[项目名称]
+活动类型：[核心业务]
+目标人群：[目标市场]
+
+请直接输出 **HTML 格式** 的内容。
+使用 <h2>, <h3>, <p>, <ul>, <ol>, <table>, <b> 等标签。
+内容要求：
+1. <h2>活动概述</h2>：活动主题、目的、时间地点
+2. <h2>目标受众</h2>：参与者画像、预期人数
+3. <h2>活动流程</h2>：详细的时间节点和环节安排（使用表格）
+4. <h2>宣传推广</h2>：预热、进行、复盘各阶段的推广策略
+5. <h2>预算规划</h2>：各项费用明细（使用表格）
+6. <h2>风险预案</h2>：可能出现的问题及应对措施
+
+语言要富有创意和感染力，体现活动的独特价值。`
+  },
+  training_manual: {
+    id: 'training_manual',
+    name: '培训手册',
+    icon: 'fas fa-book-reader',
+    description: '适用于企业内部培训和知识传承的标准化文档',
+    category: 'training',
+    color: 'from-teal-500 to-cyan-500',
+    sections: [
+      '培训目标', '课程大纲', '核心内容', '实操练习', '考核评估'
+    ],
+    prompt: `请撰写一份专业的培训手册。
+培训主题：[产品名称]
+培训对象：[目标市场]
+培训时长：[核心业务]
+
+请直接输出 **HTML 格式** 的内容。
+使用 <h2>, <h3>, <p>, <ul>, <ol>, <table>, <b> 等标签。
+内容要求：
+1. <h2>培训目标</h2>：学习目标和预期成果
+2. <h2>课程大纲</h2>：模块划分和时间分配（使用表格）
+3. <h2>核心内容</h2>：各模块的详细知识点
+4. <h2>实操练习</h2>：案例分析和动手实践环节
+5. <h2>考核评估</h2>：测试题目和评分标准
+6. <h2>参考资料</h2>：延伸阅读和学习资源
+
+语言要通俗易懂，理论与实践结合，便于学员理解和掌握。`
+  },
+  brand_story: {
+    id: 'brand_story',
+    name: '品牌故事',
+    icon: 'fas fa-heart',
+    description: '适用于品牌官网和宣传的温情品牌故事',
+    category: 'brand',
+    color: 'from-red-500 to-rose-500',
+    sections: [
+      '品牌起源', '创始人故事', '品牌理念', '发展历程', '未来愿景'
+    ],
+    prompt: `请撰写一个感人的品牌故事。
+品牌名称：[项目名称]
+品牌定位：[核心业务]
+目标受众：[目标市场]
+
+请直接输出 **HTML 格式** 的内容。
+使用 <h2>, <h3>, <p>, <b>, <em>, <blockquote> 等标签。
+内容要求：
+1. <h2>品牌起源</h2>：品牌诞生的背景和契机
+2. <h2>创始人故事</h2>：创始人的初心和创业历程
+3. <h2>品牌理念</h2>：核心价值观和品牌使命
+4. <h2>发展历程</h2>：重要的里程碑事件（使用时间线形式）
+5. <h2>未来愿景</h2>：品牌的发展规划和社会责任
+
+语言要有温度和情感，能够引起读者共鸣，建立品牌认同感。`
+  },
+  crowdfunding: {
+    id: 'crowdfunding',
+    name: '众筹文案',
+    icon: 'fas fa-hand-holding-usd',
+    description: '适用于 Kickstarter、Indiegogo、摩点等众筹平台的项目文案',
+    category: 'crowdfunding',
+    color: 'from-indigo-500 to-violet-500',
+    sections: [
+      '项目亮点', '产品介绍', '团队背景', '回报方案', '风险说明'
+    ],
+    prompt: `请撰写一份有说服力的众筹项目文案。
+项目名称：[项目名称]
+产品类型：[核心业务]
+目标金额：[目标市场]
+
+请直接输出 **HTML 格式** 的内容。
+使用 <h2>, <h3>, <p>, <ul>, <table>, <b> 等标签。
+内容要求：
+1. <h2>项目亮点</h2>：3-5个核心卖点，用数据支撑
+2. <h2>产品介绍</h2>：功能特点、技术创新、使用场景
+3. <h2>团队背景</h2>：核心成员介绍和过往成就
+4. <h2>回报方案</h2>：不同档位的支持回报（使用表格）
+5. <h2>项目进度</h2>：时间表和交付计划
+6. <h2>风险说明</h2>：潜在风险和应对措施
+
+语言要真诚且有感染力，建立信任感，激发支持欲望。`
   }
 };
 
@@ -360,16 +556,16 @@ const LANGUAGES = [
 ];
 
 const QUICK_ACTIONS = [
-  { label: '润色文字', prompt: '请润色这段文字，使其更加通顺、优雅，保持原意不变。' },
-  { label: '扩充内容', prompt: '请扩充这段内容，增加更多细节、例子和数据支持，使论证更充分。' },
-  { label: '精简摘要', prompt: '请将这段内容概括为一段精炼的摘要，保留核心观点。' },
-  { label: '纠正语法', prompt: '请检查并纠正文中的语法错误和错别字。' },
-  { label: '翻译为英文', prompt: 'Please translate the content into professional English.' },
-  { label: '优化标题', prompt: '请为这段内容创建3-5个更吸引人的标题选项。' },
-  { label: '增强行动召唤', prompt: '请强化文中的行动召唤部分，使其更加有力和明确。' },
-  { label: '调整语气', prompt: '请调整文章语气，使其更加符合目标受众的阅读习惯。' },
-  { label: '添加数据支持', prompt: '请为文中的关键观点添加相关数据和统计信息支持。' },
-  { label: '改进结构', prompt: '请优化文章结构，使其逻辑更加清晰，层次更加分明。' },
+  { label: '润色文字', prompt: '请润色这段文字，使其更加通顺、优雅，保持原意不变。', icon: 'fa-magic' },
+  { label: '扩充内容', prompt: '请扩充这段内容，增加更多细节、例子和数据支持，使论证更充分。', icon: 'fa-expand-alt' },
+  { label: '精简摘要', prompt: '请将这段内容概括为一段精炼的摘要，保留核心观点。', icon: 'fa-compress-alt' },
+  { label: '纠正语法', prompt: '请检查并纠正文中的语法错误和错别字。', icon: 'fa-spell-check' },
+  { label: '翻译为英文', prompt: 'Please translate the content into professional English.', icon: 'fa-language' },
+  { label: '优化标题', prompt: '请为这段内容创建3-5个更吸引人的标题选项。', icon: 'fa-heading' },
+  { label: '增强CTA', prompt: '请强化文中的行动召唤部分，使其更加有力和明确。', icon: 'fa-bullhorn' },
+  { label: '调整语气', prompt: '请调整文章语气，使其更加符合目标受众的阅读习惯。', icon: 'fa-theater-masks' },
+  { label: '添加数据', prompt: '请为文中的关键观点添加相关数据和统计信息支持。', icon: 'fa-chart-bar' },
+  { label: '改进结构', prompt: '请优化文章结构，使其逻辑更加清晰，层次更加分明。', icon: 'fa-sitemap' },
 ];
 
 const CONTEXT_AWARE_SUGGESTIONS = {
@@ -402,6 +598,36 @@ const CONTEXT_AWARE_SUGGESTIONS = {
     { label: '深化市场分析', prompt: '请进一步深化市场分析部分，增加更多数据和趋势预测。' },
     { label: '完善财务预测', prompt: '请完善财务预测部分，增加更多详细数据和分析。' },
     { label: '强化竞争分析', prompt: '请强化竞争分析部分，增加更多竞品对比和差异化分析。' },
+  ],
+  ecommerce_product: [
+    { label: '优化标题', prompt: '请优化产品标题，使其更具吸引力且包含更多关键词，提高搜索排名。' },
+    { label: '强化卖点', prompt: '请强化产品核心卖点，使用更具说服力的表达方式。' },
+    { label: '增加场景描述', prompt: '请增加更多使用场景描述，帮助用户想象产品使用情境。' },
+  ],
+  recruitment: [
+    { label: '突出公司优势', prompt: '请更加突出公司的核心优势和发展前景，吸引优秀人才。' },
+    { label: '优化职位描述', prompt: '请优化职位描述，使其更加清晰具体，避免过于笼统。' },
+    { label: '强调福利待遇', prompt: '请强调有竞争力的薪资福利，增加职位吸引力。' },
+  ],
+  event_planning: [
+    { label: '优化活动亮点', prompt: '请优化活动亮点描述，使其更加吸引目标受众。' },
+    { label: '完善流程细节', prompt: '请完善活动流程细节，确保每个环节都清晰明确。' },
+    { label: '增加互动环节', prompt: '请增加更多互动环节设计，提高参与者 engagement。' },
+  ],
+  training_manual: [
+    { label: '增加案例', prompt: '请增加更多实际案例，帮助学员更好地理解和应用知识。' },
+    { label: '优化练习设计', prompt: '请优化实操练习设计，使其更加贴近实际工作场景。' },
+    { label: '完善考核标准', prompt: '请完善考核评估标准，使其更加客观公正。' },
+  ],
+  brand_story: [
+    { label: '强化情感共鸣', prompt: '请强化故事的情感元素，增强与读者的情感共鸣。' },
+    { label: '突出品牌特色', prompt: '请更加突出品牌的独特性和差异化优势。' },
+    { label: '优化叙事结构', prompt: '请优化品牌故事的叙事结构，使其更加引人入胜。' },
+  ],
+  crowdfunding: [
+    { label: '强化项目价值', prompt: '请强化项目的独特价值和市场潜力，增强支持者信心。' },
+    { label: '优化回报方案', prompt: '请优化回报方案设计，使其更具吸引力且合理可行。' },
+    { label: '增加信任背书', prompt: '请增加更多团队背景和过往成就，建立信任感。' },
   ],
 };
 
@@ -471,6 +697,15 @@ export default function AIWriter() {
   const [newTagName, setNewTagName] = useState('');
   const [newTagColor, setNewTagColor] = useState('#3b82f6');
 
+  // Draft Filter State
+  const [draftFilter, setDraftFilter] = useState<'all' | 'favorites'>('all');
+
+  // Template Preview State
+  const [previewTemplate, setPreviewTemplate] = useState<string | null>(null);
+
+  // Template Filter State
+  const [templateFilter, setTemplateFilter] = useState<string>('all');
+
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const editorContainerRef = useRef<HTMLDivElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -480,12 +715,16 @@ export default function AIWriter() {
     llmService.setCurrentModel(activeModel);
   }, [activeModel]);
 
-  // Load drafts when modal opens
+  // Load drafts when modal opens or filter changes
   useEffect(() => {
     if (showDraftsModal) {
-      setDraftsList(draftService.getAllDrafts());
+      if (draftFilter === 'favorites') {
+        setDraftsList(draftService.getFavoriteDrafts());
+      } else {
+        setDraftsList(draftService.getAllDrafts());
+      }
     }
-  }, [showDraftsModal]);
+  }, [showDraftsModal, draftFilter]);
 
   // Helper to save draft to persistent storage
   const saveDraft = (summary?: string, specificContent?: string) => {
@@ -931,8 +1170,25 @@ IMPORTANT GUIDELINES:
     e.stopPropagation();
     if (window.confirm('确定要删除这条历史记录吗？')) {
       draftService.deleteDraft(id);
-      setDraftsList(draftService.getAllDrafts());
+      if (draftFilter === 'favorites') {
+        setDraftsList(draftService.getFavoriteDrafts());
+      } else {
+        setDraftsList(draftService.getAllDrafts());
+      }
       toast.success('记录已删除');
+    }
+  };
+
+  const toggleFavoriteDraft = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    const updatedDraft = draftService.toggleFavorite(id);
+    if (updatedDraft) {
+      if (draftFilter === 'favorites') {
+        setDraftsList(draftService.getFavoriteDrafts());
+      } else {
+        setDraftsList(draftService.getAllDrafts());
+      }
+      toast.success(updatedDraft.isFavorite ? '已添加到收藏' : '已取消收藏');
     }
   };
 
@@ -1193,7 +1449,7 @@ ${content}
   };
 
   // Export & Submit Handlers
-  const handleExport = (format: 'html' | 'print' | 'markdown' | 'text') => {
+  const handleExport = async (format: 'html' | 'print' | 'markdown' | 'text' | 'word') => {
     setShowExportMenu(false);
     if (format === 'print') {
       window.print();
@@ -1268,6 +1524,16 @@ ${content}
       document.body.appendChild(element);
       element.click();
       document.body.removeChild(element);
+    } else if (format === 'word') {
+      // 导出为Word文档
+      try {
+        const toastId = toast.loading('正在生成Word文档...');
+        await exportToWord(content, inputs['项目名称'] || 'document');
+        toast.success('Word文档已生成', { id: toastId });
+      } catch (error) {
+        console.error('Word导出失败:', error);
+        toast.error('Word文档生成失败，请重试');
+      }
     }
   };
 
@@ -1324,6 +1590,41 @@ ${content}
       specificFields = [
         { key: '目标市场', label: '目标客户', placeholder: '例如：中小企业主、个人消费者' },
         { key: '产品名称', label: '产品/服务', placeholder: '例如：企业管理软件' }
+      ];
+    } else if (selectedTemplateId === 'ecommerce_product') {
+      specificFields = [
+        { key: '产品名称', label: '产品名称', placeholder: '例如：智能蓝牙耳机' },
+        { key: '目标市场', label: '目标人群', placeholder: '例如：运动爱好者、上班族' }
+      ];
+    } else if (selectedTemplateId === 'recruitment') {
+      specificFields = [
+        { key: '产品名称', label: '职位名称', placeholder: '例如：高级前端工程师' },
+        { key: '项目名称', label: '公司名称', placeholder: '例如：字节跳动' },
+        { key: '核心业务', label: '行业领域', placeholder: '例如：互联网/在线教育' }
+      ];
+    } else if (selectedTemplateId === 'event_planning') {
+      specificFields = [
+        { key: '项目名称', label: '活动名称', placeholder: '例如：2024春季新品发布会' },
+        { key: '核心业务', label: '活动类型', placeholder: '例如：产品发布会/年会/展览' },
+        { key: '目标市场', label: '目标人群', placeholder: '例如：潜在客户、行业媒体' }
+      ];
+    } else if (selectedTemplateId === 'training_manual') {
+      specificFields = [
+        { key: '产品名称', label: '培训主题', placeholder: '例如：新员工入职培训' },
+        { key: '目标市场', label: '培训对象', placeholder: '例如：新入职员工' },
+        { key: '核心业务', label: '培训时长', placeholder: '例如：2天/16课时' }
+      ];
+    } else if (selectedTemplateId === 'brand_story') {
+      specificFields = [
+        { key: '项目名称', label: '品牌名称', placeholder: '例如：茶颜悦色' },
+        { key: '核心业务', label: '品牌定位', placeholder: '例如：新中式茶饮' },
+        { key: '目标市场', label: '目标受众', placeholder: '例如：年轻白领、学生群体' }
+      ];
+    } else if (selectedTemplateId === 'crowdfunding') {
+      specificFields = [
+        { key: '项目名称', label: '项目名称', placeholder: '例如：智能便携咖啡机' },
+        { key: '核心业务', label: '产品类型', placeholder: '例如：智能硬件/文创产品' },
+        { key: '目标市场', label: '目标金额', placeholder: '例如：50万元' }
       ];
     }
 
@@ -1578,6 +1879,9 @@ ${content}
                       <button onClick={() => handleExport('html')} className={`w-full text-left px-4 py-2.5 text-sm hover:bg-blue-50 dark:hover:bg-gray-700 flex items-center gap-2 transition-colors`}>
                         <i className="fab fa-html5 text-orange-500"></i> 导出 HTML
                       </button>
+                      <button onClick={() => handleExport('word')} className={`w-full text-left px-4 py-2.5 text-sm hover:bg-blue-50 dark:hover:bg-gray-700 flex items-center gap-2 transition-colors`}>
+                        <i className="fas fa-file-word text-blue-600"></i> 导出 Word
+                      </button>
                       <button onClick={() => handleExport('markdown')} className={`w-full text-left px-4 py-2.5 text-sm hover:bg-blue-50 dark:hover:bg-gray-700 flex items-center gap-2 transition-colors`}>
                         <i className="fab fa-markdown text-blue-500"></i> 导出 Markdown
                       </button>
@@ -1661,75 +1965,215 @@ ${content}
       <div className="flex flex-1 overflow-hidden">
         {currentStep === 'input' && (
           <div className="flex w-full h-full">
-            <div className={`w-1/3 max-w-xs border-r overflow-y-auto ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-gray-50 border-gray-200'}`}>
-              <div className="p-4 space-y-2">
-                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">选择模板</h3>
-                {Object.values(TEMPLATES).map(template => (
-                  <button
-                    key={template.id}
-                    onClick={() => setSelectedTemplateId(template.id)}
-                    className={`w-full text-left p-3 rounded-xl transition-all border ${
-                      selectedTemplateId === template.id
-                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-sm'
-                        : 'border-transparent hover:bg-gray-100 dark:hover:bg-gray-800'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                        selectedTemplateId === template.id ? 'bg-blue-500 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-500'
-                      }`}>
-                        <i className={template.icon}></i>
-                      </div>
-                      <div>
-                        <div className={`font-medium ${selectedTemplateId === template.id ? 'text-blue-700 dark:text-blue-300' : ''}`}>
-                          {template.name}
-                        </div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-1">
-                          {template.description}
-                        </div>
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className={`flex-1 overflow-y-auto p-8 ${isDark ? 'bg-gray-900' : 'bg-white'}`} style={{ flexGrow: 1, minWidth: 0 }}>
-              <div className="max-w-3xl mx-auto">
-                <div className="mb-8">
-                  <h2 className="text-2xl font-bold mb-2">{currentTemplate.name}</h2>
-                  <p className="text-gray-500">{currentTemplate.description}</p>
-                </div>
-
-                <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm mb-8">
-                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                    <i className="fas fa-keyboard text-blue-500"></i>
-                    填写关键信息
-                  </h3>
-                  {renderInputFields()}
-                </div>
-
-                <div className="bg-blue-50 dark:bg-blue-900/10 rounded-xl p-4 mb-8">
-                  <h4 className="text-sm font-semibold text-blue-800 dark:text-blue-300 mb-2">
-                    <i className="fas fa-info-circle mr-2"></i>
-                    包含章节
-                  </h4>
+            {/* Left Side - Template Selection (50%) */}
+            <div className={`w-1/2 border-r overflow-y-auto ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-gray-50 border-gray-200'}`}>
+              <div className="p-6">
+                {/* Template Categories Filter */}
+                <div className="mb-6">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">模板分类</h3>
+                    {templateFilter !== 'all' && (
+                      <button 
+                        onClick={() => setTemplateFilter('all')}
+                        className="text-xs text-blue-500 hover:text-blue-600"
+                      >
+                        清除筛选
+                      </button>
+                    )}
+                  </div>
                   <div className="flex flex-wrap gap-2">
-                    {currentTemplate.sections.map((section, idx) => (
-                      <span key={idx} className="text-xs px-2 py-1 bg-white dark:bg-gray-800 border border-blue-100 dark:border-blue-800 rounded text-gray-600 dark:text-gray-300">
-                        {section}
-                      </span>
+                    {Object.entries(TEMPLATE_CATEGORIES).map(([key, category]) => (
+                      <button
+                        key={key}
+                        onClick={() => setTemplateFilter(templateFilter === key ? 'all' : key)}
+                        className={`px-3 py-1.5 text-xs rounded-lg transition-all flex items-center gap-1.5 ${
+                          templateFilter === key
+                            ? `bg-gradient-to-r ${category.color} text-white shadow-sm`
+                            : isDark
+                              ? 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                              : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
+                        }`}
+                      >
+                        <i className={`${category.icon} text-[10px]`}></i>
+                        {category.name}
+                      </button>
                     ))}
                   </div>
                 </div>
 
-                <button
-                  onClick={handleGenerate}
-                  className="w-full py-4 rounded-xl font-bold text-white shadow-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 transform transition-all hover:-translate-y-0.5 flex items-center justify-center gap-2"
+                {/* Template Grid - 2 Columns */}
+                <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                  {templateFilter === 'all' ? '所有模板' : TEMPLATE_CATEGORIES[templateFilter as keyof typeof TEMPLATE_CATEGORIES]?.name}
+                  <span className="ml-2 text-xs font-normal text-gray-400">
+                    ({Object.values(TEMPLATES).filter(t => templateFilter === 'all' || t.category === templateFilter).length})
+                  </span>
+                </h3>
+                <div className="grid grid-cols-2 gap-3">
+                  {Object.values(TEMPLATES)
+                    .filter(template => templateFilter === 'all' || template.category === templateFilter)
+                    .map((template, idx) => (
+                      <motion.div
+                        key={template.id}
+                        layout
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: idx * 0.02 }}
+                        onClick={() => setSelectedTemplateId(template.id)}
+                        className={`relative group cursor-pointer rounded-xl transition-all duration-200 overflow-hidden ${
+                          selectedTemplateId === template.id
+                            ? 'ring-2 ring-blue-500 shadow-lg bg-blue-50 dark:bg-blue-900/20'
+                            : `hover:shadow-md ${isDark ? 'bg-gray-800 hover:bg-gray-750' : 'bg-white hover:bg-gray-50'}`
+                        }`}
+                      >
+                        {/* Top Color Bar */}
+                        <div className={`h-1.5 bg-gradient-to-r ${template.color}`}></div>
+                        
+                        <div className="p-4">
+                          <div className="flex items-start gap-3">
+                            {/* Icon */}
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center bg-gradient-to-br ${template.color} text-white shadow-md flex-shrink-0`}>
+                              <i className={`${template.icon} text-sm`}></i>
+                            </div>
+                            
+                            {/* Content */}
+                            <div className="flex-1 min-w-0">
+                              <h4 className={`font-semibold text-sm mb-1 ${selectedTemplateId === template.id ? 'text-blue-600 dark:text-blue-400' : ''}`}>
+                                {template.name}
+                              </h4>
+                              <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2">
+                                {template.description}
+                              </p>
+                            </div>
+                            
+                            {/* Selected Check */}
+                            {selectedTemplateId === template.id && (
+                              <div className="w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center flex-shrink-0">
+                                <i className="fas fa-check text-xs"></i>
+                              </div>
+                            )}
+                          </div>
+                          
+                          {/* Sections Preview */}
+                          <div className="flex flex-wrap gap-1 mt-3">
+                            {template.sections.slice(0, 3).map((section, idx) => (
+                              <span 
+                                key={idx}
+                                className={`text-[10px] px-2 py-0.5 rounded ${isDark ? 'bg-gray-700/50 text-gray-400' : 'bg-gray-100 text-gray-500'}`}
+                              >
+                                {section}
+                              </span>
+                            ))}
+                            {template.sections.length > 3 && (
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded ${isDark ? 'bg-gray-700/50 text-gray-500' : 'bg-gray-100 text-gray-400'}`}>
+                                +{template.sections.length - 3}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        
+                        {/* Preview Button - On Hover */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPreviewTemplate(template.id);
+                          }}
+                          className={`absolute top-3 right-3 w-7 h-7 rounded-lg flex items-center justify-center text-xs transition-all opacity-0 group-hover:opacity-100 ${
+                            isDark ? 'bg-gray-700 text-gray-400 hover:text-blue-400' : 'bg-gray-100 text-gray-500 hover:text-blue-500'
+                          }`}
+                          title="预览模板"
+                        >
+                          <i className="fas fa-eye"></i>
+                        </button>
+                      </motion.div>
+                    ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Right Side - Input Form (50%) */}
+            <div className={`w-1/2 overflow-y-auto ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
+              <div className="max-w-3xl mx-auto p-8">
+                {/* Template Header Card */}
+                <motion.div 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className={`rounded-2xl border p-6 mb-6 shadow-sm overflow-hidden relative ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}
                 >
-                  {isGenerating ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-magic"></i>}
-                  开始智能生成
-                </button>
+                  {/* Gradient Header Bar */}
+                  <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${currentTemplate.color}`}></div>
+                  
+                  <div className="flex items-start gap-4">
+                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center bg-gradient-to-br ${currentTemplate.color} text-white shadow-lg`}>
+                      <i className={`${currentTemplate.icon} text-xl`}></i>
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h2 className="text-2xl font-bold">{currentTemplate.name}</h2>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-500'}`}>
+                          {TEMPLATE_CATEGORIES[currentTemplate.category as keyof typeof TEMPLATE_CATEGORIES]?.name}
+                        </span>
+                      </div>
+                      <p className="text-gray-500">{currentTemplate.description}</p>
+                      
+                      {/* Sections Preview */}
+                      <div className="flex flex-wrap gap-1.5 mt-3">
+                        {currentTemplate.sections.map((section, idx) => (
+                          <span key={idx} className={`text-xs px-2 py-1 rounded-lg border ${isDark ? 'bg-gray-700/50 border-gray-600 text-gray-300' : 'bg-gray-50 border-gray-200 text-gray-600'}`}>
+                            <i className="fas fa-check-circle text-green-500 mr-1 text-[10px]"></i>
+                            {section}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+
+                {/* Input Form Card */}
+                <motion.div 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1 }}
+                  className={`rounded-2xl border p-6 shadow-sm ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}
+                >
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isDark ? 'bg-blue-900/30' : 'bg-blue-50'}`}>
+                      <i className="fas fa-keyboard text-blue-500"></i>
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold">填写关键信息</h3>
+                      <p className="text-xs text-gray-500">完善以下信息，AI将为您生成专业文案</p>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-5">
+                    {renderInputFields()}
+                  </div>
+
+                  {/* Generate Button */}
+                  <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
+                    <button
+                      onClick={handleGenerate}
+                      disabled={isGenerating}
+                      className="w-full py-4 rounded-xl font-bold text-white shadow-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:opacity-70 disabled:cursor-not-allowed transform transition-all hover:-translate-y-0.5 hover:shadow-xl flex items-center justify-center gap-3"
+                    >
+                      {isGenerating ? (
+                        <>
+                          <i className="fas fa-spinner fa-spin"></i>
+                          <span>AI 正在创作中...</span>
+                        </>
+                      ) : (
+                        <>
+                          <i className="fas fa-wand-magic-sparkles text-lg"></i>
+                          <span>开始智能生成</span>
+                        </>
+                      )}
+                    </button>
+                    <p className="text-center text-xs text-gray-500 mt-3">
+                      <i className="fas fa-lightbulb text-yellow-500 mr-1"></i>
+                      提示：信息越详细，生成的文案质量越高
+                    </p>
+                  </div>
+                </motion.div>
               </div>
             </div>
           </div>
@@ -1833,70 +2277,120 @@ ${content}
               {isAssistantOpen && (
                 <motion.div
                   initial={{ width: 0, opacity: 0 }}
-                  animate={{ width: 320, opacity: 1 }}
+                  animate={{ width: 360, opacity: 1 }}
                   exit={{ width: 0, opacity: 0 }}
-                  className={`border-l flex flex-col ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}
+                  className={`border-l flex flex-col ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-gray-50 border-gray-200'}`}
                 >
-                  <div className={`p-4 border-b font-medium flex justify-between items-center ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
-                    <span><i className="fas fa-robot text-blue-500 mr-2"></i>AI 助手</span>
-                    <button onClick={() => setIsAssistantOpen(false)} className="text-gray-400 hover:text-gray-600">
+                  {/* Header */}
+                  <div className={`p-4 border-b flex items-center justify-between ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center bg-gradient-to-br from-blue-500 to-purple-500 text-white shadow-md`}>
+                        <i className="fas fa-robot"></i>
+                      </div>
+                      <div>
+                        <div className="font-semibold">AI 智能助手</div>
+                        <div className="text-xs text-gray-500">随时为您提供帮助</div>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => setIsAssistantOpen(false)} 
+                      className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${isDark ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}
+                    >
                       <i className="fas fa-times"></i>
                     </button>
                   </div>
                   
+                  {/* Chat Messages */}
                   <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                    {chatHistory.map(msg => (
-                      <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-[85%] rounded-lg p-3 text-sm ${
-                          msg.role === 'user' 
-                            ? 'bg-blue-600 text-white' 
-                            : (isDark ? 'bg-gray-700 text-gray-200' : 'bg-gray-100 text-gray-800')
-                        }`}>
-                          {msg.content}
+                    {chatHistory.length === 0 && (
+                      <div className={`text-center py-8 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                        <div className={`w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center ${isDark ? 'bg-gray-800' : 'bg-gray-100'}`}>
+                          <i className="fas fa-comments text-2xl"></i>
                         </div>
+                        <p className="text-sm">开始与 AI 对话</p>
+                        <p className="text-xs mt-1">输入您的问题或点击下方建议</p>
                       </div>
+                    )}
+                    {chatHistory.map((msg, idx) => (
+                      <motion.div 
+                        key={msg.id} 
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: idx * 0.05 }}
+                        className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                      >
+                        <div className={`flex gap-2 max-w-[90%] ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                          {/* Avatar */}
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                            msg.role === 'user' 
+                              ? 'bg-blue-500 text-white' 
+                              : 'bg-gradient-to-br from-purple-500 to-pink-500 text-white'
+                          }`}>
+                            <i className={`fas ${msg.role === 'user' ? 'fa-user' : 'fa-robot'} text-xs`}></i>
+                          </div>
+                          {/* Message Bubble */}
+                          <div className={`rounded-2xl px-4 py-2.5 text-sm ${
+                            msg.role === 'user' 
+                              ? 'bg-blue-600 text-white rounded-tr-sm' 
+                              : (isDark ? 'bg-gray-800 text-gray-200 border border-gray-700 rounded-tl-sm' : 'bg-white text-gray-800 border border-gray-200 rounded-tl-sm shadow-sm')
+                          }`}>
+                            {msg.content}
+                          </div>
+                        </div>
+                      </motion.div>
                     ))}
                     <div ref={chatEndRef} />
                   </div>
 
                   {/* Context-Aware Suggestions */}
                   {(selectedTemplateId && CONTEXT_AWARE_SUGGESTIONS[selectedTemplateId as keyof typeof CONTEXT_AWARE_SUGGESTIONS]) && (
-                    <div className={`px-4 py-4 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
-                      <div className="text-sm font-semibold mb-3 text-gray-500 dark:text-gray-400">模板建议</div>
-                      <div className="grid grid-cols-1 gap-2">
+                    <div className={`px-4 py-3 border-t ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+                      <div className="flex items-center gap-2 mb-3">
+                        <i className="fas fa-lightbulb text-yellow-500 text-xs"></i>
+                        <div className="text-xs font-semibold text-gray-500 dark:text-gray-400">智能建议</div>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
                         {CONTEXT_AWARE_SUGGESTIONS[selectedTemplateId as keyof typeof CONTEXT_AWARE_SUGGESTIONS].map((suggestion, idx) => (
-                          <button
+                          <motion.button
                             key={idx}
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
                             onClick={() => handleModification(suggestion.prompt)}
                             disabled={isGenerating}
-                            className={`text-sm px-4 py-2.5 rounded-lg border transition-all ${isDark ? 'border-blue-600 hover:bg-blue-900/30 text-blue-400' : 'border-blue-200 hover:bg-blue-50 text-blue-700'}`}
+                            className={`text-xs px-3 py-1.5 rounded-full border transition-all ${isDark ? 'border-blue-600/50 hover:bg-blue-900/30 text-blue-400 bg-blue-900/10' : 'border-blue-200 hover:bg-blue-50 text-blue-700 bg-blue-50/50'}`}
                           >
                             {suggestion.label}
-                          </button>
+                          </motion.button>
                         ))}
                       </div>
                     </div>
                   )}
 
                   {/* Quick Actions */}
-                  <div className={`px-4 py-4 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
-                    <div className="text-sm font-semibold mb-3 text-gray-500 dark:text-gray-400">快速操作</div>
+                  <div className={`px-4 py-3 border-t ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+                    <div className="flex items-center gap-2 mb-3">
+                      <i className="fas fa-bolt text-yellow-500 text-xs"></i>
+                      <div className="text-xs font-semibold text-gray-500 dark:text-gray-400">快速操作</div>
+                    </div>
                     <div className="grid grid-cols-2 gap-2">
                       {QUICK_ACTIONS.map((action, idx) => (
-                        <button
+                        <motion.button
                           key={idx}
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
                           onClick={() => handleModification(action.prompt)}
                           disabled={isGenerating}
-                          className={`text-xs px-3 py-2 rounded-lg border transition-colors ${isDark ? 'border-gray-600 hover:bg-gray-700 text-gray-300' : 'border-gray-200 hover:bg-gray-100 text-gray-600'}`}
+                          className={`text-xs px-3 py-2 rounded-lg border transition-all flex items-center gap-1.5 ${isDark ? 'border-gray-600 hover:bg-gray-700 hover:border-gray-500 text-gray-300' : 'border-gray-200 hover:bg-gray-50 hover:border-gray-300 text-gray-600'}`}
                         >
+                          <i className={`fas ${action.icon} text-[10px]`}></i>
                           {action.label}
-                        </button>
+                        </motion.button>
                       ))}
                     </div>
                   </div>
 
-                  <div className={`p-4 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
-                    <div className="text-sm font-semibold mb-3 text-gray-500 dark:text-gray-400">修改要求</div>
+                  {/* Chat Input */}
+                  <div className={`p-4 border-t ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
                     <div className="relative">
                       <textarea
                         value={chatInput}
@@ -1907,27 +2401,28 @@ ${content}
                             handleModification();
                           }
                         }}
-                        placeholder="输入修改要求，如'让第一段更精简'..."
-                        className={`w-full p-4 pr-12 rounded-lg border resize-none focus:ring-2 focus:ring-blue-500 outline-none ${
+                        placeholder="输入您的修改要求，例如：让第一段更精简..."
+                        className={`w-full p-3 pr-12 rounded-xl border resize-none focus:ring-2 focus:ring-blue-500 outline-none text-sm ${
                           isDark ? 'bg-gray-900 border-gray-600 text-white placeholder-gray-500' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400'
                         }`}
-                        rows={3}
+                        rows={2}
                         disabled={isGenerating}
                       />
                       <button
                         onClick={() => handleModification()}
                         disabled={!chatInput.trim() || isGenerating}
-                        className={`absolute bottom-4 right-4 w-10 h-10 rounded-full flex items-center justify-center transition-all ${
+                        className={`absolute bottom-3 right-3 w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
                           !chatInput.trim() || isGenerating
                             ? 'bg-gray-300 text-gray-500 dark:bg-gray-700'
-                            : 'bg-blue-600 text-white hover:bg-blue-700'
+                            : 'bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:shadow-md'
                         }`}
                       >
-                        {isGenerating ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-paper-plane"></i>}
+                        {isGenerating ? <i className="fas fa-spinner fa-spin text-xs"></i> : <i className="fas fa-paper-plane text-xs"></i>}
                       </button>
                     </div>
-                    <p className="text-xs text-gray-400 mt-3 text-center">
-                      AI 可能产生不准确的信息，请核对重要内容。
+                    <p className="text-[10px] text-gray-400 mt-2 text-center">
+                      <i className="fas fa-shield-alt mr-1"></i>
+                      AI 生成内容仅供参考，请核对重要信息
                     </p>
                   </div>
                 </motion.div>
@@ -2321,15 +2816,45 @@ ${content}
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className={`w-full max-w-4xl h-[80vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden ${isDark ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'}`}
+              className={`w-full max-w-5xl h-[85vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden ${isDark ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'}`}
             >
               {/* Modal Header */}
-              <div className={`p-6 border-b flex items-center justify-between ${isDark ? 'border-gray-800' : 'border-gray-200'}`}>
-                <h2 className="text-xl font-bold flex items-center gap-2">
-                  <i className="fas fa-history text-blue-500"></i>
-                  文案历史记录
-                </h2>
+              <div className={`p-6 border-b flex items-center justify-between ${isDark ? 'border-gray-800 bg-gray-800/50' : 'border-gray-200 bg-gray-50/50'}`}>
                 <div className="flex items-center gap-4">
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center bg-gradient-to-br from-blue-500 to-purple-500 text-white shadow-lg`}>
+                    <i className="fas fa-history text-xl"></i>
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold">文案历史记录</h2>
+                    <p className="text-sm text-gray-500">管理和恢复您的创作历史</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4">
+                  {/* Filter Tabs */}
+                  <div className={`flex rounded-xl p-1 ${isDark ? 'bg-gray-800' : 'bg-gray-100'}`}>
+                    <button
+                      onClick={() => setDraftFilter('all')}
+                      className={`px-4 py-2 text-sm rounded-lg transition-all flex items-center gap-2 ${
+                        draftFilter === 'all'
+                          ? 'bg-white dark:bg-gray-700 shadow-sm text-blue-600 dark:text-blue-400'
+                          : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+                      }`}
+                    >
+                      <i className="fas fa-th-large"></i>
+                      全部
+                    </button>
+                    <button
+                      onClick={() => setDraftFilter('favorites')}
+                      className={`px-4 py-2 text-sm rounded-lg transition-all flex items-center gap-2 ${
+                        draftFilter === 'favorites'
+                          ? 'bg-white dark:bg-gray-700 shadow-sm text-yellow-600 dark:text-yellow-400'
+                          : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+                      }`}
+                    >
+                      <i className="fas fa-star"></i>
+                      收藏
+                    </button>
+                  </div>
                   <div className="relative">
                     <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
                     <input 
@@ -2337,11 +2862,14 @@ ${content}
                       placeholder="搜索文案..." 
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className={`pl-10 pr-4 py-2 rounded-lg border outline-none focus:ring-2 focus:ring-blue-500 ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-gray-100 border-gray-200'}`}
+                      className={`pl-10 pr-4 py-2.5 rounded-xl border outline-none focus:ring-2 focus:ring-blue-500 w-64 ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}
                     />
                   </div>
-                  <button onClick={() => setShowDraftsModal(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors">
-                    <i className="fas fa-times text-xl"></i>
+                  <button 
+                    onClick={() => setShowDraftsModal(false)} 
+                    className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${isDark ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}
+                  >
+                    <i className="fas fa-times text-lg"></i>
                   </button>
                 </div>
               </div>
@@ -2356,66 +2884,123 @@ ${content}
                         d.templateName.toLowerCase().includes(searchQuery.toLowerCase())
                       )
                       .sort((a, b) => b.updatedAt - a.updatedAt)
-                      .map(draft => (
-                      <div 
+                      .map((draft, idx) => (
+                      <motion.div 
                         key={draft.id}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: idx * 0.05 }}
                         onClick={() => loadDraft(draft)}
-                        className={`group relative p-5 rounded-xl border transition-all cursor-pointer hover:shadow-lg ${
+                        className={`group relative rounded-2xl border transition-all cursor-pointer overflow-hidden hover:shadow-xl ${
                           isDark 
-                            ? 'bg-gray-800 border-gray-700 hover:border-blue-500 hover:bg-gray-750' 
-                            : 'bg-white border-gray-200 hover:border-blue-400 hover:bg-blue-50'
+                            ? 'bg-gray-800 border-gray-700 hover:border-blue-500' 
+                            : 'bg-white border-gray-200 hover:border-blue-400'
                         }`}
                       >
-                        <div className="flex items-start justify-between mb-3">
-                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isDark ? 'bg-gray-700' : 'bg-blue-100'}`}>
-                            <i className={`${TEMPLATES[draft.templateId as keyof typeof TEMPLATES]?.icon || 'fas fa-file-alt'} text-blue-500`}></i>
+                        {/* Top Color Bar */}
+                        <div className={`h-1 bg-gradient-to-r ${TEMPLATES[draft.templateId as keyof typeof TEMPLATES]?.color || 'from-gray-400 to-gray-500'}`}></div>
+                        
+                        <div className="p-5">
+                          <div className="flex items-start justify-between mb-4">
+                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center bg-gradient-to-br ${TEMPLATES[draft.templateId as keyof typeof TEMPLATES]?.color || 'from-gray-400 to-gray-500'} text-white shadow-md`}>
+                              <i className={`${TEMPLATES[draft.templateId as keyof typeof TEMPLATES]?.icon || 'fas fa-file-alt'} text-lg`}></i>
+                            </div>
+                            <div className="flex gap-1">
+                              <motion.button 
+                                whileHover={{ scale: 1.1 }}
+                                whileTap={{ scale: 0.9 }}
+                                onClick={(e) => toggleFavoriteDraft(e, draft.id)}
+                                className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${draft.isFavorite ? 'text-yellow-500 bg-yellow-50 dark:bg-yellow-900/20' : 'text-gray-400 hover:text-yellow-500 hover:bg-yellow-50 dark:hover:bg-yellow-900/20'}`}
+                                title={draft.isFavorite ? '取消收藏' : '收藏'}
+                              >
+                                <i className={`${draft.isFavorite ? 'fas' : 'far'} fa-star`}></i>
+                              </motion.button>
+                              <motion.button 
+                                whileHover={{ scale: 1.1 }}
+                                whileTap={{ scale: 0.9 }}
+                                onClick={(e) => deleteDraft(e, draft.id)}
+                                className="w-9 h-9 rounded-lg flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors opacity-0 group-hover:opacity-100"
+                                title="删除"
+                              >
+                                <i className="fas fa-trash-alt"></i>
+                              </motion.button>
+                            </div>
                           </div>
-                          <button 
-                            onClick={(e) => deleteDraft(e, draft.id)}
-                            className="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors opacity-0 group-hover:opacity-100"
-                            title="删除"
-                          >
-                            <i className="fas fa-trash-alt"></i>
-                          </button>
-                        </div>
-                        
-                        <h3 className="font-bold text-lg mb-1 line-clamp-1">{draft.title}</h3>
-                        <p className="text-sm text-gray-500 mb-4">{draft.templateName}</p>
-                        
-                        {/* Category and Tags Display */}
-                        {draft.category && (
-                          <div className="mb-2 flex flex-wrap gap-1">
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 flex items-center gap-1">
-                              <i className={`${DEFAULT_CATEGORIES.find(c => c.id === draft.category)?.icon || 'fas fa-folder'} text-blue-500`}></i>
-                              {DEFAULT_CATEGORIES.find(c => c.id === draft.category)?.name}
+                          
+                          <h3 className="font-bold text-lg mb-1 line-clamp-1 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{draft.title}</h3>
+                          <div className="flex items-center gap-2 mb-3">
+                            <span className="text-sm text-gray-500">{draft.templateName}</span>
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500">
+                              {TEMPLATE_CATEGORIES[TEMPLATES[draft.templateId as keyof typeof TEMPLATES]?.category as keyof typeof TEMPLATE_CATEGORIES]?.name}
                             </span>
                           </div>
-                        )}
-                        {draft.tags && draft.tags.length > 0 && (
-                          <div className="mb-2 flex flex-wrap gap-1">
-                            {draft.tags.map(tagId => {
-                              const tag = tags.find(t => t.id === tagId);
-                              return tag ? (
-                                <span key={tagId} className="text-xs px-2 py-0.5 rounded-full text-white" style={{ backgroundColor: tag.color }}>
-                                  {tag.name}
+                          
+                          {/* Category and Tags Display */}
+                          {(draft.category || (draft.tags && draft.tags.length > 0)) && (
+                            <div className="flex flex-wrap gap-1.5 mb-3">
+                              {draft.category && (
+                                <span className="text-xs px-2 py-1 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                                  <i className={`${DEFAULT_CATEGORIES.find(c => c.id === draft.category)?.icon || 'fas fa-folder'} text-[10px]`}></i>
+                                  {DEFAULT_CATEGORIES.find(c => c.id === draft.category)?.name}
                                 </span>
-                              ) : null;
-                            })}
+                              )}
+                              {draft.tags && draft.tags.slice(0, 2).map(tagId => {
+                                const tag = tags.find(t => t.id === tagId);
+                                return tag ? (
+                                  <span key={tagId} className="text-xs px-2 py-1 rounded-lg text-white" style={{ backgroundColor: tag.color }}>
+                                    {tag.name}
+                                  </span>
+                                ) : null;
+                              })}
+                              {draft.tags && draft.tags.length > 2 && (
+                                <span className="text-xs px-2 py-1 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-500">
+                                  +{draft.tags.length - 2}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                          
+                          {/* Footer */}
+                          <div className="flex items-center justify-between text-xs text-gray-400 pt-3 border-t dark:border-gray-700">
+                            <span className="flex items-center gap-1">
+                              <i className="far fa-clock"></i>
+                              {new Date(draft.updatedAt).toLocaleDateString()}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <i className="far fa-file-alt"></i>
+                              {new Date(draft.updatedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                            </span>
                           </div>
-                        )}
-                        
-                        <div className="flex items-center justify-between text-xs text-gray-400 border-t pt-3 mt-auto dark:border-gray-700">
-                          <span><i className="far fa-clock mr-1"></i>{new Date(draft.updatedAt).toLocaleString()}</span>
                         </div>
-                      </div>
+                      </motion.div>
                     ))}
                   </div>
                 ) : (
-                  <div className="h-full flex flex-col items-center justify-center text-gray-400 opacity-60">
-                    <i className="fas fa-history text-5xl mb-4"></i>
-                    <p className="text-lg">暂无历史记录</p>
-                  </div>
+                  <motion.div 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="h-full flex flex-col items-center justify-center text-gray-400"
+                  >
+                    <div className={`w-24 h-24 rounded-3xl flex items-center justify-center mb-6 ${isDark ? 'bg-gray-800' : 'bg-gray-100'}`}>
+                      <i className="fas fa-history text-4xl"></i>
+                    </div>
+                    <p className="text-lg font-medium mb-2">暂无历史记录</p>
+                    <p className="text-sm text-gray-500">开始创作您的第一篇文案吧</p>
+                  </motion.div>
                 )}
+              </div>
+              
+              {/* Modal Footer */}
+              <div className={`p-4 border-t flex items-center justify-between ${isDark ? 'border-gray-800 bg-gray-800/50' : 'border-gray-200 bg-gray-50/50'}`}>
+                <div className="text-sm text-gray-500">
+                  共 <span className="font-semibold text-gray-700 dark:text-gray-300">{draftsList.length}</span> 条记录
+                </div>
+                <button 
+                  onClick={() => setShowDraftsModal(false)}
+                  className="px-6 py-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-xl text-sm font-medium transition-colors"
+                >
+                  关闭
+                </button>
               </div>
             </motion.div>
           </div>
@@ -2492,6 +3077,93 @@ ${content}
                 >
                   添加标签
                 </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Template Preview Modal */}
+      <AnimatePresence>
+        {previewTemplate && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className={`w-full max-w-2xl max-h-[80vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden ${isDark ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'}`}
+            >
+              {/* Modal Header */}
+              <div className={`p-6 border-b flex items-center justify-between ${isDark ? 'border-gray-800' : 'border-gray-200'}`}>
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isDark ? 'bg-gray-800' : 'bg-blue-100'}`}>
+                    <i className={`${TEMPLATES[previewTemplate as keyof typeof TEMPLATES]?.icon || 'fas fa-file-alt'} text-blue-500`}></i>
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold">
+                      {TEMPLATES[previewTemplate as keyof typeof TEMPLATES]?.name}
+                    </h2>
+                    <p className="text-sm text-gray-500">
+                      {TEMPLATES[previewTemplate as keyof typeof TEMPLATES]?.description}
+                    </p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setPreviewTemplate(null)} 
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                >
+                  <i className="fas fa-times text-xl"></i>
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="flex-1 overflow-y-auto p-6">
+                <div className="space-y-6">
+                  {/* Sections */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                      包含章节
+                    </h3>
+                    <div className="flex flex-wrap gap-2">
+                      {TEMPLATES[previewTemplate as keyof typeof TEMPLATES]?.sections.map((section, idx) => (
+                        <span 
+                          key={idx} 
+                          className={`text-sm px-3 py-1.5 rounded-full border ${
+                            isDark 
+                              ? 'bg-gray-800 border-gray-700 text-gray-300' 
+                              : 'bg-gray-100 border-gray-200 text-gray-700'
+                          }`}
+                        >
+                          {section}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Prompt Preview */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                      生成提示预览
+                    </h3>
+                    <div className={`p-4 rounded-lg text-sm font-mono whitespace-pre-wrap ${isDark ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-700'}`}>
+                      {TEMPLATES[previewTemplate as keyof typeof TEMPLATES]?.prompt.substring(0, 500)}...
+                    </div>
+                  </div>
+
+                  {/* Use Template Button */}
+                  <div className="flex justify-center pt-4">
+                    <button
+                      onClick={() => {
+                        setSelectedTemplateId(previewTemplate);
+                        setPreviewTemplate(null);
+                      }}
+                      className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium transition-all flex items-center gap-2"
+                    >
+                      <i className="fas fa-check"></i>
+                      使用此模板
+                    </button>
+                  </div>
+                </div>
               </div>
             </motion.div>
           </div>

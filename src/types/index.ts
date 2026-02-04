@@ -21,9 +21,22 @@ export interface User extends BaseEntity {
   isAdmin?: boolean;
   age?: number;
   tags?: string[];
+  bio?: string;
+  location?: string;
+  occupation?: string;
+  website?: string;
+  github?: string;
+  twitter?: string;
+  coverImage?: string;
+  metadata?: Record<string, any>;
+  worksCount?: number;
+  followersCount?: number;
+  followingCount?: number;
+  favoritesCount?: number;
+  isNewUser?: boolean;
   membershipLevel: 'free' | 'premium' | 'vip';
-  membershipStart?: Date;
-  membershipEnd?: Date;
+  membershipStart?: Date | string; // Allow string for compatibility
+  membershipEnd?: Date | string; // Allow string for compatibility
   membershipStatus: 'active' | 'expired' | 'pending';
 }
 

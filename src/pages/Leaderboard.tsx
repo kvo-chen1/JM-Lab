@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import apiClient from '@/lib/apiClient';
-import GradientHero from '@/components/GradientHero';
+import { supabase } from '@/lib/supabase';
 import LazyImage from '@/components/LazyImage';
 import { useTheme } from '@/hooks/useTheme';
 
@@ -11,7 +10,7 @@ interface Post {
   title: string;
   content: string;
   thumbnail?: string;
-  user_id: number;
+  user_id: string; // Supabase user_id is string (UUID)
   username?: string;
   avatar_url?: string;
   category_id: number;
@@ -19,32 +18,29 @@ interface Post {
   views: number;
   likes_count: number;
   comments_count: number;
-  created_at: number;
-  updated_at: number;
+  created_at: string; // Supabase returns string
+  updated_at: string;
+  user?: {
+    username: string;
+    avatar_url: string;
+  };
 }
 
 interface User {
-  id: number;
+  id: string; // Supabase user_id is string (UUID)
   username: string;
   email: string;
   avatar_url?: string;
   posts_count?: number;
   total_likes?: number;
   total_views?: number;
-  created_at: number;
-  updated_at: number;
+  created_at: string;
+  updated_at: string;
 }
 
 type LeaderboardType = 'posts' | 'users';
 type TimeRange = 'day' | 'week' | 'month' | 'all';
 type SortBy = 'likes_count' | 'views' | 'comments_count' | 'posts_count';
-
-// Mock data removed. Using real data from API.
-const mockPosts: Post[] = [];
-const mockUsers: User[] = [];
-
-
-
 
 const Leaderboard: React.FC = () => {
   const { theme } = useTheme();
@@ -75,10 +71,6 @@ const Leaderboard: React.FC = () => {
     ? 'group-hover:text-pink-600 dark:group-hover:text-pink-400'
     : 'group-hover:text-blue-600 dark:group-hover:text-blue-400';
 
-  const focusRingClass = theme === 'pink'
-    ? 'focus:ring-pink-500'
-    : 'focus:ring-blue-500';
-
   const gradientText = theme === 'pink'
     ? 'from-pink-600 to-purple-600'
     : 'from-blue-600 to-cyan-600';
@@ -90,10 +82,15 @@ const Leaderboard: React.FC = () => {
 
   const fetchStats = async () => {
     try {
-      const response = await apiClient.get('/api/db/status');
-      if (response.data && (response.data as any).stats) {
-         setStats((response.data as any).stats);
-      }
+      if (!supabase) return;
+      
+      const { count: usersCount } = await supabase.from('users').select('id', { count: 'exact', head: true });
+      const { count: postsCount } = await supabase.from('posts').select('id', { count: 'exact', head: true }).eq('status', 'published');
+      
+      setStats({
+        users_count: usersCount || 0,
+        posts_count: postsCount || 0
+      });
     } catch (e) {
       console.error('Failed to fetch stats', e);
     }
@@ -121,34 +118,95 @@ const Leaderboard: React.FC = () => {
     // 生成缓存键
     const cacheKey = `${leaderboardType}-${sortBy}-${timeRange}`;
     
-    // 检查缓存
-    if (cache[cacheKey]) {
+    // 检查缓存 (1分钟内有效)
+    const cachedData = cache[cacheKey];
+    // 这里简单处理，暂时不检查时间戳，如果只是为了快速切换体验
+    if (cachedData) {
       if (leaderboardType === 'posts') {
-        setPosts(cache[cacheKey].posts);
+        setPosts(cachedData.posts);
       } else {
-        setUsers(cache[cacheKey].users);
+        setUsers(cachedData.users);
       }
       setLoading(false);
+      // 后台更新
+      // fetchRemoteData(cacheKey); 
       return;
     }
     
+    await fetchRemoteData(cacheKey);
+  };
+
+  const fetchRemoteData = async (cacheKey: string) => {
     try {
+      if (!supabase) throw new Error('Supabase client not initialized');
+
+      let query;
+      
+      // 构建时间范围查询
+      const now = new Date();
+      let startTime = new Date(0).toISOString(); // Default to all time
+      
+      if (timeRange === 'day') {
+        now.setHours(0, 0, 0, 0);
+        startTime = now.toISOString();
+      } else if (timeRange === 'week') {
+        now.setDate(now.getDate() - 7);
+        startTime = now.toISOString();
+      } else if (timeRange === 'month') {
+        now.setMonth(now.getMonth() - 1);
+        startTime = now.toISOString();
+      }
+
       if (leaderboardType === 'posts') {
-        const response = await apiClient.get(`/api/leaderboard/posts?sortBy=${sortBy}&timeRange=${timeRange}&limit=10`);
-        const data = Array.isArray(response.data) ? response.data as Post[] : [];
-        setPosts(data);
-        setCache(prev => ({ ...prev, [cacheKey]: { ...prev[cacheKey] || { posts: [], users: [] }, posts: data } }));
+        query = supabase
+          .from('posts')
+          .select('*, user:users(username, name, avatar_url, avatar)')
+          .eq('status', 'published')
+          .gte('created_at', startTime)
+          .order(sortBy, { ascending: false })
+          .limit(10);
+          
+        const { data, error } = await query;
+        if (error) throw error;
+        
+        const formattedPosts = data.map((post: any) => ({
+          ...post,
+          username: post.user?.username || post.user?.name || 'Unknown',
+          avatar_url: post.user?.avatar_url || post.user?.avatar || ''
+        }));
+        
+        setPosts(formattedPosts);
+        setCache(prev => ({ ...prev, [cacheKey]: { ...prev[cacheKey] || { posts: [], users: [] }, posts: formattedPosts } }));
       } else {
-        const response = await apiClient.get(`/api/leaderboard/users?sortBy=${sortBy}&timeRange=${timeRange}&limit=10`);
-        const data = Array.isArray(response.data) ? response.data as User[] : [];
-        setUsers(data);
-        setCache(prev => ({ ...prev, [cacheKey]: { ...prev[cacheKey] || { posts: [], users: [] }, users: data } }));
+        query = supabase
+          .from('users')
+          .select('*')
+          .gte('created_at', startTime) // Note: Users created recently might not be correct for leaderboard unless it's "New Stars". 
+                                        // Usually leaderboard is for ALL users active in time range.
+                                        // But here we sort by total stats which are cumulative.
+                                        // If we want "Top users this week", we need activity stats per week which we might not have.
+                                        // For now, let's ignore timeRange for Users leaderboard or just filter by created_at if intended.
+                                        // Assuming user wants "Top Users" based on total stats, timeRange might not apply strictly or applies to user creation.
+                                        // Let's assume timeRange applies to User Creation for now or ignore it for "All Time Best".
+                                        // Actually, "Top Users of the Month" usually means users who got most likes THIS MONTH.
+                                        // Since we only have `total_likes` on user table, we can only show All Time stats.
+                                        // So we will ignore timeRange for users unless it's 'all'.
+          .order(sortBy, { ascending: false })
+          .limit(10);
+          
+        // If timeRange is not 'all', we might warn or just show all time. 
+        // Let's just query all users sorted by the stat.
+        
+        const { data, error } = await query;
+        if (error) throw error;
+        
+        setUsers(data as User[]);
+        setCache(prev => ({ ...prev, [cacheKey]: { ...prev[cacheKey] || { posts: [], users: [] }, users: data as User[] } }));
       }
     } catch (err: any) {
       console.error('API request failed:', err.message);
       setError(err.message || '获取数据失败');
     } finally {
-      // 使用requestAnimationFrame确保UI流畅更新
       requestAnimationFrame(() => {
         setLoading(false);
       });
@@ -166,25 +224,23 @@ const Leaderboard: React.FC = () => {
     
     // 获取用户热门作品
     try {
-      const response = await apiClient.get(`/api/works?userId=${user.id}&limit=3`);
-      const data = Array.isArray(response.data) ? response.data : [];
+      if (!supabase) return;
       
-      // Map API response to Post interface
-      const mappedPosts: Post[] = data.map((item: any) => ({
-        ...item,
-        content: item.description || item.content || '',
-        views: item.views || 0,
-        status: item.status || 'published',
-        category_id: item.category_id || 0,
-        updated_at: item.updated_at || item.created_at
-      }));
+      const { data, error } = await supabase
+        .from('posts')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('status', 'published')
+        .order('likes_count', { ascending: false })
+        .limit(3);
+        
+      if (error) throw error;
       
-      setUserPosts(mappedPosts);
+      setUserPosts(data as Post[]);
     } catch (error) {
       console.error('Failed to fetch user posts:', error);
       setUserPosts([]);
     } finally {
-      // 使用requestAnimationFrame确保UI流畅更新
       requestAnimationFrame(() => {
         setIsLoadingDetail(false);
       });
@@ -451,7 +507,7 @@ const Leaderboard: React.FC = () => {
                         {/* 缩略图 (如果有) */}
                         {post.thumbnail && (
                           <div className="mb-4 rounded-xl overflow-hidden h-32 w-full">
-                             <img src={post.thumbnail} alt={post.title} className="w-full h-full object-cover" />
+                             <LazyImage src={post.thumbnail} alt={post.title} className="w-full h-full object-cover" />
                           </div>
                         )}
 
@@ -463,7 +519,7 @@ const Leaderboard: React.FC = () => {
                           <div className="flex items-center gap-2">
                             {post.username && (
                               <img
-                                src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(post.username)}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf&size=24`}
+                                src={post.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(post.username)}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf&size=24`}
                                 alt={post.username}
                                 className="w-6 h-6 rounded-full border border-gray-200 dark:border-gray-600 object-cover"
                               />
@@ -512,11 +568,10 @@ const Leaderboard: React.FC = () => {
                           {/* 头像 */}
                           <div className="mt-6 mb-4 relative">
                             <div className="absolute inset-0 bg-white dark:bg-gray-800 rounded-full transform scale-110 shadow-sm opacity-50"></div>
-                            <img
-                              src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.username)}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`}
+                            <LazyImage
+                              src={user.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.username)}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`}
                               alt={user.username}
                               className="w-24 h-24 rounded-full border-[3px] border-white dark:border-gray-800 shadow-md object-cover relative z-10 group-hover:scale-105 transition-transform duration-300"
-                              loading="lazy"
                             />
                             {index < 3 && (
                               <div className="absolute -bottom-1 -right-1 bg-yellow-400 text-white text-xs font-bold px-2 py-0.5 rounded-full border-2 border-white dark:border-gray-800 shadow-sm">
@@ -656,8 +711,12 @@ const Leaderboard: React.FC = () => {
                             setTimeout(() => handlePostClick(post.id), 300);
                           }}
                         >
-                          <div className="w-16 h-16 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-600 rounded-lg flex items-center justify-center text-gray-400">
-                            <i className="fas fa-image text-xl"></i>
+                          <div className="w-16 h-16 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-600 rounded-lg flex items-center justify-center text-gray-400 overflow-hidden">
+                            {post.thumbnail ? (
+                              <LazyImage src={post.thumbnail} alt={post.title} className="w-full h-full object-cover" />
+                            ) : (
+                              <i className="fas fa-image text-xl"></i>
+                            )}
                           </div>
                           <div className="flex-1 min-w-0">
                             <h5 className="font-bold text-gray-900 dark:text-white truncate mb-1 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{post.title}</h5>

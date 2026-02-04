@@ -2,6 +2,21 @@ import { useState, useContext, useEffect } from 'react'
 import { AuthContext } from '@/contexts/authContext'
 import { useTheme } from '@/hooks/useTheme'
 import { Link, useNavigate } from 'react-router-dom'
+import { motion } from 'framer-motion'
+import { 
+  User, 
+  Mail, 
+  Phone, 
+  Calendar, 
+  MapPin, 
+  Briefcase, 
+  Link as LinkIcon,
+  Github,
+  Twitter,
+  Tag,
+  Image as ImageIcon,
+  X
+} from 'lucide-react'
 import { userService } from '@/services/apiService'
 import { validationService } from '@/services/validationService'
 import { useAnalyticsStore } from '@/stores/useAnalyticsStore'
@@ -37,32 +52,77 @@ export default function ProfileEdit() {
     email: user?.email || '',
     phone: user?.phone || '',
     age: user?.age?.toString() || '',
+    bio: user?.bio || '',
+    location: user?.location || '',
+    occupation: user?.occupation || '',
+    website: user?.website || '',
+    github: user?.github || '',
+    twitter: user?.twitter || '',
     interests: user?.interests?.join(', ') || '',
-    avatar: user?.avatar || ''
+    avatar: user?.avatar || '',
+    coverImage: user?.coverImage || '',
   })
   
   const [avatarPreview, setAvatarPreview] = useState<string>(user?.avatar || '')
+  const [coverPreview, setCoverPreview] = useState<string>(user?.coverImage || '')
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
+  const [coverFile, setCoverFile] = useState<File | null>(null)
+  
+  // 标签管理
+  const [tags, setTags] = useState<string[]>(user?.tags || [])
+  const [newTag, setNewTag] = useState('')
   
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [activeTab, setActiveTab] = useState<'basic' | 'social' | 'tags'>('basic')
   
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
     setFormData(prev => ({ ...prev, [name]: value }))
   }
   
+  // 图片压缩函数
+  const compressImage = (file: File, maxWidth: number = 800, maxHeight: number = 800, quality: number = 0.7): Promise<string> => {
+    return new Promise<string>((resolve) => {
+      const canvas = document.createElement('canvas')
+      const ctx = canvas.getContext('2d')
+      const img = new Image()
+      
+      img.onload = () => {
+        let width = img.width
+        let height = img.height
+        
+        if (width > height) {
+          if (width > maxWidth) {
+            height = (height * maxWidth) / width
+            width = maxWidth
+          }
+        } else {
+          if (height > maxHeight) {
+            width = (width * maxHeight) / height
+            height = maxHeight
+          }
+        }
+        
+        canvas.width = width
+        canvas.height = height
+        ctx?.drawImage(img, 0, 0, width, height)
+        const compressedDataUrl = canvas.toDataURL('image/jpeg', quality)
+        resolve(compressedDataUrl)
+      }
+      
+      img.src = URL.createObjectURL(file)
+    })
+  }
+
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
-      // 检查文件类型
       if (!file.type.startsWith('image/')) {
         setError('请选择图片文件')
         return
       }
-      
-      // 检查文件大小（最大5MB）
       if (file.size > 5 * 1024 * 1024) {
         setError('图片大小不能超过5MB')
         return
@@ -70,59 +130,9 @@ export default function ProfileEdit() {
       
       setAvatarFile(file)
       
-      // 创建预览URL并压缩图片
-      const compressImage = (file: File, maxWidth: number = 800, maxHeight: number = 800, quality: number = 0.7) => {
-        return new Promise<string>((resolve) => {
-          const canvas = document.createElement('canvas')
-          const ctx = canvas.getContext('2d')
-          const img = new Image()
-          
-          img.onload = () => {
-            // 计算压缩后的尺寸
-            let width = img.width
-            let height = img.height
-            
-            if (width > height) {
-              if (width > maxWidth) {
-                height = (height * maxWidth) / width
-                width = maxWidth
-              }
-            } else {
-              if (height > maxHeight) {
-                width = (width * maxHeight) / height
-                height = maxHeight
-              }
-            }
-            
-            // 设置canvas尺寸
-            canvas.width = width
-            canvas.height = height
-            
-            // 绘制压缩后的图片
-            ctx?.drawImage(img, 0, 0, width, height)
-            
-            // 转换为base64
-            const compressedDataUrl = canvas.toDataURL('image/jpeg', quality)
-            resolve(compressedDataUrl)
-          }
-          
-          img.src = URL.createObjectURL(file)
-        })
-      }
-      
-      // 压缩图片
       compressImage(file).then(compressedDataUrl => {
-        console.log('原始图片大小:', (file.size / 1024).toFixed(2), 'KB');
-        console.log('压缩后base64长度:', compressedDataUrl.length);
-        console.log('压缩后估计大小:', (compressedDataUrl.length * 0.75 / 1024).toFixed(2), 'KB');
-        
-        // 进一步限制大小
         if (compressedDataUrl.length > 100000) {
-          console.log('图片仍然过大，再次压缩');
-          // 更严格的压缩
           compressImage(file, 600, 600, 0.6).then(smallerDataUrl => {
-            console.log('再次压缩后base64长度:', smallerDataUrl.length);
-            console.log('再次压缩后估计大小:', (smallerDataUrl.length * 0.75 / 1024).toFixed(2), 'KB');
             setAvatarPreview(smallerDataUrl);
             setFormData(prev => ({ ...prev, avatar: smallerDataUrl }));
           });
@@ -131,6 +141,46 @@ export default function ProfileEdit() {
           setFormData(prev => ({ ...prev, avatar: compressedDataUrl }));
         }
       })
+    }
+  }
+
+  const handleCoverChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      if (!file.type.startsWith('image/')) {
+        setError('请选择图片文件')
+        return
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        setError('封面图片大小不能超过10MB')
+        return
+      }
+      
+      setCoverFile(file)
+      
+      compressImage(file, 1200, 400, 0.8).then(compressedDataUrl => {
+        setCoverPreview(compressedDataUrl);
+        setFormData(prev => ({ ...prev, coverImage: compressedDataUrl }));
+      })
+    }
+  }
+
+  // 标签管理
+  const handleAddTag = () => {
+    if (newTag.trim() && !tags.includes(newTag.trim()) && tags.length < 10) {
+      setTags([...tags, newTag.trim()])
+      setNewTag('')
+    }
+  }
+
+  const handleRemoveTag = (tagToRemove: string) => {
+    setTags(tags.filter(tag => tag !== tagToRemove))
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      handleAddTag()
     }
   }
   
@@ -142,18 +192,25 @@ export default function ProfileEdit() {
     
     try {
       let finalAvatarUrl = avatarPreview;
+      let finalCoverUrl = coverPreview;
 
-      // 如果是 base64 图片，上传到 Supabase Storage
+      // 上传头像
       if (avatarPreview && avatarPreview.startsWith('data:image')) {
         try {
-          // 将 base64 转为 File
           const file = dataURLtoFile(avatarPreview, `avatar-${Date.now()}.jpg`);
-          // 上传图片
           finalAvatarUrl = await uploadImage(file);
-          console.log('头像上传成功:', finalAvatarUrl);
         } catch (uploadError) {
-          console.error('头像上传失败，降级使用 base64:', uploadError);
-          // 如果上传失败，继续使用 base64，但可能会因为太长而导致后续 API 失败
+          console.error('头像上传失败:', uploadError);
+        }
+      }
+
+      // 上传封面
+      if (coverPreview && coverPreview.startsWith('data:image')) {
+        try {
+          const file = dataURLtoFile(coverPreview, `cover-${Date.now()}.jpg`);
+          finalCoverUrl = await uploadImage(file);
+        } catch (uploadError) {
+          console.error('封面上传失败:', uploadError);
         }
       }
 
@@ -162,8 +219,16 @@ export default function ProfileEdit() {
         username: formData.username,
         phone: formData.phone,
         age: formData.age ? parseInt(formData.age) : undefined,
+        bio: formData.bio,
+        location: formData.location,
+        occupation: formData.occupation,
+        website: formData.website,
+        github: formData.github,
+        twitter: formData.twitter,
         interests: formData.interests ? formData.interests.split(',').map(interest => interest.trim()) : [],
-        avatar: finalAvatarUrl
+        tags: tags,
+        avatar: finalAvatarUrl,
+        coverImage: finalCoverUrl,
       }
       
       // 前端数据验证
@@ -175,26 +240,58 @@ export default function ProfileEdit() {
         return;
       }
       
-      // 先调用后端 API 持久化
-      await userService.updateUser(updatedUser);
-      
-      // 同步更新 Supabase Auth User Metadata
-      if (supabase) {
-        const { error: authUpdateError } = await supabase.auth.updateUser({
-          data: {
-            avatar: finalAvatarUrl,
+      // 构造数据库更新对象
+      // 注意：我们需要同时更新一级列和 metadata 列，以保持数据同步
+      const updatesForDb: any = {
+        username: updatedUser.username,
+        phone: updatedUser.phone,
+        age: updatedUser.age,
+        bio: updatedUser.bio,
+        interests: updatedUser.interests,
+        tags: updatedUser.tags,
+        avatar: finalAvatarUrl,
+        avatar_url: finalAvatarUrl, // 兼容性字段
+        updated_at: new Date().toISOString(),
+        metadata: {
+            ...user?.metadata, // 保留原有 metadata
             username: updatedUser.username,
             phone: updatedUser.phone,
             age: updatedUser.age,
-            interests: updatedUser.interests
-          }
+            bio: updatedUser.bio,
+            location: updatedUser.location,
+            occupation: updatedUser.occupation,
+            website: updatedUser.website,
+            github: updatedUser.github,
+            twitter: updatedUser.twitter,
+            interests: updatedUser.interests,
+            tags: updatedUser.tags,
+            avatar: finalAvatarUrl,
+            coverImage: finalCoverUrl
+        }
+      };
+
+      // 1. 直接更新 Supabase 数据库 (public.users)
+      if (supabase) {
+        const { error: dbError } = await supabase
+          .from('users')
+          .update(updatesForDb)
+          .eq('id', user?.id);
+          
+        if (dbError) {
+          console.error('数据库更新失败:', dbError);
+          throw new Error('保存到数据库失败: ' + dbError.message);
+        }
+      }
+
+      // 2. 同步更新 Supabase Auth User Metadata (这对 AuthContext 很重要)
+      if (supabase) {
+        const { error: authUpdateError } = await supabase.auth.updateUser({
+          data: updatesForDb.metadata
         });
         
         if (authUpdateError) {
           console.error('Supabase Auth Metadata 更新失败:', authUpdateError);
-          // 不中断流程，因为数据库已经更新
-        } else {
-          console.log('Supabase Auth Metadata 更新成功');
+          // 不阻断流程，因为数据库已经更新
         }
       }
 
@@ -205,7 +302,8 @@ export default function ProfileEdit() {
         timestamp: Date.now()
       });
 
-      updateUser(updatedUser)
+      // 更新 Context，触发全局状态刷新
+      updateUser(updatedUser as any)
       setSuccess('个人资料更新成功！')
       
       // 1秒后跳转回设置页面
@@ -252,145 +350,390 @@ export default function ProfileEdit() {
         </Link>
       </div>
       
-      <div className={`max-w-2xl mx-auto rounded-2xl shadow-md p-6 ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
-        {error && (
-          <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-300 rounded-lg">
-            {error}
+      <div className={`max-w-3xl mx-auto rounded-2xl shadow-md overflow-hidden ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
+        {/* 封面图 */}
+        <div className="relative h-48 bg-gradient-to-r from-blue-500 to-purple-600">
+          {coverPreview ? (
+            <img 
+              src={coverPreview} 
+              alt="封面预览" 
+              className="w-full h-full object-cover"
+            />
+          ) : null}
+          <div className="absolute inset-0 bg-black/20" />
+          <label 
+            htmlFor="cover-upload" 
+            className="absolute bottom-4 right-4 px-4 py-2 bg-white/90 dark:bg-gray-800/90 rounded-lg cursor-pointer hover:bg-white dark:hover:bg-gray-700 transition-colors flex items-center gap-2 text-sm font-medium"
+          >
+            <ImageIcon className="w-4 h-4" />
+            <span>更换封面</span>
+          </label>
+          <input
+            id="cover-upload"
+            type="file"
+            accept="image/*"
+            onChange={handleCoverChange}
+            className="hidden"
+          />
+        </div>
+
+        <div className="p-6">
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-300 rounded-lg">
+              {error}
+            </div>
+          )}
+          
+          {success && (
+            <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-300 rounded-lg">
+              {success}
+            </div>
+          )}
+
+          {/* 标签页切换 */}
+          <div className="flex space-x-1 mb-6 border-b border-gray-200 dark:border-gray-700">
+            {[
+              { id: 'basic', label: '基本信息', icon: User },
+              { id: 'social', label: '社交账号', icon: LinkIcon },
+              { id: 'tags', label: '个人标签', icon: Tag },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                  activeTab === tab.id
+                    ? 'border-red-500 text-red-600 dark:text-red-400'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+                }`}
+              >
+                <tab.icon className="w-4 h-4" />
+                {tab.label}
+              </button>
+            ))}
           </div>
-        )}
-        
-        {success && (
-          <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-300 rounded-lg">
-            {success}
-          </div>
-        )}
         
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* 头像上传 */}
-          <div className="space-y-3">
-            <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-              头像
-            </label>
-            <div className="flex items-center space-x-6">
-              {/* 头像预览 */}
-              <div className="relative">
-                <div className={`w-24 h-24 rounded-full overflow-hidden border-4 ${isDark ? 'border-gray-700' : 'border-gray-200'} shadow-md`}>
-                  {avatarPreview ? (
-                    <img 
-                      src={avatarPreview} 
-                      alt="头像预览" 
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className={`w-full h-full flex items-center justify-center ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
-                      <i className="fas fa-user text-4xl ${isDark ? 'text-gray-500' : 'text-gray-400'}"></i>
+          {/* 基本信息标签页 */}
+          {activeTab === 'basic' && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="space-y-6"
+            >
+              {/* 头像上传 */}
+              <div className="space-y-3">
+                <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                  头像
+                </label>
+                <div className="flex items-center space-x-6">
+                  <div className="relative">
+                    <div className={`w-24 h-24 rounded-full overflow-hidden border-4 ${isDark ? 'border-gray-700' : 'border-gray-200'} shadow-md`}>
+                      {avatarPreview ? (
+                        <img 
+                          src={avatarPreview} 
+                          alt="头像预览" 
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className={`w-full h-full flex items-center justify-center ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                          <User className="w-10 h-10 text-gray-400" />
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-                {/* 编辑按钮 */}
-                <div className="absolute bottom-0 right-0 bg-red-600 text-white p-2 rounded-full shadow-lg">
-                  <i className="fas fa-camera text-sm"></i>
+                    <label 
+                      htmlFor="avatar-upload"
+                      className="absolute bottom-0 right-0 bg-red-600 text-white p-2 rounded-full shadow-lg cursor-pointer hover:bg-red-700 transition-colors"
+                    >
+                      <i className="fas fa-camera text-sm"></i>
+                    </label>
+                    <input
+                      id="avatar-upload"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleAvatarChange}
+                      className="hidden"
+                    />
+                  </div>
+                  <div>
+                    <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                      支持 JPG、PNG 格式，最大 5MB
+                    </p>
+                  </div>
                 </div>
               </div>
               
-              {/* 上传按钮 */}
-              <div>
-                <label htmlFor="avatar-upload" className={`cursor-pointer px-4 py-2 rounded-lg transition-colors ${isDark ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-800'} flex items-center space-x-2`}>
-                  <i className="fas fa-upload"></i>
-                  <span>选择图片</span>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                    用户名
+                  </label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="text"
+                      name="username"
+                      value={formData.username}
+                      onChange={handleChange}
+                      required
+                      className={`w-full pl-10 pr-4 py-2 rounded-lg transition-colors ${isDark ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500' : 'bg-white border-gray-300 text-gray-800 focus:border-blue-500'} border focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
+                      placeholder="请输入用户名"
+                    />
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                    邮箱
+                  </label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="email"
+                      name="email"
+                      value={formData.email}
+                      disabled
+                      className={`w-full pl-10 pr-4 py-2 rounded-lg transition-colors ${isDark ? 'bg-gray-700 border-gray-600 text-gray-400 cursor-not-allowed' : 'bg-gray-100 border-gray-300 text-gray-500 cursor-not-allowed'} border`}
+                    />
+                  </div>
+                  <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                    邮箱不可直接修改
+                  </p>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                    手机号
+                  </label>
+                  <div className="relative">
+                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="tel"
+                      name="phone"
+                      value={formData.phone}
+                      onChange={handleChange}
+                      className={`w-full pl-10 pr-4 py-2 rounded-lg transition-colors ${isDark ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500' : 'bg-white border-gray-300 text-gray-800 focus:border-blue-500'} border focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
+                      placeholder="请输入手机号"
+                    />
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                    年龄
+                  </label>
+                  <div className="relative">
+                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="number"
+                      name="age"
+                      value={formData.age}
+                      onChange={handleChange}
+                      min="0"
+                      max="120"
+                      className={`w-full pl-10 pr-4 py-2 rounded-lg transition-colors ${isDark ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500' : 'bg-white border-gray-300 text-gray-800 focus:border-blue-500'} border focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
+                      placeholder="请输入年龄"
+                    />
+                  </div>
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                  个人简介
                 </label>
-                <input
-                  id="avatar-upload"
-                  type="file"
-                  accept="image/*"
-                  onChange={handleAvatarChange}
-                  className="hidden"
+                <textarea
+                  name="bio"
+                  value={formData.bio}
+                  onChange={handleChange}
+                  rows={4}
+                  maxLength={500}
+                  className={`w-full px-4 py-2 rounded-lg transition-colors ${isDark ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500' : 'bg-white border-gray-300 text-gray-800 focus:border-blue-500'} border focus:outline-none focus:ring-2 focus:ring-blue-500/20 resize-none`}
+                  placeholder="介绍一下自己..."
                 />
-                <p className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
-                  支持 JPG、PNG 格式，最大 5MB
+                <p className={`text-xs text-right ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                  {formData.bio.length}/500
                 </p>
               </div>
-            </div>
-          </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                    所在地
+                  </label>
+                  <div className="relative">
+                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="text"
+                      name="location"
+                      value={formData.location}
+                      onChange={handleChange}
+                      className={`w-full pl-10 pr-4 py-2 rounded-lg transition-colors ${isDark ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500' : 'bg-white border-gray-300 text-gray-800 focus:border-blue-500'} border focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
+                      placeholder="例如：北京"
+                    />
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                    职业
+                  </label>
+                  <div className="relative">
+                    <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="text"
+                      name="occupation"
+                      value={formData.occupation}
+                      onChange={handleChange}
+                      className={`w-full pl-10 pr-4 py-2 rounded-lg transition-colors ${isDark ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500' : 'bg-white border-gray-300 text-gray-800 focus:border-blue-500'} border focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
+                      placeholder="例如：设计师"
+                    />
+                  </div>
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                  兴趣爱好
+                </label>
+                <textarea
+                  name="interests"
+                  value={formData.interests}
+                  onChange={handleChange}
+                  rows={2}
+                  className={`w-full px-4 py-2 rounded-lg transition-colors ${isDark ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500' : 'bg-white border-gray-300 text-gray-800 focus:border-blue-500'} border focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
+                  placeholder="请输入兴趣爱好，用逗号分隔"
+                />
+              </div>
+            </motion.div>
+          )}
+
+          {/* 社交账号标签页 */}
+          {activeTab === 'social' && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="space-y-6"
+            >
+              <div className="space-y-2">
+                <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                  个人网站
+                </label>
+                <div className="relative">
+                  <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="url"
+                    name="website"
+                    value={formData.website}
+                    onChange={handleChange}
+                    className={`w-full pl-10 pr-4 py-2 rounded-lg transition-colors ${isDark ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500' : 'bg-white border-gray-300 text-gray-800 focus:border-blue-500'} border focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
+                    placeholder="https://your-website.com"
+                  />
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                  GitHub
+                </label>
+                <div className="relative">
+                  <Github className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    name="github"
+                    value={formData.github}
+                    onChange={handleChange}
+                    className={`w-full pl-10 pr-4 py-2 rounded-lg transition-colors ${isDark ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500' : 'bg-white border-gray-300 text-gray-800 focus:border-blue-500'} border focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
+                    placeholder="GitHub 用户名"
+                  />
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Twitter
+                </label>
+                <div className="relative">
+                  <Twitter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    name="twitter"
+                    value={formData.twitter}
+                    onChange={handleChange}
+                    className={`w-full pl-10 pr-4 py-2 rounded-lg transition-colors ${isDark ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500' : 'bg-white border-gray-300 text-gray-800 focus:border-blue-500'} border focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
+                    placeholder="Twitter 用户名"
+                  />
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* 个人标签标签页 */}
+          {activeTab === 'tags' && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="space-y-6"
+            >
+              <div className="space-y-2">
+                <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                  个人标签
+                </label>
+                <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                  添加标签展示你的技能和兴趣，最多10个
+                </p>
+                
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm ${
+                        isDark 
+                          ? 'bg-blue-900/30 text-blue-400 border border-blue-800' 
+                          : 'bg-blue-50 text-blue-600 border border-blue-200'
+                      }`}
+                    >
+                      {tag}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveTag(tag)}
+                        className="hover:text-red-500 transition-colors"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newTag}
+                    onChange={(e) => setNewTag(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    maxLength={20}
+                    className={`flex-1 px-4 py-2 rounded-lg transition-colors ${isDark ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500' : 'bg-white border-gray-300 text-gray-800 focus:border-blue-500'} border focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
+                    placeholder="输入标签后按回车添加"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddTag}
+                    disabled={!newTag.trim() || tags.length >= 10}
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    添加
+                  </button>
+                </div>
+                <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                  {tags.length}/10 个标签
+                </p>
+              </div>
+            </motion.div>
+          )}
           
-          <div className="space-y-3">
-            <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-              用户名
-            </label>
-            <input
-              type="text"
-              name="username"
-              value={formData.username}
-              onChange={handleChange}
-              required
-              className={`w-full px-4 py-2 rounded-lg transition-colors ${isDark ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500' : 'bg-white border-gray-300 text-gray-800 focus:border-blue-500'} border focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
-              placeholder="请输入用户名"
-            />
-          </div>
-          
-          <div className="space-y-3">
-            <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-              邮箱
-            </label>
-            <input
-              type="email"
-              name="email"
-              value={formData.email}
-              onChange={handleChange}
-              disabled
-              className={`w-full px-4 py-2 rounded-lg transition-colors ${isDark ? 'bg-gray-700 border-gray-600 text-gray-400 cursor-not-allowed' : 'bg-gray-100 border-gray-300 text-gray-500 cursor-not-allowed'} border`}
-              placeholder="请输入邮箱"
-            />
-            <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-              邮箱不可直接修改，请联系管理员
-            </p>
-          </div>
-          
-          <div className="space-y-3">
-            <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-              手机号
-            </label>
-            <input
-              type="tel"
-              name="phone"
-              value={formData.phone}
-              onChange={handleChange}
-              className={`w-full px-4 py-2 rounded-lg transition-colors ${isDark ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500' : 'bg-white border-gray-300 text-gray-800 focus:border-blue-500'} border focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
-              placeholder="请输入手机号"
-            />
-          </div>
-          
-          <div className="space-y-3">
-            <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-              年龄
-            </label>
-            <input
-              type="number"
-              name="age"
-              value={formData.age}
-              onChange={handleChange}
-              min="0"
-              max="120"
-              className={`w-full px-4 py-2 rounded-lg transition-colors ${isDark ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500' : 'bg-white border-gray-300 text-gray-800 focus:border-blue-500'} border focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
-              placeholder="请输入年龄"
-            />
-          </div>
-          
-          <div className="space-y-3">
-            <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-              兴趣爱好
-            </label>
-            <textarea
-              name="interests"
-              value={formData.interests}
-              onChange={handleChange}
-              rows={3}
-              className={`w-full px-4 py-2 rounded-lg transition-colors ${isDark ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500' : 'bg-white border-gray-300 text-gray-800 focus:border-blue-500'} border focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
-              placeholder="请输入兴趣爱好，用逗号分隔"
-            ></textarea>
-          </div>
-          
-          <div className="flex space-x-4 pt-4">
+          <div className="flex space-x-4 pt-6 border-t border-gray-200 dark:border-gray-700">
             <button
               type="button"
               onClick={() => navigate('/settings')}
@@ -401,7 +744,7 @@ export default function ProfileEdit() {
             </button>
             <button
               type="submit"
-              className={`flex-1 py-3 rounded-lg transition-colors ${isDark ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-red-600 hover:bg-red-700 text-white'}`}
+              className={`flex-1 py-3 rounded-lg transition-colors bg-red-600 hover:bg-red-700 text-white disabled:opacity-50`}
               disabled={isLoading}
             >
               {isLoading ? (
@@ -412,6 +755,7 @@ export default function ProfileEdit() {
             </button>
           </div>
         </form>
+        </div>
       </div>
     </main>
   )

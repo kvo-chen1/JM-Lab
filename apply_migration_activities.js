@@ -6,7 +6,11 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const connectionString = "postgres://postgres.pptqdicaaewtnaiflfcs:csh200506207837@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres";
+const connectionString = process.env.POSTGRES_URL_NON_POOLING || process.env.DATABASE_URL || process.env.POSTGRES_URL;
+
+if (!connectionString) {
+  throw new Error('Missing env: POSTGRES_URL_NON_POOLING / DATABASE_URL / POSTGRES_URL');
+}
 
 const client = new pg.Client({
   connectionString,

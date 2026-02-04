@@ -148,20 +148,32 @@ class ErrorLogger {
       // 保存到本地存储，使用safeStringify处理循环引用
       localStorage.setItem(this.storageKey, this.safeStringify(finalErrors));
     } catch (error) {
-      const isQuotaError =
-        error instanceof Error &&
-        (error.name === 'QuotaExceededError' || error.message.includes('quota'));
+      // 处理各种存储错误情况
+      if (error instanceof Error) {
+        const isQuotaError = error.name === 'QuotaExceededError' || error.message.includes('quota');
+        const isSecurityError = error.name === 'SecurityError' || error.message.includes('security');
+        const isInvalidStateError = error.name === 'InvalidStateError';
 
-      if (!isQuotaError) {
-        console.error('Failed to save error logs:', error);
-      }
-
-      if (isQuotaError) {
-        try {
-          localStorage.removeItem(this.storageKey);
-          const emergencyErrors = this.errors.slice(0, 5);
-          localStorage.setItem(this.storageKey, this.safeStringify(emergencyErrors));
-        } catch {
+        if (isQuotaError) {
+          // 存储空间不足：清理并保存最重要的错误
+          try {
+            localStorage.removeItem(this.storageKey);
+            const emergencyErrors = this.errors
+              .filter(e => e.severity === 'high')
+              .slice(0, 3);
+            localStorage.setItem(this.storageKey, this.safeStringify(emergencyErrors));
+          } catch (cleanupError) {
+            console.warn('Failed to cleanup error logs:', cleanupError);
+          }
+        } else if (isSecurityError) {
+          // 安全错误：可能是隐私模式或跨域问题
+          console.warn('Security error when saving error logs - possibly private browsing mode');
+        } else if (isInvalidStateError) {
+          // 无效状态错误：localStorage可能不可用
+          console.warn('Invalid state error - localStorage may be unavailable');
+        } else {
+          // 其他错误
+          console.error('Failed to save error logs:', error);
         }
       }
     }

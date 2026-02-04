@@ -882,6 +882,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: getDuration(0.5), delay: getDelay(0.1) }}
+          style={{ overflow: 'visible' }}
         >
           <div className="flex items-center justify-between">
             <motion.div 
@@ -896,6 +897,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: getDuration(0.3), delay: getDelay(0.2) }}
+                style={{ overflow: 'visible' }}
               >
                 <SearchBar
                   search={search}

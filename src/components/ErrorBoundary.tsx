@@ -15,11 +15,18 @@ interface ErrorBoundaryState {
 }
 
 class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  private errorId: string;
+
   constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = {
       hasError: false
     };
+    this.errorId = this.generateErrorId();
+  }
+
+  private generateErrorId(): string {
+    return `${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 5)}`;
   }
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
@@ -31,30 +38,81 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    // 记录错误信息
-    errorService.logError(error, {
+    // 构建详细的错误上下文
+    const errorContext = {
       componentStack: errorInfo.componentStack,
       componentName: this.constructor.name,
-      props: this.props
-    });
+      props: this.sanitizeProps(this.props),
+      errorId: this.errorId,
+      timestamp: new Date().toISOString(),
+      url: window.location.href,
+      userAgent: navigator.userAgent,
+      viewport: {
+        width: window.innerWidth,
+        height: window.innerHeight
+      }
+    };
+
+    // 记录错误信息
+    const loggedError = errorService.logError(error, errorContext);
 
     // 调用外部错误处理函数
     if (this.props.onError) {
       this.props.onError(error, errorInfo);
     }
 
-    // 显示错误提示
+    // 显示错误提示，包含错误ID便于追踪
     toast.error(
-      '抱歉，应用程序发生了错误',
+      `应用程序发生错误 (ID: ${this.errorId})`,
       {
-        duration: 5000,
+        duration: 8000,
         action: {
           label: '刷新页面',
           onClick: () => window.location.reload()
         }
       }
     );
+
+    // 在控制台输出详细错误信息
+    console.error('[ErrorBoundary] 捕获到错误:', {
+      errorId: this.errorId,
+      error: error.message,
+      stack: error.stack,
+      componentStack: errorInfo.componentStack
+    });
   }
+
+  /**
+   * 清理props中的敏感信息
+   */
+  private sanitizeProps(props: ErrorBoundaryProps): Record<string, any> {
+    const sensitiveKeys = ['password', 'token', 'secret', 'key', 'auth'];
+    const sanitized: Record<string, any> = {};
+
+    Object.keys(props).forEach(key => {
+      if (key === 'children') {
+        sanitized[key] = '[React Children]';
+      } else if (sensitiveKeys.some(sk => key.toLowerCase().includes(sk))) {
+        sanitized[key] = '[REDACTED]';
+      } else {
+        try {
+          sanitized[key] = props[key as keyof ErrorBoundaryProps];
+        } catch {
+          sanitized[key] = '[Unable to serialize]';
+        }
+      }
+    });
+
+    return sanitized;
+  }
+
+  /**
+   * 尝试恢复错误状态
+   */
+  private handleReset = () => {
+    this.setState({ hasError: false, error: undefined, errorInfo: undefined });
+    this.errorId = this.generateErrorId();
+  };
 
   render() {
     if (this.state.hasError) {
@@ -127,8 +185,15 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
                 </pre>
               </details>
             )}
-            <div className="mt-8 text-xs text-gray-500 dark:text-gray-500">
-              <p>错误ID: {Date.now().toString(36).substring(2, 10)}</p>
+            <div className="mt-8 text-xs text-gray-500 dark:text-gray-500 space-y-1">
+              <p>错误ID: {this.errorId}</p>
+              <p>时间: {new Date().toLocaleString('zh-CN')}</p>
+              <button
+                onClick={this.handleReset}
+                className="mt-4 text-blue-500 hover:text-blue-600 underline"
+              >
+                尝试恢复
+              </button>
             </div>
           </div>
         </div>

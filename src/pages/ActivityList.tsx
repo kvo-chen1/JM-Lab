@@ -200,9 +200,9 @@ export default function ActivityList() {
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            onClick={() => navigate('/create-activity')}
-            className={`inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-lg shadow-sm ${isDark 
-              ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+            onClick={() => navigate('/create/activity')}
+            className={`inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-lg shadow-sm ${isDark
+              ? 'bg-blue-600 hover:bg-blue-700 text-white'
               : 'bg-blue-600 hover:bg-blue-700 text-white'} transition-all duration-200`}
           >
             <i className="fas fa-plus mr-2"></i>
@@ -321,9 +321,9 @@ export default function ActivityList() {
               <motion.button
                         whileHover={{ scale: 1.05, boxShadow: '0 10px 25px -5px rgba(59, 130, 246, 0.4)' }}
                         whileTap={{ scale: 0.95 }}
-                        onClick={() => navigate('/create-activity')}
-                        className={`mt-6 inline-flex items-center justify-center px-5 py-2.5 border border-transparent text-sm font-medium rounded-lg shadow-sm ${isDark 
-                          ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                        onClick={() => navigate('/create/activity')}
+                        className={`mt-6 inline-flex items-center justify-center px-5 py-2.5 border border-transparent text-sm font-medium rounded-lg shadow-sm ${isDark
+                          ? 'bg-blue-600 hover:bg-blue-700 text-white'
                           : 'bg-blue-600 hover:bg-blue-700 text-white'} transition-all duration-200`}
                       >
                         <motion.i 

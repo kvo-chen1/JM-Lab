@@ -205,6 +205,7 @@ export const FeedSection: React.FC<FeedSectionProps> = ({
                     onAddComment={onAddComment}
                     onClick={handleThreadClick}
                     isFavorited={isThreadFavorited(thread.id)}
+                    index={index}
                 />
              </motion.div>
            );

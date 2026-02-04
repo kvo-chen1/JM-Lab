@@ -208,8 +208,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     const avatarValue = apiData?.avatar || userData.avatar;
     const safeAvatar = typeof avatarValue === 'string' ? avatarValue : '';
     
+    // 优先使用 session.user.id 作为唯一标识，确保是 UUID
+    // 仅当 apiData 明确提供 ID (通常是后端登录) 时才使用 apiData.id
+    // user_metadata 中的 id 可能是第三方平台的原始 ID，不应覆盖 Supabase 的 UUID
+    const finalId = sessionUser.id || apiData?.id || '';
+    
     return {
-      id: apiData?.id || sessionUser.id || '',
+      id: finalId,
       username: userData.username || sessionUser.email?.split('@')[0] || '用户',
       email: apiData?.email || sessionUser.email || '',
       avatar: safeAvatar,
@@ -240,6 +245,54 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     // 更新 ref
     authStateRef.current = { isAuthenticated: authenticated, user: newUser, isLoading: loading };
   }, []);
+
+  // 处理 Supabase session
+  const handleSupabaseSession = useCallback(async (session: any) => {
+    // 检查并确保 public.users 中存在用户记录（自动修复机制）
+    if (session?.user?.id && supabase) {
+      try {
+        const { data: existingUser, error: checkError } = await supabase
+          .from('users')
+          .select('id')
+          .eq('id', session.user.id)
+          .maybeSingle();
+
+        if (!existingUser && !checkError) {
+          console.log('用户在 public.users 表中缺失，正在自动修复...');
+          const userData = session.user.user_metadata || {};
+          // 尝试插入用户记录
+          const { error: insertError } = await supabase.from('users').insert({
+            id: session.user.id,
+            email: session.user.email,
+            username: userData.username || session.user.email?.split('@')[0] || `user_${session.user.id.substring(0, 8)}`,
+            avatar_url: userData.avatar_url || '',
+            metadata: userData,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          });
+          
+          if (insertError) {
+             console.error('自动修复用户记录插入失败:', insertError);
+          } else {
+             console.log('用户记录自动修复成功');
+          }
+        }
+      } catch (err) {
+        console.error('自动修复用户记录异常:', err);
+        // 不中断登录流程
+      }
+    }
+
+    // 直接使用 session 数据，移除后端桥接
+    const userWithMembership = createUserFromSession(session);
+    
+    safeLocalStorage.setItem('token', session.access_token);
+    safeLocalStorage.setItem('refreshToken', session.refresh_token);
+    safeLocalStorage.setItem('user', JSON.stringify(userWithMembership));
+    safeLocalStorage.setItem('isAuthenticated', 'true');
+    
+    updateAuthState(userWithMembership, true, false);
+  }, [supabase, createUserFromSession, updateAuthState]);
 
   // 检查用户认证状态 - 优化版本
   useEffect(() => {
@@ -282,6 +335,17 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user) {
             // 直接使用 Supabase session 数据，移除后端桥接以防止 ID 冲突
             const userWithMembership = createUserFromSession(session);
+            
+            // 检查本地存储中的ID是否与Supabase session中的ID不一致
+            const localUser = safeLocalStorage.getParsedItem<User>('user');
+            if (localUser && localUser.id !== session.user.id) {
+              console.warn('检测到用户ID不匹配 (Local vs Supabase)，正在强制同步...', {
+                localId: localUser.id,
+                supabaseId: session.user.id
+              });
+              // 强制清理旧数据
+              safeLocalStorage.removeItem('user');
+            }
             
             // 存储到 localStorage
             safeLocalStorage.setItem('token', session.access_token);
@@ -352,6 +416,18 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         
         // 生产环境：验证本地 token
         if (token && userData && isAuthFlag === 'true') {
+          // 强制检查 ID 格式 (必须是 UUID)
+          const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+          if (!uuidRegex.test(userData.id)) {
+            console.warn('检测到无效的用户 ID (非 UUID)，强制登出以清理脏数据:', userData.id);
+            safeLocalStorage.removeItem('token');
+            safeLocalStorage.removeItem('refreshToken');
+            safeLocalStorage.removeItem('user');
+            safeLocalStorage.removeItem('isAuthenticated');
+            updateAuthState(null, false, false);
+            return;
+          }
+
           // 先显示本地数据，后台验证
           updateAuthState(userData, true, false);
           
@@ -472,54 +548,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         console.error('Manual bridge login failed', e);
       }
     };
-
-    // 处理 Supabase session
-    const handleSupabaseSession = async (session: any) => {
-      // 检查并确保 public.users 中存在用户记录（自动修复机制）
-      if (session?.user?.id && supabase) {
-        try {
-          const { data: existingUser, error: checkError } = await supabase
-            .from('users')
-            .select('id')
-            .eq('id', session.user.id)
-            .maybeSingle();
-
-          if (!existingUser && !checkError) {
-            console.log('用户在 public.users 表中缺失，正在自动修复...');
-            const userData = session.user.user_metadata || {};
-            // 尝试插入用户记录
-            const { error: insertError } = await supabase.from('users').insert({
-              id: session.user.id,
-              email: session.user.email,
-              username: userData.username || session.user.email?.split('@')[0] || `user_${session.user.id.substring(0, 8)}`,
-              avatar_url: userData.avatar_url || '',
-              metadata: userData,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            });
-            
-            if (insertError) {
-               console.error('自动修复用户记录插入失败:', insertError);
-            } else {
-               console.log('用户记录自动修复成功');
-            }
-          }
-        } catch (err) {
-          console.error('自动修复用户记录异常:', err);
-          // 不中断登录流程
-        }
-      }
-
-      // 直接使用 session 数据，移除后端桥接
-      const userWithMembership = createUserFromSession(session);
-      
-      safeLocalStorage.setItem('token', session.access_token);
-      safeLocalStorage.setItem('refreshToken', session.refresh_token);
-      safeLocalStorage.setItem('user', JSON.stringify(userWithMembership));
-      safeLocalStorage.setItem('isAuthenticated', 'true');
-      
-      updateAuthState(userWithMembership, true, false);
-    };
     
     // 启动认证检查
     initAuth();
@@ -607,7 +635,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   // 发送注册验证码方法
   const sendRegisterEmailOtp = async (email: string): Promise<{ success: boolean; error?: string; mockCode?: string }> => {
-    // 注册和登录使用同一个发送接口
     return sendEmailOtp(email);
   };
 
@@ -626,9 +653,27 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     return cleanPhone;
   };
 
-  // 发送短信验证码方法（优先 Supabase，失败降级到后端 API）
+  // 发送短信验证码方法
   const sendSmsOtp = async (phone: string): Promise<{ success: boolean; error?: string; mockCode?: string }> => {
-    return { success: false, error: '当前未开启手机号注册/登录' };
+    try {
+      if (!supabase) return { success: false, error: 'Supabase 客户端未初始化' };
+      
+      const formattedPhone = formatPhoneNumber(phone);
+      
+      const { error } = await supabase.auth.signInWithOtp({
+        phone: formattedPhone
+      });
+
+      if (error) {
+         // 手机号登录通常需要额外的配置（如 Twilio），如果没有配置会失败
+         console.warn('短信验证码发送失败 (可能未配置短信服务):', error.message);
+         return { success: false, error: '短信服务暂时不可用，请使用邮箱登录' };
+      }
+      
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message || '发送短信失败' };
+    }
   };
 
   // 验证码登录方法
@@ -663,44 +708,88 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   // 辅助函数：处理登录成功逻辑
-  const handleLoginSuccess = (userData: any) => {
+  const handleLoginSuccess = async (userData: any) => {
     console.log('登录处理成功');
+    console.log('收到的用户数据:', userData);
+    // 处理后端返回的数据结构，支持 { user: {...}, session: {...} } 格式
+    const actualUser = userData?.user || userData;
+    const sessionData = userData?.session || {};
+    
     // 优先使用后端返回的头像，否则使用默认头像，确保是字符串
-    const avatarValue = userData?.avatar;
+    const avatarValue = actualUser?.avatar;
     const avatarUrl = typeof avatarValue === 'string' ? avatarValue : '';
     
-    // 确保用户ID存在且不是临时ID
-    if (!userData?.id || typeof userData.id !== 'string' || userData.id.includes('user_') && userData.id.includes('_')) {
+    // 确保用户ID存在且是字符串
+    if (!actualUser?.id || typeof actualUser.id !== 'string') {
       console.error('无效的用户ID，登录失败');
+      console.error('用户数据:', actualUser);
       toast.error('登录失败：无效的用户信息');
       return false;
     }
     
     const userWithMembership = {
-      id: userData.id,
-      username: userData?.username || userData?.email?.split('@')[0] || '用户',
-      email: userData?.email || '',
+      id: actualUser.id,
+      username: actualUser?.username || actualUser?.email?.split('@')[0] || '用户',
+      email: actualUser?.email || '',
       avatar: avatarUrl,
-      phone: userData?.phone || '',
+      phone: actualUser?.phone || '',
       interests: [],
       isAdmin: false,
       age: 0,
       tags: [],
-      isNewUser: userData?.isNewUser || false,
-      worksCount: userData?.worksCount || 0,
-      followersCount: userData?.followersCount || 0,
-      followingCount: userData?.followingCount || 0,
-      favoritesCount: userData?.favoritesCount || 0,
-      membershipLevel: (userData?.membershipLevel || 'free') as any,
+      isNewUser: actualUser?.isNewUser || false,
+      worksCount: actualUser?.worksCount || 0,
+      followersCount: actualUser?.followersCount || 0,
+      followingCount: actualUser?.followingCount || 0,
+      favoritesCount: actualUser?.favoritesCount || 0,
+      membershipLevel: (actualUser?.membershipLevel || 'free') as any,
       membershipStart: new Date().toISOString(),
       membershipEnd: undefined,
       membershipStatus: 'active' as any,
     };
     
-    localStorage.setItem('token', userData.token);
-    localStorage.setItem('refreshToken', userData.refreshToken || userData.token);
+    // 优先使用 session 中的 token，否则使用 userData 中的 token
+    const token = sessionData?.access_token || userData?.token;
+    const refreshToken = sessionData?.refresh_token || userData?.refreshToken || token;
+    
+    localStorage.setItem('token', token);
+    localStorage.setItem('refreshToken', refreshToken);
     localStorage.setItem('user', JSON.stringify(userWithMembership));
     localStorage.setItem('isAuthenticated', 'true');
+    
+    // 同步到 Supabase 认证状态（用于 RLS 策略）
+    try {
+      // 如果后端返回了 Supabase session，使用它设置认证状态
+      if (supabase && userData.supabaseSession) {
+        console.log('使用后端返回的 Supabase session');
+        // 手动设置 Supabase session
+        const { data, error } = await supabase.auth.setSession({
+          access_token: userData.supabaseSession.access_token,
+          refresh_token: userData.supabaseSession.refresh_token
+        });
+        
+        if (error) {
+          console.warn('设置 Supabase session 失败:', error.message);
+        } else {
+          console.log('Supabase 认证状态已同步');
+        }
+      } else if (supabase && userData.email) {
+        // 如果没有返回 session，尝试使用邮箱和密码登录 Supabase
+        console.log('尝试使用邮箱密码登录 Supabase');
+        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+          email: userData.email,
+          password: userData.token.substring(0, 20) // 使用 token 的一部分作为临时密码
+        });
+        
+        if (signInError) {
+          console.warn('Supabase 登录同步失败:', signInError.message);
+        } else {
+          console.log('Supabase 认证状态已同步');
+        }
+      }
+    } catch (syncError) {
+      console.warn('同步 Supabase 认证状态失败:', syncError);
+    }
     
     setUser(userWithMembership);
     setIsAuthenticated(true);

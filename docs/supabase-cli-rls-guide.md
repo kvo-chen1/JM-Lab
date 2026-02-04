@@ -113,7 +113,7 @@ CREATE POLICY "Allow users to update their own messages" ON public.messages
 
 ```bash
 supabase link --project-ref <your-project-ref>
-# 例如：supabase link --project-ref pptqdicaaewtnaiflfcs
+# 例如：supabase link --project-ref your-project-ref
 ```
 
 ### 4. 应用迁移

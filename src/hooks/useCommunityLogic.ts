@@ -5,7 +5,7 @@ import { AuthContext } from '@/contexts/authContext';
 import { useNotifications, useNotificationWithNavigate } from '@/contexts/NotificationContext';
 import type { Thread, ChatMessage } from '@/pages/Community';
 import { useChatStore } from '@/stores/chatStore';
-import { apiService } from '@/services/apiService';
+import { apiService, communityService as apiCommunityService } from '@/services/apiService';
 import { communityService } from '@/services/communityService';
 import { websocketService } from '@/services/websocketService';
 import { uploadImage } from '@/services/imageService';
@@ -252,9 +252,14 @@ export const useCommunityLogic = () => {
         setLoading(prev => ({ ...prev, communities: true }));
         setErrors(prev => ({ ...prev, communities: null }));
         
-        const communitiesData = await communityService.getCommunities();
-        if (communitiesData) {
-          setAllCommunities(communitiesData);
+        try {
+          const communitiesData = await apiCommunityService.getCommunities();
+          if (communitiesData) {
+            setAllCommunities(communitiesData);
+          }
+        } catch (error) {
+          console.error('Failed to fetch communities from API:', error);
+          setErrors(prev => ({ ...prev, communities: '加载社区数据失败' }));
         }
 
         // Fetch user joined communities if logged in
@@ -266,7 +271,7 @@ export const useCommunityLogic = () => {
             }
           } catch (err) {
             console.error('Failed to fetch user communities:', err);
-            toast.error('加载已加入社区失败');
+            setErrors(prev => ({ ...prev, communities: '加载已加入社区失败' }));
           }
         } else {
             setJoinedCommunities([]);
@@ -1040,21 +1045,15 @@ export const useCommunityLogic = () => {
       return;
     }
 
-    // 检查用户ID是否为临时ID
-    if (user.id.includes('user_') && user.id.includes('_')) {
-      toast.error('登录状态异常，请重新登录后再创建社群');
-      return;
-    }
-
     // 检查图片大小，避免Base64过长导致请求失败
-    // 限制为 100KB (约 133333 个字符)
-    const MAX_IMAGE_SIZE = 100 * 1024; 
+    // 限制为 2MB
+    const MAX_IMAGE_SIZE = 2 * 1024 * 1024;
     if (data.avatar && data.avatar.length > MAX_IMAGE_SIZE * 1.37) { // Base64 膨胀系数约 1.37
-        toast.error('头像图片过大，请使用小于 100KB 的图片');
+        toast.error('头像图片过大，请使用小于 2MB 的图片');
         return;
     }
     if (data.coverImage && data.coverImage.length > MAX_IMAGE_SIZE * 1.37) {
-        toast.error('封面图片过大，请使用小于 100KB 的图片');
+        toast.error('封面图片过大，请使用小于 2MB 的图片');
         return;
     }
 
@@ -1062,38 +1061,39 @@ export const useCommunityLogic = () => {
       console.log('Submitting community data:', data);
       console.log('User ID:', user.id);
       
-      // 调用API创建社群
-      const newCommunity = await communityService.createCommunity({
-        name: data.name,
-        description: data.description,
-        tags: data.tags,
-        theme: data.theme,
-        layoutType: data.layoutType,
-        enabledModules: data.enabledModules,
-        avatar: data.avatar,
-        coverImage: data.coverImage,
-        // 传递额外字段，即使 communityService 可能暂时忽略它们
-        visibility: data.visibility,
-        guidelines: data.guidelines,
-        bookmarks: data.bookmarks
-      }, user.id);
-      
-      if (newCommunity) {
-        setJoinedCommunities(prev => [newCommunity, ...prev]);
-        setAllCommunities(prev => [newCommunity, ...prev]);
-        toast.success('社群创建成功！');
-        setActiveCommunityId(newCommunity.id);
-        setIsCreateCommunityOpen(false);
+      // 调用 Supabase 服务创建社群
+      try {
+        const response = await communityService.createCommunity({
+          name: data.name,
+          description: data.description,
+          tags: data.tags,
+          theme: data.theme,
+          layoutType: data.layoutType,
+          enabledModules: data.enabledModules,
+          avatar: data.avatar,
+          coverImage: data.coverImage,
+          guidelines: data.guidelines,
+          bookmarks: data.bookmarks
+        }, user.id);
+        
+        const newCommunity = response;
+        
+        if (newCommunity) {
+          setJoinedCommunities(prev => [newCommunity, ...prev]);
+          setAllCommunities(prev => [newCommunity, ...prev]);
+          toast.success('社群创建成功！');
+          setActiveCommunityId(newCommunity.id);
+          setIsCreateCommunityOpen(false);
+        }
+      } catch (error) {
+        console.error('Failed to create community with API:', error);
+        toast.error('创建社群失败');
       }
     } catch (error) {
       console.error('Error creating community:', error);
       const message = error instanceof Error ? error.message : '社群创建失败';
       if (message.includes('未授权') || message.toUpperCase().includes('UNAUTHORIZED') || message.includes('401')) {
         toast.error('登录状态已失效，请重新登录');
-        return;
-      }
-      if (message.includes('foreign key constraint') || message.includes('creator_id_fkey') || message.includes('Key is not present in table "users"')) {
-        toast.error('登录状态异常，请重新登录后再创建社群');
         return;
       }
       toast.error(message || '社群创建失败');

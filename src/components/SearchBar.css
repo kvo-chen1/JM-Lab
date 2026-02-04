@@ -37,7 +37,8 @@
   justify-content: center;
   width: 100%;
   position: relative;
-  z-index: 1000;
+  z-index: 9999;
+  overflow: visible;
   /* padding: 20px 0; Removed padding to fit into header */
 }
 
@@ -54,6 +55,7 @@
   transition: var(--pb-transition);
   border: 1px solid #e0e0e0;
   width: 100%;
+  overflow: visible;
 }
 
 /* Responsive Width handled by parent or Tailwind classes, but we can keep max-width logic if needed */
@@ -153,16 +155,17 @@
 /* Suggestion Box Styles to match Pinterest */
 .pinterest-suggestions {
   position: absolute;
-  top: calc(100% + 8px);
+  top: calc(100% + 12px);
   left: 0;
   width: 100%;
-  background: var(--pb-bg-active);
+  background: #ffffff;
   border-radius: 16px;
-  box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
   padding: 16px;
   box-sizing: border-box;
-  z-index: 9999;
+  z-index: 99999;
   max-height: 400px;
+  min-height: 100px;
   overflow-y: auto;
   opacity: 0;
   transform: translateY(-10px);
@@ -192,8 +195,8 @@
 
 .suggestion-group-title {
     font-size: 14px;
-    font-weight: 400;
-    color: var(--pb-text-color);
+    font-weight: 600;
+    color: #111111;
     padding: 8px 12px;
     margin-bottom: 4px;
 }
@@ -205,7 +208,7 @@
     border-radius: 8px;
     cursor: pointer;
     transition: background-color 0.2s;
-    color: var(--pb-text-color);
+    color: #111111;
     font-weight: 700; /* Pinterest suggestions are often bold */
 }
 

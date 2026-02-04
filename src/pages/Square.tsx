@@ -14,7 +14,6 @@ import { CreatePostModal } from '@/components/Community/Modals/CreatePostModal'
 
 
 import apiClient from '@/lib/apiClient'
-import searchService from '@/services/searchService'
 
 // 懒加载组件
 const PostGrid = lazy(() => import('@/components/PostGrid'))
@@ -44,13 +43,6 @@ export default function Square() {
   const [tagsLoading, setTagsLoading] = useState(false)
   const [tagsError, setTagsError] = useState<string | null>(null)
   
-  // 搜索相关状态
-  const [search, setSearch] = useState('')
-  const [searchDropdown, setSearchDropdown] = useState(false)
-  const [recentSearches, setRecentSearches] = useState<string[]>([])
-  const [showSearchDropdown, setShowSearchDropdown] = useState(false)
-  const [searchSuggestions, setSearchSuggestions] = useState<any[]>([])
-  
   // 优化：缓存排序函数，使用useCallback稳定它
   const sortTagsByClicks = useCallback((list: string[], clicks: Record<string, number>) => {
     const orderMap = new Map<string, number>(list.map((t, i) => [t, i]))
@@ -63,93 +55,6 @@ export default function Square() {
       return orderMap.get(a)! - orderMap.get(b)!
     })
   }, [])
-  
-  // 搜索建议处理
-  const displaySuggestions = useMemo(() => {
-    const recent = recentSearches.map((item, index) => ({
-      id: `recent-${index}`,
-      text: item,
-      type: 'recent' as any,
-      icon: 'fas fa-history',
-      group: '最近搜索'
-    }))
-    
-    const hot = [
-      { id: 'hot-1', text: 'AI 创作', type: 'tag' as any, icon: 'fas fa-fire', group: '热门搜索' },
-      { id: 'hot-2', text: '国潮设计', type: 'tag' as any, icon: 'fas fa-fire', group: '热门搜索' },
-      { id: 'hot-3', text: '非遗传承', type: 'tag' as any, icon: 'fas fa-fire', group: '热门搜索' },
-      { id: 'hot-4', text: '年画', type: 'tag' as any, icon: 'fas fa-fire', group: '热门搜索' }
-    ]
-    
-    const recommendations = [
-      { id: 'rec-1', text: '插画艺术', type: 'tag' as any, icon: 'fas fa-search', group: '推荐搜索' },
-      { id: 'rec-2', text: '界面设计', type: 'tag' as any, icon: 'fas fa-search', group: '推荐搜索' },
-      { id: 'rec-3', text: '摄影技巧', type: 'tag' as any, icon: 'fas fa-search', group: '推荐搜索' }
-    ]
-    
-    return [...recent, ...hot, ...recommendations]
-  }, [recentSearches])
-  
-  // 处理搜索提交
-  const onSearchSubmit = useCallback((query: string) => {
-    if (!query.trim()) return
-    const q = query.trim()
-    
-    const classification = searchService.classifyQuery(q)
-    
-    if (classification.suggestedResults.length === 1 && classification.confidence > 0.9) {
-      const suggestion = classification.suggestedResults[0]
-      const url = searchService.generateRedirectUrl(suggestion.text, suggestion.type)
-      navigate(url)
-    } else {
-      navigate(`/search?query=${encodeURIComponent(q)}`)
-    }
-    
-    searchService.trackSearchEvent({
-      query: q,
-      resultType: classification.primaryType,
-      clicked: false,
-      timestamp: Date.now()
-    })
-    
-    setRecentSearches((prev) => {
-      const next = [q, ...prev.filter((x) => x !== q)].slice(0, 6)
-      try {
-        localStorage.setItem('recentSearches', JSON.stringify(next))
-      } catch {
-        // 忽略存储错误
-      }
-      return next
-    })
-    
-    setShowSearchDropdown(false)
-  }, [navigate])
-  
-  // 处理搜索建议选择
-  const handleSuggestionSelect = useCallback((suggestion: any) => {
-    setSearch(suggestion.text)
-    setShowSearchDropdown(false)
-    
-    const url = searchService.generateRedirectUrl(suggestion.text, suggestion.type)
-    navigate(url)
-    
-    searchService.trackSearchEvent({
-      query: suggestion.text,
-      resultType: suggestion.type,
-      clicked: true,
-      timestamp: Date.now()
-    })
-    
-    setRecentSearches((prev) => {
-      const next = [suggestion.text, ...prev.filter((x) => x !== suggestion.text)].slice(0, 6)
-      try {
-        localStorage.setItem('recentSearches', JSON.stringify(next))
-      } catch {
-        // 忽略存储错误
-      }
-      return next
-    })
-  }, [navigate])
   
   // 优化：懒加载标签数据，使用useCallback稳定它
   const loadTags = useCallback(async () => {
@@ -290,6 +195,7 @@ export default function Square() {
   const [title, setTitle] = useState('') // 新帖子标题（中文注释：用于创建新帖子）
   const [thumb, setThumb] = useState('') // 新帖子缩略图URL（中文注释：用于展示封面）
   const [sortBy, setSortBy] = useState<'hot' | 'new'>('hot') // 排序方式（中文注释：hot按点赞、new按日期）
+  const [search, setSearch] = useState('') // 搜索关键词（中文注释：支持标题/评论/风格/题材）
   const [showSuggest, setShowSuggest] = useState(false) // 中文注释：是否显示搜索联想下拉
   const [commentText, setCommentText] = useState<Record<string, string>>({})
   const [page, setPage] = useState(1) // 中文注释：分页页码
@@ -810,18 +716,22 @@ export default function Square() {
           
           {/* 搜索框 - Pinterest风格 */}
           <div className="flex-1 max-w-2xl mx-4 md:mx-6 relative z-50">
-            <Suspense fallback={<div className="w-full h-10 rounded-full bg-gray-200 dark:bg-gray-700"></div>}>
-              <SearchBar
-                search={search}
-                setSearch={setSearch}
-                showSuggest={showSearchDropdown}
-                setShowSuggest={setShowSearchDropdown}
-                suggestions={displaySuggestions}
-                isDark={isDark}
-                onSearch={onSearchSubmit}
-                onSuggestionSelect={handleSuggestionSelect}
+            <div className={`relative ${isDark ? 'bg-gray-800' : 'bg-gray-100'} rounded-full overflow-hidden`}>
+              <i className="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 z-10"></i>
+              <input 
+                type="text" 
+                placeholder="搜索作品、创作者或标签..." 
+                className={`w-full pl-10 pr-4 py-2 rounded-full text-sm ${isDark ? 'bg-gray-800 text-white placeholder-gray-500' : 'bg-gray-100 text-gray-900 placeholder-gray-500'} focus:outline-none focus:ring-2 focus:ring-blue-500 relative z-20`}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter') {
+                    // 实现搜索逻辑
+                    console.log('搜索:', search);
+                  }
+                }}
               />
-            </Suspense>
+            </div>
           </div>
           
 

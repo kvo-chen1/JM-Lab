@@ -79,7 +79,7 @@ export const CommunityLayout: React.FC<CommunityLayoutProps> = memo(({
       </div>
 
       {/* 2. Middle Navigation (Channels) - Mobile Optimization */}
-      <div className={`fixed inset-y-0 left-0 top-16 z-90 transform transition-transform duration-300 ease-in-out md:transform-none md:static md:block md:left-[72px] md:top-0 ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+      <div className={`fixed inset-y-0 left-0 top-16 z-50 transform transition-transform duration-300 ease-in-out md:transform-none md:static md:block md:left-[72px] md:top-0 ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
          {navigation}
       </div>
 

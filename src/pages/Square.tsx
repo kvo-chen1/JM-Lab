@@ -14,6 +14,7 @@ import { CreatePostModal } from '@/components/Community/Modals/CreatePostModal'
 
 
 import apiClient from '@/lib/apiClient'
+import searchService from '@/services/searchService'
 
 // 懒加载组件
 const PostGrid = lazy(() => import('@/components/PostGrid'))
@@ -42,6 +43,13 @@ export default function Square() {
   const [tagMeta, setTagMeta] = useState<Record<string, { weight?: number; group?: string; desc?: string }>>({})
   const [tagsLoading, setTagsLoading] = useState(false)
   const [tagsError, setTagsError] = useState<string | null>(null)
+  
+  // 搜索相关状态
+  const [search, setSearch] = useState('')
+  const [searchDropdown, setSearchDropdown] = useState(false)
+  const [recentSearches, setRecentSearches] = useState<string[]>([])
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false)
+  const [searchSuggestions, setSearchSuggestions] = useState<any[]>([])
   
   // 优化：缓存排序函数，使用useCallback稳定它
   const sortTagsByClicks = useCallback((list: string[], clicks: Record<string, number>) => {
@@ -716,22 +724,18 @@ export default function Square() {
           
           {/* 搜索框 - Pinterest风格 */}
           <div className="flex-1 max-w-2xl mx-4 md:mx-6 relative z-50">
-            <div className={`relative ${isDark ? 'bg-gray-800' : 'bg-gray-100'} rounded-full overflow-hidden`}>
-              <i className="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 z-10"></i>
-              <input 
-                type="text" 
-                placeholder="搜索作品、创作者或标签..." 
-                className={`w-full pl-10 pr-4 py-2 rounded-full text-sm ${isDark ? 'bg-gray-800 text-white placeholder-gray-500' : 'bg-gray-100 text-gray-900 placeholder-gray-500'} focus:outline-none focus:ring-2 focus:ring-blue-500 relative z-20`}
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                onKeyPress={(e) => {
-                  if (e.key === 'Enter') {
-                    // 实现搜索逻辑
-                    console.log('搜索:', search);
-                  }
-                }}
+            <Suspense fallback={<div className="w-full h-10 rounded-full bg-gray-200 dark:bg-gray-700"></div>}>
+              <SearchBar
+                search={search}
+                setSearch={setSearch}
+                showSuggest={showSearchDropdown}
+                setShowSuggest={setShowSearchDropdown}
+                suggestions={displaySuggestions}
+                isDark={isDark}
+                onSearch={onSearchSubmit}
+                onSuggestionSelect={handleSuggestionSelect}
               />
-            </div>
+            </Suspense>
           </div>
           
 

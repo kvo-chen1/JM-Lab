@@ -69,7 +69,7 @@ export default defineConfig({
       selfDestroying: true,
       registerType: 'autoUpdate',
       // Explicitly include static assets from public folder
-      includeAssets: ['robots.txt', 'icons/*.svg', 'images/*.svg'],
+      includeAssets: ['robots.txt'],
       manifest: {
         name: '津脉智坊 - 津门老字号共创平台',
         short_name: '津脉智坊',
@@ -81,171 +81,18 @@ export default defineConfig({
         categories: ['productivity', 'creativity', 'education'],
         lang: 'zh-CN',
         start_url: '/?source=pwa',
-        scope: '/',
-        shortcuts: [
-          {
-            name: '开始创作',
-            short_name: '创作',
-            description: '开始新的创作项目',
-            url: '/create',
-            icons: [{ src: 'icons/icon-96x96.svg', sizes: '96x96' }]
-          },
-          {
-            name: '浏览作品',
-            short_name: '浏览',
-            description: '浏览社区作品',
-            url: '/explore',
-            icons: [{ src: 'icons/icon-96x96.svg', sizes: '96x96' }]
-          },
-          {
-            name: '个人中心',
-            short_name: '我的',
-            description: '查看个人资料和作品',
-            url: '/profile',
-            icons: [{ src: 'icons/icon-96x96.svg', sizes: '96x96' }]
-          }
-        ],
-        icons: [
-          {
-            src: 'icons/icon-72x72.svg',
-            sizes: '72x72',
-            type: 'image/svg+xml',
-            purpose: 'any maskable'
-          },
-          {
-            src: 'icons/icon-96x96.svg',
-            sizes: '96x96',
-            type: 'image/svg+xml',
-            purpose: 'any maskable'
-          },
-          {
-            src: 'icons/icon-128x128.svg',
-            sizes: '128x128',
-            type: 'image/svg+xml',
-            purpose: 'any maskable'
-          },
-          {
-            src: 'icons/icon-192x192.svg',
-            sizes: '192x192',
-            type: 'image/svg+xml',
-            purpose: 'any maskable'
-          },
-          {
-            src: 'icons/icon-384x384.svg',
-            sizes: '384x384',
-            type: 'image/svg+xml',
-            purpose: 'any maskable'
-          },
-          {
-            src: 'icons/icon-512x512.svg',
-            sizes: '512x512',
-            type: 'image/svg+xml',
-            purpose: 'any maskable'
-          }
-        ]
+        scope: '/'
       },
       workbox: {
-        // 增加最大缓存文件大小限制到8MB，解决大型文件无法缓存的问题
+        // 简化workbox配置
         maximumFileSizeToCacheInBytes: 8000000,
-        // 预缓存所有生成的资源
-        globPatterns: ['**/*.{js,css,html,ico,png,jpg,jpeg,svg,gif,woff2,ttf}'],
-        // 预缓存资源的缓存策略
+        globPatterns: ['**/*.{js,css,html}'],
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api\//],
-        // 添加skipWaiting和clientsClaim选项
         skipWaiting: true,
         clientsClaim: true,
         cleanupOutdatedCaches: true,
-        // Ignore static assets directories in glob to avoid conflict with includeAssets/manifest
-        globIgnores: ['**/*.map', '**/node_modules/**', '**/public/**', 'icons/**', 'images/**'],
-        runtimeCaching: [
-          // API请求缓存 - 使用NetworkFirst策略
-          {
-            urlPattern: /^https?:\/\/.*\/api\//,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'api-cache',
-              networkTimeoutSeconds: 5,
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 * 60 * 24 // 24 hours
-              },
-              cacheableResponse: {
-                statuses: [0, 200]
-              },
-              // 跳过带有no-store头的请求
-              matchOptions: {
-                ignoreSearch: true,
-                ignoreVary: true
-              }
-            }
-          },
-          // 字体资源缓存 - 长期缓存
-          {
-            urlPattern: /^https?:\/\/.*\.(woff2|woff|ttf|otf|eot)$/,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'font-cache',
-              expiration: {
-                maxEntries: 20,
-                maxAgeSeconds: 60 * 60 * 24 * 365 // 1 year
-              }
-            }
-          },
-          // 图片资源缓存 - 增加缓存条目数量
-          {
-            urlPattern: /^https?:\/\/.*\.(png|jpg|jpeg|svg|gif|webp|avif)$/,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'image-cache',
-              expiration: {
-                maxEntries: 100, // 增加到100个条目
-                maxAgeSeconds: 60 * 60 * 24 * 60 // 60 days
-              },
-              rangeRequests: true // 支持范围请求，优化大图片加载
-            }
-          },
-          // CSS和JS资源缓存 - 调整缓存策略
-          {
-            urlPattern: /^https?:\/\/.*\.(js|css)$/,
-            handler: 'StaleWhileRevalidate',
-            options: {
-              cacheName: 'static-resources',
-              expiration: {
-                maxEntries: 50, // 增加到50个条目
-                maxAgeSeconds: 60 * 60 * 24 * 14 // 14 days
-              },
-              cacheableResponse: {
-                statuses: [0, 200]
-              }
-            }
-          },
-          // CDN资源缓存
-          {
-            urlPattern: /^https:\/\/cdnjs\.cloudflare\.com\//,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'cdn-cache',
-              expiration: {
-                maxEntries: 30,
-                maxAgeSeconds: 60 * 60 * 24 * 30 // 30 days
-              }
-            }
-          },
-          // 视频资源缓存
-          {
-            urlPattern: /^https?:\/\/.*\.(mp4|webm|ogg)$/,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'video-cache',
-              expiration: {
-                maxEntries: 10,
-                maxAgeSeconds: 60 * 60 * 24 * 30 // 30 days
-              },
-              rangeRequests: true // 支持范围请求
-            }
-          }
-        ]
+        globIgnores: ['**/*.map', '**/node_modules/**']
       }
     }),
     // 启用 Gzip 压缩

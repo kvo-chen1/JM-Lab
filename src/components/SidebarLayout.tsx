@@ -878,7 +878,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
       >
         {/* 中文注释：暗色头部采用半透明背景与毛玻璃，弱化硬边 */}
         <motion.header 
-          className={`fixed top-0 left-0 right-0 z-500 ${isDark ? 'bg-[#10151d]/95 backdrop-blur-sm text-white' : theme === 'pink' ? 'bg-white/80 backdrop-blur-sm' : 'bg-white'} border-b ${isDark ? 'border-gray-700' : theme === 'pink' ? 'border-pink-200' : 'border-gray-200'} px-4 py-3 shadow-sm`}
+          className={`sticky top-0 z-500 ${isDark ? 'bg-[#10151d]/95 backdrop-blur-sm text-white' : theme === 'pink' ? 'bg-white/80 backdrop-blur-sm' : 'bg-white'} border-b ${isDark ? 'border-gray-700' : theme === 'pink' ? 'border-pink-200' : 'border-gray-200'} px-4 py-3 shadow-sm`}
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: getDuration(0.5), delay: getDelay(0.1) }}
@@ -1150,9 +1150,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
 
         </motion.header>
 
-        <div className="pt-20">
-          {children}
-        </div>
+        {children}
         {/* 中文注释：全局“回到顶部”悬浮按钮（自适应暗色/浅色主题） */}
         {showBackToTop && (
           <button

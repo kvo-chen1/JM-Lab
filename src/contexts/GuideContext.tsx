@@ -47,19 +47,37 @@ export const GuideProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     setIsCompleted(false);
   };
 
-  // 监听注册成功事件
+  // 监听注册成功和登录成功事件
   useEffect(() => {
-    const listenerId = eventBus.subscribe('auth:register', () => {
+    // 监听注册成功事件
+    const registerListenerId = eventBus.subscribe('auth:register', () => {
       console.log('Detected new user registration, starting guide...');
       setTimeout(() => {
         startGuide();
       }, 500);
     });
 
+    // 监听登录成功事件，检查是否需要重新触发新手引导
+    const loginListenerId = eventBus.subscribe('auth:login', (data: any) => {
+      console.log('Detected user login, checking guide status...');
+      // 检查是否已完成新手引导
+      if (user?.id) {
+        const key = `guide_completed_${user.id}`;
+        const completed = localStorage.getItem(key) === 'true';
+        if (!completed) {
+          console.log('Guide not completed, starting guide...');
+          setTimeout(() => {
+            startGuide();
+          }, 500);
+        }
+      }
+    });
+
     return () => {
-      eventBus.unsubscribe('auth:register', listenerId);
+      eventBus.unsubscribe('auth:register', registerListenerId);
+      eventBus.unsubscribe('auth:login', loginListenerId);
     };
-  }, []);
+  }, [user]);
 
   const nextStep = () => {
      setCurrentStep(prev => prev + 1);

@@ -1169,15 +1169,25 @@ async function createPostgreSQLTables(pool) {
 
       // 创建RLS策略
       // 1. users表策略：用户只能访问自己的用户信息
-      await client.query(`
-        CREATE POLICY "Users can view their own profile" ON users
-        FOR SELECT USING (id = COALESCE(current_setting('request.jwt.claim.sub', true), current_setting('request.jwt.claim.userId', true))::uuid);
-      `);
+      try {
+        await client.query(`
+          CREATE POLICY "Users can view their own profile" ON users
+          FOR SELECT USING (id = COALESCE(current_setting('request.jwt.claim.sub', true), current_setting('request.jwt.claim.userId', true))::uuid);
+        `);
+      } catch (error) {
+        if (!error.message.includes('already exists')) throw error;
+        // 忽略已存在的策略错误
+      }
       
-      await client.query(`
-        CREATE POLICY "Users can update their own profile" ON users
-        FOR UPDATE USING (id = COALESCE(current_setting('request.jwt.claim.sub', true), current_setting('request.jwt.claim.userId', true))::uuid);
-      `);
+      try {
+        await client.query(`
+          CREATE POLICY "Users can update their own profile" ON users
+          FOR UPDATE USING (id = COALESCE(current_setting('request.jwt.claim.sub', true), current_setting('request.jwt.claim.userId', true))::uuid);
+        `);
+      } catch (error) {
+        if (!error.message.includes('already exists')) throw error;
+        // 忽略已存在的策略错误
+      }
 
       // 2. friends表策略：用户只能访问自己的好友关系
       await client.query(`
@@ -2026,6 +2036,124 @@ export const userDB = {
       case DB_TYPE.NEON_API: return (await db.query('SELECT * FROM users ORDER BY created_at DESC')).result.rows
       default: throw new Error(`Unsupported DB Type: ${config.dbType}`)
     }
+  },
+
+  // 清理非邮箱验证码登录的用户
+  async cleanupNonEmailCodeUsers() {
+    const db = await getDB()
+    const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
+    let deletedCount = 0
+
+    switch (typeKey) {
+      case DB_TYPE.SQLITE:
+        // 查找并删除非local登录的用户
+        const nonLocalUsers = db.prepare('SELECT * FROM users WHERE auth_provider IS NOT NULL AND auth_provider != ?').all('local')
+        deletedCount = nonLocalUsers.length
+        for (const user of nonLocalUsers) {
+          db.prepare('DELETE FROM users WHERE id = ?').run(user.id)
+        }
+        break
+      case DB_TYPE.MEMORY:
+        // 过滤出只保留local登录的用户
+        const localUsers = memoryStore.users.filter(u => !u.auth_provider || u.auth_provider === 'local')
+        deletedCount = memoryStore.users.length - localUsers.length
+        memoryStore.users = localUsers
+        saveMemoryStore()
+        break
+      case DB_TYPE.MONGODB:
+        // 删除非local登录的用户
+        const result = await db.collection('users').deleteMany({ auth_provider: { $ne: 'local' } })
+        deletedCount = result.deletedCount || 0
+        break
+      case DB_TYPE.POSTGRESQL:
+      case DB_TYPE.SUPABASE:
+        // 删除非local登录的用户
+        try {
+          const { rowCount } = await db.query('DELETE FROM users WHERE auth_provider IS NOT NULL AND auth_provider != $1', ['local'])
+          deletedCount = rowCount || 0
+        } catch (error) {
+          log(`PostgreSQL delete non-local users error: ${error.message}`, 'ERROR')
+          // 忽略错误，继续执行
+        }
+        break
+      case DB_TYPE.NEON_API:
+        // 删除非local登录的用户
+        const neonResult = await db.query('DELETE FROM users WHERE auth_provider IS NOT NULL AND auth_provider != $1', ['local'])
+        deletedCount = neonResult.result.rowCount || 0
+        break
+      default:
+        throw new Error(`Unsupported DB Type: ${config.dbType}`)
+    }
+
+    log(`Cleaned up ${deletedCount} non-email code login users`)
+    return deletedCount
+  },
+
+  // 删除测试邮箱用户
+  async deleteTestEmailUsers() {
+    const db = await getDB()
+    const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
+    let deletedCount = 0
+
+    // 测试邮箱模式
+    const testEmailPatterns = [
+      '%@example.com',
+      '%rls_test%',
+      'test@%'
+    ]
+
+    switch (typeKey) {
+      case DB_TYPE.SQLITE:
+        // 查找并删除测试邮箱用户
+        for (const pattern of testEmailPatterns) {
+          const testUsers = db.prepare('SELECT * FROM users WHERE email LIKE ?').all(pattern)
+          for (const user of testUsers) {
+            db.prepare('DELETE FROM users WHERE id = ?').run(user.id)
+            deletedCount++
+          }
+        }
+        break
+      case DB_TYPE.MEMORY:
+        // 过滤出只保留非测试邮箱的用户
+        const nonTestUsers = memoryStore.users.filter(u => {
+          const email = u.email || ''
+          return !testEmailPatterns.some(pattern => {
+            const regexPattern = pattern.replace('%', '.*')
+            const regex = new RegExp(regexPattern, 'i')
+            return regex.test(email)
+          })
+        })
+        deletedCount = memoryStore.users.length - nonTestUsers.length
+        memoryStore.users = nonTestUsers
+        saveMemoryStore()
+        break
+      case DB_TYPE.MONGODB:
+        // 删除测试邮箱用户
+        const testEmailRegex = new RegExp('(@example\.com|rls_test|^test@)', 'i')
+        const deleteResult = await db.collection('users').deleteMany({ email: { $regex: testEmailRegex } })
+        deletedCount = deleteResult.deletedCount || 0
+        break
+      case DB_TYPE.POSTGRESQL:
+      case DB_TYPE.SUPABASE:
+        // 删除测试邮箱用户
+        for (const pattern of testEmailPatterns) {
+          const { rowCount } = await db.query('DELETE FROM users WHERE email LIKE $1', [pattern])
+          deletedCount += rowCount || 0
+        }
+        break
+      case DB_TYPE.NEON_API:
+        // 删除测试邮箱用户
+        for (const pattern of testEmailPatterns) {
+          const neonDeleteResult = await db.query('DELETE FROM users WHERE email LIKE $1', [pattern])
+          deletedCount += neonDeleteResult.result.rowCount || 0
+        }
+        break
+      default:
+        throw new Error(`Unsupported DB Type: ${config.dbType}`)
+    }
+
+    log(`Deleted ${deletedCount} test email users`)
+    return deletedCount
   }
 }
 

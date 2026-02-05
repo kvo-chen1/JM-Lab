@@ -32,9 +32,15 @@ export default function CompleteProfile() {
   useEffect(() => {
     if (!isAuthenticated) {
       navigate('/login');
-    } else if (user && !user.isNewUser) {
-      // 如果用户不是新用户，重定向到主页
-      navigate('/');
+    } else if (user) {
+      // 检查用户信息是否完整
+      const isProfileComplete = user.username && user.username.trim() !== '' && 
+                               user.avatar && user.avatar.trim() !== '';
+      
+      // 如果用户信息完整，重定向到主页
+      if (isProfileComplete) {
+        navigate('/');
+      }
     }
   }, [isAuthenticated, user, navigate]);
   

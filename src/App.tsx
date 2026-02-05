@@ -5,7 +5,7 @@ import { Toaster } from "sonner";
 import { motion } from "framer-motion";
 import { debounce } from '@/lib/utils';
 
-import { Routes, Route, Outlet, useLocation, useNavigationType, Link, Navigate } from "react-router-dom";
+import { Routes, Route, Outlet, useLocation, useNavigationType, Link, Navigate, useNavigate } from "react-router-dom";
 // 导入postService用于初始化
 import postsApi from '@/services/postService';
 import { addPost } from '@/services/postService';
@@ -333,6 +333,7 @@ import { ThemeProvider } from '@/hooks/useTheme';
 
 export default function App() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { isAuthenticated, user } = React.useContext(AuthContext);
   // 添加响应式布局状态 - 服务器端和客户端初始状态必须一致
   const [isMobile, setIsMobile] = useState(false);
@@ -413,6 +414,32 @@ export default function App() {
       initObserver.disconnect();
     };
   }, []);
+
+  // 监听登录成功事件，检查用户信息是否完整，不完整则跳转到CompleteProfile页面
+  useEffect(() => {
+    // 动态导入eventBus，避免SSR问题
+    import('@/lib/eventBus').then(({ default: eventBus }) => {
+      const handleLogin = (data: any) => {
+        console.log('登录成功事件触发:', data);
+        // 检查用户信息是否完整
+        if (data && !data.isProfileComplete) {
+          console.log('用户信息不完整，跳转到CompleteProfile页面');
+          // 延迟跳转，确保路由已准备就绪
+          setTimeout(() => {
+            navigate('/complete-profile');
+          }, 100);
+        }
+      };
+
+      // 监听登录成功事件
+      eventBus.subscribe('auth:login', handleLogin);
+
+      return () => {
+        // 清理事件监听
+        eventBus.unsubscribe('auth:login', handleLogin);
+      };
+    });
+  }, [navigate]);
   
   // 优化：使用防抖函数减少resize事件触发频率
   const checkIsMobile = useCallback(() => {
@@ -721,10 +748,11 @@ export default function App() {
       {/* 全局命令面板 */}
       <CommandPalette />
       
+      {/* 新手引导组件 */}
+      <OnboardingGuide />
+      
       {/* 全局 Toast 通知 */}
       <Toaster position="top-center" richColors closeButton />
-      
-      <OnboardingGuide />
     </div>
             </ThemeProvider>
           </EventProvider>

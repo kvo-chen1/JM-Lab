@@ -124,12 +124,27 @@ async function sendEmailInternal(to, subject, html) {
     const transport = getTransporter();
 
     // 检查配置是否为示例值或不完整，如果是则模拟发送
-    if (emailConfig.host === 'smtp.example.com' || emailConfig.auth.user.includes('example.com') || !emailConfig.host || !emailConfig.auth.user) {
+    console.log('[EmailService] 当前邮件配置:', {
+      host: emailConfig.host,
+      port: emailConfig.port,
+      user: emailConfig.auth.user,
+      from: emailConfig.from
+    });
+    
+    const isMockConfig = emailConfig.host === 'smtp.example.com' || 
+                         emailConfig.auth.user === 'your-email@example.com' ||
+                         !emailConfig.host || 
+                         !emailConfig.auth.user;
+    
+    if (isMockConfig) {
+       console.log('[EmailService] 使用模拟发送模式');
        logEmail('MOCK_SEND', { to, subject, status: 'simulated' });
        const match = html.match(/letter-spacing: 4px;">(\d+)<\/div>/);
        if (match) logEmail('MOCK_CODE', { to, code: match[1] });
        return true;
     }
+    
+    console.log('[EmailService] 使用真实邮件发送模式');
 
     // 设置5秒超时，避免阻塞主流程
     const sendPromise = transport.sendMail({

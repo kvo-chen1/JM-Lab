@@ -14,7 +14,7 @@ export default function Tianjin() {
       <main className="container mx-auto px-4 py-8">
         {/* 特色专区渐变英雄区 */}
         <GradientHero 
-          title="地域模板"
+          title="津脉作品"
           subtitle="探索天津特色文化模板"
           theme="heritage"
           stats={[
@@ -28,7 +28,7 @@ export default function Tianjin() {
           backgroundImage="https://images.pexels.com/photos/6688844/pexels-photo-6688844.jpeg?auto=compress&cs=tinysrgb&w=1920"
         />
 
-        {/* 地域模板内容 */}
+        {/* 津脉作品内容 */}
         <section className="mt-8 mb-12">
           <div className="">
             {/* 活动内容 */}

@@ -17,15 +17,19 @@ export default memo(function TianjinCreativeActivities({}: TianjinCreativeActivi
   const [templates, setTemplates] = useState<TianjinTemplate[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
-  // 中文注释：地域模板详情弹层状态
+  // 中文注释：津脉作品详情弹层状态
   const [selectedTemplate, setSelectedTemplate] = useState<TianjinTemplate | null>(null);
   const openTemplateDetail = useCallback((t: TianjinTemplate) => setSelectedTemplate(t), []);
   const closeTemplateDetail = useCallback(() => setSelectedTemplate(null), []);
   
   const handleApplyTemplate = useCallback((templateId: number) => {
-    void templateId;
-    toast.success('已应用模板到您的创作空间');
-  }, []);
+    const template = templates.find(t => t.id === templateId);
+    if (template) {
+      // 导航到创作中心页面，传递模板参数
+      window.location.href = `/create?template=${encodeURIComponent(template.name)}&prompt=${encodeURIComponent(template.description)}`;
+      toast.success('已应用模板到创作中心');
+    }
+  }, [templates]);
   
   // 获取数据
   useEffect(() => {
@@ -69,7 +73,7 @@ export default memo(function TianjinCreativeActivities({}: TianjinCreativeActivi
     >
       {/* 左侧主内容区 */}
       <div className="w-full">
-        {/* 地域模板内容 */}
+        {/* 津脉作品内容 */}
         <div className="columns-2 sm:columns-2 lg:columns-3 xl:columns-4 gap-3 md:gap-4">
           {templates.map((template) => (
             <div

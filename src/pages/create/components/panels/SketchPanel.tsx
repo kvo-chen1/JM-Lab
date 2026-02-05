@@ -1,13 +1,100 @@
-import React from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { useCreateStore } from '../../hooks/useCreateStore';
 import { useTheme } from '@/hooks/useTheme';
 import { llmService } from '@/services/llmService';
 import { promptTemplates } from '@/data/promptTemplates';
 import { toast } from 'sonner';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+
+// 生成模式类型
+type GenerationMode = 'text-to-image' | 'image-to-image' | 'text-to-video' | 'image-to-video';
+
+// 模式配置
+const modeConfig = {
+  'text-to-image': {
+    id: 'text-to-image',
+    label: '文生图',
+    icon: 'fa-font',
+    description: '输入文字描述，AI生成图片',
+    color: 'from-blue-500 to-indigo-600',
+    bgColor: 'bg-blue-50 dark:bg-blue-900/20',
+    borderColor: 'border-blue-200 dark:border-blue-800',
+    activeColor: 'text-blue-600 dark:text-blue-400',
+  },
+  'image-to-image': {
+    id: 'image-to-image',
+    label: '图生图',
+    icon: 'fa-image',
+    description: '上传图片，AI进行风格转换',
+    color: 'from-purple-500 to-pink-600',
+    bgColor: 'bg-purple-50 dark:bg-purple-900/20',
+    borderColor: 'border-purple-200 dark:border-purple-800',
+    activeColor: 'text-purple-600 dark:text-purple-400',
+  },
+  'text-to-video': {
+    id: 'text-to-video',
+    label: '文生视频',
+    icon: 'fa-file-video',
+    description: '输入文字描述，AI生成视频',
+    color: 'from-orange-500 to-red-600',
+    bgColor: 'bg-orange-50 dark:bg-orange-900/20',
+    borderColor: 'border-orange-200 dark:border-orange-800',
+    activeColor: 'text-orange-600 dark:text-orange-400',
+  },
+  'image-to-video': {
+    id: 'image-to-video',
+    label: '图生视频',
+    icon: 'fa-photo-video',
+    description: '上传图片，AI生成动态视频',
+    color: 'from-green-500 to-teal-600',
+    bgColor: 'bg-green-50 dark:bg-green-900/20',
+    borderColor: 'border-green-200 dark:border-green-800',
+    activeColor: 'text-green-600 dark:text-green-400',
+  },
+};
+
+// 风格预设选项
+const stylePresets = [
+  { value: '', label: '默认风格', icon: 'fa-magic' },
+  { value: '国潮', label: '国潮风', icon: 'fa-dragon' },
+  { value: '极简', label: '极简主义', icon: 'fa-minus' },
+  { value: '复古', label: '复古风', icon: 'fa-history' },
+  { value: '赛博朋克', label: '赛博朋克', icon: 'fa-robot' },
+  { value: '水墨', label: '水墨画', icon: 'fa-brush' },
+  { value: '油画', label: '油画风', icon: 'fa-palette' },
+  { value: '二次元', label: '二次元', icon: 'fa-star' },
+];
+
+// 视频比例选项
+const videoAspectRatios = [
+  { value: '16:9', label: '16:9 宽屏', icon: 'fa-desktop' },
+  { value: '9:16', label: '9:16 竖屏', icon: 'fa-mobile-alt' },
+  { value: '1:1', label: '1:1 方形', icon: 'fa-square' },
+  { value: '4:3', label: '4:3 标准', icon: 'fa-tv' },
+];
+
+// 视频时长选项
+const videoDurations = [
+  { value: 5, label: '5秒', desc: '短视频' },
+  { value: 10, label: '10秒', desc: '标准' },
+  { value: 15, label: '15秒', desc: '长视频' },
+];
 
 export default function SketchPanel() {
   const { isDark } = useTheme();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // 本地状态
+  const [activeMode, setActiveMode] = useState<GenerationMode>('text-to-image');
+  const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [videoAspectRatio, setVideoAspectRatio] = useState('16:9');
+  const [videoDuration, setVideoDuration] = useState(5);
+  const [imageStrength, setImageStrength] = useState(70);
+  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
+  
+  // Store 状态
   const { 
     prompt, setPrompt, 
     isGenerating, setIsGenerating, 
@@ -19,86 +106,443 @@ export default function SketchPanel() {
     streamStatus
   } = useCreateStore();
 
+  // 处理模式切换
+  const handleModeChange = (mode: GenerationMode) => {
+    setActiveMode(mode);
+    // 清空上传的图片当切换到非图片模式时
+    if (mode === 'text-to-image' || mode === 'text-to-video') {
+      setUploadedImage(null);
+      setUploadedFile(null);
+    }
+  };
+
+  // 处理文件上传
+  const handleFileUpload = useCallback((file: File) => {
+    if (!file.type.startsWith('image/')) {
+      toast.error('请上传图片文件');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('图片大小不能超过10MB');
+      return;
+    }
+    
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setUploadedImage(e.target?.result as string);
+      setUploadedFile(file);
+      toast.success('图片上传成功');
+    };
+    reader.readAsDataURL(file);
+  }, []);
+
+  // 处理文件选择
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) handleFileUpload(file);
+  };
+
+  // 处理拖拽
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) handleFileUpload(file);
+  };
+
+  // 生成处理
   const handleGenerate = async () => {
-    if (!prompt.trim()) return;
+    // 验证输入
+    if (!prompt.trim()) {
+      toast.error('请输入创意描述');
+      return;
+    }
+    
+    // 图片模式需要上传图片
+    if ((activeMode === 'image-to-image' || activeMode === 'image-to-video') && !uploadedImage) {
+      toast.error('请先上传图片');
+      return;
+    }
     
     setIsGenerating(true);
     updateState({ streamStatus: 'running' });
     
     try {
-        // 创作中心始终使用千问模型
-        llmService.setCurrentModel('qwen');
-        
-        const inputBase = (prompt || '天津文化设计灵感').trim();
-        const input = stylePreset ? `${inputBase}；风格：${stylePreset}` : inputBase;
-        const currentModel = llmService.getCurrentModel();
-        
-        const r = await llmService.generateImage({ 
-            prompt: input, 
-            size: '1024x1024', 
-            n: Math.min(Math.max(generateCount, 1), 6), 
-            response_format: 'url', 
-            watermark: true 
-        });
-
-        // 处理数据格式，兼容API返回和模拟数据
-        const dataArray = (r as any)?.data?.data || (r as any)?.data || [];
-        const urls = dataArray.map((d: any) => d.url || (d.b64_json ? `data:image/png;base64,${d.b64_json}` : '')).filter(Boolean);
-
-        if (urls.length) {
-            const mapped = urls.map((u: string, idx: number) => ({ id: Date.now() + idx, thumbnail: u, score: 80 }));
-            setGeneratedResults(mapped);
-            setSelectedResult(mapped[0]?.id ?? null);
-            setCurrentStep(2);
-            toast.success(`${currentModel.name}已生成${urls.length}张方案，可在下方查看并进行下载、编辑等操作`);
-        } else {
-             toast.info('未返回图片，使用模拟数据');
-             const fallback = [
-                 { id: Date.now(), thumbnail: 'https://images.unsplash.com/photo-1606787366850-de6330128bfc?w=600&h=400&fit=crop', score: 85 },
-                 { id: Date.now()+1, thumbnail: 'https://images.unsplash.com/photo-1558981806-ec527fa84f3d?w=600&h=400&fit=crop', score: 82 }
-             ];
-             setGeneratedResults(fallback);
-             setSelectedResult(fallback[0].id);
-        }
+      // 根据模式调用不同的生成接口
+      switch (activeMode) {
+        case 'text-to-image':
+          await generateTextToImage();
+          break;
+        case 'image-to-image':
+          await generateImageToImage();
+          break;
+        case 'text-to-video':
+          await generateTextToVideo();
+          break;
+        case 'image-to-video':
+          await generateImageToVideo();
+          break;
+      }
     } catch (e) {
-        console.error(e);
-        toast.error('生成失败，请重试');
+      console.error(e);
+      toast.error('生成失败，请重试');
     } finally {
-        setIsGenerating(false);
-        updateState({ streamStatus: 'completed' });
+      setIsGenerating(false);
+      updateState({ streamStatus: 'completed' });
     }
   };
 
+  // 文生图
+  const generateTextToImage = async () => {
+    llmService.setCurrentModel('qwen');
+    
+    const inputBase = (prompt || '天津文化设计灵感').trim();
+    const input = stylePreset ? `${inputBase}；风格：${stylePreset}` : inputBase;
+    const currentModel = llmService.getCurrentModel();
+    
+    const r = await llmService.generateImage({ 
+      prompt: input, 
+      size: '1024x1024', 
+      n: Math.min(Math.max(generateCount, 1), 6), 
+      response_format: 'url', 
+      watermark: true 
+    });
+
+    const dataArray = (r as any)?.data?.data || (r as any)?.data || [];
+    const urls = dataArray.map((d: any) => d.url || (d.b64_json ? `data:image/png;base64,${d.b64_json}` : '')).filter(Boolean);
+
+    if (urls.length) {
+      const mapped = urls.map((u: string, idx: number) => ({ 
+        id: Date.now() + idx, 
+        thumbnail: u, 
+        score: 80,
+        type: 'image'
+      }));
+      setGeneratedResults(mapped);
+      setSelectedResult(mapped[0]?.id ?? null);
+      setCurrentStep(2);
+      toast.success(`${currentModel.name}已生成${urls.length}张图片方案`);
+    } else {
+      useFallbackData('image');
+    }
+  };
+
+  // 图生图
+  const generateImageToImage = async () => {
+    // TODO: 实现图生图API调用
+    toast.info('图生图功能开发中，使用模拟数据预览');
+    
+    // 模拟延迟
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    const fallback = [
+      { id: Date.now(), thumbnail: 'https://images.unsplash.com/photo-1606787366850-de6330128bfc?w=600&h=400&fit=crop', score: 85, type: 'image' },
+      { id: Date.now()+1, thumbnail: 'https://images.unsplash.com/photo-1558981806-ec527fa84f3d?w=600&h=400&fit=crop', score: 82, type: 'image' },
+      { id: Date.now()+2, thumbnail: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?w=600&h=400&fit=crop', score: 88, type: 'image' },
+    ];
+    setGeneratedResults(fallback);
+    setSelectedResult(fallback[0].id);
+    setCurrentStep(2);
+  };
+
+  // 文生视频
+  const generateTextToVideo = async () => {
+    // TODO: 实现文生视频API调用
+    toast.info('文生视频功能开发中，使用模拟数据预览');
+    
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    
+    const fallback = [
+      { 
+        id: Date.now(), 
+        thumbnail: 'https://images.unsplash.com/photo-1536240478700-b869070f9279?w=600&h=400&fit=crop', 
+        score: 90, 
+        type: 'video',
+        video: 'https://www.w3schools.com/html/mov_bbb.mp4'
+      },
+    ];
+    setGeneratedResults(fallback);
+    setSelectedResult(fallback[0].id);
+    setCurrentStep(2);
+    toast.success('视频生成完成');
+  };
+
+  // 图生视频
+  const generateImageToVideo = async () => {
+    // TODO: 实现图生视频API调用
+    toast.info('图生视频功能开发中，使用模拟数据预览');
+    
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    
+    const fallback = [
+      { 
+        id: Date.now(), 
+        thumbnail: uploadedImage || 'https://images.unsplash.com/photo-1536240478700-b869070f9279?w=600&h=400&fit=crop', 
+        score: 88, 
+        type: 'video',
+        video: 'https://www.w3schools.com/html/mov_bbb.mp4'
+      },
+    ];
+    setGeneratedResults(fallback);
+    setSelectedResult(fallback[0].id);
+    setCurrentStep(2);
+    toast.success('视频生成完成');
+  };
+
+  // 备用数据
+  const useFallbackData = (type: 'image' | 'video') => {
+    toast.info('未返回结果，使用模拟数据');
+    const fallback = type === 'image' ? [
+      { id: Date.now(), thumbnail: 'https://images.unsplash.com/photo-1606787366850-de6330128bfc?w=600&h=400&fit=crop', score: 85, type: 'image' },
+      { id: Date.now()+1, thumbnail: 'https://images.unsplash.com/photo-1558981806-ec527fa84f3d?w=600&h=400&fit=crop', score: 82, type: 'image' },
+    ] : [
+      { id: Date.now(), thumbnail: 'https://images.unsplash.com/photo-1536240478700-b869070f9279?w=600&h=400&fit=crop', score: 90, type: 'video', video: 'https://www.w3schools.com/html/mov_bbb.mp4' },
+    ];
+    setGeneratedResults(fallback);
+    setSelectedResult(fallback[0].id);
+    setCurrentStep(2);
+  };
+
+  // 优化提示词
+  const handlePolishPrompt = async () => {
+    if (!prompt.trim()) return;
+    
+    try {
+      llmService.setCurrentModel('qwen');
+      const instruction = `请将下面的创作提示优化为更清晰的中文指令，保留原意，突出关键元素（主题、风格、色彩、素材）。用1-3个短句表达，避免礼貌语或解释，只输出优化后的文本：
+
+${prompt}`;
+      const result = await llmService.generateResponse(instruction);
+      const polished = String(result || '').trim();
+      if (polished) {
+        setPrompt(polished);
+        toast.success('提示词优化完成');
+      }
+    } catch (e) {
+      toast.error('优化失败，请稍后重试');
+    }
+  };
+
+  // 随机灵感
+  const handleRandomInspiration = () => {
+    const randomPrompt = promptTemplates[Math.floor(Math.random() * promptTemplates.length)];
+    setPrompt(randomPrompt.text);
+    toast.success('已获取随机灵感');
+  };
+
+  const currentMode = modeConfig[activeMode];
+  const isVideoMode = activeMode.includes('video');
+  const isImageInputMode = activeMode === 'image-to-image' || activeMode === 'image-to-video';
+
   return (
-    <div className="space-y-8">
-      {/* Intro Section */}
-      <div className={`p-4 rounded-xl border ${
-        isDark ? 'bg-gray-800/30 border-gray-800' : 'bg-blue-50/50 border-blue-100'
-      }`}>
+    <div className="space-y-6">
+      {/* 智能助手卡片 */}
+      <motion.div 
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className={`p-4 rounded-2xl border ${isDark ? 'bg-gray-800/50 border-gray-700' : 'bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-100'}`}
+      >
         <div className="flex items-start gap-3">
-          <div className={`mt-1 w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-            isDark ? 'bg-blue-900/30 text-blue-400' : 'bg-blue-100 text-[#003366]'
-          }`}>
-            <i className="fas fa-magic text-sm"></i>
+          <div className={`mt-0.5 w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-gradient-to-br ${currentMode.color} text-white shadow-lg`}>
+            <i className={`fas ${currentMode.icon} text-sm`}></i>
           </div>
-          <div>
-            <h3 className={`text-sm font-bold mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>智能设计助手</h3>
+          <div className="flex-1">
+            <h3 className={`text-sm font-bold mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+              智能创作助手
+            </h3>
             <p className={`text-xs leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-              输入您的创意构想，AI 将结合天津文化元素为您生成专业的设计方案。支持多风格探索与快速迭代。
+              {currentMode.description}。AI 将结合天津文化元素为您生成专业的设计方案。
             </p>
           </div>
         </div>
+      </motion.div>
+
+      {/* 生成模式选择 */}
+      <div className="space-y-3">
+        <label className={`text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+          选择生成模式
+        </label>
+        <div className="grid grid-cols-2 gap-2">
+          {(Object.keys(modeConfig) as GenerationMode[]).map((mode) => {
+            const config = modeConfig[mode];
+            const isActive = activeMode === mode;
+            
+            return (
+              <motion.button
+                key={mode}
+                onClick={() => handleModeChange(mode)}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className={`relative p-3 rounded-xl border-2 transition-all duration-300 ${
+                  isActive 
+                    ? `${config.bgColor} ${config.borderColor} border-opacity-100` 
+                    : `${isDark ? 'bg-gray-800/50 border-gray-700 hover:border-gray-600' : 'bg-white border-gray-200 hover:border-gray-300'}`
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                    isActive 
+                      ? `bg-gradient-to-br ${config.color} text-white` 
+                      : isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-500'
+                  }`}>
+                    <i className={`fas ${config.icon} text-xs`}></i>
+                  </div>
+                  <div className="text-left">
+                    <div className={`text-xs font-semibold ${isActive ? config.activeColor : isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                      {config.label}
+                    </div>
+                    <div className={`text-[10px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                      {mode === 'text-to-image' ? '文字生成' : mode === 'image-to-image' ? '风格转换' : mode === 'text-to-video' ? '文字生成' : '图片生成'}
+                    </div>
+                  </div>
+                </div>
+                {isActive && (
+                  <motion.div
+                    layoutId="activeModeIndicator"
+                    className={`absolute inset-0 rounded-xl border-2 ${config.borderColor}`}
+                    initial={false}
+                    transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                  />
+                )}
+              </motion.button>
+            );
+          })}
+        </div>
       </div>
 
-      {/* Prompt Input */}
+      {/* 图片上传区域 - 仅在图生图/图生视频模式显示 */}
+      <AnimatePresence>
+        {isImageInputMode && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="space-y-3"
+          >
+            <label className={`text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+              上传参考图片
+            </label>
+            
+            {uploadedImage ? (
+              <motion.div 
+                initial={{ scale: 0.9 }}
+                animate={{ scale: 1 }}
+                className="relative rounded-xl overflow-hidden border-2 border-dashed border-green-400 bg-green-50 dark:bg-green-900/20"
+              >
+                <img 
+                  src={uploadedImage} 
+                  alt="Uploaded" 
+                  className="w-full h-40 object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
+                <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between">
+                  <span className="text-white text-xs font-medium">
+                    <i className="fas fa-check-circle mr-1 text-green-400"></i>
+                    已上传
+                  </span>
+                  <button
+                    onClick={() => {
+                      setUploadedImage(null);
+                      setUploadedFile(null);
+                    }}
+                    className="px-3 py-1.5 bg-white/20 backdrop-blur-sm text-white text-xs rounded-lg hover:bg-white/30 transition-colors"
+                  >
+                    <i className="fas fa-trash-alt mr-1"></i>删除
+                  </button>
+                </div>
+              </motion.div>
+            ) : (
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                className={`relative p-6 rounded-xl border-2 border-dashed transition-all duration-300 cursor-pointer ${
+                  isDragging
+                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                    : isDark 
+                      ? 'border-gray-600 bg-gray-800/30 hover:border-gray-500 hover:bg-gray-800/50' 
+                      : 'border-gray-300 bg-gray-50 hover:border-gray-400 hover:bg-gray-100'
+                }`}
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                />
+                <div className="text-center">
+                  <div className={`w-12 h-12 mx-auto mb-3 rounded-full flex items-center justify-center ${
+                    isDark ? 'bg-gray-700 text-gray-400' : 'bg-white text-gray-400 shadow-sm'
+                  }`}>
+                    <i className="fas fa-cloud-upload-alt text-xl"></i>
+                  </div>
+                  <p className={`text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                    点击或拖拽上传图片
+                  </p>
+                  <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                    支持 JPG、PNG、WebP，最大 10MB
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* 图生图强度调节 */}
+            {activeMode === 'image-to-image' && uploadedImage && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="p-3 rounded-xl bg-gray-50 dark:bg-gray-800/50"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <label className={`text-xs font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                    <i className="fas fa-sliders-h mr-1 text-purple-500"></i>
+                    风格转换强度
+                  </label>
+                  <span className={`text-xs font-semibold ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                    {imageStrength}%
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={imageStrength}
+                  onChange={(e) => setImageStrength(parseInt(e.target.value))}
+                  className="w-full h-2 rounded-lg appearance-none cursor-pointer bg-gray-200 dark:bg-gray-700"
+                  style={{
+                    background: `linear-gradient(to right, #8B5CF6 0%, #8B5CF6 ${imageStrength}%, ${isDark ? '#374151' : '#E5E7EB'} ${imageStrength}%, ${isDark ? '#374151' : '#E5E7EB'} 100%)`
+                  }}
+                />
+                <div className="flex justify-between mt-1">
+                  <span className={`text-[10px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>保留原图</span>
+                  <span className={`text-[10px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>完全转换</span>
+                </div>
+              </motion.div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 创意描述输入 */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <label className={`text-sm font-semibold flex items-center gap-2 ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-            <i className="fas fa-pen-fancy text-xs text-red-500"></i>
+          <label className={`text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
             创意描述
           </label>
           <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-            {prompt.length}/200
+            {prompt.length}/500
           </span>
         </div>
         
@@ -106,39 +550,24 @@ export default function SketchPanel() {
           <textarea
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
-            placeholder="描述您想要创作的内容，例如：具有中国传统元素的现代包装设计，融入杨柳青年画风格..."
-            className={`w-full p-4 rounded-2xl h-40 text-sm focus:outline-none focus:ring-2 focus:ring-[#C02C38]/50 transition-all resize-none shadow-sm ${
+            placeholder={isVideoMode 
+              ? "描述您想要生成的视频内容，例如：天津海河夜景，灯光璀璨，船只缓缓驶过..."
+              : "描述您想要创作的画面，例如：具有中国传统元素的现代包装设计，融入杨柳青年画风格..."
+            }
+            maxLength={500}
+            className={`w-full p-4 rounded-2xl h-32 text-sm focus:outline-none focus:ring-2 focus:ring-[#C02C38]/50 transition-all resize-none ${
               isDark 
-                ? 'bg-gray-800/50 border-gray-700 text-white placeholder-gray-500 border group-hover:border-gray-600' 
-                : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400 border group-hover:border-red-200'
+                ? 'bg-gray-800/50 border-gray-700 text-white placeholder-gray-500 border' 
+                : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400 border shadow-sm'
             }`}
           />
           <div className="absolute bottom-3 right-3 flex gap-2">
-            <button 
-              onClick={async () => {
-                if (!prompt.trim()) return;
-                
-                // 添加优化提示词功能
-                try {
-                  // 创作中心始终使用千问模型
-                  llmService.setCurrentModel('qwen');
-                  const instruction = `请将下面的创作提示优化为更清晰的中文指令，保留原意，突出关键元素（主题、风格、色彩、素材）。用1-3个短句表达，避免礼貌语或解释，只输出优化后的文本：
-
-${prompt}`;
-                  const result = await llmService.generateResponse(instruction);
-                  const polished = String(result || '').trim();
-                  if (polished) {
-                    setPrompt(polished);
-                    toast.success('提示词优化完成');
-                  } else {
-                    toast.warning('未获得有效优化结果');
-                  }
-                } catch (e) {
-                  toast.error('优化失败，请稍后重试');
-                }
-              }}
-              disabled={!prompt.trim()}
-              className={`p-1.5 rounded-lg text-xs transition-colors ${(
+            <motion.button 
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={handlePolishPrompt}
+              disabled={!prompt.trim() || isGenerating}
+              className={`p-2 rounded-lg text-xs transition-colors ${(
                 isDark 
                   ? 'hover:bg-gray-700 text-gray-500 disabled:text-gray-700' 
                   : 'hover:bg-gray-100 text-gray-400 hover:text-blue-600 disabled:text-gray-300'
@@ -146,10 +575,12 @@ ${prompt}`;
               title="AI优化提示词"
             >
               <i className="fas fa-magic"></i>
-            </button>
-            <button 
+            </motion.button>
+            <motion.button 
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.95 }}
               onClick={() => setPrompt('')}
-              className={`p-1.5 rounded-lg text-xs transition-colors ${(
+              className={`p-2 rounded-lg text-xs transition-colors ${(
                 isDark 
                   ? 'hover:bg-gray-700 text-gray-500' 
                   : 'hover:bg-gray-100 text-gray-400 hover:text-red-600'
@@ -157,144 +588,283 @@ ${prompt}`;
               title="清空"
             >
               <i className="fas fa-trash-alt"></i>
-            </button>
+            </motion.button>
           </div>
         </div>
         
-        {/* Templates Pills */}
-        <div className="flex flex-wrap gap-2 pt-1">
-          {promptTemplates?.slice(0, 5).map((t: any) => (
-            <button
+        {/* 快捷模板标签 */}
+        <div className="flex flex-wrap gap-2">
+          {promptTemplates?.slice(0, 4).map((t: any) => (
+            <motion.button
               key={t.id}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
               onClick={() => setPrompt(t.text)}
-              className={`text-[11px] px-3 py-1.5 rounded-full border transition-all hover:scale-105 active:scale-95 ${
+              className={`text-[11px] px-3 py-1.5 rounded-full border transition-all ${
                 isDark 
                   ? 'bg-gray-800/50 border-gray-700 hover:border-gray-600 text-gray-300' 
-                  : 'bg-white border-gray-200 hover:border-red-200 hover:text-[#C02C38] text-gray-600 shadow-sm'
+                  : 'bg-white border-gray-200 hover:border-blue-300 hover:text-blue-600 text-gray-600 shadow-sm'
               }`}
             >
               {t.name}
-            </button>
+            </motion.button>
           ))}
-          <button
-            onClick={async () => {
-              try {
-                setIsGenerating(true);
-                const randomPrompt = promptTemplates[Math.floor(Math.random() * promptTemplates.length)];
-                setPrompt(randomPrompt.text);
-                toast.success('已获取随机灵感');
-              } catch (e) {
-                console.error(e);
-                toast.error('获取随机灵感失败');
-              } finally {
-                setIsGenerating(false);
-              }
-            }}
-            className={`text-[11px] px-3 py-1.5 rounded-full border transition-all hover:scale-105 active:scale-95 ${
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={handleRandomInspiration}
+            className={`text-[11px] px-3 py-1.5 rounded-full border transition-all ${
               isDark 
-                ? 'bg-blue-900/30 border-blue-700 hover:border-blue-500 text-blue-300' 
-                : 'bg-blue-50 border-blue-200 hover:border-blue-400 hover:text-blue-600 text-blue-700 shadow-sm'
+                ? 'bg-gradient-to-r from-blue-900/30 to-purple-900/30 border-blue-700/50 hover:border-blue-500 text-blue-300' 
+                : 'bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200 hover:border-blue-400 text-blue-700 shadow-sm'
             }`}
           >
             <i className="fas fa-random mr-1"></i>随机灵感
-          </button>
+          </motion.button>
         </div>
       </div>
 
+      {/* 分割线 */}
       <div className={`h-px w-full ${isDark ? 'bg-gray-800' : 'bg-gray-100'}`}></div>
 
-      {/* Settings Grid */}
-      <div className="grid grid-cols-2 gap-5">
-        <div className="space-y-2.5">
-          <label className={`text-xs font-semibold ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-            风格预设
+      {/* 基础设置 */}
+      <div className="grid grid-cols-2 gap-4">
+        {/* 风格预设 */}
+        <div className="space-y-2">
+          <label className={`text-xs font-semibold ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+            <i className="fas fa-palette mr-1"></i>风格预设
           </label>
           <div className="relative">
             <select
               value={stylePreset}
               onChange={(e) => updateState({ stylePreset: e.target.value })}
-              className={`w-full p-2.5 pl-3 pr-8 rounded-xl text-sm appearance-none cursor-pointer transition-colors ${
+              className={`w-full p-2.5 pl-9 pr-8 rounded-xl text-xs appearance-none cursor-pointer transition-colors ${
                 isDark 
                   ? 'bg-gray-800 border-gray-700 text-white hover:border-gray-600' 
-                  : 'bg-white border-gray-200 text-gray-900 hover:border-red-200 shadow-sm'
-              } border focus:outline-none focus:ring-2 focus:ring-[#C02C38]/20`}
+                  : 'bg-white border-gray-200 text-gray-900 hover:border-blue-300 shadow-sm'
+              } border focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
             >
-              <option value="">默认风格</option>
-              <option value="国潮">国潮</option>
-              <option value="极简">极简</option>
-              <option value="复古">复古</option>
-              <option value="赛博朋克">赛博朋克</option>
-              <option value="水墨">水墨</option>
+              {stylePresets.map((style) => (
+                <option key={style.value} value={style.value}>{style.label}</option>
+              ))}
             </select>
-            <div className={`absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none ${
-              isDark ? 'text-gray-500' : 'text-gray-400'
-            }`}>
+            <div className={`absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+              <i className="fas fa-paint-brush text-xs"></i>
+            </div>
+            <div className={`absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
               <i className="fas fa-chevron-down text-xs"></i>
             </div>
           </div>
         </div>
 
-        <div className="space-y-2.5">
-          <label className={`text-xs font-semibold ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-            生成数量
+        {/* 生成数量 */}
+        <div className="space-y-2">
+          <label className={`text-xs font-semibold ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+            <i className="fas fa-layer-group mr-1"></i>生成数量
           </label>
           <div className={`flex items-center justify-between p-1 rounded-xl border ${
             isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200 shadow-sm'
           }`}>
-            <button 
+            <motion.button 
+              whileTap={{ scale: 0.9 }}
               onClick={() => updateState({ generateCount: Math.max(1, generateCount - 1) })}
               className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
-                isDark ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-50 text-gray-500'
+                isDark ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-500'
               }`}
             >
               <i className="fas fa-minus text-xs"></i>
-            </button>
-            <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+            </motion.button>
+            <span className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
               {generateCount}
             </span>
-            <button 
-              onClick={() => updateState({ generateCount: Math.min(6, generateCount + 1) })}
+            <motion.button 
+              whileTap={{ scale: 0.9 }}
+              onClick={() => updateState({ generateCount: Math.min(isVideoMode ? 3 : 6, generateCount + 1) })}
               className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
-                isDark ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-50 text-gray-500'
+                isDark ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-500'
               }`}
             >
               <i className="fas fa-plus text-xs"></i>
-            </button>
+            </motion.button>
           </div>
         </div>
       </div>
 
-      {/* Action Button */}
-      <div className="pt-4">
+      {/* 视频专属设置 */}
+      <AnimatePresence>
+        {isVideoMode && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="space-y-4"
+          >
+            {/* 视频比例 */}
+            <div className="space-y-2">
+              <label className={`text-xs font-semibold ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                <i className="fas fa-expand mr-1"></i>视频比例
+              </label>
+              <div className="grid grid-cols-4 gap-2">
+                {videoAspectRatios.map((ratio) => (
+                  <motion.button
+                    key={ratio.value}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setVideoAspectRatio(ratio.value)}
+                    className={`p-2 rounded-lg border text-center transition-all ${
+                      videoAspectRatio === ratio.value
+                        ? 'bg-orange-50 border-orange-300 text-orange-600 dark:bg-orange-900/30 dark:border-orange-700'
+                        : isDark 
+                          ? 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600'
+                          : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
+                    }`}
+                  >
+                    <i className={`fas ${ratio.icon} text-xs mb-1 block`}></i>
+                    <span className="text-[10px]">{ratio.label}</span>
+                  </motion.button>
+                ))}
+              </div>
+            </div>
+
+            {/* 视频时长 */}
+            <div className="space-y-2">
+              <label className={`text-xs font-semibold ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                <i className="fas fa-clock mr-1"></i>视频时长
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {videoDurations.map((duration) => (
+                  <motion.button
+                    key={duration.value}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setVideoDuration(duration.value)}
+                    className={`p-2 rounded-lg border text-center transition-all ${
+                      videoDuration === duration.value
+                        ? 'bg-orange-50 border-orange-300 text-orange-600 dark:bg-orange-900/30 dark:border-orange-700'
+                        : isDark 
+                          ? 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600'
+                          : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
+                    }`}
+                  >
+                    <div className="text-xs font-semibold">{duration.label}</div>
+                    <div className={`text-[10px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{duration.desc}</div>
+                  </motion.button>
+                ))}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 高级设置折叠面板 */}
+      <div className="space-y-3">
+        <motion.button
+          onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
+          className={`w-full flex items-center justify-between p-3 rounded-xl border transition-colors ${
+            isDark 
+              ? 'bg-gray-800/30 border-gray-700 hover:bg-gray-800/50' 
+              : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
+          }`}
+        >
+          <span className={`text-xs font-semibold ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+            <i className="fas fa-cog mr-2"></i>高级设置
+          </span>
+          <motion.i 
+            animate={{ rotate: showAdvancedSettings ? 180 : 0 }}
+            className={`fas fa-chevron-down text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}
+          />
+        </motion.button>
+
+        <AnimatePresence>
+          {showAdvancedSettings && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="space-y-4 p-4 rounded-xl bg-gray-50 dark:bg-gray-800/30 border border-gray-200 dark:border-gray-700"
+            >
+              {/* 负面提示词 */}
+              <div className="space-y-2">
+                <label className={`text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                  负面提示词（不想出现的内容）
+                </label>
+                <input
+                  type="text"
+                  placeholder="例如：模糊、变形、低质量..."
+                  className={`w-full p-2.5 rounded-lg text-xs ${
+                    isDark 
+                      ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-500' 
+                      : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'
+                  } border focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
+                />
+              </div>
+
+              {/* 种子值 */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className={`text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                    随机种子
+                  </label>
+                  <button className={`text-[10px] ${isDark ? 'text-blue-400' : 'text-blue-600'}`}>
+                    <i className="fas fa-random mr-1"></i>随机
+                  </button>
+                </div>
+                <input
+                  type="number"
+                  placeholder="-1"
+                  className={`w-full p-2.5 rounded-lg text-xs ${
+                    isDark 
+                      ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-500' 
+                      : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'
+                  } border focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
+                />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* 生成按钮 */}
+      <div className="pt-2 space-y-3">
         <motion.button
           onClick={handleGenerate}
-          disabled={isGenerating || !prompt.trim()}
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
+          disabled={isGenerating || !prompt.trim() || (isImageInputMode && !uploadedImage)}
+          whileHover={{ scale: isGenerating ? 1 : 1.02 }}
+          whileTap={{ scale: isGenerating ? 1 : 0.98 }}
           className={`w-full py-4 rounded-2xl font-bold text-white shadow-xl transition-all relative overflow-hidden group ${
             isGenerating 
               ? 'bg-gray-400 cursor-not-allowed' 
-              : 'bg-gradient-to-r from-[#C02C38] to-[#E60012] hover:shadow-red-500/40'
+              : `bg-gradient-to-r ${currentMode.color} hover:shadow-2xl`
           }`}
         >
-          {/* Shine effect */}
+          {/* 光泽动画效果 */}
           <div className="absolute top-0 -inset-full h-full w-1/2 z-5 block transform -skew-x-12 bg-gradient-to-r from-transparent to-white opacity-20 group-hover:animate-shine" />
           
           {isGenerating ? (
             <span className="flex items-center justify-center gap-2">
               <i className="fas fa-circle-notch fa-spin"></i>
-              <span>正在设计中...</span>
+              <span>
+                {isVideoMode ? '正在生成视频...' : '正在生成图片...'}
+              </span>
             </span>
           ) : (
             <span className="flex items-center justify-center gap-2">
-              <i className="fas fa-magic"></i>
-              <span>立即生成方案</span>
+              <i className={`fas ${currentMode.icon}`}></i>
+              <span>
+                {activeMode === 'text-to-image' && '立即生成图片'}
+                {activeMode === 'image-to-image' && '开始风格转换'}
+                {activeMode === 'text-to-video' && '立即生成视频'}
+                {activeMode === 'image-to-video' && '生成动态视频'}
+              </span>
             </span>
           )}
         </motion.button>
-        <p className={`text-center mt-3 text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-          <i className="fas fa-info-circle mr-1"></i>
-          每次生成消耗 2 点算力
+        
+        {/* 算力提示 */}
+        <p className={`text-center text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+          <i className="fas fa-bolt mr-1 text-yellow-500"></i>
+          每次生成消耗 {isVideoMode ? '10' : '2'} 点算力
+          {isVideoMode && <span className="ml-2 text-orange-500">视频生成时间较长，请耐心等待</span>}
         </p>
       </div>
     </div>

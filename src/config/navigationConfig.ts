@@ -40,7 +40,7 @@ export const communityNavItems: NavItem[] = [
 
 // 天津老字号专区导航项
 export const tianjinNavItems: NavItem[] = [
-  { id: 'tianjin', path: '/tianjin', label: '特色专区', icon: 'fas fa-landmark', priority: 'high' },
+  { id: 'tianjin', path: '/tianjin', label: '津脉作品', icon: 'fas fa-landmark', priority: 'high' },
 
   { id: 'knowledge', path: '/knowledge', label: '文化知识', icon: 'fas fa-book', priority: 'medium' },
 
@@ -134,7 +134,7 @@ export const keyboardShortcuts = {
   '2': '创作中心',
   '3': '津脉广场',
   '4': '津脉社区',
-  '5': '天津特色专区',
+  '5': '津脉作品',
   '6': '积分商城',
   '7': '个人中心'
 };

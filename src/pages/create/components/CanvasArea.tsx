@@ -198,7 +198,7 @@ export default function CanvasArea() {
           <span className={`px-2 py-1 rounded text-xs font-bold tracking-wider ${isDark ? 'bg-gray-800 text-gray-400' : 'bg-gray-200 text-gray-600'}`}>CANVAS</span>
           <i className="fas fa-chevron-right text-[10px] opacity-30"></i>
           <span className={isDark ? 'text-gray-200' : 'text-gray-900'}>
-            {activeTool === 'sketch' ? '一键设计' : activeTool === 'pattern' ? '纹样嵌入' : '创作预览'}
+            {activeTool === 'sketch' ? 'AI创作工坊' : activeTool === 'pattern' ? '纹样嵌入' : '创作预览'}
           </span>
         </div>
         
@@ -300,20 +300,43 @@ export default function CanvasArea() {
                       transition={{ duration: 0.3, ease: "easeOut" }}
                       className={`relative w-full max-w-full max-h-full overflow-hidden group ${selectedBorderStyle === 'none' ? 'rounded-2xl' : selectedBorderStyle === 'thin' ? 'rounded-2xl border-2 border-gray-500' : selectedBorderStyle === 'thick' ? 'rounded-2xl border-4 border-gray-500' : 'rounded-full border-2 border-gray-500'} shadow-2xl ${selectedBackground === 'transparent' ? '' : selectedBackground === 'light' ? 'bg-gray-100 dark:bg-gray-200' : selectedBackground === 'dark' ? 'bg-gray-800 dark:bg-gray-900' : 'bg-gradient-to-br from-blue-400 to-purple-400 dark:from-blue-600 dark:to-purple-800'} ${selectedLayout === 'center' ? 'flex items-center justify-center' : selectedLayout === 'left' ? 'flex items-center justify-start' : selectedLayout === 'right' ? 'flex items-center justify-end' : 'w-full'}`}
                     >
-                      <motion.img 
-                        src={generatedResults.find(r => r.id === selectedResult)?.thumbnail} 
-                        alt="Selected Result" 
-                        className={`w-full h-auto max-h-[55vh] object-contain ${selectedBackground === 'transparent' ? 'bg-gray-100 dark:bg-gray-900' : ''}`}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ duration: 0.5, delay: 0.1, ease: "easeOut" }}
-                        style={{
-                          filter: selectedFilter === 'normal' ? 'none' : 
-                                  selectedFilter === 'sepia' ? 'sepia(100%)' : 
-                                  selectedFilter === 'grayscale' ? 'grayscale(100%)' : 
-                                  selectedFilter === 'vintage' ? 'sepia(50%) contrast(120%) brightness(90%)' : 'none'
-                        }}
-                      />
+                      {(() => {
+                        const selectedItem = generatedResults.find(r => r.id === selectedResult);
+                        const isVideo = selectedItem?.type === 'video' || selectedItem?.video;
+                        
+                        if (isVideo && selectedItem?.video) {
+                          return (
+                            <motion.video
+                              src={selectedItem.video}
+                              poster={selectedItem.thumbnail}
+                              controls
+                              autoPlay
+                              loop
+                              className={`w-full h-auto max-h-[55vh] object-contain ${selectedBackground === 'transparent' ? 'bg-gray-100 dark:bg-gray-900' : ''}`}
+                              initial={{ opacity: 0 }}
+                              animate={{ opacity: 1 }}
+                              transition={{ duration: 0.5, delay: 0.1, ease: "easeOut" }}
+                            />
+                          );
+                        }
+                        
+                        return (
+                          <motion.img 
+                            src={selectedItem?.thumbnail} 
+                            alt="Selected Result" 
+                            className={`w-full h-auto max-h-[55vh] object-contain ${selectedBackground === 'transparent' ? 'bg-gray-100 dark:bg-gray-900' : ''}`}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ duration: 0.5, delay: 0.1, ease: "easeOut" }}
+                            style={{
+                              filter: selectedFilter === 'normal' ? 'none' : 
+                                      selectedFilter === 'sepia' ? 'sepia(100%)' : 
+                                      selectedFilter === 'grayscale' ? 'grayscale(100%)' : 
+                                      selectedFilter === 'vintage' ? 'sepia(50%) contrast(120%) brightness(90%)' : 'none'
+                            }}
+                          />
+                        );
+                      })()}
                         
                       {/* 纹样叠加层 */}
                       {selectedPatternId && activeTool === 'pattern' && (
@@ -601,6 +624,19 @@ export default function CanvasArea() {
                           animate={{ opacity: 1 }}
                           transition={{ duration: 0.3, delay: 0.15 * index, ease: "easeOut" }}
                         />
+                        {/* 视频标识 */}
+                        {(result.type === 'video' || result.video) && (
+                          <motion.div 
+                            initial={{ opacity: 0, scale: 0.5 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            transition={{ duration: 0.2, delay: 0.2 * index, ease: "easeOut" }}
+                            className="absolute inset-0 flex items-center justify-center bg-black/30"
+                          >
+                            <div className="w-8 h-8 rounded-full bg-white/90 flex items-center justify-center">
+                              <i className="fas fa-play text-[#C02C38] text-xs ml-0.5"></i>
+                            </div>
+                          </motion.div>
+                        )}
                         {result.score && (
                           <motion.div 
                             initial={{ opacity: 0, scale: 0.5 }}

@@ -5,8 +5,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { themeOrder, themeConfig } from '@/config/themeConfig';
 
 interface NeoLeftSidebarProps {
-  activeTab: 'create' | 'results' | 'history';
-  onTabChange: (tab: 'create' | 'results' | 'history') => void;
+  activeTab: 'create' | 'design' | 'results' | 'history';
+  onTabChange: (tab: 'create' | 'design' | 'results' | 'history') => void;
   collapsed?: boolean;
   onToggleCollapse?: () => void;
   rightSidebarVisible?: boolean;
@@ -47,6 +47,7 @@ const NeoLeftSidebar: React.FC<NeoLeftSidebarProps> = ({
   // 导航项配置
   const navItems = [
     { id: 'create', label: '灵感创作', icon: 'lightbulb', path: '#create' },
+    { id: 'design', label: '一键设计', icon: 'magic', path: '#design' },
     { id: 'results', label: '生成结果', icon: 'image', path: '#results' },
     { id: 'history', label: '历史记录', icon: 'clock-rotate-left', path: '#history' }
   ];

@@ -5,6 +5,7 @@ export interface GeneratedResult {
   thumbnail: string;
   score?: number;
   video?: string;
+  type?: 'image' | 'video';
 }
 
 export interface TraditionalPattern {

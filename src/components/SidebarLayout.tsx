@@ -846,7 +846,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                       <span 
                         className="transition-all duration-300 ease-in-out opacity-100 truncate font-medium"
                       >
-                        {t(navItemIdToTranslationKey[item.id] || item.label)}
+                        {navItemIdToTranslationKey[item.id] ? t(navItemIdToTranslationKey[item.id]) : item.label}
                       </span>
                     )}
                     {item.badge && (

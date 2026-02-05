@@ -32,10 +32,15 @@ export default function Generation() {
     try {
       const params = new URLSearchParams(location.search)
       const p = params.get('prompt') || ''
+      const template = params.get('template') || ''
       const img = params.get('image') || ''
       const autostart = params.get('autostart') || ''
       const saveId = params.get('saveToTutorialId') || ''
       if (p) setPrompt(p)
+      if (template) {
+        // 显示模板名称，方便用户了解当前使用的模板
+        toast.info(`已加载模板：${template}`)
+      }
       if (img) {
         setVariants([{ script: p ? `根据提示生成：${p}` : '教程封面生成视频', image: img, video: '' }])
         if (autostart) {

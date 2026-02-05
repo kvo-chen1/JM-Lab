@@ -29,7 +29,7 @@ export type EventType =
 
 // 事件数据类型定义
 export interface EventData {
-  'auth:login': { userId: string; user: any }
+  'auth:login': { userId: string; user: any; isProfileComplete?: boolean }
   'auth:logout': undefined
   'auth:update': { isAuthenticated: boolean; user: any }
   'auth:register': { userId: string; user: any }

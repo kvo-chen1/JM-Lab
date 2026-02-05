@@ -5020,3 +5020,17 @@ details p {
   color: var(--color-primary);
   text-shadow: var(--glow-primary);
 }
+
+/* 按钮光泽扫过动画 */
+@keyframes shine {
+  0% {
+    left: -100%;
+  }
+  100% {
+    left: 200%;
+  }
+}
+
+.animate-shine {
+  animation: shine 1.5s ease-in-out infinite;
+}

@@ -191,24 +191,24 @@ const CulturalTracePanel: React.FC = () => {
 
   return (
     <div className="h-full flex flex-col overflow-y-auto">
-      <div className="mb-5">
-        <div className={`rounded-xl p-4 mb-4 ${isDark ? 'bg-gradient-to-r from-[#C02C38]/10 to-transparent' : 'bg-gradient-to-r from-[#C02C38]/5 to-transparent'}`}>
-          <h3 className="text-lg font-semibold mb-2 flex items-center gap-2">
+      <div className="mb-6">
+        <div className={`rounded-xl p-5 mb-5 ${isDark ? 'bg-gradient-to-r from-[#C02C38]/10 to-transparent' : 'bg-gradient-to-r from-[#C02C38]/5 to-transparent'}`}>
+          <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
             <i className="fas fa-landmark text-[#C02C38]"></i>
             <span>文化溯源</span>
           </h3>
-          <p className="text-xs opacity-70">了解文化元素的历史背景和文化内涵，探索文化知识</p>
+          <p className="text-xs opacity-70 leading-relaxed">了解文化元素的历史背景和文化内涵，探索文化知识</p>
         </div>
         
         {/* 搜索框 */}
-        <form onSubmit={handleSearchSubmit} className={`relative mb-4`}>
+        <form onSubmit={handleSearchSubmit} className={`relative mb-5`}>
           <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
             <i className="fas fa-search text-sm opacity-50"></i>
           </div>
           <input
             type="text"
             placeholder="搜索文化知识..."
-            className={`w-full pl-10 pr-24 py-3 rounded-xl text-sm border shadow-sm ${isDark 
+            className={`w-full pl-10 pr-28 py-3 rounded-xl text-sm font-medium border shadow-sm ${isDark 
               ? 'bg-gray-800/90 border-gray-700 text-white focus:border-[#C02C38] focus:ring-[#C02C38]/30' 
               : 'bg-white/90 border-gray-200 text-gray-900 focus:border-[#C02C38] focus:ring-[#C02C38]/30'} focus:outline-none focus:ring-2 transition-all duration-300 backdrop-blur-sm`}
             value={searchQuery}
@@ -218,7 +218,7 @@ const CulturalTracePanel: React.FC = () => {
           />
           
           {/* 搜索操作按钮组 */}
-          <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
             {searchQuery && (
               <motion.button
                 type="button"
@@ -229,7 +229,7 @@ const CulturalTracePanel: React.FC = () => {
                   setSearchQuery('');
                   setShowSearchResults(false);
                 }}
-                className={`p-1.5 rounded-lg transition-colors ${isDark ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-400'}`}
+                className={`p-2 rounded-lg transition-colors ${isDark ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-400'}`}
               >
                 <i className="fas fa-times text-xs"></i>
               </motion.button>
@@ -242,8 +242,8 @@ const CulturalTracePanel: React.FC = () => {
             ) : (
               <button 
                 type="submit"
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${searchQuery 
-                  ? 'bg-[#C02C38] text-white hover:bg-[#A0232F]' 
+                className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${searchQuery 
+                  ? 'bg-[#C02C38] text-white hover:bg-[#A0232F] shadow-md' 
                   : isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-500'}`}
                 disabled={!searchQuery}
               >
@@ -400,19 +400,18 @@ const CulturalTracePanel: React.FC = () => {
         {/* 分类选择 */}
         <div className="mb-5">
           <div className="flex items-center justify-between mb-3">
-            <h5 className="text-xs font-medium flex items-center gap-1.5">
-              <i className="fas fa-tags text-[#C02C38]"></i>
-              {showFavorites ? '我的收藏' : '知识分类'}
-              <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${isDark ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-500'}`}>
-                {showFavorites ? favorites.length : knowledgeItems.length}
-              </span>
-            </h5>
+            <div className="flex items-center gap-2">
+              <i className="fas fa-tags text-[#C02C38] text-xs"></i>
+              <h5 className="text-xs font-medium">
+                {showFavorites ? '我的收藏' : '知识分类'}
+              </h5>
+            </div>
             <div className="flex items-center gap-2">
               {/* 收藏夹切换按钮 */}
               <motion.button
                 onClick={() => setShowFavorites(!showFavorites)}
-                className={`px-2.5 py-1.5 rounded-lg text-xs flex items-center gap-1.5 transition-all ${showFavorites
-                  ? 'bg-gradient-to-r from-yellow-400 to-orange-500 text-white'
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1 transition-all ${showFavorites
+                  ? 'bg-gradient-to-r from-yellow-400 to-orange-500 text-white shadow-sm'
                   : isDark
                     ? 'bg-gray-800 text-gray-400 hover:bg-gray-700'
                     : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'}`}
@@ -422,14 +421,14 @@ const CulturalTracePanel: React.FC = () => {
                 <i className={`fas ${showFavorites ? 'fa-star' : 'fa-star-o'}`}></i>
                 <span>收藏</span>
                 {favorites.length > 0 && (
-                  <span className={`text-[9px] px-1 rounded-full ${showFavorites ? 'bg-white/20' : 'bg-[#C02C38] text-white'}`}>
+                  <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${showFavorites ? 'bg-white/20' : 'bg-[#C02C38] text-white'}`}>
                     {favorites.length}
                   </span>
                 )}
               </motion.button>
               
               {(canScrollLeft || canScrollRight) && !showFavorites && (
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-0.5">
                   <button
                     onClick={() => scrollCategories('left')}
                     disabled={!canScrollLeft}
@@ -458,7 +457,7 @@ const CulturalTracePanel: React.FC = () => {
             <div
               ref={categoryScrollRef}
               onScroll={checkScrollability}
-              className="flex gap-2 overflow-x-auto scrollbar-hide pb-1"
+              className="flex gap-3 overflow-x-auto scrollbar-hide pb-2"
               style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
             >
               {KNOWLEDGE_CATEGORIES.map((category, index) => {
@@ -468,7 +467,7 @@ const CulturalTracePanel: React.FC = () => {
                   <motion.button
                     key={category}
                     onClick={() => handleCategoryChange(category)}
-                    className={`px-4 py-2.5 rounded-xl text-xs whitespace-nowrap transition-all duration-300 ease-in-out flex items-center gap-2 font-medium flex-shrink-0 ${isDark
+                    className={`px-4 py-3 rounded-xl text-xs whitespace-nowrap transition-all duration-300 ease-in-out flex items-center gap-2 font-medium flex-shrink-0 ${isDark
                       ? isSelected
                         ? 'shadow-lg'
                         : 'hover:bg-gray-800'
@@ -513,23 +512,31 @@ const CulturalTracePanel: React.FC = () => {
 
       {/* 响应式网格布局 */}
       <div className="flex-1">
-        {/* 大屏幕：两列布局 */}
-        <div className="hidden lg:grid lg:grid-cols-12 lg:gap-6">
+        {/* 大屏幕和中等屏幕：两列布局 */}
+        <div className="hidden md:grid md:grid-cols-12 md:gap-6">
           {/* 知识列表 - 占据5列 */}
-          <div className={`lg:col-span-5 lg:h-full overflow-y-auto rounded-lg border ${isDark ? 'bg-gradient-to-br from-gray-900 to-gray-800 border-gray-800' : 'bg-gradient-to-br from-white to-gray-50 border-gray-200'} p-6 shadow-lg`}>
-            <div className="flex items-center justify-between mb-3">
-              <h4 className="text-sm font-medium flex items-center gap-2">
-                <i className="fas fa-list-ul text-xs"></i>
-                {searchQuery ? '搜索结果' : showFavorites ? '我的收藏' : '相关知识'}
-                <span className="text-xs opacity-70 font-normal">({displayedItems.length})</span>
-              </h4>
+          <div className={`md:col-span-5 md:h-full overflow-y-auto rounded-xl border ${isDark ? 'bg-gradient-to-br from-gray-900 to-gray-800 border-gray-800' : 'bg-gradient-to-br from-white to-gray-50 border-gray-200'} p-5 shadow-lg`}>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isDark ? 'bg-[#C02C38]/20' : 'bg-[#C02C38]/10'}`}>
+                  <i className="fas fa-list-ul text-sm text-[#C02C38]"></i>
+                </div>
+                <div>
+                  <h4 className="text-sm font-semibold">
+                    {searchQuery ? '搜索结果' : showFavorites ? '我的收藏' : '相关知识'}
+                  </h4>
+                  <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                    共 {displayedItems.length} 条
+                  </span>
+                </div>
+              </div>
               {searchQuery && (
                 <button
                   onClick={() => {
                     setSearchQuery('');
                     setShowSearchResults(false);
                   }}
-                  className={`text-xs flex items-center gap-1 ${isDark ? 'text-gray-400 hover:text-gray-300' : 'text-gray-500 hover:text-gray-700'} transition-colors`}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1 ${isDark ? 'bg-gray-800 text-gray-400 hover:bg-gray-700' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'} transition-all duration-300`}
                   aria-label="清除搜索"
                 >
                   <i className="fas fa-times"></i>
@@ -538,11 +545,11 @@ const CulturalTracePanel: React.FC = () => {
               )}
             </div>
             
-            <div className="space-y-3">
+            <div className="space-y-4">
               {isDataLoading && !searchQuery ? (
                 // 骨架屏加载状态
                 Array.from({ length: 5 }).map((_, index) => (
-                  <div key={index} className={`p-4 rounded-lg ${isDark ? 'bg-gray-800/80' : 'bg-white/80'} backdrop-blur-sm`}>
+                  <div key={index} className={`p-5 rounded-lg ${isDark ? 'bg-gray-800/80' : 'bg-white/80'} backdrop-blur-sm`}>
                     <div className="flex justify-between items-start">
                       <LoadingSkeleton variant="text" width="70%" height="16px" className="mb-2" />
                       <LoadingSkeleton variant="text" width="50px" height="16px" />
@@ -561,14 +568,14 @@ const CulturalTracePanel: React.FC = () => {
                   <motion.div
                     key={item.id}
                     onClick={() => handleKnowledgeSelect(item)}
-                    className={`p-4 rounded-lg cursor-pointer transition-all duration-300 ${isDark 
+                    className={`p-4 rounded-xl cursor-pointer transition-all duration-300 border ${isDark 
                       ? selectedKnowledge?.id === item.id 
-                        ? 'bg-[#C02C38]/15 border-l-4 border-[#C02C38] shadow-md' 
-                        : 'bg-gray-800/80 hover:bg-gray-700/90' 
+                        ? 'bg-[#C02C38]/15 border-[#C02C38] shadow-md' 
+                        : 'bg-gray-800/60 border-gray-700/50 hover:bg-gray-700/80 hover:border-gray-600' 
                       : selectedKnowledge?.id === item.id 
-                        ? 'bg-[#C02C38]/10 border-l-4 border-[#C02C38] shadow-md' 
-                        : 'bg-white/80 hover:bg-gray-50'} backdrop-blur-sm`}
-                    whileHover={{ x: 4, scale: 1.01 }}
+                        ? 'bg-[#C02C38]/8 border-[#C02C38]/30 shadow-md' 
+                        : 'bg-white border-gray-100 hover:border-gray-200 hover:shadow-sm'} backdrop-blur-sm`}
+                    whileHover={{ y: -2 }}
                     whileTap={{ scale: 0.98 }}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -576,30 +583,36 @@ const CulturalTracePanel: React.FC = () => {
                     aria-selected={selectedKnowledge?.id === item.id}
                     role="listitem"
                   >
-                    <div className="mb-3">
-                      <div className="flex justify-between items-center">
-                        <h5 className="text-sm font-medium leading-tight">{item.title}</h5>
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${isDark ? 'bg-gray-700/80 text-gray-300' : 'bg-gray-100 text-gray-700'} backdrop-blur-sm`}>
-                          {item.subcategory}
-                        </span>
+                    <div className="flex items-start gap-3">
+                      {/* 左侧指示条 */}
+                      <div className={`w-1 h-full min-h-[40px] rounded-full flex-shrink-0 ${selectedKnowledge?.id === item.id ? 'bg-[#C02C38]' : 'bg-transparent'}`} />
+                      
+                      <div className="flex-1 min-w-0">
+                        {/* 标题行 */}
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <h5 className="text-sm font-semibold leading-tight line-clamp-1">{item.title}</h5>
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full flex-shrink-0 ${isDark ? 'bg-gray-700/60 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
+                            {item.subcategory}
+                          </span>
+                        </div>
+                        
+                        {/* 内容摘要 */}
+                        <p className="text-xs opacity-60 leading-relaxed line-clamp-2 mb-2">{item.content}</p>
+                        
+                        {/* 底部信息 */}
+                        <div className="flex items-center gap-3 text-[10px]">
+                          <span className={`flex items-center gap-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                            <i className="fas fa-clock text-[10px]"></i>
+                            历史文化
+                          </span>
+                          {item.relatedItems && item.relatedItems.length > 0 && (
+                            <span className={`flex items-center gap-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                              <i className="fas fa-link text-[10px]"></i>
+                              {item.relatedItems.length}个相关
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                    
-                    <div className="mb-3">
-                      <p className="text-xs opacity-70 leading-relaxed line-clamp-3">{item.content}</p>
-                    </div>
-                    
-                    <div className="flex items-center gap-3 text-xs">
-                      <span className={`flex items-center gap-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                        <i className="fas fa-clock"></i>
-                        历史文化
-                      </span>
-                      {item.relatedItems && item.relatedItems.length > 0 && (
-                        <span className={`flex items-center gap-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                          <i className="fas fa-link"></i>
-                          {item.relatedItems.length}个相关
-                        </span>
-                      )}
                     </div>
                   </motion.div>
                 ))
@@ -609,12 +622,12 @@ const CulturalTracePanel: React.FC = () => {
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
-                  className="text-center py-12 px-4"
+                  className="flex flex-col items-center justify-center py-10 px-4"
                 >
-                  {/* 动态空状态插画 */}
-                  <div className="relative mb-6">
+                  {/* 空状态插画 */}
+                  <div className="relative mb-5">
                     <motion.div 
-                      className={`w-28 h-28 rounded-2xl mx-auto flex items-center justify-center ${isDark ? 'bg-gradient-to-br from-gray-800 to-gray-900' : 'bg-gradient-to-br from-gray-50 to-gray-100'}`}
+                      className={`w-20 h-20 rounded-2xl mx-auto flex items-center justify-center ${isDark ? 'bg-gradient-to-br from-gray-800 to-gray-900' : 'bg-gradient-to-br from-gray-50 to-gray-100'}`}
                       animate={{ 
                         rotate: [0, -5, 5, 0],
                         scale: [1, 1.02, 1]
@@ -625,46 +638,46 @@ const CulturalTracePanel: React.FC = () => {
                         ease: "easeInOut"
                       }}
                     >
-                      <i className={`fas ${searchQuery ? 'fa-search' : 'fa-book-open'} text-5xl bg-gradient-to-br from-[#C02C38] to-[#E85D75] bg-clip-text text-transparent`}></i>
+                      <i className={`fas ${searchQuery ? 'fa-search' : 'fa-book-open'} text-3xl bg-gradient-to-br from-[#C02C38] to-[#E85D75] bg-clip-text text-transparent`}></i>
                     </motion.div>
                     {/* 装饰元素 */}
                     <motion.div 
-                      className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-[#C02C38]/20"
+                      className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#C02C38]/20"
                       animate={{ scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5] }}
                       transition={{ duration: 2, repeat: Infinity }}
                     />
                     <motion.div 
-                      className="absolute -bottom-1 -left-3 w-4 h-4 rounded-full bg-blue-400/30"
+                      className="absolute -bottom-1 -left-2 w-3 h-3 rounded-full bg-blue-400/30"
                       animate={{ scale: [1, 1.3, 1], opacity: [0.3, 0.8, 0.3] }}
                       transition={{ duration: 2.5, repeat: Infinity, delay: 0.5 }}
                     />
                   </div>
                   
-                  <h4 className="text-lg font-semibold mb-2">
+                  <h4 className="text-base font-semibold mb-1">
                     {searchQuery ? '未找到相关知识' : showFavorites ? '暂无收藏' : '暂无相关知识'}
                   </h4>
-                  <p className="text-sm opacity-60 mb-6 max-w-xs mx-auto leading-relaxed">
+                  <p className="text-xs opacity-60 mb-5 max-w-[200px] mx-auto text-center leading-relaxed">
                     {searchQuery 
-                      ? `未找到与 "${searchQuery}" 相关的知识，试试其他关键词` 
+                      ? `未找到与 "${searchQuery}" 相关的知识` 
                       : showFavorites
                         ? '您还没有收藏任何知识，点击知识卡片上的收藏按钮添加'
-                        : '该分类下暂时没有内容，浏览其他分类或搜索试试'}
+                        : '该分类下暂时没有内容'}
                   </p>
                   
-                  {/* 智能推荐区域 */}
-                  <div className="space-y-4">
+                  {/* 操作按钮区域 */}
+                  <div className="w-full space-y-3">
                     {/* 热门分类推荐 */}
                     {!searchQuery && !showFavorites && (
-                      <div className="mb-4">
-                        <p className="text-xs opacity-50 mb-3">推荐分类</p>
+                      <div className="mb-3">
+                        <p className="text-xs opacity-40 mb-2 text-center">推荐分类</p>
                         <div className="flex flex-wrap gap-2 justify-center">
-                          {KNOWLEDGE_CATEGORIES.slice(0, 5).map((category, idx) => {
+                          {KNOWLEDGE_CATEGORIES.slice(0, 4).map((category, idx) => {
                             const config = CATEGORY_CONFIG[category];
                             return (
                               <motion.button
                                 key={category}
                                 onClick={() => handleCategoryChange(category)}
-                                className={`px-3 py-2 rounded-lg text-xs font-medium transition-all duration-200 ${isDark 
+                                className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${isDark 
                                   ? 'bg-gray-800/80 hover:bg-gray-700' 
                                   : 'bg-white hover:bg-gray-50 border border-gray-200'}`}
                                 style={{ color: config.color }}
@@ -674,7 +687,7 @@ const CulturalTracePanel: React.FC = () => {
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ delay: idx * 0.05 }}
                               >
-                                <i className={`fas fa-${config.icon} mr-1.5`}></i>
+                                <i className={`fas fa-${config.icon} mr-1 text-[10px]`}></i>
                                 {category}
                               </motion.button>
                             );
@@ -684,7 +697,7 @@ const CulturalTracePanel: React.FC = () => {
                     )}
                     
                     {/* 操作按钮 */}
-                    <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                    <div className="flex gap-2 justify-center">
                       {!searchQuery ? (
                         <>
                           <motion.button
@@ -692,11 +705,11 @@ const CulturalTracePanel: React.FC = () => {
                               const randomCategory = KNOWLEDGE_CATEGORIES[Math.floor(Math.random() * KNOWLEDGE_CATEGORIES.length)];
                               updateState({ traceSelectedCategoryId: randomCategory, traceSelectedKnowledgeId: null });
                             }}
-                            className="px-5 py-3 rounded-xl text-sm font-medium bg-gradient-to-r from-[#C02C38] to-[#E85D75] text-white shadow-lg shadow-[#C02C38]/25 hover:shadow-xl hover:shadow-[#C02C38]/30 transition-all duration-300"
+                            className="px-4 py-2 rounded-lg text-xs font-medium bg-gradient-to-r from-[#C02C38] to-[#E85D75] text-white shadow-md hover:shadow-lg transition-all duration-300"
                             whileHover={{ scale: 1.02 }}
                             whileTap={{ scale: 0.98 }}
                           >
-                            <i className="fas fa-dice mr-2"></i>
+                            <i className="fas fa-dice mr-1.5"></i>
                             随机探索
                           </motion.button>
                           <motion.button
@@ -704,49 +717,27 @@ const CulturalTracePanel: React.FC = () => {
                               const searchInput = document.querySelector('input[type="text"]') as HTMLInputElement;
                               searchInput?.focus();
                             }}
-                            className={`px-5 py-3 rounded-xl text-sm font-medium transition-all duration-300 ${isDark 
+                            className={`px-4 py-2 rounded-lg text-xs font-medium transition-all duration-300 ${isDark 
                               ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' 
                               : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'}`}
                             whileHover={{ scale: 1.02 }}
                             whileTap={{ scale: 0.98 }}
                           >
-                            <i className="fas fa-search mr-2"></i>
-                            搜索知识
+                            <i className="fas fa-search mr-1.5"></i>
+                            搜索
                           </motion.button>
                         </>
                       ) : (
                         <>
-                          <div className="flex flex-wrap gap-2 justify-center mb-2">
-                            <p className="text-xs opacity-50 w-full mb-1">试试这些关键词</p>
-                            {['天津', '民俗', '历史', '建筑', '饮食', '艺术'].map((keyword, idx) => (
-                              <motion.button
-                                key={keyword}
-                                onClick={() => {
-                                  setSearchQuery(keyword);
-                                  saveRecentSearch(keyword);
-                                }}
-                                className={`px-3 py-1.5 rounded-lg text-xs ${isDark 
-                                  ? 'bg-gray-800/80 hover:bg-gray-700 text-gray-300' 
-                                  : 'bg-white hover:bg-gray-50 text-gray-600 border border-gray-200'} transition-all duration-200`}
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
-                                initial={{ opacity: 0, scale: 0.9 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                transition={{ delay: idx * 0.03 }}
-                              >
-                                {keyword}
-                              </motion.button>
-                            ))}
-                          </div>
                           <motion.button
                             onClick={() => setSearchQuery('')}
-                            className={`px-5 py-2.5 rounded-xl text-sm font-medium ${isDark 
+                            className={`px-4 py-2 rounded-lg text-xs font-medium ${isDark 
                               ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' 
                               : 'bg-gray-100 text-gray-600 hover:bg-gray-200'} transition-all duration-300`}
                             whileHover={{ scale: 1.02 }}
                             whileTap={{ scale: 0.98 }}
                           >
-                            <i className="fas fa-undo mr-2"></i>
+                            <i className="fas fa-undo mr-1.5"></i>
                             清除搜索
                           </motion.button>
                         </>
@@ -759,25 +750,27 @@ const CulturalTracePanel: React.FC = () => {
           </div>
 
           {/* 知识详情 - 占据7列 */}
-          <div className={`lg:col-span-7 lg:h-full overflow-y-auto rounded-lg border ${isDark ? 'bg-gradient-to-br from-gray-900 to-gray-800 border-gray-800' : 'bg-gradient-to-br from-white to-gray-50 border-gray-200'} p-6 shadow-lg`}>
-            <h4 className="text-sm font-medium flex items-center gap-2 mb-4">
-              <i className="fas fa-info-circle text-xs"></i>
-              详细信息
-            </h4>
+          <div className={`md:col-span-7 md:h-full overflow-y-auto rounded-xl border ${isDark ? 'bg-gradient-to-br from-gray-900 to-gray-800 border-gray-800' : 'bg-gradient-to-br from-white to-gray-50 border-gray-200'} p-5 shadow-lg`}>
+            <div className="flex items-center gap-2 mb-5">
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isDark ? 'bg-blue-500/20' : 'bg-blue-500/10'}`}>
+                <i className="fas fa-info-circle text-sm text-blue-500"></i>
+              </div>
+              <h4 className="text-sm font-semibold">详细信息</h4>
+            </div>
             
             {selectedKnowledge ? (
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5 }}
-                className="space-y-6"
+                className="space-y-8"
               >
                 {/* 知识标题 */}
-                <div className="border-b border-gray-200 dark:border-gray-700 pb-4">
-                  <h5 className="text-base font-semibold leading-tight mb-2">{selectedKnowledge.title}</h5>
-                  <div className="flex items-center text-xs opacity-70 space-x-2 flex-wrap">
+                <div className="border-b border-gray-200 dark:border-gray-700 pb-6">
+                  <h5 className="text-lg font-semibold leading-tight mb-3">{selectedKnowledge.title}</h5>
+                  <div className="flex items-center text-xs opacity-70 space-x-3 flex-wrap">
                     <span 
-                      className="px-2 py-0.5 rounded-full"
+                      className="px-3 py-1 rounded-full"
                       style={{ 
                         backgroundColor: CATEGORY_CONFIG[selectedKnowledge.category]?.bgColor || 'rgba(192, 44, 56, 0.1)',
                         color: CATEGORY_CONFIG[selectedKnowledge.category]?.color || '#C02C38'
@@ -786,7 +779,7 @@ const CulturalTracePanel: React.FC = () => {
                       <i className={`fas fa-${CATEGORY_CONFIG[selectedKnowledge.category]?.icon || 'tag'} mr-1`}></i>
                       {selectedKnowledge.category}
                     </span>
-                    <span className={`px-2 py-0.5 rounded-full ${isDark ? 'bg-gray-700/80 text-gray-300' : 'bg-gray-100 text-gray-700'}`}>
+                    <span className={`px-3 py-1 rounded-full ${isDark ? 'bg-gray-700/80 text-gray-300' : 'bg-gray-100 text-gray-700'}`}>
                       {selectedKnowledge.subcategory}
                     </span>
                   </div>
@@ -814,11 +807,11 @@ const CulturalTracePanel: React.FC = () => {
                 
                 {/* 知识内容 */}
                 <div>
-                  <h6 className="text-xs font-medium mb-3 flex items-center gap-1.5">
+                  <h6 className="text-xs font-medium mb-4 flex items-center gap-1.5">
                     <i className="fas fa-quote-left text-[#C02C38]"></i>
                     文化内涵
                   </h6>
-                  <div className={`text-sm leading-relaxed whitespace-pre-line ${isDark ? 'text-gray-300' : 'text-gray-700'} p-4 rounded-lg ${isDark ? 'bg-gray-800/50' : 'bg-white/80'} backdrop-blur-sm`}>
+                  <div className={`text-sm font-medium leading-relaxed whitespace-pre-line ${isDark ? 'text-gray-300' : 'text-gray-700'} p-5 rounded-lg ${isDark ? 'bg-gray-800/50' : 'bg-white/80'} backdrop-blur-sm`}>
                     {selectedKnowledge.content}
                   </div>
                 </div>
@@ -826,18 +819,18 @@ const CulturalTracePanel: React.FC = () => {
                 {/* 相关知识 */}
                 {selectedKnowledge.relatedItems && selectedKnowledge.relatedItems.length > 0 && (
                   <div>
-                    <h6 className="text-xs font-medium mb-3 flex items-center gap-1.5">
+                    <h6 className="text-xs font-medium mb-4 flex items-center gap-1.5">
                       <i className="fas fa-link text-[#C02C38]"></i>
                       相关内容
                     </h6>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-3">
                       {selectedKnowledge.relatedItems.map((relatedId) => {
                         const relatedItem = tianjinCultureService.getKnowledgeById(relatedId);
                         return relatedItem ? (
                           <motion.button
                             key={relatedId}
                             onClick={() => handleKnowledgeSelect(relatedItem)}
-                            className={`px-3 py-1.5 rounded-full text-xs ${isDark 
+                            className={`px-4 py-2 rounded-full text-xs ${isDark 
                               ? 'bg-gray-800/80 hover:bg-gray-700/90' 
                               : 'bg-white/80 hover:bg-gray-50'} transition-all duration-200 shadow-sm backdrop-blur-sm`}
                             whileTap={{ scale: 0.95 }}
@@ -853,10 +846,10 @@ const CulturalTracePanel: React.FC = () => {
                 )}
                 
                 {/* 操作按钮 */}
-                <div className="flex gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <div className="flex gap-4 pt-6 border-t border-gray-200 dark:border-gray-700">
                   <motion.button
                     onClick={() => selectedKnowledge && toggleFavorite(selectedKnowledge.id)}
-                    className={`flex-1 py-2.5 rounded-xl text-sm flex items-center justify-center gap-2 transition-all duration-300 ${favorites.includes(selectedKnowledge?.id || '')
+                    className={`flex-1 py-3 rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition-all duration-300 ${favorites.includes(selectedKnowledge?.id || '')
                       ? 'bg-gradient-to-r from-yellow-400 to-orange-500 text-white shadow-lg shadow-orange-500/25'
                       : isDark
                         ? 'bg-gray-800/80 hover:bg-gray-700/90 text-gray-300'
@@ -874,7 +867,7 @@ const CulturalTracePanel: React.FC = () => {
                         navigator.clipboard.writeText(`${selectedKnowledge.title}\n\n${selectedKnowledge.content}`);
                       }
                     }}
-                    className={`flex-1 py-2.5 rounded-xl text-sm flex items-center justify-center gap-2 ${isDark
+                    className={`flex-1 py-3 rounded-xl text-sm font-medium flex items-center justify-center gap-2 ${isDark
                       ? 'bg-gray-800/80 hover:bg-gray-700/90 text-gray-300'
                       : 'bg-white/80 hover:bg-gray-50 text-gray-700'} transition-all duration-300 shadow-md hover:shadow-lg`}
                     whileHover={{ scale: 1.02 }}
@@ -891,24 +884,24 @@ const CulturalTracePanel: React.FC = () => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5 }}
-                className="text-center py-20"
+                className="flex flex-col items-center justify-center py-16"
               >
-                <div className={`w-28 h-28 rounded-full flex items-center justify-center mx-auto mb-6 ${isDark ? 'bg-gray-800/50' : 'bg-gray-100'}`}>
-                  <i className="fas fa-info-circle text-5xl opacity-50"></i>
+                <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-4 ${isDark ? 'bg-gray-800/50' : 'bg-gray-100'}`}>
+                  <i className="fas fa-hand-pointer text-2xl opacity-40"></i>
                 </div>
-                <p className="text-base font-medium mb-3">选择一个文化知识项查看详情</p>
-                <p className="text-sm opacity-70 mb-8">点击左侧列表中的知识项获取详细信息</p>
+                <p className="text-sm font-medium mb-1">选择一个文化知识项查看详情</p>
+                <p className="text-xs opacity-60 mb-6">点击左侧列表中的知识项获取详细信息</p>
                 {knowledgeItems.length > 0 ? (
                   <motion.button
                     onClick={() => handleKnowledgeSelect(knowledgeItems[0])}
-                    className={`px-5 py-3 rounded-lg text-sm font-medium ${isDark 
+                    className={`px-4 py-2 rounded-lg text-xs font-medium ${isDark 
                       ? 'bg-[#C02C38] text-white' 
                       : 'bg-[#C02C38] text-white'} transition-all duration-300 shadow-md hover:shadow-lg`}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
                     aria-label="查看第一个知识"
                   >
-                    <i className="fas fa-lightbulb mr-2"></i>
+                    <i className="fas fa-lightbulb mr-1.5"></i>
                     查看第一个知识
                   </motion.button>
                 ) : (
@@ -917,14 +910,14 @@ const CulturalTracePanel: React.FC = () => {
                       const randomCategory = KNOWLEDGE_CATEGORIES[Math.floor(Math.random() * KNOWLEDGE_CATEGORIES.length)];
                       updateState({ traceSelectedCategoryId: randomCategory, traceSelectedKnowledgeId: null });
                     }}
-                    className={`px-5 py-3 rounded-lg text-sm font-medium ${isDark 
+                    className={`px-4 py-2 rounded-lg text-xs font-medium ${isDark 
                       ? 'bg-[#C02C38] text-white' 
                       : 'bg-[#C02C38] text-white'} transition-all duration-300 shadow-md hover:shadow-lg`}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
                     aria-label="浏览其他分类"
                   >
-                    <i className="fas fa-random mr-2"></i>
+                    <i className="fas fa-random mr-1.5"></i>
                     浏览其他分类
                   </motion.button>
                 )}
@@ -933,38 +926,38 @@ const CulturalTracePanel: React.FC = () => {
           </div>
         </div>
 
-        {/* 平板和小屏幕：单列布局，带有标签页切换 */}
-        <div className="lg:hidden flex flex-col h-full">
+        {/* 小屏幕：单列布局，带有标签页切换 */}
+        <div className="md:hidden flex flex-col h-full">
           {/* 标签页导航 */}
-          <div className={`flex rounded-t-lg overflow-hidden mb-2 border ${isDark ? 'border-gray-800' : 'border-gray-200'}`}>
+          <div className={`flex rounded-t-lg overflow-hidden mb-3 border ${isDark ? 'border-gray-800' : 'border-gray-200'} shadow-sm`}>
             <button
               onClick={() => setActiveTab('list')}
-              className={`flex-1 py-2.5 text-sm font-medium flex items-center justify-center gap-1.5 transition-colors ${isDark 
+              className={`flex-1 py-3 text-sm font-semibold flex items-center justify-center gap-1.5 transition-all duration-300 ${isDark 
                 ? activeTab === 'list' ? 'bg-gray-800 text-white' : 'bg-gray-900 text-gray-400' 
-                : activeTab === 'list' ? 'bg-white text-gray-900' : 'bg-gray-50 text-gray-600'}`}
+                : activeTab === 'list' ? 'bg-white text-gray-900 border-b-2 border-[#C02C38]' : 'bg-gray-50 text-gray-600'}`}
               aria-selected={activeTab === 'list'}
               role="tab"
             >
-              <i className="fas fa-list-ul text-xs"></i>
+              <i className={`fas fa-list-ul text-xs ${activeTab === 'list' ? 'text-[#C02C38]' : ''}`}></i>
               <span>{searchQuery ? '搜索结果' : '相关知识'} ({displayedItems.length})</span>
             </button>
             <button
               onClick={() => setActiveTab('detail')}
-              className={`flex-1 py-2.5 text-sm font-medium flex items-center justify-center gap-1.5 transition-colors ${isDark 
+              className={`flex-1 py-3 text-sm font-semibold flex items-center justify-center gap-1.5 transition-all duration-300 ${isDark 
                 ? activeTab === 'detail' ? 'bg-gray-800 text-white' : 'bg-gray-900 text-gray-400' 
-                : activeTab === 'detail' ? 'bg-white text-gray-900' : 'bg-gray-50 text-gray-600'}`}
+                : activeTab === 'detail' ? 'bg-white text-gray-900 border-b-2 border-[#C02C38]' : 'bg-gray-50 text-gray-600'}`}
               aria-selected={activeTab === 'detail'}
               role="tab"
             >
-              <i className="fas fa-info-circle text-xs"></i>
+              <i className={`fas fa-info-circle text-xs ${activeTab === 'detail' ? 'text-[#C02C38]' : ''}`}></i>
               <span>详细信息</span>
             </button>
           </div>
 
           {/* 知识列表 - 占据整个宽度 */}
           {activeTab === 'list' && (
-            <div className={`h-[300px] overflow-y-auto rounded-lg border ${isDark ? 'bg-gradient-to-br from-gray-900 to-gray-800 border-gray-800' : 'bg-gradient-to-br from-white to-gray-50 border-gray-200'} p-6 shadow-lg mb-4`}>
-              <div className="space-y-3">
+            <div className={`h-[320px] overflow-y-auto rounded-lg border ${isDark ? 'bg-gradient-to-br from-gray-900 to-gray-800 border-gray-800' : 'bg-gradient-to-br from-white to-gray-50 border-gray-200'} p-6 shadow-lg mb-4`}>
+              <div className="space-y-4">
                 {isDataLoading && !searchQuery ? (
                   // 骨架屏加载状态
                   Array.from({ length: 5 }).map((_, index) => (

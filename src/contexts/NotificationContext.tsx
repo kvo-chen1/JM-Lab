@@ -346,7 +346,17 @@ export const useNotificationWithNavigate = () => {
       context.addNotification(notification, {
         onActionClick: () => {
           if (notification.link) {
-            navigate(notification.link);
+            try {
+              if (typeof navigate === 'function') {
+                navigate(notification.link);
+              } else {
+                // 如果 navigate 函数不存在，使用 window.location.href 进行导航
+                window.location.href = notification.link;
+              }
+            } catch (error) {
+              // 如果导航失败，使用 window.location.href 作为备用方案
+              window.location.href = notification.link;
+            }
           }
         }
       });

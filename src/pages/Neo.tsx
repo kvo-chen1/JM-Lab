@@ -12,6 +12,7 @@ import GradientHero from '@/components/GradientHero'
 import NeoLeftSidebar from '@/components/NeoLeftSidebar'
 import NeoRightSidebar from '@/components/NeoRightSidebar'
 import ImageEditor from '@/components/ImageEditor'
+import OneClickDesign from '@/components/OneClickDesign'
 import { motion, AnimatePresence } from 'framer-motion'
 import { tianjinActivityService, Activity } from '@/services/tianjinActivityService'
 import userStatsService from '@/services/userStatsService'
@@ -463,9 +464,14 @@ export default function Neo() {
   };
 
   // AI生成与活动参与新功能状态
-  const [generationMode, setGenerationMode] = useState<'text-to-image' | 'image-to-video' | 'text-to-video'>('text-to-image')
+  const [generationMode, setGenerationMode] = useState<'text-to-image' | 'image-to-video' | 'text-to-video' | 'image-to-image'>('text-to-image')
   const [uploadedImage, setUploadedImage] = useState<string>('')
   const [uploadedImageFile, setUploadedImageFile] = useState<File | null>(null)
+  const [isUploading, setIsUploading] = useState<boolean>(false)
+  
+  // Image-to-Image parameters
+  const [similarity, setSimilarity] = useState<number>(70)
+  const [selectedStyle, setSelectedStyle] = useState<string>('默认')
   
   // 活动参与状态
   const [showActivityModal, setShowActivityModal] = useState(false)
@@ -1169,7 +1175,7 @@ export default function Neo() {
   const [stylePresets, setStylePresets] = useState<StylePreset[]>([])
   const [showPresetModal, setShowPresetModal] = useState(false)
   const [editingPresetId, setEditingPresetId] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<'create' | 'results' | 'history'>('create')
+  const [activeTab, setActiveTab] = useState<'create' | 'design' | 'results' | 'history'>('create')
   const [presetForm, setPresetForm] = useState({
     name: '',
     description: '',
@@ -1642,19 +1648,35 @@ export default function Neo() {
     }
   }
 
-  // 处理图片上传（用于图生视频）
+  // 处理图片上传（用于图生视频和图生图）
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
+      // 验证文件大小
       if (file.size > 5 * 1024 * 1024) {
         toast.error('图片大小不能超过 5MB')
         return
       }
+      
+      // 验证文件格式
+      const allowedFormats = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+      if (!allowedFormats.includes(file.type)) {
+        toast.error('只支持 JPG、PNG、WebP 和 GIF 格式的图片')
+        return
+      }
+      
+      setIsUploading(true)
       setUploadedImageFile(file)
       // 创建预览URL
       const reader = new FileReader()
       reader.onload = (e) => {
         setUploadedImage(e.target?.result as string)
+        toast.success('图片上传成功')
+        setIsUploading(false)
+      }
+      reader.onerror = () => {
+        toast.error('图片读取失败，请重试')
+        setIsUploading(false)
       }
       reader.readAsDataURL(file)
       
@@ -1805,6 +1827,49 @@ export default function Neo() {
           })
         } else {
           toast.error(videoResult.error || '视频生成失败')
+        }
+      } else if (generationMode === 'image-to-image') {
+        if (!uploadedImage) {
+          toast.warning('请先上传图片')
+          setIsGenerating(false)
+          return
+        }
+        setGenerationStatus('正在生成图片...')
+        try {
+          const r = await llmService.generateImage({ 
+            prompt: (final || input), 
+            imageUrl: uploadedImage,
+            similarity: similarity / 100, // 转换为0-1范围
+            style: selectedStyle,
+            size: '1024x1024', 
+            n: 3, 
+            response_format: 'url', 
+            watermark: true 
+          });
+          const list = (r as any)?.data?.data || []
+          const urls = list
+            .map((d: any) => (d?.url ? String(d.url) : ''))
+            .filter((u: string) => !!u)
+          if (urls.length === 0) {
+            toast.info(`${currentModel.name}未返回图片，已提供占位图`)
+            setImages(genImages(final))
+            setVideoByIndex(new Array(3).fill(''))
+          } else {
+            const isMock = urls.some((u: string) => u.includes('unsplash.com'));
+            setImages(urls)
+            setVideoByIndex(new Array(urls.length).fill(''))
+            if (isMock) {
+              toast.success(`${currentModel.name} (演示模式) 图生图完成`);
+            } else {
+              toast.success(`${currentModel.name}图生图完成`);
+            }
+          }
+        } catch (e) {
+          errorService.logError(e instanceof Error ? e : 'SERVER_ERROR', { scope: 'neo-doubao', prompt: final || input })
+          console.error('Neo generation error:', e);
+          toast.error(`${currentModel.name}图生图失败，已回退为占位图`)
+          setImages(genImages(final))
+          setVideoByIndex(new Array(3).fill(''))
         }
       }
       
@@ -2280,10 +2345,10 @@ export default function Neo() {
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                  <div>
                     <h2 className={`text-2xl font-bold tracking-tight ${currentStyle.text}`}>
-                       {activeTab === 'create' ? '开始创作' : activeTab === 'results' ? '生成结果' : '历史记录'}
+                       {activeTab === 'create' ? '开始创作' : activeTab === 'design' ? '一键设计' : activeTab === 'results' ? '生成结果' : '历史记录'}
                     </h2>
                     <p className={`text-sm mt-1 ${currentStyle.textSecondary}`}>
-                       {activeTab === 'create' ? '释放你的想象力，探索津门文化的无限可能' : activeTab === 'results' ? '查看刚刚生成的精彩作品' : '回顾过往的创作历程'}
+                       {activeTab === 'create' ? '释放你的想象力，探索津门文化的无限可能' : activeTab === 'design' ? '一键生成专业设计方案，支持多种创作模式' : activeTab === 'results' ? '查看刚刚生成的精彩作品' : '回顾过往的创作历程'}
                     </p>
                  </div>
                  
@@ -2291,6 +2356,7 @@ export default function Neo() {
                  <div className="flex items-center gap-4 bg-white dark:bg-slate-900 p-1.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
                     <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
                        <button onClick={() => setActiveTab('create')} className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${activeTab === 'create' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}>创作</button>
+                       <button onClick={() => setActiveTab('design')} className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${activeTab === 'design' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}>一键设计</button>
                        <button onClick={() => setActiveTab('results')} className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${activeTab === 'results' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}>结果</button>
                        <button onClick={() => setActiveTab('history')} className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${activeTab === 'history' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}>历史</button>
                     </div>
@@ -2307,6 +2373,10 @@ export default function Neo() {
               </div>
 
               <div className="min-h-[600px]">
+            
+            {activeTab === 'design' && (
+              <OneClickDesign />
+            )}
             
             {activeTab === 'create' && (
             <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 lg:gap-8">
@@ -2562,6 +2632,16 @@ export default function Neo() {
                        <i className="fas fa-image"></i> 文生图
                      </button>
                      <button 
+                       onClick={() => setGenerationMode('image-to-image')}
+                       className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-2
+                         ${generationMode === 'image-to-image' 
+                           ? (isDark ? 'bg-slate-800 text-white shadow-sm' : 'bg-slate-100 text-slate-900 shadow-sm') 
+                           : (isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-700')}
+                       `}
+                     >
+                       <i className="fas fa-exchange-alt"></i> 图生图
+                     </button>
+                     <button 
                        onClick={() => setGenerationMode('image-to-video')}
                        className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-2
                          ${generationMode === 'image-to-video' 
@@ -2590,10 +2670,16 @@ export default function Neo() {
                         <div 
                           className={`w-32 h-32 rounded-lg border-2 border-dashed flex items-center justify-center relative overflow-hidden group cursor-pointer
                             ${isDark ? 'border-slate-700 hover:border-slate-500' : 'border-slate-300 hover:border-slate-400'}
+                            ${isUploading ? 'opacity-70 cursor-not-allowed' : ''}
                           `}
-                          onClick={() => document.getElementById('img-upload-input')?.click()}
+                          onClick={() => !isUploading && document.getElementById('img-upload-input')?.click()}
                         >
-                          {uploadedImage ? (
+                          {isUploading ? (
+                            <div className="text-center p-2 flex flex-col items-center justify-center">
+                              <div className="w-8 h-8 border-2 border-t-transparent border-blue-500 rounded-full animate-spin mb-2"></div>
+                              <div className="text-xs opacity-70">上传中...</div>
+                            </div>
+                          ) : uploadedImage ? (
                             <img src={uploadedImage} alt="Uploaded" className="w-full h-full object-cover" />
                           ) : (
                             <div className="text-center p-2">
@@ -2615,6 +2701,104 @@ export default function Neo() {
                         <div className="flex-1 text-sm opacity-70">
                           <p className="mb-1 font-medium">上传一张图片让AI生成视频</p>
                           <p className="text-xs">支持 JPG, PNG 格式，建议比例 16:9 或 9:16，文件大小不超过 5MB。</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Image Upload for Image-to-Image */}
+                  {generationMode === 'image-to-image' && (
+                    <div className="p-4 border-b border-slate-100 dark:border-slate-800 space-y-4">
+                      {/* Upload Area */}
+                      <div className="flex items-center gap-4">
+                        <div 
+                          className={`w-32 h-32 rounded-lg border-2 border-dashed flex items-center justify-center relative overflow-hidden group cursor-pointer
+                            ${isDark ? 'border-slate-700 hover:border-slate-500' : 'border-slate-300 hover:border-slate-400'}
+                            ${isUploading ? 'opacity-70 cursor-not-allowed' : ''}
+                          `}
+                          onClick={() => !isUploading && document.getElementById('img-upload-input')?.click()}
+                        >
+                          {isUploading ? (
+                            <div className="text-center p-2 flex flex-col items-center justify-center">
+                              <div className="w-8 h-8 border-2 border-t-transparent border-blue-500 rounded-full animate-spin mb-2"></div>
+                              <div className="text-xs opacity-70">上传中...</div>
+                            </div>
+                          ) : uploadedImage ? (
+                            <img src={uploadedImage} alt="Uploaded" className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="text-center p-2">
+                              <i className="fas fa-cloud-upload-alt text-2xl mb-1 opacity-50"></i>
+                              <div className="text-xs opacity-70">上传参考图</div>
+                            </div>
+                          )}
+                          <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-white text-xs font-medium">
+                            点击更换
+                          </div>
+                          <input 
+                            type="file" 
+                            id="img-upload-input" 
+                            className="hidden" 
+                            accept="image/*" 
+                            onChange={handleImageUpload}
+                          />
+                        </div>
+                        <div className="flex-1 text-sm opacity-70">
+                          <p className="mb-1 font-medium">上传一张图片让AI参考生成新图片</p>
+                          <p className="text-xs">支持 JPG, PNG 格式，文件大小不超过 5MB。</p>
+                        </div>
+                      </div>
+                      
+                      {/* Image-to-Image Parameters */}
+                      <div className="space-y-3">
+                        {/* Similarity Slider */}
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <label className={`text-sm font-medium ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                              <i className="fas fa-sync-alt mr-2 text-blue-500"></i>相似度
+                            </label>
+                            <span className={`text-xs font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                              {similarity || 70}%
+                            </span>
+                          </div>
+                          <input
+                            type="range"
+                            min="0"
+                            max="100"
+                            value={similarity || 70}
+                            onChange={(e) => setSimilarity(Number(e.target.value))}
+                            className={`w-full h-2 rounded-lg appearance-none cursor-pointer
+                              ${isDark 
+                                ? 'bg-slate-700 accent-blue-500' 
+                                : 'bg-slate-200 accent-blue-600'}
+                            `}
+                          />
+                          <div className="flex justify-between text-xs mt-1 opacity-60">
+                            <span>创意化</span>
+                            <span>参考原图</span>
+                          </div>
+                        </div>
+                        
+                        {/* Style Selector */}
+                        <div>
+                          <label className={`text-sm font-medium mb-2 block ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                            <i className="fas fa-palette mr-2 text-purple-500"></i>风格选择
+                          </label>
+                          <div className="flex flex-wrap gap-2">
+                            {['默认', '赛博朋克', '国潮', '古风', '二次元', '写实'].map((style) => (
+                              <button
+                                key={style}
+                                onClick={() => setSelectedStyle(style)}
+                                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all
+                                  ${selectedStyle === style
+                                    ? (isDark ? 'bg-purple-900/40 text-purple-400 border-purple-700/50' : 'bg-purple-100 text-purple-700 border-purple-200')
+                                    : (isDark ? 'bg-slate-800 text-slate-400 border-slate-700' : 'bg-slate-50 text-slate-600 border-slate-200')
+                                  } border
+                                `}
+                              >
+                                {style}
+                              </button>
+                            ))}
+                          </div>
                         </div>
                       </div>
                     </div>

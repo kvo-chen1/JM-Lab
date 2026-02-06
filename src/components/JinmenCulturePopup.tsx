@@ -57,11 +57,7 @@ export default function JinmenCulturePopup() {
 
     // Check if we should show the popup
     const checkShowStatus = () => {
-      // 开发测试模式：强制每次都显示，忽略本地存储的限制
-      // 如果需要恢复正常逻辑，请取消下面代码的注释，并注释掉 "const shouldShow = true;"
-      
-      /* 正常逻辑开始 */
-      /*
+      // 正常逻辑开始
       const lastShown = localStorage.getItem('jinmen_popup_last_shown');
       const dontShowToday = localStorage.getItem('jinmen_popup_dont_show_today');
       
@@ -82,29 +78,23 @@ export default function JinmenCulturePopup() {
       if (lastShown && (now - parseInt(lastShown) < oneHour)) {
         return; // Less than one hour, don't show
       }
-      */
-      /* 正常逻辑结束 */
+      // 正常逻辑结束
 
-      // 测试逻辑：总是显示
-      const shouldShow = true;
-
-      if (shouldShow) {
-        // Pick random data
-        const randomIndex = Math.floor(Math.random() * jinmenKnowledgeData.length);
-        const selectedData = jinmenKnowledgeData[randomIndex];
-        setData(selectedData);
-        // 初始化图片源：尝试使用 AI 图片，如果为空则直接用备用图
-        setImageSrc(selectedData.imageUrl || getFallbackImage(selectedData.id));
-        
-        // Show after 3 seconds delay
-        const now = Date.now();
-        const timer = setTimeout(() => {
-          setIsOpen(true);
-          localStorage.setItem('jinmen_popup_last_shown', now.toString());
-        }, 3000);
-        
-        return () => clearTimeout(timer);
-      }
+      // Pick random data
+      const randomIndex = Math.floor(Math.random() * jinmenKnowledgeData.length);
+      const selectedData = jinmenKnowledgeData[randomIndex];
+      setData(selectedData);
+      // 初始化图片源：尝试使用 AI 图片，如果为空则直接用备用图
+      setImageSrc(selectedData.imageUrl || getFallbackImage(selectedData.id));
+      
+      // Show after 3 seconds delay
+      const showTime = Date.now();
+      const timer = setTimeout(() => {
+        setIsOpen(true);
+        localStorage.setItem('jinmen_popup_last_shown', showTime.toString());
+      }, 3000);
+      
+      return () => clearTimeout(timer);
     };
 
     checkShowStatus();

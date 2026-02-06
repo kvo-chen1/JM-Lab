@@ -78,6 +78,14 @@ export interface User {
   membershipStatus: 'active' | 'expired' | 'pending';
   // 安全相关字段
   twoFactorEnabled?: boolean;
+  // 个人资料字段
+  bio?: string;
+  location?: string;
+  occupation?: string;
+  website?: string;
+  github?: string;
+  twitter?: string;
+  coverImage?: string;
 }
 
 // AuthContext 类型定义
@@ -261,6 +269,14 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       membershipStart: apiData?.membershipStart || userData.membershipStart || new Date().toISOString(),
       membershipEnd: apiData?.membershipEnd || userData.membershipEnd,
       membershipStatus: (apiData?.membershipStatus || userData.membershipStatus || 'active') as 'active' | 'expired' | 'pending',
+      // 个人资料字段
+      bio: apiData?.bio || userData.bio || '',
+      location: apiData?.location || userData.location || '',
+      occupation: apiData?.occupation || userData.occupation || '',
+      website: apiData?.website || userData.website || '',
+      github: apiData?.github || userData.github || '',
+      twitter: apiData?.twitter || userData.twitter || '',
+      coverImage: apiData?.coverImage || userData.coverImage || '',
     };
   }, []);
 
@@ -802,7 +818,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             }
             
             // 存储用户信息和token到本地
-            safeLocalStorage.setItem('token', supabaseData.session?.access_token || '');
+            // 优先使用后端返回的JWT token，如果没有则使用Supabase token
+            safeLocalStorage.setItem('token', data.data.token || supabaseData.session?.access_token || '');
             safeLocalStorage.setItem('refreshToken', supabaseData.session?.refresh_token || '');
             safeLocalStorage.setItem('user', JSON.stringify(userWithMembership));
             safeLocalStorage.setItem('isAuthenticated', 'true');
@@ -850,7 +867,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
               });
               
               // 存储用户信息和token到本地
-              safeLocalStorage.setItem('token', signUpData.session?.access_token || '');
+              // 优先使用后端返回的JWT token，如果没有则使用Supabase token
+              safeLocalStorage.setItem('token', data.data.token || signUpData.session?.access_token || '');
               safeLocalStorage.setItem('refreshToken', signUpData.session?.refresh_token || '');
               safeLocalStorage.setItem('user', JSON.stringify(userWithMembership));
               safeLocalStorage.setItem('isAuthenticated', 'true');

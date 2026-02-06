@@ -299,16 +299,35 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
                               {post.views || 0} 浏览
                            </div>
                          </div>
-                         <button 
-                           className="px-4 py-2 rounded-full bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-xs font-bold transition-colors"
-                           onClick={(e) => {
-                             e.stopPropagation();
-                             // TODO: Implement follow logic
-                             toast.success('已关注');
-                           }}
-                         >
-                           关注
-                         </button>
+                         {(() => {
+                           // 判断是否是作者本人
+                           const authorId = typeof post.author === 'object' ? post.author?.id : post.author;
+                           const currentUserId = currentUser?.id;
+                           const isAuthor = authorId && currentUserId && authorId === currentUserId;
+                           
+                           if (isAuthor) {
+                             // 作者本人显示"我的作品"标签
+                             return (
+                               <span className="px-4 py-2 rounded-full bg-red-50 text-red-600 text-xs font-bold">
+                                 我的作品
+                               </span>
+                             );
+                           }
+                           
+                           // 非作者显示关注按钮
+                           return (
+                             <button 
+                               className="px-4 py-2 rounded-full bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-xs font-bold transition-colors"
+                               onClick={(e) => {
+                                 e.stopPropagation();
+                                 // TODO: Implement follow logic
+                                 toast.success('已关注');
+                               }}
+                             >
+                               关注
+                             </button>
+                           );
+                         })()}
                       </div>
 
                       {/* Comments Header */}

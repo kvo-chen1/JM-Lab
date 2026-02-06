@@ -1,7 +1,20 @@
 import React, { useState, useEffect, Suspense, lazy, useRef, useCallback } from 'react';
-import { Analytics } from "@vercel/analytics/react";
-import { SpeedInsights } from "@vercel/speed-insights/react";
 import { Toaster } from "sonner";
+
+// 条件导入 Vercel 分析组件
+let Analytics: React.FC | null = null;
+let SpeedInsights: React.FC | null = null;
+
+if (process.env.NODE_ENV === 'production') {
+  try {
+    const analyticsModule = require("@vercel/analytics/react");
+    const speedInsightsModule = require("@vercel/speed-insights/react");
+    Analytics = analyticsModule.Analytics;
+    SpeedInsights = speedInsightsModule.SpeedInsights;
+  } catch (e) {
+    console.warn('Vercel analytics modules not found:', e);
+  }
+}
 import { motion } from "framer-motion";
 import { debounce } from '@/lib/utils';
 
@@ -201,10 +214,7 @@ const AuthorProfile = createLazyComponent(() => import(/* webpackChunkName: "pag
 });
 
 
-const ParticleArt = createLazyThreeComponent(() => import(/* webpackChunkName: "pages-experimental" */ "@/pages/ParticleArt"), {
-  priority: ROUTE_PRIORITIES.LOW,
-  name: 'particle-art'
-});
+
 const Games = createLazyThreeComponent(() => import(/* webpackChunkName: "pages-experimental" */ "@/pages/Games"), {
   priority: ROUTE_PRIORITIES.LOW,
   name: 'games'
@@ -570,8 +580,8 @@ export default function App() {
           <EventProvider>
             <ThemeProvider>
               <div className={rootClass} style={{ backgroundColor: 'var(--bg-primary, #ffffff)' }}>
-            <Analytics />
-            <SpeedInsights />
+            {Analytics && <Analytics />}
+            {SpeedInsights && <SpeedInsights />}
             <Routes location={location} key={location.pathname}>
           {/* 核心页面直接渲染，无需懒加载，添加缓存和动画 */}
           {/* 确保根路径是第一个路由，提高匹配优先级 */}
@@ -646,7 +656,7 @@ export default function App() {
           <Route path="/wizard" element={<Navigate to="/create/wizard" replace />} />
           
           {/* 大型组件和低频访问页面使用懒加载 */}
-          <Route path="/particle-art" element={<LazyComponent><ParticleArt /></LazyComponent>} />
+
 
           <Route path="/privacy" element={<LazyComponent><Privacy /></LazyComponent>} />
           <Route path="/terms" element={<LazyComponent><Terms /></LazyComponent>} />

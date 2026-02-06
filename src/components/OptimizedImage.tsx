@@ -143,7 +143,6 @@ const OptimizedImage = ({
             transitionDuration: `${transitionDuration}ms`
           }}
           loading={loading}
-          fetchPriority={priority ? 'high' : 'auto'}
           sizes={sizes}
           onError={handleError}
           onLoad={handleLoad}

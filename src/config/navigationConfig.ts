@@ -57,7 +57,7 @@ export const incentivesNavItems: NavItem[] = [
 
 // 娱乐与创意导航项
 export const entertainmentNavItems: NavItem[] = [
-  { id: 'particle-art', path: '/particle-art', label: '粒子艺术', icon: 'fas fa-palette', priority: 'low' },
+
   { id: 'games', path: '/games', label: '趣味游戏', icon: 'fas fa-gamepad', priority: 'low' },
 
 ];

@@ -195,13 +195,27 @@ const OneClickDesign: React.FC<OneClickDesignProps> = ({ onGenerate }) => {
         // 文生视频
         try {
           const text = `${prompt}  --resolution ${videoParams.resolution}  --duration ${videoParams.duration} --camerafixed ${videoParams.cameraFixed}`;
-          // 这里可以集成实际的文生视频API
-          // 暂时使用占位符
-          setVideos([
-            'https://example.com/video1.mp4',
-            'https://example.com/video2.mp4',
-            'https://example.com/video3.mp4',
-          ].slice(0, generationCount));
+          // 调用实际的文生视频API
+          const result = await llmService.generateVideo({
+            prompt: text,
+            imageUrl: '', // 文生视频不需要图片
+            duration: videoParams.duration,
+            resolution: videoParams.resolution
+          });
+          const videoUrl = result.data?.video_url || result.data?.url;
+          if (!result.ok || !videoUrl) {
+            const msg = result.error || '视频生成失败';
+            toast.error(msg);
+            setVideos([
+              'https://example.com/video1.mp4',
+              'https://example.com/video2.mp4',
+              'https://example.com/video3.mp4',
+            ].slice(0, generationCount));
+          } else {
+            // 由于API一次只生成一个视频，我们创建多个占位符
+            const videos = Array(generationCount).fill(videoUrl);
+            setVideos(videos);
+          }
         } catch (e: any) {
           toast.error(e?.message || '视频生成失败');
           setVideos([
@@ -223,13 +237,27 @@ const OneClickDesign: React.FC<OneClickDesignProps> = ({ onGenerate }) => {
         } else {
           try {
             const text = `${prompt}  --resolution ${videoParams.resolution}  --duration ${videoParams.duration} --camerafixed ${videoParams.cameraFixed}`;
-            // 这里可以集成实际的图生视频API
-            // 暂时使用占位符
-            setVideos([
-              'https://example.com/video1.mp4',
-              'https://example.com/video2.mp4',
-              'https://example.com/video3.mp4',
-            ].slice(0, generationCount));
+            // 调用实际的图生视频API
+            const result = await llmService.generateVideo({
+              prompt: text,
+              imageUrl: uploadedImage,
+              duration: videoParams.duration,
+              resolution: videoParams.resolution
+            });
+            const videoUrl = result.data?.video_url || result.data?.url;
+            if (!result.ok || !videoUrl) {
+              const msg = result.error || '视频生成失败';
+              toast.error(msg);
+              setVideos([
+                'https://example.com/video1.mp4',
+                'https://example.com/video2.mp4',
+                'https://example.com/video3.mp4',
+              ].slice(0, generationCount));
+            } else {
+              // 由于API一次只生成一个视频，我们创建多个占位符
+              const videos = Array(generationCount).fill(videoUrl);
+              setVideos(videos);
+            }
           } catch (e: any) {
             toast.error(e?.message || '视频生成失败');
             setVideos([

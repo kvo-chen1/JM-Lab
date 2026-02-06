@@ -12,6 +12,7 @@ import CreateWorkForm from '@/components/CreateWorkForm';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useSearchParams } from 'react-router-dom';
 import { useAutoSave } from '@/hooks/useAutoSave';
+import { toast } from 'sonner';
 
 export default function Studio() {
   const { isDark } = useTheme();
@@ -54,6 +55,27 @@ export default function Studio() {
       updateState({ currentEventId: eventParam });
     }
   }, [searchParams, setActiveTool, setPrompt, updateState]);
+
+  // 读取从灵感输入面板传递的数据
+  useEffect(() => {
+    const workshopData = localStorage.getItem('workshopInspirationData');
+    if (workshopData) {
+      try {
+        const data = JSON.parse(workshopData);
+        // 检查数据是否在5分钟内（避免过期数据）
+        if (Date.now() - data.timestamp < 5 * 60 * 1000) {
+          if (data.prompt) {
+            setPrompt(data.prompt);
+            toast.success('已从灵感面板导入创意');
+          }
+        }
+        // 清除已使用的数据
+        localStorage.removeItem('workshopInspirationData');
+      } catch (error) {
+        console.error('读取灵感数据失败:', error);
+      }
+    }
+  }, [setPrompt]);
   
   return (
     <div className={`flex h-full ${isDark ? 'bg-gray-950' : 'bg-gray-50'}`}>

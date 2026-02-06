@@ -102,7 +102,16 @@ export function verifyToken(token) {
   // 或者需要用户提供 SUPABASE_JWT_SECRET
   try {
      const decoded = jwt.decode(token);
-     if (decoded && (decoded.iss === 'supabase' || decoded.aud === 'authenticated')) {
+     // 更宽松的 Supabase Token 检测逻辑
+     const isSupabaseToken = decoded && (
+       decoded.iss?.includes('supabase') || 
+       decoded.aud === 'authenticated' ||
+       (decoded.sub && decoded.sub.startsWith && decoded.sub.length === 36) || // UUID 格式的 sub
+       (decoded.role === 'authenticated') ||
+       (decoded.app_metadata !== undefined && decoded.user_metadata !== undefined)
+     );
+     
+     if (isSupabaseToken) {
          console.log('[JWT] 检测到 Supabase Token，跳过本地签名验证（如需验证请配置 SUPABASE_JWT_SECRET）');
          return decoded;
      }

@@ -39,6 +39,16 @@ function getTransporter() {
     from: process.env.EMAIL_FROM || '"AI共创平台" <no-reply@example.com>'
   };
 
+  // 检查配置是否完整
+  const isConfigComplete = emailConfig.host && 
+                          emailConfig.auth.user && 
+                          emailConfig.auth.pass &&
+                          emailConfig.host !== 'smtp.example.com' &&
+                          emailConfig.auth.user !== 'your-email@example.com' &&
+                          emailConfig.auth.pass !== 'your-email-password';
+
+  console.log('[EmailService] 配置检查:', { isConfigComplete });
+
   transporter = nodemailer.createTransport(emailConfig);
   return transporter;
 }
@@ -128,13 +138,16 @@ async function sendEmailInternal(to, subject, html) {
       host: emailConfig.host,
       port: emailConfig.port,
       user: emailConfig.auth.user,
+      pass: emailConfig.auth.pass ? '******' : 'undefined',
       from: emailConfig.from
     });
     
     const isMockConfig = emailConfig.host === 'smtp.example.com' || 
                          emailConfig.auth.user === 'your-email@example.com' ||
+                         emailConfig.auth.pass === 'your-email-password' ||
                          !emailConfig.host || 
-                         !emailConfig.auth.user;
+                         !emailConfig.auth.user ||
+                         !emailConfig.auth.pass;
     
     if (isMockConfig) {
        console.log('[EmailService] 使用模拟发送模式');
@@ -163,6 +176,7 @@ async function sendEmailInternal(to, subject, html) {
     logEmail('SUCCESS', { to, messageId: info.messageId });
     return true;
   } catch (error) {
+    console.error('[EmailService] 邮件发送失败:', error.message);
     logEmail('ERROR', { to, error: error.message });
     // 降级为模拟成功，确保开发流程畅通
     logEmail('FALLBACK', { to, status: 'simulated_fallback', reason: error.message });

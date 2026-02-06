@@ -41,6 +41,7 @@ import {
 import LazyImage from '../components/LazyImage'
 import { PostGrid } from '../components/CreatorCommunity/PostGrid'
 import postsApi, { Post, getAuthorById, checkUserFollowing, followUser, unfollowUser } from '../services/postService'
+import { supabase } from '../lib/supabase'
 import type { User } from '../contexts/authContext'
 import { toast } from 'sonner'
 
@@ -115,6 +116,69 @@ export const AuthorProfile: React.FC<AuthorProfileProps> = ({ currentUser }) => 
         const authorData = await getAuthorById(id)
         
         if (authorData) {
+          // 使用 Supabase 直接查询用户的作品和统计数据
+          const { data: userPosts, error: postsError } = await supabase
+            .from('posts')
+            .select('id, title, content, view_count, likes_count, comments_count, created_at, images, attachments, category, tags, status')
+            .eq('author_id', authorData.id)
+            .eq('status', 'published')
+            .order('created_at', { ascending: false })
+
+          if (postsError) {
+            console.error('获取用户作品失败:', postsError)
+          }
+
+          const authorPosts = userPosts || []
+          
+          // 计算真实的统计数据
+          const totalViews = authorPosts.reduce((sum, post) => sum + (post.view_count || 0), 0)
+          const totalLikes = authorPosts.reduce((sum, post) => sum + (post.likes_count || 0), 0)
+          const totalComments = authorPosts.reduce((sum, post) => sum + (post.comments_count || 0), 0)
+          
+          // 计算创作天数（根据最早的作品日期到现在）
+          let streakDays = 0
+          if (authorPosts.length > 0) {
+            const dates = authorPosts.map(p => new Date(p.created_at).getTime())
+            const earliestDate = new Date(Math.min(...dates))
+            const now = new Date()
+            streakDays = Math.max(1, Math.floor((now.getTime() - earliestDate.getTime()) / (1000 * 60 * 60 * 24)))
+          }
+
+          if (currentUser) {
+            const following = await checkUserFollowing(id)
+            setIsFollowing(following)
+          }
+
+          // 转换作品数据格式
+          const adaptedPosts = authorPosts.map(p => {
+            let thumbnail = ''
+            if (p.attachments && Array.isArray(p.attachments) && p.attachments.length > 0) {
+              thumbnail = p.attachments[0].url || p.attachments[0]
+            } else if (p.images && Array.isArray(p.images) && p.images.length > 0) {
+              thumbnail = p.images[0]
+            }
+
+            return {
+              id: p.id.toString(),
+              title: p.title,
+              content: p.content || '',
+              user_id: authorData.id,
+              author_id: authorData.id,
+              author: authorData,
+              created_at: p.created_at,
+              view_count: p.view_count || 0,
+              likes_count: p.likes_count || 0,
+              comments_count: p.comments_count || 0,
+              attachments: thumbnail ? [{ url: thumbnail }] : [],
+              category: p.category,
+              tags: p.tags || [],
+              isLiked: false,
+              isBookmarked: false
+            }
+          })
+          
+          setPosts(adaptedPosts)
+
           setAuthor({
             ...authorData,
             location: '天津, 中国',
@@ -125,45 +189,12 @@ export const AuthorProfile: React.FC<AuthorProfileProps> = ({ currentUser }) => 
               weibo: 'https://weibo.com'
             },
             stats: {
-              totalViews: 12580,
-              totalLikes: 892,
-              totalComments: 156,
-              streakDays: 15
+              totalViews,
+              totalLikes,
+              totalComments,
+              streakDays
             }
           })
-          
-          if (currentUser) {
-            const following = await checkUserFollowing(id)
-            setIsFollowing(following)
-          }
-
-          const allPosts = await postsApi.getPosts()
-          const authorPosts = allPosts.filter(p => {
-            if (typeof p.author === 'object' && p.author !== null) {
-              return (p.author as any).id === authorData.id
-            }
-            return false
-          })
-          
-          const adaptedPosts = authorPosts.map(p => ({
-            id: p.id,
-            title: p.title,
-            content: p.description || '',
-            user_id: (p.author as any)?.id || id,
-            author_id: (p.author as any)?.id || id,
-            author: authorData,
-            created_at: p.date || new Date().toISOString(),
-            view_count: p.views || 0,
-            likes_count: p.likes || 0,
-            comments_count: p.commentCount || 0,
-            attachments: p.thumbnail ? [{ url: p.thumbnail }] : [],
-            category: p.category,
-            tags: p.tags || [],
-            isLiked: false,
-            isBookmarked: false
-          }))
-          
-          setPosts(adaptedPosts)
         } else {
           if (currentUser && currentUser.id === id) {
              setAuthor(currentUser)

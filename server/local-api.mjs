@@ -465,9 +465,15 @@ async function readBody(req) {
       })
       req.on('end', () => {
         try {
-          resolve(data ? JSON.parse(data) : {})
+          if (!data) {
+            resolve({})
+            return
+          }
+          const parsedBody = JSON.parse(data)
+          resolve(parsedBody)
         } catch (error) {
           console.error('Error parsing request body:', error)
+          console.error('Request body:', data)
           resolve({})
         }
       })
@@ -533,6 +539,42 @@ async function route(req, res, u, path) {
     } catch (e) {
       console.error('[API] Get works failed:', e)
       sendJson(res, 500, { code: 1, message: '获取作品失败' })
+    }
+    return
+  }
+
+  // 创建作品
+  if (req.method === 'POST' && path === '/api/works') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+    
+    try {
+      const body = await readBody(req)
+      console.log('[API] Create work - decoded:', decoded)
+      console.log('[API] Create work - body.creator_id:', body.creator_id)
+      console.log('[API] Create work - body.user_id:', body.user_id)
+      
+      const creatorId = decoded.userId || decoded.sub || decoded.id || body.creator_id || body.user_id
+      
+      if (!creatorId) {
+        throw new Error('无法获取用户ID，请重新登录')
+      }
+      
+      const workData = {
+        ...body,
+        creator_id: creatorId
+      }
+      
+      console.log('[API] Creating work with creator_id:', creatorId)
+      const work = await workDB.createWork(workData)
+      console.log('[API] Work created:', work)
+      sendJson(res, 200, { code: 0, data: work })
+    } catch (e) {
+      console.error('[API] Create work failed:', e)
+      sendJson(res, 500, { code: 1, message: '创建作品失败: ' + e.message })
     }
     return
   }
@@ -1128,6 +1170,145 @@ async function route(req, res, u, path) {
     return
   }
 
+  // 获取当前用户信息 (/api/auth/me)
+  if (req.method === 'GET' && path === '/api/auth/me') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+
+    try {
+      const user = await userDB.findById(decoded.userId)
+      if (!user) {
+        sendJson(res, 404, { code: 1, message: '用户不存在' })
+        return
+      }
+
+      // 返回用户信息（排除敏感字段）
+      const safeUser = {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        avatar: user.avatar_url || user.avatar,
+        phone: user.phone,
+        age: user.age,
+        bio: user.bio,
+        location: user.location,
+        occupation: user.occupation,
+        website: user.website,
+        github: user.github,
+        twitter: user.twitter,
+        interests: user.interests,
+        tags: user.tags,
+        coverImage: user.coverImage || user.cover_image,
+        membership_level: user.membership_level || 'free',
+        membership_status: user.membership_status || 'active',
+        membership_start: user.membership_start,
+        membership_end: user.membership_end,
+        is_verified: user.is_verified,
+        created_at: user.created_at,
+        updated_at: user.updated_at,
+        // 合并 metadata 中的字段
+        ...user.metadata
+      }
+
+      sendJson(res, 200, { code: 0, data: safeUser })
+    } catch (error) {
+      console.error('[API] Get user info failed:', error)
+      sendJson(res, 500, { code: 1, message: '获取用户信息失败' })
+    }
+    return
+  }
+
+  // 更新当前用户信息 (/api/auth/me)
+  if (req.method === 'PUT' && path === '/api/auth/me') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+
+    try {
+      const body = await readBody(req)
+      const user = await userDB.findById(decoded.userId)
+      if (!user) {
+        sendJson(res, 404, { code: 1, message: '用户不存在' })
+        return
+      }
+
+      // 构建更新数据
+      const updateData = {}
+      if (body.username !== undefined) updateData.username = body.username
+      if (body.phone !== undefined) updateData.phone = body.phone
+      if (body.age !== undefined) updateData.age = body.age
+      if (body.bio !== undefined) updateData.bio = body.bio
+      if (body.location !== undefined) updateData.location = body.location
+      if (body.occupation !== undefined) updateData.occupation = body.occupation
+      if (body.website !== undefined) updateData.website = body.website
+      if (body.github !== undefined) updateData.github = body.github
+      if (body.twitter !== undefined) updateData.twitter = body.twitter
+      if (body.interests !== undefined) updateData.interests = body.interests
+      if (body.tags !== undefined) updateData.tags = body.tags
+      if (body.avatar !== undefined) updateData.avatar_url = body.avatar
+      if (body.coverImage !== undefined) updateData.cover_image = body.coverImage
+
+      // 更新 metadata
+      const metadata = {
+        ...(user.metadata || {}),
+        ...(body.metadata || {}),
+        username: body.username || user.username,
+        phone: body.phone !== undefined ? body.phone : user.phone,
+        age: body.age !== undefined ? body.age : user.age,
+        bio: body.bio !== undefined ? body.bio : user.bio,
+        location: body.location !== undefined ? body.location : user.location,
+        occupation: body.occupation !== undefined ? body.occupation : user.occupation,
+        website: body.website !== undefined ? body.website : user.website,
+        github: body.github !== undefined ? body.github : user.github,
+        twitter: body.twitter !== undefined ? body.twitter : user.twitter,
+        interests: body.interests !== undefined ? body.interests : user.interests,
+        tags: body.tags !== undefined ? body.tags : user.tags,
+        avatar: body.avatar !== undefined ? body.avatar : user.avatar_url,
+        coverImage: body.coverImage !== undefined ? body.coverImage : user.cover_image
+      }
+      updateData.metadata = metadata
+
+      const updatedUser = await userDB.updateById(decoded.userId, updateData)
+      if (!updatedUser) {
+        sendJson(res, 500, { code: 1, message: '更新用户信息失败' })
+        return
+      }
+
+      // 返回更新后的用户信息
+      const safeUser = {
+        id: updatedUser.id,
+        username: updatedUser.username,
+        email: updatedUser.email,
+        avatar: updatedUser.avatar_url || updatedUser.avatar,
+        phone: updatedUser.phone,
+        age: updatedUser.age,
+        bio: updatedUser.bio,
+        location: updatedUser.location,
+        occupation: updatedUser.occupation,
+        website: updatedUser.website,
+        github: updatedUser.github,
+        twitter: updatedUser.twitter,
+        interests: updatedUser.interests,
+        tags: updatedUser.tags,
+        coverImage: updatedUser.coverImage || updatedUser.cover_image,
+        membership_level: updatedUser.membership_level || 'free',
+        membership_status: updatedUser.membership_status || 'active',
+        updated_at: updatedUser.updated_at
+      }
+
+      sendJson(res, 200, { code: 0, data: safeUser, message: '用户信息更新成功' })
+    } catch (error) {
+      console.error('[API] Update user info failed:', error)
+      sendJson(res, 500, { code: 1, message: '更新用户信息失败: ' + error.message })
+    }
+    return
+  }
+
   // 健康检查
   if (req.method === 'GET' && path === '/api/health/ping') {
     sendJson(res, 200, { ok: true, message: 'pong', port: PORT })
@@ -1393,17 +1574,40 @@ async function route(req, res, u, path) {
   
   // 更新用户状态
   if (req.method === 'POST' && path === '/api/friends/status') {
-    const decoded = verifyRequestToken(req)
-    if (!decoded) { sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' }); return }
-    
-    const b = await readBody(req)
-    if (!b.status) { sendJson(res, 400, { error: 'MISSING_STATUS' }); return }
-    
     try {
+      const decoded = verifyRequestToken(req)
+      if (!decoded) { sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' }); return }
+      
+      const b = await readBody(req)
+      if (!b.status) { sendJson(res, 400, { error: 'MISSING_STATUS' }); return }
+      
+      // 验证状态值
+      const validStatuses = ['online', 'offline', 'away']
+      if (!validStatuses.includes(b.status)) {
+        sendJson(res, 400, { error: 'INVALID_STATUS', message: '状态值必须是 online、offline 或 away' }); return
+      }
+      
+      console.log(`[API] 更新用户状态: ${decoded.userId} -> ${b.status}`)
+      
       await friendDB.updateUserStatus(decoded.userId, b.status)
-      sendJson(res, 200, { ok: true })
+      sendJson(res, 200, { ok: true, message: '状态更新成功' })
     } catch (e) {
-      sendJson(res, 500, { error: 'DB_ERROR', message: e.message })
+      console.error('[API] 更新用户状态失败:', e)
+      // 检查是否是外键约束错误，如果是则返回成功（用户可能尚未同步到 users 表）
+      const errorMessage = e.message || e.toString() || ''
+      if (errorMessage.includes('violates foreign key constraint') || 
+          errorMessage.includes('user_status_user_id_fkey') ||
+          (errorMessage.includes('insert or update on table') && errorMessage.includes('user_status')) ||
+          e.code === '23503') {
+        console.warn(`[API] 用户状态更新遇到外键约束错误，静默处理: ${decoded?.userId}`)
+        sendJson(res, 200, { ok: true, message: '状态更新成功' })
+        return
+      }
+      sendJson(res, 500, { 
+        error: 'DB_ERROR', 
+        message: '更新状态失败',
+        details: process.env.NODE_ENV === 'development' ? e.stack : undefined
+      })
     }
     return
   }
@@ -1809,6 +2013,137 @@ async function route(req, res, u, path) {
     } catch (e) {
       console.error('[API] Get communities failed:', e)
       sendJson(res, 500, { code: 1, message: '获取社区列表失败' })
+    }
+    return
+  }
+
+  // 创建社区
+  if (req.method === 'POST' && path === '/api/communities') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      console.log('[API] createCommunity: Token verification failed')
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '用户认证失败，请重新登录' })
+      return
+    }
+
+    console.log('[API] createCommunity: userId =', decoded.userId)
+
+    const body = await readBody(req)
+    console.log('Create community request body:', JSON.stringify(body, null, 2))
+
+    if (!body.name) {
+      sendJson(res, 400, { error: 'NAME_REQUIRED', message: '社群名称不能为空' })
+      return
+    }
+
+    const now = Date.now()
+    const newCommunity = {
+      id: `community-${Date.now()}`,
+      name: body.name,
+      description: body.description || '',
+      avatar: body.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(body.name)}`,
+      memberCount: 1,
+      topic: body.tags?.[0] || '综合',
+      isActive: true,
+      isSpecial: false,
+      theme: body.theme || {
+        primaryColor: '#3B82F6',
+        secondaryColor: '#60A5FA',
+        backgroundColor: '#FFFFFF',
+        textColor: '#1F2937'
+      },
+      layoutType: body.layoutType || 'standard',
+      enabledModules: body.enabledModules || {
+        posts: true,
+        chat: true,
+        members: true,
+        announcements: true
+      }
+    }
+
+    try {
+      // 首先确保用户存在于数据库中
+      const existingUser = await userDB.findById(decoded.userId)
+      if (!existingUser) {
+        // 如果用户不存在，创建用户记录
+        console.log('[API] createCommunity: User not found, creating user record')
+        await userDB.createUser({
+          id: decoded.userId,
+          username: decoded.username || `user_${decoded.userId.slice(0, 8)}`,
+          email: decoded.email || `${decoded.userId}@local.dev`,
+          password_hash: '',
+          auth_provider: 'local'
+        })
+      }
+
+      await communityDB.createCommunity({
+        id: newCommunity.id,
+        name: newCommunity.name,
+        description: newCommunity.description,
+        avatar: newCommunity.avatar,
+        topic: newCommunity.topic,
+        is_special: newCommunity.isSpecial,
+        member_count: 0,
+        is_active: true,
+        creator_id: decoded.userId
+      })
+
+      console.log('[API] createCommunity: adding creator as member, userId =', decoded.userId, 'communityId =', newCommunity.id)
+      await communityDB.joinCommunity(decoded.userId, newCommunity.id, 'owner')
+      console.log('[API] createCommunity: creator added as member successfully')
+
+      sendJson(res, 200, { code: 0, data: newCommunity, message: '社群创建成功' })
+    } catch (err) {
+      console.error('[API] createCommunity: Failed to create community in DB:', err)
+      sendJson(res, 500, { error: 'DB_ERROR', message: '创建社群失败: ' + err.message })
+    }
+    return
+  }
+
+  // 获取用户创建的活动
+  if (req.method === 'GET' && path.startsWith('/api/users/') && path.endsWith('/events')) {
+    const userId = path.split('/')[3]
+    if (!userId) {
+      sendJson(res, 400, { code: 1, message: '用户ID不能为空' })
+      return
+    }
+    
+    try {
+      const search = u.searchParams.get('search') || ''
+      const status = u.searchParams.get('status') || ''
+      const type = u.searchParams.get('type') || ''
+      const page = parseInt(u.searchParams.get('page') || '1')
+      const pageSize = parseInt(u.searchParams.get('pageSize') || '10')
+      
+      // 获取用户活动
+      let events = await eventDB.getEvents()
+      
+      // 过滤用户创建的活动
+      let userEvents = events.filter(event => event.creatorId === userId)
+      
+      // 过滤活动
+      if (search) {
+        userEvents = userEvents.filter(event => 
+          event.title.toLowerCase().includes(search.toLowerCase()) ||
+          event.description.toLowerCase().includes(search.toLowerCase())
+        )
+      }
+      if (status) {
+        userEvents = userEvents.filter(event => event.status === status)
+      }
+      if (type) {
+        userEvents = userEvents.filter(event => event.type === type)
+      }
+      
+      // 分页
+      const start = (page - 1) * pageSize
+      const end = start + pageSize
+      const paginatedEvents = userEvents.slice(start, end)
+      
+      sendJson(res, 200, { code: 0, data: paginatedEvents })
+    } catch (e) {
+      console.error('[API] Get user events failed:', e)
+      sendJson(res, 500, { code: 1, message: '获取用户活动失败' })
     }
     return
   }

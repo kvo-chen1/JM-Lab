@@ -3157,9 +3157,20 @@ export default function Neo() {
                   return (
                     <div key={i} className={`rounded-xl overflow-hidden ${isDark ? 'bg-gray-700' : 'bg-gray-50'} border ${isDark ? 'border-gray-600' : 'border-gray-200'} transition-all duration-300 hover:shadow-lg flex flex-col`}>
                       <div className="relative aspect-video">
-                        <TianjinImage src={src} alt="result" ratio="landscape" rounded="none" className="w-full h-full object-cover cursor-pointer transition-transform duration-300 hover:scale-105" onClick={() => (!processing ? genVideoAt(i) : undefined)} />
+                        <TianjinImage src={src} alt="result" ratio="landscape" rounded="none" className="w-full h-full object-cover cursor-pointer transition-transform duration-300 hover:scale-105" onClick={() => (!processing && !hasUrl ? genVideoAt(i) : undefined)} />
                         {processing && (
                           <div className="absolute top-2 left-2 text-xs px-2 py-1 rounded-full bg-blue-600 text-white shadow-md">生成中…</div>
+                        )}
+                        {hasUrl && (
+                          <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                            <button 
+                              onClick={() => window.open(val, '_blank')} 
+                              className="text-white bg-red-600 hover:bg-red-700 rounded-full p-3 transition-transform duration-200 hover:scale-110"
+                              title="打开视频"
+                            >
+                              <i className="fas fa-play text-xl"></i>
+                            </button>
+                          </div>
                         )}
                       </div>
                       <div className="p-3 space-y-2 flex-1 flex flex-col justify-between">

@@ -87,10 +87,64 @@ export async function getPosts(category?: string, currentUserId?: string): Promi
     let worksFromLocal: Post[] = [];
     let worksFromSupabase: Post[] = [];
     
-    // 从本地 API 获取作品数据 - 已移除
-    // 之前被注释的代码已物理删除以保持整洁
+    // 从后端 API 获取作品数据
+    try {
+      const response = await fetch('/api/works');
+      
+      if (response.ok) {
+        const result = await response.json();
+        if (result.code === 0 && Array.isArray(result.data)) {
+          // 转换后端数据为 Post 类型
+          worksFromLocal = result.data.map((w: any) => ({
+            id: w.id?.toString() || Date.now().toString(),
+            title: w.title || 'Untitled',
+            thumbnail: w.thumbnail || w.cover_url || '',
+            likes: w.likes || 0,
+            comments: [],
+            date: w.created_at ? new Date(w.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+            author: {
+              id: w.creator_id || 'unknown',
+              username: w.creator || 'Unknown User',
+              email: '',
+              avatar: ''
+            },
+            isLiked: false,
+            isBookmarked: false,
+            category: (w.category as PostCategory) || 'other',
+            tags: w.tags || [],
+            description: w.description || '',
+            views: w.views || 0,
+            shares: 0,
+            isFeatured: false,
+            isDraft: false,
+            completionStatus: 'published',
+            creativeDirection: '',
+            culturalElements: [],
+            colorScheme: [],
+            toolsUsed: [],
+            publishType: 'explore',
+            communityId: null,
+            moderationStatus: 'approved',
+            rejectionReason: null,
+            scheduledPublishDate: null,
+            visibility: 'public',
+            commentCount: 0,
+            engagementRate: 0,
+            trendingScore: 0,
+            reach: 0,
+            moderator: null,
+            reviewedAt: null,
+            recommendationScore: 0,
+            recommendedFor: []
+          }));
+          console.log('Fetched works from backend API:', worksFromLocal.length);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching works from backend API:', error);
+    }
 
-    // 从 Supabase posts 表获取数据作为备用
+    // 从 Supabase posts 表获取数据
     try {
       // 检查用户是否已登录
       const { data: { user } } = await supabase.auth.getUser();
@@ -439,37 +493,23 @@ async function ensureSupabaseSessionUserId(): Promise<string | null> {
       return sessionUserId
     }
 
-    // 如果没有会话，尝试从本地存储恢复
+    // 如果没有Supabase会话，尝试使用后端token通过后端API创建作品
+    // 注意：后端API的token和Supabase的session token是不同的
+    // 这里我们只检查是否有后端token，让addPost函数决定使用哪种方式
     if (typeof window !== 'undefined') {
-      const access_token = localStorage.getItem('token')
-      const refresh_token = localStorage.getItem('refreshToken')
-
-      if (access_token && refresh_token) {
-        console.log('[postService] Attempting to restore session from local tokens...');
+      const backendToken = localStorage.getItem('token')
+      const userStr = localStorage.getItem('user')
+      
+      if (backendToken && userStr) {
         try {
-          const { data: restoredSession, error } = await supabase.auth.setSession({
-            access_token,
-            refresh_token,
-          })
-
-          if (error) {
-            console.error('[postService] Failed to restore session:', error.message);
-            // 会话恢复失败，清理无效令牌
-            localStorage.removeItem('token');
-            localStorage.removeItem('refreshToken');
-            return null;
+          const user = JSON.parse(userStr)
+          if (user?.id) {
+            console.log('[postService] Found backend auth, userId:', user.id);
+            // 返回用户ID，让addPost知道可以使用后端API
+            return user.id
           }
-
-          if (restoredSession?.session?.user?.id) {
-            console.log('[postService] Session restored successfully:', restoredSession.session.user.id);
-            return restoredSession.session.user.id
-          }
-        } catch (error) {
-          console.error('[postService] Exception during session restoration:', error);
-          // 清理可能无效的令牌
-          localStorage.removeItem('token');
-          localStorage.removeItem('refreshToken');
-          return null;
+        } catch (e) {
+          console.error('[postService] Failed to parse user from localStorage:', e);
         }
       }
     }
@@ -493,15 +533,171 @@ async function ensureSupabaseSessionUserId(): Promise<string | null> {
   }
 }
 
+// 检查是否有有效的Supabase会话
+async function hasValidSupabaseSession(): Promise<boolean> {
+  try {
+    const { data: sessionData } = await supabase.auth.getSession()
+    return !!sessionData?.session?.user?.id
+  } catch {
+    return false
+  }
+}
+
+// 使用后端API创建作品
+async function createWorkViaBackend(p: Partial<Post>, currentUser: User): Promise<Post | undefined> {
+  console.log('[createWorkViaBackend] Called with:', { title: p.title, category: p.category, userId: currentUser.id });
+  
+  const token = localStorage.getItem('token')
+  if (!token) {
+    throw new Error('请先登录后再发布作品')
+  }
+  
+  try {
+    const workData = {
+      title: p.title,
+      description: p.description,
+      category: p.category,
+      tags: p.tags || [],
+      thumbnail: p.thumbnail,
+      cover_url: p.thumbnail,
+      creator_id: currentUser.id,
+      user_id: currentUser.id,
+      media: p.thumbnail ? [p.thumbnail] : [],
+      created_at: new Date().toISOString()
+    }
+    
+    const response = await fetch('/api/works', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(workData)
+    })
+    
+    if (!response.ok) {
+      if (response.status === 401) {
+        throw new Error('登录已过期，请重新登录后重试')
+      }
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.message || '发布作品失败，请检查网络或登录状态')
+    }
+    
+    const result = await response.json()
+    console.log('[createWorkViaBackend] Success:', result);
+    
+    if (result.code !== 0) {
+      throw new Error(result.message || '发布作品失败')
+    }
+    
+    const work = result.data
+    
+    // 同时尝试插入到Supabase（用于广场展示）
+    try {
+      await syncWorkToSupabase(work, currentUser)
+    } catch (syncError) {
+      console.warn('[createWorkViaBackend] Failed to sync to Supabase:', syncError);
+      // 同步失败不影响主流程
+    }
+    
+    return {
+      ...p,
+      id: work.id?.toString() || Date.now().toString(),
+      author: currentUser,
+      date: new Date().toISOString().split('T')[0],
+      likes: 0,
+      comments: [],
+      isLiked: false,
+      isBookmarked: false,
+      views: 0,
+      shares: 0,
+      isFeatured: false,
+      isDraft: false,
+      completionStatus: 'published',
+      creativeDirection: '',
+      culturalElements: [],
+      colorScheme: [],
+      toolsUsed: [],
+      publishType: 'explore',
+      communityId: null,
+      moderationStatus: 'approved',
+      rejectionReason: null,
+      scheduledPublishDate: null,
+      visibility: 'public',
+      commentCount: 0,
+      engagementRate: 0,
+      trendingScore: 0,
+      reach: 0,
+      moderator: null,
+      reviewedAt: null,
+      recommendationScore: 0,
+      recommendedFor: []
+    } as Post
+  } catch (error: any) {
+    console.error('[createWorkViaBackend] Error:', error);
+    throw error
+  }
+}
+
+// 同步作品到Supabase
+async function syncWorkToSupabase(work: any, currentUser: User): Promise<void> {
+  try {
+    // 检查是否有有效的Supabase会话
+    const hasSession = await hasValidSupabaseSession()
+    if (!hasSession) {
+      console.log('[syncWorkToSupabase] No valid Supabase session, skipping sync');
+      return
+    }
+    
+    const insertData = {
+      title: work.title,
+      content: work.description,
+      author_id: currentUser.id,
+      user_id: currentUser.id,
+      category: work.category,
+      images: work.thumbnail ? [work.thumbnail] : [],
+      attachments: work.thumbnail ? [{ type: 'image', url: work.thumbnail }] : [],
+      status: 'published',
+      created_at: work.created_at || new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      likes_count: 0,
+      view_count: 0,
+      comments_count: 0
+    }
+    
+    const { error } = await supabase.from('posts').insert(insertData)
+    
+    if (error) {
+      console.warn('[syncWorkToSupabase] Failed to insert to Supabase:', error);
+    } else {
+      console.log('[syncWorkToSupabase] Successfully synced to Supabase');
+    }
+  } catch (error) {
+    console.warn('[syncWorkToSupabase] Error:', error);
+  }
+}
+
 
 export async function addPost(p: Partial<Post>, currentUser?: User): Promise<Post | undefined> {
   console.log('[addPost] Called with:', { title: p.title, category: p.category, userId: currentUser?.id });
 
   try {
+    // 检查是否有有效的Supabase会话
+    const hasSession = await hasValidSupabaseSession()
+    console.log('[addPost] Has valid Supabase session:', hasSession);
+    
+    // 如果没有有效的Supabase会话，但有后端token，使用后端API创建作品
+    if (!hasSession) {
+      const backendToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+      if (backendToken && currentUser?.id) {
+        console.log('[addPost] No Supabase session, using backend API');
+        return await createWorkViaBackend(p, currentUser)
+      }
+    }
+    
     const supabaseUserId = await ensureSupabaseSessionUserId()
     
-    // 容错处理：如果无法获取Supabase会话ID，但传入了当前用户，尝试使用当前用户ID
-    // 这允许本地登录用户尝试进行操作（取决于后端/RLS配置）
+    // 容错处理：如果无法获取Supabase会话ID，但传入了当前用户，尝试使用后端API
     const finalUserId = supabaseUserId || currentUser?.id;
 
     if (!finalUserId) {
@@ -561,8 +757,13 @@ export async function addPost(p: Partial<Post>, currentUser?: User): Promise<Pos
     if (error) {
       console.error('[addPost] Supabase insert failed:', error);
       
-      // 处理认证相关错误
+      // 处理认证相关错误 - 尝试使用后端API作为fallback
       if (error.message.includes('401') || error.message.includes('403') || error.message.includes('unauthorized') || error.message.includes('RLS')) {
+        console.log('[addPost] Supabase auth failed, trying backend API as fallback');
+        const backendToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+        if (backendToken && currentUser?.id) {
+          return await createWorkViaBackend(p, currentUser)
+        }
         throw new Error('登录已过期，请重新登录后重试');
       }
       
@@ -780,25 +981,68 @@ export async function unbookmarkPost(id: string, userId: string): Promise<Post |
 
 export async function addComment(postId: string, content: string, parentId?: string, user?: User): Promise<Post | undefined> {
   if (!user?.id) return undefined;
-  const pId = parseInt(postId);
-
-  const { error } = await supabase
-    .from('comments')
-    .insert({
-      post_id: pId,
-      user_id: user.id,
-      author_id: user.id, // Redundant
-      content: content,
-      parent_id: parentId ? parseInt(parentId) : null
-    });
-
-  if (error) {
-    console.error('Error adding comment:', error);
-    return undefined;
+  
+  console.log('[addComment] Called with:', { postId, content, userId: user.id });
+  
+  // 首先尝试使用后端API添加评论
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  if (token) {
+    try {
+      const response = await fetch(`/api/works/${postId}/comments`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          content: content,
+          parent_id: parentId || null
+        })
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        if (result.code === 0) {
+          console.log('[addComment] Success via backend API:', result.data);
+          return { id: postId } as unknown as Post;
+        }
+      }
+      console.warn('[addComment] Backend API failed, trying Supabase...');
+    } catch (error) {
+      console.error('[addComment] Backend API error:', error);
+    }
   }
+  
+  // 如果没有token或后端API失败，尝试使用Supabase
+  try {
+    const hasSession = await hasValidSupabaseSession();
+    if (!hasSession) {
+      console.error('[addComment] No valid session for Supabase');
+      throw new Error('请先登录后再评论');
+    }
+    
+    const pId = parseInt(postId);
+    const { error } = await supabase
+      .from('comments')
+      .insert({
+        post_id: pId,
+        user_id: user.id,
+        author_id: user.id,
+        content: content,
+        parent_id: parentId ? parseInt(parentId) : null
+      });
 
-  // Return updated post (simplified)
-  return { id: postId } as unknown as Post;
+    if (error) {
+      console.error('Error adding comment to Supabase:', error);
+      throw new Error('评论失败: ' + error.message);
+    }
+
+    console.log('[addComment] Success via Supabase');
+    return { id: postId } as unknown as Post;
+  } catch (error) {
+    console.error('[addComment] Failed:', error);
+    throw error;
+  }
 }
 
 

@@ -70,6 +70,49 @@ export interface Notification {
 export const communityService = {
   // 社区管理功能
   async getCommunities(): Promise<Community[]> {
+    // 优先尝试从后端API获取社群列表
+    try {
+      const response = await fetch('/api/communities');
+      if (response.ok) {
+        const result = await response.json();
+        if (result.code === 0 && Array.isArray(result.data)) {
+          console.log('[getCommunities] Fetched from backend API:', result.data.length);
+          return result.data.map((community: any) => ({
+            id: community.id,
+            name: community.name,
+            description: community.description,
+            memberCount: community.member_count || community.members_count || 0,
+            topic: community.tags?.join(',') || '',
+            avatar: community.avatar || community.avatar_url || 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=community%20avatar%20placeholder&image_size=square',
+            cover: community.cover,
+            isActive: community.is_active !== false,
+            tags: community.tags || [],
+            bookmarks: community.bookmarks || [],
+            theme: {
+              primaryColor: community.theme?.primaryColor || '#3b82f6',
+              secondaryColor: community.theme?.secondaryColor || '#60a5fa',
+              backgroundColor: community.theme?.backgroundColor || '#f3f4f6',
+              textColor: community.theme?.textColor || '#1f2937'
+            },
+            layoutType: (community.layout_type as 'standard' | 'compact' | 'expanded') || 'standard',
+            enabledModules: {
+              posts: true,
+              chat: true,
+              members: true,
+              announcements: true
+            },
+            isSpecial: community.is_special || false,
+            creatorId: community.creator_id || '',
+            createdAt: community.created_at,
+            updatedAt: community.updated_at
+          }));
+        }
+      }
+    } catch (error) {
+      console.warn('[getCommunities] Backend API failed, falling back to Supabase:', error);
+    }
+
+    // 如果后端API失败，尝试从Supabase获取
     const { data, error } = await supabase
       .from('communities')
       .select('*')
@@ -235,282 +278,194 @@ export const communityService = {
       throw error;
     }
 
-    // 获取当前真实的 Supabase 用户 ID，以防止前端存储的 ID 与数据库不一致
-    let realUserId = userId;
-    let currentUser = null;
-    let supabaseAuthenticated = false;
+    console.log('[createCommunity] Starting with userId:', userId);
+
+    // 优先尝试使用后端API创建社群
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (token) {
+      try {
+        console.log('[createCommunity] Trying backend API...');
+        const response = await fetch('/api/communities', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            name: data.name,
+            description: data.description,
+            tags: data.tags,
+            avatar: data.avatar,
+            coverImage: data.coverImage,
+            theme: data.theme,
+            layoutType: data.layoutType,
+            enabledModules: data.enabledModules,
+            visibility: data.visibility,
+            bookmarks: data.bookmarks
+          })
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          if (result.code === 0 && result.data) {
+            console.log('[createCommunity] Success via backend API:', result.data);
+            const community = result.data;
+            return {
+              id: community.id,
+              name: community.name,
+              description: community.description,
+              memberCount: community.member_count || 1,
+              topic: community.topic || '',
+              avatar: community.avatar || data.avatar || 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=community%20avatar%20placeholder&image_size=square',
+              cover: community.cover,
+              isActive: community.is_active !== false,
+              tags: community.tags || [],
+              bookmarks: community.bookmarks || [],
+              theme: {
+                primaryColor: data.theme?.primaryColor || '#3b82f6',
+                secondaryColor: data.theme?.secondaryColor || '#60a5fa',
+                backgroundColor: '#f3f4f6',
+                textColor: '#1f2937'
+              },
+              layoutType: (data.layoutType as 'standard' | 'compact' | 'expanded') || 'standard',
+              enabledModules: {
+                posts: data.enabledModules?.posts ?? true,
+                chat: data.enabledModules?.chat ?? true,
+                members: data.enabledModules?.members ?? true,
+                announcements: data.enabledModules?.announcements ?? true
+              },
+              isSpecial: false,
+              creatorId: userId,
+              createdAt: community.created_at || new Date().toISOString(),
+              updatedAt: community.updated_at || new Date().toISOString()
+            };
+          }
+        }
+        console.warn('[createCommunity] Backend API failed, falling back to Supabase...');
+      } catch (error) {
+        console.error('[createCommunity] Backend API error:', error);
+      }
+    }
+
+    // 如果没有token或后端API失败，尝试使用Supabase
+    console.log('[createCommunity] Trying Supabase...');
     
+    // 检查是否有有效的Supabase会话
     try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user && user.id) {
-            realUserId = user.id;
-            currentUser = user;
-            supabaseAuthenticated = true;
-        } else {
-             // 如果 getUser 失败，尝试刷新 session
-             try {
-               const { data: { session }, error: refreshError } = await supabase.auth.refreshSession();
-               if (session && session.user) {
-                 realUserId = session.user.id;
-                 currentUser = session.user;
-                 supabaseAuthenticated = true;
-               } else {
-                 console.warn('No Supabase session found, will use local user data');
-               }
-             } catch (refreshError) {
-               console.warn('Failed to refresh auth session, will use local user data:', refreshError);
-             }
-        }
-    } catch (e) {
-        console.warn('Failed to get supabase user, will use local user data:', e);
-    }
-    
-    // 如果没有 Supabase 认证，尝试从 localStorage 获取用户信息
-    if (!supabaseAuthenticated) {
-        try {
-            const localUserStr = localStorage.getItem('user');
-            if (localUserStr) {
-                const localUser = JSON.parse(localUserStr);
-                if (localUser.id === userId) {
-                    console.log('Using local user data for community creation:', localUser.id);
-                    realUserId = localUser.id;
-                    currentUser = {
-                        id: localUser.id,
-                        email: localUser.email,
-                        user_metadata: {
-                            username: localUser.username,
-                            avatar: localUser.avatar
-                        }
-                    };
-                }
-            }
-        } catch (localError) {
-            console.warn('Failed to get local user data:', localError);
-        }
-    }
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        console.error('[createCommunity] No Supabase session');
+        throw new Error('请先登录后再创建社群');
+      }
 
-    // 尝试修复 23503 错误：确保用户存在于 public.users 表中
-    // 某些外键约束可能指向 public.users 而不是 auth.users，或者触发器未执行
-    let profileSynced = false;
-    let syncAttempts = 0;
-    const maxSyncAttempts = 3;
-    
-    while (!profileSynced && syncAttempts < maxSyncAttempts) {
-        syncAttempts++;
-        try {
-            // 检查 public.users 是否存在该用户
-            const { data: profile, error: profileError } = await supabase
-                .from('users')
-                .select('id')
-                .eq('id', realUserId)
-                .maybeSingle();
-            
-            if (profile) {
-                console.log('User profile exists in public.users:', realUserId);
-                profileSynced = true;
-                break;
-            }
-            
-            console.log(`User profile missing in public.users (attempt ${syncAttempts}), attempting to sync/create...`, realUserId);
-            
-            // 准备用户数据
-            let email = `missing_${realUserId}@example.com`; // 默认占位邮箱
-            let username = `User_${realUserId.substring(0, 8)}`;
-            let avatarUrl = '';
-            
-            if (currentUser) {
-                const metadata = currentUser.user_metadata || {};
-                email = currentUser.email || email;
-                username = metadata.username || metadata.name || currentUser.email?.split('@')[0] || username;
-                avatarUrl = metadata.avatar_url || metadata.avatar || '';
-            }
-            
-            // 尝试从 localStorage 获取用户信息（补充或替代 currentUser）
-            try {
-                const localUserStr = localStorage.getItem('user');
-                if (localUserStr) {
-                    const localUser = JSON.parse(localUserStr);
-                    // 如果 localStorage 中的用户ID与当前用户匹配，或者 currentUser 为空
-                    if (localUser.id === realUserId || !currentUser) {
-                        email = localUser.email || email;
-                        username = localUser.username || username;
-                        avatarUrl = localUser.avatar || avatarUrl;
-                        console.log('Using localStorage user data:', { username, email });
-                    }
-                }
-            } catch (e) {
-                // 忽略 localStorage 读取错误
-                console.warn('Failed to read user from localStorage:', e);
-            }
-            
-            // 尝试插入用户资料
-            const { error: insertError } = await supabase
-                .from('users')
-                .insert({
-                    id: realUserId,
-                    email: email,
-                    username: username,
-                    avatar_url: avatarUrl,
-                    created_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString()
-                });
-                
-            if (insertError) {
-                console.error(`Failed to insert user profile (attempt ${syncAttempts}):`, insertError);
-                // 如果是重复键错误，说明用户已存在
-                if (insertError.code === '23505') {
-                    console.log('User already exists, considering sync successful');
-                    profileSynced = true;
-                    break;
-                }
-                // 等待一下再重试
-                if (syncAttempts < maxSyncAttempts) {
-                    await new Promise(resolve => setTimeout(resolve, 500 * syncAttempts));
-                }
-            } else {
-                console.log('User profile inserted successfully');
-                // 验证插入是否成功
-                const { data: verifyProfile } = await supabase
-                    .from('users')
-                    .select('id')
-                    .eq('id', realUserId)
-                    .maybeSingle();
-                
-                if (verifyProfile) {
-                    console.log('User profile verified in database');
-                    profileSynced = true;
-                    break;
-                } else {
-                    console.warn('User profile insert reported success but not found in verification');
-                }
-            }
-        } catch (syncError) {
-            console.error(`Error during profile sync check (attempt ${syncAttempts}):`, syncError);
-            if (syncAttempts < maxSyncAttempts) {
-                await new Promise(resolve => setTimeout(resolve, 500 * syncAttempts));
-            }
-        }
-    }
-    
-    if (!profileSynced) {
-        console.error('Failed to sync user profile after all attempts');
-    }
-
-    // 准备插入的数据，适配数据库表实际存在的列
-    const insertData: any = {
+      // 准备插入的数据
+      const insertData: any = {
         name: data.name,
         description: data.description,
         cover: data.coverImage,
         avatar: data.avatar,
         tags: data.tags,
-        member_count: 1, // 使用正确的列名
+        member_count: 1,
         privacy: data.visibility || 'public',
         is_active: true,
         is_special: false,
-        creator_id: realUserId,
+        creator_id: user.id,
         theme: data.theme || {
-            primaryColor: '#3b82f6',
-            secondaryColor: '#60a5fa',
-            backgroundColor: '#f3f4f6',
-            textColor: '#1f2937'
+          primaryColor: '#3b82f6',
+          secondaryColor: '#60a5fa',
+          backgroundColor: '#f3f4f6',
+          textColor: '#1f2937'
         },
         layout_type: data.layoutType || 'standard',
         enabled_modules: data.enabledModules || {
-            posts: true,
-            chat: true,
-            members: true,
-            announcements: true
+          posts: true,
+          chat: true,
+          members: true,
+          announcements: true
         },
         bookmarks: data.bookmarks || []
-    };
-    
-    const { data: newCommunity, error } = await supabase
-      .from('communities')
-      .insert(insertData)
-      .select()
-      .single();
-    
-    if (error) {
+      };
+      
+      const { data: newCommunity, error } = await supabase
+        .from('communities')
+        .insert(insertData)
+        .select()
+        .single();
+      
+      if (error) {
         console.error('Supabase create community error:', error);
-        // 处理 409 冲突错误 (通常是名称重复)
-        if (error.code === '23505' || error.message?.includes('duplicate key') || error.details?.includes('already exists')) {
-            throw new Error('社群名称已存在，请换个名字试试');
-        }
-        // 处理外键约束错误 (用户ID不存在)
-        if (error.code === '23503') {
-             throw new Error('用户认证状态异常，请尝试退出后重新登录');
+        if (error.code === '23505') {
+          throw new Error('社群名称已存在，请换个名字试试');
         }
         throw error;
-    }
-    
-    // 添加创建者为成员（添加错误处理，确保即使失败也不影响主流程）
-    try {
-      const { error: memberInsertError } = await supabase
-        .from('community_members')
-        .insert({
-          community_id: newCommunity.id,
-          user_id: realUserId,
-          role: 'owner'
-          // 移除 status 字段，因为表中不存在
-        });
-      
-      if (memberInsertError) {
-        console.error('Error adding community member:', memberInsertError);
-        // 如果是重复键错误，说明成员已存在，不算错误
-        if (memberInsertError.code === '23505') {
-          console.log('Creator already exists as member, continuing...');
-        } else {
-          console.error('Failed to add creator as member:', memberInsertError);
-        }
-      } else {
-        console.log('Creator added as member successfully');
       }
-    } catch (memberError) {
-      console.error('Exception adding community member:', memberError);
-      // 继续执行，不抛出错误，确保社群创建成功
+      
+      // 添加创建者为成员
+      try {
+        await supabase.from('community_members').insert({
+          community_id: newCommunity.id,
+          user_id: user.id,
+          role: 'owner'
+        });
+      } catch (memberError) {
+        console.error('Error adding community member:', memberError);
+      }
+      
+      return {
+        id: newCommunity.id,
+        name: newCommunity.name,
+        description: newCommunity.description,
+        memberCount: newCommunity.member_count || 1,
+        topic: newCommunity.topic || '',
+        avatar: newCommunity.avatar || data.avatar || 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=community%20avatar%20placeholder&image_size=square',
+        cover: newCommunity.cover,
+        isActive: newCommunity.is_active !== false,
+        tags: newCommunity.tags || [],
+        bookmarks: newCommunity.bookmarks || [],
+        theme: {
+          primaryColor: data.theme?.primaryColor || '#3b82f6',
+          secondaryColor: data.theme?.secondaryColor || '#60a5fa',
+          backgroundColor: '#f3f4f6',
+          textColor: '#1f2937'
+        },
+        layoutType: (data.layoutType as 'standard' | 'compact' | 'expanded') || 'standard',
+        enabledModules: {
+          posts: data.enabledModules?.posts ?? true,
+          chat: data.enabledModules?.chat ?? true,
+          members: data.enabledModules?.members ?? true,
+          announcements: data.enabledModules?.announcements ?? true
+        },
+        isSpecial: newCommunity.is_special || false,
+        creatorId: user.id,
+        createdAt: newCommunity.created_at,
+        updatedAt: newCommunity.updated_at
+      };
+    } catch (error) {
+      console.error('[createCommunity] Supabase error:', error);
+      throw error;
     }
-    
-    return {
-      id: newCommunity.id,
-      name: newCommunity.name,
-      description: newCommunity.description,
-      memberCount: newCommunity.member_count || newCommunity.members_count || 1,
-      topic: newCommunity.topic || '',
-      avatar: newCommunity.avatar || data.avatar || 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=community%20avatar%20placeholder&image_size=square',
-      cover: newCommunity.cover,
-      isActive: newCommunity.is_active || true,
-      tags: newCommunity.tags || [],
-      bookmarks: newCommunity.bookmarks || [],
-      theme: {
-        primaryColor: data.theme?.primaryColor || '#3b82f6',
-        secondaryColor: data.theme?.secondaryColor || '#60a5fa',
-        backgroundColor: '#f3f4f6',
-        textColor: '#1f2937'
-      },
-      layoutType: (data.layoutType as 'standard' | 'compact' | 'expanded') || 'standard',
-      enabledModules: {
-        posts: data.enabledModules?.posts ?? true,
-        chat: data.enabledModules?.chat ?? true,
-        members: data.enabledModules?.members ?? true,
-        announcements: data.enabledModules?.announcements ?? true
-      },
-      isSpecial: newCommunity.is_special || false,
-      creatorId: realUserId,
-      createdAt: newCommunity.created_at,
-      updatedAt: newCommunity.updated_at
-    };
   },
 
   async joinCommunity(communityId: string, userId: string): Promise<{ requiresApproval: boolean; status: string }> {
     try {
       // 首先尝试使用 Supabase API
       try {
+        // 验证用户会话
+        const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+        if (authError || !authUser) {
+          console.error('用户未登录或会话已过期:', authError);
+          throw new Error('请先登录后再加入社群');
+        }
+        
+        // 使用认证用户的ID，确保与 Supabase 会话一致
+        const effectiveUserId = authUser.id;
+        
         // 检查是否已经加入
         const { data: existing, error: checkError } = await supabase
           .from('community_members')
           .select('id')
           .eq('community_id', communityId)
-          .eq('user_id', userId)
+          .eq('user_id', effectiveUserId)
           .single();
         
         if (checkError && checkError.code !== 'PGRST116') {
@@ -548,7 +503,7 @@ export const communityService = {
             .from('community_members')
             .insert({
               community_id: communityId,
-              user_id: userId,
+              user_id: effectiveUserId,
               role: 'member'
             });
           joinError = error;
@@ -613,6 +568,16 @@ export const communityService = {
     try {
       // 首先尝试使用 Supabase API
       try {
+        // 验证用户会话
+        const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+        if (authError || !authUser) {
+          console.error('用户未登录或会话已过期:', authError);
+          throw new Error('请先登录后再操作');
+        }
+        
+        // 使用认证用户的ID，确保与 Supabase 会话一致
+        const effectiveUserId = authUser.id;
+        
         // 检查是否是成员
         let existing: any = null;
         let checkError: any = null;
@@ -623,7 +588,7 @@ export const communityService = {
             .from('community_members')
             .select('id')
             .eq('community_id', communityId)
-            .eq('user_id', userId)
+            .eq('user_id', effectiveUserId)
             .single();
           existing = data;
           checkError = error;
@@ -642,7 +607,7 @@ export const communityService = {
           .from('community_members')
           .delete()
           .eq('community_id', communityId)
-          .eq('user_id', userId);
+          .eq('user_id', effectiveUserId);
 
         if (leaveError) {
           console.error('退出社区失败:', leaveError);

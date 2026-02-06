@@ -15,9 +15,7 @@ if (fs.existsSync('.env.local')) {
 
 // 数据库类型枚举
 export const DB_TYPE = {
-  SQLITE: 'sqlite',
   POSTGRESQL: 'postgresql',
-  NEON_API: 'neon_api',
   SUPABASE: 'supabase', // Alias for POSTGRESQL with auto-config
   MEMORY: 'memory'
 }
@@ -138,13 +136,11 @@ const detectDbType = () => {
 
   // 如果配置了 Supabase 和 PostgreSQL URL，则使用 Supabase
   if (process.env.SUPABASE_URL && process.env.POSTGRES_URL) return DB_TYPE.SUPABASE
-  // 如果数据库 URL 包含 neon，则使用 Neon API
-  if (process.env.DATABASE_URL && process.env.DATABASE_URL.includes('neon')) return DB_TYPE.NEON_API
   // 如果有数据库 URL，则使用 PostgreSQL
   if (process.env.DATABASE_URL || process.env.POSTGRES_URL) return DB_TYPE.POSTGRESQL
   
-  // 本地环境默认使用 SQLite
-  return DB_TYPE.SQLITE
+  // 本地环境默认使用 Memory
+  return DB_TYPE.MEMORY
 }
 
 const currentDbType = detectDbType()
@@ -155,33 +151,14 @@ const config = {
   // 数据库类型选择
   dbType: currentDbType,
   
-  // SQLite 配置
-  sqlite: {
-    dataDir: process.env.DB_DATA_DIR || path.join(process.cwd(), 'data'),
-    dbFile: process.env.DB_FILE || path.join(process.cwd(), 'data', 'app.db'),
-    jsonFile: process.env.DB_JSON_FILE || path.join(process.cwd(), 'data', 'db.json'),
-    maxRetries: parseInt(process.env.DB_MAX_RETRIES || '3'),
-    retryDelay: parseInt(process.env.DB_RETRY_DELAY || '1000'),
-    timeout: parseInt(process.env.DB_TIMEOUT || '5000')
-  },
-  
-  // Neon API 配置
-  neon_api: {
-    endpoint: process.env.NEON_API_ENDPOINT || 'https://ep-bold-flower-agmuls0b.apirest.c-2.eu-central-1.aws.neon.tech/neondb/rest/v1',
-    apiKey: process.env.NEON_API_KEY || '',
-    dbName: process.env.NEON_DB_NAME || 'neondb',
-    maxRetries: parseInt(process.env.DB_MAX_RETRIES || '3'),
-    retryDelay: parseInt(process.env.DB_RETRY_DELAY || '1000')
-  },
-  
-  // PostgreSQL (Supabase/Neon/Standard) 配置
+  // PostgreSQL (Supabase/Standard) 配置
   postgresql: {
     connectionString: connectionString,
     options: {
       max: parseInt(process.env.POSTGRES_MAX_POOL_SIZE || '10'), // 连接池最大连接数，根据服务器性能调整
       idleTimeoutMillis: parseInt(process.env.POSTGRES_IDLE_TIMEOUT || '15000'), // 空闲连接超时，减少空闲连接占用
       connectionTimeoutMillis: parseInt(process.env.POSTGRES_CONNECTION_TIMEOUT || '5000'), // 连接超时，减少等待时间
-      // SSL 配置：Supabase/Neon 通常需要 SSL。本地开发可能不需要。
+      // SSL 配置：Supabase 通常需要 SSL。本地开发可能不需要。
       ssl: (connectionString && !connectionString.includes('localhost') && !connectionString.includes('127.0.0.1')) ? {
         rejectUnauthorized: false // 允许自签名证书 (Supabase 兼容性)
       } : false,
@@ -197,45 +174,23 @@ const config = {
 
 // 数据库连接实例
 let dbInstances = {
-  sqlite: null,
   mongodb: null,
   postgresql: null
 }
 
 // 连接状态监控
 let connectionStatus = {
-  sqlite: { connected: false, lastConnected: null, error: null },
   mongodb: { connected: false, lastConnected: null, error: null },
-  postgresql: { connected: false, lastConnected: null, error: null, poolStatus: {} },
-  neon_api: { connected: false, lastConnected: null, error: null }
+  postgresql: { connected: false, lastConnected: null, error: null, poolStatus: {} }
 }
 
 // 连接重试计数器
 let retryCounts = {
-  sqlite: 0,
   mongodb: 0,
   postgresql: 0
 }
 
-/**
- * 保证数据目录与数据库文件可用
- */
-function ensureStorage() {
-  const { dataDir } = config.sqlite
-  if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true })
-  }
-  
-  const { dbFile, jsonFile } = config.sqlite
-  if (!fs.existsSync(dbFile)) {
-    fs.writeFileSync(dbFile, '')
-  }
-  
-  if (!fs.existsSync(jsonFile)) {
-    const init = { favorites: [], video_tasks: {}, users: [] }
-    fs.writeFileSync(jsonFile, JSON.stringify(init))
-  }
-}
+
 
 /**
  * SQLite 连接初始化
@@ -532,6 +487,7 @@ function createSQLiteTables(db) {
         is_active INTEGER DEFAULT 1,
         is_special INTEGER DEFAULT 0,
         join_approval_required INTEGER DEFAULT 0,
+        creator_id TEXT,
         created_at INTEGER,
         updated_at INTEGER
       );
@@ -862,6 +818,14 @@ async function createPostgreSQLTables(pool) {
       await client.query(`ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS github_id VARCHAR(255);`)
       await client.query(`ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS github_username VARCHAR(255);`)
       await client.query(`ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS auth_provider VARCHAR(50) DEFAULT 'local';`)
+      // 用户个人资料字段
+      await client.query(`ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS bio TEXT;`)
+      await client.query(`ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS location VARCHAR(255);`)
+      await client.query(`ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS occupation VARCHAR(255);`)
+      await client.query(`ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS website VARCHAR(255);`)
+      await client.query(`ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS github VARCHAR(255);`)
+      await client.query(`ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS twitter VARCHAR(255);`)
+      await client.query(`ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS cover_image VARCHAR(255);`)
       // Add constraint if not exists (Postgres doesn't support IF NOT EXISTS for constraints easily in one line, skipping unique constraint for now or using a DO block)
       // Simple workaround: just add the column. The unique index can be added separately if critical, but for now app logic handles it.
       
@@ -906,6 +870,8 @@ async function createPostgreSQLTables(pool) {
       
       // 确保 avatar 字段存在
       await client.query(`ALTER TABLE IF EXISTS communities ADD COLUMN IF NOT EXISTS avatar TEXT;`)
+      // 确保 creator_id 字段存在
+      await client.query(`ALTER TABLE IF EXISTS communities ADD COLUMN IF NOT EXISTS creator_id UUID;`)
 
       // 创建社区成员表
       await client.query(`
@@ -921,27 +887,29 @@ async function createPostgreSQLTables(pool) {
       `)
 
       // 创建作品表
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS works (
-          id SERIAL PRIMARY KEY,
-          title VARCHAR(255) NOT NULL,
-          description TEXT,
-          thumbnail TEXT,
-          creator_id UUID NOT NULL,
-          category VARCHAR(100),
-          tags TEXT,
-          views INTEGER DEFAULT 0,
-          likes INTEGER DEFAULT 0,
-          comments INTEGER DEFAULT 0,
-          created_at BIGINT NOT NULL,
-          updated_at BIGINT NOT NULL,
-          FOREIGN KEY (creator_id) REFERENCES users(id) ON DELETE CASCADE
-        );
-      `)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS works (
+        id SERIAL PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        description TEXT,
+        thumbnail TEXT,
+        creator_id UUID NOT NULL,
+        category VARCHAR(100),
+        tags TEXT,
+        views INTEGER DEFAULT 0,
+        likes INTEGER DEFAULT 0,
+        votes INTEGER DEFAULT 0,
+        comments INTEGER DEFAULT 0,
+        created_at BIGINT NOT NULL,
+        updated_at BIGINT NOT NULL,
+        FOREIGN KEY (creator_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+    `)
       
       // 确保必要的列存在
       await client.query(`ALTER TABLE IF EXISTS works ADD COLUMN IF NOT EXISTS cover_url TEXT;`)
       await client.query(`ALTER TABLE IF EXISTS works ADD COLUMN IF NOT EXISTS media TEXT;`)
+      await client.query(`ALTER TABLE IF EXISTS works ADD COLUMN IF NOT EXISTS votes INTEGER DEFAULT 0;`)
       
       await client.query('CREATE INDEX IF NOT EXISTS idx_works_creator_id ON works(creator_id);')
       await client.query('CREATE INDEX IF NOT EXISTS idx_works_created_at ON works(created_at);')
@@ -1190,47 +1158,83 @@ async function createPostgreSQLTables(pool) {
       }
 
       // 2. friends表策略：用户只能访问自己的好友关系
-      await client.query(`
-        CREATE POLICY "Users can view their own friends" ON friends
-        FOR SELECT USING (user_id = COALESCE(current_setting('request.jwt.claim.sub', true), current_setting('request.jwt.claim.userId', true))::uuid);
-      `);
+      try {
+        await client.query(`
+          CREATE POLICY "Users can view their own friends" ON friends
+          FOR SELECT USING (user_id = COALESCE(current_setting('request.jwt.claim.sub', true), current_setting('request.jwt.claim.userId', true))::uuid);
+        `);
+      } catch (error) {
+        if (!error.message.includes('already exists')) {
+          throw error;
+        }
+      }
       
-      await client.query(`
-        CREATE POLICY "Users can manage their own friends" ON friends
-        FOR ALL USING (user_id = COALESCE(current_setting('request.jwt.claim.sub', true), current_setting('request.jwt.claim.userId', true))::uuid);
-      `);
+      try {
+        await client.query(`
+          CREATE POLICY "Users can manage their own friends" ON friends
+          FOR ALL USING (user_id = COALESCE(current_setting('request.jwt.claim.sub', true), current_setting('request.jwt.claim.userId', true))::uuid);
+        `);
+      } catch (error) {
+        if (!error.message.includes('already exists')) {
+          throw error;
+        }
+      }
 
       // 3. direct_messages表策略：用户只能访问自己发送或接收的消息
-      await client.query(`
-        CREATE POLICY "Users can view their own messages" ON direct_messages
-        FOR SELECT USING (
-          sender_id = COALESCE(current_setting('request.jwt.claim.sub', true), current_setting('request.jwt.claim.userId', true))::uuid OR
-          receiver_id = COALESCE(current_setting('request.jwt.claim.sub', true), current_setting('request.jwt.claim.userId', true))::uuid
-        );
-      `);
+      try {
+        await client.query(`
+          CREATE POLICY "Users can view their own messages" ON direct_messages
+          FOR SELECT USING (
+            sender_id = COALESCE(current_setting('request.jwt.claim.sub', true), current_setting('request.jwt.claim.userId', true))::uuid OR
+            receiver_id = COALESCE(current_setting('request.jwt.claim.sub', true), current_setting('request.jwt.claim.userId', true))::uuid
+          );
+        `);
+      } catch (error) {
+        if (!error.message.includes('already exists')) {
+          throw error;
+        }
+      }
       
-      await client.query(`
-        CREATE POLICY "Users can send messages" ON direct_messages
-        FOR INSERT WITH CHECK (
-          sender_id = COALESCE(current_setting('request.jwt.claim.sub', true), current_setting('request.jwt.claim.userId', true))::uuid
-        );
-      `);
+      try {
+        await client.query(`
+          CREATE POLICY "Users can send messages" ON direct_messages
+          FOR INSERT WITH CHECK (
+            sender_id = COALESCE(current_setting('request.jwt.claim.sub', true), current_setting('request.jwt.claim.userId', true))::uuid
+          );
+        `);
+      } catch (error) {
+        if (!error.message.includes('already exists')) {
+          throw error;
+        }
+      }
 
       // 4. friend_requests表策略：用户只能访问自己发送或接收的好友请求
-      await client.query(`
-        CREATE POLICY "Users can view their friend requests" ON friend_requests
-        FOR SELECT USING (
-          sender_id = COALESCE(current_setting('request.jwt.claim.sub', true), current_setting('request.jwt.claim.userId', true))::uuid OR
-          receiver_id = COALESCE(current_setting('request.jwt.claim.sub', true), current_setting('request.jwt.claim.userId', true))::uuid
-        );
-      `);
+      try {
+        await client.query(`
+          CREATE POLICY "Users can view their friend requests" ON friend_requests
+          FOR SELECT USING (
+            sender_id = COALESCE(current_setting('request.jwt.claim.sub', true), current_setting('request.jwt.claim.userId', true))::uuid OR
+            receiver_id = COALESCE(current_setting('request.jwt.claim.sub', true), current_setting('request.jwt.claim.userId', true))::uuid
+          );
+        `);
+      } catch (error) {
+        if (!error.message.includes('already exists')) {
+          throw error;
+        }
+      }
       
-      await client.query(`
-        CREATE POLICY "Users can send friend requests" ON friend_requests
-        FOR INSERT WITH CHECK (
-          sender_id = COALESCE(current_setting('request.jwt.claim.sub', true), current_setting('request.jwt.claim.userId', true))::uuid
-        );
-      `);
+      try {
+        await client.query(`
+          CREATE POLICY "Users can send friend requests" ON friend_requests
+          FOR INSERT WITH CHECK (
+            sender_id = COALESCE(current_setting('request.jwt.claim.sub', true), current_setting('request.jwt.claim.userId', true))::uuid
+          );
+        `);
+      } catch (error) {
+        if (!error.message.includes('already exists')) {
+          throw error;
+        }
+      }
 
     } finally {
       client.release()
@@ -1262,50 +1266,7 @@ async function getDBWithRetry(initFn, dbType, retries = 0) {
   }
 }
 
-/**
- * Neon API请求函数
- */
-async function neonApiRequest(method, path, body = null) {
-  const { endpoint, apiKey, dbName } = config.neon_api
-  
-  const url = `${endpoint}/${path}`
-  const headers = {
-    'Content-Type': 'application/json',
-    'accept': 'application/json'
-  }
-  
-  // 如果有API密钥，添加到请求头
-  if (apiKey) {
-    headers['Authorization'] = `Bearer ${apiKey}`
-  }
-  
-  const options = {
-    method,
-    headers
-  }
-  
-  if (body) {
-    options.body = JSON.stringify(body)
-  }
-  
-  const response = await fetch(url, options)
-  
-  if (!response.ok) {
-    const errorData = await response.json()
-    throw new Error(errorData.message || `Neon API请求失败: ${response.status}`)
-  }
-  
-  return response.json()
-}
 
-/**
- * Neon API数据库实例
- */
-const neonApiDb = {
-  async query(sql, params = []) {
-    return neonApiRequest('POST', 'sql', { sql, params, options: { "connection": { "database": config.neon_api.dbName } } })
-  }
-}
 
 /**
  * 获取当前配置的数据库实例
@@ -1399,12 +1360,6 @@ export async function getDBStatus() {
  */
 export async function closeDB() {
   try {
-    if (dbInstances.sqlite) {
-      dbInstances.sqlite.close()
-      dbInstances.sqlite = null
-      connectionStatus.sqlite.connected = false
-    }
-    
     if (dbInstances.mongodb?.client) {
       await dbInstances.mongodb.client.close()
       dbInstances.mongodb = null
@@ -1521,6 +1476,17 @@ export const userDB = {
           userId, username, normalizedEmail, password_hash, phone, avatar_url, interests, age, tags,
           membership_level, membership_status, github_id, github_username, auth_provider
         ])
+        // 同时创建用户状态记录
+        try {
+          await db.query(`
+            INSERT INTO user_status (user_id, status, last_seen, updated_at) 
+            VALUES ($1, 'offline', NOW(), NOW())
+            ON CONFLICT(user_id) DO NOTHING
+          `, [userId])
+        } catch (statusError) {
+          // 如果创建状态记录失败，记录警告但不影响用户创建
+          console.warn(`[createUser] 创建用户状态记录失败:`, statusError.message)
+        }
         return rows[0]
       case DB_TYPE.NEON_API:
         // Use provided ID or generate a new UUID
@@ -1552,7 +1518,8 @@ export const userDB = {
       username, email, password_hash, phone, avatar_url, interests, age, tags,
       membership_level, membership_status, membership_start, membership_end,
       email_verified, email_verification_token, email_verification_expires,
-      metadata
+      metadata,
+      bio, location, occupation, website, github, twitter, cover_image
     } = updateData
     const now = Date.now()
     const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
@@ -1648,7 +1615,15 @@ export const userDB = {
         if (email_verification_token !== undefined) addPgField('email_verification_token', email_verification_token)
         if (email_verification_expires !== undefined) addPgField('email_verification_expires', email_verification_expires)
         if (metadata !== undefined) addPgField('metadata', metadata)
-        
+        // 用户个人资料字段
+        if (bio !== undefined) addPgField('bio', bio)
+        if (location !== undefined) addPgField('location', location)
+        if (occupation !== undefined) addPgField('occupation', occupation)
+        if (website !== undefined) addPgField('website', website)
+        if (github !== undefined) addPgField('github', github)
+        if (twitter !== undefined) addPgField('twitter', twitter)
+        if (cover_image !== undefined) addPgField('cover_image', cover_image)
+
         // 确保 updated_at 使用 PostgreSQL 的 NOW() 函数
         pgUpdateFields.push(`updated_at = NOW()`)
         
@@ -2815,12 +2790,43 @@ export const friendDB = {
         saveMemoryStore()
         return true
       case DB_TYPE.POSTGRESQL:
-        await db.query(`
-          INSERT INTO user_status (user_id, status, last_seen, updated_at) 
-          VALUES ($1, $2, NOW(), NOW())
-          ON CONFLICT(user_id) DO UPDATE SET status = $2, last_seen = NOW(), updated_at = NOW()
-        `, [userId, status])
-        return true
+        try {
+          await db.query(`
+            INSERT INTO user_status (user_id, status, last_seen, updated_at) 
+            VALUES ($1, $2, NOW(), NOW())
+            ON CONFLICT(user_id) DO UPDATE SET status = $2, last_seen = NOW(), updated_at = NOW()
+          `, [userId, status])
+          return true
+        } catch (error) {
+          // 打印详细的错误信息，以便调试
+          console.error(`[updateUserStatus] 详细错误信息:`, {
+            error: error,
+            errorMessage: error.message,
+            errorCode: error.code,
+            errorStack: error.stack,
+            userId: userId
+          })
+          
+          // 检查是否是外键约束错误（处理多种可能的错误消息格式）
+          if (error.code === '23503') { // PostgreSQL foreign key violation error code
+            console.warn(`[updateUserStatus] 用户 ${userId} 不存在于 users 表，跳过状态更新`)
+            // 返回 true 而不是抛出错误，避免前端显示错误
+            return true
+          }
+          
+          // 检查错误消息
+          const errorMessage = error.message || error.toString() || ''
+          if (errorMessage.includes('violates foreign key constraint') || 
+              errorMessage.includes('user_status_user_id_fkey') ||
+              (errorMessage.includes('insert or update on table') && errorMessage.includes('user_status'))) {
+            console.warn(`[updateUserStatus] 用户 ${userId} 不存在于 users 表，跳过状态更新`)
+            // 返回 true 而不是抛出错误，避免前端显示错误
+            return true
+          }
+          
+          // 其他错误，继续抛出
+          throw error
+        }
       default: throw new Error(`Unsupported DB Type: ${config.dbType}`)
     }
   }
@@ -2961,102 +2967,39 @@ export const workDB = {
     console.log('[workDB.createWork] Using typeKey:', typeKey);
     
     switch (typeKey) {
-      case DB_TYPE.SQLITE:
-        // Ensure table exists
-        db.exec(`
-          CREATE TABLE IF NOT EXISTS works (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT NOT NULL,
-            description TEXT,
-            cover_url TEXT,
-            thumbnail TEXT,
-            creator_id TEXT NOT NULL,
-            category TEXT,
-            tags TEXT,
-            media TEXT,
-            views INTEGER DEFAULT 0,
-            likes INTEGER DEFAULT 0,
-            comments INTEGER DEFAULT 0,
-            created_at INTEGER NOT NULL,
-            updated_at INTEGER NOT NULL
-          )
-        `);
-        
-        // 检查并添加缺失的列
-        try {
-          // 尝试添加 cover_url 列
-          db.exec(`ALTER TABLE works ADD COLUMN IF NOT EXISTS cover_url TEXT`);
-          // 尝试添加 media 列
-          db.exec(`ALTER TABLE works ADD COLUMN IF NOT EXISTS media TEXT`);
-        } catch (e) {
-          console.log('Column already exists or error adding column:', e.message);
-        }
-        
-        // 检查哪些列存在
-        let columns = [];
-        try {
-          const tableInfo = db.prepare(`PRAGMA table_info(works)`).all();
-          columns = tableInfo.map((col) => col.name);
-        } catch (e) {
-          console.error('Error getting table info:', e);
-        }
-        
-        // 根据实际列结构构建插入语句
-        const hasCoverUrl = columns.includes('cover_url');
-        const hasMedia = columns.includes('media');
-        
-        let insertSql, insertParams;
-        if (hasCoverUrl && hasMedia) {
-          // 所有列都存在
-          insertSql = `
-            INSERT INTO works (title, description, cover_url, thumbnail, creator_id, category, tags, media, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `;
-          insertParams = [
-            title, description, cover_url, thumbnail || cover_url, creator_id, category, 
-            tags ? JSON.stringify(tags) : '[]', 
-            media ? JSON.stringify(media) : '[]', 
-            now, now
-          ];
-        } else if (hasCoverUrl) {
-          // 只有 cover_url 列存在
-          insertSql = `
-            INSERT INTO works (title, description, cover_url, thumbnail, creator_id, category, tags, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `;
-          insertParams = [
-            title, description, cover_url, thumbnail || cover_url, creator_id, category, 
-            tags ? JSON.stringify(tags) : '[]', 
-            now, now
-          ];
-        } else {
-          // 都不存在（使用原始表结构）
-          insertSql = `
-            INSERT INTO works (title, description, thumbnail, creator_id, category, tags, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-          `;
-          insertParams = [
-            title, description, thumbnail || cover_url, creator_id, category, 
-            tags ? JSON.stringify(tags) : '[]', 
-            now, now
-          ];
-        }
-        
-        const result = db.prepare(insertSql).run(...insertParams);
-        return { id: result.lastInsertRowid, ...workData, created_at: now, updated_at: now }
-        
       case DB_TYPE.POSTGRESQL:
         console.log('[workDB.createWork] PostgreSQL case - db:', db ? 'exists' : 'null');
+        
+        // 检查 creator_id 是否有效
+        if (!creator_id) {
+          console.error('[workDB.createWork] ERROR: creator_id is null or undefined!');
+          throw new Error('creator_id is required')
+        }
+        
         // 首先检查并添加缺失的列
         try {
           await db.query(`ALTER TABLE works ADD COLUMN IF NOT EXISTS cover_url TEXT`);
           await db.query(`ALTER TABLE works ADD COLUMN IF NOT EXISTS media TEXT`);
+          await db.query(`ALTER TABLE works ADD COLUMN IF NOT EXISTS votes INTEGER DEFAULT 0`);
+          // 添加 creator 列（如果不存在），用于存储创建者用户名
+          await db.query(`ALTER TABLE works ADD COLUMN IF NOT EXISTS creator TEXT`);
         } catch (e) {
           console.log('Column already exists or error adding column:', e.message);
         }
         
+        // 获取用户信息以填充 creator 字段
+        let creatorName = '';
+        try {
+          const userResult = await db.query(`SELECT username FROM users WHERE id = $1`, [creator_id]);
+          if (userResult.rows.length > 0 && userResult.rows[0].username) {
+            creatorName = userResult.rows[0].username;
+          }
+        } catch (e) {
+          console.log('Failed to get user info:', e.message);
+        }
+        
         // 然后执行插入
-        console.log('[workDB.createWork] Inserting with params:', { title, creator_id, category, now });
+        console.log('[workDB.createWork] Inserting with params:', { title, creator_id, creator: creatorName, category, now });
         try {
           // 处理 tags 和 media - PostgreSQL数组格式使用 {} 而不是 []
           let tagsValue = '{}';
@@ -3093,14 +3036,18 @@ export const workDB = {
           }
           
           const { rows } = await db.query(`
-            INSERT INTO works (title, description, cover_url, thumbnail, creator_id, category, tags, media, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)
+            INSERT INTO works (title, description, cover_url, thumbnail, creator_id, creator, category, tags, media, views, likes, votes, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
             RETURNING *
           `, [
-            title, description, cover_url, thumbnail || cover_url, creator_id, category, 
+            title, description, cover_url, thumbnail || cover_url, creator_id, creatorName || '未知用户', category, 
             tagsValue, 
             mediaValue, 
-            now
+            0, // views
+            0, // likes
+            0, // votes
+            now, // created_at
+            now // updated_at
           ])
           console.log('[workDB.createWork] Insert successful:', rows[0]);
           return rows[0]
@@ -3198,6 +3145,77 @@ export const workDB = {
       case DB_TYPE.POSTGRESQL:
         return (await db.query('SELECT w.*, u.username, u.avatar_url FROM works w LEFT JOIN users u ON w.creator_id = u.id ORDER BY w.created_at DESC')).rows
       default: return []
+    }
+  }
+}
+
+// 评论数据库操作
+export const commentDB = {
+  async addComment(commentData) {
+    const db = await getDB()
+    const { content, user_id, post_id, parent_id } = commentData
+    const now = Date.now()
+    const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
+    
+    switch (typeKey) {
+      case DB_TYPE.SQLITE:
+        const result = db.prepare('INSERT INTO comments (content, user_id, post_id, parent_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)').run(content, user_id, post_id, parent_id || null, now, now)
+        return { id: result.lastInsertRowid, ...commentData, created_at: now, updated_at: now }
+      case DB_TYPE.POSTGRESQL:
+        const { rows } = await db.query('INSERT INTO comments (content, user_id, post_id, parent_id, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *', [content, user_id, post_id, parent_id || null, now, now])
+        return rows[0]
+      case DB_TYPE.MEMORY:
+        const newComment = {
+          id: Date.now(),
+          content,
+          user_id,
+          post_id,
+          parent_id: parent_id || null,
+          created_at: now,
+          updated_at: now
+        }
+        if (!memoryStore.comments) memoryStore.comments = []
+        memoryStore.comments.push(newComment)
+        saveMemoryStore()
+        return newComment
+      default: throw new Error(`Unsupported DB Type: ${config.dbType}`)
+    }
+  },
+
+  async getCommentsByPostId(postId, limit = 50, offset = 0) {
+    const db = await getDB()
+    const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
+    switch (typeKey) {
+      case DB_TYPE.SQLITE:
+        return db.prepare('SELECT c.*, u.username, u.avatar_url FROM comments c LEFT JOIN users u ON c.user_id = u.id WHERE c.post_id = ? ORDER BY c.created_at DESC LIMIT ? OFFSET ?').all(postId, limit, offset)
+      case DB_TYPE.POSTGRESQL:
+        return (await db.query('SELECT c.*, u.username, u.avatar_url FROM comments c LEFT JOIN users u ON c.user_id = u.id WHERE c.post_id = $1 ORDER BY c.created_at DESC LIMIT $2 OFFSET $3', [postId, limit, offset])).rows
+      case DB_TYPE.MEMORY:
+        return (memoryStore.comments || [])
+          .filter(c => c.post_id === postId)
+          .sort((a, b) => b.created_at - a.created_at)
+          .slice(offset, offset + limit)
+      default: return []
+    }
+  },
+
+  async deleteComment(id, userId) {
+    const db = await getDB()
+    const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
+    switch (typeKey) {
+      case DB_TYPE.SQLITE:
+        db.prepare('DELETE FROM comments WHERE id = ? AND user_id = ?').run(id, userId)
+        return true
+      case DB_TYPE.POSTGRESQL:
+        await db.query('DELETE FROM comments WHERE id = $1 AND user_id = $2', [id, userId])
+        return true
+      case DB_TYPE.MEMORY:
+        if (memoryStore.comments) {
+          memoryStore.comments = memoryStore.comments.filter(c => !(c.id === id && c.user_id === userId))
+          saveMemoryStore()
+        }
+        return true
+      default: return false
     }
   }
 }
@@ -3324,14 +3342,14 @@ export const communityDB = {
 
   async createCommunity(data) {
     const db = await getDB()
-    const { id, name, description, avatar, topic, is_special, member_count, is_active } = data
+    const { id, name, description, avatar, topic, is_special, member_count, is_active, creator_id } = data
     const now = Date.now()
     const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
     switch (typeKey) {
       case DB_TYPE.SQLITE:
         db.prepare(`
-          INSERT INTO communities (id, name, description, avatar, member_count, topic, is_active, is_special, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          INSERT INTO communities (id, name, description, avatar, member_count, topic, is_active, is_special, creator_id, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(id) DO UPDATE SET
             name = excluded.name,
             description = excluded.description,
@@ -3339,6 +3357,7 @@ export const communityDB = {
             member_count = excluded.member_count,
             topic = excluded.topic,
             is_active = excluded.is_active,
+            creator_id = excluded.creator_id,
             updated_at = excluded.updated_at
         `).run(
           id,
@@ -3349,14 +3368,15 @@ export const communityDB = {
           topic,
           typeof is_active === 'number' ? is_active : 1,
           is_special ? 1 : 0,
+          creator_id || null,
           now,
           now
         )
         return true
       case DB_TYPE.POSTGRESQL:
         await db.query(`
-          INSERT INTO communities (id, name, description, avatar, member_count, topic, is_active, is_special, created_at, updated_at)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, to_timestamp($9 / 1000.0), to_timestamp($9 / 1000.0))
+          INSERT INTO communities (id, name, description, avatar, member_count, topic, is_active, is_special, creator_id, created_at, updated_at)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, to_timestamp($10 / 1000.0), to_timestamp($10 / 1000.0))
           ON CONFLICT(id) DO UPDATE SET
             name = EXCLUDED.name,
             description = EXCLUDED.description,
@@ -3364,7 +3384,8 @@ export const communityDB = {
             member_count = EXCLUDED.member_count,
             topic = EXCLUDED.topic,
             is_active = EXCLUDED.is_active,
-            updated_at = to_timestamp($9 / 1000.0)
+            creator_id = EXCLUDED.creator_id,
+            updated_at = to_timestamp($10 / 1000.0)
         `, [
           id,
           name,
@@ -3374,6 +3395,7 @@ export const communityDB = {
           topic,
           typeof is_active === 'boolean' ? is_active : true,
           is_special,
+          creator_id || null,
           now
         ])
         return true
@@ -3387,6 +3409,7 @@ export const communityDB = {
           topic,
           is_active: typeof is_active === 'boolean' ? is_active : true,
           is_special: !!is_special,
+          creator_id: creator_id || null,
           created_at: now,
           updated_at: now
         }

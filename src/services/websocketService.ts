@@ -70,18 +70,31 @@ class WebSocketService {
       };
 
       this.socket.onerror = (error) => {
-        console.error('WebSocket错误:', error);
+        // 只在开发环境打印详细错误
+        if (import.meta.env.DEV) {
+          console.warn('WebSocket连接错误，服务器可能未运行:', error.message || error);
+        }
         this.triggerLifecycle('error', error);
       };
 
-      this.socket.onclose = () => {
-        console.log('WebSocket连接关闭');
+      this.socket.onclose = (event) => {
+        // 只在开发环境打印关闭信息
+        if (import.meta.env.DEV) {
+          console.log('WebSocket连接关闭:', event.code, event.reason);
+        }
         this.isConnected = false;
-        this.triggerLifecycle('close');
-        this.attemptReconnect();
+        this.triggerLifecycle('close', event);
+        
+        // 只有在非手动关闭的情况下才尝试重连
+        if (!event.wasClean) {
+          this.attemptReconnect();
+        }
       };
     } catch (error) {
-      console.error('WebSocket连接失败:', error);
+      // 只在开发环境打印连接失败错误
+      if (import.meta.env.DEV) {
+        console.warn('WebSocket连接失败，服务器可能未运行:', error.message || error);
+      }
       this.triggerLifecycle('error', error);
       this.attemptReconnect();
     }
@@ -169,13 +182,19 @@ class WebSocketService {
       this.reconnectAttempts++;
       const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
       
-      console.log(`尝试重连WebSocket (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
+      // 只在开发环境打印重连信息
+      if (import.meta.env.DEV) {
+        console.log(`尝试重连WebSocket (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
+      }
       
       setTimeout(() => {
         this.connect();
       }, delay);
     } else {
-      console.error('WebSocket重连失败，已达到最大尝试次数');
+      // 只在开发环境打印重连失败信息
+      if (import.meta.env.DEV) {
+        console.warn('WebSocket重连失败，已达到最大尝试次数，将在用户操作时重新尝试');
+      }
     }
   }
 

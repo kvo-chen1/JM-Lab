@@ -25,7 +25,7 @@ export const navItemIdToTranslationKey: Record<string, string> = {
   'daily-checkin': 'common.dailyCheckin',
   
   // 娱乐与创意
-  'particle-art': 'sidebar.particleArt',
+
   'games': 'sidebar.funGames',
   'lab': 'sidebar.newWindowLab',
   'ip-incubation': 'common.ipIncubationCenter',

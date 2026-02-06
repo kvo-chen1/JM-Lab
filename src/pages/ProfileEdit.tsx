@@ -76,7 +76,31 @@ export default function ProfileEdit() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [activeTab, setActiveTab] = useState<'basic' | 'social' | 'tags'>('basic')
-  
+
+  // 当 user 数据变化时同步表单数据（用于初始加载和刷新）
+  useEffect(() => {
+    if (user) {
+      setFormData({
+        username: user.username || '',
+        email: user.email || '',
+        phone: user.phone || '',
+        age: user.age?.toString() || '',
+        bio: user.bio || '',
+        location: user.location || '',
+        occupation: user.occupation || '',
+        website: user.website || '',
+        github: user.github || '',
+        twitter: user.twitter || '',
+        interests: user.interests?.join(', ') || '',
+        avatar: user.avatar || '',
+        coverImage: user.coverImage || '',
+      })
+      setAvatarPreview(user.avatar || '')
+      setCoverPreview(user.coverImage || '')
+      setTags(user.tags || [])
+    }
+  }, [user])
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
     setFormData(prev => ({ ...prev, [name]: value }))
@@ -270,7 +294,43 @@ export default function ProfileEdit() {
         }
       };
 
-      // 1. 直接更新 Supabase 数据库 (public.users)
+      // 1. 更新后端数据库 (通过 API)
+      const token = localStorage.getItem('token');
+      if (token) {
+        const response = await fetch('/api/auth/me', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            username: updatedUser.username,
+            phone: updatedUser.phone,
+            age: updatedUser.age,
+            bio: updatedUser.bio,
+            location: updatedUser.location,
+            occupation: updatedUser.occupation,
+            website: updatedUser.website,
+            github: updatedUser.github,
+            twitter: updatedUser.twitter,
+            interests: updatedUser.interests,
+            tags: updatedUser.tags,
+            avatar: finalAvatarUrl,
+            coverImage: finalCoverUrl
+          })
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ message: '未知错误' }));
+          console.error('后端 API 更新失败:', errorData);
+          throw new Error('保存到数据库失败: ' + (errorData.message || '服务器错误'));
+        }
+
+        const result = await response.json();
+        console.log('后端 API 更新成功:', result);
+      }
+
+      // 2. 同步更新 Supabase 数据库 (public.users)
       if (supabase) {
         const { error: dbError } = await supabase
           .from('users')
@@ -278,12 +338,12 @@ export default function ProfileEdit() {
           .eq('id', user?.id);
           
         if (dbError) {
-          console.error('数据库更新失败:', dbError);
-          throw new Error('保存到数据库失败: ' + dbError.message);
+          console.error('Supabase 数据库更新失败:', dbError);
+          // 不阻断流程，因为后端已经更新成功
         }
       }
 
-      // 2. 同步更新 Supabase Auth User Metadata (这对 AuthContext 很重要)
+      // 3. 同步更新 Supabase Auth User Metadata (这对 AuthContext 很重要)
       if (supabase) {
         const { error: authUpdateError } = await supabase.auth.updateUser({
           data: updatesForDb.metadata

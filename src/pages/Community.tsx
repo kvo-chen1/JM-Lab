@@ -95,43 +95,44 @@ const CommunityPageWithNotifications = React.memo(function CommunityPageWithNoti
   const { isDark } = useTheme();
   const {
       user,
-      activeCommunityId,
-      activeChannel,
-      mode,
-      joinedCommunities,
-      allCommunities,
-      threads,
-      messages,
-      selectedTag,
-      setSelectedTag,
-      tags,
-      onSelectCommunity,
-      onSelectChannel,
-      onCreateCommunity,
-      onJoinCommunity,
-      onDeleteCommunity,
-      submitCreateCommunity,
-      onUpvote,
-      onToggleFavorite,
-      onSendMessage,
-      retrySendMessage,
-      onAddReaction,
-      onReplyToMessage,
-      isThreadFavorited,
-      onCreateThread,
-      submitCreateThread,
-      onAddComment,
-      onCommentUpvote,
-      activeCommunity,
-      isCreatePostOpen,
-      setIsCreatePostOpen,
-      isCreateCommunityOpen,
-      setIsCreateCommunityOpen,
-      search,
-      setSearch,
-      unreadNotificationCount,
-      checkPermission,
-    } = useCommunityLogic();
+    activeCommunityId,
+    activeChannel,
+    mode,
+    joinedCommunities,
+    allCommunities,
+    threads,
+    messages,
+    selectedTag,
+    setSelectedTag,
+    tags,
+    onSelectCommunity,
+    onSelectChannel,
+    onCreateCommunity,
+    onJoinCommunity,
+    onDeleteCommunity,
+    submitCreateCommunity,
+    onUpvote,
+    onToggleFavorite,
+    onSendMessage,
+    retrySendMessage,
+    onAddReaction,
+    onReplyToMessage,
+    isThreadFavorited,
+    onCreateThread,
+    submitCreateThread,
+    onAddComment,
+    onCommentUpvote,
+    activeCommunity,
+    isCreatePostOpen,
+    setIsCreatePostOpen,
+    isCreateCommunityOpen,
+    setIsCreateCommunityOpen,
+    search,
+    setSearch,
+    unreadNotificationCount,
+    checkPermission,
+    loading,
+  } = useCommunityLogic();
 
   // 通知系统状态
   const [isNotificationCenterOpen, setIsNotificationCenterOpen] = useState(false);
@@ -189,6 +190,7 @@ const CommunityPageWithNotifications = React.memo(function CommunityPageWithNoti
           activeCommunityId={activeCommunityId}
           onSelectCommunity={onSelectCommunity}
           onCreateCommunity={onCreateCommunity}
+          loading={loading.communities}
         />
       }
       navigation={
@@ -255,6 +257,7 @@ const CommunityPageWithNotifications = React.memo(function CommunityPageWithNoti
               isThreadFavorited={isThreadFavorited}
               activeCommunity={activeCommunity} // 传递活跃社群信息，用于自定义风格
               user={user} // 传递用户信息，用于显示头像
+              loading={loading.threads} // 传递帖子加载状态
             />
             )
           ) : (
@@ -283,6 +286,7 @@ const CommunityPageWithNotifications = React.memo(function CommunityPageWithNoti
                       isThreadFavorited={isThreadFavorited}
                       activeCommunity={activeCommunity} // 传递活跃社群信息，用于自定义风格
                       user={user} // 传递用户信息，用于显示头像
+                      loading={loading.threads} // 传递帖子加载状态
                  />
              )
           )}

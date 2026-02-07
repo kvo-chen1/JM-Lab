@@ -247,41 +247,61 @@ export const useCommunityLogic = () => {
         // Load favorited threads from localStorage
         const savedFavoritedThreads = localStorageUtils.get<string[]>(STORAGE_KEYS.FAVORITED_THREADS, []);
         setFavoritedThreads(savedFavoritedThreads);
-        
-        // Fetch communities from API
+
+        // Fetch communities from API - 并行加载
         setLoading(prev => ({ ...prev, communities: true }));
         setErrors(prev => ({ ...prev, communities: null }));
-        
-        try {
-          const communitiesData = await apiCommunityService.getCommunities();
-          if (communitiesData) {
-            setAllCommunities(communitiesData);
-          }
-        } catch (error) {
-          console.error('Failed to fetch communities from API:', error);
-          setErrors(prev => ({ ...prev, communities: '加载社区数据失败' }));
+
+        // 并行加载所有社群和用户已加入的社群
+        const fetchPromises: Promise<any>[] = [];
+
+        // 1. 加载所有社群
+        fetchPromises.push(
+          apiCommunityService.getCommunities()
+            .then(communitiesData => {
+              if (communitiesData) {
+                // 转换字段名（下划线命名 -> 驼峰命名）
+                const formattedCommunities = communitiesData.map(c => ({
+                  ...c,
+                  creatorId: (c as any).creator_id || c.creatorId,
+                  createdAt: (c as any).created_at || c.createdAt,
+                  updatedAt: (c as any).updated_at || c.updatedAt,
+                }));
+                setAllCommunities(formattedCommunities);
+              }
+            })
+            .catch(error => {
+              console.error('Failed to fetch communities from API:', error);
+              setErrors(prev => ({ ...prev, communities: '加载社区数据失败' }));
+            })
+        );
+
+        // 2. 加载用户已加入的社群（如果已登录）
+        if (user?.id) {
+          fetchPromises.push(
+            communityService.getUserCommunities(user.id)
+              .then(userCommunities => {
+                if (userCommunities) {
+                  setJoinedCommunities(userCommunities);
+                }
+              })
+              .catch(err => {
+                console.error('Failed to fetch user communities:', err);
+                setErrors(prev => ({ ...prev, communities: '加载已加入社区失败' }));
+              })
+          );
+        } else {
+          setJoinedCommunities([]);
         }
 
-        // Fetch user joined communities if logged in
-        if (user?.id) {
-          try {
-            const userCommunities = await communityService.getUserCommunities(user.id);
-            if (userCommunities) {
-              setJoinedCommunities(userCommunities);
-            }
-          } catch (err) {
-            console.error('Failed to fetch user communities:', err);
-            setErrors(prev => ({ ...prev, communities: '加载已加入社区失败' }));
-          }
-        } else {
-            setJoinedCommunities([]);
-        }
-        
-        // Fetch threads from API if in a community
+        // 3. 等待并行加载完成
+        await Promise.allSettled(fetchPromises);
+
+        // 4. 加载当前社群的帖子（如果有）
         if (activeCommunityId) {
           setLoading(prev => ({ ...prev, threads: true }));
           setErrors(prev => ({ ...prev, threads: null }));
-          
+
           try {
             const threadsData = await communityService.getThreadsByCommunity(activeCommunityId);
             if (threadsData) {
@@ -309,6 +329,65 @@ export const useCommunityLogic = () => {
 
     loadData();
   }, [user?.id, activeCommunityId]); // Add user and activeCommunityId dependency
+
+  // Handle URL parameter for community ID
+  useEffect(() => {
+    const pathParts = location.pathname.split('/');
+    if (pathParts[1] === 'community' && pathParts[2] && pathParts[2] !== 'admin') {
+      const communityIdFromUrl = pathParts[2];
+      console.log('[useCommunityLogic] Community ID from URL:', communityIdFromUrl);
+      
+      // Set active community ID from URL
+      setActiveCommunityId(communityIdFromUrl);
+      
+      // Fetch community details and membership status
+      const fetchCommunityDetail = async () => {
+        try {
+          // Fetch community details
+          const communityDetail = await apiService.getCommunity(communityIdFromUrl);
+          if (communityDetail) {
+            console.log('[useCommunityLogic] Fetched community detail:', communityDetail);
+            // Add to allCommunities if not exists
+            setAllCommunities(prev => {
+              const exists = prev.find(c => c.id === communityDetail.id);
+              if (exists) {
+                return prev.map(c => c.id === communityDetail.id ? communityDetail : c);
+              }
+              return [...prev, communityDetail];
+            });
+          }
+          
+          // Check if user is a member of this community
+          if (user?.id) {
+            try {
+              const userCommunities = await communityService.getUserCommunities(user.id);
+              if (userCommunities) {
+                setJoinedCommunities(prev => {
+                  const isAlreadyJoined = prev.some(c => c.id === communityIdFromUrl);
+                  const isInFetchedList = userCommunities.some(c => c.id === communityIdFromUrl);
+                  
+                  if (isInFetchedList && !isAlreadyJoined) {
+                    // Add to joined communities if user is a member
+                    const communityToAdd = communityDetail || userCommunities.find(c => c.id === communityIdFromUrl);
+                    if (communityToAdd) {
+                      return [...prev, communityToAdd];
+                    }
+                  }
+                  return prev;
+                });
+              }
+            } catch (err) {
+              console.error('[useCommunityLogic] Failed to fetch user communities:', err);
+            }
+          }
+        } catch (err) {
+          console.error('[useCommunityLogic] Failed to fetch community detail:', err);
+        }
+      };
+      
+      fetchCommunityDetail();
+    }
+  }, [location.pathname, user?.id]);
 
   // 数据持久化 - 使用useCallback优化性能
   const saveJoinedCommunities = useCallback((communities: Community[]) => {

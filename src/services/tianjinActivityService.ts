@@ -87,12 +87,43 @@ export const tianjinActivityService = {
   // Original methods
   async getActivities(): Promise<Activity[]> {
     try {
-      const response = await fetch('/api/tianjin/activities');
-      if (!response.ok) return [];
-      const result = await response.json();
-      return result.ok ? result.data : [];
-    } catch (e) {
-      console.error('Failed to fetch activities:', e);
+      const { data, error } = await supabase
+        .from('events')
+        .select('*')
+        .eq('status', 'published')
+        .eq('is_public', true)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Supabase error fetching activities:', error);
+        return [];
+      }
+
+      return data?.map(item => {
+        const now = new Date();
+        const endTime = new Date(item.end_time);
+        const startTime = new Date(item.start_time);
+        
+        let status: 'active' | 'ending_soon' | 'ended';
+        if (endTime < now) {
+          status = 'ended';
+        } else if (startTime > now) {
+          status = 'ending_soon';
+        } else {
+          status = 'active';
+        }
+
+        return {
+          id: item.id,
+          title: item.title,
+          cover: item.thumbnail_url,
+          deadline: item.end_time,
+          status,
+          description: item.description
+        };
+      }) || [];
+    } catch (error) {
+      console.error('Error fetching activities:', error);
       return [];
     }
   },

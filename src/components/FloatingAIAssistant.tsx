@@ -1632,7 +1632,6 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
                   )}
                 </AnimatePresence>
               </div>
-            </div>
           </motion.div>
         )}
       </AnimatePresence>

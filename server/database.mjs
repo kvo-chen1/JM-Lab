@@ -767,15 +767,72 @@ async function createPostgreSQLTables(pool) {
         }
       }
 
+      // 检查 users 表是否已存在（Supabase 已创建）
+      const { rows: existingUsers } = await client.query(`
+        SELECT table_name FROM information_schema.tables 
+        WHERE table_schema = 'public' AND table_name = 'users'
+      `)
+      
+      if (existingUsers.length > 0) {
+        console.log('[DB] Tables already exist (managed by Supabase), checking column types...')
+        
+        // 修改字段类型从 UUID 到 TEXT，以匹配 users.id 的类型
+        const alterColumnType = async (table, column) => {
+          try {
+            await client.query(`ALTER TABLE ${table} ALTER COLUMN ${column} TYPE TEXT`)
+            console.log(`[DB] Altered ${table}.${column} to TEXT`)
+          } catch (e) {
+            // 忽略错误（可能已经是 TEXT 类型或列不存在）
+          }
+        }
+        
+        // 修改所有外键字段类型
+        await alterColumnType('favorites', 'user_id')
+        await alterColumnType('community_members', 'user_id')
+        await alterColumnType('communities', 'creator_id')
+        await alterColumnType('posts', 'author_id')
+        await alterColumnType('works', 'creator_id')
+        await alterColumnType('comments', 'user_id')
+        await alterColumnType('notifications', 'user_id')
+        await alterColumnType('friend_requests', 'sender_id')
+        await alterColumnType('friend_requests', 'receiver_id')
+        await alterColumnType('friends', 'user_id')
+        await alterColumnType('friends', 'friend_id')
+        await alterColumnType('direct_messages', 'sender_id')
+        await alterColumnType('direct_messages', 'receiver_id')
+        await alterColumnType('user_status', 'user_id')
+        await alterColumnType('user_achievements', 'user_id')
+        await alterColumnType('points_records', 'user_id')
+        await alterColumnType('user_activities', 'user_id')
+        await alterColumnType('activity_participations', 'user_id')
+        
+        // 修改 avatar_url 列类型为 TEXT 以支持 Base64 图片数据
+        try {
+          await client.query(`
+            ALTER TABLE users 
+            ALTER COLUMN avatar_url TYPE TEXT
+          `)
+          console.log('[DB] Altered users.avatar_url to TEXT')
+        } catch (e) {
+          // 列可能已经存在或类型已经正确，忽略错误
+          if (!e.message.includes('does not exist')) {
+            console.log('[DB] users.avatar_url column type check:', e.message)
+          }
+        }
+        
+        console.log('[DB] Column type check completed')
+        return
+      }
+
       // 创建用户表 (移除外键约束，使用普通UUID主键)
       await client.query(`
         CREATE TABLE IF NOT EXISTS users (
-          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
           username VARCHAR(20) UNIQUE NOT NULL,
           email VARCHAR(255) UNIQUE NOT NULL,
           password_hash VARCHAR(255) NOT NULL,
           phone VARCHAR(20),
-          avatar_url VARCHAR(255),
+          avatar_url TEXT, -- 改为 TEXT 以支持 Base64 图片数据
           interests TEXT,
           age INTEGER,
           tags TEXT,
@@ -833,7 +890,7 @@ async function createPostgreSQLTables(pool) {
       await client.query(`
         CREATE TABLE IF NOT EXISTS favorites (
           id SERIAL PRIMARY KEY,
-          user_id UUID NOT NULL,
+          user_id TEXT NOT NULL,
           tutorial_id INTEGER NOT NULL,
           created_at BIGINT NOT NULL,
           UNIQUE(user_id, tutorial_id)
@@ -871,13 +928,13 @@ async function createPostgreSQLTables(pool) {
       // 确保 avatar 字段存在
       await client.query(`ALTER TABLE IF EXISTS communities ADD COLUMN IF NOT EXISTS avatar TEXT;`)
       // 确保 creator_id 字段存在
-      await client.query(`ALTER TABLE IF EXISTS communities ADD COLUMN IF NOT EXISTS creator_id UUID;`)
+      await client.query(`ALTER TABLE IF EXISTS communities ADD COLUMN IF NOT EXISTS creator_id TEXT;`)
 
       // 创建社区成员表
       await client.query(`
         CREATE TABLE IF NOT EXISTS community_members (
           community_id VARCHAR(50) NOT NULL,
-          user_id UUID NOT NULL,
+          user_id TEXT NOT NULL,
           role VARCHAR(20) DEFAULT 'member',
           joined_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
           PRIMARY KEY (community_id, user_id),
@@ -893,7 +950,7 @@ async function createPostgreSQLTables(pool) {
         title VARCHAR(255) NOT NULL,
         description TEXT,
         thumbnail TEXT,
-        creator_id UUID NOT NULL,
+        creator_id TEXT NOT NULL,
         category VARCHAR(100),
         tags TEXT,
         views INTEGER DEFAULT 0,
@@ -943,7 +1000,7 @@ async function createPostgreSQLTables(pool) {
           id SERIAL PRIMARY KEY,
           title VARCHAR(255) NOT NULL,
           content TEXT NOT NULL,
-          user_id UUID NOT NULL, -- Changed to UUID
+          user_id TEXT NOT NULL, -- Changed to TEXT
           category_id INTEGER,
           status VARCHAR(20) DEFAULT 'published',
           views INTEGER DEFAULT 0,
@@ -972,7 +1029,7 @@ async function createPostgreSQLTables(pool) {
         CREATE TABLE IF NOT EXISTS comments (
           id SERIAL PRIMARY KEY,
           content TEXT NOT NULL,
-          user_id UUID NOT NULL, -- Changed to UUID
+          user_id TEXT NOT NULL, -- Changed to TEXT
           post_id INTEGER NOT NULL,
           parent_id INTEGER,
           created_at BIGINT NOT NULL,
@@ -985,13 +1042,13 @@ async function createPostgreSQLTables(pool) {
 
       // 确保 comments 表的关键列存在 (修复旧 schema 问题)
       await ensureColumn('comments', 'post_id', 'INTEGER REFERENCES posts(id) ON DELETE CASCADE')
-      await ensureColumn('comments', 'user_id', 'UUID REFERENCES users(id) ON DELETE CASCADE') // Changed to UUID
+      await ensureColumn('comments', 'user_id', 'TEXT REFERENCES users(id) ON DELETE CASCADE') // Changed to TEXT
       await ensureColumn('comments', 'parent_id', 'INTEGER REFERENCES comments(id) ON DELETE CASCADE')
       
       // 创建点赞表
       await client.query(`
         CREATE TABLE IF NOT EXISTS likes (
-          user_id UUID NOT NULL, -- Changed to UUID
+          user_id TEXT NOT NULL, -- Changed to TEXT
           post_id INTEGER NOT NULL,
           created_at BIGINT NOT NULL,
           PRIMARY KEY (user_id, post_id),
@@ -1003,7 +1060,7 @@ async function createPostgreSQLTables(pool) {
       // 创建用户成就表
       await client.query(`
         CREATE TABLE IF NOT EXISTS user_achievements (
-          user_id UUID NOT NULL,
+          user_id TEXT NOT NULL,
           achievement_id INTEGER NOT NULL,
           progress INTEGER DEFAULT 0,
           is_unlocked BOOLEAN DEFAULT FALSE,
@@ -1017,7 +1074,7 @@ async function createPostgreSQLTables(pool) {
       await client.query(`
         CREATE TABLE IF NOT EXISTS points_records (
           id SERIAL PRIMARY KEY,
-          user_id UUID NOT NULL,
+          user_id TEXT NOT NULL,
           source VARCHAR(50),
           type VARCHAR(20),
           points INTEGER NOT NULL,
@@ -1034,8 +1091,8 @@ async function createPostgreSQLTables(pool) {
       await client.query(`
         CREATE TABLE IF NOT EXISTS direct_messages (
           id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-          sender_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-          receiver_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          sender_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          receiver_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
           content TEXT NOT NULL,
           is_read BOOLEAN DEFAULT FALSE,
           created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -1049,8 +1106,8 @@ async function createPostgreSQLTables(pool) {
       await client.query(`
         CREATE TABLE IF NOT EXISTS friend_requests (
           id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-          sender_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-          receiver_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          sender_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          receiver_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
           status VARCHAR(20) DEFAULT 'pending',
           created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
           updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -1064,8 +1121,8 @@ async function createPostgreSQLTables(pool) {
       await client.query(`
         CREATE TABLE IF NOT EXISTS friends (
           id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-          user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-          friend_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          friend_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
           user_note VARCHAR(255),
           friend_note VARCHAR(255),
           created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -1080,7 +1137,7 @@ async function createPostgreSQLTables(pool) {
       // User Status
       await client.query(`
         CREATE TABLE IF NOT EXISTS user_status (
-          user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+          user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
           status VARCHAR(20) CHECK (status IN ('online', 'offline', 'away')),
           last_seen TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
           updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -1121,7 +1178,7 @@ async function createPostgreSQLTables(pool) {
       await client.query(`
         CREATE TABLE IF NOT EXISTS user_activities (
           id SERIAL PRIMARY KEY,
-          user_id UUID NOT NULL,
+          user_id TEXT NOT NULL,
           action_type VARCHAR(50) NOT NULL,
           entity_type VARCHAR(50),
           entity_id VARCHAR(50),
@@ -1140,17 +1197,17 @@ async function createPostgreSQLTables(pool) {
       try {
         await client.query(`
           CREATE POLICY "Users can view their own profile" ON users
-          FOR SELECT USING (id = COALESCE(current_setting('request.jwt.claim.sub', true), current_setting('request.jwt.claim.userId', true))::uuid);
+          FOR SELECT USING (id = COALESCE(current_setting('request.jwt.claim.sub', true), current_setting('request.jwt.claim.userId', true))::text);
         `);
       } catch (error) {
         if (!error.message.includes('already exists')) throw error;
         // 忽略已存在的策略错误
       }
-      
+
       try {
         await client.query(`
           CREATE POLICY "Users can update their own profile" ON users
-          FOR UPDATE USING (id = COALESCE(current_setting('request.jwt.claim.sub', true), current_setting('request.jwt.claim.userId', true))::uuid);
+          FOR UPDATE USING (id = COALESCE(current_setting('request.jwt.claim.sub', true), current_setting('request.jwt.claim.userId', true))::text);
         `);
       } catch (error) {
         if (!error.message.includes('already exists')) throw error;
@@ -1161,18 +1218,18 @@ async function createPostgreSQLTables(pool) {
       try {
         await client.query(`
           CREATE POLICY "Users can view their own friends" ON friends
-          FOR SELECT USING (user_id = COALESCE(current_setting('request.jwt.claim.sub', true), current_setting('request.jwt.claim.userId', true))::uuid);
+          FOR SELECT USING (user_id = COALESCE(current_setting('request.jwt.claim.sub', true), current_setting('request.jwt.claim.userId', true))::text);
         `);
       } catch (error) {
         if (!error.message.includes('already exists')) {
           throw error;
         }
       }
-      
+
       try {
         await client.query(`
           CREATE POLICY "Users can manage their own friends" ON friends
-          FOR ALL USING (user_id = COALESCE(current_setting('request.jwt.claim.sub', true), current_setting('request.jwt.claim.userId', true))::uuid);
+          FOR ALL USING (user_id = COALESCE(current_setting('request.jwt.claim.sub', true), current_setting('request.jwt.claim.userId', true))::text);
         `);
       } catch (error) {
         if (!error.message.includes('already exists')) {
@@ -1185,8 +1242,8 @@ async function createPostgreSQLTables(pool) {
         await client.query(`
           CREATE POLICY "Users can view their own messages" ON direct_messages
           FOR SELECT USING (
-            sender_id = COALESCE(current_setting('request.jwt.claim.sub', true), current_setting('request.jwt.claim.userId', true))::uuid OR
-            receiver_id = COALESCE(current_setting('request.jwt.claim.sub', true), current_setting('request.jwt.claim.userId', true))::uuid
+            sender_id = COALESCE(current_setting('request.jwt.claim.sub', true), current_setting('request.jwt.claim.userId', true))::text OR
+            receiver_id = COALESCE(current_setting('request.jwt.claim.sub', true), current_setting('request.jwt.claim.userId', true))::text
           );
         `);
       } catch (error) {
@@ -1194,12 +1251,12 @@ async function createPostgreSQLTables(pool) {
           throw error;
         }
       }
-      
+
       try {
         await client.query(`
           CREATE POLICY "Users can send messages" ON direct_messages
           FOR INSERT WITH CHECK (
-            sender_id = COALESCE(current_setting('request.jwt.claim.sub', true), current_setting('request.jwt.claim.userId', true))::uuid
+            sender_id = COALESCE(current_setting('request.jwt.claim.sub', true), current_setting('request.jwt.claim.userId', true))::text
           );
         `);
       } catch (error) {
@@ -1213,8 +1270,8 @@ async function createPostgreSQLTables(pool) {
         await client.query(`
           CREATE POLICY "Users can view their friend requests" ON friend_requests
           FOR SELECT USING (
-            sender_id = COALESCE(current_setting('request.jwt.claim.sub', true), current_setting('request.jwt.claim.userId', true))::uuid OR
-            receiver_id = COALESCE(current_setting('request.jwt.claim.sub', true), current_setting('request.jwt.claim.userId', true))::uuid
+            sender_id = COALESCE(current_setting('request.jwt.claim.sub', true), current_setting('request.jwt.claim.userId', true))::text OR
+            receiver_id = COALESCE(current_setting('request.jwt.claim.sub', true), current_setting('request.jwt.claim.userId', true))::text
           );
         `);
       } catch (error) {
@@ -1222,12 +1279,12 @@ async function createPostgreSQLTables(pool) {
           throw error;
         }
       }
-      
+
       try {
         await client.query(`
           CREATE POLICY "Users can send friend requests" ON friend_requests
           FOR INSERT WITH CHECK (
-            sender_id = COALESCE(current_setting('request.jwt.claim.sub', true), current_setting('request.jwt.claim.userId', true))::uuid
+            sender_id = COALESCE(current_setting('request.jwt.claim.sub', true), current_setting('request.jwt.claim.userId', true))::text
           );
         `);
       } catch (error) {
@@ -2329,7 +2386,7 @@ export const leaderboardDB = {
             w.created_at, w.updated_at,
             u.username, u.avatar_url
           FROM works w
-          LEFT JOIN users u ON w.creator_id = u.id
+          LEFT JOIN users u ON w.creator_id::text = u.id
           ${pgWhereClause}
           ORDER BY w.${dbSortBy} DESC
           LIMIT $${pgParamOffset + 1}
@@ -2432,11 +2489,11 @@ export const friendDB = {
 
       case DB_TYPE.POSTGRESQL:
         // Check if request already exists
-        const { rows: existingPg } = await db.query('SELECT * FROM friend_requests WHERE sender_id = $1 AND receiver_id = $2', [senderId, receiverId])
+        const { rows: existingPg } = await db.query('SELECT * FROM friend_requests WHERE sender_id::text = $1 AND receiver_id::text = $2', [senderId, receiverId])
         if (existingPg.length > 0) return existingPg[0]
         
         // Check if already friends
-        const { rows: friendPg } = await db.query('SELECT * FROM friends WHERE user_id = $1 AND friend_id = $2', [senderId, receiverId])
+        const { rows: friendPg } = await db.query('SELECT * FROM friends WHERE user_id::text = $1 AND friend_id::text = $2', [senderId, receiverId])
         if (friendPg.length > 0) throw new Error('ALREADY_FRIENDS')
         
         const { rows: newRequest } = await db.query(`
@@ -2571,8 +2628,8 @@ export const friendDB = {
         const { rows: pgRequests } = await db.query(`
           SELECT fr.*, u.username, u.avatar_url 
           FROM friend_requests fr
-          JOIN users u ON fr.sender_id = u.id
-          WHERE fr.receiver_id = $1 AND fr.status = 'pending'
+          JOIN users u ON fr.sender_id::text = u.id
+          WHERE fr.receiver_id::text = $1 AND fr.status = 'pending'
           ORDER BY fr.created_at DESC
         `, [userId])
         return pgRequests.map(r => ({
@@ -2636,9 +2693,9 @@ export const friendDB = {
         const { rows: pgFriends } = await db.query(`
           SELECT f.*, u.username, u.avatar_url, u.email, s.status as online_status, s.last_seen
           FROM friends f
-          JOIN users u ON f.friend_id = u.id
-          LEFT JOIN user_status s ON f.friend_id = s.user_id
-          WHERE f.user_id = $1
+          JOIN users u ON f.friend_id::text = u.id::text
+          LEFT JOIN user_status s ON f.friend_id::text = s.user_id::text
+          WHERE f.user_id::text = $1::text
           ORDER BY s.status DESC, f.created_at DESC
         `, [userId])
         return pgFriends.map(f => ({
@@ -2671,7 +2728,7 @@ export const friendDB = {
         saveMemoryStore()
         return true
       case DB_TYPE.POSTGRESQL:
-        await db.query('DELETE FROM friends WHERE (user_id = $1 AND friend_id = $2) OR (user_id = $2 AND friend_id = $1)', [userId, friendId])
+        await db.query('DELETE FROM friends WHERE (user_id::text = $1 AND friend_id::text = $2) OR (user_id::text = $2 AND friend_id::text = $1)', [userId, friendId])
         return true
       default: throw new Error(`Unsupported DB Type: ${config.dbType}`)
     }
@@ -2693,7 +2750,7 @@ export const friendDB = {
         saveMemoryStore()
         return true
       case DB_TYPE.POSTGRESQL:
-        await db.query('UPDATE friends SET user_note = $1 WHERE user_id = $2 AND friend_id = $3', [note, userId, friendId])
+        await db.query('UPDATE friends SET user_note = $1 WHERE user_id::text = $2 AND friend_id::text = $3', [note, userId, friendId])
         return true
       default: throw new Error(`Unsupported DB Type: ${config.dbType}`)
     }
@@ -2887,7 +2944,7 @@ export const messageDB = {
       case DB_TYPE.POSTGRESQL:
         const { rows: pgMessages } = await db.query(`
           SELECT * FROM direct_messages 
-          WHERE (sender_id = $1 AND receiver_id = $2) OR (sender_id = $2 AND receiver_id = $1)
+          WHERE (sender_id::text = $1 AND receiver_id::text = $2) OR (sender_id::text = $2 AND receiver_id::text = $1)
           ORDER BY created_at DESC
           LIMIT $3 OFFSET $4
         `, [userId, friendId, limit, offset])
@@ -2914,7 +2971,7 @@ export const messageDB = {
         saveMemoryStore()
         return true
       case DB_TYPE.POSTGRESQL:
-        await db.query('UPDATE direct_messages SET is_read = true WHERE sender_id = $1 AND receiver_id = $2', [friendId, userId])
+        await db.query('UPDATE direct_messages SET is_read = true WHERE sender_id::text = $1 AND receiver_id::text = $2', [friendId, userId])
         return true
       default: throw new Error(`Unsupported DB Type: ${config.dbType}`)
     }
@@ -2945,7 +3002,7 @@ export const messageDB = {
         const { rows: unreadRows } = await db.query(`
           SELECT sender_id, COUNT(*) as count 
           FROM direct_messages 
-          WHERE receiver_id = $1 AND is_read = false 
+          WHERE receiver_id::text = $1 AND is_read = false 
           GROUP BY sender_id
         `, [userId])
         return unreadRows
@@ -3084,7 +3141,7 @@ export const workDB = {
         // We can use memoryStore.posts as a fallback if works are not separate
         return (memoryStore.works || []).sort((a, b) => b.created_at - a.created_at).slice(offset, offset + limit)
       case DB_TYPE.POSTGRESQL:
-        return (await db.query('SELECT w.*, u.username, u.avatar_url FROM works w LEFT JOIN users u ON w.creator_id = u.id ORDER BY w.created_at DESC LIMIT $1 OFFSET $2', [limit, offset])).rows
+        return (await db.query('SELECT w.*, u.username, u.avatar_url FROM works w LEFT JOIN users u ON w.creator_id::text = u.id ORDER BY w.created_at DESC LIMIT $1 OFFSET $2', [limit, offset])).rows
       default: return []
     }
   },
@@ -3101,7 +3158,7 @@ export const workDB = {
         // We can use memoryStore.posts as a fallback if works are not separate
         return (memoryStore.works || []).filter(w => w.creator_id === userId).sort((a, b) => b.created_at - a.created_at).slice(offset, offset + limit)
       case DB_TYPE.POSTGRESQL:
-        return (await db.query('SELECT w.*, u.username, u.avatar_url FROM works w LEFT JOIN users u ON w.creator_id = u.id WHERE w.creator_id = $1 ORDER BY w.created_at DESC LIMIT $2 OFFSET $3', [userId, limit, offset])).rows
+        return (await db.query('SELECT w.*, u.username, u.avatar_url FROM works w LEFT JOIN users u ON w.creator_id::text = u.id WHERE w.creator_id::text = $1 ORDER BY w.created_at DESC LIMIT $2 OFFSET $3', [userId, limit, offset])).rows
       default: return []
     }
   },
@@ -3143,7 +3200,7 @@ export const workDB = {
       case DB_TYPE.MEMORY:
         return (memoryStore.works || []).sort((a, b) => b.created_at - a.created_at)
       case DB_TYPE.POSTGRESQL:
-        return (await db.query('SELECT w.*, u.username, u.avatar_url FROM works w LEFT JOIN users u ON w.creator_id = u.id ORDER BY w.created_at DESC')).rows
+        return (await db.query('SELECT w.*, u.username, u.avatar_url FROM works w LEFT JOIN users u ON w.creator_id::text = u.id ORDER BY w.created_at DESC')).rows
       default: return []
     }
   }
@@ -3189,7 +3246,7 @@ export const commentDB = {
       case DB_TYPE.SQLITE:
         return db.prepare('SELECT c.*, u.username, u.avatar_url FROM comments c LEFT JOIN users u ON c.user_id = u.id WHERE c.post_id = ? ORDER BY c.created_at DESC LIMIT ? OFFSET ?').all(postId, limit, offset)
       case DB_TYPE.POSTGRESQL:
-        return (await db.query('SELECT c.*, u.username, u.avatar_url FROM comments c LEFT JOIN users u ON c.user_id = u.id WHERE c.post_id = $1 ORDER BY c.created_at DESC LIMIT $2 OFFSET $3', [postId, limit, offset])).rows
+        return (await db.query('SELECT c.*, u.username, u.avatar_url FROM comments c LEFT JOIN users u ON c.user_id::text = u.id WHERE c.post_id = $1 ORDER BY c.created_at DESC LIMIT $2 OFFSET $3', [postId, limit, offset])).rows
       case DB_TYPE.MEMORY:
         return (memoryStore.comments || [])
           .filter(c => c.post_id === postId)
@@ -3495,9 +3552,35 @@ export const communityDB = {
       default:
         return false
     }
-  }
+  },
 
-  ,
+  async isCommunityMember(userId, communityId) {
+    const db = await getDB()
+    const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
+
+    switch (typeKey) {
+      case DB_TYPE.SQLITE: {
+        const row = db.prepare(`
+          SELECT 1 FROM community_members
+          WHERE community_id = ? AND user_id = ?
+        `).get(communityId, userId)
+        return !!row
+      }
+      case DB_TYPE.MEMORY: {
+        const members = memoryStore.community_members || []
+        return members.some(m => m.community_id === communityId && m.user_id === userId)
+      }
+      case DB_TYPE.POSTGRESQL: {
+        const { rows } = await db.query(`
+          SELECT 1 FROM community_members
+          WHERE community_id = $1 AND user_id::text = $2
+        `, [communityId, userId])
+        return rows.length > 0
+      }
+      default:
+        return false
+    }
+  },
 
   async leaveCommunity(userId, communityId) {
     const db = await getDB()

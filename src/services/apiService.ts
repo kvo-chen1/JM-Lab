@@ -609,6 +609,9 @@ class CommunityService extends ApiService {
     topic: string;
     isActive: boolean;
     isSpecial: boolean;
+    creatorId?: string;
+    createdAt?: string;
+    updatedAt?: string;
     theme?: {
       primaryColor?: string;
       secondaryColor?: string;
@@ -632,6 +635,9 @@ class CommunityService extends ApiService {
       topic: string;
       isActive: boolean;
       isSpecial: boolean;
+      creatorId?: string;
+      createdAt?: string;
+      updatedAt?: string;
       theme?: {
         primaryColor?: string;
         secondaryColor?: string;

@@ -821,6 +821,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             // 优先使用后端返回的JWT token，如果没有则使用Supabase token
             safeLocalStorage.setItem('token', data.data.token || supabaseData.session?.access_token || '');
             safeLocalStorage.setItem('refreshToken', supabaseData.session?.refresh_token || '');
+            // 存储Supabase token用于Supabase认证
+            safeLocalStorage.setItem('supabaseToken', supabaseData.session?.access_token || '');
+            safeLocalStorage.setItem('supabaseRefreshToken', supabaseData.session?.refresh_token || '');
             safeLocalStorage.setItem('user', JSON.stringify(userWithMembership));
             safeLocalStorage.setItem('isAuthenticated', 'true');
             
@@ -867,8 +870,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
               });
               
               // 存储用户信息和token到本地
-              // 优先使用后端返回的JWT token，如果没有则使用Supabase token
-              safeLocalStorage.setItem('token', data.data.token || signUpData.session?.access_token || '');
+              // 存储后端token用于后端API认证
+              safeLocalStorage.setItem('token', data.data.token || '');
+              // 存储Supabase token用于Supabase认证
+              safeLocalStorage.setItem('supabaseToken', signUpData.session?.access_token || '');
+              safeLocalStorage.setItem('supabaseRefreshToken', signUpData.session?.refresh_token || '');
               safeLocalStorage.setItem('refreshToken', signUpData.session?.refresh_token || '');
               safeLocalStorage.setItem('user', JSON.stringify(userWithMembership));
               safeLocalStorage.setItem('isAuthenticated', 'true');
@@ -1078,18 +1084,67 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         } else {
           console.log('Supabase 认证状态已同步');
         }
-      } else if (supabase && userData.email) {
+      } else if (supabase && actualUser.email) {
         // 如果没有返回 session，尝试使用邮箱和密码登录 Supabase
-        console.log('尝试使用邮箱密码登录 Supabase');
+        // 使用用户ID前20位作为密码（与登录时逻辑一致）
+        const supabasePassword = actualUser.id.substring(0, 20);
+        console.log('尝试使用邮箱密码登录 Supabase:', actualUser.email);
+        
         const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-          email: userData.email,
-          password: userData.token.substring(0, 20) // 使用 token 的一部分作为临时密码
+          email: actualUser.email,
+          password: supabasePassword
         });
         
         if (signInError) {
-          console.warn('Supabase 登录同步失败:', signInError.message);
+          console.warn('Supabase 登录同步失败，尝试注册新用户:', signInError.message);
+          
+          // 登录失败，可能是新用户，尝试注册
+          const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+            email: actualUser.email,
+            password: supabasePassword,
+            options: {
+              data: {
+                username: actualUser.username || actualUser.email.split('@')[0],
+                avatar: actualUser.avatar || '',
+                auth_provider: 'local'
+              }
+            }
+          });
+          
+          if (signUpError) {
+            console.warn('Supabase 注册也失败:', signUpError.message);
+          } else if (signUpData.user) {
+            console.log('Supabase 用户创建成功，ID:', signUpData.user.id);
+            
+            // 如果 Supabase 创建的ID与后端不同，需要同步
+            if (signUpData.user.id !== actualUser.id) {
+              console.warn('Supabase ID 与后端 ID 不匹配，需要同步', {
+                backendId: actualUser.id,
+                supabaseId: signUpData.user.id
+              });
+              
+              // 更新本地存储的用户ID为 Supabase ID
+              userWithMembership.id = signUpData.user.id;
+              localStorage.setItem('user', JSON.stringify(userWithMembership));
+              
+              // 通知后端更新用户ID
+              try {
+                await fetch('/api/auth/update-user-id', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ 
+                    oldId: actualUser.id, 
+                    newId: signUpData.user.id, 
+                    email: actualUser.email 
+                  }),
+                });
+              } catch (syncErr) {
+                console.warn('同步用户ID到后端失败:', syncErr);
+              }
+            }
+          }
         } else {
-          console.log('Supabase 认证状态已同步');
+          console.log('Supabase 认证状态已同步，用户ID:', signInData.user?.id);
         }
       }
     } catch (syncError) {

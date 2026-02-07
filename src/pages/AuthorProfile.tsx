@@ -88,14 +88,8 @@ export const AuthorProfile: React.FC<AuthorProfileProps> = ({ currentUser }) => 
   const [showFilterMenu, setShowFilterMenu] = useState(false)
   const [activeTab, setActiveTab] = useState<'works' | 'activity' | 'achievements'>('works')
   const [isOnline] = useState(true) // 模拟在线状态
-
-  // 模拟活动数据
-  const activities: UserActivity[] = useMemo(() => [
-    { id: '1', type: 'post', content: '发布了新作品《天津之眼夜景》', createdAt: '2024-01-15T10:30:00Z' },
-    { id: '2', type: 'like', content: '点赞了作品', target: '津门故里', createdAt: '2024-01-14T15:20:00Z' },
-    { id: '3', type: 'comment', content: '评论了作品', target: '海河风光', createdAt: '2024-01-13T09:15:00Z' },
-    { id: '4', type: 'follow', content: '关注了创作者', target: '摄影达人', createdAt: '2024-01-12T18:45:00Z' },
-  ], [])
+  const [activities, setActivities] = useState<UserActivity[]>([])
+  const [activitiesLoading, setActivitiesLoading] = useState(false)
 
   // 模拟成就数据
   const achievements: Achievement[] = useMemo(() => [
@@ -112,37 +106,50 @@ export const AuthorProfile: React.FC<AuthorProfileProps> = ({ currentUser }) => 
 
       try {
         setLoading(true)
+        console.log('[AuthorProfile] 开始加载作者，URL ID:', id)
         
         const authorData = await getAuthorById(id)
-        
+        console.log('[AuthorProfile] 获取到作者数据:', authorData)
+
         if (authorData) {
-          // 使用 Supabase 直接查询用户的作品和统计数据
-          const { data: userPosts, error: postsError } = await supabase
-            .from('posts')
-            .select('id, title, content, view_count, likes_count, comments_count, created_at, images, attachments, category, tags, status')
-            .eq('author_id', authorData.id)
-            .eq('status', 'published')
-            .order('created_at', { ascending: false })
+          // 使用 postsApi 获取作品数据
+          console.log('[AuthorProfile] 使用 postsApi 获取作品，用户ID:', authorData.id)
+          const allPosts = await postsApi.getPosts()
+          console.log('[AuthorProfile] 获取到所有作品:', allPosts.length)
 
-          if (postsError) {
-            console.error('获取用户作品失败:', postsError)
-          }
+          // 过滤出当前用户的作品
+          console.log('[AuthorProfile] 第一个作品的作者信息:', allPosts[0]?.author)
+          console.log('[AuthorProfile] 当前页面用户ID:', authorData.id, '类型:', typeof authorData.id)
+          const userPosts = allPosts.filter(post => {
+            const postAuthorId = typeof post.author === 'object' ? post.author?.id : post.author
+            console.log('[AuthorProfile] 比较:', postAuthorId, '===', authorData.id, '结果:', postAuthorId === authorData.id)
+            return postAuthorId === authorData.id
+          })
+          console.log('[AuthorProfile] 过滤后用户作品:', userPosts.length)
 
-          const authorPosts = userPosts || []
-          
           // 计算真实的统计数据
-          const totalViews = authorPosts.reduce((sum, post) => sum + (post.view_count || 0), 0)
-          const totalLikes = authorPosts.reduce((sum, post) => sum + (post.likes_count || 0), 0)
-          const totalComments = authorPosts.reduce((sum, post) => sum + (post.comments_count || 0), 0)
-          
-          // 计算创作天数（根据最早的作品日期到现在）
+          const totalViews = userPosts.reduce((sum, post) => sum + (Number(post.viewCount) || Number(post.views) || 0), 0)
+          const totalLikes = userPosts.reduce((sum, post) => sum + (Number(post.likesCount) || Number(post.likes) || 0), 0)
+          const totalComments = 0
+
+          // 计算创作天数
           let streakDays = 0
-          if (authorPosts.length > 0) {
-            const dates = authorPosts.map(p => new Date(p.created_at).getTime())
+          if (userPosts.length > 0) {
+            const dates = userPosts.map(p => new Date(p.date || p.created_at).getTime())
             const earliestDate = new Date(Math.min(...dates))
             const now = new Date()
             streakDays = Math.max(1, Math.floor((now.getTime() - earliestDate.getTime()) / (1000 * 60 * 60 * 24)))
           }
+
+          // 调试日志
+          console.log('[AuthorProfile] 用户统计数据:', {
+            userId: authorData.id,
+            worksCount: userPosts.length,
+            totalViews,
+            totalLikes,
+            totalComments,
+            streakDays
+          })
 
           if (currentUser) {
             const following = await checkUserFollowing(id)
@@ -150,32 +157,23 @@ export const AuthorProfile: React.FC<AuthorProfileProps> = ({ currentUser }) => 
           }
 
           // 转换作品数据格式
-          const adaptedPosts = authorPosts.map(p => {
-            let thumbnail = ''
-            if (p.attachments && Array.isArray(p.attachments) && p.attachments.length > 0) {
-              thumbnail = p.attachments[0].url || p.attachments[0]
-            } else if (p.images && Array.isArray(p.images) && p.images.length > 0) {
-              thumbnail = p.images[0]
-            }
-
-            return {
-              id: p.id.toString(),
-              title: p.title,
-              content: p.content || '',
-              user_id: authorData.id,
-              author_id: authorData.id,
-              author: authorData,
-              created_at: p.created_at,
-              view_count: p.view_count || 0,
-              likes_count: p.likes_count || 0,
-              comments_count: p.comments_count || 0,
-              attachments: thumbnail ? [{ url: thumbnail }] : [],
-              category: p.category,
-              tags: p.tags || [],
-              isLiked: false,
-              isBookmarked: false
-            }
-          })
+          const adaptedPosts = userPosts.map(p => ({
+            id: p.id.toString(),
+            title: p.title,
+            content: p.content || p.description || '',
+            user_id: authorData.id,
+            author_id: authorData.id,
+            author: authorData,
+            created_at: p.date || p.created_at,
+            view_count: p.viewCount || p.views || 0,
+            likes_count: p.likesCount || p.likes || 0,
+            comments_count: 0,
+            attachments: p.thumbnail ? [{ url: p.thumbnail }] : [],
+            category: p.category,
+            tags: p.tags || [],
+            isLiked: false,
+            isBookmarked: false
+          }))
           
           setPosts(adaptedPosts)
 
@@ -225,6 +223,44 @@ export const AuthorProfile: React.FC<AuthorProfileProps> = ({ currentUser }) => 
 
     loadAuthor()
   }, [id, currentUser])
+
+  // 加载用户活动数据
+  useEffect(() => {
+    const loadActivities = async () => {
+      if (!id || activeTab !== 'activity') return
+
+      try {
+        setActivitiesLoading(true)
+        const { data, error } = await supabase
+          .from('user_activities')
+          .select('id, activity_type, content, target_id, target_type, target_title, created_at')
+          .eq('user_id', id)
+          .order('created_at', { ascending: false })
+          .limit(20)
+
+        if (error) {
+          console.error('获取用户活动失败:', error)
+          return
+        }
+
+        const formattedActivities: UserActivity[] = (data || []).map(item => ({
+          id: item.id,
+          type: item.activity_type as 'post' | 'like' | 'comment' | 'follow',
+          content: item.content,
+          target: item.target_title || undefined,
+          createdAt: item.created_at
+        }))
+
+        setActivities(formattedActivities)
+      } catch (error) {
+        console.error('加载用户活动失败:', error)
+      } finally {
+        setActivitiesLoading(false)
+      }
+    }
+
+    loadActivities()
+  }, [id, activeTab])
 
   // 筛选和排序作品
   const filteredPosts = useMemo(() => {
@@ -861,27 +897,52 @@ export const AuthorProfile: React.FC<AuthorProfileProps> = ({ currentUser }) => 
           {activeTab === 'activity' && (
             <div className="space-y-4">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">最近动态</h3>
-              {activities.map((activity) => (
-                <div
-                  key={activity.id}
-                  className="flex items-start gap-4 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                >
-                  <div className="w-10 h-10 bg-white dark:bg-gray-600 rounded-full flex items-center justify-center shadow-sm">
-                    {getActivityIcon(activity.type)}
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-gray-900 dark:text-white">
-                      {activity.content}
-                      {activity.target && (
-                        <span className="text-blue-600 dark:text-blue-400 ml-1">{activity.target}</span>
-                      )}
-                    </p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                      {new Date(activity.createdAt).toLocaleString('zh-CN')}
-                    </p>
-                  </div>
+              
+              {activitiesLoading ? (
+                <div className="space-y-4">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="flex items-start gap-4 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl animate-pulse">
+                      <div className="w-10 h-10 bg-gray-200 dark:bg-gray-600 rounded-full" />
+                      <div className="flex-1 space-y-2">
+                        <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-3/4" />
+                        <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-1/4" />
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              ) : activities.length > 0 ? (
+                activities.map((activity) => (
+                  <div
+                    key={activity.id}
+                    className="flex items-start gap-4 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    <div className="w-10 h-10 bg-white dark:bg-gray-600 rounded-full flex items-center justify-center shadow-sm">
+                      {getActivityIcon(activity.type)}
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-gray-900 dark:text-white">
+                        {activity.content}
+                        {activity.target && (
+                          <span className="text-blue-600 dark:text-blue-400 ml-1">{activity.target}</span>
+                        )}
+                      </p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                        {new Date(activity.createdAt).toLocaleString('zh-CN')}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-16">
+                  <div className="w-24 h-24 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <Activity className="w-12 h-12 text-gray-400" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">暂无动态</h3>
+                  <p className="text-gray-500 dark:text-gray-400 max-w-md mx-auto">
+                    该用户还没有任何活动记录，关注后可以在第一时间看到更新
+                  </p>
+                </div>
+              )}
             </div>
           )}
 

@@ -47,10 +47,7 @@ interface PostItemProps {
 const PostItem = memo(({ post, index, onLike, onComment, onShare, onBookmark, onDelete, onPostClick, favorites, isDark, style, columnWidth }: PostItemProps) => {
   const [isVisible, setIsVisible] = useState(false);
   
-  // 模拟价格（仅用于UI展示）
-  const price = useMemo(() => {
-    return Math.floor(Math.random() * 500) + 99;
-  }, [post.id]);
+
 
   useEffect(() => {
     // 滚动触发：每行卡片依次淡入（stagger间隔0.15s）
@@ -95,29 +92,23 @@ const PostItem = memo(({ post, index, onLike, onComment, onShare, onBookmark, on
   const isBookmarked = favorites.includes(post.id)
   const isVideo = post.category === 'video'
 
-  // 卡片悬停效果：Y轴位移-6px+阴影扩散20px
-  const hoverClasses = "hover:-translate-y-[6px] hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.3)] transition-all duration-300 ease-[cubic-bezier(0.25,0.8,0.25,1)]";
+  // 高级卡片悬停效果：更细腻的位移和多层阴影
+  const hoverClasses = "hover:-translate-y-2 hover:shadow-[0_25px_50px_-12px_rgba(0,0,0,0.25),0_12px_24px_-8px_rgba(0,0,0,0.15)] transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]";
   
-  // 视觉风格：主色调以品牌蓝+高级灰渐变为主
+  // 视觉风格：更高级的渐变和边框效果
   const cardBg = isDark 
-    ? 'bg-gradient-to-br from-gray-800 to-gray-900 border border-gray-700' 
-    : 'bg-white border border-gray-100';
+    ? 'bg-gradient-to-br from-slate-800 via-gray-800 to-slate-900 border border-slate-700/50 hover:border-slate-600' 
+    : 'bg-white border border-gray-100/80 hover:border-gray-200/60';
 
   return (
     <div
-      className={`relative rounded-xl overflow-hidden cursor-pointer ${cardBg} ${hoverClasses} ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}
+      className={`relative rounded-2xl overflow-hidden cursor-pointer ${cardBg} ${hoverClasses} ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'} group`}
       style={{
         ...style,
-        transition: 'opacity 0.6s ease-out, transform 0.6s ease-out, box-shadow 0.3s cubic-bezier(0.25,0.8,0.25,1), transform 0.3s cubic-bezier(0.25,0.8,0.25,1)',
+        transition: 'opacity 0.6s ease-out, transform 0.6s ease-out, box-shadow 0.5s cubic-bezier(0.34,1.56,0.64,1), border-color 0.3s ease',
       }}
       onClick={handlePostClick}
     >
-      {/* 价格标签：悬浮式设计，带12°倾斜角和微光动画 */}
-      <div className="absolute top-3 right-3 z-20 transform rotate-12 overflow-hidden rounded-md bg-gradient-to-r from-yellow-400 to-yellow-600 text-white text-xs font-bold px-2 py-1 shadow-lg group">
-        <span className="relative z-10">¥{price}</span>
-        <div className="absolute inset-0 -translate-x-full group-hover:animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/30 to-transparent w-full h-full" />
-      </div>
-
       {/* 媒体内容 */}
       <div className="relative w-full overflow-hidden">
         {isVideo ? (
@@ -135,71 +126,98 @@ const PostItem = memo(({ post, index, onLike, onComment, onShare, onBookmark, on
             bare
           />
         ) : (
-          <LazyImage 
-            src={post.thumbnail}  
-            alt={post.title}
-            className="w-full h-auto object-cover transition-transform duration-700 hover:scale-105"
-            priority={index < 5}
-            quality={index < 6 ? 'high' : 'medium'}
-            // 图片加载：采用渐进式模糊效果（LQIP→原图，0.8s过渡）
-            placeholder="blur"
-            loadingAnimation="blur"
-            fit="cover"
-            bare
-          />
+          <div className="relative overflow-hidden">
+            <LazyImage 
+              src={post.thumbnail}  
+              alt={post.title}
+              className="w-full h-auto object-cover transition-transform duration-700 ease-out group-hover:scale-110"
+              priority={index < 5}
+              quality={index < 6 ? 'high' : 'medium'}
+              placeholder="blur"
+              loadingAnimation="blur"
+              fit="cover"
+              bare
+            />
+            {/* 图片悬停时的光晕效果 */}
+            <div className="absolute inset-0 bg-gradient-to-tr from-blue-500/0 via-purple-500/0 to-pink-500/0 group-hover:from-blue-500/10 group-hover:via-purple-500/5 group-hover:to-pink-500/10 transition-all duration-700 opacity-0 group-hover:opacity-100 pointer-events-none" />
+          </div>
         )}
         
-        {/* 悬停操作按钮 */}
-        <div className="absolute inset-0 bg-black/20 backdrop-blur-[2px] opacity-0 hover:opacity-100 transition-opacity duration-300 flex items-center justify-center gap-3">
-            <button onClick={handleLike} className="w-10 h-10 rounded-full bg-white/90 text-gray-900 flex items-center justify-center hover:scale-110 transition-transform shadow-lg" title="点赞">
-              <i className="fas fa-heart text-red-500"></i>
+        {/* 渐变遮罩 - 从底部向上 */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+        
+        {/* 悬停操作按钮 - 从底部滑入 */}
+        <div className="absolute bottom-4 left-0 right-0 flex items-center justify-center gap-3 opacity-0 translate-y-4 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]">
+            <button 
+              onClick={handleLike} 
+              className="w-11 h-11 rounded-full bg-white/95 text-gray-900 flex items-center justify-center hover:scale-110 hover:bg-white transition-all duration-300 shadow-[0_4px_20px_rgba(0,0,0,0.3)] backdrop-blur-sm" 
+              title="点赞"
+            >
+              <i className="fas fa-heart text-red-500 text-sm"></i>
             </button>
-            <button onClick={handleBookmark} className="w-10 h-10 rounded-full bg-white/90 text-gray-900 flex items-center justify-center hover:scale-110 transition-transform shadow-lg" title="收藏">
-              <i className={`${isBookmarked ? 'fas text-yellow-500' : 'far'} fa-bookmark`}></i>
+            <button 
+              onClick={handleBookmark} 
+              className="w-11 h-11 rounded-full bg-white/95 text-gray-900 flex items-center justify-center hover:scale-110 hover:bg-white transition-all duration-300 shadow-[0_4px_20px_rgba(0,0,0,0.3)] backdrop-blur-sm" 
+              title="收藏"
+            >
+              <i className={`${isBookmarked ? 'fas text-amber-500' : 'far text-gray-600'} fa-bookmark text-sm`}></i>
+            </button>
+            <button 
+              onClick={handleShare} 
+              className="w-11 h-11 rounded-full bg-white/95 text-gray-900 flex items-center justify-center hover:scale-110 hover:bg-white transition-all duration-300 shadow-[0_4px_20px_rgba(0,0,0,0.3)] backdrop-blur-sm" 
+              title="分享"
+            >
+              <i className="fas fa-share text-blue-500 text-sm"></i>
             </button>
         </div>
       </div>
       
       {/* 卡片内容 */}
       <div className="p-4">
-        {/* 标题：可变字体（字重500→700动态响应） */}
-        <h3 className={`font-medium hover:font-bold transition-all duration-200 text-base mb-2 line-clamp-2 ${isDark ? 'text-gray-100' : 'text-gray-800'}`} style={{ fontVariationSettings: "'wght' 500" }}>
+        {/* 标题：更精致的字体样式 */}
+        <h3 className={`font-semibold text-[15px] mb-2 line-clamp-2 leading-snug tracking-tight ${isDark ? 'text-gray-100' : 'text-gray-800'} group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors duration-300`}>
           {post.title}
         </h3>
         
-        {/* 标签 */}
+        {/* 标签 - 更精致的样式 */}
         {post.tags && post.tags.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mb-3">
             {post.tags.slice(0, 2).map((tag, i) => (
-              <span key={i} className={`text-[10px] px-2 py-0.5 rounded border ${isDark ? 'border-gray-700 text-gray-400' : 'border-gray-200 text-gray-500 bg-gray-50'}`}>
+              <span 
+                key={i} 
+                className={`text-[11px] px-2.5 py-1 rounded-full font-medium ${isDark ? 'bg-slate-700/60 text-slate-300' : 'bg-gray-100 text-gray-600'}`}
+              >
                 {tag}
               </span>
             ))}
           </div>
         )}
         
-        {/* 元信息：12px字号+0.6透明度，采用紧凑排版 */}
-        <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-gray-800">
-          <div className="flex items-center gap-2 opacity-80 hover:opacity-100 transition-opacity">
-            <TianjinAvatar 
-              src={typeof post.author === 'object' ? post.author?.avatar || '' : `https://api.dicebear.com/7.x/avataaars/svg?seed=${post.author || post.id}`}
-              size="xs"
-              alt="author"
-              className="border border-white shadow-sm"
-            />
-            <span className={`text-xs truncate max-w-[80px] ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+        {/* 元信息 - 更优雅的排版 */}
+        <div className={`flex items-center justify-between pt-3 mt-2 border-t ${isDark ? 'border-slate-700/50' : 'border-gray-100'}`}>
+          <div className="flex items-center gap-2.5">
+            <div className="relative">
+              <TianjinAvatar 
+                src={typeof post.author === 'object' ? post.author?.avatar || '' : `https://api.dicebear.com/7.x/avataaars/svg?seed=${post.author || post.id}`}
+                size="xs"
+                alt="author"
+                className="border-2 border-white dark:border-slate-600 shadow-md"
+              />
+              <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-white dark:border-slate-800"></div>
+            </div>
+            <span className={`text-xs font-medium truncate max-w-[90px] ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>
               {typeof post.author === 'object' ? post.author?.username : (post.author || '创作者')}
             </span>
           </div>
           
-          <div className="flex items-center gap-3 text-xs opacity-60">
+          <div className={`flex items-center gap-3 text-[11px] ${isDark ? 'text-slate-500' : 'text-gray-400'}`}>
             <span className="flex items-center gap-1">
-              <i className="far fa-eye text-[10px]"></i>
-              <span>{post.views || 0}</span>
+              <i className="far fa-eye"></i>
+              <span className="font-medium">{post.views || 0}</span>
             </span>
             <span className="flex items-center gap-1">
-              <i className="far fa-heart text-[10px]"></i>
-              <span>{post.likes || 0}</span>
+              <i className={`${post.likes > 0 ? 'fas text-red-400' : 'far'} fa-heart`}></i>
+              <span className="font-medium">{post.likes || 0}</span>
             </span>
           </div>
         </div>
@@ -316,24 +334,27 @@ const PostGrid: React.FC<PostGridProps> = ({
     setColumnPosts(finalColumns);
   }, [posts, columns]);
 
-  // 骨架屏采用Shimmer效果
+  // 骨架屏采用更精致的Shimmer效果
   const renderLoading = () => (
     <div className="p-4 w-full max-w-[2400px] mx-auto">
       <div className="flex" style={{ gap: columns >= 4 ? GAP_FIB.xl : columns === 3 ? GAP_FIB.lg : GAP_FIB.md }}>
         {Array.from({ length: columns }).map((_, columnIndex) => (
           <div key={columnIndex} className="flex-1 space-y-6">
             {Array.from({ length: 2 }).map((_, itemIndex) => (
-              <div key={itemIndex} className={`rounded-xl overflow-hidden relative ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
+              <div key={itemIndex} className={`rounded-2xl overflow-hidden relative ${isDark ? 'bg-slate-800' : 'bg-white'} shadow-sm`}>
                  {/* Shimmer Effect */}
-                 <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/20 to-transparent z-10" />
+                 <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/10 to-transparent z-10" />
                 
-                <div className={`w-full ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`} style={{ paddingBottom: '130%' }}></div>
+                <div className={`w-full ${isDark ? 'bg-slate-700' : 'bg-gray-200'}`} style={{ paddingBottom: '130%' }}></div>
                 <div className="p-4 space-y-3">
-                  <div className={`h-4 rounded ${isDark ? 'bg-gray-700' : 'bg-gray-200'} w-3/4`}></div>
-                  <div className={`h-3 rounded ${isDark ? 'bg-gray-700' : 'bg-gray-200'} w-1/2`}></div>
-                  <div className="flex justify-between pt-2">
-                     <div className={`h-8 w-8 rounded-full ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}></div>
-                     <div className={`h-3 w-12 rounded ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}></div>
+                  <div className={`h-4 rounded-lg ${isDark ? 'bg-slate-700' : 'bg-gray-200'} w-3/4`}></div>
+                  <div className={`h-3 rounded-lg ${isDark ? 'bg-slate-700' : 'bg-gray-200'} w-1/2`}></div>
+                  <div className="flex justify-between pt-3 mt-2 border-t border-gray-100 dark:border-slate-700/50">
+                     <div className="flex items-center gap-2">
+                       <div className={`h-8 w-8 rounded-full ${isDark ? 'bg-slate-700' : 'bg-gray-200'}`}></div>
+                       <div className={`h-3 w-16 rounded-lg ${isDark ? 'bg-slate-700' : 'bg-gray-200'}`}></div>
+                     </div>
+                     <div className={`h-3 w-12 rounded-lg ${isDark ? 'bg-slate-700' : 'bg-gray-200'}`}></div>
                   </div>
                 </div>
               </div>

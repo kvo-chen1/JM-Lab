@@ -158,23 +158,43 @@ const Leaderboard: React.FC = () => {
       }
 
       if (leaderboardType === 'posts') {
-        query = supabase
+        // 先获取帖子列表
+        const { data: postsData, error: postsError } = await supabase
           .from('posts')
-          .select('*, user:users(username, name, avatar_url, avatar)')
+          .select('*')
           .eq('status', 'published')
           .gte('created_at', startTime)
           .order(sortBy, { ascending: false })
           .limit(10);
-          
-        const { data, error } = await query;
-        if (error) throw error;
-        
-        const formattedPosts = data.map((post: any) => ({
-          ...post,
-          username: post.user?.username || post.user?.name || 'Unknown',
-          avatar_url: post.user?.avatar_url || post.user?.avatar || ''
-        }));
-        
+
+        if (postsError) throw postsError;
+        if (!postsData || postsData.length === 0) {
+          setPosts([]);
+          return;
+        }
+
+        // 获取作者信息（转换为字符串以匹配 users.id 的 TEXT 类型）
+        const authorIds = [...new Set(postsData.map(p => p.author_id).filter(Boolean))].map(id => String(id));
+        let users: any[] = [];
+        if (authorIds.length > 0) {
+          const { data: usersData, error: usersError } = await supabase
+            .from('users')
+            .select('id, username, name, avatar_url, avatar')
+            .in('id', authorIds);
+          if (!usersError && usersData) {
+            users = usersData;
+          }
+        }
+
+        const formattedPosts = postsData.map((post: any) => {
+          const user = users.find(u => u.id === post.author_id);
+          return {
+            ...post,
+            username: user?.username || user?.name || 'Unknown',
+            avatar_url: user?.avatar_url || user?.avatar || ''
+          };
+        });
+
         setPosts(formattedPosts);
         setCache(prev => ({ ...prev, [cacheKey]: { ...prev[cacheKey] || { posts: [], users: [] }, posts: formattedPosts } }));
       } else {

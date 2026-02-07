@@ -504,15 +504,26 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
       const { posts } = get()
 
       if (payload.eventType === 'INSERT') {
-        // Fetch full post details including author
+        // Fetch full post details（不使用嵌套查询，避免类型不匹配）
         const { data: newPost, error } = await supabase
           .from('posts')
-          .select('*, author:users!user_id(*)')
+          .select('*')
           .eq('id', payload.new.id)
           .single()
         
         if (!error && newPost) {
-           set({ posts: [newPost as PostWithAuthor, ...posts] })
+           // 获取作者信息
+           let author = null;
+           if (newPost.user_id) {
+             const { data: authorData } = await supabase
+               .from('users')
+               .select('id, username, avatar_url')
+               .eq('id', String(newPost.user_id))
+               .single();
+             author = authorData;
+           }
+           
+           set({ posts: [{ ...newPost, author } as PostWithAuthor, ...posts] })
            toast.info('有新帖子发布！')
         }
       } else if (payload.eventType === 'DELETE') {

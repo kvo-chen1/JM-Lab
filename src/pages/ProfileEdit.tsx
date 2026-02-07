@@ -15,7 +15,8 @@ import {
   Twitter,
   Tag,
   Image as ImageIcon,
-  X
+  X,
+  Camera
 } from 'lucide-react'
 import { userService } from '@/services/apiService'
 import { validationService } from '@/services/validationService'
@@ -222,9 +223,18 @@ export default function ProfileEdit() {
       if (avatarPreview && avatarPreview.startsWith('data:image')) {
         try {
           const file = dataURLtoFile(avatarPreview, `avatar-${Date.now()}.jpg`);
-          finalAvatarUrl = await uploadImage(file);
+          const uploadedUrl = await uploadImage(file);
+          // 接受任何非空的 URL（包括 blob: 和 http(s): URL）
+          if (uploadedUrl && typeof uploadedUrl === 'string' && uploadedUrl.length > 0) {
+            finalAvatarUrl = uploadedUrl;
+          } else {
+            throw new Error('头像上传返回无效URL');
+          }
         } catch (uploadError) {
           console.error('头像上传失败:', uploadError);
+          setError('头像上传失败，请重试或使用较小的图片');
+          setIsLoading(false);
+          return;
         }
       }
 
@@ -232,9 +242,18 @@ export default function ProfileEdit() {
       if (coverPreview && coverPreview.startsWith('data:image')) {
         try {
           const file = dataURLtoFile(coverPreview, `cover-${Date.now()}.jpg`);
-          finalCoverUrl = await uploadImage(file);
+          const uploadedUrl = await uploadImage(file);
+          // 接受任何非空的 URL（包括 blob: 和 http(s): URL）
+          if (uploadedUrl && typeof uploadedUrl === 'string' && uploadedUrl.length > 0) {
+            finalCoverUrl = uploadedUrl;
+          } else {
+            throw new Error('封面上传返回无效URL');
+          }
         } catch (uploadError) {
           console.error('封面上传失败:', uploadError);
+          setError('封面上传失败，请重试或使用较小的图片');
+          setIsLoading(false);
+          return;
         }
       }
 
@@ -266,6 +285,7 @@ export default function ProfileEdit() {
       
       // 构造数据库更新对象
       // 注意：我们需要同时更新一级列和 metadata 列，以保持数据同步
+      // Supabase users 表使用 avatar_url 列，不是 avatar 列
       const updatesForDb: any = {
         username: updatedUser.username,
         phone: updatedUser.phone,
@@ -273,8 +293,7 @@ export default function ProfileEdit() {
         bio: updatedUser.bio,
         interests: updatedUser.interests,
         tags: updatedUser.tags,
-        avatar: finalAvatarUrl,
-        avatar_url: finalAvatarUrl, // 兼容性字段
+        avatar_url: finalAvatarUrl, // 使用正确的列名
         updated_at: new Date().toISOString(),
         metadata: {
             ...user?.metadata, // 保留原有 metadata
@@ -505,7 +524,7 @@ export default function ProfileEdit() {
                       htmlFor="avatar-upload"
                       className="absolute bottom-0 right-0 bg-red-600 text-white p-2 rounded-full shadow-lg cursor-pointer hover:bg-red-700 transition-colors"
                     >
-                      <i className="fas fa-camera text-sm"></i>
+                      <Camera className="w-4 h-4" />
                     </label>
                     <input
                       id="avatar-upload"

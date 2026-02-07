@@ -563,8 +563,10 @@ async function route(req, res, u, path) {
         throw new Error('无法获取用户ID，请重新登录')
       }
       
+      // 删除 body 中的 user_id 字段，避免插入到 works 表时出错
+      const { user_id, ...restBody } = body
       const workData = {
-        ...body,
+        ...restBody,
         creator_id: creatorId
       }
       
@@ -1221,6 +1223,59 @@ async function route(req, res, u, path) {
     return
   }
 
+  // 根据ID获取用户信息 (/api/users/:id)
+  if (req.method === 'GET' && path.startsWith('/api/users/') && path.split('/').length === 4) {
+    const userId = path.split('/')[3]
+    if (!userId) {
+      sendJson(res, 400, { code: 1, message: '用户ID不能为空' })
+      return
+    }
+
+    try {
+      console.log('[API] Getting user by ID:', userId)
+      const user = await userDB.findById(userId)
+      console.log('[API] Found user:', user)
+      if (!user) {
+        sendJson(res, 404, { code: 1, message: '用户不存在' })
+        return
+      }
+
+      // 返回用户信息（排除敏感字段）
+      const safeUser = {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        avatar: user.avatar_url || user.avatar,
+        phone: user.phone,
+        age: user.age,
+        bio: user.bio,
+        location: user.location,
+        occupation: user.occupation,
+        website: user.website,
+        github: user.github,
+        twitter: user.twitter,
+        interests: user.interests,
+        tags: user.tags,
+        coverImage: user.coverImage || user.cover_image,
+        membership_level: user.membership_level || 'free',
+        membership_status: user.membership_status || 'active',
+        membership_start: user.membership_start,
+        membership_end: user.membership_end,
+        is_verified: user.is_verified,
+        created_at: user.created_at,
+        updated_at: user.updated_at,
+        followers_count: user.followers_count || 0,
+        following_count: user.following_count || 0
+      }
+
+      sendJson(res, 200, { code: 0, data: safeUser })
+    } catch (error) {
+      console.error('[API] Get user by ID failed:', error)
+      sendJson(res, 500, { code: 1, message: '获取用户信息失败' })
+    }
+    return
+  }
+
   // 更新当前用户信息 (/api/auth/me)
   if (req.method === 'PUT' && path === '/api/auth/me') {
     const decoded = verifyRequestToken(req)
@@ -1231,6 +1286,12 @@ async function route(req, res, u, path) {
 
     try {
       const body = await readBody(req)
+      console.log('[API] Update user request body:', { 
+        hasAvatar: body.avatar !== undefined, 
+        avatarLength: body.avatar?.length,
+        hasCoverImage: body.coverImage !== undefined 
+      })
+      
       const user = await userDB.findById(decoded.userId)
       if (!user) {
         sendJson(res, 404, { code: 1, message: '用户不存在' })
@@ -1250,7 +1311,10 @@ async function route(req, res, u, path) {
       if (body.twitter !== undefined) updateData.twitter = body.twitter
       if (body.interests !== undefined) updateData.interests = body.interests
       if (body.tags !== undefined) updateData.tags = body.tags
-      if (body.avatar !== undefined) updateData.avatar_url = body.avatar
+      if (body.avatar !== undefined) {
+        updateData.avatar_url = body.avatar
+        console.log('[API] Setting avatar_url:', body.avatar.substring(0, 50) + '...')
+      }
       if (body.coverImage !== undefined) updateData.cover_image = body.coverImage
 
       // 更新 metadata
@@ -2096,6 +2160,69 @@ async function route(req, res, u, path) {
     } catch (err) {
       console.error('[API] createCommunity: Failed to create community in DB:', err)
       sendJson(res, 500, { error: 'DB_ERROR', message: '创建社群失败: ' + err.message })
+    }
+    return
+  }
+
+  // 加入社群
+  if (req.method === 'POST' && path.startsWith('/api/communities/') && path.endsWith('/join')) {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      console.log('[API] joinCommunity: Token verification failed')
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '用户认证失败，请重新登录' })
+      return
+    }
+
+    const communityId = path.split('/')[3]
+    console.log('[API] joinCommunity: userId =', decoded.userId, 'communityId =', communityId)
+
+    try {
+      // 检查社群是否存在
+      const community = await communityDB.getCommunityById(communityId)
+      if (!community) {
+        sendJson(res, 404, { error: 'NOT_FOUND', message: '社群不存在' })
+        return
+      }
+
+      // 检查是否已经加入
+      const isMember = await communityDB.isCommunityMember(decoded.userId, communityId)
+      if (isMember) {
+        sendJson(res, 400, { error: 'ALREADY_MEMBER', message: '已经是该社群成员' })
+        return
+      }
+
+      // 加入社群
+      await communityDB.joinCommunity(decoded.userId, communityId, 'member')
+      console.log('[API] joinCommunity: Successfully joined community')
+
+      sendJson(res, 200, { code: 0, data: { requiresApproval: false, status: 'approved' }, message: '加入社群成功' })
+    } catch (err) {
+      console.error('[API] joinCommunity: Failed to join community:', err)
+      sendJson(res, 500, { error: 'DB_ERROR', message: '加入社群失败: ' + err.message })
+    }
+    return
+  }
+
+  // 检查用户是否是社群成员
+  if (req.method === 'GET' && path.startsWith('/api/communities/') && path.endsWith('/members/check')) {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      console.log('[API] checkCommunityMember: Token verification failed')
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '用户认证失败，请重新登录' })
+      return
+    }
+
+    const communityId = path.split('/')[3]
+    console.log('[API] checkCommunityMember: userId =', decoded.userId, 'communityId =', communityId)
+
+    try {
+      const isMember = await communityDB.isCommunityMember(decoded.userId, communityId)
+      console.log('[API] checkCommunityMember: isMember =', isMember)
+
+      sendJson(res, 200, { code: 0, data: { isMember }, message: '检查成功' })
+    } catch (err) {
+      console.error('[API] checkCommunityMember: Failed to check membership:', err)
+      sendJson(res, 500, { error: 'DB_ERROR', message: '检查成员状态失败: ' + err.message })
     }
     return
   }

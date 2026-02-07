@@ -30,7 +30,7 @@ class WebSocketService {
       // 忽略访问 process 时的错误
     }
     
-    return 'ws://localhost:3022/ws';
+    return 'ws://localhost:3023/ws';
   }
 
   // 连接WebSocket

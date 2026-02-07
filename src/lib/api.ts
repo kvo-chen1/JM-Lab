@@ -18,14 +18,10 @@ export async function getPosts(
   searchTerm?: string
 ): Promise<{ posts: PostWithAuthor[]; total: number }> {
   try {
+    // 不使用嵌套查询，避免类型不匹配
     let query = supabase
       .from('posts')
-      .select(`
-        *,
-        author:users!posts_author_id_fkey(
-          id, username, avatar_url, bio, is_verified, created_at
-        )
-      `, { count: 'exact' })
+      .select('*', { count: 'exact' })
       .eq('status', 'published')
 
     // 搜索逻辑
@@ -101,10 +97,7 @@ export async function getPostById(postId: string): Promise<PostWithAuthor | null
     const { data, error } = await supabase
       .from('posts')
       .select(`
-        *,
-        author:users!posts_author_id_fkey(
-          id, username, avatar_url, bio, is_verified, created_at
-        )
+        *
       `)
       .eq('id', postId)
       .single()
@@ -116,6 +109,17 @@ export async function getPostById(postId: string): Promise<PostWithAuthor | null
 
     if (!data) return null
 
+    // 获取作者信息
+    let author = null;
+    if (data.author_id) {
+      const { data: authorData } = await supabase
+        .from('users')
+        .select('id, username, avatar_url, bio, is_verified, created_at')
+        .eq('id', String(data.author_id))
+        .single();
+      author = authorData;
+    }
+
     // 获取统计信息
     const [likesCount, commentsCount] = await Promise.all([
       getPostLikesCount(postId),
@@ -126,7 +130,7 @@ export async function getPostById(postId: string): Promise<PostWithAuthor | null
       ...data,
       likes_count: likesCount,
       comments_count: commentsCount,
-      author: data.author as UserProfile
+      author: author as UserProfile
     }
   } catch (error) {
     console.error('获取帖子详情错误:', error)
@@ -213,14 +217,10 @@ export async function getUserPosts(
       actualUserId = user.id
     }
     
+    // 不使用嵌套查询，避免类型不匹配
     let query = supabase
       .from('posts')
-      .select(`
-        *,
-        author:users!posts_author_id_fkey(
-          id, username, avatar_url, bio, is_verified, created_at
-        )
-      `, { count: 'exact' })
+      .select('*', { count: 'exact' })
       .eq('author_id', actualUserId)
       .eq('status', 'published')
       .order('created_at', { ascending: false })
@@ -381,14 +381,10 @@ export async function toggleFollow(targetUserId: string, action: 'follow' | 'unf
  */
 export async function getPostComments(postId: string): Promise<CommentWithAuthor[]> {
   try {
+    // 不使用嵌套查询，避免类型不匹配
     const { data, error } = await supabase
       .from('comments')
-      .select(`
-        *,
-        author:users!comments_author_id_fkey(
-          id, username, avatar_url, bio, is_verified, created_at
-        )
-      `)
+      .select('*')
       .eq('post_id', postId)
       .order('created_at', { ascending: true })
 
@@ -397,32 +393,42 @@ export async function getPostComments(postId: string): Promise<CommentWithAuthor
       throw error
     }
 
+    // 获取所有评论作者信息
+    const authorIds = [...new Set((data || []).map(c => c.author_id).filter(Boolean))];
+    const authorsMap = new Map();
+    
+    if (authorIds.length > 0) {
+      const { data: authorsData } = await supabase
+        .from('users')
+        .select('id, username, avatar_url, bio, is_verified, created_at')
+        .in('id', authorIds.map(id => String(id)));
+      
+      if (authorsData) {
+        authorsData.forEach(author => {
+          authorsMap.set(author.id, author);
+        });
+      }
+    }
+
     // 处理评论数据，确保每个评论都有完整的作者信息
-    return await Promise.all((data || []).map(async (comment) => {
+    return (data || []).map((comment) => {
       let authorInfo: UserProfile;
       
-      if (comment.author) {
-        // 如果作者信息存在，直接使用
-        authorInfo = comment.author as UserProfile;
+      const author = authorsMap.get(String(comment.author_id));
+      if (author) {
+        authorInfo = author as UserProfile;
       } else if (comment.author_id) {
-        // 如果作者信息不存在但有author_id，尝试通过getUserProfile获取完整信息
-        try {
-          const userProfile = await getUserProfile(comment.author_id);
-          authorInfo = userProfile as UserProfile;
-        } catch (error) {
-          console.error(`获取用户${comment.author_id}信息失败，使用默认信息:`, error);
-          // 如果获取失败，使用默认信息
-          authorInfo = {
-            id: comment.author_id,
-            username: `用户${comment.author_id.slice(-4)}`,
-            avatar_url: `https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=默认用户头像，简洁现代风格&image_size=square`,
-            bio: null,
-            is_verified: false,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            metadata: {}
-          };
-        }
+        // 如果作者信息不存在但有author_id，使用默认信息
+        authorInfo = {
+          id: comment.author_id,
+          username: `用户${comment.author_id.slice(-4)}`,
+          avatar_url: `https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=默认用户头像，简洁现代风格&image_size=square`,
+          bio: null,
+          is_verified: false,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          metadata: {}
+        } as UserProfile;
       } else {
         // 如果没有author_id，使用完全默认的信息
         const randomId = Math.floor(Math.random() * 10000);
@@ -435,14 +441,14 @@ export async function getPostComments(postId: string): Promise<CommentWithAuthor
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
           metadata: {}
-        };
+        } as UserProfile;
       }
       
       return {
         ...comment,
         author: authorInfo
       };
-    }));
+    });
   } catch (error) {
     console.error('获取评论错误:', error)
     return []
@@ -468,6 +474,7 @@ export async function createComment(
       return null
     }
 
+    // 插入评论（不使用嵌套查询，避免类型不匹配）
     const { data, error } = await supabase
       .from('comments')
       .insert({
@@ -476,12 +483,7 @@ export async function createComment(
         content,
         parent_id: parentId || null
       })
-      .select(`
-        *,
-        author:users!comments_author_id_fkey(
-          id, username, avatar_url, bio, is_verified, created_at
-        )
-      `)
+      .select('*')
       .single()
 
     if (error) {

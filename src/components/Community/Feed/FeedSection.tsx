@@ -21,7 +21,38 @@ interface FeedSectionProps {
     avatar: string;
   };
   onViewThread?: (id: string) => void; // 添加查看帖子的回调，用于记录用户行为
+  loading?: boolean; // 添加加载状态
 }
+
+// 帖子骨架屏组件
+const PostCardSkeleton: React.FC<{ isDark: boolean }> = ({ isDark }) => (
+  <div className={`rounded-xl p-4 border ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+    <div className="flex gap-3 mb-4">
+      <div className={`w-10 h-10 rounded-full ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`}></div>
+      <div className="flex-1 space-y-2">
+        <div className={`h-4 w-1/3 rounded ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`}></div>
+        <div className={`h-3 w-1/4 rounded ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`}></div>
+      </div>
+    </div>
+    <div className={`h-6 w-3/4 rounded mb-3 ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`}></div>
+    <div className={`h-24 w-full rounded mb-4 ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`}></div>
+    <div className="flex gap-4">
+      <div className={`h-8 w-20 rounded ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`}></div>
+      <div className={`h-8 w-20 rounded ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`}></div>
+      <div className={`h-8 w-20 rounded ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`}></div>
+    </div>
+  </div>
+);
+
+// 发帖输入框骨架屏
+const CreatePostSkeleton: React.FC<{ isDark: boolean }> = ({ isDark }) => (
+  <div className={`flex items-center gap-3 p-4 rounded-xl border mb-6 ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+    <div className={`w-10 h-10 rounded-full ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`}></div>
+    <div className={`flex-1 h-10 rounded-full ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`}></div>
+    <div className={`w-10 h-10 rounded-full ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`}></div>
+    <div className={`w-10 h-10 rounded-full ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`}></div>
+  </div>
+);
 
 export const FeedSection: React.FC<FeedSectionProps> = ({
   isDark,
@@ -34,10 +65,10 @@ export const FeedSection: React.FC<FeedSectionProps> = ({
   isThreadFavorited = () => false,
   activeCommunity,
   user,
-  onViewThread
+  onViewThread,
+  loading = false
 }) => {
   const [sortBy, setSortBy] = useState<'hot' | 'new' | 'top'>('hot');
-  const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const observerRef = useRef<HTMLDivElement>(null);
@@ -52,14 +83,12 @@ export const FeedSection: React.FC<FeedSectionProps> = ({
   // 无限滚动处理函数
   const handleLoadMore = useCallback(() => {
     if (loading || !hasMore) return;
-    
+
     // 这里可以调用API加载更多帖子
-    setLoading(true);
     setError(null);
-    
+
     // 模拟API请求
     setTimeout(() => {
-      setLoading(false);
       // 假设没有更多数据了
       setHasMore(false);
     }, 1500);
@@ -105,45 +134,50 @@ export const FeedSection: React.FC<FeedSectionProps> = ({
           }
         `}
       </style>
-      {/* Create Post Input */}
-      <motion.div 
-        whileHover={{ scale: 1.01 }}
-        onClick={onCreateThread} 
-        className={`flex items-center gap-3 p-4 rounded-xl border mb-6 cursor-pointer shadow-sm hover:shadow-md transition-all ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}
-      >
-        <TianjinAvatar size="md" src={user?.avatar || ''} alt={user?.username || '当前用户'} className="w-10 h-10 border-2 border-white dark:border-gray-700 shadow-sm" />
-        <div className="flex-1 relative group">
-          <input
-              type="text"
-              placeholder="分享你的创意，开启今日话题..."
-              readOnly
-              className={`w-full px-4 py-3 rounded-full text-sm focus:outline-none transition-all cursor-pointer ${isDark ? 'bg-gray-700 text-white placeholder-gray-400 group-hover:bg-gray-600' : 'bg-gray-100 text-gray-700 placeholder-gray-500 group-hover:bg-gray-50 group-hover:shadow-inner'}`}
-          />
-        </div>
-        <div className="flex gap-2">
-          <motion.button 
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
-            onClick={(e) => { e.stopPropagation(); onCreateThread(); }} 
-            className={`p-2.5 rounded-full transition-colors ${isDark ? 'text-gray-400 hover:bg-gray-700 hover:text-green-400' : 'text-gray-500 hover:bg-gray-100 hover:text-green-500'}`}
-            title="上传图片"
-          >
-            <i className="fas fa-image text-lg"></i>
-          </motion.button>
-          <motion.button 
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
-            onClick={(e) => { e.stopPropagation(); onCreateThread(); }} 
-            className={`p-2.5 rounded-full transition-colors ${isDark ? 'text-gray-400 hover:bg-gray-700 hover:text-blue-400' : 'text-gray-500 hover:bg-gray-100 hover:text-blue-500'}`}
-            title="添加链接"
-          >
-            <i className="fas fa-link text-lg"></i>
-          </motion.button>
-        </div>
-      </motion.div>
 
-      {/* Filter Tabs */}
-      <div className="flex items-center justify-between mb-6">
+      {/* Create Post Input - 加载时显示骨架屏 */}
+      {loading ? (
+        <CreatePostSkeleton isDark={isDark} />
+      ) : (
+        <motion.div
+          whileHover={{ scale: 1.01 }}
+          onClick={onCreateThread}
+          className={`flex items-center gap-3 p-4 rounded-xl border mb-6 cursor-pointer shadow-sm hover:shadow-md transition-all ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}
+        >
+          <TianjinAvatar size="md" src={user?.avatar || ''} alt={user?.username || '当前用户'} className="w-10 h-10 border-2 border-white dark:border-gray-700 shadow-sm" />
+          <div className="flex-1 relative group">
+            <input
+                type="text"
+                placeholder="分享你的创意，开启今日话题..."
+                readOnly
+                className={`w-full px-4 py-3 rounded-full text-sm focus:outline-none transition-all cursor-pointer ${isDark ? 'bg-gray-700 text-white placeholder-gray-400 group-hover:bg-gray-600' : 'bg-gray-100 text-gray-700 placeholder-gray-500 group-hover:bg-gray-50 group-hover:shadow-inner'}`}
+            />
+          </div>
+          <div className="flex gap-2">
+            <motion.button
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
+              onClick={(e) => { e.stopPropagation(); onCreateThread(); }}
+              className={`p-2.5 rounded-full transition-colors ${isDark ? 'text-gray-400 hover:bg-gray-700 hover:text-green-400' : 'text-gray-500 hover:bg-gray-100 hover:text-green-500'}`}
+              title="上传图片"
+            >
+              <i className="fas fa-image text-lg"></i>
+            </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
+              onClick={(e) => { e.stopPropagation(); onCreateThread(); }}
+              className={`p-2.5 rounded-full transition-colors ${isDark ? 'text-gray-400 hover:bg-gray-700 hover:text-blue-400' : 'text-gray-500 hover:bg-gray-100 hover:text-blue-500'}`}
+              title="添加链接"
+            >
+              <i className="fas fa-link text-lg"></i>
+            </motion.button>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Filter Tabs - 加载时禁用交互 */}
+      <div className={`flex items-center justify-between mb-6 ${loading ? 'pointer-events-none opacity-50' : ''}`}>
         <div className="flex items-center gap-2 p-1 rounded-lg bg-gray-100 dark:bg-gray-800/50">
           {[
             { id: 'hot', icon: 'fas fa-fire', label: '热门' },
@@ -169,12 +203,22 @@ export const FeedSection: React.FC<FeedSectionProps> = ({
         transition={{ duration: 0.3 }}
         className="space-y-4"
       >
-         {threads.map((thread, index) => {
+         {/* 加载状态 - 显示多个骨架屏 */}
+         {loading && (
+            <div className="space-y-4">
+              {[1, 2, 3].map((i) => (
+                <PostCardSkeleton key={i} isDark={isDark} />
+              ))}
+            </div>
+         )}
+
+         {/* 实际帖子列表 - 只在非加载状态显示 */}
+         {!loading && threads.map((thread, index) => {
            // 处理帖子点击事件，记录用户行为
            const handleThreadClick = (id: string) => {
              // 调用原始的onOpenThread回调
              onOpenThread(id);
-             
+
              // 记录用户查看帖子的行为，用于推荐系统
              if (user) {
                recommendationService.recordUserAction({
@@ -185,11 +229,11 @@ export const FeedSection: React.FC<FeedSectionProps> = ({
                  metadata: thread
                });
              }
-             
+
              // 调用传入的onViewThread回调
              onViewThread?.(id);
            };
-           
+
            return (
              <motion.div
                 key={thread.id}
@@ -211,34 +255,14 @@ export const FeedSection: React.FC<FeedSectionProps> = ({
            );
          })}
 
-         {/* 加载状态 - Skeleton */}
-         {loading && (
-            <div className="space-y-4">
-              {[1, 2].map((i) => (
-                <div key={i} className={`rounded-xl p-4 border ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
-                  <div className="flex gap-3 mb-4">
-                    <div className={`w-10 h-10 rounded-full ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`}></div>
-                    <div className="flex-1 space-y-2">
-                      <div className={`h-4 w-1/3 rounded ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`}></div>
-                      <div className={`h-3 w-1/4 rounded ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`}></div>
-                    </div>
-                  </div>
-                  <div className={`h-6 w-3/4 rounded mb-3 ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`}></div>
-                  <div className={`h-24 w-full rounded mb-4 ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`}></div>
-                  <div className={`h-8 w-full rounded ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`}></div>
-                </div>
-              ))}
-            </div>
-         )}
-
          {/* 错误状态 */}
-         {error && (
+         {error && !loading && (
             <div className={`flex flex-col items-center justify-center py-12 rounded-xl border-2 border-dashed ${isDark ? 'border-gray-700 bg-gray-800/50' : 'border-gray-200 bg-gray-50'}`}>
                 <div className="w-16 h-16 mb-4 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
                   <i className={`fas fa-exclamation-circle text-2xl text-red-500`}></i>
                 </div>
                 <p className={`mb-4 text-base font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{error}</p>
-                <button 
+                <button
                     onClick={handleLoadMore}
                     className={`px-6 py-2 rounded-full text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/30`}
                 >
@@ -258,7 +282,7 @@ export const FeedSection: React.FC<FeedSectionProps> = ({
 
          {/* 空状态 */}
          {threads.length === 0 && !loading && (
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               className={`flex flex-col items-center justify-center py-20 rounded-xl border-2 border-dashed ${isDark ? 'border-gray-700 bg-gray-800/30' : 'border-gray-200 bg-gray-50/50'}`}
@@ -270,7 +294,7 @@ export const FeedSection: React.FC<FeedSectionProps> = ({
                 <p className={`text-sm mb-8 text-center max-w-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                   做第一个发帖的人吧！分享你的创意、见解或提出问题。
                 </p>
-                <motion.button 
+                <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={onCreateThread}
@@ -288,20 +312,22 @@ export const FeedSection: React.FC<FeedSectionProps> = ({
       </motion.div>
 
       {/* Mobile Floating Action Button (FAB) */}
-      <motion.button
-        initial={{ scale: 0 }}
-        animate={{ scale: 1 }}
-        whileTap={{ scale: 0.9 }}
-        onClick={onCreateThread}
-        className={`md:hidden fixed bottom-20 right-4 w-14 h-14 rounded-full shadow-lg flex items-center justify-center z-50 text-white ${
-          activeCommunity?.theme?.primaryColor 
-            ? '' 
-            : 'bg-blue-600'
-        }`}
-        style={activeCommunity?.theme?.primaryColor ? { backgroundColor: activeCommunity.theme.primaryColor } : {}}
-      >
-        <i className="fas fa-plus text-xl"></i>
-      </motion.button>
+      {!loading && (
+        <motion.button
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          whileTap={{ scale: 0.9 }}
+          onClick={onCreateThread}
+          className={`md:hidden fixed bottom-20 right-4 w-14 h-14 rounded-full shadow-lg flex items-center justify-center z-50 text-white ${
+            activeCommunity?.theme?.primaryColor
+              ? ''
+              : 'bg-blue-600'
+          }`}
+          style={activeCommunity?.theme?.primaryColor ? { backgroundColor: activeCommunity.theme.primaryColor } : {}}
+        >
+          <i className="fas fa-plus text-xl"></i>
+        </motion.button>
+      )}
     </div>
   );
 };

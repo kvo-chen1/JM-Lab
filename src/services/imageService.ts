@@ -844,38 +844,53 @@ class ImageService {
 // 创建单例实例
 const imageService = new ImageService();
 
+// 将文件转换为 Base64
+const fileToBase64 = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = error => reject(error);
+  });
+};
+
 // 图片上传功能扩展
 export const uploadImage = async (file: File): Promise<string> => {
   try {
     // 动态导入 supabase 避免循环依赖
-    const { supabase } = await import('@/lib/supabase');
+    const { supabase, isSupabaseConfigured } = await import('@/lib/supabase');
     
     // 检查 supabase 是否配置正确
-    if (!supabase || !supabase.storage) {
-      console.warn('Supabase not configured, using base64 fallback');
-      // 使用 base64 作为备用方案
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          resolve(reader.result as string);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
+    if (!isSupabaseConfigured() || !supabase || !supabase.storage) {
+      console.warn('Supabase not configured, using local blob URL fallback');
+      // 使用本地 Blob URL 作为备用方案（比 base64 更可靠）
+      return URL.createObjectURL(file);
     }
     
     // 生成唯一文件名
-    const fileExt = file.name.split('.').pop();
+    const fileExt = file.name.split('.').pop() || 'jpg';
     const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-    const filePath = `${fileName}`;
+    const filePath = `avatars/${fileName}`; // 使用 avatars 子目录
 
     try {
       // 上传到 community-images bucket
       const { error: uploadError } = await supabase.storage
         .from('community-images')
-        .upload(filePath, file);
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
 
       if (uploadError) {
+        console.error('Supabase upload error:', uploadError);
+        // 如果存储桶不存在、RLS 策略错误或上传失败，转换为 Base64
+        if (uploadError.message?.includes('bucket') || 
+            uploadError.message?.includes('not found') ||
+            uploadError.message?.includes('row-level security') ||
+            uploadError.message?.includes('violates row-level security')) {
+          console.warn('Storage upload failed, converting to base64 fallback');
+          return await fileToBase64(file);
+        }
         throw uploadError;
       }
 
@@ -884,32 +899,22 @@ export const uploadImage = async (file: File): Promise<string> => {
         .from('community-images')
         .getPublicUrl(filePath);
 
+      if (!data.publicUrl) {
+        throw new Error('Failed to get public URL');
+      }
+
       return data.publicUrl;
-    } catch (storageError) {
+    } catch (storageError: any) {
       console.error('Supabase storage error:', storageError);
-      // 存储错误时使用 base64 作为备用方案
+      // 存储错误时转换为 Base64 作为备用方案
       console.warn('Using base64 fallback due to storage error');
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          resolve(reader.result as string);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
+      return await fileToBase64(file);
     }
   } catch (error) {
     console.error('Image upload failed:', error);
-    // 任何错误都使用 base64 作为最终备用方案
+    // 任何错误都转换为 Base64 作为最终备用方案
     console.warn('Using base64 fallback due to upload error');
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        resolve(reader.result as string);
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
+    return await fileToBase64(file);
   }
 };
 

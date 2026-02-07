@@ -104,9 +104,9 @@ export async function getPosts(category?: string, currentUserId?: string): Promi
             date: w.created_at ? new Date(w.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
             author: {
               id: w.creator_id || 'unknown',
-              username: w.creator || 'Unknown User',
+              username: w.username || w.creator || 'Unknown User',
               email: '',
-              avatar: ''
+              avatar: w.avatar_url || ''
             },
             isLiked: false,
             isBookmarked: false,
@@ -150,15 +150,10 @@ export async function getPosts(category?: string, currentUserId?: string): Promi
       const { data: { user } } = await supabase.auth.getUser();
       console.log('Supabase user:', user ? 'logged in' : 'not logged in');
       
+      // 首先获取帖子列表（不使用嵌套查询，避免类型不匹配）
       let query = supabase
         .from('posts')
-        .select(`
-          *,
-          author:users!author_id(*),
-          post_tags(
-            tags(name)
-          )
-        `)
+        .select('*')
         .order('created_at', { ascending: false });
 
       if (category && category !== 'all') {
@@ -170,13 +165,31 @@ export async function getPosts(category?: string, currentUserId?: string): Promi
       if (error) {
         console.error('Error fetching posts from Supabase:', error);
       } else if (dbPosts && Array.isArray(dbPosts)) {
+        // 获取所有作者ID（转换为字符串以匹配 users.id 的 TEXT 类型）
+        const authorIds = [...new Set(dbPosts.map(p => p.author_id).filter(Boolean))].map(id => String(id));
+        
+        // 批量获取作者信息
+        let authorsMap: Map<string, any> = new Map();
+        if (authorIds.length > 0) {
+          const { data: authorsData, error: authorsError } = await supabase
+            .from('users')
+            .select('id, username, email, avatar_url')
+            .in('id', authorIds);
+          
+          if (!authorsError && authorsData) {
+            authorsData.forEach(author => {
+              authorsMap.set(author.id, author);
+            });
+          }
+        }
+        
         // 转换从 posts 表获取的数据为 Post 类型
         worksFromSupabase = dbPosts.map((p: any) => {
-          const authorData = p.author || {
+          const authorData = authorsMap.get(p.author_id) || {
             id: p.author_id || 'unknown',
             username: 'Unknown User',
             email: '',
-            avatar: ''
+            avatar_url: ''
           };
 
           // 提取标签
@@ -202,7 +215,7 @@ export async function getPosts(category?: string, currentUserId?: string): Promi
               id: authorData.id,
               username: authorData.username || authorData.name || 'User',
               email: authorData.email || '',
-              avatar: authorData.avatar || authorData.avatar_url || ''
+              avatar: authorData.avatar_url || ''
             },
             isLiked: false,
             isBookmarked: false,
@@ -334,22 +347,46 @@ export async function getPosts(category?: string, currentUserId?: string): Promi
 }
 
 export async function getPostById(id: string, currentUserId?: string): Promise<Post | null> {
+  // 首先获取帖子（不使用嵌套查询，避免类型不匹配）
   const { data: p, error } = await supabase
     .from('posts')
-    .select(`
-      *, 
-      author:users!author_id(*),
-      post_tags(
-        tags(name)
-      )
-    `)
+    .select('*')
     .eq('id', id)
     .single();
 
   if (error || !p) return null;
 
-  // 提取标签
-  const tags = p.post_tags?.map((pt: any) => pt.tags?.name).filter(Boolean) || [];
+  // 获取作者信息
+  let author = null;
+  if (p.author_id) {
+    const { data: authorData } = await supabase
+      .from('users')
+      .select('id, username, email, avatar_url')
+      .eq('id', String(p.author_id))
+      .single();
+    author = authorData;
+  }
+
+  // 获取标签
+  let tags: string[] = [];
+  try {
+    const { data: postTags } = await supabase
+      .from('post_tags')
+      .select('tag_id')
+      .eq('post_id', id);
+    
+    if (postTags && postTags.length > 0) {
+      const tagIds = postTags.map(pt => pt.tag_id);
+      const { data: tagsData } = await supabase
+        .from('tags')
+        .select('name')
+        .in('id', tagIds);
+      
+      tags = tagsData?.map(t => t.name).filter(Boolean) || [];
+    }
+  } catch (e) {
+    console.error('Error fetching tags:', e);
+  }
 
   let isLiked = false;
   let isBookmarked = false;
@@ -377,24 +414,47 @@ export async function getPostById(id: string, currentUserId?: string): Promise<P
       thumbnail = p.attachments;
   }
 
-  // Fetch comments
+  // Fetch comments（不使用嵌套查询，避免类型不匹配）
   const { data: commentsData } = await supabase
     .from('comments')
-    .select('*, author:users!author_id(*)')
+    .select('*')
     .eq('post_id', id)
     .order('created_at', { ascending: true });
 
-  const comments: Comment[] = commentsData?.map((c: any) => ({
-      id: c.id.toString(),
-      content: c.content,
-      date: c.created_at,
-      author: c.author?.username || c.author?.name || 'User',
-      likes: 0,
-      reactions: {},
-      replies: [],
-      userId: c.user_id,
-      userReactions: []
-  })) || [];
+  // 获取评论作者信息
+  let comments: Comment[] = [];
+  if (commentsData && commentsData.length > 0) {
+    const authorIds = [...new Set(commentsData.map(c => c.user_id).filter(Boolean))].map(id => String(id));
+    let authorsMap: Map<string, any> = new Map();
+    
+    if (authorIds.length > 0) {
+      const { data: authorsData } = await supabase
+        .from('users')
+        .select('id, username, name')
+        .in('id', authorIds);
+      
+      if (authorsData) {
+        authorsData.forEach(author => {
+          authorsMap.set(author.id, author);
+        });
+      }
+    }
+    
+    comments = commentsData.map((c: any) => {
+      const author = authorsMap.get(String(c.user_id));
+      return {
+        id: c.id.toString(),
+        content: c.content,
+        date: c.created_at,
+        author: author?.username || author?.name || 'User',
+        likes: 0,
+        reactions: {},
+        replies: [],
+        userId: c.user_id,
+        userReactions: []
+      };
+    });
+  }
 
   return {
     id: p.id.toString(),
@@ -540,6 +600,38 @@ async function hasValidSupabaseSession(): Promise<boolean> {
     return !!sessionData?.session?.user?.id
   } catch {
     return false
+  }
+}
+
+// 检查用户是否已登录（支持Supabase会话或后端token）
+async function hasValidAuth(): Promise<{ isAuthenticated: boolean; userId?: string; authType: 'supabase' | 'backend' | 'none' }> {
+  try {
+    // 首先检查Supabase会话
+    const { data: sessionData } = await supabase.auth.getSession()
+    if (sessionData?.session?.user?.id) {
+      return { isAuthenticated: true, userId: sessionData.session.user.id, authType: 'supabase' }
+    }
+    
+    // 然后检查后端token
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('token')
+      const userStr = localStorage.getItem('user')
+      if (token && userStr) {
+        try {
+          const user = JSON.parse(userStr)
+          if (user?.id) {
+            return { isAuthenticated: true, userId: user.id, authType: 'backend' }
+          }
+        } catch (e) {
+          console.warn('[hasValidAuth] Failed to parse user from localStorage:', e)
+        }
+      }
+    }
+    
+    return { isAuthenticated: false, authType: 'none' }
+  } catch (error) {
+    console.error('[hasValidAuth] Error checking auth:', error)
+    return { isAuthenticated: false, authType: 'none' }
   }
 }
 
@@ -980,7 +1072,10 @@ export async function unbookmarkPost(id: string, userId: string): Promise<Post |
 }
 
 export async function addComment(postId: string, content: string, parentId?: string, user?: User): Promise<Post | undefined> {
-  if (!user?.id) return undefined;
+  if (!user?.id) {
+    console.error('[addComment] No user provided');
+    throw new Error('请先登录后再评论');
+  }
   
   console.log('[addComment] Called with:', { postId, content, userId: user.id });
   
@@ -1006,40 +1101,70 @@ export async function addComment(postId: string, content: string, parentId?: str
           console.log('[addComment] Success via backend API:', result.data);
           return { id: postId } as unknown as Post;
         }
+      } else if (response.status === 404) {
+        // 后端API不存在，记录日志但继续尝试Supabase
+        console.log('[addComment] Backend API not found (404), will try Supabase');
+      } else {
+        console.warn('[addComment] Backend API failed with status:', response.status);
       }
-      console.warn('[addComment] Backend API failed, trying Supabase...');
     } catch (error) {
       console.error('[addComment] Backend API error:', error);
     }
   }
   
-  // 如果没有token或后端API失败，尝试使用Supabase
+  // 尝试使用Supabase添加评论
   try {
-    const hasSession = await hasValidSupabaseSession();
-    if (!hasSession) {
-      console.error('[addComment] No valid session for Supabase');
+    // 检查是否有Supabase会话或后端token（任一有效都认为已登录）
+    const hasSupabaseSession = await hasValidSupabaseSession();
+    const hasBackendToken = !!token;
+    
+    if (!hasSupabaseSession && !hasBackendToken) {
+      console.error('[addComment] No valid session (neither Supabase nor backend)');
       throw new Error('请先登录后再评论');
     }
     
+    // 尝试获取Supabase当前用户ID，如果没有则使用传入的user.id
+    let effectiveUserId = user.id;
+    try {
+      const { data: { user: supabaseUser } } = await supabase.auth.getUser();
+      if (supabaseUser?.id) {
+        effectiveUserId = supabaseUser.id;
+        console.log('[addComment] Using Supabase user ID:', effectiveUserId);
+      } else {
+        console.log('[addComment] Using provided user ID:', effectiveUserId);
+      }
+    } catch (e) {
+      console.log('[addComment] Could not get Supabase user, using provided user ID');
+    }
+    
     const pId = parseInt(postId);
+    if (isNaN(pId)) {
+      console.error('[addComment] Invalid post ID:', postId);
+      throw new Error('无效的作品ID');
+    }
+    
     const { error } = await supabase
       .from('comments')
       .insert({
         post_id: pId,
-        user_id: user.id,
-        author_id: user.id,
+        user_id: effectiveUserId,
+        author_id: effectiveUserId,
         content: content,
         parent_id: parentId ? parseInt(parentId) : null
       });
 
     if (error) {
       console.error('Error adding comment to Supabase:', error);
+      // 如果是RLS策略错误，提供更友好的提示
+      if (error.message?.includes('row-level security') || error.message?.includes('RLS')) {
+        throw new Error('评论失败：权限不足，请重新登录后再试');
+      }
       throw new Error('评论失败: ' + error.message);
     }
 
     console.log('[addComment] Success via Supabase');
     return { id: postId } as unknown as Post;
-  } catch (error) {
+  } catch (error: any) {
     console.error('[addComment] Failed:', error);
     throw error;
   }
@@ -1048,27 +1173,53 @@ export async function addComment(postId: string, content: string, parentId?: str
 
 // Stub other functions
 export async function getAuthorById(userId: string): Promise<User | null> {
-  if (userId === 'current-user') {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) return {
-          id: user.id,
-          username: user.user_metadata?.username || user.email?.split('@')[0] || 'User',
-          email: user.email || '',
-          avatar: user.user_metadata?.avatar || ''
-      };
-      return null;
+  // 首先尝试获取当前登录用户的信息（从 Supabase auth）
+  const { data: { user: currentUser } } = await supabase.auth.getUser();
+  console.log('[getAuthorById] userId:', userId, 'currentUser?.id:', currentUser?.id)
+  console.log('[getAuthorById] user_metadata:', JSON.stringify(currentUser?.user_metadata))
+  
+  if (currentUser && currentUser.id === userId) {
+    // 如果是当前登录用户，使用 Supabase auth 的数据（包含 user_metadata）
+    const username = currentUser.user_metadata?.username || currentUser.email?.split('@')[0] || 'User'
+    console.log('[getAuthorById] Using current user data, username:', username)
+    return {
+      id: currentUser.id,
+      username: username,
+      email: currentUser.email || '',
+      avatar: currentUser.user_metadata?.avatar || currentUser.user_metadata?.avatar_url || ''
+    };
   }
-  const { data, error } = await supabase.from('users').select('*').eq('id', userId).single();
-  if (error || !data) return null;
-  return {
-    id: data.id,
-    username: data.username || data.name || 'User',
-    email: data.email || '',
-    avatar: data.avatar || data.avatar_url || '',
-    isAdmin: data.is_admin,
-    membershipLevel: data.membership_level,
-    membershipStatus: data.membership_status as any
-  };
+  
+  console.log('[getAuthorById] Not current user, falling back to API')
+  // 对于其他用户，使用后端 API 获取信息
+  try {
+    const response = await fetch(`/api/users/${userId}`)
+    if (!response.ok) {
+      console.error('[getAuthorById] API error:', response.status)
+      return null
+    }
+    const result = await response.json()
+    if (result.code !== 0 || !result.data) {
+      console.error('[getAuthorById] API returned error:', result)
+      return null
+    }
+    
+    const data = result.data
+    return {
+      id: data.id,
+      username: data.username || 'User',
+      email: data.email || '',
+      avatar: data.avatar || data.avatar_url || '',
+      isAdmin: data.is_admin,
+      membershipLevel: data.membership_level,
+      membershipStatus: data.membership_status as any,
+      followersCount: data.followers_count,
+      followingCount: data.following_count
+    }
+  } catch (error) {
+    console.error('[getAuthorById] Failed to fetch user:', error)
+    return null
+  }
 }
 
 export async function checkUserFollowing(targetUserId: string): Promise<boolean> {

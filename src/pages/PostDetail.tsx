@@ -1,10 +1,11 @@
 // 帖子详情页面 - Pinterest风格
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useContext } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import postsApi, { Post } from '../services/postService'
 import { useCommunityStore, useLikeStatus } from '../stores/communityStore'
 import type { UserProfile } from '../lib/supabase'
 import PostDetailModal from '@/components/PostDetailModal'
+import { AuthContext } from '@/contexts/authContext'
 
 interface PostDetailProps {
   currentUser?: UserProfile
@@ -14,8 +15,9 @@ export const PostDetail: React.FC<PostDetailProps> = ({ currentUser: propUser })
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { currentUser: storeUser } = useCommunityStore()
+  const { user: authUser } = useContext(AuthContext)
   
-  const currentUser = propUser || storeUser
+  const currentUser = propUser || storeUser || authUser
   
   const [post, setPost] = useState<Post | null>(null)
   const [loading, setLoading] = useState(true)

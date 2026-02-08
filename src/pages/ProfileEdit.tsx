@@ -294,7 +294,8 @@ export default function ProfileEdit() {
         interests: updatedUser.interests,
         tags: updatedUser.tags,
         avatar_url: finalAvatarUrl, // 使用正确的列名
-        updated_at: new Date().toISOString(),
+        cover_image: finalCoverUrl, // 添加封面图片列
+        updated_at: Math.floor(Date.now() / 1000), // 使用秒级时间戳
         metadata: {
             ...user?.metadata, // 保留原有 metadata
             username: updatedUser.username,
@@ -381,8 +382,8 @@ export default function ProfileEdit() {
         timestamp: Date.now()
       });
 
-      // 更新 Context，触发全局状态刷新
-      updateUser(updatedUser as any)
+      // 更新 Context，触发全局状态刷新，并同步到数据库
+      await updateUser(updatedUser as any)
       setSuccess('个人资料更新成功！')
       
       // 1秒后跳转回设置页面

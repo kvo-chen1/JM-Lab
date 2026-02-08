@@ -74,7 +74,6 @@ export interface CreateState {
   
   // Feature Flags / Toggles
   showCulturalInfo: boolean;
-  showCollaborationPanel: boolean;
   showAIReview: boolean;
   showModelSelector: boolean;
   showInspirationPanel: boolean;

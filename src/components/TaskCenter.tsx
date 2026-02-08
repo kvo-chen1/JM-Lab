@@ -1,95 +1,75 @@
-import React, { useState } from 'react';
-import { motion } from 'framer-motion';
+import React, { useState, useEffect, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
+import { toast } from 'sonner';
+import taskService, { Task, TaskProgress } from '@/services/taskService';
+import pointsService from '@/services/pointsService';
+import { CheckCircle, Clock, Trophy, Gift, Target, Calendar, Star } from 'lucide-react';
 
-// 任务类型定义
-interface Task {
-  id: string;
-  title: string;
-  description: string;
-  type: 'daily' | 'weekly' | 'monthly' | 'achievement';
-  status: 'pending' | 'completed' | 'expired';
-  reward: {
-    points: number;
-    badge?: string;
-  };
-  progress: number;
-  target: number;
-  deadline?: Date;
-  createdAt: Date;
-  updatedAt: Date;
+type TaskType = 'all' | 'daily' | 'weekly' | 'monthly' | 'event' | 'achievement';
+
+interface TaskWithProgress extends Task {
+  userProgress: number;
+  isCompleted: boolean;
+  completedAt?: number;
 }
-
-// 模拟数据
-const tasks: Task[] = [
-  {
-    id: '1',
-    title: '每日签到',
-    description: '连续签到7天可获得额外奖励',
-    type: 'daily',
-    status: 'pending',
-    reward: { points: 10 },
-    progress: 0,
-    target: 1,
-    createdAt: new Date(),
-    updatedAt: new Date()
-  },
-  {
-    id: '2',
-    title: '完成3个创作任务',
-    description: '创作并发布3个作品',
-    type: 'weekly',
-    status: 'pending',
-    reward: { points: 50, badge: '创作达人' },
-    progress: 1,
-    target: 3,
-    deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-    createdAt: new Date(),
-    updatedAt: new Date()
-  },
-  {
-    id: '3',
-    title: '邀请好友注册',
-    description: '邀请3位好友注册并完成首次创作',
-    type: 'monthly',
-    status: 'pending',
-    reward: { points: 100, badge: '邀请大使' },
-    progress: 0,
-    target: 3,
-    deadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-    createdAt: new Date(),
-    updatedAt: new Date()
-  },
-  {
-    id: '4',
-    title: '获得10个作品点赞',
-    description: '作品累计获得10个点赞',
-    type: 'achievement',
-    status: 'pending',
-    reward: { points: 30, badge: '人气之星' },
-    progress: 5,
-    target: 10,
-    createdAt: new Date(),
-    updatedAt: new Date()
-  },
-  {
-    id: '5',
-    title: '首次创作',
-    description: '完成你的第一个创作作品',
-    type: 'achievement',
-    status: 'completed',
-    reward: { points: 20, badge: '创作新星' },
-    progress: 1,
-    target: 1,
-    createdAt: new Date(),
-    updatedAt: new Date()
-  }
-];
 
 const TaskCenter: React.FC = () => {
   const { isDark } = useTheme();
-  const [selectedType, setSelectedType] = useState<'all' | 'daily' | 'weekly' | 'monthly' | 'achievement'>('all');
+  const [selectedType, setSelectedType] = useState<TaskType>('all');
   const [expandedTask, setExpandedTask] = useState<string | null>(null);
+  const [tasks, setTasks] = useState<TaskWithProgress[]>([]);
+  const [totalPoints, setTotalPoints] = useState<number>(0);
+  const [completedCount, setCompletedCount] = useState<number>(0);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+
+  const userId = 'current-user'; // 实际项目中应从认证上下文获取
+
+  // 加载任务列表
+  const loadTasks = useCallback(() => {
+    try {
+      setIsLoading(true);
+      const allTasks = taskService.getAllTasks();
+      const userProgressList = taskService.getTaskProgress(userId);
+
+      const tasksWithProgress: TaskWithProgress[] = allTasks.map(task => {
+        const progress = userProgressList.find(p => p.taskId === task.id);
+        const userProgress = progress?.progress || 0;
+        const isCompleted = userProgress >= task.requirements.count;
+
+        return {
+          ...task,
+          userProgress,
+          isCompleted,
+          completedAt: progress?.completedAt
+        };
+      });
+
+      setTasks(tasksWithProgress);
+      setTotalPoints(pointsService.getCurrentPoints());
+      setCompletedCount(tasksWithProgress.filter(t => t.isCompleted).length);
+    } catch (error) {
+      console.error('加载任务失败:', error);
+      toast.error('加载任务失败');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [userId]);
+
+  // 初始加载
+  useEffect(() => {
+    loadTasks();
+  }, [loadTasks]);
+
+  // 监听积分更新事件
+  useEffect(() => {
+    const handlePointsUpdate = () => {
+      setTotalPoints(pointsService.getCurrentPoints());
+    };
+
+    window.addEventListener('pointsUpdated', handlePointsUpdate);
+    return () => window.removeEventListener('pointsUpdated', handlePointsUpdate);
+  }, []);
 
   // 过滤任务
   const filteredTasks = tasks.filter(task => {
@@ -97,9 +77,85 @@ const TaskCenter: React.FC = () => {
   });
 
   // 处理任务完成
-  const handleCompleteTask = (taskId: string) => {
-    // 这里可以添加任务完成的逻辑
-    // console.log('完成任务:', taskId);
+  const handleCompleteTask = async (taskId: string) => {
+    try {
+      const task = tasks.find(t => t.id === taskId);
+      if (!task || task.isCompleted) return;
+
+      // 更新任务进度到完成
+      taskService.updateTaskProgress(userId, taskId, task.requirements.count);
+
+      // 重新加载任务列表
+      loadTasks();
+
+      // 显示成功消息
+      toast.success(
+        <div>
+          <div className="font-bold">🎉 任务完成！</div>
+          <div>{task.title}</div>
+          <div className="text-yellow-400">+{task.reward.points} 积分</div>
+          {task.reward.badge && (
+            <div className="text-purple-400">获得徽章：{task.reward.badge}</div>
+          )}
+        </div>
+      );
+
+      // 触发积分更新事件
+      window.dispatchEvent(new CustomEvent('pointsUpdated', { 
+        detail: { 
+          newBalance: pointsService.getCurrentPoints(),
+          change: task.reward.points,
+          type: 'earned'
+        }
+      }));
+    } catch (error: any) {
+      console.error('完成任务失败:', error);
+      toast.error(error.message || '完成任务失败');
+    }
+  };
+
+  // 模拟任务进度增加（用于测试）
+  const handleProgressTask = async (taskId: string) => {
+    try {
+      const task = tasks.find(t => t.id === taskId);
+      if (!task || task.isCompleted) return;
+
+      const newProgress = Math.min(task.userProgress + 1, task.requirements.count);
+      taskService.updateTaskProgress(userId, taskId, newProgress);
+
+      // 重新加载任务列表
+      loadTasks();
+
+      if (newProgress >= task.requirements.count) {
+        toast.success(
+          <div>
+            <div className="font-bold">🎉 任务完成！</div>
+            <div>{task.title}</div>
+            <div className="text-yellow-400">+{task.reward.points} 积分</div>
+          </div>
+        );
+
+        // 触发积分更新事件
+        window.dispatchEvent(new CustomEvent('pointsUpdated', { 
+          detail: { 
+            newBalance: pointsService.getCurrentPoints(),
+            change: task.reward.points,
+            type: 'earned'
+          }
+        }));
+      } else {
+        toast.info(
+          <div>
+            <div>任务进度更新</div>
+            <div>{task.title}</div>
+            <div>{newProgress} / {task.requirements.count}</div>
+          </div>
+        );
+      }
+    } catch (error: any) {
+      console.error('更新任务进度失败:', error);
+      toast.error(error.message || '更新任务进度失败');
+    }
   };
 
   // 切换任务展开状态
@@ -107,10 +163,110 @@ const TaskCenter: React.FC = () => {
     setExpandedTask(expandedTask === taskId ? null : taskId);
   };
 
+  // 获取任务类型图标
+  const getTaskTypeIcon = (type: Task['type']) => {
+    switch (type) {
+      case 'daily':
+        return <Calendar className="w-4 h-4" />;
+      case 'weekly':
+        return <Clock className="w-4 h-4" />;
+      case 'monthly':
+        return <Target className="w-4 h-4" />;
+      case 'event':
+        return <Star className="w-4 h-4" />;
+      case 'achievement':
+        return <Trophy className="w-4 h-4" />;
+      default:
+        return <Gift className="w-4 h-4" />;
+    }
+  };
+
+  // 获取任务类型标签
+  const getTaskTypeLabel = (type: Task['type']) => {
+    switch (type) {
+      case 'daily':
+        return '每日';
+      case 'weekly':
+        return '每周';
+      case 'monthly':
+        return '每月';
+      case 'event':
+        return '活动';
+      case 'achievement':
+        return '成就';
+      default:
+        return '其他';
+    }
+  };
+
+  // 获取任务类型颜色
+  const getTaskTypeColor = (type: Task['type']) => {
+    switch (type) {
+      case 'daily':
+        return 'bg-blue-500';
+      case 'weekly':
+        return 'bg-purple-500';
+      case 'monthly':
+        return 'bg-orange-500';
+      case 'event':
+        return 'bg-pink-500';
+      case 'achievement':
+        return 'bg-yellow-500';
+      default:
+        return 'bg-gray-500';
+    }
+  };
+
+  // 格式化日期
+  const formatDate = (timestamp: number) => {
+    return new Date(timestamp).toLocaleDateString('zh-CN', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
+  // 计算剩余时间
+  const getRemainingTime = (endDate?: number) => {
+    if (!endDate) return null;
+    const now = Date.now();
+    const diff = endDate - now;
+    if (diff <= 0) return '已过期';
+
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+
+    if (days > 0) {
+      return `剩余 ${days} 天`;
+    } else {
+      return `剩余 ${hours} 小时`;
+    }
+  };
+
   return (
     <div className={`min-h-screen p-4 ${isDark ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'}`}>
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold mb-6">任务中心</h1>
+        {/* 头部统计 */}
+        <div className="mb-8">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-bold mb-2">任务中心</h1>
+              <p className={`${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                完成任务获取积分奖励
+              </p>
+            </div>
+            <div className="flex gap-4">
+              <div className={`px-4 py-2 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-sm`}>
+                <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>当前积分</div>
+                <div className="text-2xl font-bold text-yellow-500">{totalPoints}</div>
+              </div>
+              <div className={`px-4 py-2 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-sm`}>
+                <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>已完成</div>
+                <div className="text-2xl font-bold text-green-500">{completedCount}/{tasks.length}</div>
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* 任务类型筛选 */}
         <div className="mb-6 flex flex-wrap gap-2">
@@ -119,156 +275,267 @@ const TaskCenter: React.FC = () => {
             { value: 'daily', label: '每日任务' },
             { value: 'weekly', label: '每周任务' },
             { value: 'monthly', label: '每月任务' },
+            { value: 'event', label: '活动任务' },
             { value: 'achievement', label: '成就任务' }
           ].map(type => (
             <button
               key={type.value}
-              onClick={() => setSelectedType(type.value as any)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${selectedType === type.value 
-                ? isDark ? 'bg-red-600 text-white' : 'bg-red-500 text-white' 
-                : isDark ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:bg-gray-100'}`}
+              onClick={() => setSelectedType(type.value as TaskType)}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${selectedType === type.value 
+                ? isDark ? 'bg-red-600 text-white shadow-lg shadow-red-600/30' : 'bg-red-500 text-white shadow-lg shadow-red-500/30' 
+                : isDark ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:bg-gray-100'} shadow-sm`}
             >
               {type.label}
             </button>
           ))}
         </div>
 
+        {/* 加载状态 */}
+        {isLoading && (
+          <div className="flex justify-center py-12">
+            <div className={`animate-spin rounded-full h-12 w-12 border-b-2 ${isDark ? 'border-red-500' : 'border-red-600'}`}></div>
+          </div>
+        )}
+
         {/* 任务列表 */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredTasks.map(task => (
-            <motion.div
-              key={task.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
-              className={`rounded-lg overflow-hidden shadow-lg ${isDark ? 'bg-gray-800' : 'bg-white'}`}
-            >
-              {/* 任务头部 */}
-              <div className={`p-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h3 className="text-xl font-bold mb-1">{task.title}</h3>
-                    <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium mb-2 ${isDark ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                      {task.type === 'daily' ? '每日' : task.type === 'weekly' ? '每周' : task.type === 'monthly' ? '每月' : '成就'}
-                    </span>
-                  </div>
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${task.status === 'completed' ? 'bg-green-500 text-white' : task.status === 'pending' ? 'bg-yellow-500 text-white' : 'bg-red-500 text-white'}`}>
-                    {task.status === 'completed' ? '已完成' : task.status === 'pending' ? '进行中' : '已过期'}
-                  </span>
-                </div>
-              </div>
-
-              {/* 任务内容 */}
-              <div className="p-4">
-                <p className="text-sm opacity-70 mb-4">{task.description}</p>
-
-                {/* 进度条 */}
-                <div className="mb-4">
-                  <div className="flex justify-between text-sm mb-1">
-                    <span>进度</span>
-                    <span>{task.progress}/{task.target}</span>
-                  </div>
-                  <div className={`w-full bg-gray-200 rounded-full h-2.5 ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
-                    <div
-                      className="bg-red-600 h-2.5 rounded-full transition-all duration-300"
-                      style={{ width: `${(task.progress / task.target) * 100}%` }}
-                    ></div>
-                  </div>
-                </div>
-
-                {/* 奖励信息 */}
-                <div className="flex items-center gap-2 mb-4">
-                  <svg className="w-5 h-5 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                  </svg>
-                  <span className="text-sm">奖励: {task.reward.points} 积分</span>
-                  {task.reward.badge && (
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${isDark ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                      {task.reward.badge}
-                    </span>
-                  )}
-                </div>
-
-                {/* 截止日期 */}
-                {task.deadline && (
-                  <div className="text-sm mb-4">
-                    <span className="opacity-70">截止日期: </span>
-                    <span>{task.deadline.toLocaleDateString()}</span>
-                  </div>
-                )}
-
-                {/* 操作按钮 */}
-                <div className="flex gap-2">
-                  {task.status === 'pending' && (
-                    <button
-                      onClick={() => handleCompleteTask(task.id)}
-                      className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${isDark ? 'bg-red-600 hover:bg-red-700' : 'bg-red-500 hover:bg-red-600'} text-white`}
-                    >
-                      立即完成
-                    </button>
-                  )}
-                  {task.status === 'completed' && (
-                    <button
-                      className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${isDark ? 'bg-gray-700' : 'bg-gray-200'} cursor-not-allowed`}
-                      disabled
-                    >
-                      已完成
-                    </button>
-                  )}
-                  <button
-                    onClick={() => toggleTaskExpanded(task.id)}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}
-                  >
-                    {expandedTask === task.id ? '收起' : '详情'}
-                  </button>
-                </div>
-
-                {/* 展开的任务详情 */}
-                {expandedTask === task.id && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className={`mt-4 pt-4 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}
-                  >
-                    <h4 className="font-medium mb-2">任务详情</h4>
-                    <p className="text-sm opacity-70 mb-3">
-                      {task.description}
-                    </p>
-                    <div className="grid grid-cols-2 gap-2 text-sm">
-                      <div>
-                        <span className="opacity-70">任务类型: </span>
-                        <span>{task.type === 'daily' ? '每日任务' : task.type === 'weekly' ? '每周任务' : task.type === 'monthly' ? '每月任务' : '成就任务'}</span>
-                      </div>
-                      <div>
-                        <span className="opacity-70">创建时间: </span>
-                        <span>{task.createdAt.toLocaleDateString()}</span>
-                      </div>
-                      <div>
-                        <span className="opacity-70">更新时间: </span>
-                        <span>{task.updatedAt.toLocaleDateString()}</span>
-                      </div>
-                      <div>
-                        <span className="opacity-70">状态: </span>
-                        <span>{task.status === 'completed' ? '已完成' : task.status === 'pending' ? '进行中' : '已过期'}</span>
+        {!isLoading && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <AnimatePresence mode="popLayout">
+              {filteredTasks.map((task, index) => (
+                <motion.div
+                  key={task.id}
+                  layout
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  transition={{ duration: 0.3, delay: index * 0.05 }}
+                  className={`rounded-xl overflow-hidden shadow-lg transition-shadow hover:shadow-xl ${
+                    isDark ? 'bg-gray-800' : 'bg-white'
+                  } ${task.isCompleted ? 'ring-2 ring-green-500' : ''}`}
+                >
+                  {/* 任务头部 */}
+                  <div className={`p-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs text-white ${getTaskTypeColor(task.type)}`}>
+                            {getTaskTypeIcon(task.type)}
+                            <span>{getTaskTypeLabel(task.type)}</span>
+                          </span>
+                          {task.isCompleted && (
+                            <span className="flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-green-500 text-white">
+                              <CheckCircle className="w-3 h-3" />
+                              已完成
+                            </span>
+                          )}
+                        </div>
+                        <h3 className="text-lg font-bold">{task.title}</h3>
                       </div>
                     </div>
-                  </motion.div>
-                )}
-              </div>
-            </motion.div>
-          ))}
-        </div>
+                  </div>
+
+                  {/* 任务内容 */}
+                  <div className="p-4">
+                    <p className={`text-sm mb-4 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                      {task.description}
+                    </p>
+
+                    {/* 进度条 */}
+                    <div className="mb-4">
+                      <div className="flex justify-between text-sm mb-2">
+                        <span className={isDark ? 'text-gray-400' : 'text-gray-600'}>进度</span>
+                        <span className="font-medium">{task.userProgress}/{task.requirements.count}</span>
+                      </div>
+                      <div className={`w-full rounded-full h-2.5 ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: `${(task.userProgress / task.requirements.count) * 100}%` }}
+                          transition={{ duration: 0.5, delay: 0.2 }}
+                          className={`h-2.5 rounded-full transition-all duration-300 ${
+                            task.isCompleted 
+                              ? 'bg-gradient-to-r from-green-500 to-green-400' 
+                              : 'bg-gradient-to-r from-red-500 to-red-400'
+                          }`}
+                        />
+                      </div>
+                    </div>
+
+                    {/* 奖励信息 */}
+                    <div className={`flex items-center gap-3 p-3 rounded-lg mb-4 ${
+                      isDark ? 'bg-gray-700' : 'bg-gray-100'
+                    }`}>
+                      <div className="flex items-center gap-1 text-yellow-500">
+                        <Trophy className="w-5 h-5" />
+                        <span className="font-bold">{task.reward.points}</span>
+                        <span className="text-sm">积分</span>
+                      </div>
+                      {task.reward.badge && (
+                        <div className="flex items-center gap-1 text-purple-500">
+                          <span className="text-sm">+</span>
+                          <span className="text-sm font-medium">{task.reward.badge}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* 截止日期 */}
+                    {task.endDate && (
+                      <div className={`text-sm mb-4 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                        <span className="opacity-70">截止时间: </span>
+                        <span>{formatDate(task.endDate)}</span>
+                        <span className={`ml-2 text-xs ${
+                          getRemainingTime(task.endDate)?.includes('已过期') 
+                            ? 'text-red-500' 
+                            : 'text-orange-500'
+                        }`}>
+                          ({getRemainingTime(task.endDate)})
+                        </span>
+                      </div>
+                    )}
+
+                    {/* 操作按钮 */}
+                    <div className="flex gap-2">
+                      {!task.isCompleted ? (
+                        <>
+                          <button
+                            onClick={() => handleProgressTask(task.id)}
+                            className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                              isDark 
+                                ? 'bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-600/20' 
+                                : 'bg-red-500 hover:bg-red-600 text-white shadow-lg shadow-red-500/20'
+                            }`}
+                          >
+                            {task.userProgress > 0 ? '继续任务' : '开始任务'}
+                          </button>
+                          {/* 测试用：直接完成任务按钮 */}
+                          <button
+                            onClick={() => handleCompleteTask(task.id)}
+                            className={`px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                              isDark 
+                                ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' 
+                                : 'bg-gray-200 hover:bg-gray-300 text-gray-600'
+                            }`}
+                            title="测试用：直接完成任务"
+                          >
+                            完成
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                            isDark ? 'bg-green-600 text-white' : 'bg-green-500 text-white'
+                          } cursor-default`}
+                          disabled
+                        >
+                          <span className="flex items-center justify-center gap-2">
+                            <CheckCircle className="w-4 h-4" />
+                            已完成
+                            {task.completedAt && (
+                              <span className="text-xs opacity-80">
+                                {formatDate(task.completedAt)}
+                              </span>
+                            )}
+                          </span>
+                        </button>
+                      )}
+                      <button
+                        onClick={() => toggleTaskExpanded(task.id)}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'
+                        }`}
+                      >
+                        {expandedTask === task.id ? '收起' : '详情'}
+                      </button>
+                    </div>
+
+                    {/* 展开的任务详情 */}
+                    <AnimatePresence>
+                      {expandedTask === task.id && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          transition={{ duration: 0.2 }}
+                          className={`mt-4 pt-4 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}
+                        >
+                          <h4 className="font-medium mb-3">任务详情</h4>
+                          <div className="space-y-2 text-sm">
+                            <div className="flex justify-between">
+                              <span className={isDark ? 'text-gray-400' : 'text-gray-600'}>任务ID:</span>
+                              <span className="font-mono text-xs">{task.id}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className={isDark ? 'text-gray-400' : 'text-gray-600'}>任务类型:</span>
+                              <span>{getTaskTypeLabel(task.type)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className={isDark ? 'text-gray-400' : 'text-gray-600'}>要求:</span>
+                              <span>{task.requirements.count} 次{task.requirements.type === 'create' ? '创作' : task.requirements.type === 'share' ? '分享' : task.requirements.type === 'comment' ? '评论' : '互动'}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className={isDark ? 'text-gray-400' : 'text-gray-600'}>奖励:</span>
+                              <span className="text-yellow-500">{task.reward.points} 积分</span>
+                            </div>
+                            {task.reward.badge && (
+                              <div className="flex justify-between">
+                                <span className={isDark ? 'text-gray-400' : 'text-gray-600'}>徽章:</span>
+                                <span className="text-purple-500">{task.reward.badge}</span>
+                              </div>
+                            )}
+                            <div className="flex justify-between">
+                              <span className={isDark ? 'text-gray-400' : 'text-gray-600'}>开始时间:</span>
+                              <span>{formatDate(task.startDate)}</span>
+                            </div>
+                            {task.endDate && (
+                              <div className="flex justify-between">
+                                <span className={isDark ? 'text-gray-400' : 'text-gray-600'}>结束时间:</span>
+                                <span>{formatDate(task.endDate)}</span>
+                              </div>
+                            )}
+                            {task.tags && task.tags.length > 0 && (
+                              <div className="flex justify-between items-start">
+                                <span className={isDark ? 'text-gray-400' : 'text-gray-600'}>标签:</span>
+                                <div className="flex flex-wrap gap-1 justify-end">
+                                  {task.tags.map((tag, i) => (
+                                    <span 
+                                      key={i} 
+                                      className={`px-2 py-0.5 rounded text-xs ${
+                                        isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-600'
+                                      }`}
+                                    >
+                                      {tag}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
+        )}
 
         {/* 无任务提示 */}
-        {filteredTasks.length === 0 && (
-          <div className="text-center py-12">
-            <svg className="w-16 h-16 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
+        {!isLoading && filteredTasks.length === 0 && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="text-center py-12"
+          >
+            <div className={`w-20 h-20 mx-auto mb-4 rounded-full flex items-center justify-center ${
+              isDark ? 'bg-gray-800' : 'bg-gray-100'
+            }`}>
+              <Target className={`w-10 h-10 ${isDark ? 'text-gray-600' : 'text-gray-400'}`} />
+            </div>
             <h3 className="text-lg font-medium mb-2">暂无任务</h3>
-            <p className="opacity-70">请稍后再来查看</p>
-          </div>
+            <p className={`${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+              该分类下暂时没有任务，请尝试其他分类
+            </p>
+          </motion.div>
         )}
       </div>
     </div>

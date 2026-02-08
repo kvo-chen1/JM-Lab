@@ -39,10 +39,24 @@ import ErrorBoundary from '@/components/ErrorBoundary';
 
 // 核心页面 - 只保留最关键的页面进行同步加载，减少初始加载时间
 import Home from "@/pages/Home";
-import Login from "@/pages/Login";
-import Register from "@/pages/Register";
-import ForgotPassword from "@/pages/ForgotPassword";
-import CompleteProfile from "@/pages/CompleteProfile";
+
+// 认证相关页面 - 懒加载减少初始包大小
+const Login = createLazyComponent(() => import(/* webpackChunkName: "pages-auth" */ "@/pages/Login"), {
+  priority: ROUTE_PRIORITIES.HIGH,
+  name: 'login'
+});
+const Register = createLazyComponent(() => import(/* webpackChunkName: "pages-auth" */ "@/pages/Register"), {
+  priority: ROUTE_PRIORITIES.HIGH,
+  name: 'register'
+});
+const ForgotPassword = createLazyComponent(() => import(/* webpackChunkName: "pages-auth" */ "@/pages/ForgotPassword"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'forgot-password'
+});
+const CompleteProfile = createLazyComponent(() => import(/* webpackChunkName: "pages-auth" */ "@/pages/CompleteProfile"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'complete-profile'
+});
 
 // 导入Three.js组件懒加载工具
 import { createLazyThreeComponent } from '@/components/lazy/LazyThreeComponent';
@@ -76,6 +90,10 @@ const Square = createLazyComponent(() => import(/* webpackChunkName: "pages-core
 const Friends = createLazyComponent(() => import(/* webpackChunkName: "pages-core" */ "@/pages/Friends"), {
   priority: ROUTE_PRIORITIES.MEDIUM,
   name: 'friends'
+});
+const ChatPage = createLazyComponent(() => import(/* webpackChunkName: "pages-core" */ "@/pages/ChatPage"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'chat'
 });
 
 // 3. 核心工具页面改为懒加载
@@ -150,8 +168,11 @@ const CulturalKnowledge = createLazyComponent(() => import(/* webpackChunkName: 
   priority: ROUTE_PRIORITIES.HIGH,
   name: 'knowledge'
 });
-// 直接导入 Tianjin 组件，避免动态导入问题
-import Tianjin from "@/pages/Tianjin";
+// Tianjin页面 - 懒加载，因为它是内容丰富的页面
+const Tianjin = createLazyComponent(() => import(/* webpackChunkName: "pages-cultural" */ "@/pages/Tianjin"), {
+  priority: ROUTE_PRIORITIES.HIGH,
+  name: 'tianjin'
+});
 
 const CulturalEvents = createLazyComponent(() => import(/* webpackChunkName: "pages-cultural" */ "@/pages/CulturalEvents"), {
   priority: ROUTE_PRIORITIES.HIGH,
@@ -159,12 +180,27 @@ const CulturalEvents = createLazyComponent(() => import(/* webpackChunkName: "pa
 });
 
 
-// 活动相关 - 静态导入
-import CreateActivity from "@/pages/CreateActivity";
-import ActivityList from "@/pages/ActivityList";
-import ActivityDetail from "@/pages/ActivityDetail";
-import EditActivity from "@/pages/EditActivity";
-import MyActivities from "@/pages/MyActivities";
+// 活动相关 - 懒加载优化
+const CreateActivity = createLazyComponent(() => import(/* webpackChunkName: "pages-activities" */ "@/pages/CreateActivity"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'create-activity'
+});
+const ActivityList = createLazyComponent(() => import(/* webpackChunkName: "pages-activities" */ "@/pages/ActivityList"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'activity-list'
+});
+const ActivityDetail = createLazyComponent(() => import(/* webpackChunkName: "pages-activities" */ "@/pages/ActivityDetail"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'activity-detail'
+});
+const EditActivity = createLazyComponent(() => import(/* webpackChunkName: "pages-activities" */ "@/pages/EditActivity"), {
+  priority: ROUTE_PRIORITIES.LOW,
+  name: 'edit-activity'
+});
+const MyActivities = createLazyComponent(() => import(/* webpackChunkName: "pages-activities" */ "@/pages/MyActivities"), {
+  priority: ROUTE_PRIORITIES.LOW,
+  name: 'my-activities'
+});
 
 // 管理相关 - 懒加载
 const Admin = createLazyComponent(() => import(/* webpackChunkName: "pages-admin" */ "@/pages/admin/Admin"), {
@@ -647,6 +683,7 @@ export default function App() {
           <Route path="/community/:id" element={<LazyComponent><PrivateRoute><Community /></PrivateRoute></LazyComponent>} />
           <Route path="/community/:id/admin" element={<LazyComponent><PrivateRoute><CommunityAdminPanel /></PrivateRoute></LazyComponent>} />
           <Route path="/friends" element={<LazyComponent><PrivateRoute><Friends /></PrivateRoute></LazyComponent>} />
+          <Route path="/chat/:userId" element={<LazyComponent><PrivateRoute><ChatPage /></PrivateRoute></LazyComponent>} />
           <Route path="/post/:id" element={<LazyComponent><PostDetail /></LazyComponent>} />
           <Route path="/creator-community" element={<Navigate to="/community" replace />} />
           <Route path="/dashboard" element={<LazyComponent fallback={<DashboardSkeleton />}><PrivateRoute><Dashboard /></PrivateRoute></LazyComponent>} />

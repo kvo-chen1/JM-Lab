@@ -121,6 +121,16 @@ const LazyImage: React.FC<LazyImageProps> = React.memo(({
   // 默认fallback图片 - 使用内联base64图片作为占位符，确保可靠加载
   const defaultFallbackSrc = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDIwMCAyMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxjaXJjbGUgY3g9IjEwMCIgY3k9IjEwMCIgcj0iMTAwIiBmaWxsPSIjZmZmZmZmIi8+CjxjaXJjbGUgY3g9IjEwMCIgY3k9IjEwMCIgcj0iNzAiIGZpbGw9IiM2NjY2NjYiLz4KPHN2ZyB4PSI3MCIgeT0iNzAiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgZmlsbD0ibm9uZSI+CjxyZWN0IHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgZmlsbD0id2hpdGUiLz4KPHJlY3QgeD0iODAiIHk9IjgwIiB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIGZpbGw9IiNkY2RjZGMiLz4KPHJlY3QgeD0iOTAuNSIgeT0iOTEiIHdpZHRoPSIxOSIgaGVpZ2h0PSIxOCIgc3Ryb2tlPSIjNzc3Nzc3IiBzdHJva2Utb3BhY2l0eT0iMC41IiBzdHJva2Utd2lkdGg9IjIiLz4KPC9zdmc+Cjwvc3ZnPg==';
   
+  // 备用图片服务 - 当原始图片加载失败时使用
+  const getFallbackImageUrl = (alt: string) => {
+    // 使用Lorem Picsum作为备用图片服务
+    const width = 600;
+    const height = 400;
+    // 使用alt文本作为seed，确保相同的alt文本总是返回相同的图片
+    const seed = alt.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    return `https://picsum.photos/seed/${seed}/${width}/${height}`;
+  };
+  
   // 使用useMemo确保currentSrc与src同步更新，避免异步更新问题
   const currentSrc = useMemo(() => {
     // 首先检查src是否为空或无效
@@ -165,9 +175,14 @@ const LazyImage: React.FC<LazyImageProps> = React.memo(({
   
   // 计算实际显示的图片URL，如果加载失败则使用fallback
   const displaySrc = useMemo(() => {
-    // 无论disableFallback如何，当图片加载失败时，都使用fallback（如果提供）
-    if (isError) {
-      return fallbackSrc || defaultFallbackSrc;
+    // 如果已经重试过两次，使用默认的SVG占位符
+    if (retryCount >= 2) {
+      return defaultFallbackSrc;
+    }
+    
+    // 如果已经重试过一次，使用备用图片URL
+    if (retryCount >= 1) {
+      return getFallbackImageUrl(alt);
     }
     
     // 确保currentSrc有效
@@ -176,7 +191,7 @@ const LazyImage: React.FC<LazyImageProps> = React.memo(({
     }
     
     return currentSrc;
-  }, [isError, currentSrc, fallbackSrc, defaultFallbackSrc]);
+  }, [isError, currentSrc, fallbackSrc, defaultFallbackSrc, alt, getFallbackImageUrl, retryCount]);
   
   // 构建响应式图片srcset
   const srcSet = useMemo(() => {
@@ -241,8 +256,18 @@ const LazyImage: React.FC<LazyImageProps> = React.memo(({
     
     // 只有当disableFallback为false时，才显示错误状态UI
     if (!disableFallback) {
-      setIsError(true);
-      setIsLoaded(false);
+      // 如果已经重试过两次，不再重试
+      if (retryCount >= 2) {
+        setIsError(true);
+        setIsLoaded(true);
+        return;
+      }
+      
+      // 增加重试计数
+      setRetryCount(prev => prev + 1);
+      
+      // 设置为已加载，确保fallback图片能够显示
+      setIsLoaded(true);
     }
     
     // 阻止事件冒泡，避免影响父组件
@@ -333,7 +358,7 @@ const LazyImage: React.FC<LazyImageProps> = React.memo(({
       return `${baseClasses} opacity-100`;
     }
     
-    if (isLoaded) {
+    if (isLoaded || isError) {
       if (loadingAnimation === 'fade') {
         return `${baseClasses} opacity-100`;
       } else if (loadingAnimation === 'scale') {
@@ -342,8 +367,6 @@ const LazyImage: React.FC<LazyImageProps> = React.memo(({
         return `${baseClasses} opacity-100 blur-0`;
       }
       return `${baseClasses} opacity-100`;
-    } else if (isError) {
-      return `${baseClasses} opacity-0`;
     } else {
       // 加载过程中，根据动画类型设置不同的初始状态
       if (loadingAnimation === 'fade') {

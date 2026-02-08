@@ -178,8 +178,8 @@ export default function CompleteProfile() {
     setIsSubmitting(true);
     
     try {
-      // 更新用户信息
-      updateUser({
+      // 更新用户信息到数据库
+      await updateUser({
         ...formData,
         isNewUser: false, // 标记用户信息已完善
       });
@@ -197,24 +197,6 @@ export default function CompleteProfile() {
                     interests: formData.interests
                 }
             });
-
-            // 2. 确保 public.users 表中有此用户数据 (用于外键关联)
-            const { error: upsertError } = await supabase
-                .from('users')
-                .upsert({
-                    id: user.id,
-                    email: user.email,
-                    username: formData.username,
-                    name: formData.username,
-                    avatar: formData.avatar,
-                    phone: formData.phone,
-                    interests: formData.interests,
-                    updated_at: new Date().toISOString()
-                }, { onConflict: 'id' });
-                
-            if (upsertError) {
-                console.error('Failed to sync public.users:', upsertError);
-            }
         });
       }
       

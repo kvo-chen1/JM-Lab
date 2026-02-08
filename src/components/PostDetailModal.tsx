@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
-import postsApi, { Post } from '@/services/postService';
+import postsApi, { Post, Comment, followUser, unfollowUser, checkUserFollowing } from '@/services/postService';
 import { TianjinAvatar } from '@/components/TianjinStyleComponents';
 import LazyImage from './LazyImage';
 import LazyVideo from './LazyVideo';
@@ -40,10 +40,47 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
   const [commentText, setCommentText] = useState('');
   const [isImageFull, setIsImageFull] = useState(false);
   const [relatedPosts, setRelatedPosts] = useState<Post[]>([]);
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [followLoading, setFollowLoading] = useState(false);
   const commentInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
+
+  // Load comments when post changes
+  useEffect(() => {
+    const loadComments = async () => {
+      if (post?.id) {
+        setCommentsLoading(true);
+        try {
+          const workComments = await postsApi.getWorkComments(post.id);
+          setComments(workComments);
+        } catch (error) {
+          console.error('Failed to load comments:', error);
+        } finally {
+          setCommentsLoading(false);
+        }
+      }
+    };
+    loadComments();
+  }, [post?.id]);
+
+  // Check follow status
+  useEffect(() => {
+    const checkFollowStatus = async () => {
+      if (post?.author?.id && currentUser?.id) {
+        try {
+          const following = await checkUserFollowing(currentUser.id, post.author.id);
+          setIsFollowing(following);
+        } catch (error) {
+          console.error('Failed to check follow status:', error);
+        }
+      }
+    };
+    checkFollowStatus();
+  }, [post?.author?.id, currentUser?.id]);
 
   // Load related posts
   useEffect(() => {
@@ -108,9 +145,17 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
 
   const handleSendComment = async () => {
     if (post && commentText.trim()) {
-      await onComment(post.id, commentText);
-      setCommentText('');
-      toast.success('评论发送成功！');
+      try {
+        await onComment(post.id, commentText);
+        setCommentText('');
+        toast.success('评论发送成功！');
+        // 刷新评论列表
+        const updatedComments = await postsApi.getWorkComments(post.id);
+        setComments(updatedComments);
+      } catch (error: any) {
+        console.error('发送评论失败:', error);
+        toast.error(error.message || '评论发送失败，请稍后重试');
+      }
     }
   };
 
@@ -118,6 +163,72 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSendComment();
+    }
+  };
+
+  // 删除评论
+  const handleDeleteComment = async (commentId: string) => {
+    if (!confirm('确定要删除这条评论吗？')) return;
+    
+    try {
+      await postsApi.deleteWorkComment(commentId);
+      // 刷新评论列表
+      if (post?.id) {
+        const updatedComments = await postsApi.getWorkComments(post.id);
+        setComments(updatedComments);
+      }
+      toast.success('评论已删除');
+    } catch (error: any) {
+      console.error('删除评论失败:', error);
+      toast.error(error.message || '删除评论失败');
+    }
+  };
+
+  // 分享功能
+  const handleShare = async () => {
+    if (!post) return;
+    
+    const shareUrl = `${window.location.origin}/post/${post.id}`;
+    const shareData = {
+      title: post.title,
+      text: post.description?.slice(0, 100) || '',
+      url: shareUrl
+    };
+    
+    try {
+      // 尝试使用 Web Share API
+      if (navigator.share) {
+        await navigator.share(shareData);
+        toast.success('分享成功');
+      } else {
+        // 复制链接到剪贴板
+        await navigator.clipboard.writeText(shareUrl);
+        toast.success('链接已复制到剪贴板');
+      }
+    } catch (error: any) {
+      // 用户取消分享或复制失败
+      if (error.name !== 'AbortError') {
+        console.error('分享失败:', error);
+        toast.error('分享失败');
+      }
+    }
+  };
+
+  // 保存/收藏功能
+  const handleSave = async () => {
+    if (!post) return;
+    
+    try {
+      if (post.isBookmarked) {
+        await postsApi.unbookmarkPost(post.id);
+        toast.success('已取消保存');
+      } else {
+        await postsApi.bookmarkPost(post.id);
+        toast.success('已保存到收藏');
+      }
+    } catch (error: any) {
+      console.error('保存失败:', error);
+      toast.error('保存失败');
     }
   };
 
@@ -246,26 +357,34 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
                         <button className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
                           <i className="fas fa-ellipsis-h text-gray-700 dark:text-gray-300"></i>
                         </button>
-                        <button 
+                        <button
                           className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                          onClick={() => onShare && onShare(post.id)}
+                          onClick={handleShare}
+                          title="分享"
                         >
-                          <i className="fas fa-share-alt text-gray-700 dark:text-gray-300"></i>
+                          <i className="fas fa-share-alt text-gray-700 dark:hover:text-gray-300"></i>
                         </button>
                       </div>
                       <div className="flex gap-3">
-                         <button 
+                         <button
                            onClick={() => onLike(post.id)}
                            className={`px-5 py-2.5 rounded-full font-semibold text-sm transition-all ${
-                             post.isLiked 
-                               ? 'bg-red-500 text-white hover:bg-red-600' 
+                             post.isLiked
+                               ? 'bg-red-500 text-white hover:bg-red-600'
                                : 'bg-gray-100 text-gray-900 hover:bg-gray-200 dark:bg-gray-800 dark:text-white'
                            }`}
                          >
                            {post.isLiked ? '已赞' : '点赞'}
                          </button>
-                         <button className="px-5 py-2.5 rounded-full bg-red-600 text-white font-semibold text-sm hover:bg-red-700 transition-colors shadow-sm">
-                           保存
+                         <button
+                           onClick={handleSave}
+                           className={`px-5 py-2.5 rounded-full font-semibold text-sm transition-colors shadow-sm ${
+                             post.isBookmarked
+                               ? 'bg-gray-600 text-white hover:bg-gray-700'
+                               : 'bg-red-600 text-white hover:bg-red-700'
+                           }`}
+                         >
+                           {post.isBookmarked ? '已保存' : '保存'}
                          </button>
                       </div>
                     </div>
@@ -317,14 +436,38 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
                            // 非作者显示关注按钮
                            return (
                              <button 
-                               className="px-4 py-2 rounded-full bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-xs font-bold transition-colors"
-                               onClick={(e) => {
+                               className={`px-4 py-2 rounded-full text-xs font-bold transition-colors ${
+                                 isFollowing
+                                   ? 'bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
+                                   : 'bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700'
+                               }`}
+                               disabled={followLoading}
+                               onClick={async (e) => {
                                  e.stopPropagation();
-                                 // TODO: Implement follow logic
-                                 toast.success('已关注');
+                                 if (!currentUser?.id || !post?.author?.id) {
+                                   toast.error('请先登录');
+                                   return;
+                                 }
+                                 
+                                 setFollowLoading(true);
+                                 try {
+                                   if (isFollowing) {
+                                     await unfollowUser(currentUser.id, post.author.id);
+                                     setIsFollowing(false);
+                                     toast.success('已取消关注');
+                                   } else {
+                                     await followUser(currentUser.id, post.author.id);
+                                     setIsFollowing(true);
+                                     toast.success('已关注');
+                                   }
+                                 } catch (error: any) {
+                                   toast.error(error.message || '操作失败');
+                                 } finally {
+                                   setFollowLoading(false);
+                                 }
                                }}
                              >
-                               关注
+                               {followLoading ? '...' : (isFollowing ? '已关注' : '关注')}
                              </button>
                            );
                          })()}
@@ -333,22 +476,26 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
                       {/* Comments Header */}
                       <div className="pt-4 border-t border-gray-100 dark:border-gray-800">
                         <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                          评论 <span className="text-sm font-normal text-gray-500">{post.commentCount || 0}</span>
+                          评论 <span className="text-sm font-normal text-gray-500">{comments.length || post.commentCount || 0}</span>
                         </h3>
-                        
-                        {/* Comments List (Simplified) */}
+
+                        {/* Comments List */}
                         <div className="space-y-4 mb-20">
-                          {post.comments && post.comments.length > 0 ? (
-                            post.comments.map(comment => (
+                          {commentsLoading ? (
+                            <div className="text-center py-8 text-gray-400 text-sm">
+                              加载评论中...
+                            </div>
+                          ) : comments.length > 0 ? (
+                            comments.map(comment => (
                               <div key={comment.id} className="flex gap-2.5">
-                                <TianjinAvatar 
-                                  src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${comment.id}`} 
-                                  alt="User" 
-                                  size="xs" 
+                                <TianjinAvatar
+                                  src={comment.authorAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${comment.userId || comment.id}`}
+                                  alt="User"
+                                  size="xs"
                                 />
                                 <div className="flex-1">
                                    <div className="text-sm">
-                                     <span className="font-bold mr-2">{currentUser?.username || '用户'}</span>
+                                     <span className="font-bold mr-2">{comment.author || '用户'}</span>
                                      <span className="text-gray-700 dark:text-gray-300">{comment.content}</span>
                                    </div>
                                    <div className="flex gap-3 mt-1 text-[10px] text-gray-500 font-medium">
@@ -357,6 +504,14 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
                                       <button className="hover:text-gray-900 dark:hover:text-white flex items-center gap-1">
                                         <i className="far fa-heart"></i> {comment.likes || 0}
                                       </button>
+                                      {currentUser && comment.userId === currentUser.id && (
+                                        <button 
+                                          onClick={() => handleDeleteComment(comment.id)}
+                                          className="hover:text-red-500"
+                                        >
+                                          删除
+                                        </button>
+                                      )}
                                    </div>
                                 </div>
                               </div>

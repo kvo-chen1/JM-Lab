@@ -30,7 +30,7 @@ class WebSocketService {
       // 忽略访问 process 时的错误
     }
     
-    return 'ws://localhost:3023/ws';
+    return 'ws://localhost:3022/ws';
   }
 
   // 连接WebSocket
@@ -70,9 +70,9 @@ class WebSocketService {
       };
 
       this.socket.onerror = (error) => {
-        // 只在开发环境打印详细错误
+        // 只在开发环境打印详细错误，使用更温和的日志级别
         if (import.meta.env.DEV) {
-          console.warn('WebSocket连接错误，服务器可能未运行:', error.message || error);
+          console.log('WebSocket连接暂时不可用，将在后台自动重试');
         }
         this.triggerLifecycle('error', error);
       };
@@ -91,9 +91,9 @@ class WebSocketService {
         }
       };
     } catch (error) {
-      // 只在开发环境打印连接失败错误
+      // 只在开发环境打印连接失败错误，使用更温和的日志级别
       if (import.meta.env.DEV) {
-        console.warn('WebSocket连接失败，服务器可能未运行:', error.message || error);
+        console.log('WebSocket服务暂时不可用，将在后台自动重连');
       }
       this.triggerLifecycle('error', error);
       this.attemptReconnect();

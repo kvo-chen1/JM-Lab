@@ -139,6 +139,42 @@ class ApiService {
     
     return url;
   }
+
+  /**
+   * 添加评论
+   */
+  async addComment(threadId: string, content: string, replyTo?: string): Promise<{
+    id: string;
+    content: string;
+    created_at: string;
+    user_id: string;
+    post_id: string;
+    parent_id?: string;
+  } | null> {
+    try {
+      const result = await apiClient.post<{
+        id: string;
+        content: string;
+        created_at: string;
+        user_id: string;
+        post_id: string;
+        parent_id?: string;
+      }, { content: string; parent_id: string | null }>(`/api/posts/${threadId}/comments`, {
+        content,
+        parent_id: replyTo || null
+      });
+
+      if (!result.ok) {
+        console.error('[ApiService.addComment] Failed:', result.status);
+        return null;
+      }
+
+      return result.data || null;
+    } catch (error) {
+      console.error('[ApiService.addComment] Error:', error);
+      return null;
+    }
+  }
 }
 
 // 作品服务
@@ -437,7 +473,7 @@ class UserService extends ApiService {
    * 更新用户信息
    */
   async updateUser(user: Partial<User>): Promise<User> {
-    return this.patch<User, Partial<User>>('/api/users/me', user);
+    return this.put<User, Partial<User>>('/api/auth/me', user);
   }
 
   /**

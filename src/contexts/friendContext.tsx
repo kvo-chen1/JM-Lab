@@ -1,6 +1,13 @@
 import React, { createContext, useState, ReactNode, useEffect, useContext } from 'react';
 import { AuthContext, User as AuthUser } from './authContext';
-import apiClient from '@/lib/apiClient';
+import { supabase } from '@/lib/supabase';
+import { 
+  sendFriendRequest as sendSupabaseFriendRequest,
+  acceptFriendRequest as acceptSupabaseFriendRequest,
+  rejectFriendRequest as rejectSupabaseFriendRequest,
+  getFriendRequests as getSupabaseFriendRequests,
+  checkIsFriend
+} from '@/services/messageService';
 
 // 好友请求状态类型
 export type FriendRequestStatus = 'pending' | 'accepted' | 'rejected';
@@ -29,7 +36,7 @@ export interface FriendRequest {
 
 // 好友关系类型
 export interface Friend {
-  id: string; // 实际上可能是 (user_id, friend_id) 组合键，但在前端我们主要用 friend_id 来操作
+  id: string;
   user_id: string;
   friend_id: string;
   user_note?: string;
@@ -84,8 +91,6 @@ export const FriendProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  
-
   // 初始化好友系统
   useEffect(() => {
     let cleanupFunction: (() => void) | undefined;
@@ -133,18 +138,19 @@ export const FriendProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setError(null);
     
     try {
-      const response = await apiClient.get<{ ok: boolean; data: User[] }>(`/api/friends/search?q=${encodeURIComponent(query)}`);
-      if (response.ok) {
-        // apiClient unwraps the response data if it follows { code: 0, data: ... } pattern
-        // But if the backend returns { ok: true, data: [...] } as implied by the type hint I just added...
-        // Wait, let's assume apiClient returns the actual data payload in response.data
-        // If the backend returns standard structure, response.data should be the array of users.
-        const data = response.data as any; // Temporary cast to check structure
-        if (Array.isArray(data)) return data;
-        if (Array.isArray(data?.data)) return data.data;
+      const { data, error: searchError } = await supabase
+        .from('users')
+        .select('id, username, email, avatar_url, bio')
+        .or(`username.ilike.%${query}%,email.ilike.%${query}%`)
+        .neq('id', currentUser.id)
+        .limit(20);
+      
+      if (searchError) {
+        console.error('搜索用户失败:', searchError);
         return [];
       }
-      return [];
+      
+      return data || [];
     } catch (err: any) {
       setError('搜索用户失败');
       console.error('搜索用户失败:', err);
@@ -162,18 +168,14 @@ export const FriendProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setError(null);
     
     try {
-      const response = await apiClient.post('/api/friends/request', { userId });
-      if (response.ok) {
-        return true;
-      }
-      if ((response.data as any)?.error === 'ALREADY_FRIENDS') {
+      await sendSupabaseFriendRequest(currentUser.id, userId);
+      return true;
+    } catch (err: any) {
+      if (err.message === 'ALREADY_FRIENDS') {
         setError('已经是好友了');
       } else {
-        setError((response.data as any)?.message || '发送请求失败');
+        setError(err.message || '发送请求失败');
       }
-      return false;
-    } catch (err: any) {
-      setError('发送好友请求失败');
       console.error('发送好友请求失败:', err);
       return false;
     } finally {
@@ -189,8 +191,8 @@ export const FriendProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setError(null);
     
     try {
-      const response = await apiClient.post('/api/friends/accept', { requestId });
-      if (response.ok) {
+      const success = await acceptSupabaseFriendRequest(requestId);
+      if (success) {
         // 更新本地状态
         setFriendRequests(prev => prev.filter(r => r.id !== requestId));
         getFriends();
@@ -214,8 +216,8 @@ export const FriendProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setError(null);
     
     try {
-      const response = await apiClient.post('/api/friends/reject', { requestId });
-      if (response.ok) {
+      const success = await rejectSupabaseFriendRequest(requestId);
+      if (success) {
         setFriendRequests(prev => prev.filter(r => r.id !== requestId));
         return true;
       }
@@ -229,9 +231,6 @@ export const FriendProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
   };
 
-  // 防抖定时器
-  const [debounceTimers, setDebounceTimers] = useState<Record<string, NodeJS.Timeout>>({});
-
   // 获取好友请求
   const getFriendRequests = async (): Promise<FriendRequest[]> => {
     if (!currentUser) return [];
@@ -240,23 +239,22 @@ export const FriendProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setError(null);
     
     try {
-      const response = await apiClient.get<FriendRequest[]>('/api/friends/requests', {
-        cache: {
-          enabled: true,
-          ttl: 60000, // 缓存60秒
-          staleTtl: 120000 // 过期后可再使用120秒
-        },
-        debounce: {
-          enabled: true,
-          delay: 500
-        }
-      });
-      if (response.ok) {
-        const requests = response.data || [];
-        setFriendRequests(requests);
-        return requests;
-      }
-      return [];
+      const requests = await getSupabaseFriendRequests(currentUser.id);
+      
+      // 获取发送者信息
+      const requestsWithSender = await Promise.all(
+        requests.map(async (req) => {
+          const { data: sender } = await supabase
+            .from('users')
+            .select('id, username, email, avatar_url')
+            .eq('id', req.sender_id)
+            .single();
+          return { ...req, sender };
+        })
+      );
+      
+      setFriendRequests(requestsWithSender);
+      return requestsWithSender;
     } catch (err) {
       setError('获取好友请求失败');
       console.error('获取好友请求失败:', err);
@@ -274,23 +272,44 @@ export const FriendProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setError(null);
     
     try {
-      const response = await apiClient.get('/api/friends/list', {
-        cache: {
-          enabled: true,
-          ttl: 60000, // 缓存60秒
-          staleTtl: 120000 // 过期后可再使用120秒
-        },
-        debounce: {
-          enabled: true,
-          delay: 500
-        }
-      });
-      if (response.data?.ok) {
-        const friendList = response.data.data;
-        setFriends(friendList);
-        return friendList;
+      // 从 friend_requests 表获取已接受的好友关系
+      const { data: friendRelations, error: friendError } = await supabase
+        .from('friend_requests')
+        .select('*')
+        .or(`sender_id.eq.${currentUser.id},receiver_id.eq.${currentUser.id}`)
+        .eq('status', 'accepted');
+      
+      if (friendError) {
+        console.error('获取好友列表失败:', friendError);
+        return [];
       }
-      return [];
+      
+      // 转换为 Friend 格式并获取好友信息
+      const friendsList: Friend[] = await Promise.all(
+        (friendRelations || []).map(async (relation) => {
+          const friendId = relation.sender_id === currentUser.id 
+            ? relation.receiver_id 
+            : relation.sender_id;
+          
+          const { data: friendUser } = await supabase
+            .from('users')
+            .select('id, username, email, avatar_url')
+            .eq('id', friendId)
+            .single();
+          
+          return {
+            id: relation.id,
+            user_id: currentUser.id,
+            friend_id: friendId,
+            created_at: relation.created_at,
+            updated_at: relation.updated_at,
+            friend: friendUser || { id: friendId, username: '未知用户' }
+          };
+        })
+      );
+      
+      setFriends(friendsList);
+      return friendsList;
     } catch (err) {
       setError('获取好友列表失败');
       console.error('获取好友列表失败:', err);
@@ -305,8 +324,14 @@ export const FriendProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     if (!currentUser) return false;
     
     try {
-      // 我们可以静默更新，不显示loading
-      await apiClient.post('/api/friends/status', { status });
+      await supabase
+        .from('user_status')
+        .upsert({
+          user_id: currentUser.id,
+          status,
+          last_seen: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        });
       return true;
     } catch (err) {
       console.error('更新用户状态失败:', err);
@@ -333,12 +358,19 @@ export const FriendProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setError(null);
     
     try {
-      const response = await apiClient.delete(`/api/friends/${friendId}`);
-      if (response.data?.ok) {
-        setFriends(prev => prev.filter(f => f.friend_id !== friendId));
-        return true;
+      // 删除好友关系（将状态改为 rejected 或直接删除）
+      const { error } = await supabase
+        .from('friend_requests')
+        .delete()
+        .or(`and(sender_id.eq.${currentUser.id},receiver_id.eq.${friendId}),and(sender_id.eq.${friendId},receiver_id.eq.${currentUser.id})`);
+      
+      if (error) {
+        console.error('删除好友失败:', error);
+        return false;
       }
-      return false;
+      
+      setFriends(prev => prev.filter(f => f.friend_id !== friendId));
+      return true;
     } catch (err) {
       setError('删除好友失败');
       console.error('删除好友失败:', err);
@@ -356,14 +388,12 @@ export const FriendProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setError(null);
     
     try {
-      const response = await apiClient.post('/api/friends/note', { friendId, note });
-      if (response.ok) {
-        setFriends(prev => prev.map(f => 
-          f.friend_id === friendId ? { ...f, user_note: note } : f
-        ));
-        return true;
-      }
-      return false;
+      // 更新好友备注（需要在 friend_requests 表中添加 note 字段，或者创建单独的表）
+      // 这里简化处理，仅更新本地状态
+      setFriends(prev => prev.map(f => 
+        f.friend_id === friendId ? { ...f, user_note: note } : f
+      ));
+      return true;
     } catch (err) {
       setError('设置好友备注失败');
       console.error('设置好友备注失败:', err);

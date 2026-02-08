@@ -1,12 +1,47 @@
 import http from 'http'
 import { URL } from 'url'
 import { randomUUID } from 'crypto'
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
+import dotenv from 'dotenv'
 import { generateToken, verifyToken } from './jwt.mjs'
 import { userDB, workDB, favoriteDB, achievementDB, friendDB, messageDB } from './database.mjs'
 import { sendLoginEmailCode } from './emailService.mjs'
 
-const PORT = Number(process.env.LOCAL_API_PORT || process.env.PORT) || 3022
+// 获取当前文件所在目录
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+const projectRoot = path.resolve(__dirname, '..')
+
+// 加载环境变量
+const envPath = path.join(projectRoot, '.env')
+const envLocalPath = path.join(projectRoot, '.env.local')
+
+if (fs.existsSync(envPath)) {
+  dotenv.config({ path: envPath })
+  console.log('[Config] 已加载 .env 文件:', envPath)
+}
+if (fs.existsSync(envLocalPath)) {
+  dotenv.config({ path: envLocalPath, override: true })
+  console.log('[Config] 已加载 .env.local 文件:', envLocalPath)
+}
+
+// 打印邮件配置（调试用）
+console.log('[Config] 邮件配置:', {
+  host: process.env.EMAIL_HOST,
+  port: process.env.EMAIL_PORT,
+  secure: process.env.EMAIL_SECURE,
+  user: process.env.EMAIL_USER,
+  from: process.env.EMAIL_FROM
+})
+
+const PORT = Number(process.env.LOCAL_API_PORT || process.env.PORT) || 3023
 const ORIGIN = process.env.CORS_ALLOW_ORIGIN || '*'
+
+// DashScope (Aliyun Qwen) config
+const DASHSCOPE_BASE_URL = process.env.DASHSCOPE_BASE_URL || 'https://dashscope.aliyuncs.com/api/v1'
+const DASHSCOPE_API_KEY = process.env.DASHSCOPE_API_KEY || process.env.VITE_QWEN_API_KEY || ''
 
 function setCors(res) {
   res.setHeader('Access-Control-Allow-Origin', ORIGIN)
@@ -56,6 +91,153 @@ function verifyRequestToken(req) {
     return decoded
   } catch (error) {
     return null
+  }
+}
+
+// DashScope API 请求函数
+async function dashscopeFetch(endpoint, method, payload, authKey) {
+  const url = `${DASHSCOPE_BASE_URL}${endpoint}`
+  
+  try {
+    console.log(`[DashScope] ${method} ${url}`)
+    
+    const resp = await fetch(url, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authKey || DASHSCOPE_API_KEY}`
+      },
+      body: JSON.stringify(payload)
+    })
+
+    const data = await resp.json()
+    console.log(`[DashScope] 响应数据:`, data)
+    
+    return { status: resp.status, ok: resp.ok, data }
+  } catch (error) {
+    console.error(`[DashScope] 请求失败:`, error)
+    return { status: 500, ok: false, data: { error: error.message } }
+  }
+}
+
+// 轮询 DashScope 任务状态
+async function pollDashScopeTask(taskId, authKey) {
+  const maxRetries = 120 // 6 minutes (3s interval)
+  const interval = 3000
+  
+  for (let i = 0; i < maxRetries; i++) {
+    await new Promise(resolve => setTimeout(resolve, interval))
+    
+    try {
+      const resp = await fetch(`https://dashscope.aliyuncs.com/api/v1/tasks/${taskId}`, {
+        headers: {
+          'Authorization': `Bearer ${authKey}`
+        }
+      })
+      
+      if (!resp.ok) {
+        console.error(`[DashScope] Polling failed: ${resp.status}`)
+        continue
+      }
+      
+      const data = await resp.json()
+      console.log(`[DashScope] Task ${taskId} status: ${data.output?.task_status}`)
+      
+      if (data.output?.task_status === 'SUCCEEDED') {
+        return data
+      }
+      
+      if (data.output?.task_status === 'FAILED' || data.output?.task_status === 'CANCELED') {
+        throw new Error(`Task failed with status: ${data.output?.task_status}, message: ${data.output?.message || 'Unknown error'}`)
+      }
+    } catch (e) {
+      console.error('[DashScope] Polling error:', e)
+      if (e.message.includes('Task failed')) throw e
+    }
+  }
+  
+  throw new Error('Task polling timed out')
+}
+
+// 视频生成函数
+async function dashscopeVideoGenerate(params) {
+  const { prompt, imageUrl, authKey, model } = params
+  const endpoint = 'https://dashscope.aliyuncs.com/api/v1/services/aigc/video-generation/video-synthesis'
+  
+  try {
+    const payload = {
+      model: model || 'wan2.6-i2v-flash',
+      input: {
+        prompt: prompt,
+        img_url: imageUrl
+      },
+      parameters: {
+        resolution: '720P',
+        duration: 5
+      }
+    }
+    
+    // Remove img_url if not provided (text-to-video)
+    if (!imageUrl) {
+      delete payload.input.img_url
+      if (!model || model === 'wan2.6-i2v-flash') payload.model = 'wanx2.1-t2v-turbo'
+    }
+
+    console.log('[DashScope] Starting video generation task:', JSON.stringify(payload, null, 2))
+
+    const resp = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authKey}`,
+        'X-DashScope-Async': 'enable'
+      },
+      body: JSON.stringify(payload)
+    })
+
+    const data = await resp.json()
+    console.log('[DashScope] Response status:', resp.status)
+    
+    if (!resp.ok) {
+      console.error('[DashScope] Video generation submission failed:', data)
+      throw new Error(data.message || data.code || `Failed to submit video task: ${resp.status}`)
+    }
+
+    const taskId = data.output?.task_id
+    if (!taskId) {
+      throw new Error('No task_id returned from DashScope')
+    }
+
+    console.log(`[DashScope] Video task submitted: ${taskId}`)
+    
+    // Poll for result
+    const result = await pollDashScopeTask(taskId, authKey)
+    
+    // Extract video URL
+    const videoUrl = result.output?.video_url 
+      || result.output?.results?.[0]?.url 
+      || result.output?.results?.[0]?.video_url
+    
+    if (!videoUrl) {
+      console.error('[DashScope] No video URL in result:', result)
+      throw new Error('No video URL found in completed task')
+    }
+
+    return {
+      status: 200,
+      ok: true,
+      data: {
+        video_url: videoUrl,
+        task_id: taskId
+      }
+    }
+  } catch (error) {
+    console.error('[DashScope] Video generation error:', error)
+    return {
+      status: 500,
+      ok: false,
+      data: { error: error.message }
+    }
   }
 }
 
@@ -446,6 +628,66 @@ async function route(req, res, u, path) {
   // 健康检查
   if (req.method === 'GET' && path === '/api/health/ping') {
     sendJson(res, 200, { ok: true, message: 'pong', port: PORT })
+    return
+  }
+
+  // ==========================================
+  // 千问视频生成 API
+  // ==========================================
+
+  // 处理千问视频生成请求
+  if (req.method === 'POST' && path === '/api/qwen/videos/generate') {
+    const b = await readBody(req)
+    
+    let prompt = b.prompt
+    let imageUrl = b.imageUrl
+    
+    // Parse content array if present (from llmService)
+    if (b.content && Array.isArray(b.content)) {
+      const textItem = b.content.find(item => item.type === 'text')
+      if (textItem) prompt = textItem.text
+      
+      const imageItem = b.content.find(item => item.type === 'image_url')
+      if (imageItem) imageUrl = imageItem.image_url?.url || imageItem.image_url
+    }
+
+    // 确保prompt字段存在
+    if (!prompt) { 
+      sendJson(res, 400, { error: 'PROMPT_REQUIRED', message: 'Prompt is required' }) 
+      return 
+    }
+    
+    console.log(`[Qwen Video] Request received:`, prompt)
+    console.log(`[Qwen Video] Image URL:`, imageUrl || '(none - text to video)')
+    
+    const authKey = process.env.DASHSCOPE_API_KEY || process.env.VITE_QWEN_API_KEY || ''
+    if (!authKey) { 
+      console.error('[Qwen Video] ERROR: API Key not configured')
+      sendJson(res, 401, { error: 'API_KEY_MISSING', message: 'Missing DashScope API Key' }) 
+      return 
+    }
+    console.log(`[Qwen Video] API Key configured: ${authKey.slice(0, 8)}...${authKey.slice(-4)}`)
+
+    try {
+      const r = await dashscopeVideoGenerate({
+        prompt: prompt,
+        imageUrl: imageUrl,
+        authKey,
+        model: b.model
+      })
+      
+      if (!r.ok) {
+        console.error('[Qwen Video] Generation failed:', r.data)
+        sendJson(res, r.status, r.data)
+        return
+      }
+      
+      console.log('[Qwen Video] Generation successful:', r.data)
+      sendJson(res, 200, r.data)
+    } catch (e) {
+      console.error('[Qwen Video] Error:', e)
+      sendJson(res, 500, { error: 'GENERATION_FAILED', message: e.message })
+    }
     return
   }
 

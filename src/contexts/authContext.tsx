@@ -5,6 +5,7 @@ import eventBus from '../lib/eventBus'; // 导入事件总线
 import { toast } from 'sonner';
 import userStatsService from '../services/userStatsService';
 import { historyService } from '../services/historyService';
+import { userService } from '../services/apiService';
 
 // 性能优化：批量更新状态的辅助函数
 const batchUpdates = (updates: (() => void)[]) => {
@@ -684,23 +685,31 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     return false;
   };
 
-  // 发送邮箱验证码方法（使用后端API以避免Supabase频率限制）
+  // 发送邮箱验证码方法（使用后端API）
   const sendEmailOtp = async (email: string): Promise<{ success: boolean; error?: string; mockCode?: string }> => {
     try {
       const normalizedEmail = String(email || '').trim().toLowerCase();
       
+      console.log('开始发送验证码到邮箱:', normalizedEmail);
+      
+      // 调用后端API发送验证码
       const response = await fetch('/api/auth/send-email-code', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: normalizedEmail }),
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ email: normalizedEmail })
       });
-
-      const data = await response.json().catch(() => null);
-      if (response.ok && data?.code === 0) {
-        return { success: true, mockCode: data.data?.mockCode };
+      
+      const data = await response.json();
+      
+      if (response.ok && data.code === 0) {
+        console.log('验证码发送成功');
+        return { success: true };
+      } else {
+        console.error('发送验证码失败:', data.message);
+        return { success: false, error: data.message || '发送验证码失败，请稍后重试' };
       }
-
-      return { success: false, error: data?.message || '发送邮箱验证码失败，请稍后重试' };
     } catch (error: any) {
       console.error('发送邮箱验证码失败:', error);
       return { success: false, error: error.message || '发送邮箱验证码失败，请稍后重试' };
@@ -750,169 +759,85 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   };
 
-  // 验证码登录方法
+  // 验证码登录方法（使用后端API验证）
   const loginWithCode = async (type: 'email' | 'phone', identifier: string, code: string): Promise<boolean> => {
     try {
-      if (type === 'phone') return false;
+      if (type === 'phone') {
+        // 手机号登录暂时不支持
+        toast.error('手机号登录暂时不可用，请使用邮箱登录');
+        return false;
+      }
 
+      // 邮箱验证码登录
       const normalizedEmail = String(identifier || '').trim().toLowerCase();
       
-      // 使用后端API验证验证码并登录
+      // 调用后端API验证验证码
       const response = await fetch('/api/auth/login-with-email-code', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: normalizedEmail, code }),
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ 
+          email: normalizedEmail,
+          code: code
+        })
       });
 
       const data = await response.json();
 
-      if (response.ok && data.code === 0 && data.data) {
-        const backendUser = data.data.user || data.data;
-        console.log('后端返回的用户信息:', backendUser);
-        
-        // 确保用户信息与数据库匹配
-        if (!backendUser.id || typeof backendUser.id !== 'string') {
-          console.error('无效的用户ID，登录失败');
-          toast.error('登录失败：无效的用户信息');
-          return false;
-        }
-        
-        // 检查是否是邮箱验证码登录的用户
-        if (backendUser.auth_provider && backendUser.auth_provider !== 'local') {
-          console.error('非邮箱验证码登录用户，登录失败');
-          toast.error('该账号不是通过邮箱验证码登录的，请使用邮箱验证码登录');
-          return false;
-        }
-        
-        // 尝试使用Supabase登录，确保使用Supabase用户ID
-        try {
-          // 首先尝试使用邮箱和临时密码登录Supabase
-          console.log('尝试通过Supabase邮箱登录...');
-          const { data: supabaseData, error: supabaseError } = await supabase.auth.signInWithPassword({
-            email: normalizedEmail,
-            password: backendUser.id.substring(0, 20) // 使用用户ID的一部分作为临时密码
-          });
-          
-          if (supabaseData?.user) {
-            console.log('Supabase登录成功，用户ID:', supabaseData.user.id);
-            // Supabase登录成功，使用Supabase用户信息
-            const userWithMembership = createUserFromSession(supabaseData.session);
-            
-            // 检查后端返回的ID与Supabase ID是否匹配
-            if (backendUser.id && backendUser.id !== supabaseData.user.id) {
-              console.warn('检测到用户ID不匹配 (Backend vs Supabase)，使用Supabase ID:', {
-                backendId: backendUser.id,
-                supabaseId: supabaseData.user.id
-              });
-              // 同步后端数据库，使用Supabase ID
-              await fetch('/api/auth/update-user-id', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ oldId: backendUser.id, newId: supabaseData.user.id, email: normalizedEmail }),
-              });
-              // 清理旧数据，确保使用Supabase ID
-              safeLocalStorage.removeItem('token');
-              safeLocalStorage.removeItem('refreshToken');
-              safeLocalStorage.removeItem('user');
-              safeLocalStorage.removeItem('isAuthenticated');
-            }
-            
-            // 存储用户信息和token到本地
-            // 优先使用后端返回的JWT token，如果没有则使用Supabase token
-            safeLocalStorage.setItem('token', data.data.token || supabaseData.session?.access_token || '');
-            safeLocalStorage.setItem('refreshToken', supabaseData.session?.refresh_token || '');
-            // 存储Supabase token用于Supabase认证
-            safeLocalStorage.setItem('supabaseToken', supabaseData.session?.access_token || '');
-            safeLocalStorage.setItem('supabaseRefreshToken', supabaseData.session?.refresh_token || '');
-            safeLocalStorage.setItem('user', JSON.stringify(userWithMembership));
-            safeLocalStorage.setItem('isAuthenticated', 'true');
-            
-            // 更新状态
-            updateAuthState(userWithMembership, true, false);
-            
-            // 检查用户信息是否完整
-            const isProfileComplete = userWithMembership.username && userWithMembership.username.trim() !== '' && 
-                                   userWithMembership.avatar && userWithMembership.avatar.trim() !== '';
-            
-            // 发布登录成功事件
-            eventBus.publish('auth:login', { 
-              userId: userWithMembership.id, 
-              user: userWithMembership,
-              isProfileComplete
-            });
-            
-            return true;
-          } else if (supabaseError) {
-            console.warn('Supabase登录失败，尝试创建新用户:', supabaseError.message);
-            // Supabase登录失败，可能是新用户，尝试注册
-            const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-              email: normalizedEmail,
-              password: backendUser.id.substring(0, 20), // 使用用户ID的一部分作为密码
-              options: {
-                data: {
-                  username: backendUser.username || normalizedEmail.split('@')[0],
-                  avatar: backendUser.avatar || '',
-                  isNewUser: true,
-                  auth_provider: 'local' // 标记为本地登录（邮箱验证码）
-                }
-              }
-            });
-            
-            if (signUpData?.user) {
-              console.log('Supabase用户创建成功，ID:', signUpData.user.id);
-              const userWithMembership = createUserFromSession(signUpData.session);
-              
-              // 同步后端数据库，使用Supabase ID
-              await fetch('/api/auth/update-user-id', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ oldId: backendUser.id, newId: signUpData.user.id, email: normalizedEmail }),
-              });
-              
-              // 存储用户信息和token到本地
-              // 存储后端token用于后端API认证
-              safeLocalStorage.setItem('token', data.data.token || '');
-              // 存储Supabase token用于Supabase认证
-              safeLocalStorage.setItem('supabaseToken', signUpData.session?.access_token || '');
-              safeLocalStorage.setItem('supabaseRefreshToken', signUpData.session?.refresh_token || '');
-              safeLocalStorage.setItem('refreshToken', signUpData.session?.refresh_token || '');
-              safeLocalStorage.setItem('user', JSON.stringify(userWithMembership));
-              safeLocalStorage.setItem('isAuthenticated', 'true');
-              
-              // 更新状态
-              updateAuthState(userWithMembership, true, false);
-              
-              // 检查用户信息是否完整
-              const isProfileComplete = userWithMembership.username && userWithMembership.username.trim() !== '' && 
-                                     userWithMembership.avatar && userWithMembership.avatar.trim() !== '';
-              
-              // 发布登录成功事件
-              eventBus.publish('auth:login', { 
-                userId: userWithMembership.id, 
-                user: userWithMembership,
-                isProfileComplete
-              });
-              
-              return true;
-            } else {
-              console.warn('Supabase注册失败，使用后端返回的用户信息:', signUpError?.message);
-              // Supabase注册也失败，使用后端返回的用户信息
-              return handleLoginSuccess(data.data);
-            }
-          }
-        } catch (supabaseError) {
-          console.warn('Supabase登录检查失败，使用后端返回的用户信息:', supabaseError);
-          // Supabase登录检查失败，使用后端返回的用户信息
-          return handleLoginSuccess(data.data);
-        }
-      } else {
-        const errorMsg = data.message || '验证码无效或已过期';
-        console.error('验证码登录失败:', errorMsg);
-        toast.error(`登录失败: ${errorMsg}`);
+      if (!response.ok || data.code !== 0) {
+        console.error('邮箱验证码验证失败:', data.message);
+        toast.error(data.message || '验证码无效或已过期');
         return false;
       }
-    } catch (error) {
+
+      // 登录成功，处理用户数据
+      console.log('验证码登录成功，用户数据:', data.data);
+      
+      const userData = data.data?.user || data.data;
+      const sessionData = data.data?.session || {};
+      
+      // 创建用户对象
+      const userWithMembership: User = {
+        id: userData.id || userData.user_id || '',
+        email: userData.email || normalizedEmail,
+        username: userData.username || userData.name || normalizedEmail.split('@')[0],
+        avatar: userData.avatar_url || userData.avatar || '',
+        bio: userData.bio || '',
+        is_verified: userData.is_verified || false,
+        metadata: userData.metadata || {},
+        created_at: userData.created_at || new Date().toISOString(),
+        updated_at: userData.updated_at || new Date().toISOString(),
+        isNewUser: !userData.username || userData.username.trim() === ''
+      };
+      
+      // 存储用户信息和token到本地
+      const token = sessionData.access_token || sessionData.token || data.data?.token || '';
+      const refreshToken = sessionData.refresh_token || '';
+      
+      safeLocalStorage.setItem('token', token);
+      safeLocalStorage.setItem('refreshToken', refreshToken);
+      safeLocalStorage.setItem('user', JSON.stringify(userWithMembership));
+      safeLocalStorage.setItem('isAuthenticated', 'true');
+      
+      // 更新状态
+      updateAuthState(userWithMembership, true, false);
+      
+      // 检查用户信息是否完整
+      const isProfileComplete = userWithMembership.username && userWithMembership.username.trim() !== '' && 
+                               userWithMembership.avatar && userWithMembership.avatar.trim() !== '';
+      
+      // 发布登录成功事件
+      eventBus.publish('auth:login', { 
+        userId: userWithMembership.id, 
+        user: userWithMembership,
+        isProfileComplete
+      });
+      
+      return true;
+    } catch (error: any) {
       console.error(`${type === 'email' ? '邮箱' : '手机'}验证码登录失败:`, error);
+      toast.error(error.message || '登录失败，请稍后重试');
       return false;
     }
   };
@@ -1254,15 +1179,16 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   };
 
-  // 中文注释：更新用户信息并写入本地存储
-  const updateUser = (partial: Partial<User>) => {
+  // 中文注释：更新用户信息并写入本地存储和数据库
+  const updateUser = async (partial: Partial<User>) => {
+    // 确保avatar字段始终是字符串
+    const safePartial = { ...partial };
+    if (safePartial.avatar && typeof safePartial.avatar === 'object') {
+      safePartial.avatar = '';
+    }
+    
+    // 先更新本地状态
     setUser(prev => {
-      // 确保avatar字段始终是字符串
-      const safePartial = { ...partial };
-      if (safePartial.avatar && typeof safePartial.avatar === 'object') {
-        safePartial.avatar = '';
-      }
-      
       const next = { 
         ...(prev || {} as User), 
         ...safePartial,
@@ -1279,36 +1205,31 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         
         // 发布用户信息更新事件
         eventBus.publish('auth:update', { isAuthenticated: true, user: next });
-        // 只发布auth:update事件，避免触发数据刷新循环
-        
-        // 如果是新用户，初始化统计数据
-        if (next.isNewUser && !partial.isNewUser) {
-          eventBus.publish('auth:register', { 
-            userId: next.id, 
-            user: next 
-          });
-          // 初始化后不再标记为新用户
-          setTimeout(() => {
-            setUser(prevUser => {
-              if (prevUser) {
-                const updatedUser = { 
-                  ...prevUser, 
-                  isNewUser: false,
-                  // 确保avatar字段始终是字符串
-                  avatar: typeof prevUser.avatar === 'string' ? prevUser.avatar : ''
-                };
-                localStorage.setItem('user', JSON.stringify(updatedUser));
-                return updatedUser;
-              }
-              return prevUser;
-            });
-          }, 0);
-        }
       } catch (error) {
         console.error('Failed to update user information:', error);
       }
       return next;
     });
+    
+    // 同步到后端数据库
+    try {
+      const token = localStorage.getItem('token');
+      if (token) {
+        const updatedUser = await userService.updateUser(safePartial);
+        console.log('User information synced to database:', updatedUser);
+        
+        // 如果是新用户，初始化统计数据
+        if (partial.isNewUser === false) {
+          eventBus.publish('auth:register', { 
+            userId: updatedUser.id, 
+            user: updatedUser 
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Failed to sync user information to database:', error);
+      toast.error('同步用户信息到服务器失败，请稍后重试');
+    }
   };
 
   // 更新会员信息

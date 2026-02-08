@@ -297,23 +297,7 @@ export const useCommunityLogic = () => {
         // 3. 等待并行加载完成
         await Promise.allSettled(fetchPromises);
 
-        // 4. 加载当前社群的帖子（如果有）
-        if (activeCommunityId) {
-          setLoading(prev => ({ ...prev, threads: true }));
-          setErrors(prev => ({ ...prev, threads: null }));
-
-          try {
-            const threadsData = await communityService.getThreadsByCommunity(activeCommunityId);
-            if (threadsData) {
-              setThreads(threadsData);
-            }
-          } catch (err) {
-            console.error('Failed to fetch threads:', err);
-            setErrors(prev => ({ ...prev, threads: '加载帖子数据失败' }));
-          } finally {
-            setLoading(prev => ({ ...prev, threads: false }));
-          }
-        }
+        // 注意：帖子数据现在由单独的 useEffect 处理，当 activeCommunityId 变化时加载
       } catch (error) {
         console.error('Error loading community data:', error);
         setErrors(prev => ({
@@ -328,7 +312,33 @@ export const useCommunityLogic = () => {
     };
 
     loadData();
-  }, [user?.id, activeCommunityId]); // Add user and activeCommunityId dependency
+  }, [user?.id]); // Only reload when user changes, not when activeCommunityId changes
+
+  // Load threads when activeCommunityId changes
+  useEffect(() => {
+    const loadThreads = async () => {
+      if (activeCommunityId) {
+        setLoading(prev => ({ ...prev, threads: true }));
+        setErrors(prev => ({ ...prev, threads: null }));
+
+        try {
+          const threadsData = await communityService.getThreadsByCommunity(activeCommunityId);
+          if (threadsData) {
+            setThreads(threadsData);
+          }
+        } catch (err) {
+          console.error('Failed to fetch threads:', err);
+          setErrors(prev => ({ ...prev, threads: '加载帖子数据失败' }));
+        } finally {
+          setLoading(prev => ({ ...prev, threads: false }));
+        }
+      } else {
+        setThreads([]);
+      }
+    };
+
+    loadThreads();
+  }, [activeCommunityId]);
 
   // Handle URL parameter for community ID
   useEffect(() => {
@@ -484,18 +494,26 @@ export const useCommunityLogic = () => {
   // --- Actions ---
 
   const handleSelectCommunity = useCallback(async (id: string | null) => {
+    console.log('[handleSelectCommunity] Called with id:', id);
+    console.log('[handleSelectCommunity] Current joinedCommunities:', joinedCommunities.map(c => ({ id: c.id, name: c.name })));
+    
     if (id) {
       // 检查用户是否已经加入该社群
       const isJoined = joinedCommunities.some(c => c.id === id);
+      console.log('[handleSelectCommunity] Is joined:', isJoined);
+      
       if (isJoined) {
+        console.log('[handleSelectCommunity] Setting active community:', id);
         setActiveCommunityId(id);
         // 切换社群后，useEffect 会自动触发 loadData 加载帖子数据
       } else {
         // 用户未加入该社群，不允许进入
+        console.log('[handleSelectCommunity] User not joined, showing error');
         toast.error('请先加入该社群');
         return;
       }
     } else {
+      console.log('[handleSelectCommunity] Setting to discovery mode');
       setActiveCommunityId(id);
       setActiveChannel('communities'); // Default back to communities grid
     }
@@ -1186,8 +1204,16 @@ export const useCommunityLogic = () => {
 
 
   const handleJoinCommunity = useCallback(async (id: string) => {
+      console.log('[handleJoinCommunity] Called with id:', id);
+      console.log('[handleJoinCommunity] allCommunities:', allCommunities.map(c => ({ id: c.id, name: c.name })));
+      
       const community = allCommunities.find(c => c.id === id);
-      if (!community) return;
+      console.log('[handleJoinCommunity] Found community:', community);
+      
+      if (!community) {
+        console.error('[handleJoinCommunity] Community not found:', id);
+        return;
+      }
 
       if (!user?.id) {
         toast.error('请先登录后再操作');
@@ -1203,10 +1229,17 @@ export const useCommunityLogic = () => {
           toast.success('已退出社群');
         } else {
           // Join
+          console.log('[handleJoinCommunity] Joining community:', id);
           const result = await communityService.joinCommunity(id, user.id);
+          console.log('[handleJoinCommunity] Join result:', result);
           
           if (result.status === 'approved') {
-            setJoinedCommunities(prev => [...prev, community]);
+            console.log('[handleJoinCommunity] Adding community to joinedCommunities:', community);
+            setJoinedCommunities(prev => {
+              const newJoined = [...prev, community];
+              console.log('[handleJoinCommunity] New joinedCommunities:', newJoined.map(c => ({ id: c.id, name: c.name })));
+              return newJoined;
+            });
             toast.success('已加入社群');
           } else {
             toast.success('加入请求已提交，等待管理员审核');

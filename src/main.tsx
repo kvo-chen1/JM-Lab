@@ -2,10 +2,24 @@
 import { StrictMode } from "react";
 import * as ReactDOMClient from "react-dom/client";
 
-// 加载样式文件
+// 加载关键样式文件（首屏必需）
 import "./index.css";
-import "./styles/tianjin.css";
-import "./styles/neo.css";
+
+// 延迟加载非关键样式，避免阻塞渲染
+const loadNonCriticalStyles = () => {
+  // 使用 requestIdleCallback 在浏览器空闲时加载非关键CSS
+  const loadStyles = () => {
+    // 动态导入非关键样式
+    import('./styles/tianjin.css').catch(err => console.warn('Failed to load tianjin.css:', err));
+    import('./styles/neo.css').catch(err => console.warn('Failed to load neo.css:', err));
+  };
+
+  if ('requestIdleCallback' in window) {
+    requestIdleCallback(loadStyles, { timeout: 2000 });
+  } else {
+    setTimeout(loadStyles, 1000);
+  }
+};
 
 // 加载路由和核心组件
 import { BrowserRouter } from "react-router-dom";
@@ -71,11 +85,13 @@ if ('requestIdleCallback' in window) {
   requestIdleCallback(() => {
     setupApi();
     initPerformanceMonitor();
+    loadNonCriticalStyles(); // 加载非关键样式
   }, { timeout: 3000 });
 } else {
   setTimeout(() => {
     setupApi();
     initPerformanceMonitor();
+    loadNonCriticalStyles(); // 加载非关键样式
   }, 2000);
 }
 

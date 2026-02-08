@@ -205,14 +205,6 @@ export default function CanvasArea() {
         {/* View Controls & Actions */}
         <div className="flex items-center gap-3 pr-12 md:pr-0">
           <button 
-            onClick={() => useCreateStore.getState().updateState({ showCollaborationPanel: true })}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2 transition-all ${isDark ? 'bg-gray-800 hover:bg-gray-700 text-gray-300' : 'bg-white hover:bg-gray-50 text-gray-600 shadow-sm border border-gray-200'}`}
-          >
-            <i className="fas fa-users text-blue-500"></i>
-            <span className="hidden sm:inline">协作</span>
-          </button>
-          
-          <button 
             onClick={() => {
               if (isEmpty) {
                 toast.error('请先生成作品后再进行AI点评');

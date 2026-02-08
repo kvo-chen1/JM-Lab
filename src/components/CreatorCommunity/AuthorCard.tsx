@@ -226,7 +226,7 @@ export const AuthorCard: React.FC<AuthorCardProps> = ({
         >
           <div className={`${sizeStyles.avatar} bg-gradient-to-br from-blue-400 via-purple-500 to-pink-500 rounded-full overflow-hidden ring-2 ring-offset-2 ring-offset-white dark:ring-offset-gray-900 ring-transparent`}>
             <LazyImage
-              src={author.avatar_url || 'https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=默认用户头像，简洁现代风格&image_size=square'}
+              src={author.avatar_url || author.avatar || 'https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=默认用户头像，简洁现代风格&image_size=square'}
               alt={author.username}
               className="w-full h-full object-cover"
               placeholder="blur"

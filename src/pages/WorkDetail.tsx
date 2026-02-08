@@ -14,6 +14,8 @@ import { toast } from 'sonner'
 import LazyImage from '@/components/LazyImage'
 // 导入API服务
 import { apiService } from '@/services/apiService'
+// 导入Supabase客户端
+import { supabase } from '@/lib/supabase'
 
 export default function WorkDetail() {
   const { isDark } = useTheme()
@@ -45,68 +47,131 @@ export default function WorkDetail() {
 
   // 从API获取作品详情
   useEffect(() => {
-    if (id) {
-      const fetchWorkDetails = async () => {
+    if (!id) return;
+    
+    let isMounted = true;
+    
+    const fetchWorkDetails = async () => {
+      try {
+        // 首先尝试从 Supabase 获取数据（作为回退机制）
+        let workData = null;
+        
         try {
-          // 从API获取作品详情
-          const workData = await apiService.getWorkById(id);
-          setWork(workData);
+          // 尝试从API获取
+          workData = await apiService.getWorkById(id);
+        } catch (apiError) {
+          console.log('API获取失败，尝试从Supabase获取:', apiError);
+        }
+        
+        // 如果API获取失败，从Supabase获取
+        if (!workData && supabase) {
+          const { data: postData, error: postError } = await supabase
+            .from('posts')
+            .select('*')
+            .eq('id', id)
+            .eq('status', 'published')
+            .single();
           
-          if (workData) {
-            // 初始化点赞和收藏状态
-            // 优先使用 workData 中的状态，如果后端正确返回了针对当前用户的状态
-            if (isAuthenticated && user) {
-                // 如果后端API返回了 isLiked/isBookmarked，则使用之
-                // 否则尝试从 Supabase 获取 (需要 await)
-                const userBookmarks = await postsApi.getUserBookmarks(user.id);
-                const userLikes = await postsApi.getUserLikes(user.id);
-                
-                // 假设 workData 可能不包含 isBookmarked/isLiked (如果后端没处理)
-                // 这里做一个合并逻辑
-                setBookmarked(workData.isBookmarked || userBookmarks.includes(id));
-                setLiked(workData.isLiked || userLikes.includes(id));
-            } else {
-                setBookmarked(false);
-                setLiked(false);
-            }
+          if (postError) {
+            console.error('Supabase获取作品详情失败:', postError);
+          } else if (postData) {
+            // 获取作者信息
+            const { data: authorData } = await supabase
+              .from('users')
+              .select('username, avatar_url')
+              .eq('id', postData.author_id)
+              .single();
             
-            setLikes(workData.likes || 0);
+            workData = {
+              id: postData.id,
+              title: postData.title,
+              content: postData.content,
+              images: postData.images,
+              author: authorData?.username || 'Unknown',
+              authorAvatar: authorData?.avatar_url,
+              likes: postData.likes_count || 0,
+              views: postData.views || 0,
+              createdAt: postData.created_at ? new Date(postData.created_at * 1000).toISOString() : new Date().toISOString(),
+              tags: postData.tags || [],
+              category: postData.category || '设计'
+            };
+          }
+        }
+        
+        if (!isMounted) return;
+        
+        setWork(workData);
+        
+        if (workData) {
+          // 初始化点赞和收藏状态
+          if (isAuthenticated && user) {
+              const userBookmarks = await postsApi.getUserBookmarks(user.id);
+              const userLikes = await postsApi.getUserLikes(user.id);
+              
+              if (!isMounted) return;
+              
+              setBookmarked(workData.isBookmarked || userBookmarks.includes(id));
+              setLiked(workData.isLiked || userLikes.includes(id));
+          } else {
+              setBookmarked(false);
+              setLiked(false);
+          }
+          
+          setLikes(workData.likes || 0);
+          
+          // 获取相关作品（从Supabase）
+          if (supabase) {
+            const { data: relatedData } = await supabase
+              .from('posts')
+              .select('*')
+              .eq('status', 'published')
+              .neq('id', id)
+              .limit(6);
             
-            // 获取相关作品
-            const relatedWorksData = await apiService.getRelatedWorks(id, 6);
-            if (relatedWorksData) {
-              setRelated(relatedWorksData);
+            if (!isMounted) return;
+            
+            if (relatedData) {
+              const relatedWorks = await Promise.all(
+                relatedData.map(async (post) => {
+                  const { data: author } = await supabase
+                    .from('users')
+                    .select('username')
+                    .eq('id', post.author_id)
+                    .single();
+                  
+                  return {
+                    id: post.id,
+                    title: post.title,
+                    images: post.images,
+                    author: author?.username || 'Unknown',
+                    likes: post.likes_count || 0
+                  };
+                })
+              );
+              if (isMounted) {
+                setRelated(relatedWorks);
+              }
             }
           }
-        } catch (error) {
-          console.error('获取作品详情失败:', error);
+        }
+      } catch (error) {
+        console.error('获取作品详情失败:', error);
+        if (isMounted) {
           toast.error('加载作品详情失败，请稍后重试');
-          // 出错时使用空对象
           setWork(null);
         }
-      };
-      
-      fetchWorkDetails();
-    }
-  }, [id])
-
-  // 确保在访问work属性之前work已经存在
-  if (!work) {
-    return (
-      <div className={`min-h-screen ${isDark ? 'bg-gray-900' : 'bg-gray-100'}`}>
-        <main className="max-w-7xl mx-auto p-0 py-6">
-          <div className="text-center py-20">
-            <div className="text-5xl text-gray-400 mb-4"><i className="far fa-image" /></div>
-            <h2 className="text-xl font-semibold mb-2">未找到作品</h2>
-            <p className={`${isDark ? 'text-gray-400' : 'text-gray-600'}`}>请返回探索页选择其他作品</p>
-            <button className="mt-6 px-4 py-2 rounded-lg bg-red-600 text-white" onClick={() => navigate('/explore')}>返回探索</button>
-          </div>
-        </main>
-      </div>
-    );
-  }
+      }
+    };
+    
+    fetchWorkDetails();
+    
+    return () => {
+      isMounted = false;
+    };
+  }, [id, isAuthenticated, user])
 
   // 使用useCallback缓存点击事件处理函数，减少不必要的重渲染
+  // 注意：所有useCallback必须在任何条件返回之前调用
   const handleLike = useCallback(async () => {
     if (work) {
       const stringId = work.id.toString()
@@ -284,6 +349,7 @@ export default function WorkDetail() {
     setExportOptions(prev => ({ ...prev, [key]: value }))
   }
 
+  // 渲染内容
   if (!work) {
     return (
       <div className={`min-h-screen ${isDark ? 'bg-gray-900' : 'bg-gray-100'}`}>
@@ -308,7 +374,7 @@ export default function WorkDetail() {
             <i className="fas fa-chevron-right text-xs mx-2 opacity-50" />
             <a href="/square" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">津脉广场</a>
             <i className="fas fa-chevron-right text-xs mx-2 opacity-50" />
-            <span className="opacity-70">{work.title}</span>
+            <span className="opacity-70">{work?.title || '作品详情'}</span>
           </div>
 
           <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className={`rounded-xl shadow-lg overflow-hidden ${isDark ? 'bg-gray-800' : 'bg-white'}`}>

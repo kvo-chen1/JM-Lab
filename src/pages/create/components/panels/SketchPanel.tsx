@@ -93,6 +93,8 @@ export default function SketchPanel() {
   const [videoDuration, setVideoDuration] = useState(5);
   const [imageStrength, setImageStrength] = useState(70);
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
+  const [videoGenerationProgress, setVideoGenerationProgress] = useState(0);
+  const [videoGenerationStatus, setVideoGenerationStatus] = useState('');
   
   // Store 状态
   const { 
@@ -257,46 +259,173 @@ export default function SketchPanel() {
 
   // 文生视频
   const generateTextToVideo = async () => {
-    // TODO: 实现文生视频API调用
-    toast.info('文生视频功能开发中，使用模拟数据预览');
-    
-    await new Promise(resolve => setTimeout(resolve, 3000));
-    
-    const fallback = [
-      { 
-        id: Date.now(), 
-        thumbnail: 'https://images.unsplash.com/photo-1536240478700-b869070f9279?w=600&h=400&fit=crop', 
-        score: 90, 
-        type: 'video',
-        video: 'https://www.w3schools.com/html/mov_bbb.mp4'
-      },
-    ];
-    setGeneratedResults(fallback);
-    setSelectedResult(fallback[0].id);
-    setCurrentStep(2);
-    toast.success('视频生成完成');
+    try {
+      setIsGenerating(true);
+      setVideoGenerationProgress(0);
+      setVideoGenerationStatus('正在提交视频生成任务...');
+      toast.info('视频生成开始，预计需要 1-3 分钟，请耐心等待...');
+      
+      // 模拟进度更新
+      const progressInterval = setInterval(() => {
+        setVideoGenerationProgress(prev => {
+          if (prev >= 90) {
+            clearInterval(progressInterval);
+            return 90;
+          }
+          const newProgress = prev + Math.random() * 15;
+          if (newProgress > 20 && newProgress < 40) {
+            setVideoGenerationStatus('AI 正在分析您的创意描述...');
+          } else if (newProgress > 40 && newProgress < 60) {
+            setVideoGenerationStatus('正在生成视频帧...');
+          } else if (newProgress > 60 && newProgress < 80) {
+            setVideoGenerationStatus('正在渲染视频...');
+          } else if (newProgress > 80) {
+            setVideoGenerationStatus('正在完成最终处理...');
+          }
+          return Math.min(newProgress, 90);
+        });
+      }, 3000);
+      
+      const result = await llmService.generateVideo({
+        prompt: prompt,
+        duration: videoDuration,
+        aspectRatio: videoAspectRatio
+      });
+      
+      clearInterval(progressInterval);
+      
+      const videoUrl = result.data?.video_url || result.data?.url;
+      
+      if (!result.ok || !videoUrl) {
+        console.error('[TextToVideo] Generation failed:', result);
+        toast.error(result.error || '视频生成失败，请检查API配置');
+        setGeneratedResults([]);
+        setVideoGenerationProgress(0);
+        setVideoGenerationStatus('');
+      } else {
+        setVideoGenerationProgress(100);
+        setVideoGenerationStatus('视频生成完成！');
+        
+        const results = [
+          { 
+            id: Date.now(), 
+            thumbnail: 'https://images.unsplash.com/photo-1536240478700-b869070f9279?w=600&h=400&fit=crop', 
+            score: 90, 
+            type: 'video',
+            video: videoUrl
+          },
+        ];
+        setGeneratedResults(results);
+        setSelectedResult(results[0].id);
+        setCurrentStep(2);
+        toast.success('视频生成成功！');
+        
+        // 延迟重置进度
+        setTimeout(() => {
+          setVideoGenerationProgress(0);
+          setVideoGenerationStatus('');
+        }, 2000);
+      }
+    } catch (e: any) {
+      console.error('[TextToVideo] Exception:', e);
+      toast.error(e?.message || '视频生成失败');
+      setGeneratedResults([]);
+      setVideoGenerationProgress(0);
+      setVideoGenerationStatus('');
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   // 图生视频
   const generateImageToVideo = async () => {
-    // TODO: 实现图生视频API调用
-    toast.info('图生视频功能开发中，使用模拟数据预览');
+    if (!uploadedImage) {
+      toast.error('请先上传参考图片');
+      return;
+    }
     
-    await new Promise(resolve => setTimeout(resolve, 3000));
+    if (uploadedImage.startsWith('data:')) {
+      toast.error('参考图片为本地数据，需使用可公网访问的图片URL');
+      return;
+    }
     
-    const fallback = [
-      { 
-        id: Date.now(), 
-        thumbnail: uploadedImage || 'https://images.unsplash.com/photo-1536240478700-b869070f9279?w=600&h=400&fit=crop', 
-        score: 88, 
-        type: 'video',
-        video: 'https://www.w3schools.com/html/mov_bbb.mp4'
-      },
-    ];
-    setGeneratedResults(fallback);
-    setSelectedResult(fallback[0].id);
-    setCurrentStep(2);
-    toast.success('视频生成完成');
+    try {
+      setIsGenerating(true);
+      setVideoGenerationProgress(0);
+      setVideoGenerationStatus('正在提交视频生成任务...');
+      toast.info('视频生成开始，预计需要 1-3 分钟，请耐心等待...');
+      
+      // 模拟进度更新
+      const progressInterval = setInterval(() => {
+        setVideoGenerationProgress(prev => {
+          if (prev >= 90) {
+            clearInterval(progressInterval);
+            return 90;
+          }
+          const newProgress = prev + Math.random() * 15;
+          if (newProgress > 20 && newProgress < 40) {
+            setVideoGenerationStatus('AI 正在分析您的参考图片...');
+          } else if (newProgress > 40 && newProgress < 60) {
+            setVideoGenerationStatus('正在生成视频帧...');
+          } else if (newProgress > 60 && newProgress < 80) {
+            setVideoGenerationStatus('正在渲染视频...');
+          } else if (newProgress > 80) {
+            setVideoGenerationStatus('正在完成最终处理...');
+          }
+          return Math.min(newProgress, 90);
+        });
+      }, 3000);
+      
+      const result = await llmService.generateVideo({
+        prompt: prompt,
+        imageUrl: uploadedImage,
+        duration: videoDuration,
+        aspectRatio: videoAspectRatio
+      });
+      
+      clearInterval(progressInterval);
+      
+      const videoUrl = result.data?.video_url || result.data?.url;
+      
+      if (!result.ok || !videoUrl) {
+        console.error('[ImageToVideo] Generation failed:', result);
+        toast.error(result.error || '视频生成失败，请检查API配置');
+        setGeneratedResults([]);
+        setVideoGenerationProgress(0);
+        setVideoGenerationStatus('');
+      } else {
+        setVideoGenerationProgress(100);
+        setVideoGenerationStatus('视频生成完成！');
+        
+        const results = [
+          { 
+            id: Date.now(), 
+            thumbnail: uploadedImage || 'https://images.unsplash.com/photo-1536240478700-b869070f9279?w=600&h=400&fit=crop', 
+            score: 88, 
+            type: 'video',
+            video: videoUrl
+          },
+        ];
+        setGeneratedResults(results);
+        setSelectedResult(results[0].id);
+        setCurrentStep(2);
+        toast.success('视频生成成功！');
+        
+        // 延迟重置进度
+        setTimeout(() => {
+          setVideoGenerationProgress(0);
+          setVideoGenerationStatus('');
+        }, 2000);
+      }
+    } catch (e: any) {
+      console.error('[ImageToVideo] Exception:', e);
+      toast.error(e?.message || '视频生成失败');
+      setGeneratedResults([]);
+      setVideoGenerationProgress(0);
+      setVideoGenerationStatus('');
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   // 备用数据
@@ -867,6 +996,110 @@ ${prompt}`;
           {isVideoMode && <span className="ml-2 text-orange-500">视频生成时间较长，请耐心等待</span>}
         </p>
       </div>
+
+      {/* 视频生成加载状态 - 全屏覆盖 */}
+      <AnimatePresence>
+        {isVideoMode && isGenerating && videoGenerationProgress > 0 && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+            style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className={`w-full max-w-md mx-4 p-8 rounded-3xl shadow-2xl ${
+                isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'
+              }`}
+            >
+              {/* 图标和标题 */}
+              <div className="text-center mb-6">
+                <div className={`w-20 h-20 mx-auto rounded-2xl flex items-center justify-center mb-4 ${
+                  isDark ? 'bg-gradient-to-br from-orange-500/20 to-red-600/20' : 'bg-gradient-to-br from-orange-100 to-red-100'
+                }`}>
+                  <i className="fas fa-film text-3xl text-orange-500 animate-pulse"></i>
+                </div>
+                <h3 className={`text-xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                  正在生成视频
+                </h3>
+                <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                  预计需要 1-3 分钟，请耐心等待
+                </p>
+              </div>
+
+              {/* 进度条 */}
+              <div className="mb-6">
+                <div className={`h-3 rounded-full overflow-hidden ${
+                  isDark ? 'bg-gray-700' : 'bg-gray-200'
+                }`}>
+                  <motion.div
+                    className="h-full bg-gradient-to-r from-orange-500 via-red-500 to-pink-500 rounded-full"
+                    initial={{ width: 0 }}
+                    animate={{ width: `${videoGenerationProgress}%` }}
+                    transition={{ duration: 0.5, ease: "easeOut" }}
+                  />
+                </div>
+                <div className="flex justify-between mt-2">
+                  <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                    {videoGenerationStatus}
+                  </span>
+                  <span className={`text-xs font-bold ${isDark ? 'text-orange-400' : 'text-orange-600'}`}>
+                    {Math.round(videoGenerationProgress)}%
+                  </span>
+                </div>
+              </div>
+
+              {/* 状态步骤 */}
+              <div className="space-y-3">
+                {[
+                  { label: '提交任务', threshold: 5, icon: 'fa-paper-plane' },
+                  { label: 'AI 分析创意', threshold: 25, icon: 'fa-brain' },
+                  { label: '生成视频帧', threshold: 50, icon: 'fa-images' },
+                  { label: '渲染视频', threshold: 75, icon: 'fa-video' },
+                  { label: '完成处理', threshold: 95, icon: 'fa-check-circle' },
+                ].map((step, index) => (
+                  <div key={index} className="flex items-center gap-3">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs transition-all duration-300 ${
+                      videoGenerationProgress >= step.threshold
+                        ? 'bg-gradient-to-br from-orange-500 to-red-500 text-white'
+                        : isDark ? 'bg-gray-700 text-gray-500' : 'bg-gray-200 text-gray-400'
+                    }`}>
+                      <i className={`fas ${videoGenerationProgress >= step.threshold ? 'fa-check' : step.icon}`}></i>
+                    </div>
+                    <span className={`text-sm transition-all duration-300 ${
+                      videoGenerationProgress >= step.threshold
+                        ? isDark ? 'text-white font-medium' : 'text-gray-900 font-medium'
+                        : isDark ? 'text-gray-500' : 'text-gray-400'
+                    }`}>
+                      {step.label}
+                    </span>
+                    {videoGenerationProgress >= step.threshold && videoGenerationProgress < step.threshold + 20 && (
+                      <motion.span
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        className="text-xs text-orange-500 ml-auto"
+                      >
+                        进行中...
+                      </motion.span>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* 提示信息 */}
+              <div className={`mt-6 p-4 rounded-xl text-xs leading-relaxed ${
+                isDark ? 'bg-gray-700/50 text-gray-300' : 'bg-orange-50 text-gray-600'
+              }`}>
+                <i className="fas fa-info-circle mr-2 text-orange-500"></i>
+                视频生成过程中请勿关闭页面或刷新，否则可能导致生成失败。
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

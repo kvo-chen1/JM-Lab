@@ -52,14 +52,11 @@ export const incentivesNavItems: NavItem[] = [
   { id: 'points-mall', path: '/points-mall', label: '积分商城', icon: 'fas fa-gift', priority: 'medium' },
   { id: 'achievements', path: '/achievement-museum', label: '成就博物馆', icon: 'fas fa-trophy', priority: 'low' },
   { id: 'daily-checkin', path: '/daily-checkin', label: '每日签到', icon: 'fas fa-calendar-check', priority: 'low' },
-
+  { id: 'games', path: '/games', label: '趣味游戏', icon: 'fas fa-gamepad', priority: 'low' }
 ];
 
 // 娱乐与创意导航项
 export const entertainmentNavItems: NavItem[] = [
-
-  { id: 'games', path: '/games', label: '趣味游戏', icon: 'fas fa-gamepad', priority: 'low' },
-
 ];
 
 // 商务与支持导航项
@@ -94,12 +91,6 @@ export const navigationGroups: NavGroup[] = [
     title: '激励与福利',
     items: incentivesNavItems,
     priority: 'medium'
-  },
-  {
-    id: 'entertainment',
-    title: '娱乐与创意',
-    items: entertainmentNavItems,
-    priority: 'low'
   },
   {
     id: 'business',

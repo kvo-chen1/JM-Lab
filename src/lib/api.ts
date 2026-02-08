@@ -613,13 +613,15 @@ export async function checkUserLikedPost(postId: string): Promise<boolean> {
 
 /**
  * 检查用户是否关注了目标用户
+ * @param currentUserId 当前用户ID
  * @param targetUserId 目标用户ID或用户名
  */
-export async function checkUserFollowing(targetUserId: string): Promise<boolean> {
+export async function checkUserFollowing(currentUserId: string, targetUserId: string): Promise<boolean> {
   try {
-    const { data: { user } } = await supabase.auth.getUser()
-    
-    if (!user) return false
+    if (!currentUserId) {
+      console.log('[checkUserFollowing] 当前用户ID为空')
+      return false
+    }
     
     let actualTargetId = targetUserId
     
@@ -637,7 +639,7 @@ export async function checkUserFollowing(targetUserId: string): Promise<boolean>
     const { data, error } = await supabase
       .from('follows')
       .select('*')
-      .eq('follower_id', user.id)
+      .eq('follower_id', currentUserId)
       .eq('following_id', actualTargetId)
       .single()
 

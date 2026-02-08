@@ -36,7 +36,10 @@ import {
   Target,
   Medal,
   Activity,
-  ArrowUpRight
+  ArrowUpRight,
+  LayoutDashboard,
+  X,
+  Send
 } from 'lucide-react'
 import LazyImage from '../components/LazyImage'
 import { PostGrid } from '../components/CreatorCommunity/PostGrid'
@@ -44,6 +47,7 @@ import postsApi, { Post, getAuthorById, checkUserFollowing, followUser, unfollow
 import { supabase } from '../lib/supabase'
 import type { User } from '../contexts/authContext'
 import { toast } from 'sonner'
+import { sendDirectMessage, checkIsFriend, sendFriendRequest } from '../services/messageService'
 
 interface AuthorProfileProps {
   currentUser?: User | null
@@ -90,6 +94,11 @@ export const AuthorProfile: React.FC<AuthorProfileProps> = ({ currentUser }) => 
   const [isOnline] = useState(true) // 模拟在线状态
   const [activities, setActivities] = useState<UserActivity[]>([])
   const [activitiesLoading, setActivitiesLoading] = useState(false)
+  
+  // 私信对话框状态
+  const [showMessageModal, setShowMessageModal] = useState(false)
+  const [messageContent, setMessageContent] = useState('')
+  const [sendingMessage, setSendingMessage] = useState(false)
 
   // 模拟成就数据
   const achievements: Achievement[] = useMemo(() => [
@@ -107,15 +116,35 @@ export const AuthorProfile: React.FC<AuthorProfileProps> = ({ currentUser }) => 
       try {
         setLoading(true)
         console.log('[AuthorProfile] 开始加载作者，URL ID:', id)
-        
+
         const authorData = await getAuthorById(id)
         console.log('[AuthorProfile] 获取到作者数据:', authorData)
 
-        if (authorData) {
-          // 使用 postsApi 获取作品数据
-          console.log('[AuthorProfile] 使用 postsApi 获取作品，用户ID:', authorData.id)
-          const allPosts = await postsApi.getPosts()
-          console.log('[AuthorProfile] 获取到所有作品:', allPosts.length)
+        // 如果没有获取到作者数据，使用默认数据
+        if (!authorData) {
+          console.log('[AuthorProfile] 未获取到作者数据，使用默认数据')
+          const defaultAuthor = {
+            id,
+            username: id,
+            email: `${id}@example.com`,
+            avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${id}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`,
+            bio: '这位创作者还没有发布任何作品',
+            followersCount: 0,
+            followingCount: 0,
+            created_at: new Date().toISOString(),
+            location: '未知地点',
+            stats: { totalViews: 0, totalLikes: 0, totalComments: 0, streakDays: 0 }
+          }
+          setAuthor(defaultAuthor)
+          setPosts([])
+          setLoading(false)
+          return
+        }
+
+        // 使用 postsApi 获取作品数据
+        console.log('[AuthorProfile] 使用 postsApi 获取作品，用户ID:', authorData.id)
+        const allPosts = await postsApi.getPosts()
+        console.log('[AuthorProfile] 获取到所有作品:', allPosts.length)
 
           // 过滤出当前用户的作品
           console.log('[AuthorProfile] 第一个作品的作者信息:', allPosts[0]?.author)
@@ -127,9 +156,9 @@ export const AuthorProfile: React.FC<AuthorProfileProps> = ({ currentUser }) => 
           })
           console.log('[AuthorProfile] 过滤后用户作品:', userPosts.length)
 
-          // 计算真实的统计数据
-          const totalViews = userPosts.reduce((sum, post) => sum + (Number(post.viewCount) || Number(post.views) || 0), 0)
-          const totalLikes = userPosts.reduce((sum, post) => sum + (Number(post.likesCount) || Number(post.likes) || 0), 0)
+          // 计算真实的统计数据（优先使用后端返回的数据）
+          const totalViews = authorData.viewsCount || userPosts.reduce((sum, post) => sum + (Number(post.viewCount) || Number(post.views) || 0), 0)
+          const totalLikes = authorData.likesCount || userPosts.reduce((sum, post) => sum + (Number(post.likesCount) || Number(post.likes) || 0), 0)
           const totalComments = 0
 
           // 计算创作天数
@@ -141,6 +170,45 @@ export const AuthorProfile: React.FC<AuthorProfileProps> = ({ currentUser }) => 
             streakDays = Math.max(1, Math.floor((now.getTime() - earliestDate.getTime()) / (1000 * 60 * 60 * 24)))
           }
 
+          // 获取真实的粉丝数和关注数（优先使用后端返回的数据）
+          let followersCount = authorData.followersCount || 0
+          let followingCount = authorData.followingCount || 0
+          try {
+            // 检查 ID 是否是有效的 UUID 格式（Supabase follows 表使用 UUID）
+            const isValidUUID = (id: string) => {
+              const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+              return uuidRegex.test(id)
+            }
+
+            if (isValidUUID(authorData.id)) {
+              // 获取粉丝数（关注该用户的人数）
+              const { count: followers, error: followersError } = await supabase
+                .from('follows')
+                .select('*', { count: 'exact', head: true })
+                .eq('following_id', authorData.id)
+
+              if (!followersError && followers !== null) {
+                followersCount = followers
+              }
+
+              // 获取关注数（该用户关注的人数）
+              const { count: following, error: followingError } = await supabase
+                .from('follows')
+                .select('*', { count: 'exact', head: true })
+                .eq('follower_id', authorData.id)
+
+              if (!followingError && following !== null) {
+                followingCount = following
+              }
+            } else {
+              console.log('[AuthorProfile] ID 不是 UUID 格式，跳过粉丝数查询:', authorData.id)
+            }
+
+            console.log('[AuthorProfile] 粉丝/关注数据:', { followersCount, followingCount })
+          } catch (error) {
+            console.error('[AuthorProfile] 获取粉丝数失败:', error)
+          }
+
           // 调试日志
           console.log('[AuthorProfile] 用户统计数据:', {
             userId: authorData.id,
@@ -148,11 +216,13 @@ export const AuthorProfile: React.FC<AuthorProfileProps> = ({ currentUser }) => 
             totalViews,
             totalLikes,
             totalComments,
-            streakDays
+            streakDays,
+            followersCount,
+            followingCount
           })
 
           if (currentUser) {
-            const following = await checkUserFollowing(id)
+            const following = await checkUserFollowing(currentUser.id, id)
             setIsFollowing(following)
           }
 
@@ -179,6 +249,8 @@ export const AuthorProfile: React.FC<AuthorProfileProps> = ({ currentUser }) => 
 
           setAuthor({
             ...authorData,
+            followersCount,
+            followingCount,
             location: '天津, 中国',
             website: 'https://example.com',
             socialLinks: {
@@ -193,27 +265,6 @@ export const AuthorProfile: React.FC<AuthorProfileProps> = ({ currentUser }) => 
               streakDays
             }
           })
-        } else {
-          if (currentUser && currentUser.id === id) {
-             setAuthor(currentUser)
-             setPosts([])
-          } else {
-            const defaultAuthor = {
-              id,
-              username: id,
-              email: `${id}@example.com`,
-              avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${id}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`,
-              bio: '这位创作者还没有发布任何作品',
-              followersCount: 0,
-              followingCount: 0,
-              created_at: new Date().toISOString(),
-              location: '未知地点',
-              stats: { totalViews: 0, totalLikes: 0, totalComments: 0, streakDays: 0 }
-            }
-            setAuthor(defaultAuthor)
-            setPosts([])
-          }
-        }
       } catch (error) {
         console.error('加载作者信息失败:', error)
       } finally {
@@ -300,7 +351,7 @@ export const AuthorProfile: React.FC<AuthorProfileProps> = ({ currentUser }) => 
     return result
   }, [posts, searchTerm, filterType, sortType])
 
-  // 处理添加好友/取消好友
+  // 处理关注/取消关注
   const handleFollow = async () => {
     if (!id || !currentUser) {
       toast.error('请先登录')
@@ -308,24 +359,41 @@ export const AuthorProfile: React.FC<AuthorProfileProps> = ({ currentUser }) => 
     }
 
     try {
+      console.log('[AuthorProfile] 执行关注操作:', { 
+        targetUserId: id, 
+        currentUserId: currentUser.id,
+        isFollowing,
+        isOwnProfile 
+      })
+      
       if (isFollowing) {
-        await unfollowUser(id)
-        setIsFollowing(false)
-        toast.success('已取消关注')
+        const result = await unfollowUser(currentUser.id, id)
+        if (result) {
+          setIsFollowing(false)
+          toast.success('已取消关注')
+          setAuthor((prev: any) => prev ? {
+            ...prev,
+            followersCount: Math.max(0, (prev.followersCount || 0) - 1)
+          } : null)
+        } else {
+          toast.error('取消关注失败')
+        }
       } else {
-        await followUser(id)
-        setIsFollowing(true)
-        toast.success('关注成功')
+        const result = await followUser(currentUser.id, id)
+        if (result) {
+          setIsFollowing(true)
+          toast.success('关注成功')
+          setAuthor((prev: any) => prev ? {
+            ...prev,
+            followersCount: (prev.followersCount || 0) + 1
+          } : null)
+        } else {
+          toast.error('关注失败，可能已经是好友或网络问题')
+        }
       }
-      
-      setAuthor((prev: any) => prev ? {
-        ...prev,
-        followersCount: (prev.followersCount || 0) + (isFollowing ? -1 : 1)
-      } : null)
-      
-    } catch (error) {
-      console.error('操作失败:', error)
-      toast.error('操作失败，请重试')
+    } catch (error: any) {
+      console.error('[AuthorProfile] 关注操作失败:', error)
+      toast.error(error.message || '操作失败，请重试')
     }
   }
 
@@ -352,9 +420,56 @@ export const AuthorProfile: React.FC<AuthorProfileProps> = ({ currentUser }) => 
     }
   }
 
-  // 处理私信
+  // 处理私信 - 跳转到私信页面
   const handleMessage = () => {
-    toast.info('私信功能开发中...')
+    if (!currentUser) {
+      toast.error('请先登录')
+      return
+    }
+    if (isOwnProfile) {
+      toast.error('不能给自己发送私信')
+      return
+    }
+    // 跳转到私信页面
+    navigate(`/chat/${id}`)
+  }
+
+  // 发送私信 - 使用 Supabase
+  const handleSendMessage = async () => {
+    if (!messageContent.trim() || !id || !currentUser) return
+    
+    setSendingMessage(true)
+    try {
+      // 检查是否是好友关系
+      const isFriend = await checkIsFriend(currentUser.id, id)
+      
+      if (!isFriend) {
+        // 先发送好友请求
+        try {
+          await sendFriendRequest(currentUser.id, id)
+          toast.success('已发送好友请求，对方接受后即可聊天')
+          setSendingMessage(false)
+          return
+        } catch (friendError: any) {
+          // 如果已经是好友，继续发送消息
+          if (friendError.message !== 'ALREADY_FRIENDS') {
+            console.log('好友请求可能已存在，继续发送消息')
+          }
+        }
+      }
+      
+      // 发送消息
+      await sendDirectMessage(currentUser.id, id, messageContent.trim())
+      
+      toast.success('私信发送成功')
+      setMessageContent('')
+      setShowMessageModal(false)
+    } catch (error: any) {
+      console.error('发送私信失败:', error)
+      toast.error(error.message || '发送失败，请重试')
+    } finally {
+      setSendingMessage(false)
+    }
   }
 
   // 处理举报
@@ -430,16 +545,30 @@ export const AuthorProfile: React.FC<AuthorProfileProps> = ({ currentUser }) => 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
       {/* 头部横幅 */}
-      <div className="relative h-64 md:h-80 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 rounded-xl mb-8 overflow-hidden">
+      <div 
+        className="relative h-64 md:h-80 rounded-xl mb-8 overflow-hidden"
+        style={(author.coverImage || author.cover_image) ? {
+          backgroundImage: `url(${author.coverImage || author.cover_image})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center'
+        } : {}}
+      >
+        {/* 默认渐变背景 */}
+        {!(author.coverImage || author.cover_image) && (
+          <div className="absolute inset-0 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500" />
+        )}
+        
         {/* 动态背景效果 */}
         <div className="absolute inset-0 bg-black bg-opacity-20" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
         
-        {/* 装饰性元素 */}
-        <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute -top-20 -right-20 w-60 h-60 bg-white/10 rounded-full blur-3xl animate-pulse" />
-          <div className="absolute -bottom-20 -left-20 w-80 h-80 bg-purple-500/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
-        </div>
+        {/* 装饰性元素 - 只在没有封面时显示 */}
+        {!(author.coverImage || author.cover_image) && (
+          <div className="absolute inset-0 overflow-hidden">
+            <div className="absolute -top-20 -right-20 w-60 h-60 bg-white/10 rounded-full blur-3xl animate-pulse" />
+            <div className="absolute -bottom-20 -left-20 w-80 h-80 bg-purple-500/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+          </div>
+        )}
         
         {/* 编辑封面按钮 */}
         {isOwnProfile && (
@@ -563,15 +692,24 @@ export const AuthorProfile: React.FC<AuthorProfileProps> = ({ currentUser }) => 
                     </button>
                   </>
                 ) : (
-                  <button
-                    onClick={() => navigate('/settings')}
-                    className="flex items-center gap-2 px-6 py-2.5 bg-blue-500 text-white rounded-full hover:bg-blue-600 transition-colors font-medium shadow-lg shadow-blue-500/30"
-                  >
-                    <Edit3 className="w-4 h-4" />
-                    编辑资料
-                  </button>
+                  <>
+                    <button
+                      onClick={() => navigate('/settings')}
+                      className="flex items-center gap-2 px-6 py-2.5 bg-blue-500 text-white rounded-full hover:bg-blue-600 transition-colors font-medium shadow-lg shadow-blue-500/30"
+                    >
+                      <Edit3 className="w-4 h-4" />
+                      编辑资料
+                    </button>
+                    <button
+                      onClick={() => navigate('/dashboard')}
+                      className="flex items-center gap-2 px-6 py-2.5 bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors font-medium"
+                    >
+                      <LayoutDashboard className="w-4 h-4" />
+                      个人中心
+                    </button>
+                  </>
                 )}
-                
+
                 <button
                   onClick={handleShare}
                   className="p-2.5 bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
@@ -1001,6 +1139,80 @@ export const AuthorProfile: React.FC<AuthorProfileProps> = ({ currentUser }) => 
           )}
         </div>
       </div>
+
+      {/* 私信对话框 */}
+      {showMessageModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            {/* 对话框头部 */}
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex items-center gap-3">
+                <img
+                  src={author?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${id}`}
+                  alt={author?.username}
+                  className="w-10 h-10 rounded-full object-cover"
+                />
+                <div>
+                  <h3 className="font-semibold text-gray-900 dark:text-white">
+                    发送私信给 {author?.username}
+                  </h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    {isFollowing ? '已关注' : '未关注'} · 直接发送消息
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowMessageModal(false)}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            {/* 消息输入区 */}
+            <div className="p-4">
+              <textarea
+                value={messageContent}
+                onChange={(e) => setMessageContent(e.target.value)}
+                placeholder={`给 ${author?.username} 发送消息...`}
+                className="w-full h-32 p-3 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-xl resize-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-gray-900 dark:text-white placeholder-gray-400"
+                disabled={sendingMessage}
+              />
+              <div className="flex justify-between items-center mt-3">
+                <span className="text-xs text-gray-400">
+                  {messageContent.length}/500
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setShowMessageModal(false)}
+                    className="px-4 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                    disabled={sendingMessage}
+                  >
+                    取消
+                  </button>
+                  <button
+                    onClick={handleSendMessage}
+                    disabled={!messageContent.trim() || sendingMessage}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {sendingMessage ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        发送中...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-4 h-4" />
+                        发送
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

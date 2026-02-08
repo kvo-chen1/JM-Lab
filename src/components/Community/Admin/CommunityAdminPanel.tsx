@@ -1,7 +1,40 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
+import { useParams } from 'react-router-dom';
+import { 
+  Users, 
+  Crown, 
+  Edit3, 
+  UserCheck,
+  Bell,
+  Shield,
+  Settings,
+  Search,
+  Mail,
+  Link as LinkIcon,
+  Copy,
+  CheckCircle,
+  XCircle,
+  FileText,
+  Pin,
+  Eye,
+  Trash2,
+  AlertTriangle,
+  X,
+  UserPlus,
+  ChevronLeft
+} from 'lucide-react';
 import ModerationPanel, { ModerationContent, ModerationRule } from '../Moderation/ModerationPanel';
+import { supabase } from '@/lib/supabaseClient';
+
+// 导入优化后的组件
+import StatCard from '../StatCard';
+import RoleBadge from '../RoleBadge';
+import CommunityTabs from '../CommunityTabs';
+
+// 导入样式
+import '@/styles/community-management.css';
 
 // 类型定义
 export type CommunityRole = 'admin' | 'editor' | 'member';
@@ -66,9 +99,9 @@ interface CommunityAdminPanelProps {
 
 const CommunityAdminPanel: React.FC<CommunityAdminPanelProps> = ({
   isDark,
-  communityId,
+  communityId: propCommunityId,
   community,
-  members = [],
+  members: propMembers = [],
   pendingContent = [],
   approvedContent = [],
   rejectedContent = [],
@@ -86,33 +119,102 @@ const CommunityAdminPanel: React.FC<CommunityAdminPanelProps> = ({
   onUpdateModerationRule,
   onDeleteModerationRule
 }) => {
+  // 获取路由参数
+  const params = useParams();
+  const actualCommunityId = propCommunityId || params.id || '';
+
   // 状态管理
-  const [activeTab, setActiveTab] = useState<'members' | 'announcement' | 'moderation' | 'settings'>('members');
+  const [activeTab, setActiveTab] = useState('members');
   const [newMemberEmail, setNewMemberEmail] = useState('');
   const [newMemberRole, setNewMemberRole] = useState<CommunityRole>('member');
   const [currentAnnouncement, setCurrentAnnouncement] = useState(announcement);
   const [editingCommunity, setEditingCommunity] = useState<Partial<Community> | null>(null);
   const [inviteLink, setInviteLink] = useState('');
-  
+
+  // 成员数据状态
+  const [members, setMembers] = useState<CommunityMember[]>(propMembers);
+  const [isLoadingMembers, setIsLoadingMembers] = useState(false);
+
   // 成员搜索和筛选
   const [memberSearchQuery, setMemberSearchQuery] = useState('');
   const [memberRoleFilter, setMemberRoleFilter] = useState<CommunityRole | 'all'>('all');
   const [selectedMembers, setSelectedMembers] = useState<Set<string>>(new Set());
   const [isBatchMode, setIsBatchMode] = useState(false);
-  
+
   // 公告管理
   const [announcementHistory, setAnnouncementHistory] = useState<Array<{id: string; content: string; createdAt: Date; author: string}>>([]);
   const [editingAnnouncementId, setEditingAnnouncementId] = useState<string | null>(null);
-  
+
   // 社群设置
   const [communityVisibility, setCommunityVisibility] = useState<'public' | 'private'>('public');
   const [joinApprovalRequired, setJoinApprovalRequired] = useState(true);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
+  // 获取社区成员数据
+  useEffect(() => {
+    const fetchMembers = async () => {
+      if (!actualCommunityId) return;
+
+      setIsLoadingMembers(true);
+      try {
+        // 先获取社区成员列表
+        const { data: membersData, error: membersError } = await supabase
+          .from('community_members')
+          .select('user_id, role, joined_at')
+          .eq('community_id', actualCommunityId);
+
+        if (membersError) {
+          console.error('Failed to fetch members:', membersError);
+          toast.error('获取成员列表失败');
+          return;
+        }
+
+        if (membersData && membersData.length > 0) {
+          // 获取用户ID列表
+          const userIds = membersData.map(m => m.user_id);
+
+          // 再获取用户信息
+          const { data: usersData, error: usersError } = await supabase
+            .from('users')
+            .select('id, username, email, avatar_url')
+            .in('id', userIds);
+
+          if (usersError) {
+            console.error('Failed to fetch users:', usersError);
+          }
+
+          // 合并数据
+          const userMap = new Map(usersData?.map(u => [u.id, u]) || []);
+
+          const formattedMembers: CommunityMember[] = membersData.map(m => {
+            const user = userMap.get(m.user_id);
+            return {
+              id: m.user_id,
+              email: user?.email || '',
+              name: user?.username || '未知用户',
+              role: (m.role as CommunityRole) || 'member',
+              joinedAt: new Date(m.joined_at)
+            };
+          });
+          setMembers(formattedMembers);
+        } else {
+          setMembers([]);
+        }
+      } catch (error) {
+        console.error('Error fetching members:', error);
+        toast.error('获取成员列表失败');
+      } finally {
+        setIsLoadingMembers(false);
+      }
+    };
+
+    fetchMembers();
+  }, [actualCommunityId]);
+
   // 生成邀请链接
   const generateInviteLink = () => {
     const inviteCode = Math.random().toString(36).substring(2, 10).toUpperCase();
-    const link = `${window.location.origin}/join-community/${communityId}?code=${inviteCode}`;
+    const link = `${window.location.origin}/join-community/${actualCommunityId}?code=${inviteCode}`;
     setInviteLink(link);
     
     // 复制到剪贴板
@@ -261,44 +363,41 @@ const CommunityAdminPanel: React.FC<CommunityAdminPanelProps> = ({
   // 管理成员功能 - 高级设计
   const renderMembersTab = () => (
     <div className="space-y-6">
-      {/* 成员统计 - 高级卡片 */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className={`group relative p-5 rounded-2xl overflow-hidden transition-all duration-300 hover:shadow-lg ${isDark ? 'bg-gradient-to-br from-blue-500/20 to-blue-600/10 border border-blue-500/20' : 'bg-gradient-to-br from-blue-50 to-blue-100/50 border border-blue-200'}`}>
-          <div className={`absolute -right-4 -top-4 w-20 h-20 rounded-full opacity-30 blur-2xl ${isDark ? 'bg-blue-500' : 'bg-blue-400'}`} />
-          <div className="relative">
-            <div className={`p-2 rounded-xl w-fit ${isDark ? 'bg-white/10' : 'bg-white/80'} shadow-sm`}>
-              <span className="text-xl">👥</span>
-            </div>
-            <div className="mt-3">
-              <div className={`text-3xl font-bold tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>{members.length}</div>
-              <div className={`text-sm font-medium mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>总成员数</div>
-            </div>
-          </div>
-        </div>
-        <div className={`group relative p-5 rounded-2xl overflow-hidden transition-all duration-300 hover:shadow-lg ${isDark ? 'bg-gradient-to-br from-purple-500/20 to-purple-600/10 border border-purple-500/20' : 'bg-gradient-to-br from-purple-50 to-purple-100/50 border border-purple-200'}`}>
-          <div className={`absolute -right-4 -top-4 w-20 h-20 rounded-full opacity-30 blur-2xl ${isDark ? 'bg-purple-500' : 'bg-purple-400'}`} />
-          <div className="relative">
-            <div className={`p-2 rounded-xl w-fit ${isDark ? 'bg-white/10' : 'bg-white/80'} shadow-sm`}>
-              <span className="text-xl">👑</span>
-            </div>
-            <div className="mt-3">
-              <div className={`text-3xl font-bold tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>{members.filter(m => m.role === 'admin').length}</div>
-              <div className={`text-sm font-medium mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>管理员</div>
-            </div>
-          </div>
-        </div>
-        <div className={`group relative p-5 rounded-2xl overflow-hidden transition-all duration-300 hover:shadow-lg ${isDark ? 'bg-gradient-to-br from-green-500/20 to-green-600/10 border border-green-500/20' : 'bg-gradient-to-br from-green-50 to-green-100/50 border border-green-200'}`}>
-          <div className={`absolute -right-4 -top-4 w-20 h-20 rounded-full opacity-30 blur-2xl ${isDark ? 'bg-green-500' : 'bg-green-400'}`} />
-          <div className="relative">
-            <div className={`p-2 rounded-xl w-fit ${isDark ? 'bg-white/10' : 'bg-white/80'} shadow-sm`}>
-              <span className="text-xl">🙋</span>
-            </div>
-            <div className="mt-3">
-              <div className={`text-3xl font-bold tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>{members.filter(m => m.role === 'member').length}</div>
-              <div className={`text-sm font-medium mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>普通成员</div>
-            </div>
-          </div>
-        </div>
+      {/* 成员统计 - 使用优化后的 StatCard 组件 */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <StatCard 
+          icon={Users} 
+          value={isLoadingMembers ? '...' : members.length} 
+          label="总成员" 
+          isDark={isDark} 
+          color="primary"
+          delay={0}
+          trend={{ value: 12, isPositive: true }}
+        />
+        <StatCard 
+          icon={Crown} 
+          value={isLoadingMembers ? '...' : members.filter(m => m.role === 'admin').length} 
+          label="管理员" 
+          isDark={isDark} 
+          color="purple"
+          delay={1}
+        />
+        <StatCard 
+          icon={Edit3} 
+          value={isLoadingMembers ? '...' : members.filter(m => m.role === 'editor').length} 
+          label="编辑" 
+          isDark={isDark} 
+          color="success"
+          delay={2}
+        />
+        <StatCard 
+          icon={UserCheck} 
+          value={isLoadingMembers ? '...' : members.filter(m => m.role === 'member').length} 
+          label="普通成员" 
+          isDark={isDark} 
+          color="orange"
+          delay={3}
+        />
       </div>
 
       {/* 添加成员 - 高级设计 */}
@@ -481,15 +580,7 @@ const CommunityAdminPanel: React.FC<CommunityAdminPanelProps> = ({
                     <div className={`text-sm truncate ${isDark ? 'text-slate-500' : 'text-gray-500'}`}>{member.email}</div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className={`px-3 py-1.5 rounded-full text-xs font-semibold shadow-sm whitespace-nowrap ${isDark ? 
-                      member.role === 'admin' ? 'bg-gradient-to-r from-purple-500/20 to-purple-600/10 text-purple-300 border border-purple-500/30' : 
-                      member.role === 'editor' ? 'bg-gradient-to-r from-blue-500/20 to-blue-600/10 text-blue-300 border border-blue-500/30' : 
-                      'bg-gradient-to-r from-green-500/20 to-green-600/10 text-green-300 border border-green-500/30' : 
-                      member.role === 'admin' ? 'bg-gradient-to-r from-purple-100 to-purple-50 text-purple-700 border border-purple-200' : 
-                      member.role === 'editor' ? 'bg-gradient-to-r from-blue-100 to-blue-50 text-blue-700 border border-blue-200' : 
-                      'bg-gradient-to-r from-green-100 to-green-50 text-green-700 border border-green-200'}`}>
-                      {member.role === 'admin' ? '👑 管理员' : member.role === 'editor' ? '✏️ 编辑' : '🙋 成员'}
-                    </span>
+                    <RoleBadge role={member.role} isDark={isDark} size="sm" />
                     {!isBatchMode && (
                       <>
                         <select
@@ -650,7 +741,7 @@ const CommunityAdminPanel: React.FC<CommunityAdminPanelProps> = ({
   const renderModerationTab = () => (
     <ModerationPanel
       isDark={isDark}
-      communityId={communityId}
+      communityId={actualCommunityId}
       isAdmin={isAdmin}
       pendingContent={pendingContent}
       approvedContent={approvedContent}
@@ -882,12 +973,12 @@ const CommunityAdminPanel: React.FC<CommunityAdminPanelProps> = ({
 
   return (
     <div className={`w-full ${isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'} min-h-screen`}>
-      {/* 顶部导航 - 高级设计 */}
+      {/* 顶部导航 - 使用 Lucide 图标 */}
       <div className={`sticky top-0 z-10 ${isDark ? 'bg-slate-800/90 border-slate-700/50' : 'bg-white/90 border-gray-200'} border-b px-6 py-4 backdrop-blur-md`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <div className={`p-2.5 rounded-xl ${isDark ? 'bg-gradient-to-br from-blue-500/20 to-blue-600/10 border border-blue-500/20' : 'bg-gradient-to-br from-blue-50 to-blue-100/50 border border-blue-200'}`}>
-              <span className="text-2xl">🏘️</span>
+            <div className={`p-2.5 rounded-xl ${isDark ? 'bg-gradient-to-br from-indigo-500/20 to-indigo-600/10 border border-indigo-500/20' : 'bg-gradient-to-br from-indigo-50 to-indigo-100/50 border border-indigo-200'}`}>
+              <Users size={24} className={isDark ? 'text-indigo-400' : 'text-indigo-600'} />
             </div>
             <div>
               <h1 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>社群管理</h1>
@@ -899,37 +990,29 @@ const CommunityAdminPanel: React.FC<CommunityAdminPanelProps> = ({
           <div>
             <button
               onClick={() => window.history.back()}
-              className={`px-5 py-2.5 rounded-xl font-semibold transition-all duration-200 ${isDark ? 'bg-slate-700 hover:bg-slate-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-800'}`}
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold transition-all duration-200 ${isDark ? 'bg-slate-700 hover:bg-slate-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-800'}`}
             >
-              ← 返回
+              <ChevronLeft size={18} />
+              <span>返回</span>
             </button>
           </div>
         </div>
       </div>
 
-      {/* 管理功能选项卡 - 高级设计 */}
+      {/* 管理功能选项卡 - 使用优化后的 CommunityTabs 组件 */}
       <div className={`sticky top-16 z-10 ${isDark ? 'bg-slate-800/80 border-slate-700/50' : 'bg-white/80 border-gray-200'} border-b backdrop-blur-sm`}>
         <div className="px-6">
-          <div className="flex space-x-2">
-            {[
-              { id: 'members', label: '管理成员', icon: '👥' },
-              { id: 'announcement', label: '发布公告', icon: '📢' },
-              { id: 'moderation', label: '审核管理', icon: '🛡️' },
-              { id: 'settings', label: '社群设置', icon: '⚙️' }
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
-                className={`flex items-center gap-2 px-5 py-3 rounded-t-xl font-semibold transition-all duration-300 ${activeTab === tab.id ? 
-                  isDark ? 'bg-slate-700/50 text-blue-400 border-b-2 border-blue-500' : 'bg-blue-50/50 text-blue-600 border-b-2 border-blue-500' : 
-                  isDark ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50/50'
-                }`}
-              >
-                <span className="text-lg">{tab.icon}</span>
-                <span>{tab.label}</span>
-              </button>
-            ))}
-          </div>
+          <CommunityTabs
+            tabs={[
+              { id: 'members', label: '管理成员', icon: Users, count: members.length },
+              { id: 'announcement', label: '发布公告', icon: Bell },
+              { id: 'moderation', label: '审核管理', icon: Shield },
+              { id: 'settings', label: '社群设置', icon: Settings }
+            ]}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            isDark={isDark}
+          />
         </div>
       </div>
 

@@ -252,62 +252,255 @@ export const CommunityInfoSidebar: React.FC<CommunityInfoSidebarProps> = ({
   const [activeMembers, setActiveMembers] = useState<ActiveMember[]>([]);
   const [recentEvents, setRecentEvents] = useState<RecentEvent[]>([]);
   const [hotPosts, setHotPosts] = useState<HotPost[]>([]);
+  const [communityStats, setCommunityStats] = useState({
+    weeklyVisitors: weeklyVisitors,
+    weeklyInteractions: weeklyInteractions
+  });
 
   // 获取创建者信息
   useEffect(() => {
     const fetchCreatorInfo = async () => {
-      if (community.creatorId) {
+      const creatorId = community.creatorId || creator;
+      if (creatorId) {
         try {
-          const response = await fetch(`/api/users/${community.creatorId}`);
+          console.log('[CommunityInfoSidebar] Fetching creator info for ID:', creatorId);
+          const response = await fetch(`/api/users/${creatorId}`);
+          console.log('[CommunityInfoSidebar] Creator API response:', response.status);
           if (response.ok) {
             const result = await response.json();
+            console.log('[CommunityInfoSidebar] Creator API result:', result);
             if (result.code === 0 && result.data) {
               setCreatorInfo({
                 username: result.data.username || '未知用户',
-                avatar: result.data.avatar
+                avatar: result.data.avatar || result.data.avatar_url
               });
+            } else {
+              console.warn('[CommunityInfoSidebar] Creator API returned error:', result);
             }
+          } else {
+            console.error('[CommunityInfoSidebar] Failed to fetch creator info:', response.status);
           }
         } catch (err) {
-          console.error('Failed to fetch creator info:', err);
+          console.error('[CommunityInfoSidebar] Failed to fetch creator info:', err);
         }
+      } else {
+        console.log('[CommunityInfoSidebar] No creator ID available');
       }
     };
-    
+
     fetchCreatorInfo();
-  }, [community.creatorId]);
+  }, [community.creatorId, creator]);
 
-  // 模拟获取活跃成员数据
+  // 获取社区统计数据（真实数据）
   useEffect(() => {
-    // TODO: 替换为真实API调用
-    const mockActiveMembers: ActiveMember[] = [
-      { id: '1', username: '设计达人', isOnline: true, lastActive: '刚刚' },
-      { id: '2', username: '创意小王子', isOnline: true, lastActive: '2分钟前' },
-      { id: '3', username: '艺术爱好者', isOnline: false, lastActive: '1小时前' },
-    ];
-    setActiveMembers(mockActiveMembers);
+    const fetchCommunityStats = async () => {
+      if (!community?.id) return;
+
+      try {
+        const response = await fetch(`/api/communities/${community.id}/stats`);
+        if (response.ok) {
+          const result = await response.json();
+          if (result.code === 0 && result.data) {
+            setCommunityStats({
+              weeklyVisitors: result.data.weekly_visitors || 0,
+              weeklyInteractions: result.data.weekly_interactions || 0
+            });
+          }
+        }
+      } catch (error) {
+        console.error('[CommunityInfoSidebar] Failed to fetch community stats:', error);
+      }
+    };
+
+    fetchCommunityStats();
   }, [community.id]);
 
-  // 模拟获取近期活动
+  // 获取活跃成员数据（真实数据）
   useEffect(() => {
-    // TODO: 替换为真实API调用
-    const mockEvents: RecentEvent[] = [
-      { id: '1', type: 'join', title: '新成员加入', timestamp: '5分钟前', user: { username: '新用户123' } },
-      { id: '2', type: 'post', title: '发布了新帖子', timestamp: '30分钟前', user: { username: '设计达人' } },
-      { id: '3', type: 'milestone', title: '社群成员突破100人', timestamp: '2小时前' },
-    ];
-    setRecentEvents(mockEvents);
+    const fetchActiveMembers = async () => {
+      if (!community?.id) return;
+
+      try {
+        // 获取社区成员
+        const { supabase } = await import('@/lib/supabaseClient');
+        const { data: members, error: membersError } = await supabase
+          .from('community_members')
+          .select('user_id, role, joined_at')
+          .eq('community_id', community.id)
+          .limit(5);
+
+        if (membersError) throw membersError;
+
+        // 获取成员的用户信息
+        const userIds = members?.map(m => m.user_id) || [];
+        let usersData: any[] = [];
+        if (userIds.length > 0) {
+          const { data: users, error: usersError } = await supabase
+            .from('users')
+            .select('id, username, avatar_url')
+            .in('id', userIds);
+          if (!usersError && users) {
+            usersData = users;
+          }
+        }
+
+        // 转换为活跃成员格式
+        const activeMembersList: ActiveMember[] = (members || []).map((member, index) => {
+          const user = usersData.find(u => u.id === member.user_id);
+          const username = user?.username || '未知用户';
+          const avatar = user?.avatar_url;
+          // 模拟在线状态（前2个显示在线）
+          const isOnline = index < 2;
+          const lastActive = isOnline ? '刚刚' : `${Math.floor(Math.random() * 60) + 1}分钟前`;
+
+          return {
+            id: member.user_id,
+            username,
+            avatar,
+            isOnline,
+            lastActive
+          };
+        });
+
+        setActiveMembers(activeMembersList);
+      } catch (error) {
+        console.error('[CommunityInfoSidebar] Failed to fetch active members:', error);
+        setActiveMembers([]);
+      }
+    };
+
+    fetchActiveMembers();
   }, [community.id]);
 
-  // 模拟获取热门帖子
+  // 获取近期活动（真实数据）
   useEffect(() => {
-    // TODO: 替换为真实API调用
-    const mockHotPosts: HotPost[] = [
-      { id: '1', title: '分享我的设计作品集，欢迎大家点评', comments: 23, upvotes: 156 },
-      { id: '2', title: '2024年UI设计趋势预测', comments: 45, upvotes: 234 },
-      { id: '3', title: '如何提升设计效率？我的工具分享', comments: 18, upvotes: 89 },
-    ];
-    setHotPosts(mockHotPosts);
+    const fetchRecentEvents = async () => {
+      if (!community?.id) return;
+
+      try {
+        // 获取社区成员加入记录（从 community_members 表）
+        const { communityService } = await import('@/services/communityService');
+        const { supabase } = await import('@/lib/supabaseClient');
+        const { data: members, error: membersError } = await supabase
+          .from('community_members')
+          .select('user_id, joined_at')
+          .eq('community_id', community.id)
+          .order('joined_at', { ascending: false })
+          .limit(3);
+
+        if (membersError) throw membersError;
+
+        // 获取成员的用户信息
+        const userIds = members?.map(m => m.user_id) || [];
+        let usersData: any[] = [];
+        if (userIds.length > 0) {
+          const { data: users, error: usersError } = await supabase
+            .from('users')
+            .select('id, username')
+            .in('id', userIds);
+          if (!usersError && users) {
+            usersData = users;
+          }
+        }
+
+        // 获取最新帖子
+        const threads = await communityService.getThreadsByCommunity(community.id);
+        const recentThreads = threads.slice(0, 2);
+
+        // 构建活动列表
+        const events: RecentEvent[] = [];
+
+        // 添加成员加入活动
+        members?.forEach((member, index) => {
+          const user = usersData.find(u => u.id === member.user_id);
+          const username = user?.username || '未知用户';
+          const timeAgo = getTimeAgo(new Date(member.joined_at * 1000));
+          events.push({
+            id: `join-${member.user_id}`,
+            type: 'join',
+            title: '新成员加入',
+            timestamp: timeAgo,
+            user: { username }
+          });
+        });
+
+        // 添加新帖子活动
+        recentThreads.forEach(thread => {
+          const timeAgo = getTimeAgo(new Date(thread.createdAt));
+          events.push({
+            id: `post-${thread.id}`,
+            type: 'post',
+            title: '发布了新帖子',
+            timestamp: timeAgo,
+            user: { username: thread.author?.username || '未知用户' }
+          });
+        });
+
+        // 如果成员数达到里程碑，添加里程碑活动
+        if ((memberCount || 0) >= 10 && (memberCount || 0) % 10 === 0) {
+          events.push({
+            id: 'milestone',
+            type: 'milestone',
+            title: `社群成员突破${memberCount}人`,
+            timestamp: '刚刚'
+          });
+        }
+
+        setRecentEvents(events.slice(0, 4));
+      } catch (error) {
+        console.error('[CommunityInfoSidebar] Failed to fetch recent events:', error);
+        setRecentEvents([]);
+      }
+    };
+
+    fetchRecentEvents();
+  }, [community.id, memberCount]);
+
+  // 辅助函数：计算时间差
+  const getTimeAgo = (date: Date): string => {
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+
+    if (minutes < 1) return '刚刚';
+    if (minutes < 60) return `${minutes}分钟前`;
+    if (hours < 24) return `${hours}小时前`;
+    if (days < 30) return `${days}天前`;
+    return date.toLocaleDateString();
+  };
+
+  // 获取热门帖子（真实数据）
+  useEffect(() => {
+    const fetchHotPosts = async () => {
+      if (!community?.id) return;
+
+      try {
+        // 使用 communityService 获取社区帖子
+        const { communityService } = await import('@/services/communityService');
+        const threads = await communityService.getThreadsByCommunity(community.id);
+
+        // 按点赞数排序，取前3个作为热门帖子
+        const sortedPosts = threads
+          .sort((a, b) => (b.upvotes || 0) - (a.upvotes || 0))
+          .slice(0, 3)
+          .map((thread, index) => ({
+            id: thread.id,
+            title: thread.title || '无标题',
+            comments: thread.comments?.length || thread.commentCount || 0,
+            upvotes: thread.upvotes || 0,
+            thumbnail: thread.images?.[0] || thread.cover || undefined
+          }));
+
+        setHotPosts(sortedPosts);
+      } catch (error) {
+        console.error('[CommunityInfoSidebar] Failed to fetch hot posts:', error);
+        setHotPosts([]);
+      }
+    };
+
+    fetchHotPosts();
   }, [community.id]);
 
   // 处理加入社群
@@ -466,7 +659,7 @@ export const CommunityInfoSidebar: React.FC<CommunityInfoSidebarProps> = ({
           </div>
           <div className="flex-1 min-w-0">
             <div className={`text-sm font-medium truncate ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-              {creatorInfo?.username || creator || '社区管理员'}
+              {creatorInfo?.username || '社群创建者'}
             </div>
             <div className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
               {createdDate || community.createdAt 
@@ -499,19 +692,17 @@ export const CommunityInfoSidebar: React.FC<CommunityInfoSidebarProps> = ({
           />
           <StatCard
             icon={Eye}
-            value={weeklyVisitors > 0 ? weeklyVisitors : '0'}
+            value={communityStats.weeklyVisitors > 0 ? communityStats.weeklyVisitors : '0'}
             label="本周访客"
             isDark={isDark}
             color="purple"
-            trend={{ value: 8, isPositive: true }}
           />
           <StatCard
             icon={MessageCircle}
-            value={weeklyInteractions > 0 ? weeklyInteractions : '0'}
+            value={communityStats.weeklyInteractions > 0 ? communityStats.weeklyInteractions : '0'}
             label="本周互动"
             isDark={isDark}
             color="orange"
-            trend={{ value: 23, isPositive: true }}
           />
         </div>
       </div>

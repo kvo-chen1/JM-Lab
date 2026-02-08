@@ -64,7 +64,6 @@ const initialState: CreateState = {
   showCulturalInfo: false,
   currentStep: 1,
   isLoading: false,
-  showCollaborationPanel: false,
   showAIReview: false,
   showModelSelector: false,
   showInspirationPanel: false,

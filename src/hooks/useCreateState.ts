@@ -14,7 +14,6 @@ interface CreateState {
   showCulturalInfo: boolean;
   currentStep: number;
   isLoading: boolean;
-  showCollaborationPanel: boolean;
   showAIReview: boolean;
   showModelSelector: boolean;
   isPrecheckEnabled: boolean;
@@ -66,7 +65,6 @@ const initialState: CreateState = {
   showCulturalInfo: false,
   currentStep: 1,
   isLoading: true,
-  showCollaborationPanel: false,
   showAIReview: false,
   showModelSelector: false,
   isPrecheckEnabled: true,

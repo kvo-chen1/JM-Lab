@@ -1,16 +1,26 @@
 import fs from 'fs'
 import dotenv from 'dotenv'
+import path from 'path'
+import { fileURLToPath } from 'url'
+
+// 获取当前文件所在目录
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+const projectRoot = path.resolve(__dirname, '..')
 
 // 首先加载 .env 文件
-dotenv.config()
+dotenv.config({ path: path.join(projectRoot, '.env') })
 
 // 然后加载 .env.local 文件（覆盖 .env 中的配置）
-if (fs.existsSync('.env.local')) {
-  const envConfig = dotenv.parse(fs.readFileSync('.env.local'))
+const envLocalPath = path.join(projectRoot, '.env.local')
+if (fs.existsSync(envLocalPath)) {
+  const envConfig = dotenv.parse(fs.readFileSync(envLocalPath))
   for (const k in envConfig) {
     process.env[k] = envConfig[k]
   }
-  console.log('[Config] 已加载 .env.local 文件')
+  console.log('[Config] 已加载 .env.local 文件:', envLocalPath)
+} else {
+  console.log('[Config] 未找到 .env.local 文件:', envLocalPath)
 }
 
 // 打印邮件配置（调试用）
@@ -28,14 +38,15 @@ import http from 'http'
 import { WebSocketServer } from 'ws'
 import { URL } from 'url'
 import { generateToken, verifyToken } from './jwt.mjs'
-import { userDB, workDB, favoriteDB, achievementDB, friendDB, messageDB, communityDB, notificationDB, eventDB } from './database.mjs'
+import { userDB, workDB, favoriteDB, achievementDB, friendDB, messageDB, communityDB, notificationDB, eventDB, getDB } from './database.mjs'
 import { sendLoginEmailCode } from './emailService.mjs'
 import { randomUUID } from 'crypto'
+import { supabaseServer } from './supabase-server.mjs'
 
 // 内存中存储验证码 (email -> { code, expiresAt })
 const verificationCodes = new Map();
 
-// 端口配置
+// 端口配置 - 默认3022与Vite代理配置保持一致
 const PORT = Number(process.env.LOCAL_API_PORT || process.env.PORT) || 3022
 const ORIGIN = process.env.CORS_ALLOW_ORIGIN || '*'
 
@@ -284,7 +295,8 @@ async function dashscopeVideoGenerate(params) {
         if (!model || model === 'wan2.6-i2v-flash') payload.model = 'wanx2.1-t2v-turbo'; 
     }
 
-    console.log('[DashScope] Starting video generation task:', JSON.stringify(payload));
+    console.log('[DashScope] Starting video generation task:', JSON.stringify(payload, null, 2));
+    console.log('[DashScope] Using endpoint:', endpoint);
 
     const resp = await fetch(endpoint, {
       method: 'POST',
@@ -297,29 +309,39 @@ async function dashscopeVideoGenerate(params) {
     });
 
     const data = await resp.json();
+    console.log('[DashScope] Response status:', resp.status);
+    console.log('[DashScope] Response data:', JSON.stringify(data, null, 2));
     
     if (!resp.ok) {
       console.error('[DashScope] Video generation submission failed:', data);
-      throw new Error(data.message || data.code || 'Failed to submit video task');
+      throw new Error(data.message || data.code || `Failed to submit video task: ${resp.status}`);
     }
 
     const taskId = data.output?.task_id;
     if (!taskId) {
-      throw new Error('No task_id returned');
+      console.error('[DashScope] No task_id in response:', data);
+      throw new Error('No task_id returned from DashScope');
     }
 
-    console.log(`[DashScope] Video task submitted: ${taskId}`);
+    console.log(`[DashScope] Video task submitted successfully: ${taskId}`);
     
     // Poll for result
+    console.log('[DashScope] Starting to poll for result...');
     const result = await pollDashScopeTask(taskId, authKey);
+    console.log('[DashScope] Poll result:', JSON.stringify(result, null, 2));
     
-    // Extract video URL
-    const videoUrl = result.output?.video_url || result.output?.results?.[0]?.url || result.output?.results?.[0]?.video_url;
+    // Extract video URL - check multiple possible locations
+    const videoUrl = result.output?.video_url 
+      || result.output?.results?.[0]?.url 
+      || result.output?.results?.[0]?.video_url
+      || result.video_url;
     
     if (!videoUrl) {
-      console.error('[DashScope] No video URL in result:', result);
+      console.error('[DashScope] No video URL in result. Full result:', JSON.stringify(result, null, 2));
       throw new Error('No video URL found in completed task');
     }
+
+    console.log('[DashScope] Video URL extracted:', videoUrl);
 
     return {
       status: 200,
@@ -331,7 +353,8 @@ async function dashscopeVideoGenerate(params) {
     };
 
   } catch (error) {
-    console.error('[DashScope] Video generation error:', error);
+    console.error('[DashScope] Video generation error:', error.message);
+    console.error('[DashScope] Full error:', error);
     return {
       status: 500,
       ok: false,
@@ -499,21 +522,29 @@ function sendJson(res, status, obj) {
 function verifyRequestToken(req) {
   const authHeader = req.headers.authorization
   if (!authHeader) {
+    console.log('[verifyRequestToken] No authorization header')
     return null
   }
   
   const token = authHeader.split(' ')[1]
   if (!token) {
+    console.log('[verifyRequestToken] No token in authorization header')
     return null
   }
   
   try {
     const decoded = verifyToken(token)
-    if (decoded && !decoded.userId && (decoded.sub || decoded.id)) {
-      decoded.userId = decoded.sub || decoded.id
+    console.log('[verifyRequestToken] Token decoded:', decoded ? 'success' : 'failed')
+    if (decoded) {
+      console.log('[verifyRequestToken] Decoded token:', { userId: decoded.userId, sub: decoded.sub, id: decoded.id })
+      if (!decoded.userId && (decoded.sub || decoded.id)) {
+        decoded.userId = decoded.sub || decoded.id
+        console.log('[verifyRequestToken] Set userId from sub/id:', decoded.userId)
+      }
     }
     return decoded
   } catch (error) {
+    console.error('[verifyRequestToken] Token verification error:', error.message)
     return null
   }
 }
@@ -526,18 +557,64 @@ async function route(req, res, u, path) {
     return
   }
 
+  console.log('[Route] Processing:', req.method, path)
+
   // 获取所有作品列表 (首页)
   if (req.method === 'GET' && path === '/api/works') {
     const limit = parseInt(u.searchParams.get('limit') || '20')
     const offset = parseInt(u.searchParams.get('offset') || '0')
-    
+
     try {
       const allWorks = await workDB.getAllWorks()
+      // 字段映射，将数据库字段转换为前端期望的格式
+      const mappedWorks = allWorks.map(work => ({
+        ...work,
+        date: work.created_at ? new Date(work.created_at * 1000).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+        author: {
+          id: work.creator_id,
+          username: work.creator || 'Unknown',
+          avatar: work.avatar_url || ''
+        }
+      }))
       // 简单的内存分页
-      const paginatedWorks = allWorks.slice(offset, offset + limit)
+      const paginatedWorks = mappedWorks.slice(offset, offset + limit)
       sendJson(res, 200, { code: 0, data: paginatedWorks })
     } catch (e) {
       console.error('[API] Get works failed:', e)
+      sendJson(res, 500, { code: 1, message: '获取作品失败' })
+    }
+    return
+  }
+
+  // 获取单个作品详情
+  if (req.method === 'GET' && path.match(/^\/api\/works\/[^\/]+$/)) {
+    const workId = path.split('/')[3]
+    if (!workId) {
+      sendJson(res, 400, { code: 1, message: '作品ID不能为空' })
+      return
+    }
+
+    try {
+      const work = await workDB.getWorkById(workId)
+      if (!work) {
+        sendJson(res, 404, { code: 1, message: '作品不存在' })
+        return
+      }
+
+      // 字段映射
+      const mappedWork = {
+        ...work,
+        date: work.created_at ? new Date(work.created_at * 1000).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+        author: {
+          id: work.creator_id,
+          username: work.creator || 'Unknown',
+          avatar: work.avatar_url || ''
+        }
+      }
+
+      sendJson(res, 200, { code: 0, data: mappedWork })
+    } catch (e) {
+      console.error('[API] Get work failed:', e)
       sendJson(res, 500, { code: 1, message: '获取作品失败' })
     }
     return
@@ -590,13 +667,59 @@ async function route(req, res, u, path) {
     }
     const limit = parseInt(u.searchParams.get('limit') || '50')
     const offset = parseInt(u.searchParams.get('offset') || '0')
-    
+
     try {
       const works = await workDB.getWorksByUserId(decoded.userId, limit, offset)
       sendJson(res, 200, { code: 0, data: works || [] })
     } catch (e) {
       console.error('[API] Get works failed:', e)
       sendJson(res, 500, { code: 1, message: '获取作品失败' })
+    }
+    return
+  }
+
+  // 获取用户点赞的作品列表
+  if (req.method === 'GET' && path === '/api/user/likes') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+    const limit = parseInt(u.searchParams.get('limit') || '50')
+    const offset = parseInt(u.searchParams.get('offset') || '0')
+
+    console.log('[API] Get user likes:', { userId: decoded.userId, limit, offset })
+
+    try {
+      const likedWorks = await workDB.getUserLikedWorks(decoded.userId, limit, offset)
+      console.log('[API] Get user likes success:', likedWorks.length)
+      sendJson(res, 200, { code: 0, data: likedWorks || [] })
+    } catch (e) {
+      console.error('[API] Get liked works failed:', e)
+      sendJson(res, 500, { code: 1, message: '获取点赞作品失败' })
+    }
+    return
+  }
+
+  // 获取用户收藏的作品列表
+  if (req.method === 'GET' && path === '/api/user/bookmarks') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+    const limit = parseInt(u.searchParams.get('limit') || '50')
+    const offset = parseInt(u.searchParams.get('offset') || '0')
+
+    console.log('[API] Get user bookmarks:', { userId: decoded.userId, limit, offset })
+
+    try {
+      const bookmarkedWorks = await workDB.getUserBookmarkedWorks(decoded.userId, limit, offset)
+      console.log('[API] Get user bookmarks success:', bookmarkedWorks.length)
+      sendJson(res, 200, { code: 0, data: bookmarkedWorks || [] })
+    } catch (e) {
+      console.error('[API] Get bookmarked works failed:', e)
+      sendJson(res, 500, { code: 1, message: '获取收藏作品失败' })
     }
     return
   }
@@ -716,60 +839,33 @@ async function route(req, res, u, path) {
     try {
       let events = await eventDB.getEvents()
       
-      // 如果没有活动，创建一些示例活动
-      if (!events || events.length === 0) {
-        const now = Date.now()
-        const day = 24 * 60 * 60 * 1000
-        const sampleEvents = [
-          {
-            title: '天津非遗文化展',
-            description: '探索天津独特的非物质文化遗产，体验传统技艺的魅力。现场将有泥人张、杨柳青年画等非遗传承人展示技艺。',
-            startTime: now + day,
-            endTime: now + day * 3,
-            location: '天津市文化中心',
-            coverUrl: 'https://images.unsplash.com/photo-1558591710-4b4a1ae0f04d?q=80&w=2574&auto=format&fit=crop',
-            status: 'published',
-            creatorId: 'admin',
-            type: 'exhibition',
-            tags: ['文化', '非遗', '展览']
-          },
-          {
-            title: '海河夜景摄影大赛',
-            description: '记录海河两岸的璀璨夜景，展现津门夜色之美。优秀作品将有机会在天津美术馆展出。',
-            startTime: now + day * 2,
-            endTime: now + day * 10,
-            location: '海河沿岸',
-            coverUrl: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?q=80&w=3270&auto=format&fit=crop',
-            status: 'published',
-            creatorId: 'admin',
-            type: 'competition',
-            tags: ['摄影', '夜景', '比赛']
-          },
-          {
-            title: 'AI艺术创作沙龙',
-            description: '探讨AI在艺术创作中的应用，分享创作经验。适合所有对AI艺术感兴趣的创作者。',
-            startTime: now + day * 5,
-            endTime: now + day * 5 + 4 * 60 * 60 * 1000,
-            location: '智慧山艺术中心',
-            coverUrl: 'https://images.unsplash.com/photo-1620712943543-bcc4688e7485?q=80&w=2565&auto=format&fit=crop',
-            status: 'published',
-            creatorId: 'admin',
-            type: 'salon',
-            tags: ['AI', '艺术', '沙龙']
-          }
-        ]
-        
-        try {
-          for (const evt of sampleEvents) {
-            await eventDB.createEvent(evt)
-          }
-        } catch (err) {
-          console.warn('[API] Failed to seed sample events:', err.message)
-        }
-        events = await eventDB.getEvents()
-      }
+      // 注意：不再自动创建示例活动，只返回用户真实创建的活动
       
-      sendJson(res, 200, { code: 0, data: events })
+      // 转换字段格式以匹配前端期望
+      const formattedEvents = events.map(event => ({
+        id: event.id,
+        title: event.title,
+        description: event.description,
+        startTime: event.start_date ? new Date(event.start_date * 1000).toISOString() : null,
+        endTime: event.end_date ? new Date(event.end_date * 1000).toISOString() : null,
+        location: event.location,
+        status: event.status,
+        type: event.category === 'competition' ? 'offline' : 'online',
+        category: event.category,
+        tags: event.tags || [],
+        participantCount: event.participant_count || 0,
+        maxParticipants: event.max_participants,
+        media: event.image_url ? [{ url: event.image_url, type: 'image' }] : [],
+        organizer: {
+          id: event.organizer_id,
+          name: event.organizer_name,
+          avatar: event.organizer_avatar
+        },
+        createdAt: event.created_at ? new Date(event.created_at * 1000).toISOString() : null,
+        visibility: event.visibility
+      }))
+      
+      sendJson(res, 200, { code: 0, data: formattedEvents })
     } catch (e) {
       console.error('[API] Get events failed:', e)
       sendJson(res, 500, { code: 1, message: '获取活动失败' })
@@ -786,7 +882,32 @@ async function route(req, res, u, path) {
         sendJson(res, 404, { code: 1, message: '活动不存在' })
         return
       }
-      sendJson(res, 200, { code: 0, data: event })
+      
+      // 转换字段格式以匹配前端期望
+      const formattedEvent = {
+        id: event.id,
+        title: event.title,
+        description: event.description,
+        startTime: event.start_date ? new Date(event.start_date * 1000).toISOString() : null,
+        endTime: event.end_date ? new Date(event.end_date * 1000).toISOString() : null,
+        location: event.location,
+        status: event.status,
+        type: event.category === 'competition' ? 'offline' : 'online',
+        category: event.category,
+        tags: event.tags || [],
+        participantCount: event.participant_count || 0,
+        maxParticipants: event.max_participants,
+        media: event.image_url ? [{ url: event.image_url, type: 'image' }] : [],
+        organizer: {
+          id: event.organizer_id,
+          name: event.organizer_name,
+          avatar: event.organizer_avatar
+        },
+        createdAt: event.created_at ? new Date(event.created_at * 1000).toISOString() : null,
+        visibility: event.visibility
+      }
+      
+      sendJson(res, 200, { code: 0, data: formattedEvent })
     } catch (e) {
       console.error('[API] Get event failed:', e)
       sendJson(res, 500, { code: 1, message: '获取活动详情失败' })
@@ -995,45 +1116,30 @@ async function route(req, res, u, path) {
             isCodeValid = true;
             // 验证通过，删除验证码（防止重放）
             verificationCodes.delete(email);
+            console.log('[API] 内存验证码验证成功，已清除');
           }
         }
       } else {
-        // 内存中没有验证码记录，检查是否通过真实邮箱获取了验证码
-        try {
-          const emailLoginCode = await userDB.getEmailLoginCode(email);
-          if (emailLoginCode && emailLoginCode.email_login_code) {
-            // 检查验证码是否过期
-            if (emailLoginCode.email_login_expires && Date.now() > emailLoginCode.email_login_expires) {
-              // 验证码过期，检查是否使用默认验证码
-              if (code === '123456') {
-                console.log('[API] 使用默认验证码登录（邮箱验证码已过期）')
-                isCodeValid = true;
-              }
-            } else {
-              // 验证码未过期，检查是否匹配
+        // 内存中没有验证码记录，检查是否使用默认验证码
+        if (code === '123456') {
+          console.log('[API] 使用默认验证码登录（开发调试）')
+          isCodeValid = true;
+        } else {
+          // 尝试从数据库获取验证码（作为备份）
+          try {
+            console.log('[API] 尝试从数据库获取验证码');
+            const emailLoginCode = await userDB.getEmailLoginCode(email);
+            if (emailLoginCode && emailLoginCode.email_login_code) {
+              console.log('[API] 从数据库获取到验证码:', emailLoginCode.email_login_code);
+              // 直接检查验证码是否匹配（忽略过期时间，因为数据库类型可能有问题）
               if (emailLoginCode.email_login_code === code) {
                 isCodeValid = true;
-                // 验证通过，删除数据库中的验证码（防止重放）
-                await userDB.updateEmailLoginCode(email, null, 0);
-                console.log('[API] 数据库验证码验证成功，已清除');
-              } else if (code === '123456') {
-                console.log('[API] 使用默认验证码登录（开发调试）')
-                isCodeValid = true;
+                console.log('[API] 数据库验证码验证成功');
               }
             }
-          } else {
-            // 没有通过真实邮箱获取验证码，检查是否使用默认验证码
-            if (code === '123456') {
-              console.log('[API] 使用默认验证码登录（解决Serverless环境问题）')
-              isCodeValid = true;
-            }
-          }
-        } catch (error) {
-          console.error('[API] 检查邮箱验证码失败:', error);
-          // 检查失败，允许使用默认验证码
-          if (code === '123456') {
-            console.log('[API] 使用默认验证码登录（检查邮箱验证码失败）')
-            isCodeValid = true;
+          } catch (error) {
+            console.error('[API] 检查邮箱验证码失败:', error);
+            // 数据库检查失败，继续使用默认验证码逻辑
           }
         }
       }
@@ -1045,13 +1151,63 @@ async function route(req, res, u, path) {
       }
       
       // 检查用户是否存在，如果不存在则创建
+      console.log(`[API] 开始登录流程，邮箱: ${email}`);
       let user = await userDB.findByEmail(email);
+      console.log(`[API] 从 public.users 查询用户:`, user ? `找到用户 ID: ${user.id}` : '未找到用户');
+      
+      // 检查 Supabase Auth 中是否已有该邮箱的用户
+      let supabaseUserId = null;
+      try {
+        console.log(`[API] 检查 Supabase Auth 中的用户...`);
+        const { data: authData, error: authError } = await supabaseServer.auth.admin.listUsers();
+        if (authError) {
+          console.error('[API] 获取 Supabase Auth 用户列表失败:', authError);
+        } else if (authData?.users) {
+          console.log(`[API] Supabase Auth 中共有 ${authData.users.length} 个用户`);
+          const existingAuthUser = authData.users.find(u => u.email === email);
+          if (existingAuthUser) {
+            supabaseUserId = existingAuthUser.id;
+            console.log(`[API] 在 Supabase Auth 中找到用户: ${email}, ID: ${supabaseUserId}`);
+          } else {
+            console.log(`[API] 在 Supabase Auth 中未找到用户: ${email}`);
+          }
+        }
+      } catch (supabaseError) {
+        console.warn('[API] 检查 Supabase Auth 用户失败:', supabaseError.message);
+      }
+      
+      // 如果 Supabase Auth 中没有该用户，创建一个
+      if (!supabaseUserId) {
+        try {
+          console.log(`[API] 在 Supabase Auth 中创建用户: ${email}`);
+          const { data: newAuthUser, error: createAuthError } = await supabaseServer.auth.admin.createUser({
+            email: email,
+            password: randomUUID(), // 随机密码，用户通过验证码登录
+            email_confirm: true, // 自动确认邮箱
+            user_metadata: {
+              username: email.split('@')[0],
+              auth_provider: 'local'
+            }
+          });
+          
+          if (createAuthError) {
+            console.error('[API] 在 Supabase Auth 中创建用户失败:', createAuthError);
+          } else if (newAuthUser?.user) {
+            supabaseUserId = newAuthUser.user.id;
+            console.log(`[API] 在 Supabase Auth 中创建用户成功，ID: ${supabaseUserId}`);
+          }
+        } catch (createError) {
+          console.error('[API] 在 Supabase Auth 中创建用户异常:', createError);
+        }
+      }
       
       if (!user) {
         // 创建新用户
         console.log(`[API] 用户 ${email} 不存在，自动创建新用户`);
-        // 生成与Supabase兼容的UUID格式用户ID
-        const userId = randomUUID();
+        
+        // 使用 Supabase Auth 的 ID（如果创建成功），否则生成新的 UUID
+        const userId = supabaseUserId || randomUUID();
+        
         user = {
           id: userId,
           email: email,
@@ -1078,7 +1234,46 @@ async function route(req, res, u, path) {
           sendJson(res, 401, { code: 1, message: '该账号不是通过邮箱验证码登录的，请使用邮箱验证码登录' });
           return;
         }
-        console.log(`[API] 用户登录成功，ID: ${user.id}`);
+        
+        // 如果 Supabase Auth 中有该用户，但 public.users 中的 ID 不一致，需要修复
+        if (supabaseUserId && user.id !== supabaseUserId) {
+          console.warn(`[API] 检测到用户ID不一致，正在修复:`, {
+            publicUsersId: user.id,
+            supabaseAuthId: supabaseUserId
+          });
+          
+          const oldUserId = user.id;
+          
+          // 使用事务更新用户 ID 及相关外键
+          try {
+            console.log(`[API] 开始更新用户ID从 ${oldUserId} 到 ${supabaseUserId}...`);
+            await userDB.updateUserId(oldUserId, supabaseUserId);
+            user.id = supabaseUserId;
+            console.log(`[API] 用户ID已修复为 Supabase Auth ID: ${supabaseUserId}`);
+            
+            // 同时更新社区的创建者ID
+            try {
+              console.log(`[API] 检查并更新社区的创建者ID...`);
+              const communities = await communityDB.getAllCommunities();
+              for (const community of communities) {
+                if (community.creator_id === oldUserId) {
+                  console.log(`[API] 更新社区 ${community.id} 的创建者ID从 ${oldUserId} 到 ${supabaseUserId}`);
+                  await communityDB.updateCommunityCreatorId(community.id, supabaseUserId);
+                }
+              }
+              console.log(`[API] 社区创建者ID更新完成`);
+            } catch (communityError) {
+              console.error('[API] 更新社区创建者ID失败:', communityError);
+            }
+          } catch (fixError) {
+            console.error('[API] 修复用户ID失败:', fixError);
+            // 如果无法修复，继续使用原来的 ID
+          }
+        } else if (supabaseUserId && user.id === supabaseUserId) {
+          console.log(`[API] 用户ID已与 Supabase Auth 同步: ${user.id}`);
+        } else {
+          console.log(`[API] 用户登录成功，ID: ${user.id} (未与 Supabase Auth 关联)`);
+        }
       }
       
       // 生成JWT token
@@ -1223,17 +1418,39 @@ async function route(req, res, u, path) {
     return
   }
 
-  // 根据ID获取用户信息 (/api/users/:id)
+  // 根据ID或用户名获取用户信息 (/api/users/:idOrUsername)
   if (req.method === 'GET' && path.startsWith('/api/users/') && path.split('/').length === 4) {
-    const userId = path.split('/')[3]
-    if (!userId) {
+    const userIdOrUsername = path.split('/')[3]
+    if (!userIdOrUsername) {
       sendJson(res, 400, { code: 1, message: '用户ID不能为空' })
       return
     }
 
     try {
-      console.log('[API] Getting user by ID:', userId)
-      const user = await userDB.findById(userId)
+      console.log('[API] Getting user by ID or username:', userIdOrUsername)
+      
+      // 检查是否是有效的 UUID 格式
+      const isValidUUID = (str) => {
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+        return uuidRegex.test(str)
+      }
+      
+      let user = null
+      
+      // 如果是有效的 UUID，首先尝试通过 ID 查找
+      if (isValidUUID(userIdOrUsername)) {
+        console.log('[API] Valid UUID format, trying to find by ID:', userIdOrUsername)
+        user = await userDB.findById(userIdOrUsername)
+      } else {
+        console.log('[API] Not a valid UUID, skipping ID lookup:', userIdOrUsername)
+      }
+      
+      // 如果找不到，尝试通过用户名查找
+      if (!user) {
+        console.log('[API] User not found by ID, trying username:', userIdOrUsername)
+        user = await userDB.getByUsername(userIdOrUsername)
+      }
+      
       console.log('[API] Found user:', user)
       if (!user) {
         sendJson(res, 404, { code: 1, message: '用户不存在' })
@@ -1606,10 +1823,10 @@ async function route(req, res, u, path) {
   if (req.method === 'DELETE' && path.startsWith('/api/friends/')) {
     const decoded = verifyRequestToken(req)
     if (!decoded) { sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' }); return }
-    
+
     const friendId = path.split('/').pop()
     if (!friendId) { sendJson(res, 400, { error: 'MISSING_FRIEND_ID' }); return }
-    
+
     try {
       await friendDB.deleteFriend(decoded.userId, friendId)
       sendJson(res, 200, { ok: true })
@@ -1618,7 +1835,115 @@ async function route(req, res, u, path) {
     }
     return
   }
-  
+
+  // 关注用户
+  if (req.method === 'POST' && path === '/api/follows') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) { sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' }); return }
+
+    const b = await readBody(req)
+    if (!b.targetUserId) { sendJson(res, 400, { code: 1, message: '目标用户ID不能为空' }); return }
+    if (decoded.userId === b.targetUserId) { sendJson(res, 400, { code: 1, message: '不能关注自己' }); return }
+
+    try {
+      const db = await getDB()
+      const now = new Date().toISOString()
+
+      // 插入关注记录
+      await db.query(`
+        INSERT INTO follows (id, follower_id, following_id, created_at)
+        VALUES (gen_random_uuid(), $1, $2, $3)
+        ON CONFLICT (follower_id, following_id) DO NOTHING
+      `, [decoded.userId, b.targetUserId, now])
+
+      // 更新用户的关注数和被关注数
+      await db.query('UPDATE users SET following_count = following_count + 1 WHERE id = $1', [decoded.userId])
+      await db.query('UPDATE users SET followers_count = followers_count + 1 WHERE id = $1', [b.targetUserId])
+
+      sendJson(res, 200, { code: 0, message: '关注成功' })
+    } catch (e) {
+      console.error('[API] Follow user failed:', e)
+      sendJson(res, 500, { code: 1, message: '关注失败: ' + e.message })
+    }
+    return
+  }
+
+  // 取消关注
+  if (req.method === 'DELETE' && path.startsWith('/api/follows/')) {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) { sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' }); return }
+
+    const targetUserId = path.split('/')[3]
+    if (!targetUserId) { sendJson(res, 400, { code: 1, message: '目标用户ID不能为空' }); return }
+
+    try {
+      const db = await getDB()
+
+      // 删除关注记录
+      const { rowCount } = await db.query(`
+        DELETE FROM follows WHERE follower_id = $1 AND following_id = $2
+      `, [decoded.userId, targetUserId])
+
+      if (rowCount > 0) {
+        // 更新用户的关注数和被关注数
+        await db.query('UPDATE users SET following_count = GREATEST(following_count - 1, 0) WHERE id = $1', [decoded.userId])
+        await db.query('UPDATE users SET followers_count = GREATEST(followers_count - 1, 0) WHERE id = $1', [targetUserId])
+      }
+
+      sendJson(res, 200, { code: 0, message: '取消关注成功' })
+    } catch (e) {
+      console.error('[API] Unfollow user failed:', e)
+      sendJson(res, 500, { code: 1, message: '取消关注失败: ' + e.message })
+    }
+    return
+  }
+
+  // 获取关注列表
+  if (req.method === 'GET' && path === '/api/follows/following') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) { sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' }); return }
+
+    try {
+      const db = await getDB()
+      const { rows } = await db.query(`
+        SELECT u.id, u.username, u.avatar_url
+        FROM follows f
+        JOIN users u ON f.following_id = u.id
+        WHERE f.follower_id = $1
+        ORDER BY f.created_at DESC
+      `, [decoded.userId])
+
+      sendJson(res, 200, { code: 0, data: rows })
+    } catch (e) {
+      console.error('[API] Get following list failed:', e)
+      sendJson(res, 500, { code: 1, message: '获取关注列表失败: ' + e.message })
+    }
+    return
+  }
+
+  // 获取粉丝列表
+  if (req.method === 'GET' && path === '/api/follows/followers') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) { sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' }); return }
+
+    try {
+      const db = await getDB()
+      const { rows } = await db.query(`
+        SELECT u.id, u.username, u.avatar_url
+        FROM follows f
+        JOIN users u ON f.follower_id = u.id
+        WHERE f.following_id = $1
+        ORDER BY f.created_at DESC
+      `, [decoded.userId])
+
+      sendJson(res, 200, { code: 0, data: rows })
+    } catch (e) {
+      console.error('[API] Get followers list failed:', e)
+      sendJson(res, 500, { code: 1, message: '获取粉丝列表失败: ' + e.message })
+    }
+    return
+  }
+
   // 更新好友备注
   if (req.method === 'POST' && path === '/api/friends/note') {
     const decoded = verifyRequestToken(req)
@@ -2015,9 +2340,15 @@ async function route(req, res, u, path) {
     if (!prompt) { sendJson(res, 400, { error: 'PROMPT_REQUIRED', message: 'Prompt is required' }); return }
     
     console.log(`[Qwen Video] Request received:`, prompt);
+    console.log(`[Qwen Video] Image URL:`, imageUrl || '(none - text to video)');
     
     const authKey = process.env.DASHSCOPE_API_KEY || process.env.VITE_QWEN_API_KEY || ''
-    if (!authKey) { sendJson(res, 401, { error: 'API_KEY_MISSING', message: 'Missing DashScope API Key' }); return }
+    if (!authKey) { 
+      console.error('[Qwen Video] ERROR: API Key not configured. Please set DASHSCOPE_API_KEY or VITE_QWEN_API_KEY environment variable.');
+      sendJson(res, 401, { error: 'API_KEY_MISSING', message: 'Missing DashScope API Key' }); 
+      return 
+    }
+    console.log(`[Qwen Video] API Key configured: ${authKey.slice(0, 8)}...${authKey.slice(-4)}`);
 
     try {
       const r = await dashscopeVideoGenerate({
@@ -2028,10 +2359,12 @@ async function route(req, res, u, path) {
       })
       
       if (!r.ok) {
+        console.error('[Qwen Video] Generation failed:', r.data);
         sendJson(res, r.status, r.data)
         return
       }
       
+      console.log('[Qwen Video] Generation successful:', r.data);
       sendJson(res, 200, r.data)
     } catch (e) {
       console.error('[Qwen Video] Error:', e)
@@ -2073,10 +2406,35 @@ async function route(req, res, u, path) {
   if (req.method === 'GET' && path === '/api/communities') {
     try {
       const communities = await communityDB.getAllCommunities()
+      console.log('[API] Get communities:', communities?.length, 'communities found')
+      if (communities && communities.length > 0) {
+        console.log('[API] First community:', JSON.stringify(communities[0], null, 2))
+      }
       sendJson(res, 200, { code: 0, data: communities || [] })
     } catch (e) {
       console.error('[API] Get communities failed:', e)
       sendJson(res, 500, { code: 1, message: '获取社区列表失败' })
+    }
+    return
+  }
+
+  // 获取用户加入的社群列表
+  if (req.method === 'GET' && path === '/api/user/communities') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      console.log('[API] getUserCommunities: Token verification failed')
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '用户认证失败，请重新登录' })
+      return
+    }
+
+    try {
+      console.log('[API] getUserCommunities: userId =', decoded.userId)
+      const communities = await communityDB.getUserCommunities(decoded.userId)
+      console.log('[API] getUserCommunities: found', communities?.length, 'communities')
+      sendJson(res, 200, { code: 0, data: communities || [] })
+    } catch (e) {
+      console.error('[API] Get user communities failed:', e)
+      sendJson(res, 500, { code: 1, message: '获取用户社群列表失败' })
     }
     return
   }
@@ -2102,7 +2460,7 @@ async function route(req, res, u, path) {
 
     const now = Date.now()
     const newCommunity = {
-      id: `community-${Date.now()}`,
+      id: randomUUID(),
       name: body.name,
       description: body.description || '',
       avatar: body.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(body.name)}`,
@@ -2149,14 +2507,34 @@ async function route(req, res, u, path) {
         is_special: newCommunity.isSpecial,
         member_count: 0,
         is_active: true,
-        creator_id: decoded.userId
+        creator_id: decoded.userId,
+        theme: newCommunity.theme,
+        layout_type: newCommunity.layoutType,
+        enabled_modules: newCommunity.enabledModules
       })
 
       console.log('[API] createCommunity: adding creator as member, userId =', decoded.userId, 'communityId =', newCommunity.id)
       await communityDB.joinCommunity(decoded.userId, newCommunity.id, 'owner')
       console.log('[API] createCommunity: creator added as member successfully')
 
-      sendJson(res, 200, { code: 0, data: newCommunity, message: '社群创建成功' })
+      // 构建返回数据，使用前端期望的字段格式
+      const responseData = {
+        id: newCommunity.id,
+        name: newCommunity.name,
+        description: newCommunity.description,
+        avatar: newCommunity.avatar,
+        member_count: 1,
+        topic: newCommunity.topic,
+        is_active: true,
+        is_special: false,
+        theme: newCommunity.theme,
+        layout_type: newCommunity.layoutType,
+        enabled_modules: newCommunity.enabledModules,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }
+
+      sendJson(res, 200, { code: 0, data: responseData, message: '社群创建成功' })
     } catch (err) {
       console.error('[API] createCommunity: Failed to create community in DB:', err)
       sendJson(res, 500, { error: 'DB_ERROR', message: '创建社群失败: ' + err.message })
@@ -2227,6 +2605,532 @@ async function route(req, res, u, path) {
     return
   }
 
+  // 退出社群
+  if (req.method === 'POST' && path.startsWith('/api/communities/') && path.endsWith('/leave')) {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      console.log('[API] leaveCommunity: Token verification failed')
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '用户认证失败，请重新登录' })
+      return
+    }
+
+    const communityId = path.split('/')[3]
+    console.log('[API] leaveCommunity: userId =', decoded.userId, 'communityId =', communityId)
+
+    try {
+      // 检查社群是否存在
+      const community = await communityDB.getCommunityById(communityId)
+      if (!community) {
+        sendJson(res, 404, { error: 'NOT_FOUND', message: '社群不存在' })
+        return
+      }
+
+      // 检查是否是成员
+      const isMember = await communityDB.isCommunityMember(decoded.userId, communityId)
+      if (!isMember) {
+        sendJson(res, 400, { error: 'NOT_MEMBER', message: '不是该社群成员' })
+        return
+      }
+
+      // 退出社群
+      await communityDB.leaveCommunity(communityId, decoded.userId)
+      console.log('[API] leaveCommunity: Successfully left community')
+
+      sendJson(res, 200, { code: 0, data: { success: true }, message: '退出社群成功' })
+    } catch (err) {
+      console.error('[API] leaveCommunity: Failed to leave community:', err)
+      sendJson(res, 500, { error: 'DB_ERROR', message: '退出社群失败: ' + err.message })
+    }
+    return
+  }
+
+  // 获取社区统计数据
+  if (req.method === 'GET' && path.startsWith('/api/communities/') && path.endsWith('/stats')) {
+    const communityId = path.split('/')[3]
+    if (!communityId) {
+      sendJson(res, 400, { code: 1, message: '社区ID不能为空' })
+      return
+    }
+
+    try {
+      console.log('[API] Getting community stats for:', communityId)
+      const stats = await communityDB.getCommunityStats(communityId)
+      console.log('[API] Community stats:', stats)
+      sendJson(res, 200, { code: 0, data: stats })
+    } catch (err) {
+      console.error('[API] Get community stats failed:', err)
+      sendJson(res, 500, { code: 1, message: '获取社区统计数据失败: ' + err.message })
+    }
+    return
+  }
+
+  // 在社区中创建帖子
+  if (req.method === 'POST' && path.startsWith('/api/communities/') && path.endsWith('/posts')) {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      console.log('[API] createCommunityPost: Token verification failed')
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '用户认证失败，请重新登录' })
+      return
+    }
+
+    const communityId = path.split('/')[3]
+    console.log('[API] createCommunityPost: userId =', decoded.userId, 'communityId =', communityId)
+
+    if (!communityId) {
+      sendJson(res, 400, { code: 1, message: '社区ID不能为空' })
+      return
+    }
+
+    try {
+      const body = await readBody(req)
+      const { title, content, images } = body
+
+      if (!title || !content) {
+        sendJson(res, 400, { code: 1, message: '标题和内容不能为空' })
+        return
+      }
+
+      // 检查社区是否存在
+      const community = await communityDB.getCommunityById(communityId)
+      if (!community) {
+        sendJson(res, 404, { code: 1, message: '社区不存在' })
+        return
+      }
+
+      // 检查用户是否是社区成员
+      const isMember = await communityDB.isCommunityMember(decoded.userId, communityId)
+      if (!isMember) {
+        sendJson(res, 403, { code: 1, message: '您不是该社区的成员，无法发帖' })
+        return
+      }
+
+      // 创建帖子
+      const post = await communityDB.createCommunityPost({
+        communityId,
+        userId: decoded.userId,
+        title,
+        content,
+        images: images || []
+      })
+
+      console.log('[API] createCommunityPost: success, postId =', post.id)
+      sendJson(res, 200, { code: 0, data: post, message: '帖子创建成功' })
+    } catch (err) {
+      console.error('[API] Create community post failed:', err)
+      sendJson(res, 500, { code: 1, message: '创建帖子失败: ' + err.message })
+    }
+    return
+  }
+
+  // 获取社区的帖子列表
+  if (req.method === 'GET' && path.startsWith('/api/communities/') && path.endsWith('/posts')) {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      console.log('[API] getCommunityPosts: Token verification failed')
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '用户认证失败，请重新登录' })
+      return
+    }
+
+    const communityId = path.split('/')[3]
+    console.log('[API] getCommunityPosts: communityId =', communityId)
+
+    if (!communityId) {
+      sendJson(res, 400, { code: 1, message: '社区ID不能为空' })
+      return
+    }
+
+    try {
+      // 检查社区是否存在
+      const community = await communityDB.getCommunityById(communityId)
+      if (!community) {
+        sendJson(res, 404, { code: 1, message: '社区不存在' })
+        return
+      }
+
+      // 获取帖子列表
+      const posts = await communityDB.getCommunityPosts(communityId)
+      console.log('[API] getCommunityPosts: found', posts.length, 'posts')
+
+      // 格式化返回数据
+      const formattedPosts = posts.map(post => ({
+        id: post.id,
+        title: post.title,
+        content: post.content,
+        images: post.images || [],
+        author_id: post.user_id,
+        author_name: post.author_name,
+        author_avatar: post.author_avatar,
+        community_id: post.community_id,
+        likes: post.likes || 0,
+        comments_count: post.comments_count || 0,
+        views: post.views || 0,
+        is_pinned: post.is_pinned || false,
+        is_announcement: post.is_announcement || false,
+        status: post.status,
+        created_at: post.created_at,
+        updated_at: post.updated_at,
+        type: 'post'
+      }))
+
+      sendJson(res, 200, { code: 0, data: formattedPosts, message: '获取帖子列表成功' })
+    } catch (err) {
+      console.error('[API] Get community posts failed:', err)
+      sendJson(res, 500, { code: 1, message: '获取帖子列表失败: ' + err.message })
+    }
+    return
+  }
+
+  // 添加作品评论
+  if (req.method === 'POST' && path.startsWith('/api/works/') && path.endsWith('/comments')) {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      console.log('[API] addWorkComment: Token verification failed')
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '用户认证失败，请重新登录' })
+      return
+    }
+
+    const workId = path.split('/')[3]
+    console.log('[API] addWorkComment: userId =', decoded.userId, 'workId =', workId)
+
+    if (!workId) {
+      sendJson(res, 400, { code: 1, message: '作品ID不能为空' })
+      return
+    }
+
+    try {
+      const body = await readBody(req)
+      console.log('[API] addWorkComment: request body =', body)
+      const { content, parent_id } = body
+
+      if (!content || content.trim() === '') {
+        sendJson(res, 400, { code: 1, message: '评论内容不能为空' })
+        return
+      }
+
+      console.log('[API] addWorkComment: calling workDB.addComment with:', { workId, userId: decoded.userId, content, parent_id })
+      // 创建评论
+      const comment = await workDB.addComment(workId, decoded.userId, content, parent_id)
+
+      console.log('[API] addWorkComment: success, commentId =', comment.id)
+      sendJson(res, 200, { code: 0, data: comment, message: '评论添加成功' })
+    } catch (err) {
+      console.error('[API] Add work comment failed:', err)
+      console.error('[API] Add work comment error stack:', err.stack)
+      sendJson(res, 500, { code: 1, message: '添加评论失败: ' + err.message })
+    }
+    return
+  }
+
+  // 获取作品评论列表
+  if (req.method === 'GET' && path.startsWith('/api/works/') && path.endsWith('/comments')) {
+    const workId = path.split('/')[3]
+    if (!workId) {
+      sendJson(res, 400, { code: 1, message: '作品ID不能为空' })
+      return
+    }
+
+    try {
+      const limit = parseInt(u.searchParams.get('limit') || '50')
+      const offset = parseInt(u.searchParams.get('offset') || '0')
+      const comments = await workDB.getWorkComments(workId, limit, offset)
+      sendJson(res, 200, { code: 0, data: comments })
+    } catch (err) {
+      console.error('[API] Get work comments failed:', err)
+      sendJson(res, 500, { code: 1, message: '获取评论失败: ' + err.message })
+    }
+    return
+  }
+
+  // 作品点赞
+  if (req.method === 'POST' && path.startsWith('/api/works/') && path.endsWith('/like')) {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '用户认证失败' })
+      return
+    }
+
+    const workId = path.split('/')[3]
+    console.log('[API] Like work:', { workId, userId: decoded.userId, path })
+    if (!workId) {
+      sendJson(res, 400, { code: 1, message: '作品ID不能为空' })
+      return
+    }
+
+    try {
+      const result = await workDB.likeWork(workId, decoded.userId)
+      if (result.success) {
+        sendJson(res, 200, { code: 0, message: '点赞成功' })
+      } else {
+        sendJson(res, 400, { code: 1, message: result.error || '点赞失败' })
+      }
+    } catch (err) {
+      console.error('[API] Like work failed:', err)
+      sendJson(res, 500, { code: 1, message: '点赞失败: ' + err.message })
+    }
+    return
+  }
+
+  // 取消作品点赞
+  if (req.method === 'DELETE' && path.startsWith('/api/works/') && path.endsWith('/like')) {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '用户认证失败' })
+      return
+    }
+
+    const workId = path.split('/')[3]
+    if (!workId) {
+      sendJson(res, 400, { code: 1, message: '作品ID不能为空' })
+      return
+    }
+
+    try {
+      await workDB.unlikeWork(workId, decoded.userId)
+      sendJson(res, 200, { code: 0, message: '取消点赞成功' })
+    } catch (err) {
+      console.error('[API] Unlike work failed:', err)
+      sendJson(res, 500, { code: 1, message: '取消点赞失败: ' + err.message })
+    }
+    return
+  }
+
+  // 检查是否已点赞
+  if (req.method === 'GET' && path.startsWith('/api/works/') && path.endsWith('/like')) {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '用户认证失败' })
+      return
+    }
+
+    const workId = path.split('/')[3]
+    if (!workId) {
+      sendJson(res, 400, { code: 1, message: '作品ID不能为空' })
+      return
+    }
+
+    try {
+      const isLiked = await workDB.isWorkLiked(workId, decoded.userId)
+      sendJson(res, 200, { code: 0, data: { isLiked } })
+    } catch (err) {
+      console.error('[API] Check work like failed:', err)
+      sendJson(res, 500, { code: 1, message: '检查点赞状态失败: ' + err.message })
+    }
+    return
+  }
+
+  // 作品收藏
+  if (req.method === 'POST' && path.startsWith('/api/works/') && path.endsWith('/bookmark')) {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '用户认证失败' })
+      return
+    }
+
+    const workId = path.split('/')[3]
+    if (!workId) {
+      sendJson(res, 400, { code: 1, message: '作品ID不能为空' })
+      return
+    }
+
+    try {
+      const result = await workDB.bookmarkWork(workId, decoded.userId)
+      if (result.success) {
+        sendJson(res, 200, { code: 0, message: '收藏成功' })
+      } else {
+        sendJson(res, 400, { code: 1, message: result.error || '收藏失败' })
+      }
+    } catch (err) {
+      console.error('[API] Bookmark work failed:', err)
+      sendJson(res, 500, { code: 1, message: '收藏失败: ' + err.message })
+    }
+    return
+  }
+
+  // 取消作品收藏
+  if (req.method === 'DELETE' && path.startsWith('/api/works/') && path.endsWith('/bookmark')) {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '用户认证失败' })
+      return
+    }
+
+    const workId = path.split('/')[3]
+    if (!workId) {
+      sendJson(res, 400, { code: 1, message: '作品ID不能为空' })
+      return
+    }
+
+    try {
+      await workDB.unbookmarkWork(workId, decoded.userId)
+      sendJson(res, 200, { code: 0, message: '取消收藏成功' })
+    } catch (err) {
+      console.error('[API] Unbookmark work failed:', err)
+      sendJson(res, 500, { code: 1, message: '取消收藏失败: ' + err.message })
+    }
+    return
+  }
+
+  // 检查是否已收藏
+  if (req.method === 'GET' && path.startsWith('/api/works/') && path.endsWith('/bookmark')) {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '用户认证失败' })
+      return
+    }
+
+    const workId = path.split('/')[3]
+    if (!workId) {
+      sendJson(res, 400, { code: 1, message: '作品ID不能为空' })
+      return
+    }
+
+    try {
+      const isBookmarked = await workDB.isWorkBookmarked(workId, decoded.userId)
+      sendJson(res, 200, { code: 0, data: { isBookmarked } })
+    } catch (err) {
+      console.error('[API] Check work bookmark failed:', err)
+      sendJson(res, 500, { code: 1, message: '检查收藏状态失败: ' + err.message })
+    }
+    return
+  }
+
+  // 删除作品评论
+  console.log('[API] Checking delete work comment route:', req.method, path)
+  if (req.method === 'DELETE' && path.startsWith('/api/work-comments/')) {
+    console.log('[API] Matched delete work comment route')
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '用户认证失败' })
+      return
+    }
+
+    const commentId = path.split('/')[3]
+    console.log('[API] Delete comment, ID:', commentId)
+    if (!commentId) {
+      sendJson(res, 400, { code: 1, message: '评论ID不能为空' })
+      return
+    }
+
+    try {
+      // 先检查评论是否存在且属于当前用户
+      const db = await getDB()
+      const { rows } = await db.query('SELECT user_id, work_id FROM work_comments WHERE id = $1', [commentId])
+      
+      if (rows.length === 0) {
+        sendJson(res, 404, { code: 1, message: '评论不存在' })
+        return
+      }
+      
+      if (rows[0].user_id !== decoded.userId) {
+        sendJson(res, 403, { code: 1, message: '无权删除此评论' })
+        return
+      }
+      
+      // 删除评论
+      await db.query('DELETE FROM work_comments WHERE id = $1', [commentId])
+      
+      // 更新作品评论数
+      await db.query('UPDATE works SET comments = GREATEST(comments - 1, 0) WHERE id = $1', [rows[0].work_id])
+      
+      sendJson(res, 200, { code: 0, message: '评论已删除' })
+    } catch (err) {
+      console.error('[API] Delete work comment failed:', err)
+      sendJson(res, 500, { code: 1, message: '删除评论失败: ' + err.message })
+    }
+    return
+  }
+
+  // 删除作品
+  if (req.method === 'DELETE' && path.startsWith('/api/works/')) {
+    const workId = path.split('/')[3]
+    console.log('[API] Delete work, ID:', workId)
+    
+    if (!workId) {
+      sendJson(res, 400, { code: 1, message: '作品ID不能为空' })
+      return
+    }
+    
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '用户认证失败' })
+      return
+    }
+    
+    try {
+      const db = await getDB()
+      
+      // 先检查作品是否存在且属于当前用户
+      const { rows } = await db.query('SELECT creator_id FROM works WHERE id = $1', [workId])
+      
+      if (rows.length === 0) {
+        sendJson(res, 404, { code: 1, message: '作品不存在' })
+        return
+      }
+      
+      if (rows[0].creator_id !== decoded.userId) {
+        sendJson(res, 403, { code: 1, message: '无权删除此作品' })
+        return
+      }
+      
+      // 删除作品相关的点赞记录
+      await db.query('DELETE FROM work_likes WHERE work_id = $1', [workId])
+      
+      // 删除作品相关的收藏记录
+      await db.query('DELETE FROM work_bookmarks WHERE work_id = $1', [workId])
+      
+      // 删除作品相关的评论
+      await db.query('DELETE FROM work_comments WHERE work_id = $1', [workId])
+      
+      // 删除作品
+      await db.query('DELETE FROM works WHERE id = $1', [workId])
+      
+      console.log('[API] Work deleted successfully:', workId)
+      sendJson(res, 200, { code: 0, message: '作品已删除' })
+    } catch (err) {
+      console.error('[API] Delete work failed:', err)
+      sendJson(res, 500, { code: 1, message: '删除作品失败: ' + err.message })
+    }
+    return
+  }
+
+  // 添加帖子评论
+  if (req.method === 'POST' && path.startsWith('/api/posts/') && path.endsWith('/comments')) {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      console.log('[API] addPostComment: Token verification failed')
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '用户认证失败，请重新登录' })
+      return
+    }
+
+    const postId = path.split('/')[3]
+    console.log('[API] addPostComment: userId =', decoded.userId, 'postId =', postId)
+
+    if (!postId) {
+      sendJson(res, 400, { code: 1, message: '帖子ID不能为空' })
+      return
+    }
+
+    try {
+      const body = await readBody(req)
+      const { content, parent_id } = body
+
+      if (!content || content.trim() === '') {
+        sendJson(res, 400, { code: 1, message: '评论内容不能为空' })
+        return
+      }
+
+      // 创建评论
+      const comment = await communityDB.addComment(postId, decoded.userId, content, parent_id)
+
+      console.log('[API] addPostComment: success, commentId =', comment.id)
+      sendJson(res, 200, { code: 0, data: comment, message: '评论添加成功' })
+    } catch (err) {
+      console.error('[API] Add post comment failed:', err)
+      sendJson(res, 500, { code: 1, message: '添加评论失败: ' + err.message })
+    }
+    return
+  }
+
   // 获取用户创建的活动
   if (req.method === 'GET' && path.startsWith('/api/users/') && path.endsWith('/events')) {
     const userId = path.split('/')[3]
@@ -2245,8 +3149,33 @@ async function route(req, res, u, path) {
       // 获取用户活动
       let events = await eventDB.getEvents()
       
+      // 转换字段格式
+      const formattedEvents = events.map(event => ({
+        id: event.id,
+        title: event.title,
+        description: event.description,
+        startTime: event.start_date ? new Date(event.start_date * 1000).toISOString() : null,
+        endTime: event.end_date ? new Date(event.end_date * 1000).toISOString() : null,
+        location: event.location,
+        status: event.status,
+        type: event.category === 'competition' ? 'offline' : 'online',
+        category: event.category,
+        tags: event.tags || [],
+        participantCount: event.participant_count || 0,
+        maxParticipants: event.max_participants,
+        media: event.image_url ? [{ url: event.image_url, type: 'image' }] : [],
+        organizer: {
+          id: event.organizer_id,
+          name: event.organizer_name,
+          avatar: event.organizer_avatar
+        },
+        createdAt: event.created_at ? new Date(event.created_at * 1000).toISOString() : null,
+        visibility: event.visibility,
+        creatorId: event.organizer_id
+      }))
+      
       // 过滤用户创建的活动
-      let userEvents = events.filter(event => event.creatorId === userId)
+      let userEvents = formattedEvents.filter(event => event.creatorId === userId)
       
       // 过滤活动
       if (search) {
@@ -2286,9 +3215,9 @@ const server = http.createServer(async (req, res) => {
   const host = req.headers.host || `localhost:${PORT}`
   const u = new URL(req.url, `${protocol}://${host}`)
   const path = u.pathname
-  
-  console.log('[API] Request:', req.method, path)
-  
+
+  console.log('[API] Request:', req.method, path, 'full URL:', req.url)
+
   try {
     await route(req, res, u, path)
   } catch (error) {

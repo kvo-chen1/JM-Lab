@@ -1,6 +1,6 @@
 import { useTheme } from '@/hooks/useTheme'
 import { useState, useMemo, useRef, useCallback, useEffect, lazy, Suspense } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom'
 import postsApi, { Post } from '@/services/postService'
 import { SearchResultType } from '@/components/SearchBar'
 import { motion } from 'framer-motion'
@@ -23,6 +23,7 @@ export default function Square() {
   const { isDark } = useTheme()
   const params = useParams()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { user } = useContext(AuthContext)
   const [posts, setPosts] = useState<Post[]>([])
   
@@ -262,6 +263,16 @@ export default function Square() {
   }, [params.id])
 
   useEffect(() => {
+    // 支持通过查询参数 ?post=xxx 打开详情（从排行榜跳转）
+    const postId = searchParams.get('post')
+    if (postId) {
+      loadPostDetail(postId)
+      // 清除查询参数，避免刷新时重复打开
+      navigate('/square', { replace: true })
+    }
+  }, [searchParams])
+
+  useEffect(() => {
     // 监听作品发布事件，当用户发布新作品到津脉广场时自动刷新
     const handleSquarePostsUpdated = async () => {
       console.log('收到广场作品更新事件，重新加载数据...');
@@ -408,18 +419,37 @@ export default function Square() {
   
   // 优化：使用useCallback稳定like函数
   const like = useCallback(async (id: string) => {
-    await postsApi.likePost(id, user?.id)
-    const current = await postsApi.getPosts()
-    setPosts(current)
-    // 更新active状态中的点赞数
-    if (active && active.id === id) {
-      setActive(prev => prev ? { ...prev, likes: prev.likes + 1 } : null)
+    if (!user?.id) {
+      toast.error('请先登录后再点赞')
+      navigate('/login')
+      return
     }
-  }, [active, user])
+    try {
+      await postsApi.likePost(id, user.id)
+      const current = await postsApi.getPosts()
+      setPosts(current)
+      // 更新active状态中的点赞数
+      if (active && active.id === id) {
+        setActive(prev => prev ? { ...prev, likes: prev.likes + 1, isLiked: true } : null)
+      }
+      toast.success('点赞成功')
+    } catch (error) {
+      console.error('点赞失败:', error)
+      toast.error('点赞失败，请稍后重试')
+    }
+  }, [active, user, navigate])
   
   // 优化：使用useCallback稳定addComment函数
   const addComment = useCallback(async (id: string, content: string) => {
     if (!content) return
+    
+    // 检查用户是否登录
+    if (!user?.id) {
+      toast.error('请先登录后再评论')
+      navigate('/login')
+      return
+    }
+    
     console.log('Adding comment to post:', id, 'content:', content)
     
     // 1. 首先更新本地状态，确保评论能够立即显示
@@ -454,16 +484,21 @@ export default function Square() {
     }
     
     // 2. 然后调用API添加评论，确保数据持久化
-    const updatedPost = await postsApi.addComment(id, content, undefined, user || undefined)
-    console.log('Updated post from API:', updatedPost)
-    
-    // 3. 最后更新本地状态，确保数据同步
-    if (updatedPost) {
-      const current = await postsApi.getPosts()
-      console.log('Current posts after API call:', current)
-      setPosts(current)
+    try {
+      const updatedPost = await postsApi.addComment(id, content, undefined, user)
+      console.log('Updated post from API:', updatedPost)
+      
+      // 3. 最后更新本地状态，确保数据同步
+      if (updatedPost) {
+        const current = await postsApi.getPosts()
+        console.log('Current posts after API call:', current)
+        setPosts(current)
+      }
+    } catch (error: any) {
+      console.error('Failed to add comment:', error)
+      toast.error(error.message || '评论失败，请重试')
     }
-  }, [active, user])
+  }, [active, user, navigate])
   
   // 优化：使用useCallback稳定share函数
   const sharePost = useCallback((id: string) => {
@@ -475,6 +510,12 @@ export default function Square() {
   // 优化：使用useCallback稳定toggleFavorite函数
   const toggleFavorite = useCallback(async (id: string) => {
     // 中文注释：收藏/取消收藏
+    if (!user?.id) {
+      toast.error('请先登录后再收藏')
+      navigate('/login')
+      return
+    }
+    
     const isCurrentlyFavorited = favorites.includes(id);
     
     // 先更新本地状态，提供即时反馈
@@ -488,9 +529,11 @@ export default function Square() {
     // 然后调用API更新服务器状态
     try {
       if (isCurrentlyFavorited) {
-        await postsApi.unbookmarkPost(id, user?.id);
+        await postsApi.unbookmarkPost(id, user.id);
+        toast.success('已取消收藏')
       } else {
-        await postsApi.bookmarkPost(id, user?.id);
+        await postsApi.bookmarkPost(id, user.id);
+        toast.success('收藏成功')
       }
       
       // 更新active状态中的收藏状态
@@ -499,10 +542,11 @@ export default function Square() {
       }
     } catch (error) {
       console.error('更新收藏状态失败:', error);
+      toast.error('操作失败，请稍后重试')
       // 如果API调用失败，恢复本地状态
       setFavorites(favorites);
     }
-  }, [active, favorites, user])
+  }, [active, favorites, user, navigate])
   
   // 优化：使用useCallback稳定deletePost函数
   const deletePost = useCallback(async (id: string) => {

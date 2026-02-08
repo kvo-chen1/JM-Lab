@@ -152,12 +152,12 @@ export const communityService = {
   },
 
   async getUserCommunities(userId: string): Promise<Community[]> {
-    // 首先尝试使用后端API
+    // 首先尝试使用后端API获取用户加入的社群
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
     if (token) {
       try {
         console.log('[getUserCommunities] Trying backend API...');
-        const response = await fetch('/api/communities', {
+        const response = await fetch('/api/user/communities', {
           headers: {
             'Authorization': `Bearer ${token}`
           }
@@ -166,56 +166,37 @@ export const communityService = {
         if (response.ok) {
           const result = await response.json();
           if (result.code === 0 && Array.isArray(result.data)) {
-            // 获取所有社群，然后检查用户加入了哪些
-            const allCommunities = result.data;
+            const communities = result.data;
             
-            // 检查用户加入了哪些社群
-            const joinedCommunities: Community[] = [];
-            for (const community of allCommunities) {
-              try {
-                const memberResponse = await fetch(`/api/communities/${community.id}/members/check`, {
-                  headers: {
-                    'Authorization': `Bearer ${token}`
-                  }
-                });
-                if (memberResponse.ok) {
-                  const memberResult = await memberResponse.json();
-                  if (memberResult.code === 0 && memberResult.data?.isMember) {
-                    joinedCommunities.push({
-                      id: community.id,
-                      name: community.name,
-                      description: community.description,
-                      memberCount: community.member_count || 0,
-                      topic: community.tags?.join(',') || '',
-                      avatar: community.avatar || 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=community%20avatar%20placeholder&image_size=square',
-                      cover: community.cover,
-                      isActive: true,
-                      tags: community.tags || [],
-                      bookmarks: community.bookmarks || [],
-                      theme: {
-                        primaryColor: community.theme?.primaryColor || '#3b82f6',
-                        secondaryColor: community.theme?.secondaryColor || '#60a5fa',
-                        backgroundColor: community.theme?.backgroundColor || '#f3f4f6',
-                        textColor: community.theme?.textColor || '#1f2937'
-                      },
-                      layoutType: (community.layout_type as 'standard' | 'compact' | 'expanded') || 'standard',
-                      enabledModules: {
-                        posts: true,
-                        chat: true,
-                        members: true,
-                        announcements: true
-                      },
-                      isSpecial: false,
-                      creatorId: community.creator_id || '',
-                      createdAt: community.created_at,
-                      updatedAt: community.updated_at
-                    });
-                  }
-                }
-              } catch (e) {
-                console.warn(`[getUserCommunities] Failed to check membership for ${community.id}:`, e);
-              }
-            }
+            const joinedCommunities: Community[] = communities.map(community => ({
+              id: community.id,
+              name: community.name,
+              description: community.description,
+              memberCount: community.member_count || 0,
+              topic: community.tags?.join(',') || '',
+              avatar: community.avatar || 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=community%20avatar%20placeholder&image_size=square',
+              cover: community.cover,
+              isActive: true,
+              tags: community.tags || [],
+              bookmarks: community.bookmarks || [],
+              theme: {
+                primaryColor: community.theme?.primaryColor || '#3b82f6',
+                secondaryColor: community.theme?.secondaryColor || '#60a5fa',
+                backgroundColor: community.theme?.backgroundColor || '#f3f4f6',
+                textColor: community.theme?.textColor || '#1f2937'
+              },
+              layoutType: (community.layout_type as 'standard' | 'compact' | 'expanded') || 'standard',
+              enabledModules: {
+                posts: true,
+                chat: true,
+                members: true,
+                announcements: true
+              },
+              isSpecial: false,
+              creatorId: community.creator_id || '',
+              createdAt: community.created_at,
+              updatedAt: community.updated_at
+            }));
             
             console.log('[getUserCommunities] Backend API success, joined communities:', joinedCommunities.length);
             return joinedCommunities;
@@ -547,8 +528,10 @@ export const communityService = {
     try {
       // 首先尝试使用后端API
       const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      console.log('[joinCommunity] Token:', token ? 'exists' : 'null');
       if (token) {
         try {
+          console.log('[joinCommunity] Calling backend API:', `/api/communities/${communityId}/join`);
           const response = await fetch(`/api/communities/${communityId}/join`, {
             method: 'POST',
             headers: {
@@ -557,8 +540,11 @@ export const communityService = {
             }
           });
           
+          console.log('[joinCommunity] Backend API response status:', response.status);
+          
           if (response.ok) {
             const result = await response.json();
+            console.log('[joinCommunity] Backend API result:', result);
             if (result.code === 0) {
               console.log('[joinCommunity] Successfully joined via backend API');
               return { 
@@ -1238,6 +1224,43 @@ export const communityService = {
   },
 
   async getThreadsByCommunity(communityId: string): Promise<Thread[]> {
+    // 优先使用后端 API 获取帖子列表
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (token) {
+      try {
+        const response = await fetch(`/api/communities/${communityId}/posts`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        if (response.ok) {
+          const result = await response.json();
+          if (result.code === 0 && result.data) {
+            return result.data.map((post: any) => ({
+              id: post.id,
+              title: post.title,
+              content: post.content,
+              createdAt: post.created_at ? new Date(post.created_at * 1000).getTime() : Date.now(),
+              replies: [],
+              topic: post.topic,
+              upvotes: post.likes || 0,
+              images: post.images,
+              communityId: post.community_id,
+              author: post.author_name || '未知用户',
+              authorAvatar: post.author_avatar || '',
+              type: post.type || 'post',
+              authorId: post.author_id,
+              comments: [],
+              commentCount: post.comments_count || 0
+            }));
+          }
+        }
+      } catch (error) {
+        console.warn('[getThreadsByCommunity] Backend API failed, falling back to Supabase:', error);
+      }
+    }
+
+    // 如果后端 API 失败，回退到 Supabase
     // 同时获取帖子列表和作品列表
     const [{ data: posts, error: postsError }, { data: works, error: worksError }] = await Promise.all([
       supabase

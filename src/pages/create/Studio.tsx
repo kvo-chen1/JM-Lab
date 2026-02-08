@@ -4,7 +4,6 @@ import PropertiesPanel from './components/PropertiesPanel';
 import CanvasArea from './components/CanvasArea';
 import { useTheme } from '@/hooks/useTheme';
 import { useCreateStore } from './hooks/useCreateStore';
-import CollaborationPanel from '@/components/CollaborationPanel';
 import AIReview from '@/components/AIReview';
 import ModelSelector from '@/components/ModelSelector';
 import InspirationPanel from '@/components/InspirationPanel';
@@ -21,9 +20,8 @@ export default function Studio() {
   // 启用自动保存
   useAutoSave();
 
-  const { 
-    showCollaborationPanel, updateState, 
-    showAIReview, 
+  const {
+    showAIReview,
     showModelSelector,
     showInspirationPanel,
     showPublishModal,
@@ -32,7 +30,8 @@ export default function Studio() {
     selectedResult,
     generatedResults,
     setPrompt,
-    setActiveTool
+    setActiveTool,
+    updateState
   } = useCreateStore();
   
   const reviewWorkId = selectedResult ? String(selectedResult) : 'draft';
@@ -120,12 +119,6 @@ export default function Studio() {
 
       {/* Modals / Overlays */}
       <AnimatePresence>
-        {showCollaborationPanel && (
-          <CollaborationPanel 
-            isOpen={showCollaborationPanel}
-            onClose={() => updateState({ showCollaborationPanel: false })} 
-          />
-        )}
         {showAIReview && (
           <AIReview 
             workId={reviewWorkId}

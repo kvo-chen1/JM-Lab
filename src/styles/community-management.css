@@ -1,0 +1,338 @@
+/**
+ * 社群管理界面专用样式
+ * Community Management UI Styles
+ * 
+ * 设计理念：
+ * - 专业、可信赖的视觉效果
+ * - 清晰的信息层级
+ * - 流畅的交互体验
+ * - 统一的色彩语言
+ */
+
+/* ============================================
+   CSS 变量定义 - 社群管理专用
+   ============================================ */
+
+:root {
+  /* 品牌色彩系统 */
+  --cm-primary: #4f46e5;
+  --cm-primary-light: #6366f1;
+  --cm-primary-dark: #4338ca;
+  --cm-primary-50: #eef2ff;
+  --cm-primary-100: #e0e7ff;
+  --cm-primary-500: #6366f1;
+  --cm-primary-600: #4f46e5;
+  --cm-primary-700: #4338ca;
+
+  /* 辅助色彩 */
+  --cm-success: #10b981;
+  --cm-success-light: #34d399;
+  --cm-success-50: #ecfdf5;
+  --cm-success-100: #d1fae5;
+
+  --cm-warning: #f59e0b;
+  --cm-warning-light: #fbbf24;
+  --cm-warning-50: #fffbeb;
+  --cm-warning-100: #fef3c7;
+
+  --cm-error: #f43f5e;
+  --cm-error-light: #fb7185;
+  --cm-error-50: #fff1f2;
+  --cm-error-100: #ffe4e6;
+
+  /* 中性灰度 */
+  --cm-slate-50: #f8fafc;
+  --cm-slate-100: #f1f5f9;
+  --cm-slate-200: #e2e8f0;
+  --cm-slate-300: #cbd5e1;
+  --cm-slate-400: #94a3b8;
+  --cm-slate-500: #64748b;
+  --cm-slate-600: #475569;
+  --cm-slate-700: #334155;
+  --cm-slate-800: #1e293b;
+  --cm-slate-900: #0f172a;
+
+  /* 角色专属色 */
+  --cm-role-admin: #8b5cf6;
+  --cm-role-admin-bg: #f3e8ff;
+  --cm-role-editor: #0ea5e9;
+  --cm-role-editor-bg: #e0f2fe;
+  --cm-role-member: #10b981;
+  --cm-role-member-bg: #d1fae5;
+
+  /* 渐变定义 */
+  --cm-gradient-primary: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+  --cm-gradient-success: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+  --cm-gradient-warning: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+  --cm-gradient-error: linear-gradient(135deg, #fb7185 0%, #f43f5e 100%);
+  --cm-gradient-card: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  --cm-gradient-card-dark: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+
+  /* 阴影系统 */
+  --cm-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --cm-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  --cm-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  --cm-shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  --cm-shadow-glow-primary: 0 0 20px rgba(79, 70, 229, 0.3);
+  --cm-shadow-glow-success: 0 0 20px rgba(16, 185, 129, 0.3);
+
+  /* 圆角系统 */
+  --cm-radius-sm: 0.5rem;
+  --cm-radius-md: 0.75rem;
+  --cm-radius-lg: 1rem;
+  --cm-radius-xl: 1.25rem;
+  --cm-radius-2xl: 1.5rem;
+  --cm-radius-full: 9999px;
+
+  /* 间距系统 */
+  --cm-space-1: 0.25rem;
+  --cm-space-2: 0.5rem;
+  --cm-space-3: 0.75rem;
+  --cm-space-4: 1rem;
+  --cm-space-5: 1.25rem;
+  --cm-space-6: 1.5rem;
+  --cm-space-8: 2rem;
+  --cm-space-10: 2.5rem;
+  --cm-space-12: 3rem;
+
+  /* 过渡动画 */
+  --cm-transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --cm-transition-normal: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+  --cm-transition-slow: 350ms cubic-bezier(0.4, 0, 0.2, 1);
+  --cm-transition-spring: 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ============================================
+   深色模式变量
+   ============================================ */
+
+.dark {
+  --cm-primary: #6366f1;
+  --cm-primary-light: #818cf8;
+  --cm-primary-dark: #4f46e5;
+
+  --cm-slate-50: #0f172a;
+  --cm-slate-100: #1e293b;
+  --cm-slate-200: #334155;
+  --cm-slate-300: #475569;
+  --cm-slate-400: #64748b;
+  --cm-slate-500: #94a3b8;
+  --cm-slate-600: #cbd5e1;
+  --cm-slate-700: #e2e8f0;
+  --cm-slate-800: #f1f5f9;
+  --cm-slate-900: #f8fafc;
+
+  --cm-gradient-card: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+
+  --cm-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  --cm-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.4);
+  --cm-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -4px rgba(0, 0, 0, 0.5);
+}
+
+/* ============================================
+   动画关键帧
+   ============================================ */
+
+@keyframes cm-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes cm-fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes cm-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes cm-slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes cm-pulse-soft {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+@keyframes cm-shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+@keyframes cm-bounce-soft {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes cm-spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes cm-checkmark {
+  0% {
+    stroke-dashoffset: 100;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* ============================================
+   工具类
+   ============================================ */
+
+.cm-animate-fade-in {
+  animation: cm-fade-in var(--cm-transition-normal) ease-out;
+}
+
+.cm-animate-fade-in-up {
+  animation: cm-fade-in-up var(--cm-transition-normal) ease-out;
+}
+
+.cm-animate-scale-in {
+  animation: cm-scale-in var(--cm-transition-spring) ease-out;
+}
+
+.cm-animate-slide-in-right {
+  animation: cm-slide-in-right var(--cm-transition-normal) ease-out;
+}
+
+.cm-animate-pulse-soft {
+  animation: cm-pulse-soft 2s ease-in-out infinite;
+}
+
+.cm-animate-shimmer {
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+  background-size: 1000px 100%;
+  animation: cm-shimmer 2s infinite linear;
+}
+
+/* 玻璃态效果 */
+.cm-glass {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.dark .cm-glass {
+  background: rgba(15, 23, 42, 0.8);
+}
+
+/* 渐变文字 */
+.cm-gradient-text {
+  background: var(--cm-gradient-primary);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* 数字等宽 */
+.cm-tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 卡片悬浮效果 */
+.cm-card-hover {
+  transition: transform var(--cm-transition-normal), box-shadow var(--cm-transition-normal);
+}
+
+.cm-card-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--cm-shadow-xl);
+}
+
+/* 按钮按压效果 */
+.cm-btn-press {
+  transition: transform var(--cm-transition-fast);
+}
+
+.cm-btn-press:active {
+  transform: scale(0.98);
+}
+
+/* 焦点样式 */
+.cm-focus-ring:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.3);
+}
+
+/* 滚动条样式 */
+.cm-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.cm-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.cm-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--cm-slate-300);
+  border-radius: var(--cm-radius-full);
+}
+
+.cm-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--cm-slate-400);
+}
+
+.dark .cm-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--cm-slate-600);
+}
+
+.dark .cm-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--cm-slate-500);
+}
+
+/* 选中文字样式 */
+::selection {
+  background: var(--cm-primary-100);
+  color: var(--cm-primary-700);
+}
+
+.dark ::selection {
+  background: var(--cm-primary-700);
+  color: var(--cm-primary-100);
+}

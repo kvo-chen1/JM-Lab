@@ -17,6 +17,7 @@ export interface Comment {
   content: string;
   date: string;
   author?: string;
+  authorAvatar?: string;
   likes: number;
   reactions: Record<CommentReaction, number>;
   parentId?: string;
@@ -81,15 +82,18 @@ export interface Post {
 
 /**
  * 获取所有帖子
+ * @param category 分类筛选
+ * @param currentUserId 当前用户ID
+ * @param useSupabase 是否从 Supabase 获取数据（默认 false，只从后端API获取）
  */
-export async function getPosts(category?: string, currentUserId?: string): Promise<Post[]> {
+export async function getPosts(category?: string, currentUserId?: string, useSupabase: boolean = false): Promise<Post[]> {
   try {
     let worksFromLocal: Post[] = [];
     let worksFromSupabase: Post[] = [];
     
-    // 从后端 API 获取作品数据
+    // 从后端 API 获取作品数据（主要数据源）
     try {
-      const response = await fetch('/api/works');
+      const response = await fetch('/api/works?limit=100');
       
       if (response.ok) {
         const result = await response.json();
@@ -101,12 +105,12 @@ export async function getPosts(category?: string, currentUserId?: string): Promi
             thumbnail: w.thumbnail || w.cover_url || '',
             likes: w.likes || 0,
             comments: [],
-            date: w.created_at ? new Date(w.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+            date: w.date || (w.created_at ? new Date(w.created_at * 1000).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]),
             author: {
               id: w.creator_id || 'unknown',
-              username: w.username || w.creator || 'Unknown User',
+              username: w.author?.username || w.creator || 'Unknown User',
               email: '',
-              avatar: w.avatar_url || ''
+              avatar: w.author?.avatar || w.avatar_url || ''
             },
             isLiked: false,
             isBookmarked: false,
@@ -144,7 +148,8 @@ export async function getPosts(category?: string, currentUserId?: string): Promi
       console.error('Error fetching works from backend API:', error);
     }
 
-    // 从 Supabase posts 表获取数据
+    // 从 Supabase posts 表获取数据（可选，默认不启用）
+    if (useSupabase) {
     try {
       // 检查用户是否已登录
       const { data: { user } } = await supabase.auth.getUser();
@@ -252,9 +257,10 @@ export async function getPosts(category?: string, currentUserId?: string): Promi
     } catch (error) {
       console.error('Error fetching posts from Supabase:', error);
     }
+    } // end if (useSupabase)
     
-    // 如果没有从任何来源获取到数据，尝试直接从Supabase获取所有帖子
-    if (worksFromLocal.length === 0 && worksFromSupabase.length === 0) {
+    // 如果没有从任何来源获取到数据，且允许使用Supabase，尝试直接从Supabase获取所有帖子
+    if (useSupabase && worksFromLocal.length === 0 && worksFromSupabase.length === 0) {
       console.log('No works found, trying to fetch from Supabase directly');
       try {
         const { data: allPosts, error } = await supabase
@@ -321,13 +327,15 @@ export async function getPosts(category?: string, currentUserId?: string): Promi
     // 合并数据，确保不重复
     const allWorksMap = new Map<string, Post>();
     
-    // 首先添加本地 API 的数据
+    // 优先使用本地 API 的数据（主要数据源）
+    // 首先添加 Supabase 的数据（如果启用）
+    if (useSupabase) {
+      worksFromSupabase.forEach(work => {
+        allWorksMap.set(work.id, work);
+      });
+    }
+    // 然后添加本地 API 的数据，覆盖重复的 ID
     worksFromLocal.forEach(work => {
-      allWorksMap.set(work.id, work);
-    });
-    
-    // 然后添加 Supabase 的数据，覆盖重复的 ID
-    worksFromSupabase.forEach(work => {
       allWorksMap.set(work.id, work);
     });
     
@@ -338,6 +346,10 @@ export async function getPosts(category?: string, currentUserId?: string): Promi
     });
     
     console.log('Total works after merging:', allWorks.length);
+    console.log('Works from local API:', worksFromLocal.length);
+    if (useSupabase) {
+      console.log('Works from Supabase:', worksFromSupabase.length);
+    }
     return allWorks;
   } catch (err) {
     console.error('Unexpected error in getPosts:', err);
@@ -655,7 +667,10 @@ async function createWorkViaBackend(p: Partial<Post>, currentUser: User): Promis
       creator_id: currentUser.id,
       user_id: currentUser.id,
       media: p.thumbnail ? [p.thumbnail] : [],
-      created_at: new Date().toISOString()
+      created_at: new Date().toISOString(),
+      status: 'published',
+      visibility: 'public',
+      published_at: new Date().toISOString()
     }
     
     const response = await fetch('/api/works', {
@@ -1000,75 +1015,321 @@ export async function addPost(p: Partial<Post>, currentUser?: User): Promise<Pos
 }
 
 export async function likePost(id: string, userId: string): Promise<Post | undefined> {
-  if (!userId || userId === 'anonymous') return undefined;
-
-  const postId = parseInt(id);
-  if (isNaN(postId)) return undefined;
-
-  // 1. Insert into likes
-  const { error } = await supabase
-    .from('likes')
-    .insert({ user_id: userId, post_id: postId });
-
-  if (error && error.code !== '23505') { // 23505 = unique_violation (already liked)
-    console.error('Error liking post:', error);
+  console.log('[likePost] Called with:', { id, userId });
+  if (!userId || userId === 'anonymous') {
+    console.warn('[likePost] No valid userId');
     return undefined;
   }
 
-  // 2. Increment likes_count in posts table (optional but good for performance)
-  // RPC or simple update. Since we don't have RPC, we can just let next fetch handle it or manually update.
-  // For immediate UI feedback, we return updated object.
-  // We can also run a update query: update posts set likes_count = likes_count + 1 where id = ...
-  // But checking current count first is safer.
+  // 首先尝试使用后端 API
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  if (token) {
+    try {
+      console.log('[likePost] Trying backend API...');
+      const response = await fetch(`/api/works/${id}/like`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (response.ok) {
+        console.log('[likePost] Backend API success');
+        return { id, isLiked: true, likes: 0 } as unknown as Post;
+      } else if (response.status !== 404) {
+        console.warn('[likePost] Backend API failed:', response.status);
+      }
+    } catch (error) {
+      console.warn('[likePost] Backend API error:', error);
+    }
+  }
+
+  // 如果后端 API 不可用，尝试使用 Supabase
+  console.log('[likePost] Trying Supabase...');
   
-  // Fetch updated post
-  const { data: post } = await supabase.from('posts').select('likes_count').eq('id', postId).single();
-  // We can optimistically return
-  return { id, isLiked: true, likes: (post?.likes_count || 0) + 1 } as unknown as Post;
+  // 判断是后端 API 的 work（数字ID）还是 Supabase 的 post（UUID）
+  const isNumericId = /^\d+$/.test(id);
+  console.log('[likePost] ID type:', isNumericId ? 'numeric (work)' : 'uuid (post)');
+  
+  // 1. Insert into likes
+  let error;
+  if (isNumericId) {
+    // 后端 API 的 work，使用 works_likes 表
+    const result = await supabase
+      .from('works_likes')
+      .insert({ 
+        user_id: userId, 
+        work_id: parseInt(id),
+        created_at: new Date().toISOString()
+      });
+    error = result.error;
+  } else {
+    // Supabase 的 post，使用 likes 表
+    const result = await supabase
+      .from('likes')
+      .insert({ 
+        user_id: userId, 
+        post_id: id,
+        created_at: new Date().toISOString()
+      });
+    error = result.error;
+  }
+
+  if (error && error.code !== '23505') { // 23505 = unique_violation (already liked)
+    console.error('[likePost] Supabase error:', error);
+    return undefined;
+  }
+
+  // 2. Increment likes_count in posts table (仅对 Supabase posts)
+  if (!isNumericId) {
+    try {
+      const { data: currentPost } = await supabase
+        .from('posts')
+        .select('likes_count')
+        .eq('id', id)
+        .single();
+      
+      const newLikesCount = (currentPost?.likes_count || 0) + 1;
+    
+      await supabase
+        .from('posts')
+        .update({ likes_count: newLikesCount })
+        .eq('id', id);
+
+      console.log('[likePost] Supabase success');
+      return { id, isLiked: true, likes: newLikesCount } as unknown as Post;
+    } catch (e) {
+      console.error('[likePost] Error updating likes count:', e);
+      return { id, isLiked: true, likes: 0 } as unknown as Post;
+    }
+  }
 }
 
 export async function unlikePost(id: string, userId: string): Promise<Post | undefined> {
+  console.log('[unlikePost] Called with:', { id, userId });
   if (!userId || userId === 'anonymous') return undefined;
-  const postId = parseInt(id);
+  
+  // 判断是后端 API 的 work（数字ID）还是 Supabase 的 post（UUID）
+  const isNumericId = /^\d+$/.test(id);
+  console.log('[unlikePost] ID type:', isNumericId ? 'numeric (work)' : 'uuid (post)');
 
-  const { error } = await supabase
-    .from('likes')
-    .delete()
-    .match({ user_id: userId, post_id: postId });
+  let error;
+  if (isNumericId) {
+    // 后端 API 的 work，使用 works_likes 表
+    const result = await supabase
+      .from('works_likes')
+      .delete()
+      .match({ user_id: userId, work_id: parseInt(id) });
+    error = result.error;
+  } else {
+    // Supabase 的 post，使用 likes 表
+    const result = await supabase
+      .from('likes')
+      .delete()
+      .match({ user_id: userId, post_id: id });
+    error = result.error;
+  }
 
   if (error) {
-    console.error('Error unliking post:', error);
+    console.error('[unlikePost] Error:', error);
     return undefined;
   }
   
+  // 减少 likes_count (仅对 Supabase posts)
+  if (!isNumericId) {
+    try {
+      const { data: currentPost } = await supabase
+        .from('posts')
+        .select('likes_count')
+        .eq('id', id)
+        .single();
+      
+      const newLikesCount = Math.max((currentPost?.likes_count || 0) - 1, 0);
+      
+      await supabase
+        .from('posts')
+        .update({ likes_count: newLikesCount })
+        .eq('id', id);
+    } catch (e) {
+      console.error('[unlikePost] Error updating likes count:', e);
+    }
+  }
+  
+  console.log('[unlikePost] Success');
   return { id, isLiked: false } as unknown as Post;
 }
 
 export async function bookmarkPost(id: string, userId: string): Promise<Post | undefined> {
-   if (!userId || userId === 'anonymous') return undefined;
-   const postId = parseInt(id);
+   console.log('[bookmarkPost] Called with:', { id, userId });
+   if (!userId || userId === 'anonymous') {
+     console.warn('[bookmarkPost] No valid userId');
+     return undefined;
+   }
 
-   const { error } = await supabase
-    .from('bookmarks')
-    .insert({ user_id: userId, post_id: postId });
+   // 首先尝试使用后端 API
+   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+   if (token) {
+     try {
+       console.log('[bookmarkPost] Trying backend API...');
+       const response = await fetch(`/api/works/${id}/bookmark`, {
+         method: 'POST',
+         headers: {
+           'Content-Type': 'application/json',
+           'Authorization': `Bearer ${token}`
+         }
+       });
+       
+       if (response.ok) {
+         console.log('[bookmarkPost] Backend API success');
+         return { id, isBookmarked: true } as unknown as Post;
+       } else if (response.status !== 404) {
+         console.warn('[bookmarkPost] Backend API failed:', response.status);
+       }
+     } catch (error) {
+       console.warn('[bookmarkPost] Backend API error:', error);
+     }
+   }
+
+   // 如果后端 API 不可用，尝试使用 Supabase
+   console.log('[bookmarkPost] Trying Supabase...');
    
-   if (error && error.code !== '23505') return undefined;
+   // 判断是后端 API 的 work（数字ID）还是 Supabase 的 post（UUID）
+   const isNumericId = /^\d+$/.test(id);
+   console.log('[bookmarkPost] ID type:', isNumericId ? 'numeric (work)' : 'uuid (post)');
+   
+   let error;
+   if (isNumericId) {
+     // 后端 API 的 work，使用 works_bookmarks 表
+     const result = await supabase
+      .from('works_bookmarks')
+      .insert({ 
+        user_id: userId, 
+        work_id: parseInt(id),
+        created_at: new Date().toISOString()
+      });
+     error = result.error;
+   } else {
+     // Supabase 的 post，使用 bookmarks 表
+     const result = await supabase
+      .from('bookmarks')
+      .insert({ 
+        user_id: userId, 
+        post_id: id,
+        created_at: new Date().toISOString()
+      });
+     error = result.error;
+   }
+   
+   if (error) {
+     console.error('[bookmarkPost] Supabase error:', error);
+     if (error.code === '23505') {
+       console.log('[bookmarkPost] Already bookmarked (duplicate)');
+       return { id, isBookmarked: true } as unknown as Post;
+     }
+     return undefined;
+   }
 
+   console.log('[bookmarkPost] Supabase success');
    return { id, isBookmarked: true } as unknown as Post;
 }
 
 export async function unbookmarkPost(id: string, userId: string): Promise<Post | undefined> {
+   console.log('[unbookmarkPost] Called with:', { id, userId });
    if (!userId || userId === 'anonymous') return undefined;
-   const postId = parseInt(id);
-
-   const { error } = await supabase
-    .from('bookmarks')
-    .delete()
-    .match({ user_id: userId, post_id: postId });
    
-   if (error) return undefined;
+   // 判断是后端 API 的 work（数字ID）还是 Supabase 的 post（UUID）
+   const isNumericId = /^\d+$/.test(id);
+   console.log('[unbookmarkPost] ID type:', isNumericId ? 'numeric (work)' : 'uuid (post)');
 
+   let error;
+   if (isNumericId) {
+     // 后端 API 的 work，使用 works_bookmarks 表
+     const result = await supabase
+      .from('works_bookmarks')
+      .delete()
+      .match({ user_id: userId, work_id: parseInt(id) });
+     error = result.error;
+   } else {
+     // Supabase 的 post，使用 bookmarks 表
+     const result = await supabase
+      .from('bookmarks')
+      .delete()
+      .match({ user_id: userId, post_id: id });
+     error = result.error;
+   }
+   
+   if (error) {
+     console.error('[unbookmarkPost] Error:', error);
+     return undefined;
+   }
+
+   console.log('[unbookmarkPost] Success');
    return { id, isBookmarked: false } as unknown as Post;
+}
+
+// 获取作品评论列表
+export async function getWorkComments(workId: string): Promise<Comment[]> {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  
+  if (token) {
+    try {
+      const response = await fetch(`/api/works/${workId}/comments`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        if (result.code === 0 && Array.isArray(result.data)) {
+          // 转换后端数据为 Comment 类型
+          return result.data.map((c: any) => ({
+            id: c.id.toString(),
+            content: c.content,
+            date: new Date(c.created_at * 1000).toISOString(),
+            author: c.user?.username || '用户',
+            authorAvatar: c.user?.avatar_url || '',
+            likes: c.likes || 0,
+            reactions: {},
+            replies: [],
+            userId: c.user?.id,
+            userReactions: []
+          }));
+        }
+      }
+    } catch (error) {
+      console.error('[getWorkComments] Backend API error:', error);
+    }
+  }
+  
+  return [];
+}
+
+// 删除作品评论
+export async function deleteWorkComment(commentId: string): Promise<void> {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  
+  if (!token) {
+    throw new Error('请先登录');
+  }
+  
+  try {
+    const response = await fetch(`/api/work-comments/${commentId}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || '删除评论失败');
+    }
+  } catch (error: any) {
+    console.error('[deleteWorkComment] Error:', error);
+    throw error;
+  }
 }
 
 export async function addComment(postId: string, content: string, parentId?: string, user?: User): Promise<Post | undefined> {
@@ -1081,8 +1342,11 @@ export async function addComment(postId: string, content: string, parentId?: str
   
   // 首先尝试使用后端API添加评论
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  console.log('[addComment] Token from localStorage:', token ? `${token.substring(0, 20)}...` : 'null');
+  
   if (token) {
     try {
+      console.log('[addComment] Sending request to backend API...');
       const response = await fetch(`/api/works/${postId}/comments`, {
         method: 'POST',
         headers: {
@@ -1095,6 +1359,8 @@ export async function addComment(postId: string, content: string, parentId?: str
         })
       });
       
+      console.log('[addComment] Backend API response status:', response.status);
+      
       if (response.ok) {
         const result = await response.json();
         if (result.code === 0) {
@@ -1104,6 +1370,10 @@ export async function addComment(postId: string, content: string, parentId?: str
       } else if (response.status === 404) {
         // 后端API不存在，记录日志但继续尝试Supabase
         console.log('[addComment] Backend API not found (404), will try Supabase');
+      } else if (response.status === 401) {
+        console.warn('[addComment] Backend API returned 401 - token invalid or expired');
+        const errorText = await response.text();
+        console.warn('[addComment] 401 response body:', errorText);
       } else {
         console.warn('[addComment] Backend API failed with status:', response.status);
       }
@@ -1137,11 +1407,11 @@ export async function addComment(postId: string, content: string, parentId?: str
       console.log('[addComment] Could not get Supabase user, using provided user ID');
     }
     
-    const pId = parseInt(postId);
-    if (isNaN(pId)) {
-      console.error('[addComment] Invalid post ID:', postId);
-      throw new Error('无效的作品ID');
-    }
+    // 判断ID类型：数字ID（后端works）或UUID（Supabase posts）
+    const isNumericId = /^\d+$/.test(postId);
+    const pId = isNumericId ? parseInt(postId) : postId;
+    
+    console.log('[addComment] ID type:', isNumericId ? 'numeric' : 'uuid', 'postId:', postId);
     
     const { error } = await supabase
       .from('comments')
@@ -1150,7 +1420,7 @@ export async function addComment(postId: string, content: string, parentId?: str
         user_id: effectiveUserId,
         author_id: effectiveUserId,
         content: content,
-        parent_id: parentId ? parseInt(parentId) : null
+        parent_id: parentId ? (/^\d+$/.test(parentId) ? parseInt(parentId) : parentId) : null
       });
 
     if (error) {
@@ -1179,14 +1449,47 @@ export async function getAuthorById(userId: string): Promise<User | null> {
   console.log('[getAuthorById] user_metadata:', JSON.stringify(currentUser?.user_metadata))
   
   if (currentUser && currentUser.id === userId) {
-    // 如果是当前登录用户，使用 Supabase auth 的数据（包含 user_metadata）
-    const username = currentUser.user_metadata?.username || currentUser.email?.split('@')[0] || 'User'
-    console.log('[getAuthorById] Using current user data, username:', username)
+    // 如果是当前登录用户，先尝试从后端 API 获取完整数据
+    console.log('[getAuthorById] Current user, trying API first')
+    try {
+      const response = await fetch(`/api/users/${userId}`)
+      if (response.ok) {
+        const result = await response.json()
+        if (result.code === 0 && result.data) {
+          const data = result.data
+          console.log('[getAuthorById] Got current user data from API:', data)
+          return {
+            id: data.id,
+            username: data.username || 'User',
+            email: data.email || '',
+            avatar: data.avatar || data.avatar_url || '',
+            isAdmin: data.is_admin,
+            membershipLevel: data.membership_level,
+            membershipStatus: data.membership_status as any,
+            followersCount: data.followers_count,
+            followingCount: data.following_count,
+            postsCount: data.posts_count,
+            likesCount: data.likes_count,
+            viewsCount: data.views
+          }
+        }
+      } else if (response.status === 404) {
+        console.log('[getAuthorById] API returned 404 for current user, using Supabase fallback')
+      }
+    } catch (error) {
+      console.error('[getAuthorById] API failed for current user, using fallback:', error)
+    }
+    
+    // 如果 API 失败，使用 Supabase auth 的数据（基本数据）
+    // 安全地访问 user_metadata，避免 undefined 错误
+    const userMetadata = currentUser.user_metadata || {}
+    const username = userMetadata.username || currentUser.email?.split('@')[0] || 'User'
+    console.log('[getAuthorById] Using current user fallback data, username:', username)
     return {
       id: currentUser.id,
       username: username,
       email: currentUser.email || '',
-      avatar: currentUser.user_metadata?.avatar || currentUser.user_metadata?.avatar_url || ''
+      avatar: userMetadata.avatar || userMetadata.avatar_url || ''
     };
   }
   
@@ -1196,6 +1499,25 @@ export async function getAuthorById(userId: string): Promise<User | null> {
     const response = await fetch(`/api/users/${userId}`)
     if (!response.ok) {
       console.error('[getAuthorById] API error:', response.status)
+      // 如果 API 返回 404，尝试从 Supabase 获取用户数据
+      if (response.status === 404) {
+        console.log('[getAuthorById] Trying to get user from Supabase users table')
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('id, username, email, avatar_url')
+          .eq('id', userId)
+          .single()
+        
+        if (!userError && userData) {
+          console.log('[getAuthorById] Got user from Supabase:', userData)
+          return {
+            id: userData.id,
+            username: userData.username || 'User',
+            email: userData.email || '',
+            avatar: userData.avatar_url || ''
+          }
+        }
+      }
       return null
     }
     const result = await response.json()
@@ -1214,7 +1536,10 @@ export async function getAuthorById(userId: string): Promise<User | null> {
       membershipLevel: data.membership_level,
       membershipStatus: data.membership_status as any,
       followersCount: data.followers_count,
-      followingCount: data.following_count
+      followingCount: data.following_count,
+      postsCount: data.posts_count,
+      likesCount: data.likes_count,
+      viewsCount: data.views
     }
   } catch (error) {
     console.error('[getAuthorById] Failed to fetch user:', error)
@@ -1222,57 +1547,416 @@ export async function getAuthorById(userId: string): Promise<User | null> {
   }
 }
 
-export async function checkUserFollowing(targetUserId: string): Promise<boolean> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return false;
-  
-  const { count } = await supabase
-    .from('follows')
-    .select('*', { count: 'exact', head: true })
-    .match({ follower_id: user.id, following_id: targetUserId });
+export async function checkUserFollowing(currentUserId: string, targetUserId: string): Promise<boolean> {
+  try {
+    if (!currentUserId) {
+      console.log('[checkUserFollowing] 用户ID为空');
+      return false;
+    }
     
-  return !!count && count > 0;
-}
-
-export async function followUser(targetUserId: string): Promise<boolean> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return false;
-
-  const { error } = await supabase
-    .from('follows')
-    .insert({ follower_id: user.id, following_id: targetUserId });
+    console.log('[checkUserFollowing] 检查关注状态:', { follower_id: currentUserId, following_id: targetUserId });
     
-  return !error;
+    const { count, error } = await supabase
+      .from('follows')
+      .select('*', { count: 'exact', head: true })
+      .match({ follower_id: currentUserId, following_id: targetUserId });
+    
+    if (error) {
+      console.error('[checkUserFollowing] 查询失败:', error);
+      return false;
+    }
+    
+    console.log('[checkUserFollowing] 查询结果:', { count });
+    return !!count && count > 0;
+  } catch (error) {
+    console.error('[checkUserFollowing] 异常:', error);
+    return false;
+  }
 }
 
-export async function unfollowUser(targetUserId: string): Promise<boolean> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return false;
+export async function followUser(currentUserId: string, targetUserId: string): Promise<boolean> {
+  try {
+    if (!currentUserId) {
+      console.error('[followUser] 用户ID为空');
+      throw new Error('请先登录');
+    }
 
-  const { error } = await supabase
-    .from('follows')
-    .delete()
-    .match({ follower_id: user.id, following_id: targetUserId });
+    if (currentUserId === targetUserId) {
+      console.error('[followUser] 不能关注自己');
+      throw new Error('不能关注自己');
+    }
 
-  return !error;
+    console.log('[followUser] 执行关注:', { follower_id: currentUserId, following_id: targetUserId });
+
+    // 使用后端 API 而不是 Supabase，避免 RLS 策略限制
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (!token) {
+      throw new Error('请先登录');
+    }
+
+    const response = await fetch('/api/follows', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ targetUserId })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      console.error('[followUser] 关注失败:', error);
+      throw new Error(error.message || '关注失败');
+    }
+
+    console.log('[followUser] 关注成功');
+    return true;
+  } catch (error: any) {
+    console.error('[followUser] 异常:', error);
+    throw error;
+  }
 }
-export async function getBookmarkedPosts(userId: string) { return []; }
-export async function getLikedPosts(userId: string) { return []; }
+
+export async function unfollowUser(currentUserId: string, targetUserId: string): Promise<boolean> {
+  try {
+    if (!currentUserId) {
+      console.error('[unfollowUser] 用户ID为空');
+      throw new Error('请先登录');
+    }
+
+    console.log('[unfollowUser] 执行取消关注:', { follower_id: currentUserId, following_id: targetUserId });
+
+    // 使用后端 API 而不是 Supabase，避免 RLS 策略限制
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (!token) {
+      throw new Error('请先登录');
+    }
+
+    const response = await fetch(`/api/follows/${targetUserId}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      console.error('[unfollowUser] 取消关注失败:', error);
+      throw new Error(error.message || '取消关注失败');
+    }
+
+    console.log('[unfollowUser] 取消关注成功');
+    return true;
+  } catch (error: any) {
+    console.error('[unfollowUser] 异常:', error);
+    throw error;
+  }
+}
+
+// 获取关注列表
+export async function getFollowingList(): Promise<{ id: string; username: string; avatar_url: string }[]> {
+  try {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (!token) {
+      throw new Error('请先登录');
+    }
+
+    const response = await fetch('/api/follows/following', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || '获取关注列表失败');
+    }
+
+    const result = await response.json();
+    return result.data || [];
+  } catch (error: any) {
+    console.error('[getFollowingList] 异常:', error);
+    throw error;
+  }
+}
+
+// 获取粉丝列表
+export async function getFollowersList(): Promise<{ id: string; username: string; avatar_url: string }[]> {
+  try {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (!token) {
+      throw new Error('请先登录');
+    }
+
+    const response = await fetch('/api/follows/followers', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || '获取粉丝列表失败');
+    }
+
+    const result = await response.json();
+    return result.data || [];
+  } catch (error: any) {
+    console.error('[getFollowersList] 异常:', error);
+    throw error;
+  }
+}
+
+export async function getBookmarkedPosts(userId?: string): Promise<Post[]> {
+  try {
+    // 获取当前用户ID
+    let currentUserId = userId;
+    console.log('[getBookmarkedPosts] Starting, provided userId:', userId);
+
+    if (!currentUserId || currentUserId === 'current-user') {
+      const { data: { user } } = await supabase.auth.getUser();
+      currentUserId = user?.id;
+      console.log('[getBookmarkedPosts] Got user from Supabase:', currentUserId);
+
+      // 如果Supabase没有会话，尝试从localStorage获取
+      if (!currentUserId && typeof window !== 'undefined') {
+        const userStr = localStorage.getItem('user');
+        if (userStr) {
+          try {
+            const user = JSON.parse(userStr);
+            currentUserId = user?.id;
+            console.log('[getBookmarkedPosts] Got user from localStorage:', currentUserId);
+          } catch (e) {
+            console.error('Failed to parse user from localStorage:', e);
+          }
+        }
+      }
+    }
+
+    if (!currentUserId) {
+      console.warn('[getBookmarkedPosts] No user ID available');
+      return [];
+    }
+
+    console.log('[getBookmarkedPosts] Querying bookmarks for user:', currentUserId);
+
+    const allPosts: Post[] = [];
+
+    // 1. 首先尝试从后端 API 获取收藏作品
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (token) {
+      try {
+        console.log('[getBookmarkedPosts] Trying backend API...');
+        const response = await fetch('/api/user/bookmarks', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          if (result.code === 0 && result.data) {
+            const works = result.data.map((work: any) => convertWorkToPost(work, false, true));
+            allPosts.push(...works);
+            console.log('[getBookmarkedPosts] Backend API success, found', works.length, 'works');
+          }
+        } else {
+          console.warn('[getBookmarkedPosts] Backend API failed:', response.status);
+        }
+      } catch (error) {
+        console.warn('[getBookmarkedPosts] Backend API error:', error);
+      }
+    }
+
+    // 2. 同时查询 Supabase posts 的收藏（兼容旧数据）
+    const { data: postBookmarks, error: postBookmarksError } = await supabase
+      .from('bookmarks')
+      .select('post_id')
+      .eq('user_id', currentUserId);
+
+    if (postBookmarksError) {
+      console.error('[getBookmarkedPosts] Error fetching post bookmarks:', postBookmarksError);
+    }
+
+    console.log('[getBookmarkedPosts] Found post bookmarks:', postBookmarks?.length || 0);
+
+    // 处理 Supabase posts
+    if (postBookmarks && postBookmarks.length > 0) {
+      const postIds = postBookmarks.map(b => b.post_id);
+      const { data: posts, error: postsError } = await supabase
+        .from('posts')
+        .select('*')
+        .in('id', postIds);
+
+      if (postsError) {
+        console.error('[getBookmarkedPosts] Error fetching posts:', postsError);
+      } else if (posts && posts.length > 0) {
+        allPosts.push(...posts.map(p => convertDbPostToPost(p, false, true)));
+      }
+    }
+
+    console.log('[getBookmarkedPosts] Total bookmarked posts:', allPosts.length);
+    return allPosts;
+  } catch (error) {
+    console.error('[getBookmarkedPosts] Unexpected error:', error);
+    return [];
+  }
+}
+
+export async function getLikedPosts(userId?: string): Promise<Post[]> {
+  try {
+    // 获取当前用户ID
+    let currentUserId = userId;
+    console.log('[getLikedPosts] Starting, provided userId:', userId);
+
+    if (!currentUserId || currentUserId === 'current-user') {
+      const { data: { user } } = await supabase.auth.getUser();
+      currentUserId = user?.id;
+      console.log('[getLikedPosts] Got user from Supabase:', currentUserId);
+
+      // 如果Supabase没有会话，尝试从localStorage获取
+      if (!currentUserId && typeof window !== 'undefined') {
+        const userStr = localStorage.getItem('user');
+        if (userStr) {
+          try {
+            const user = JSON.parse(userStr);
+            currentUserId = user?.id;
+            console.log('[getLikedPosts] Got user from localStorage:', currentUserId);
+          } catch (e) {
+            console.error('Failed to parse user from localStorage:', e);
+          }
+        }
+      }
+    }
+
+    if (!currentUserId) {
+      console.warn('[getLikedPosts] No user ID available');
+      return [];
+    }
+
+    console.log('[getLikedPosts] Querying likes for user:', currentUserId);
+
+    const allPosts: Post[] = [];
+
+    // 1. 首先尝试从后端 API 获取点赞作品
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (token) {
+      try {
+        console.log('[getLikedPosts] Trying backend API...');
+        const response = await fetch('/api/user/likes', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          if (result.code === 0 && result.data) {
+            const works = result.data.map((work: any) => convertWorkToPost(work, true, false));
+            allPosts.push(...works);
+            console.log('[getLikedPosts] Backend API success, found', works.length, 'works');
+          }
+        } else {
+          console.warn('[getLikedPosts] Backend API failed:', response.status);
+        }
+      } catch (error) {
+        console.warn('[getLikedPosts] Backend API error:', error);
+      }
+    }
+
+    // 2. 同时查询 Supabase posts 的点赞（兼容旧数据）
+    const { data: postLikes, error: postLikesError } = await supabase
+      .from('likes')
+      .select('post_id')
+      .eq('user_id', currentUserId);
+
+    if (postLikesError) {
+      console.error('[getLikedPosts] Error fetching post likes:', postLikesError);
+    }
+
+    console.log('[getLikedPosts] Found post likes:', postLikes?.length || 0);
+
+    // 处理 Supabase posts
+    if (postLikes && postLikes.length > 0) {
+      const postIds = postLikes.map(l => l.post_id);
+      const { data: posts, error: postsError } = await supabase
+        .from('posts')
+        .select('*')
+        .in('id', postIds);
+
+      if (postsError) {
+        console.error('[getLikedPosts] Error fetching posts:', postsError);
+      } else if (posts && posts.length > 0) {
+        allPosts.push(...posts.map(p => convertDbPostToPost(p, true, false)));
+      }
+    }
+
+    console.log('[getLikedPosts] Total liked posts:', allPosts.length);
+    return allPosts;
+  } catch (error) {
+    console.error('[getLikedPosts] Unexpected error:', error);
+    return [];
+  }
+}
 export async function likeComment(postId: string, commentId: string) { return undefined; }
 export async function unlikeComment(postId: string, commentId: string) { return undefined; }
 export async function addCommentReaction(postId: string, commentId: string, reaction: CommentReaction) { return undefined; }
 export async function deleteComment(postId: string, commentId: string) { return undefined; }
 export async function deletePost(id: string): Promise<boolean> {
-  const { error } = await supabase
-    .from('posts')
-    .delete()
-    .eq('id', id);
-
-  if (error) {
-    console.error('Error deleting post:', error);
-    return false;
+  console.log('[deletePost] Deleting work/post:', id);
+  
+  // 优先使用后端 API 删除作品
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  
+  if (token) {
+    try {
+      console.log('[deletePost] Trying backend API...');
+      const response = await fetch(`/api/works/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log('[deletePost] Backend API success:', result);
+        return result.code === 0;
+      } else if (response.status === 404) {
+        // 后端 API 不存在该作品，尝试 Supabase
+        console.log('[deletePost] Backend API returned 404, trying Supabase');
+      } else {
+        console.warn('[deletePost] Backend API failed:', response.status);
+        const errorText = await response.text();
+        console.warn('[deletePost] Error response:', errorText);
+      }
+    } catch (error) {
+      console.warn('[deletePost] Backend API error:', error);
+    }
   }
-  return true;
+  
+  // 回退到 Supabase 删除
+  console.log('[deletePost] Trying Supabase...');
+  
+  // 判断ID类型：数字ID（后端works）或UUID（Supabase posts）
+  const isNumericId = /^\d+$/.test(id);
+  
+  if (isNumericId) {
+    // 后端 API 的 work，使用 works_likes 等表
+    // 先删除相关记录
+    await supabase.from('work_likes').delete().eq('work_id', parseInt(id));
+    await supabase.from('work_bookmarks').delete().eq('work_id', parseInt(id));
+    await supabase.from('work_comments').delete().eq('work_id', parseInt(id));
+    
+    // 注意：后端 works 表不在 Supabase 中，所以这里只能删除 Supabase 相关记录
+    console.log('[deletePost] Numeric ID, only deleted Supabase related records');
+    return true;
+  } else {
+    // Supabase 的 post
+    const { error } = await supabase
+      .from('posts')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('[deletePost] Supabase error:', error);
+      return false;
+    }
+    console.log('[deletePost] Supabase success');
+    return true;
+  }
 }
 
 export function clearAllCaches() {
@@ -1331,6 +2015,112 @@ export async function getUserCommunities(userId: string) { return []; }
 export async function getPublishStats() { return { successRate: 0, totalPublished: 0, totalPending: 0, totalRejected: 0, byCategory: [], byDate: [] }; }
 export async function getEngagementStats(postId: string) { return { likes: 0, comments: 0, shares: 0, views: 0, downloads: 0, engagementRate: 0, bySource: [], byDate: [] }; }
 
+// 辅助函数：将数据库 post 转换为 Post 对象
+function convertDbPostToPost(p: any, isLiked: boolean, isBookmarked: boolean): Post {
+  let thumbnail = '';
+  if (p.attachments && Array.isArray(p.attachments) && p.attachments.length > 0) {
+    thumbnail = p.attachments[0].url || p.attachments[0];
+  } else if (p.images && Array.isArray(p.images) && p.images.length > 0) {
+    thumbnail = p.images[0];
+  } else if (typeof p.attachments === 'string') {
+    thumbnail = p.attachments;
+  }
+
+  return {
+    id: p.id.toString(),
+    title: p.title || 'Untitled',
+    thumbnail: thumbnail,
+    likes: p.likes_count || 0,
+    comments: [],
+    date: p.created_at ? p.created_at.split('T')[0] : new Date().toISOString().split('T')[0],
+    author: {
+      id: p.author_id || 'unknown',
+      username: 'User',
+      email: '',
+      avatar: ''
+    },
+    isLiked: isLiked,
+    isBookmarked: isBookmarked,
+    category: (p.category as PostCategory) || 'other',
+    tags: p.tags || [],
+    description: p.content || '',
+    views: p.view_count || 0,
+    shares: 0,
+    isFeatured: false,
+    isDraft: p.status === 'draft',
+    completionStatus: p.status === 'published' ? 'published' : 'draft',
+    creativeDirection: '',
+    culturalElements: [],
+    colorScheme: [],
+    toolsUsed: [],
+    publishType: 'explore',
+    communityId: p.community_id,
+    moderationStatus: 'approved',
+    rejectionReason: null,
+    scheduledPublishDate: null,
+    visibility: 'public',
+    commentCount: p.comments_count || 0,
+    engagementRate: 0,
+    trendingScore: 0,
+    reach: 0,
+    moderator: null,
+    reviewedAt: null,
+    recommendationScore: 0,
+    recommendedFor: []
+  };
+}
+
+// 辅助函数：将后端 API work 转换为 Post 对象
+function convertWorkToPost(work: any, isLiked: boolean, isBookmarked: boolean): Post {
+  // 处理时间戳 - 后端返回的是秒级时间戳，需要转换为毫秒级
+  const createdAt = work.created_at
+    ? (work.created_at > 10000000000 ? work.created_at : work.created_at * 1000)
+    : Date.now();
+
+  return {
+    id: work.id.toString(),
+    title: work.title || 'Untitled',
+    thumbnail: work.thumbnail || work.cover_url || '',
+    likes: work.likes || 0,
+    comments: [],
+    date: new Date(createdAt).toISOString().split('T')[0],
+    author: {
+      id: work.creator_id || 'unknown',
+      username: work.creator || work.creator_name || work.username || 'User',
+      email: '',
+      avatar: work.avatar_url || work.creator_avatar || ''
+    },
+    isLiked: isLiked,
+    isBookmarked: isBookmarked,
+    category: (work.category as PostCategory) || 'other',
+    tags: work.tags || [],
+    description: work.description || '',
+    views: work.views || 0,
+    shares: 0,
+    isFeatured: false,
+    isDraft: false,
+    completionStatus: 'published',
+    creativeDirection: '',
+    culturalElements: [],
+    colorScheme: [],
+    toolsUsed: [],
+    publishType: 'explore',
+    communityId: null,
+    moderationStatus: 'approved',
+    rejectionReason: null,
+    scheduledPublishDate: null,
+    visibility: 'public',
+    commentCount: work.comments || 0,
+    engagementRate: 0,
+    trendingScore: 0,
+    reach: 0,
+    moderator: null,
+    reviewedAt: null,
+    recommendationScore: 0,
+    recommendedFor: []
+  };
+}
+
 export default {
   getPosts,
   addPost,
@@ -1345,6 +2135,8 @@ export default {
   getBookmarkedPosts,
   getLikedPosts,
   addComment,
+  getWorkComments,
+  deleteWorkComment,
   likeComment,
   unlikeComment,
   addCommentReaction,

@@ -32,8 +32,8 @@ interface User {
   email: string;
   avatar_url?: string;
   posts_count?: number;
-  total_likes?: number;
-  total_views?: number;
+  likes_count?: number;  // 数据库字段名
+  views?: number;        // 数据库字段名
   created_at: string;
   updated_at: string;
 }
@@ -76,23 +76,46 @@ const Leaderboard: React.FC = () => {
     : 'from-blue-600 to-cyan-600';
 
   useEffect(() => {
+    // 测试 Supabase 连接
+    console.log('[Leaderboard] Supabase client:', supabase);
+    console.log('[Leaderboard] Environment check:', {
+      url: import.meta.env.VITE_SUPABASE_URL,
+      hasKey: !!import.meta.env.VITE_SUPABASE_ANON_KEY
+    });
     fetchLeaderboard();
     fetchStats();
   }, [leaderboardType, timeRange, sortBy]);
 
   const fetchStats = async () => {
     try {
-      if (!supabase) return;
+      if (!supabase) {
+        console.error('[Leaderboard] Supabase client is not initialized');
+        return;
+      }
       
-      const { count: usersCount } = await supabase.from('users').select('id', { count: 'exact', head: true });
-      const { count: postsCount } = await supabase.from('posts').select('id', { count: 'exact', head: true }).eq('status', 'published');
+      console.log('[Leaderboard] Fetching stats...');
+      
+      const { count: usersCount, error: usersError } = await supabase.from('users').select('id', { count: 'exact', head: true });
+      if (usersError) {
+        console.error('[Leaderboard] Error fetching users count:', usersError);
+      } else {
+        console.log('[Leaderboard] Users count:', usersCount);
+      }
+      
+      // 从 works 表获取作品总数（与津脉广场一致）
+      const { count: postsCount, error: postsError } = await supabase.from('works').select('id', { count: 'exact', head: true }).eq('status', 'published').eq('visibility', 'public');
+      if (postsError) {
+        console.error('[Leaderboard] Error fetching works count:', postsError);
+      } else {
+        console.log('[Leaderboard] Works count:', postsCount);
+      }
       
       setStats({
         users_count: usersCount || 0,
         posts_count: postsCount || 0
       });
     } catch (e) {
-      console.error('Failed to fetch stats', e);
+      console.error('[Leaderboard] Failed to fetch stats', e);
     }
   };
 
@@ -108,31 +131,33 @@ const Leaderboard: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isDetailOpen]);
 
-  // 添加本地缓存机制
-  const [cache, setCache] = useState<Record<string, { posts: Post[]; users: User[] }>>({});
-  
-  const fetchLeaderboard = async () => {
+  // 添加本地缓存机制（带时间戳）
+  const [cache, setCache] = useState<Record<string, { posts: Post[]; users: User[]; timestamp: number }>>({});
+  const CACHE_DURATION = 60 * 1000; // 1分钟缓存
+
+  const fetchLeaderboard = async (forceRefresh = false) => {
     setLoading(true);
     setError(null);
-    
+
     // 生成缓存键
     const cacheKey = `${leaderboardType}-${sortBy}-${timeRange}`;
-    
-    // 检查缓存 (1分钟内有效)
+
+    // 检查缓存（1分钟内有效）
     const cachedData = cache[cacheKey];
-    // 这里简单处理，暂时不检查时间戳，如果只是为了快速切换体验
-    if (cachedData) {
+    const now = Date.now();
+
+    if (!forceRefresh && cachedData && (now - cachedData.timestamp) < CACHE_DURATION) {
+      // 使用缓存数据
       if (leaderboardType === 'posts') {
         setPosts(cachedData.posts);
       } else {
         setUsers(cachedData.users);
       }
       setLoading(false);
-      // 后台更新
-      // fetchRemoteData(cacheKey); 
       return;
     }
-    
+
+    // 强制刷新或缓存过期，从服务器获取
     await fetchRemoteData(cacheKey);
   };
 
@@ -143,85 +168,117 @@ const Leaderboard: React.FC = () => {
       let query;
       
       // 构建时间范围查询
+      // 注意：数据库中的 created_at 是 bigint (Unix 时间戳)，不是 ISO 字符串
       const now = new Date();
-      let startTime = new Date(0).toISOString(); // Default to all time
+      let startTime = 0; // Default to all time (Unix timestamp)
       
       if (timeRange === 'day') {
         now.setHours(0, 0, 0, 0);
-        startTime = now.toISOString();
+        startTime = Math.floor(now.getTime() / 1000);
       } else if (timeRange === 'week') {
         now.setDate(now.getDate() - 7);
-        startTime = now.toISOString();
+        startTime = Math.floor(now.getTime() / 1000);
       } else if (timeRange === 'month') {
         now.setMonth(now.getMonth() - 1);
-        startTime = now.toISOString();
+        startTime = Math.floor(now.getTime() / 1000);
       }
 
       if (leaderboardType === 'posts') {
-        // 先获取帖子列表
-        const { data: postsData, error: postsError } = await supabase
-          .from('posts')
+        // 从 works 表获取作品列表（与津脉广场使用相同的数据源）
+        let worksQuery = supabase
+          .from('works')
           .select('*')
           .eq('status', 'published')
-          .gte('created_at', startTime)
+          .eq('visibility', 'public');
+
+        // 如果不是"全部"时间范围，添加时间筛选
+        if (timeRange !== 'all') {
+          worksQuery = worksQuery.gte('created_at', startTime);
+        }
+
+        console.log('[Leaderboard] Works query params:', { timeRange, startTime, sortBy });
+
+        const { data: worksData, error: worksError } = await worksQuery
           .order(sortBy, { ascending: false })
           .limit(10);
 
-        if (postsError) throw postsError;
-        if (!postsData || postsData.length === 0) {
+        console.log('[Leaderboard] Works query result:', { worksData, worksError });
+
+        if (worksError) throw worksError;
+        if (!worksData || worksData.length === 0) {
+          console.log('[Leaderboard] No works found');
           setPosts([]);
           return;
         }
 
-        // 获取作者信息（转换为字符串以匹配 users.id 的 TEXT 类型）
-        const authorIds = [...new Set(postsData.map(p => p.author_id).filter(Boolean))].map(id => String(id));
+        // 获取作者信息（works 表使用 creator_id 字段）
+        const creatorIds = [...new Set(worksData.map(w => w.creator_id).filter(Boolean))].map(id => String(id));
         let users: any[] = [];
-        if (authorIds.length > 0) {
+        if (creatorIds.length > 0) {
           const { data: usersData, error: usersError } = await supabase
             .from('users')
-            .select('id, username, name, avatar_url, avatar')
-            .in('id', authorIds);
+            .select('id, username, avatar_url')
+            .in('id', creatorIds);
           if (!usersError && usersData) {
             users = usersData;
           }
         }
 
-        const formattedPosts = postsData.map((post: any) => {
-          const user = users.find(u => u.id === post.author_id);
+        // 将 works 数据格式转换为 posts 格式
+        const formattedPosts = worksData.map((work: any) => {
+          const user = users.find(u => u.id === work.creator_id);
           return {
-            ...post,
-            username: user?.username || user?.name || 'Unknown',
-            avatar_url: user?.avatar_url || user?.avatar || ''
+            id: work.id,
+            title: work.title,
+            content: work.description || work.content || '',
+            thumbnail: work.thumbnail,
+            images: work.images || [],
+            user_id: work.creator_id,
+            author_id: work.creator_id,
+            username: user?.username || work.creator || 'Unknown',
+            avatar_url: user?.avatar_url || work.author_avatar || '',
+            category_id: work.category_id,
+            status: work.status,
+            views: work.views || 0,
+            likes_count: work.likes_count || work.likes || 0,
+            comments_count: work.comments_count || 0,
+            created_at: work.created_at,
+            updated_at: work.updated_at
           };
         });
 
         setPosts(formattedPosts);
-        setCache(prev => ({ ...prev, [cacheKey]: { ...prev[cacheKey] || { posts: [], users: [] }, posts: formattedPosts } }));
+        setCache(prev => ({ ...prev, [cacheKey]: { posts: formattedPosts, users: prev[cacheKey]?.users || [], timestamp: Date.now() } }));
       } else {
+        // 用户排行榜排序字段映射：前端显示用的字段名 -> 数据库实际字段名
+        const userSortByMap: Record<string, string> = {
+          'likes_count': 'likes_count',
+          'views': 'views',
+          'posts_count': 'posts_count'
+        };
+        const dbSortBy = userSortByMap[sortBy] || 'likes_count';
+
         query = supabase
           .from('users')
           .select('*')
-          .gte('created_at', startTime) // Note: Users created recently might not be correct for leaderboard unless it's "New Stars". 
-                                        // Usually leaderboard is for ALL users active in time range.
-                                        // But here we sort by total stats which are cumulative.
-                                        // If we want "Top users this week", we need activity stats per week which we might not have.
-                                        // For now, let's ignore timeRange for Users leaderboard or just filter by created_at if intended.
-                                        // Assuming user wants "Top Users" based on total stats, timeRange might not apply strictly or applies to user creation.
-                                        // Let's assume timeRange applies to User Creation for now or ignore it for "All Time Best".
-                                        // Actually, "Top Users of the Month" usually means users who got most likes THIS MONTH.
-                                        // Since we only have `total_likes` on user table, we can only show All Time stats.
-                                        // So we will ignore timeRange for users unless it's 'all'.
-          .order(sortBy, { ascending: false })
+          .order(dbSortBy, { ascending: false })
           .limit(10);
           
         // If timeRange is not 'all', we might warn or just show all time. 
         // Let's just query all users sorted by the stat.
         
         const { data, error } = await query;
+        console.log('[Leaderboard] Users query result:', { data, error });
         if (error) throw error;
         
+        if (!data || data.length === 0) {
+          console.log('[Leaderboard] No users found');
+        } else {
+          console.log(`[Leaderboard] Found ${data.length} users`);
+        }
+        
         setUsers(data as User[]);
-        setCache(prev => ({ ...prev, [cacheKey]: { ...prev[cacheKey] || { posts: [], users: [] }, users: data as User[] } }));
+        setCache(prev => ({ ...prev, [cacheKey]: { posts: prev[cacheKey]?.posts || [], users: data as User[], timestamp: Date.now() } }));
       }
     } catch (err: any) {
       console.error('API request failed:', err.message);
@@ -233,8 +290,9 @@ const Leaderboard: React.FC = () => {
     }
   };
 
-  const handlePostClick = (postId: number) => {
-    navigate(`/explore/${postId}`);
+  const handlePostClick = (postId: string) => {
+    // 跳转到津脉广场，并传递作品ID参数
+    navigate(`/square?post=${postId}`);
   };
 
   const handleUserClick = async (user: User) => {
@@ -442,6 +500,17 @@ const Leaderboard: React.FC = () => {
                   <i className="fas fa-chevron-down text-gray-400 text-xs"></i>
                 </div>
               </div>
+
+              {/* 刷新按钮 */}
+              <button
+                onClick={() => fetchLeaderboard(true)}
+                disabled={loading}
+                className="px-4 py-2.5 bg-gray-100 dark:bg-gray-700/50 hover:bg-gray-200 dark:hover:bg-gray-600/50 text-gray-700 dark:text-gray-300 rounded-xl text-sm font-medium transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                title="刷新数据"
+              >
+                <i className={`fas fa-sync-alt ${loading ? 'fa-spin' : ''}`}></i>
+                刷新
+              </button>
             </div>
           </motion.div>
         </div>
@@ -516,7 +585,7 @@ const Leaderboard: React.FC = () => {
                                 {post.category_id === 1 ? '插画' : '设计'}
                               </span>
                               <span>•</span>
-                              <span>{new Date(post.created_at).toLocaleDateString()}</span>
+                              <span>{new Date(post.created_at * 1000).toLocaleDateString()}</span>
                             </div>
                           </div>
                           <div className="flex-shrink-0 -mt-2 -mr-2 scale-90">
@@ -525,9 +594,9 @@ const Leaderboard: React.FC = () => {
                         </div>
                         
                         {/* 缩略图 (如果有) */}
-                        {post.thumbnail && (
+                        {(post.thumbnail || (post.images && post.images.length > 0)) && (
                           <div className="mb-4 rounded-xl overflow-hidden h-32 w-full">
-                             <LazyImage src={post.thumbnail} alt={post.title} className="w-full h-full object-cover" />
+                             <LazyImage src={post.thumbnail || post.images[0]} alt={post.title} className="w-full h-full object-cover" />
                           </div>
                         )}
 
@@ -606,7 +675,7 @@ const Leaderboard: React.FC = () => {
                           
                           <p className="text-xs text-gray-500 dark:text-gray-400 mb-6 flex items-center gap-1 bg-gray-100 dark:bg-gray-700/50 px-2 py-1 rounded-full">
                             <i className="fas fa-calendar-alt text-xs opacity-70"></i>
-                            加入于 {new Date(user.created_at).toLocaleDateString()}
+                            加入于 {new Date(user.created_at * 1000).toLocaleDateString()}
                           </p>
                           
                           <div className="grid grid-cols-2 gap-3 w-full mt-auto">
@@ -616,7 +685,7 @@ const Leaderboard: React.FC = () => {
                             </div>
                             <div className="bg-gray-50 dark:bg-gray-700/30 rounded-xl p-3 text-center border border-gray-100 dark:border-gray-700/50 group-hover:border-pink-200 dark:group-hover:border-pink-800/30 transition-colors">
                               <p className="text-xs text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wide scale-90">获赞</p>
-                              <p className="text-lg font-bold text-gray-900 dark:text-white">{user.total_likes ? (user.total_likes > 1000 ? `${(user.total_likes/1000).toFixed(1)}k` : user.total_likes) : 0}</p>
+                              <p className="text-lg font-bold text-gray-900 dark:text-white">{user.likes_count ? (user.likes_count > 1000 ? `${(user.likes_count/1000).toFixed(1)}k` : user.likes_count) : 0}</p>
                             </div>
                           </div>
                         </div>
@@ -690,14 +759,14 @@ const Leaderboard: React.FC = () => {
                       <i className="fas fa-heart"></i>
                     </div>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">总点赞数</p>
-                    <p className="text-xl font-bold text-gray-900 dark:text-white">{selectedUser.total_likes || 0}</p>
+                    <p className="text-xl font-bold text-gray-900 dark:text-white">{selectedUser.likes_count || 0}</p>
                   </div>
                   <div className="bg-gray-50 dark:bg-gray-700/50 rounded-2xl p-4 text-center border border-gray-100 dark:border-gray-700/50">
                     <div className="w-10 h-10 mx-auto bg-purple-100 dark:bg-purple-900/30 rounded-full flex items-center justify-center text-purple-600 dark:text-purple-400 mb-2">
                       <i className="fas fa-eye"></i>
                     </div>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">总浏览量</p>
-                    <p className="text-xl font-bold text-gray-900 dark:text-white">{selectedUser.total_views || 0}</p>
+                    <p className="text-xl font-bold text-gray-900 dark:text-white">{selectedUser.views || 0}</p>
                   </div>
                 </div>
 
@@ -732,8 +801,8 @@ const Leaderboard: React.FC = () => {
                           }}
                         >
                           <div className="w-16 h-16 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-600 rounded-lg flex items-center justify-center text-gray-400 overflow-hidden">
-                            {post.thumbnail ? (
-                              <LazyImage src={post.thumbnail} alt={post.title} className="w-full h-full object-cover" />
+                            {post.images && post.images.length > 0 ? (
+                              <LazyImage src={post.images[0]} alt={post.title} className="w-full h-full object-cover" />
                             ) : (
                               <i className="fas fa-image text-xl"></i>
                             )}

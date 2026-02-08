@@ -1,14 +1,19 @@
 import React, { createContext, useState, ReactNode, useEffect, useContext } from 'react';
 import { AuthContext } from './authContext';
-import apiClient from '@/lib/apiClient';
+import { 
+  getDirectMessages, 
+  sendDirectMessage as sendSupabaseMessage,
+  markMessagesAsRead,
+  getUnreadMessageCounts
+} from '@/services/messageService';
 
 export interface Message {
-  id: number;
+  id: string;
   sender_id: string;
   receiver_id: string;
   content: string;
   is_read: boolean;
-  created_at: number;
+  created_at: string;
 }
 
 export interface ChatContextType {
@@ -38,20 +43,8 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     
     const fetchUnread = async () => {
       try {
-        const res = await apiClient.get('/api/messages/unread', {
-          cache: {
-            enabled: true,
-            ttl: 15000, // 缓存15秒
-            staleTtl: 30000 // 过期后可再使用30秒
-          }
-        });
-        if (res.data?.ok) {
-          const counts: Record<string, number> = {};
-          res.data.data.forEach((item: any) => {
-            counts[item.sender_id] = item.count;
-          });
-          setUnreadCounts(counts);
-        }
+        const counts = await getUnreadMessageCounts(currentUser.id);
+        setUnreadCounts(counts);
       } catch (e) {
         console.error('获取未读消息失败', e);
       }
@@ -72,20 +65,12 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const fetchMessages = async () => {
       setLoading(true);
       try {
-        const res = await apiClient.get(`/api/messages/${currentChatFriendId}?limit=50`, {
-          cache: {
-            enabled: true,
-            ttl: 5000, // 缓存5秒
-            staleTtl: 10000 // 过期后可再使用10秒
-          }
-        });
-        if (res.data?.ok) {
-          setMessages(res.data.data);
-          // 标记为已读
-          await apiClient.post('/api/messages/read', { friendId: currentChatFriendId });
-          // 更新未读计数
-          setUnreadCounts(prev => ({ ...prev, [currentChatFriendId]: 0 }));
-        }
+        const data = await getDirectMessages(currentUser.id, currentChatFriendId, 50);
+        setMessages(data);
+        // 标记为已读
+        await markMessagesAsRead(currentUser.id, currentChatFriendId);
+        // 更新未读计数
+        setUnreadCounts(prev => ({ ...prev, [currentChatFriendId]: 0 }));
       } catch (e) {
         console.error('获取消息失败', e);
       } finally {
@@ -98,29 +83,23 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // 轮询当前聊天的消息
     const interval = setInterval(async () => {
       try {
-        // 获取最新消息，使用更大的缓存时间
-        const res = await apiClient.get(`/api/messages/${currentChatFriendId}?limit=50`, {
-          cache: {
-            enabled: true,
-            ttl: 5000, // 缓存5秒
-            staleTtl: 10000 // 过期后可再使用10秒
+        const newMessages = await getDirectMessages(currentUser.id, currentChatFriendId, 50);
+        
+        // 智能合并消息，避免闪烁
+        setMessages(prevMessages => {
+          const existingIds = new Set(prevMessages.map(m => m.id));
+          const newOnlyMessages = newMessages.filter((msg: Message) => !existingIds.has(msg.id));
+          
+          if (newOnlyMessages.length > 0) {
+            // 有新消息，合并
+            return [...prevMessages, ...newOnlyMessages];
           }
+          return prevMessages;
         });
-        if (res.data?.ok) {
-          // 智能合并消息，避免闪烁
-          setMessages(prevMessages => {
-            const newMessages = res.data.data;
-            const latestOldMessageId = prevMessages.length > 0 ? prevMessages[prevMessages.length - 1].id : 0;
-            const newOnlyMessages = newMessages.filter((msg: Message) => msg.id > latestOldMessageId);
-            
-            if (newOnlyMessages.length > 0) {
-              // 有新消息，合并
-              return [...prevMessages, ...newOnlyMessages];
-            }
-            return prevMessages;
-          });
-          // 只在有新消息时标记为已读
-          await apiClient.post('/api/messages/read', { friendId: currentChatFriendId });
+        
+        // 只在有新消息时标记为已读
+        if (newMessages.length > messages.length) {
+          await markMessagesAsRead(currentUser.id, currentChatFriendId);
         }
       } catch (e) {
         console.error('轮询消息失败', e);
@@ -134,14 +113,10 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (!currentUser || !currentChatFriendId) return false;
     
     try {
-      const res = await apiClient.post('/api/messages/send', {
-        friendId: currentChatFriendId,
-        content
-      });
+      const newMsg = await sendSupabaseMessage(currentUser.id, currentChatFriendId, content);
       
-      if (res.data?.ok) {
+      if (newMsg) {
         // 乐观更新
-        const newMsg: Message = res.data.data;
         setMessages(prev => [...prev, newMsg]);
         return true;
       }
@@ -154,8 +129,10 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const refreshMessages = () => {
     // 触发重新加载
-    if (currentChatFriendId) {
-        // 这里只是为了暴露给外部手动刷新，实际上useEffect里的轮询已经处理了
+    if (currentChatFriendId && currentUser) {
+      getDirectMessages(currentUser.id, currentChatFriendId, 50)
+        .then(data => setMessages(data))
+        .catch(e => console.error('刷新消息失败', e));
     }
   };
 

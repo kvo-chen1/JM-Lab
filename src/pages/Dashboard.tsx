@@ -25,6 +25,7 @@ import analyticsService from '../services/analyticsService';
 import taskService, { Task } from '../services/taskService';
 import checkinService from '../services/checkinService';
 import { useCommunityLogic } from '@/hooks/useCommunityLogic';
+import postsApi from '@/services/postService';
 
 
 import PWAInstallButton from '@/components/PWAInstallButton'
@@ -85,69 +86,170 @@ export default function Dashboard() {
     worksChange: -2.1,
   });
 
-  // 判断是否为真实用户（非手机号模拟用户）
-  const isRealUser = user && !user.id.startsWith('phone_user_');
+  // 判断是否为真实用户（非手机号模拟用户，且有有效ID）
+  const isRealUser = user && user.id && 
+    typeof user.id === 'string' && 
+    !user.id.startsWith('phone_user_') && 
+    !user.id.startsWith('temp_') &&
+    user.id.length > 10;
   const [realUserWorks, setRealUserWorks] = useState<any[]>([]);
   const [realUserStats, setRealUserStats] = useState<any>(null);
 
 // Fixed: Removed nested component definition
   
-  // 获取真实用户数据 - 改为直接查询 Supabase
+  // 获取真实用户数据 - 优先使用后端 API，失败时回退到 Supabase
   useEffect(() => {
     if (isRealUser && user?.id) {
       const fetchUserData = async () => {
         try {
           setIsLoading(true);
+          let worksLoaded = false;
           
-          // 1. 获取作品数据
-          const { data: works, error: worksError } = await supabase
-            .from('posts')
-            .select('*')
-            .eq('author_id', user.id)
-            .order('created_at', { ascending: false });
+          // 优先从后端 API 获取数据
+          const token = localStorage.getItem('token');
+          if (token) {
+            try {
+              // 1. 获取用户作品列表
+              const worksResponse = await fetch(`/api/works?creator_id=${user.id}&limit=100`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+              });
+              
+              if (worksResponse.ok) {
+                const result = await worksResponse.json();
+                if (result.code === 0 && Array.isArray(result.data) && result.data.length > 0) {
+                  const works = result.data;
+                  
+                  // 转换数据格式以匹配 UI
+                  const formattedWorks = works.map((w: any) => {
+                    // 处理日期 - 后端返回的是秒级时间戳
+                    let workDate: string;
+                    if (w.created_at) {
+                      // 判断是秒级还是毫秒级时间戳
+                      const timestamp = w.created_at > 10000000000 ? w.created_at : w.created_at * 1000;
+                      workDate = new Date(timestamp).toLocaleDateString('zh-CN');
+                    } else {
+                      workDate = new Date().toLocaleDateString('zh-CN');
+                    }
+                    
+                    return {
+                      id: w.id?.toString() || '',
+                      title: w.title || 'Untitled',
+                      thumbnail: w.thumbnail || w.cover_url || '',
+                      status: w.status === 'published' ? '已发布' : '草稿',
+                      date: workDate,
+                      views: w.views || 0,
+                      likes: w.likes || 0,
+                      metrics: {
+                        views: w.views || 0,
+                        likes: w.likes || 0,
+                        comments: w.comments || 0,
+                        shares: 0,
+                        engagementRate: 0
+                      }
+                    };
+                  });
+                  
+                  // 按日期排序（最新的在前）
+                  formattedWorks.sort((a: any, b: any) => {
+                    return new Date(b.date).getTime() - new Date(a.date).getTime();
+                  });
+                  
+                  setRealUserWorks(formattedWorks);
+                  worksLoaded = true;
+                  
+                  // 计算统计数据
+                  const totalViews = works.reduce((sum: number, w: any) => sum + (w.views || 0), 0);
+                  const totalLikes = works.reduce((sum: number, w: any) => sum + (w.likes || 0), 0);
+                  
+                  setRealUserStats({
+                    views_count: totalViews,
+                    likes_count: totalLikes,
+                    works_count: works.length,
+                    level: 1,
+                    points: 0
+                  });
+                  
+                  console.log('[Dashboard] Loaded user data from backend API:', {
+                    works: works.length,
+                    totalViews,
+                    totalLikes
+                  });
+                }
+              }
+              
+              // 2. 获取用户统计数据
+              const statsResponse = await fetch('/api/user/stats', {
+                headers: { 'Authorization': `Bearer ${token}` }
+              });
+              
+              if (statsResponse.ok) {
+                const statsResult = await statsResponse.json();
+                if (statsResult.code === 0 && statsResult.data) {
+                  setRealUserStats((prev: any) => ({
+                    ...prev,
+                    ...statsResult.data
+                  }));
+                }
+              }
+            } catch (apiError) {
+              console.warn('[Dashboard] Backend API failed, falling back to Supabase:', apiError);
+            }
+          }
+          
+          // 如果后端 API 没有返回数据，尝试从 Supabase 获取
+          if (!worksLoaded) {
+            console.log('[Dashboard] Trying to fetch from Supabase...');
             
-          if (!worksError && works) {
-             // 转换数据格式以匹配 UI
-             const formattedWorks = works.map(w => ({
-               id: w.id,
-               title: w.title,
-               thumbnail: w.images?.[0] || w.attachments?.[0]?.url || '',
-               status: w.status === 'published' ? '已发布' : '草稿',
-               date: new Date(w.created_at).toLocaleDateString(),
-               views: w.view_count || 0,
-               likes: w.likes_count || 0,
-               metrics: {
-                 views: w.view_count || 0,
-                 likes: w.likes_count || 0,
-                 comments: w.comments_count || 0,
-                 shares: 0,
-                 engagementRate: 0
-               }
-             }));
-             setRealUserWorks(formattedWorks);
+            const { data: works, error: worksError } = await supabase
+              .from('posts')
+              .select('*')
+              .eq('author_id', user.id)
+              .order('created_at', { ascending: false });
+              
+            if (!worksError && works && works.length > 0) {
+              const formattedWorks = works.map(w => {
+                // 处理日期
+                let workDate: string;
+                if (w.created_at) {
+                  workDate = new Date(w.created_at).toLocaleDateString('zh-CN');
+                } else {
+                  workDate = new Date().toLocaleDateString('zh-CN');
+                }
+                
+                return {
+                  id: w.id,
+                  title: w.title,
+                  thumbnail: w.images?.[0] || w.attachments?.[0]?.url || '',
+                  status: w.status === 'published' ? '已发布' : '草稿',
+                  date: workDate,
+                  views: w.view_count || 0,
+                  likes: w.likes_count || 0,
+                  metrics: {
+                    views: w.view_count || 0,
+                    likes: w.likes_count || 0,
+                    comments: w.comments_count || 0,
+                    shares: 0,
+                    engagementRate: 0
+                  }
+                };
+              });
+              setRealUserWorks(formattedWorks);
+              
+              const totalViews = works.reduce((sum, w) => sum + (w.view_count || 0), 0);
+              const totalLikes = works.reduce((sum, w) => sum + (w.likes_count || 0), 0);
+              
+              setRealUserStats({
+                views_count: totalViews,
+                likes_count: totalLikes,
+                works_count: works.length,
+                level: 1,
+                points: 0
+              });
+            }
           }
-
-          // 2. 获取统计数据
-          // 使用 RPC 或者分别 count
-          // 简单起见，我们先用 works 聚合
-          if (!worksError && works) {
-             const totalViews = works.reduce((sum, w) => sum + (w.view_count || 0), 0);
-             const totalLikes = works.reduce((sum, w) => sum + (w.likes_count || 0), 0);
-             
-             setRealUserStats({
-               views_count: totalViews,
-               likes_count: totalLikes,
-               works_count: works.length,
-               level: 1, // 暂时硬编码等级
-               points: 0
-             });
-          }
-
-          // 3. 其他数据（成就、任务等）暂时保持 Mock 或空，避免请求失败
-          // ...
 
         } catch (error) {
-          console.error('Failed to fetch real user data:', error);
+          console.error('[Dashboard] Failed to fetch real user data:', error);
         } finally {
           setIsLoading(false);
         }
@@ -155,9 +257,37 @@ export default function Dashboard() {
       
       fetchUserData();
       
-      // 加载快捷导航计数 (Count queries)
+      // 加载快捷导航计数 - 优先使用后端 API
       const loadQuickNavCounts = async () => {
         try {
+          const token = localStorage.getItem('token');
+          
+          if (token) {
+            // 尝试从后端 API 获取统计数据
+            try {
+              const response = await fetch('/api/user/stats', {
+                headers: { 'Authorization': `Bearer ${token}` }
+              });
+              
+              if (response.ok) {
+                const result = await response.json();
+                if (result.code === 0 && result.data) {
+                  setQuickNavCounts({
+                    bookmarks: result.data.bookmarks_count || 0,
+                    likes: result.data.likes_count || 0,
+                    drafts: result.data.drafts_count || 0,
+                    friends: result.data.friends_count || 0,
+                    notifications: result.data.notifications_count || 0
+                  });
+                  return;
+                }
+              }
+            } catch (apiError) {
+              console.warn('[Dashboard] Backend API stats failed:', apiError);
+            }
+          }
+          
+          // 回退到 Supabase
           const { count: bookmarkCount } = await supabase.from('bookmarks').select('*', { count: 'exact', head: true }).eq('user_id', user.id);
           const { count: likeCount } = await supabase.from('likes').select('*', { count: 'exact', head: true }).eq('user_id', user.id);
           const { count: draftCount } = await supabase.from('posts').select('*', { count: 'exact', head: true }).eq('author_id', user.id).eq('status', 'draft');
@@ -166,16 +296,15 @@ export default function Dashboard() {
             bookmarks: bookmarkCount || 0,
             likes: likeCount || 0,
             drafts: draftCount || 0,
-            friends: 0, // 暂时不支持好友
+            friends: 0,
             notifications: 0
           });
         } catch (error) {
-          console.error('Failed to load quick nav counts:', error);
+          console.error('[Dashboard] Failed to load quick nav counts:', error);
         }
       };
       
       loadQuickNavCounts();
-      // loadRecentActivities(); // 暂时跳过活动，因为它需要复杂的关联查询
     } else {
       setIsLoading(false);
     }
@@ -824,9 +953,26 @@ export default function Dashboard() {
                           )}
                           <button 
                             className={`w-full text-left px-4 py-2 text-sm ${isDark ? 'hover:bg-red-900/30 text-red-400' : 'hover:bg-red-50 text-red-600'} transition-colors flex items-center gap-2 hover:bg-opacity-80`}
-                            onClick={() => {
-                              if (window.confirm('确定要删除此作品吗？')) {
-                                alert('作品删除成功！');
+                            onClick={async () => {
+                              if (window.confirm('确定要删除此作品吗？此操作不可恢复。')) {
+                                try {
+                                  const success = await postsApi.deletePost(work.id);
+                                  if (success) {
+                                    // 从列表中移除已删除的作品
+                                    setRealUserWorks(prev => prev.filter(w => w.id !== work.id));
+                                    // 更新统计数据
+                                    setRealUserStats(prev => ({
+                                      ...prev,
+                                      works_count: (prev?.works_count || 1) - 1
+                                    }));
+                                    alert('作品删除成功！');
+                                  } else {
+                                    alert('删除作品失败，请稍后重试');
+                                  }
+                                } catch (error) {
+                                  console.error('[Dashboard] Delete work failed:', error);
+                                  alert('删除作品失败: ' + (error instanceof Error ? error.message : '未知错误'));
+                                }
                                 setOpenMenuId(null);
                               }
                             }}

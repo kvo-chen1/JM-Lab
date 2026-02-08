@@ -204,36 +204,27 @@ const OneClickDesign: React.FC<OneClickDesignProps> = ({ onGenerate }) => {
           });
           const videoUrl = result.data?.video_url || result.data?.url;
           if (!result.ok || !videoUrl) {
-            const msg = result.error || '视频生成失败';
+            const msg = result.error || '视频生成失败，请检查API配置或稍后重试';
             toast.error(msg);
-            setVideos([
-              'https://example.com/video1.mp4',
-              'https://example.com/video2.mp4',
-              'https://example.com/video3.mp4',
-            ].slice(0, generationCount));
+            console.error('[Video Generation] Failed:', result);
+            setVideos([]);
           } else {
             // 由于API一次只生成一个视频，我们创建多个占位符
             const videos = Array(generationCount).fill(videoUrl);
             setVideos(videos);
+            toast.success('视频生成成功！');
           }
         } catch (e: any) {
           toast.error(e?.message || '视频生成失败');
-          setVideos([
-            'https://example.com/video1.mp4',
-            'https://example.com/video2.mp4',
-            'https://example.com/video3.mp4',
-          ].slice(0, generationCount));
+          console.error('[Video Generation] Exception:', e);
+          setVideos([]);
         }
         setImages([]);
       } else if (generationMode === 'image-to-video') {
         // 图生视频
         if (uploadedImage.startsWith('data:')) {
           toast.error('参考图片为本地数据，需使用可公网访问的图片URL');
-          setVideos([
-            'https://example.com/video1.mp4',
-            'https://example.com/video2.mp4',
-            'https://example.com/video3.mp4',
-          ].slice(0, generationCount));
+          setVideos([]);
         } else {
           try {
             const text = `${prompt}  --resolution ${videoParams.resolution}  --duration ${videoParams.duration} --camerafixed ${videoParams.cameraFixed}`;
@@ -246,25 +237,20 @@ const OneClickDesign: React.FC<OneClickDesignProps> = ({ onGenerate }) => {
             });
             const videoUrl = result.data?.video_url || result.data?.url;
             if (!result.ok || !videoUrl) {
-              const msg = result.error || '视频生成失败';
+              const msg = result.error || '视频生成失败，请检查API配置或稍后重试';
               toast.error(msg);
-              setVideos([
-                'https://example.com/video1.mp4',
-                'https://example.com/video2.mp4',
-                'https://example.com/video3.mp4',
-              ].slice(0, generationCount));
+              console.error('[Video Generation] Failed:', result);
+              setVideos([]);
             } else {
               // 由于API一次只生成一个视频，我们创建多个占位符
               const videos = Array(generationCount).fill(videoUrl);
               setVideos(videos);
+              toast.success('视频生成成功！');
             }
           } catch (e: any) {
             toast.error(e?.message || '视频生成失败');
-            setVideos([
-              'https://example.com/video1.mp4',
-              'https://example.com/video2.mp4',
-              'https://example.com/video3.mp4',
-            ].slice(0, generationCount));
+            console.error('[Video Generation] Exception:', e);
+            setVideos([]);
           }
         }
         setImages([]);

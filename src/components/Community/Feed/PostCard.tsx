@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import type { Thread } from '@/pages/Community';
 import { TianjinAvatar } from '@/components/TianjinStyleComponents';
 import { HoverCard, FadeIn } from '@/components/Community/DesignSystem';
+import { useAuth } from '@/hooks/useAuth';
 
 interface PostCardProps {
   isDark: boolean;
@@ -304,6 +305,7 @@ export const PostCard: React.FC<PostCardProps> = ({
   isFavorited = false,
   index = 0
 }) => {
+  const { user: currentUser } = useAuth();
   const [showCommentInput, setShowCommentInput] = useState(false);
   const [commentContent, setCommentContent] = useState('');
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
@@ -545,7 +547,7 @@ export const PostCard: React.FC<PostCardProps> = ({
               >
                 <div className="p-4">
                   <form onSubmit={handleCommentSubmit} className="flex gap-3">
-                    <TianjinAvatar size="sm" src="" alt="当前用户" className="w-9 h-9 mt-0.5" />
+                    <TianjinAvatar size="sm" src={currentUser?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUser?.id || 'current'}`} alt="当前用户" className="w-9 h-9 mt-0.5" />
                     <div className="flex-1 relative">
                       <input
                         type="text"
@@ -583,27 +585,48 @@ export const PostCard: React.FC<PostCardProps> = ({
                       {thread.comments.slice(0, 3).map((comment, idx) => (
                         <motion.div 
                           key={comment.id || idx}
-                          initial={{ opacity: 0, x: -10 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: idx * 0.05 }}
-                          className="flex gap-2 items-start"
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: idx * 0.08 }}
+                          className={`flex gap-3 p-3 rounded-xl ${isDark ? 'bg-gray-800/50 hover:bg-gray-800' : 'bg-white hover:bg-gray-50'} transition-all duration-200 group`}
                         >
-                          <span className={`text-xs font-semibold shrink-0 ${isDark ? 'text-gray-300' : 'text-gray-800'}`}>
-                            {comment.user}
-                          </span>
-                          <span className={`text-xs line-clamp-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                            {comment.content}
-                          </span>
+                          {/* 头像 */}
+                          <div className="flex-shrink-0">
+                            <div className={`w-7 h-7 rounded-full overflow-hidden ring-2 ${isDark ? 'ring-gray-600' : 'ring-gray-200'} group-hover:ring-blue-300 transition-all`}>
+                              <img 
+                                src={comment.authorAvatar || comment.userAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${comment.userId || comment.id}`}
+                                alt={comment.user || comment.author || '用户'}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                          </div>
+                          
+                          {/* 内容 */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className={`text-sm font-bold ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>
+                                {comment.user || comment.author || '用户'}
+                              </span>
+                              <span className="text-xs text-gray-400">
+                                {comment.date ? new Date(comment.date).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }) : ''}
+                              </span>
+                            </div>
+                            <p className={`text-sm leading-relaxed line-clamp-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                              {comment.content}
+                            </p>
+                          </div>
                         </motion.div>
                       ))}
                       {thread.comments.length > 3 && (
                         <motion.button 
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
-                          className={`text-xs font-medium ${isDark ? 'text-blue-400' : 'text-blue-600'} hover:underline`}
+                          whileHover={{ x: 5 }}
+                          className={`flex items-center gap-1 text-sm font-medium ${isDark ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-700'} transition-colors mt-2`}
                           onClick={(e) => { e.stopPropagation(); onClick(thread.id); }}
                         >
-                          查看全部 {thread.comments.length} 条评论 →
+                          <span>查看全部 {thread.comments.length} 条评论</span>
+                          <i className="fas fa-arrow-right text-xs"></i>
                         </motion.button>
                       )}
                     </div>

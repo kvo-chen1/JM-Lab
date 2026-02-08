@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect } from 'react';
-import { Editor } from '@tinymce/tinymce-react';
 
 interface RichTextEditorProps {
   content: string;
@@ -8,6 +7,23 @@ interface RichTextEditorProps {
   placeholder?: string;
   disabled?: boolean;
   height?: number | string;
+}
+
+// 动态导入 TinyMCE，避免 SSR 问题
+let Editor: any = null;
+let tinymceLoadAttempted = false;
+let tinymceLoadFailed = false;
+
+// 尝试加载 TinyMCE 编辑器
+try {
+  if (typeof window !== 'undefined' && !tinymceLoadAttempted) {
+    tinymceLoadAttempted = true;
+    const tinymceModule = require('@tinymce/tinymce-react');
+    Editor = tinymceModule.Editor;
+  }
+} catch (e) {
+  console.warn('TinyMCE editor not available:', e);
+  tinymceLoadFailed = true;
 }
 
 export const RichTextEditor: React.FC<RichTextEditorProps> = ({
@@ -19,28 +35,90 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   height = 400,
 }) => {
   const [editorContent, setEditorContent] = useState(content);
+  const [useSimpleEditor, setUseSimpleEditor] = useState(tinymceLoadFailed);
   const editorRef = useRef<any>(null);
-  
+  const containerRef = useRef<HTMLDivElement>(null);
+
   // 当外部content变化时更新编辑器内容
   useEffect(() => {
-    if (content !== editorContent) {
-      setEditorContent(content);
+    setEditorContent(content);
+    if (editorRef.current && !useSimpleEditor) {
+      editorRef.current.setContent(content);
     }
-  }, [content]);
-  
+  }, [content, useSimpleEditor]);
+
+  // 检测 TinyMCE 是否加载失败
+  useEffect(() => {
+    if (typeof window !== 'undefined' && !useSimpleEditor && containerRef.current) {
+      const timer = setTimeout(() => {
+        // 检查 TinyMCE 是否成功初始化
+        const tinymceElements = containerRef.current?.querySelectorAll('.tox-tinymce');
+        if (!tinymceElements || tinymceElements.length === 0) {
+          console.warn('TinyMCE editor failed to load, switching to simple editor');
+          setUseSimpleEditor(true);
+        }
+      }, 5000); // 5秒后检查
+
+      return () => clearTimeout(timer);
+    }
+  }, [useSimpleEditor]);
+
   // 编辑器初始化完成后的回调
   const handleEditorInit = (evt: any, editor: any) => {
     editorRef.current = editor;
   };
-  
+
   // 编辑器内容变化时的回调
   const handleEditorChange = (content: string, editor: any) => {
     setEditorContent(content);
     onChange(content);
   };
-  
+
+  // 简单编辑器的内容变化处理
+  const handleSimpleEditorChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newContent = e.target.value;
+    setEditorContent(newContent);
+    onChange(newContent);
+  };
+
+  // 简单编辑器模式
+  if (useSimpleEditor || !Editor) {
+    return (
+      <div className={`space-y-2 ${height === '100%' ? 'h-full flex flex-col' : ''}`}>
+        <div className="relative">
+          <textarea
+            value={editorContent}
+            onChange={handleSimpleEditorChange}
+            placeholder={placeholder}
+            disabled={disabled}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800 dark:border-gray-700 dark:text-white font-mono text-sm"
+            style={{
+              height: typeof height === 'number' ? height : 400,
+              resize: 'vertical',
+              minHeight: 200
+            }}
+          />
+          <div className="absolute bottom-2 right-2 text-xs text-gray-400">
+            支持 HTML 标签
+          </div>
+        </div>
+        <div className="flex items-center justify-between">
+          <p className="text-yellow-600 text-xs">富文本编辑器加载失败，已切换为普通文本模式</p>
+          <button
+            type="button"
+            onClick={() => setUseSimpleEditor(false)}
+            className="text-xs text-blue-600 hover:text-blue-800 underline"
+          >
+            重试加载富文本编辑器
+          </button>
+        </div>
+        {error && <p className="text-red-500 text-sm">{error}</p>}
+      </div>
+    );
+  }
+
   return (
-    <div className={`space-y-2 ${height === '100%' ? 'h-full flex flex-col' : ''}`}>
+    <div ref={containerRef} className={`space-y-2 ${height === '100%' ? 'h-full flex flex-col' : ''}`}>
       <Editor
         apiKey="equzoje2vbh50zcncs9mhg3ex32lr0y7sagjxhxtqrxbc3tp"
         value={editorContent}
@@ -52,14 +130,13 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
             'anchor', 'searchreplace', 'visualblocks', 'code', 'fullscreen',
             'insertdatetime', 'media', 'table', 'code', 'help', 'wordcount'
           ],
-          toolbar: `undo redo | formatselect | bold italic backcolor | 
-            alignleft aligncenter alignright alignjustify | 
+          toolbar: `undo redo | formatselect | bold italic backcolor |
+            alignleft aligncenter alignright alignjustify |
             bullist numlist outdent indent | removeformat | help`,
           content_style: 'body { font-family:Helvetica,Arial,sans-serif; font-size:14px }',
           placeholder: placeholder,
           readonly: disabled,
-          // 使用自定义图片上传处理函数，使用base64编码
-          images_upload_handler: function (blobInfo, success, failure) {
+          images_upload_handler: function (blobInfo: any, success: any, failure: any) {
             const reader = new FileReader();
             reader.onload = function () {
               const base64 = reader.result;
@@ -74,9 +151,12 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
             };
             reader.readAsDataURL(blobInfo.blob());
           },
-          // 禁用API密钥验证，即使没有有效API密钥也能使用编辑器
           statusbar: false,
-          branding: false
+          branding: false,
+          promotion: false,
+          // 使用本地资源而不是 CDN（如果可能）
+          skin: 'oxide',
+          content_css: 'default',
         }}
         onInit={handleEditorInit}
         onEditorChange={handleEditorChange}
@@ -84,4 +164,4 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
       {error && <p className="text-red-500 text-sm">{error}</p>}
     </div>
   );
-}
+};

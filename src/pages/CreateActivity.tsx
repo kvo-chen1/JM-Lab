@@ -605,7 +605,7 @@ export default function CreateActivity() {
       setCurrentStep(originalStep);
       
       setIsPublishing(true);
-      
+
       let event;
       if (eventId) {
         // 更新现有活动
@@ -619,9 +619,18 @@ export default function CreateActivity() {
           ...formData,
           status: 'published'
         });
+      }
+
+      // 检查活动是否创建/更新成功
+      if (!event || !event.id) {
+        throw new Error('活动创建失败：服务器返回数据无效');
+      }
+
+      // 保存活动ID
+      if (!eventId) {
         setEventId(event.id);
       }
-      
+
       // 根据选择发布到相应平台
       if (publishOptions.publishToJinmaiPlatform) {
         // 直接发布到津脉活动平台
@@ -641,18 +650,18 @@ export default function CreateActivity() {
         toast.success('活动已成功发布到津脉活动平台');
       } else {
         // 提交发布审核
-        await publishEvent(event.id, { 
+        await publishEvent(event.id, {
           eventId: event.id,
           notifyFollowers: publishOptions.notifyFollowers
         });
         toast.success('活动已提交审核，我们会尽快处理');
       }
-      
+
       // 跳转到活动列表页面
       navigate('/activities');
     } catch (error) {
       console.error('发布活动失败:', error);
-      toast.error('发布失败，请稍后重试');
+      toast.error('发布失败：' + (error instanceof Error ? error.message : '请稍后重试'));
     } finally {
       setIsPublishing(false);
     }

@@ -314,12 +314,15 @@ export default function CanvasArea() {
                         
                         return (
                           <motion.img 
-                            src={selectedItem?.thumbnail} 
+                            src={selectedItem?.thumbnail || 'https://via.placeholder.com/800x600?text=No+Image'} 
                             alt="Selected Result" 
                             className={`w-full h-auto max-h-[55vh] object-contain ${selectedBackground === 'transparent' ? 'bg-gray-100 dark:bg-gray-900' : ''}`}
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             transition={{ duration: 0.5, delay: 0.1, ease: "easeOut" }}
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = 'https://via.placeholder.com/800x600?text=No+Image';
+                            }}
                             style={{
                               filter: selectedFilter === 'normal' ? 'none' : 
                                       selectedFilter === 'sepia' ? 'sepia(100%)' : 
@@ -609,12 +612,15 @@ export default function CanvasArea() {
                         className={`relative flex-shrink-0 w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 rounded-xl overflow-hidden border-2 transition-all shadow-md ${selectedResult === result.id ? 'border-[#C02C38] ring-2 ring-[#C02C38]/20 scale-110 z-10' : 'border-white dark:border-gray-700 opacity-70 hover:opacity-100'}`}
                       >
                         <motion.img 
-                          src={result.thumbnail} 
+                          src={result.thumbnail || 'https://via.placeholder.com/150?text=No+Image'} 
                           alt="" 
                           className="w-full h-full object-cover" 
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
                           transition={{ duration: 0.3, delay: 0.15 * index, ease: "easeOut" }}
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = 'https://via.placeholder.com/150?text=No+Image';
+                          }}
                         />
                         {/* 视频标识 */}
                         {(result.type === 'video' || result.video) && (

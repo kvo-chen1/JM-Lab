@@ -38,9 +38,18 @@ interface User {
   updated_at: string;
 }
 
-type LeaderboardType = 'posts' | 'users';
+interface PointsLeaderboardUser {
+  user_id: string;
+  username: string;
+  avatar_url: string;
+  balance: number;
+  total_earned: number;
+  rank: number;
+}
+
+type LeaderboardType = 'posts' | 'users' | 'points';
 type TimeRange = 'day' | 'week' | 'month' | 'all';
-type SortBy = 'likes_count' | 'views' | 'comments_count' | 'posts_count';
+type SortBy = 'likes_count' | 'views' | 'comments_count' | 'posts_count' | 'balance' | 'total_earned';
 
 const Leaderboard: React.FC = () => {
   const { theme } = useTheme();
@@ -49,13 +58,10 @@ const Leaderboard: React.FC = () => {
   const [sortBy, setSortBy] = useState<SortBy>('likes_count');
   const [posts, setPosts] = useState<Post[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [pointsUsers, setPointsUsers] = useState<PointsLeaderboardUser[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [isDetailOpen, setIsDetailOpen] = useState<boolean>(false);
-  const [isLoadingDetail, setIsLoadingDetail] = useState<boolean>(false);
-  const [userPosts, setUserPosts] = useState<Post[]>([]);
-  const [stats, setStats] = useState<{ users_count: number; posts_count: number } | null>(null);
+  const [stats, setStats] = useState<{ users_count: number; posts_count: number; total_points: number } | null>(null);
   const navigate = useNavigate();
 
   // 动态颜色类
@@ -109,27 +115,24 @@ const Leaderboard: React.FC = () => {
       } else {
         console.log('[Leaderboard] Works count:', postsCount);
       }
+
+      // 获取总积分
+      const { data: pointsData, error: pointsError } = await supabase
+        .from('user_points_balance')
+        .select('balance');
+      const totalPoints = pointsData?.reduce((sum, item) => sum + (item.balance || 0), 0) || 0;
       
       setStats({
         users_count: usersCount || 0,
-        posts_count: postsCount || 0
+        posts_count: postsCount || 0,
+        total_points: totalPoints
       });
     } catch (e) {
       console.error('[Leaderboard] Failed to fetch stats', e);
     }
   };
 
-  // 键盘事件监听，支持Esc键关闭弹窗
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && isDetailOpen) {
-        handleCloseDetail();
-      }
-    };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isDetailOpen]);
 
   // 添加本地缓存机制（带时间戳）
   const [cache, setCache] = useState<Record<string, { posts: Post[]; users: User[]; timestamp: number }>>({});
@@ -183,7 +186,20 @@ const Leaderboard: React.FC = () => {
         startTime = Math.floor(now.getTime() / 1000);
       }
 
-      if (leaderboardType === 'posts') {
+      if (leaderboardType === 'points') {
+        // 积分排行榜 - 使用 points_leaderboard 视图
+        const { data, error } = await supabase
+          .from('points_leaderboard')
+          .select('*')
+          .order('balance', { ascending: false })
+          .limit(20);
+
+        console.log('[Leaderboard] Points query result:', { data, error });
+        if (error) throw error;
+        
+        setPointsUsers(data as PointsLeaderboardUser[] || []);
+        setCache(prev => ({ ...prev, [cacheKey]: { posts: [], users: [], pointsUsers: data as PointsLeaderboardUser[], timestamp: Date.now() } }));
+      } else if (leaderboardType === 'posts') {
         // 从 works 表获取作品列表（与津脉广场使用相同的数据源）
         let worksQuery = supabase
           .from('works')
@@ -295,43 +311,12 @@ const Leaderboard: React.FC = () => {
     navigate(`/square?post=${postId}`);
   };
 
-  const handleUserClick = async (user: User) => {
-    setSelectedUser(user);
-    setIsDetailOpen(true);
-    setIsLoadingDetail(true);
-    
-    // 获取用户热门作品
-    try {
-      if (!supabase) return;
-      
-      const { data, error } = await supabase
-        .from('posts')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('status', 'published')
-        .order('likes_count', { ascending: false })
-        .limit(3);
-        
-      if (error) throw error;
-      
-      setUserPosts(data as Post[]);
-    } catch (error) {
-      console.error('Failed to fetch user posts:', error);
-      setUserPosts([]);
-    } finally {
-      requestAnimationFrame(() => {
-        setIsLoadingDetail(false);
-      });
-    }
+  const handleUserClick = (user: User) => {
+    // 跳转到创作者个人主页
+    navigate(`/author/${user.id}`);
   };
 
-  const handleCloseDetail = () => {
-    setIsDetailOpen(false);
-    setTimeout(() => {
-      setSelectedUser(null);
-      setUserPosts([]);
-    }, 300);
-  };
+
 
   const getRankBadge = (index: number) => {
     if (index === 0) {
@@ -414,6 +399,10 @@ const Leaderboard: React.FC = () => {
                 <p className="text-sm text-gray-500 dark:text-gray-400 uppercase tracking-wider font-semibold">创作者</p>
                 <p className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">{stats ? stats.users_count : '-'}</p>
               </div>
+              <div className="text-center">
+                <p className="text-sm text-gray-500 dark:text-gray-400 uppercase tracking-wider font-semibold">总积分</p>
+                <p className="text-2xl md:text-3xl font-bold text-yellow-500">{stats ? stats.total_points.toLocaleString() : '-'}</p>
+              </div>
             </motion.div>
           </div>
 
@@ -447,6 +436,17 @@ const Leaderboard: React.FC = () => {
               >
                 <i className="fas fa-image"></i>
                 热门作品
+              </button>
+              <button
+                onClick={() => setLeaderboardType('points')}
+                className={`flex-1 lg:flex-none px-6 py-2.5 rounded-lg text-sm font-bold transition-all duration-300 flex items-center justify-center gap-2 ${
+                  leaderboardType === 'points'
+                    ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                }`}
+              >
+                <i className="fas fa-trophy"></i>
+                积分排行
               </button>
             </div>
 
@@ -561,7 +561,138 @@ const Leaderboard: React.FC = () => {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
             >
-              {leaderboardType === 'posts' ? (
+              {leaderboardType === 'points' ? (
+                <div className="w-full">
+                  {/* 积分排行榜前三名 */}
+                  {pointsUsers.length > 0 && (
+                    <div className="flex flex-col md:flex-row justify-center items-end gap-4 md:gap-8 mb-12">
+                      {/* 第二名 */}
+                      {pointsUsers[1] && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 0.1 }}
+                          className="flex flex-col items-center order-2 md:order-1"
+                        >
+                          <div className="relative mb-4">
+                            <div className="w-20 h-20 md:w-24 md:h-24 rounded-full p-1 bg-gradient-to-br from-gray-300 to-gray-400">
+                              <img
+                                src={pointsUsers[1].avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(pointsUsers[1].username)}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`}
+                                alt={pointsUsers[1].username}
+                                className="w-full h-full rounded-full object-cover border-4 border-white dark:border-gray-800"
+                              />
+                            </div>
+                            <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 w-8 h-8 bg-gray-400 rounded-full flex items-center justify-center text-white font-bold shadow-lg border-2 border-white dark:border-gray-800">
+                              2
+                            </div>
+                          </div>
+                          <h3 className="font-bold text-lg text-gray-900 dark:text-white">{pointsUsers[1].username}</h3>
+                          <p className="text-yellow-500 font-bold text-xl">{pointsUsers[1].balance.toLocaleString()} 积分</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">累计获得 {pointsUsers[1].total_earned.toLocaleString()}</p>
+                        </motion.div>
+                      )}
+                      
+                      {/* 第一名 */}
+                      {pointsUsers[0] && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 0 }}
+                          className="flex flex-col items-center order-1 md:order-2 -mt-4 md:-mt-8"
+                        >
+                          <div className="relative mb-4">
+                            <div className="absolute inset-0 bg-yellow-400 blur-xl opacity-30 rounded-full"></div>
+                            <div className="relative w-28 h-28 md:w-36 md:h-36 rounded-full p-1 bg-gradient-to-br from-yellow-300 via-yellow-400 to-amber-500">
+                              <img
+                                src={pointsUsers[0].avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(pointsUsers[0].username)}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`}
+                                alt={pointsUsers[0].username}
+                                className="w-full h-full rounded-full object-cover border-4 border-white dark:border-gray-800"
+                              />
+                            </div>
+                            <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
+                              <i className="fas fa-crown text-yellow-500 text-3xl drop-shadow-lg"></i>
+                            </div>
+                            <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 w-10 h-10 bg-gradient-to-br from-yellow-400 to-amber-500 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg border-2 border-white dark:border-gray-800">
+                              1
+                            </div>
+                          </div>
+                          <h3 className="font-bold text-xl text-gray-900 dark:text-white">{pointsUsers[0].username}</h3>
+                          <p className="text-yellow-500 font-bold text-2xl">{pointsUsers[0].balance.toLocaleString()} 积分</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">累计获得 {pointsUsers[0].total_earned.toLocaleString()}</p>
+                        </motion.div>
+                      )}
+                      
+                      {/* 第三名 */}
+                      {pointsUsers[2] && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 0.2 }}
+                          className="flex flex-col items-center order-3"
+                        >
+                          <div className="relative mb-4">
+                            <div className="w-20 h-20 md:w-24 md:h-24 rounded-full p-1 bg-gradient-to-br from-orange-300 to-amber-600">
+                              <img
+                                src={pointsUsers[2].avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(pointsUsers[2].username)}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`}
+                                alt={pointsUsers[2].username}
+                                className="w-full h-full rounded-full object-cover border-4 border-white dark:border-gray-800"
+                              />
+                            </div>
+                            <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 w-8 h-8 bg-gradient-to-br from-orange-400 to-amber-600 rounded-full flex items-center justify-center text-white font-bold shadow-lg border-2 border-white dark:border-gray-800">
+                              3
+                            </div>
+                          </div>
+                          <h3 className="font-bold text-lg text-gray-900 dark:text-white">{pointsUsers[2].username}</h3>
+                          <p className="text-yellow-500 font-bold text-xl">{pointsUsers[2].balance.toLocaleString()} 积分</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">累计获得 {pointsUsers[2].total_earned.toLocaleString()}</p>
+                        </motion.div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* 积分排行榜列表 */}
+                  <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700/50 overflow-hidden">
+                    <div className="grid grid-cols-12 gap-4 p-4 bg-gray-50 dark:bg-gray-700/30 text-sm font-semibold text-gray-600 dark:text-gray-400">
+                      <div className="col-span-2 md:col-span-1 text-center">排名</div>
+                      <div className="col-span-6 md:col-span-7">用户</div>
+                      <div className="col-span-4 md:col-span-2 text-right">当前积分</div>
+                      <div className="hidden md:block col-span-2 text-right">累计获得</div>
+                    </div>
+                    <div className="divide-y divide-gray-100 dark:divide-gray-700/50">
+                      {pointsUsers.slice(3).map((user, index) => (
+                        <motion.div
+                          key={user.user_id}
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: index * 0.05 }}
+                          className="grid grid-cols-12 gap-4 p-4 items-center hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors cursor-pointer"
+                          onClick={() => navigate(`/author/${user.user_id}`)}
+                        >
+                          <div className="col-span-2 md:col-span-1 text-center">
+                            <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 font-bold">
+                              {index + 4}
+                            </span>
+                          </div>
+                          <div className="col-span-6 md:col-span-7 flex items-center gap-3">
+                            <img
+                              src={user.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.username)}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`}
+                              alt={user.username}
+                              className="w-10 h-10 rounded-full object-cover border border-gray-200 dark:border-gray-600"
+                            />
+                            <span className="font-medium text-gray-900 dark:text-white truncate">{user.username}</span>
+                          </div>
+                          <div className="col-span-4 md:col-span-2 text-right">
+                            <span className="font-bold text-yellow-500">{user.balance.toLocaleString()}</span>
+                          </div>
+                          <div className="hidden md:block col-span-2 text-right text-gray-500 dark:text-gray-400">
+                            {user.total_earned.toLocaleString()}
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : leaderboardType === 'posts' ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {posts.map((post, index) => (
                     <motion.div 
@@ -699,137 +830,7 @@ const Leaderboard: React.FC = () => {
         </AnimatePresence>
       </div>
 
-      {/* 创作者详情弹窗 */}
-      <AnimatePresence>
-        {isDetailOpen && selectedUser && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-            onClick={handleCloseDetail}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              transition={{ type: "spring", damping: 25, stiffness: 300 }}
-              className="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl border border-gray-200 dark:border-gray-700 max-w-2xl w-full max-h-[85vh] overflow-y-auto scrollbar-hide"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* 弹窗头部 */}
-              <div className="relative h-32 bg-gradient-to-r from-blue-500 to-purple-600">
-                <button
-                  onClick={handleCloseDetail}
-                  className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center bg-black/20 hover:bg-black/40 text-white rounded-full backdrop-blur-sm transition-colors z-10"
-                >
-                  <i className="fas fa-times"></i>
-                </button>
-              </div>
 
-              {/* 弹窗内容 */}
-              <div className="px-8 pb-8 -mt-16 relative">
-                <div className="flex flex-col items-center mb-6">
-                  <div className="w-32 h-32 p-1 bg-white dark:bg-gray-800 rounded-full shadow-lg">
-                    <img
-                      src={selectedUser.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(selectedUser.username)}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`}
-                      alt={selectedUser.username}
-                      className="w-full h-full rounded-full object-cover border-4 border-white dark:border-gray-800"
-                    />
-                  </div>
-                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white mt-4 mb-1">{selectedUser.username}</h3>
-                  <p className="text-gray-500 dark:text-gray-400 flex items-center gap-2 text-sm">
-                    <i className="fas fa-envelope opacity-70"></i>
-                    {selectedUser.email}
-                  </p>
-                </div>
-
-                {/* 统计数据 */}
-                <div className="grid grid-cols-3 gap-4 mb-8">
-                  <div className="bg-gray-50 dark:bg-gray-700/50 rounded-2xl p-4 text-center border border-gray-100 dark:border-gray-700/50">
-                    <div className="w-10 h-10 mx-auto bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center text-blue-600 dark:text-blue-400 mb-2">
-                      <i className="fas fa-image"></i>
-                    </div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">作品数量</p>
-                    <p className="text-xl font-bold text-gray-900 dark:text-white">{selectedUser.posts_count || 0}</p>
-                  </div>
-                  <div className="bg-gray-50 dark:bg-gray-700/50 rounded-2xl p-4 text-center border border-gray-100 dark:border-gray-700/50">
-                    <div className="w-10 h-10 mx-auto bg-pink-100 dark:bg-pink-900/30 rounded-full flex items-center justify-center text-pink-600 dark:text-pink-400 mb-2">
-                      <i className="fas fa-heart"></i>
-                    </div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">总点赞数</p>
-                    <p className="text-xl font-bold text-gray-900 dark:text-white">{selectedUser.likes_count || 0}</p>
-                  </div>
-                  <div className="bg-gray-50 dark:bg-gray-700/50 rounded-2xl p-4 text-center border border-gray-100 dark:border-gray-700/50">
-                    <div className="w-10 h-10 mx-auto bg-purple-100 dark:bg-purple-900/30 rounded-full flex items-center justify-center text-purple-600 dark:text-purple-400 mb-2">
-                      <i className="fas fa-eye"></i>
-                    </div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">总浏览量</p>
-                    <p className="text-xl font-bold text-gray-900 dark:text-white">{selectedUser.views || 0}</p>
-                  </div>
-                </div>
-
-                {/* 热门作品 */}
-                <div>
-                  <h4 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                    <i className="fas fa-fire text-red-500"></i>
-                    热门作品
-                  </h4>
-                  
-                  {isLoadingDetail ? (
-                    <div className="space-y-3">
-                      {[1, 2].map((i) => (
-                        <div key={i} className="bg-gray-50 dark:bg-gray-700/30 rounded-xl p-4 animate-pulse flex gap-4">
-                          <div className="w-16 h-16 bg-gray-200 dark:bg-gray-600 rounded-lg"></div>
-                          <div className="flex-1 space-y-2">
-                            <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-3/4"></div>
-                            <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-1/2"></div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : userPosts.length > 0 ? (
-                    <div className="space-y-3">
-                      {userPosts.map((post) => (
-                        <div 
-                          key={post.id} 
-                          className="group bg-white dark:bg-gray-700/30 rounded-xl p-4 border border-gray-100 dark:border-gray-700/50 hover:border-blue-200 dark:hover:border-blue-500/30 transition-all cursor-pointer flex gap-4 items-center"
-                          onClick={() => {
-                            handleCloseDetail();
-                            setTimeout(() => handlePostClick(post.id), 300);
-                          }}
-                        >
-                          <div className="w-16 h-16 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-600 rounded-lg flex items-center justify-center text-gray-400 overflow-hidden">
-                            {post.images && post.images.length > 0 ? (
-                              <LazyImage src={post.images[0]} alt={post.title} className="w-full h-full object-cover" />
-                            ) : (
-                              <i className="fas fa-image text-xl"></i>
-                            )}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <h5 className="font-bold text-gray-900 dark:text-white truncate mb-1 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{post.title}</h5>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-1 mb-2">{post.content}</p>
-                            <div className="flex gap-3 text-xs text-gray-400">
-                              <span className="flex items-center gap-1"><i className="fas fa-eye"></i> {post.views}</span>
-                              <span className="flex items-center gap-1"><i className="fas fa-heart"></i> {post.likes_count}</span>
-                            </div>
-                          </div>
-                          <i className="fas fa-chevron-right text-gray-300 dark:text-gray-600 group-hover:translate-x-1 transition-transform"></i>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-8 text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/30 rounded-xl border border-dashed border-gray-200 dark:border-gray-700">
-                      <p>暂无公开作品</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 };

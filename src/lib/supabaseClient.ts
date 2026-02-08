@@ -3,16 +3,36 @@ import { createClient } from '@supabase/supabase-js'
 // 使用 import.meta.env 获取环境变量 (Vite)
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || ''
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
+const supabaseServiceKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY || ''
 const shouldLogDetails = import.meta.env.DEV
 
 if (!supabaseUrl || !supabaseKey) {
   console.warn('⚠️ Supabase environment variables are missing. Please check your .env file.')
 }
 
+// 普通客户端（受 RLS 限制）
 export const supabase = createClient(
   supabaseUrl || 'https://placeholder.supabase.co',
   supabaseKey || 'placeholder-key'
 )
+
+// 服务角色客户端（绕过 RLS，仅用于服务器端操作）
+// 注意：这个客户端有完全的数据库访问权限，只能在服务器端或受信任的环境中使用
+// 开发环境使用硬编码的密钥，生产环境应该通过环境变量注入
+const SERVICE_ROLE_KEY = supabaseServiceKey || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBwdHFkaWNhYWV3dG5haWZsZmNzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NjQ5MTUzMiwiZXhwIjoyMDgyMDY3NTMyfQ.Plz64E2BkfbgiyaBNyL2L2grVTPO-U8fcdDxa-MjgX4'
+
+export const supabaseAdmin = SERVICE_ROLE_KEY && SERVICE_ROLE_KEY !== 'placeholder-key'
+  ? createClient(
+      supabaseUrl || 'https://pptqdicaaewtnaiflfcs.supabase.co',
+      SERVICE_ROLE_KEY,
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
+        }
+      }
+    )
+  : supabase
 
 // 将 supabase 暴露到 window 对象以便调试
 if (typeof window !== 'undefined') {

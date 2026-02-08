@@ -93,7 +93,7 @@ export interface ThemeTrend {
 // 导出格式类型
 export type ExportFormat = 'json' | 'csv';
 
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/lib/supabaseClient';
 
 // 数据分析服务类
 class AnalyticsService {
@@ -192,32 +192,48 @@ class AnalyticsService {
       let data: any[] = [];
       
       if (query.metric === 'works') {
-        const { data: posts, error } = await supabase
-          .from('posts')
-          .select('created_at, category, user_id')
-          .gte('created_at', startTime.toISOString())
-          .lte('created_at', now.toISOString());
+        // 从 works 表获取作品数据
+        const { data: works, error } = await supabase
+          .from('works')
+          .select('created_at, category, creator_id')
+          .gte('created_at', Math.floor(startTime.getTime() / 1000))
+          .lte('created_at', Math.floor(now.getTime() / 1000));
         
         if (error) throw error;
-        data = posts || [];
+        data = works || [];
       } else if (query.metric === 'likes') {
-        const { data: likes, error } = await supabase
-          .from('likes')
-          .select('created_at, user_id')
-          .gte('created_at', startTime.toISOString())
-          .lte('created_at', now.toISOString());
+        // 从 works 表统计 likes 字段
+        const { data: works, error } = await supabase
+          .from('works')
+          .select('created_at, likes')
+          .gte('created_at', Math.floor(startTime.getTime() / 1000))
+          .lte('created_at', Math.floor(now.getTime() / 1000));
           
         if (error) throw error;
-        data = likes || [];
+        // 转换数据格式
+        data = (works || []).map(w => ({ created_at: w.created_at, value: w.likes || 0 }));
+      } else if (query.metric === 'views') {
+        // 从 works 表统计 views 字段
+        const { data: works, error } = await supabase
+          .from('works')
+          .select('created_at, views')
+          .gte('created_at', Math.floor(startTime.getTime() / 1000))
+          .lte('created_at', Math.floor(now.getTime() / 1000));
+          
+        if (error) throw error;
+        // 转换数据格式
+        data = (works || []).map(w => ({ created_at: w.created_at, value: w.views || 0 }));
       } else if (query.metric === 'comments') {
-        const { data: comments, error } = await supabase
-          .from('comments')
-          .select('created_at, user_id')
-          .gte('created_at', startTime.toISOString())
-          .lte('created_at', now.toISOString());
+        // 从 works 表统计 comments 字段
+        const { data: works, error } = await supabase
+          .from('works')
+          .select('created_at, comments')
+          .gte('created_at', Math.floor(startTime.getTime() / 1000))
+          .lte('created_at', Math.floor(now.getTime() / 1000));
           
         if (error) throw error;
-        data = comments || [];
+        // 转换数据格式
+        data = (works || []).map(w => ({ created_at: w.created_at, value: w.comments || 0 }));
       } 
       // ... 其他指标的处理
 
@@ -225,7 +241,9 @@ class AnalyticsService {
       const groupedData: Record<string, number> = {};
       
       data.forEach(item => {
-        const date = new Date(item.created_at);
+        // created_at 是 Unix 时间戳（秒），需要转换为毫秒
+        const timestamp = item.created_at * 1000;
+        const date = new Date(timestamp);
         let key = '';
         
         switch (query.groupBy) {
@@ -240,7 +258,9 @@ class AnalyticsService {
           default: key = date.toISOString().split('T')[0];
         }
         
-        groupedData[key] = (groupedData[key] || 0) + 1;
+        // 对于 likes/views/comments，使用 value 字段，否则计数为 1
+        const value = item.value !== undefined ? item.value : 1;
+        groupedData[key] = (groupedData[key] || 0) + value;
       });
 
       // 4. 格式化返回
@@ -258,38 +278,85 @@ class AnalyticsService {
     }
   }
 
-  // Mock 数据获取逻辑 (原有逻辑)
+  // Mock 数据获取逻辑
   private getMockMetricsData(query: AnalyticsQueryParams): DataPoint[] {
     if (this.dataPoints.length === 0) this.initMockData();
-    // ... (保留原有 Mock 过滤逻辑)
-    let filteredData = this.dataPoints;
-    // ...
-    // 为节省篇幅，此处省略具体的 Mock 过滤代码，实际实现应保留原有的 getMetricsData 逻辑改名为 getMockMetricsData
-    return filteredData; // 占位
+    
+    let filteredData = [...this.dataPoints];
+    
+    // 根据时间范围过滤
+    const now = Date.now();
+    let startTime = now;
+    switch (query.timeRange) {
+      case '7d': startTime = now - 7 * 24 * 60 * 60 * 1000; break;
+      case '30d': startTime = now - 30 * 24 * 60 * 60 * 1000; break;
+      case '90d': startTime = now - 90 * 24 * 60 * 60 * 1000; break;
+      case '1y': startTime = now - 365 * 24 * 60 * 60 * 1000; break;
+      case 'all': startTime = 0; break;
+    }
+    filteredData = filteredData.filter(d => d.timestamp >= startTime);
+    
+    // 根据指标类型过滤
+    if (query.metric === 'works') {
+      filteredData = filteredData.filter(d => d.category === 'works');
+    } else if (query.metric === 'likes') {
+      filteredData = filteredData.filter(d => d.category === 'likes');
+    } else if (query.metric === 'views') {
+      filteredData = filteredData.filter(d => d.category === 'views');
+    } else if (query.metric === 'comments') {
+      filteredData = filteredData.filter(d => d.category === 'comments');
+    }
+    
+    // 数据分组
+    const groupedData: Record<string, number> = {};
+    filteredData.forEach(item => {
+      const date = new Date(item.timestamp);
+      let key = '';
+      
+      switch (query.groupBy) {
+        case 'day': key = date.toISOString().split('T')[0]; break;
+        case 'week': 
+          const weekNum = Math.ceil(date.getDate() / 7);
+          key = `${date.getFullYear()}-W${weekNum}`; 
+          break;
+        case 'month': key = `${date.getFullYear()}-${date.getMonth() + 1}`; break;
+        case 'category': key = item.category || '其他'; break;
+        default: key = date.toISOString().split('T')[0];
+      }
+      
+      groupedData[key] = (groupedData[key] || 0) + item.value;
+    });
+    
+    return Object.entries(groupedData).map(([key, value]) => ({
+      timestamp: new Date(key).getTime() || Date.now(),
+      value,
+      label: key,
+      category: query.groupBy === 'category' ? key : undefined
+    })).sort((a, b) => a.timestamp - b.timestamp);
   }
 
   // 获取作品表现数据 (真实数据)
   async getWorksPerformance(limit: number = 10): Promise<WorkPerformance[]> {
     try {
       const { data, error } = await supabase
-        .from('posts')
-        .select('id, title, images, category, likes_count, view_count, comments_count')
-        .order('view_count', { ascending: false }) // 按浏览量排序
+        .from('works')
+        .select('id, title, thumbnail, category, likes, views, comments')
+        .order('views', { ascending: false }) // 按浏览量排序
         .limit(limit);
 
       if (error) throw error;
 
-      return (data || []).map((post, index) => ({
-        workId: post.id,
-        title: post.title,
-        thumbnail: post.images?.[0] || '',
-        category: post.category || '未分类',
+      return (data || []).map((work, index) => ({
+        workId: work.id,
+        title: work.title,
+        thumbnail: work.thumbnail || '',
+        category: work.category || '未分类',
         metrics: {
-          likes: post.likes_count || 0,
-          views: post.view_count || 0,
-          comments: post.comments_count || 0,
+          likes: work.likes || 0,
+          views: work.views || 0,
+          comments: work.comments || 0,
           shares: 0, // 暂无
-          engagementRate: post.view_count ? ((post.likes_count + post.comments_count) / post.view_count) * 100 : 0
+          engagementRate: work.views ? ((work.likes + work.comments) / work.views) * 100 : 0
         },
         trend: 'stable', // 需历史数据计算，暂定 stable
         ranking: index + 1
@@ -342,11 +409,59 @@ class AnalyticsService {
     return this.mockThemes.slice(0, limit);
   }
 
-  // ... (保留辅助方法如 getMetricsStats, exportAnalyticsReport 等，但需适配异步数据)
+  // 获取数据统计指标
+  getMetricsStats(data: DataPoint[]): DataStats {
+    if (data.length === 0) {
+      return {
+        total: 0,
+        average: 0,
+        growth: 0,
+        peak: 0,
+        trough: 0,
+        trend: 'stable'
+      };
+    }
+
+    const values = data.map(d => d.value);
+    const total = values.reduce((sum, val) => sum + val, 0);
+    const average = total / values.length;
+    const peak = Math.max(...values);
+    const trough = Math.min(...values);
+
+    // 计算增长率（比较前半段和后半段的平均值）
+    const halfIndex = Math.floor(data.length / 2);
+    const firstHalf = data.slice(0, halfIndex);
+    const secondHalf = data.slice(halfIndex);
+    
+    const firstHalfAvg = firstHalf.length > 0 
+      ? firstHalf.reduce((sum, d) => sum + d.value, 0) / firstHalf.length 
+      : 0;
+    const secondHalfAvg = secondHalf.length > 0 
+      ? secondHalf.reduce((sum, d) => sum + d.value, 0) / secondHalf.length 
+      : 0;
+    
+    const growth = firstHalfAvg > 0 
+      ? ((secondHalfAvg - firstHalfAvg) / firstHalfAvg) * 100 
+      : 0;
+
+    // 判断趋势
+    let trend: 'up' | 'down' | 'stable' = 'stable';
+    if (growth > 5) trend = 'up';
+    else if (growth < -5) trend = 'down';
+
+    return {
+      total,
+      average,
+      growth,
+      peak,
+      trough,
+      trend
+    };
+  }
 
   // 导出数据分析报告
-  exportAnalyticsReport(params: AnalyticsQueryParams, format: ExportFormat = 'json'): Blob {
-    const data = this.getMetricsData(params);
+  async exportAnalyticsReport(params: AnalyticsQueryParams, format: ExportFormat = 'json'): Promise<Blob> {
+    const data = await this.getMetricsData(params);
     const stats = this.getMetricsStats(data);
 
     if (format === 'csv') {
@@ -403,8 +518,8 @@ class AnalyticsService {
   }
 
   // 下载导出文件
-  downloadExport(params: AnalyticsQueryParams, format: ExportFormat = 'json'): void {
-    const blob = this.exportAnalyticsReport(params, format);
+  async downloadExport(params: AnalyticsQueryParams, format: ExportFormat = 'json'): Promise<void> {
+    const blob = await this.exportAnalyticsReport(params, format);
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;

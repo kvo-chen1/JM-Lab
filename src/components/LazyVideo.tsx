@@ -212,13 +212,9 @@ const LazyVideo = React.memo(forwardRef<HTMLVideoElement, LazyVideoProps>(({
   // 默认模式：带容器与占位渲染
   return (
     <div className={`relative ${className}`} ref={containerRef}>
-      {/* 视频容器，保持宽高比 */}
+      {/* 视频容器，自适应宽高比 */}
       <div 
-        className="relative overflow-hidden"
-        style={{
-          width: '100%',
-          aspectRatio: '1 / 1', // 保持1:1的宽高比
-        }}
+        className="relative overflow-hidden w-full h-full"
       >
         {/* 视频元素 - 只在可见时渲染，实现真正的懒加载 */}
         {isVisible && (

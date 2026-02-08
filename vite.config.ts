@@ -308,7 +308,7 @@ export default defineConfig({
         "font-src 'self' https://fonts.gstatic.com data:",
         "img-src 'self' data: blob: https:",
         "connect-src 'self' ws: wss: http: https:",
-        "media-src 'self' blob:",
+        "media-src 'self' blob: https:",
         "frame-ancestors 'none'",
         "base-uri 'self'",
         "form-action 'self'"

@@ -1,46 +1,46 @@
-import pg from 'pg';
-const { Pool } = pg;
+import { getDB } from './server/database.mjs';
 
-const pool = new Pool({
-  connectionString: 'postgres://postgres.pptqdicaaewtnaiflfcs:csh200506207837@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true',
-  ssl: { rejectUnauthorized: false }
-});
-
-async function checkTable() {
+async function checkPostsTable() {
+  console.log('检查 posts 表结构...');
+  
   try {
-    const client = await pool.connect();
-    console.log('Connected to database');
-
-    // Check posts table columns
-    const result = await client.query(`
-      SELECT column_name, data_type, is_nullable
+    const db = await getDB();
+    
+    // 获取 posts 表结构
+    const { rows: columns } = await db.query(`
+      SELECT column_name, data_type
       FROM information_schema.columns
       WHERE table_name = 'posts'
       ORDER BY ordinal_position
     `);
-    console.log('\nPosts table columns:');
-    result.rows.forEach(row => {
-      console.log(`  ${row.column_name}: ${row.data_type} (${row.is_nullable === 'YES' ? 'nullable' : 'not null'})`);
+    
+    console.log('\nposts 表结构:');
+    columns.forEach(c => {
+      console.log(`  - ${c.column_name}: ${c.data_type}`);
     });
-
-    // Check recent posts
-    const postsResult = await client.query(`
-      SELECT id, title, user_id, community_id, created_at
+    
+    // 获取最近发布的5个作品
+    const { rows: posts } = await db.query(`
+      SELECT *
       FROM posts
       ORDER BY created_at DESC
       LIMIT 5
     `);
-    console.log('\nRecent posts:');
-    postsResult.rows.forEach(row => {
-      console.log(`  ${row.id}: ${row.title.substring(0, 50)}... (user_id: ${row.user_id})`);
+    
+    console.log('\n最近发布的作品:');
+    posts.forEach(p => {
+      console.log(`\n  - ID: ${p.id}`);
+      console.log(`    标题: ${p.title}`);
+      console.log(`    图片: ${JSON.stringify(p.images)}`);
+      console.log(`    媒体: ${JSON.stringify(p.media)}`);
+      console.log(`    创建时间: ${p.created_at}`);
     });
-
-    client.release();
+    
   } catch (err) {
-    console.error('Error:', err);
+    console.error('检查失败:', err);
   } finally {
-    await pool.end();
+    process.exit(0);
   }
 }
 
-checkTable();
+checkPostsTable();

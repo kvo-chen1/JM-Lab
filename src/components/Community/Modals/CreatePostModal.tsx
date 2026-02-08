@@ -8,7 +8,7 @@ import type { Community } from '@/mock/communities';
 interface CreatePostModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: { title: string; content: string; topic: string; contentType: string; images?: Array<string>; communityIds: string[] }) => void;
+  onSubmit: (data: { title: string; content: string; topic: string; contentType: string; images?: Array<string>; videos?: Array<string>; audios?: Array<string>; link?: string; communityIds: string[] }) => void;
   isDark: boolean;
   topics?: string[];
   joinedCommunities?: Community[];
@@ -210,10 +210,23 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
            postData.images = imageUrls;
         }
       } else if (selectedContentType === 'video') {
-         // 视频处理逻辑 (暂未实现上传，仅作示例)
-         if (selectedVideos.length > 0) postData.videos = selectedVideos;
+         // 上传视频文件
+         if (selectedVideoFiles.length > 0) {
+           const uploadPromises = selectedVideoFiles.map(file => uploadImage(file));
+           const uploadedUrls = await Promise.all(uploadPromises);
+           if (uploadedUrls.length > 0) {
+             postData.videos = uploadedUrls;
+           }
+         }
       } else if (selectedContentType === 'audio') {
-         if (selectedAudios.length > 0) postData.audios = selectedAudios;
+         // 上传音频文件
+         if (selectedAudioFiles.length > 0) {
+           const uploadPromises = selectedAudioFiles.map(file => uploadImage(file));
+           const uploadedUrls = await Promise.all(uploadPromises);
+           if (uploadedUrls.length > 0) {
+             postData.audios = uploadedUrls;
+           }
+         }
       } else if (selectedContentType === 'link' && linkUrl.trim()) {
         postData.link = linkUrl.trim();
       }

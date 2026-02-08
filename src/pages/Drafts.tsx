@@ -16,6 +16,7 @@ import {
   Calendar,
   AlertCircle
 } from 'lucide-react';
+import { draftService, Draft } from '@/services/draftService';
 
 interface DraftData {
   id?: string; // Saved drafts have IDs
@@ -37,38 +38,47 @@ export default function Drafts() {
   // State
   const [activeDraft, setActiveDraft] = useState<DraftData | null>(null);
   const [savedDrafts, setSavedDrafts] = useState<DraftData[]>([]);
+  const [aiWriterDrafts, setAiWriterDrafts] = useState<Draft[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'name'>('newest');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [isLoading, setIsLoading] = useState(false);
 
   // Load Data
   useEffect(() => {
-    // Load Active Session
-    try {
-      const rawActive = localStorage.getItem('CREATE_DRAFT');
-      if (rawActive) {
-        const parsed = JSON.parse(rawActive);
-        // Simple validation
-        if (parsed && typeof parsed === 'object') {
-          setActiveDraft(parsed);
+    const loadAllDrafts = async () => {
+      setIsLoading(true);
+      try {
+        // Load Active Session
+        const rawActive = localStorage.getItem('CREATE_DRAFT');
+        if (rawActive) {
+          const parsed = JSON.parse(rawActive);
+          // Simple validation
+          if (parsed && typeof parsed === 'object') {
+            setActiveDraft(parsed);
+          }
         }
-      }
-    } catch (e) {
-      console.error('Failed to load active draft', e);
-    }
 
-    // Load Saved Drafts
-    try {
-      const rawSaved = localStorage.getItem('CREATE_DRAFTS');
-      if (rawSaved) {
-        const parsed = JSON.parse(rawSaved);
-        if (Array.isArray(parsed)) {
-          setSavedDrafts(parsed);
+        // Load Saved Drafts
+        const rawSaved = localStorage.getItem('CREATE_DRAFTS');
+        if (rawSaved) {
+          const parsed = JSON.parse(rawSaved);
+          if (Array.isArray(parsed)) {
+            setSavedDrafts(parsed);
+          }
         }
+
+        // Load AI Writer Drafts
+        const aiDrafts = await draftService.getAllDrafts();
+        setAiWriterDrafts(aiDrafts);
+      } catch (e) {
+        console.error('Failed to load drafts', e);
+      } finally {
+        setIsLoading(false);
       }
-    } catch (e) {
-      console.error('Failed to load saved drafts', e);
-    }
+    };
+
+    loadAllDrafts();
   }, []);
 
   // Filter & Sort
@@ -94,6 +104,31 @@ export default function Drafts() {
 
     return result;
   }, [savedDrafts, searchTerm, sortBy]);
+
+  // Filter & Sort AI Writer Drafts
+  const filteredAiWriterDrafts = useMemo(() => {
+    let result = [...aiWriterDrafts];
+
+    // Search
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      result = result.filter(d => 
+        (d.title && d.title.toLowerCase().includes(term)) || 
+        (d.content && d.content.toLowerCase().includes(term)) ||
+        (d.templateName && d.templateName.toLowerCase().includes(term))
+      );
+    }
+
+    // Sort
+    result.sort((a, b) => {
+      if (sortBy === 'newest') return (b.updatedAt || 0) - (a.updatedAt || 0);
+      if (sortBy === 'oldest') return (a.updatedAt || 0) - (b.updatedAt || 0);
+      if (sortBy === 'name') return (a.title || '').localeCompare(b.title || '');
+      return 0;
+    });
+
+    return result;
+  }, [aiWriterDrafts, searchTerm, sortBy]);
 
   // Actions
   const handleResumeActive = () => {
@@ -123,6 +158,21 @@ export default function Drafts() {
     }
   };
 
+  const handleDeleteAiWriterDraft = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    if (confirm('确定要删除这个AI写作草稿吗？此操作无法撤销。')) {
+      try {
+        await draftService.deleteDraft(id);
+        const newDrafts = aiWriterDrafts.filter(d => d.id !== id);
+        setAiWriterDrafts(newDrafts);
+        toast.success('草稿已删除');
+      } catch (error) {
+        console.error('Failed to delete AI writer draft:', error);
+        toast.error('删除草稿失败');
+      }
+    }
+  };
+
   const handleClearActive = () => {
     if (confirm('确定要清除当前未保存的活动会话吗？')) {
       localStorage.removeItem('CREATE_DRAFT');
@@ -141,6 +191,11 @@ export default function Drafts() {
     downloadAnchorNode.click();
     downloadAnchorNode.remove();
     toast.success('导出成功');
+  };
+
+  const handleLoadAiWriterDraft = (draft: Draft) => {
+    navigate(`/create/ai-writer?draft=${draft.id}`);
+    toast.success('草稿已加载');
   };
 
   // Helper for Thumbnail
@@ -275,7 +330,7 @@ export default function Drafts() {
       )}
 
       {/* Saved Drafts List */}
-      <section>
+      <section className="mb-10">
         <div className="flex items-center justify-between mb-4">
            <h2 className="text-xl font-bold flex items-center gap-2">
               <span className="w-2 h-8 rounded-full bg-blue-500 block"></span>
@@ -383,6 +438,99 @@ export default function Drafts() {
                           </button>
                           <button 
                             onClick={(e) => handleDeleteDraft(e, draft.id!)}
+                            className="p-1.5 rounded-md hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500"
+                            title="删除"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      {/* AI Writer Drafts */}
+      <section>
+        <div className="flex items-center justify-between mb-4">
+           <h2 className="text-xl font-bold flex items-center gap-2">
+              <span className="w-2 h-8 rounded-full bg-purple-500 block"></span>
+              AI写作草稿 ({aiWriterDrafts.length})
+           </h2>
+        </div>
+
+        {filteredAiWriterDrafts.length === 0 ? (
+          <div className={`text-center py-20 rounded-2xl border ${isDark ? 'border-gray-800 bg-gray-900/50' : 'border-gray-100 bg-gray-50'}`}>
+            <FileEdit className="w-16 h-16 mx-auto text-gray-300 mb-4" />
+            <h3 className="text-lg font-medium mb-1">暂无AI写作草稿</h3>
+            <p className="text-gray-500 text-sm">
+              {searchTerm ? '没有找到匹配的AI写作草稿' : '在AI写作中心创作的内容会自动保存为草稿'}
+            </p>
+            {!searchTerm && (
+              <button 
+                onClick={() => navigate('/create/ai-writer')}
+                className="mt-6 px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-full transition-colors"
+              >
+                开始AI写作
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className={
+            viewMode === 'grid' 
+              ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6" 
+              : "flex flex-col gap-4"
+          }>
+            {filteredAiWriterDrafts.map((draft) => {
+              // Extract plain text from HTML content for preview
+              const plainTextContent = draft.content.replace(/<[^>]*>/g, '').substring(0, 100);
+              
+              return (
+                <div 
+                  key={draft.id}
+                  className={`group relative rounded-xl border overflow-hidden transition-all hover:shadow-lg ${
+                    isDark ? 'bg-gray-800 border-gray-700 hover:border-gray-600' : 'bg-white border-gray-200 hover:border-gray-300'
+                  } ${viewMode === 'list' ? 'flex flex-row h-32' : 'flex flex-col'}`}
+                  onClick={() => handleLoadAiWriterDraft(draft)}
+                >
+                  {/* Thumbnail */}
+                  <div className={`relative overflow-hidden ${viewMode === 'list' ? 'w-48 h-full' : 'aspect-video w-full'}`}>
+                    <div className={`w-full h-full flex flex-col items-center justify-center ${isDark ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                      <div className="w-8 h-8 text-gray-400 mb-2 flex items-center justify-center">
+                        <i className="fas fa-file-alt text-2xl"></i>
+                      </div>
+                      <span className="text-xs text-gray-500">
+                        {draft.templateName || 'AI写作'}
+                      </span>
+                    </div>
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
+                  </div>
+
+                  {/* Content */}
+                  <div className="flex-1 p-4 flex flex-col justify-between">
+                    <div>
+                      <div className="flex justify-between items-start mb-2">
+                        <h3 className="font-semibold line-clamp-1 group-hover:text-purple-500 transition-colors" title={draft.title}>
+                          {draft.title || '未命名文档'}
+                        </h3>
+                      </div>
+                      <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'} line-clamp-2 mb-3 h-8`}>
+                        {plainTextContent || '无内容...'}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center justify-between mt-auto">
+                      <span className="text-xs text-gray-400 flex items-center gap-1">
+                        <Calendar className="w-3 h-3" />
+                        {new Date(draft.updatedAt || Date.now()).toLocaleDateString()}
+                      </span>
+                      
+                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
+                          <button 
+                            onClick={(e) => handleDeleteAiWriterDraft(e, draft.id)}
                             className="p-1.5 rounded-md hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500"
                             title="删除"
                           >

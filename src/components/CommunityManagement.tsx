@@ -362,45 +362,77 @@ const CommunityManagement: React.FC<CommunityManagementProps> = ({
     const loadData = async () => {
       setLoading(true);
       try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+          toast.error('请先登录');
+          return;
+        }
+
         // 加载成员列表
-        const mockMembers: CommunityMember[] = [
-          { id: '1', email: 'admin@example.com', username: '管理员', role: 'admin', joinedAt: '2024-01-01', isOnline: true, postCount: 45 },
-          { id: '2', email: 'editor@example.com', username: '编辑小王', role: 'editor', joinedAt: '2024-01-15', isOnline: true, postCount: 23 },
-          { id: '3', email: 'member1@example.com', username: '设计达人', role: 'member', joinedAt: '2024-02-01', isOnline: false, lastActive: '2小时前', postCount: 12 },
-          { id: '4', email: 'member2@example.com', username: '创意小王子', role: 'member', joinedAt: '2024-02-10', isOnline: true, postCount: 8 },
-          { id: '5', email: 'member3@example.com', username: '艺术爱好者', role: 'member', joinedAt: '2024-02-15', isOnline: false, lastActive: '1天前', postCount: 5 },
-        ];
-        setMembers(mockMembers);
+        const membersResponse = await fetch(`/api/communities/${community.id}/members`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (membersResponse.ok) {
+          const membersResult = await membersResponse.json();
+          if (membersResult.code === 0 && Array.isArray(membersResult.data)) {
+            // 转换数据格式以匹配组件期望的格式
+            const formattedMembers = membersResult.data.map((m: any) => ({
+              id: m.id,
+              email: m.email || '',
+              username: m.username,
+              avatar: m.avatar,
+              role: m.role,
+              joinedAt: m.joined_at,
+              isOnline: m.is_online,
+              lastActive: m.last_active,
+              postCount: m.post_count || 0
+            }));
+            setMembers(formattedMembers);
+          }
+        }
 
         // 加载加入请求
-        const mockRequests: JoinRequest[] = [
-          { id: '1', userId: 'user1', username: '新用户A', requestMessage: '我对设计很感兴趣，希望能加入社群学习交流', createdAt: '2024-02-20T10:00:00Z' },
-          { id: '2', userId: 'user2', username: '设计师B', requestMessage: '有3年UI设计经验，希望分享作品', createdAt: '2024-02-20T09:30:00Z' },
-        ];
-        setJoinRequests(mockRequests);
+        const requestsResponse = await fetch(`/api/communities/${community.id}/join-requests`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (requestsResponse.ok) {
+          const requestsResult = await requestsResponse.json();
+          if (requestsResult.code === 0 && Array.isArray(requestsResult.data)) {
+            const formattedRequests = requestsResult.data.map((r: any) => ({
+              id: r.id,
+              userId: r.user_id,
+              username: r.username,
+              avatar: r.avatar,
+              requestMessage: r.request_message,
+              createdAt: r.created_at
+            }));
+            setJoinRequests(formattedRequests);
+          }
+        }
 
         // 加载公告
-        const mockAnnouncements: Announcement[] = [
-          {
-            id: '1',
-            title: '欢迎来到我们的社群！',
-            content: '请大家遵守社群规则，文明交流，共同进步。',
-            createdAt: '2024-01-01T00:00:00Z',
-            isPinned: true,
-            author: { username: '管理员' },
-            readCount: 156
-          },
-          {
-            id: '2',
-            title: '本周设计分享活动',
-            content: '本周五晚8点，我们将举办线上设计分享会，欢迎大家参加！',
-            createdAt: '2024-02-18T10:00:00Z',
-            isPinned: false,
-            author: { username: '编辑小王' },
-            readCount: 89
-          },
-        ];
-        setAnnouncements(mockAnnouncements);
+        const announcementsResponse = await fetch(`/api/communities/${community.id}/announcements`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (announcementsResponse.ok) {
+          const announcementsResult = await announcementsResponse.json();
+          if (announcementsResult.code === 0 && Array.isArray(announcementsResult.data)) {
+            const formattedAnnouncements = announcementsResult.data.map((a: any) => ({
+              id: a.id,
+              title: a.title,
+              content: a.content,
+              createdAt: a.created_at,
+              updatedAt: a.updated_at,
+              isPinned: a.is_pinned,
+              author: {
+                username: a.author_name,
+                avatar: a.author_avatar
+              },
+              readCount: a.read_count || 0
+            }));
+            setAnnouncements(formattedAnnouncements);
+          }
+        }
       } catch (error) {
         console.error('加载数据失败:', error);
         toast.error('加载数据失败');
@@ -452,97 +484,264 @@ const CommunityManagement: React.FC<CommunityManagementProps> = ({
   };
 
   // 更新成员角色
-  const updateMemberRole = (memberId: string, newRole: CommunityRole) => {
-    setMembers(prev => prev.map(member => 
-      member.id === memberId ? { ...member, role: newRole } : member
-    ));
-    toast.success('成员角色已更新');
+  const updateMemberRole = async (memberId: string, newRole: CommunityRole) => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      toast.error('请先登录');
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/communities/${community.id}/members/${memberId}/role`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ role: newRole })
+      });
+
+      if (response.ok) {
+        setMembers(prev => prev.map(member => 
+          member.id === memberId ? { ...member, role: newRole } : member
+        ));
+        toast.success('成员角色已更新');
+      } else {
+        const result = await response.json();
+        toast.error(result.message || '更新成员角色失败');
+      }
+    } catch (error) {
+      console.error('更新成员角色失败:', error);
+      toast.error('更新成员角色失败');
+    }
   };
 
   // 移除成员
-  const removeMember = (memberId: string) => {
+  const removeMember = async (memberId: string) => {
     if (!window.confirm('确定要移除该成员吗？')) return;
     
-    setMembers(prev => prev.filter(member => member.id !== memberId));
-    toast.success('成员已移除');
+    const token = localStorage.getItem('token');
+    if (!token) {
+      toast.error('请先登录');
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/communities/${community.id}/members/${memberId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        setMembers(prev => prev.filter(member => member.id !== memberId));
+        toast.success('成员已移除');
+      } else {
+        const result = await response.json();
+        toast.error(result.message || '移除成员失败');
+      }
+    } catch (error) {
+      console.error('移除成员失败:', error);
+      toast.error('移除成员失败');
+    }
   };
 
   // 批量移除成员
-  const batchRemoveMembers = () => {
+  const batchRemoveMembers = async () => {
     if (selectedMembers.size === 0) {
       toast.warning('请先选择成员');
       return;
     }
     if (!window.confirm(`确定要移除选中的 ${selectedMembers.size} 位成员吗？`)) return;
     
+    const token = localStorage.getItem('token');
+    if (!token) {
+      toast.error('请先登录');
+      return;
+    }
+
+    let successCount = 0;
+    for (const memberId of selectedMembers) {
+      try {
+        const response = await fetch(`/api/communities/${community.id}/members/${memberId}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (response.ok) successCount++;
+      } catch (error) {
+        console.error('移除成员失败:', memberId, error);
+      }
+    }
+
     setMembers(prev => prev.filter(member => !selectedMembers.has(member.id)));
     setSelectedMembers(new Set());
-    toast.success(`已移除 ${selectedMembers.size} 位成员`);
+    toast.success(`已移除 ${successCount} 位成员`);
   };
 
   // 处理加入请求
-  const handleJoinRequest = (requestId: string, action: 'approve' | 'reject') => {
+  const handleJoinRequest = async (requestId: string, action: 'approve' | 'reject') => {
     const request = joinRequests.find(r => r.id === requestId);
     if (!request) return;
 
-    if (action === 'approve') {
-      const newMember: CommunityMember = {
-        id: request.userId,
-        email: `${request.username}@example.com`,
-        username: request.username,
-        avatar: request.avatar,
-        role: 'member',
-        joinedAt: new Date().toISOString(),
-        isOnline: false,
-        postCount: 0
-      };
-      setMembers(prev => [...prev, newMember]);
-      toast.success(`已批准 ${request.username} 的加入请求`);
-    } else {
-      toast.success(`已拒绝 ${request.username} 的加入请求`);
+    const token = localStorage.getItem('token');
+    if (!token) {
+      toast.error('请先登录');
+      return;
     }
 
-    setJoinRequests(prev => prev.filter(r => r.id !== requestId));
+    try {
+      const response = await fetch(`/api/communities/${community.id}/join-requests/${requestId}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ action })
+      });
+
+      if (response.ok) {
+        if (action === 'approve') {
+          const newMember: CommunityMember = {
+            id: request.userId,
+            email: '',
+            username: request.username,
+            avatar: request.avatar,
+            role: 'member',
+            joinedAt: new Date().toISOString(),
+            isOnline: false,
+            postCount: 0
+          };
+          setMembers(prev => [...prev, newMember]);
+          toast.success(`已批准 ${request.username} 的加入请求`);
+        } else {
+          toast.success(`已拒绝 ${request.username} 的加入请求`);
+        }
+        setJoinRequests(prev => prev.filter(r => r.id !== requestId));
+      } else {
+        const result = await response.json();
+        toast.error(result.message || '处理申请失败');
+      }
+    } catch (error) {
+      console.error('处理加入请求失败:', error);
+      toast.error('处理申请失败');
+    }
   };
 
   // 发布公告
-  const publishAnnouncement = () => {
+  const publishAnnouncement = async () => {
     if (!announcementTitle.trim() || !announcementContent.trim()) {
       toast.warning('请填写标题和内容');
       return;
     }
 
-    const newAnnouncement: Announcement = {
-      id: editingAnnouncement?.id || Date.now().toString(),
-      title: announcementTitle,
-      content: announcementContent,
-      createdAt: editingAnnouncement?.createdAt || new Date().toISOString(),
-      updatedAt: editingAnnouncement ? new Date().toISOString() : undefined,
-      isPinned: isAnnouncementPinned,
-      author: { username: '当前用户' },
-      readCount: 0
-    };
-
-    if (editingAnnouncement) {
-      setAnnouncements(prev => prev.map(a => a.id === editingAnnouncement.id ? newAnnouncement : a));
-      toast.success('公告已更新');
-    } else {
-      setAnnouncements(prev => [newAnnouncement, ...prev]);
-      toast.success('公告已发布');
+    const token = localStorage.getItem('token');
+    if (!token) {
+      toast.error('请先登录');
+      return;
     }
 
-    setAnnouncementTitle('');
-    setAnnouncementContent('');
-    setIsAnnouncementPinned(false);
-    setEditingAnnouncement(null);
-    setShowAnnouncementModal(false);
+    try {
+      if (editingAnnouncement) {
+        // 更新公告
+        const response = await fetch(`/api/communities/${community.id}/announcements/${editingAnnouncement.id}`, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            title: announcementTitle,
+            content: announcementContent,
+            isPinned: isAnnouncementPinned
+          })
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          const updatedAnnouncement: Announcement = {
+            ...editingAnnouncement,
+            title: announcementTitle,
+            content: announcementContent,
+            isPinned: isAnnouncementPinned,
+            updatedAt: new Date().toISOString()
+          };
+          setAnnouncements(prev => prev.map(a => a.id === editingAnnouncement.id ? updatedAnnouncement : a));
+          toast.success('公告已更新');
+        } else {
+          const result = await response.json();
+          toast.error(result.message || '更新公告失败');
+        }
+      } else {
+        // 创建公告
+        const response = await fetch(`/api/communities/${community.id}/announcements`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            title: announcementTitle,
+            content: announcementContent,
+            isPinned: isAnnouncementPinned
+          })
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          const newAnnouncement: Announcement = {
+            id: result.data.id,
+            title: announcementTitle,
+            content: announcementContent,
+            createdAt: new Date().toISOString(),
+            isPinned: isAnnouncementPinned,
+            author: { username: '我' },
+            readCount: 0
+          };
+          setAnnouncements(prev => [newAnnouncement, ...prev]);
+          toast.success('公告已发布');
+        } else {
+          const result = await response.json();
+          toast.error(result.message || '发布公告失败');
+        }
+      }
+
+      setAnnouncementTitle('');
+      setAnnouncementContent('');
+      setIsAnnouncementPinned(false);
+      setEditingAnnouncement(null);
+      setShowAnnouncementModal(false);
+    } catch (error) {
+      console.error('发布公告失败:', error);
+      toast.error('发布公告失败');
+    }
   };
 
   // 删除公告
-  const deleteAnnouncement = (announcementId: string) => {
+  const deleteAnnouncement = async (announcementId: string) => {
     if (!window.confirm('确定要删除这条公告吗？')) return;
-    setAnnouncements(prev => prev.filter(a => a.id !== announcementId));
-    toast.success('公告已删除');
+
+    const token = localStorage.getItem('token');
+    if (!token) {
+      toast.error('请先登录');
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/communities/${community.id}/announcements/${announcementId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        setAnnouncements(prev => prev.filter(a => a.id !== announcementId));
+        toast.success('公告已删除');
+      } else {
+        const result = await response.json();
+        toast.error(result.message || '删除公告失败');
+      }
+    } catch (error) {
+      console.error('删除公告失败:', error);
+      toast.error('删除公告失败');
+    }
   };
 
   // 编辑公告

@@ -25,13 +25,37 @@ export default async function handler(req, res) {
     }
 
     // Check if the URL is from an allowed domain
-    const allowedDomains = ['volces.com', 'tos-cn-beijing'];
+    // 支持常见的视频托管服务
+    const allowedDomains = [
+      'volces.com',           // 火山引擎
+      'tos-cn-beijing',       // 字节跳动对象存储
+      'supabase.co',          // Supabase 存储
+      'amazonaws.com',        // AWS S3
+      'cloudinary.com',       // Cloudinary
+      'googleapis.com',       // Google Cloud Storage
+      'azureedge.net',        // Azure CDN
+      'aliyuncs.com',         // 阿里云 OSS
+      'qcloud.com',           // 腾讯云 COS
+      'bilibili.com',         // Bilibili
+      'youku.com',            // 优酷
+      'iqiyi.com',            // 爱奇艺
+      'localhost',            // 本地开发
+      '127.0.0.1',            // 本地开发
+    ];
     const isAllowed = allowedDomains.some(domain => videoUrl.includes(domain));
+    
+    // 在开发环境下允许所有域名
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    if (isDevelopment) {
+      console.log('Development mode: allowing all video domains');
+    }
 
-    if (!isAllowed) {
+    if (!isAllowed && !isDevelopment) {
+      console.warn('Video URL not in allowed domains:', videoUrl);
       return res.status(400).json({
         error: 'URL_NOT_ALLOWED',
-        message: 'Video URL is not from an allowed domain'
+        message: 'Video URL is not from an allowed domain',
+        allowedDomains: allowedDomains
       });
     }
 

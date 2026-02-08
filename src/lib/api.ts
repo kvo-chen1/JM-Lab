@@ -381,7 +381,42 @@ export async function toggleFollow(targetUserId: string, action: 'follow' | 'unf
  */
 export async function getPostComments(postId: string): Promise<CommentWithAuthor[]> {
   try {
-    // 不使用嵌套查询，避免类型不匹配
+    // 优先使用后端 API 获取评论
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    
+    if (token) {
+      try {
+        const response = await fetch(`/api/posts/${postId}/comments`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        if (response.ok) {
+          const result = await response.json();
+          if (result.code === 0 && Array.isArray(result.data)) {
+            console.log('[getPostComments] Fetched from backend API:', result.data.length);
+            return result.data.map((comment: any) => ({
+              ...comment,
+              author: {
+                id: comment.user_id,
+                username: comment.author_name || `用户${comment.user_id?.slice(-4) || '未知'}`,
+                avatar_url: comment.author_avatar || `https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=默认用户头像，简洁现代风格&image_size=square`,
+                bio: null,
+                is_verified: false,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+                metadata: {}
+              }
+            }));
+          }
+        }
+      } catch (apiError) {
+        console.warn('[getPostComments] Backend API failed, falling back to Supabase:', apiError);
+      }
+    }
+    
+    // 回退到 Supabase
     const { data, error } = await supabase
       .from('comments')
       .select('*')
@@ -394,7 +429,7 @@ export async function getPostComments(postId: string): Promise<CommentWithAuthor
     }
 
     // 获取所有评论作者信息
-    const authorIds = [...new Set((data || []).map(c => c.author_id).filter(Boolean))];
+    const authorIds = [...new Set((data || []).map(c => c.user_id || c.author_id).filter(Boolean))];
     const authorsMap = new Map();
     
     if (authorIds.length > 0) {
@@ -413,15 +448,16 @@ export async function getPostComments(postId: string): Promise<CommentWithAuthor
     // 处理评论数据，确保每个评论都有完整的作者信息
     return (data || []).map((comment) => {
       let authorInfo: UserProfile;
+      const userId = comment.user_id || comment.author_id;
       
-      const author = authorsMap.get(String(comment.author_id));
+      const author = authorsMap.get(String(userId));
       if (author) {
         authorInfo = author as UserProfile;
-      } else if (comment.author_id) {
-        // 如果作者信息不存在但有author_id，使用默认信息
+      } else if (userId) {
+        // 如果作者信息不存在但有user_id，使用默认信息
         authorInfo = {
-          id: comment.author_id,
-          username: `用户${comment.author_id.slice(-4)}`,
+          id: userId,
+          username: `用户${userId.slice(-4)}`,
           avatar_url: `https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=默认用户头像，简洁现代风格&image_size=square`,
           bio: null,
           is_verified: false,
@@ -430,7 +466,7 @@ export async function getPostComments(postId: string): Promise<CommentWithAuthor
           metadata: {}
         } as UserProfile;
       } else {
-        // 如果没有author_id，使用完全默认的信息
+        // 如果没有user_id，使用完全默认的信息
         const randomId = Math.floor(Math.random() * 10000);
         authorInfo = {
           id: `unknown-${Date.now()}`,

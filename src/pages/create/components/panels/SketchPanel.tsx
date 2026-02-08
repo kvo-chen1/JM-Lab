@@ -306,10 +306,17 @@ export default function SketchPanel() {
         setVideoGenerationProgress(100);
         setVideoGenerationStatus('视频生成完成！');
         
+        // 使用视频URL作为缩略图（视频播放器会显示第一帧）
+        // 或者使用一个可靠的占位图服务
+        const videoThumbnail = videoUrl ? 
+          `${videoUrl}#t=0.1` : // 尝试获取视频的第一帧
+          'https://via.placeholder.com/600x400/3b82f6/ffffff?text=Video'; // 备用占位图
+        
         const results = [
           { 
             id: Date.now(), 
-            thumbnail: 'https://images.unsplash.com/photo-1536240478700-b869070f9279?w=600&h=400&fit=crop', 
+            thumbnail: videoThumbnail,
+            url: videoThumbnail, // 添加url字段用于发布
             score: 90, 
             type: 'video',
             video: videoUrl
@@ -397,10 +404,15 @@ export default function SketchPanel() {
         setVideoGenerationProgress(100);
         setVideoGenerationStatus('视频生成完成！');
         
+        // 使用上传的图片作为缩略图，如果没有则使用视频第一帧或占位图
+        const videoThumbnail = uploadedImage || 
+          (videoUrl ? `${videoUrl}#t=0.1` : 'https://via.placeholder.com/600x400/3b82f6/ffffff?text=Video');
+        
         const results = [
           { 
             id: Date.now(), 
-            thumbnail: uploadedImage || 'https://images.unsplash.com/photo-1536240478700-b869070f9279?w=600&h=400&fit=crop', 
+            thumbnail: videoThumbnail,
+            url: videoThumbnail, // 添加url字段用于发布
             score: 88, 
             type: 'video',
             video: videoUrl

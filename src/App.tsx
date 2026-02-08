@@ -162,6 +162,9 @@ const InputHub = createLazyComponent(() => import(/* webpackChunkName: "pages-cr
 const Drafts = createLazyComponent(() => import(/* webpackChunkName: "pages-create" */ "@/pages/Drafts"), {
   priority: ROUTE_PRIORITIES.MEDIUM
 });
+const MyWorks = createLazyComponent(() => import(/* webpackChunkName: "pages-core" */ "@/pages/MyWorks"), {
+  priority: ROUTE_PRIORITIES.MEDIUM
+});
 
 // 文化和知识相关 - 懒加载
 const CulturalKnowledge = createLazyComponent(() => import(/* webpackChunkName: "pages-cultural" */ "@/pages/CulturalKnowledge"), {
@@ -712,6 +715,7 @@ export default function App() {
           <Route path="/authenticity" element={<LazyComponent><PrivateRoute><Authenticity /></PrivateRoute></LazyComponent>} />
 
           <Route path="/drafts" element={<LazyComponent><PrivateRoute><Drafts /></PrivateRoute></LazyComponent>} />
+          <Route path="/my-works" element={<LazyComponent><PrivateRoute><MyWorks /></PrivateRoute></LazyComponent>} />
           <Route path="/settings" element={<LazyComponent><PrivateRoute><Settings /></PrivateRoute></LazyComponent>} />
           {/* 账户设置相关路由 */}
           <Route path="/profile/edit" element={<ErrorBoundary><AnimatedPage><PrivateRoute><ProfileEdit /></PrivateRoute></AnimatedPage></ErrorBoundary>} />

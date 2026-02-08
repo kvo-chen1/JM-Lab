@@ -2,7 +2,6 @@ import React, { useCallback, memo, useEffect, useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { Post } from '../services/postService'
 import LazyImage from './LazyImage'
-import LazyVideo from './LazyVideo'
 import { TianjinAvatar } from './TianjinStyleComponents'
 
 interface PostGridProps {
@@ -46,6 +45,9 @@ interface PostItemProps {
 
 const PostItem = memo(({ post, index, onLike, onComment, onShare, onBookmark, onDelete, onPostClick, favorites, isDark, style, columnWidth }: PostItemProps) => {
   const [isVisible, setIsVisible] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const videoRef = React.useRef<HTMLVideoElement>(null);
   
 
 
@@ -90,7 +92,18 @@ const PostItem = memo(({ post, index, onLike, onComment, onShare, onBookmark, on
   }, [onDelete, post.id])
 
   const isBookmarked = favorites.includes(post.id)
-  const isVideo = post.category === 'video'
+  const isVideo = post.type === 'video' || post.category === 'video' || post.videoUrl
+  
+  // 调试日志
+  if (isVideo) {
+    console.log('Video post in PostGrid:', { 
+      id: post.id, 
+      title: post.title, 
+      thumbnail: post.thumbnail, 
+      videoUrl: post.videoUrl,
+      category: post.category 
+    });
+  }
 
   // 高级卡片悬停效果：更细腻的位移和多层阴影
   const hoverClasses = "hover:-translate-y-2 hover:shadow-[0_25px_50px_-12px_rgba(0,0,0,0.25),0_12px_24px_-8px_rgba(0,0,0,0.15)] transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]";
@@ -111,20 +124,28 @@ const PostItem = memo(({ post, index, onLike, onComment, onShare, onBookmark, on
     >
       {/* 媒体内容 */}
       <div className="relative w-full overflow-hidden">
-        {isVideo ? (
-          <LazyVideo 
-            src={post.videoUrl || post.thumbnail}  
-            poster={post.thumbnail}
-            alt={post.title}
-            className="w-full h-auto object-cover"
-            priority={index < 3}
-            loadingAnimation="fade"
-            autoPlay={false}
-            muted={true}
-            controls={true}
-            playsInline={true}
-            bare
-          />
+        {isVideo && post.videoUrl ? (
+          <div className="relative bg-gray-100 dark:bg-gray-800 aspect-video">
+            {/* 视频自动循环播放 */}
+            <video
+              ref={videoRef}
+              src={post.videoUrl}
+              className="absolute inset-0 w-full h-full object-cover"
+              muted
+              playsInline
+              loop
+              autoPlay
+              preload="metadata"
+            />
+            
+            {/* 视频标识 */}
+            <div className="absolute top-2 right-2 z-10">
+              <span className="text-[10px] px-2 py-1 rounded-full bg-black/60 text-white flex items-center gap-1">
+                <i className="fas fa-video"></i>
+                视频
+              </span>
+            </div>
+          </div>
         ) : (
           <div className="relative overflow-hidden">
             <LazyImage 

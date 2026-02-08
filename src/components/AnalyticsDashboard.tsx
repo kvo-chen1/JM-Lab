@@ -368,7 +368,7 @@ const UserDetailContent: React.FC<{ user: UserActivity }> = ({ user }) => {
   return (
     <>
       <div className="flex items-center gap-4 mb-6">
-        <img src={user.avatar} alt={user.username} className="w-20 h-20 object-cover rounded-full shadow-md ring-2 ring-offset-2" style={{ ringColor: COLORS.primary }} />
+          <img src={user.avatar} alt={user.username} className="w-20 h-20 object-cover rounded-full shadow-md ring-2 ring-offset-2 ring-blue-500" />
         <div>
           <h3 className="text-xl font-bold mb-1">{user.username}</h3>
           <div className="flex items-center gap-2">
@@ -669,14 +669,14 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
   const topThemes = analyticsService.getThemeTrends(5);
 
   // 处理导出
-  const handleExport = useCallback((format: ExportFormat) => {
+  const handleExport = useCallback(async (format: ExportFormat) => {
     const queryParams: AnalyticsQueryParams = {
       metric: activeMetric,
       timeRange: timeRange,
       groupBy: groupBy,
       filters: { userId },
     };
-    analyticsService.downloadExport(queryParams, format);
+    await analyticsService.downloadExport(queryParams, format);
   }, [activeMetric, timeRange, groupBy, userId]);
 
   // 打开详情弹窗

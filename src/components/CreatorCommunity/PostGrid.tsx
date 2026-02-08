@@ -47,19 +47,43 @@ const PostCard: React.FC<{
   }
 
   if (viewMode === 'grid') {
+    // 判断是否为视频 - 使用 post.type 字段或 attachments/video_url
+    const isVideo = post.type === 'video' || post.attachments?.[0]?.type === 'video' || post.video_url;
+    const mediaUrl = post.attachments?.[0]?.url || post.video_url || post.thumbnail || post.cover_url;
+    
     return (
       <div 
         className="bg-white rounded-xl shadow-sm hover:shadow-xl transition-all duration-300 transform hover:scale-105 hover:animate-bounce active:scale-95 cursor-pointer overflow-hidden group"
         onClick={handlePostClick}
       >
-        {/* 图片区域 */}
+        {/* 媒体区域（图片或视频） */}
         <div className="aspect-video bg-gray-100 relative overflow-hidden">
-          <LazyImage
-            src={post.attachments?.[0]?.url || 'https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=现代创意社区背景图，抽象艺术风格，渐变色彩&image_size=landscape_16_9'}
-            alt={post.title}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-            placeholder="blur"
-          />
+          {isVideo ? (
+            <video
+              src={mediaUrl}
+              className="w-full h-full object-cover"
+              muted
+              playsInline
+              preload="metadata"
+            />
+          ) : (
+            <LazyImage
+              src={mediaUrl || 'https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=现代创意社区背景图，抽象艺术风格，渐变色彩&image_size=landscape_16_9'}
+              alt={post.title}
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+              placeholder="blur"
+            />
+          )}
+          {/* 视频播放图标 */}
+          {isVideo && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="w-12 h-12 bg-white/80 rounded-full flex items-center justify-center">
+                <svg className="w-6 h-6 text-gray-800 ml-1" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M8 5v14l11-7z"/>
+                </svg>
+              </div>
+            </div>
+          )}
           {/* 悬停遮罩 */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
         </div>

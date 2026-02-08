@@ -38,6 +38,8 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
   const navigate = useNavigate();
   const { isDark } = useTheme();
   const [commentText, setCommentText] = useState('');
+  const [replyText, setReplyText] = useState('');
+  const [replyToComment, setReplyToComment] = useState<Comment | null>(null);
   const [isImageFull, setIsImageFull] = useState(false);
   const [relatedPosts, setRelatedPosts] = useState<Post[]>([]);
   const [comments, setComments] = useState<Comment[]>([]);
@@ -45,6 +47,7 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
   const [isFollowing, setIsFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
   const commentInputRef = useRef<HTMLInputElement>(null);
+  const replyInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -105,6 +108,8 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
   useEffect(() => {
     if (!isOpen) {
       setCommentText('');
+      setReplyText('');
+      setReplyToComment(null);
       setIsImageFull(false);
     }
   }, [isOpen, post]);
@@ -184,38 +189,62 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
     }
   };
 
-  // 分享功能
-  const handleShare = async () => {
-    if (!post) return;
-    
-    const shareUrl = `${window.location.origin}/post/${post.id}`;
-    const shareData = {
-      title: post.title,
-      text: post.description?.slice(0, 100) || '',
-      url: shareUrl
-    };
+  // 点赞评论
+  const handleLikeComment = async (comment: Comment) => {
+    if (!currentUser?.id) {
+      toast.error('请先登录后再点赞');
+      return;
+    }
     
     try {
-      // 尝试使用 Web Share API
-      if (navigator.share) {
-        await navigator.share(shareData);
-        toast.success('分享成功');
-      } else {
-        // 复制链接到剪贴板
-        await navigator.clipboard.writeText(shareUrl);
-        toast.success('链接已复制到剪贴板');
+      const success = await postsApi.likeComment(post?.id || '', comment.id, currentUser.id);
+      if (success) {
+        // 更新本地评论列表
+        const updatedComments = comments.map(c => 
+          c.id === comment.id 
+            ? { ...c, likes: (c.likes || 0) + 1 }
+            : c
+        );
+        setComments(updatedComments);
+        toast.success('点赞成功！');
       }
     } catch (error: any) {
-      // 用户取消分享或复制失败
-      if (error.name !== 'AbortError') {
-        console.error('分享失败:', error);
-        toast.error('分享失败');
-      }
+      console.error('点赞评论失败:', error);
+      toast.error(error.message || '点赞失败，请稍后重试');
     }
   };
 
-  // 保存/收藏功能
-  const handleSave = async () => {
+  // 回复评论
+  const handleReplyToComment = (comment: Comment) => {
+    setReplyToComment(comment);
+    setReplyText('');
+    setTimeout(() => {
+      replyInputRef.current?.focus();
+    }, 100);
+  };
+
+  // 发送回复
+  const handleSendReply = async () => {
+    if (!post || !replyToComment || !replyText.trim() || !currentUser?.id) return;
+    
+    try {
+      const success = await postsApi.replyToComment(post.id, replyToComment.id, replyText, currentUser.id);
+      if (success) {
+        setReplyText('');
+        setReplyToComment(null);
+        toast.success('回复发送成功！');
+        // 刷新评论列表
+        const updatedComments = await postsApi.getWorkComments(post.id);
+        setComments(updatedComments);
+      }
+    } catch (error: any) {
+      console.error('发送回复失败:', error);
+      toast.error(error.message || '回复发送失败，请稍后重试');
+    }
+  };
+
+  // 分享功能
+  const handleShare = async () => {
     if (!post) return;
     
     try {
@@ -305,32 +334,88 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
                   <div className="w-full md:w-[55%] bg-gray-50 dark:bg-black relative group">
                     <div className="relative w-full h-full min-h-[400px] flex items-center justify-center">
                        {/* Image/Video */}
-                       {post.category === 'video' ? (
-                         <div className="w-full h-full">
-                           <LazyVideo 
-                             ref={videoRef}
-                             src={post.videoUrl || post.thumbnail}
-                             poster={post.thumbnail}
-                             alt={post.title}
-                             className="w-full h-full object-contain"
-                             controls={true}
-                             autoPlay={false}
-                             playsInline={true}
-                           />
+                       {(post.type === 'video' || post.category === 'video' || post.videoUrl) ? (
+                         <div className="w-full h-full flex items-center justify-center">
+                           {(() => {
+                             console.log('Rendering video in PostDetailModal:', { 
+                               videoUrl: post.videoUrl, 
+                               thumbnail: post.thumbnail, 
+                               category: post.category,
+                               postId: post.id
+                             });
+                             
+                             // 检查 videoUrl 是否有效
+                             const videoUrl = post.videoUrl || '';
+                             const hasValidVideoUrl = videoUrl && (
+                               videoUrl.startsWith('http') || 
+                               videoUrl.startsWith('/') ||
+                               videoUrl.startsWith('data:')
+                             );
+                             
+                             if (!hasValidVideoUrl) {
+                               console.error('videoUrl is empty or invalid:', videoUrl);
+                               return (
+                                 <div className="flex flex-col items-center justify-center p-8 text-center">
+                                   <div className="w-16 h-16 bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center mb-4">
+                                     <i className="fas fa-video-slash text-gray-400 text-2xl"></i>
+                                   </div>
+                                   <p className="text-gray-500 dark:text-gray-400">视频链接无效或已失效</p>
+                                   <p className="text-xs text-gray-400 mt-2">请联系管理员检查视频资源</p>
+                                 </div>
+                               );
+                             }
+                             return null;
+                           })()}
+                           {(() => {
+                             const videoUrl = post.videoUrl || '';
+                             const hasValidVideoUrl = videoUrl && (
+                               videoUrl.startsWith('http') || 
+                               videoUrl.startsWith('/') ||
+                               videoUrl.startsWith('data:')
+                             );
+                             
+                             if (!hasValidVideoUrl) return null;
+                             
+                             // 检查 thumbnail 是否是有效的图片 URL
+                             const thumbnailUrl = post.thumbnail || '';
+                             const isImageUrl = /\.(jpg|jpeg|png|gif|webp|svg|bmp|ico)(\?.*)?$/i.test(thumbnailUrl);
+                             const isVideoUrl = /\.(mp4|webm|ogg|mov)(\?.*)?$/i.test(thumbnailUrl);
+                             
+                             // 如果 thumbnail 是视频URL，不使用它作为 poster
+                             const posterUrl = isImageUrl && !isVideoUrl && thumbnailUrl.startsWith('http') 
+                               ? thumbnailUrl 
+                               : 'https://via.placeholder.com/800x600/3b82f6/ffffff?text=Video';
+                             
+                             return (
+                               <LazyVideo 
+                                 ref={videoRef}
+                                 src={videoUrl}
+                                 poster={posterUrl}
+                                 alt={post.title}
+                                 className="w-full h-full object-contain"
+                                 controls={true}
+                                 autoPlay={false}
+                                 playsInline={true}
+                                 priority={true}
+                                 onError={(e) => console.error('Video load error:', { videoUrl, error: e })}
+                               />
+                             );
+                           })()}
                          </div>
                        ) : (
                          <div 
                            className="w-full h-full cursor-zoom-in"
                            onClick={() => setIsImageFull(true)}
                          >
-                           <LazyImage 
-                             src={post.thumbnail} 
-                             alt={post.title} 
-                             className="w-full h-full object-cover md:rounded-l-[32px]"
-                             priority={true}
-                             quality="high"
-                             bare
-                           />
+                           <LazyImage
+                            src={post.thumbnail}
+                            alt={post.title}
+                            className="w-full h-full object-cover md:rounded-l-[32px]"
+                            priority={true}
+                            quality="high"
+                            bare
+                            disableFallback={true}
+                          />
                          </div>
                        )}
 
@@ -377,7 +462,7 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
                            {post.isLiked ? '已赞' : '点赞'}
                          </button>
                          <button
-                           onClick={handleSave}
+                           onClick={handleShare}
                            className={`px-5 py-2.5 rounded-full font-semibold text-sm transition-colors shadow-sm ${
                              post.isBookmarked
                                ? 'bg-gray-600 text-white hover:bg-gray-700'
@@ -479,46 +564,175 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
                           评论 <span className="text-sm font-normal text-gray-500">{comments.length || post.commentCount || 0}</span>
                         </h3>
 
+                        {/* 回复输入框 */}
+                        {replyToComment && (
+                          <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                            <div className="flex items-center gap-2 mb-2">
+                              <i className="fas fa-reply text-blue-600 dark:text-blue-400"></i>
+                              <span className="text-sm font-medium text-blue-600 dark:text-blue-400">
+                                回复 @{replyToComment.author || '用户'}
+                              </span>
+                              <button 
+                                className="ml-auto text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                                onClick={() => setReplyToComment(null)}
+                              >
+                                <i className="fas fa-times"></i>
+                              </button>
+                            </div>
+                            <div className="flex gap-2">
+                              <div className="flex-1">
+                                <input
+                                  ref={replyInputRef}
+                                  type="text"
+                                  value={replyText}
+                                  onChange={(e) => setReplyText(e.target.value)}
+                                  placeholder={`回复 @${replyToComment.author || '用户'}...`}
+                                  className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  onKeyPress={(e) => {
+                                    if (e.key === 'Enter' && !e.shiftKey) {
+                                      e.preventDefault();
+                                      handleSendReply();
+                                    }
+                                  }}
+                                />
+                              </div>
+                              <button
+                                onClick={handleSendReply}
+                                disabled={!replyText.trim()}
+                                className="px-3 py-2 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                              >
+                                发送
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
                         {/* Comments List */}
-                        <div className="space-y-4 mb-20">
+                        <div className="space-y-6 mb-24">
                           {commentsLoading ? (
-                            <div className="text-center py-8 text-gray-400 text-sm">
-                              加载评论中...
+                            <div className="flex flex-col items-center justify-center py-12 space-y-3">
+                              <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                              <span className="text-gray-400 text-sm">加载评论中...</span>
                             </div>
                           ) : comments.length > 0 ? (
-                            comments.map(comment => (
-                              <div key={comment.id} className="flex gap-2.5">
-                                <TianjinAvatar
-                                  src={comment.authorAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${comment.userId || comment.id}`}
-                                  alt="User"
-                                  size="xs"
-                                />
-                                <div className="flex-1">
-                                   <div className="text-sm">
-                                     <span className="font-bold mr-2">{comment.author || '用户'}</span>
-                                     <span className="text-gray-700 dark:text-gray-300">{comment.content}</span>
-                                   </div>
-                                   <div className="flex gap-3 mt-1 text-[10px] text-gray-500 font-medium">
-                                      <span>{new Date(comment.date).toLocaleDateString()}</span>
-                                      <button className="hover:text-gray-900 dark:hover:text-white">回复</button>
-                                      <button className="hover:text-gray-900 dark:hover:text-white flex items-center gap-1">
-                                        <i className="far fa-heart"></i> {comment.likes || 0}
-                                      </button>
-                                      {currentUser && comment.userId === currentUser.id && (
+                            (() => {
+                              // 将评论分为主评论和回复
+                              const mainComments = comments.filter(c => !c.parentId);
+                              const replies = comments.filter(c => c.parentId);
+                              
+                              return mainComments.map(comment => (
+                                <div key={comment.id} className="group">
+                                  {/* 主评论 */}
+                                  <div className="flex gap-4 p-4 rounded-2xl bg-gradient-to-r from-gray-50/50 to-transparent dark:from-gray-800/30 dark:to-transparent hover:from-gray-100/50 dark:hover:from-gray-800/50 transition-all duration-300">
+                                    <div className="flex-shrink-0">
+                                      <div className="relative">
+                                        <TianjinAvatar
+                                          src={comment.authorAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${comment.userId || comment.id}`}
+                                          alt="User"
+                                          size="sm"
+                                          className="ring-2 ring-white dark:ring-gray-700 shadow-lg"
+                                        />
+                                        <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white dark:border-gray-800"></div>
+                                      </div>
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2 mb-2">
+                                        <span className="font-bold text-gray-900 dark:text-white text-base">{comment.author || '用户'}</span>
+                                        <span className="text-xs text-gray-400">·</span>
+                                        <span className="text-xs text-gray-400">{new Date(comment.date).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                                      </div>
+                                      <div className="text-gray-700 dark:text-gray-200 text-base leading-relaxed mb-3">
+                                        {comment.content}
+                                      </div>
+                                      <div className="flex items-center gap-4">
                                         <button 
-                                          onClick={() => handleDeleteComment(comment.id)}
-                                          className="hover:text-red-500"
+                                          className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 transition-colors group/btn"
+                                          onClick={() => handleLikeComment(comment)}
                                         >
-                                          删除
+                                          <div className="p-1.5 rounded-full group-hover/btn:bg-red-50 dark:group-hover/btn:bg-red-900/20 transition-colors">
+                                            <i className="far fa-heart text-base"></i>
+                                          </div>
+                                          <span className="font-medium">{comment.likes || 0}</span>
                                         </button>
-                                      )}
-                                   </div>
+                                        <button 
+                                          className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 transition-colors group/btn"
+                                          onClick={() => handleReplyToComment(comment)}
+                                        >
+                                          <div className="p-1.5 rounded-full group-hover/btn:bg-blue-50 dark:group-hover/btn:bg-blue-900/20 transition-colors">
+                                            <i className="far fa-comment-dots text-base"></i>
+                                          </div>
+                                          <span className="font-medium">回复</span>
+                                        </button>
+                                        {currentUser && comment.userId === currentUser.id && (
+                                          <button 
+                                            onClick={() => handleDeleteComment(comment.id)}
+                                            className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-red-500 transition-colors ml-auto opacity-0 group-hover:opacity-100"
+                                          >
+                                            <i className="far fa-trash-alt"></i>
+                                            <span>删除</span>
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  
+                                  {/* 回复列表 */}
+                                  {replies.filter(r => r.parentId === comment.id).length > 0 && (
+                                    <div className="ml-12 mt-3 space-y-3">
+                                      {replies.filter(r => r.parentId === comment.id).map(reply => (
+                                        <div key={reply.id} className="flex gap-3 p-3 rounded-xl bg-gray-50/80 dark:bg-gray-800/40 hover:bg-gray-100/80 dark:hover:bg-gray-800/60 transition-all duration-200">
+                                          <TianjinAvatar
+                                            src={reply.authorAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${reply.userId || reply.id}`}
+                                            alt="User"
+                                            size="xs"
+                                            className="ring-2 ring-white dark:ring-gray-700"
+                                          />
+                                          <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-2 mb-1">
+                                              <span className="font-semibold text-gray-900 dark:text-white text-sm">{reply.author || '用户'}</span>
+                                              <span className="text-xs text-gray-400">{new Date(reply.date).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })}</span>
+                                            </div>
+                                            <div className="text-gray-700 dark:text-gray-300 text-sm leading-relaxed mb-2">
+                                              {reply.content}
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                              <button 
+                                                className="flex items-center gap-1 text-xs text-gray-500 hover:text-red-500 transition-colors"
+                                                onClick={() => handleLikeComment(reply)}
+                                              >
+                                                <i className="far fa-heart"></i>
+                                                <span>{reply.likes || 0}</span>
+                                              </button>
+                                              <button 
+                                                className="text-xs text-gray-500 hover:text-blue-600 transition-colors"
+                                                onClick={() => handleReplyToComment(reply)}
+                                              >
+                                                回复
+                                              </button>
+                                              {currentUser && reply.userId === currentUser.id && (
+                                                <button 
+                                                  onClick={() => handleDeleteComment(reply.id)}
+                                                  className="text-xs text-gray-400 hover:text-red-500 transition-colors ml-auto"
+                                                >
+                                                  删除
+                                                </button>
+                                              )}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
                                 </div>
-                              </div>
-                            ))
+                              ));
+                            })()
                           ) : (
-                            <div className="text-center py-8 text-gray-400 text-sm">
-                              暂无评论，来抢沙发吧
+                            <div className="flex flex-col items-center justify-center py-16 text-center">
+                              <div className="w-20 h-20 mb-4 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700 flex items-center justify-center">
+                                <i className="far fa-comments text-3xl text-gray-400"></i>
+                              </div>
+                              <p className="text-gray-500 dark:text-gray-400 text-lg font-medium mb-1">暂无评论</p>
+                              <p className="text-gray-400 dark:text-gray-500 text-sm">来抢沙发，发表你的看法吧</p>
                             </div>
                           )}
                         </div>
@@ -526,29 +740,54 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
                     </div>
 
                     {/* Bottom Sticky Comment Input */}
-                    <div className="p-4 md:p-6 border-t border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 sticky bottom-0">
-                      <div className="flex items-center gap-3 bg-gray-100 dark:bg-gray-800 rounded-full px-4 py-3 transition-shadow focus-within:shadow-md focus-within:ring-2 focus-within:ring-blue-100 dark:focus-within:ring-blue-900">
-                         <TianjinAvatar 
-                           src={currentUser?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=current`} 
-                           alt="Me" 
-                           size="xs" 
-                         />
-                         <input 
-                           ref={commentInputRef}
-                           value={commentText}
-                           onChange={(e) => setCommentText(e.target.value)}
-                           onKeyDown={handleCommentKeyDown}
-                           placeholder="添加评论..."
-                           className="flex-1 bg-transparent border-none outline-none text-sm text-gray-900 dark:text-white placeholder-gray-500"
-                         />
-                         {commentText.trim() && (
-                           <button 
-                             onClick={handleSendComment}
-                             className="text-red-600 font-bold text-sm px-2 hover:bg-red-50 rounded transition-colors"
-                           >
-                             发送
-                           </button>
-                         )}
+                    <div className="p-4 md:p-6 border-t border-gray-100 dark:border-gray-800 bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl sticky bottom-0 z-10">
+                      <div className="flex items-start gap-3 bg-white dark:bg-gray-800 rounded-2xl px-4 py-3 shadow-lg border border-gray-100 dark:border-gray-700 transition-all duration-300 focus-within:shadow-xl focus-within:border-blue-300 dark:focus-within:border-blue-600 focus-within:ring-4 focus-within:ring-blue-100/50 dark:focus-within:ring-blue-900/30">
+                        <TianjinAvatar 
+                          src={currentUser?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=current`} 
+                          alt="Me" 
+                          size="sm"
+                          className="mt-0.5 ring-2 ring-gray-100 dark:ring-gray-700"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <textarea
+                            ref={commentInputRef}
+                            value={commentText}
+                            onChange={(e) => setCommentText(e.target.value)}
+                            onKeyDown={handleCommentKeyDown}
+                            placeholder="写下你的评论..."
+                            rows={1}
+                            className="w-full bg-transparent border-none outline-none text-base text-gray-900 dark:text-white placeholder-gray-400 resize-none overflow-hidden"
+                            style={{ minHeight: '24px', maxHeight: '120px' }}
+                          />
+                        </div>
+                        <button 
+                          onClick={handleSendComment}
+                          disabled={!commentText.trim()}
+                          className={`
+                            flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-300
+                            ${commentText.trim() 
+                              ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40 hover:scale-105' 
+                              : 'bg-gray-100 dark:bg-gray-700 text-gray-400 cursor-not-allowed'
+                            }
+                          `}
+                        >
+                          <i className="fas fa-paper-plane text-sm"></i>
+                        </button>
+                      </div>
+                      <div className="flex items-center justify-between mt-2 px-1">
+                        <div className="flex items-center gap-4 text-xs text-gray-400">
+                          <button className="hover:text-gray-600 dark:hover:text-gray-300 transition-colors flex items-center gap-1">
+                            <i className="far fa-image"></i>
+                            <span>图片</span>
+                          </button>
+                          <button className="hover:text-gray-600 dark:hover:text-gray-300 transition-colors flex items-center gap-1">
+                            <i className="far fa-smile"></i>
+                            <span>表情</span>
+                          </button>
+                        </div>
+                        <span className="text-xs text-gray-400">
+                          {commentText.length > 0 && `${commentText.length} 字`}
+                        </span>
                       </div>
                     </div>
                   </div>

@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase'
+import { supabaseAdmin } from '../lib/supabaseClient'
 import type { MessageWithSender, UserProfile } from '../lib/supabase'
 import { RealtimeChannel } from '@supabase/supabase-js'
 
@@ -118,9 +119,9 @@ export const chatService = {
   // 发送消息
   async sendMessage(senderId: string, content: string, options: MessageOptions = {}): Promise<MessageWithSender> {
     const { type = 'text', metadata = {}, channelId = 'global', communityId } = options
-    
-    // 1. 插入消息
-    const { data: messageData, error: messageError } = await supabase
+
+    // 1. 插入消息（使用 supabaseAdmin 绕过 RLS）
+    const { data: messageData, error: messageError } = await supabaseAdmin
       .from('messages')
       .insert({
         channel_id: channelId,
@@ -129,7 +130,8 @@ export const chatService = {
         type: type,
         metadata: metadata,
         status: 'sent',
-        community_id: communityId
+        community_id: communityId,
+        role: 'user'
       })
       .select()
       .single()

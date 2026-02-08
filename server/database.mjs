@@ -310,6 +310,7 @@ async function createPostgreSQLTables(pool) {
       await ensureColumn('users', 'twitter', 'TEXT')
       await ensureColumn('users', 'cover_image', 'TEXT')
       await ensureColumn('users', 'metadata', 'JSONB')
+      await ensureColumn('users', 'is_admin', 'BOOLEAN DEFAULT false')
 
       // 创建 friends 表
       await client.query(`
@@ -389,6 +390,7 @@ async function createPostgreSQLTables(pool) {
           title TEXT NOT NULL,
           description TEXT,
           thumbnail TEXT,
+          video_url TEXT,
           duration INTEGER,
           status TEXT DEFAULT 'draft',
           visibility TEXT DEFAULT 'private',
@@ -961,8 +963,8 @@ export const workDB = {
     const reviewedAt = parseTimestamp(workData.reviewed_at)
     
     const { rows } = await db.query(`
-      INSERT INTO works (id, creator_id, title, description, thumbnail, duration, status, visibility, category, tags, cultural_elements, created_at, updated_at, published_at, scheduled_publish_date, moderation_status, rejection_reason, reviewer_id, reviewed_at, views, likes, comments, shares, downloads, engagement_rate, is_featured)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
+      INSERT INTO works (id, creator_id, title, description, thumbnail, video_url, duration, status, visibility, category, tags, cultural_elements, created_at, updated_at, published_at, scheduled_publish_date, moderation_status, rejection_reason, reviewer_id, reviewed_at, views, likes, comments, shares, downloads, engagement_rate, is_featured, type)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28)
       RETURNING id
     `, [
       id,
@@ -970,6 +972,7 @@ export const workDB = {
       workData.title,
       workData.description,
       workData.thumbnail,
+      workData.video_url || workData.videoUrl || null,
       workData.duration,
       workData.status || 'draft',
       workData.visibility || 'private',
@@ -990,8 +993,21 @@ export const workDB = {
       workData.shares || 0,
       workData.downloads || 0,
       workData.engagement_rate || 0,
-      workData.is_featured || false
+      workData.is_featured || false,
+      workData.type || 'image'
     ])
+    
+    // 更新用户的作品数量
+    try {
+      await db.query(`
+        UPDATE users 
+        SET posts_count = posts_count + 1, updated_at = $1 
+        WHERE id = $2
+      `, [now, creatorId])
+    } catch (updateError) {
+      console.error('Failed to update user posts_count:', updateError)
+      // 不影响主流程，继续返回作品ID
+    }
     
     return { id: rows[0].id }
   },
@@ -1057,6 +1073,18 @@ export const workDB = {
       workData.engagement_rate || 0,
       workData.is_featured || false
     ])
+    
+    // 更新用户的作品数量
+    try {
+      await db.query(`
+        UPDATE users 
+        SET posts_count = posts_count + 1, updated_at = $1 
+        WHERE id = $2
+      `, [now, creatorId])
+    } catch (updateError) {
+      console.error('Failed to update user posts_count:', updateError)
+      // 不影响主流程，继续返回作品ID
+    }
     
     return { id: rows[0].id }
   },
@@ -1128,6 +1156,22 @@ export const workDB = {
 
       // 更新作品点赞数
       await db.query('UPDATE works SET likes = likes + 1 WHERE id = $1', [workId])
+      
+      // 获取作品创建者并更新其获赞数
+      try {
+        const { rows } = await db.query('SELECT creator_id FROM works WHERE id = $1', [workId])
+        if (rows.length > 0 && rows[0].creator_id) {
+          await db.query(`
+            UPDATE users 
+            SET likes_count = likes_count + 1, updated_at = $1 
+            WHERE id = $2
+          `, [now, rows[0].creator_id])
+        }
+      } catch (updateError) {
+        console.error('Failed to update user likes_count:', updateError)
+        // 不影响主流程
+      }
+      
       return { success: true }
     } catch (error) {
       // 唯一约束错误表示已经点赞过
@@ -1140,6 +1184,7 @@ export const workDB = {
 
   async unlikeWork(workId, userId) {
     const db = await getDB()
+    const now = Math.floor(Date.now() / 1000)
 
     const { rowCount } = await db.query(`
       DELETE FROM work_likes WHERE work_id = $1 AND user_id = $2
@@ -1147,6 +1192,21 @@ export const workDB = {
 
     if (rowCount > 0) {
       await db.query('UPDATE works SET likes = GREATEST(likes - 1, 0) WHERE id = $1', [workId])
+      
+      // 获取作品创建者并减少其获赞数
+      try {
+        const { rows } = await db.query('SELECT creator_id FROM works WHERE id = $1', [workId])
+        if (rows.length > 0 && rows[0].creator_id) {
+          await db.query(`
+            UPDATE users 
+            SET likes_count = GREATEST(likes_count - 1, 0), updated_at = $1 
+            WHERE id = $2
+          `, [now, rows[0].creator_id])
+        }
+      } catch (updateError) {
+        console.error('Failed to update user likes_count:', updateError)
+        // 不影响主流程
+      }
     }
 
     return { success: rowCount > 0 }
@@ -1550,19 +1610,20 @@ export const communityDB = {
   },
   async addComment(postId, userId, content, parentId = null) {
     const db = await getDB()
-    const now = Math.floor(Date.now() / 1000)
+    const nowISO = new Date().toISOString()
+    const nowSeconds = Math.floor(Date.now() / 1000)
     const id = randomUUID()
     
     const { rows } = await db.query(`
       INSERT INTO comments (id, post_id, user_id, content, parent_id, created_at, updated_at)
       VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING *
-    `, [id, postId, userId, content, parentId, now, now])
+    `, [id, postId, userId, content, parentId, nowISO, nowISO])
     
-    // 更新帖子的评论数
+    // 更新帖子的评论数 (posts 表使用 BIGINT 时间戳)
     await db.query(`
       UPDATE posts SET comments_count = comments_count + 1, updated_at = $1 WHERE id = $2
-    `, [now, postId])
+    `, [nowSeconds, postId])
     
     return rows[0]
   },
@@ -1600,6 +1661,191 @@ export const communityDB = {
     `, [userId])
     
     return rows
+  },
+  
+  // 获取社群成员列表
+  async getCommunityMembers(communityId) {
+    const db = await getDB()
+    const { rows } = await db.query(`
+      SELECT 
+        cm.user_id as id,
+        u.username,
+        u.email,
+        u.avatar_url as avatar,
+        cm.role,
+        cm.joined_at,
+        u.is_online as is_online,
+        u.last_active_at as last_active,
+        (SELECT COUNT(*) FROM posts WHERE user_id = cm.user_id) as post_count
+      FROM community_members cm
+      JOIN users u ON cm.user_id::text = u.id::text
+      WHERE cm.community_id::text = $1::text
+      ORDER BY 
+        CASE cm.role 
+          WHEN 'owner' THEN 1 
+          WHEN 'admin' THEN 2 
+          WHEN 'editor' THEN 3 
+          ELSE 4 
+        END,
+        cm.joined_at DESC
+    `, [communityId])
+    return rows
+  },
+  
+  // 获取社群公告列表
+  async getCommunityAnnouncements(communityId) {
+    const db = await getDB()
+    const { rows } = await db.query(`
+      SELECT 
+        ca.id,
+        ca.title,
+        ca.content,
+        ca.is_pinned,
+        ca.created_at,
+        ca.updated_at,
+        u.username as author_name,
+        u.avatar_url as author_avatar,
+        (SELECT COUNT(*) FROM announcement_reads WHERE announcement_id = ca.id) as read_count
+      FROM community_announcements ca
+      JOIN users u ON ca.author_id::text = u.id::text
+      WHERE ca.community_id::text = $1::text
+      ORDER BY ca.is_pinned DESC, ca.created_at DESC
+    `, [communityId])
+    return rows
+  },
+  
+  // 获取社群加入申请列表
+  async getCommunityJoinRequests(communityId) {
+    const db = await getDB()
+    const { rows } = await db.query(`
+      SELECT 
+        cjr.id,
+        cjr.user_id,
+        u.username,
+        u.avatar_url as avatar,
+        cjr.request_message,
+        cjr.status,
+        cjr.created_at
+      FROM community_join_requests cjr
+      JOIN users u ON cjr.user_id::text = u.id::text
+      WHERE cjr.community_id::text = $1::text AND cjr.status = 'pending'
+      ORDER BY cjr.created_at DESC
+    `, [communityId])
+    return rows
+  },
+  
+  // 更新成员角色
+  async updateMemberRole(communityId, userId, newRole) {
+    const db = await getDB()
+    const { rowCount } = await db.query(`
+      UPDATE community_members 
+      SET role = $1, updated_at = NOW()
+      WHERE community_id::text = $2::text AND user_id::text = $3::text
+    `, [newRole, communityId, userId])
+    return rowCount > 0
+  },
+  
+  // 移除成员
+  async removeMember(communityId, userId) {
+    const db = await getDB()
+    const { rowCount } = await db.query(`
+      DELETE FROM community_members 
+      WHERE community_id::text = $1::text AND user_id::text = $2::text
+    `, [communityId, userId])
+    
+    if (rowCount > 0) {
+      // 更新社群成员数
+      await db.query(`
+        UPDATE communities 
+        SET member_count = member_count - 1 
+        WHERE id::text = $1::text
+      `, [communityId])
+    }
+    
+    return rowCount > 0
+  },
+  
+  // 发布公告
+  async createAnnouncement(announcementData) {
+    const db = await getDB()
+    const id = randomUUID()
+    
+    const { rows } = await db.query(`
+      INSERT INTO community_announcements (id, community_id, author_id, title, content, is_pinned, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+      RETURNING *
+    `, [
+      id,
+      announcementData.communityId,
+      announcementData.authorId,
+      announcementData.title,
+      announcementData.content,
+      announcementData.isPinned || false
+    ])
+    
+    return rows[0]
+  },
+  
+  // 更新公告
+  async updateAnnouncement(announcementId, updateData) {
+    const db = await getDB()
+    const { rows } = await db.query(`
+      UPDATE community_announcements 
+      SET title = $1, content = $2, is_pinned = $3, updated_at = NOW()
+      WHERE id::text = $4::text
+      RETURNING *
+    `, [updateData.title, updateData.content, updateData.isPinned, announcementId])
+    
+    return rows[0]
+  },
+  
+  // 删除公告
+  async deleteAnnouncement(announcementId) {
+    const db = await getDB()
+    const { rowCount } = await db.query(`
+      DELETE FROM community_announcements 
+      WHERE id::text = $1::text
+    `, [announcementId])
+    
+    return rowCount > 0
+  },
+  
+  // 处理加入申请
+  async handleJoinRequest(requestId, action) {
+    const db = await getDB()
+    
+    if (action === 'approve') {
+      // 获取申请信息
+      const { rows } = await db.query(`
+        SELECT community_id, user_id FROM community_join_requests 
+        WHERE id::text = $1::text
+      `, [requestId])
+      
+      if (rows.length === 0) return false
+      
+      const { community_id, user_id } = rows[0]
+      
+      // 添加成员
+      await db.query(`
+        INSERT INTO community_members (community_id, user_id, role, joined_at)
+        VALUES ($1, $2, 'member', NOW())
+        ON CONFLICT DO NOTHING
+      `, [community_id, user_id])
+      
+      // 更新成员数
+      await db.query(`
+        UPDATE communities SET member_count = member_count + 1 WHERE id::text = $1::text
+      `, [community_id])
+    }
+    
+    // 更新申请状态
+    const { rowCount } = await db.query(`
+      UPDATE community_join_requests 
+      SET status = $1, updated_at = NOW()
+      WHERE id::text = $2::text
+    `, [action === 'approve' ? 'approved' : 'rejected', requestId])
+    
+    return rowCount > 0
   }
 }
 
@@ -1621,35 +1867,65 @@ export const eventDB = {
     const db = await getDB()
     const now = Math.floor(Date.now() / 1000) // 使用秒级时间戳
     const id = eventData.id || randomUUID()
-    
-    const { rows } = await db.query(`
-      INSERT INTO events (id, title, description, start_date, end_date, location, organizer_id, requirements, rewards, visibility, status, registration_deadline, max_participants, created_at, updated_at, published_at, image_url, category, tags, platform_event_id)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
-      RETURNING id
-    `, [
-      id,
-      eventData.title,
-      eventData.description,
-      eventData.start_date,
-      eventData.end_date,
-      eventData.location,
-      eventData.organizer_id,
-      eventData.requirements,
-      eventData.rewards,
-      eventData.visibility || 'public',
-      eventData.status || 'draft',
-      eventData.registration_deadline,
-      eventData.max_participants,
-      now,
-      now,
-      eventData.published_at,
-      eventData.image_url,
-      eventData.category,
-      eventData.tags,
-      eventData.platform_event_id
-    ])
-    
-    return { id: rows[0].id }
+
+    try {
+      const { rows } = await db.query(`
+        INSERT INTO events (id, title, description, start_date, end_date, location, organizer_id, requirements, rewards, visibility, status, registration_deadline, max_participants, created_at, updated_at, published_at, image_url, category, tags, platform_event_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+        RETURNING id
+      `, [
+        id,
+        eventData.title,
+        eventData.description,
+        eventData.start_date,
+        eventData.end_date,
+        eventData.location,
+        eventData.organizer_id,
+        eventData.requirements,
+        eventData.rewards,
+        eventData.visibility || 'public',
+        eventData.status || 'draft',
+        eventData.registration_deadline,
+        eventData.max_participants,
+        now,
+        now,
+        eventData.published_at,
+        eventData.image_url,
+        eventData.category,
+        eventData.tags,
+        eventData.platform_event_id
+      ])
+
+      if (!rows || rows.length === 0) {
+        throw new Error('Failed to create event: no rows returned')
+      }
+
+      // 返回创建的完整活动数据
+      return {
+        id: rows[0].id,
+        title: eventData.title,
+        description: eventData.description,
+        startTime: eventData.start_date,
+        endTime: eventData.end_date,
+        location: eventData.location,
+        organizerId: eventData.organizer_id,
+        requirements: eventData.requirements,
+        rewards: eventData.rewards,
+        isPublic: eventData.visibility === 'public',
+        status: eventData.status || 'draft',
+        maxParticipants: eventData.max_participants,
+        publishedAt: eventData.published_at,
+        media: eventData.image_url ? [{ url: eventData.image_url, type: 'image' }] : [],
+        category: eventData.category,
+        tags: eventData.tags,
+        platformEventId: eventData.platform_event_id,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }
+    } catch (error) {
+      console.error('[eventDB.create] Error:', error)
+      throw error
+    }
   },
   async getById(id) {
     const db = await getDB()
@@ -1659,11 +1935,11 @@ export const eventDB = {
   async update(id, updateData) {
     const db = await getDB()
     const now = Math.floor(Date.now() / 1000) // 使用秒级时间戳
-    
+
     const fields = []
     const values = []
     let index = 1
-    
+
     for (const [key, value] of Object.entries(updateData)) {
       fields.push(`${key} = $${index++}`)
       values.push(value)
@@ -1671,15 +1947,47 @@ export const eventDB = {
     fields.push(`updated_at = $${index++}`)
     values.push(now)
     values.push(id)
-    
-    const { rows } = await db.query(`
-      UPDATE events
-      SET ${fields.join(', ')}
-      WHERE id = $${index}
-      RETURNING *
-    `, values)
-    
-    return rows[0] || null
+
+    try {
+      const { rows } = await db.query(`
+        UPDATE events
+        SET ${fields.join(', ')}
+        WHERE id = $${index}
+        RETURNING *
+      `, values)
+
+      const event = rows[0]
+      if (!event) {
+        console.error(`[eventDB.update] Event not found: ${id}`)
+        return null
+      }
+
+      // 转换为前端期望的 camelCase 格式
+      return {
+        id: event.id,
+        title: event.title,
+        description: event.description,
+        startTime: event.start_date,
+        endTime: event.end_date,
+        location: event.location,
+        organizerId: event.organizer_id,
+        requirements: event.requirements,
+        rewards: event.rewards,
+        isPublic: event.visibility === 'public',
+        status: event.status,
+        maxParticipants: event.max_participants,
+        publishedAt: event.published_at,
+        media: event.image_url ? [{ url: event.image_url, type: 'image' }] : [],
+        category: event.category,
+        tags: event.tags,
+        platformEventId: event.platform_event_id,
+        createdAt: event.created_at ? new Date(event.created_at * 1000).toISOString() : null,
+        updatedAt: event.updated_at ? new Date(event.updated_at * 1000).toISOString() : null
+      }
+    } catch (error) {
+      console.error('[eventDB.update] Error:', error)
+      throw error
+    }
   },
   async delete(id) {
     const db = await getDB()

@@ -133,25 +133,53 @@ export const useCreateStore = create<CreateState & CreateActions>((set) => ({
   setPrompt: (prompt) => set({ prompt }),
   setGeneratedResults: (results) => set((state) => {
     try {
+      // 只处理有效的生成结果（有缩略图且不是空数组）
+      if (!results || results.length === 0) {
+        console.log('[History] No results to save, skipping history update');
+        return { generatedResults: results };
+      }
+
       const existingHistory = JSON.parse(localStorage.getItem('CREATE_HISTORY') || '[]');
-      const newHistoryItems = results
-        .filter(r => r.thumbnail && !existingHistory.some((h: any) => h.thumbnail === r.thumbnail))
-        .map(r => ({
-          id: `history-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      console.log('[History] Existing history count:', existingHistory.length);
+      console.log('[History] New results to process:', results.length);
+
+      // 过滤出有效的结果（有缩略图）
+      const validResults = results.filter(r => {
+        const hasThumbnail = r.thumbnail && typeof r.thumbnail === 'string' && r.thumbnail.trim() !== '';
+        if (!hasThumbnail) {
+          console.log('[History] Skipping result without thumbnail:', r);
+        }
+        return hasThumbnail;
+      });
+
+      if (validResults.length === 0) {
+        console.log('[History] No valid results with thumbnails');
+        return { generatedResults: results };
+      }
+
+      // 创建新的历史记录项，使用结果中的prompt（如果有）或当前state的prompt
+      const newHistoryItems = validResults.map((r, index) => {
+        const historyItem = {
+          id: `history-${Date.now()}-${index}-${Math.random().toString(36).substr(2, 9)}`,
           timestamp: Date.now(),
           thumbnail: r.thumbnail,
-          prompt: state.prompt,
-          stylePreset: state.stylePreset,
-        }));
-      
-      if (newHistoryItems.length > 0) {
-        const updatedHistory = [...newHistoryItems, ...existingHistory].slice(0, 50);
-        localStorage.setItem('CREATE_HISTORY', JSON.stringify(updatedHistory));
-      }
+          video: r.video || null,
+          type: r.type || 'image',
+          prompt: r.prompt || state.prompt || '',
+          stylePreset: r.stylePreset || state.stylePreset || '',
+        };
+        console.log('[History] Creating history item:', historyItem.id, 'type:', historyItem.type);
+        return historyItem;
+      });
+
+      // 合并历史记录，新的在前面，限制50条
+      const updatedHistory = [...newHistoryItems, ...existingHistory].slice(0, 50);
+      localStorage.setItem('CREATE_HISTORY', JSON.stringify(updatedHistory));
+      console.log('[History] Saved', newHistoryItems.length, 'items. Total history:', updatedHistory.length);
     } catch (e) {
-      console.error('Failed to save to history', e);
+      console.error('[History] Failed to save to history:', e);
     }
-    
+
     return { generatedResults: results };
   }),
   setSelectedResult: (id) => set({ selectedResult: id }),
@@ -392,12 +420,17 @@ export const useCreateStore = create<CreateState & CreateActions>((set) => ({
         };
       }
       
+      // 判断是否为视频
+      const isVideo = selectedImage.type === 'video' || selectedImage.video;
+      
       // 创建新作品
       const newPost = {
         title: data.title,
         description: data.description,
         thumbnail: selectedImage.url || selectedImage.thumbnail || '',
-        category: data.category || 'design',
+        videoUrl: isVideo ? selectedImage.video : undefined,
+        type: isVideo ? 'video' : 'image',
+        category: isVideo ? 'video' : (data.category || 'design'),
         tags: data.tags || [],
         culturalElements: data.culturalElements || [],
         visibility: data.visibility || 'public',
@@ -406,6 +439,8 @@ export const useCreateStore = create<CreateState & CreateActions>((set) => ({
         isFeatured: data.isFeatured || false,
         scheduledPublishDate: data.scheduledPublishDate
       };
+      
+      console.log('Publishing post with data:', newPost);
       
       // 调用 API 保存到 Supabase
       // 使用 'current-user' 让 postService 处理当前用户 ID

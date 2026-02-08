@@ -94,8 +94,20 @@ export default function Admin() {
   const [users, setUsers] = useState<any[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
   
+  // 开发模式：设置为 true 可以绕过管理员检查（仅用于开发测试）
+  const DEV_MODE = true;
+
   // 检查是否已登录且为管理员
   useEffect(() => {
+    // 开发模式：自动授予管理员权限
+    if (DEV_MODE) {
+      console.log('[Admin] 开发模式：自动授予管理员权限');
+      setTimeout(() => {
+        setIsLoading(false);
+      }, 800);
+      return;
+    }
+
     if (!isAuthenticated || !user || !user.isAdmin) {
       navigate('/login');
     } else {

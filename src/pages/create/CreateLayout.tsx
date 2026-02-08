@@ -18,20 +18,34 @@ export default function CreateLayout() {
   const { t } = useTranslation();
   const shareDesign = useCreateStore((state) => state.shareDesign);
   const selectedResult = useCreateStore((state) => state.selectedResult);
+  const generatedResults = useCreateStore((state) => state.generatedResults);
   const [showHistory, setShowHistory] = useState(false);
   const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
   const { user } = useContext(AuthContext);
+
+  // 获取当前选中结果的缩略图或视频URL
+  const getSelectedResultUrls = () => {
+    if (!selectedResult) return [];
+    const result = generatedResults.find(r => r.id === selectedResult);
+    if (!result) return [];
+    // 如果是视频，返回视频URL；否则返回缩略图
+    return result.video ? [result.video] : [result.thumbnail];
+  };
 
   const handlePublish = async (data: any) => {
     console.log('[CreateLayout] handlePublish called with:', data);
     console.log('[CreateLayout] Current user:', user);
     
+    // 获取当前选中的结果，判断是否为视频
+    const selectedItem = generatedResults.find(r => r.id === selectedResult);
+    const isVideo = selectedItem?.type === 'video' || selectedItem?.video;
+    
     try {
       const newPost: Partial<Post> = {
         title: data.title,
         description: data.content,
-        thumbnail: data.images?.[0] || 'https://images.unsplash.com/photo-1558655146-d09347e0c766?q=80&w=2560&auto=format&fit=crop',
-        category: data.contentType === 'video' ? 'video' : 'design',
+        thumbnail: selectedItem?.thumbnail || data.images?.[0] || 'https://images.unsplash.com/photo-1558655146-d09347e0c766?q=80&w=2560&auto=format&fit=crop',
+        category: isVideo ? 'video' : 'design',
         tags: [data.topic],
         date: new Date().toISOString().split('T')[0],
         likes: 0,
@@ -42,7 +56,7 @@ export default function CreateLayout() {
         // authorAvatar: user?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${Date.now()}`,
         isLiked: false,
         isBookmarked: false,
-        videoUrl: data.contentType === 'video' && data.images?.[0] ? data.images[0] : undefined
+        videoUrl: isVideo && selectedItem?.video ? selectedItem.video : undefined
       };
 
       console.log('[CreateLayout] Creating post:', newPost);
@@ -169,7 +183,7 @@ export default function CreateLayout() {
         onSubmit={handlePublish}
         isDark={isDark}
         topics={['国潮', '非遗', '极简', '赛博朋克']}
-        initialImages={selectedResult ? [String(selectedResult)] : []}
+        initialImages={getSelectedResultUrls()}
       />
 
       {/* 移动端底部导航栏 */}

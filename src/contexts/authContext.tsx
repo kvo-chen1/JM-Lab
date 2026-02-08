@@ -1254,6 +1254,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             ? data.user.user_metadata?.avatar 
             : '';
           
+          // 从数据库获取用户详细信息
+          const { data: userData, error: userError } = await supabase
+            .from('users')
+            .select('*')
+            .eq('id', data.user.id)
+            .single();
+          
           const updatedUser = {
             id: data.user.id,
             username: data.user.user_metadata?.username || data.user.email?.split('@')[0] || '用户',
@@ -1261,7 +1268,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             avatar: avatarUrl,
             phone: data.user.user_metadata?.phone || '',
             interests: data.user.user_metadata?.interests || [],
-            isAdmin: data.user.user_metadata?.isAdmin || false,
+            isAdmin: userData?.is_admin || data.user.user_metadata?.isAdmin || false,
             age: data.user.user_metadata?.age || 0,
             tags: data.user.user_metadata?.tags || [],
             membershipLevel: data.user.user_metadata?.membershipLevel || 'free',

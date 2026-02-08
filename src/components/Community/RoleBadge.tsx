@@ -8,25 +8,27 @@ export interface RoleBadgeProps {
   isDark: boolean;
   size?: 'sm' | 'md' | 'lg';
   showIcon?: boolean;
+  isCreator?: boolean;
 }
 
 const RoleBadge: React.FC<RoleBadgeProps> = ({ 
   role, 
   isDark, 
   size = 'md',
-  showIcon = true 
+  showIcon = true,
+  isCreator = false
 }) => {
   const roleConfig = {
     admin: {
-      label: '管理员',
+      label: isCreator ? '群主' : '管理员',
       icon: Crown,
       colors: {
         bg: isDark 
-          ? 'bg-gradient-to-r from-violet-500/20 to-violet-600/10' 
-          : 'bg-gradient-to-r from-violet-100 to-violet-50',
-        text: isDark ? 'text-violet-300' : 'text-violet-700',
-        border: isDark ? 'border-violet-500/30' : 'border-violet-200',
-        iconColor: isDark ? 'text-violet-400' : 'text-violet-600'
+          ? 'bg-gradient-to-r from-amber-500/20 to-amber-600/10' 
+          : 'bg-gradient-to-r from-amber-100 to-amber-50',
+        text: isDark ? 'text-amber-300' : 'text-amber-700',
+        border: isDark ? 'border-amber-500/30' : 'border-amber-200',
+        iconColor: isDark ? 'text-amber-400' : 'text-amber-600'
       }
     },
     editor: {

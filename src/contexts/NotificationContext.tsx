@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
+import { supabase } from '@/lib/supabaseClient';
+import { useAuth } from '@/hooks/useAuth';
 
 // 通知类型
 export type NotificationType = 
@@ -122,11 +124,14 @@ interface NotificationProviderProps {
   initialSettings?: Partial<NotificationSettings>;
 }
 
-export const NotificationProvider: React.FC<NotificationProviderProps> = ({ 
-  children, 
+export const NotificationProvider: React.FC<NotificationProviderProps> = ({
+  children,
   initialNotifications = [],
   initialSettings = {}
 }) => {
+  // 获取当前用户
+  const { user } = useAuth();
+
   // 状态管理
   const [notifications, setNotifications] = useState<Notification[]>(initialNotifications);
   const [settings, setSettings] = useState<NotificationSettings>({
@@ -141,12 +146,64 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
       ...initialSettings.priorities
     }
   });
+  const [isLoading, setIsLoading] = useState(false);
+
+  // 从 Supabase 加载通知
+  const loadNotifications = useCallback(async () => {
+    if (!user?.id) return;
+
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Failed to load notifications:', error);
+        return;
+      }
+
+      if (data) {
+        // 转换数据库格式为前端格式
+        const formattedNotifications: Notification[] = data.map((item: any) => ({
+          id: item.id,
+          type: item.type as NotificationType,
+          title: item.title,
+          content: item.content,
+          senderId: item.sender_id || '',
+          senderName: item.sender_name || '',
+          recipientId: item.user_id,
+          communityId: item.community_id,
+          postId: item.post_id,
+          commentId: item.comment_id,
+          createdAt: new Date(item.created_at * 1000),
+          readAt: item.read_at ? new Date(item.read_at * 1000) : undefined,
+          status: item.is_read ? 'read' : 'unread',
+          priority: (item.priority as NotificationPriority) || 'medium',
+          link: item.link
+        }));
+
+        setNotifications(formattedNotifications);
+      }
+    } catch (error) {
+      console.error('Error loading notifications:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user?.id]);
+
+  // 组件挂载时加载通知
+  useEffect(() => {
+    loadNotifications();
+  }, [loadNotifications]);
 
   // 计算未读通知数量
   const unreadCount = notifications.filter(n => n.status === 'unread').length;
 
-  // 添加通知
-  const addNotification = useCallback((
+  // 添加通知（同时保存到 Supabase）
+  const addNotification = useCallback(async (
     notification: Omit<Notification, 'id' | 'createdAt' | 'status'>,
     options?: AddNotificationOptions
   ) => {
@@ -157,7 +214,36 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
       status: 'unread'
     };
 
+    // 先更新本地状态
     setNotifications(prev => [newNotification, ...prev]);
+
+    // 保存到 Supabase
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .insert({
+          id: newNotification.id,
+          type: newNotification.type,
+          title: newNotification.title,
+          content: newNotification.content,
+          user_id: newNotification.recipientId,
+          sender_id: newNotification.senderId || null,
+          sender_name: newNotification.senderName || null,
+          community_id: newNotification.communityId || null,
+          post_id: newNotification.postId || null,
+          comment_id: newNotification.commentId || null,
+          priority: newNotification.priority,
+          link: newNotification.link || null,
+          is_read: false,
+          created_at: Math.floor(newNotification.createdAt.getTime() / 1000)
+        });
+
+      if (error) {
+        console.error('Failed to save notification to Supabase:', error);
+      }
+    } catch (error) {
+      console.error('Error saving notification:', error);
+    }
 
     // 显示 toast 通知
     if (settings.desktopNotifications) {
@@ -198,13 +284,31 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
     }
   }, [settings.desktopNotifications]);
 
-  // 标记为已读
-  const markAsRead = useCallback((id: string) => {
-    setNotifications(prev => prev.map(notification => 
-      notification.id === id 
+  // 标记为已读（同时更新 Supabase）
+  const markAsRead = useCallback(async (id: string) => {
+    // 先更新本地状态
+    setNotifications(prev => prev.map(notification =>
+      notification.id === id
         ? { ...notification, status: 'read', readAt: new Date() }
         : notification
     ));
+
+    // 更新 Supabase
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .update({
+          is_read: true,
+          read_at: Math.floor(Date.now() / 1000)
+        })
+        .eq('id', id);
+
+      if (error) {
+        console.error('Failed to mark notification as read in Supabase:', error);
+      }
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+    }
   }, []);
 
   // 标记为未读
@@ -216,14 +320,35 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
     ));
   }, []);
 
-  // 标记所有为已读
-  const markAllAsRead = useCallback(() => {
-    setNotifications(prev => prev.map(notification => 
-      notification.status === 'unread' 
+  // 标记所有为已读（同时更新 Supabase）
+  const markAllAsRead = useCallback(async () => {
+    if (!user?.id) return;
+
+    // 先更新本地状态
+    setNotifications(prev => prev.map(notification =>
+      notification.status === 'unread'
         ? { ...notification, status: 'read', readAt: new Date() }
         : notification
     ));
-  }, []);
+
+    // 更新 Supabase
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .update({
+          is_read: true,
+          read_at: Math.floor(Date.now() / 1000)
+        })
+        .eq('user_id', user.id)
+        .eq('is_read', false);
+
+      if (error) {
+        console.error('Failed to mark all notifications as read in Supabase:', error);
+      }
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
+    }
+  }, [user?.id]);
 
   // 归档通知
   const archiveNotification = useCallback((id: string) => {
@@ -234,9 +359,24 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
     ));
   }, []);
 
-  // 删除通知
-  const deleteNotification = useCallback((id: string) => {
+  // 删除通知（同时从 Supabase 删除）
+  const deleteNotification = useCallback(async (id: string) => {
+    // 先更新本地状态
     setNotifications(prev => prev.filter(notification => notification.id !== id));
+
+    // 从 Supabase 删除
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        console.error('Failed to delete notification from Supabase:', error);
+      }
+    } catch (error) {
+      console.error('Error deleting notification:', error);
+    }
   }, []);
 
   // 恢复通知

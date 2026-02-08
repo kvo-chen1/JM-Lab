@@ -2,6 +2,52 @@ import { supabase } from '../lib/supabase';
 import type { PostWithAuthor, UserProfile, CommentWithAuthor } from '../lib/supabase';
 import { RealtimeChannel } from '@supabase/supabase-js';
 
+// 辅助函数：获取社区真实成员数
+async function getCommunityMemberCount(communityId: string): Promise<number> {
+  try {
+    const { count, error } = await supabase
+      .from('community_members')
+      .select('*', { count: 'exact', head: true })
+      .eq('community_id', communityId);
+    
+    if (error) {
+      console.error('Error getting member count:', error);
+      return 0;
+    }
+    
+    return count || 0;
+  } catch (error) {
+    console.error('Error in getCommunityMemberCount:', error);
+    return 0;
+  }
+}
+
+// 辅助函数：批量获取社区成员数
+async function getCommunityMemberCounts(communityIds: string[]): Promise<Record<string, number>> {
+  try {
+    const { data, error } = await supabase
+      .from('community_members')
+      .select('community_id')
+      .in('community_id', communityIds);
+    
+    if (error) {
+      console.error('Error getting member counts:', error);
+      return {};
+    }
+    
+    // 统计每个社区的成员数
+    const counts: Record<string, number> = {};
+    data?.forEach((member: any) => {
+      counts[member.community_id] = (counts[member.community_id] || 0) + 1;
+    });
+    
+    return counts;
+  } catch (error) {
+    console.error('Error in getCommunityMemberCounts:', error);
+    return {};
+  }
+}
+
 // 社区类型定义
 export interface Community {
   id: string;
@@ -117,14 +163,18 @@ export const communityService = {
       .from('communities')
       .select('*')
       .order('created_at', { ascending: false });
-    
+
     if (error) throw error;
-    
+
+    // 获取所有社区的真实成员数
+    const communityIds = data.map(c => c.id);
+    const memberCounts = await getCommunityMemberCounts(communityIds);
+
     return data.map(community => ({
       id: community.id,
       name: community.name,
       description: community.description,
-      memberCount: community.members_count || 0,
+      memberCount: memberCounts[community.id] || 0,
       topic: community.tags?.join(',') || '',
       avatar: community.avatar || 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=community%20avatar%20placeholder&image_size=square',
       cover: community.cover,
@@ -885,11 +935,13 @@ export const communityService = {
         const result = await response.json();
         if (result.code === 0 && result.data) {
           const community = result.data;
+          // 获取真实成员数
+          const realMemberCount = await getCommunityMemberCount(communityId);
           return {
             id: community.id,
             name: community.name,
             description: community.description,
-            memberCount: community.member_count || 0,
+            memberCount: realMemberCount,
             topic: community.tags?.join(',') || '',
             avatar: community.avatar || 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=community%20avatar%20placeholder&image_size=square',
             cover: community.cover,
@@ -926,14 +978,17 @@ export const communityService = {
       .select('*')
       .eq('id', communityId)
       .single();
-    
+
     if (error) throw error;
-    
+
+    // 获取真实成员数
+    const realMemberCount = await getCommunityMemberCount(communityId);
+
     return {
       id: community.id,
       name: community.name,
       description: community.description,
-      memberCount: community.member_count || 0,
+      memberCount: realMemberCount,
       topic: community.tags?.join(',') || '',
       avatar: community.avatar || 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=community%20avatar%20placeholder&image_size=square',
       cover: community.cover,
@@ -1250,7 +1305,17 @@ export const communityService = {
               authorAvatar: post.author_avatar || '',
               type: post.type || 'post',
               authorId: post.author_id,
-              comments: [],
+              comments: (post.comments || []).map((c: any) => ({
+                id: c.id,
+                content: c.content,
+                user: c.user || c.author || '用户',
+                author: c.author || c.user || '用户',
+                authorAvatar: c.authorAvatar || c.userAvatar || '',
+                userAvatar: c.userAvatar || c.authorAvatar || '',
+                userId: c.userId,
+                date: c.date,
+                likes: c.likes || 0
+              })),
               commentCount: post.comments_count || 0
             }));
           }

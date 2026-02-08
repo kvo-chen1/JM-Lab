@@ -855,16 +855,25 @@ const fileToBase64 = (file: File): Promise<string> => {
 };
 
 // 图片上传功能扩展
+// 设置：是否优先使用后端 API 上传（避免 Supabase Storage RLS 问题）
+// 如果 Supabase Storage 已配置好 RLS 策略，可以设置为 false
+const PREFER_BACKEND_UPLOAD = false;
+
 export const uploadImage = async (file: File): Promise<string> => {
   try {
+    // 如果设置了优先使用后端上传，直接跳过 Supabase
+    if (PREFER_BACKEND_UPLOAD) {
+      console.log('[uploadImage] Using backend API upload (PREFER_BACKEND_UPLOAD=true)');
+      return await uploadToBackend(file);
+    }
+    
     // 动态导入 supabase 避免循环依赖
     const { supabase, isSupabaseConfigured } = await import('@/lib/supabase');
     
     // 检查 supabase 是否配置正确
     if (!isSupabaseConfigured() || !supabase || !supabase.storage) {
-      console.warn('Supabase not configured, using local blob URL fallback');
-      // 使用本地 Blob URL 作为备用方案（比 base64 更可靠）
-      return URL.createObjectURL(file);
+      console.warn('Supabase not configured, using backend API upload');
+      return await uploadToBackend(file);
     }
     
     // 生成唯一文件名
@@ -882,15 +891,16 @@ export const uploadImage = async (file: File): Promise<string> => {
         });
 
       if (uploadError) {
-        console.error('Supabase upload error:', uploadError);
-        // 如果存储桶不存在、RLS 策略错误或上传失败，转换为 Base64
+        // 如果存储桶不存在、RLS 策略错误或上传失败，使用后端 API 上传
         if (uploadError.message?.includes('bucket') || 
             uploadError.message?.includes('not found') ||
             uploadError.message?.includes('row-level security') ||
             uploadError.message?.includes('violates row-level security')) {
-          console.warn('Storage upload failed, converting to base64 fallback');
-          return await fileToBase64(file);
+          console.warn('Supabase storage not available (RLS policy or bucket issue), using backend API upload');
+          // 使用后端 API 上传文件
+          return await uploadToBackend(file);
         }
+        console.error('Supabase upload error:', uploadError);
         throw uploadError;
       }
 
@@ -905,17 +915,61 @@ export const uploadImage = async (file: File): Promise<string> => {
 
       return data.publicUrl;
     } catch (storageError: any) {
-      console.error('Supabase storage error:', storageError);
-      // 存储错误时转换为 Base64 作为备用方案
-      console.warn('Using base64 fallback due to storage error');
-      return await fileToBase64(file);
+      // 存储错误时使用后端 API 上传
+      console.warn('Supabase storage error, using backend API upload:', storageError.message || storageError);
+      return await uploadToBackend(file);
     }
-  } catch (error) {
-    console.error('Image upload failed:', error);
-    // 任何错误都转换为 Base64 作为最终备用方案
-    console.warn('Using base64 fallback due to upload error');
-    return await fileToBase64(file);
+  } catch (error: any) {
+    // 任何错误都尝试后端 API 上传
+    console.warn('Image upload failed, trying backend API upload:', error.message || error);
+    return await uploadToBackend(file);
   }
 };
+
+// 后端 API 上传函数
+async function uploadToBackend(file: File): Promise<string> {
+  try {
+    console.log('[uploadToBackend] Uploading file:', file.name, 'type:', file.type);
+    
+    // 将文件转换为 base64
+    const base64Data = await fileToBase64(file);
+    
+    // 获取 token
+    const token = localStorage.getItem('token');
+    if (!token) {
+      throw new Error('No authentication token');
+    }
+    
+    // 调用后端 API 上传
+    const response = await fetch('/api/upload', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        fileData: base64Data,
+        fileName: file.name,
+        fileType: file.type
+      })
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Upload failed');
+    }
+    
+    const result = await response.json();
+    console.log('[uploadToBackend] Upload successful:', result.data.url);
+    
+    // 返回完整的 URL
+    return `${window.location.origin}${result.data.url}`;
+  } catch (error) {
+    console.error('[uploadToBackend] Upload failed:', error);
+    // 如果后端上传也失败，使用 Blob URL 作为最终备用方案
+    console.warn('Backend upload failed, using blob URL as final fallback');
+    return URL.createObjectURL(file);
+  }
+}
 
 export default imageService;

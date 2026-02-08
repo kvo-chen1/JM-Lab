@@ -8,6 +8,7 @@ import { toast } from 'sonner'
 
 import { AuthContext } from '@/contexts/authContext'
 import { useContext } from 'react'
+import { useNotifications } from '@/contexts/NotificationContext'
 
 import PostDetailModal from '@/components/PostDetailModal'
 import { CreatePostModal } from '@/components/Community/Modals/CreatePostModal'
@@ -25,6 +26,7 @@ export default function Square() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const { user } = useContext(AuthContext)
+  const { addNotification } = useNotifications()
   const [posts, setPosts] = useState<Post[]>([])
   
   // 搜索功能状态
@@ -209,6 +211,16 @@ export default function Square() {
         const current = await postsApi.getPosts()
         
         if (Array.isArray(current)) {
+          // 调试：检查视频帖子数据
+          const videoPosts = current.filter(p => p.category === 'video' || p.type === 'video');
+          console.log('Video posts loaded:', videoPosts.map(p => ({ 
+            id: p.id, 
+            title: p.title, 
+            videoUrl: p.videoUrl, 
+            thumbnail: p.thumbnail?.substring(0, 50),
+            category: p.category,
+            type: p.type
+          })));
           setPosts(current)
         } else {
           setPosts([])
@@ -242,7 +254,20 @@ export default function Square() {
       }
       
       if (found) {
+        console.log('Opening post detail:', { 
+          id: found.id, 
+          title: found.title, 
+          videoUrl: found.videoUrl,
+          thumbnail: found.thumbnail?.substring(0, 50),
+          category: found.category,
+          type: found.type
+        });
         setActive(found)
+        
+        // 记录浏览量（异步执行，不阻塞UI）
+        postsApi.recordView(id, 'works').catch(err => {
+          console.warn('Failed to record view:', err)
+        })
       } else {
         setActiveError('未找到该资讯内容')
       }
@@ -433,11 +458,27 @@ export default function Square() {
         setActive(prev => prev ? { ...prev, likes: prev.likes + 1, isLiked: true } : null)
       }
       toast.success('点赞成功')
+
+      // 创建通知给作品作者
+      const likedPost = current.find(p => p.id === id)
+      if (likedPost && likedPost.authorId && likedPost.authorId !== user.id) {
+        addNotification({
+          type: 'post_liked',
+          title: '有人赞了你的作品',
+          content: `${user.username || '有人'}赞了你的作品"${likedPost.title || '无标题'}"`,
+          senderId: user.id,
+          senderName: user.username || '匿名用户',
+          recipientId: likedPost.authorId,
+          postId: id,
+          priority: 'low',
+          link: `/square?id=${id}`
+        })
+      }
     } catch (error) {
       console.error('点赞失败:', error)
       toast.error('点赞失败，请稍后重试')
     }
-  }, [active, user, navigate])
+  }, [active, user, navigate, addNotification])
   
   // 优化：使用useCallback稳定addComment函数
   const addComment = useCallback(async (id: string, content: string) => {
@@ -469,7 +510,11 @@ export default function Square() {
         },
         replies: [],
         userReactions: [],
-        author: user?.username || '匿名用户'
+        user: user?.username || '匿名用户',
+        author: user?.username || '匿名用户',
+        authorAvatar: user?.avatar,
+        userAvatar: user?.avatar,
+        userId: user?.id
       }
       
       // 创建更新后的帖子对象
@@ -487,18 +532,34 @@ export default function Square() {
     try {
       const updatedPost = await postsApi.addComment(id, content, undefined, user)
       console.log('Updated post from API:', updatedPost)
-      
+
       // 3. 最后更新本地状态，确保数据同步
       if (updatedPost) {
         const current = await postsApi.getPosts()
         console.log('Current posts after API call:', current)
         setPosts(current)
+
+        // 创建通知给作品作者
+        const commentedPost = current.find(p => p.id === id)
+        if (commentedPost && commentedPost.authorId && commentedPost.authorId !== user.id) {
+          addNotification({
+            type: 'post_commented',
+            title: '有人评论了你的作品',
+            content: `${user.username || '有人'}评论了你的作品"${commentedPost.title || '无标题'}"`,
+            senderId: user.id,
+            senderName: user.username || '匿名用户',
+            recipientId: commentedPost.authorId,
+            postId: id,
+            priority: 'medium',
+            link: `/square?id=${id}`
+          })
+        }
       }
     } catch (error: any) {
       console.error('Failed to add comment:', error)
       toast.error(error.message || '评论失败，请重试')
     }
-  }, [active, user, navigate])
+  }, [active, user, navigate, addNotification])
   
   // 优化：使用useCallback稳定share函数
   const sharePost = useCallback((id: string) => {
@@ -663,10 +724,18 @@ export default function Square() {
   
   const handleCreatePost = async (data: any) => {
     try {
+      // 根据内容类型获取媒体URL
+      let mediaUrl: string | undefined;
+      if (data.contentType === 'video' && data.videos?.[0]) {
+        mediaUrl = data.videos[0];
+      } else if (data.contentType === 'image' && data.images?.[0]) {
+        mediaUrl = data.images[0];
+      }
+      
       const newPost: Partial<Post> = {
         title: data.title,
         description: data.content,
-        thumbnail: data.images?.[0] || 'https://images.unsplash.com/photo-1558655146-d09347e0c766?q=80&w=2560&auto=format&fit=crop', // 默认图
+        thumbnail: mediaUrl || 'https://images.unsplash.com/photo-1558655146-d09347e0c766?q=80&w=2560&auto=format&fit=crop', // 默认图
         category: data.contentType === 'video' ? 'video' : 'design',
         tags: [data.topic],
         date: new Date().toISOString().split('T')[0],
@@ -674,11 +743,9 @@ export default function Square() {
         views: 0,
         comments: [],
         shares: 0,
-        // author: user?.name || '当前用户', // 不再使用字符串
-        // authorAvatar: user?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${Date.now()}`, // 不再使用单独字段
         isLiked: false,
         isBookmarked: false,
-        videoUrl: data.contentType === 'video' && data.images?.[0] ? data.images[0] : undefined
+        videoUrl: data.contentType === 'video' && data.videos?.[0] ? data.videos[0] : undefined
       }
 
       // 传入当前用户对象

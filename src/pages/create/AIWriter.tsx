@@ -717,17 +717,28 @@ export default function AIWriter() {
 
   // Load drafts when modal opens or filter changes
   useEffect(() => {
-    if (showDraftsModal) {
-      if (draftFilter === 'favorites') {
-        setDraftsList(draftService.getFavoriteDrafts());
-      } else {
-        setDraftsList(draftService.getAllDrafts());
+    const loadDrafts = async () => {
+      if (showDraftsModal) {
+        try {
+          if (draftFilter === 'favorites') {
+            const favoriteDrafts = await draftService.getFavoriteDrafts();
+            setDraftsList(favoriteDrafts);
+          } else {
+            const allDrafts = await draftService.getAllDrafts();
+            setDraftsList(allDrafts);
+          }
+        } catch (error) {
+          console.error('Failed to load drafts:', error);
+          setDraftsList([]);
+        }
       }
-    }
+    };
+    
+    loadDrafts();
   }, [showDraftsModal, draftFilter]);
 
   // Helper to save draft to persistent storage
-  const saveDraft = (summary?: string, specificContent?: string) => {
+  const saveDraft = async (summary?: string, specificContent?: string) => {
     const textToSave = specificContent || content;
     if (!textToSave) return;
 
@@ -741,26 +752,31 @@ export default function AIWriter() {
     // Use project name as title if available, otherwise template name
     const title = inputs['项目名称'] || currentTemplate.name;
 
-    draftService.saveDraft({
-      id: draftId,
-      title: title,
-      templateId: selectedTemplateId,
-      templateName: currentTemplate.name,
-      content: textToSave,
-      summary: summary,
-      category: selectedCategory,
-      tags: selectedTags
-    });
+    try {
+      await draftService.saveDraft({
+        id: draftId,
+        title: title,
+        templateId: selectedTemplateId,
+        templateName: currentTemplate.name,
+        content: textToSave,
+        summary: summary,
+        category: selectedCategory,
+        tags: selectedTags
+      });
+      setLastSaved(new Date());
+    } catch (error) {
+      console.error('Failed to save draft:', error);
+      toast.error('保存失败，请重试');
+    }
   };
 
   // 优化自动保存功能，使用防抖
   useEffect(() => {
     if (content && currentStep === 'editor' && !isGenerating) {
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
-      autoSaveTimerRef.current = setTimeout(() => {
-        saveDraft('自动保存');
-        setLastSaved(new Date());
-      }, 30000);
+      autoSaveTimerRef.current = setTimeout(async () => {
+        await saveDraft('自动保存');
+      }, 30000); // 30秒自动保存
     }
     return () => {
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
@@ -996,7 +1012,15 @@ export default function AIWriter() {
       
       const cleanContent = accumulatedContent.replace(/```html/g, '').replace(/```/g, '');
       
+      // 确保内容设置成功
       setContent(cleanContent);
+      
+      // 如果没有生成任何内容，设置一个默认的提示信息
+      if (!cleanContent) {
+        setContent('<p>AI生成失败，请检查网络连接后重试，或尝试调整生成参数。</p>');
+      }
+      // 由于RichTextEditor组件已经通过editorRef强制更新编辑器内容
+      // 这里不再需要setTimeout，避免引入不必要的延迟
       
       // Save initial draft with the generated ID
       const title = inputs['项目名称'] || currentTemplate.name;
@@ -1020,7 +1044,13 @@ export default function AIWriter() {
       toast.success('生成完成！您可以直接编辑内容或通过右侧助手进行修改。');
     } catch (error) {
       console.error('Generation failed:', error);
-      toast.error('生成失败，请重试');
+      // 提供更详细的错误信息
+      const errorMessage = error instanceof Error ? error.message : '未知错误';
+      toast.error(`生成失败，请重试。错误：${errorMessage}`);
+      // 确保即使出错也能回到编辑器视图
+      setCurrentStep('editor');
+      // 提供错误状态的内容，避免编辑器空白
+      setContent(`<p>生成过程中出现错误：${errorMessage}</p><p>请检查网络连接后重试，或尝试调整生成参数。</p>`);
     } finally {
       setIsGenerating(false);
     }
@@ -1166,29 +1196,43 @@ IMPORTANT GUIDELINES:
     toast.success('草稿已加载');
   };
 
-  const deleteDraft = (e: React.MouseEvent, id: string) => {
+  const deleteDraft = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     if (window.confirm('确定要删除这条历史记录吗？')) {
-      draftService.deleteDraft(id);
-      if (draftFilter === 'favorites') {
-        setDraftsList(draftService.getFavoriteDrafts());
-      } else {
-        setDraftsList(draftService.getAllDrafts());
+      try {
+        await draftService.deleteDraft(id);
+        if (draftFilter === 'favorites') {
+          const favoriteDrafts = await draftService.getFavoriteDrafts();
+          setDraftsList(favoriteDrafts);
+        } else {
+          const allDrafts = await draftService.getAllDrafts();
+          setDraftsList(allDrafts);
+        }
+        toast.success('记录已删除');
+      } catch (error) {
+        console.error('Failed to delete draft:', error);
+        toast.error('删除草稿失败');
       }
-      toast.success('记录已删除');
     }
   };
 
-  const toggleFavoriteDraft = (e: React.MouseEvent, id: string) => {
+  const toggleFavoriteDraft = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    const updatedDraft = draftService.toggleFavorite(id);
-    if (updatedDraft) {
-      if (draftFilter === 'favorites') {
-        setDraftsList(draftService.getFavoriteDrafts());
-      } else {
-        setDraftsList(draftService.getAllDrafts());
+    try {
+      const updatedDraft = await draftService.toggleFavorite(id);
+      if (updatedDraft) {
+        if (draftFilter === 'favorites') {
+          const favoriteDrafts = await draftService.getFavoriteDrafts();
+          setDraftsList(favoriteDrafts);
+        } else {
+          const allDrafts = await draftService.getAllDrafts();
+          setDraftsList(allDrafts);
+        }
+        toast.success(updatedDraft.isFavorite ? '已添加到收藏' : '已取消收藏');
       }
-      toast.success(updatedDraft.isFavorite ? '已添加到收藏' : '已取消收藏');
+    } catch (error) {
+      console.error('Failed to toggle favorite:', error);
+      toast.error('操作失败');
     }
   };
 
@@ -2185,30 +2229,23 @@ ${content}
               {/* ID added for print styling targeting */}
               <div id="editor-content-area" className="flex-1 overflow-hidden relative" ref={editorContainerRef} style={{ width: '100%' }}>
                 {/* Streaming Preview or Rich Text Editor */}
-                {isGenerating && streamingContent ? (
-                  <div className={`h-full overflow-y-auto p-8 ${isDark ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'}`} style={{ width: '100%' }}>
-                     <div className="flex items-center gap-2 mb-4 text-blue-500 font-medium">
-                       <i className="fas fa-spinner fa-spin"></i>
-                       <span>AI 正在撰写中...</span>
-                     </div>
-                     <div 
-                        className="html-preview"
-                        dangerouslySetInnerHTML={{ __html: streamingContent }} 
-                        style={{ width: '100%' }}
-                     />
-                     <span className="inline-block w-2 h-5 bg-blue-500 ml-1 animate-pulse align-middle"></span>
-                  </div>
-                ) : (
-                  <div className={`h-full ${isDark ? 'tinymce-dark' : ''}`} style={{ width: '100%' }}>
-                    <RichTextEditor
-                      content={content}
-                      onChange={setContent}
-                      placeholder="AI生成的内容将显示在这里..."
-                      disabled={false}
-                      height="100%"
-                    />
-                  </div>
-                )}
+                {/* 无论什么状态都显示编辑器，确保用户始终能看到编辑界面 */}
+                <div className={`h-full ${isDark ? 'tinymce-dark' : ''}`} style={{ width: '100%' }}>
+                  <RichTextEditor
+                    content={content}
+                    onChange={setContent}
+                    placeholder="AI生成的内容将显示在这里..."
+                    disabled={false}
+                    height="100%"
+                  />
+                  {/* 生成中提示 */}
+                  {isGenerating && (
+                    <div className="absolute top-4 left-4 bg-blue-500 text-white px-3 py-1 rounded-full text-sm flex items-center gap-2">
+                      <i className="fas fa-spinner fa-spin"></i>
+                      <span>AI 正在撰写中...</span>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Stats Bar */}

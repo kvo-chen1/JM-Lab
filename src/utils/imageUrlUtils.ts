@@ -131,7 +131,9 @@ export function processImageUrl(url: string, options: ImageProcessingOptions = {
       'pixabay.com',
       'cdn.pixabay.com',
       'i.imgur.com',
-      'imgur.com'
+      'imgur.com',
+      'via.placeholder.com',
+      'placehold.co'
     ];
     
     for (const service of knownImageServices) {

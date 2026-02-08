@@ -50,16 +50,13 @@ export const useAnalyticsStore = create<AnalyticsState>()(
       fetchData: async (params) => {
         set({ isLoading: true, error: null });
         try {
-          // 模拟从后端获取数据，实际项目中应调用 Supabase 或 API
-          // Simulate fetching data from backend
-          // const { data, error } = await supabase.from('analytics').select('*');
-          
-          // 暂时使用 service 中的逻辑获取 mock 数据
-          const data = analyticsService.getMetricsData(params);
+          // 从后端获取真实数据
+          const data = await analyticsService.getMetricsData(params);
           const stats = analyticsService.getMetricsStats(data);
           
           set({ dataPoints: data, stats, isLoading: false, lastSyncTime: Date.now() });
         } catch (err: any) {
+          console.error('Fetch analytics data failed:', err);
           set({ error: err.message, isLoading: false });
         }
       },

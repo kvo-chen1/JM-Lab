@@ -175,14 +175,19 @@ const LazyImage: React.FC<LazyImageProps> = React.memo(({
   
   // 计算实际显示的图片URL，如果加载失败则使用fallback
   const displaySrc = useMemo(() => {
-    // 如果已经重试过两次，使用默认的SVG占位符
-    if (retryCount >= 2) {
-      return defaultFallbackSrc;
+    // 如果已经出错且传入了fallbackSrc，直接使用fallbackSrc
+    if (isError && fallbackSrc) {
+      return fallbackSrc;
     }
     
-    // 如果已经重试过一次，使用备用图片URL
+    // 如果已经重试过两次，优先使用传入的fallbackSrc，否则使用默认的SVG占位符
+    if (retryCount >= 2) {
+      return fallbackSrc || defaultFallbackSrc;
+    }
+    
+    // 如果已经重试过一次，优先使用传入的fallbackSrc，否则使用备用图片URL
     if (retryCount >= 1) {
-      return getFallbackImageUrl(alt);
+      return fallbackSrc || getFallbackImageUrl(alt);
     }
     
     // 确保currentSrc有效
@@ -266,8 +271,15 @@ const LazyImage: React.FC<LazyImageProps> = React.memo(({
       // 增加重试计数
       setRetryCount(prev => prev + 1);
       
-      // 设置为已加载，确保fallback图片能够显示
-      setIsLoaded(true);
+      // 如果传入了fallbackSrc，直接显示错误状态（使用fallback图片）
+      // 如果没有fallbackSrc，继续重试
+      if (fallbackSrc) {
+        setIsError(true);
+        setIsLoaded(true);
+      } else {
+        // 设置为已加载，确保fallback图片能够显示
+        setIsLoaded(true);
+      }
     }
     
     // 阻止事件冒泡，避免影响父组件
@@ -351,7 +363,8 @@ const LazyImage: React.FC<LazyImageProps> = React.memo(({
     // 如果 ratio 是 auto，使用 h-auto 让图片自然撑开高度，否则使用 h-full 填充容器
     const heightClass = ratio === 'auto' ? 'h-auto' : 'h-full';
     // 添加 block 类以消除 img 标签底部的默认间隙
-    const baseClasses = `block w-full ${heightClass} object-${fit} ${positionClass} ${!disableFallback ? getLoadingAnimationClasses() : ''}`;
+    // 在 bare 模式下，将传入的 className 也包含进来
+    const baseClasses = `block w-full ${heightClass} object-${fit} ${positionClass} ${className} ${!disableFallback ? getLoadingAnimationClasses() : ''}`;
     
     // 当disableFallback为true时，始终显示图片，不使用动画效果
     if (disableFallback) {
@@ -485,16 +498,26 @@ const LazyImage: React.FC<LazyImageProps> = React.memo(({
           </div>
         )}
         
-        {/* 简化的加载失败状态 - 减少DOM节点和渲染开销 */}
+        {/* 加载失败状态 - 显示fallback图片或错误提示 */}
         {isError && !disableFallback && (
-          <div className="absolute inset-0 z-20 w-full h-full flex items-center justify-center bg-gray-100 dark:bg-gray-800">
-            <div className="text-center p-4">
-              <svg className="w-10 h-10 mx-auto text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
-              </svg>
-              <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">图片加载失败</p>
+          fallbackSrc ? (
+            // 如果有fallbackSrc，显示fallback图片
+            <img
+              src={fallbackSrc}
+              alt={alt}
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+          ) : (
+            // 没有fallbackSrc，显示错误提示
+            <div className="absolute inset-0 z-20 w-full h-full flex items-center justify-center bg-gray-100 dark:bg-gray-800">
+              <div className="text-center p-4">
+                <svg className="w-10 h-10 mx-auto text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+                </svg>
+                <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">图片加载失败</p>
+              </div>
             </div>
-          </div>
+          )
         )}
       </div>
     </div>

@@ -82,7 +82,7 @@ export interface Post extends BaseEntity {
   isPublic: boolean;
   isPinned?: boolean;
   isFeatured?: boolean;
-  type: 'article' | 'discussion' | 'question' | 'announcement';
+  type: 'article' | 'discussion' | 'question' | 'announcement' | 'video' | 'image';
 }
 
 // 分类相关类型

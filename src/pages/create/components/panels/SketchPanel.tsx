@@ -294,7 +294,12 @@ export default function SketchPanel() {
       
       clearInterval(progressInterval);
       
+      console.log('[TextToVideo] Result:', result);
+      console.log('[TextToVideo] Result data:', result.data);
+      
       const videoUrl = result.data?.video_url || result.data?.url;
+      
+      console.log('[TextToVideo] Video URL:', videoUrl);
       
       if (!result.ok || !videoUrl) {
         console.error('[TextToVideo] Generation failed:', result);
@@ -304,13 +309,23 @@ export default function SketchPanel() {
         setVideoGenerationStatus('');
       } else {
         setVideoGenerationProgress(100);
-        setVideoGenerationStatus('视频生成完成！');
+        setVideoGenerationStatus('视频生成完成！正在保存视频...');
         
-        // 使用视频URL作为缩略图（视频播放器会显示第一帧）
-        // 或者使用一个可靠的占位图服务
-        const videoThumbnail = videoUrl ? 
-          `${videoUrl}#t=0.1` : // 尝试获取视频的第一帧
-          'https://via.placeholder.com/600x400/3b82f6/ffffff?text=Video'; // 备用占位图
+        // 下载视频并上传到永久存储
+        let permanentVideoUrl = videoUrl;
+        try {
+          const { downloadAndUploadVideo } = await import('@/services/imageService');
+          permanentVideoUrl = await downloadAndUploadVideo(videoUrl);
+          console.log('[TextToVideo] Video uploaded to permanent storage:', permanentVideoUrl);
+          toast.success('视频已保存到永久存储');
+        } catch (uploadError: any) {
+          console.error('[TextToVideo] Failed to upload video to permanent storage:', uploadError);
+          toast.warning('视频已生成但保存到永久存储失败，请稍后重试');
+          // 继续使用原始URL，让用户可以重试
+        }
+        
+        // 使用视频占位图作为缩略图 - 使用可靠的图片服务
+        const videoThumbnail = `https://picsum.photos/seed/video-${Date.now()}/800/600`;
         
         const results = [
           { 
@@ -319,7 +334,7 @@ export default function SketchPanel() {
             url: videoThumbnail, // 添加url字段用于发布
             score: 90, 
             type: 'video',
-            video: videoUrl
+            video: permanentVideoUrl
           },
         ];
         setGeneratedResults(results);
@@ -402,11 +417,24 @@ export default function SketchPanel() {
         setVideoGenerationStatus('');
       } else {
         setVideoGenerationProgress(100);
-        setVideoGenerationStatus('视频生成完成！');
+        setVideoGenerationStatus('视频生成完成！正在保存视频...');
         
-        // 使用上传的图片作为缩略图，如果没有则使用视频第一帧或占位图
-        const videoThumbnail = uploadedImage || 
-          (videoUrl ? `${videoUrl}#t=0.1` : 'https://via.placeholder.com/600x400/3b82f6/ffffff?text=Video');
+        // 下载视频并上传到永久存储
+        let permanentVideoUrl = videoUrl;
+        try {
+          const { downloadAndUploadVideo } = await import('@/services/imageService');
+          permanentVideoUrl = await downloadAndUploadVideo(videoUrl);
+          console.log('[ImageToVideo] Video uploaded to permanent storage:', permanentVideoUrl);
+          toast.success('视频已保存到永久存储');
+        } catch (uploadError: any) {
+          console.error('[ImageToVideo] Failed to upload video to permanent storage:', uploadError);
+          toast.warning('视频已生成但保存到永久存储失败，请稍后重试');
+        }
+        
+        // 使用上传的图片作为缩略图，如果没有则使用视频占位图 - 使用可靠的图片服务
+        const videoThumbnail = uploadedImage && !uploadedImage.startsWith('data:') ? 
+          uploadedImage : 
+          `https://picsum.photos/seed/video-${Date.now()}/800/600`;
         
         const results = [
           { 
@@ -415,7 +443,7 @@ export default function SketchPanel() {
             url: videoThumbnail, // 添加url字段用于发布
             score: 88, 
             type: 'video',
-            video: videoUrl
+            video: permanentVideoUrl
           },
         ];
         setGeneratedResults(results);

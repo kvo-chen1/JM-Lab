@@ -631,10 +631,10 @@ export async function createWork(workData: any, imageFile: File, userId?: string
   const isVideo = imageFile.type.startsWith('video/');
   
   // 2. Insert into DB
-  // 对于视频，使用通用的视频占位图作为缩略图
+  // 对于视频，使用通用的视频占位图作为缩略图 - 使用可靠的图片服务
   // 因为视频文件不能直接作为图片预览
   const thumbnailUrl = isVideo ? 
-    'https://via.placeholder.com/800x600/3b82f6/ffffff?text=Video' : 
+    `https://picsum.photos/seed/video-${Date.now()}/800/600` : 
     fileUrl;
   
   const result = await addPost({
@@ -652,9 +652,9 @@ export async function createWork(workData: any, imageFile: File, userId?: string
 }
 
 export async function createWorkWithUrl(workData: any, imageUrl: string, userId?: string, isVideo: boolean = false): Promise<any> {
-  // 对于视频，使用通用的视频占位图作为缩略图
+  // 对于视频，使用通用的视频占位图作为缩略图 - 使用可靠的图片服务
   const thumbnailUrl = isVideo ? 
-    'https://via.placeholder.com/800x600/3b82f6/ffffff?text=Video' : 
+    `https://picsum.photos/seed/video-${Date.now()}/800/600` : 
     imageUrl;
   
   return await addPost({
@@ -762,30 +762,89 @@ async function hasValidAuth(): Promise<{ isAuthenticated: boolean; userId?: stri
   }
 }
 
+// 下载外部图片并上传到 Supabase Storage
+async function downloadAndUploadImage(imageUrl: string, userId: string): Promise<string | null> {
+  try {
+    // 如果已经是 Supabase 的链接，直接返回
+    if (imageUrl.includes('supabase.co') || imageUrl.includes('localhost')) {
+      return imageUrl;
+    }
+
+    console.log('[downloadAndUploadImage] Downloading image:', imageUrl.substring(0, 50));
+
+    // 下载图片
+    const response = await fetch(imageUrl);
+    if (!response.ok) {
+      console.error('[downloadAndUploadImage] Failed to download:', response.status);
+      return null;
+    }
+
+    const blob = await response.blob();
+    const fileName = `works/${userId}/${Date.now()}-${Math.random().toString(36).substring(7)}.png`;
+
+    // 上传到 Supabase Storage
+    const { data, error } = await supabase.storage
+      .from('images')
+      .upload(fileName, blob, {
+        contentType: blob.type || 'image/png',
+        upsert: false
+      });
+
+    if (error) {
+      console.error('[downloadAndUploadImage] Upload error:', error);
+      return null;
+    }
+
+    // 获取公共 URL
+    const { data: { publicUrl } } = supabase.storage
+      .from('images')
+      .getPublicUrl(data.path);
+
+    console.log('[downloadAndUploadImage] Uploaded successfully:', publicUrl);
+    return publicUrl;
+  } catch (error) {
+    console.error('[downloadAndUploadImage] Error:', error);
+    return null;
+  }
+}
+
 // 使用后端API创建作品
 async function createWorkViaBackend(p: Partial<Post>, currentUser: User): Promise<Post | undefined> {
   console.log('[createWorkViaBackend] Called with:', { title: p.title, category: p.category, userId: currentUser.id });
-  
+
   const token = localStorage.getItem('token')
   if (!token) {
     throw new Error('请先登录后再发布作品')
   }
-  
+
   try {
     // 判断是否为视频 - 优先使用 p.type 字段或 videoUrl
     const isVideo = p.type === 'video' || p.videoUrl;
     console.log('[createWorkViaBackend] isVideo:', isVideo, 'p.type:', p.type, 'p.videoUrl:', p.videoUrl);
-    
+
+    // 处理缩略图：如果是外部链接，下载并上传到 Supabase Storage
+    let thumbnail = p.thumbnail;
+    if (thumbnail && (thumbnail.includes('aliyuncs.com') || thumbnail.includes('dashscope'))) {
+      console.log('[createWorkViaBackend] Processing external thumbnail...');
+      const uploadedUrl = await downloadAndUploadImage(thumbnail, currentUser.id);
+      if (uploadedUrl) {
+        thumbnail = uploadedUrl;
+        console.log('[createWorkViaBackend] Thumbnail uploaded to:', uploadedUrl);
+      } else {
+        console.warn('[createWorkViaBackend] Failed to upload thumbnail, using original URL');
+      }
+    }
+
     const workData: any = {
       title: p.title,
       description: p.description,
       category: isVideo ? 'video' : p.category,
       tags: p.tags || [],
-      thumbnail: p.thumbnail,
-      cover_url: p.thumbnail,
+      thumbnail: thumbnail,
+      cover_url: thumbnail,
       creator_id: currentUser.id,
       user_id: currentUser.id,
-      media: p.thumbnail ? [p.thumbnail] : [],
+      media: thumbnail ? [thumbnail] : [],
       type: isVideo ? 'video' : 'image',
       created_at: new Date().toISOString(),
       status: 'published',
@@ -798,7 +857,7 @@ async function createWorkViaBackend(p: Partial<Post>, currentUser: User): Promis
       workData.video_url = p.videoUrl;
     }
     
-    console.log('[createWorkViaBackend] Sending workData:', { title: workData.title, type: workData.type, thumbnail: workData.thumbnail?.substring(0, 50) });
+    console.log('[createWorkViaBackend] Sending workData:', { title: workData.title, type: workData.type, video_url: workData.video_url, thumbnail: workData.thumbnail?.substring(0, 50) });
     
     const response = await fetch('/api/works', {
       method: 'POST',
@@ -834,9 +893,14 @@ async function createWorkViaBackend(p: Partial<Post>, currentUser: User): Promis
       // 同步失败不影响主流程
     }
     
+    // 使用后端返回的数据，确保 videoUrl 正确
+    const resultVideoUrl = work.videoUrl || work.video_url || p.videoUrl;
+    console.log('[createWorkViaBackend] Returning post with videoUrl:', resultVideoUrl?.substring(0, 50));
+    
     return {
       ...p,
       id: work.id?.toString() || Date.now().toString(),
+      videoUrl: resultVideoUrl,
       author: currentUser,
       date: new Date().toISOString().split('T')[0],
       likes: 0,
@@ -921,7 +985,13 @@ async function syncWorkToSupabase(work: any, currentUser: User): Promise<void> {
 
 
 export async function addPost(p: Partial<Post>, currentUser?: User): Promise<Post | undefined> {
-  console.log('[addPost] Called with:', { title: p.title, category: p.category, userId: currentUser?.id });
+  console.log('[addPost] Called with:', { 
+    title: p.title, 
+    category: p.category, 
+    videoUrl: p.videoUrl?.substring(0, 50),
+    type: p.type,
+    userId: currentUser?.id 
+  });
 
   try {
     // 优先使用后端API创建作品（保存到 works 表）

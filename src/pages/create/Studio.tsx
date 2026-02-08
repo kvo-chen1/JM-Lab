@@ -7,7 +7,7 @@ import { useCreateStore } from './hooks/useCreateStore';
 import AIReview from '@/components/AIReview';
 import ModelSelector from '@/components/ModelSelector';
 import InspirationPanel from '@/components/InspirationPanel';
-import CreateWorkForm from '@/components/CreateWorkForm';
+import PublishToSquareModal from '@/components/PublishToSquareModal';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useSearchParams } from 'react-router-dom';
 import { useAutoSave } from '@/hooks/useAutoSave';
@@ -138,20 +138,11 @@ export default function Studio() {
             onClose={() => updateState({ showModelSelector: false })} 
           />
         )}
-        {showPublishModal && selectedResult && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-             <div className="relative w-full max-w-2xl">
-                <CreateWorkForm 
-                  onClose={() => updateState({ showPublishModal: false })}
-                  onSuccess={() => {
-                    updateState({ showPublishModal: false });
-                  }}
-                  initialImage={generatedResults.find(r => r.id === selectedResult)?.thumbnail}
-                  initialTitle={`AI创作-${new Date().toLocaleDateString()}`}
-                  initialDescription={prompt}
-                />
-             </div>
-          </div>
+        {showPublishModal && (
+          <PublishToSquareModal 
+            isOpen={showPublishModal}
+            onClose={() => updateState({ showPublishModal: false })}
+          />
         )}
       </AnimatePresence>
     </div>

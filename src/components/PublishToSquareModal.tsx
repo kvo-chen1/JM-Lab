@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useCreateStore } from '@/pages/create/hooks/useCreateStore';
@@ -27,6 +27,30 @@ export default function PublishToSquareModal({ isOpen, onClose }: PublishToSquar
   
   const selectedImage = generatedResults.find(r => r.id === selectedResult);
   const thumbnail = selectedImage?.thumbnail;
+  const aiVideoUrl = selectedImage?.video;
+  const aiContentType = selectedImage?.type || 'image';
+
+  // 自动检测内容类型并设置视频URL
+  useEffect(() => {
+    if (isOpen && selectedImage) {
+      console.log('[PublishModal] Selected image:', {
+        type: selectedImage.type,
+        hasVideo: !!selectedImage.video,
+        videoUrl: selectedImage.video?.substring(0, 50),
+        thumbnail: selectedImage.thumbnail?.substring(0, 50)
+      });
+      
+      // 如果AI生成的是视频，自动设置为视频类型并填充视频URL
+      if (selectedImage.type === 'video' && selectedImage.video) {
+        setContentType('video');
+        setVideoUrl(selectedImage.video);
+        console.log('[PublishModal] Auto-set video type and URL from AI generation');
+      } else {
+        setContentType('image');
+        setVideoUrl('');
+      }
+    }
+  }, [isOpen, selectedImage]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,10 +78,24 @@ export default function PublishToSquareModal({ isOpen, onClose }: PublishToSquar
     setIsSubmitting(true);
     
     try {
+      // 确定最终使用的视频URL
+      const finalVideoUrl = contentType === 'video' 
+        ? (videoUrl || aiVideoUrl || '') 
+        : '';
+      
+      console.log('[PublishModal] Submitting post:', {
+        contentType,
+        hasThumbnail: !!thumbnail,
+        hasVideoUrl: !!finalVideoUrl,
+        videoUrl: finalVideoUrl?.substring(0, 50)
+      });
+      
       // 创建作品
       const postData = {
         title: title.trim(),
-        thumbnail: contentType === 'image' ? thumbnail : videoUrl,
+        thumbnail: thumbnail || '',
+        videoUrl: finalVideoUrl,
+        type: contentType,
         category: contentType === 'image' ? 'design' : 'video' as any,
         tags: tags.split(',').map(tag => tag.trim()).filter(tag => tag),
         description: description.trim(),
@@ -181,15 +219,26 @@ export default function PublishToSquareModal({ isOpen, onClose }: PublishToSquar
                   <div className="mb-6">
                     <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                       视频链接
+                      {aiVideoUrl && (
+                        <span className={`ml-2 text-xs px-2 py-0.5 rounded-full ${isDark ? 'bg-green-900 text-green-300' : 'bg-green-100 text-green-700'}`}>
+                          <i className="fas fa-check-circle mr-1"></i>
+                          已自动填充AI生成视频
+                        </span>
+                      )}
                     </label>
                     <input
                       type="url"
                       value={videoUrl}
                       onChange={(e) => setVideoUrl(e.target.value)}
-                      placeholder="输入视频链接（支持 YouTube、Vimeo 等）"
-                      className={`w-full px-4 py-2.5 rounded-lg border ${isDark ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+                      placeholder={aiVideoUrl ? "AI生成视频已自动填充" : "输入视频链接（支持 YouTube、Vimeo 等）"}
+                      className={`w-full px-4 py-2.5 rounded-lg border ${isDark ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'} ${aiVideoUrl ? 'border-green-500' : ''}`}
                       disabled={isSubmitting}
                     />
+                    {aiVideoUrl && (
+                      <p className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                        视频已上传到永久存储，可直接发布
+                      </p>
+                    )}
                   </div>
                 )}
                 

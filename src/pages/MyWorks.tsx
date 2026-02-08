@@ -77,6 +77,7 @@ export default function MyWorks() {
 
           if (response.ok) {
             const result = await response.json();
+            console.log('[MyWorks] API response:', result);
             if (result.code === 0 && Array.isArray(result.data)) {
               loadedWorks = result.data.map((w: any) => {
                 let workDate: string;
@@ -86,6 +87,14 @@ export default function MyWorks() {
                 } else {
                   workDate = new Date().toLocaleDateString('zh-CN');
                 }
+
+                console.log('[MyWorks] Mapping work:', {
+                  id: w.id,
+                  title: w.title,
+                  thumbnail: w.thumbnail?.substring(0, 50),
+                  type: w.type,
+                  videoUrl: w.videoUrl?.substring(0, 50)
+                });
 
                 return {
                   id: w.id?.toString() || '',

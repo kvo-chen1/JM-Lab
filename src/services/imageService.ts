@@ -972,4 +972,112 @@ async function uploadToBackend(file: File): Promise<string> {
   }
 }
 
+// 视频上传功能
+export const uploadVideo = async (file: File): Promise<string> => {
+  try {
+    console.log('[uploadVideo] Uploading video:', file.name, 'size:', (file.size / 1024 / 1024).toFixed(2), 'MB');
+    
+    // 复用图片上传逻辑，但使用视频专用的存储路径
+    const { supabase, isSupabaseConfigured } = await import('@/lib/supabase');
+    
+    // 检查 supabase 是否配置正确
+    if (!isSupabaseConfigured() || !supabase || !supabase.storage) {
+      console.warn('Supabase not configured, using backend API upload for video');
+      return await uploadToBackend(file);
+    }
+    
+    // 生成唯一文件名
+    const fileExt = file.name.split('.').pop() || 'mp4';
+    const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+    const filePath = `videos/${fileName}`; // 使用 videos 子目录
+
+    try {
+      // 上传到 community-images bucket
+      const { error: uploadError } = await supabase.storage
+        .from('community-images')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false,
+          contentType: file.type || 'video/mp4'
+        });
+
+      if (uploadError) {
+        console.warn('Supabase video upload error:', uploadError);
+        return await uploadToBackend(file);
+      }
+
+      // 获取公开 URL
+      const { data } = supabase.storage
+        .from('community-images')
+        .getPublicUrl(filePath);
+
+      if (!data.publicUrl) {
+        throw new Error('Failed to get public URL for video');
+      }
+
+      console.log('[uploadVideo] Video uploaded successfully:', data.publicUrl);
+      return data.publicUrl;
+    } catch (storageError: any) {
+      console.warn('Supabase storage error, using backend API upload for video:', storageError.message || storageError);
+      return await uploadToBackend(file);
+    }
+  } catch (error: any) {
+    console.error('Video upload failed:', error);
+    throw new Error('视频上传失败: ' + (error.message || 'Unknown error'));
+  }
+};
+
+// 下载视频并上传到永久存储
+export const downloadAndUploadVideo = async (videoUrl: string): Promise<string> => {
+  try {
+    console.log('[downloadAndUploadVideo] Downloading video from:', videoUrl);
+    
+    // 使用后端代理下载视频（解决CORS问题）
+    const proxyResponse = await fetch('/api/video/download', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ videoUrl })
+    });
+    
+    if (!proxyResponse.ok) {
+      const errorData = await proxyResponse.json().catch(() => ({}));
+      throw new Error(errorData.message || `Failed to download video: ${proxyResponse.status}`);
+    }
+    
+    const result = await proxyResponse.json();
+    if (result.code !== 0 || !result.data?.base64) {
+      throw new Error(result.message || 'Failed to download video');
+    }
+    
+    console.log('[downloadAndUploadVideo] Video downloaded via proxy, size:', (result.data.size / 1024 / 1024).toFixed(2), 'MB');
+    
+    // 将base64转换为Blob
+    const base64Data = result.data.base64;
+    const base64Content = base64Data.split(',')[1];
+    const contentType = result.data.type || 'video/mp4';
+    const byteCharacters = atob(base64Content);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    const blob = new Blob([byteArray], { type: contentType });
+    
+    // 创建 File 对象
+    const fileName = `video-${Date.now()}.mp4`;
+    const file = new File([blob], fileName, { type: contentType });
+    
+    // 上传视频
+    const uploadedUrl = await uploadVideo(file);
+    console.log('[downloadAndUploadVideo] Video uploaded to:', uploadedUrl);
+    
+    return uploadedUrl;
+  } catch (error: any) {
+    console.error('[downloadAndUploadVideo] Failed:', error);
+    throw new Error('视频下载或上传失败: ' + (error.message || 'Unknown error'));
+  }
+};
+
 export default imageService;

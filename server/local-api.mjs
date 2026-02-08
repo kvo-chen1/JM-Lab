@@ -578,16 +578,25 @@ async function route(req, res, u, path) {
       }
       
       // 字段映射，将数据库字段转换为前端期望的格式
-      const mappedWorks = works.map(work => ({
-        ...work,
-        videoUrl: work.video_url,
-        date: work.created_at ? new Date(work.created_at * 1000).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-        author: {
-          id: work.creator_id,
-          username: work.creator || 'Unknown',
-          avatar: work.avatar_url || ''
-        }
-      }))
+      const mappedWorks = works.map(work => {
+        console.log('[API] Mapping work:', { 
+          id: work.id, 
+          thumbnail: work.thumbnail?.substring(0, 50),
+          video_url: work.video_url?.substring(0, 50), 
+          type: work.type,
+          hasVideoUrl: !!work.video_url 
+        });
+        return {
+          ...work,
+          videoUrl: work.video_url,
+          date: work.created_at ? new Date(work.created_at * 1000).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+          author: {
+            id: work.creator_id,
+            username: work.creator || 'Unknown',
+            avatar: work.avatar_url || ''
+          }
+        };
+      })
       // 简单的内存分页
       const paginatedWorks = mappedWorks.slice(offset, offset + limit)
       sendJson(res, 200, { code: 0, data: paginatedWorks })
@@ -662,6 +671,7 @@ async function route(req, res, u, path) {
       
       console.log('[API] Creating work with creator_id:', creatorId)
       console.log('[API] Work data type:', workData.type)
+      console.log('[API] Work data video_url:', workData.video_url)
       const work = await workDB.createWork(workData)
       console.log('[API] Work created:', work)
       sendJson(res, 200, { code: 0, data: work })
@@ -944,17 +954,17 @@ async function route(req, res, u, path) {
       const dbEventData = {
         title: data.title,
         description: data.description,
-        start_date: data.startTime ? new Date(data.startTime).toISOString() : null,
-        end_date: data.endTime ? new Date(data.endTime).toISOString() : null,
+        start_date: data.startTime ? Math.floor(new Date(data.startTime).getTime() / 1000) : null,
+        end_date: data.endTime ? Math.floor(new Date(data.endTime).getTime() / 1000) : null,
         location: data.location,
         organizer_id: decoded.userId,
         requirements: data.requirements || null,
         rewards: data.rewards || null,
         visibility: data.isPublic ? 'public' : 'private',
         status: data.status || 'draft',
-        registration_deadline: data.registrationDeadline || null,
+        registration_deadline: data.registrationDeadline ? Math.floor(new Date(data.registrationDeadline).getTime() / 1000) : null,
         max_participants: data.maxParticipants || null,
-        published_at: data.status === 'published' ? new Date().toISOString() : null,
+        published_at: data.status === 'published' ? Math.floor(Date.now() / 1000) : null,
         image_url: data.media && data.media.length > 0 ? data.media[0].url : null,
         category: data.category || null,
         tags: data.tags || null,
@@ -988,8 +998,8 @@ async function route(req, res, u, path) {
 
       if (data.title !== undefined) dbUpdateData.title = data.title
       if (data.description !== undefined) dbUpdateData.description = data.description
-      if (data.startTime !== undefined) dbUpdateData.start_date = new Date(data.startTime).toISOString()
-      if (data.endTime !== undefined) dbUpdateData.end_date = new Date(data.endTime).toISOString()
+      if (data.startTime !== undefined) dbUpdateData.start_date = Math.floor(new Date(data.startTime).getTime() / 1000)
+      if (data.endTime !== undefined) dbUpdateData.end_date = Math.floor(new Date(data.endTime).getTime() / 1000)
       if (data.location !== undefined) dbUpdateData.location = data.location
       if (data.requirements !== undefined) dbUpdateData.requirements = data.requirements
       if (data.rewards !== undefined) dbUpdateData.rewards = data.rewards
@@ -997,7 +1007,7 @@ async function route(req, res, u, path) {
       if (data.status !== undefined) {
         dbUpdateData.status = data.status
         if (data.status === 'published') {
-          dbUpdateData.published_at = new Date().toISOString()
+          dbUpdateData.published_at = Math.floor(Date.now() / 1000)
         }
       }
       if (data.registrationDeadline !== undefined) dbUpdateData.registration_deadline = data.registrationDeadline
@@ -1031,7 +1041,7 @@ async function route(req, res, u, path) {
     try {
       const event = await eventDB.update(eventId, {
         status: 'published',
-        published_at: new Date().toISOString()
+        published_at: Math.floor(Date.now() / 1000)
       })
       sendJson(res, 200, { code: 0, data: event })
     } catch (e) {
@@ -1057,7 +1067,7 @@ async function route(req, res, u, path) {
       // 更新活动状态为已发布
       const event = await eventDB.update(eventId, {
         status: 'published',
-        published_at: new Date().toISOString(),
+        published_at: Math.floor(Date.now() / 1000),
         platform_event_id: `jinmai_${Date.now()}`
       })
 
@@ -3849,6 +3859,49 @@ async function route(req, res, u, path) {
     } catch (e) {
       console.error('[API] File upload failed:', e)
       sendJson(res, 500, { code: 1, message: '文件上传失败: ' + e.message })
+    }
+    return
+  }
+
+  // 视频下载代理 - 解决CORS问题
+  if (req.method === 'POST' && path === '/api/video/download') {
+    try {
+      const body = await readBody(req)
+      const { videoUrl } = body
+      
+      if (!videoUrl) {
+        sendJson(res, 400, { code: 1, message: '缺少视频URL' })
+        return
+      }
+      
+      console.log('[API] Proxy video download:', videoUrl)
+      
+      // 从远程URL下载视频
+      const response = await fetch(videoUrl)
+      if (!response.ok) {
+        throw new Error(`Failed to download video: ${response.status} ${response.statusText}`)
+      }
+      
+      const contentType = response.headers.get('content-type') || 'video/mp4'
+      const blob = await response.blob()
+      
+      // 转换为base64返回
+      const arrayBuffer = await blob.arrayBuffer()
+      const base64 = Buffer.from(arrayBuffer).toString('base64')
+      
+      console.log('[API] Video downloaded successfully, size:', (blob.size / 1024 / 1024).toFixed(2), 'MB')
+      
+      sendJson(res, 200, { 
+        code: 0, 
+        data: { 
+          base64: `data:${contentType};base64,${base64}`,
+          size: blob.size,
+          type: contentType
+        } 
+      })
+    } catch (error) {
+      console.error('[API] Video download proxy failed:', error)
+      sendJson(res, 500, { code: 1, message: '视频下载失败: ' + error.message })
     }
     return
   }

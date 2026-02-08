@@ -423,12 +423,29 @@ export const useCreateStore = create<CreateState & CreateActions>((set) => ({
       // 判断是否为视频
       const isVideo = selectedImage.type === 'video' || selectedImage.video;
       
+      console.log('Publish - selectedImage:', { 
+        type: selectedImage.type, 
+        video: selectedImage.video?.substring(0, 50),
+        thumbnail: selectedImage.thumbnail?.substring(0, 50),
+        url: selectedImage.url?.substring(0, 50)
+      });
+      
+      // 处理缩略图：如果是视频，使用视频专用占位图
+      let thumbnail = selectedImage.thumbnail || selectedImage.url || '';
+      if (isVideo && (!thumbnail || thumbnail.includes('#t='))) {
+        // 如果缩略图是视频URL加时间戳，使用视频占位图
+        thumbnail = 'https://via.placeholder.com/800x600/3b82f6/ffffff?text=Video';
+      }
+      
       // 创建新作品
+      const videoUrl = isVideo ? selectedImage.video : undefined;
+      console.log('Publish - videoUrl:', videoUrl?.substring(0, 50));
+      
       const newPost = {
         title: data.title,
         description: data.description,
-        thumbnail: selectedImage.url || selectedImage.thumbnail || '',
-        videoUrl: isVideo ? selectedImage.video : undefined,
+        thumbnail: thumbnail,
+        videoUrl: videoUrl,
         type: isVideo ? 'video' : 'image',
         category: isVideo ? 'video' : (data.category || 'design'),
         tags: data.tags || [],
@@ -479,12 +496,23 @@ export const useCreateStore = create<CreateState & CreateActions>((set) => ({
         };
       }
       
+      // 判断是否为视频
+      const isVideo = selectedImage.type === 'video' || selectedImage.video;
+      
+      // 处理缩略图
+      let thumbnail = selectedImage.thumbnail || selectedImage.url || '';
+      if (isVideo && (!thumbnail || thumbnail.includes('#t='))) {
+        thumbnail = 'https://via.placeholder.com/800x600/3b82f6/ffffff?text=Video';
+      }
+      
       // 创建新作品
       const newPost = {
         title: data.title,
         description: data.description,
-        thumbnail: selectedImage.url || selectedImage.thumbnail || '',
-        category: 'design',
+        thumbnail: thumbnail,
+        videoUrl: isVideo ? selectedImage.video : undefined,
+        type: isVideo ? 'video' : 'image',
+        category: isVideo ? 'video' : 'design',
         visibility: data.visibility || 'community',
         status: 'published',
         publishType: 'community',

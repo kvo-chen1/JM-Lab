@@ -926,6 +926,16 @@ export const workDB = {
     const { rows } = await db.query('SELECT * FROM works WHERE id = $1', [id])
     return rows[0] || null
   },
+  async getWorkById(id) {
+    const db = await getDB()
+    const { rows } = await db.query(`
+      SELECT w.*, u.username as creator, u.avatar_url
+      FROM works w
+      INNER JOIN users u ON w.creator_id::text = u.id::text
+      WHERE w.id = $1
+    `, [id])
+    return rows[0] || null
+  },
   async getWorksByUserId(userId, limit = 10, offset = 0) {
     const db = await getDB()
     const { rows } = await db.query('SELECT * FROM works WHERE creator_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3', [userId, limit, offset])
@@ -1009,7 +1019,39 @@ export const workDB = {
       // 不影响主流程，继续返回作品ID
     }
     
-    return { id: rows[0].id }
+    // 返回完整的作品数据，包括所有字段
+    const createdWork = {
+      id: rows[0].id,
+      creator_id: creatorId,
+      title: workData.title,
+      description: workData.description,
+      thumbnail: workData.thumbnail,
+      video_url: workData.video_url || workData.videoUrl || null,
+      duration: workData.duration,
+      status: workData.status || 'draft',
+      visibility: workData.visibility || 'private',
+      category: workData.category,
+      tags: workData.tags,
+      cultural_elements: workData.culturalElements,
+      created_at: now,
+      updated_at: now,
+      published_at: publishedAt,
+      scheduled_publish_date: scheduledPublishDate,
+      moderation_status: workData.moderation_status || 'pending',
+      rejection_reason: workData.rejection_reason,
+      reviewer_id: workData.reviewer_id,
+      reviewed_at: reviewedAt,
+      views: workData.views || 0,
+      likes: workData.likes || 0,
+      comments: workData.comments || 0,
+      shares: workData.shares || 0,
+      downloads: workData.downloads || 0,
+      engagement_rate: workData.engagement_rate || 0,
+      is_featured: workData.is_featured || false,
+      type: workData.type || 'image'
+    }
+    
+    return createdWork
   },
   // create 方法是 createWork 的别名，直接调用 createWork 的实现
   // 注意：不要在这里调用 this.createWork，因为 createWork 可能指向此方法，导致循环调用
@@ -1042,8 +1084,8 @@ export const workDB = {
     const reviewedAt = parseTimestamp(workData.reviewed_at)
     
     const { rows } = await db.query(`
-      INSERT INTO works (id, creator_id, title, description, thumbnail, duration, status, visibility, category, tags, cultural_elements, created_at, updated_at, published_at, scheduled_publish_date, moderation_status, rejection_reason, reviewer_id, reviewed_at, views, likes, comments, shares, downloads, engagement_rate, is_featured)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
+      INSERT INTO works (id, creator_id, title, description, thumbnail, video_url, duration, status, visibility, category, tags, cultural_elements, created_at, updated_at, published_at, scheduled_publish_date, moderation_status, rejection_reason, reviewer_id, reviewed_at, views, likes, comments, shares, downloads, engagement_rate, is_featured, type)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28)
       RETURNING id
     `, [
       id,
@@ -1051,6 +1093,7 @@ export const workDB = {
       workData.title,
       workData.description,
       workData.thumbnail,
+      workData.video_url || workData.videoUrl || null,
       workData.duration,
       workData.status || 'draft',
       workData.visibility || 'private',
@@ -1071,7 +1114,8 @@ export const workDB = {
       workData.shares || 0,
       workData.downloads || 0,
       workData.engagement_rate || 0,
-      workData.is_featured || false
+      workData.is_featured || false,
+      workData.type || 'image'
     ])
     
     // 更新用户的作品数量
@@ -1086,7 +1130,39 @@ export const workDB = {
       // 不影响主流程，继续返回作品ID
     }
     
-    return { id: rows[0].id }
+    // 返回完整的作品数据，包括所有字段
+    const createdWork = {
+      id: rows[0].id,
+      creator_id: creatorId,
+      title: workData.title,
+      description: workData.description,
+      thumbnail: workData.thumbnail,
+      video_url: workData.video_url || workData.videoUrl || null,
+      duration: workData.duration,
+      status: workData.status || 'draft',
+      visibility: workData.visibility || 'private',
+      category: workData.category,
+      tags: workData.tags,
+      cultural_elements: workData.culturalElements,
+      created_at: now,
+      updated_at: now,
+      published_at: publishedAt,
+      scheduled_publish_date: scheduledPublishDate,
+      moderation_status: workData.moderation_status || 'pending',
+      rejection_reason: workData.rejection_reason,
+      reviewer_id: workData.reviewer_id,
+      reviewed_at: reviewedAt,
+      views: workData.views || 0,
+      likes: workData.likes || 0,
+      comments: workData.comments || 0,
+      shares: workData.shares || 0,
+      downloads: workData.downloads || 0,
+      engagement_rate: workData.engagement_rate || 0,
+      is_featured: workData.is_featured || false,
+      type: workData.type || 'image'
+    }
+    
+    return createdWork
   },
   async getWorkStats(userId) {
     const db = await getDB()
@@ -2078,15 +2154,7 @@ userDB.updateUserId = async function(oldUserId, newUserId) {
 }
 
 // workDB 额外方法
-// 注意：getAllWorks 方法已在上面定义，不要重复定义
-
-workDB.createWork = function(workData) {
-  return this.create(workData)
-}
-
-workDB.getWorksByUserId = function(userId, limit = 10, offset = 0) {
-  return this.getByCreatorId(userId, offset, limit)
-}
+// 注意：getAllWorks、createWork、getWorksByUserId 和 getByCreatorId 方法已在上面定义，不要重复定义
 
 workDB.getWorkStats = async function(userId) {
   const db = await getDB()

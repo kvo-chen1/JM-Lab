@@ -51,7 +51,8 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
 
     fetchUnread();
-    const interval = setInterval(fetchUnread, 30000); // 每30秒刷新一次
+    // 减少轮询频率以降低 Supabase 出口流量使用
+    const interval = setInterval(fetchUnread, 120000); // 每2分钟刷新一次
     return () => clearInterval(interval);
   }, [currentUser]);
 
@@ -104,7 +105,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       } catch (e) {
         console.error('轮询消息失败', e);
       }
-    }, 8000); // 减少轮询频率到8秒
+    }, 30000); // 减少轮询频率到30秒，降低 Supabase 出口流量使用
 
     return () => clearInterval(interval);
   }, [currentUser, currentChatFriendId]);

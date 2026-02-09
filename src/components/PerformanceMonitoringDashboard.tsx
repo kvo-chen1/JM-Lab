@@ -100,7 +100,8 @@ const PerformanceMonitoringDashboard: React.FC = () => {
   // 定期更新性能指标
   useEffect(() => {
     fetchMetrics()
-    const interval = setInterval(fetchMetrics, 30000) // 每30秒更新一次
+    // 减少轮询频率以降低 Supabase 出口流量使用
+    const interval = setInterval(fetchMetrics, 300000) // 每5分钟更新一次
     return () => clearInterval(interval)
   }, [fetchMetrics])
 

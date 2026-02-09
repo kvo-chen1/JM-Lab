@@ -1080,6 +1080,16 @@ export const userDB = {
 // 作品数据库操作
 export const workDB = {
   async getAllWorks() {
+    // 生成缓存键
+    const cacheKey = 'works_all_published';
+    
+    // 检查缓存
+    const cached = getQueryCache(cacheKey);
+    if (cached) {
+      console.log('[DB] Cache hit for workDB.getAllWorks');
+      return cached;
+    }
+    
     const db = await getDB()
     const { rows } = await db.query(`
       SELECT w.*, u.username as creator, u.avatar_url
@@ -1088,6 +1098,11 @@ export const workDB = {
       WHERE w.status = 'published' AND w.visibility = 'public'
       ORDER BY w.created_at DESC
     `)
+    
+    // 缓存结果
+    setQueryCache(cacheKey, rows);
+    console.log('[DB] Cache set for workDB.getAllWorks');
+    
     return rows
   },
   async getAll(offset = 0, limit = 10) {
@@ -1935,6 +1950,16 @@ export const messageDB = {
 // 社区数据库操作
 export const communityDB = {
   async getAllCommunities() {
+    // 生成缓存键
+    const cacheKey = 'communities_all';
+    
+    // 检查缓存
+    const cached = getQueryCache(cacheKey);
+    if (cached) {
+      console.log('[DB] Cache hit for communityDB.getAllCommunities');
+      return cached;
+    }
+    
     const db = await getDB()
     const { rows } = await db.query(`
       SELECT c.*, u.username as creator_name, u.avatar_url as creator_avatar
@@ -1942,6 +1967,11 @@ export const communityDB = {
       INNER JOIN users u ON c.creator_id::text = u.id::text
       ORDER BY c.member_count DESC
     `)
+    
+    // 缓存结果
+    setQueryCache(cacheKey, rows);
+    console.log('[DB] Cache set for communityDB.getAllCommunities');
+    
     return rows
   },
   async getAll() {
@@ -2464,6 +2494,16 @@ export const notificationDB = {
 
   // 获取未读通知数量
   async getUnreadCount(userId) {
+    // 生成缓存键
+    const cacheKey = `notifications_unread_${userId}`;
+    
+    // 检查缓存
+    const cached = getQueryCache(cacheKey);
+    if (cached !== null) {
+      console.log('[DB] Cache hit for notificationDB.getUnreadCount');
+      return cached;
+    }
+    
     const db = await getDB()
 
     try {
@@ -2472,7 +2512,13 @@ export const notificationDB = {
         WHERE user_id = $1 AND is_read = false
       `, [userId])
 
-      return parseInt(rows[0].count)
+      const count = parseInt(rows[0].count);
+      
+      // 缓存结果
+      setQueryCache(cacheKey, count);
+      console.log('[DB] Cache set for notificationDB.getUnreadCount');
+      
+      return count;
     } catch (error) {
       console.error('[notificationDB.getUnreadCount] Error:', error)
       return 0

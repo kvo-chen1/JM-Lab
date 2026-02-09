@@ -640,6 +640,43 @@ async function createPostgreSQLTables(pool) {
       await client.query(`CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON public.user_sessions(user_id)`)
       await client.query(`CREATE INDEX IF NOT EXISTS idx_user_sessions_last_active ON public.user_sessions(last_active DESC)`)
 
+      // 创建 messages 表（私信）
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS public.messages (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          sender_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+          receiver_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+          content TEXT NOT NULL,
+          type TEXT DEFAULT 'text',
+          status TEXT DEFAULT 'sent',
+          is_read BOOLEAN DEFAULT false,
+          created_at BIGINT NOT NULL DEFAULT extract(epoch from now())::bigint,
+          updated_at BIGINT NOT NULL DEFAULT extract(epoch from now())::bigint
+        )
+      `)
+
+      // 创建 messages 索引
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_messages_sender_id ON public.messages(sender_id)`)
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_messages_receiver_id ON public.messages(receiver_id)`)
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_messages_receiver_read ON public.messages(receiver_id, is_read)`)
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_messages_created_at ON public.messages(created_at DESC)`)
+
+      // 创建 follows 表（关注关系）
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS public.follows (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          follower_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+          following_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+          created_at BIGINT NOT NULL DEFAULT extract(epoch from now())::bigint,
+          updated_at BIGINT NOT NULL DEFAULT extract(epoch from now())::bigint,
+          UNIQUE(follower_id, following_id)
+        )
+      `)
+
+      // 创建 follows 索引
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_follows_follower_id ON public.follows(follower_id)`)
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_follows_following_id ON public.follows(following_id)`)
+
       log('PostgreSQL tables initialized successfully')
     } finally {
       client.release()

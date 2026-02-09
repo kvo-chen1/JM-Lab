@@ -208,6 +208,34 @@ let retryCounts = {
   postgresql: 0
 }
 
+// 简单的查询缓存 - 用于减少 Supabase 出口流量
+const queryCache = new Map();
+const QUERY_CACHE_TTL = 60000; // 1分钟缓存
+
+// 缓存辅助函数
+function getQueryCache(key) {
+  const cached = queryCache.get(key);
+  if (cached && Date.now() - cached.timestamp < QUERY_CACHE_TTL) {
+    return cached.data;
+  }
+  queryCache.delete(key);
+  return null;
+}
+
+function setQueryCache(key, data) {
+  queryCache.set(key, { data, timestamp: Date.now() });
+}
+
+// 定期清理过期缓存
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, value] of queryCache.entries()) {
+    if (now - value.timestamp > QUERY_CACHE_TTL) {
+      queryCache.delete(key);
+    }
+  }
+}, 300000); // 每5分钟清理一次
+
 /**
  * PostgreSQL 连接初始化 (支持 Connection Pooling)
  */
@@ -1718,6 +1746,16 @@ export const messageDB = {
     return rows
   },
   async getUnreadCount(userId) {
+    // 生成缓存键
+    const cacheKey = `messages_unread_${userId}`;
+    
+    // 检查缓存
+    const cached = getQueryCache(cacheKey);
+    if (cached) {
+      console.log('[DB] Cache hit for getUnreadCount');
+      return cached;
+    }
+    
     const db = await getDB()
     const { rows } = await db.query(`
       SELECT sender_id, COUNT(*) as count
@@ -1730,6 +1768,11 @@ export const messageDB = {
     rows.forEach(row => {
       counts[row.sender_id] = parseInt(row.count)
     })
+    
+    // 缓存结果
+    setQueryCache(cacheKey, counts);
+    console.log('[DB] Cache set for getUnreadCount');
+    
     return counts
   },
   async markAsRead(userId, friendId) {
@@ -2660,6 +2703,16 @@ export const eventDB = {
     return true
   },
   async getEvents(filters = {}) {
+    // 生成缓存键
+    const cacheKey = `events_${JSON.stringify(filters)}`;
+    
+    // 检查缓存
+    const cached = getQueryCache(cacheKey);
+    if (cached) {
+      console.log('[DB] Cache hit for getEvents');
+      return cached;
+    }
+    
     const db = await getDB()
     let sql = `
       SELECT e.*, u.username as organizer_name, u.avatar_url as organizer_avatar
@@ -2682,6 +2735,11 @@ export const eventDB = {
     sql += ' ORDER BY e.created_at DESC'
     
     const { rows } = await db.query(sql, params)
+    
+    // 缓存结果
+    setQueryCache(cacheKey, rows);
+    console.log('[DB] Cache set for getEvents');
+    
     return rows
   }
 }

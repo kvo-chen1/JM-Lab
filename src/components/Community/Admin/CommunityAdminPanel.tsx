@@ -989,6 +989,15 @@ const CommunityAdminPanel: React.FC<CommunityAdminPanelProps> = ({
             pendingCount={pendingContent.length}
             announcementCount={announcementHistory.length}
             onNavigate={setActiveTab}
+            activities={activities.map(a => ({
+              id: a.id,
+              user: a.user,
+              action: a.content,
+              time: a.time,
+              type: a.type === 'join' ? 'join' : 
+                   a.type === 'post' ? 'post' : 
+                   a.type === 'announcement' ? 'announcement' : 'role'
+            }))}
           />
         );
       case 'members':
@@ -1067,14 +1076,120 @@ const CommunityAdminPanel: React.FC<CommunityAdminPanelProps> = ({
     }
   };
 
-  // 模拟活动和在线成员数据
-  const mockActivities = [
-    { id: '1', type: 'join' as const, user: '张三', content: '加入了社群', time: '2分钟前' },
-    { id: '2', type: 'post' as const, user: '李四', content: '发布了新作品', time: '15分钟前' },
-    { id: '3', type: 'announcement' as const, user: '管理员', content: '发布了新公告', time: '1小时前' },
-  ];
+  // 活动数据状态
+  const [activities, setActivities] = useState<Array<{id: string; type: 'join' | 'post' | 'announcement' | 'role_change'; user: string; content: string; time: string}>>([]);
+  const [isLoadingActivities, setIsLoadingActivities] = useState(false);
 
-  const mockOnlineMembers = members.slice(0, 5).map(m => ({
+  // 获取社群活动数据
+  useEffect(() => {
+    const fetchActivities = async () => {
+      if (!actualCommunityId) return;
+
+      setIsLoadingActivities(true);
+      try {
+        // 获取社群成员加入记录
+        const { data: membersData, error: membersError } = await supabase
+          .from('community_members')
+          .select('user_id, joined_at')
+          .eq('community_id', actualCommunityId)
+          .order('joined_at', { ascending: false })
+          .limit(10);
+
+        if (membersError) {
+          console.error('Failed to fetch member activities:', membersError);
+        }
+
+        // 获取社群帖子发布记录
+        const { data: postsData, error: postsError } = await supabase
+          .from('posts')
+          .select('author_id, title, created_at')
+          .eq('community_id', actualCommunityId)
+          .order('created_at', { ascending: false })
+          .limit(10);
+
+        if (postsError) {
+          console.error('Failed to fetch post activities:', postsError);
+        }
+
+        // 获取用户信息
+        const userIds = [
+          ...(membersData?.map(m => m.user_id) || []),
+          ...(postsData?.map(p => p.author_id) || [])
+        ];
+        const uniqueUserIds = [...new Set(userIds)];
+
+        let usersMap = new Map();
+        if (uniqueUserIds.length > 0) {
+          const { data: usersData } = await supabase
+            .from('users')
+            .select('id, username')
+            .in('id', uniqueUserIds);
+          
+          usersMap = new Map(usersData?.map(u => [u.id, u.username]) || []);
+        }
+
+        // 合并活动数据
+        const allActivities: Array<{id: string; type: 'join' | 'post' | 'announcement' | 'role_change'; user: string; content: string; time: Date}> = [];
+
+        // 添加成员加入活动
+        membersData?.forEach(m => {
+          allActivities.push({
+            id: `join-${m.user_id}-${m.joined_at}`,
+            type: 'join',
+            user: usersMap.get(m.user_id) || '未知用户',
+            content: '加入了社群',
+            time: new Date(m.joined_at)
+          });
+        });
+
+        // 添加帖子发布活动
+        postsData?.forEach(p => {
+          allActivities.push({
+            id: `post-${p.author_id}-${p.created_at}`,
+            type: 'post',
+            user: usersMap.get(p.author_id) || '未知用户',
+            content: `发布了新作品《${p.title}》`,
+            time: new Date(p.created_at)
+          });
+        });
+
+        // 按时间排序并格式化
+        const sortedActivities = allActivities
+          .sort((a, b) => b.time.getTime() - a.time.getTime())
+          .slice(0, 10)
+          .map(activity => ({
+            ...activity,
+            time: formatTimeAgo(activity.time)
+          }));
+
+        setActivities(sortedActivities);
+      } catch (error) {
+        console.error('Error fetching activities:', error);
+      } finally {
+        setIsLoadingActivities(false);
+      }
+    };
+
+    fetchActivities();
+  }, [actualCommunityId]);
+
+  // 格式化时间为"x分钟/小时/天前"
+  const formatTimeAgo = (date: Date): string => {
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return '刚刚';
+    if (diffMins < 60) return `${diffMins}分钟前`;
+    if (diffHours < 24) return `${diffHours}小时前`;
+    if (diffDays < 30) return `${diffDays}天前`;
+    return date.toLocaleDateString('zh-CN');
+  };
+
+  // 在线成员数据（基于真实成员数据）
+  const onlineMembers = members.slice(0, 5).map(m => ({
     id: m.id,
     name: m.name,
     role: m.role
@@ -1113,9 +1228,9 @@ const CommunityAdminPanel: React.FC<CommunityAdminPanelProps> = ({
           communityName={community?.name || ''}
           communityCover={community?.cover}
           memberCount={members.length}
-          onlineCount={mockOnlineMembers.length}
-          activities={mockActivities}
-          onlineMembers={mockOnlineMembers}
+          onlineCount={onlineMembers.length}
+          activities={activities}
+          onlineMembers={onlineMembers}
           onAddMember={() => setActiveTab('members')}
           onGenerateInvite={generateInviteLink}
         />

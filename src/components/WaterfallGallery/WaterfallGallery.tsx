@@ -5,6 +5,8 @@ import LazyImage from '../LazyImage'; // 复用现有的 LazyImage
 export interface GalleryItem {
   id: string;
   thumbnail: string;
+  videoUrl?: string;
+  type?: string;
   title: string;
   aspectRatio?: number; // 宽高比 width/height
   [key: string]: any;
@@ -164,14 +166,34 @@ const WaterfallGallery: React.FC<WaterfallGalleryProps> = ({
             className={styles.cardInner}
             onClick={() => onItemClick && onItemClick(layoutItem.item)}
           >
-            <div style={{ height: layoutItem.height - 60, overflow: 'hidden' }}>
-              <LazyImage
-                src={layoutItem.item.thumbnail}
-                alt={layoutItem.item.title}
-                className="w-full h-full object-cover transition-transform duration-500 hover:scale-110"
-                placeholder="blur"
-                bare
-              />
+            <div style={{ height: layoutItem.height - 60, overflow: 'hidden', position: 'relative' }}>
+              {layoutItem.item.type === 'video' && layoutItem.item.videoUrl ? (
+                <video
+                  src={layoutItem.item.videoUrl}
+                  className="w-full h-full object-cover transition-transform duration-500 hover:scale-110"
+                  muted
+                  loop
+                  autoPlay
+                  playsInline
+                  preload="metadata"
+                />
+              ) : (
+                <LazyImage
+                  src={layoutItem.item.thumbnail}
+                  alt={layoutItem.item.title}
+                  className="w-full h-full object-cover transition-transform duration-500 hover:scale-110"
+                  placeholder="blur"
+                  bare
+                />
+              )}
+              {layoutItem.item.type === 'video' && (
+                <div className="absolute top-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded-full flex items-center gap-1">
+                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z" />
+                  </svg>
+                  视频
+                </div>
+              )}
             </div>
             <div className="p-3 bg-white dark:bg-gray-800 h-[60px] flex flex-col justify-center">
               <h3 className="text-sm font-medium truncate text-gray-900 dark:text-white">{layoutItem.item.title}</h3>

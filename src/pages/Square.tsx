@@ -208,15 +208,15 @@ export default function Square() {
         setIsLoading(true)
         // 清除缓存，确保获取最新数据
         await postsApi.clearAllCaches()
-        const current = await postsApi.getPosts()
-        
+        const current = await postsApi.getPosts(undefined, user?.id)
+
         if (Array.isArray(current)) {
           // 调试：检查视频帖子数据
           const videoPosts = current.filter(p => p.category === 'video' || p.type === 'video');
-          console.log('Video posts loaded:', videoPosts.map(p => ({ 
-            id: p.id, 
-            title: p.title, 
-            videoUrl: p.videoUrl, 
+          console.log('Video posts loaded:', videoPosts.map(p => ({
+            id: p.id,
+            title: p.title,
+            videoUrl: p.videoUrl,
             thumbnail: p.thumbnail?.substring(0, 50),
             category: p.category,
             type: p.type
@@ -233,37 +233,38 @@ export default function Square() {
       }
     }
     loadInitialData()
-  }, [])
+  }, [user?.id])
   
   // 动态加载资讯详情数据
   const loadPostDetail = async (id: string) => {
     setActiveLoading(true)
     setActiveError(null)
-    
+
     try {
       // 模拟从服务器获取最新数据的延迟
       await new Promise(resolve => setTimeout(resolve, 300))
-      
-      // 从API获取最新的帖子数据
-      const allPosts = await postsApi.getPosts()
+
+      // 从API获取最新的帖子数据（传递当前用户ID以获取正确的点赞状态）
+      const allPosts = await postsApi.getPosts(undefined, user?.id)
       let found = allPosts.find(p => p.id === id)
-      
+
       if (!found) {
         // 如果在API数据中找不到，尝试从本地状态中查找（保留评论数据）
         found = posts.find(p => p.id === id)
       }
-      
+
       if (found) {
-        console.log('Opening post detail:', { 
-          id: found.id, 
-          title: found.title, 
+        console.log('Opening post detail:', {
+          id: found.id,
+          title: found.title,
           videoUrl: found.videoUrl,
           thumbnail: found.thumbnail?.substring(0, 50),
           category: found.category,
-          type: found.type
+          type: found.type,
+          isLiked: found.isLiked
         });
         setActive(found)
-        
+
         // 记录浏览量（异步执行，不阻塞UI）
         postsApi.recordView(id, 'works').catch(err => {
           console.warn('Failed to record view:', err)
@@ -304,7 +305,7 @@ export default function Square() {
       try {
         // 清除缓存，确保获取最新数据
         await postsApi.clearAllCaches();
-        const current = await postsApi.getPosts();
+        const current = await postsApi.getPosts(undefined, user?.id);
         setPosts(current);
         // 重置分页，显示最新作品
         setPage(1);
@@ -451,7 +452,7 @@ export default function Square() {
     }
     try {
       await postsApi.likePost(id, user.id)
-      const current = await postsApi.getPosts()
+      const current = await postsApi.getPosts(undefined, user?.id)
       setPosts(current)
       // 更新active状态中的点赞数
       if (active && active.id === id) {
@@ -535,7 +536,7 @@ export default function Square() {
 
       // 3. 最后更新本地状态，确保数据同步
       if (updatedPost) {
-        const current = await postsApi.getPosts()
+        const current = await postsApi.getPosts(undefined, user?.id)
         console.log('Current posts after API call:', current)
         setPosts(current)
 
@@ -616,7 +617,7 @@ export default function Square() {
       const success = await postsApi.deletePost(id);
       if (success) {
         // 重新获取最新的帖子数据
-        const current = await postsApi.getPosts();
+        const current = await postsApi.getPosts(undefined, user?.id);
         setPosts(current);
         // 如果当前打开的详情是被删除的帖子，关闭详情
         if (active && active.id === id) {
@@ -752,7 +753,7 @@ export default function Square() {
       await postsApi.addPost(newPost as Post, user || undefined)
       toast.success('发布成功！')
       setIsCreateModalOpen(false);
-      const current = await postsApi.getPosts();
+      const current = await postsApi.getPosts(undefined, user?.id);
       setPosts(current);
     } catch (error) {
       toast.error('发布失败');

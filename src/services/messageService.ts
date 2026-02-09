@@ -10,12 +10,30 @@ export interface Message {
   created_at: string
 }
 
+export interface Conversation {
+  userId: string
+  username: string
+  avatar: string
+  lastMessage: string
+  lastMessageTime: string
+  lastSenderId: string
+  isLastMessageRead: boolean
+  unreadCount: number
+}
+
 export interface FriendRequest {
   id: string
   sender_id: string
   receiver_id: string
   status: 'pending' | 'accepted' | 'rejected'
   created_at: string
+}
+
+export interface SendMessageResult {
+  success: boolean
+  message?: string
+  data?: Message
+  waitingForReply?: boolean
 }
 
 // 获取 token
@@ -30,7 +48,7 @@ export async function sendDirectMessage(
   senderId: string,
   receiverId: string,
   content: string
-): Promise<Message | null> {
+): Promise<SendMessageResult> {
   try {
     console.log('[sendDirectMessage] 发送消息:', { senderId, receiverId, content })
 
@@ -51,6 +69,15 @@ export async function sendDirectMessage(
       })
     })
 
+    if (response.status === 403) {
+      const error = await response.json()
+      return {
+        success: false,
+        message: error.message || '发送失败',
+        waitingForReply: error.waitingForReply || false
+      }
+    }
+
     if (!response.ok) {
       const error = await response.json()
       throw new Error(error.message || '发送失败')
@@ -58,7 +85,10 @@ export async function sendDirectMessage(
 
     const result = await response.json()
     console.log('[sendDirectMessage] 发送成功:', result.data)
-    return result.data
+    return {
+      success: true,
+      data: result.data
+    }
   } catch (error: any) {
     console.error('[sendDirectMessage] 异常:', error)
     throw error
@@ -116,11 +146,15 @@ export async function markMessagesAsRead(
       return false
     }
 
-    const response = await fetch(`/api/messages/${senderId}/read`, {
+    const response = await fetch('/api/messages/read', {
       method: 'POST',
       headers: {
+        'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`
-      }
+      },
+      body: JSON.stringify({
+        friendId: senderId
+      })
     })
 
     if (!response.ok) {
@@ -133,6 +167,42 @@ export async function markMessagesAsRead(
   } catch (error) {
     console.error('[markMessagesAsRead] 异常:', error)
     return false
+  }
+}
+
+/**
+ * 获取私信会话列表 - 使用后端 API
+ */
+export async function getConversations(): Promise<Conversation[]> {
+  try {
+    console.log('[getConversations] 获取会话列表')
+
+    const token = getToken()
+    if (!token) {
+      console.log('[getConversations] 无token')
+      return []
+    }
+
+    const response = await fetch('/api/messages/conversations', {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+
+    console.log('[getConversations] 响应状态:', response.status)
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('[getConversations] 获取失败:', response.status, errorText)
+      return []
+    }
+
+    const result = await response.json()
+    console.log('[getConversations] 获取成功:', result.data?.length || 0, '个会话', result)
+    return result.data || []
+  } catch (error) {
+    console.error('[getConversations] 异常:', error)
+    return []
   }
 }
 

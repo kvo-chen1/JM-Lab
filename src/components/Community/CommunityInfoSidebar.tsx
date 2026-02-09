@@ -252,6 +252,7 @@ export const CommunityInfoSidebar: React.FC<CommunityInfoSidebarProps> = ({
   const [activeMembers, setActiveMembers] = useState<ActiveMember[]>([]);
   const [recentEvents, setRecentEvents] = useState<RecentEvent[]>([]);
   const [hotPosts, setHotPosts] = useState<HotPost[]>([]);
+  const [realMemberCount, setRealMemberCount] = useState<number>(memberCount || community?.memberCount || 0);
   const [communityStats, setCommunityStats] = useState({
     weeklyVisitors: weeklyVisitors,
     weeklyInteractions: weeklyInteractions
@@ -292,19 +293,36 @@ export const CommunityInfoSidebar: React.FC<CommunityInfoSidebarProps> = ({
   }, [community.creatorId, creator]);
 
   // 获取社区统计数据（真实数据）
+  const [onlineCountState, setOnlineCountState] = useState<number>(onlineCount || 0);
+
   useEffect(() => {
     const fetchCommunityStats = async () => {
       if (!community?.id) return;
 
       try {
+        // 先更新用户在社区的活跃时间（标记在线）
+        const { data: { session } } = await import('@/lib/supabase').then(m => m.supabase.auth.getSession());
+        if (session?.user?.id) {
+          const { supabase } = await import('@/lib/supabaseClient');
+          const now = Math.floor(Date.now() / 1000);
+          await supabase
+            .from('community_members')
+            .update({ last_active: now })
+            .eq('community_id', community.id)
+            .eq('user_id', session.user.id);
+        }
+
         const response = await fetch(`/api/communities/${community.id}/stats`);
         if (response.ok) {
           const result = await response.json();
           if (result.code === 0 && result.data) {
+            console.log('[CommunityInfoSidebar] Community stats:', result.data);
             setCommunityStats({
               weeklyVisitors: result.data.weekly_visitors || 0,
               weeklyInteractions: result.data.weekly_interactions || 0
             });
+            // 更新在线人数
+            setOnlineCountState(result.data.online_count || 0);
           }
         }
       } catch (error) {
@@ -313,6 +331,35 @@ export const CommunityInfoSidebar: React.FC<CommunityInfoSidebarProps> = ({
     };
 
     fetchCommunityStats();
+  }, [community.id]);
+
+  // 获取真实成员数量
+  useEffect(() => {
+    const fetchRealMemberCount = async () => {
+      if (!community?.id) return;
+
+      try {
+        const { supabase } = await import('@/lib/supabaseClient');
+        const { count, error } = await supabase
+          .from('community_members')
+          .select('*', { count: 'exact', head: true })
+          .eq('community_id', community.id);
+
+        if (error) {
+          console.error('[CommunityInfoSidebar] Failed to fetch member count:', error);
+          return;
+        }
+
+        if (count !== null && count !== undefined) {
+          console.log('[CommunityInfoSidebar] Real member count:', count);
+          setRealMemberCount(count);
+        }
+      } catch (error) {
+        console.error('[CommunityInfoSidebar] Error fetching member count:', error);
+      }
+    };
+
+    fetchRealMemberCount();
   }, [community.id]);
 
   // 获取活跃成员数据（真实数据）
@@ -677,7 +724,7 @@ export const CommunityInfoSidebar: React.FC<CommunityInfoSidebarProps> = ({
         <div className="grid grid-cols-2 gap-3">
           <StatCard
             icon={Users}
-            value={memberCount > 0 ? memberCount : community.memberCount || 0}
+            value={realMemberCount > 0 ? realMemberCount : community.memberCount || 0}
             label="成员"
             isDark={isDark}
             color="blue"
@@ -685,7 +732,7 @@ export const CommunityInfoSidebar: React.FC<CommunityInfoSidebarProps> = ({
           />
           <StatCard
             icon={Activity}
-            value={onlineCount}
+            value={onlineCountState > 0 ? onlineCountState : onlineCount}
             label="在线"
             isDark={isDark}
             color="green"

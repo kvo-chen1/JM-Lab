@@ -1,202 +1,308 @@
-import { useState, useEffect, useCallback, memo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
-
-import { toast } from 'sonner';
-import { TianjinImage } from './TianjinStyleComponents';
+import { useNavigate } from 'react-router-dom';
 import { tianjinActivityService, TianjinTemplate } from '@/services/tianjinActivityService';
+import { templateInteractionService } from '@/services/templateInteractionService';
 
 interface TianjinCreativeActivitiesProps {
+  selectedCategory?: string;
+  onCategoryChange?: (category: string) => void;
   search?: string;
 }
 
-export default memo(function TianjinCreativeActivities({}: TianjinCreativeActivitiesProps) {
+export default function TianjinCreativeActivities({ 
+  selectedCategory = 'all', 
+  onCategoryChange,
+  search = ''
+}: TianjinCreativeActivitiesProps) {
   const { isDark } = useTheme();
-  
-  // 数据状态
+  const navigate = useNavigate();
   const [templates, setTemplates] = useState<TianjinTemplate[]>([]);
+  const [filteredTemplates, setFilteredTemplates] = useState<TianjinTemplate[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  
-  // 中文注释：津脉作品详情弹层状态
-  const [selectedTemplate, setSelectedTemplate] = useState<TianjinTemplate | null>(null);
-  const openTemplateDetail = useCallback((t: TianjinTemplate) => setSelectedTemplate(t), []);
-  const closeTemplateDetail = useCallback(() => setSelectedTemplate(null), []);
-  
-  const handleApplyTemplate = useCallback((templateId: number) => {
-    const template = templates.find(t => t.id === templateId);
-    if (template) {
-      // 导航到创作中心页面，传递模板参数
-      window.location.href = `/create?template=${encodeURIComponent(template.name)}&prompt=${encodeURIComponent(template.description)}`;
-      toast.success('已应用模板到创作中心');
-    }
-  }, [templates]);
-  
-  // 获取数据
+  const [likedTemplates, setLikedTemplates] = useState<Set<number>>(new Set());
+  const [favoritedTemplates, setFavoritedTemplates] = useState<Set<number>>(new Set());
+
+  // 加载模板数据
   useEffect(() => {
-    const fetchData = async () => {
+    const loadTemplates = async () => {
       setIsLoading(true);
       try {
-        const templatesData = await tianjinActivityService.getTemplates();
-        setTemplates(templatesData);
+        const data = await tianjinActivityService.getTemplates();
+        setTemplates(data);
+        
+        // 加载用户互动状态
+        const likedIds = await templateInteractionService.getUserLikedTemplateIds();
+        const favoritedIds = await templateInteractionService.getUserFavoritedTemplateIds();
+        setLikedTemplates(new Set(likedIds));
+        setFavoritedTemplates(new Set(favoritedIds));
       } catch (error) {
-        console.error('Failed to fetch tianjin templates:', error);
-        toast.error('加载数据失败，请稍后重试');
+        console.error('加载模板失败:', error);
       } finally {
         setIsLoading(false);
       }
     };
-    fetchData();
+
+    loadTemplates();
   }, []);
-  
-  // 骨架屏加载状态
+
+  // 过滤模板
+  useEffect(() => {
+    let filtered = templates;
+
+    // 按分类过滤
+    if (selectedCategory && selectedCategory !== 'all') {
+      filtered = filtered.filter(t => t.category === selectedCategory);
+    }
+
+    // 按搜索词过滤
+    if (search) {
+      const searchLower = search.toLowerCase();
+      filtered = filtered.filter(t => 
+        t.name.toLowerCase().includes(searchLower) ||
+        t.description.toLowerCase().includes(searchLower) ||
+        t.tags?.some(tag => tag.toLowerCase().includes(searchLower))
+      );
+    }
+
+    setFilteredTemplates(filtered);
+  }, [templates, selectedCategory, search]);
+
+  // 处理点赞
+  const handleLike = useCallback(async (e: React.MouseEvent, templateId: number) => {
+    e.stopPropagation();
+    try {
+      const result = await templateInteractionService.toggleTemplateLike(templateId);
+      setLikedTemplates(prev => {
+        const newSet = new Set(prev);
+        if (result.isLiked) {
+          newSet.add(templateId);
+        } else {
+          newSet.delete(templateId);
+        }
+        return newSet;
+      });
+      
+      // 更新本地模板数据中的点赞数
+      setTemplates(prev => prev.map(t => {
+        if (t.id === templateId) {
+          return {
+            ...t,
+            likes: result.likeCount
+          };
+        }
+        return t;
+      }));
+    } catch (error) {
+      console.error('点赞失败:', error);
+    }
+  }, []);
+
+  // 处理收藏
+  const handleFavorite = useCallback(async (e: React.MouseEvent, templateId: number) => {
+    e.stopPropagation();
+    try {
+      const isFavorited = await templateInteractionService.toggleTemplateFavorite(templateId);
+      setFavoritedTemplates(prev => {
+        const newSet = new Set(prev);
+        if (isFavorited) {
+          newSet.add(templateId);
+        } else {
+          newSet.delete(templateId);
+        }
+        return newSet;
+      });
+    } catch (error) {
+      console.error('收藏失败:', error);
+    }
+  }, []);
+
+  // 处理使用模板
+  const handleUseTemplate = useCallback(async (template: TianjinTemplate) => {
+    // 记录模板使用次数
+    try {
+      await tianjinActivityService.incrementTemplateUsage(template.id);
+    } catch (error) {
+      console.error('记录使用次数失败:', error);
+    }
+    navigate(`/create?template=${template.id}&category=tianjin`);
+  }, [navigate]);
+
+  // 处理查看详情
+  const handleViewDetail = useCallback((template: TianjinTemplate) => {
+    navigate(`/tianjin/template/${template.id}`);
+  }, [navigate]);
+
   if (isLoading) {
     return (
-      <div className={`p-6 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-md`}>
-        <div className="space-y-6">
-          <div className="grid grid-cols-2 sm:columns-2 lg:columns-3 xl:columns-4 gap-3 md:gap-4">
-            {[1, 2, 3, 4, 5, 6].map((i) => (
-              <div key={i} className="space-y-3">
-                <div className={`h-40 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`}></div>
-                <div className={`h-4 w-3/4 rounded ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`}></div>
-                <div className={`h-3 w-1/2 rounded ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`}></div>
-              </div>
-            ))}
-          </div>
-        </div>
+      <div className="flex items-center justify-center py-20">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600"></div>
       </div>
     );
   }
-  
+
+  if (filteredTemplates.length === 0) {
+    return (
+      <div className={`text-center py-16 rounded-2xl ${isDark ? 'bg-gray-900' : 'bg-white'}`}>
+        <svg className="w-16 h-16 mx-auto mb-4 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+        <p className={`text-lg ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+          暂无符合条件的模板
+        </p>
+        <p className={`text-sm mt-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+          试试其他分类或搜索词
+        </p>
+      </div>
+    );
+  }
+
   return (
-    <div
-      className={`p-0 md:p-0 rounded-none ${isDark ? 'bg-transparent' : 'bg-transparent'} shadow-none flex-1 flex flex-col gap-6`}
-    >
-      {/* 左侧主内容区 */}
-      <div className="w-full">
-        {/* 津脉作品内容 */}
-        <div className="columns-2 sm:columns-2 lg:columns-3 xl:columns-4 gap-3 md:gap-4">
-          {templates.map((template) => (
-            <div
-              key={template.id}
-              className={`break-inside-avoid mb-3 md:mb-4 rounded-xl overflow-hidden shadow-md border transition-all duration-300 hover:shadow-xl hover:-translate-y-1 ${
-                isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'
-              }`}
-            >
-              <div className="relative group">
-                <TianjinImage 
-                  src={template.thumbnail} 
-                  alt={template.name} 
-                  className="cursor-pointer"
-                  ratio="auto"
-                  rounded="none"
-                  onClick={() => openTemplateDetail(template)}
-                  loading="lazy"
-                />
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300" />
+    <div className="space-y-6">
+      {/* 模板网格 */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {filteredTemplates.map((template, index) => (
+          <motion.div
+            key={template.id}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: index * 0.05 }}
+            className={`group relative rounded-2xl overflow-hidden cursor-pointer transition-all duration-300 ${
+              isDark 
+                ? 'bg-gray-900 border border-gray-800 hover:border-gray-700' 
+                : 'bg-white border border-gray-200 hover:border-gray-300 hover:shadow-lg'
+            }`}
+            onClick={() => handleViewDetail(template)}
+          >
+            {/* 缩略图 */}
+            <div className="relative aspect-[4/3] overflow-hidden bg-gray-200 dark:bg-gray-700">
+              <img
+                src={template.thumbnail}
+                alt={template.name}
+                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                loading="lazy"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.src = `https://picsum.photos/seed/fallback-${template.id}/800/600`;
+                }}
+              />
+              
+              {/* 分类标签 */}
+              <div className="absolute top-3 left-3">
+                <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-black/60 text-white backdrop-blur-sm">
+                  {template.category}
+                </span>
               </div>
-              {/* 移动端专属修改：p-2 (原p-4) 减少内边距 */}
-              <div className={`p-2 md:p-4 ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
-                <div className="flex justify-between items-start mb-2">
-                  <h4 className="font-bold text-sm md:text-lg leading-tight line-clamp-1">{template.name}</h4>
-                </div>
-                <div className="flex flex-wrap gap-1 md:gap-2 mb-2 md:mb-3">
-                  <span className={`text-[10px] md:text-xs px-1.5 py-0.5 rounded-full border ${
-                    isDark ? 'bg-gray-700 border-gray-600 text-gray-300' : 'bg-red-50 border-red-100 text-red-600'
+
+              {/* 难度标签 */}
+              {template.difficulty && (
+                <div className="absolute top-3 right-3">
+                  <span className={`px-2 py-0.5 rounded text-xs ${
+                    template.difficulty === 'easy' 
+                      ? 'bg-green-500/80 text-white' 
+                      : template.difficulty === 'medium'
+                      ? 'bg-yellow-500/80 text-white'
+                      : 'bg-red-500/80 text-white'
                   }`}>
-                    {template.category}
+                    {template.difficulty === 'easy' ? '简单' : template.difficulty === 'medium' ? '中等' : '困难'}
                   </span>
                 </div>
-                <p className={`text-xs md:text-sm mb-2 md:mb-4 line-clamp-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                  {template.description}
-                </p>
-                <div className="flex justify-between items-center text-[10px] md:text-xs mb-2 md:mb-4">
-                  <span className={`${isDark ? 'text-gray-400' : 'text-gray-500'} flex items-center`}>
-                    <i className="fas fa-fire-alt mr-1 text-red-500"></i>
-                    {template.usageCount}
+              )}
+
+              {/* 悬停操作按钮 */}
+              <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center gap-3">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleUseTemplate(template);
+                  }}
+                  className="px-6 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-full font-medium transition-all duration-200 hover:scale-105"
+                >
+                  立即使用
+                </button>
+              </div>
+            </div>
+
+            {/* 模板信息 */}
+            <div className="p-4">
+              <h3 className={`font-semibold text-lg mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                {template.name}
+              </h3>
+              <p className={`text-sm line-clamp-2 mb-3 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                {template.description}
+              </p>
+
+              {/* 标签 */}
+              {template.tags && template.tags.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-3">
+                  {template.tags.slice(0, 3).map((tag, i) => (
+                    <span 
+                      key={i}
+                      className={`text-xs px-2 py-0.5 rounded ${
+                        isDark ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-600'
+                      }`}
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* 底部信息栏 */}
+              <div className="flex items-center justify-between pt-3 border-t border-gray-200 dark:border-gray-800">
+                <div className="flex items-center gap-4 text-sm">
+                  <span className={`flex items-center gap-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                    {template.usageCount || 0}
+                  </span>
+                  <span className={`flex items-center gap-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    {template.estimatedTime || '10分钟'}
                   </span>
                 </div>
-                {/* 移动端专属修改：Flex布局水平排列按钮，更紧凑 */}
-                <div className="flex md:grid md:grid-cols-2 gap-1 md:gap-2">
-                  <button 
-                    onClick={() => handleApplyTemplate(template.id)}
-                    className="flex-1 py-1.5 md:py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-[10px] md:text-sm font-medium transition-colors shadow-sm whitespace-nowrap"
-                  >
-                    应用
-                  </button>
-                  <button 
-                    onClick={() => openTemplateDetail(template)}
-                    className={`flex-1 py-1.5 md:py-2 rounded-lg text-[10px] md:text-sm font-medium transition-colors border whitespace-nowrap ${
-                      isDark ? 'border-gray-600 hover:bg-gray-700 text-gray-300' : 'border-gray-200 hover:bg-gray-50 text-gray-700'
+
+                {/* 互动按钮 */}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={(e) => handleLike(e, template.id)}
+                    className={`p-2 rounded-full transition-all duration-200 ${
+                      likedTemplates.has(template.id)
+                        ? 'text-red-500 bg-red-50 dark:bg-red-900/20'
+                        : isDark 
+                          ? 'text-gray-400 hover:text-red-400 hover:bg-gray-800' 
+                          : 'text-gray-400 hover:text-red-500 hover:bg-gray-100'
                     }`}
                   >
-                    详情
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-      
-      {/* 模板详情弹层 */}
-      {selectedTemplate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={closeTemplateDetail}></div>
-          <motion.div
-            initial={{ scale: 0.95, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.95, opacity: 0 }}
-            transition={{ duration: 0.3 }}
-            className={`w-full max-w-3xl max-h-[90vh] overflow-y-auto bg-white dark:bg-gray-800 rounded-xl shadow-2xl z-10 p-6`}
-          >
-            <div className="flex justify-between items-start mb-4">
-              <h2 className="text-2xl font-bold">{selectedTemplate.name}</h2>
-              <button
-                onClick={closeTemplateDetail}
-                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-xl"
-              >
-                <i className="fas fa-times"></i>
-              </button>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <img
-                  src={selectedTemplate.thumbnail}
-                  alt={selectedTemplate.name}
-                  className="w-full rounded-lg shadow-lg"
-                />
-              </div>
-              <div>
-                <div className="mb-4">
-                  <span className="inline-block px-3 py-1 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-full text-sm mb-2">{selectedTemplate.category}</span>
-                  <p className="text-gray-600 dark:text-gray-300 mb-4">{selectedTemplate.description}</p>
-                  <div className="flex items-center text-gray-500 dark:text-gray-400">
-                    <i className="fas fa-fire-alt mr-2 text-red-500"></i>
-                    <span>{selectedTemplate.usageCount}次使用</span>
-                  </div>
-                </div>
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => {
-                      handleApplyTemplate(selectedTemplate.id);
-                      closeTemplateDetail();
-                    }}
-                    className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors"
-                  >
-                    立即应用
+                    <svg className="w-5 h-5" fill={likedTemplates.has(template.id) ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                    </svg>
                   </button>
                   <button
-                    onClick={closeTemplateDetail}
-                    className="flex-1 py-3 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg font-medium transition-colors"
+                    onClick={(e) => handleFavorite(e, template.id)}
+                    className={`p-2 rounded-full transition-all duration-200 ${
+                      favoritedTemplates.has(template.id)
+                        ? 'text-yellow-500 bg-yellow-50 dark:bg-yellow-900/20'
+                        : isDark 
+                          ? 'text-gray-400 hover:text-yellow-400 hover:bg-gray-800' 
+                          : 'text-gray-400 hover:text-yellow-500 hover:bg-gray-100'
+                    }`}
                   >
-                    关闭
+                    <svg className="w-5 h-5" fill={favoritedTemplates.has(template.id) ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                    </svg>
                   </button>
                 </div>
               </div>
             </div>
           </motion.div>
-        </div>
-      )}
+        ))}
+      </div>
     </div>
   );
-});
+}

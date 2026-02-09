@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { SimpleHtmlEditor } from './SimpleHtmlEditor';
 
 interface RichTextEditorProps {
   content: string;
@@ -74,36 +75,21 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
     onChange(content);
   };
 
-  // 简单编辑器的内容变化处理
-  const handleSimpleEditorChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const newContent = e.target.value;
-    setEditorContent(newContent);
-    onChange(newContent);
-  };
-
-  // 简单编辑器模式
+  // 简单编辑器模式 - 使用增强的 SimpleHtmlEditor
   if (useSimpleEditor || !Editor) {
     return (
       <div className={`space-y-2 ${height === '100%' ? 'h-full flex flex-col' : ''}`}>
-        <div className="relative">
-          <textarea
-            value={editorContent}
-            onChange={handleSimpleEditorChange}
-            placeholder={placeholder}
-            disabled={disabled}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800 dark:border-gray-700 dark:text-white font-mono text-sm"
-            style={{
-              height: typeof height === 'number' ? height : 400,
-              resize: 'vertical',
-              minHeight: 200
-            }}
-          />
-          <div className="absolute bottom-2 right-2 text-xs text-gray-400">
-            支持 HTML 标签
-          </div>
-        </div>
-        <div className="flex items-center justify-between">
-          <p className="text-yellow-600 text-xs">富文本编辑器加载失败，已切换为普通文本模式</p>
+        <SimpleHtmlEditor
+          content={editorContent}
+          onChange={(newContent) => {
+            setEditorContent(newContent);
+            onChange(newContent);
+          }}
+          placeholder={placeholder}
+          disabled={disabled}
+          height={height}
+        />
+        <div className="flex items-center justify-end gap-2">
           <button
             type="button"
             onClick={() => setUseSimpleEditor(false)}

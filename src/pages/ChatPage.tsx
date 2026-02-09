@@ -138,19 +138,24 @@ const ChatPage: React.FC = () => {
   // 发送消息
   const handleSendMessage = async () => {
     if (!inputMessage.trim() || !userId || !currentUser || sending) return;
-    
+
     setSending(true);
     const content = inputMessage.trim();
     setInputMessage('');
-    
+
     try {
-      const newMessage = await sendDirectMessage(currentUser.id, userId, content);
-      if (newMessage) {
-        setMessages((prev) => [...prev, newMessage]);
+      const result = await sendDirectMessage(currentUser.id, userId, content);
+      if (result.success && result.data) {
+        setMessages((prev) => [...prev, result.data!]);
+        toast.success('发送成功');
+      } else {
+        // 权限检查失败
+        toast.error(result.message || '发送失败');
+        setInputMessage(content); // 恢复输入内容
       }
     } catch (error: any) {
       console.error('发送消息失败:', error);
-      toast.error('发送消息失败');
+      toast.error(error.message || '发送消息失败');
       setInputMessage(content); // 恢复输入内容
     } finally {
       setSending(false);

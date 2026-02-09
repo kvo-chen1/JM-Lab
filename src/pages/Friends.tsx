@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card, Input, Button, LoadingSpinner } from '@/components/ui';
 import { MessageSquare, UserPlus, UserMinus, MessageCircle, Users, Heart } from 'lucide-react';
 import { getFollowingList, getFollowersList, followUser, unfollowUser } from '@/services/postService';
-import { getDirectMessages, sendDirectMessage, getUnreadMessageCounts } from '@/services/messageService';
+import { getConversations, getUnreadMessageCounts, Conversation } from '@/services/messageService';
 import { AuthContext } from '@/contexts/authContext';
 import { toast } from 'sonner';
 
@@ -14,23 +14,14 @@ interface User {
   bio?: string;
 }
 
-interface ChatPreview {
-  userId: string;
-  username: string;
-  avatar: string;
-  lastMessage: string;
-  lastMessageTime: string;
-  unreadCount: number;
-}
-
 const FriendsPage: React.FC = () => {
   const navigate = useNavigate();
   const { user: currentUser } = useContext(AuthContext);
-  
+
   const [activeTab, setActiveTab] = useState<'following' | 'followers' | 'messages'>('following');
   const [followingList, setFollowingList] = useState<User[]>([]);
   const [followersList, setFollowersList] = useState<User[]>([]);
-  const [chatList, setChatList] = useState<ChatPreview[]>([]);
+  const [chatList, setChatList] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(false);
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
 
@@ -75,40 +66,23 @@ const FriendsPage: React.FC = () => {
 
   // 加载私信列表
   const loadChatList = async () => {
+    console.log('[Friends] loadChatList 被调用, currentUser:', currentUser?.id);
+    if (!currentUser?.id) {
+      console.log('[Friends] 用户未登录，不加载私信列表');
+      return;
+    }
+
     setLoading(true);
     try {
       // 获取未读消息数
-      const counts = await getUnreadMessageCounts(currentUser?.id || '');
+      const counts = await getUnreadMessageCounts(currentUser.id);
+      console.log('[Friends] 未读消息数:', counts);
       setUnreadCounts(counts);
 
-      // 获取最近的聊天列表（这里简化处理，实际应该从后端获取最近联系人）
-      // 暂时使用关注列表作为聊天对象
-      const following = await getFollowingList();
-      const chatPreviews: ChatPreview[] = await Promise.all(
-        following.map(async (user) => {
-          // 获取与该用户的最后一条消息
-          const messages = await getDirectMessages(currentUser?.id || '', user.id, 1);
-          const lastMessage = messages[0];
-          
-          return {
-            userId: user.id,
-            username: user.username,
-            avatar: user.avatar_url,
-            lastMessage: lastMessage?.content || '暂无消息',
-            lastMessageTime: lastMessage?.created_at || '',
-            unreadCount: counts[user.id] || 0
-          };
-        })
-      );
-
-      // 按最后消息时间排序
-      chatPreviews.sort((a, b) => {
-        if (!a.lastMessageTime) return 1;
-        if (!b.lastMessageTime) return -1;
-        return new Date(b.lastMessageTime).getTime() - new Date(a.lastMessageTime).getTime();
-      });
-
-      setChatList(chatPreviews);
+      // 获取会话列表（包含最后一条消息预览）
+      const conversations = await getConversations();
+      console.log('[Friends] 会话列表:', conversations);
+      setChatList(conversations);
     } catch (error: any) {
       console.error('加载私信列表失败:', error);
       toast.error('加载私信列表失败');
@@ -207,43 +181,50 @@ const FriendsPage: React.FC = () => {
   );
 
   // 渲染聊天预览卡片
-  const renderChatCard = (chat: ChatPreview) => (
-    <Card 
-      key={chat.userId} 
-      className="p-4 hover:shadow-md transition-shadow cursor-pointer"
-      onClick={() => goToChat(chat.userId)}
-    >
-      <div className="flex items-center gap-3">
-        <div className="relative">
-          <img
-            src={chat.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${chat.userId}`}
-            alt={chat.username}
-            className="w-12 h-12 rounded-full object-cover bg-gray-100"
-          />
-          {chat.unreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
-              {chat.unreadCount}
-            </span>
-          )}
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between">
-            <h3 className="font-semibold text-gray-800 dark:text-white">
-              {chat.username || '未知用户'}
-            </h3>
-            {chat.lastMessageTime && (
-              <span className="text-xs text-gray-400">
-                {new Date(chat.lastMessageTime).toLocaleDateString()}
+  const renderChatCard = (chat: Conversation) => {
+    // 判断最后一条消息是否是自己发送的
+    const isLastMessageFromMe = chat.lastSenderId === currentUser?.id;
+    // 判断是否有未读消息
+    const hasUnread = chat.unreadCount > 0;
+
+    return (
+      <Card
+        key={chat.userId}
+        className="p-4 hover:shadow-md transition-shadow cursor-pointer"
+        onClick={() => goToChat(chat.userId)}
+      >
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <img
+              src={chat.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${chat.userId}`}
+              alt={chat.username}
+              className="w-12 h-12 rounded-full object-cover bg-gray-100"
+            />
+            {hasUnread && (
+              <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                {chat.unreadCount}
               </span>
             )}
           </div>
-          <p className={`text-sm truncate ${chat.unreadCount > 0 ? 'text-gray-800 font-medium' : 'text-gray-500'}`}>
-            {chat.lastMessage}
-          </p>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-gray-800 dark:text-white">
+                {chat.username || '未知用户'}
+              </h3>
+              {chat.lastMessageTime && (
+                <span className="text-xs text-gray-400">
+                  {new Date(chat.lastMessageTime).toLocaleDateString()}
+                </span>
+              )}
+            </div>
+            <p className={`text-sm truncate ${hasUnread ? 'text-gray-800 font-medium' : 'text-gray-500'}`}>
+              {isLastMessageFromMe ? '我: ' : ''}{chat.lastMessage || '暂无消息'}
+            </p>
+          </div>
         </div>
-      </div>
-    </Card>
-  );
+      </Card>
+    );
+  };
 
   return (
     <div className="container mx-auto p-4 max-w-4xl">

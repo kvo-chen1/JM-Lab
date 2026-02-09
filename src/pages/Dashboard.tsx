@@ -64,10 +64,10 @@ const recentWorks: any[] = [];
 // 导航菜单项
 const navItems = [
   { icon: Home, label: '首页', href: '/', active: false },
-  { icon: Compass, label: '探索', href: '/explore', active: false },
+  { icon: Compass, label: '广场', href: '/square', active: false },
   { icon: Sparkles, label: '创作', href: '/create', active: false },
   { icon: MessageCircle, label: '社区', href: '/community', active: false },
-  { icon: Award, label: '成就', href: '/achievements', active: false },
+  { icon: Award, label: '成就', href: '/achievement-museum', active: false },
 ];
 
 // 快捷操作项
@@ -126,6 +126,10 @@ export default function Dashboard() {
     worksChange: -2.1,
   });
 
+  // 热门话题数据
+  const [hotTopics, setHotTopics] = useState<Array<{ tag: string; count: string; hot: boolean }>>([]);
+  const [isLoadingTopics, setIsLoadingTopics] = useState(false);
+
   const isRealUser = user && user.id &&
     typeof user.id === 'string' &&
     !user.id.startsWith('phone_user_') &&
@@ -167,6 +171,8 @@ export default function Dashboard() {
                       id: w.id?.toString() || '',
                       title: w.title || 'Untitled',
                       thumbnail: w.thumbnail || w.cover_url || '',
+                      videoUrl: w.videoUrl || w.video_url || '',
+                      type: w.type || 'image',
                       status: w.status === 'published' ? '已发布' : '草稿',
                       date: workDate,
                       views: w.views || 0,
@@ -239,6 +245,8 @@ export default function Dashboard() {
                   id: w.id,
                   title: w.title,
                   thumbnail: w.thumbnail || w.cover_url || '',
+                  videoUrl: w.video_url || '',
+                  type: w.type || 'image',
                   status: w.status === 'published' ? '已发布' : '草稿',
                   date: workDate,
                   views: w.views || 0,
@@ -341,6 +349,120 @@ export default function Dashboard() {
     };
   }, []);
 
+  // 获取热门话题数据
+  useEffect(() => {
+    console.log('[Dashboard] Hot topics useEffect triggered');
+
+    const fetchHotTopics = async () => {
+      console.log('[Dashboard] Starting fetchHotTopics...');
+      setIsLoadingTopics(true);
+
+      try {
+        // 从 works 表中获取所有标签
+        console.log('[Dashboard] Querying Supabase for works...');
+        const { data: works, error } = await supabase
+          .from('works')
+          .select('tags');
+
+        console.log('[Dashboard] Supabase response:', { worksCount: works?.length, error });
+
+        if (error) {
+          console.error('[Dashboard] Supabase error:', error);
+          throw error;
+        }
+
+        if (!works || works.length === 0) {
+          console.log('[Dashboard] No works found in database');
+          setHotTopics([
+            { tag: '#国潮设计', count: '2.3k', hot: true },
+            { tag: '#传统文化', count: '1.8k', hot: true },
+            { tag: '#创意插画', count: '1.2k', hot: false },
+            { tag: '#非遗传承', count: '956', hot: false },
+          ]);
+          return;
+        }
+
+        // 统计标签出现次数
+        const tagCounts: Record<string, number> = {};
+        let totalWorksWithTags = 0;
+
+        works.forEach((work: any, index: number) => {
+          if (index < 3) {
+            console.log(`[Dashboard] Work ${index} tags:`, work.tags, 'Type:', typeof work.tags);
+          }
+
+          if (work.tags) {
+            // 处理不同的数据格式
+            let tagsArray: string[] = [];
+
+            if (Array.isArray(work.tags)) {
+              tagsArray = work.tags;
+            } else if (typeof work.tags === 'string') {
+              try {
+                const parsed = JSON.parse(work.tags);
+                tagsArray = Array.isArray(parsed) ? parsed : [work.tags];
+              } catch {
+                tagsArray = work.tags.split(',').map((t: string) => t.trim());
+              }
+            }
+
+            if (tagsArray.length > 0) {
+              totalWorksWithTags++;
+              tagsArray.forEach((tag: string) => {
+                if (tag && typeof tag === 'string') {
+                  const cleanTag = tag.trim();
+                  if (cleanTag) {
+                    tagCounts[cleanTag] = (tagCounts[cleanTag] || 0) + 1;
+                  }
+                }
+              });
+            }
+          }
+        });
+
+        console.log('[Dashboard] Total works with tags:', totalWorksWithTags);
+        console.log('[Dashboard] Tag counts:', tagCounts);
+
+        // 转换为数组并排序
+        const sortedTags = Object.entries(tagCounts)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 6)
+          .map(([tag, count], index) => ({
+            tag: tag.startsWith('#') ? tag : `#${tag}`,
+            count: count >= 1000 ? `${(count / 1000).toFixed(1)}k` : count.toString(),
+            hot: index < 2
+          }));
+
+        console.log('[Dashboard] Final sorted tags:', sortedTags);
+
+        if (sortedTags.length > 0) {
+          setHotTopics(sortedTags);
+        } else {
+          console.log('[Dashboard] No tags found, using defaults');
+          setHotTopics([
+            { tag: '#国潮设计', count: '2.3k', hot: true },
+            { tag: '#传统文化', count: '1.8k', hot: true },
+            { tag: '#创意插画', count: '1.2k', hot: false },
+            { tag: '#非遗传承', count: '956', hot: false },
+          ]);
+        }
+      } catch (error) {
+        console.error('[Dashboard] Error in fetchHotTopics:', error);
+        setHotTopics([
+          { tag: '#国潮设计', count: '2.3k', hot: true },
+          { tag: '#传统文化', count: '1.8k', hot: true },
+          { tag: '#创意插画', count: '1.2k', hot: false },
+          { tag: '#非遗传承', count: '956', hot: false },
+        ]);
+      } finally {
+        setIsLoadingTopics(false);
+        console.log('[Dashboard] fetchHotTopics completed');
+      }
+    };
+
+    fetchHotTopics();
+  }, []);
+
   const toggleMenu = (id: number) => {
     setOpenMenuId(openMenuId === id ? null : id);
   };
@@ -396,14 +518,20 @@ export default function Dashboard() {
     }
   };
 
-  const pieData = [
+  const rawPieData = [
     { name: '成就', value: pointsSourceStats.achievement || 0, color: '#60a5fa' },
     { name: '任务', value: pointsSourceStats.task || 0, color: '#34d399' },
     { name: '每日', value: pointsSourceStats.daily || 0, color: '#fbbf24' },
     { name: '消费', value: pointsSourceStats.consumption || 0, color: '#f87171' },
     { name: '兑换', value: pointsSourceStats.exchange || 0, color: '#a78bfa' },
     { name: '其他', value: pointsSourceStats.other || 0, color: '#94a3b8' }
-  ].filter(item => item.value > 0);
+  ];
+
+  // 如果所有值都是0，显示默认数据
+  const hasData = rawPieData.some(item => item.value > 0);
+  const pieData = hasData ? rawPieData.filter(item => item.value > 0) : [
+    { name: '暂无数据', value: 1, color: '#e5e7eb' }
+  ];
 
   useEffect(() => {
     if (!isAuthenticated || !user) {
@@ -593,22 +721,22 @@ export default function Dashboard() {
                   const Icon = item.icon;
                   const isActive = item.label === '首页' && activeNav === 'dashboard';
                   return (
-                    <motion.a
+                    <motion.div
                       key={item.label}
-                      href={item.href}
                       whileHover={{ x: 4 }}
-                      className={`flex items-center gap-3 px-4 py-3 rounded-2xl transition-all ${
+                      className={`flex items-center gap-3 px-4 py-3 rounded-2xl transition-all cursor-pointer ${
                         isActive
                           ? 'bg-gradient-to-r from-red-500 to-orange-500 text-white shadow-lg shadow-red-500/25'
                           : isDark
                             ? 'text-gray-300 hover:bg-gray-700/50'
                             : 'text-gray-600 hover:bg-gray-100/50'
                       }`}
+                      onClick={() => navigate(item.href)}
                     >
                       <Icon className="w-5 h-5" />
                       <span className="font-medium">{item.label}</span>
                       {isActive && <ChevronRight className="w-4 h-4 ml-auto" />}
-                    </motion.a>
+                    </motion.div>
                   );
                 })}
               </nav>
@@ -679,6 +807,20 @@ export default function Dashboard() {
                   </div>
                 ))}
               </div>
+
+              {/* 查看完整签到页面 */}
+              <motion.button
+                onClick={() => navigate('/checkin')}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className={`w-full mt-4 py-2 rounded-xl text-sm font-medium transition-all ${
+                  isDark
+                    ? 'bg-gray-700/50 text-gray-300 hover:bg-gray-700'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                查看完整签到页面 →
+              </motion.button>
             </div>
           </motion.div>
 
@@ -862,7 +1004,17 @@ export default function Dashboard() {
                         className="relative w-16 h-16 rounded-xl overflow-hidden cursor-pointer"
                         onClick={() => navigate(`/work/${work.id}`)}
                       >
-                        {work.thumbnail ? (
+                        {work.type === 'video' && work.videoUrl ? (
+                          <video
+                            src={work.videoUrl}
+                            className="w-full h-full object-cover"
+                            muted
+                            loop
+                            autoPlay
+                            playsInline
+                            preload="metadata"
+                          />
+                        ) : work.thumbnail ? (
                           <img
                             src={work.thumbnail}
                             alt={work.title}
@@ -871,6 +1023,13 @@ export default function Dashboard() {
                         ) : (
                           <div className={`w-full h-full flex items-center justify-center ${isDark ? 'bg-gray-600' : 'bg-gray-200'}`}>
                             <Image className={`w-6 h-6 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
+                          </div>
+                        )}
+                        {work.type === 'video' && (
+                          <div className="absolute top-0.5 right-0.5 bg-black/60 text-white text-[8px] px-1 py-0.5 rounded-full">
+                            <svg className="w-2 h-2" fill="currentColor" viewBox="0 0 20 20">
+                              <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z" />
+                            </svg>
                           </div>
                         )}
                       </div>
@@ -1009,15 +1168,15 @@ export default function Dashboard() {
                         action.label === '好友' ? 'friends' :
                           action.label === '通知' ? 'notifications' : ''];
                   return (
-                    <motion.a
+                    <motion.div
                       key={action.label}
-                      href={action.href}
                       initial={{ opacity: 0, scale: 0.8 }}
                       animate={{ opacity: 1, scale: 1 }}
                       transition={{ delay: 0.05 * index }}
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
-                      className="flex flex-col items-center p-4 rounded-2xl hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors relative"
+                      className="flex flex-col items-center p-4 rounded-2xl hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors relative cursor-pointer"
+                      onClick={() => navigate(action.href)}
                     >
                       <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${action.color} flex items-center justify-center text-white shadow-lg mb-2`}>
                         <Icon className="w-5 h-5" />
@@ -1030,7 +1189,7 @@ export default function Dashboard() {
                           {count > 99 ? '99+' : count}
                         </span>
                       )}
-                    </motion.a>
+                    </motion.div>
                   );
                 })}
               </div>
@@ -1170,22 +1329,21 @@ export default function Dashboard() {
               </div>
 
               <div className="space-y-3">
-                {[
-                  { tag: '#国潮设计', count: '2.3k', hot: true },
-                  { tag: '#传统文化', count: '1.8k', hot: true },
-                  { tag: '#创意插画', count: '1.2k', hot: false },
-                  { tag: '#非遗传承', count: '956', hot: false },
-                ].map((topic, index) => (
-                  <motion.a
+                {isLoadingTopics ? (
+                  <div className="text-center py-4">
+                    <div className="inline-block animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-orange-500"></div>
+                  </div>
+                ) : hotTopics.length > 0 ? hotTopics.map((topic, index) => (
+                  <motion.div
                     key={topic.tag}
-                    href={`/explore?tag=${topic.tag}`}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.1 * index }}
-                    className={`flex items-center justify-between p-3 rounded-xl ${isDark
+                    className={`flex items-center justify-between p-3 rounded-xl cursor-pointer ${isDark
                       ? 'bg-gray-800/50 hover:bg-gray-700/50'
                       : 'bg-white/50 hover:bg-white'
                       } transition-colors`}
+                    onClick={() => navigate(`/explore?tag=${encodeURIComponent(topic.tag)}`)}
                   >
                     <div className="flex items-center gap-2">
                       <span className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
@@ -1200,8 +1358,12 @@ export default function Dashboard() {
                     <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                       {topic.count} 作品
                     </span>
-                  </motion.a>
-                ))}
+                  </motion.div>
+                )) : (
+                  <div className={`text-center py-4 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                    暂无热门话题
+                  </div>
+                )}
               </div>
             </div>
           </motion.div>

@@ -186,6 +186,9 @@ export default function Home() {
   // 初始加载数据
   useEffect(() => {
     fetchData();
+    // 清理可能存在的浏览器自动填充值，确保输入框和React state同步
+    setSearch('');
+    setSelectedTags([]);
   }, []);
   
   // 创作提示词输入状态
@@ -216,18 +219,17 @@ export default function Home() {
   const generatedRef = useRef<HTMLDivElement | null>(null);
   const optimizedRef = useRef<HTMLDivElement | null>(null);
   
-  const ensurePrompt = (): string | null => {
+  const ensurePrompt = (): string => {
     const base = search.trim();
-    if (!base) {
-      toast.warning('请输入关键词');
-      return null;
-    }
-    return inspireOn ? `${base} 灵感加持` : base;
+    const tagsText = selectedTags.join(' ').trim();
+    const combined = base || tagsText;
+    // 如果没有输入，使用默认提示词
+    const result = combined || '天津文化设计灵感';
+    return inspireOn ? `${result} 灵感加持` : result;
   };
   
   const handleInspireClick = useCallback(() => {
     const p = ensurePrompt();
-    if (!p) return;
     
     // 发布创作灵感事件
     eventBus.publish('请求:开始', {
@@ -241,7 +243,6 @@ export default function Home() {
   
   const handleGenerateClick = useCallback(() => {
     const p = ensurePrompt();
-    if (!p) return;
     
     // 保存当前输入到本地存储，以便设计工坊页面读取
     const workshopData = {
@@ -264,7 +265,6 @@ export default function Home() {
   
   const handleOptimizeClick = async () => {
     const p = ensurePrompt();
-    if (!p) return;
     
     // 发布优化开始事件
     eventBus.publish('请求:开始', {
@@ -396,18 +396,12 @@ export default function Home() {
     setSelectedTags((prev) => {
       const exists = prev.includes(tag);
       const next = exists ? prev.filter(t => t !== tag) : [...prev, tag];
-      
-      // 使用防抖更新搜索文本，防止频繁更新导致的性能问题
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
-      
-      debounceTimerRef.current = setTimeout(() => {
-        setSearch((s) => exists ? s.replace(tag, '').trim() : (s ? `${s} ${tag}` : tag));
-        debounceTimerRef.current = null;
-      }, 300);
-      
       return next;
+    });
+    // 立即同步更新 search，不使用防抖
+    setSearch((s) => {
+      const exists = s.includes(tag);
+      return exists ? s.replace(tag, '').trim() : (s ? `${s} ${tag}` : tag);
     });
   };
 
@@ -541,6 +535,10 @@ export default function Home() {
                   onChange={(e) => setSearch(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && handleGenerateClick()}
                   placeholder="输入灵感，开启创作之旅..." 
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck="false"
                   className="w-full h-16 bg-transparent text-white placeholder-white/60 px-6 text-lg outline-none transition-all duration-300"
                 />
                 <div className="absolute right-4 top-1/2 transform -translate-y-1/2 flex items-center gap-4">
@@ -603,7 +601,7 @@ export default function Home() {
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: 0.15, duration: 0.15 }}
                 >
-                  <i className="fas fa-lightbulb text-xl"></i> 灵感
+                  <i className="fas fa-lightbulb text-xl"></i> 优化提示词
                 </motion.button>
                 <motion.button 
                   onClick={handleGenerateClick}

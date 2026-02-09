@@ -589,6 +589,51 @@ async function createPostgreSQLTables(pool) {
       await client.query(`CREATE INDEX IF NOT EXISTS idx_work_bookmarks_work_id ON public.work_bookmarks(work_id)`)
       await client.query(`CREATE INDEX IF NOT EXISTS idx_work_bookmarks_user_id ON public.work_bookmarks(user_id)`)
 
+      // 创建 notifications 表（通知）
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS public.notifications (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+          sender_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
+          sender_name TEXT,
+          sender_avatar TEXT,
+          type TEXT NOT NULL,
+          title TEXT NOT NULL,
+          message TEXT NOT NULL,
+          action_url TEXT,
+          entity_type TEXT,
+          entity_id UUID,
+          is_read BOOLEAN DEFAULT false,
+          read_at BIGINT,
+          created_at BIGINT NOT NULL DEFAULT extract(epoch from now())::bigint,
+          updated_at BIGINT NOT NULL DEFAULT extract(epoch from now())::bigint
+        )
+      `)
+
+      // 创建 notifications 索引
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON public.notifications(user_id)`)
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_notifications_user_read ON public.notifications(user_id, is_read)`)
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON public.notifications(created_at DESC)`)
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_notifications_type ON public.notifications(type)`)
+
+      // 创建 user_sessions 表（用户会话/在线状态）
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS public.user_sessions (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+          session_token TEXT,
+          ip_address TEXT,
+          user_agent TEXT,
+          last_active BIGINT NOT NULL DEFAULT extract(epoch from now())::bigint,
+          created_at BIGINT NOT NULL DEFAULT extract(epoch from now())::bigint,
+          UNIQUE(user_id)
+        )
+      `)
+
+      // 创建 user_sessions 索引
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON public.user_sessions(user_id)`)
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_user_sessions_last_active ON public.user_sessions(last_active DESC)`)
+
       log('PostgreSQL tables initialized successfully')
     } finally {
       client.release()
@@ -1193,6 +1238,50 @@ export const workDB = {
     // 更新作品评论数
     await db.query('UPDATE works SET comments = comments + 1 WHERE id = $1', [workId])
 
+    // 创建评论通知
+    try {
+      // 获取作品信息
+      const { rows: workRows } = await db.query('SELECT creator_id, title FROM works WHERE id = $1', [workId])
+      if (workRows.length > 0 && workRows[0].creator_id && workRows[0].creator_id !== userId) {
+        // 获取评论者信息
+        const { rows: userRows } = await db.query('SELECT username, avatar_url FROM users WHERE id = $1', [userId])
+        const senderName = userRows[0]?.username || '有人'
+        const senderAvatar = userRows[0]?.avatar_url || null
+
+        // 如果是回复评论，获取被回复者信息
+        let recipientId = workRows[0].creator_id
+        let notificationTitle = `${senderName} 评论了你的作品`
+        let notificationMessage = `作品《${workRows[0].title || '未命名作品'}》收到了新评论: "${content.substring(0, 50)}${content.length > 50 ? '...' : ''}"`
+
+        if (parentId) {
+          // 获取父评论信息
+          const { rows: parentRows } = await db.query('SELECT user_id FROM work_comments WHERE id = $1', [parentId])
+          if (parentRows.length > 0 && parentRows[0].user_id && parentRows[0].user_id !== userId) {
+            recipientId = parentRows[0].user_id
+            notificationTitle = `${senderName} 回复了你的评论`
+            notificationMessage = `"${content.substring(0, 50)}${content.length > 50 ? '...' : ''}"`
+          }
+        }
+
+        // 创建通知
+        await notificationDB.create({
+          user_id: recipientId,
+          sender_id: userId,
+          sender_name: senderName,
+          sender_avatar: senderAvatar,
+          type: parentId ? 'comment_reply' : 'comment',
+          title: notificationTitle,
+          message: notificationMessage,
+          action_url: `/works/${workId}`,
+          entity_type: 'work',
+          entity_id: workId
+        })
+      }
+    } catch (notifError) {
+      console.error('Failed to create comment notification:', notifError)
+      // 不影响主流程
+    }
+
     return rows[0]
   },
 
@@ -1232,22 +1321,48 @@ export const workDB = {
 
       // 更新作品点赞数
       await db.query('UPDATE works SET likes = likes + 1 WHERE id = $1', [workId])
-      
-      // 获取作品创建者并更新其获赞数
+
+      // 获取作品创建者并更新其获赞数，同时创建通知
       try {
-        const { rows } = await db.query('SELECT creator_id FROM works WHERE id = $1', [workId])
-        if (rows.length > 0 && rows[0].creator_id) {
+        const { rows: workRows } = await db.query('SELECT creator_id, title FROM works WHERE id = $1', [workId])
+        if (workRows.length > 0 && workRows[0].creator_id) {
           await db.query(`
-            UPDATE users 
-            SET likes_count = likes_count + 1, updated_at = $1 
+            UPDATE users
+            SET likes_count = likes_count + 1, updated_at = $1
             WHERE id = $2
-          `, [now, rows[0].creator_id])
+          `, [now, workRows[0].creator_id])
+
+          // 获取点赞者信息
+          const { rows: userRows } = await db.query('SELECT username, avatar_url FROM users WHERE id = $1', [userId])
+          const senderName = userRows[0]?.username || '有人'
+          const senderAvatar = userRows[0]?.avatar_url || null
+
+          // 创建点赞通知（不给自己点赞发通知）
+          if (workRows[0].creator_id !== userId) {
+            try {
+              await notificationDB.create({
+                user_id: workRows[0].creator_id,
+                sender_id: userId,
+                sender_name: senderName,
+                sender_avatar: senderAvatar,
+                type: 'like',
+                title: `${senderName} 赞了你的作品`,
+                message: `作品《${workRows[0].title || '未命名作品'}》收到了新的点赞`,
+                action_url: `/works/${workId}`,
+                entity_type: 'work',
+                entity_id: workId
+              })
+            } catch (notifError) {
+              console.error('Failed to create like notification:', notifError)
+              // 不影响主流程
+            }
+          }
         }
       } catch (updateError) {
         console.error('Failed to update user likes_count:', updateError)
         // 不影响主流程
       }
-      
+
       return { success: true }
     } catch (error) {
       // 唯一约束错误表示已经点赞过
@@ -1523,6 +1638,153 @@ export const messageDB = {
       SET is_read = true 
       WHERE receiver_id = $1 AND sender_id = $2 AND is_read = false
     `, [userId, friendId])
+  },
+  
+  // 检查用户是否是另一个用户的关注者（粉丝）
+  async isFollower(followerId, followingId) {
+    const db = await getDB()
+    const { rows } = await db.query(`
+      SELECT 1 FROM follows 
+      WHERE follower_id = $1 AND following_id = $2
+      LIMIT 1
+    `, [followerId, followingId])
+    return rows.length > 0
+  },
+  
+  // 检查双方是否互相关注（回关）
+  async isMutualFollow(userId1, userId2) {
+    const db = await getDB()
+    const { rows } = await db.query(`
+      SELECT 1 FROM follows 
+      WHERE follower_id = $1 AND following_id = $2
+      LIMIT 1
+    `, [userId1, userId2])
+    
+    if (rows.length === 0) return false
+    
+    const { rows: rows2 } = await db.query(`
+      SELECT 1 FROM follows 
+      WHERE follower_id = $1 AND following_id = $2
+      LIMIT 1
+    `, [userId2, userId1])
+    
+    return rows2.length > 0
+  },
+  
+  // 检查用户是否可以发送私信（权限控制）
+  async canSendMessage(senderId, receiverId) {
+    const db = await getDB()
+    
+    // 1. 检查接收者是否允许私信（这里默认允许，可以扩展为用户设置）
+    // 2. 检查发送者是否是接收者的关注者（仅关注者可发送模式）
+    const isFollower = await this.isFollower(senderId, receiverId)
+    
+    if (!isFollower) {
+      return { allowed: false, reason: '仅关注者可发送私信' }
+    }
+    
+    // 3. 检查是否是互相关注（回关）
+    const isMutual = await this.isMutualFollow(senderId, receiverId)
+    
+    if (isMutual) {
+      // 互相关注，可以无限发送
+      return { allowed: true }
+    }
+    
+    // 4. 单向关注情况：检查是否已发送过第一条消息且未收到回复
+    // 发送者是关注者但不是互相关注，需要检查单向私信限制
+    const { rows } = await db.query(`
+      SELECT 
+        (SELECT COUNT(*) FROM messages WHERE sender_id = $1 AND receiver_id = $2) as sent_count,
+        (SELECT COUNT(*) FROM messages WHERE sender_id = $2 AND receiver_id = $1) as received_count
+    `, [senderId, receiverId])
+    
+    const sentCount = parseInt(rows[0].sent_count)
+    const receivedCount = parseInt(rows[0].received_count)
+    
+    // 如果没有发送过消息，允许发送第一条
+    if (sentCount === 0) {
+      return { allowed: true }
+    }
+    
+    // 如果已发送消息但没有收到回复，禁止继续发送
+    if (receivedCount === 0) {
+      return { 
+        allowed: false, 
+        reason: '对方回复前，你无法继续发送私信',
+        waitingForReply: true
+      }
+    }
+    
+    // 已收到回复，可以正常发送
+    return { allowed: true }
+  },
+  
+  // 获取用户的私信会话列表（包含最后一条消息预览）
+  async getConversations(userId) {
+    const db = await getDB()
+    
+    console.log('[getConversations] 查询用户会话:', userId, '类型:', typeof userId)
+    
+    try {
+      // 使用简单的查询获取会话列表
+      const { rows } = await db.query(`
+        SELECT 
+          u.id as partner_id,
+          u.username,
+          u.avatar_url,
+          m.content as last_message,
+          m.created_at as last_message_time,
+          m.sender_id as last_sender_id,
+          m.is_read as last_message_read,
+          COALESCE(unread.count, 0) as unread_count
+        FROM (
+          SELECT 
+            CASE 
+              WHEN sender_id = $1 THEN receiver_id 
+              ELSE sender_id 
+            END as partner_id,
+            MAX(created_at) as max_created_at
+          FROM messages
+          WHERE sender_id = $1 OR receiver_id = $1
+          GROUP BY 
+            CASE 
+              WHEN sender_id = $1 THEN receiver_id 
+              ELSE sender_id 
+            END
+        ) latest
+        JOIN messages m ON (
+          ((m.sender_id = $1 AND m.receiver_id = latest.partner_id) OR 
+           (m.sender_id = latest.partner_id AND m.receiver_id = $1))
+          AND m.created_at = latest.max_created_at
+        )
+        JOIN users u ON latest.partner_id = u.id
+        LEFT JOIN (
+          SELECT sender_id, COUNT(*) as count
+          FROM messages
+          WHERE receiver_id = $1 AND is_read = false
+          GROUP BY sender_id
+        ) unread ON latest.partner_id = unread.sender_id
+        ORDER BY m.created_at DESC
+      `, [userId])
+      
+      console.log('[getConversations] 查询结果:', rows.length, '个会话')
+      
+      return rows.map(row => ({
+        userId: row.partner_id,
+        username: row.username,
+        avatar: row.avatar_url,
+        lastMessage: row.last_message || '',
+        lastMessageTime: row.last_message_time || '',
+        lastSenderId: row.last_sender_id,
+        isLastMessageRead: row.last_message_read,
+        unreadCount: parseInt(row.unread_count)
+      }))
+    } catch (error) {
+      console.error('[getConversations] SQL查询错误:', error)
+      // 返回空数组而不是抛出错误
+      return []
+    }
   }
 }
 
@@ -1653,13 +1915,65 @@ export const communityDB = {
   },
   async getCommunityStats(communityId) {
     const db = await getDB()
+    const oneWeekAgo = Math.floor(Date.now() / 1000) - 7 * 24 * 60 * 60
+    const fiveMinutesAgo = Math.floor(Date.now() / 1000) - 5 * 60
+
     const { rows } = await db.query(`
       SELECT 
-        (SELECT COUNT(*) FROM community_members WHERE community_id = $1) as member_count,
-        0 as post_count,
-        0 as comment_count
-    `, [communityId])
-    return rows[0]
+        (SELECT COUNT(*) FROM community_members WHERE community_id::text = $1::text) as member_count,
+        (SELECT COUNT(*) FROM posts WHERE community_id::text = $1::text AND status = 'published') as post_count,
+        (SELECT COUNT(*) FROM comments c 
+         JOIN posts p ON c.post_id = p.id 
+         WHERE p.community_id::text = $1::text) as comment_count,
+        (SELECT COUNT(DISTINCT user_id) FROM posts 
+         WHERE community_id::text = $1::text AND created_at > $2) as weekly_visitors,
+        (SELECT COUNT(*) FROM posts 
+         WHERE community_id::text = $1::text AND created_at > $2) + 
+        (SELECT COUNT(*) FROM comments c 
+         JOIN posts p ON c.post_id = p.id 
+         WHERE p.community_id::text = $1::text AND c.created_at > $2) as weekly_interactions,
+        (SELECT COUNT(*) FROM community_members 
+         WHERE community_id::text = $1::text AND last_active > $3) as online_count
+    `, [communityId, oneWeekAgo, fiveMinutesAgo])
+
+    return {
+      member_count: parseInt(rows[0].member_count) || 0,
+      post_count: parseInt(rows[0].post_count) || 0,
+      comment_count: parseInt(rows[0].comment_count) || 0,
+      weekly_visitors: parseInt(rows[0].weekly_visitors) || 0,
+      weekly_interactions: parseInt(rows[0].weekly_interactions) || 0,
+      online_count: parseInt(rows[0].online_count) || 0
+    }
+  },
+  async updateUserSession(userId, sessionData = {}) {
+    const db = await getDB()
+    const now = Math.floor(Date.now() / 1000)
+    
+    try {
+      // 使用 UPSERT 更新或插入用户会话
+      const { rows } = await db.query(`
+        INSERT INTO user_sessions (user_id, session_token, ip_address, user_agent, last_active, created_at)
+        VALUES ($1, $2, $3, $4, $5, $5)
+        ON CONFLICT (user_id) 
+        DO UPDATE SET 
+          session_token = COALESCE(EXCLUDED.session_token, user_sessions.session_token),
+          ip_address = COALESCE(EXCLUDED.ip_address, user_sessions.ip_address),
+          user_agent = COALESCE(EXCLUDED.user_agent, user_sessions.user_agent),
+          last_active = $5
+        RETURNING *
+      `, [
+        userId,
+        sessionData.sessionToken || null,
+        sessionData.ipAddress || null,
+        sessionData.userAgent || null,
+        now
+      ])
+      
+      return rows[0]
+    } catch (error) {
+      console.error('[updateUserSession] Error:', error.message)
+      return null
+    }
   },
   async createCommunityPost(postData) {
     const db = await getDB()
@@ -1927,13 +2241,187 @@ export const communityDB = {
 
 // 通知数据库操作
 export const notificationDB = {
-  async getByUserId(userId) {
-    // 这里可以添加通知相关的实现
-    return []
+  // 创建通知
+  async create(notificationData) {
+    const db = await getDB()
+    const now = Math.floor(Date.now() / 1000)
+    const id = notificationData.id || randomUUID()
+
+    try {
+      const { rows } = await db.query(`
+        INSERT INTO notifications (
+          id, user_id, sender_id, sender_name, sender_avatar, type, title, message,
+          action_url, entity_type, entity_id, is_read, created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+        RETURNING *
+      `, [
+        id,
+        notificationData.user_id,
+        notificationData.sender_id || null,
+        notificationData.sender_name || null,
+        notificationData.sender_avatar || null,
+        notificationData.type,
+        notificationData.title,
+        notificationData.message,
+        notificationData.action_url || null,
+        notificationData.entity_type || null,
+        notificationData.entity_id || null,
+        false,
+        now,
+        now
+      ])
+
+      return rows[0]
+    } catch (error) {
+      console.error('[notificationDB.create] Error:', error)
+      throw error
+    }
   },
-  async getNotifications(userId) {
-    // 返回通知列表
-    return []
+
+  // 获取用户的通知列表
+  async getNotifications(userId, limit = 20, offset = 0) {
+    const db = await getDB()
+
+    try {
+      const { rows } = await db.query(`
+        SELECT * FROM notifications
+        WHERE user_id = $1
+        ORDER BY created_at DESC
+        LIMIT $2 OFFSET $3
+      `, [userId, limit, offset])
+
+      return rows.map(row => ({
+        id: row.id,
+        userId: row.user_id,
+        senderId: row.sender_id,
+        senderName: row.sender_name,
+        senderAvatar: row.sender_avatar,
+        type: row.type,
+        title: row.title,
+        message: row.message,
+        actionUrl: row.action_url,
+        entityType: row.entity_type,
+        entityId: row.entity_id,
+        read: row.is_read,
+        readAt: row.read_at,
+        timestamp: new Date(row.created_at * 1000).toISOString(),
+        createdAt: row.created_at,
+        sender: row.sender_id ? {
+          id: row.sender_id,
+          username: row.sender_name,
+          avatar: row.sender_avatar
+        } : undefined
+      }))
+    } catch (error) {
+      console.error('[notificationDB.getNotifications] Error:', error)
+      throw error
+    }
+  },
+
+  // 获取未读通知数量
+  async getUnreadCount(userId) {
+    const db = await getDB()
+
+    try {
+      const { rows } = await db.query(`
+        SELECT COUNT(*) as count FROM notifications
+        WHERE user_id = $1 AND is_read = false
+      `, [userId])
+
+      return parseInt(rows[0].count)
+    } catch (error) {
+      console.error('[notificationDB.getUnreadCount] Error:', error)
+      return 0
+    }
+  },
+
+  // 标记通知为已读
+  async markAsRead(notificationId, userId) {
+    const db = await getDB()
+    const now = Math.floor(Date.now() / 1000)
+
+    try {
+      const { rowCount } = await db.query(`
+        UPDATE notifications
+        SET is_read = true, read_at = $1, updated_at = $1
+        WHERE id = $2 AND user_id = $3
+      `, [now, notificationId, userId])
+
+      return rowCount > 0
+    } catch (error) {
+      console.error('[notificationDB.markAsRead] Error:', error)
+      throw error
+    }
+  },
+
+  // 标记所有通知为已读
+  async markAllAsRead(userId) {
+    const db = await getDB()
+    const now = Math.floor(Date.now() / 1000)
+
+    try {
+      const { rowCount } = await db.query(`
+        UPDATE notifications
+        SET is_read = true, read_at = $1, updated_at = $1
+        WHERE user_id = $2 AND is_read = false
+      `, [now, userId])
+
+      return rowCount
+    } catch (error) {
+      console.error('[notificationDB.markAllAsRead] Error:', error)
+      throw error
+    }
+  },
+
+  // 删除通知
+  async delete(notificationId, userId) {
+    const db = await getDB()
+
+    try {
+      const { rowCount } = await db.query(`
+        DELETE FROM notifications
+        WHERE id = $1 AND user_id = $2
+      `, [notificationId, userId])
+
+      return rowCount > 0
+    } catch (error) {
+      console.error('[notificationDB.delete] Error:', error)
+      throw error
+    }
+  },
+
+  // 获取单条通知
+  async getById(notificationId, userId) {
+    const db = await getDB()
+
+    try {
+      const { rows } = await db.query(`
+        SELECT * FROM notifications
+        WHERE id = $1 AND user_id = $2
+      `, [notificationId, userId])
+
+      return rows[0] || null
+    } catch (error) {
+      console.error('[notificationDB.getById] Error:', error)
+      throw error
+    }
+  },
+
+  // 获取用户通知总数
+  async getTotalCount(userId) {
+    const db = await getDB()
+
+    try {
+      const { rows } = await db.query(`
+        SELECT COUNT(*) as count FROM notifications
+        WHERE user_id = $1
+      `, [userId])
+
+      return parseInt(rows[0].count)
+    } catch (error) {
+      console.error('[notificationDB.getTotalCount] Error:', error)
+      return 0
+    }
   }
 }
 

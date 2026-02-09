@@ -1682,6 +1682,12 @@ async function route(req, res, u, path) {
         console.log('[API] Setting avatar_url:', body.avatar.substring(0, 50) + '...')
       }
       if (body.coverImage !== undefined) updateData.cover_image = body.coverImage
+      
+      // 处理 isNewUser 字段 - 更新 is_new_user 数据库字段
+      if (body.isNewUser !== undefined) {
+        updateData.is_new_user = body.isNewUser
+        console.log('[API] Setting is_new_user:', body.isNewUser)
+      }
 
       // 更新 metadata
       const metadata = {
@@ -2163,6 +2169,17 @@ async function route(req, res, u, path) {
     if (!b.friendId || !b.content) { sendJson(res, 400, { error: 'MISSING_PARAMS' }); return }
     
     try {
+      // 检查私信权限（仅关注者可发送）
+      const permissionCheck = await messageDB.canSendMessage(decoded.userId, b.friendId)
+      if (!permissionCheck.allowed) {
+        sendJson(res, 403, { 
+          error: 'PERMISSION_DENIED', 
+          message: permissionCheck.reason,
+          waitingForReply: permissionCheck.waitingForReply || false
+        })
+        return
+      }
+      
       const msg = await messageDB.sendMessage(decoded.userId, b.friendId, b.content)
       sendJson(res, 200, { ok: true, data: msg })
     } catch (e) {
@@ -2182,6 +2199,29 @@ async function route(req, res, u, path) {
         const counts = await messageDB.getUnreadCount(decoded.userId)
         sendJson(res, 200, { ok: true, data: counts })
       } catch (e) {
+        sendJson(res, 500, { error: 'DB_ERROR', message: e.message })
+      }
+      return
+    }
+    
+    // Check if it is conversations list
+    if (path === '/api/messages/conversations') {
+      console.log('[API] 获取会话列表')
+      const decoded = verifyRequestToken(req)
+      if (!decoded) { 
+        console.log('[API] 未授权访问')
+        sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' }); 
+        return 
+      }
+      
+      console.log('[API] 用户ID:', decoded.userId)
+      
+      try {
+        const conversations = await messageDB.getConversations(decoded.userId)
+        console.log('[API] 返回会话数:', conversations.length)
+        sendJson(res, 200, { ok: true, data: conversations })
+      } catch (e) {
+        console.error('[API] 获取会话列表失败:', e)
         sendJson(res, 500, { error: 'DB_ERROR', message: e.message })
       }
       return
@@ -2522,8 +2562,8 @@ async function route(req, res, u, path) {
     return
   }
 
-  // 获取通知列表
-  if (req.method === 'GET' && path === '/api/notifications') {
+  // 获取通知列表 (支持 /api/notifications 和 /api/user/notifications)
+  if (req.method === 'GET' && (path === '/api/notifications' || path === '/api/user/notifications')) {
     const decoded = verifyRequestToken(req)
     if (!decoded) {
       sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
@@ -2533,20 +2573,107 @@ async function route(req, res, u, path) {
     try {
       const limit = parseInt(u.searchParams.get('limit') || '20')
       const offset = parseInt(u.searchParams.get('offset') || '0')
-      
+
       const notifications = await notificationDB.getNotifications(decoded.userId, limit, offset)
-      
-      sendJson(res, 200, { 
-        code: 0, 
+      const total = await notificationDB.getTotalCount(decoded.userId)
+      const unreadCount = await notificationDB.getUnreadCount(decoded.userId)
+
+      sendJson(res, 200, {
+        code: 0,
         data: {
           list: notifications,
-          total: notifications.length, // Simplified total count
-          hasMore: false 
-        } 
+          total: total,
+          unreadCount: unreadCount,
+          hasMore: offset + notifications.length < total
+        }
       })
     } catch (e) {
       console.error('[API] Get notifications failed:', e)
       sendJson(res, 500, { code: 1, message: '获取通知失败' })
+    }
+    return
+  }
+
+  // 获取未读通知数量
+  if (req.method === 'GET' && path === '/api/notifications/unread-count') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+
+    try {
+      const count = await notificationDB.getUnreadCount(decoded.userId)
+      sendJson(res, 200, { code: 0, data: { count } })
+    } catch (e) {
+      console.error('[API] Get unread count failed:', e)
+      sendJson(res, 500, { code: 1, message: '获取未读数量失败' })
+    }
+    return
+  }
+
+  // 标记通知为已读
+  if (req.method === 'POST' && path.match(/^\/api\/notifications\/[^/]+\/read$/)) {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+
+    try {
+      const notificationId = path.split('/')[3]
+      const success = await notificationDB.markAsRead(notificationId, decoded.userId)
+
+      if (success) {
+        sendJson(res, 200, { code: 0, message: '标记成功' })
+      } else {
+        sendJson(res, 404, { code: 1, message: '通知不存在' })
+      }
+    } catch (e) {
+      console.error('[API] Mark as read failed:', e)
+      sendJson(res, 500, { code: 1, message: '标记已读失败' })
+    }
+    return
+  }
+
+  // 标记所有通知为已读
+  if (req.method === 'POST' && (path === '/api/notifications/read-all' || path === '/api/user/notifications/read-all')) {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+
+    try {
+      const count = await notificationDB.markAllAsRead(decoded.userId)
+      sendJson(res, 200, { code: 0, message: '全部标记已读成功', data: { count } })
+    } catch (e) {
+      console.error('[API] Mark all as read failed:', e)
+      sendJson(res, 500, { code: 1, message: '标记全部已读失败' })
+    }
+    return
+  }
+
+  // 删除通知
+  if (req.method === 'DELETE' && path.match(/^\/api\/notifications\/[^/]+$/)) {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+
+    try {
+      const notificationId = path.split('/')[3]
+      const success = await notificationDB.delete(notificationId, decoded.userId)
+
+      if (success) {
+        sendJson(res, 200, { code: 0, message: '删除成功' })
+      } else {
+        sendJson(res, 404, { code: 1, message: '通知不存在' })
+      }
+    } catch (e) {
+      console.error('[API] Delete notification failed:', e)
+      sendJson(res, 500, { code: 1, message: '删除通知失败' })
     }
     return
   }
@@ -2809,6 +2936,38 @@ async function route(req, res, u, path) {
     } catch (err) {
       console.error('[API] Get community stats failed:', err)
       sendJson(res, 500, { code: 1, message: '获取社区统计数据失败: ' + err.message })
+    }
+    return
+  }
+
+  // 更新用户会话（用于标记用户在线状态）
+  if (req.method === 'POST' && path === '/api/user/session') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '用户认证失败，请重新登录' })
+      return
+    }
+
+    try {
+      const body = await parseBody(req)
+      const userId = body.userId || decoded.userId
+      
+      if (!userId) {
+        sendJson(res, 400, { code: 1, message: '用户ID不能为空' })
+        return
+      }
+
+      console.log('[API] Updating user session for:', userId)
+      const sessionData = await communityDB.updateUserSession(userId, {
+        sessionToken: body.sessionToken,
+        ipAddress: req.socket?.remoteAddress,
+        userAgent: req.headers['user-agent']
+      })
+      
+      sendJson(res, 200, { code: 0, data: { success: true }, message: '会话更新成功' })
+    } catch (err) {
+      console.error('[API] Update user session failed:', err)
+      sendJson(res, 500, { code: 1, message: '更新会话失败: ' + err.message })
     }
     return
   }

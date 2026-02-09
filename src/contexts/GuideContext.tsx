@@ -59,16 +59,26 @@ export const GuideProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
     // 监听登录成功事件，检查是否需要重新触发新手引导
     const loginListenerId = eventBus.subscribe('auth:login', (data: any) => {
-      console.log('Detected user login, checking guide status...');
-      // 检查是否已完成新手引导
+      console.log('Detected user login, checking guide status...', data);
+      
+      // 检查是否需要显示新手引导：
+      // 1. 是新用户 (isNewUser = true)
+      // 2. 或者 localStorage 中没有完成标记
       if (user?.id) {
         const key = `guide_completed_${user.id}`;
-        const completed = localStorage.getItem(key) === 'true';
-        if (!completed) {
-          console.log('Guide not completed, starting guide...');
+        const completedInStorage = localStorage.getItem(key) === 'true';
+        const isNewUser = data?.user?.isNewUser || false;
+        
+        // 如果是新用户且未完成引导，显示引导
+        if (isNewUser && !completedInStorage) {
+          console.log('New user detected and guide not completed, starting guide...');
           setTimeout(() => {
             startGuide();
-          }, 500);
+          }, 1000); // 延迟1秒，确保页面完全加载
+        } else if (!completedInStorage) {
+          console.log('Guide not completed, but user is not new. Skipping auto-start.');
+        } else {
+          console.log('Guide already completed.');
         }
       }
     });

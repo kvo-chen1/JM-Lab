@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useCreateStore } from '../../hooks/useCreateStore';
 import { useTheme } from '@/hooks/useTheme';
 import { llmService } from '@/services/llmService';
@@ -105,7 +105,9 @@ export default function SketchPanel() {
     setGeneratedResults,
     setSelectedResult,
     setCurrentStep,
-    streamStatus
+    streamStatus,
+    autoGenerate,
+    setAutoGenerate
   } = useCreateStore();
 
   // 处理模式切换
@@ -161,6 +163,15 @@ export default function SketchPanel() {
     const file = e.dataTransfer.files?.[0];
     if (file) handleFileUpload(file);
   };
+
+  // 自动生成功能 - 当从首页跳转过来时自动触发
+  useEffect(() => {
+    if (autoGenerate && prompt.trim() && !isGenerating) {
+      // 重置标志并触发生成
+      setAutoGenerate(false);
+      handleGenerate();
+    }
+  }, [autoGenerate, prompt, isGenerating]);
 
   // 生成处理
   const handleGenerate = async () => {

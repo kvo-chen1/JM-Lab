@@ -10,6 +10,8 @@ interface Post {
   title: string;
   content: string;
   thumbnail?: string;
+  videoUrl?: string;
+  type?: string;
   user_id: string; // Supabase user_id is string (UUID)
   username?: string;
   avatar_url?: string;
@@ -248,6 +250,8 @@ const Leaderboard: React.FC = () => {
             title: work.title,
             content: work.description || work.content || '',
             thumbnail: work.thumbnail,
+            videoUrl: work.video_url,
+            type: work.type,
             images: work.images || [],
             user_id: work.creator_id,
             author_id: work.creator_id,
@@ -724,10 +728,28 @@ const Leaderboard: React.FC = () => {
                           </div>
                         </div>
                         
-                        {/* 缩略图 (如果有) */}
-                        {(post.thumbnail || (post.images && post.images.length > 0)) && (
-                          <div className="mb-4 rounded-xl overflow-hidden h-32 w-full">
-                             <LazyImage src={post.thumbnail || post.images[0]} alt={post.title} className="w-full h-full object-cover" />
+                        {/* 缩略图或视频预览 (如果有) */}
+                        {(post.thumbnail || (post.images && post.images.length > 0) || post.videoUrl) && (
+                          <div className="mb-4 rounded-xl overflow-hidden h-48 md:h-56 w-full relative">
+                            {post.type === 'video' && post.videoUrl ? (
+                              <video
+                                src={post.videoUrl}
+                                className="w-full h-full object-cover"
+                                muted
+                                loop
+                                autoPlay
+                                playsInline
+                                preload="metadata"
+                              />
+                            ) : (
+                              <LazyImage src={post.thumbnail || post.images[0]} alt={post.title} className="w-full h-full object-cover" />
+                            )}
+                            {post.type === 'video' && (
+                              <div className="absolute top-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded-full flex items-center gap-1">
+                                <i className="fas fa-video"></i>
+                                视频
+                              </div>
+                            )}
                           </div>
                         )}
 

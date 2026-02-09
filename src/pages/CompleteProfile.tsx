@@ -176,29 +176,47 @@ export default function CompleteProfile() {
     }
     
     setIsSubmitting(true);
-    
+
     try {
-      // 更新用户信息到数据库
+      // 同步更新到 Supabase 数据库，将 is_new_user 设为 false
+      if (isAuthenticated && user?.id) {
+        const { supabase } = await import('@/lib/supabase');
+        
+        // 1. 更新 users 表中的 is_new_user 字段
+        const { error: dbError } = await supabase
+          .from('users')
+          .update({
+            username: formData.username,
+            avatar_url: formData.avatar,
+            phone: formData.phone,
+            interests: formData.interests,
+            is_new_user: false, // 标记用户已完善信息
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', user.id);
+        
+        if (dbError) {
+          console.error('更新数据库失败:', dbError);
+          throw new Error('更新用户信息失败');
+        }
+        
+        // 2. 更新 Auth Metadata
+        await supabase.auth.updateUser({
+          data: {
+            username: formData.username,
+            avatar: formData.avatar,
+            phone: formData.phone,
+            interests: formData.interests,
+            isNewUser: false
+          }
+        });
+      }
+
+      // 3. 更新本地状态
       await updateUser({
         ...formData,
         isNewUser: false, // 标记用户信息已完善
       });
-
-      // 同步更新到 Supabase Auth Metadata，确保后台 Users 列表能看到 Display Name
-      if (isAuthenticated && user?.id) {
-        // 动态导入 supabase 避免 SSR 问题
-        import('@/lib/supabase').then(async ({ supabase }) => {
-            // 1. 更新 Auth Metadata
-            await supabase.auth.updateUser({
-                data: {
-                    username: formData.username,
-                    avatar: formData.avatar,
-                    phone: formData.phone,
-                    interests: formData.interests
-                }
-            });
-        });
-      }
       
       toast.success('信息完善成功！');
       

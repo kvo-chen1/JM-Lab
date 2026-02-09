@@ -28,6 +28,8 @@ interface Work {
   id: string;
   title: string;
   thumbnail: string;
+  videoUrl?: string;
+  type?: string;
   status: '已发布' | '草稿';
   date: string;
   views: number;
@@ -100,6 +102,8 @@ export default function MyWorks() {
                   id: w.id?.toString() || '',
                   title: w.title || 'Untitled',
                   thumbnail: w.thumbnail || w.cover_url || '',
+                  videoUrl: w.videoUrl || w.video_url || '',
+                  type: w.type || 'image',
                   status: w.status === 'published' ? '已发布' : '草稿',
                   date: workDate,
                   views: w.views || 0,
@@ -136,6 +140,8 @@ export default function MyWorks() {
               id: w.id,
               title: w.title,
               thumbnail: w.thumbnail || w.cover_url || '',
+              videoUrl: w.video_url || '',
+              type: w.type || 'image',
               status: w.status === 'published' ? '已发布' : '草稿',
               date: workDate,
               views: w.views || 0,
@@ -271,9 +277,9 @@ export default function MyWorks() {
     navigate(`/create?id=${workId}`);
   };
 
-  // 查看作品
+  // 查看作品 - 跳转到津脉广场页面的对应作品
   const handleView = (workId: string) => {
-    navigate(`/work/${workId}`);
+    navigate(`/square/${workId}`);
   };
 
   if (isLoading) {
@@ -521,7 +527,7 @@ export default function MyWorks() {
                   </button>
                 )}
 
-                {/* 缩略图 */}
+                {/* 缩略图或视频预览 */}
                 <div
                   className={`relative overflow-hidden cursor-pointer ${viewMode === 'grid'
                     ? 'aspect-square'
@@ -529,7 +535,17 @@ export default function MyWorks() {
                   }`}
                   onClick={() => isBatchMode ? toggleSelect(work.id) : handleView(work.id)}
                 >
-                  {work.thumbnail ? (
+                  {work.type === 'video' && work.videoUrl ? (
+                    <video
+                      src={work.videoUrl}
+                      className="w-full h-full object-cover"
+                      muted
+                      loop
+                      autoPlay
+                      playsInline
+                      preload="metadata"
+                    />
+                  ) : work.thumbnail ? (
                     <img
                       src={work.thumbnail}
                       alt={work.title}
@@ -538,6 +554,15 @@ export default function MyWorks() {
                   ) : (
                     <div className={`w-full h-full flex items-center justify-center ${isDark ? 'bg-gray-700' : 'bg-gray-100'}`}>
                       <Image className={`w-8 h-8 ${isDark ? 'text-gray-600' : 'text-gray-300'}`} />
+                    </div>
+                  )}
+                  {/* 视频标签 */}
+                  {work.type === 'video' && (
+                    <div className="absolute top-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded-full flex items-center gap-1">
+                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z" />
+                      </svg>
+                      视频
                     </div>
                   )}
                   {/* 状态标签 */}

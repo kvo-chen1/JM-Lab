@@ -21,6 +21,7 @@ export interface Achievement {
   description: string;
   icon: string;
   rarity: 'common' | 'rare' | 'epic' | 'legendary';
+  category: 'creation' | 'community' | 'special';
   criteria: string;
   progress: number;
   isUnlocked: boolean;
@@ -110,6 +111,7 @@ class AchievementService {
       description: '完成第一篇创作作品',
       icon: 'star',
       rarity: 'common',
+      category: 'creation',
       criteria: '完成1篇作品',
       points: 10
     },
@@ -119,6 +121,7 @@ class AchievementService {
       description: '连续7天登录平台',
       icon: 'fire',
       rarity: 'common',
+      category: 'community',
       criteria: '连续登录7天',
       points: 20
     },
@@ -128,6 +131,7 @@ class AchievementService {
       description: '获得100个点赞',
       icon: 'thumbs-up',
       rarity: 'rare',
+      category: 'community',
       criteria: '获得100个点赞',
       points: 50
     },
@@ -137,6 +141,7 @@ class AchievementService {
       description: '使用5种不同文化元素',
       icon: 'book',
       rarity: 'rare',
+      category: 'creation',
       criteria: '使用5种不同文化元素',
       points: 40
     },
@@ -146,6 +151,7 @@ class AchievementService {
       description: '发布10篇作品',
       icon: 'image',
       rarity: 'rare',
+      category: 'creation',
       criteria: '发布10篇作品',
       points: 80
     },
@@ -155,6 +161,7 @@ class AchievementService {
       description: '作品被品牌采纳',
       icon: 'handshake',
       rarity: 'epic',
+      category: 'special',
       criteria: '作品被品牌采纳1次',
       points: 200
     },
@@ -164,6 +171,7 @@ class AchievementService {
       description: '精通传统文化知识',
       icon: 'graduation-cap',
       rarity: 'legendary',
+      category: 'special',
       criteria: '完成10个文化知识问答',
       points: 300
     }

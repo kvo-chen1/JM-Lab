@@ -236,8 +236,9 @@ const Leaderboard = createLazyComponent(() => import(/* webpackChunkName: "pages
   priority: ROUTE_PRIORITIES.MEDIUM,
   name: 'leaderboard'
 });
-const DailyCheckin = createLazyComponent(() => import(/* webpackChunkName: "components-community" */ "@/components/DailyCheckin"), {
-  priority: ROUTE_PRIORITIES.MEDIUM
+const Checkin = createLazyComponent(() => import(/* webpackChunkName: "pages-checkin" */ "@/pages/Checkin"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'checkin'
 });
 const CreativeMatchmaking = createLazyComponent(() => import(/* webpackChunkName: "components-community" */ "@/components/CreativeMatchmaking"), {
   priority: ROUTE_PRIORITIES.MEDIUM
@@ -743,7 +744,7 @@ export default function App() {
           <Route path="/my-activities" element={<LazyComponent><PrivateRoute><MyActivities /></PrivateRoute></LazyComponent>} />
           
           {/* 创新功能路由 - 懒加载 */}
-          <Route path="/daily-checkin" element={<LazyComponent><PrivateRoute><DailyCheckin /></PrivateRoute></LazyComponent>} />
+          <Route path="/checkin" element={<LazyComponent><PrivateRoute><Checkin /></PrivateRoute></LazyComponent>} />
           <Route path="/creative-matchmaking" element={<LazyComponent><PrivateRoute><CreativeMatchmaking /></PrivateRoute></LazyComponent>} />
           <Route path="/ip-incubation" element={<LazyComponent><PrivateRoute><IPIncubationCenter /></PrivateRoute></LazyComponent>} />
           <Route path="/cross-device-sync" element={<LazyComponent><PrivateRoute><CrossDeviceSync /></PrivateRoute></LazyComponent>} />

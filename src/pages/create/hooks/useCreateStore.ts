@@ -53,6 +53,7 @@ interface CreateActions {
     moderator: any | null;
   }>;
   saveToPlanLibrary: () => void;
+  setAutoGenerate: (value: boolean) => void;
 }
 
 const initialState: CreateState = {
@@ -130,6 +131,7 @@ export const useCreateStore = create<CreateState & CreateActions>((set) => ({
   ...initialState,
 
   setActiveTool: (tool) => set({ activeTool: tool }),
+  setAutoGenerate: (value) => set({ autoGenerate: value }),
   setPrompt: (prompt) => set({ prompt }),
   setGeneratedResults: (results) => set((state) => {
     try {

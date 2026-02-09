@@ -9,13 +9,14 @@ import ModelSelector from '@/components/ModelSelector';
 import InspirationPanel from '@/components/InspirationPanel';
 import PublishToSquareModal from '@/components/PublishToSquareModal';
 import { AnimatePresence, motion } from 'framer-motion';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useLocation } from 'react-router-dom';
 import { useAutoSave } from '@/hooks/useAutoSave';
 import { toast } from 'sonner';
 
 export default function Studio() {
   const { isDark } = useTheme();
   const [searchParams] = useSearchParams();
+  const location = useLocation();
   
   // 启用自动保存
   useAutoSave();
@@ -31,6 +32,7 @@ export default function Studio() {
     generatedResults,
     setPrompt,
     setActiveTool,
+    setAutoGenerate,
     updateState
   } = useCreateStore();
   
@@ -65,7 +67,9 @@ export default function Studio() {
         if (Date.now() - data.timestamp < 5 * 60 * 1000) {
           if (data.prompt) {
             setPrompt(data.prompt);
-            toast.success('已从灵感面板导入创意');
+            // 设置自动生成标志，让SketchPanel自动开始生成
+            setAutoGenerate(true);
+            toast.success('已从灵感面板导入创意，正在生成...');
           }
         }
         // 清除已使用的数据
@@ -74,7 +78,30 @@ export default function Studio() {
         console.error('读取灵感数据失败:', error);
       }
     }
-  }, [setPrompt]);
+  }, [setPrompt, setAutoGenerate]);
+  
+  // 读取从模板页面传递的数据
+  useEffect(() => {
+    const state = location.state as {
+      templatePrompt?: string;
+      templateId?: number;
+      templateName?: string;
+      templateStyle?: string;
+      templateCategory?: string;
+    } | null;
+    
+    if (state?.templatePrompt) {
+      // 设置提示词
+      setPrompt(state.templatePrompt);
+      // 设置自动生成标志
+      setAutoGenerate(true);
+      
+      toast.success(`已加载"${state.templateName}"模板，正在生成...`);
+      
+      // 清除 location state，避免刷新时重复触发
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state, setPrompt, setAutoGenerate]);
   
   return (
     <div className={`flex h-full ${isDark ? 'bg-gray-950' : 'bg-gray-50'}`}>

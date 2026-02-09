@@ -246,18 +246,18 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
   // 分享功能
   const handleShare = async () => {
     if (!post) return;
-    
+
     try {
       if (post.isBookmarked) {
         await postsApi.unbookmarkPost(post.id);
-        toast.success('已取消保存');
+        toast.success('已取消收藏');
       } else {
         await postsApi.bookmarkPost(post.id);
-        toast.success('已保存到收藏');
+        toast.success('已添加到收藏');
       }
     } catch (error: any) {
-      console.error('保存失败:', error);
-      toast.error('保存失败');
+      console.error('收藏失败:', error);
+      toast.error('收藏失败');
     }
   };
 
@@ -282,6 +282,8 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
   const galleryItems: GalleryItem[] = relatedPosts.map(p => ({
     id: p.id,
     thumbnail: p.thumbnail,
+    videoUrl: p.videoUrl,
+    type: p.type,
     title: p.title,
     author: p.author,
     aspectRatio: Math.random() * (1.5 - 0.75) + 0.75
@@ -469,7 +471,7 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
                                : 'bg-red-600 text-white hover:bg-red-700'
                            }`}
                          >
-                           {post.isBookmarked ? '已保存' : '保存'}
+                           {post.isBookmarked ? '已收藏' : '收藏'}
                          </button>
                       </div>
                     </div>

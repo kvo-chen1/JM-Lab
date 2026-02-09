@@ -25,6 +25,23 @@ export interface TianjinTemplate {
   thumbnail: string;
   category: string;
   usageCount: number;
+  // 新增互动相关字段
+  likes?: number;
+  isLiked?: boolean;
+  isFavorited?: boolean;
+  // 新增模板元数据
+  style?: string;
+  colorScheme?: string[];
+  applicableScenes?: string[];
+  previewImages?: string[];
+  difficulty?: 'easy' | 'medium' | 'hard';
+  estimatedTime?: string;
+  author?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  tags?: string[];
+  isFeatured?: boolean;
+  popularity?: number;
 }
 
 export interface TianjinOfflineExperience {
@@ -153,168 +170,82 @@ export const tianjinActivityService = {
         
       if (error) {
         console.error('Supabase error fetching templates:', error);
-        // 返回 mock 数据
-        return [
-          {
-            id: 1,
-            name: '津沽文化节主题模板',
-            description: '融合天津传统文化元素，适用于各类文化节活动宣传设计。',
-            thumbnail: '/images/placeholder-image.jpg',
-            category: '节日主题',
-            usageCount: 235
-          },
-          {
-            id: 2,
-            name: '五大道历史风情模板',
-            description: '以五大道近代建筑群为视觉元素，突出天津的历史人文风貌。',
-            thumbnail: '/images/placeholder-image.jpg',
-            category: '历史风情',
-            usageCount: 142
-          },
-          {
-            id: 3,
-            name: '静海葡萄节活动模板',
-            description: '围绕静海葡萄节打造节庆主视觉，适配导视与物料延展。',
-            thumbnail: '/images/placeholder-image.jpg',
-            category: '节日主题',
-            usageCount: 109
-          },
-          {
-            id: 4,
-            name: '海河风光模板',
-            description: '以海河风光为背景，适合城市宣传和旅游相关设计。',
-            thumbnail: '/images/placeholder-image.jpg',
-            category: '城市风光',
-            usageCount: 189
-          },
-          {
-            id: 5,
-            name: '老字号联名模板',
-            description: '面向老字号品牌的联名海报与包装视觉模板。',
-            thumbnail: '/images/placeholder-image.jpg',
-            category: '品牌联名',
-            usageCount: 135
-          },
-          {
-            id: 6,
-            name: '夜游光影视觉模板',
-            description: '以海河夜景的光影氛围为主视觉，适配品牌活动海报。',
-            thumbnail: '/images/placeholder-image.jpg',
-            category: '夜游光影',
-            usageCount: 98
-          },
-          {
-            id: 7,
-            name: '海河滨水休闲模板',
-            description: '展现海河滨水休闲空间的设计模板，适合城市休闲宣传。',
-            thumbnail: '/images/placeholder-image.jpg',
-            category: '城市休闲',
-            usageCount: 156
-          },
-          {
-            id: 8,
-            name: '北塘海鲜美食模板',
-            description: '以北塘渔港与海鲜元素为主，适合餐饮美食类宣传设计。',
-            thumbnail: '/images/placeholder-image.jpg',
-            category: '美食宣传',
-            usageCount: 178
-          },
-          {
-            id: 9,
-            name: '文博展陈主题模板',
-            description: '适合博物馆、文化馆展览陈列的主题视觉模板。',
-            thumbnail: '/images/placeholder-image.jpg',
-            category: '文博展陈',
-            usageCount: 112
-          }
-        ];
+        // 返回增强版 mock 数据
+        return getEnhancedMockTemplates();
       }
       
-      return data?.map(item => ({
+      if (!data || data.length === 0) {
+        return [];
+      }
+      
+      // 获取所有模板的点赞数
+      const templateIds = data.map(item => item.id);
+      const { data: likesData, error: likesError } = await supabase
+        .from('template_likes')
+        .select('template_id')
+        .in('template_id', templateIds);
+      
+      // 统计每个模板的点赞数
+      const likesCountMap = new Map<number, number>();
+      if (!likesError && likesData) {
+        likesData.forEach(like => {
+          const count = likesCountMap.get(like.template_id) || 0;
+          likesCountMap.set(like.template_id, count + 1);
+        });
+      }
+      
+      return data.map(item => ({
         id: item.id,
         name: item.name,
         description: item.description,
         thumbnail: item.thumbnail,
         category: item.category,
-        usageCount: item.usage_count
+        usageCount: item.usage_count,
+        likes: likesCountMap.get(item.id) || 0,
+        style: item.style,
+        colorScheme: item.color_scheme,
+        applicableScenes: item.applicable_scenes,
+        difficulty: item.difficulty,
+        estimatedTime: item.estimated_time,
+        author: item.author,
+        tags: item.tags,
+        isFeatured: item.is_featured,
+        popularity: item.popularity,
       })) || [];
     } catch (error) {
       console.error('Error fetching templates:', error);
-      // 返回 mock 数据
-      return [
-        {
-          id: 1,
-          name: '津沽文化节主题模板',
-          description: '融合天津传统文化元素，适用于各类文化节活动宣传设计。',
-          thumbnail: '/images/placeholder-image.jpg',
-          category: '节日主题',
-          usageCount: 235
-        },
-        {
-          id: 2,
-          name: '五大道历史风情模板',
-          description: '以五大道近代建筑群为视觉元素，突出天津的历史人文风貌。',
-          thumbnail: '/images/placeholder-image.jpg',
-          category: '历史风情',
-          usageCount: 142
-        },
-        {
-          id: 3,
-          name: '静海葡萄节活动模板',
-          description: '围绕静海葡萄节打造节庆主视觉，适配导视与物料延展。',
-          thumbnail: '/images/placeholder-image.jpg',
-          category: '节日主题',
-          usageCount: 109
-        },
-        {
-          id: 4,
-          name: '海河风光模板',
-          description: '以海河风光为背景，适合城市宣传和旅游相关设计。',
-          thumbnail: '/images/placeholder-image.jpg',
-          category: '城市风光',
-          usageCount: 189
-        },
-        {
-          id: 5,
-          name: '老字号联名模板',
-          description: '面向老字号品牌的联名海报与包装视觉模板。',
-          thumbnail: '/images/placeholder-image.jpg',
-          category: '品牌联名',
-          usageCount: 135
-        },
-        {
-          id: 6,
-          name: '夜游光影视觉模板',
-          description: '以海河夜景的光影氛围为主视觉，适配品牌活动海报。',
-          thumbnail: '/images/placeholder-image.jpg',
-          category: '夜游光影',
-          usageCount: 98
-        },
-        {
-          id: 7,
-          name: '海河滨水休闲模板',
-          description: '展现海河滨水休闲空间的设计模板，适合城市休闲宣传。',
-          thumbnail: '/images/placeholder-image.jpg',
-          category: '城市休闲',
-          usageCount: 156
-        },
-        {
-          id: 8,
-          name: '北塘海鲜美食模板',
-          description: '以北塘渔港与海鲜元素为主，适合餐饮美食类宣传设计。',
-          thumbnail: '/images/placeholder-image.jpg',
-          category: '美食宣传',
-          usageCount: 178
-        },
-        {
-          id: 9,
-          name: '文博展陈主题模板',
-          description: '适合博物馆、文化馆展览陈列的主题视觉模板。',
-          thumbnail: '/images/placeholder-image.jpg',
-          category: '文博展陈',
-          usageCount: 112
-        }
-      ];
+      // 返回增强版 mock 数据
+      return getEnhancedMockTemplates();
+    }
+  },
+
+  // 增加模板使用次数
+  async incrementTemplateUsage(templateId: number): Promise<void> {
+    try {
+      // 先获取当前使用次数
+      const { data, error: fetchError } = await supabase
+        .from('tianjin_templates')
+        .select('usage_count')
+        .eq('id', templateId)
+        .single();
+      
+      if (fetchError) {
+        console.error('Failed to fetch current usage count:', fetchError);
+        return;
+      }
+      
+      // 更新使用次数
+      const newCount = (data?.usage_count || 0) + 1;
+      const { error: updateError } = await supabase
+        .from('tianjin_templates')
+        .update({ usage_count: newCount })
+        .eq('id', templateId);
+      
+      if (updateError) {
+        console.error('Failed to increment usage count:', updateError);
+      }
+    } catch (error) {
+      console.error('Error incrementing template usage:', error);
     }
   },
 
@@ -539,7 +470,7 @@ export const tianjinActivityService = {
             id: 'scene-001',
             title: '天津卫设立',
             description: '明成祖朱棣下令设立天津卫，意为"天子经过的渡口"，天津正式建城。',
-            image: 'https://images.pexels.com/photos/2440021/pexels-photo-2440021.jpeg?auto=compress&cs=tinysrgb&w=800', // 替换为真实图片或保持API
+            image: 'https://picsum.photos/seed/tianjin-history-001/800/600',
             year: 1404,
             category: '城市起源'
           },
@@ -547,7 +478,7 @@ export const tianjinActivityService = {
             id: 'scene-002',
             title: '天津开埠',
             description: '天津成为中国北方最早开放的通商口岸之一，设立了英、法、美等九国租界。',
-            image: 'https://images.pexels.com/photos/3016353/pexels-photo-3016353.jpeg?auto=compress&cs=tinysrgb&w=800',
+            image: 'https://picsum.photos/seed/tianjin-history-002/800/600',
             year: 1860,
             category: '近代开埠'
           },
@@ -555,7 +486,7 @@ export const tianjinActivityService = {
             id: 'scene-003',
             title: '杨柳青年画兴起',
             description: '杨柳青年画在天津杨柳青镇兴起，成为中国著名的民间木版年画之一。',
-            image: 'https://images.pexels.com/photos/1036657/pexels-photo-1036657.jpeg?auto=compress&cs=tinysrgb&w=800',
+            image: 'https://picsum.photos/seed/tianjin-history-003/800/600',
             year: 1726,
             category: '民间艺术'
           },
@@ -563,7 +494,7 @@ export const tianjinActivityService = {
             id: 'scene-004',
             title: '泥人张彩塑诞生',
             description: '天津泥人张彩塑艺术由张明山创立，成为中国著名的民间泥塑艺术。',
-            image: 'https://images.pexels.com/photos/4553365/pexels-photo-4553365.jpeg?auto=compress&cs=tinysrgb&w=800',
+            image: 'https://picsum.photos/seed/tianjin-history-004/800/600',
             year: 1844,
             category: '民间艺术'
           },
@@ -571,7 +502,7 @@ export const tianjinActivityService = {
             id: 'scene-005',
             title: '天津大学成立',
             description: '天津大学前身北洋大学成立，是中国第一所现代大学。',
-            image: 'https://images.pexels.com/photos/256455/pexels-photo-256455.jpeg?auto=compress&cs=tinysrgb&w=800',
+            image: 'https://picsum.photos/seed/tianjin-history-005/800/600',
             year: 1895,
             category: '教育发展'
           },
@@ -579,7 +510,7 @@ export const tianjinActivityService = {
             id: 'scene-006',
             title: '海河航运繁荣',
             description: '海河成为天津的黄金水道，航运繁忙，促进了城市的经济发展。',
-            image: 'https://images.pexels.com/photos/1105666/pexels-photo-1105666.jpeg?auto=compress&cs=tinysrgb&w=800',
+            image: 'https://picsum.photos/seed/tianjin-history-006/800/600',
             year: 1900,
             category: '经济发展'
           }
@@ -596,7 +527,7 @@ export const tianjinActivityService = {
             id: 'inspiration-001',
             title: '津门故里',
             description: '融合天津传统建筑元素与现代设计风格，展现天津卫的历史底蕴。',
-            image: 'https://images.pexels.com/photos/161853/architecture-building-china-city-161853.jpeg?auto=compress&cs=tinysrgb&w=800',
+            image: 'https://picsum.photos/seed/tianjin-inspiration-001/800/600',
             style: '传统与现代融合',
             tags: ['建筑', '传统', '现代']
           },
@@ -604,7 +535,7 @@ export const tianjinActivityService = {
             id: 'inspiration-002',
             title: '杨柳青韵',
             description: '基于杨柳青年画的色彩与图案，创造现代艺术设计。',
-            image: 'https://images.pexels.com/photos/1674049/pexels-photo-1674049.jpeg?auto=compress&cs=tinysrgb&w=800',
+            image: 'https://picsum.photos/seed/tianjin-inspiration-002/800/600',
             style: '传统年画现代演绎',
             tags: ['艺术', '年画', '色彩']
           },
@@ -612,7 +543,7 @@ export const tianjinActivityService = {
             id: 'inspiration-003',
             title: '海河之滨',
             description: '以海河为灵感，创作体现天津水乡特色的设计作品。',
-            image: 'https://images.pexels.com/photos/2837909/pexels-photo-2837909.jpeg?auto=compress&cs=tinysrgb&w=800',
+            image: 'https://picsum.photos/seed/tianjin-inspiration-003/800/600',
             style: '水乡特色设计',
             tags: ['建筑', '水景', '现代']
           },
@@ -620,7 +551,7 @@ export const tianjinActivityService = {
             id: 'inspiration-004',
             title: '泥人张彩',
             description: '从泥人张彩塑艺术中汲取灵感，创造立体艺术设计。',
-            image: 'https://images.pexels.com/photos/3856635/pexels-photo-3856635.jpeg?auto=compress&cs=tinysrgb&w=800',
+            image: 'https://picsum.photos/seed/tianjin-inspiration-004/800/600',
             style: '立体艺术设计',
             tags: ['雕塑', '立体', '传统']
           }
@@ -629,3 +560,267 @@ export const tianjinActivityService = {
     });
   }
 };
+
+/**
+ * 获取增强版模板 Mock 数据
+ * 包含丰富的模板元数据和互动信息
+ */
+function getEnhancedMockTemplates(): TianjinTemplate[] {
+  return [
+    {
+      id: 1,
+      name: '津沽文化节主题模板',
+      description: '融合天津传统文化元素，适用于各类文化节活动宣传设计。包含传统纹样、民俗元素和现代排版风格。',
+      thumbnail: 'https://picsum.photos/seed/tianjin-culture-festival/800/600',
+      category: '节日主题',
+      usageCount: 235,
+      likes: 128,
+      style: '传统国潮',
+      colorScheme: ['#C41E3A', '#FFD700', '#1a1a1a'],
+      applicableScenes: ['文化节海报', '活动宣传', '社交媒体'],
+      difficulty: 'easy',
+      estimatedTime: '15分钟',
+      author: '津脉设计团队',
+      tags: ['传统文化', '节日', '红色', '国潮'],
+      isFeatured: true,
+      popularity: 98,
+      previewImages: [
+        'https://picsum.photos/seed/tianjin-culture-1/800/600',
+        'https://picsum.photos/seed/tianjin-culture-2/800/600',
+      ],
+    },
+    {
+      id: 2,
+      name: '五大道历史风情模板',
+      description: '以五大道近代建筑群为视觉元素，突出天津的历史人文风貌。适合文化旅游、历史主题宣传。',
+      thumbnail: 'https://picsum.photos/seed/tianjin-wudadao/800/600',
+      category: '历史风情',
+      usageCount: 142,
+      likes: 89,
+      style: '复古欧式',
+      colorScheme: ['#8B7355', '#F5F5DC', '#2F4F4F'],
+      applicableScenes: ['旅游宣传', '文化推广', '历史展览'],
+      difficulty: 'medium',
+      estimatedTime: '20分钟',
+      author: '津脉设计团队',
+      tags: ['五大道', '历史建筑', '欧式', '复古'],
+      isFeatured: true,
+      popularity: 85,
+      previewImages: [
+        'https://picsum.photos/seed/tianjin-history-1/800/600',
+        'https://picsum.photos/seed/tianjin-history-2/800/600',
+      ],
+    },
+    {
+      id: 3,
+      name: '静海葡萄节活动模板',
+      description: '围绕静海葡萄节打造节庆主视觉，适配导视与物料延展。色彩鲜艳，充满丰收喜悦。',
+      thumbnail: 'https://picsum.photos/seed/tianjin-grape-festival/800/600',
+      category: '节日主题',
+      usageCount: 109,
+      likes: 67,
+      style: '清新自然',
+      colorScheme: ['#9ACD32', '#8B008B', '#FFF8DC'],
+      applicableScenes: ['农产品推广', '节庆活动', '乡村旅游'],
+      difficulty: 'easy',
+      estimatedTime: '10分钟',
+      author: '津脉设计团队',
+      tags: ['葡萄', '农业', '绿色', '自然'],
+      isFeatured: false,
+      popularity: 72,
+      previewImages: [
+        'https://picsum.photos/seed/tianjin-grape/800/600',
+      ],
+    },
+    {
+      id: 4,
+      name: '海河风光模板',
+      description: '以海河风光为背景，适合城市宣传和旅游相关设计。展现天津现代化都市与历史文化的交融。',
+      thumbnail: 'https://picsum.photos/seed/tianjin-haihe/800/600',
+      category: '城市风光',
+      usageCount: 189,
+      likes: 156,
+      style: '现代都市',
+      colorScheme: ['#1E90FF', '#FFD700', '#FFFFFF'],
+      applicableScenes: ['城市宣传', '旅游推广', '商务展示'],
+      difficulty: 'medium',
+      estimatedTime: '25分钟',
+      author: '津脉设计团队',
+      tags: ['海河', '城市', '夜景', '现代'],
+      isFeatured: true,
+      popularity: 95,
+      previewImages: [
+        'https://picsum.photos/seed/tianjin-city-1/800/600',
+        'https://picsum.photos/seed/tianjin-city-2/800/600',
+      ],
+    },
+    {
+      id: 5,
+      name: '老字号联名模板',
+      description: '面向老字号品牌的联名海报与包装视觉模板。融合传统元素与现代设计语言。',
+      thumbnail: 'https://picsum.photos/seed/tianjin-brand/800/600',
+      category: '品牌联名',
+      usageCount: 135,
+      likes: 98,
+      style: '新中式',
+      colorScheme: ['#8B0000', '#DAA520', '#F5F5DC'],
+      applicableScenes: ['品牌联名', '产品包装', '商业推广'],
+      difficulty: 'hard',
+      estimatedTime: '30分钟',
+      author: '津脉设计团队',
+      tags: ['老字号', '品牌', '中式', '商业'],
+      isFeatured: true,
+      popularity: 88,
+      previewImages: [
+        'https://picsum.photos/seed/tianjin-brand-preview/800/600',
+      ],
+    },
+    {
+      id: 6,
+      name: '夜游光影视觉模板',
+      description: '以海河夜景的光影氛围为主视觉，适配品牌活动海报。充满现代都市的时尚感和艺术气息。',
+      thumbnail: 'https://picsum.photos/seed/tianjin-night/800/600',
+      category: '夜游光影',
+      usageCount: 98,
+      likes: 76,
+      style: '光影艺术',
+      colorScheme: ['#191970', '#FFD700', '#FF6347'],
+      applicableScenes: ['夜间活动', '艺术展览', '时尚品牌'],
+      difficulty: 'medium',
+      estimatedTime: '20分钟',
+      author: '津脉设计团队',
+      tags: ['夜景', '光影', '艺术', '时尚'],
+      isFeatured: false,
+      popularity: 78,
+      previewImages: [
+        'https://picsum.photos/seed/tianjin-night-preview/800/600',
+      ],
+    },
+    {
+      id: 7,
+      name: '海河滨水休闲模板',
+      description: '展现海河滨水休闲空间的设计模板，适合城市休闲宣传。轻松愉悦的氛围，适合生活方式类内容。',
+      thumbnail: 'https://picsum.photos/seed/tianjin-leisure/800/600',
+      category: '城市休闲',
+      usageCount: 156,
+      likes: 112,
+      style: '休闲生活',
+      colorScheme: ['#87CEEB', '#90EE90', '#FFFFFF'],
+      applicableScenes: ['生活方式', '休闲活动', '城市推广'],
+      difficulty: 'easy',
+      estimatedTime: '15分钟',
+      author: '津脉设计团队',
+      tags: ['休闲', '滨水', '生活', '自然'],
+      isFeatured: false,
+      popularity: 82,
+      previewImages: [
+        'https://picsum.photos/seed/tianjin-leisure-preview/800/600',
+      ],
+    },
+    {
+      id: 8,
+      name: '北塘海鲜美食模板',
+      description: '以北塘渔港与海鲜元素为主，适合餐饮美食类宣传设计。色彩丰富，充满食欲感。',
+      thumbnail: 'https://picsum.photos/seed/tianjin-seafood/800/600',
+      category: '美食宣传',
+      usageCount: 178,
+      likes: 145,
+      style: '美食摄影',
+      colorScheme: ['#FF6347', '#FFA500', '#FFFFFF'],
+      applicableScenes: ['餐饮推广', '美食节', '海鲜餐厅'],
+      difficulty: 'easy',
+      estimatedTime: '10分钟',
+      author: '津脉设计团队',
+      tags: ['海鲜', '美食', '餐饮', '北塘'],
+      isFeatured: true,
+      popularity: 92,
+      previewImages: [
+        'https://picsum.photos/seed/tianjin-seafood-preview/800/600',
+      ],
+    },
+    {
+      id: 9,
+      name: '文博展陈主题模板',
+      description: '适合博物馆、文化馆展览陈列的主题视觉模板。庄重典雅，突出文化底蕴。',
+      thumbnail: 'https://picsum.photos/seed/tianjin-museum/800/600',
+      category: '文博展陈',
+      usageCount: 112,
+      likes: 84,
+      style: '文化展览',
+      colorScheme: ['#4A4A4A', '#D4AF37', '#F5F5DC'],
+      applicableScenes: ['博物馆', '文化展览', '艺术展'],
+      difficulty: 'medium',
+      estimatedTime: '25分钟',
+      author: '津脉设计团队',
+      tags: ['博物馆', '文化', '展览', '艺术'],
+      isFeatured: false,
+      popularity: 80,
+      previewImages: [
+        'https://picsum.photos/seed/tianjin-museum-preview/800/600',
+      ],
+    },
+    {
+      id: 10,
+      name: '蓟州长城风光模板',
+      description: '以蓟州长城与山野风光为主视觉，适合文旅宣传类设计。展现天津的自然与历史之美。',
+      thumbnail: 'https://picsum.photos/seed/tianjin-greatwall/800/600',
+      category: '历史风情',
+      usageCount: 167,
+      likes: 134,
+      style: '自然风光',
+      colorScheme: ['#228B22', '#8B4513', '#87CEEB'],
+      applicableScenes: ['旅游宣传', '自然风光', '户外活动'],
+      difficulty: 'easy',
+      estimatedTime: '15分钟',
+      author: '津脉设计团队',
+      tags: ['长城', '蓟州', '自然', '风光'],
+      isFeatured: true,
+      popularity: 90,
+      previewImages: [
+        'https://picsum.photos/seed/tianjin-greatwall-preview/800/600',
+      ],
+    },
+    {
+      id: 11,
+      name: '天津小吃宣传模板',
+      description: '为天津特色小吃设计的宣传模板，突出地方美食特色。狗不理、耳朵眼炸糕、十八街麻花等元素。',
+      thumbnail: 'https://picsum.photos/seed/tianjin-snacks/800/600',
+      category: '美食宣传',
+      usageCount: 198,
+      likes: 167,
+      style: '美食插画',
+      colorScheme: ['#FF6B6B', '#FFE66D', '#4ECDC4'],
+      applicableScenes: ['美食推广', '小吃店', '旅游宣传'],
+      difficulty: 'easy',
+      estimatedTime: '12分钟',
+      author: '津脉设计团队',
+      tags: ['小吃', '美食', '天津特色', '插画'],
+      isFeatured: true,
+      popularity: 96,
+      previewImages: [
+        'https://picsum.photos/seed/tianjin-snacks-preview/800/600',
+      ],
+    },
+    {
+      id: 12,
+      name: '杨柳青年画主题模板',
+      description: '基于杨柳青年画艺术风格设计的创意模板，融合传统民俗与现代设计。',
+      thumbnail: 'https://picsum.photos/seed/tianjin-yangliuqing/800/600',
+      category: '节日主题',
+      usageCount: 145,
+      likes: 123,
+      style: '传统年画',
+      colorScheme: ['#DC143C', '#FFD700', '#228B22'],
+      applicableScenes: ['春节', '传统节日', '民俗活动'],
+      difficulty: 'medium',
+      estimatedTime: '25分钟',
+      author: '津脉设计团队',
+      tags: ['年画', '杨柳青', '传统', '民俗'],
+      isFeatured: true,
+      popularity: 91,
+      previewImages: [
+        'https://picsum.photos/seed/tianjin-yangliuqing-preview/800/600',
+      ],
+    },
+  ];
+}

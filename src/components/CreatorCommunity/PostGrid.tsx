@@ -63,6 +63,8 @@ const PostCard: React.FC<{
               src={mediaUrl}
               className="w-full h-full object-cover"
               muted
+              loop
+              autoPlay
               playsInline
               preload="metadata"
             />
@@ -74,14 +76,13 @@ const PostCard: React.FC<{
               placeholder="blur"
             />
           )}
-          {/* 视频播放图标 */}
+          {/* 视频标签 */}
           {isVideo && (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-12 h-12 bg-white/80 rounded-full flex items-center justify-center">
-                <svg className="w-6 h-6 text-gray-800 ml-1" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M8 5v14l11-7z"/>
-                </svg>
-              </div>
+            <div className="absolute top-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded-full flex items-center gap-1">
+              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z" />
+              </svg>
+              视频
             </div>
           )}
           {/* 悬停遮罩 */}

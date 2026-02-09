@@ -13,6 +13,14 @@ import {
 } from 'lucide-react';
 import StatCard from '../StatCard';
 
+interface Activity {
+  id: string;
+  user: string;
+  action: string;
+  time: string;
+  type: 'join' | 'announcement' | 'role' | 'post';
+}
+
 interface DashboardViewProps {
   isDark: boolean;
   memberCount: number;
@@ -22,6 +30,7 @@ interface DashboardViewProps {
   pendingCount: number;
   announcementCount: number;
   onNavigate: (tab: string) => void;
+  activities?: Activity[];
 }
 
 const DashboardView: React.FC<DashboardViewProps> = ({
@@ -32,7 +41,8 @@ const DashboardView: React.FC<DashboardViewProps> = ({
   regularMemberCount,
   pendingCount,
   announcementCount,
-  onNavigate
+  onNavigate,
+  activities = []
 }) => {
   // 快捷入口配置
   const quickActions = [
@@ -70,12 +80,8 @@ const DashboardView: React.FC<DashboardViewProps> = ({
     }
   ];
 
-  // 最近动态模拟数据
-  const recentActivities = [
-    { id: '1', user: '张三', action: '加入了社群', time: '2分钟前', type: 'join' },
-    { id: '2', user: '李四', action: '发布了新公告', time: '1小时前', type: 'announcement' },
-    { id: '3', user: '王五', action: '被设为编辑', time: '3小时前', type: 'role' },
-  ];
+  // 使用传入的活动数据
+  const recentActivities = activities;
 
   return (
     <div className="space-y-8">

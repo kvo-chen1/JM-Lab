@@ -294,16 +294,38 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   // 处理 Supabase session
   const handleSupabaseSession = useCallback(async (session: any) => {
+    let dbUserData = null;
+    
     // 检查并确保 public.users 中存在用户记录（自动修复机制）
     if (session?.user?.id && supabase) {
       try {
+        // 从数据库获取用户完整信息，包括 is_new_user 字段
         const { data: existingUser, error: checkError } = await supabase
           .from('users')
-          .select('id')
+          .select('id, username, email, avatar_url, phone, interests, is_new_user, bio, location, occupation, website, github, twitter, cover_image, metadata')
           .eq('id', session.user.id)
           .maybeSingle();
 
-        if (!existingUser && !checkError) {
+        if (existingUser) {
+          // 转换数据库字段为前端格式
+          dbUserData = {
+            id: existingUser.id,
+            username: existingUser.username,
+            email: existingUser.email,
+            avatar: existingUser.avatar_url,
+            phone: existingUser.phone,
+            interests: existingUser.interests || [],
+            isNewUser: existingUser.is_new_user ?? true,
+            bio: existingUser.bio,
+            location: existingUser.location,
+            occupation: existingUser.occupation,
+            website: existingUser.website,
+            github: existingUser.github,
+            twitter: existingUser.twitter,
+            coverImage: existingUser.cover_image,
+            ...existingUser.metadata
+          };
+        } else if (!checkError) {
           console.log('用户在 public.users 表中缺失，正在自动修复...');
           const userData = session.user.user_metadata || {};
           // 尝试插入用户记录
@@ -313,6 +335,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             username: userData.username || session.user.email?.split('@')[0] || `user_${session.user.id.substring(0, 8)}`,
             avatar_url: userData.avatar_url || '',
             metadata: userData,
+            is_new_user: true, // 新用户标记
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           });
@@ -322,15 +345,17 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           } else {
              console.log('用户记录自动修复成功');
           }
+          // 新插入的用户默认为新用户
+          dbUserData = { isNewUser: true };
         }
       } catch (err) {
-        console.error('自动修复用户记录异常:', err);
+        console.error('获取用户记录异常:', err);
         // 不中断登录流程
       }
     }
 
-    // 直接使用 session 数据，移除后端桥接
-    const userWithMembership = createUserFromSession(session);
+    // 合并数据库数据和 session 数据
+    const userWithMembership = createUserFromSession(session, dbUserData);
     
     safeLocalStorage.setItem('token', session.access_token);
     safeLocalStorage.setItem('refreshToken', session.refresh_token);
@@ -339,15 +364,20 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     
     updateAuthState(userWithMembership, true, false);
     
-    // 检查用户信息是否完整
-    const isProfileComplete = userWithMembership.username && userWithMembership.username.trim() !== '' && 
-                           userWithMembership.avatar && userWithMembership.avatar.trim() !== '';
+    // 检查用户信息是否完整（用户名和头像）
+    const isProfileComplete = userWithMembership.username && 
+                           userWithMembership.username.trim() !== '' && 
+                           userWithMembership.avatar && 
+                           userWithMembership.avatar.trim() !== '';
+    
+    // 如果是新用户或信息不完整，标记为需要完善信息
+    const needsProfileCompletion = userWithMembership.isNewUser || !isProfileComplete;
     
     // 发布登录成功事件
     eventBus.publish('auth:login', { 
       userId: userWithMembership.id, 
       user: userWithMembership,
-      isProfileComplete
+      isProfileComplete: !needsProfileCompletion
     });
   }, [supabase, createUserFromSession, updateAuthState]);
 

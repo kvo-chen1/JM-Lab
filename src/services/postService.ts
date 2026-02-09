@@ -92,11 +92,27 @@ export async function getPosts(category?: string, currentUserId?: string, useSup
   try {
     let worksFromLocal: Post[] = [];
     let worksFromSupabase: Post[] = [];
-    
+
+    // 获取当前用户的点赞列表（用于后端API的作品）
+    let userLikedWorkIds: Set<string> = new Set();
+    if (currentUserId && currentUserId !== 'anonymous' && currentUserId !== 'current-user') {
+      try {
+        const { data: likedWorks } = await supabase
+          .from('works_likes')
+          .select('work_id')
+          .eq('user_id', currentUserId);
+        if (likedWorks) {
+          userLikedWorkIds = new Set(likedWorks.map(l => l.work_id.toString()));
+        }
+      } catch (error) {
+        console.warn('Error fetching user likes:', error);
+      }
+    }
+
     // 从后端 API 获取作品数据（主要数据源）
     try {
       const response = await fetch('/api/works?limit=100');
-      
+
       if (response.ok) {
         const result = await response.json();
         if (result.code === 0 && Array.isArray(result.data)) {
@@ -107,7 +123,7 @@ export async function getPosts(category?: string, currentUserId?: string, useSup
             const thumbnail = w.thumbnail || w.cover_url || '';
             const category = (w.category as PostCategory) || 'other';
             const type = w.type || 'image';
-            
+
             // 如果没有 videoUrl 但 category 是 video 或 type 是 video，尝试从 thumbnail 推断
             if (!videoUrl && (category === 'video' || type === 'video')) {
               // 如果 thumbnail 是视频URL，使用它
@@ -116,9 +132,11 @@ export async function getPosts(category?: string, currentUserId?: string, useSup
                 console.log('Inferred videoUrl from thumbnail:', { id: w.id, videoUrl });
               }
             }
-            
+
+            const workId = w.id?.toString() || Date.now().toString();
+
             return {
-            id: w.id?.toString() || Date.now().toString(),
+            id: workId,
             title: w.title || 'Untitled',
             thumbnail: thumbnail,
             videoUrl: videoUrl,
@@ -132,7 +150,7 @@ export async function getPosts(category?: string, currentUserId?: string, useSup
               email: '',
               avatar: w.author?.avatar || w.avatar_url || ''
             },
-            isLiked: false,
+            isLiked: userLikedWorkIds.has(workId),
             isBookmarked: false,
             category: (w.category as PostCategory) || 'other',
             tags: w.tags || [],

@@ -37,28 +37,9 @@ const log = (msg, level = 'INFO') => {
 
 // 构建PostgreSQL连接字符串
 const getPostgresConnectionString = () => {
-  // 1. 最优先使用 NON_POOLING (Session Mode, port 5432) 
-  // 这是 Vercel + Supabase Serverless 环境的最佳实践，避免 PGBouncer 事务模式导致的 "prepared statement" 错误
-  if (process.env.POSTGRES_URL_NON_POOLING) {
-    console.log('[DB] Using POSTGRES_URL_NON_POOLING');
-    // 移除 sslmode 参数，避免与代码中的 SSL 配置冲突
-    let url = process.env.POSTGRES_URL_NON_POOLING;
-    try {
-      const urlObj = new URL(url);
-      if (urlObj.searchParams.has('sslmode')) {
-        urlObj.searchParams.delete('sslmode');
-        url = urlObj.toString();
-        console.log('[DB] Removed sslmode from POSTGRES_URL_NON_POOLING');
-      }
-    } catch (e) {
-      // 忽略 URL 解析错误
-    }
-    return url;
-  }
-
-  // 2. 其次尝试标准 DATABASE_URL
-  if (process.env.DATABASE_URL) {
-    console.log('[DB] Using DATABASE_URL');
+  // Vercel 环境优先使用 DATABASE_URL（Vercel 会自动设置为 Supabase 连接字符串）
+  if (process.env.VERCEL && process.env.DATABASE_URL) {
+    console.log('[DB] Using DATABASE_URL (Vercel environment)');
     let url = process.env.DATABASE_URL;
     try {
       const urlObj = new URL(url);
@@ -72,10 +53,11 @@ const getPostgresConnectionString = () => {
     }
     return url;
   }
-  
-  // 3. 尝试 Supabase 相关变量
+
+  // 1. 优先使用 PgBouncer 事务模式 (端口 6543)
+  // 这是 Supabase 推荐的连接方式，支持更多并发连接
   if (process.env.POSTGRES_URL) {
-    console.log('[DB] Using POSTGRES_URL');
+    console.log('[DB] Using POSTGRES_URL (PgBouncer Transaction Mode)');
     let url = process.env.POSTGRES_URL;
     try {
       const urlObj = new URL(url);
@@ -83,6 +65,30 @@ const getPostgresConnectionString = () => {
         urlObj.searchParams.delete('sslmode');
         url = urlObj.toString();
         console.log('[DB] Removed sslmode from POSTGRES_URL');
+      }
+    } catch (e) {
+      // 忽略 URL 解析错误
+    }
+    return url;
+  }
+
+  // 2. 本地环境使用 DATABASE_URL
+  if (!process.env.VERCEL && process.env.DATABASE_URL) {
+    console.log('[DB] Using DATABASE_URL (local environment)');
+    return process.env.DATABASE_URL;
+  }
+  
+  // 3. 使用 NON_POOLING (Session Mode, port 5432) - 仅作为备选
+  // 注意：Session 模式限制最大连接数，不适合高并发
+  if (process.env.POSTGRES_URL_NON_POOLING) {
+    console.log('[DB] Using POSTGRES_URL_NON_POOLING (Session Mode - limited connections)');
+    let url = process.env.POSTGRES_URL_NON_POOLING;
+    try {
+      const urlObj = new URL(url);
+      if (urlObj.searchParams.has('sslmode')) {
+        urlObj.searchParams.delete('sslmode');
+        url = urlObj.toString();
+        console.log('[DB] Removed sslmode from POSTGRES_URL_NON_POOLING');
       }
     } catch (e) {
       // 忽略 URL 解析错误
@@ -101,13 +107,13 @@ const getPostgresConnectionString = () => {
     return neonUrl;
   }
   
-  // 5. Vercel环境下的fallback：如果有SUPABASE_URL，使用默认的Supabase连接字符串
+  // 5. Vercel环境下的fallback：使用 PgBouncer 事务模式
   if (process.env.VERCEL && process.env.SUPABASE_URL) {
-    console.log('[DB] Using Vercel fallback connection string for Supabase');
+    console.log('[DB] Using Vercel fallback connection string for Supabase (PgBouncer)');
     return 'postgres://postgres.pptqdicaaewtnaiflfcs:csh200506207837@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres';
   }
   
-  // 6. 尝试从环境变量文件中读取
+  // 6. 本地环境fallback
   if (process.env.DB_TYPE === 'supabase') {
     console.log('[DB] Using fallback connection string for Supabase');
     return 'postgres://postgres.pptqdicaaewtnaiflfcs:csh200506207837@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres';
@@ -149,25 +155,31 @@ const config = {
   dbType: currentDbType,
   
   // PostgreSQL (Supabase/Standard) 配置 - 优化连接池
+  // 注意：Supabase 免费计划限制：
+  // - 出口流量：5GB/月（已超出）
+  // - PgBouncer 连接数：最多 200 个并发连接
+  // - Session 模式：最多 3 个连接（很容易超限）
+  // 优化策略：使用 PgBouncer 事务模式 + 极小的连接池
   postgresql: {
     connectionString: connectionString,
     options: {
-      // 连接池大小优化：Serverless环境使用较小的连接池
-      max: parseInt(process.env.POSTGRES_MAX_POOL_SIZE || (process.env.VERCEL ? '5' : '10')),
-      // 最小连接数：保持一定连接以减少连接建立开销
-      min: parseInt(process.env.POSTGRES_MIN_POOL_SIZE || '2'),
-      // 空闲连接超时：快速释放不用的连接
-      idleTimeoutMillis: parseInt(process.env.POSTGRES_IDLE_TIMEOUT || '10000'),
+      // 连接池大小优化：使用极小的连接池
+      // PgBouncer 事务模式支持更多连接，但仍需限制以减少出口流量
+      max: parseInt(process.env.POSTGRES_MAX_POOL_SIZE || '1'),
+      // 最小连接数：不保持空闲连接
+      min: 0,
+      // 空闲连接超时：快速释放不用的连接 (3秒)
+      idleTimeoutMillis: 3000,
       // 连接超时：快速失败，避免长时间等待
-      connectionTimeoutMillis: parseInt(process.env.POSTGRES_CONNECTION_TIMEOUT || '3000'),
-      // 连接最大生命周期：防止连接长时间不释放
-      maxLifetime: parseInt(process.env.POSTGRES_MAX_LIFETIME || '300000'), // 5分钟
+      connectionTimeoutMillis: 5000,
+      // 连接最大生命周期：防止连接长时间不释放 (1分钟)
+      maxLifetime: 60000,
       // SSL 配置：Supabase 通常需要 SSL。本地开发可能不需要。
       ssl: (connectionString && !connectionString.includes('localhost') && !connectionString.includes('127.0.0.1')) ? {
         rejectUnauthorized: false // 允许自签名证书 (Supabase 兼容性)
       } : false,
       // 查询超时设置：避免长时间运行的查询阻塞连接
-      statement_timeout: 8000, // 8秒查询超时
+      statement_timeout: 5000, // 5秒查询超时
       // 客户端编码设置
       client_encoding: 'UTF8',
       // 连接重试策略

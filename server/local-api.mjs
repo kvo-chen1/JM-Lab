@@ -46,6 +46,25 @@ import { supabaseServer } from './supabase-server.mjs'
 // 内存中存储验证码 (email -> { code, expiresAt })
 const verificationCodes = new Map();
 
+// 简单的内存缓存机制 - 用于减少数据库查询频率
+// 注意：Vercel Serverless 环境下缓存不会在请求间共享，但仍可减少单个请求内的重复查询
+const apiCache = new Map();
+const CACHE_TTL = 30000; // 30秒缓存时间
+
+// 缓存辅助函数
+function getCache(key) {
+  const cached = apiCache.get(key);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    return cached.data;
+  }
+  apiCache.delete(key);
+  return null;
+}
+
+function setCache(key, data) {
+  apiCache.set(key, { data, timestamp: Date.now() });
+}
+
 // 端口配置 - 默认3022与Vite代理配置保持一致
 const PORT = Number(process.env.LOCAL_API_PORT || process.env.PORT) || 3022
 const ORIGIN = process.env.CORS_ALLOW_ORIGIN || '*'
@@ -861,33 +880,45 @@ async function route(req, res, u, path) {
   if (req.method === 'GET' && path === '/api/events') {
     // 允许未登录访问
     try {
-      let events = await eventDB.getEvents()
+      // 使用缓存减少数据库查询
+      const cacheKey = 'events_list';
+      let formattedEvents = getCache(cacheKey);
       
-      // 注意：不再自动创建示例活动，只返回用户真实创建的活动
-      
-      // 转换字段格式以匹配前端期望
-      const formattedEvents = events.map(event => ({
-        id: event.id,
-        title: event.title,
-        description: event.description,
-        startTime: event.start_date ? new Date(event.start_date * 1000).toISOString() : null,
-        endTime: event.end_date ? new Date(event.end_date * 1000).toISOString() : null,
-        location: event.location,
-        status: event.status,
-        type: event.category === 'competition' ? 'offline' : 'online',
-        category: event.category,
-        tags: event.tags || [],
-        participantCount: event.participant_count || 0,
-        maxParticipants: event.max_participants,
-        media: event.image_url ? [{ url: event.image_url, type: 'image' }] : [],
-        organizer: {
-          id: event.organizer_id,
-          name: event.organizer_name,
-          avatar: event.organizer_avatar
-        },
-        createdAt: event.created_at ? new Date(event.created_at * 1000).toISOString() : null,
-        visibility: event.visibility
-      }))
+      if (!formattedEvents) {
+        console.log('[API] Cache miss for events, querying database...');
+        let events = await eventDB.getEvents()
+        
+        // 注意：不再自动创建示例活动，只返回用户真实创建的活动
+        
+        // 转换字段格式以匹配前端期望
+        formattedEvents = events.map(event => ({
+          id: event.id,
+          title: event.title,
+          description: event.description,
+          startTime: event.start_date ? new Date(event.start_date * 1000).toISOString() : null,
+          endTime: event.end_date ? new Date(event.end_date * 1000).toISOString() : null,
+          location: event.location,
+          status: event.status,
+          type: event.category === 'competition' ? 'offline' : 'online',
+          category: event.category,
+          tags: event.tags || [],
+          participantCount: event.participant_count || 0,
+          maxParticipants: event.max_participants,
+          media: event.image_url ? [{ url: event.image_url, type: 'image' }] : [],
+          organizer: {
+            id: event.organizer_id,
+            name: event.organizer_name,
+            avatar: event.organizer_avatar
+          },
+          createdAt: event.created_at ? new Date(event.created_at * 1000).toISOString() : null,
+          visibility: event.visibility
+        }))
+        
+        // 缓存结果
+        setCache(cacheKey, formattedEvents);
+      } else {
+        console.log('[API] Cache hit for events');
+      }
       
       sendJson(res, 200, { code: 0, data: formattedEvents })
     } catch (e) {
@@ -2189,7 +2220,15 @@ async function route(req, res, u, path) {
       if (!decoded) { sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' }); return }
       
       try {
-        const counts = await messageDB.getUnreadCount(decoded.userId)
+        // 使用缓存减少数据库查询频率
+        const cacheKey = `messages_unread_${decoded.userId}`;
+        let counts = getCache(cacheKey);
+        
+        if (!counts) {
+          counts = await messageDB.getUnreadCount(decoded.userId);
+          setCache(cacheKey, counts);
+        }
+        
         sendJson(res, 200, { ok: true, data: counts })
       } catch (e) {
         sendJson(res, 500, { error: 'DB_ERROR', message: e.message })

@@ -41,19 +41,53 @@ const getPostgresConnectionString = () => {
   // 这是 Vercel + Supabase Serverless 环境的最佳实践，避免 PGBouncer 事务模式导致的 "prepared statement" 错误
   if (process.env.POSTGRES_URL_NON_POOLING) {
     console.log('[DB] Using POSTGRES_URL_NON_POOLING');
-    return process.env.POSTGRES_URL_NON_POOLING;
+    // 移除 sslmode 参数，避免与代码中的 SSL 配置冲突
+    let url = process.env.POSTGRES_URL_NON_POOLING;
+    try {
+      const urlObj = new URL(url);
+      if (urlObj.searchParams.has('sslmode')) {
+        urlObj.searchParams.delete('sslmode');
+        url = urlObj.toString();
+        console.log('[DB] Removed sslmode from POSTGRES_URL_NON_POOLING');
+      }
+    } catch (e) {
+      // 忽略 URL 解析错误
+    }
+    return url;
   }
 
   // 2. 其次尝试标准 DATABASE_URL
   if (process.env.DATABASE_URL) {
     console.log('[DB] Using DATABASE_URL');
-    return process.env.DATABASE_URL;
+    let url = process.env.DATABASE_URL;
+    try {
+      const urlObj = new URL(url);
+      if (urlObj.searchParams.has('sslmode')) {
+        urlObj.searchParams.delete('sslmode');
+        url = urlObj.toString();
+        console.log('[DB] Removed sslmode from DATABASE_URL');
+      }
+    } catch (e) {
+      // 忽略 URL 解析错误
+    }
+    return url;
   }
   
   // 3. 尝试 Supabase 相关变量
   if (process.env.POSTGRES_URL) {
     console.log('[DB] Using POSTGRES_URL');
-    return process.env.POSTGRES_URL;
+    let url = process.env.POSTGRES_URL;
+    try {
+      const urlObj = new URL(url);
+      if (urlObj.searchParams.has('sslmode')) {
+        urlObj.searchParams.delete('sslmode');
+        url = urlObj.toString();
+        console.log('[DB] Removed sslmode from POSTGRES_URL');
+      }
+    } catch (e) {
+      // 忽略 URL 解析错误
+    }
+    return url;
   }
   
   // 4. 尝试 Neon 相关变量
@@ -70,13 +104,13 @@ const getPostgresConnectionString = () => {
   // 5. Vercel环境下的fallback：如果有SUPABASE_URL，使用默认的Supabase连接字符串
   if (process.env.VERCEL && process.env.SUPABASE_URL) {
     console.log('[DB] Using Vercel fallback connection string for Supabase');
-    return 'postgres://postgres.pptqdicaaewtnaiflfcs:csh200506207837@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true';
+    return 'postgres://postgres.pptqdicaaewtnaiflfcs:csh200506207837@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres';
   }
   
   // 6. 尝试从环境变量文件中读取
   if (process.env.DB_TYPE === 'supabase') {
     console.log('[DB] Using fallback connection string for Supabase');
-    return 'postgres://postgres.pptqdicaaewtnaiflfcs:csh200506207837@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true';
+    return 'postgres://postgres.pptqdicaaewtnaiflfcs:csh200506207837@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres';
   }
   
   return null
@@ -185,8 +219,8 @@ async function initPostgreSQL() {
       min: options.min,
       idleTimeoutMillis: options.idleTimeoutMillis,
       connectionTimeoutMillis: options.connectionTimeoutMillis,
-      statement_timeout: options.statement_timeout,
-      client_encoding: options.client_encoding,
+      // 添加 maxLifetime 配置，防止连接长时间不释放
+      maxLifetime: options.maxLifetime || 300000,
       // 配置日志级别，避免输出连接内存地址
       log: (msg) => {
         // 只记录错误级别的日志，忽略调试信息

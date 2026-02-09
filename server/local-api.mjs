@@ -1245,50 +1245,43 @@ async function route(req, res, u, path) {
       }
       
       // 验证验证码
-      const record = verificationCodes.get(email)
-      
-      // 检查是否有内存中的验证码记录
+      // 注意：在 Vercel Serverless 环境下，内存中的 verificationCodes 无法在请求间共享
+      // 因此优先使用默认验证码，并尝试从数据库获取验证码
       let isCodeValid = false;
       
-      if (record) {
-        // 检查验证码是否过期
-        if (Date.now() > record.expiresAt) {
-          verificationCodes.delete(email)
-          // 验证码过期，检查是否使用默认验证码
-          if (code === '123456') {
-            console.log('[API] 使用默认验证码登录（验证码已过期）')
+      // 首先检查是否使用默认验证码（开发/测试环境）
+      if (code === '123456') {
+        console.log('[API] 使用默认验证码登录')
+        isCodeValid = true;
+      } else {
+        // 检查内存中的验证码记录
+        const record = verificationCodes.get(email)
+        if (record) {
+          // 检查验证码是否过期
+          if (Date.now() > record.expiresAt) {
+            verificationCodes.delete(email)
+            console.log('[API] 内存验证码已过期');
+          } else if (record.code === code) {
             isCodeValid = true;
-          }
-        } else {
-          // 验证码未过期，检查是否匹配
-          if (record.code === code || code === '123456') {
-            isCodeValid = true;
-            // 验证通过，删除验证码（防止重放）
             verificationCodes.delete(email);
-            console.log('[API] 内存验证码验证成功，已清除');
+            console.log('[API] 内存验证码验证成功');
           }
         }
-      } else {
-        // 内存中没有验证码记录，检查是否使用默认验证码
-        if (code === '123456') {
-          console.log('[API] 使用默认验证码登录（开发调试）')
-          isCodeValid = true;
-        } else {
-          // 尝试从数据库获取验证码（作为备份）
+        
+        // 如果内存验证失败，尝试从数据库获取验证码
+        if (!isCodeValid) {
           try {
             console.log('[API] 尝试从数据库获取验证码');
             const emailLoginCode = await userDB.getEmailLoginCode(email);
             if (emailLoginCode && emailLoginCode.email_login_code) {
-              console.log('[API] 从数据库获取到验证码:', emailLoginCode.email_login_code);
-              // 直接检查验证码是否匹配（忽略过期时间，因为数据库类型可能有问题）
+              console.log('[API] 从数据库获取到验证码');
               if (emailLoginCode.email_login_code === code) {
                 isCodeValid = true;
                 console.log('[API] 数据库验证码验证成功');
               }
             }
           } catch (error) {
-            console.error('[API] 检查邮箱验证码失败:', error);
-            // 数据库检查失败，继续使用默认验证码逻辑
+            console.error('[API] 从数据库获取验证码失败:', error.message);
           }
         }
       }

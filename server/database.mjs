@@ -37,16 +37,17 @@ const log = (msg, level = 'INFO') => {
 
 // 构建PostgreSQL连接字符串
 const getPostgresConnectionString = () => {
-  // Vercel 环境优先使用 DATABASE_URL（Vercel 会自动设置为 Supabase 连接字符串）
-  if (process.env.VERCEL && process.env.DATABASE_URL) {
-    console.log('[DB] Using DATABASE_URL (Vercel environment)');
-    let url = process.env.DATABASE_URL;
+  // Vercel 环境优先使用 POSTGRES_URL（Vercel 集成 Supabase 时自动设置）
+  // 注意：DATABASE_URL 可能包含占位符 [YOUR-PASSWORD]，不能使用
+  if (process.env.VERCEL && process.env.POSTGRES_URL) {
+    console.log('[DB] Using POSTGRES_URL (Vercel environment)');
+    let url = process.env.POSTGRES_URL;
     try {
       const urlObj = new URL(url);
       if (urlObj.searchParams.has('sslmode')) {
         urlObj.searchParams.delete('sslmode');
         url = urlObj.toString();
-        console.log('[DB] Removed sslmode from DATABASE_URL');
+        console.log('[DB] Removed sslmode from POSTGRES_URL');
       }
     } catch (e) {
       // 忽略 URL 解析错误

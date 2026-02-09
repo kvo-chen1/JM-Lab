@@ -174,23 +174,30 @@ async function initPostgreSQL() {
       throw new Error(errorMsg);
     }
 
-    // 移除 connectionString 中的 sslmode 参数，避免与 options.ssl 冲突
-    // 强制使用 options.ssl 配置来处理自签名证书问题
+    // 检查连接字符串是否包含 sslmode 参数
+    // Vercel 提供的连接字符串通常包含必要的 SSL 配置
+    let hasSslMode = false;
     try {
       const urlObj = new URL(connectionString)
-      if (urlObj.searchParams.has('sslmode')) {
-        urlObj.searchParams.delete('sslmode')
-        connectionString = urlObj.toString()
-      }
+      hasSslMode = urlObj.searchParams.has('sslmode')
     } catch (e) {
-      // 忽略 URL 解析错误，继续使用原始字符串
+      // 忽略 URL 解析错误
     }
     
     log(`Initializing PostgreSQL Pool (Max: ${options.max}, Timeout: ${options.connectionTimeoutMillis}ms)...`)
+    log(`Connection string has sslmode: ${hasSslMode}`)
     
-    const pool = new Pool({
+    // 构建 Pool 配置
+    // 如果连接字符串包含 sslmode，优先使用连接字符串的配置
+    // 否则使用 options.ssl 配置
+    const poolConfig = {
       connectionString,
-      ...options,
+      max: options.max,
+      min: options.min,
+      idleTimeoutMillis: options.idleTimeoutMillis,
+      connectionTimeoutMillis: options.connectionTimeoutMillis,
+      statement_timeout: options.statement_timeout,
+      client_encoding: options.client_encoding,
       // 配置日志级别，避免输出连接内存地址
       log: (msg) => {
         // 只记录错误级别的日志，忽略调试信息
@@ -198,7 +205,16 @@ async function initPostgreSQL() {
           log(`PostgreSQL Pool: ${msg}`, 'ERROR')
         }
       }
-    })
+    }
+    
+    // 只有在连接字符串没有 sslmode 时才添加 SSL 配置
+    if (!hasSslMode && connectionString && !connectionString.includes('localhost') && !connectionString.includes('127.0.0.1')) {
+      poolConfig.ssl = {
+        rejectUnauthorized: false
+      }
+    }
+    
+    const pool = new Pool(poolConfig)
     
     // 连接池事件监控
     pool.on('connect', (client) => {

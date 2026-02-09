@@ -174,22 +174,11 @@ async function initPostgreSQL() {
       throw new Error(errorMsg);
     }
 
-    // 检查连接字符串是否包含 sslmode 参数
-    // Vercel 提供的连接字符串通常包含必要的 SSL 配置
-    let hasSslMode = false;
-    try {
-      const urlObj = new URL(connectionString)
-      hasSslMode = urlObj.searchParams.has('sslmode')
-    } catch (e) {
-      // 忽略 URL 解析错误
-    }
-    
     log(`Initializing PostgreSQL Pool (Max: ${options.max}, Timeout: ${options.connectionTimeoutMillis}ms)...`)
-    log(`Connection string has sslmode: ${hasSslMode}`)
+    log(`Using connection string: ${connectionString?.substring(0, 50)}...`)
     
     // 构建 Pool 配置
-    // 如果连接字符串包含 sslmode，优先使用连接字符串的配置
-    // 否则使用 options.ssl 配置
+    // Vercel 环境下需要特殊处理 SSL 配置
     const poolConfig = {
       connectionString,
       max: options.max,
@@ -207,11 +196,17 @@ async function initPostgreSQL() {
       }
     }
     
-    // 只有在连接字符串没有 sslmode 时才添加 SSL 配置
-    if (!hasSslMode && connectionString && !connectionString.includes('localhost') && !connectionString.includes('127.0.0.1')) {
+    // SSL 配置处理
+    // Vercel 环境或远程连接需要禁用 SSL 证书验证
+    if (connectionString && !connectionString.includes('localhost') && !connectionString.includes('127.0.0.1')) {
+      // 在 Vercel 环境下，强制禁用 SSL 证书验证
+      // 这是必要的，因为 Supabase 使用自签名证书
       poolConfig.ssl = {
-        rejectUnauthorized: false
+        rejectUnauthorized: false,
+        // 允许不安全的 TLS 连接（仅用于开发/测试环境）
+        // 在生产环境中应该使用正确的证书配置
       }
+      log('SSL config: rejectUnauthorized=false')
     }
     
     const pool = new Pool(poolConfig)

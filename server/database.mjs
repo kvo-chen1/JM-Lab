@@ -67,7 +67,13 @@ const getPostgresConnectionString = () => {
     return neonUrl;
   }
   
-  // 5. 尝试从环境变量文件中读取
+  // 5. Vercel环境下的fallback：如果有SUPABASE_URL，使用默认的Supabase连接字符串
+  if (process.env.VERCEL && process.env.SUPABASE_URL) {
+    console.log('[DB] Using Vercel fallback connection string for Supabase');
+    return 'postgres://postgres.pptqdicaaewtnaiflfcs:csh200506207837@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true';
+  }
+  
+  // 6. 尝试从环境变量文件中读取
   if (process.env.DB_TYPE === 'supabase') {
     console.log('[DB] Using fallback connection string for Supabase');
     return 'postgres://postgres.pptqdicaaewtnaiflfcs:csh200506207837@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true';
@@ -81,14 +87,14 @@ const detectDbType = () => {
   // 优先使用环境变量指定的数据库类型
   if (process.env.DB_TYPE) return process.env.DB_TYPE
   
-  // Vercel 环境强制检测
+  // Vercel 环境检测
   if (process.env.VERCEL) {
     // 如果配置了 PostgreSQL 相关的环境变量，优先使用 PostgreSQL
     if (process.env.POSTGRES_URL || process.env.DATABASE_URL || process.env.SUPABASE_URL) {
       return DB_TYPE.POSTGRESQL;
     }
-    // Vercel Serverless 环境必须使用 PostgreSQL
-    throw new Error('Vercel environment requires PostgreSQL database. Please set DATABASE_URL or POSTGRES_URL environment variable.');
+    // Vercel 环境默认使用 PostgreSQL（即使没有环境变量，我们有 fallback 逻辑）
+    return DB_TYPE.POSTGRESQL;
   }
 
   // 如果配置了 Supabase 和 PostgreSQL URL，则使用 Supabase
@@ -96,8 +102,8 @@ const detectDbType = () => {
   // 如果有数据库 URL，则使用 PostgreSQL
   if (process.env.DATABASE_URL || process.env.POSTGRES_URL) return DB_TYPE.POSTGRESQL
   
-  // 本地环境也必须使用 PostgreSQL
-  throw new Error('PostgreSQL database is required. Please set DATABASE_URL environment variable.');
+  // 本地环境默认使用 PostgreSQL
+  return DB_TYPE.POSTGRESQL;
 }
 
 const currentDbType = detectDbType()

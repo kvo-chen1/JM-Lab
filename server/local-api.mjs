@@ -1730,6 +1730,7 @@ async function route(req, res, u, path) {
         // 使用 Supabase Auth 的 ID（如果创建成功），否则生成新的 UUID
         const userId = supabaseUserId || randomUUID();
         
+        const now = Date.now();
         user = {
           id: userId,
           email: email,
@@ -1740,8 +1741,8 @@ async function route(req, res, u, path) {
           membership_status: 'active',
           auth_provider: 'local', // 标记为本地登录（邮箱验证码）
           isNewUser: true, // 标记为新用户，需要完善个人信息
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
+          created_at: now,
+          updated_at: now
         };
         
         // 保存用户到数据库

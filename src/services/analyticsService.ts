@@ -190,47 +190,78 @@ class AnalyticsService {
       // 考虑到性能，对于大数据量应使用 RPC。这里先实现内存聚合作为 MVP。
       
       let data: any[] = [];
-      
+
+      // 构建基础查询条件
+      const userId = query.filters?.userId;
+
       if (query.metric === 'works') {
         // 从 works 表获取作品数据
-        const { data: works, error } = await supabase
+        let queryBuilder = supabase
           .from('works')
           .select('created_at, category, creator_id')
           .gte('created_at', Math.floor(startTime.getTime() / 1000))
           .lte('created_at', Math.floor(now.getTime() / 1000));
-        
+
+        // 如果指定了用户ID，只查询该用户的作品
+        if (userId) {
+          queryBuilder = queryBuilder.eq('creator_id', userId);
+        }
+
+        const { data: works, error } = await queryBuilder;
+
         if (error) throw error;
         data = works || [];
       } else if (query.metric === 'likes') {
         // 从 works 表统计 likes 字段
-        const { data: works, error } = await supabase
+        let queryBuilder = supabase
           .from('works')
           .select('created_at, likes')
           .gte('created_at', Math.floor(startTime.getTime() / 1000))
           .lte('created_at', Math.floor(now.getTime() / 1000));
-          
+
+        // 如果指定了用户ID，只查询该用户的作品
+        if (userId) {
+          queryBuilder = queryBuilder.eq('creator_id', userId);
+        }
+
+        const { data: works, error } = await queryBuilder;
+
         if (error) throw error;
         // 转换数据格式
         data = (works || []).map(w => ({ created_at: w.created_at, value: w.likes || 0 }));
       } else if (query.metric === 'views') {
         // 从 works 表统计 views 字段
-        const { data: works, error } = await supabase
+        let queryBuilder = supabase
           .from('works')
           .select('created_at, views')
           .gte('created_at', Math.floor(startTime.getTime() / 1000))
           .lte('created_at', Math.floor(now.getTime() / 1000));
-          
+
+        // 如果指定了用户ID，只查询该用户的作品
+        if (userId) {
+          queryBuilder = queryBuilder.eq('creator_id', userId);
+        }
+
+        const { data: works, error } = await queryBuilder;
+
         if (error) throw error;
         // 转换数据格式
         data = (works || []).map(w => ({ created_at: w.created_at, value: w.views || 0 }));
       } else if (query.metric === 'comments') {
         // 从 works 表统计 comments 字段
-        const { data: works, error } = await supabase
+        let queryBuilder = supabase
           .from('works')
           .select('created_at, comments')
           .gte('created_at', Math.floor(startTime.getTime() / 1000))
           .lte('created_at', Math.floor(now.getTime() / 1000));
-          
+
+        // 如果指定了用户ID，只查询该用户的作品
+        if (userId) {
+          queryBuilder = queryBuilder.eq('creator_id', userId);
+        }
+
+        const { data: works, error } = await queryBuilder;
+
         if (error) throw error;
         // 转换数据格式
         data = (works || []).map(w => ({ created_at: w.created_at, value: w.comments || 0 }));

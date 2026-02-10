@@ -85,7 +85,7 @@ function generateColorDescription(colorScheme?: string[]): string {
       '#FFA500': '橙色', '#228B22': '森林绿', '#8B4513': '棕色',
       '#87CEEB': '天蓝色', '#90EE90': '浅绿色', '#FF6B6B': '珊瑚红',
       '#FFE66D': '淡黄色', '#4ECDC4': '青绿色', '#DC143C': '深红色',
-      '#4A4A4A': '灰色', '#D4AF37': '金黄色', '#F5F5DC': '米色', '#FFFFF0': '象牙白'
+      '#4A4A4A': '灰色', '#D4AF37': '金黄色', '#FFFFF0': '象牙白'
     };
     return colorMap[color.toUpperCase()] || color;
   });

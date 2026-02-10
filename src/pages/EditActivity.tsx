@@ -546,7 +546,9 @@ export default function EditActivity() {
                       </label>
                       <input
                         type="datetime-local"
-                        value={eventData.startTime ? new Date(eventData.startTime.getTime() - eventData.startTime.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ''}
+                        value={eventData.startTime instanceof Date 
+                          ? new Date(eventData.startTime.getTime() - eventData.startTime.getTimezoneOffset() * 60000).toISOString().slice(0, 16) 
+                          : ''}
                         onChange={(e) => handleChange('startTime', new Date(e.target.value))}
                         className={`w-full px-4 py-3 rounded-xl border text-sm ${
                           isDark ? 'bg-gray-700 text-white border-gray-600' : 'bg-gray-50 text-gray-900 border-gray-200'
@@ -559,7 +561,9 @@ export default function EditActivity() {
                       </label>
                       <input
                         type="datetime-local"
-                        value={eventData.endTime ? new Date(eventData.endTime.getTime() - eventData.endTime.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ''}
+                        value={eventData.endTime instanceof Date 
+                          ? new Date(eventData.endTime.getTime() - eventData.endTime.getTimezoneOffset() * 60000).toISOString().slice(0, 16) 
+                          : ''}
                         onChange={(e) => handleChange('endTime', new Date(e.target.value))}
                         className={`w-full px-4 py-3 rounded-xl border text-sm ${
                           isDark ? 'bg-gray-700 text-white border-gray-600' : 'bg-gray-50 text-gray-900 border-gray-200'

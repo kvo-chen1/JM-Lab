@@ -641,7 +641,7 @@ export default function OrganizerCenter() {
                     />
                     <StatCard
                       label="总浏览"
-                      value={stats.totalViews.toLocaleString()}
+                      value={(stats.totalViews || 0).toLocaleString()}
                       icon={<Eye className="w-5 h-5" />}
                     />
                   </div>

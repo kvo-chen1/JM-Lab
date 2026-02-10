@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useContext } from 'react';
 import { useTheme } from '@/hooks/useTheme';
 import { useAnalyticsStore } from '@/stores/useAnalyticsStore';
+import { AuthContext } from '@/contexts/authContext';
 import { motion } from 'framer-motion';
 import { SlidersHorizontal } from 'lucide-react';
 import GradientHero from '@/components/GradientHero';
@@ -9,9 +10,9 @@ import LeftSidebar from '@/components/analytics/LeftSidebar';
 import MainContent from '@/components/analytics/MainContent';
 import RightSidebar from '@/components/analytics/RightSidebar';
 import MobileFilterDrawer from '@/components/analytics/MobileFilterDrawer';
-import analyticsService, { 
-  MetricType, 
-  TimeRange, 
+import analyticsService, {
+  MetricType,
+  TimeRange,
   GroupBy,
   AnalyticsQueryParams,
   ExportFormat
@@ -21,8 +22,9 @@ type ChartType = 'line' | 'bar' | 'pie' | 'area';
 
 export default function Analytics() {
   const { isDark } = useTheme();
+  const { user } = useContext(AuthContext);
   const { logUserAction, fetchData, subscribeToRealtime, unsubscribeFromRealtime } = useAnalyticsStore();
-  
+
   // 状态管理
   const [activeMetric, setActiveMetric] = useState<MetricType>('views');
   const [timeRange, setTimeRange] = useState<TimeRange>('30d');
@@ -41,6 +43,9 @@ export default function Analytics() {
       metric: activeMetric,
       timeRange: timeRange,
       groupBy: groupBy,
+      filters: {
+        userId: user?.id // 只查询当前用户的数据
+      }
     };
 
     fetchData(queryParams);
@@ -49,7 +54,7 @@ export default function Analytics() {
     return () => {
       unsubscribeFromRealtime();
     };
-  }, [activeMetric, timeRange, groupBy, fetchData, subscribeToRealtime, unsubscribeFromRealtime]);
+  }, [activeMetric, timeRange, groupBy, user?.id, fetchData, subscribeToRealtime, unsubscribeFromRealtime]);
 
   // 导出处理
   const handleExport = useCallback(async (format: ExportFormat) => {
@@ -57,9 +62,12 @@ export default function Analytics() {
       metric: activeMetric,
       timeRange: timeRange,
       groupBy: groupBy,
+      filters: {
+        userId: user?.id // 只导出当前用户的数据
+      }
     };
     await analyticsService.downloadExport(queryParams, format);
-  }, [activeMetric, timeRange, groupBy]);
+  }, [activeMetric, timeRange, groupBy, user?.id]);
 
   // Hero 区域
   const heroHeader = (

@@ -465,12 +465,16 @@ $$;
 -- 创建视图: 积分排行榜
 CREATE OR REPLACE VIEW public.points_leaderboard AS
 SELECT 
-    user_id,
-    balance,
-    RANK() OVER (ORDER BY balance DESC) as rank
-FROM public.user_points_balance
-WHERE balance > 0
-ORDER BY balance DESC;
+    upb.user_id,
+    u.username,
+    u.avatar_url,
+    upb.balance,
+    upb.total_earned,
+    RANK() OVER (ORDER BY upb.balance DESC) as rank
+FROM public.user_points_balance upb
+JOIN public.users u ON upb.user_id = u.id
+WHERE upb.balance > 0
+ORDER BY upb.balance DESC;
 
 -- 插入默认积分规则
 INSERT INTO public.points_rules (name, description, rule_type, source_type, points, daily_limit, is_active, priority)

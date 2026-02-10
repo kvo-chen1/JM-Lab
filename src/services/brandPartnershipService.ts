@@ -59,17 +59,23 @@ class BrandPartnershipService {
     contact_phone: string;
     contact_email?: string;
     reward?: string;
+    applicant_id?: string;
   }): Promise<BrandPartnership | null> {
     try {
-      // 获取当前登录用户 - 使用 getSession 更可靠
-      const { data: { session } } = await supabase.auth.getSession();
+      // 优先使用传入的 applicant_id，如果没有则尝试从 session 获取
+      let userId = data.applicant_id;
       
-      if (!session?.user) {
-        console.error('创建品牌合作申请失败: 用户未登录');
-        throw new Error('请先登录后再提交品牌申请');
+      if (!userId) {
+        // 获取当前登录用户 - 使用 getSession
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!session?.user) {
+          console.error('创建品牌合作申请失败: 用户未登录');
+          throw new Error('请先登录后再提交品牌申请');
+        }
+        
+        userId = session.user.id;
       }
-      
-      const userId = session.user.id;
 
       const { data: partnership, error } = await supabase
         .from('brand_partnerships')

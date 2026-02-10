@@ -1,8 +1,9 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useContext } from 'react';
 import { useTheme } from '@/hooks/useTheme';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BRANDS } from '@/lib/brands';
 import { brandPartnershipService, BrandPartnership } from '@/services/brandPartnershipService';
+import { AuthContext } from '@/contexts/authContext';
 import { toast } from 'sonner';
 import {
   ThreeColumnLayout,
@@ -29,6 +30,7 @@ import {
 
 export default function BusinessCooperation() {
   const { isDark } = useTheme();
+  const { user } = useContext(AuthContext);
   const [selectedBrand, setSelectedBrand] = useState(BRANDS[0]);
   const [brandSearch, setBrandSearch] = useState('');
   const [currentStep, setCurrentStep] = useState(1);
@@ -93,6 +95,11 @@ export default function BusinessCooperation() {
     contactPhone: string;
     contactEmail: string;
   }) => {
+    if (!user?.id) {
+      toast.error('请先登录后再提交申请');
+      return;
+    }
+    
     const result = await brandPartnershipService.createPartnership({
       brand_name: data.brandName,
       brand_logo: data.brandLogo || 'https://via.placeholder.com/200?text=Brand',
@@ -101,6 +108,7 @@ export default function BusinessCooperation() {
       contact_phone: data.contactPhone,
       contact_email: data.contactEmail,
       reward: '待协商',
+      applicant_id: user.id,
     });
 
     if (result) {
@@ -117,6 +125,11 @@ export default function BusinessCooperation() {
 
   // 处理表单提交（旧版，保留兼容）
   const handleFormSubmit = async (data: { contact: string; phone: string; idea: string }) => {
+    if (!user?.id) {
+      toast.error('请先登录后再提交申请');
+      return;
+    }
+    
     const result = await brandPartnershipService.createPartnership({
       brand_name: selectedBrand.name,
       brand_logo: selectedBrand.image,
@@ -125,6 +138,7 @@ export default function BusinessCooperation() {
       contact_name: data.contact,
       contact_phone: data.phone,
       reward: '待协商',
+      applicant_id: user.id,
     });
 
     if (result) {

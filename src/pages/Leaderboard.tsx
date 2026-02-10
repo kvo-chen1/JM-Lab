@@ -650,8 +650,8 @@ const Leaderboard: React.FC = () => {
                             </div>
                           </div>
                           <h3 className="font-bold text-lg text-gray-900 dark:text-white">{pointsUsers[2].username}</h3>
-                          <p className="text-yellow-500 font-bold text-xl">{pointsUsers[2].balance.toLocaleString()} 积分</p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">累计获得 {pointsUsers[2].total_earned.toLocaleString()}</p>
+                          <p className="text-yellow-500 font-bold text-xl">{(pointsUsers[2]?.balance ?? 0).toLocaleString()} 积分</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">累计获得 {(pointsUsers[2]?.total_earned ?? 0).toLocaleString()}</p>
                         </motion.div>
                       )}
                     </div>

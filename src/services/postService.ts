@@ -933,14 +933,30 @@ async function downloadAndUploadImage(imageUrl: string, userId: string): Promise
 
     console.log('[downloadAndUploadImage] Downloading image:', imageUrl.substring(0, 50));
 
-    // 下载图片
-    const response = await fetch(imageUrl);
-    if (!response.ok) {
-      console.error('[downloadAndUploadImage] Failed to download:', response.status);
-      return null;
+    // 尝试下载图片 - 使用 no-cors 模式避免 CORS 错误
+    let blob: Blob;
+    try {
+      const response = await fetch(imageUrl, { 
+        mode: 'no-cors',
+        headers: {
+          'Accept': 'image/*'
+        }
+      });
+      
+      // no-cors 模式下无法检查 response.ok，直接尝试获取 blob
+      blob = await response.blob();
+      
+      // 检查 blob 是否有效
+      if (blob.size === 0) {
+        throw new Error('Downloaded blob is empty');
+      }
+    } catch (fetchError) {
+      console.error('[downloadAndUploadImage] Fetch failed:', fetchError);
+      // 如果下载失败，返回原始 URL 作为降级方案
+      console.warn('[downloadAndUploadImage] Using original URL due to CORS/download error');
+      return imageUrl;
     }
 
-    const blob = await response.blob();
     const fileName = `works/${userId}/${Date.now()}-${Math.random().toString(36).substring(7)}.png`;
 
     // 上传到 Supabase Storage
@@ -953,7 +969,8 @@ async function downloadAndUploadImage(imageUrl: string, userId: string): Promise
 
     if (error) {
       console.error('[downloadAndUploadImage] Upload error:', error);
-      return null;
+      // 上传失败时返回原始 URL
+      return imageUrl;
     }
 
     // 获取公共 URL
@@ -965,7 +982,8 @@ async function downloadAndUploadImage(imageUrl: string, userId: string): Promise
     return publicUrl;
   } catch (error) {
     console.error('[downloadAndUploadImage] Error:', error);
-    return null;
+    // 任何错误都返回原始 URL 作为降级
+    return imageUrl;
   }
 }
 
@@ -996,6 +1014,9 @@ async function createWorkViaBackend(p: Partial<Post>, currentUser: User): Promis
       }
     }
 
+    // 生成时间戳（秒级）
+    const now = Math.floor(Date.now() / 1000);
+    
     const workData: any = {
       title: p.title,
       description: p.description,
@@ -1007,10 +1028,11 @@ async function createWorkViaBackend(p: Partial<Post>, currentUser: User): Promis
       user_id: currentUser.id,
       media: thumbnail ? [thumbnail] : [],
       type: isVideo ? 'video' : 'image',
-      created_at: new Date().toISOString(),
+      created_at: now,
+      updated_at: now,
       status: 'published',
       visibility: 'public',
-      published_at: new Date().toISOString()
+      published_at: now
     }
     
     // 如果有视频URL，添加到数据中

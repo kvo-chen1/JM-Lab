@@ -280,7 +280,7 @@ export default function RightSidebar({
 
                     {/* 积分 */}
                     <div className={`text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                      {item.totalPoints.toLocaleString()}
+                      {(item.totalPoints ?? 0).toLocaleString()}
                     </div>
                   </motion.div>
                 ))

@@ -304,18 +304,25 @@ export default function WorkDetail() {
   }
 
   // 分享到社群
-  const handleShareToCommunity = (data: { title: string; content: string; topic: string; communityIds: string[] }) => {
-    // 使用社群服务创建帖子
-    import('@/services/communityService').then(({ createPost }) => {
-      createPost({
+  const handleShareToCommunity = async (data: { title: string; content: string; topic: string; communityIds: string[] }) => {
+    try {
+      // 使用社群服务创建帖子
+      const { communityService } = await import('@/services/communityService');
+      await communityService.createPost({
         title: data.title,
         content: data.content,
         topic: data.topic,
         communityIds: data.communityIds,
-        workId: work.id.toString()
-      })
-    })
-    setIsShareToCommunityOpen(false)
+        workId: work.id.toString(),
+        images: work.thumbnail ? [work.thumbnail] : undefined
+      });
+      toast.success('作品已成功分享到社群！');
+    } catch (error: any) {
+      console.error('分享作品失败:', error);
+      toast.error(error.message || '分享失败，请重试');
+    } finally {
+      setIsShareToCommunityOpen(false);
+    }
   }
 
   // 处理导出功能

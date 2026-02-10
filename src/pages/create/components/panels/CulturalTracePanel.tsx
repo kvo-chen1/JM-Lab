@@ -513,9 +513,9 @@ const CulturalTracePanel: React.FC = () => {
       {/* 响应式网格布局 */}
       <div className="flex-1">
         {/* 大屏幕和中等屏幕：两列布局 */}
-        <div className="hidden md:grid md:grid-cols-12 md:gap-6">
-          {/* 知识列表 - 占据5列 */}
-          <div className={`md:col-span-5 md:h-full overflow-y-auto rounded-xl border ${isDark ? 'bg-gradient-to-br from-gray-900 to-gray-800 border-gray-800' : 'bg-gradient-to-br from-white to-gray-50 border-gray-200'} p-5 shadow-lg`}>
+        <div className="hidden md:grid md:grid-cols-5 md:gap-6">
+          {/* 知识列表 - 占据3/5宽度 */}
+          <div className={`md:col-span-3 md:h-full overflow-y-auto rounded-xl border ${isDark ? 'bg-gradient-to-br from-gray-900 to-gray-800 border-gray-800' : 'bg-gradient-to-br from-white to-gray-50 border-gray-200'} p-5 shadow-lg`}>
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isDark ? 'bg-[#C02C38]/20' : 'bg-[#C02C38]/10'}`}>
@@ -749,8 +749,8 @@ const CulturalTracePanel: React.FC = () => {
             </div>
           </div>
 
-          {/* 知识详情 - 占据7列 */}
-          <div className={`md:col-span-7 md:h-full overflow-y-auto rounded-xl border ${isDark ? 'bg-gradient-to-br from-gray-900 to-gray-800 border-gray-800' : 'bg-gradient-to-br from-white to-gray-50 border-gray-200'} p-5 shadow-lg`}>
+          {/* 知识详情 - 占据2/5宽度 */}
+          <div className={`md:col-span-2 md:h-full overflow-y-auto rounded-xl border ${isDark ? 'bg-gradient-to-br from-gray-900 to-gray-800 border-gray-800' : 'bg-gradient-to-br from-white to-gray-50 border-gray-200'} p-5 shadow-lg`}>
             <div className="flex items-center gap-2 mb-5">
               <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isDark ? 'bg-blue-500/20' : 'bg-blue-500/10'}`}>
                 <i className="fas fa-info-circle text-sm text-blue-500"></i>

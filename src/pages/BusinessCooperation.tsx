@@ -37,6 +37,7 @@ export default function BusinessCooperation() {
   const [activeTab, setActiveTab] = useState<'form' | 'records'>('form');
   const [showOnboarding, setShowOnboarding] = useState(true); // 默认显示入驻引导
   const [partnerships, setPartnerships] = useState<BrandPartnership[]>([]);
+  const [approvedBrands, setApprovedBrands] = useState<BrandPartnership[]>([]);
   const [stats, setStats] = useState({
     totalPartnerships: 0,
     approvedPartnerships: 0,
@@ -47,8 +48,13 @@ export default function BusinessCooperation() {
   // 获取合作申请记录
   const fetchPartnerships = async () => {
     try {
-      const data = await brandPartnershipService.getMyPartnerships();
-      setPartnerships(data);
+      // 获取当前用户的品牌申请
+      const myData = await brandPartnershipService.getMyPartnerships();
+      setPartnerships(myData);
+      
+      // 获取所有已审核通过的品牌（用于显示已入驻品牌列表）
+      const approvedData = await brandPartnershipService.getApprovedBrands();
+      setApprovedBrands(approvedData);
       
       // 获取统计数据
       const statsData = await brandPartnershipService.getStats();
@@ -359,7 +365,7 @@ export default function BusinessCooperation() {
           searchQuery={brandSearch}
           onSearchChange={setBrandSearch}
           partnershipCount={partnerships.length}
-          approvedBrands={partnerships.filter(p => p.status === 'approved')}
+          approvedBrands={approvedBrands}
           stats={{
             approvedPartnerships: stats.approvedPartnerships,
             totalEvents: stats.totalEvents,

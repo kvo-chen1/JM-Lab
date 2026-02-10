@@ -463,10 +463,10 @@ export const useCommunityLogic = () => {
       avatar: msg.sender?.avatar_url || '',
       createdAt: new Date(msg.created_at).getTime(),
       type: msg.type || 'text',
-      images: msg.images,
-      files: msg.files,
-      richContent: msg.richContent,
-      sendStatus: msg.sendStatus || 'sent'
+      images: msg.metadata?.images || msg.images,
+      files: msg.metadata?.files || msg.files,
+      richContent: msg.metadata?.richContent || msg.richContent,
+      sendStatus: msg.status || 'sent'
     }));
   }, [chatStoreMessages]);
   

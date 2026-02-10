@@ -69,8 +69,8 @@ const NeoRightSidebar: React.FC<NeoRightSidebarProps> = ({
   };
 
   return (
-    <aside 
-      className={`h-full w-80 flex flex-col border-l z-10 transition-colors duration-300 shadow-xl
+    <aside
+      className={`h-full w-full flex flex-col border-l z-10 transition-colors duration-300 shadow-xl
         ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`}
     >
       {/* 顶部标题区域 */}

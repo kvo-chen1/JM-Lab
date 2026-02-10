@@ -12,4 +12,5 @@ import {
   MapPin,
   Users,
   FileText,
-  Image
+  Image as ImageIcon,
+} from 'lucide-react';

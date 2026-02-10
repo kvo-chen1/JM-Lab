@@ -2,14 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { communityService } from '@/services/communityService';
-import { Crown, User, Shield, MoreHorizontal, MessageCircle } from 'lucide-react';
+import { Crown, User, Shield, MoreHorizontal, MessageCircle, Star } from 'lucide-react';
 
 interface Member {
   id: string;
   user_id: string;
   username: string;
   avatar_url?: string;
-  role: 'admin' | 'moderator' | 'member';
+  role: 'owner' | 'admin' | 'moderator' | 'member';
   joined_at: string;
   is_online?: boolean;
 }
@@ -46,6 +46,8 @@ export const MembersSection: React.FC<MembersSectionProps> = ({ communityId, isD
 
   const getRoleIcon = (role: string) => {
     switch (role) {
+      case 'owner':
+        return <Star className="w-4 h-4 text-yellow-500" />;
       case 'admin':
         return <Crown className="w-4 h-4 text-yellow-500" />;
       case 'moderator':
@@ -57,6 +59,8 @@ export const MembersSection: React.FC<MembersSectionProps> = ({ communityId, isD
 
   const getRoleLabel = (role: string) => {
     switch (role) {
+      case 'owner':
+        return '创建者';
       case 'admin':
         return '管理员';
       case 'moderator':
@@ -98,6 +102,7 @@ export const MembersSection: React.FC<MembersSectionProps> = ({ communityId, isD
     );
   }
 
+  const owners = members.filter(m => m.role === 'owner');
   const admins = members.filter(m => m.role === 'admin');
   const moderators = members.filter(m => m.role === 'moderator');
   const regularMembers = members.filter(m => m.role === 'member');
@@ -118,6 +123,20 @@ export const MembersSection: React.FC<MembersSectionProps> = ({ communityId, isD
 
       {/* 成员列表 */}
       <div className="space-y-6">
+        {/* 创建者 */}
+        {owners.length > 0 && (
+          <div>
+            <h3 className={`text-sm font-semibold uppercase tracking-wider mb-3 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+              创建者 ({owners.length})
+            </h3>
+            <div className="space-y-2">
+              {owners.map((member) => (
+                <MemberCard key={member.id} member={member} isDark={isDark} />
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* 管理员 */}
         {admins.length > 0 && (
           <div>
@@ -172,6 +191,8 @@ interface MemberCardProps {
 const MemberCard: React.FC<MemberCardProps> = ({ member, isDark }) => {
   const getRoleIcon = (role: string) => {
     switch (role) {
+      case 'owner':
+        return <Star className="w-4 h-4 text-yellow-500" />;
       case 'admin':
         return <Crown className="w-4 h-4 text-yellow-500" />;
       case 'moderator':
@@ -183,6 +204,8 @@ const MemberCard: React.FC<MemberCardProps> = ({ member, isDark }) => {
 
   const getRoleLabel = (role: string) => {
     switch (role) {
+      case 'owner':
+        return '创建者';
       case 'admin':
         return '管理员';
       case 'moderator':

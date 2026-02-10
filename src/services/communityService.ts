@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase';
+import { supabase, supabaseAdmin } from '../lib/supabase';
 import type { PostWithAuthor, UserProfile, CommentWithAuthor } from '../lib/supabase';
 import { RealtimeChannel } from '@supabase/supabase-js';
 
@@ -1147,6 +1147,117 @@ export const communityService = {
     };
   },
 
+  // 创建帖子（用于分享作品到社群）
+  async createPost(data: {
+    title: string;
+    content: string;
+    topic: string;
+    communityIds: string[];
+    workId?: string;
+    images?: string[];
+    videos?: string[];
+  }): Promise<Thread[]> {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    const userStr = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
+    const user = userStr ? JSON.parse(userStr) : null;
+
+    if (!user || !user.id) {
+      throw new Error('请先登录后再分享作品');
+    }
+
+    const createdThreads: Thread[] = [];
+
+    // 为每个选中的社群创建帖子
+    for (const communityId of data.communityIds) {
+      try {
+        // 优先尝试使用后端API
+        if (token) {
+          try {
+            const response = await fetch(`/api/communities/${communityId}/posts`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({
+                title: data.title,
+                content: data.content + (data.workId ? `\n\n[分享作品ID: ${data.workId}]` : ''),
+                images: data.images,
+                videos: data.videos
+              })
+            });
+
+            if (response.ok) {
+              const result = await response.json();
+              if (result.code === 0) {
+                createdThreads.push({
+                  id: result.data.id,
+                  title: result.data.title,
+                  content: result.data.content,
+                  createdAt: new Date(result.data.created_at).getTime(),
+                  replies: [],
+                  topic: data.topic,
+                  upvotes: 0,
+                  images: result.data.images || [],
+                  videos: result.data.videos || [],
+                  communityId: communityId,
+                  author: user.username || user.name || '用户',
+                  authorAvatar: user.avatar_url || user.avatar,
+                  authorId: user.id,
+                  comments: []
+                });
+                continue;
+              }
+            }
+          } catch (apiError) {
+            console.warn('[createPost] Backend API failed:', apiError);
+          }
+        }
+
+        // 回退到 Supabase
+        const { data: newPost, error } = await supabase
+          .from('posts')
+          .insert({
+            title: data.title,
+            content: data.content + (data.workId ? `\n\n[分享作品ID: ${data.workId}]` : ''),
+            community_id: communityId,
+            user_id: user.id,
+            images: data.images || [],
+            videos: data.videos || []
+          })
+          .select()
+          .single();
+
+        if (error) {
+          console.error('[createPost] Supabase error:', error);
+          throw error;
+        }
+
+        createdThreads.push({
+          id: newPost.id,
+          title: newPost.title,
+          content: newPost.content,
+          createdAt: new Date(newPost.created_at).getTime(),
+          replies: [],
+          topic: data.topic,
+          upvotes: 0,
+          images: newPost.images || [],
+          videos: newPost.videos || [],
+          communityId: communityId,
+          author: user.username || user.name || '用户',
+          authorAvatar: user.avatar_url || user.avatar,
+          authorId: user.id,
+          comments: []
+        });
+      } catch (error) {
+        console.error(`[createPost] Failed to create post for community ${communityId}:`, error);
+        throw error;
+      }
+    }
+
+    return createdThreads;
+  },
+
   // 帖子管理功能
   async createThread(data: {
     title: string;
@@ -1970,7 +2081,32 @@ export const communityService = {
   // 获取社区成员列表
   async getCommunityMembers(communityId: string): Promise<any[]> {
     try {
-      // 先获取成员列表（community_members 表使用复合主键 community_id + user_id，没有 id 列）
+      // 首先尝试使用后端API获取成员列表（后端使用service_role可以绕过RLS）
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      if (token) {
+        try {
+          const response = await fetch(`/api/communities/${communityId}/members`, {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          
+          if (response.ok) {
+            const result = await response.json();
+            if (result.code === 0 && Array.isArray(result.data)) {
+              console.log('[getCommunityMembers] Fetched from backend API:', result.data.length);
+              return result.data;
+            }
+          }
+        } catch (apiError) {
+          console.warn('[getCommunityMembers] Backend API failed, falling back to Supabase:', apiError);
+        }
+      }
+
+      // 回退到Supabase直接查询
+      console.log('[getCommunityMembers] Falling back to Supabase...');
+      
+      // 先获取成员列表
       const { data: membersData, error: membersError } = await supabase
         .from('community_members')
         .select('community_id, user_id, role, joined_at')
@@ -1986,30 +2122,69 @@ export const communityService = {
         return [];
       }
 
-      // 获取所有用户ID（community_members.user_id 是 text 类型，users.id 是 uuid 类型）
+      // 获取所有用户ID
       const userIds = membersData.map(m => m.user_id).filter(Boolean);
+      console.log('[getCommunityMembers] User IDs:', userIds);
 
-      // 单独获取用户信息（需要将 text 类型的 user_id 转换为 uuid 查询）
+      // 单独获取用户信息 - 使用 in 查询
       let usersMap = new Map();
       if (userIds.length > 0) {
-        // 使用 or 条件构建查询，将 text 类型的 user_id 转换为 uuid
-        const orConditions = userIds.map(id => `id.eq.${id}`).join(',');
+        // 首先尝试从 public.users 获取
         const { data: usersData, error: usersError } = await supabase
           .from('users')
           .select('id, username, avatar_url')
-          .or(orConditions);
+          .in('id', userIds);
+
+        console.log('[getCommunityMembers] Users query result:', { usersData, usersError });
 
         if (usersError) {
           console.error('Error getting users:', usersError);
         } else {
           usersData?.forEach((user: any) => {
-            // 将 uuid 转换为字符串作为 key，以便匹配 text 类型的 user_id
-            usersMap.set(String(user.id), user);
+            usersMap.set(user.id, user);
           });
+        }
+
+        // 对于没有从 public.users 找到的用户，尝试从后端API获取
+        const missingUserIds = userIds.filter(id => !usersMap.has(id));
+        if (missingUserIds.length > 0) {
+          console.log('[getCommunityMembers] Missing user IDs, trying backend API:', missingUserIds);
+          try {
+            // 使用后端API获取用户信息
+            const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+            if (token) {
+              // 逐个获取用户信息
+              for (const userId of missingUserIds) {
+                try {
+                  const response = await fetch(`/api/users/${userId}`, {
+                    headers: {
+                      'Authorization': `Bearer ${token}`
+                    }
+                  });
+                  
+                  if (response.ok) {
+                    const result = await response.json();
+                    if (result.code === 0 && result.data) {
+                      const user = result.data;
+                      usersMap.set(userId, {
+                        id: userId,
+                        username: user.username || user.name || user.email?.split('@')[0] || '用户',
+                        avatar_url: user.avatar_url || user.avatar
+                      });
+                    }
+                  }
+                } catch (userError) {
+                  console.warn(`[getCommunityMembers] Failed to get user ${userId}:`, userError);
+                }
+              }
+            }
+          } catch (e) {
+            console.warn('[getCommunityMembers] Failed to get users from backend:', e);
+          }
         }
       }
 
-      return membersData.map((member: any) => {
+      const result = membersData.map((member: any) => {
         const user = usersMap.get(member.user_id);
         return {
           id: `${member.community_id}-${member.user_id}`, // 使用复合键作为 id
@@ -2021,6 +2196,9 @@ export const communityService = {
           is_online: false,
         };
       });
+      
+      console.log('[getCommunityMembers] Final result:', result);
+      return result;
     } catch (error) {
       console.error('Error in getCommunityMembers:', error);
       return [];

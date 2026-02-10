@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import type { Community } from '@/pages/Community';
 import { chatService } from '@/services/chatService';
 import { supabase } from '@/lib/supabaseClient';
+import { toast } from 'sonner';
 
 interface ShareCardData {
   type: 'work' | 'activity' | 'post';
@@ -74,38 +75,52 @@ const ShareToCommunity: React.FC<ShareToCommunityProps> = ({
     setError(null);
 
     try {
-      const channelId = `community:${selectedCommunity.id}:${selectedChannel}`;
-      const token = localStorage.getItem('token');
-      
-      if (!token) {
-        throw new Error('请先登录');
+      // 导入 communityService
+      const { communityService } = await import('@/services/communityService');
+
+      // 根据选择的频道决定分享方式
+      if (selectedChannel === 'feed') {
+        // 分享到动态（帖子）
+        await communityService.createPost({
+          title: shareCard.title,
+          content: shareCard.description || `${userName} 分享了一个${shareCard.type === 'work' ? '作品' : shareCard.type === 'activity' ? '活动' : '帖子'}`,
+          topic: '',
+          communityIds: [selectedCommunity.id],
+          workId: shareCard.id,
+          images: shareCard.thumbnail ? [shareCard.thumbnail] : undefined
+        });
+      } else {
+        // 分享到聊天
+        const token = localStorage.getItem('token');
+        if (!token) {
+          throw new Error('请先登录');
+        }
+
+        const channelId = `community:${selectedCommunity.id}:chat`;
+        const response = await fetch('/api/community/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            communityId: selectedCommunity.id,
+            channelId: channelId,
+            content: `${userName} 分享了一个${shareCard.type === 'work' ? '作品' : shareCard.type === 'activity' ? '活动' : '帖子'}`,
+            type: 'share_card',
+            metadata: {
+              shareCard: shareCard
+            }
+          })
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || '发送失败');
+        }
       }
 
-      // 使用后端 API 发送消息
-      const response = await fetch('/api/community/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          communityId: selectedCommunity.id,
-          channelId: channelId,
-          content: `${userName} 分享了一个${shareCard.type === 'work' ? '作品' : shareCard.type === 'activity' ? '活动' : '帖子'}`,
-          type: 'share_card',
-          metadata: {
-            shareCard: shareCard
-          }
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || '发送失败');
-      }
-
-      const result = await response.json();
-      console.log('Message sent successfully:', result);
+      toast.success(`作品已成功分享到 ${selectedCommunity.name} 的${selectedChannel === 'feed' ? '帖子' : '聊天'}！`);
       onClose();
     } catch (err: any) {
       console.error('Failed to send share:', err);
@@ -246,19 +261,21 @@ const ShareToCommunity: React.FC<ShareToCommunityProps> = ({
               选择频道
             </h4>
             <div className="flex gap-2">
-              {['chat', 'feed', 'members'].map((channel) => (
+              {[
+                { key: 'chat', icon: 'fa-comment-dots', label: '聊天' },
+                { key: 'feed', icon: 'fa-stream', label: '帖子' }
+              ].map((channel) => (
                 <button
-                  key={channel}
-                  onClick={() => setSelectedChannel(channel)}
+                  key={channel.key}
+                  onClick={() => setSelectedChannel(channel.key)}
                   className={`flex-1 py-2 px-4 rounded-lg font-medium transition-all ${
-                    selectedChannel === channel
+                    selectedChannel === channel.key
                       ? 'bg-blue-500 text-white'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
                   }`}
                 >
-                  {channel === 'chat' && <><i className="fas fa-comment-dots mr-2"></i>聊天</>}
-                  {channel === 'feed' && <><i className="fas fa-stream mr-2"></i>动态</>}
-                  {channel === 'members' && <><i className="fas fa-users mr-2"></i>成员</>}
+                  <i className={`fas ${channel.icon} mr-2`}></i>
+                  {channel.label}
                 </button>
               ))}
             </div>

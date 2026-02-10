@@ -67,7 +67,6 @@ const initialState: CreateState = {
   isLoading: false,
   showAIReview: false,
   showModelSelector: false,
-  showInspirationPanel: false,
   showPublishModal: false,
   showDraftsModal: false,
   showHistoryModal: false,

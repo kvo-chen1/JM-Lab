@@ -121,6 +121,7 @@ export function useCollectionStats() {
     activity: 0,
     template: 0,
     totalLikes: 0,
+    templateLikes: 0,
   });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);

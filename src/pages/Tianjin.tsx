@@ -1,12 +1,17 @@
 import { useTheme } from '@/hooks/useTheme';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 
 import TianjinCreativeActivities from '@/components/TianjinCreativeActivities';
+import TemplateShowcaseGrid from '@/components/templates/TemplateShowcaseGrid';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { tianjinActivityService, TianjinTemplate } from '@/services/tianjinActivityService';
 import { templateInteractionService } from '@/services/templateInteractionService';
+import { generateTemplatePrompt } from '@/utils/templatePromptGenerator';
+import { templateUsageService } from '@/services/templateUsageService';
+import { useAuth } from '@/hooks/useAuth';
+import { toast } from 'sonner';
 
 // 分类配置
 const CATEGORIES = [
@@ -20,7 +25,9 @@ const CATEGORIES = [
 export default function Tianjin() {
   const { isDark } = useTheme();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
   const [stats, setStats] = useState({
     templateCount: 0,
     totalUsage: 0,
@@ -28,12 +35,14 @@ export default function Tianjin() {
     totalFavorites: 0,
   });
   const [hotTemplates, setHotTemplates] = useState<TianjinTemplate[]>([]);
+  const [allTemplates, setAllTemplates] = useState<TianjinTemplate[]>([]);
   
   // 加载统计数据和热门模板
   useEffect(() => {
     const loadStats = async () => {
       try {
         const templates = await tianjinActivityService.getTemplates();
+        setAllTemplates(templates);
         
         // 计算统计数据
         const templateCount = templates.length;
@@ -69,6 +78,41 @@ export default function Tianjin() {
     
     loadStats();
   }, []);
+
+  // 处理使用模板（做同款）
+  const handleUseTemplate = useCallback(async (template: TianjinTemplate) => {
+    // 生成提示词
+    const prompt = generateTemplatePrompt(template);
+    
+    // 保存使用记录
+    if (user?.id) {
+      try {
+        await templateUsageService.saveTemplateUsage(user.id, template, prompt);
+      } catch (error) {
+        console.error('保存模板使用记录失败:', error);
+      }
+    }
+    
+    // 增加模板使用次数
+    try {
+      await tianjinActivityService.incrementTemplateUsage(template.id);
+    } catch (error) {
+      console.error('增加使用次数失败:', error);
+    }
+    
+    // 跳转到创作页面
+    navigate('/create', {
+      state: {
+        templatePrompt: prompt,
+        templateId: template.id,
+        templateName: template.name,
+        templateStyle: template.style,
+        templateCategory: template.category
+      }
+    });
+    
+    toast.success(`正在使用"${template.name}"模板创建作品...`);
+  }, [navigate, user]);
 
   return (
     <div className={`min-h-screen ${isDark ? 'bg-gray-950 text-white' : 'bg-gray-50 text-gray-900'}`}>
@@ -175,17 +219,47 @@ export default function Tianjin() {
           </aside>
           
           {/* 中间主内容区 - 模板列表 */}
-          <section className="lg:col-span-7">
+          <section className="lg:col-span-8 space-y-8">
+            {/* 做同款模板展示区 */}
+            <ErrorBoundary>
+              <div className={`rounded-2xl overflow-hidden ${isDark ? 'bg-gray-900 border border-gray-800' : 'bg-white border border-gray-200'} shadow-sm`}>
+                <div className="p-4 border-b border-gray-200 dark:border-gray-800">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">🎨</span>
+                      <h2 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        做同款
+                      </h2>
+                      <span className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                        选择喜欢的模板，一键生成同款作品
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-4">
+                  <TemplateShowcaseGrid
+                    templates={allTemplates}
+                    selectedCategory={selectedCategory}
+                    onCategoryChange={setSelectedCategory}
+                    searchQuery={searchQuery}
+                    onSearchChange={setSearchQuery}
+                  />
+                </div>
+              </div>
+            </ErrorBoundary>
+
+            {/* 原有模板列表 */}
             <ErrorBoundary>
               <TianjinCreativeActivities 
                 selectedCategory={selectedCategory}
                 onCategoryChange={setSelectedCategory}
+                search={searchQuery}
               />
             </ErrorBoundary>
           </section>
           
           {/* 右侧边栏 - 精简版 */}
-          <aside className="lg:col-span-3 space-y-4">
+          <aside className="lg:col-span-2 space-y-4">
             {/* 我的收藏 */}
             <motion.div
               initial={{ opacity: 0, x: 20 }}

@@ -204,6 +204,10 @@ const MyActivities = createLazyComponent(() => import(/* webpackChunkName: "page
   priority: ROUTE_PRIORITIES.LOW,
   name: 'my-activities'
 });
+const OrganizerCenter = createLazyComponent(() => import(/* webpackChunkName: "pages-activities" */ "@/pages/OrganizerCenter"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'organizer-center'
+});
 
 // 管理相关 - 懒加载
 const Admin = createLazyComponent(() => import(/* webpackChunkName: "pages-admin" */ "@/pages/admin/Admin"), {
@@ -743,6 +747,7 @@ export default function App() {
           <Route path="/activities/:id" element={<LazyComponent><PrivateRoute><ActivityDetail /></PrivateRoute></LazyComponent>} />
           <Route path="/edit-activity/:id" element={<LazyComponent><PrivateRoute><EditActivity /></PrivateRoute></LazyComponent>} />
           <Route path="/my-activities" element={<LazyComponent><PrivateRoute><MyActivities /></PrivateRoute></LazyComponent>} />
+          <Route path="/organizer" element={<LazyComponent><PrivateRoute><OrganizerCenter /></PrivateRoute></LazyComponent>} />
           
           {/* 创新功能路由 - 懒加载 */}
           <Route path="/checkin" element={<LazyComponent><PrivateRoute><Checkin /></PrivateRoute></LazyComponent>} />

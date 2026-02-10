@@ -1,83 +1,41 @@
-#!/usr/bin/env node
-/**
- * 检查 community_members 表结构
- */
-
-import pg from 'pg';
+import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 
-const { Pool } = pg;
+dotenv.config();
 
-dotenv.config({ path: '.env.local' });
+const supabaseUrl = process.env.VITE_SUPABASE_URL;
+const supabaseKey = process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 
-const connectionString = process.env.DATABASE_URL?.replace(':5432/', ':6543/') || 
-  'postgres://postgres.pptqdicaaewtnaiflfcs:csh200506207837@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true';
+if (!supabaseUrl || !supabaseKey) {
+  console.error('错误: 缺少 Supabase 环境变量');
+  process.exit(1);
+}
 
-console.log('\n========================================');
-console.log('检查 community_members 表结构');
-console.log('========================================\n');
+const supabase = createClient(supabaseUrl, supabaseKey);
 
-const pool = new Pool({
-  connectionString,
-  ssl: { rejectUnauthorized: false },
-  max: 1,
-});
+async function checkTableStructure() {
+  console.log('检查 events 表结构...\n');
 
-async function checkStructure() {
-  const client = await pool.connect();
-  
-  try {
-    // 获取表结构
-    const result = await client.query(`
-      SELECT column_name, data_type, is_nullable, column_default
-      FROM information_schema.columns 
-      WHERE table_schema = 'public' 
-      AND table_name = 'community_members'
-      ORDER BY ordinal_position;
-    `);
-    
-    console.log('community_members 表结构:');
-    console.log('----------------------------------------');
-    result.rows.forEach(col => {
-      console.log(`  ${col.column_name}: ${col.data_type} ${col.is_nullable === 'NO' ? 'NOT NULL' : ''} ${col.column_default ? `DEFAULT ${col.column_default}` : ''}`);
+  // 直接查询数据，看看有哪些列
+  const { data: eventData, error: eventError } = await supabase
+    .from('events')
+    .select('*')
+    .limit(1);
+
+  if (eventError) {
+    console.error('查询失败:', eventError);
+    return;
+  }
+
+  if (eventData && eventData.length > 0) {
+    console.log('events 表列名:');
+    Object.keys(eventData[0]).forEach(key => {
+      console.log(`  - ${key}: ${typeof eventData[0][key]}`);
     });
-    
-    // 检查主键
-    const pkResult = await client.query(`
-      SELECT kcu.column_name
-      FROM information_schema.table_constraints tc
-      JOIN information_schema.key_column_usage kcu
-        ON tc.constraint_name = kcu.constraint_name
-      WHERE tc.table_schema = 'public'
-        AND tc.table_name = 'community_members'
-        AND tc.constraint_type = 'PRIMARY KEY';
-    `);
-    
-    console.log('\n主键:');
-    pkResult.rows.forEach(pk => {
-      console.log(`  - ${pk.column_name}`);
-    });
-    
-    // 显示示例数据
-    console.log('\n示例数据:');
-    const sampleResult = await client.query('SELECT * FROM community_members LIMIT 2');
-    sampleResult.rows.forEach((row, i) => {
-      console.log(`\n  记录 ${i + 1}:`);
-      Object.entries(row).forEach(([key, value]) => {
-        console.log(`    ${key}: ${value}`);
-      });
-    });
-    
-    console.log('\n========================================');
-    console.log('检查完成');
-    console.log('========================================');
-    
-  } catch (error) {
-    console.error('\n❌ 执行失败:', error.message);
-  } finally {
-    client.release();
-    await pool.end();
+    console.log('\n示例数据:', eventData[0]);
+  } else {
+    console.log('events 表没有数据');
   }
 }
 
-checkStructure();
+checkTableStructure();

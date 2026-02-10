@@ -6,6 +6,8 @@ import { AuthContext } from '@/contexts/authContext';
 import { toast } from 'sonner';
 import { EventUpdateRequest, Media } from '@/types';
 import { useEventService } from '@/hooks/useEventService';
+import { eventService } from '@/services/eventService';
+import { supabase } from '@/lib/supabase';
 import { StepIndicator } from '@/components/StepIndicator';
 import { InfoCard } from '@/components/InfoCard';
 import { EventPreview } from '@/components/EventPreview';
@@ -47,8 +49,12 @@ export default function EditActivity() {
   const { isDark } = useTheme();
   const { isAuthenticated, user } = useContext(AuthContext);
   const navigate = useNavigate();
-  const { eventId } = useParams<{ eventId: string }>();
+  const { id: eventId } = useParams<{ id: string }>();
   const { getEvent, updateEvent, publishEvent } = useEventService();
+
+  // 活动原始状态
+  const [originalStatus, setOriginalStatus] = useState<string>('');
+  const [canEdit, setCanEdit] = useState(true);
 
   // 当前步骤
   const [currentStep, setCurrentStep] = useState<StepType>('basic');
@@ -106,17 +112,77 @@ export default function EditActivity() {
       setIsLoading(true);
       const event = await getEvent(eventId);
 
+      // 检查编辑权限
+      if (user?.id) {
+        try {
+          // 使用 RPC 函数查询活动的 organizer_id 和状态（绕过 RLS）
+          const { data: rpcData, error: rpcError } = await supabase.rpc('get_user_events_simple', {
+            p_user_id: user.id
+          });
+          
+          // 从 RPC 返回的数据中找到当前活动
+          const eventCheck = rpcData?.find((e: any) => e.id === eventId);
+          
+          console.log('权限检查调试:', {
+            eventId,
+            userId: user.id,
+            organizerId: eventCheck?.organizer_id,
+            status: eventCheck?.status,
+            match: eventCheck?.organizer_id === user.id,
+            rpcError: rpcError?.message
+          });
+          
+          if (rpcError) {
+            console.error('RPC 查询活动失败:', rpcError);
+          }
+          
+          // 检查权限：用户是组织者
+          const canEditEvent = eventCheck?.organizer_id === user.id;
+          
+          setCanEdit(canEditEvent);
+          if (!canEditEvent) {
+            const errorMsg = eventCheck?.organizer_id 
+              ? `您没有权限编辑此活动。活动组织者ID: ${eventCheck.organizer_id}, 您的ID: ${user.id}`
+              : '您没有权限编辑此活动（活动无组织者信息）';
+            toast.error(errorMsg);
+            navigate('/organizer');
+            return;
+          }
+        } catch (error) {
+          console.error('权限检查失败:', error);
+          toast.error('权限检查失败');
+          navigate('/organizer');
+          return;
+        }
+      }
+
+      // 保存原始状态
+      setOriginalStatus(event.status || 'draft');
+
+      // 确保 startTime 和 endTime 是 Date 对象
+      const startTime = event.startTime instanceof Date 
+        ? event.startTime 
+        : event.startTime 
+          ? new Date(event.startTime) 
+          : new Date();
+      
+      const endTime = event.endTime instanceof Date 
+        ? event.endTime 
+        : event.endTime 
+          ? new Date(event.endTime) 
+          : new Date(Date.now() + 24 * 60 * 60 * 1000);
+
       const data = {
         title: event.title,
         description: event.description,
-        content: event.content,
-        startTime: event.startTime,
-        endTime: event.endTime,
-        location: event.location,
-        type: event.type,
+        content: event.content || '',
+        startTime,
+        endTime,
+        location: event.location || '',
+        type: event.type || 'offline',
         tags: event.tags || [],
-        media: event.media,
-        isPublic: event.isPublic,
+        media: event.media || [],
+        isPublic: event.isPublic ?? true,
         maxParticipants: event.maxParticipants,
       };
 
@@ -195,7 +261,7 @@ export default function EditActivity() {
 
   // 更新活动
   const handleUpdate = async () => {
-    if (!eventId) return;
+    if (!eventId || !user?.id) return;
 
     try {
       for (const step of steps) {
@@ -207,9 +273,27 @@ export default function EditActivity() {
       }
 
       setIsUpdating(true);
-      await updateEvent(eventId, eventData);
-      toast.success('活动已更新');
-      navigate(`/activities/${eventId}`);
+
+      // 根据原始状态决定更新方式
+      if (originalStatus === 'published' || originalStatus === 'rejected') {
+        // 已发布或已拒绝的活动需要重新提交审核
+        const result = await eventService.updateEventAndResubmit(eventId, {
+          ...eventData,
+          organizer_id: user.id,
+        });
+
+        if (result.success) {
+          toast.success(result.message);
+          navigate('/organizer');
+        } else {
+          toast.error(result.message);
+        }
+      } else {
+        // 草稿或审核中的活动直接更新
+        await updateEvent(eventId, eventData);
+        toast.success('活动已更新');
+        navigate('/organizer');
+      }
     } catch (error) {
       toast.error('更新活动失败，请稍后重试');
     } finally {
@@ -217,9 +301,9 @@ export default function EditActivity() {
     }
   };
 
-  // 提交发布
+  // 提交发布/重新审核
   const handlePublish = async () => {
-    if (!eventId) return;
+    if (!eventId || !user?.id) return;
 
     try {
       for (const step of steps) {
@@ -231,10 +315,38 @@ export default function EditActivity() {
       }
 
       setIsPublishing(true);
-      await updateEvent(eventId, eventData);
-      await publishEvent(eventId);
-      toast.success('活动已提交发布');
-      navigate(`/activities/${eventId}`);
+
+      // 根据原始状态决定操作
+      if (originalStatus === 'published' || originalStatus === 'rejected') {
+        // 已发布或已拒绝的活动：更新并重新提交审核
+        const result = await eventService.updateEventAndResubmit(eventId, {
+          ...eventData,
+          organizer_id: user.id,
+        });
+
+        if (result.success) {
+          toast.success(result.message);
+          navigate('/organizer');
+        } else {
+          toast.error(result.message);
+        }
+      } else if (originalStatus === 'draft') {
+        // 草稿状态：先更新再提交审核
+        await updateEvent(eventId, eventData);
+        const result = await eventService.submitEventForReview(eventId);
+
+        if (result.success) {
+          toast.success('活动已提交审核，请等待管理员审批');
+          navigate('/organizer');
+        } else {
+          toast.error(result.message);
+        }
+      } else {
+        // 审核中状态：直接更新
+        await updateEvent(eventId, eventData);
+        toast.success('活动已更新');
+        navigate('/organizer');
+      }
     } catch (error) {
       toast.error('发布活动失败，请稍后重试');
     } finally {
@@ -716,7 +828,11 @@ export default function EditActivity() {
                   {hasChanges() && (
                     <div className={`p-4 rounded-xl border ${isDark ? 'bg-amber-900/10 border-amber-800' : 'bg-amber-50 border-amber-200'}`}>
                       <p className="text-sm text-amber-800 dark:text-amber-300">
-                        您已对活动进行了修改。保存后，已发布的活动可能需要重新审核。
+                        {originalStatus === 'published' 
+                          ? '⚠️ 您正在编辑已发布的活动。保存后活动将重新提交审核，审核通过后才能再次发布。'
+                          : originalStatus === 'rejected'
+                          ? '⚠️ 您正在编辑已拒绝的活动。保存后将重新提交审核。'
+                          : '您已对活动进行了修改。保存后将提交审核。'}
                       </p>
                     </div>
                   )}
@@ -755,7 +871,8 @@ export default function EditActivity() {
                       ) : (
                         <>
                           <Save className="w-5 h-5" />
-                          保存修改
+                          {originalStatus === 'published' ? '保存并重新审核' : 
+                           originalStatus === 'rejected' ? '保存并重新提交' : '保存修改'}
                         </>
                       )}
                     </motion.button>
@@ -764,18 +881,20 @@ export default function EditActivity() {
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
                       onClick={handlePublish}
-                      disabled={isPublishing}
+                      disabled={isPublishing || !hasChanges()}
                       className="flex items-center gap-2 px-8 py-3 bg-primary-500 hover:bg-primary-600 text-white font-medium rounded-xl shadow-primary transition-all disabled:opacity-70"
                     >
                       {isPublishing ? (
                         <>
                           <Loader2 className="w-5 h-5 animate-spin" />
-                          发布中...
+                          {originalStatus === 'published' ? '重新提交中...' : '提交中...'}
                         </>
                       ) : (
                         <>
                           <Send className="w-5 h-5" />
-                          提交发布
+                          {originalStatus === 'published' ? '保存并重新发布' : 
+                           originalStatus === 'rejected' ? '重新提交审核' : 
+                           originalStatus === 'draft' ? '提交审核' : '保存修改'}
                         </>
                       )}
                     </motion.button>

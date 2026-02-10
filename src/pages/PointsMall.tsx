@@ -23,18 +23,27 @@ const PointsMall: React.FC = () => {
   // 使用 Supabase 积分服务获取真实积分
   const { balance, isLoading: pointsLoading, refreshBalance } = useSupabasePoints();
   const currentPoints = balance?.balance || 0;
-  const userId = user?.id || 'current-user';
+  const userId = user?.id;
 
   // 加载商品和积分数据
   const loadData = useCallback(async () => {
     try {
       setIsLoading(true);
-      const allProducts = productService.getAllProducts();
-      const records = productService.getUserExchangeRecords(userId);
+      
+      // 获取商品列表（支持分类和搜索）
+      const category = selectedCategory === 'all' ? undefined : selectedCategory;
+      const allProducts = await productService.getAllProducts(category, searchQuery || undefined);
+      
+      // 获取用户兑换记录
+      let records: ExchangeRecord[] = [];
+      if (userId) {
+        records = await productService.getUserExchangeRecords(userId);
+      }
       
       setProducts(allProducts);
       setFilteredProducts(allProducts);
       setExchangeRecords(records);
+      
       // 刷新积分余额
       await refreshBalance();
     } catch (error) {
@@ -43,7 +52,7 @@ const PointsMall: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [userId, refreshBalance]);
+  }, [userId, refreshBalance, selectedCategory, searchQuery]);
 
   // 初始加载
   useEffect(() => {
@@ -52,19 +61,21 @@ const PointsMall: React.FC = () => {
 
   // 监听积分更新事件
   useEffect(() => {
-    const handlePointsUpdate = () => {
+    const handlePointsUpdate = async () => {
       // 刷新积分余额
-      refreshBalance();
-      // 如果有兑换记录更新，刷新记录
-      const records = productService.getUserExchangeRecords(userId);
-      setExchangeRecords(records);
+      await refreshBalance();
+      // 刷新兑换记录
+      if (userId) {
+        const records = await productService.getUserExchangeRecords(userId);
+        setExchangeRecords(records);
+      }
     };
 
     window.addEventListener('pointsUpdated', handlePointsUpdate as EventListener);
     return () => window.removeEventListener('pointsUpdated', handlePointsUpdate as EventListener);
   }, [userId, refreshBalance]);
 
-  // 处理分类筛选和搜索
+  // 处理分类筛选和搜索（前端筛选，因为已经从后端获取了数据）
   useEffect(() => {
     let result = [...products];
     
@@ -86,6 +97,11 @@ const PointsMall: React.FC = () => {
 
   // 打开兑换确认对话框
   const openExchangeDialog = (product: Product) => {
+    if (!userId) {
+      toast.error('请先登录');
+      return;
+    }
+    
     if (product.status !== 'active') {
       toast.error('该商品暂时无法兑换');
       return;
@@ -103,38 +119,30 @@ const PointsMall: React.FC = () => {
     setShowConfirmDialog(true);
   };
 
-  // 使用 Supabase 积分服务的消耗积分方法
-  const { consumePoints } = useSupabasePoints();
-
   // 处理商品兑换
   const handleExchange = async () => {
-    if (!selectedProduct) return;
+    if (!selectedProduct || !userId) return;
 
     try {
       setIsLoading(true);
       
-      // 使用 Supabase 积分服务消耗积分
-      const result = await consumePoints(
-        selectedProduct.points,
-        selectedProduct.name,
-        'exchange',
-        `兑换商品：${selectedProduct.name}`
-      );
+      // 使用新的 RPC 函数兑换商品（自动处理积分扣减和库存扣减）
+      const result = await productService.exchangeProduct(selectedProduct.id, userId);
 
-      if (!result) {
-        throw new Error('积分扣除失败');
+      if (!result.success) {
+        throw new Error(result.errorMessage || '兑换失败');
       }
       
-      // 执行兑换记录
-      const record = productService.exchangeProduct(selectedProduct.id, userId);
+      // 刷新兑换记录
+      const records = await productService.getUserExchangeRecords(userId);
+      setExchangeRecords(records);
       
-      // 更新状态
-      setExchangeRecords(prev => [record, ...prev]);
+      // 刷新商品列表（更新库存）
+      const allProducts = await productService.getAllProducts();
+      setProducts(allProducts);
       
-      // 更新商品库存
-      setProducts(prev => prev.map(p => 
-        p.id === selectedProduct.id ? { ...p, stock: p.stock - 1 } : p
-      ));
+      // 刷新积分余额
+      await refreshBalance();
 
       // 关闭对话框
       setShowConfirmDialog(false);
@@ -380,12 +388,16 @@ const PointsMall: React.FC = () => {
                       </div>
                       <button
                         onClick={() => openExchangeDialog(product)}
-                        disabled={product.status !== 'active' || product.stock <= 0}
+                        disabled={product.status !== 'active' || product.stock <= 0 || !userId}
                         className={`px-4 py-2 rounded-lg font-medium transition-all ${
                           product.status !== 'active' || product.stock <= 0
                             ? isDark 
                               ? 'bg-gray-700 text-gray-500 cursor-not-allowed' 
                               : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                            : !userId
+                              ? isDark
+                                ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                                : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                             : currentPoints < product.points
                               ? isDark
                                 ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
@@ -399,9 +411,11 @@ const PointsMall: React.FC = () => {
                           ? '已下架' 
                           : product.stock <= 0 
                             ? '已售罄' 
-                            : currentPoints < product.points 
-                              ? '积分不足'
-                              : '立即兑换'
+                            : !userId
+                              ? '请登录'
+                              : currentPoints < product.points 
+                                ? '积分不足'
+                                : '立即兑换'
                         }
                       </button>
                     </div>

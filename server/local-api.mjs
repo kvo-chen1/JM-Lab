@@ -290,16 +290,130 @@ async function pollDashScopeTask(taskId, authKey) {
   throw new Error('Task polling timed out');
 }
 
+// 将本地图片上传到 Supabase Storage 获取公网 URL
+async function uploadLocalImageToSupabase(localUrl) {
+  try {
+    // 从 URL 中提取文件路径
+    const urlPath = new URL(localUrl).pathname;
+    const fileName = pathModule.basename(urlPath);
+    const localFilePath = pathModule.join(projectRoot, 'public', urlPath);
+    
+    console.log('[uploadLocalImageToSupabase] Local file path:', localFilePath);
+    
+    // 检查文件是否存在
+    if (!fs.existsSync(localFilePath)) {
+      throw new Error(`Local file not found: ${localFilePath}`);
+    }
+    
+    // 读取文件
+    const fileBuffer = fs.readFileSync(localFilePath);
+    const fileExt = pathModule.extname(fileName) || '.jpg';
+    const uniqueName = `${Date.now()}-${randomUUID()}${fileExt}`;
+    const storagePath = `temp/${uniqueName}`;
+    
+    console.log('[uploadLocalImageToSupabase] Uploading to Supabase:', storagePath);
+    
+    // 上传到 Supabase Storage
+    if (!supabaseServer || !supabaseServer.storage) {
+      throw new Error('Supabase server client not initialized');
+    }
+    
+    // 尝试上传到 'works' bucket，如果不存在则尝试创建
+    let uploadResult = await supabaseServer.storage
+      .from('works')
+      .upload(storagePath, fileBuffer, {
+        contentType: `image/${fileExt.replace('.', '')}` || 'image/jpeg',
+        cacheControl: '3600',
+        upsert: false
+      });
+    
+    // 如果 bucket 不存在，尝试创建它
+    if (uploadResult.error && uploadResult.error.message?.includes('Bucket not found')) {
+      console.log('[uploadLocalImageToSupabase] Bucket not found, creating...');
+      
+      // 创建 bucket
+      const { error: createError } = await supabaseServer.storage.createBucket('works', {
+        public: true,
+        fileSizeLimit: 10485760, // 10MB
+      });
+      
+      if (createError) {
+        console.error('[uploadLocalImageToSupabase] Failed to create bucket:', createError);
+        throw new Error(`Failed to create bucket: ${createError.message}`);
+      }
+      
+      console.log('[uploadLocalImageToSupabase] Bucket created, retrying upload...');
+      
+      // 重新上传
+      uploadResult = await supabaseServer.storage
+        .from('works')
+        .upload(storagePath, fileBuffer, {
+          contentType: `image/${fileExt.replace('.', '')}` || 'image/jpeg',
+          cacheControl: '3600',
+          upsert: false
+        });
+    }
+    
+    if (uploadResult.error) {
+      console.error('[uploadLocalImageToSupabase] Upload error:', uploadResult.error);
+      throw new Error(`Failed to upload to Supabase: ${uploadResult.error.message}`);
+    }
+    
+    // 获取公网 URL
+    const { data: publicUrlData } = supabaseServer.storage
+      .from('works')
+      .getPublicUrl(storagePath);
+    
+    if (!publicUrlData || !publicUrlData.publicUrl) {
+      throw new Error('Failed to get public URL from Supabase');
+    }
+    
+    console.log('[uploadLocalImageToSupabase] Public URL:', publicUrlData.publicUrl);
+    return publicUrlData.publicUrl;
+    
+  } catch (error) {
+    console.error('[uploadLocalImageToSupabase] Error:', error.message);
+    throw error;
+  }
+}
+
 async function dashscopeVideoGenerate(params) {
   const { prompt, imageUrl, authKey, model } = params;
   const endpoint = 'https://dashscope.aliyuncs.com/api/v1/services/aigc/video-generation/video-synthesis';
   
   try {
+    // 处理图片 URL - 如果是本地 URL，上传到 Supabase 获取公网 URL
+    let publicImageUrl = imageUrl;
+    console.log('[DashScope] Original image URL:', imageUrl);
+    
+    // 检测是否为本地 URL（包括 localhost、127.0.0.1 或相对路径）
+    const isLocalUrl = imageUrl && (
+      imageUrl.includes('localhost') || 
+      imageUrl.includes('127.0.0.1') || 
+      imageUrl.startsWith('http://192.168.') ||
+      imageUrl.startsWith('http://10.') ||
+      imageUrl.startsWith('http://172.')
+    );
+    
+    if (isLocalUrl) {
+      console.log('[DashScope] Detected local image URL, uploading to Supabase...');
+      try {
+        publicImageUrl = await uploadLocalImageToSupabase(imageUrl);
+        console.log('[DashScope] Public image URL:', publicImageUrl);
+      } catch (uploadError) {
+        console.error('[DashScope] Failed to upload to Supabase:', uploadError.message);
+        // 如果上传失败，继续尝试使用原始 URL（可能会失败，但至少会记录错误）
+        publicImageUrl = imageUrl;
+      }
+    } else if (imageUrl) {
+      console.log('[DashScope] Using provided public URL:', imageUrl);
+    }
+    
     const payload = {
       model: model || 'wan2.6-i2v-flash',
       input: {
         prompt: prompt,
-        img_url: imageUrl
+        img_url: publicImageUrl
       },
       parameters: {
         resolution: '720P',
@@ -2982,7 +3096,10 @@ async function route(req, res, u, path) {
         if (textItem) prompt = textItem.text;
         
         const imageItem = b.content.find(item => item.type === 'image_url');
-        if (imageItem) imageUrl = imageItem.image_url?.url || imageItem.image_url;
+        if (imageItem) {
+            imageUrl = imageItem.image_url?.url || imageItem.image_url;
+            console.log(`[Qwen Video] Parsed image URL from content:`, imageUrl);
+        }
     }
 
     // 确保prompt字段存在

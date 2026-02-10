@@ -240,6 +240,7 @@ ${fields}
 
   // 将纯文本转换为HTML
   const convertTextToHtml = (text: string): string => {
+    if (!text) return '';
     return text
       .split('\n\n')
       .map((paragraph, index) => {

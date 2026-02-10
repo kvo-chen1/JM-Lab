@@ -3,7 +3,12 @@ import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useNavigate } from 'react-router-dom';
 import { tianjinActivityService, TianjinTemplate } from '@/services/tianjinActivityService';
-import { templateInteractionService } from '@/services/templateInteractionService';
+import { templateInteractionService, TemplateInteractionState } from '@/services/templateInteractionService';
+import { generateTemplatePrompt } from '@/utils/templatePromptGenerator';
+import { templateUsageService } from '@/services/templateUsageService';
+import { useAuth } from '@/hooks/useAuth';
+import { toast } from 'sonner';
+import TemplatePreviewModal from './templates/TemplatePreviewModal';
 
 interface TianjinCreativeActivitiesProps {
   selectedCategory?: string;
@@ -18,11 +23,17 @@ export default function TianjinCreativeActivities({
 }: TianjinCreativeActivitiesProps) {
   const { isDark } = useTheme();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [templates, setTemplates] = useState<TianjinTemplate[]>([]);
   const [filteredTemplates, setFilteredTemplates] = useState<TianjinTemplate[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [likedTemplates, setLikedTemplates] = useState<Set<number>>(new Set());
   const [favoritedTemplates, setFavoritedTemplates] = useState<Set<number>>(new Set());
+  const [likeCounts, setLikeCounts] = useState<Record<number, number>>({});
+  
+  // 预览弹窗状态
+  const [previewTemplate, setPreviewTemplate] = useState<TianjinTemplate | null>(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   // 加载模板数据
   useEffect(() => {
@@ -37,6 +48,14 @@ export default function TianjinCreativeActivities({
         const favoritedIds = await templateInteractionService.getUserFavoritedTemplateIds();
         setLikedTemplates(new Set(likedIds));
         setFavoritedTemplates(new Set(favoritedIds));
+        
+        // 加载点赞数
+        const counts: Record<number, number> = {};
+        for (const template of data) {
+          const state = await templateInteractionService.getTemplateInteractionState(template.id);
+          counts[template.id] = state.likeCount;
+        }
+        setLikeCounts(counts);
       } catch (error) {
         console.error('加载模板失败:', error);
       } finally {
@@ -70,8 +89,7 @@ export default function TianjinCreativeActivities({
   }, [templates, selectedCategory, search]);
 
   // 处理点赞
-  const handleLike = useCallback(async (e: React.MouseEvent, templateId: number) => {
-    e.stopPropagation();
+  const handleLike = useCallback(async (templateId: number) => {
     try {
       const result = await templateInteractionService.toggleTemplateLike(templateId);
       setLikedTemplates(prev => {
@@ -84,15 +102,10 @@ export default function TianjinCreativeActivities({
         return newSet;
       });
       
-      // 更新本地模板数据中的点赞数
-      setTemplates(prev => prev.map(t => {
-        if (t.id === templateId) {
-          return {
-            ...t,
-            likes: result.likeCount
-          };
-        }
-        return t;
+      // 更新点赞数
+      setLikeCounts(prev => ({
+        ...prev,
+        [templateId]: result.likeCount
       }));
     } catch (error) {
       console.error('点赞失败:', error);
@@ -100,8 +113,7 @@ export default function TianjinCreativeActivities({
   }, []);
 
   // 处理收藏
-  const handleFavorite = useCallback(async (e: React.MouseEvent, templateId: number) => {
-    e.stopPropagation();
+  const handleFavorite = useCallback(async (templateId: number) => {
     try {
       const isFavorited = await templateInteractionService.toggleTemplateFavorite(templateId);
       setFavoritedTemplates(prev => {
@@ -120,19 +132,50 @@ export default function TianjinCreativeActivities({
 
   // 处理使用模板
   const handleUseTemplate = useCallback(async (template: TianjinTemplate) => {
-    // 记录模板使用次数
+    // 生成提示词
+    const prompt = generateTemplatePrompt(template);
+    
+    // 保存使用记录
+    if (user?.id) {
+      try {
+        await templateUsageService.saveTemplateUsage(user.id, template, prompt);
+      } catch (error) {
+        console.error('保存模板使用记录失败:', error);
+      }
+    }
+    
+    // 增加模板使用次数
     try {
       await tianjinActivityService.incrementTemplateUsage(template.id);
     } catch (error) {
-      console.error('记录使用次数失败:', error);
+      console.error('增加使用次数失败:', error);
     }
-    navigate(`/create?template=${template.id}&category=tianjin`);
-  }, [navigate]);
+    
+    // 跳转到创作页面
+    navigate('/create', {
+      state: {
+        templatePrompt: prompt,
+        templateId: template.id,
+        templateName: template.name,
+        templateStyle: template.style,
+        templateCategory: template.category
+      }
+    });
+    
+    toast.success(`正在使用"${template.name}"模板创建作品...`);
+  }, [navigate, user]);
 
-  // 处理查看详情
+  // 处理查看详情（打开预览弹窗）
   const handleViewDetail = useCallback((template: TianjinTemplate) => {
-    navigate(`/tianjin/template/${template.id}`);
-  }, [navigate]);
+    setPreviewTemplate(template);
+    setIsPreviewOpen(true);
+  }, []);
+
+  // 关闭预览弹窗
+  const handleClosePreview = useCallback(() => {
+    setIsPreviewOpen(false);
+    setPreviewTemplate(null);
+  }, []);
 
   if (isLoading) {
     return (
@@ -219,7 +262,7 @@ export default function TianjinCreativeActivities({
                   }}
                   className="px-6 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-full font-medium transition-all duration-200 hover:scale-105"
                 >
-                  立即使用
+                  做同款
                 </button>
               </div>
             </div>
@@ -270,7 +313,10 @@ export default function TianjinCreativeActivities({
                 {/* 互动按钮 */}
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={(e) => handleLike(e, template.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleLike(template.id);
+                    }}
                     className={`p-2 rounded-full transition-all duration-200 ${
                       likedTemplates.has(template.id)
                         ? 'text-red-500 bg-red-50 dark:bg-red-900/20'
@@ -282,9 +328,15 @@ export default function TianjinCreativeActivities({
                     <svg className="w-5 h-5" fill={likedTemplates.has(template.id) ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
                     </svg>
+                    {likeCounts[template.id] > 0 && (
+                      <span className="ml-1 text-xs">{likeCounts[template.id]}</span>
+                    )}
                   </button>
                   <button
-                    onClick={(e) => handleFavorite(e, template.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleFavorite(template.id);
+                    }}
                     className={`p-2 rounded-full transition-all duration-200 ${
                       favoritedTemplates.has(template.id)
                         ? 'text-yellow-500 bg-yellow-50 dark:bg-yellow-900/20'
@@ -303,6 +355,17 @@ export default function TianjinCreativeActivities({
           </motion.div>
         ))}
       </div>
+
+      {/* 模板预览弹窗 */}
+      <TemplatePreviewModal
+        template={previewTemplate}
+        isOpen={isPreviewOpen}
+        onClose={handleClosePreview}
+        onLike={handleLike}
+        onFavorite={handleFavorite}
+        isLiked={previewTemplate ? likedTemplates.has(previewTemplate.id) : false}
+        isFavorited={previewTemplate ? favoritedTemplates.has(previewTemplate.id) : false}
+      />
     </div>
   );
 }

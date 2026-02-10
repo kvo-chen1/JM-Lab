@@ -10,22 +10,16 @@ export default function ToolSidebar() {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const activeTool = useCreateStore((state) => state.activeTool);
   const setActiveTool = useCreateStore((state) => state.setActiveTool);
-  const showInspirationPanel = useCreateStore((state) => state.showInspirationPanel);
   const showPropertiesPanel = useCreateStore((state) => state.showPropertiesPanel);
   const updateState = useCreateStore((state) => state.updateState);
   const navigate = useNavigate();
 
   const extraTools = [
-    { id: 'neo', name: '灵感引擎', icon: 'bolt', path: '/create/inspiration' },
     { id: 'wizard', name: '共创向导', icon: 'hat-wizard', path: '/create/wizard' }
   ];
 
   const handleExtraToolClick = (tool: { id: string, path: string }) => {
-    if (tool.id === 'neo') {
-      updateState({ showInspirationPanel: !showInspirationPanel });
-    } else {
-      navigate(tool.path);
-    }
+    navigate(tool.path);
   };
 
   return (
@@ -92,14 +86,11 @@ export default function ToolSidebar() {
                 <div className={`transition-all duration-300 ${isDark ? 'bg-gray-800' : 'bg-gray-100'} w-12 h-px mx-auto my-6`}></div>
 
                 {/* 额外工具 */}
-                {extraTools.map((tool) => {
-                   const isNeoActive = tool.id === 'neo' && showInspirationPanel;
-                    
-                   return (
+                {extraTools.map((tool) => (
                     <motion.button
                       key={tool.id}
                       onClick={() => handleExtraToolClick(tool)}
-                      className={`transition-all relative group flex-shrink-0 ${isNeoActive ? 'bg-blue-50 text-[#003366] dark:bg-blue-900/20 dark:text-blue-400 shadow-sm' : isDark ? 'text-gray-400 hover:bg-gray-800/50 hover:text-blue-300' : 'text-gray-500 hover:bg-blue-50/50 hover:text-[#003366]'} w-full flex flex-col items-center justify-center py-4 rounded-2xl`}
+                      className={`transition-all relative group flex-shrink-0 ${isDark ? 'text-gray-400 hover:bg-gray-800/50 hover:text-blue-300' : 'text-gray-500 hover:bg-blue-50/50 hover:text-[#003366]'} w-full flex flex-col items-center justify-center py-4 rounded-2xl`}
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.96 }}
                     >
@@ -113,8 +104,7 @@ export default function ToolSidebar() {
                         <div className={`absolute top-1/2 -left-1 w-2 h-2 -mt-1 transform rotate-45 border-l border-b ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}></div>
                       </div>
                     </motion.button>
-                  );
-                })}
+                ))}
               </motion.div>
             )}
           </AnimatePresence>
@@ -155,22 +145,18 @@ export default function ToolSidebar() {
           <div className={`transition-all duration-300 ${isDark ? 'bg-gray-800' : 'bg-gray-100'} h-16 w-px mx-1`}></div>
 
           {/* 额外工具 */}
-          {extraTools.map((tool) => {
-             const isNeoActive = tool.id === 'neo' && showInspirationPanel;
-              
-             return (
+          {extraTools.map((tool) => (
               <motion.button
                 key={tool.id}
                 onClick={() => handleExtraToolClick(tool)}
-                className={`transition-all relative group flex-shrink-0 ${isNeoActive ? 'bg-blue-50 text-[#003366] dark:bg-blue-900/20 dark:text-blue-400 shadow-sm' : isDark ? 'text-gray-400 hover:bg-gray-800/50 hover:text-blue-300' : 'text-gray-500 hover:bg-blue-50/50 hover:text-[#003366]'} flex flex-col items-center justify-center p-3 rounded-xl min-w-[60px]`}
+                className={`transition-all relative group flex-shrink-0 ${isDark ? 'text-gray-400 hover:bg-gray-800/50 hover:text-blue-300' : 'text-gray-500 hover:bg-blue-50/50 hover:text-[#003366]'} flex flex-col items-center justify-center p-3 rounded-xl min-w-[60px]`}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.96 }}
               >
                 <i className={`fas fa-${tool.icon} text-xl mb-1 transition-transform group-hover:scale-110 duration-300`}></i>
                 <span className="text-[10px] font-medium tracking-wide opacity-90">{tool.name}</span>
               </motion.button>
-            );
-          })}
+          ))}
         </div>
       </div>
 

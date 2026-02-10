@@ -6,7 +6,6 @@ import { useTheme } from '@/hooks/useTheme';
 import { useCreateStore } from './hooks/useCreateStore';
 import AIReview from '@/components/AIReview';
 import ModelSelector from '@/components/ModelSelector';
-import InspirationPanel from '@/components/InspirationPanel';
 import PublishToSquareModal from '@/components/PublishToSquareModal';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useSearchParams, useLocation } from 'react-router-dom';
@@ -24,7 +23,6 @@ export default function Studio() {
   const {
     showAIReview,
     showModelSelector,
-    showInspirationPanel,
     showPublishModal,
     prompt,
     aiExplanation,
@@ -108,32 +106,6 @@ export default function Studio() {
       {/* 左侧工具栏 - 内部处理响应式显示 */}
       <ToolSidebar />
       
-      {/* Inspiration Panel Drawer - 灵感面板抽屉 */}
-      <AnimatePresence>
-        {showInspirationPanel && (
-          <motion.div
-            initial={{ width: 0, opacity: 0 }}
-            animate={{ width: 320, opacity: 1 }}
-            exit={{ width: 0, opacity: 0 }}
-            transition={{ duration: 0.3, ease: 'easeInOut' }}
-            className={`border-r h-full overflow-hidden relative z-10 ${isDark ? 'border-gray-800 bg-gray-900 shadow-2xl' : 'border-gray-200 bg-white shadow-xl'}`}
-          >
-            <div className="w-80 h-full">
-              <InspirationPanel 
-                onClose={() => updateState({ showInspirationPanel: false })}
-                onApply={(content) => {
-                  if (content.prompt) {
-                    const newPrompt = prompt ? `${prompt} ${content.prompt}` : content.prompt;
-                    setPrompt(newPrompt);
-                    // toast.success('已添加到提示词');
-                  }
-                }}
-              />
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       {/* Main Canvas Area - 主画布区域 */}
       <div id="guide-step-create-canvas" className="flex-1 relative flex flex-col min-w-0 overflow-hidden
         /* 手机端和平板端：为底部工具栏留出空间 */

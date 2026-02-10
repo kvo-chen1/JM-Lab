@@ -338,6 +338,7 @@ export default function CreateActivity() {
         contact_email: formData.contactEmail,
         max_participants: formData.maxParticipants,
         status: 'draft' as const,
+        organizer_id: user?.id,
       };
 
       if (eventId) {
@@ -410,6 +411,8 @@ export default function CreateActivity() {
         // 关联品牌信息
         brand_id: verifiedBrand?.id,
         brand_name: verifiedBrand?.brand_name,
+        // 设置组织者
+        organizer_id: user?.id,
       };
 
       let event;

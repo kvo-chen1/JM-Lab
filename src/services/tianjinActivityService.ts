@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabaseClient';
+import { generateTemplatePrompt } from '@/utils/templatePromptGenerator';
 
 export interface Activity {
   id: string;
@@ -101,6 +102,24 @@ export interface InspirationItem {
 }
 
 export const tianjinActivityService = {
+  /**
+   * 获取模板并生成对应的AI提示词
+   */
+  async getTemplatesWithPrompts(): Promise<(TianjinTemplate & { prompt: string })[]> {
+    const templates = await this.getTemplates();
+    return templates.map(template => ({
+      ...template,
+      prompt: generateTemplatePrompt(template)
+    }));
+  },
+
+  /**
+   * 根据模板生成AI提示词
+   */
+  generatePromptForTemplate(template: TianjinTemplate): string {
+    return generateTemplatePrompt(template);
+  },
+
   // Original methods
   async getActivities(): Promise<Activity[]> {
     try {
@@ -175,7 +194,8 @@ export const tianjinActivityService = {
       }
       
       if (!data || data.length === 0) {
-        return [];
+        console.log('No templates found in database, using mock data');
+        return getEnhancedMockTemplates();
       }
       
       // 获取所有模板的点赞数

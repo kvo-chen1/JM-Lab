@@ -76,7 +76,6 @@ export interface CreateState {
   showCulturalInfo: boolean;
   showAIReview: boolean;
   showModelSelector: boolean;
-  showInspirationPanel: boolean;
   showPublishModal: boolean;
   isPrecheckEnabled: boolean;
   precheckResult: PrecheckResult | null;

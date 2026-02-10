@@ -4132,6 +4132,59 @@ export const communityDB = {
     }
   },
 
+  // 获取社区成员列表
+  async getCommunityMembers(communityId) {
+    const db = await getDB()
+    const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
+
+    switch (typeKey) {
+      case DB_TYPE.POSTGRESQL: {
+        const result = await db.query(`
+          SELECT 
+            cm.community_id,
+            cm.user_id,
+            cm.role,
+            cm.joined_at,
+            u.username,
+            u.avatar_url
+          FROM community_members cm
+          LEFT JOIN users u ON cm.user_id = u.id
+          WHERE cm.community_id = $1
+          ORDER BY cm.joined_at DESC
+        `, [communityId])
+        
+        return result.rows.map(row => ({
+          id: `${row.community_id}-${row.user_id}`,
+          user_id: row.user_id,
+          username: row.username || '未知用户',
+          avatar_url: row.avatar_url,
+          role: row.role || 'member',
+          joined_at: row.joined_at,
+          is_online: false
+        }))
+      }
+      case DB_TYPE.MEMORY: {
+        const members = (memoryStore.community_members || [])
+          .filter(m => m.community_id === communityId)
+          .map(m => {
+            const user = (memoryStore.users || []).find(u => u.id === m.user_id)
+            return {
+              id: `${m.community_id}-${m.user_id}`,
+              user_id: m.user_id,
+              username: user?.username || '未知用户',
+              avatar_url: user?.avatar_url,
+              role: m.role || 'member',
+              joined_at: m.joined_at,
+              is_online: false
+            }
+          })
+        return members
+      }
+      default:
+        return []
+    }
+  },
+
   // 获取社区统计数据
   async getCommunityStats(communityId) {
     const db = await getDB()

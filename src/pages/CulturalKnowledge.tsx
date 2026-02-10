@@ -795,7 +795,7 @@ type TabType = 'stories' | 'tutorials' | 'elements' | 'encyclopedia' | 'figures'
 // 生成与内容相关的图片URL
 const getContentImageUrl = (content: string, width: number, height: number, isPerson: boolean = false) => {
   // 使用内容ID生成稳定的图片URL，使用seed模式而非ID模式，确保每个内容都有对应的图片
-  const contentId = content.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const contentId = content ? content.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) : 0;
   
   // 如果是人物图片，添加person关键词确保生成人物相关图片
   if (isPerson) {

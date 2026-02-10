@@ -86,7 +86,6 @@ export default function CreateLayout() {
     { path: '/create/ai-writer', label: 'AI 智作文案', icon: 'pen-nib' },
     { path: '/create/inspiration', label: '作品之心', icon: 'bolt' },
     { path: '/create/wizard', label: '品牌向导', icon: 'hat-wizard' },
-    { path: '/create/activity', label: '创建活动', icon: 'calendar-plus', exact: true },
   ];
 
   // Determine if we are in the main studio (no scroll) or sub-pages (scrollable)

@@ -1,32 +1,34 @@
-import { useState, useEffect, useCallback } from 'react';
-import { motion } from 'framer-motion';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { toast } from 'sonner';
 import { adminService } from '@/services/adminService';
-import { 
-  LineChart, 
-  Line, 
-  BarChart, 
-  Bar, 
-  PieChart, 
-  Pie, 
-  Cell, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  Legend, 
-  ResponsiveContainer, 
-  Area, 
+import { supabase } from '@/lib/supabaseClient';
+import {
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  Area,
   AreaChart,
+  ComposedChart,
 } from 'recharts';
-import { 
-  TrendingUp, 
-  Users, 
-  Eye, 
-  Heart, 
-  MessageCircle, 
-  Share2, 
+import {
+  TrendingUp,
+  Users,
+  Eye,
+  Heart,
+  MessageCircle,
+  Share2,
   Download,
   Calendar,
   BarChart3,
@@ -35,7 +37,15 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   RefreshCw,
-  Image
+  Image,
+  AlertTriangle,
+  Bell,
+  Filter,
+  Clock,
+  Zap,
+  ChevronDown,
+  X,
+  CheckCircle,
 } from 'lucide-react';
 
 // 图表颜色配置
@@ -53,13 +63,16 @@ const CHART_COLORS = {
 const PIE_COLORS = ['#ef4444', '#8b5cf6', '#06b6d4', '#f59e0b', '#10b981', '#3b82f6'];
 
 // 时间范围类型
-type TimeRange = '7d' | '30d' | '90d' | '1y' | 'all';
+type TimeRange = '7d' | '30d' | '90d' | '1y' | 'all' | 'custom';
 
 // 图表类型
-type ChartType = 'line' | 'bar' | 'area';
+type ChartType = 'line' | 'bar' | 'area' | 'composed';
 
 // 数据指标类型
 type MetricType = 'users' | 'works' | 'views' | 'likes';
+
+// 业务维度筛选
+type BusinessFilter = 'all' | 'category' | 'creator_level' | 'content_type';
 
 // 趋势数据类型
 interface TrendData {
@@ -68,6 +81,8 @@ interface TrendData {
   works: number;
   views: number;
   likes: number;
+  cumulativeUsers?: number;
+  cumulativeWorks?: number;
 }
 
 // 设备分布数据类型
@@ -85,14 +100,51 @@ interface TopContent {
   author: string;
 }
 
+// 预警规则类型
+interface AlertRule {
+  id: string;
+  metric: MetricType;
+  threshold: number;
+  operator: 'gt' | 'lt';
+  enabled: boolean;
+}
+
+// 预警记录类型
+interface Alert {
+  id: string;
+  ruleId: string;
+  metric: MetricType;
+  message: string;
+  severity: 'warning' | 'error';
+  timestamp: number;
+  acknowledged: boolean;
+}
+
 export default function DataAnalytics() {
   const { isDark } = useTheme();
   const [timeRange, setTimeRange] = useState<TimeRange>('30d');
+  const [customDateRange, setCustomDateRange] = useState({ start: '', end: '' });
   const [chartType, setChartType] = useState<ChartType>('line');
   const [activeMetric, setActiveMetric] = useState<MetricType>('users');
   const [isLoading, setIsLoading] = useState(false);
   const [data, setData] = useState<TrendData[]>([]);
-  
+  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+  const [isRealtimeEnabled, setIsRealtimeEnabled] = useState(true);
+
+  // 业务维度筛选
+  const [businessFilter, setBusinessFilter] = useState<BusinessFilter>('all');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
+
+  // 预警相关状态
+  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [showAlerts, setShowAlerts] = useState(false);
+  const [alertRules, setAlertRules] = useState<AlertRule[]>([
+    { id: '1', metric: 'users', threshold: -20, operator: 'lt', enabled: true },
+    { id: '2', metric: 'views', threshold: -30, operator: 'lt', enabled: true },
+    { id: '3', metric: 'likes', threshold: 1000, operator: 'gt', enabled: false },
+  ]);
+
   // 统计数据
   const [stats, setStats] = useState({
     totalUsers: 0,
@@ -123,10 +175,74 @@ export default function DataAnalytics() {
   // 热门内容数据
   const [topContentData, setTopContentData] = useState<TopContent[]>([]);
 
+  // 实时订阅引用
+  const subscriptionRef = useRef<any>(null);
+  const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // 检查预警规则
+  const checkAlerts = useCallback((newStats: typeof stats) => {
+    const newAlerts: Alert[] = [];
+
+    alertRules.forEach(rule => {
+      if (!rule.enabled) return;
+
+      let currentValue = 0;
+      let metricName = '';
+
+      switch (rule.metric) {
+        case 'users':
+          currentValue = newStats.userGrowth;
+          metricName = '用户增长';
+          break;
+        case 'works':
+          currentValue = newStats.worksGrowth;
+          metricName = '作品增长';
+          break;
+        case 'views':
+          currentValue = newStats.viewsGrowth;
+          metricName = '浏览量增长';
+          break;
+        case 'likes':
+          currentValue = newStats.totalLikes;
+          metricName = '点赞数';
+          break;
+      }
+
+      const isTriggered = rule.operator === 'gt'
+        ? currentValue > rule.threshold
+        : currentValue < rule.threshold;
+
+      if (isTriggered) {
+        const alert: Alert = {
+          id: `${rule.id}-${Date.now()}`,
+          ruleId: rule.id,
+          metric: rule.metric,
+          message: rule.operator === 'lt'
+            ? `${metricName}下降超过 ${Math.abs(rule.threshold)}%，当前为 ${currentValue}%`
+            : `${metricName}超过 ${rule.threshold}，当前为 ${currentValue}`,
+          severity: rule.operator === 'lt' && rule.threshold < -30 ? 'error' : 'warning',
+          timestamp: Date.now(),
+          acknowledged: false,
+        };
+        newAlerts.push(alert);
+      }
+    });
+
+    if (newAlerts.length > 0) {
+      setAlerts(prev => [...newAlerts, ...prev].slice(0, 50)); // 最多保留50条
+      newAlerts.forEach(alert => {
+        toast.warning(alert.message, {
+          duration: 5000,
+          icon: <AlertTriangle className="w-5 h-5" />,
+        });
+      });
+    }
+  }, [alertRules]);
+
   // 加载数据
-  const loadData = useCallback(async () => {
-    setIsLoading(true);
-    
+  const loadData = useCallback(async (showLoading = true) => {
+    if (showLoading) setIsLoading(true);
+
     try {
       // 并行获取所有数据
       const [overview, trendData, devices, sources, topContent] = await Promise.all([
@@ -137,12 +253,12 @@ export default function DataAnalytics() {
           adminService.getTrendData(timeRange, 'views'),
           adminService.getTrendData(timeRange, 'likes'),
         ]),
-        adminService.getDeviceDistribution(),
-        adminService.getSourceDistribution(),
+        adminService.getDeviceDistribution(timeRange),
+        adminService.getSourceDistribution(timeRange),
         adminService.getTopContent(5),
       ]);
 
-      // 更新统计数据 - 使用累计总数
+      // 更新统计数据
       setStats({
         totalUsers: overview.totalUsers,
         totalWorks: overview.totalWorks,
@@ -154,15 +270,37 @@ export default function DataAnalytics() {
         likesGrowth: overview.likesGrowth,
       });
 
-      // 合并趋势数据
+      // 检查预警
+      checkAlerts({
+        totalUsers: overview.totalUsers,
+        totalWorks: overview.totalWorks,
+        totalViews: overview.totalViews,
+        totalLikes: overview.totalLikes,
+        userGrowth: overview.userGrowth,
+        worksGrowth: overview.worksGrowth,
+        viewsGrowth: overview.viewsGrowth,
+        likesGrowth: overview.likesGrowth,
+      });
+
+      // 合并趋势数据并计算累计值
       const [usersTrend, worksTrend, viewsTrend, likesTrend] = trendData;
-      const mergedData: TrendData[] = usersTrend.map((item, index) => ({
-        date: item.date,
-        users: item.value,
-        works: worksTrend[index]?.value || 0,
-        views: viewsTrend[index]?.value || 0,
-        likes: likesTrend[index]?.value || 0,
-      }));
+      let cumulativeUsers = 0;
+      let cumulativeWorks = 0;
+
+      const mergedData: TrendData[] = usersTrend.map((item, index) => {
+        cumulativeUsers += item.value;
+        cumulativeWorks += worksTrend[index]?.value || 0;
+
+        return {
+          date: item.date,
+          users: item.value,
+          works: worksTrend[index]?.value || 0,
+          views: viewsTrend[index]?.value || 0,
+          likes: likesTrend[index]?.value || 0,
+          cumulativeUsers,
+          cumulativeWorks,
+        };
+      });
       setData(mergedData);
 
       // 更新设备和来源数据
@@ -171,30 +309,75 @@ export default function DataAnalytics() {
 
       // 更新热门内容
       setTopContentData(topContent);
+
+      // 更新最后更新时间
+      setLastUpdated(new Date());
     } catch (error) {
       console.error('加载数据失败:', error);
-      toast.error('加载数据失败，请稍后重试');
+      if (showLoading) {
+        toast.error('加载数据失败，请稍后重试');
+      }
     } finally {
-      setIsLoading(false);
+      if (showLoading) setIsLoading(false);
     }
-  }, [timeRange]);
+  }, [timeRange, checkAlerts]);
 
+  // 设置实时更新
   useEffect(() => {
+    // 初始加载
     loadData();
-  }, [loadData]);
+
+    if (isRealtimeEnabled) {
+      // 设置定时刷新（每30秒）
+      refreshIntervalRef.current = setInterval(() => {
+        loadData(false);
+      }, 30000);
+
+      // 设置 Supabase 实时订阅
+      subscriptionRef.current = supabase
+        .channel('analytics-changes')
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'users' },
+          () => {
+            loadData(false);
+          }
+        )
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'works' },
+          () => {
+            loadData(false);
+          }
+        )
+        .subscribe();
+    }
+
+    return () => {
+      // 清理定时器和订阅
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current);
+      }
+      if (subscriptionRef.current) {
+        subscriptionRef.current.unsubscribe();
+      }
+    };
+  }, [loadData, isRealtimeEnabled]);
 
   // 导出数据
   const handleExport = (format: 'csv' | 'json') => {
     if (format === 'csv') {
-      const headers = ['日期', '新用户', '作品数', '浏览量', '点赞数'];
+      const headers = ['日期', '新用户', '作品数', '浏览量', '点赞数', '累计用户', '累计作品'];
       const rows = data.map(item => [
         item.date,
         item.users,
         item.works,
         item.views,
         item.likes,
+        item.cumulativeUsers,
+        item.cumulativeWorks,
       ]);
-      
+
       const csv = [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
       const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
@@ -204,7 +387,12 @@ export default function DataAnalytics() {
       a.click();
       URL.revokeObjectURL(url);
     } else {
-      const json = JSON.stringify(data, null, 2);
+      const json = JSON.stringify({
+        exportTime: new Date().toISOString(),
+        timeRange,
+        stats,
+        data,
+      }, null, 2);
       const blob = new Blob([json], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -213,7 +401,7 @@ export default function DataAnalytics() {
       a.click();
       URL.revokeObjectURL(url);
     }
-    
+
     toast.success(`已导出${format.toUpperCase()}格式数据`);
   };
 
@@ -223,9 +411,25 @@ export default function DataAnalytics() {
     toast.success('数据已刷新');
   };
 
+  // 确认预警
+  const acknowledgeAlert = (alertId: string) => {
+    setAlerts(prev => prev.map(a =>
+      a.id === alertId ? { ...a, acknowledged: true } : a
+    ));
+  };
+
+  // 清除所有预警
+  const clearAllAlerts = () => {
+    setAlerts([]);
+    toast.success('已清除所有预警');
+  };
+
+  // 未确认的预警数量
+  const unacknowledgedAlerts = alerts.filter(a => !a.acknowledged).length;
+
   // 渲染主图表
   const renderMainChart = () => {
-    if (isLoading) {
+    if (isLoading && data.length === 0) {
       return (
         <div className="flex items-center justify-center h-[400px]">
           <motion.div
@@ -264,24 +468,24 @@ export default function DataAnalytics() {
         <ResponsiveContainer width="100%" height={400}>
           <BarChart data={data} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#334155' : '#e2e8f0'} vertical={false} />
-            <XAxis 
-              dataKey="date" 
-              stroke={isDark ? '#64748b' : '#64748b'} 
+            <XAxis
+              dataKey="date"
+              stroke={isDark ? '#64748b' : '#64748b'}
               fontSize={12}
               tickLine={false}
               axisLine={false}
             />
-            <YAxis 
-              stroke={isDark ? '#64748b' : '#64748b'} 
+            <YAxis
+              stroke={isDark ? '#64748b' : '#64748b'}
               fontSize={12}
               tickLine={false}
               axisLine={false}
             />
             <Tooltip contentStyle={commonTooltipStyle} />
-            <Bar 
-              dataKey={activeMetric} 
-              name={metricLabels[activeMetric]} 
-              fill={metricColors[activeMetric]} 
+            <Bar
+              dataKey={activeMetric}
+              name={metricLabels[activeMetric]}
+              fill={metricColors[activeMetric]}
               radius={[8, 8, 0, 0]}
             />
           </BarChart>
@@ -298,30 +502,67 @@ export default function DataAnalytics() {
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#334155' : '#e2e8f0'} vertical={false} />
-            <XAxis 
-              dataKey="date" 
-              stroke={isDark ? '#64748b' : '#64748b'} 
+            <XAxis
+              dataKey="date"
+              stroke={isDark ? '#64748b' : '#64748b'}
               fontSize={12}
               tickLine={false}
               axisLine={false}
             />
-            <YAxis 
-              stroke={isDark ? '#64748b' : '#64748b'} 
+            <YAxis
+              stroke={isDark ? '#64748b' : '#64748b'}
               fontSize={12}
               tickLine={false}
               axisLine={false}
             />
             <Tooltip contentStyle={commonTooltipStyle} />
-            <Area 
-              type="monotone" 
-              dataKey={activeMetric} 
+            <Area
+              type="monotone"
+              dataKey={activeMetric}
               name={metricLabels[activeMetric]}
-              stroke={metricColors[activeMetric]} 
+              stroke={metricColors[activeMetric]}
               strokeWidth={2}
-              fillOpacity={1} 
-              fill="url(#colorMetric)" 
+              fillOpacity={1}
+              fill="url(#colorMetric)"
             />
           </AreaChart>
+        </ResponsiveContainer>
+      );
+    } else if (chartType === 'composed') {
+      // 组合图表：显示所有指标
+      return (
+        <ResponsiveContainer width="100%" height={400}>
+          <ComposedChart data={data} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#334155' : '#e2e8f0'} vertical={false} />
+            <XAxis
+              dataKey="date"
+              stroke={isDark ? '#64748b' : '#64748b'}
+              fontSize={12}
+              tickLine={false}
+              axisLine={false}
+            />
+            <YAxis
+              stroke={isDark ? '#64748b' : '#64748b'}
+              fontSize={12}
+              tickLine={false}
+              axisLine={false}
+              yAxisId="left"
+            />
+            <YAxis
+              stroke={isDark ? '#64748b' : '#64748b'}
+              fontSize={12}
+              tickLine={false}
+              axisLine={false}
+              yAxisId="right"
+              orientation="right"
+            />
+            <Tooltip contentStyle={commonTooltipStyle} />
+            <Legend />
+            <Bar dataKey="users" name="新用户" fill={CHART_COLORS.primary} yAxisId="left" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="works" name="新作品" fill={CHART_COLORS.secondary} yAxisId="left" radius={[4, 4, 0, 0]} />
+            <Line type="monotone" dataKey="views" name="浏览量" stroke={CHART_COLORS.info} strokeWidth={2} yAxisId="right" />
+            <Line type="monotone" dataKey="likes" name="点赞数" stroke={CHART_COLORS.danger} strokeWidth={2} yAxisId="right" />
+          </ComposedChart>
         </ResponsiveContainer>
       );
     } else {
@@ -329,25 +570,25 @@ export default function DataAnalytics() {
         <ResponsiveContainer width="100%" height={400}>
           <LineChart data={data} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#334155' : '#e2e8f0'} vertical={false} />
-            <XAxis 
-              dataKey="date" 
-              stroke={isDark ? '#64748b' : '#64748b'} 
+            <XAxis
+              dataKey="date"
+              stroke={isDark ? '#64748b' : '#64748b'}
               fontSize={12}
               tickLine={false}
               axisLine={false}
             />
-            <YAxis 
-              stroke={isDark ? '#64748b' : '#64748b'} 
+            <YAxis
+              stroke={isDark ? '#64748b' : '#64748b'}
               fontSize={12}
               tickLine={false}
               axisLine={false}
             />
             <Tooltip contentStyle={commonTooltipStyle} />
-            <Line 
-              type="monotone" 
-              dataKey={activeMetric} 
-              name={metricLabels[activeMetric]} 
-              stroke={metricColors[activeMetric]} 
+            <Line
+              type="monotone"
+              dataKey={activeMetric}
+              name={metricLabels[activeMetric]}
+              stroke={metricColors[activeMetric]}
               strokeWidth={3}
               dot={{ r: 4, fill: metricColors[activeMetric], strokeWidth: 2, stroke: isDark ? '#1e293b' : '#ffffff' }}
               activeDot={{ r: 6, strokeWidth: 0 }}
@@ -359,17 +600,17 @@ export default function DataAnalytics() {
   };
 
   // 统计卡片组件
-  const StatCard = ({ 
-    title, 
-    value, 
-    change, 
-    icon: Icon, 
+  const StatCard = ({
+    title,
+    value,
+    change,
+    icon: Icon,
     color,
     trend
-  }: { 
-    title: string; 
-    value: string | number; 
-    change?: number; 
+  }: {
+    title: string;
+    value: string | number;
+    change?: number;
     icon: any;
     color: string;
     trend?: 'up' | 'down' | 'neutral';
@@ -388,14 +629,14 @@ export default function DataAnalytics() {
             <div className={`flex items-center gap-1 mt-2 text-sm ${
               trend === 'up' ? 'text-green-500' : trend === 'down' ? 'text-red-500' : 'text-gray-400'
             }`}>
-              {trend === 'up' ? <ArrowUpRight className="w-4 h-4" /> : 
+              {trend === 'up' ? <ArrowUpRight className="w-4 h-4" /> :
                trend === 'down' ? <ArrowDownRight className="w-4 h-4" /> : null}
               <span>{change > 0 ? '+' : ''}{change}%</span>
               <span className={`${isDark ? 'text-gray-500' : 'text-gray-400'} text-xs ml-1`}>较上期</span>
             </div>
           )}
         </div>
-        <div 
+        <div
           className="p-3 rounded-xl"
           style={{ backgroundColor: `${color}15` }}
         >
@@ -420,8 +661,58 @@ export default function DataAnalytics() {
             全面了解平台运营数据和用户行为趋势
           </p>
         </div>
-        
-        <div className="flex items-center gap-3">
+
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* 实时更新开关 */}
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => setIsRealtimeEnabled(!isRealtimeEnabled)}
+            className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-colors ${
+              isRealtimeEnabled
+                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                : isDark ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-600'
+            }`}
+          >
+            <Zap className={`w-4 h-4 ${isRealtimeEnabled ? 'fill-current' : ''}`} />
+            {isRealtimeEnabled ? '实时更新中' : '实时更新已关闭'}
+          </motion.button>
+
+          {/* 预警按钮 */}
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => setShowAlerts(!showAlerts)}
+            className={`relative flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-colors ${
+              unacknowledgedAlerts > 0
+                ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                : isDark ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-600'
+            }`}
+          >
+            <Bell className="w-4 h-4" />
+            预警
+            {unacknowledgedAlerts > 0 && (
+              <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                {unacknowledgedAlerts}
+              </span>
+            )}
+          </motion.button>
+
+          {/* 筛选按钮 */}
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => setShowFilterPanel(!showFilterPanel)}
+            className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-colors ${
+              showFilterPanel
+                ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                : isDark ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-600'
+            }`}
+          >
+            <Filter className="w-4 h-4" />
+            筛选
+          </motion.button>
+
           {/* 时间范围选择 */}
           <div className={`flex items-center gap-2 px-3 py-2 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-sm`}>
             <Calendar className="w-4 h-4 text-gray-400" />
@@ -437,7 +728,7 @@ export default function DataAnalytics() {
               <option value="all">全部时间</option>
             </select>
           </div>
-          
+
           {/* 刷新按钮 */}
           <motion.button
             whileHover={{ scale: 1.02 }}
@@ -447,7 +738,7 @@ export default function DataAnalytics() {
           >
             <RefreshCw className={`w-5 h-5 ${isDark ? 'text-gray-400' : 'text-gray-600'}`} />
           </motion.button>
-          
+
           {/* 导出按钮 */}
           <motion.button
             whileHover={{ scale: 1.02 }}
@@ -461,35 +752,189 @@ export default function DataAnalytics() {
         </div>
       </div>
 
+      {/* 最后更新时间 */}
+      <div className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+        最后更新: {lastUpdated.toLocaleString('zh-CN')}
+        {isRealtimeEnabled && (
+          <span className="ml-2 inline-flex items-center gap-1 text-green-500">
+            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+            实时更新中
+          </span>
+        )}
+      </div>
+
+      {/* 预警面板 */}
+      <AnimatePresence>
+        {showAlerts && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className={`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-md overflow-hidden`}
+          >
+            <div className={`px-6 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'} flex items-center justify-between`}>
+              <h3 className="font-semibold text-lg flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-yellow-500" />
+                数据预警
+              </h3>
+              {alerts.length > 0 && (
+                <button
+                  onClick={clearAllAlerts}
+                  className="text-sm text-red-500 hover:text-red-600"
+                >
+                  清除全部
+                </button>
+              )}
+            </div>
+            <div className="p-4 max-h-64 overflow-y-auto">
+              {alerts.length === 0 ? (
+                <div className={`text-center py-8 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                  <CheckCircle className="w-12 h-12 mx-auto mb-2 text-green-500" />
+                  <p>暂无预警信息</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {alerts.map((alert) => (
+                    <motion.div
+                      key={alert.id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      className={`p-3 rounded-lg flex items-start justify-between ${
+                        alert.severity === 'error'
+                          ? 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800'
+                          : 'bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800'
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <AlertTriangle className={`w-5 h-5 flex-shrink-0 ${
+                          alert.severity === 'error' ? 'text-red-500' : 'text-yellow-500'
+                        }`} />
+                        <div>
+                          <p className={`text-sm font-medium ${
+                            alert.severity === 'error' ? 'text-red-700 dark:text-red-400' : 'text-yellow-700 dark:text-yellow-400'
+                          }`}>
+                            {alert.message}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {new Date(alert.timestamp).toLocaleString('zh-CN')}
+                          </p>
+                        </div>
+                      </div>
+                      {!alert.acknowledged && (
+                        <button
+                          onClick={() => acknowledgeAlert(alert.id)}
+                          className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                        >
+                          确认
+                        </button>
+                      )}
+                    </motion.div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 筛选面板 */}
+      <AnimatePresence>
+        {showFilterPanel && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className={`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-md overflow-hidden`}
+          >
+            <div className={`px-6 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'} flex items-center justify-between`}>
+              <h3 className="font-semibold text-lg flex items-center gap-2">
+                <Filter className="w-5 h-5 text-blue-500" />
+                数据筛选
+              </h3>
+              <button
+                onClick={() => setShowFilterPanel(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div>
+                <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                  业务维度
+                </label>
+                <select
+                  value={businessFilter}
+                  onChange={(e) => setBusinessFilter(e.target.value as BusinessFilter)}
+                  className={`w-full px-3 py-2 rounded-lg border ${
+                    isDark
+                      ? 'bg-gray-700 border-gray-600 text-gray-200'
+                      : 'bg-white border-gray-300 text-gray-700'
+                  }`}
+                >
+                  <option value="all">全部</option>
+                  <option value="category">按分类</option>
+                  <option value="creator_level">按创作者等级</option>
+                  <option value="content_type">按内容类型</option>
+                </select>
+              </div>
+              {businessFilter === 'category' && (
+                <div>
+                  <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                    作品分类
+                  </label>
+                  <select
+                    value={categoryFilter}
+                    onChange={(e) => setCategoryFilter(e.target.value)}
+                    className={`w-full px-3 py-2 rounded-lg border ${
+                      isDark
+                        ? 'bg-gray-700 border-gray-600 text-gray-200'
+                        : 'bg-white border-gray-300 text-gray-700'
+                    }`}
+                  >
+                    <option value="all">全部分类</option>
+                    <option value="国潮设计">国潮设计</option>
+                    <option value="非遗传承">非遗传承</option>
+                    <option value="老字号品牌">老字号品牌</option>
+                    <option value="IP设计">IP设计</option>
+                    <option value="插画设计">插画设计</option>
+                  </select>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* 关键指标卡片 */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard 
-          title="新增用户" 
-          value={stats.totalUsers.toLocaleString()} 
+        <StatCard
+          title="总用户数"
+          value={stats.totalUsers.toLocaleString()}
           change={stats.userGrowth}
           trend={stats.userGrowth >= 0 ? 'up' : 'down'}
           icon={Users}
           color={CHART_COLORS.primary}
         />
-        <StatCard 
-          title="新增作品" 
-          value={stats.totalWorks.toLocaleString()} 
+        <StatCard
+          title="总作品数"
+          value={stats.totalWorks.toLocaleString()}
           change={stats.worksGrowth}
           trend={stats.worksGrowth >= 0 ? 'up' : 'down'}
           icon={Image}
           color={CHART_COLORS.secondary}
         />
-        <StatCard 
-          title="总浏览量" 
-          value={stats.totalViews.toLocaleString()} 
+        <StatCard
+          title="总浏览量"
+          value={stats.totalViews.toLocaleString()}
           change={stats.viewsGrowth}
           trend={stats.viewsGrowth >= 0 ? 'up' : 'down'}
           icon={Eye}
           color={CHART_COLORS.info}
         />
-        <StatCard 
-          title="总点赞数" 
-          value={stats.totalLikes.toLocaleString()} 
+        <StatCard
+          title="总点赞数"
+          value={stats.totalLikes.toLocaleString()}
           change={stats.likesGrowth}
           trend={stats.likesGrowth >= 0 ? 'up' : 'down'}
           icon={Heart}
@@ -513,41 +958,44 @@ export default function DataAnalytics() {
                 查看各项指标的变化趋势
               </p>
             </div>
-            
-            <div className="flex items-center gap-3">
+
+            <div className="flex items-center gap-3 flex-wrap">
               {/* 指标选择 */}
-              <div className="flex items-center gap-2">
-                {[
-                  { key: 'users', label: '用户', icon: Users },
-                  { key: 'works', label: '作品', icon: Image },
-                  { key: 'views', label: '浏览', icon: Eye },
-                  { key: 'likes', label: '点赞', icon: Heart },
-                ].map(({ key, label, icon: Icon }) => (
-                  <motion.button
-                    key={key}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => setActiveMetric(key as MetricType)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1 ${
-                      activeMetric === key
-                        ? 'bg-red-600 text-white'
-                        : isDark 
-                          ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' 
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
-                  >
-                    <Icon className="w-3 h-3" />
-                    {label}
-                  </motion.button>
-                ))}
-              </div>
-              
+              {chartType !== 'composed' && (
+                <div className="flex items-center gap-2">
+                  {[
+                    { key: 'users', label: '用户', icon: Users },
+                    { key: 'works', label: '作品', icon: Image },
+                    { key: 'views', label: '浏览', icon: Eye },
+                    { key: 'likes', label: '点赞', icon: Heart },
+                  ].map(({ key, label, icon: Icon }) => (
+                    <motion.button
+                      key={key}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => setActiveMetric(key as MetricType)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1 ${
+                        activeMetric === key
+                          ? 'bg-red-600 text-white'
+                          : isDark
+                            ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      <Icon className="w-3 h-3" />
+                      {label}
+                    </motion.button>
+                  ))}
+                </div>
+              )}
+
               {/* 图表类型选择 */}
               <div className={`flex items-center gap-1 p-1 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-100'}`}>
                 {[
                   { key: 'line', icon: Activity, label: '折线' },
                   { key: 'bar', icon: BarChart3, label: '柱状' },
                   { key: 'area', icon: TrendingUp, label: '面积' },
+                  { key: 'composed', icon: Share2, label: '组合' },
                 ].map(({ key, icon: Icon, label }) => (
                   <motion.button
                     key={key}
@@ -568,7 +1016,7 @@ export default function DataAnalytics() {
             </div>
           </div>
         </div>
-        
+
         {/* 图表内容 */}
         <div className="p-6">
           {renderMainChart()}
@@ -608,7 +1056,7 @@ export default function DataAnalytics() {
                     <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
                   ))}
                 </Pie>
-                <Tooltip 
+                <Tooltip
                   contentStyle={{
                     backgroundColor: isDark ? '#1e293b' : '#ffffff',
                     borderColor: isDark ? '#334155' : '#e2e8f0',
@@ -663,7 +1111,7 @@ export default function DataAnalytics() {
                     <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
                   ))}
                 </Pie>
-                <Tooltip 
+                <Tooltip
                   contentStyle={{
                     backgroundColor: isDark ? '#1e293b' : '#ffffff',
                     borderColor: isDark ? '#334155' : '#e2e8f0',
@@ -764,19 +1212,26 @@ export default function DataAnalytics() {
         className={`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-md overflow-hidden`}
       >
         <div className={`px-6 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'} flex items-center justify-between`}>
-          <h3 className="font-semibold text-lg">详细数据</h3>
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => handleExport('json')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-              isDark 
-                ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' 
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
-          >
-            导出 JSON
-          </motion.button>
+          <div>
+            <h3 className="font-semibold text-lg">详细数据</h3>
+            <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+              每日新增数据统计
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => handleExport('json')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                isDark
+                  ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              导出 JSON
+            </motion.button>
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -787,12 +1242,14 @@ export default function DataAnalytics() {
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">新作品</th>
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">浏览量</th>
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">点赞数</th>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">累计用户</th>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">累计作品</th>
               </tr>
             </thead>
             <tbody className={`divide-y ${isDark ? 'divide-gray-700' : 'divide-gray-200'}`}>
               {isLoading ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center">
+                  <td colSpan={7} className="px-6 py-8 text-center">
                     <motion.div
                       animate={{ rotate: 360 }}
                       transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
@@ -802,7 +1259,7 @@ export default function DataAnalytics() {
                 </tr>
               ) : data.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className={`px-6 py-8 text-center ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                  <td colSpan={7} className={`px-6 py-8 text-center ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                     暂无数据
                   </td>
                 </tr>
@@ -820,6 +1277,12 @@ export default function DataAnalytics() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm">{item.works}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">{item.views.toLocaleString()}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">{item.likes}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600 dark:text-blue-400">
+                      {item.cumulativeUsers?.toLocaleString()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-purple-600 dark:text-purple-400">
+                      {item.cumulativeWorks?.toLocaleString()}
+                    </td>
                   </motion.tr>
                 ))
               )}

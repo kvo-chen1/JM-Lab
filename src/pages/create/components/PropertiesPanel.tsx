@@ -131,7 +131,7 @@ export default function PropertiesPanel() {
       </motion.button>
 
       {/* 电脑端右侧属性面板 */}
-      <div id="guide-step-create-properties" className={`hidden lg:block w-80 xl:w-96 h-full flex flex-col border-l backdrop-blur-xl transition-all duration-300 ${isDark ? 'bg-gray-900/95 border-gray-800' : 'bg-white/95 border-gray-200'} z-30`}>
+      <div id="guide-step-create-properties" className={`hidden lg:block w-[480px] xl:w-[560px] h-full flex flex-col border-l backdrop-blur-xl transition-all duration-300 ${isDark ? 'bg-gray-900/95 border-gray-800' : 'bg-white/95 border-gray-200'} z-30`}>
         {/* Glass Header */}
         <motion.div
           className={`h-16 px-6 flex items-center justify-between border-b backdrop-blur-md flex-shrink-0 ${isDark ? 'bg-gray-900/50 border-gray-800' : 'bg-white/50 border-gray-100'}`}

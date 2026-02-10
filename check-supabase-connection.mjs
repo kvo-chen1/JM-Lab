@@ -55,7 +55,8 @@ async function checkConnection() {
       'exchange_records',
       'deduction_records',
       'points_limits',
-      'reconciliation_records'
+      'reconciliation_records',
+      'products'
     ];
 
     let existingTables = [];
@@ -87,7 +88,10 @@ async function checkConnection() {
     const rpcFunctions = [
       { name: 'update_user_points_balance', params: { p_user_id: '00000000-0000-0000-0000-000000000000', p_points: 10, p_type: 'earned', p_source: 'test', p_source_type: 'daily', p_description: 'test' } },
       { name: 'get_user_points_stats', params: { p_user_id: '00000000-0000-0000-0000-000000000000' } },
-      { name: 'check_points_limit', params: { p_user_id: '00000000-0000-0000-0000-000000000000', p_source_type: 'daily', p_points: 5 } }
+      { name: 'check_points_limit', params: { p_user_id: '00000000-0000-0000-0000-000000000000', p_source_type: 'daily', p_points: 5 } },
+      { name: 'exchange_product', params: { p_user_id: '00000000-0000-0000-0000-000000000000', p_product_id: '00000000-0000-0000-0000-000000000000', p_quantity: 1 } },
+      { name: 'get_products', params: { p_category: null, p_status: 'active', p_search: null, p_limit: 10, p_offset: 0 } },
+      { name: 'get_user_exchange_records_with_products', params: { p_user_id: '00000000-0000-0000-0000-000000000000', p_limit: 10, p_offset: 0 } }
     ];
 
     for (const func of rpcFunctions) {

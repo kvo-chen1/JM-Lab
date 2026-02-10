@@ -190,7 +190,7 @@ export default function MyActivities() {
           刷新
         </button>
         <button
-          onClick={() => navigate('/activities')}
+          onClick={() => navigate('/organizer')}
           className={`px-4 py-2 rounded-lg border text-sm font-medium transition-colors flex items-center gap-2 ${
             isDark
               ? 'border-gray-700 hover:bg-gray-800 text-gray-300'

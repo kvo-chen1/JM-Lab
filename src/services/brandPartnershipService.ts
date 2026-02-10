@@ -61,10 +61,21 @@ class BrandPartnershipService {
     reward?: string;
   }): Promise<BrandPartnership | null> {
     try {
+      // 获取当前登录用户 - 使用 getSession 更可靠
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session?.user) {
+        console.error('创建品牌合作申请失败: 用户未登录');
+        throw new Error('请先登录后再提交品牌申请');
+      }
+      
+      const userId = session.user.id;
+
       const { data: partnership, error } = await supabase
         .from('brand_partnerships')
         .insert([{
           ...data,
+          applicant_id: userId,
           reward: data.reward || '待协商',
           status: 'pending',
         }])
@@ -75,7 +86,7 @@ class BrandPartnershipService {
         console.error('创建品牌合作申请失败:', error);
         // 如果表不存在，使用 localStorage 作为临时存储
         if (error.code === '42P01' || error.message?.includes('does not exist')) {
-          return this.createPartnershipLocal(data);
+          return this.createPartnershipLocal(data, userId);
         }
         throw error;
       }
@@ -83,25 +94,33 @@ class BrandPartnershipService {
     } catch (error) {
       console.error('创建品牌合作申请失败:', error);
       // 使用 localStorage 作为回退
-      return this.createPartnershipLocal(data);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        return this.createPartnershipLocal(data, session.user.id);
+      }
+      throw error;
     }
   }
 
   // 使用 localStorage 创建品牌合作申请（回退方案）
-  private createPartnershipLocal(data: {
-    brand_name: string;
-    brand_logo: string;
-    brand_id?: string;
-    description: string;
-    contact_name: string;
-    contact_phone: string;
-    contact_email?: string;
-    reward?: string;
-  }): BrandPartnership {
+  private createPartnershipLocal(
+    data: {
+      brand_name: string;
+      brand_logo: string;
+      brand_id?: string;
+      description: string;
+      contact_name: string;
+      contact_phone: string;
+      contact_email?: string;
+      reward?: string;
+    },
+    applicantId: string
+  ): BrandPartnership {
     const partnerships = this.getPartnershipsLocal();
     const newPartnership: BrandPartnership = {
       id: `local-${Date.now()}`,
       ...data,
+      applicant_id: applicantId,
       reward: data.reward || '待协商',
       status: 'pending',
       created_at: new Date().toISOString(),
@@ -159,26 +178,87 @@ class BrandPartnershipService {
   }
 
   // 获取当前用户的品牌合作申请
-  async getMyPartnerships(): Promise<BrandPartnership[]> {
+  async getMyPartnerships(userInfo?: { id: string; email?: string }): Promise<BrandPartnership[]> {
     try {
-      const { data, error } = await supabase
+      // 优先使用传入的用户信息，如果没有则尝试从 session 获取
+      let userId = userInfo?.id;
+      let userEmail = userInfo?.email;
+      
+      if (!userId) {
+        // 获取当前登录用户 - 使用 getSession 更可靠
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!session?.user) {
+          console.warn('用户未登录，无法获取品牌合作申请');
+          return [];
+        }
+        
+        userId = session.user.id;
+        userEmail = session.user.email;
+      }
+      
+      console.log('获取品牌申请 - 用户ID:', userId);
+      console.log('获取品牌申请 - 用户邮箱:', userEmail);
+
+      // 先尝试通过 applicant_id 查询
+      let { data: dataById, error: errorById } = await supabase
         .from('brand_partnerships')
         .select('*')
+        .eq('applicant_id', userId)
         .order('created_at', { ascending: false });
+        
+      console.log('通过ID查询结果:', dataById, '错误:', errorById);
 
-      if (error) {
-        console.error('获取我的品牌合作申请失败:', error);
-        // 如果表不存在，使用 localStorage
-        if (error.code === '42P01' || error.message?.includes('does not exist')) {
-          return this.getPartnershipsLocal();
+      // 如果通过ID没有查到，再尝试通过邮箱查询（兼容旧数据）
+      let dataByEmail: BrandPartnership[] = [];
+      if ((!dataById || dataById.length === 0) && userEmail) {
+        const { data, error } = await supabase
+          .from('brand_partnerships')
+          .select('*')
+          .eq('contact_email', userEmail)
+          .order('created_at', { ascending: false });
+          
+        console.log('通过邮箱查询结果:', data, '错误:', error);
+        
+        if (!error && data) {
+          dataByEmail = data;
+          // 更新这些记录的 applicant_id
+          for (const record of data) {
+            if (!record.applicant_id) {
+              await supabase
+                .from('brand_partnerships')
+                .update({ applicant_id: userId })
+                .eq('id', record.id);
+              console.log('已更新记录 applicant_id:', record.id);
+            }
+          }
         }
-        throw error;
       }
-      return data || [];
+
+      // 合并结果
+      const allData = [...(dataById || []), ...dataByEmail];
+      
+      // 去重
+      const uniqueData = allData.filter((item, index, self) => 
+        index === self.findIndex(t => t.id === item.id)
+      );
+      
+      console.log('最终返回的品牌申请:', uniqueData);
+      return uniqueData;
     } catch (error) {
       console.error('获取我的品牌合作申请失败:', error);
       // 使用 localStorage 作为回退
-      return this.getPartnershipsLocal();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        const localPartnerships = this.getPartnershipsLocal();
+        const userId = session.user.id;
+        const userEmail = session.user.email;
+        return localPartnerships.filter(p => 
+          p.applicant_id === userId || 
+          (userEmail && p.contact_email === userEmail)
+        );
+      }
+      return [];
     }
   }
 

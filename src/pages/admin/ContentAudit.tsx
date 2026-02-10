@@ -1,8 +1,9 @@
-import { useState, useEffect, useContext } from 'react';
+import { useState, useEffect, useContext, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { AuthContext } from '@/contexts/authContext';
 import { scoreAuthenticity } from '@/services/authenticityService';
+import { adminService } from '@/services/adminService';
 import { toast } from 'sonner';
 
 interface ContentItem {
@@ -49,95 +50,46 @@ export default function ContentAudit() {
   const [reason, setReason] = useState('');
   
   // 获取内容数据
+  const fetchContents = useCallback(async () => {
+    setLoading(true);
+    try {
+      const result = await adminService.getContents({
+        page: 1,
+        limit: 50,
+        status: filter === 'all' ? undefined : filter,
+        type: contentType,
+      });
+      
+      // 转换数据格式
+      const formattedContents: ContentItem[] = result.contents.map((item: any) => ({
+        id: item.id,
+        title: item.title || item.content?.substring(0, 50) + '...' || '无标题',
+        content: item.content || item.description || '',
+        creator: item.author || '未知用户',
+        creator_id: item.creator_id || item.author_id,
+        type: item.type || 'work',
+        status: item.status || 'pending',
+        created_at: new Date(item.created_at).getTime(),
+        thumbnail: item.thumbnail || item.cover_url,
+        authenticity_score: item.authenticity_score,
+        cultural_elements: item.cultural_elements || [],
+        likes_count: item.likes || item.likes_count,
+        comments_count: item.comments || item.comments_count,
+        views_count: item.views || item.views_count,
+      }));
+      
+      setContents(formattedContents);
+    } catch (error) {
+      console.error('获取内容数据失败:', error);
+      toast.error('获取内容数据失败');
+    } finally {
+      setLoading(false);
+    }
+  }, [filter, contentType]);
+
   useEffect(() => {
-    const fetchContents = async () => {
-      setLoading(true);
-      try {
-        // 模拟API调用，实际项目中替换为真实API
-        const response = await fetch('/api/admin/contents', {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          setContents(data.contents || []);
-        } else {
-          // 模拟数据
-          setContents([
-            {
-              id: '1',
-              title: '国潮插画设计',
-              content: '这是一幅融合传统中国元素的现代插画设计，包含了云纹、龙纹等传统纹样，采用了红色、金色等传统色彩。',
-              creator: '设计师小明',
-              creator_id: 'user1',
-              type: 'post',
-              status: 'pending',
-              created_at: Date.now() - 86400000,
-              thumbnail: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Chinese%20traditional%20cultural%20illustration%20design',
-              cultural_elements: ['云纹', '龙纹', '传统色彩']
-            },
-            {
-              id: '2',
-              title: '老字号包装设计',
-              content: '为老字号品牌设计的现代包装，保留了传统元素的同时加入了现代设计语言，使其更符合当代消费者的审美。',
-              creator: '创意总监小李',
-              creator_id: 'user2',
-              type: 'post',
-              status: 'pending',
-              created_at: Date.now() - 86400000 * 2,
-              thumbnail: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Traditional%20Chinese%20brand%20packaging%20design',
-              cultural_elements: ['传统纹样', '老字号', '现代包装']
-            },
-            {
-              id: '3',
-              title: '传统纹样再创造',
-              content: '将传统的中国纹样进行现代化改造，使其更适合在数字媒体上使用，同时保留传统文化的精髓。',
-              creator: '数字艺术家小张',
-              creator_id: 'user3',
-              type: 'post',
-              status: 'approved',
-              created_at: Date.now() - 86400000 * 3,
-              thumbnail: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Traditional%20Chinese%20patterns%20with%20modern%20twist',
-              authenticity_score: 85,
-              cultural_elements: ['传统纹样', '现代化改造', '数字艺术']
-            },
-            {
-              id: '4',
-              title: '评论：这个设计很棒！',
-              content: '这个设计真的很棒，很好地融合了传统元素和现代设计，我很喜欢！',
-              creator: '用户A',
-              creator_id: 'user4',
-              type: 'comment',
-              status: 'pending',
-              created_at: Date.now() - 86400000 * 0.5,
-              likes_count: 5
-            },
-            {
-              id: '5',
-              title: '国潮创新设计大赛',
-              content: '举办国潮创新设计大赛，邀请设计师们参与，共同探索传统文化的现代表达。',
-              creator: '活动策划小王',
-              creator_id: 'user5',
-              type: 'activity',
-              status: 'pending',
-              created_at: Date.now() - 86400000 * 4,
-              thumbnail: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Chinese%20traditional%20culture%20design%20competition',
-              cultural_elements: ['国潮', '设计大赛', '传统文化']
-            }
-          ]);
-        }
-      } catch (error) {
-        console.error('获取内容数据失败:', error);
-        toast.error('获取内容数据失败');
-      } finally {
-        setLoading(false);
-      }
-    };
-    
     fetchContents();
-  }, []);
+  }, [fetchContents]);
   
   // 获取审核操作记录
   const fetchAuditActions = async (contentId: string) => {
@@ -183,20 +135,17 @@ export default function ContentAudit() {
     
     setActionLoading(true);
     try {
-      // 模拟API调用
-      const response = await fetch(`/api/admin/contents/${contentId}/audit`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          action,
-          reason: action === 'reject' ? reason : undefined
-        })
-      });
+      const content = contents.find(c => c.id === contentId);
+      const contentType = content?.type || 'work';
       
-      if (response.ok) {
+      const success = await adminService.auditContent(
+        contentId, 
+        contentType, 
+        action === 'delete' ? 'reject' : action,
+        action === 'reject' ? reason : undefined
+      );
+      
+      if (success) {
         // 更新本地状态
         setContents(prev => prev.map(item => 
           item.id === contentId 
@@ -218,6 +167,9 @@ export default function ContentAudit() {
         
         toast.success(`内容已${action === 'approve' ? '通过' : action === 'reject' ? '拒绝' : '删除'}`);
         setReason('');
+        
+        // 刷新内容列表
+        await fetchContents();
       } else {
         toast.error('操作失败，请重试');
       }

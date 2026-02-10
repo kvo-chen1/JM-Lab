@@ -53,12 +53,12 @@ const ImageLightbox = ({ src, onClose }: { src: string; onClose: () => void }) =
 };
 
 // 图片网格组件
-const ImageGrid = ({ 
-  images, 
-  isDark, 
-  onImageClick 
-}: { 
-  images: string[]; 
+const ImageGrid = ({
+  images,
+  isDark,
+  onImageClick
+}: {
+  images: string[];
   isDark: boolean;
   onImageClick: (url: string) => void;
 }) => {
@@ -75,7 +75,7 @@ const ImageGrid = ({
   return (
     <div className={`mt-4 grid gap-2 ${getGridClass()}`}>
       {images.slice(0, 4).map((imageUrl, index) => (
-        <motion.div 
+        <motion.div
           key={index}
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -93,9 +93,9 @@ const ImageGrid = ({
           }}
         >
           <div className="aspect-[4/3] overflow-hidden">
-            <img 
-              src={imageUrl} 
-              alt={`Post image ${index + 1}`} 
+            <img
+              src={imageUrl}
+              alt={`Post image ${index + 1}`}
               className="w-full h-full object-cover transition-all duration-500 group-hover:scale-110"
               loading="lazy"
             />
@@ -106,6 +106,49 @@ const ImageGrid = ({
             </div>
           )}
           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300" />
+        </motion.div>
+      ))}
+    </div>
+  );
+};
+
+// 视频列表组件
+const VideoList = ({
+  videos,
+  isDark
+}: {
+  videos: string[];
+  isDark: boolean;
+}) => {
+  return (
+    <div className="mt-4 space-y-3">
+      {videos.map((videoUrl, index) => (
+        <motion.div
+          key={index}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: index * 0.1 }}
+          className={`relative rounded-xl overflow-hidden border ${
+            isDark ? 'border-gray-700' : 'border-gray-200'
+          }`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <video
+            src={videoUrl}
+            className="w-full max-h-[400px] object-contain bg-black"
+            muted
+            loop
+            autoPlay
+            playsInline
+            preload="metadata"
+            controls
+          />
+          <div className="absolute top-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded-full flex items-center gap-1">
+            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z" />
+            </svg>
+            视频
+          </div>
         </motion.div>
       ))}
     </div>
@@ -313,6 +356,16 @@ export const PostCard: React.FC<PostCardProps> = ({
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
 
+  // 调试日志
+  console.log('[PostCard] thread:', {
+    id: thread.id,
+    title: thread.title,
+    hasVideos: thread.videos && thread.videos.length > 0,
+    videos: thread.videos,
+    hasImages: thread.images && thread.images.length > 0,
+    images: thread.images
+  });
+
   const handleCommentSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     if (commentContent.trim()) {
@@ -446,10 +499,18 @@ export const PostCard: React.FC<PostCardProps> = ({
 
             {/* Post Images */}
             {thread.images && thread.images.length > 0 && (
-              <ImageGrid 
-                images={thread.images} 
+              <ImageGrid
+                images={thread.images}
                 isDark={isDark}
                 onImageClick={setLightboxImage}
+              />
+            )}
+
+            {/* Post Videos */}
+            {thread.videos && thread.videos.length > 0 && (
+              <VideoList
+                videos={thread.videos}
+                isDark={isDark}
               />
             )}
           </div>

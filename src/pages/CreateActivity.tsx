@@ -5,7 +5,8 @@ import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '@/contexts/authContext';
 import { toast } from 'sonner';
 import { EventCreateRequest, Media } from '@/types';
-import { useEventService } from '@/hooks/useEventService';
+import { eventService } from '@/services/eventService';
+import { brandPartnershipService, BrandPartnership } from '@/services/brandPartnershipService';
 import { StepIndicator } from '@/components/StepIndicator';
 import { InfoCard } from '@/components/InfoCard';
 import { EventPreview } from '@/components/EventPreview';
@@ -29,7 +30,9 @@ import {
   ChevronRight,
   ChevronLeft,
   Send,
-  Loader2
+  Loader2,
+  Building2,
+  Shield
 } from 'lucide-react';
 
 // 活动创建步骤类型
@@ -51,7 +54,10 @@ export default function CreateActivity() {
   const { isDark } = useTheme();
   const { isAuthenticated, user } = useContext(AuthContext);
   const navigate = useNavigate();
-  const { createEvent, publishEvent, publishToJinmaiPlatform, updateEvent, getUserEvents } = useEventService();
+
+  // 品牌验证状态
+  const [verifiedBrand, setVerifiedBrand] = useState<BrandPartnership | null>(null);
+  const [isCheckingBrand, setIsCheckingBrand] = useState(true);
 
   // 当前步骤
   const [currentStep, setCurrentStep] = useState<StepType>('basic');
@@ -106,21 +112,43 @@ export default function CreateActivity() {
   const [showTagSuggestions, setShowTagSuggestions] = useState(false);
   const [tagSuggestions, setTagSuggestions] = useState<string[]>([]);
 
-  // 检查登录状态和加载草稿
+  // 检查品牌验证状态
   useEffect(() => {
-    if (!isAuthenticated || !user) {
-      navigate('/login');
-      return;
-    }
+    const checkBrandVerification = async () => {
+      if (!isAuthenticated || !user) {
+        navigate('/login');
+        return;
+      }
+
+      setIsCheckingBrand(true);
+      try {
+        // 获取当前用户已审核通过的品牌
+        const myPartnerships = await brandPartnershipService.getMyPartnerships();
+        const approvedBrand = myPartnerships.find(p => p.status === 'approved');
+        
+        if (approvedBrand) {
+          setVerifiedBrand(approvedBrand);
+        }
+      } catch (error) {
+        console.error('检查品牌验证状态失败:', error);
+      } finally {
+        setIsCheckingBrand(false);
+      }
+    };
+
+    checkBrandVerification();
+  }, [isAuthenticated, user, navigate]);
+
+  // 加载草稿
+  useEffect(() => {
+    if (!isAuthenticated || !user || !verifiedBrand) return;
 
     const loadDraft = async () => {
       try {
         setIsLoading(true);
-        const userEvents = await getUserEvents(user.id, {
+        const userEvents = await eventService.getUserEvents(user.id, {
           status: 'draft',
           limit: 1,
-          sort: 'updated_at',
-          order: 'desc'
         });
 
         if (userEvents.length > 0) {
@@ -129,19 +157,19 @@ export default function CreateActivity() {
             title: draft.title,
             description: draft.description,
             content: draft.content,
-            startTime: new Date(draft.startTime),
-            endTime: new Date(draft.endTime),
-            location: draft.location,
+            startTime: new Date(draft.start_time),
+            endTime: new Date(draft.end_time),
+            location: draft.location || '',
             type: draft.type,
-            tags: draft.tags,
-            media: draft.media,
-            isPublic: draft.isPublic,
-            contactName: draft.contactName,
-            contactPhone: draft.contactPhone,
-            contactEmail: draft.contactEmail,
+            tags: draft.tags || [],
+            media: draft.media || [],
+            isPublic: draft.is_public,
+            contactName: draft.contact_name || '',
+            contactPhone: draft.contact_phone || '',
+            contactEmail: draft.contact_email || '',
           });
           setEventId(draft.id);
-          setLastSavedTime(new Date(draft.updatedAt));
+          setLastSavedTime(new Date(draft.updated_at));
           toast.success('已加载最近的草稿');
         }
       } catch (error) {
@@ -152,7 +180,7 @@ export default function CreateActivity() {
     };
 
     loadDraft();
-  }, [isAuthenticated, user, navigate, getUserEvents]);
+  }, [isAuthenticated, user, verifiedBrand]);
 
   // 自动保存草稿
   useEffect(() => {
@@ -167,11 +195,31 @@ export default function CreateActivity() {
         try {
           setSaveStatus('saving');
 
+          const eventData = {
+            title: formData.title,
+            description: formData.description,
+            content: formData.content,
+            start_time: formData.startTime.toISOString(),
+            end_time: formData.endTime.toISOString(),
+            location: formData.location,
+            type: formData.type,
+            tags: formData.tags,
+            media: formData.media,
+            is_public: formData.isPublic,
+            contact_name: formData.contactName,
+            contact_phone: formData.contactPhone,
+            contact_email: formData.contactEmail,
+            max_participants: formData.maxParticipants,
+            status: 'draft' as const,
+          };
+
           if (eventId) {
-            await updateEvent(eventId, { ...formData, status: 'draft' });
+            await eventService.updateEvent(eventId, eventData);
           } else {
-            const newEvent = await createEvent({ ...formData, status: 'draft' });
-            setEventId(newEvent.id);
+            const newEvent = await eventService.createEvent(eventData);
+            if (newEvent) {
+              setEventId(newEvent.id);
+            }
           }
 
           setSaveStatus('saved');
@@ -188,7 +236,7 @@ export default function CreateActivity() {
         clearTimeout(autoSaveTimerRef.current);
       }
     };
-  }, [formData, createEvent, updateEvent, eventId]);
+  }, [formData, eventId]);
 
   // 处理步骤切换
   const handleStepChange = (step: StepType) => {
@@ -274,11 +322,31 @@ export default function CreateActivity() {
       setIsLoading(true);
       setSaveStatus('saving');
 
+      const eventData = {
+        title: formData.title,
+        description: formData.description,
+        content: formData.content,
+        start_time: formData.startTime.toISOString(),
+        end_time: formData.endTime.toISOString(),
+        location: formData.location,
+        type: formData.type,
+        tags: formData.tags,
+        media: formData.media,
+        is_public: formData.isPublic,
+        contact_name: formData.contactName,
+        contact_phone: formData.contactPhone,
+        contact_email: formData.contactEmail,
+        max_participants: formData.maxParticipants,
+        status: 'draft' as const,
+      };
+
       if (eventId) {
-        await updateEvent(eventId, { ...formData, status: 'draft' });
+        await eventService.updateEvent(eventId, eventData);
       } else {
-        const newEvent = await createEvent({ ...formData, status: 'draft' });
-        setEventId(newEvent.id);
+        const newEvent = await eventService.createEvent(eventData);
+        if (newEvent) {
+          setEventId(newEvent.id);
+        }
       }
 
       setSaveStatus('saved');
@@ -323,32 +391,45 @@ export default function CreateActivity() {
       setCurrentStep(originalStep);
       setIsPublishing(true);
 
+      const eventData = {
+        title: formData.title,
+        description: formData.description,
+        content: formData.content,
+        start_time: formData.startTime.toISOString(),
+        end_time: formData.endTime.toISOString(),
+        location: formData.location,
+        type: formData.type,
+        tags: formData.tags,
+        media: formData.media,
+        is_public: formData.isPublic,
+        contact_name: formData.contactName,
+        contact_phone: formData.contactPhone,
+        contact_email: formData.contactEmail,
+        max_participants: formData.maxParticipants,
+        status: 'pending' as const, // 提交审核状态
+        // 关联品牌信息
+        brand_id: verifiedBrand?.id,
+        brand_name: verifiedBrand?.brand_name,
+      };
+
       let event;
       if (eventId) {
-        event = await updateEvent(eventId, { ...formData, status: 'published' });
+        event = await eventService.updateEvent(eventId, eventData);
       } else {
-        event = await createEvent({ ...formData, status: 'published' });
+        event = await eventService.createEvent(eventData);
       }
 
       if (!event || !event.id) throw new Error('活动创建失败');
 
       if (!eventId) setEventId(event.id);
 
-      if (publishOptions.publishToJinmaiPlatform) {
-        await publishToJinmaiPlatform(event.id, {
-          title: formData.title,
-          description: formData.description,
-          startDate: formData.startTime.toISOString(),
-          endDate: formData.endTime.toISOString(),
-          requirements: '无',
-          rewards: '无',
-          visibility: formData.isPublic ? 'public' : 'private',
-          notifyFollowers: publishOptions.notifyFollowers
-        });
-        toast.success('活动已成功发布到津脉活动平台');
+      // 提交审核
+      const publishSuccess = await eventService.publishEvent(event.id);
+      
+      if (publishSuccess) {
+        toast.success('活动已提交审核，审核通过后将发布到津脉活动平台');
       } else {
-        await publishEvent(event.id, { eventId: event.id, notifyFollowers: publishOptions.notifyFollowers });
-        toast.success('活动已提交审核');
+        toast.error('提交审核失败');
       }
 
       navigate('/activities');
@@ -405,6 +486,62 @@ export default function CreateActivity() {
     }
   };
 
+  // 如果正在检查品牌状态，显示加载中
+  if (isCheckingBrand) {
+    return (
+      <div className={`min-h-screen flex items-center justify-center ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-500" />
+          <p className="text-gray-500">正在检查品牌验证状态...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 如果没有通过品牌验证，显示提示
+  if (!verifiedBrand) {
+    return (
+      <div className={`min-h-screen ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
+        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="max-w-2xl mx-auto text-center py-20"
+          >
+            <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+              <Shield className="w-10 h-10 text-amber-600 dark:text-amber-400" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
+              需要品牌认证
+            </h2>
+            <p className="text-gray-600 dark:text-gray-400 mb-8">
+              只有经过平台审核认证的品牌才能创建活动。<br />
+              请先申请品牌入驻，审核通过后即可创建活动。
+            </p>
+            <div className="flex gap-4 justify-center">
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => navigate('/business')}
+                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium transition-colors"
+              >
+                申请品牌入驻
+              </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => navigate('/activities')}
+                className="px-6 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+              >
+                返回活动列表
+              </motion.button>
+            </div>
+          </motion.div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={`min-h-screen ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
       <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -415,8 +552,17 @@ export default function CreateActivity() {
           className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8 gap-4"
         >
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">创建活动</h1>
-            <div className="mt-2 flex items-center gap-4">
+            <div className="flex items-center gap-3 mb-2">
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">创建活动</h1>
+              {verifiedBrand && (
+                <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-sm">
+                  <Building2 className="w-4 h-4" />
+                  <span>{verifiedBrand.brand_name}</span>
+                  <span className="text-xs opacity-75">(已认证)</span>
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-4">
               <p className="text-gray-500 dark:text-gray-400">创建并发布您的文化活动</p>
               {getSaveStatusDisplay()}
             </div>

@@ -42,7 +42,7 @@ function getToken(): string | null {
 }
 
 /**
- * 发送私信 - 使用后端 API
+ * 发送私信 - 优先使用后端 API，失败时使用 Supabase 直接发送
  */
 export async function sendDirectMessage(
   senderId: string,
@@ -52,42 +52,76 @@ export async function sendDirectMessage(
   try {
     console.log('[sendDirectMessage] 发送消息:', { senderId, receiverId, content })
 
+    // 首先尝试使用后端 API
     const token = getToken()
-    if (!token) {
-      throw new Error('请先登录')
-    }
+    if (token) {
+      try {
+        const response = await fetch('/api/messages/send', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            friendId: receiverId,
+            content: content.trim()
+          })
+        })
 
-    const response = await fetch('/api/messages/send', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({
-        friendId: receiverId,
-        content: content.trim()
-      })
-    })
+        if (response.ok) {
+          const result = await response.json()
+          console.log('[sendDirectMessage] API 发送成功:', result.data)
+          return {
+            success: true,
+            data: result.data
+          }
+        }
 
-    if (response.status === 403) {
-      const error = await response.json()
-      return {
-        success: false,
-        message: error.message || '发送失败',
-        waitingForReply: error.waitingForReply || false
+        if (response.status === 403) {
+          const error = await response.json()
+          return {
+            success: false,
+            message: error.message || '发送失败',
+            waitingForReply: error.waitingForReply || false
+          }
+        }
+
+        // API 失败，降级到 Supabase
+        console.warn('[sendDirectMessage] API 失败，使用 Supabase 直接发送')
+      } catch (apiError) {
+        console.warn('[sendDirectMessage] API 异常，使用 Supabase 直接发送:', apiError)
       }
     }
 
-    if (!response.ok) {
-      const error = await response.json()
+    // 使用 Supabase 直接发送消息
+    const { data, error } = await supabase
+      .from('messages')
+      .insert({
+        sender_id: senderId,
+        receiver_id: receiverId,
+        content: content.trim(),
+        is_read: false,
+        created_at: new Date().toISOString()
+      })
+      .select()
+      .single()
+
+    if (error) {
+      console.error('[sendDirectMessage] Supabase 发送失败:', error)
       throw new Error(error.message || '发送失败')
     }
 
-    const result = await response.json()
-    console.log('[sendDirectMessage] 发送成功:', result.data)
+    console.log('[sendDirectMessage] Supabase 发送成功:', data)
     return {
       success: true,
-      data: result.data
+      data: {
+        id: data.id,
+        sender_id: data.sender_id,
+        receiver_id: data.receiver_id,
+        content: data.content,
+        is_read: data.is_read,
+        created_at: data.created_at
+      }
     }
   } catch (error: any) {
     console.error('[sendDirectMessage] 异常:', error)
@@ -96,7 +130,7 @@ export async function sendDirectMessage(
 }
 
 /**
- * 获取与某个用户的私信记录 - 使用后端 API
+ * 获取与某个用户的私信记录 - 优先使用后端 API，失败时使用 Supabase
  */
 export async function getDirectMessages(
   userId: string,
@@ -106,25 +140,43 @@ export async function getDirectMessages(
   try {
     console.log('[getDirectMessages] 获取消息:', { userId, otherUserId })
 
+    // 首先尝试使用后端 API
     const token = getToken()
-    if (!token) {
-      return []
-    }
+    if (token) {
+      try {
+        const response = await fetch(`/api/messages/${otherUserId}?limit=${limit}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        })
 
-    const response = await fetch(`/api/messages/${otherUserId}?limit=${limit}`, {
-      headers: {
-        'Authorization': `Bearer ${token}`
+        if (response.ok) {
+          const result = await response.json()
+          console.log('[getDirectMessages] API 获取成功:', result.data?.length || 0, '条消息')
+          return result.data || []
+        }
+
+        console.warn('[getDirectMessages] API 失败，使用 Supabase 直接获取')
+      } catch (apiError) {
+        console.warn('[getDirectMessages] API 异常，使用 Supabase 直接获取:', apiError)
       }
-    })
+    }
 
-    if (!response.ok) {
-      console.error('[getDirectMessages] 获取失败:', response.status)
+    // 使用 Supabase 直接获取消息
+    const { data, error } = await supabase
+      .from('messages')
+      .select('*')
+      .or(`and(sender_id.eq.${userId},receiver_id.eq.${otherUserId}),and(sender_id.eq.${otherUserId},receiver_id.eq.${userId})`)
+      .order('created_at', { ascending: true })
+      .limit(limit)
+
+    if (error) {
+      console.error('[getDirectMessages] Supabase 获取失败:', error)
       return []
     }
 
-    const result = await response.json()
-    console.log('[getDirectMessages] 获取成功:', result.data?.length || 0, '条消息')
-    return result.data || []
+    console.log('[getDirectMessages] Supabase 获取成功:', data?.length || 0, '条消息')
+    return data || []
   } catch (error) {
     console.error('[getDirectMessages] 异常:', error)
     return []

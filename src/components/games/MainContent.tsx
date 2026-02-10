@@ -106,14 +106,23 @@ export default function MainContent({ games, featuredGame, onPlayGame }: MainCon
             {/* 统计信息 */}
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-4">
-                <div className="flex items-center gap-1">
-                  <Users className="w-4 h-4 text-gray-400" />
-                  <span className="text-sm text-gray-600 dark:text-gray-400">{featuredGame.players} 人在玩</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
-                  <span className="text-sm text-gray-600 dark:text-gray-400">{featuredGame.rating}</span>
-                </div>
+                {featuredGame.players > 0 ? (
+                  <div className="flex items-center gap-1">
+                    <Users className="w-4 h-4 text-gray-400" />
+                    <span className="text-sm text-gray-600 dark:text-gray-400">{featuredGame.players.toLocaleString()} 人在玩</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1 text-green-500">
+                    <Sparkles className="w-4 h-4" />
+                    <span className="text-sm font-medium">新游戏</span>
+                  </div>
+                )}
+                {featuredGame.rating > 0 && (
+                  <div className="flex items-center gap-1">
+                    <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
+                    <span className="text-sm text-gray-600 dark:text-gray-400">{featuredGame.rating}</span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -199,14 +208,23 @@ export default function MainContent({ games, featuredGame, onPlayGame }: MainCon
 
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3 text-sm text-gray-500 dark:text-gray-400">
-                        <span className="flex items-center gap-1">
-                          <Users className="w-3.5 h-3.5" />
-                          {game.players}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Star className="w-3.5 h-3.5 text-yellow-400 fill-yellow-400" />
-                          {game.rating}
-                        </span>
+                        {game.players > 0 ? (
+                          <span className="flex items-center gap-1">
+                            <Users className="w-3.5 h-3.5" />
+                            {game.players.toLocaleString()} 人在玩
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-1 text-green-500">
+                            <Sparkles className="w-3.5 h-3.5" />
+                            新游戏
+                          </span>
+                        )}
+                        {game.rating > 0 && (
+                          <span className="flex items-center gap-1">
+                            <Star className="w-3.5 h-3.5 text-yellow-400 fill-yellow-400" />
+                            {game.rating}
+                          </span>
+                        )}
                         <span className="flex items-center gap-1">
                           <Clock className="w-3.5 h-3.5" />
                           {game.duration}

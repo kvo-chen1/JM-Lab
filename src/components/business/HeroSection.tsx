@@ -5,6 +5,7 @@ import { Building2, Users, Briefcase, MapPin, ArrowRight } from 'lucide-react';
 interface HeroSectionProps {
   isDark: boolean;
   stats: Array<{ label: string; value: string; icon?: React.ElementType }>;
+  onStartCooperation?: () => void;
 }
 
 // 数字滚动动画组件
@@ -46,7 +47,7 @@ const AnimatedNumber: React.FC<{ value: string; isDark: boolean }> = ({ value, i
   );
 };
 
-const HeroSection: React.FC<HeroSectionProps> = ({ isDark, stats }) => {
+const HeroSection: React.FC<HeroSectionProps> = ({ isDark, stats, onStartCooperation }) => {
   const iconMap: Record<string, React.ElementType> = {
     '入驻品牌': Building2,
     '活跃创作者': Users,
@@ -127,7 +128,10 @@ const HeroSection: React.FC<HeroSectionProps> = ({ isDark, stats }) => {
               transition={{ delay: 0.5 }}
               className="flex flex-wrap gap-4 mt-8"
             >
-              <button className="group px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-xl font-semibold shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 transition-all duration-300 hover:scale-105 flex items-center gap-2">
+              <button 
+                onClick={onStartCooperation}
+                className="group px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-xl font-semibold shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 transition-all duration-300 hover:scale-105 flex items-center gap-2"
+              >
                 开始合作
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </button>

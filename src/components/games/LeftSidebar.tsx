@@ -8,13 +8,10 @@ import {
   SortAsc, 
   Lightbulb, 
   Link2, 
-  Search, 
   History, 
   Layers,
   Target,
-  Zap,
-  BookOpen,
-  ChevronRight
+  BookOpen
 } from 'lucide-react';
 
 interface Category {
@@ -58,13 +55,6 @@ export default function LeftSidebar({
     { id: 'medium', name: '中等', color: 'bg-yellow-100 text-yellow-700' },
     { id: 'hard', name: '困难', color: 'bg-red-100 text-red-700' },
   ];
-
-  const learningProgress = {
-    completedGames: 3,
-    totalGames: 10,
-    totalScore: 2580,
-    streak: 5
-  };
 
   return (
     <div className="space-y-6">
@@ -130,51 +120,6 @@ export default function LeftSidebar({
         </div>
       </div>
 
-      {/* 学习进度 */}
-      <div className={`rounded-2xl p-5 ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border shadow-lg`}>
-        <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-          <Zap className="w-5 h-5 text-yellow-500" />
-          学习进度
-        </h3>
-        
-        {/* 进度条 */}
-        <div className="mb-4">
-          <div className="flex justify-between text-sm mb-2">
-            <span className="text-gray-500 dark:text-gray-400">完成进度</span>
-            <span className="font-bold">{learningProgress.completedGames}/{learningProgress.totalGames}</span>
-          </div>
-          <div className={`h-3 rounded-full ${isDark ? 'bg-gray-700' : 'bg-gray-200'} overflow-hidden`}>
-            <motion.div 
-              className="h-full bg-gradient-to-r from-red-500 to-orange-500 rounded-full"
-              initial={{ width: 0 }}
-              animate={{ width: `${(learningProgress.completedGames / learningProgress.totalGames) * 100}%` }}
-              transition={{ duration: 1, delay: 0.5 }}
-            />
-          </div>
-        </div>
-
-        {/* 统计数据 */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className={`p-3 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
-            <div className="text-2xl font-bold text-red-500">{learningProgress.totalScore}</div>
-            <div className="text-xs text-gray-500 dark:text-gray-400">总积分</div>
-          </div>
-          <div className={`p-3 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
-            <div className="text-2xl font-bold text-orange-500">{learningProgress.streak}</div>
-            <div className="text-xs text-gray-500 dark:text-gray-400">连续天数</div>
-          </div>
-        </div>
-
-        {/* 继续学习按钮 */}
-        <motion.button
-          className="w-full mt-4 flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-red-500 to-orange-500 text-white font-medium rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl"
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-        >
-          继续学习
-          <ChevronRight className="w-4 h-4" />
-        </motion.button>
-      </div>
     </div>
   );
 }

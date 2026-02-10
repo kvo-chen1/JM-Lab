@@ -1,44 +1,83 @@
-// 检查 tianjin_templates 表结构
-import { createClient } from '@supabase/supabase-js';
-import { readFileSync } from 'fs';
+#!/usr/bin/env node
+/**
+ * 检查 community_members 表结构
+ */
 
-// 加载环境变量
-const envLocal = readFileSync('.env.local', 'utf-8');
-const envConfig = {};
-envLocal.split('\n').forEach(line => {
-  const match = line.match(/^([^#=]+)=(.*)$/);
-  if (match) {
-    envConfig[match[1].trim()] = match[2].trim();
-  }
-});
+import pg from 'pg';
+import dotenv from 'dotenv';
 
-const SUPABASE_URL = envConfig.VITE_SUPABASE_URL;
-const SUPABASE_SERVICE_ROLE_KEY = envConfig.SUPABASE_SERVICE_ROLE_KEY;
+const { Pool } = pg;
 
-console.log('========================================');
-console.log('检查 tianjin_templates 表结构');
+dotenv.config({ path: '.env.local' });
+
+const connectionString = process.env.DATABASE_URL?.replace(':5432/', ':6543/') || 
+  'postgres://postgres.pptqdicaaewtnaiflfcs:csh200506207837@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true';
+
+console.log('\n========================================');
+console.log('检查 community_members 表结构');
 console.log('========================================\n');
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+const pool = new Pool({
+  connectionString,
+  ssl: { rejectUnauthorized: false },
+  max: 1,
+});
 
 async function checkStructure() {
-  // 查询一条数据查看所有字段
-  const { data, error } = await supabase
-    .from('tianjin_templates')
-    .select('*')
-    .limit(1)
-    .single();
+  const client = await pool.connect();
   
-  if (error) {
-    console.log('❌ 查询失败:', error.message);
-    return;
+  try {
+    // 获取表结构
+    const result = await client.query(`
+      SELECT column_name, data_type, is_nullable, column_default
+      FROM information_schema.columns 
+      WHERE table_schema = 'public' 
+      AND table_name = 'community_members'
+      ORDER BY ordinal_position;
+    `);
+    
+    console.log('community_members 表结构:');
+    console.log('----------------------------------------');
+    result.rows.forEach(col => {
+      console.log(`  ${col.column_name}: ${col.data_type} ${col.is_nullable === 'NO' ? 'NOT NULL' : ''} ${col.column_default ? `DEFAULT ${col.column_default}` : ''}`);
+    });
+    
+    // 检查主键
+    const pkResult = await client.query(`
+      SELECT kcu.column_name
+      FROM information_schema.table_constraints tc
+      JOIN information_schema.key_column_usage kcu
+        ON tc.constraint_name = kcu.constraint_name
+      WHERE tc.table_schema = 'public'
+        AND tc.table_name = 'community_members'
+        AND tc.constraint_type = 'PRIMARY KEY';
+    `);
+    
+    console.log('\n主键:');
+    pkResult.rows.forEach(pk => {
+      console.log(`  - ${pk.column_name}`);
+    });
+    
+    // 显示示例数据
+    console.log('\n示例数据:');
+    const sampleResult = await client.query('SELECT * FROM community_members LIMIT 2');
+    sampleResult.rows.forEach((row, i) => {
+      console.log(`\n  记录 ${i + 1}:`);
+      Object.entries(row).forEach(([key, value]) => {
+        console.log(`    ${key}: ${value}`);
+      });
+    });
+    
+    console.log('\n========================================');
+    console.log('检查完成');
+    console.log('========================================');
+    
+  } catch (error) {
+    console.error('\n❌ 执行失败:', error.message);
+  } finally {
+    client.release();
+    await pool.end();
   }
-  
-  console.log('✅ 表字段:');
-  console.log(Object.keys(data).join(', '));
-  
-  console.log('\n✅ 第一条数据:');
-  console.log(JSON.stringify(data, null, 2));
 }
 
 checkStructure();

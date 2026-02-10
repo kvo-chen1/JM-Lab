@@ -37,7 +37,7 @@
   justify-content: center;
   width: 100%;
   position: relative;
-  z-index: 9999;
+  z-index: 99999;
   overflow: visible;
   /* padding: 20px 0; Removed padding to fit into header */
 }
@@ -56,7 +56,7 @@
   border: 1px solid #e0e0e0;
   width: 100%;
   overflow: visible;
-  z-index: 1;
+  z-index: 99999;
 }
 
 /* Responsive Width handled by parent or Tailwind classes, but we can keep max-width logic if needed */

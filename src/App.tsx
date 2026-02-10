@@ -685,6 +685,7 @@ export default function App() {
           <Route path="/square/:id" element={<LazyComponent><PrivateRoute><Square /></PrivateRoute></LazyComponent>} />
           <Route path="/community" element={<LazyComponent><PrivateRoute><Community /></PrivateRoute></LazyComponent>} />
           <Route path="/community/:id" element={<LazyComponent><PrivateRoute><Community /></PrivateRoute></LazyComponent>} />
+          <Route path="/community/:id/:channel" element={<LazyComponent><PrivateRoute><Community /></PrivateRoute></LazyComponent>} />
           <Route path="/community/:id/admin" element={<LazyComponent><PrivateRoute><CommunityAdminPanel /></PrivateRoute></LazyComponent>} />
           <Route path="/friends" element={<LazyComponent><PrivateRoute><Friends /></PrivateRoute></LazyComponent>} />
           <Route path="/chat/:userId" element={<LazyComponent><PrivateRoute><ChatPage /></PrivateRoute></LazyComponent>} />

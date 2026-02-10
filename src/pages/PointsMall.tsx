@@ -1,45 +1,49 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useContext } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import productService, { Product, ProductCategory, ExchangeRecord } from '@/services/productService';
-import pointsService from '@/services/pointsService';
+import { useSupabasePoints } from '@/hooks/useSupabasePoints';
 import { toast } from 'sonner';
 import { Search, ShoppingCart, History, Package, CheckCircle, AlertCircle, Coins, Tag, Box } from 'lucide-react';
+import { AuthContext } from '@/contexts/authContext';
 
 const PointsMall: React.FC = () => {
   const { isDark } = useTheme();
+  const { user } = useContext(AuthContext);
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<ProductCategory | 'all'>('all');
   const [exchangeRecords, setExchangeRecords] = useState<ExchangeRecord[]>([]);
   const [showRecords, setShowRecords] = useState(false);
-  const [currentPoints, setCurrentPoints] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
-  const userId = 'current-user'; // 实际项目中应从认证上下文获取
+  // 使用 Supabase 积分服务获取真实积分
+  const { balance, isLoading: pointsLoading, refreshBalance } = useSupabasePoints();
+  const currentPoints = balance?.balance || 0;
+  const userId = user?.id || 'current-user';
 
   // 加载商品和积分数据
-  const loadData = useCallback(() => {
+  const loadData = useCallback(async () => {
     try {
       setIsLoading(true);
       const allProducts = productService.getAllProducts();
       const records = productService.getUserExchangeRecords(userId);
-      const points = pointsService.getCurrentPoints();
       
       setProducts(allProducts);
       setFilteredProducts(allProducts);
       setExchangeRecords(records);
-      setCurrentPoints(points);
+      // 刷新积分余额
+      await refreshBalance();
     } catch (error) {
       console.error('加载数据失败:', error);
       toast.error('加载数据失败');
     } finally {
       setIsLoading(false);
     }
-  }, [userId]);
+  }, [userId, refreshBalance]);
 
   // 初始加载
   useEffect(() => {
@@ -48,8 +52,9 @@ const PointsMall: React.FC = () => {
 
   // 监听积分更新事件
   useEffect(() => {
-    const handlePointsUpdate = (event: CustomEvent) => {
-      setCurrentPoints(pointsService.getCurrentPoints());
+    const handlePointsUpdate = () => {
+      // 刷新积分余额
+      refreshBalance();
       // 如果有兑换记录更新，刷新记录
       const records = productService.getUserExchangeRecords(userId);
       setExchangeRecords(records);
@@ -57,7 +62,7 @@ const PointsMall: React.FC = () => {
 
     window.addEventListener('pointsUpdated', handlePointsUpdate as EventListener);
     return () => window.removeEventListener('pointsUpdated', handlePointsUpdate as EventListener);
-  }, [userId]);
+  }, [userId, refreshBalance]);
 
   // 处理分类筛选和搜索
   useEffect(() => {
@@ -98,6 +103,9 @@ const PointsMall: React.FC = () => {
     setShowConfirmDialog(true);
   };
 
+  // 使用 Supabase 积分服务的消耗积分方法
+  const { consumePoints } = useSupabasePoints();
+
   // 处理商品兑换
   const handleExchange = async () => {
     if (!selectedProduct) return;
@@ -105,12 +113,23 @@ const PointsMall: React.FC = () => {
     try {
       setIsLoading(true);
       
-      // 执行兑换
+      // 使用 Supabase 积分服务消耗积分
+      const result = await consumePoints(
+        selectedProduct.points,
+        selectedProduct.name,
+        'exchange',
+        `兑换商品：${selectedProduct.name}`
+      );
+
+      if (!result) {
+        throw new Error('积分扣除失败');
+      }
+      
+      // 执行兑换记录
       const record = productService.exchangeProduct(selectedProduct.id, userId);
       
       // 更新状态
       setExchangeRecords(prev => [record, ...prev]);
-      setCurrentPoints(pointsService.getCurrentPoints());
       
       // 更新商品库存
       setProducts(prev => prev.map(p => 
@@ -130,14 +149,14 @@ const PointsMall: React.FC = () => {
           </div>
           <div className="text-sm">{selectedProduct.name}</div>
           <div className="text-sm text-red-400">消耗 {selectedProduct.points} 积分</div>
-          <div className="text-sm text-green-400">剩余积分：{pointsService.getCurrentPoints()}</div>
+          <div className="text-sm text-green-400">剩余积分：{currentPoints - selectedProduct.points}</div>
         </div>
       );
 
       // 触发积分更新事件
       window.dispatchEvent(new CustomEvent('pointsUpdated', { 
         detail: { 
-          newBalance: pointsService.getCurrentPoints(),
+          newBalance: currentPoints - selectedProduct.points,
           change: -selectedProduct.points,
           type: 'spent',
           source: 'exchange'
@@ -214,7 +233,9 @@ const PointsMall: React.FC = () => {
                 </div>
                 <div>
                   <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>当前积分</div>
-                  <div className="text-2xl font-bold text-yellow-500">{currentPoints}</div>
+                  <div className="text-2xl font-bold text-yellow-500">
+                    {pointsLoading ? '...' : currentPoints}
+                  </div>
                 </div>
               </motion.div>
 

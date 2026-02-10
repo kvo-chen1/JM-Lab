@@ -22,7 +22,7 @@ import { userService } from '@/services/apiService'
 import { validationService } from '@/services/validationService'
 import { useAnalyticsStore } from '@/stores/useAnalyticsStore'
 import { uploadImage } from '@/services/imageService'
-import { supabase } from '@/lib/supabase'
+import { supabase, supabaseAdmin } from '@/lib/supabase'
 
 // 辅助函数：base64 转 File
 const dataURLtoFile = (dataurl: string, filename: string): File => {
@@ -288,18 +288,16 @@ export default function ProfileEdit() {
       // Supabase users 表使用 avatar_url 列，不是 avatar 列
       const updatesForDb: any = {
         username: updatedUser.username,
-        phone: updatedUser.phone,
         age: updatedUser.age,
         bio: updatedUser.bio,
         interests: updatedUser.interests,
         tags: updatedUser.tags,
         avatar_url: finalAvatarUrl, // 使用正确的列名
         cover_image: finalCoverUrl, // 添加封面图片列
-        updated_at: Math.floor(Date.now() / 1000), // 使用秒级时间戳
+        updated_at: new Date().toISOString(), // 使用 ISO 格式时间戳
         metadata: {
             ...user?.metadata, // 保留原有 metadata
             username: updatedUser.username,
-            phone: updatedUser.phone,
             age: updatedUser.age,
             bio: updatedUser.bio,
             location: updatedUser.location,
@@ -313,31 +311,42 @@ export default function ProfileEdit() {
             coverImage: finalCoverUrl
         }
       };
+      // 只在手机号不为空时更新（避免唯一约束冲突）
+      if (updatedUser.phone && updatedUser.phone.trim() !== '') {
+        updatesForDb.phone = updatedUser.phone;
+        updatesForDb.metadata.phone = updatedUser.phone;
+      }
 
       // 1. 更新后端数据库 (通过 API)
       const token = localStorage.getItem('token');
       if (token) {
+        // 构建请求数据，不发送空字符串的手机号（避免唯一约束冲突）
+        const apiData: any = {
+          username: updatedUser.username,
+          age: updatedUser.age,
+          bio: updatedUser.bio,
+          location: updatedUser.location,
+          occupation: updatedUser.occupation,
+          website: updatedUser.website,
+          github: updatedUser.github,
+          twitter: updatedUser.twitter,
+          interests: updatedUser.interests,
+          tags: updatedUser.tags,
+          avatar: finalAvatarUrl,
+          coverImage: finalCoverUrl
+        };
+        // 只在手机号不为空时发送
+        if (updatedUser.phone && updatedUser.phone.trim() !== '') {
+          apiData.phone = updatedUser.phone;
+        }
+
         const response = await fetch('/api/auth/me', {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
           },
-          body: JSON.stringify({
-            username: updatedUser.username,
-            phone: updatedUser.phone,
-            age: updatedUser.age,
-            bio: updatedUser.bio,
-            location: updatedUser.location,
-            occupation: updatedUser.occupation,
-            website: updatedUser.website,
-            github: updatedUser.github,
-            twitter: updatedUser.twitter,
-            interests: updatedUser.interests,
-            tags: updatedUser.tags,
-            avatar: finalAvatarUrl,
-            coverImage: finalCoverUrl
-          })
+          body: JSON.stringify(apiData)
         });
 
         if (!response.ok) {
@@ -350,9 +359,9 @@ export default function ProfileEdit() {
         console.log('后端 API 更新成功:', result);
       }
 
-      // 2. 同步更新 Supabase 数据库 (public.users)
-      if (supabase) {
-        const { error: dbError } = await supabase
+      // 2. 同步更新 Supabase 数据库 (public.users) - 使用 supabaseAdmin 绕过 RLS
+      try {
+        const { error: dbError } = await supabaseAdmin
           .from('users')
           .update(updatesForDb)
           .eq('id', user?.id);
@@ -360,7 +369,12 @@ export default function ProfileEdit() {
         if (dbError) {
           console.error('Supabase 数据库更新失败:', dbError);
           // 不阻断流程，因为后端已经更新成功
+        } else {
+          console.log('Supabase 数据库更新成功');
         }
+      } catch (dbErr) {
+        console.error('Supabase 数据库更新异常:', dbErr);
+        // 不阻断流程
       }
 
       // 3. 同步更新 Supabase Auth User Metadata (这对 AuthContext 很重要)

@@ -270,16 +270,31 @@ class AchievementService {
         
         // 更新积分数据，确保total是数字
         this.userPoints = typeof response.data.total === 'number' ? response.data.total : 0;
-        this.pointsRecords = response.data.records.map(r => ({
-          id: r.id,
-          source: r.source,
-          type: r.type as any,
-          points: r.points,
-          date: new Date(Number(r.created_at)).toISOString().split('T')[0],
-          description: r.description,
-          balanceAfter: r.balance_after,
-          created_at: Number(r.created_at)
-        }));
+        this.pointsRecords = response.data.records.map(r => {
+          // 处理日期格式兼容性
+          let timestamp: number;
+          if (typeof r.created_at === 'string') {
+            // 如果是 ISO 日期字符串，直接解析
+            timestamp = new Date(r.created_at).getTime();
+          } else if (typeof r.created_at === 'number') {
+            // 如果已经是数字（毫秒时间戳）
+            timestamp = r.created_at;
+          } else {
+            // 默认值
+            timestamp = Date.now();
+          }
+          
+          return {
+            id: r.id,
+            source: r.source,
+            type: r.type as any,
+            points: r.points,
+            date: new Date(timestamp).toISOString().split('T')[0],
+            description: r.description,
+            balanceAfter: r.balance_after,
+            created_at: timestamp
+          };
+        });
         
         // 检测等级变化
         const newLevelInfo = this.getCreatorLevelInfo();

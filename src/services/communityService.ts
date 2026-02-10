@@ -91,6 +91,8 @@ export interface Thread {
   topic?: string;
   upvotes?: number;
   images?: Array<string>;
+  videos?: Array<string>;
+  audios?: Array<string>;
   communityId: string;
   author?: string;
   authorAvatar?: string;
@@ -1152,6 +1154,8 @@ export const communityService = {
     topic: string;
     communityId: string;
     images?: Array<string>;
+    videos?: Array<string>;
+    audios?: Array<string>;
   }, userId: string, username: string, avatar: string): Promise<Thread> {
     // 验证用户ID
     if (!userId || typeof userId !== 'string' || userId.trim() === '') {
@@ -1174,7 +1178,9 @@ export const communityService = {
           body: JSON.stringify({
             title: data.title,
             content: data.content,
-            images: data.images
+            images: data.images,
+            videos: data.videos,
+            audios: data.audios
           })
         });
 
@@ -1192,6 +1198,8 @@ export const communityService = {
             topic: data.topic || '',
             upvotes: 0,
             images: newThread.images || [],
+            videos: newThread.videos || [],
+            audios: newThread.audios || [],
             communityId: newThread.community_id,
             author: username,
             authorAvatar: avatar,
@@ -1246,6 +1254,14 @@ export const communityService = {
       insertData.images = data.images;
     }
     
+    if (data.videos && data.videos.length > 0) {
+      insertData.videos = data.videos;
+    }
+    
+    if (data.audios && data.audios.length > 0) {
+      insertData.audios = data.audios;
+    }
+    
     const { data: newThread, error } = await supabase
       .from('posts')
       .insert(insertData)
@@ -1270,6 +1286,8 @@ export const communityService = {
       topic: data.topic || '', // 使用传入的topic，数据库可能没有存储
       upvotes: 0,
       images: newThread.images || [],
+      videos: newThread.videos || [],
+      audios: newThread.audios || [],
       communityId: newThread.community_id,
       author: username,
       authorAvatar: avatar,
@@ -1300,6 +1318,7 @@ export const communityService = {
               topic: post.topic,
               upvotes: post.likes || 0,
               images: post.images,
+              videos: post.videos,
               communityId: post.community_id,
               author: post.author_name || '未知用户',
               authorAvatar: post.author_avatar || '',
@@ -1405,6 +1424,8 @@ export const communityService = {
         topic: item.topic || item.category,
         upvotes: item.upvotes || item.likes || 0,
         images: item.images || (item.thumbnail ? [item.thumbnail] : undefined),
+        videos: item.videos,
+        audios: item.audios,
         communityId: item.community_id || item.category,
         author: user?.username || '未知用户',
         authorAvatar: user?.avatar_url || '',
@@ -1943,6 +1964,125 @@ export const communityService = {
     if (communityError) {
       console.error('删除社区失败:', communityError);
       throw communityError;
+    }
+  },
+
+  // 获取社区成员列表
+  async getCommunityMembers(communityId: string): Promise<any[]> {
+    try {
+      // 先获取成员列表（community_members 表使用复合主键 community_id + user_id，没有 id 列）
+      const { data: membersData, error: membersError } = await supabase
+        .from('community_members')
+        .select('community_id, user_id, role, joined_at')
+        .eq('community_id', communityId)
+        .order('joined_at', { ascending: false });
+
+      if (membersError) {
+        console.error('Error getting community members:', membersError);
+        return [];
+      }
+
+      if (!membersData || membersData.length === 0) {
+        return [];
+      }
+
+      // 获取所有用户ID（community_members.user_id 是 text 类型，users.id 是 uuid 类型）
+      const userIds = membersData.map(m => m.user_id).filter(Boolean);
+
+      // 单独获取用户信息（需要将 text 类型的 user_id 转换为 uuid 查询）
+      let usersMap = new Map();
+      if (userIds.length > 0) {
+        // 使用 or 条件构建查询，将 text 类型的 user_id 转换为 uuid
+        const orConditions = userIds.map(id => `id.eq.${id}`).join(',');
+        const { data: usersData, error: usersError } = await supabase
+          .from('users')
+          .select('id, username, avatar_url')
+          .or(orConditions);
+
+        if (usersError) {
+          console.error('Error getting users:', usersError);
+        } else {
+          usersData?.forEach((user: any) => {
+            // 将 uuid 转换为字符串作为 key，以便匹配 text 类型的 user_id
+            usersMap.set(String(user.id), user);
+          });
+        }
+      }
+
+      return membersData.map((member: any) => {
+        const user = usersMap.get(member.user_id);
+        return {
+          id: `${member.community_id}-${member.user_id}`, // 使用复合键作为 id
+          user_id: member.user_id,
+          username: user?.username || '未知用户',
+          avatar_url: user?.avatar_url,
+          role: member.role,
+          joined_at: member.joined_at,
+          is_online: false,
+        };
+      });
+    } catch (error) {
+      console.error('Error in getCommunityMembers:', error);
+      return [];
+    }
+  },
+
+  // 获取社区公告列表
+  async getCommunityAnnouncements(communityId: string): Promise<any[]> {
+    try {
+      // 先获取公告列表（根据实际表结构：id, community_id, content, created_by, created_at, updated_at）
+      const { data: announcementsData, error: announcementsError } = await supabase
+        .from('community_announcements')
+        .select('id, community_id, content, created_by, created_at, updated_at')
+        .eq('community_id', communityId)
+        .order('created_at', { ascending: false });
+
+      if (announcementsError) {
+        console.error('Error getting community announcements:', announcementsError);
+        return [];
+      }
+
+      if (!announcementsData || announcementsData.length === 0) {
+        return [];
+      }
+
+      // 获取所有作者ID
+      const authorIds = announcementsData.map(a => a.created_by).filter(Boolean);
+
+      // 单独获取作者信息
+      let authorsMap = new Map();
+      if (authorIds.length > 0) {
+        const { data: usersData, error: usersError } = await supabase
+          .from('users')
+          .select('id, username, avatar_url')
+          .in('id', authorIds);
+
+        if (usersError) {
+          console.error('Error getting authors:', usersError);
+        } else {
+          usersData?.forEach((user: any) => {
+            authorsMap.set(user.id, user);
+          });
+        }
+      }
+
+      return announcementsData.map((announcement: any) => {
+        const author = authorsMap.get(announcement.created_by);
+        return {
+          id: announcement.id,
+          title: '社区公告', // 表中没有 title 列，使用默认标题
+          content: announcement.content,
+          author_id: announcement.created_by,
+          author_name: author?.username || '未知用户',
+          author_avatar: author?.avatar_url,
+          is_pinned: false, // 表中没有 is_pinned 列，默认 false
+          created_at: announcement.created_at,
+          updated_at: announcement.updated_at,
+        };
+      });
+    } catch (error) {
+      console.error('Error in getCommunityAnnouncements:', error);
+      return [];
     }
   }
 };

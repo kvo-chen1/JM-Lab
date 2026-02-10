@@ -2,16 +2,17 @@ import { useState, useEffect, useMemo } from 'react';
 import { useTheme } from '@/hooks/useTheme';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BRANDS } from '@/lib/brands';
-import ipService from '@/services/ipService';
+import { brandPartnershipService, BrandPartnership } from '@/services/brandPartnershipService';
 import { toast } from 'sonner';
 import {
   ThreeColumnLayout,
   LeftSidebar,
-  RightSidebar,
   HeroSection,
   FeaturesSection,
   ProcessSection,
   CooperationForm,
+  BrandOnboarding,
+  BrandApplicationForm,
 } from '@/components/business';
 import {
   Building2,
@@ -23,6 +24,7 @@ import {
   X,
   FileText,
   TrendingUp,
+  ArrowRight,
 } from 'lucide-react';
 
 export default function BusinessCooperation() {
@@ -33,18 +35,31 @@ export default function BusinessCooperation() {
   const [reloadTick, setReloadTick] = useState(0);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [activeTab, setActiveTab] = useState<'form' | 'records'>('form');
-
-  // 统计数据
-  const stats = [
-    { label: '入驻品牌', value: '50+', icon: Building2 },
-    { label: '活跃创作者', value: '10k+', icon: Users },
-    { label: '落地案例', value: '120+', icon: Briefcase },
-    { label: '覆盖城市', value: '天津', icon: MapPin },
-  ];
+  const [showOnboarding, setShowOnboarding] = useState(true); // 默认显示入驻引导
+  const [partnerships, setPartnerships] = useState<BrandPartnership[]>([]);
+  const [stats, setStats] = useState({
+    totalPartnerships: 0,
+    approvedPartnerships: 0,
+    totalEvents: 0,
+    publishedEvents: 0,
+  });
 
   // 获取合作申请记录
-  const partnerships = useMemo(() => {
-    return ipService.getAllPartnerships();
+  const fetchPartnerships = async () => {
+    try {
+      const data = await brandPartnershipService.getMyPartnerships();
+      setPartnerships(data);
+      
+      // 获取统计数据
+      const statsData = await brandPartnershipService.getStats();
+      setStats(statsData);
+    } catch (error) {
+      console.error('获取合作申请失败:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchPartnerships();
   }, [reloadTick]);
 
   // 处理品牌选择
@@ -63,19 +78,56 @@ export default function BusinessCooperation() {
     setCurrentStep(step);
   };
 
-  // 处理表单提交
-  const handleFormSubmit = (data: { contact: string; phone: string; idea: string }) => {
-    ipService.createPartnership({
-      brandName: selectedBrand.name,
-      brandLogo: selectedBrand.image,
-      description: `${data.idea}（联系人：${data.contact}，电话：${data.phone}）`,
+  // 处理品牌入驻申请提交
+  const handleBrandApplicationSubmit = async (data: {
+    brandName: string;
+    brandLogo: string;
+    description: string;
+    contactName: string;
+    contactPhone: string;
+    contactEmail: string;
+  }) => {
+    const result = await brandPartnershipService.createPartnership({
+      brand_name: data.brandName,
+      brand_logo: data.brandLogo || 'https://via.placeholder.com/200?text=Brand',
+      description: data.description,
+      contact_name: data.contactName,
+      contact_phone: data.contactPhone,
+      contact_email: data.contactEmail,
       reward: '待协商',
-      status: 'pending',
-      ipAssetId: 'ip-001',
     });
-    setReloadTick((t) => t + 1);
-    toast.success('合作申请已提交，我们将尽快与您联系！');
-    setActiveTab('records');
+
+    if (result) {
+      setReloadTick((t) => t + 1);
+      toast.success('品牌入驻申请已提交，我们将在1-3个工作日内完成审核！');
+      // 显示成功提示后返回入驻引导页面
+      setTimeout(() => {
+        setShowOnboarding(true);
+      }, 2000);
+    } else {
+      toast.error('提交申请失败，请重试');
+    }
+  };
+
+  // 处理表单提交（旧版，保留兼容）
+  const handleFormSubmit = async (data: { contact: string; phone: string; idea: string }) => {
+    const result = await brandPartnershipService.createPartnership({
+      brand_name: selectedBrand.name,
+      brand_logo: selectedBrand.image,
+      brand_id: selectedBrand.id,
+      description: data.idea,
+      contact_name: data.contact,
+      contact_phone: data.phone,
+      reward: '待协商',
+    });
+
+    if (result) {
+      setReloadTick((t) => t + 1);
+      toast.success('合作申请已提交，我们将尽快与您联系！');
+      setActiveTab('records');
+    } else {
+      toast.error('提交申请失败，请重试');
+    }
   };
 
   // 获取状态样式
@@ -105,58 +157,82 @@ export default function BusinessCooperation() {
     }
   };
 
+  // 统计数据
+  const displayStats = [
+    { label: '入驻品牌', value: `${stats.approvedPartnerships}+`, icon: Building2 },
+    { label: '品牌活动', value: `${stats.publishedEvents}+`, icon: Briefcase },
+    { label: '合作申请', value: `${stats.totalPartnerships}+`, icon: Users },
+    { label: '覆盖城市', value: '天津', icon: MapPin },
+  ];
+
+  // 滚动到表单区域
+  const scrollToForm = () => {
+    const formElement = document.getElementById('cooperation-form');
+    if (formElement) {
+      formElement.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
+  // 开始申请入驻
+  const handleStartApplication = () => {
+    setShowOnboarding(false);
+    setTimeout(() => {
+      const formElement = document.getElementById('cooperation-form');
+      if (formElement) {
+        formElement.scrollIntoView({ behavior: 'smooth' });
+      }
+    }, 100);
+  };
+
+  // 返回入驻引导
+  const handleBackToOnboarding = () => {
+    setShowOnboarding(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   // 主内容区
   const mainContent = (
     <div className="pb-12">
-      {/* Hero区域 */}
-      <HeroSection isDark={isDark} stats={stats} />
-
-      {/* 特性展示 */}
-      <FeaturesSection isDark={isDark} />
-
-      {/* 合作流程 */}
-      <ProcessSection
-        isDark={isDark}
-        currentStep={currentStep}
-        onStepClick={handleStepClick}
-      />
-
-      {/* 标签切换（移动端） */}
-      <div className="lg:hidden flex gap-2 mb-6">
-        <button
-          onClick={() => setActiveTab('form')}
-          className={`flex-1 py-3 px-4 rounded-xl font-medium transition-all ${
-            activeTab === 'form'
-              ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg shadow-blue-500/25'
-              : isDark
-              ? 'bg-slate-800 text-gray-400 border border-slate-700'
-              : 'bg-white text-gray-600 border border-gray-200'
-          }`}
-        >
-          提交申请
-        </button>
-        <button
-          onClick={() => setActiveTab('records')}
-          className={`flex-1 py-3 px-4 rounded-xl font-medium transition-all ${
-            activeTab === 'records'
-              ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg shadow-blue-500/25'
-              : isDark
-              ? 'bg-slate-800 text-gray-400 border border-slate-700'
-              : 'bg-white text-gray-600 border border-gray-200'
-          }`}
-        >
-          申请记录 ({partnerships.length})
-        </button>
-      </div>
-
-      {/* 合作表单 */}
-      <div className={activeTab === 'form' ? 'block' : 'hidden lg:block'}>
-        <CooperationForm
-          isDark={isDark}
-          selectedBrand={selectedBrand}
-          onSubmit={handleFormSubmit}
+      {showOnboarding ? (
+        // 显示品牌入驻引导
+        <BrandOnboarding 
+          isDark={isDark} 
+          onStartApplication={handleStartApplication}
+          stats={{
+            approvedPartnerships: stats.approvedPartnerships,
+            publishedEvents: stats.publishedEvents,
+          }}
         />
-      </div>
+      ) : (
+        <>
+          {/* 返回按钮 */}
+          <div className="mb-6">
+            <button
+              onClick={handleBackToOnboarding}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                isDark 
+                  ? 'text-gray-400 hover:text-white hover:bg-gray-800' 
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+              }`}
+            >
+              <ArrowRight className="w-4 h-4 rotate-180" />
+              返回入驻介绍
+            </button>
+          </div>
+
+          {/* Hero区域 */}
+          <HeroSection isDark={isDark} stats={displayStats} onStartCooperation={scrollToForm} />
+
+          {/* 特性展示 */}
+          <FeaturesSection isDark={isDark} />
+
+          {/* 品牌入驻申请表单 */}
+          <div id="cooperation-form">
+            <BrandApplicationForm
+              isDark={isDark}
+              onSubmit={handleBrandApplicationSubmit}
+            />
+          </div>
 
       {/* 申请记录 */}
       <div className={activeTab === 'records' ? 'block' : 'hidden lg:block'}>
@@ -227,39 +303,39 @@ export default function BusinessCooperation() {
                 >
                   <div className="flex items-start gap-4">
                     <img
-                      src={partnership.brandLogo}
-                      alt={partnership.brandName}
-                      className="w-16 h-16 rounded-xl object-cover border border-gray-200 dark:border-gray-600"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-4 mb-2">
-                        <div>
-                          <h3 className={`font-bold text-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                            {partnership.brandName}
-                          </h3>
-                          <p className={`text-sm truncate ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                            {partnership.description.slice(0, 100)}...
-                          </p>
+                        src={partnership.brand_logo}
+                        alt={partnership.brand_name}
+                        className="w-16 h-16 rounded-xl object-cover border border-gray-200 dark:border-gray-600"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-4 mb-2">
+                          <div>
+                            <h3 className={`font-bold text-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                              {partnership.brand_name}
+                            </h3>
+                            <p className={`text-sm truncate ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                              {partnership.description?.slice(0, 100)}...
+                            </p>
+                          </div>
+                          <span
+                            className={`px-3 py-1 rounded-full text-xs font-medium border whitespace-nowrap ${getStatusStyle(
+                              partnership.status
+                            )}`}
+                          >
+                            {getStatusText(partnership.status)}
+                          </span>
                         </div>
-                        <span
-                          className={`px-3 py-1 rounded-full text-xs font-medium border whitespace-nowrap ${getStatusStyle(
-                            partnership.status
-                          )}`}
-                        >
-                          {getStatusText(partnership.status)}
-                        </span>
+                        <div className="flex items-center gap-4 text-sm">
+                          <div className={`flex items-center gap-1 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                            <Clock className="w-4 h-4" />
+                            {new Date(partnership.updated_at).toLocaleDateString()}
+                          </div>
+                          <div className={`flex items-center gap-1 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                            <TrendingUp className="w-4 h-4" />
+                            奖励：{partnership.reward}
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-4 text-sm">
-                        <div className={`flex items-center gap-1 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
-                          <Clock className="w-4 h-4" />
-                          {new Date(partnership.updatedAt).toLocaleDateString()}
-                        </div>
-                        <div className={`flex items-center gap-1 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
-                          <TrendingUp className="w-4 h-4" />
-                          奖励：{partnership.reward}
-                        </div>
-                      </div>
-                    </div>
                   </div>
                 </motion.div>
               ))}
@@ -267,6 +343,8 @@ export default function BusinessCooperation() {
           )}
         </motion.section>
       </div>
+        </>
+      )}
     </div>
   );
 
@@ -281,16 +359,14 @@ export default function BusinessCooperation() {
           searchQuery={brandSearch}
           onSearchChange={setBrandSearch}
           partnershipCount={partnerships.length}
+          approvedBrands={partnerships.filter(p => p.status === 'approved')}
+          stats={{
+            approvedPartnerships: stats.approvedPartnerships,
+            totalEvents: stats.totalEvents,
+          }}
         />
       }
       mainContent={mainContent}
-      rightSidebar={
-        <RightSidebar
-          isDark={isDark}
-          onQuickIdea={handleQuickIdea}
-          selectedBrand={selectedBrand}
-        />
-      }
     />
   );
 }

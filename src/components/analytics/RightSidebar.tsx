@@ -260,7 +260,28 @@ export default function RightSidebar({ onExport }: RightSidebarProps) {
                       }`}>
                         {index + 1}
                       </span>
-                      <img src={work.thumbnail} alt={work.title} className="w-8 h-8 rounded-lg object-cover" />
+                      <div className="w-8 h-8 rounded-lg overflow-hidden relative">
+                        {work.type === 'video' && work.videoUrl ? (
+                          <video
+                            src={work.videoUrl}
+                            className="w-full h-full object-cover"
+                            muted
+                            loop
+                            autoPlay
+                            playsInline
+                            preload="metadata"
+                          />
+                        ) : (
+                          <img src={work.thumbnail} alt={work.title} className="w-full h-full object-cover" />
+                        )}
+                        {work.type === 'video' && (
+                          <div className="absolute top-0 right-0 bg-black/60 text-white text-[8px] px-1 py-0.5 rounded-bl-md">
+                            <svg className="w-2 h-2" fill="currentColor" viewBox="0 0 20 20">
+                              <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z" />
+                            </svg>
+                          </div>
+                        )}
+                      </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-medium truncate">{work.title}</p>
                         <p className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>

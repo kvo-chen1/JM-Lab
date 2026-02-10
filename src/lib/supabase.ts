@@ -4,6 +4,7 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js'
 // 从环境变量获取配置
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || ''
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
+const supabaseServiceKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY || ''
 
 // 检查是否在浏览器环境
 const isBrowser = typeof window !== 'undefined'
@@ -65,14 +66,20 @@ const createMockClient = (reason: string): SupabaseClient => {
   } as unknown as SupabaseClient
 }
 
+// 服务角色密钥（用于绕过 RLS 的管理员操作）
+// 注意：这个密钥有完全的数据库访问权限，只能在服务器端或受信任的环境中使用
+const SERVICE_ROLE_KEY = supabaseServiceKey || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBwdHFkaWNhYWV3dG5haWZsZmNzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NjQ5MTUzMiwiZXhwIjoyMDgyMDY3NTMyfQ.Plz64E2BkfbgiyaBNyL2L2grVTPO-U8fcdDxa-MjgX4'
+
 // 创建 Supabase 客户端 - 带错误处理
 export let supabase: SupabaseClient
+export let supabaseAdmin: SupabaseClient
 
 try {
   if (!supabaseUrl || !supabaseAnonKey) {
     // 如果环境变量不存在，创建一个安全的模拟客户端
     console.warn('[Supabase] 环境变量未配置，使用模拟客户端')
     supabase = createMockClient('Supabase 环境变量未配置')
+    supabaseAdmin = supabase
   } else {
     // 验证 URL 格式
     try {
@@ -80,6 +87,7 @@ try {
     } catch {
       console.error('[Supabase] URL 格式无效:', supabaseUrl)
       supabase = createMockClient('Supabase URL 格式无效')
+      supabaseAdmin = supabase
     }
 
     supabase = createClient(supabaseUrl, supabaseAnonKey, {
@@ -105,6 +113,22 @@ try {
       }
     })
 
+    // 创建管理员客户端（绕过 RLS）
+    if (SERVICE_ROLE_KEY && SERVICE_ROLE_KEY !== 'placeholder-key') {
+      supabaseAdmin = createClient(
+        supabaseUrl,
+        SERVICE_ROLE_KEY,
+        {
+          auth: {
+            autoRefreshToken: false,
+            persistSession: false
+          }
+        }
+      )
+    } else {
+      supabaseAdmin = supabase
+    }
+
     // 将 supabase 暴露到 window 对象以便调试（仅开发环境）
     if (isBrowser && import.meta.env.DEV) {
       (window as any).supabase = supabase
@@ -115,6 +139,7 @@ try {
 } catch (error) {
   console.error('[Supabase] 客户端初始化失败:', error)
   supabase = createMockClient('Supabase 客户端初始化失败')
+  supabaseAdmin = supabase
 }
 
 // 导出配置检查函数

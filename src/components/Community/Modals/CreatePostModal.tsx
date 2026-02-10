@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import UploadBox from '@/components/UploadBox';
@@ -144,7 +144,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
   };
 
   // 处理视频选择
-  const handleVideoSelect = (file: File | File[]) => {
+  const handleVideoSelect = useCallback((file: File | File[]) => {
     const files = Array.isArray(file) ? file : [file];
     
     setSelectedVideoFiles(prev => [...prev, ...files]);
@@ -157,7 +157,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
       };
       reader.readAsDataURL(file);
     });
-  };
+  }, []);
 
   // 处理音频选择
   const handleAudioSelect = (file: File | File[]) => {
@@ -666,44 +666,6 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 0.3 }}
               >
-                {/* 视频预览 */}
-                {videoPreviewUrls.length > 0 && (
-                  <motion.div 
-                    className="flex gap-3 mb-3 overflow-x-auto pb-2"
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3 }}
-                  >
-                    {videoPreviewUrls.map((url, index) => (
-                      <motion.div 
-                        key={index} 
-                        className="relative w-24 h-24 rounded-xl overflow-hidden border shadow-sm"
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ duration: 0.2, delay: 0.1 * index }}
-                        whileHover={{ scale: 1.05 }}
-                      >
-                        <video 
-                          src={url} 
-                          className="w-full h-full object-cover"
-                          controls
-                        />
-                        <motion.button
-                          onClick={() => {
-                            setVideoPreviewUrls(prev => prev.filter((_, i) => i !== index));
-                            setSelectedVideos(prev => prev.filter((_, i) => i !== index));
-                          }}
-                          className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center hover:bg-red-600 transition-colors shadow-md"
-                          whileHover={{ scale: 1.1 }}
-                          whileTap={{ scale: 0.9 }}
-                        >
-                          <i className="fas fa-times text-xs"></i>
-                        </motion.button>
-                      </motion.div>
-                    ))}
-                  </motion.div>
-                )}
-                
                 {/* 视频上传组件 */}
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
@@ -713,6 +675,11 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                   <UploadBox
                     accept="video/*"
                     onFile={handleVideoSelect}
+                    previewUrl={videoPreviewUrls}
+                    onRemove={(index) => {
+                      setVideoPreviewUrls(prev => prev.filter((_, i) => i !== index));
+                      setSelectedVideoFiles(prev => prev.filter((_, i) => i !== index));
+                    }}
                     title="上传视频"
                     description="拖拽视频到此，或点击选择"
                     variant="file"

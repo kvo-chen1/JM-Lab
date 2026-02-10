@@ -4,14 +4,14 @@ import type { MessageWithSender, UserProfile } from '../lib/supabase'
 import { RealtimeChannel } from '@supabase/supabase-js'
 
 export interface MessageOptions {
-  type?: 'text' | 'image' | 'file' | 'rich_text' | 'emoji'
+  type?: 'text' | 'image' | 'file' | 'rich_text' | 'emoji' | 'share_card'
   metadata?: Record<string, any>
   channelId?: string
   communityId?: string
 }
 
 export interface BatchMessageOptions {
-  type?: 'text' | 'image' | 'file' | 'rich_text' | 'emoji'
+  type?: 'text' | 'image' | 'file' | 'rich_text' | 'emoji' | 'share_card'
   metadata?: Record<string, any>
   channelId?: string
   communityId?: string
@@ -31,12 +31,10 @@ export const chatService = {
   
   // 获取指定频道的消息历史
   async getMessages(channelId: string, limit = 50): Promise<MessageWithSender[]> {
-    const { data, error } = await supabase
+    // 1. 先获取消息
+    const { data: messages, error } = await supabase
       .from('messages')
-      .select(`
-        *,
-        sender:users!sender_id (*)
-      `)
+      .select('*')
       .eq('channel_id', channelId)
       .order('created_at', { ascending: true })
       .limit(limit)
@@ -46,14 +44,70 @@ export const chatService = {
       throw error
     }
 
-    // 缓存用户信息
-    data.forEach((msg: any) => {
-      if (msg.sender) {
-        this.userCache[msg.sender.id] = msg.sender
+    if (!messages || messages.length === 0) {
+      return []
+    }
+
+    // 调试：打印第一条消息的结构
+    console.log('[chatService] First message structure:', messages[0])
+    console.log('[chatService] All messages user_id fields:', messages.map((m: any) => ({ id: m.id, user_id: m.user_id, sender_id: m.sender_id })))
+
+    // 2. 获取所有发送者ID - 兼容 user_id 和 sender_id 字段
+    const userIds = [...new Set(messages.map((m: any) => m.user_id || m.sender_id).filter(Boolean))]
+    
+    // 3. 批量获取用户信息 - 使用 supabaseAdmin 绕过 RLS 限制
+    let users: any[] = []
+    console.log('[chatService] Fetching users for IDs:', userIds)
+    if (userIds.length > 0) {
+      const { data: usersData, error: usersError } = await supabaseAdmin
+        .from('users')
+        .select('id, username, avatar_url, email, created_at, updated_at')
+        .in('id', userIds)
+      
+      console.log('[chatService] Users query result:', { usersData, usersError })
+      
+      if (usersError) {
+        console.error('[chatService] Error fetching users:', usersError)
+      } else if (usersData) {
+        users = usersData
+        console.log('[chatService] Found users:', users.length)
+        // 缓存用户信息
+        users.forEach((user: any) => {
+          this.userCache[user.id] = user
+        })
+      }
+    }
+
+    // 4. 合并消息和用户信息 - 兼容 user_id 和 sender_id 字段
+    const enrichedMessages = messages.map((msg: any) => {
+      // 获取发送者ID（兼容 user_id 和 sender_id）
+      const senderId = msg.user_id || msg.sender_id
+      const sender = users.find((u: any) => u.id === senderId)
+      if (sender) {
+        return {
+          ...msg,
+          sender
+        }
+      }
+      // 如果找不到用户，使用更友好的默认信息
+      const shortId = senderId ? senderId.substring(0, 8) : 'unknown'
+      return {
+        ...msg,
+        sender: {
+          id: senderId,
+          username: `用户 ${shortId}`,
+          email: '',
+          avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${senderId}`,
+          bio: null,
+          is_verified: false,
+          metadata: {},
+          created_at: msg.created_at,
+          updated_at: msg.updated_at
+        }
       }
     })
 
-    return data as MessageWithSender[]
+    return enrichedMessages as MessageWithSender[]
   },
   
   // 批量发送消息
@@ -81,65 +135,100 @@ export const chatService = {
       return this.userCache[userId]
     }
     
-    // 从数据库获取
-    const { data: userData, error: userError } = await supabase
+    console.log('[chatService] Fetching user info for:', userId)
+    
+    // 从数据库获取 - 使用 supabaseAdmin 绕过 RLS 限制
+    // 只选择 users 表中确实存在的列
+    const { data: userData, error: userError } = await supabaseAdmin
       .from('users')
-      .select('*')
+      .select('id, username, avatar_url, email, created_at, updated_at')
       .eq('id', userId)
-      .single()
 
     if (userError) {
-      console.error('Error fetching user details:', userError)
-      // 返回占位符用户信息
+      console.error('[chatService] Error fetching user details:', userError)
+      // 返回占位符用户信息，使用更友好的默认名称
+      const shortId = userId.substring(0, 8)
       const placeholderUser: UserProfile = {
         id: userId,
-        username: 'Unknown',
+        username: `用户 ${shortId}`,
         email: '',
-        avatar_url: null,
+        avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${userId}`,
         bio: null,
         is_verified: false,
         metadata: {},
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       }
+      // 缓存这个占位符
+      this.userCache[userId] = placeholderUser
       return placeholderUser
     }
     
+    // 检查是否找到用户
+    if (!userData || userData.length === 0) {
+      console.warn('[chatService] User not found in users table:', userId)
+      // 返回占位符用户信息，使用更友好的默认名称
+      const shortId = userId.substring(0, 8)
+      const placeholderUser: UserProfile = {
+        id: userId,
+        username: `用户 ${shortId}`,
+        email: '',
+        avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${userId}`,
+        bio: null,
+        is_verified: false,
+        metadata: {},
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }
+      // 缓存这个占位符，避免重复查询
+      this.userCache[userId] = placeholderUser
+      return placeholderUser
+    }
+    
+    const user = userData[0] as UserProfile
+    
     // 缓存用户信息
-    this.userCache[userId] = userData as UserProfile
+    this.userCache[userId] = user
     
     // 设置缓存过期
     setTimeout(() => {
       delete this.userCache[userId]
     }, this.CACHE_EXPIRY)
     
-    return userData as UserProfile
+    return user
   },
 
   // 发送消息
   async sendMessage(senderId: string, content: string, options: MessageOptions = {}): Promise<MessageWithSender> {
     const { type = 'text', metadata = {}, channelId = 'global', communityId } = options
 
+    console.log('[chatService] Sending message:', { senderId, content, channelId, communityId })
+
     // 1. 插入消息（使用 supabaseAdmin 绕过 RLS）
+    const insertData = {
+      channel_id: channelId,
+      user_id: senderId,
+      content: content,
+      type: type,
+      metadata: metadata,
+      status: 'sent',
+      community_id: communityId,
+      role: 'user'
+    }
+    console.log('[chatService] Insert data:', insertData)
+
     const { data: messageData, error: messageError } = await supabaseAdmin
       .from('messages')
-      .insert({
-        channel_id: channelId,
-        sender_id: senderId,
-        content: content,
-        type: type,
-        metadata: metadata,
-        status: 'sent',
-        community_id: communityId,
-        role: 'user'
-      })
+      .insert(insertData)
       .select()
       .single()
 
     if (messageError) {
-      console.error('Error sending message:', messageError)
+      console.error('[chatService] Error sending message:', messageError)
       throw messageError
     }
+
+    console.log('[chatService] Message sent successfully:', messageData)
 
     // 2. 获取发送者信息（为了完整的 MessageWithSender）
     const userData = await this.getUserInfo(senderId)
@@ -166,8 +255,11 @@ export const chatService = {
           // 当收到新消息时，我们需要获取发送者的详细信息
           const newMessage = payload.new as any
           
+          // 使用 user_id 作为发送者ID（数据库中使用的是 user_id 字段）
+          const senderId = newMessage.user_id || newMessage.sender_id
+          
           // 使用缓存的 getUserInfo 方法
-          const userData = await this.getUserInfo(newMessage.sender_id)
+          const userData = await this.getUserInfo(senderId)
 
           const messageWithSender: MessageWithSender = {
             ...newMessage,
@@ -189,8 +281,11 @@ export const chatService = {
           // 当消息状态更新时，也需要获取发送者的详细信息
           const updatedMessage = payload.new as any
           
+          // 使用 user_id 作为发送者ID（数据库中使用的是 user_id 字段）
+          const senderId = updatedMessage.user_id || updatedMessage.sender_id
+          
           // 使用缓存的 getUserInfo 方法
-          const userData = await this.getUserInfo(updatedMessage.sender_id)
+          const userData = await this.getUserInfo(senderId)
 
           const messageWithSender: MessageWithSender = {
             ...updatedMessage,
@@ -255,8 +350,11 @@ export const chatService = {
         async (payload) => {
           const newMessage = payload.new as any
           
+          // 使用 user_id 作为发送者ID（数据库中使用的是 user_id 字段）
+          const senderId = newMessage.user_id || newMessage.sender_id
+          
           // 使用缓存的 getUserInfo 方法
-          const userData = await this.getUserInfo(newMessage.sender_id)
+          const userData = await this.getUserInfo(senderId)
 
           const messageWithSender: MessageWithSender = {
             ...newMessage,
@@ -273,9 +371,10 @@ export const chatService = {
   cacheMessage(message: Partial<MessageWithSender>): void {
     try {
       // 创建一个安全的消息对象，只包含必要字段，避免循环引用
+      // 使用 user_id 或 sender_id（数据库中使用 user_id）
       const safeMessage = {
         id: message.id,
-        sender_id: message.sender_id,
+        user_id: message.user_id || message.sender_id,
         channel_id: message.channel_id,
         content: message.content,
         type: message.type,
@@ -325,8 +424,10 @@ export const chatService = {
     
     for (const message of failedMessages) {
       try {
-        if (message.sender_id && message.content) {
-          await this.sendMessage(message.sender_id, message.content, {
+        // 使用 user_id 或 sender_id（数据库中使用 user_id）
+        const senderId = message.user_id || message.sender_id
+        if (senderId && message.content) {
+          await this.sendMessage(senderId, message.content, {
             channelId: message.channel_id,
             type: message.type as any,
             metadata: message.metadata

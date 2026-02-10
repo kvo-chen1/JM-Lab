@@ -78,7 +78,19 @@ interface UseSupabasePointsReturn {
 
 export function useSupabasePoints(): UseSupabasePointsReturn {
   const { user } = useAuth();
-  const userId = user?.id;
+  // 优先使用 useAuth 的用户 ID，如果不存在则尝试从 localStorage 获取
+  const userId = user?.id || (() => {
+    try {
+      const storedUser = localStorage.getItem('user');
+      if (storedUser) {
+        const parsedUser = JSON.parse(storedUser);
+        return parsedUser?.id;
+      }
+    } catch (e) {
+      console.warn('从 localStorage 获取用户ID失败:', e);
+    }
+    return null;
+  })();
 
   // 状态
   const [balance, setBalance] = useState<UserPointsBalance | null>(null);
@@ -355,15 +367,17 @@ export function useSupabasePoints(): UseSupabasePointsReturn {
     }
   }, [userId, refreshBalance, refreshRecords, refreshStats]);
 
-  const checkin = useCallback(async (): Promise<{ success: boolean; points?: number; consecutiveDays?: number }> => {
+  const checkin = useCallback(async (): Promise<{ success: boolean; points?: number; consecutiveDays?: number; alreadyChecked?: boolean }> => {
     if (!userId) {
       toast.error('请先登录');
       return { success: false };
     }
 
-    if (hasCheckinToday) {
+    // 再次检查今日签到状态（防止并发问题）
+    const { hasCheckin, record: existingRecord } = await supabasePointsService.getTodayCheckinStatus(userId);
+    if (hasCheckin && existingRecord) {
       toast.info('今日已签到');
-      return { success: false };
+      return { success: false, alreadyChecked: true };
     }
 
     setIsLoading(true);
@@ -394,6 +408,12 @@ export function useSupabasePoints(): UseSupabasePointsReturn {
         bonus_points: bonusPoints,
         is_retroactive: false
       });
+
+      // 如果返回的是已有记录，说明已经签到了
+      if (checkinRecord && checkinRecord.checkin_date === existingRecord?.checkin_date) {
+        toast.info('今日已签到');
+        return { success: false, alreadyChecked: true };
+      }
 
       if (!checkinRecord) {
         throw new Error('创建签到记录失败');
@@ -428,7 +448,7 @@ export function useSupabasePoints(): UseSupabasePointsReturn {
     } finally {
       setIsLoading(false);
     }
-  }, [userId, hasCheckinToday, checkinRecords, refreshCheckinStatus, refreshBalance]);
+  }, [userId, checkinRecords, refreshCheckinStatus, refreshBalance]);
 
   const exchangeProduct = useCallback(async (
     productId: string,

@@ -77,7 +77,7 @@ export default function NotificationPanel({
   ];
 
   return (
-    <div className={`absolute right-0 mt-2 w-[360px] sm:w-[400px] rounded-2xl shadow-2xl ring-1 transition-all duration-300 transform origin-top-right ${isDark ? 'bg-[#1e232e] ring-gray-700' : 'bg-white ring-gray-200'} z-50 overflow-hidden`} role="dialog" aria-label={t('header.viewNotifications')}>
+    <div className={`absolute right-0 mt-2 w-[360px] sm:w-[400px] rounded-2xl shadow-2xl ring-1 transition-all duration-300 transform origin-top-right ${isDark ? 'bg-[#1e232e] ring-gray-700' : 'bg-white ring-gray-200'} z-[100] overflow-hidden`} role="dialog" aria-label={t('header.viewNotifications')}>
       {/* Header */}
       <div className={`px-4 py-3 border-b ${isDark ? 'border-gray-700' : 'border-gray-100'}`}>
         <div className="flex items-center justify-between">

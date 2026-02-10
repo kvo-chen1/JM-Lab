@@ -87,16 +87,19 @@ export interface Post {
  * @param category 分类筛选
  * @param currentUserId 当前用户ID
  * @param useSupabase 是否从 Supabase 获取数据（默认 false，只从后端API获取）
+ * @param source 数据来源：'all' | 'posts' | 'works'（默认 'all'）
  */
-export async function getPosts(category?: string, currentUserId?: string, useSupabase: boolean = false): Promise<Post[]> {
+export async function getPosts(category?: string, currentUserId?: string, useSupabase: boolean = false, source: 'all' | 'posts' | 'works' = 'all'): Promise<Post[]> {
   try {
     let worksFromLocal: Post[] = [];
     let worksFromSupabase: Post[] = [];
 
     // 获取当前用户的点赞列表（用于后端API的作品）
     let userLikedWorkIds: Set<string> = new Set();
+    let userLikedPostIds: Set<string> = new Set();
     if (currentUserId && currentUserId !== 'anonymous' && currentUserId !== 'current-user') {
       try {
+        // 获取 works 表的点赞
         const { data: likedWorks } = await supabase
           .from('works_likes')
           .select('work_id')
@@ -104,20 +107,57 @@ export async function getPosts(category?: string, currentUserId?: string, useSup
         if (likedWorks) {
           userLikedWorkIds = new Set(likedWorks.map(l => l.work_id.toString()));
         }
+        
+        // 获取 posts 表的点赞
+        const { data: likedPosts } = await supabase
+          .from('likes')
+          .select('post_id')
+          .eq('user_id', currentUserId);
+        if (likedPosts) {
+          userLikedPostIds = new Set(likedPosts.map(l => l.post_id.toString()));
+        }
       } catch (error) {
         console.warn('Error fetching user likes:', error);
       }
     }
 
     // 从后端 API 获取作品数据（主要数据源）
+    let backendApiFailed = false;
     try {
-      const response = await fetch('/api/works?limit=100');
+      // 添加时间戳防止缓存
+      const timestamp = Date.now();
+      const response = await fetch(`/api/works?limit=100&_t=${timestamp}`);
 
       if (response.ok) {
         const result = await response.json();
         if (result.code === 0 && Array.isArray(result.data)) {
+          // 过滤：只保留有有效缩略图或视频的作品（排除 posts 表的数据）
+          const validWorks = result.data.filter((w: any) => {
+            const thumbnail = w.thumbnail || w.cover_url || w.image_url || w.thumbnail_url;
+            const hasVideo = w.videoUrl || w.video_url;
+            // 检查缩略图是否是有效的 URL（不是空字符串、null 或 'EMPTY'）
+            const hasValidThumbnail = thumbnail && 
+                                     typeof thumbnail === 'string' && 
+                                     thumbnail.trim().length > 0 && 
+                                     thumbnail !== 'EMPTY' &&
+                                     !thumbnail.toLowerCase().includes('empty');
+            return hasValidThumbnail || hasVideo;
+          });
+          console.log('Backend API returned:', result.data.length, 'items, filtered to:', validWorks.length, 'valid works');
+          // 调试：打印前5个作品的完整数据结构
+          console.log('First 5 works from API:', result.data.slice(0, 5).map((w: any) => ({
+            id: w.id,
+            title: w.title,
+            thumbnail: w.thumbnail,
+            cover_url: w.cover_url,
+            image_url: w.image_url,
+            thumbnail_url: w.thumbnail_url,
+            videoUrl: w.videoUrl,
+            video_url: w.video_url
+          })));
+          
           // 转换后端数据为 Post 类型
-          worksFromLocal = result.data.map((w: any) => {
+          worksFromLocal = validWorks.map((w: any) => {
             // 处理视频URL：优先使用 videoUrl/video_url，如果为空且是视频类型，尝试从 thumbnail 推断
             let videoUrl = w.videoUrl || w.video_url || undefined;
             const thumbnail = w.thumbnail || w.cover_url || '';
@@ -145,10 +185,14 @@ export async function getPosts(category?: string, currentUserId?: string, useSup
             comments: [],
             date: w.date || (w.created_at ? new Date(w.created_at * 1000).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]),
             author: {
-              id: w.creator_id || 'unknown',
-              username: w.author?.username || w.creator || 'Unknown User',
+              id: w.creator_id || w.user_id || w.author_id || w.creator || w.author ||
+                   w.authorId || w.creatorId || w.userId ||
+                   w.created_by || w.createdBy || w.owner_id || w.ownerId || 'unknown',
+              username: w.author?.username || w.creator || w.creator_name || w.user?.username ||
+                        w.createdBy?.username || w.owner?.username || 'Unknown User',
               email: '',
-              avatar: w.author?.avatar || w.avatar_url || ''
+              avatar: w.author?.avatar || w.avatar_url || w.user?.avatar_url || w.creator_avatar ||
+                      w.createdBy?.avatar || w.owner?.avatar || ''
             },
             isLiked: userLikedWorkIds.has(workId),
             isBookmarked: false,
@@ -182,35 +226,83 @@ export async function getPosts(category?: string, currentUserId?: string, useSup
           });
           console.log('Fetched works from backend API:', worksFromLocal.length);
         }
+      } else {
+        console.error('Backend API returned error status:', response.status);
+        backendApiFailed = true;
       }
     } catch (error) {
       console.error('Error fetching works from backend API:', error);
+      backendApiFailed = true;
     }
 
-    // 从 Supabase posts 表获取数据（可选，默认不启用）
+    // 如果后端 API 失败或没有数据，强制使用 Supabase
+    if (backendApiFailed || worksFromLocal.length === 0) {
+      console.log('Backend API failed or returned no data, falling back to Supabase');
+      useSupabase = true;
+    }
+
+    // 从 Supabase 获取数据（posts 表和 works 表）
     if (useSupabase) {
     try {
       // 检查用户是否已登录
       const { data: { user } } = await supabase.auth.getUser();
       console.log('Supabase user:', user ? 'logged in' : 'not logged in');
+      console.log('Fetching from Supabase with source:', source);
       
-      // 首先获取帖子列表（不使用嵌套查询，避免类型不匹配）
-      let query = supabase
-        .from('posts')
-        .select('*')
-        .order('created_at', { ascending: false });
+      // 根据 source 参数决定查询哪些表
+      let allItems: any[] = [];
+      
+      // 查询 posts 表（如果 source 是 'all' 或 'posts'）
+      if (source === 'all' || source === 'posts') {
+        let postsQuery = supabase
+          .from('posts')
+          .select('*')
+          .order('created_at', { ascending: false });
 
-      if (category && category !== 'all') {
-        query = query.eq('category', category);
+        if (category && category !== 'all') {
+          postsQuery = postsQuery.eq('category', category);
+        }
+
+        const { data: postsData, error: postsError } = await postsQuery;
+        
+        if (!postsError && postsData) {
+          allItems = [...allItems, ...postsData.map((p: any) => ({ ...p, _source: 'posts' }))];
+          console.log('Fetched from posts table:', postsData.length);
+        }
+      }
+      
+      // 查询 works 表（如果 source 是 'all' 或 'works'）
+      if (source === 'all' || source === 'works') {
+        let worksQuery = supabase
+          .from('works')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (category && category !== 'all') {
+          worksQuery = worksQuery.eq('category', category);
+        }
+
+        const { data: worksData, error: worksError } = await worksQuery;
+        
+        if (!worksError && worksData) {
+          allItems = [...allItems, ...worksData.map((w: any) => ({ ...w, _source: 'works' }))];
+          console.log('Fetched from works table:', worksData.length);
+          // 调试：打印第一个作品的完整数据结构
+          if (worksData.length > 0) {
+            console.log('First work item structure:', JSON.stringify(worksData[0], null, 2));
+          }
+        }
       }
 
-      const { data: dbPosts, error } = await query;
-
-      if (error) {
-        console.error('Error fetching posts from Supabase:', error);
-      } else if (dbPosts && Array.isArray(dbPosts)) {
-        // 获取所有作者ID（转换为字符串以匹配 users.id 的 TEXT 类型）
-        const authorIds = [...new Set(dbPosts.map(p => p.author_id).filter(Boolean))].map(id => String(id));
+      if (allItems.length > 0) {
+        // 获取所有作者ID（尝试多种可能的字段名，包括下划线和驼峰命名）
+        const authorIds = [...new Set(allItems.map(p => {
+          const id = p.author_id || p.creator_id || p.user_id || p.creator || p.author || 
+                     p.authorId || p.creatorId || p.userId || 
+                     p.created_by || p.createdBy || p.owner_id || p.ownerId;
+          return id;
+        }).filter(Boolean))].map(id => String(id));
+        console.log('Extracted authorIds:', authorIds);
         
         // 批量获取作者信息
         let authorsMap: Map<string, any> = new Map();
@@ -221,19 +313,33 @@ export async function getPosts(category?: string, currentUserId?: string, useSup
             .in('id', authorIds);
           
           if (!authorsError && authorsData) {
+            console.log('Fetched authors:', authorsData.length);
             authorsData.forEach(author => {
               authorsMap.set(author.id, author);
             });
+          } else {
+            console.error('Error fetching authors:', authorsError);
           }
         }
         
-        // 转换从 posts 表获取的数据为 Post 类型
-        worksFromSupabase = dbPosts.map((p: any) => {
-          const authorData = authorsMap.get(p.author_id) || {
-            id: p.author_id || 'unknown',
-            username: 'Unknown User',
+        // 转换数据为 Post 类型
+        worksFromSupabase = allItems.map((p: any) => {
+          // 尝试多种可能的作者ID字段名（包括下划线和驼峰命名）
+          const authorId = p.author_id || p.creator_id || p.user_id || p.creator || p.author || 
+                          p.authorId || p.creatorId || p.userId || 
+                          p.created_by || p.createdBy || p.owner_id || p.ownerId;
+          const authorFromMap = authorsMap.get(authorId);
+          
+          // 调试：如果作者信息缺失，打印相关信息
+          if (!authorFromMap && !p.author?.username && !p.creator && !p.creator_name) {
+            console.log('Missing author info for item:', { id: p.id, authorId, availableFields: Object.keys(p).filter(k => k.includes('author') || k.includes('creator') || k.includes('user') || k.includes('owner')) });
+          }
+          
+          const authorData = authorFromMap || {
+            id: authorId || 'unknown',
+            username: p.author?.username || p.creator || p.creator_name || p.user?.username || p.createdBy?.username || p.owner?.username || 'Unknown User',
             email: '',
-            avatar_url: ''
+            avatar_url: p.author?.avatar || p.avatar_url || p.user?.avatar_url || p.creator_avatar || p.createdBy?.avatar || p.owner?.avatar || ''
           };
 
           // 提取标签
@@ -246,29 +352,35 @@ export async function getPosts(category?: string, currentUserId?: string, useSup
               thumbnail = p.images[0];
           } else if (typeof p.attachments === 'string') {
               thumbnail = p.attachments;
+          } else if (p.thumbnail) {
+              thumbnail = p.thumbnail;
+          } else if (p.cover_url) {
+              thumbnail = p.cover_url;
           }
 
           return {
             id: p.id.toString(),
             title: p.title || 'Untitled',
             thumbnail: thumbnail,
-            videoUrl: p.video_url || undefined,
+            videoUrl: p.video_url || p.videoUrl || undefined,
             type: p.type || 'image',
-            likes: p.likes_count || 0,
+            likes: p.likes_count || p.likes || 0,
             comments: [],
-            date: p.created_at ? p.created_at.split('T')[0] : new Date().toISOString().split('T')[0],
+            date: p.created_at ? (typeof p.created_at === 'string' ? p.created_at.split('T')[0] : new Date(p.created_at).toISOString().split('T')[0]) : new Date().toISOString().split('T')[0],
             author: {
               id: authorData.id,
               username: authorData.username || authorData.name || 'User',
               email: authorData.email || '',
               avatar: authorData.avatar_url || ''
             },
-            isLiked: false,
+            isLiked: p._source === 'posts' 
+              ? userLikedPostIds.has(p.id.toString()) 
+              : userLikedWorkIds.has(p.id.toString()),
             isBookmarked: false,
             category: (p.category as PostCategory) || 'other',
             tags: tags,
-            description: p.content || '',
-            views: p.view_count || 0,
+            description: p.content || p.description || '',
+            views: p.view_count || p.views || 0,
             shares: 0,
             isFeatured: false,
             isDraft: p.status === 'draft',
@@ -319,7 +431,7 @@ export async function getPosts(category?: string, currentUserId?: string, useSup
             type: p.type || 'image',
             likes: p.likes_count || 0,
             comments: [],
-            date: p.created_at ? p.created_at.split('T')[0] : new Date().toISOString().split('T')[0],
+            date: p.created_at ? (typeof p.created_at === 'string' ? p.created_at.split('T')[0] : new Date(p.created_at).toISOString().split('T')[0]) : new Date().toISOString().split('T')[0],
             author: {
               id: p.author_id || 'unknown',
               username: 'Unknown User',
@@ -427,10 +539,14 @@ export async function getPostById(id: string, currentUserId?: string): Promise<P
           comments: [],
           date: w.date || (w.created_at ? new Date(w.created_at * 1000).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]),
           author: {
-            id: w.creator_id || 'unknown',
-            username: w.author?.username || w.creator || 'Unknown User',
+            id: w.creator_id || w.user_id || w.author_id || w.creator || w.author ||
+                 w.authorId || w.creatorId || w.userId ||
+                 w.created_by || w.createdBy || w.owner_id || w.ownerId || 'unknown',
+            username: w.author?.username || w.creator || w.creator_name || w.user?.username ||
+                      w.createdBy?.username || w.owner?.username || 'Unknown User',
             email: '',
-            avatar: w.author?.avatar || w.avatar_url || ''
+            avatar: w.author?.avatar || w.avatar_url || w.user?.avatar_url || w.creator_avatar ||
+                    w.createdBy?.avatar || w.owner?.avatar || ''
           },
           isLiked: false,
           isBookmarked: false,
@@ -464,25 +580,52 @@ export async function getPostById(id: string, currentUserId?: string): Promise<P
     console.error('Error fetching work from backend API:', apiError);
   }
 
-  // 如果后端 API 失败，尝试从 Supabase 获取
-  const { data: p, error } = await supabase
+  // 如果后端 API 失败，尝试从 Supabase 获取（同时查询 posts 和 works 表）
+  let p: any = null;
+  let author = null;
+  
+  // 先尝试从 posts 表获取
+  const { data: postData, error: postError } = await supabase
     .from('posts')
     .select('*')
     .eq('id', id)
     .single();
-
-  if (error || !p) return null;
-
-  // 获取作者信息
-  let author = null;
-  if (p.author_id) {
-    const { data: authorData } = await supabase
-      .from('users')
-      .select('id, username, email, avatar_url')
-      .eq('id', String(p.author_id))
+  
+  if (!postError && postData) {
+    p = postData;
+    // 获取作者信息
+    if (p.author_id) {
+      const { data: authorData } = await supabase
+        .from('users')
+        .select('id, username, email, avatar_url')
+        .eq('id', String(p.author_id))
+        .single();
+      author = authorData;
+    }
+  } else {
+    // 如果 posts 表没有，尝试从 works 表获取
+    const { data: workData, error: workError } = await supabase
+      .from('works')
+      .select('*')
+      .eq('id', id)
       .single();
-    author = authorData;
+    
+    if (!workError && workData) {
+      p = workData;
+      // 获取作者信息（works 表可能使用不同的字段名）
+      const authorId = p.creator_id || p.user_id || p.author_id;
+      if (authorId) {
+        const { data: authorData } = await supabase
+          .from('users')
+          .select('id, username, email, avatar_url')
+          .eq('id', String(authorId))
+          .single();
+        author = authorData;
+      }
+    }
   }
+
+  if (!p) return null;
 
   // 获取标签
   let tags: string[] = [];
@@ -515,11 +658,11 @@ export async function getPostById(id: string, currentUserId?: string): Promise<P
      isBookmarked = !!bookmarkCount;
   }
 
-  const authorData = p.author || {
-        id: p.author_id || 'unknown',
-        username: 'Unknown User',
+  const authorData = author || p.author || {
+        id: p.author_id || p.creator_id || p.user_id || 'unknown',
+        username: p.creator || p.creator_name || 'Unknown User',
         email: '',
-        avatar: ''
+        avatar: p.creator_avatar || ''
   };
 
   let thumbnail = '';
@@ -581,7 +724,7 @@ export async function getPostById(id: string, currentUserId?: string): Promise<P
     type: p.type || 'image',
     likes: p.likes_count || 0,
     comments: comments,
-    date: p.created_at ? p.created_at.split('T')[0] : new Date().toISOString().split('T')[0],
+    date: p.created_at ? (typeof p.created_at === 'string' ? p.created_at.split('T')[0] : new Date(p.created_at).toISOString().split('T')[0]) : new Date().toISOString().split('T')[0],
     author: {
       id: authorData.id,
       username: authorData.username || authorData.name || 'User',
@@ -1707,8 +1850,8 @@ export async function addComment(postId: string, content: string, parentId?: str
   
   if (token) {
     try {
-      console.log('[addComment] Sending request to backend API...');
-      const response = await fetch(`/api/posts/${postId}/comments`, {
+      console.log('[addComment] Sending request to backend API (posts)...');
+      let response = await fetch(`/api/posts/${postId}/comments`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1720,7 +1863,24 @@ export async function addComment(postId: string, content: string, parentId?: str
         })
       });
       
-      console.log('[addComment] Backend API response status:', response.status);
+      console.log('[addComment] Posts API response status:', response.status);
+      
+      // 如果 posts 端点失败，尝试 works 端点
+      if (!response.ok && response.status !== 401) {
+        console.log('[addComment] Posts API failed, trying works API...');
+        response = await fetch(`/api/works/${postId}/comments`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            content: content,
+            parent_id: parentId || null
+          })
+        });
+        console.log('[addComment] Works API response status:', response.status);
+      }
       
       if (response.ok) {
         const result = await response.json();
@@ -2732,7 +2892,7 @@ function convertDbPostToPost(p: any, isLiked: boolean, isBookmarked: boolean): P
     thumbnail: thumbnail,
     likes: p.likes_count || 0,
     comments: [],
-    date: p.created_at ? p.created_at.split('T')[0] : new Date().toISOString().split('T')[0],
+    date: p.created_at ? (typeof p.created_at === 'string' ? p.created_at.split('T')[0] : new Date(p.created_at).toISOString().split('T')[0]) : new Date().toISOString().split('T')[0],
     author: {
       id: p.author_id || 'unknown',
       username: 'User',

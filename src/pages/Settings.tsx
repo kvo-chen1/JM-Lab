@@ -1,4 +1,4 @@
-import { useState, useEffect, useContext } from 'react';
+import { useState, useEffect, useContext, useRef } from 'react';
 import { useTheme } from '@/hooks/useTheme';
 import { Theme } from '@/config/themeConfig';
 import { useNavigate } from 'react-router-dom';
@@ -9,7 +9,6 @@ import { AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 import ModelSelector from '@/components/ModelSelector';
-import SettingsLayout from '@/components/settings/SettingsLayout';
 import SettingsSidebar, { SettingCategory } from '@/components/settings/SettingsSidebar';
 import SettingsContent from '@/components/settings/SettingsContent';
 import SettingsPreview from '@/components/settings/SettingsPreview';
@@ -19,6 +18,33 @@ export default function Settings() {
   const { startGuide } = useGuide();
   const { user, logout } = useContext(AuthContext);
   const navigate = useNavigate();
+  const settingsNavRef = useRef<HTMLElement>(null);
+
+  // 监听主侧边栏宽度变化
+  useEffect(() => {
+    const updateSidebarWidth = () => {
+      const mainSidebar = document.querySelector('aside[role="navigation"]') as HTMLElement;
+      if (mainSidebar && settingsNavRef.current) {
+        const sidebarWidth = mainSidebar.offsetWidth;
+        settingsNavRef.current.style.left = `${sidebarWidth}px`;
+      }
+    };
+
+    // 初始更新
+    updateSidebarWidth();
+
+    // 使用 ResizeObserver 监听侧边栏宽度变化
+    const mainSidebar = document.querySelector('aside[role="navigation"]');
+    if (mainSidebar) {
+      const resizeObserver = new ResizeObserver(updateSidebarWidth);
+      resizeObserver.observe(mainSidebar);
+      return () => resizeObserver.disconnect();
+    }
+
+    // 降级方案：监听窗口 resize
+    window.addEventListener('resize', updateSidebarWidth);
+    return () => window.removeEventListener('resize', updateSidebarWidth);
+  }, []);
 
   // 当前选中的设置分类
   const [activeCategory, setActiveCategory] = useState<SettingCategory>('theme');
@@ -223,55 +249,62 @@ export default function Settings() {
 
   return (
     <>
-      <SettingsLayout
-        sidebar={
+      <div className="flex relative">
+        {/* 左侧设置导航栏 - 固定宽度 */}
+        <aside ref={settingsNavRef} className="fixed top-[64px] h-[calc(100vh-64px)] w-[280px] bg-white/80 dark:bg-[#1a1a1a]/80 backdrop-blur-xl border-r border-gray-200/50 dark:border-gray-800/50 z-20 hidden lg:block overflow-y-auto" style={{ left: '72px' }}>
           <SettingsSidebar
             activeCategory={activeCategory}
             onCategoryChange={setActiveCategory}
           />
-        }
-        content={
-          <SettingsContent
-            activeCategory={activeCategory}
-            theme={theme}
-            onThemeChange={handleThemeChange}
-            onOpenModelSelector={() => setShowModelSelector(true)}
-            notificationsEnabled={notificationsEnabled}
-            onNotificationsChange={setNotificationsEnabled}
-            notificationSound={notificationSound}
-            onNotificationSoundChange={setNotificationSound}
-            notificationFrequency={notificationFrequency}
-            onNotificationFrequencyChange={setNotificationFrequency}
-            dataCollectionEnabled={dataCollectionEnabled}
-            onDataCollectionChange={setDataCollectionEnabled}
-            onClearCache={handleClearCache}
-            language={language}
-            onLanguageChange={setLanguage}
-            fontSize={fontSize}
-            onFontSizeChange={setFontSize}
-            layoutCompactness={layoutCompactness}
-            onLayoutCompactnessChange={setLayoutCompactness}
-            onResetGuide={handleResetGuide}
-            onExportData={handleExportData}
-            isExporting={isExporting}
-            developerMode={developerMode}
-            onDeveloperModeChange={setDeveloperMode}
-            apiDebugging={apiDebugging}
-            onApiDebuggingChange={setApiDebugging}
-            performanceMonitoring={performanceMonitoring}
-            onPerformanceMonitoringChange={setPerformanceMonitoring}
-            onDeleteAccount={() => setShowDeleteConfirm(true)}
-          />
-        }
-        preview={
+        </aside>
+
+        {/* 中间内容区 - 自适应 */}
+        <main className="flex-1 lg:ml-[280px] lg:mr-[320px] px-4 sm:px-6 lg:px-8 py-8">
+          <div className="max-w-[900px] mx-auto">
+            <SettingsContent
+              activeCategory={activeCategory}
+              theme={theme}
+              onThemeChange={handleThemeChange}
+              onOpenModelSelector={() => setShowModelSelector(true)}
+              notificationsEnabled={notificationsEnabled}
+              onNotificationsChange={setNotificationsEnabled}
+              notificationSound={notificationSound}
+              onNotificationSoundChange={setNotificationSound}
+              notificationFrequency={notificationFrequency}
+              onNotificationFrequencyChange={setNotificationFrequency}
+              dataCollectionEnabled={dataCollectionEnabled}
+              onDataCollectionChange={setDataCollectionEnabled}
+              onClearCache={handleClearCache}
+              language={language}
+              onLanguageChange={setLanguage}
+              fontSize={fontSize}
+              onFontSizeChange={setFontSize}
+              layoutCompactness={layoutCompactness}
+              onLayoutCompactnessChange={setLayoutCompactness}
+              onResetGuide={handleResetGuide}
+              onExportData={handleExportData}
+              isExporting={isExporting}
+              developerMode={developerMode}
+              onDeveloperModeChange={setDeveloperMode}
+              apiDebugging={apiDebugging}
+              onApiDebuggingChange={setApiDebugging}
+              performanceMonitoring={performanceMonitoring}
+              onPerformanceMonitoringChange={setPerformanceMonitoring}
+              onDeleteAccount={() => setShowDeleteConfirm(true)}
+            />
+          </div>
+        </main>
+
+        {/* 右侧预览区 - 固定宽度 */}
+        <aside className="fixed right-0 top-[64px] h-[calc(100vh-64px)] w-[320px] bg-white/60 dark:bg-[#1a1a1a]/60 backdrop-blur-xl border-l border-gray-200/50 dark:border-gray-800/50 z-20 hidden xl:block overflow-y-auto">
           <SettingsPreview
             activeCategory={activeCategory}
             theme={theme}
             onThemeChange={setTheme}
             onOpenModelSelector={() => setShowModelSelector(true)}
           />
-        }
-      />
+        </aside>
+      </div>
 
       {/* 模型选择器弹窗 */}
       {showModelSelector && (
@@ -350,9 +383,9 @@ export default function Settings() {
                 </button>
               </div>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  </>
   );
 }

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
@@ -21,6 +21,9 @@ import GameHero from '@/components/games/GameHero';
 import LeftSidebar from '@/components/games/LeftSidebar';
 import MainContent from '@/components/games/MainContent';
 import RightSidebar from '@/components/games/RightSidebar';
+import { gameService, LeaderboardEntry, Achievement, RecentGame } from '@/services/gameService';
+import { gameScoringService, GameType } from '@/services/gameScoringService';
+import { supabase } from '@/lib/supabaseClient';
 
 // 懒加载游戏组件
 import CulturalMemoryGame from '@/components/CulturalMemoryGame';
@@ -147,32 +150,19 @@ const gamesList = [
   }
 ];
 
-// 排行榜数据
-const leaderboardData = [
-  { rank: 1, name: '文化达人', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=1', score: 15800, games: 45 },
-  { rank: 2, name: '津门学子', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=2', score: 14200, games: 38 },
-  { rank: 3, name: '历史爱好者', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=3', score: 12800, games: 42 },
-  { rank: 4, name: '文化传承者', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=4', score: 11500, games: 35 },
-  { rank: 5, name: '知识探索者', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=5', score: 10200, games: 28 },
-];
-
-// 成就数据
-const achievementsData = [
-  { id: '1', name: '初出茅庐', description: '完成第一个游戏', icon: Star, unlocked: true, progress: 1, total: 1 },
-  { id: '2', name: '文化新星', description: '累计获得1000积分', icon: Trophy, unlocked: true, progress: 2580, total: 1000 },
-  { id: '3', name: '坚持不懈', description: '连续登录7天', icon: Zap, unlocked: false, progress: 5, total: 7 },
-  { id: '4', name: '知识达人', description: '完成所有游戏', icon: Target, unlocked: false, progress: 3, total: 10 },
-];
-
-// 最近游玩数据
-const recentGamesData = [
-  { id: '1', name: '文化知识挑战', playedAt: '2小时前', score: 850 },
-  { id: '2', name: '文化记忆游戏', playedAt: '昨天', score: 620 },
-  { id: '3', name: '文化连连看', playedAt: '3天前', score: 480 },
-  { id: '4', name: '文化找茬', playedAt: '5天前', score: 630 },
-];
+// 转换成就数据格式以适应 RightSidebar
+const convertAchievements = (achievements: Achievement[]) => {
+  return achievements.map(a => ({
+    ...a,
+    icon: a.icon === 'Star' ? Star : 
+          a.icon === 'Trophy' ? Trophy : 
+          a.icon === 'Zap' ? Zap : 
+          a.icon === 'Target' ? Target : Star
+  }));
+};
 
 export default function Games() {
+  // 强制刷新标记: 2026-02-10-v3
   const navigate = useNavigate();
   const { isDark } = useTheme();
   const [activeCategory, setActiveCategory] = useState('all');
@@ -180,15 +170,146 @@ export default function Games() {
   
   // 游戏弹窗状态
   const [openGame, setOpenGame] = useState<string | null>(null);
+  
+  // 真实数据状态
+  const [leaderboardData, setLeaderboardData] = useState<LeaderboardEntry[]>([]);
+  const [achievementsData, setAchievementsData] = useState<Achievement[]>([]);
+  const [recentGamesData, setRecentGamesData] = useState<RecentGame[]>([]);
+  const [userStats, setUserStats] = useState<{ totalScore: number; streakDays: number; totalGames: number } | null>(null);
+  const [gamesStats, setGamesStats] = useState<Record<string, { players: number; rating: number; hasData: boolean }>>({});
+  const [isLoading, setIsLoading] = useState(true);
 
-  // 过滤游戏
+  // 加载游戏数据
+  const loadGameData = async () => {
+    setIsLoading(true);
+    try {
+      // 并行加载所有数据
+      const [leaderboard, gameStats] = await Promise.all([
+        gameScoringService.getGameLeaderboard(),
+        gameScoringService.getGamesStats()
+      ]);
+      
+      console.log('[Games] Leaderboard loaded:', JSON.stringify(leaderboard, null, 2));
+      console.log('[Games] Games stats loaded:', JSON.stringify(gameStats, null, 2));
+      
+      // 转换格式以兼容现有组件
+      const formattedLeaderboard: LeaderboardEntry[] = leaderboard.map(entry => ({
+        rank: entry.rank,
+        name: entry.name,
+        avatar: entry.avatar,
+        score: entry.score,
+        games: entry.games
+      }));
+      
+      setLeaderboardData(formattedLeaderboard);
+      
+      // 转换游戏统计数据
+      const formattedGameStats: Record<string, { players: number; rating: number; hasData: boolean }> = {};
+      for (const [gameType, stats] of Object.entries(gameStats)) {
+        formattedGameStats[gameType] = {
+          players: stats.players,
+          rating: stats.rating,
+          hasData: stats.hasData
+        };
+      }
+      setGamesStats(formattedGameStats);
+      
+      // 加载成就数据和用户统计
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const [achievements, stats] = await Promise.all([
+          gameScoringService.getUserAchievements(user.id),
+          gameScoringService.getUserGameStats(user.id)
+        ]);
+        
+        const formattedAchievements: Achievement[] = achievements.map(a => ({
+          id: a.id,
+          name: a.name,
+          description: a.description,
+          icon: a.icon,
+          unlocked: a.unlocked,
+          progress: a.unlocked ? a.condition.target : 0,
+          total: a.condition.target
+        }));
+        setAchievementsData(formattedAchievements);
+        
+        // 设置用户统计数据
+        setUserStats({
+          totalScore: stats.totalScore,
+          streakDays: stats.streakDays,
+          totalGames: stats.totalGames
+        });
+      } else {
+        // 未登录时显示默认成就列表（全部未解锁）
+        const defaultAchievements = gameScoringService.ACHIEVEMENTS.map(a => ({
+          id: a.id,
+          name: a.name,
+          description: a.description,
+          icon: a.icon,
+          unlocked: false,
+          progress: 0,
+          total: a.condition.target
+        }));
+        setAchievementsData(defaultAchievements);
+        setUserStats(null);
+      }
+    } catch (error) {
+      console.error('[Games] Failed to load game data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // 初始加载
+  useEffect(() => {
+    console.log('[Games] Loading real game data...');
+    loadGameData();
+  }, []);
+  
+  // 刷新数据（游戏关闭后调用）
+  const handleRefreshData = useCallback(() => {
+    console.log('[Games] Refreshing game data...');
+    loadGameData();
+  }, []);
+
+  // 游戏ID到GameType的映射
+  const gameIdToType: Record<string, GameType> = {
+    'cultural-knowledge': 'cultural-quiz',
+    'cultural-memory': 'cultural-memory',
+    'matching-game': 'matching-game',
+    'puzzle-game': 'puzzle-game',
+    'sorting-game': 'sorting-game',
+    'riddle-game': 'riddle-game',
+    'timeline-game': 'timeline-game',
+    'spot-difference': 'spot-difference'
+  };
+
+  // 过滤游戏并应用动态统计数据
   const filteredGames = useMemo(() => {
     return gamesList.filter(game => {
       const categoryMatch = activeCategory === 'all' || game.category === activeCategory;
       const difficultyMatch = activeDifficulty === 'all' || game.difficulty === activeDifficulty;
       return categoryMatch && difficultyMatch;
+    }).map(game => {
+      const gameType = gameIdToType[game.id];
+      const stats = gameType && gamesStats[gameType];
+      
+      if (stats && stats.hasData) {
+        // 有真实数据时显示真实统计
+        return {
+          ...game,
+          players: stats.players,
+          rating: stats.rating
+        };
+      }
+      // 没有数据时显示"新游戏"标识
+      return {
+        ...game,
+        players: 0,
+        rating: 0
+      };
     });
-  }, [activeCategory, activeDifficulty]);
+  }, [activeCategory, activeDifficulty, gamesStats]);
 
   // 精选游戏（第一个游戏）
   const featuredGame = filteredGames.length > 0 ? filteredGames[0] : null;
@@ -214,6 +335,8 @@ export default function Games() {
 
   const handleCloseGame = () => {
     setOpenGame(null);
+    // 游戏关闭后刷新数据
+    handleRefreshData();
   };
 
   // 获取当前打开的游戏组件
@@ -270,8 +393,10 @@ export default function Games() {
         rightSidebar={
           <RightSidebar
             leaderboard={leaderboardData}
-            achievements={achievementsData}
+            achievements={convertAchievements(achievementsData)}
             recentGames={recentGamesData}
+            userStats={userStats}
+            isLoading={isLoading}
           />
         }
       />

@@ -126,6 +126,12 @@ export function useAchievements(userId?: string) {
       setIsLoading(true);
       setError(null);
       try {
+        // 从服务器获取用户成就数据
+        await achievementService.fetchUserAchievements();
+
+        // 从服务器获取积分数据
+        await achievementService.fetchPointsStats();
+
         // 获取成就数据
         const allAchievements = achievementService.getAllAchievements();
         setAchievements(allAchievements);
@@ -138,7 +144,7 @@ export function useAchievements(userId?: string) {
           rarityDistribution,
         });
 
-        // 获取用户等级信息
+        // 获取用户等级信息（包含最新积分）
         const levelInfo = achievementService.getCreatorLevelInfo(userId || 'current');
         setUserInfo(levelInfo);
       } catch (err) {
@@ -252,6 +258,12 @@ export function useAchievements(userId?: string) {
   const refreshData = useCallback(async () => {
     setIsLoading(true);
     try {
+      // 从服务器刷新用户成就数据
+      await achievementService.fetchUserAchievements();
+
+      // 从服务器刷新积分数据
+      await achievementService.fetchPointsStats();
+
       const allAchievements = achievementService.getAllAchievements();
       setAchievements(allAchievements);
 

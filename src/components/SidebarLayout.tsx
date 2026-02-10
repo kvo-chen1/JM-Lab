@@ -887,8 +887,8 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
         }}
       >
         {/* 中文注释：暗色头部采用半透明背景与毛玻璃，弱化硬边 */}
-        <motion.header 
-          className={`sticky top-0 z-50 ${isDark ? 'bg-[#10151d]/95 backdrop-blur-sm text-white' : theme === 'pink' ? 'bg-white/80 backdrop-blur-sm' : 'bg-white'} border-b ${isDark ? 'border-gray-700' : theme === 'pink' ? 'border-pink-200' : 'border-gray-200'} px-4 py-3 shadow-sm`}
+        <motion.header
+          className={`sticky top-0 z-[60] ${isDark ? 'bg-[#10151d]/95 backdrop-blur-sm text-white' : theme === 'pink' ? 'bg-white/80 backdrop-blur-sm' : 'bg-white'} border-b ${isDark ? 'border-gray-700' : theme === 'pink' ? 'border-pink-200' : 'border-gray-200'} px-4 py-3 shadow-sm`}
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: getDuration(0.5), delay: getDelay(0.1) }}
@@ -902,12 +902,12 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
               transition={{ duration: getDuration(0.3), delay: getDelay(0.2) }}
             >
               {/* 中文注释：搜索框 - 使用增强的SearchBar组件 */}
-              <motion.div 
-                className="relative search-container w-full z-50"
+              <motion.div
+                className="relative search-container w-full"
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: getDuration(0.3), delay: getDelay(0.2) }}
-                style={{ overflow: 'visible' }}
+                style={{ overflow: 'visible', zIndex: 9999 }}
               >
                 <SearchBar
                   search={search}
@@ -942,9 +942,9 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                   <i className={`fas fa-chevron-down transition-transform duration-200 ${showThemeDropdown ? 'rotate-180' : ''}`}></i>
                 </motion.button>
                 {showThemeDropdown && (
-                  <motion.div 
-                    className={`theme-dropdown-menu absolute right-0 mt-2 w-40 rounded-xl shadow-lg ring-1 ${isDark ? 'bg-gray-800 ring-gray-700' : 'bg-white ring-gray-200'}`} 
-                    role="menu" 
+                  <motion.div
+                    className={`theme-dropdown-menu absolute right-0 mt-2 w-40 rounded-xl shadow-lg ring-1 z-[100] ${isDark ? 'bg-gray-800 ring-gray-700' : 'bg-white ring-gray-200'}`}
+                    role="menu"
                     aria-label={t('header.toggleTheme')}
                     initial={{ opacity: 0, y: -10, scale: 0.95 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -1084,9 +1084,9 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                     )}
                   </motion.button>
                   {showUserMenu && (
-                    <motion.div 
-                      className={`absolute right-0 mt-2 w-56 rounded-xl shadow-lg ring-1 ${isDark ? 'bg-gray-800 ring-gray-700' : 'bg-white ring-gray-200'}`} 
-                      role="menu" 
+                    <motion.div
+                      className={`absolute right-0 mt-2 w-56 rounded-xl shadow-lg ring-1 z-[100] ${isDark ? 'bg-gray-800 ring-gray-700' : 'bg-white ring-gray-200'}`}
+                      role="menu"
                       aria-label="用户菜单"
                       initial={{ opacity: 0, y: -10, scale: 0.95 }}
                       animate={{ opacity: 1, y: 0, scale: 1 }}

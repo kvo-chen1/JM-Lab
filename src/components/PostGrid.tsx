@@ -169,12 +169,16 @@ const PostItem = memo(({ post, index, onLike, onComment, onShare, onBookmark, on
         
         {/* 悬停操作按钮 - 从底部滑入 */}
         <div className="absolute bottom-4 left-0 right-0 flex items-center justify-center gap-3 opacity-0 translate-y-4 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]">
-            <button 
-              onClick={handleLike} 
-              className="w-11 h-11 rounded-full bg-white/95 text-gray-900 flex items-center justify-center hover:scale-110 hover:bg-white transition-all duration-300 shadow-[0_4px_20px_rgba(0,0,0,0.3)] backdrop-blur-sm" 
-              title="点赞"
+            <button
+              onClick={handleLike}
+              className={`w-11 h-11 rounded-full flex items-center justify-center hover:scale-110 transition-all duration-300 shadow-[0_4px_20px_rgba(0,0,0,0.3)] backdrop-blur-sm ${
+                post.isLiked
+                  ? 'bg-red-500 text-white hover:bg-red-600'
+                  : 'bg-white/95 text-gray-900 hover:bg-white'
+              }`}
+              title={post.isLiked ? '取消点赞' : '点赞'}
             >
-              <i className="fas fa-heart text-red-500 text-sm"></i>
+              <i className={`${post.isLiked ? 'fas' : 'far'} fa-heart text-sm`}></i>
             </button>
             <button 
               onClick={handleBookmark} 
@@ -237,7 +241,7 @@ const PostItem = memo(({ post, index, onLike, onComment, onShare, onBookmark, on
               <span className="font-medium">{post.views || 0}</span>
             </span>
             <span className="flex items-center gap-1">
-              <i className={`${post.likes > 0 ? 'fas text-red-400' : 'far'} fa-heart`}></i>
+              <i className={`${post.isLiked ? 'fas text-red-400' : 'far'} fa-heart`}></i>
               <span className="font-medium">{post.likes || 0}</span>
             </span>
           </div>

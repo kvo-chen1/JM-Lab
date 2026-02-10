@@ -1245,7 +1245,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     try {
       const token = localStorage.getItem('token');
       if (token) {
-        const updatedUser = await userService.updateUser(safePartial);
+        // 过滤掉空字符串的手机号，避免唯一约束冲突
+        const dataToSync = { ...safePartial };
+        if (dataToSync.phone === '' || dataToSync.phone === null) {
+          delete dataToSync.phone;
+        }
+        
+        const updatedUser = await userService.updateUser(dataToSync);
         console.log('User information synced to database:', updatedUser);
         
         // 如果是新用户，初始化统计数据

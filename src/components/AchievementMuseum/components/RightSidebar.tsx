@@ -1,5 +1,7 @@
 import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
+import { useState, useEffect } from 'react';
+import apiClient from '@/lib/apiClient';
 import {
   Trophy,
   Star,
@@ -28,21 +30,32 @@ interface RightSidebarProps {
   creatorLevels: CreatorLevel[];
 }
 
-// 模拟排行榜数据
-const mockLeaderboard: LeaderboardItem[] = [
-  { rank: 1, userId: '1', userName: '创作大师', avatar: '', achievementsCount: 45, totalPoints: 12500 },
-  { rank: 2, userId: '2', userName: '艺术先锋', avatar: '', achievementsCount: 42, totalPoints: 11200 },
-  { rank: 3, userId: '3', userName: '创意达人', avatar: '', achievementsCount: 38, totalPoints: 9800 },
-  { rank: 4, userId: '4', userName: '设计新秀', avatar: '', achievementsCount: 35, totalPoints: 8900 },
-  { rank: 5, userId: '5', userName: '灵感源泉', avatar: '', achievementsCount: 32, totalPoints: 8200 },
-];
-
 export default function RightSidebar({
   userInfo,
   recentUnlocks,
   creatorLevels,
 }: RightSidebarProps) {
   const { isDark } = useTheme();
+  const [leaderboard, setLeaderboard] = useState<LeaderboardItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // 获取排行榜数据
+  useEffect(() => {
+    const fetchLeaderboard = async () => {
+      try {
+        const response = await apiClient.get<LeaderboardItem[]>('/api/leaderboard/achievements');
+        if (response.ok && response.data) {
+          setLeaderboard(response.data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch leaderboard:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchLeaderboard();
+  }, []);
 
   const currentLevel = userInfo?.currentLevel;
   const nextLevel = userInfo?.nextLevel;
@@ -213,53 +226,67 @@ export default function RightSidebar({
           <div className={`rounded-xl overflow-hidden ${
             isDark ? 'bg-gray-800/50 border border-gray-700/50' : 'bg-white border border-gray-100'
           }`}>
-            {mockLeaderboard.map((item, index) => (
-              <motion.div
-                key={item.userId}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05 }}
-                className={`flex items-center gap-3 px-4 py-3 ${
-                  index !== mockLeaderboard.length - 1
-                    ? isDark ? 'border-b border-gray-700/50' : 'border-b border-gray-100'
-                    : ''
-                } ${index < 3 ? (isDark ? 'bg-gradient-to-r from-[#C02C38]/5 to-transparent' : 'bg-gradient-to-r from-[#C02C38]/5 to-transparent') : ''}`}
-              >
-                {/* 排名 */}
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                  index === 0 ? 'bg-[#F59E0B] text-white' :
-                  index === 1 ? 'bg-gray-400 text-white' :
-                  index === 2 ? 'bg-[#8B5CF6] text-white' :
-                  isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500'
-                }`}>
-                  {item.rank}
-                </div>
+            {isLoading ? (
+              <div className="px-4 py-8 text-center">
+                <div className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>加载中...</div>
+              </div>
+            ) : leaderboard.length === 0 ? (
+              <div className="px-4 py-8 text-center">
+                <div className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>暂无排行榜数据</div>
+              </div>
+            ) : (
+              leaderboard.map((item, index) => (
+                <motion.div
+                  key={item.userId}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                  className={`flex items-center gap-3 px-4 py-3 ${
+                    index !== leaderboard.length - 1
+                      ? isDark ? 'border-b border-gray-700/50' : 'border-b border-gray-100'
+                      : ''
+                  } ${index < 3 ? (isDark ? 'bg-gradient-to-r from-[#C02C38]/5 to-transparent' : 'bg-gradient-to-r from-[#C02C38]/5 to-transparent') : ''}`}
+                >
+                  {/* 排名 */}
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                    index === 0 ? 'bg-[#F59E0B] text-white' :
+                    index === 1 ? 'bg-gray-400 text-white' :
+                    index === 2 ? 'bg-[#8B5CF6] text-white' :
+                    isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500'
+                  }`}>
+                    {item.rank}
+                  </div>
 
-                {/* 头像占位 */}
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm ${
-                  isDark ? 'bg-gray-700' : 'bg-gray-200'
-                }`}>
-                  {item.userName.charAt(0)}
-                </div>
+                  {/* 头像 */}
+                  {item.avatar ? (
+                    <img src={item.avatar} alt={item.userName} className="w-8 h-8 rounded-full object-cover" />
+                  ) : (
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm ${
+                      isDark ? 'bg-gray-700' : 'bg-gray-200'
+                    }`}>
+                      {item.userName.charAt(0)}
+                    </div>
+                  )}
 
-                {/* 用户信息 */}
-                <div className="flex-1 min-w-0">
-                  <p className={`text-sm font-medium truncate ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
-                    {item.userName}
-                  </p>
-                  <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                    {item.achievementsCount} 个成就
-                  </p>
-                </div>
+                  {/* 用户信息 */}
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm font-medium truncate ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
+                      {item.userName}
+                    </p>
+                    <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                      {item.achievementsCount} 个成就
+                    </p>
+                  </div>
 
-                {/* 积分 */}
-                <div className={`text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                  {item.totalPoints.toLocaleString()}
-                </div>
-              </motion.div>
-            ))}
+                    {/* 积分 */}
+                    <div className={`text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                      {item.totalPoints.toLocaleString()}
+                    </div>
+                  </motion.div>
+                ))
+              )}
+            </div>
           </div>
-        </div>
 
         {/* 推荐成就 */}
         <div>

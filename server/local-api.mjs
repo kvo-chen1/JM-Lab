@@ -596,10 +596,46 @@ async function route(req, res, u, path) {
         works = await workDB.getAllWorks()
       }
       
+      // 获取所有作者ID（确保是有效的UUID格式）
+      const creatorIds = [...new Set(works.map(w => w.creator_id).filter(id => id && typeof id === 'string'))]
+      console.log('[API] Creator IDs:', creatorIds)
+      
+      // 批量获取作者信息
+      let usersData = []
+      let usersError = null
+      
+      if (creatorIds.length > 0) {
+        // 使用 PostgreSQL 的 UUID 数组查询
+        const { data, error } = await supabaseServer
+          .from('users')
+          .select('id, username, avatar_url')
+          .in('id', creatorIds)
+        
+        usersData = data || []
+        usersError = error
+      }
+      
+      if (usersError) {
+        console.error('[API] Error fetching users:', usersError)
+      }
+      
+      const usersMap = new Map()
+      if (usersData) {
+        usersData.forEach(user => {
+          usersMap.set(user.id, user)
+        })
+      }
+      console.log('[API] Users map size:', usersMap.size)
+      console.log('[API] First creator_id:', creatorIds[0], 'type:', typeof creatorIds[0])
+      console.log('[API] First user in map:', usersData?.[0] ? { id: usersData[0].id, type: typeof usersData[0].id } : null)
+      
       // 字段映射，将数据库字段转换为前端期望的格式
       const mappedWorks = works.map(work => {
+        const user = usersMap.get(work.creator_id)
         console.log('[API] Mapping work:', { 
           id: work.id, 
+          creator_id: work.creator_id,
+          user: user ? { id: user.id, username: user.username } : null,
           thumbnail: work.thumbnail?.substring(0, 50),
           video_url: work.video_url?.substring(0, 50), 
           type: work.type,
@@ -611,8 +647,8 @@ async function route(req, res, u, path) {
           date: work.created_at ? new Date(work.created_at * 1000).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
           author: {
             id: work.creator_id,
-            username: work.creator || 'Unknown',
-            avatar: work.avatar_url || ''
+            username: user?.username || 'Unknown User',
+            avatar: user?.avatar_url || ''
           }
         };
       })
@@ -641,16 +677,30 @@ async function route(req, res, u, path) {
         return
       }
 
+      // 获取作者信息
+      let author = { id: work.creator_id, username: 'Unknown User', avatar: '' }
+      if (work.creator_id) {
+        const { data: userData, error: userError } = await supabaseServer
+          .from('users')
+          .select('id, username, avatar_url')
+          .eq('id', work.creator_id)
+          .single()
+        
+        if (!userError && userData) {
+          author = {
+            id: userData.id,
+            username: userData.username || 'Unknown User',
+            avatar: userData.avatar_url || ''
+          }
+        }
+      }
+
       // 字段映射
       const mappedWork = {
         ...work,
         videoUrl: work.video_url,
         date: work.created_at ? new Date(work.created_at * 1000).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-        author: {
-          id: work.creator_id,
-          username: work.creator || 'Unknown',
-          avatar: work.avatar_url || ''
-        }
+        author
       }
 
       sendJson(res, 200, { code: 0, data: mappedWork })
@@ -734,9 +784,88 @@ async function route(req, res, u, path) {
     console.log('[API] Get user likes:', { userId: decoded.userId, limit, offset })
 
     try {
-      const likedWorks = await workDB.getUserLikedWorks(decoded.userId, limit, offset)
-      console.log('[API] Get user likes success:', likedWorks.length)
-      sendJson(res, 200, { code: 0, data: likedWorks || [] })
+      // 1. 从本地数据库获取点赞作品
+      const localLikedWorks = await workDB.getUserLikedWorks(decoded.userId, limit, offset)
+      console.log('[API] Get user likes from local DB:', localLikedWorks.length)
+
+      // 2. 从 Supabase 获取点赞作品（补充数据）
+      let supabaseLikedWorks = []
+      if (supabaseServer) {
+        try {
+          // 2.1 查询 Supabase 的 works_likes 表（数字ID的作品）
+          const { data: workLikes, error: workLikesError } = await supabaseServer
+            .from('works_likes')
+            .select('work_id')
+            .eq('user_id', decoded.userId)
+            .order('created_at', { ascending: false })
+            .limit(limit)
+
+          if (!workLikesError && workLikes && workLikes.length > 0) {
+            const workIds = workLikes.map(l => l.work_id)
+            const { data: worksData, error: worksError } = await supabaseServer
+              .from('works')
+              .select('*')
+              .in('id', workIds)
+
+            if (!worksError && worksData) {
+              const worksFromLikes = worksData.map(work => ({
+                ...work,
+                id: work.id.toString(),
+                creator_id: work.creator_id?.toString()
+              }))
+              supabaseLikedWorks.push(...worksFromLikes)
+              console.log('[API] Get user likes from Supabase works_likes:', worksFromLikes.length)
+            }
+          }
+
+          // 2.2 查询 Supabase 的 likes 表（UUID的posts）
+          const { data: postLikes, error: postLikesError } = await supabaseServer
+            .from('likes')
+            .select('post_id')
+            .eq('user_id', decoded.userId)
+            .order('created_at', { ascending: false })
+            .limit(limit)
+
+          if (!postLikesError && postLikes && postLikes.length > 0) {
+            const postIds = postLikes.map(l => l.post_id)
+            const { data: postsData, error: postsError } = await supabaseServer
+              .from('posts')
+              .select('*')
+              .in('id', postIds)
+
+            if (!postsError && postsData) {
+              const postsFromLikes = postsData.map(post => ({
+                ...post,
+                id: post.id.toString(),
+                title: post.title || '无标题',
+                thumbnail: post.thumbnail || post.cover_url || '/placeholder-image.jpg',
+                creator_id: post.author_id || post.user_id,
+                category: post.category || '其他',
+                created_at: post.created_at,
+                views: post.views || 0,
+                likes: post.likes_count || post.likes || 0,
+                comments: post.comments_count || 0
+              }))
+              supabaseLikedWorks.push(...postsFromLikes)
+              console.log('[API] Get user likes from Supabase likes:', postsFromLikes.length)
+            }
+          }
+        } catch (supabaseError) {
+          console.warn('[API] Failed to get likes from Supabase:', supabaseError.message)
+        }
+      }
+
+      // 3. 合并数据（去重）
+      const allLikedWorks = [...localLikedWorks]
+      for (const supabaseWork of supabaseLikedWorks) {
+        const exists = allLikedWorks.some(w => w.id === supabaseWork.id)
+        if (!exists) {
+          allLikedWorks.push(supabaseWork)
+        }
+      }
+
+      console.log('[API] Get user likes total:', allLikedWorks.length)
+      sendJson(res, 200, { code: 0, data: allLikedWorks || [] })
     } catch (e) {
       console.error('[API] Get liked works failed:', e)
       sendJson(res, 500, { code: 1, message: '获取点赞作品失败' })
@@ -757,9 +886,55 @@ async function route(req, res, u, path) {
     console.log('[API] Get user bookmarks:', { userId: decoded.userId, limit, offset })
 
     try {
-      const bookmarkedWorks = await workDB.getUserBookmarkedWorks(decoded.userId, limit, offset)
-      console.log('[API] Get user bookmarks success:', bookmarkedWorks.length)
-      sendJson(res, 200, { code: 0, data: bookmarkedWorks || [] })
+      // 1. 从本地数据库获取收藏作品
+      const localBookmarkedWorks = await workDB.getUserBookmarkedWorks(decoded.userId, limit, offset)
+      console.log('[API] Get user bookmarks from local DB:', localBookmarkedWorks.length)
+
+      // 2. 从 Supabase 获取收藏作品（补充数据）
+      let supabaseBookmarkedWorks = []
+      if (supabaseServer) {
+        try {
+          // 查询 Supabase 的 works_favorites 表
+          const { data: supabaseFavorites, error: favoritesError } = await supabaseServer
+            .from('works_favorites')
+            .select('work_id')
+            .eq('user_id', decoded.userId)
+            .order('created_at', { ascending: false })
+            .limit(limit)
+
+          if (!favoritesError && supabaseFavorites && supabaseFavorites.length > 0) {
+            // 获取作品详情
+            const workIds = supabaseFavorites.map(f => f.work_id)
+            const { data: worksData, error: worksError } = await supabaseServer
+              .from('works')
+              .select('*')
+              .in('id', workIds)
+
+            if (!worksError && worksData) {
+              supabaseBookmarkedWorks = worksData.map(work => ({
+                ...work,
+                id: work.id.toString(),
+                creator_id: work.creator_id?.toString()
+              }))
+              console.log('[API] Get user bookmarks from Supabase:', supabaseBookmarkedWorks.length)
+            }
+          }
+        } catch (supabaseError) {
+          console.warn('[API] Failed to get bookmarks from Supabase:', supabaseError.message)
+        }
+      }
+
+      // 3. 合并数据（去重）
+      const allBookmarkedWorks = [...localBookmarkedWorks]
+      for (const supabaseWork of supabaseBookmarkedWorks) {
+        const exists = allBookmarkedWorks.some(w => w.id === supabaseWork.id)
+        if (!exists) {
+          allBookmarkedWorks.push(supabaseWork)
+        }
+      }
+
+      console.log('[API] Get user bookmarks total:', allBookmarkedWorks.length)
+      sendJson(res, 200, { code: 0, data: allBookmarkedWorks || [] })
     } catch (e) {
       console.error('[API] Get bookmarked works failed:', e)
       sendJson(res, 500, { code: 1, message: '获取收藏作品失败' })
@@ -837,10 +1012,86 @@ async function route(req, res, u, path) {
       sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
       return
     }
-    
+
     try {
-      const achievements = await achievementDB.getUserAchievements(decoded.userId)
-      sendJson(res, 200, { code: 0, data: achievements || [] })
+      // 1. 获取用户实际数据统计
+      const workStats = await workDB.getWorkStats(decoded.userId)
+      const likesCount = await workDB.getUserLikesCount(decoded.userId)
+      const bookmarksCount = await favoriteDB.getUserFavorites(decoded.userId).then(favs => favs.length)
+
+      console.log('[API] User stats:', { workStats, likesCount, bookmarksCount })
+
+      // 2. 定义成就配置
+      const achievementConfigs = [
+        { id: 1, name: '初次创作', criteria: 1, type: 'works', points: 10 },
+        { id: 2, name: '作品达人', criteria: 10, type: 'works', points: 80 },
+        { id: 3, name: '人气王', criteria: 100, type: 'likes_received', points: 50 },
+        { id: 4, name: '点赞达人', criteria: 50, type: 'likes_given', points: 30 },
+        { id: 5, name: '收藏专家', criteria: 20, type: 'bookmarks', points: 40 },
+        { id: 6, name: '活跃创作者', criteria: 7, type: 'consecutive_login', points: 20 },
+      ]
+
+      // 3. 获取用户已保存的成就记录
+      const savedAchievements = await achievementDB.getUserAchievements(decoded.userId)
+      const savedAchMap = new Map(savedAchievements.map(a => [a.achievement_id, a]))
+
+      // 4. 计算每个成就的进度
+      const achievements = []
+      for (const config of achievementConfigs) {
+        let currentValue = 0
+        switch (config.type) {
+          case 'works':
+            currentValue = parseInt(workStats.works_count) || 0
+            break
+          case 'likes_received':
+            currentValue = parseInt(workStats.total_likes) || 0
+            break
+          case 'likes_given':
+            currentValue = likesCount
+            break
+          case 'bookmarks':
+            currentValue = bookmarksCount
+            break
+          case 'consecutive_login':
+            // 从用户数据中获取连续登录天数，暂时设为0
+            currentValue = 0
+            break
+        }
+
+        const progress = Math.min(100, Math.floor((currentValue / config.criteria) * 100))
+        const isUnlocked = currentValue >= config.criteria
+
+        // 检查是否是新解锁的成就
+        const savedAch = savedAchMap.get(config.id)
+        const wasUnlocked = savedAch?.is_unlocked || false
+
+        // 如果是新解锁的成就，发放积分
+        if (isUnlocked && !wasUnlocked) {
+          console.log(`[API] Achievement unlocked: ${config.name}, awarding ${config.points} points`)
+
+          // 保存成就记录
+          await achievementDB.upsertAchievement(decoded.userId, config.id, 100, true)
+
+          // 发放积分
+          await achievementDB.addPoints(decoded.userId, config.points, 'achievement', `解锁成就: ${config.name}`)
+        } else if (!savedAch) {
+          // 保存进度记录
+          await achievementDB.upsertAchievement(decoded.userId, config.id, progress, isUnlocked)
+        }
+
+        achievements.push({
+          achievement_id: config.id,
+          name: config.name,
+          progress: progress,
+          is_unlocked: isUnlocked,
+          unlocked_at: isUnlocked ? Date.now() : null,
+          points: config.points,
+          current_value: currentValue,
+          target_value: config.criteria
+        })
+      }
+
+      sendJson(res, 200, { code: 0, data: achievements })
     } catch (e) {
       console.error('[API] Get achievements failed:', e)
       sendJson(res, 500, { code: 1, message: '获取成就失败' })
@@ -855,7 +1106,7 @@ async function route(req, res, u, path) {
       sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
       return
     }
-    
+
     try {
       const noviceTasks = [
         { id: 1, title: '完成新手引导', status: 'completed', progress: 100, reward: '50积分' },
@@ -876,6 +1127,41 @@ async function route(req, res, u, path) {
     return
   }
 
+  // 获取成就排行榜
+  if (req.method === 'GET' && path === '/api/leaderboard/achievements') {
+    try {
+      // 获取积分排行前10的用户
+      const db = await getDB()
+      const { rows } = await db.query(`
+        SELECT u.id, u.username, u.avatar_url,
+               COALESCE(SUM(pr.points), 0) as total_points,
+               COUNT(DISTINCT ua.achievement_id) as achievements_count
+        FROM users u
+        LEFT JOIN points_records pr ON u.id = pr.user_id
+        LEFT JOIN user_achievements ua ON u.id = ua.user_id AND ua.is_unlocked = true
+        GROUP BY u.id, u.username, u.avatar_url
+        HAVING COALESCE(SUM(pr.points), 0) > 0
+        ORDER BY total_points DESC
+        LIMIT 10
+      `)
+
+      const leaderboard = rows.map((row, index) => ({
+        rank: index + 1,
+        userId: row.id,
+        userName: row.username || '匿名用户',
+        avatar: row.avatar_url || '',
+        achievementsCount: parseInt(row.achievements_count) || 0,
+        totalPoints: parseInt(row.total_points) || 0
+      }))
+
+      sendJson(res, 200, { code: 0, data: leaderboard })
+    } catch (e) {
+      console.error('[API] Get leaderboard failed:', e)
+      sendJson(res, 500, { code: 1, message: '获取排行榜失败' })
+    }
+    return
+  }
+
   // 获取活动列表
   if (req.method === 'GET' && path === '/api/events') {
     // 允许未登录访问
@@ -887,10 +1173,12 @@ async function route(req, res, u, path) {
       if (!formattedEvents) {
         console.log('[API] Cache miss for events, querying database...');
         let events = await eventDB.getEvents()
+        console.log('[API] eventDB.getEvents() returned:', events.length, 'events');
         
         // 注意：不再自动创建示例活动，只返回用户真实创建的活动
         
         // 转换字段格式以匹配前端期望
+        console.log('[API] Mapping', events.length, 'events to formatted events');
         formattedEvents = events.map(event => ({
           id: event.id,
           title: event.title,
@@ -1161,10 +1449,34 @@ async function route(req, res, u, path) {
       sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
       return
     }
-    
+
     try {
-      const bookmarks = await favoriteDB.getUserFavorites(decoded.userId)
-      sendJson(res, 200, { code: 0, data: { count: bookmarks.length } })
+      // 1. 从本地数据库获取收藏数量
+      const localBookmarks = await favoriteDB.getUserFavorites(decoded.userId)
+      console.log('[API] Get bookmarks count from local DB:', localBookmarks.length)
+
+      // 2. 从 Supabase 获取收藏数量
+      let supabaseCount = 0
+      if (supabaseServer) {
+        try {
+          const { count, error } = await supabaseServer
+            .from('works_favorites')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', decoded.userId)
+
+          if (!error && count !== null) {
+            supabaseCount = count
+            console.log('[API] Get bookmarks count from Supabase:', supabaseCount)
+          }
+        } catch (supabaseError) {
+          console.warn('[API] Failed to get bookmarks count from Supabase:', supabaseError.message)
+        }
+      }
+
+      // 3. 合并数量
+      const totalCount = localBookmarks.length + supabaseCount
+      console.log('[API] Get bookmarks count total:', totalCount)
+      sendJson(res, 200, { code: 0, data: { count: totalCount } })
     } catch (e) {
       console.error('[API] Get bookmarks count failed:', e)
       sendJson(res, 500, { code: 1, message: '获取书签数量失败' })
@@ -1179,9 +1491,46 @@ async function route(req, res, u, path) {
       sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
       return
     }
-    
+
     try {
-      sendJson(res, 200, { code: 0, data: { count: 42 } })
+      // 1. 从本地数据库获取点赞数量
+      const localLikesCount = await workDB.getUserLikesCount(decoded.userId)
+      console.log('[API] Get likes count from local DB:', localLikesCount)
+
+      // 2. 从 Supabase 获取点赞数量
+      let supabaseCount = 0
+      if (supabaseServer) {
+        try {
+          // 2.1 从 works_likes 表获取
+          const { count: workLikesCount, error: workLikesError } = await supabaseServer
+            .from('works_likes')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', decoded.userId)
+
+          if (!workLikesError && workLikesCount !== null) {
+            supabaseCount += workLikesCount
+            console.log('[API] Get likes count from Supabase works_likes:', workLikesCount)
+          }
+
+          // 2.2 从 likes 表获取（posts的点赞）
+          const { count: postLikesCount, error: postLikesError } = await supabaseServer
+            .from('likes')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', decoded.userId)
+
+          if (!postLikesError && postLikesCount !== null) {
+            supabaseCount += postLikesCount
+            console.log('[API] Get likes count from Supabase likes:', postLikesCount)
+          }
+        } catch (supabaseError) {
+          console.warn('[API] Failed to get likes count from Supabase:', supabaseError.message)
+        }
+      }
+
+      // 3. 合并数量
+      const totalCount = localLikesCount + supabaseCount
+      console.log('[API] Get likes count total:', totalCount)
+      sendJson(res, 200, { code: 0, data: { count: totalCount } })
     } catch (e) {
       console.error('[API] Get likes count failed:', e)
       sendJson(res, 500, { code: 1, message: '获取点赞数量失败' })
@@ -1691,7 +2040,8 @@ async function route(req, res, u, path) {
       // 构建更新数据
       const updateData = {}
       if (body.username !== undefined) updateData.username = body.username
-      if (body.phone !== undefined) updateData.phone = body.phone
+      // 手机号：只更新非空字符串，避免唯一约束冲突
+      if (body.phone !== undefined && body.phone !== '') updateData.phone = body.phone
       if (body.age !== undefined) updateData.age = body.age
       if (body.bio !== undefined) updateData.bio = body.bio
       if (body.location !== undefined) updateData.location = body.location
@@ -2212,6 +2562,42 @@ async function route(req, res, u, path) {
     return
   }
 
+  // 发送社群消息
+  if (req.method === 'POST' && path === '/api/community/messages') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) { sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' }); return }
+    
+    const b = await readBody(req)
+    if (!b.communityId || !b.channelId || !b.content) { 
+      sendJson(res, 400, { error: 'MISSING_PARAMS', message: '缺少必要参数' }); 
+      return 
+    }
+    
+    try {
+      const db = await getDB()
+      const { rows } = await db.query(`
+        INSERT INTO messages (channel_id, user_id, content, type, metadata, status, community_id, role, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+        RETURNING *
+      `, [
+        b.channelId,
+        decoded.userId,
+        b.content,
+        b.type || 'text',
+        b.metadata || {},
+        'sent',
+        b.communityId,
+        'user'
+      ])
+      
+      sendJson(res, 200, { code: 0, data: rows[0] })
+    } catch (e) {
+      console.error('[API] Send community message failed:', e)
+      sendJson(res, 500, { error: 'DB_ERROR', message: e.message })
+    }
+    return
+  }
+
   // 获取私信记录
   if (req.method === 'GET' && path.startsWith('/api/messages/')) {
     // Check if it is unread count
@@ -2538,6 +2924,47 @@ async function route(req, res, u, path) {
     }
     
     sendJson(res, 200, { ok: true, data: r.data })
+    return
+  }
+
+  // 处理千问图片生成请求
+  if (req.method === 'POST' && path === '/api/qwen/images/generate') {
+    const b = await readBody(req)
+    
+    // 确保prompt字段存在
+    if (!b.prompt) { sendJson(res, 400, { error: 'PROMPT_REQUIRED', message: 'Prompt is required' }); return }
+    
+    console.log(`[Qwen Image] Request received:`, b.prompt);
+    
+    const authKey = process.env.DASHSCOPE_API_KEY || process.env.VITE_QWEN_API_KEY || ''
+    if (!authKey) { 
+      console.error('[Qwen Image] ERROR: API Key not configured. Please set DASHSCOPE_API_KEY or VITE_QWEN_API_KEY environment variable.');
+      sendJson(res, 401, { error: 'API_KEY_MISSING', message: 'Missing DashScope API Key' }); 
+      return 
+    }
+    console.log(`[Qwen Image] API Key configured: ${authKey.slice(0, 8)}...${authKey.slice(-4)}`);
+
+    try {
+      const r = await dashscopeImageGenerate({
+        prompt: b.prompt,
+        size: b.size || '1024x1024',
+        n: b.n || 1,
+        authKey,
+        model: b.model || 'wanx2.1-t2i-turbo'
+      })
+      
+      if (!r.ok) {
+        console.error('[Qwen Image] Generation failed:', r.data);
+        sendJson(res, r.status, r.data)
+        return
+      }
+      
+      console.log('[Qwen Image] Generation successful:', r.data);
+      sendJson(res, 200, { ok: true, data: r.data })
+    } catch (e) {
+      console.error('[Qwen Image] Error:', e)
+      sendJson(res, 500, { error: 'GENERATION_FAILED', message: e.message })
+    }
     return
   }
 
@@ -3320,7 +3747,19 @@ async function route(req, res, u, path) {
 
     try {
       const body = await readBody(req)
-      const { title, content, images } = body
+      const { title, content, images, videos, audios } = body
+
+      console.log('[API] createCommunityPost: body =', { 
+        title, 
+        content: content?.substring(0, 50), 
+        hasImages: images && images.length > 0, 
+        imagesCount: images?.length,
+        hasVideos: videos && videos.length > 0, 
+        videosCount: videos?.length,
+        videos: videos,
+        hasAudios: audios && audios.length > 0, 
+        audiosCount: audios?.length 
+      })
 
       if (!title || !content) {
         sendJson(res, 400, { code: 1, message: '标题和内容不能为空' })
@@ -3347,7 +3786,9 @@ async function route(req, res, u, path) {
         userId: decoded.userId,
         title,
         content,
-        images: images || []
+        images: images || [],
+        videos: videos || [],
+        audios: audios || []
       })
 
       console.log('[API] createCommunityPost: success, postId =', post.id)
@@ -3420,6 +3861,8 @@ async function route(req, res, u, path) {
         title: post.title,
         content: post.content,
         images: post.images || [],
+        videos: post.videos || [],
+        audios: post.audios || [],
         author_id: post.user_id,
         author_name: post.author_name,
         author_avatar: post.author_avatar,
@@ -3496,8 +3939,28 @@ async function route(req, res, u, path) {
     try {
       const limit = parseInt(u.searchParams.get('limit') || '50')
       const offset = parseInt(u.searchParams.get('offset') || '0')
+      console.log('[API] Get work comments: workId =', workId)
       const comments = await workDB.getWorkComments(workId, limit, offset)
-      sendJson(res, 200, { code: 0, data: comments })
+      console.log('[API] Get work comments: raw comments =', JSON.stringify(comments, null, 2))
+      // 转换数据格式以匹配前端期望
+      const formattedComments = comments.map(c => ({
+        id: c.id,
+        content: c.content,
+        created_at: c.created_at,
+        date: c.created_at,
+        userId: c.user?.id || c.user_id,
+        author: c.user?.username || '用户',
+        authorAvatar: c.user?.avatar_url || '',
+        user: c.user || {
+          id: c.user_id,
+          username: '用户',
+          avatar_url: ''
+        },
+        likes: c.likes || 0,
+        parent_id: c.parent_id
+      }))
+      console.log('[API] Get work comments: formatted comments =', JSON.stringify(formattedComments, null, 2))
+      sendJson(res, 200, { code: 0, data: formattedComments })
     } catch (err) {
       console.error('[API] Get work comments failed:', err)
       sendJson(res, 500, { code: 1, message: '获取评论失败: ' + err.message })
@@ -3505,7 +3968,7 @@ async function route(req, res, u, path) {
     return
   }
 
-  // 作品点赞
+  // 作品点赞 (POST)
   if (req.method === 'POST' && path.startsWith('/api/works/') && path.endsWith('/like')) {
     const decoded = verifyRequestToken(req)
     if (!decoded) {
@@ -3523,7 +3986,7 @@ async function route(req, res, u, path) {
     try {
       const result = await workDB.likeWork(workId, decoded.userId)
       if (result.success) {
-        sendJson(res, 200, { code: 0, message: '点赞成功' })
+        sendJson(res, 200, { code: 0, data: { isLiked: true }, message: '点赞成功' })
       } else {
         sendJson(res, 400, { code: 1, message: result.error || '点赞失败' })
       }
@@ -3534,7 +3997,7 @@ async function route(req, res, u, path) {
     return
   }
 
-  // 取消作品点赞
+  // 取消作品点赞 (DELETE)
   if (req.method === 'DELETE' && path.startsWith('/api/works/') && path.endsWith('/like')) {
     const decoded = verifyRequestToken(req)
     if (!decoded) {
@@ -3549,8 +4012,8 @@ async function route(req, res, u, path) {
     }
 
     try {
-      await workDB.unlikeWork(workId, decoded.userId)
-      sendJson(res, 200, { code: 0, message: '取消点赞成功' })
+      const result = await workDB.unlikeWork(workId, decoded.userId)
+      sendJson(res, 200, { code: 0, data: { isLiked: false }, message: '取消点赞成功' })
     } catch (err) {
       console.error('[API] Unlike work failed:', err)
       sendJson(res, 500, { code: 1, message: '取消点赞失败: ' + err.message })
@@ -3582,7 +4045,7 @@ async function route(req, res, u, path) {
     return
   }
 
-  // 作品收藏
+  // 作品收藏 (POST - 添加收藏)
   if (req.method === 'POST' && path.startsWith('/api/works/') && path.endsWith('/bookmark')) {
     const decoded = verifyRequestToken(req)
     if (!decoded) {
@@ -3599,7 +4062,7 @@ async function route(req, res, u, path) {
     try {
       const result = await workDB.bookmarkWork(workId, decoded.userId)
       if (result.success) {
-        sendJson(res, 200, { code: 0, message: '收藏成功' })
+        sendJson(res, 200, { code: 0, data: { isBookmarked: true }, message: '收藏成功' })
       } else {
         sendJson(res, 400, { code: 1, message: result.error || '收藏失败' })
       }
@@ -3610,7 +4073,7 @@ async function route(req, res, u, path) {
     return
   }
 
-  // 取消作品收藏
+  // 取消作品收藏 (DELETE)
   if (req.method === 'DELETE' && path.startsWith('/api/works/') && path.endsWith('/bookmark')) {
     const decoded = verifyRequestToken(req)
     if (!decoded) {
@@ -3625,8 +4088,8 @@ async function route(req, res, u, path) {
     }
 
     try {
-      await workDB.unbookmarkWork(workId, decoded.userId)
-      sendJson(res, 200, { code: 0, message: '取消收藏成功' })
+      const result = await workDB.unbookmarkWork(workId, decoded.userId)
+      sendJson(res, 200, { code: 0, data: { isBookmarked: false }, message: '取消收藏成功' })
     } catch (err) {
       console.error('[API] Unbookmark work failed:', err)
       sendJson(res, 500, { code: 1, message: '取消收藏失败: ' + err.message })

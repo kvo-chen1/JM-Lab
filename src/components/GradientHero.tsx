@@ -39,7 +39,7 @@ export default function GradientHero({ title, subtitle, badgeText, theme = 'red'
   
   return (
     <motion.section
-      className={`relative overflow-hidden rounded-3xl mb-8 text-white ${className || ''}`}
+      className={`relative overflow-hidden rounded-3xl text-white ${className || ''}`}
       style={{
         minHeight: '300px',
         background: backgroundImage ? 

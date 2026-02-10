@@ -5,3 +5,5 @@ export { default as HeroSection } from './HeroSection';
 export { default as FeaturesSection } from './FeaturesSection';
 export { default as ProcessSection } from './ProcessSection';
 export { default as CooperationForm } from './CooperationForm';
+export { default as BrandOnboarding } from './BrandOnboarding';
+export { default as BrandApplicationForm } from './BrandApplicationForm';

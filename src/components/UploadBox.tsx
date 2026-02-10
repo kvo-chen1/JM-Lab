@@ -14,15 +14,17 @@ interface UploadBoxProps {
   multiple?: boolean
   maxSize?: number // in bytes
   onError?: (error: string) => void
+  onRemove?: (index: number) => void
 }
 
-export default function UploadBox({ accept, onFile, title, description, previewUrl, variant = 'file', className, multiple = false, maxSize, onError }: UploadBoxProps) {
+export default function UploadBox({ accept, onFile, title, description, previewUrl, variant = 'file', className, multiple = false, maxSize, onError, onRemove }: UploadBoxProps) {
   const { isDark } = useTheme()
   const inputRef = useRef<HTMLInputElement | null>(null)
   const [localPreviews, setLocalPreviews] = useState<string[]>([])
   const [dragOver, setDragOver] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
+  const processedFilesRef = useRef<Set<string>>(new Set()) // 用于防止重复处理文件
 
   // 验证文件类型
   const validateFileType = (file: File): boolean => {
@@ -57,6 +59,15 @@ export default function UploadBox({ accept, onFile, title, description, previewU
     const validFiles: File[] = []
     
     for (const file of fileArray) {
+      // 生成文件唯一标识
+      const fileKey = `${file.name}-${file.size}-${file.lastModified}`
+      
+      // 检查是否已经处理过该文件
+      if (processedFilesRef.current.has(fileKey)) {
+        console.log('[UploadBox] 跳过重复文件:', file.name)
+        continue
+      }
+      
       // 文件类型验证
       if (!validateFileType(file)) {
         onError?.(`文件类型不支持：${file.name}`)
@@ -70,6 +81,8 @@ export default function UploadBox({ accept, onFile, title, description, previewU
         continue
       }
       
+      // 标记文件已处理
+      processedFilesRef.current.add(fileKey)
       validFiles.push(file)
     }
     
@@ -109,6 +122,8 @@ export default function UploadBox({ accept, onFile, title, description, previewU
     const files = Array.from(e.target.files || [])
     if (files.length > 0) {
       handleFile(files)
+      // 重置 input 值，允许重复选择相同文件
+      e.target.value = ''
     }
   }
 
@@ -134,12 +149,10 @@ export default function UploadBox({ accept, onFile, title, description, previewU
     setDragOver(false)
   }
 
-  // 合并外部预览和本地预览
-  const allPreviews: string[] = []
-  if (previewUrl) {
-    allPreviews.push(...(Array.isArray(previewUrl) ? previewUrl : [previewUrl]))
-  }
-  allPreviews.push(...localPreviews)
+  // 使用外部预览或本地预览，优先使用外部预览
+  const allPreviews: string[] = previewUrl 
+    ? (Array.isArray(previewUrl) ? previewUrl : [previewUrl])
+    : localPreviews
   
   const icon = variant === 'image' ? 'far fa-image' : variant === 'audio' ? 'fas fa-music' : 'fas fa-file-import'
   const accent = isDark ? 'ring-red-500/40 hover:ring-red-500/60' : 'ring-red-600/40 hover:ring-red-600/60'
@@ -213,6 +226,32 @@ export default function UploadBox({ accept, onFile, title, description, previewU
             {allPreviews.map((preview, index) => (
               <div key={index} className="relative p-3 rounded-lg border bg-gray-50 dark:bg-gray-700">
                 <audio controls src={preview} className="w-full" />
+              </div>
+            ))}
+          </div>
+        )}
+        
+        {/* 视频预览 */}
+        {variant === 'file' && accept.includes('video') && allPreviews.length > 0 && (
+          <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {allPreviews.map((preview, index) => (
+              <div key={index} className="relative group aspect-video rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 shadow-sm bg-black">
+                <video 
+                  src={preview} 
+                  className="w-full h-full object-cover"
+                  preload="metadata"
+                />
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <i className="fas fa-play text-white text-xl"></i>
+                </div>
+                {onRemove && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onRemove(index); }}
+                    className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center hover:bg-red-600 transition-colors shadow-md z-10"
+                  >
+                    <i className="fas fa-times text-xs"></i>
+                  </button>
+                )}
               </div>
             ))}
           </div>

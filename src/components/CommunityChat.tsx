@@ -202,8 +202,8 @@ const CommunityChat: React.FC<CommunityChatProps> = ({
                     >
                       <div className="flex items-start">
                         <TianjinAvatar 
-                          src={msg.avatar || ''} 
-                          alt={msg.username || 'User'} 
+                          src={msg.sender?.avatar_url || ''} 
+                          alt={msg.sender?.username || 'User'} 
                           size="sm" 
                           className="mr-3" 
                         />
@@ -218,7 +218,7 @@ const CommunityChat: React.FC<CommunityChatProps> = ({
                           
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                              <div className="text-sm font-medium truncate">{msg.username}</div>
+                              <div className="text-sm font-medium truncate">{msg.sender?.username || 'Unknown'}</div>
                             </div>
                             <div className="text-xs text-gray-400">
                               {msg.created_at ? new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}

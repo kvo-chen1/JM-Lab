@@ -404,20 +404,34 @@ export default function InspirationPanel({ onClose, onApply, className = '' }: I
                               whileHover={{ scale: 1.1 }}
                               whileTap={{ scale: 0.9 }}
                               onClick={async () => {
-                                if (!item.image.startsWith('http')) {
-                                  toast.error('首帧为本地数据，需使用可公网访问的图片URL');
-                                  return;
-                                }
-                                
                                 setGeneratedItems(prev => 
                                   prev.map((it, i) => i === idx ? { ...it, isGeneratingVideo: true, video: '生成中...' } : it)
                                 );
                                 
                                 try {
+                                  // 如果图片是本地 base64，先上传到云存储获取公网 URL
+                                  let publicImageUrl = item.image;
+                                  if (item.image.startsWith('data:')) {
+                                    toast.info('正在上传图片到云存储...');
+                                    const { getPublicImageUrl } = await import('@/services/imageService');
+                                    try {
+                                      publicImageUrl = await getPublicImageUrl(item.image);
+                                      console.log('[InspirationPanel] Image uploaded to:', publicImageUrl);
+                                      toast.success('图片上传成功，开始生成视频...');
+                                    } catch (uploadError: any) {
+                                      console.error('[InspirationPanel] Failed to upload image:', uploadError);
+                                      toast.error('图片上传失败: ' + (uploadError.message || '请重试'));
+                                      setGeneratedItems(prev => 
+                                        prev.map((it, i) => i === idx ? { ...it, isGeneratingVideo: false, video: '图片上传失败' } : it)
+                                      );
+                                      return;
+                                    }
+                                  }
+                                  
                                   const basePrompt = `${prompt}  --resolution 720p  --duration 5 --camerafixed false`;
                                   const result = await llmService.generateVideo({
                                     prompt: basePrompt,
-                                    imageUrl: item.image,
+                                    imageUrl: publicImageUrl,
                                     resolution: '720p',
                                     duration: 5
                                   });

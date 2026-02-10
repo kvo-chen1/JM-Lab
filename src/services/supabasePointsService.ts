@@ -405,6 +405,13 @@ class SupabasePointsService {
    * 创建签到记录
    */
   async createCheckinRecord(record: Omit<CheckinRecord, 'id' | 'created_at'>): Promise<CheckinRecord | null> {
+    // 先检查今天是否已经签到
+    const { hasCheckin, record: existingRecord } = await this.getTodayCheckinStatus(record.user_id);
+    if (hasCheckin && existingRecord) {
+      console.log('今日已签到，返回已有记录');
+      return existingRecord;
+    }
+
     const { data, error } = await supabase
       .from('checkin_records')
       .insert(record)
@@ -412,6 +419,12 @@ class SupabasePointsService {
       .single();
 
     if (error) {
+      // 如果是唯一约束冲突，说明已经签到了
+      if (error.code === '23505' || error.message?.includes('unique constraint')) {
+        console.log('签到记录已存在，获取已有记录');
+        const { record: existing } = await this.getTodayCheckinStatus(record.user_id);
+        return existing || null;
+      }
       console.error('创建签到记录失败:', error);
       return null;
     }

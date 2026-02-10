@@ -80,16 +80,51 @@ const ChatPage: React.FC = () => {
     if (!userId) return;
     
     try {
-      const { data, error } = await supabase
-        .from('users')
-        .select('id, username, avatar_url')
-        .eq('id', userId)
-        .single();
+      // 使用后端 API 获取用户信息，绕过 RLS
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/users/${userId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       
-      if (error) throw error;
-      setOtherUser(data);
+      if (!response.ok) {
+        console.warn('从 API 获取用户失败，使用默认信息');
+        setOtherUser({
+          id: userId,
+          username: '用户 ' + userId.substring(0, 8),
+          avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${userId}`
+        });
+        return;
+      }
+      
+      const result = await response.json();
+      
+      if (result.code !== 0 || !result.data) {
+        console.warn('用户不存在:', userId);
+        setOtherUser({
+          id: userId,
+          username: '用户 ' + userId.substring(0, 8),
+          avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${userId}`
+        });
+        return;
+      }
+      
+      // 转换字段名以匹配组件期望的格式
+      const userData = result.data;
+      setOtherUser({
+        id: userData.id,
+        username: userData.username,
+        avatar_url: userData.avatar || userData.avatar_url
+      });
     } catch (error: any) {
       console.error('加载用户信息失败:', error);
+      // 设置默认用户信息
+      setOtherUser({
+        id: userId,
+        username: '用户 ' + userId.substring(0, 8),
+        avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${userId}`
+      });
     }
   };
 

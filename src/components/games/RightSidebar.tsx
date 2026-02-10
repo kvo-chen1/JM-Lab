@@ -31,13 +31,21 @@ interface Achievement {
   total: number;
 }
 
+interface UserStats {
+  totalScore: number;
+  streakDays: number;
+  totalGames: number;
+}
+
 interface RightSidebarProps {
   leaderboard: LeaderboardEntry[];
   achievements: Achievement[];
   recentGames: { id: string; name: string; playedAt: string; score: number }[];
+  userStats?: UserStats;
+  isLoading?: boolean;
 }
 
-export default function RightSidebar({ leaderboard, achievements, recentGames }: RightSidebarProps) {
+export default function RightSidebar({ leaderboard, achievements, recentGames, userStats, isLoading = false }: RightSidebarProps) {
   const { isDark } = useTheme();
 
   const getRankIcon = (rank: number) => {
@@ -66,6 +74,23 @@ export default function RightSidebar({ leaderboard, achievements, recentGames }:
     }
   };
 
+  // 加载状态组件
+  const LoadingSkeleton = () => (
+    <div className="space-y-3">
+      {[1, 2, 3, 4, 5].map((i) => (
+        <div key={i} className={`flex items-center gap-3 p-3 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-100'} animate-pulse`}>
+          <div className="w-5 h-5 rounded-full bg-gray-300 dark:bg-gray-600" />
+          <div className="w-10 h-10 rounded-full bg-gray-300 dark:bg-gray-600" />
+          <div className="flex-1 space-y-2">
+            <div className="h-4 w-20 bg-gray-300 dark:bg-gray-600 rounded" />
+            <div className="h-3 w-16 bg-gray-300 dark:bg-gray-600 rounded" />
+          </div>
+          <div className="h-4 w-12 bg-gray-300 dark:bg-gray-600 rounded" />
+        </div>
+      ))}
+    </div>
+  );
+
   return (
     <div className="space-y-6">
       {/* 排行榜 */}
@@ -78,6 +103,9 @@ export default function RightSidebar({ leaderboard, achievements, recentGames }:
           <span className="text-xs text-gray-500 dark:text-gray-400">本周</span>
         </div>
         
+        {isLoading ? (
+          <LoadingSkeleton />
+        ) : (
         <div className="space-y-3">
           {leaderboard.slice(0, 5).map((entry, index) => (
             <motion.div
@@ -107,6 +135,7 @@ export default function RightSidebar({ leaderboard, achievements, recentGames }:
             </motion.div>
           ))}
         </div>
+        )}
 
         <motion.button
           className="w-full mt-4 flex items-center justify-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-red-500 transition-colors"
@@ -233,15 +262,99 @@ export default function RightSidebar({ leaderboard, achievements, recentGames }:
               <Star className="w-4 h-4 text-yellow-500" />
               <span className="text-xs text-gray-500 dark:text-gray-400">总积分</span>
             </div>
-            <div className="text-2xl font-bold text-red-500">2,580</div>
+            <div className="text-2xl font-bold text-red-500">
+              {userStats ? userStats.totalScore.toLocaleString() : '0'}
+            </div>
           </div>
           <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gradient-to-br from-orange-50 to-yellow-50'}`}>
             <div className="flex items-center gap-2 mb-2">
               <Flame className="w-4 h-4 text-orange-500" />
               <span className="text-xs text-gray-500 dark:text-gray-400">连续天数</span>
             </div>
-            <div className="text-2xl font-bold text-orange-500">5</div>
+            <div className="text-2xl font-bold text-orange-500">
+              {userStats ? userStats.streakDays : '0'}
+            </div>
           </div>
+        </div>
+      </div>
+
+      {/* 成就列表 */}
+      <div className={`rounded-2xl p-5 ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border shadow-lg`}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold flex items-center gap-2">
+            <Award className="w-5 h-5 text-purple-500" />
+            成就列表
+          </h3>
+          <span className="text-xs text-gray-500 dark:text-gray-400">
+            {achievements.filter(a => a.unlocked).length}/{achievements.length}
+          </span>
+        </div>
+        
+        <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+          {achievements.length === 0 ? (
+            <div className={`p-4 rounded-xl text-center ${isDark ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+              <p className="text-sm text-gray-500">暂无成就数据</p>
+              <p className="text-xs text-gray-400 mt-1">登录后玩游戏即可解锁成就</p>
+            </div>
+          ) : (
+            achievements.map((achievement, index) => {
+              const Icon = achievement.icon;
+              const progressPercent = Math.min(100, (achievement.progress / achievement.total) * 100);
+              
+              return (
+                <motion.div
+                  key={achievement.id}
+                  className={`p-3 rounded-xl border ${
+                    achievement.unlocked 
+                      ? 'bg-gradient-to-r from-purple-500/10 to-pink-500/10 border-purple-500/30' 
+                      : isDark ? 'bg-gray-700/50 border-gray-600' : 'bg-gray-50 border-gray-200'
+                  }`}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className={`p-2 rounded-lg flex-shrink-0 ${
+                      achievement.unlocked 
+                        ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white' 
+                        : 'bg-gray-200 dark:bg-gray-600 text-gray-400'
+                    }`}>
+                      <Icon className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className={`font-medium text-sm ${achievement.unlocked ? '' : 'text-gray-500'}`}>
+                        {achievement.name}
+                      </div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400 line-clamp-1">
+                        {achievement.description}
+                      </div>
+                      {/* 进度条 */}
+                      <div className="mt-2">
+                        <div className={`h-1.5 rounded-full ${isDark ? 'bg-gray-700' : 'bg-gray-200'} overflow-hidden`}>
+                          <motion.div 
+                            className={`h-full rounded-full ${
+                              achievement.unlocked 
+                                ? 'bg-gradient-to-r from-purple-500 to-pink-500' 
+                                : 'bg-gray-400'
+                            }`}
+                            initial={{ width: 0 }}
+                            animate={{ width: `${progressPercent}%` }}
+                            transition={{ duration: 0.5, delay: 0.3 + index * 0.05 }}
+                          />
+                        </div>
+                        <div className="flex justify-between text-xs text-gray-500 mt-1">
+                          <span>{achievement.progress}/{achievement.total}</span>
+                          <span className={achievement.unlocked ? 'text-purple-500 font-medium' : ''}>
+                            {achievement.unlocked ? '✓ 已解锁' : '进行中'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })
+          )}
         </div>
       </div>
     </div>

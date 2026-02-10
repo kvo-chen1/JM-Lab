@@ -22,6 +22,7 @@ interface PostDetailModalProps {
   loading?: boolean;
   error?: string | null;
   currentUser?: UserProfile | AuthUser | null;
+  onPostChange?: (post: Post) => void;
 }
 
 const PostDetailModal: React.FC<PostDetailModalProps> = ({
@@ -34,6 +35,7 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
   loading = false,
   error = null,
   currentUser,
+  onPostChange,
 }) => {
   const navigate = useNavigate();
   const { isDark } = useTheme();
@@ -46,25 +48,32 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
+  const [isSwitchingPost, setIsSwitchingPost] = useState(false);
   const commentInputRef = useRef<HTMLInputElement>(null);
   const replyInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
 
   // Load comments when post changes
   useEffect(() => {
+    console.log('[PostDetailModal] post changed:', post?.id, post);
     const loadComments = async () => {
       if (post?.id) {
+        console.log('[PostDetailModal] Loading comments for post:', post.id);
         setCommentsLoading(true);
         try {
           const workComments = await postsApi.getWorkComments(post.id);
+          console.log('[PostDetailModal] Comments loaded:', workComments);
           setComments(workComments);
         } catch (error) {
-          console.error('Failed to load comments:', error);
+          console.error('[PostDetailModal] Failed to load comments:', error);
         } finally {
           setCommentsLoading(false);
         }
+      } else {
+        console.log('[PostDetailModal] No post.id, skipping comment load');
       }
     };
     loadComments();
@@ -111,6 +120,7 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
       setReplyText('');
       setReplyToComment(null);
       setIsImageFull(false);
+      setIsSwitchingPost(false);
     }
   }, [isOpen, post]);
 
@@ -290,32 +300,51 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
   }));
 
   return (
-    <AnimatePresence>
+    <AnimatePresence mode="wait">
       {isOpen && (
-        <div className="fixed inset-0 z-[100] overflow-y-auto custom-scrollbar bg-black/65 backdrop-blur-sm" onClick={handleOverlayClick} ref={overlayRef}>
+        <motion.div 
+          className="fixed inset-0 z-[100] overflow-y-auto custom-scrollbar bg-black/65 backdrop-blur-sm"
+          onClick={handleOverlayClick} 
+          ref={overlayRef}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.25, ease: [0.25, 0.8, 0.25, 1] }}
+        >
           {/* Close Button - Fixed Position */}
-          <button 
+          <motion.button 
             className="fixed top-6 right-6 z-[110] w-12 h-12 flex items-center justify-center rounded-full bg-transparent hover:bg-white/10 text-white transition-colors cursor-pointer"
             onClick={onClose}
             aria-label="关闭详情页"
+            initial={{ opacity: 0, rotate: -90 }}
+            animate={{ opacity: 1, rotate: 0 }}
+            exit={{ opacity: 0, rotate: 90 }}
+            transition={{ duration: 0.2, delay: 0.1 }}
           >
             <i className="fas fa-times text-2xl drop-shadow-md"></i>
-          </button>
+          </motion.button>
 
           {/* Modal Container */}
           <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 40 }}
+            initial={{ opacity: 0, scale: 0.9, y: 60 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 40 }}
-            transition={{ duration: 0.3, ease: [0.25, 0.8, 0.25, 1] }}
+            exit={{ opacity: 0, scale: 0.9, y: 60 }}
+            transition={{ duration: 0.35, ease: [0.25, 0.8, 0.25, 1] }}
             className="w-full min-h-screen flex flex-col items-center py-8 px-4 md:py-12 pointer-events-none"
           >
             {/* Card Content */}
-            <div 
+            <motion.div 
               className={`pointer-events-auto relative w-full max-w-[1000px] bg-white dark:bg-gray-900 rounded-[32px] shadow-2xl overflow-hidden flex flex-col md:flex-row mb-12 transition-colors duration-300`}
               ref={modalRef}
               tabIndex={-1}
               onClick={(e) => e.stopPropagation()}
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{
+                opacity: isSwitchingPost ? 0.6 : 1,
+                scale: isSwitchingPost ? 0.98 : 1,
+              }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              transition={{ duration: 0.3, ease: [0.25, 0.8, 0.25, 1] }}
             >
               {loading && (
                 <div className="absolute inset-0 z-20 flex items-center justify-center bg-white dark:bg-gray-900">
@@ -331,7 +360,16 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
               )}
 
               {post && !loading && !error && (
-                <>
+                <motion.div
+                  ref={contentRef}
+                  className="contents"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ 
+                    opacity: isSwitchingPost ? 0 : 1, 
+                    y: isSwitchingPost ? -10 : 0 
+                  }}
+                  transition={{ duration: 0.3, ease: [0.25, 0.8, 0.25, 1] }}
+                >
                   {/* Left: Media Section (50-60% width) */}
                   <div className="w-full md:w-[55%] bg-gray-50 dark:bg-black relative group">
                     <div className="relative w-full h-full min-h-[400px] flex items-center justify-center">
@@ -793,9 +831,9 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
                       </div>
                     </div>
                   </div>
-                </>
+                </motion.div>
               )}
-            </div>
+            </motion.div>
 
             {/* Related Works (Outside the card, white text on dark overlay) */}
             {post && !loading && !error && (
@@ -803,9 +841,29 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
                 <h3 className="text-xl font-bold text-white mb-6 text-center">更多精彩推荐</h3>
                 <WaterfallGallery 
                   items={galleryItems}
-                  onItemClick={(item) => {
-                     // 简单跳转
-                     window.location.href = `/square/${item.id}`;
+                  onItemClick={async (item) => {
+                    const targetPost = relatedPosts.find(p => p.id === item.id);
+                    if (!targetPost) {
+                      window.location.href = `/square/${item.id}`;
+                      return;
+                    }
+                    
+                    // 平滑切换作品
+                    setIsSwitchingPost(true);
+                    
+                    // 滚动到顶部
+                    contentRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    
+                    // 短暂延迟后切换内容
+                    await new Promise(resolve => setTimeout(resolve, 300));
+                    
+                    if (onPostChange) {
+                      onPostChange(targetPost);
+                    } else {
+                      window.location.href = `/square/${item.id}`;
+                    }
+                    
+                    setIsSwitchingPost(false);
                   }}
                   isLoading={false}
                 />
@@ -838,7 +896,7 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
               </motion.div>
             )}
           </AnimatePresence>
-        </div>
+        </motion.div>
       )}
     </AnimatePresence>
   );

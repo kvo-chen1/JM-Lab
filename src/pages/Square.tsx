@@ -12,6 +12,7 @@ import { useNotifications } from '@/contexts/NotificationContext'
 
 import PostDetailModal from '@/components/PostDetailModal'
 import { CreatePostModal } from '@/components/Community/Modals/CreatePostModal'
+import ShareToCommunity from '@/components/ShareToCommunity'
 
 
 import apiClient from '@/lib/apiClient'
@@ -194,7 +195,13 @@ export default function Square() {
   const sentinelRef = useRef<HTMLDivElement | null>(null) // 中文注释：无限滚动观察器锚点
   const thumbFileRef = useRef<HTMLInputElement | null>(null) // 中文注释：封面本地上传文件引用
   const loadingRef = useRef(false) // 中文注释：防止重复加载的标志
-  
+
+  // 分享功能状态
+  const [shareTarget, setShareTarget] = useState<{
+    postId: string;
+    post: Post;
+  } | null>(null)
+
   // 中文注释：本地缓存机制，减少重复计算
   const cachedDataRef = useRef<Map<string, Post[]>>(new Map())
   
@@ -208,7 +215,8 @@ export default function Square() {
         setIsLoading(true)
         // 清除缓存，确保获取最新数据
         await postsApi.clearAllCaches()
-        const current = await postsApi.getPosts(undefined, user?.id)
+        // 津脉广场只显示作品（works表），不显示帖子（posts表）
+        const current = await postsApi.getPosts(undefined, user?.id, false, 'works')
 
         if (Array.isArray(current)) {
           // 调试：检查视频帖子数据
@@ -244,8 +252,8 @@ export default function Square() {
       // 模拟从服务器获取最新数据的延迟
       await new Promise(resolve => setTimeout(resolve, 300))
 
-      // 从API获取最新的帖子数据（传递当前用户ID以获取正确的点赞状态）
-      const allPosts = await postsApi.getPosts(undefined, user?.id)
+      // 从API获取最新的作品数据（津脉广场只显示works表数据）
+      const allPosts = await postsApi.getPosts(undefined, user?.id, false, 'works')
       let found = allPosts.find(p => p.id === id)
 
       if (!found) {
@@ -305,7 +313,7 @@ export default function Square() {
       try {
         // 清除缓存，确保获取最新数据
         await postsApi.clearAllCaches();
-        const current = await postsApi.getPosts(undefined, user?.id);
+        const current = await postsApi.getPosts(undefined, user?.id, false, 'works');
         setPosts(current);
         // 重置分页，显示最新作品
         setPage(1);
@@ -450,36 +458,64 @@ export default function Square() {
       navigate('/login')
       return
     }
+    
+    // 找到当前帖子
+    const targetPost = posts.find(p => p.id === id)
+    if (!targetPost) return
+    
+    // 乐观更新：先更新本地状态
+    const newIsLiked = !targetPost.isLiked
+    const newLikes = newIsLiked ? (targetPost.likes || 0) + 1 : Math.max(0, (targetPost.likes || 0) - 1)
+    
+    // 更新 posts 列表中的状态
+    setPosts(prev => prev.map(p => 
+      p.id === id 
+        ? { ...p, isLiked: newIsLiked, likes: newLikes }
+        : p
+    ))
+    
+    // 更新 active 状态
+    if (active && active.id === id) {
+      setActive(prev => prev ? { ...prev, isLiked: newIsLiked, likes: newLikes } : null)
+    }
+    
     try {
-      await postsApi.likePost(id, user.id)
-      const current = await postsApi.getPosts(undefined, user?.id)
-      setPosts(current)
-      // 更新active状态中的点赞数
-      if (active && active.id === id) {
-        setActive(prev => prev ? { ...prev, likes: prev.likes + 1, isLiked: true } : null)
-      }
-      toast.success('点赞成功')
-
-      // 创建通知给作品作者
-      const likedPost = current.find(p => p.id === id)
-      if (likedPost && likedPost.authorId && likedPost.authorId !== user.id) {
-        addNotification({
-          type: 'post_liked',
-          title: '有人赞了你的作品',
-          content: `${user.username || '有人'}赞了你的作品"${likedPost.title || '无标题'}"`,
-          senderId: user.id,
-          senderName: user.username || '匿名用户',
-          recipientId: likedPost.authorId,
-          postId: id,
-          priority: 'low',
-          link: `/square?id=${id}`
-        })
+      if (newIsLiked) {
+        await postsApi.likePost(id, user.id)
+        toast.success('点赞成功')
+        
+        // 创建通知给作品作者
+        if (targetPost.authorId && targetPost.authorId !== user.id) {
+          addNotification({
+            type: 'post_liked',
+            title: '有人赞了你的作品',
+            content: `${user.username || '有人'}赞了你的作品"${targetPost.title || '无标题'}"`,
+            senderId: user.id,
+            senderName: user.username || '匿名用户',
+            recipientId: targetPost.authorId,
+            postId: id,
+            priority: 'low',
+            link: `/square?id=${id}`
+          })
+        }
+      } else {
+        await postsApi.unlikePost(id, user.id)
+        toast.success('已取消点赞')
       }
     } catch (error) {
-      console.error('点赞失败:', error)
-      toast.error('点赞失败，请稍后重试')
+      console.error('点赞操作失败:', error)
+      // 出错时回滚状态
+      setPosts(prev => prev.map(p => 
+        p.id === id 
+          ? { ...p, isLiked: targetPost.isLiked, likes: targetPost.likes }
+          : p
+      ))
+      if (active && active.id === id) {
+        setActive(prev => prev ? { ...prev, isLiked: targetPost.isLiked, likes: targetPost.likes } : null)
+      }
+      toast.error('操作失败，请稍后重试')
     }
-  }, [active, user, navigate, addNotification])
+  }, [active, user, navigate, addNotification, posts])
   
   // 优化：使用useCallback稳定addComment函数
   const addComment = useCallback(async (id: string, content: string) => {
@@ -536,7 +572,7 @@ export default function Square() {
 
       // 3. 最后更新本地状态，确保数据同步
       if (updatedPost) {
-        const current = await postsApi.getPosts(undefined, user?.id)
+        const current = await postsApi.getPosts(undefined, user?.id, false, 'works')
         console.log('Current posts after API call:', current)
         setPosts(current)
 
@@ -564,9 +600,15 @@ export default function Square() {
   
   // 优化：使用useCallback稳定share函数
   const sharePost = useCallback((id: string) => {
-    const url = location.origin + `/square/${id}`
-    navigator.clipboard?.writeText(url)
-    alert('作品链接已复制')
+    const post = posts.find(p => p.id === id)
+    if (post) {
+      setShareTarget({ postId: id, post })
+    }
+  }, [posts])
+
+  // 关闭分享对话框
+  const closeShare = useCallback(() => {
+    setShareTarget(null)
   }, [])
   
   // 优化：使用useCallback稳定toggleFavorite函数
@@ -616,8 +658,8 @@ export default function Square() {
       // 调用API删除帖子
       const success = await postsApi.deletePost(id);
       if (success) {
-        // 重新获取最新的帖子数据
-        const current = await postsApi.getPosts(undefined, user?.id);
+        // 重新获取最新的作品数据
+        const current = await postsApi.getPosts(undefined, user?.id, false, 'works');
         setPosts(current);
         // 如果当前打开的详情是被删除的帖子，关闭详情
         if (active && active.id === id) {
@@ -753,7 +795,7 @@ export default function Square() {
       await postsApi.addPost(newPost as Post, user || undefined)
       toast.success('发布成功！')
       setIsCreateModalOpen(false);
-      const current = await postsApi.getPosts(undefined, user?.id);
+      const current = await postsApi.getPosts(undefined, user?.id, false, 'works');
       setPosts(current);
     } catch (error) {
       toast.error('发布失败');
@@ -906,6 +948,16 @@ export default function Square() {
           loading={activeLoading}
           error={activeError}
           currentUser={user}
+          onPostChange={(newPost) => {
+            // 平滑切换到新作品
+            setActive(newPost)
+            // 更新URL
+            window.history.pushState({ modal: true }, '', `/post/${newPost.id}`)
+            // 记录浏览量
+            postsApi.recordView(newPost.id, 'works').catch(err => {
+              console.warn('Failed to record view:', err)
+            })
+          }}
         />
       )}
 
@@ -917,6 +969,29 @@ export default function Square() {
         isDark={isDark}
         topics={DEFAULT_TAGS}
       />
+
+      {/* 分享到社区弹窗 */}
+      {shareTarget && (
+        <ShareToCommunity
+          isOpen={!!shareTarget}
+          onClose={closeShare}
+          shareCard={{
+            type: 'work',
+            id: shareTarget.post.id,
+            title: shareTarget.post.title,
+            description: shareTarget.post.description,
+            thumbnail: shareTarget.post.thumbnail,
+            url: `${location.origin}/square/${shareTarget.post.id}`,
+            author: shareTarget.post.author ? {
+              name: shareTarget.post.author.username || '未知用户',
+              avatar: shareTarget.post.author.avatar
+            } : undefined
+          }}
+          userId={user?.id || ''}
+          userName={user?.username || '用户'}
+          userAvatar={user?.avatar}
+        />
+      )}
     </div>
   )
 }

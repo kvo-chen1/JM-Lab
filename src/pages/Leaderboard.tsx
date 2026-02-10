@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabaseClient';
 import LazyImage from '@/components/LazyImage';
 import { useTheme } from '@/hooks/useTheme';
 
@@ -103,23 +104,24 @@ const Leaderboard: React.FC = () => {
       
       console.log('[Leaderboard] Fetching stats...');
       
-      const { count: usersCount, error: usersError } = await supabase.from('users').select('id', { count: 'exact', head: true });
+      // 使用 supabaseAdmin 绕过 RLS 限制获取用户数
+      const { count: usersCount, error: usersError } = await supabaseAdmin.from('users').select('id', { count: 'exact', head: true });
       if (usersError) {
         console.error('[Leaderboard] Error fetching users count:', usersError);
       } else {
         console.log('[Leaderboard] Users count:', usersCount);
       }
       
-      // 从 works 表获取作品总数（与津脉广场一致）
-      const { count: postsCount, error: postsError } = await supabase.from('works').select('id', { count: 'exact', head: true }).eq('status', 'published').eq('visibility', 'public');
+      // 从 works 表获取作品总数（与津脉广场一致）- 使用 supabaseAdmin
+      const { count: postsCount, error: postsError } = await supabaseAdmin.from('works').select('id', { count: 'exact', head: true }).eq('status', 'published').eq('visibility', 'public');
       if (postsError) {
         console.error('[Leaderboard] Error fetching works count:', postsError);
       } else {
         console.log('[Leaderboard] Works count:', postsCount);
       }
 
-      // 获取总积分
-      const { data: pointsData, error: pointsError } = await supabase
+      // 获取总积分 - 使用 supabaseAdmin
+      const { data: pointsData, error: pointsError } = await supabaseAdmin
         .from('user_points_balance')
         .select('balance');
       const totalPoints = pointsData?.reduce((sum, item) => sum + (item.balance || 0), 0) || 0;
@@ -189,8 +191,8 @@ const Leaderboard: React.FC = () => {
       }
 
       if (leaderboardType === 'points') {
-        // 积分排行榜 - 使用 points_leaderboard 视图
-        const { data, error } = await supabase
+        // 积分排行榜 - 使用 points_leaderboard 视图 - 使用 supabaseAdmin
+        const { data, error } = await supabaseAdmin
           .from('points_leaderboard')
           .select('*')
           .order('balance', { ascending: false })
@@ -202,8 +204,8 @@ const Leaderboard: React.FC = () => {
         setPointsUsers(data as PointsLeaderboardUser[] || []);
         setCache(prev => ({ ...prev, [cacheKey]: { posts: [], users: [], pointsUsers: data as PointsLeaderboardUser[], timestamp: Date.now() } }));
       } else if (leaderboardType === 'posts') {
-        // 从 works 表获取作品列表（与津脉广场使用相同的数据源）
-        let worksQuery = supabase
+        // 从 works 表获取作品列表（与津脉广场使用相同的数据源）- 使用 supabaseAdmin
+        let worksQuery = supabaseAdmin
           .from('works')
           .select('*')
           .eq('status', 'published')
@@ -229,11 +231,11 @@ const Leaderboard: React.FC = () => {
           return;
         }
 
-        // 获取作者信息（works 表使用 creator_id 字段）
+        // 获取作者信息（works 表使用 creator_id 字段）- 使用 supabaseAdmin 绕过 RLS
         const creatorIds = [...new Set(worksData.map(w => w.creator_id).filter(Boolean))].map(id => String(id));
         let users: any[] = [];
         if (creatorIds.length > 0) {
-          const { data: usersData, error: usersError } = await supabase
+          const { data: usersData, error: usersError } = await supabaseAdmin
             .from('users')
             .select('id, username, avatar_url')
             .in('id', creatorIds);
@@ -278,7 +280,8 @@ const Leaderboard: React.FC = () => {
         };
         const dbSortBy = userSortByMap[sortBy] || 'likes_count';
 
-        query = supabase
+        // 使用 supabaseAdmin 绕过 RLS 限制获取用户列表
+        query = supabaseAdmin
           .from('users')
           .select('*')
           .order(dbSortBy, { ascending: false })
@@ -590,9 +593,9 @@ const Leaderboard: React.FC = () => {
                               2
                             </div>
                           </div>
-                          <h3 className="font-bold text-lg text-gray-900 dark:text-white">{pointsUsers[1].username}</h3>
-                          <p className="text-yellow-500 font-bold text-xl">{pointsUsers[1].balance.toLocaleString()} 积分</p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">累计获得 {pointsUsers[1].total_earned.toLocaleString()}</p>
+                          <h3 className="font-bold text-lg text-gray-900 dark:text-white">{pointsUsers[1]?.username || '未知用户'}</h3>
+                          <p className="text-yellow-500 font-bold text-xl">{(pointsUsers[1]?.balance ?? 0).toLocaleString()} 积分</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">累计获得 {(pointsUsers[1]?.total_earned ?? 0).toLocaleString()}</p>
                         </motion.div>
                       )}
                       
@@ -620,9 +623,9 @@ const Leaderboard: React.FC = () => {
                               1
                             </div>
                           </div>
-                          <h3 className="font-bold text-xl text-gray-900 dark:text-white">{pointsUsers[0].username}</h3>
-                          <p className="text-yellow-500 font-bold text-2xl">{pointsUsers[0].balance.toLocaleString()} 积分</p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">累计获得 {pointsUsers[0].total_earned.toLocaleString()}</p>
+                          <h3 className="font-bold text-xl text-gray-900 dark:text-white">{pointsUsers[0]?.username || '未知用户'}</h3>
+                          <p className="text-yellow-500 font-bold text-2xl">{(pointsUsers[0]?.balance ?? 0).toLocaleString()} 积分</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">累计获得 {(pointsUsers[0]?.total_earned ?? 0).toLocaleString()}</p>
                         </motion.div>
                       )}
                       
@@ -686,10 +689,10 @@ const Leaderboard: React.FC = () => {
                             <span className="font-medium text-gray-900 dark:text-white truncate">{user.username}</span>
                           </div>
                           <div className="col-span-4 md:col-span-2 text-right">
-                            <span className="font-bold text-yellow-500">{user.balance.toLocaleString()}</span>
+                            <span className="font-bold text-yellow-500">{(user?.balance ?? 0).toLocaleString()}</span>
                           </div>
                           <div className="hidden md:block col-span-2 text-right text-gray-500 dark:text-gray-400">
-                            {user.total_earned.toLocaleString()}
+                            {(user?.total_earned ?? 0).toLocaleString()}
                           </div>
                         </motion.div>
                       ))}

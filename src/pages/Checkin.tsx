@@ -106,10 +106,10 @@ export default function Checkin() {
   // 处理签到
   const handleCheckIn = async () => {
     if (hasCheckinToday || isCheckInAnimating) return;
-    
+
     setIsCheckInAnimating(true);
     const result = await checkin();
-    
+
     if (result.success) {
       setShowConfetti(true);
       toast.success(
@@ -119,11 +119,14 @@ export default function Checkin() {
         </div>,
         { duration: 3000 }
       );
-      
+
       setTimeout(() => {
         setIsCheckInAnimating(false);
         setShowConfetti(false);
       }, 1500);
+    } else if (result.alreadyChecked) {
+      // 已经签到过了，不显示错误
+      setIsCheckInAnimating(false);
     } else {
       setIsCheckInAnimating(false);
       toast.error(result.error || '签到失败');

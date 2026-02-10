@@ -85,21 +85,24 @@ async function checkConnection() {
     // 4. 检查 RPC 函数
     console.log('\n4️⃣ 检查 RPC 函数...');
     const rpcFunctions = [
-      'update_user_points_balance',
-      'get_user_points_stats',
-      'check_points_limit'
+      { name: 'update_user_points_balance', params: { p_user_id: '00000000-0000-0000-0000-000000000000', p_points: 10, p_type: 'earned', p_source: 'test', p_source_type: 'daily', p_description: 'test' } },
+      { name: 'get_user_points_stats', params: { p_user_id: '00000000-0000-0000-0000-000000000000' } },
+      { name: 'check_points_limit', params: { p_user_id: '00000000-0000-0000-0000-000000000000', p_source_type: 'daily', p_points: 5 } }
     ];
 
     for (const func of rpcFunctions) {
       try {
-        const { error } = await supabase.rpc(func, { p_user_id: '00000000-0000-0000-0000-000000000000' });
+        const { data, error } = await supabase.rpc(func.name, func.params);
         if (error && error.message.includes('Could not find the function')) {
-          console.log(`   ❌ ${func} (未创建)`);
+          console.log(`   ❌ ${func.name} (未创建)`);
+        } else if (error) {
+          // 其他错误（如外键约束、权限等）说明函数存在
+          console.log(`   ✅ ${func.name} (函数存在，调用返回: ${error.message.substring(0, 50)})`);
         } else {
-          console.log(`   ✅ ${func}`);
+          console.log(`   ✅ ${func.name}`);
         }
       } catch (e) {
-        console.log(`   ❌ ${func} (未创建)`);
+        console.log(`   ❌ ${func.name} (未创建)`);
       }
     }
 

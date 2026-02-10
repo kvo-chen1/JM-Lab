@@ -859,6 +859,9 @@ const fileToBase64 = (file: File): Promise<string> => {
 // 如果 Supabase Storage 已配置好 RLS 策略，可以设置为 false
 const PREFER_BACKEND_UPLOAD = false;
 
+// 默认 Storage bucket 名称
+const DEFAULT_BUCKET = 'works';
+
 export const uploadImage = async (file: File): Promise<string> => {
   try {
     // 如果设置了优先使用后端上传，直接跳过 Supabase
@@ -879,12 +882,12 @@ export const uploadImage = async (file: File): Promise<string> => {
     // 生成唯一文件名
     const fileExt = file.name.split('.').pop() || 'jpg';
     const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-    const filePath = `avatars/${fileName}`; // 使用 avatars 子目录
+    const filePath = `works/${fileName}`; // 使用 works 子目录
 
     try {
-      // 上传到 community-images bucket
+      // 上传到 works bucket
       const { error: uploadError } = await supabase.storage
-        .from('community-images')
+        .from(DEFAULT_BUCKET)
         .upload(filePath, file, {
           cacheControl: '3600',
           upsert: false
@@ -906,7 +909,7 @@ export const uploadImage = async (file: File): Promise<string> => {
 
       // 获取公开 URL
       const { data } = supabase.storage
-        .from('community-images')
+        .from(DEFAULT_BUCKET)
         .getPublicUrl(filePath);
 
       if (!data.publicUrl) {
@@ -992,9 +995,9 @@ export const uploadVideo = async (file: File): Promise<string> => {
     const filePath = `videos/${fileName}`; // 使用 videos 子目录
 
     try {
-      // 上传到 community-images bucket
+      // 上传到 works bucket
       const { error: uploadError } = await supabase.storage
-        .from('community-images')
+        .from(DEFAULT_BUCKET)
         .upload(filePath, file, {
           cacheControl: '3600',
           upsert: false,
@@ -1008,7 +1011,7 @@ export const uploadVideo = async (file: File): Promise<string> => {
 
       // 获取公开 URL
       const { data } = supabase.storage
-        .from('community-images')
+        .from(DEFAULT_BUCKET)
         .getPublicUrl(filePath);
 
       if (!data.publicUrl) {
@@ -1078,6 +1081,82 @@ export const downloadAndUploadVideo = async (videoUrl: string): Promise<string> 
     console.error('[downloadAndUploadVideo] Failed:', error);
     throw new Error('视频下载或上传失败: ' + (error.message || 'Unknown error'));
   }
+};
+
+/**
+ * 将 base64 图片数据上传到云存储，获取公网可访问的 URL
+ * 用于图生视频等功能，因为 AI API 要求图片必须是公网 URL
+ * @param base64Data base64 编码的图片数据 (data:image/...)
+ * @returns 公网可访问的图片 URL
+ */
+export const uploadBase64Image = async (base64Data: string): Promise<string> => {
+  try {
+    console.log('[uploadBase64Image] Uploading base64 image...');
+    
+    // 验证 base64 数据格式
+    if (!base64Data.startsWith('data:image/')) {
+      throw new Error('Invalid base64 image data format');
+    }
+    
+    // 解析 base64 数据
+    const matches = base64Data.match(/^data:image\/([a-zA-Z]+);base64,(.+)$/);
+    if (!matches) {
+      throw new Error('Invalid base64 image data format');
+    }
+    
+    const imageType = matches[1];
+    const base64Content = matches[2];
+    
+    // 将 base64 转换为 Blob
+    const byteCharacters = atob(base64Content);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    const blob = new Blob([byteArray], { type: `image/${imageType}` });
+    
+    // 创建 File 对象
+    const fileName = `image-${Date.now()}.${imageType}`;
+    const file = new File([blob], fileName, { type: `image/${imageType}` });
+    
+    console.log('[uploadBase64Image] Created file:', fileName, 'size:', (file.size / 1024).toFixed(2), 'KB');
+    
+    // 使用现有的 uploadImage 函数上传
+    const publicUrl = await uploadImage(file);
+    
+    console.log('[uploadBase64Image] Upload successful:', publicUrl);
+    return publicUrl;
+  } catch (error: any) {
+    console.error('[uploadBase64Image] Failed:', error);
+    throw new Error('图片上传失败: ' + (error.message || 'Unknown error'));
+  }
+};
+
+/**
+ * 检查 URL 是否为本地 base64 数据
+ * @param url 图片 URL
+ * @returns 是否为本地 base64 数据
+ */
+export const isLocalBase64Image = (url: string): boolean => {
+  return url.startsWith('data:image/');
+};
+
+/**
+ * 获取公网可访问的图片 URL
+ * 如果图片是本地 base64，则自动上传到云存储
+ * @param imageUrl 图片 URL（可能是 base64 或公网 URL）
+ * @returns 公网可访问的图片 URL
+ */
+export const getPublicImageUrl = async (imageUrl: string): Promise<string> => {
+  // 如果已经是公网 URL，直接返回
+  if (!isLocalBase64Image(imageUrl)) {
+    return imageUrl;
+  }
+  
+  // 如果是本地 base64，上传到云存储
+  console.log('[getPublicImageUrl] Local base64 detected, uploading to cloud...');
+  return await uploadBase64Image(imageUrl);
 };
 
 export default imageService;

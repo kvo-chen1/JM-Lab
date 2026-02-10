@@ -6,7 +6,7 @@ import AIWriterV2 from './AIWriterV2';
 import AIWriterEditor from './AIWriterEditor';
 import AIWriterHistoryPage from './AIWriterHistoryPage';
 import Wizard from '../Wizard';
-import Inspiration from '../Neo';
+import WorkHeart from './WorkHeart';
 import PlanLibrary from './components/PlanLibrary';
 import CreateActivity from '../CreateActivity';
 
@@ -22,7 +22,7 @@ function Create() {
         <Route path="ai-writer" element={<AIWriterV2 />} />
         <Route path="ai-writer/history" element={<AIWriterHistoryPage />} />
         <Route path="ai-writer-classic" element={<AIWriter />} />
-        <Route path="inspiration" element={<Inspiration />} />
+        <Route path="inspiration" element={<WorkHeart />} />
         <Route path="wizard" element={<Wizard />} />
         <Route path="plan-library" element={<PlanLibrary />} />
         <Route path="activity" element={<CreateActivity />} />

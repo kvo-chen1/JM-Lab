@@ -19,18 +19,17 @@ export default function AnalyticsLayout({
 
   return (
     <div className={`min-h-screen ${isDark ? 'bg-slate-900' : 'bg-slate-50'}`}>
-      {header && (
-        <motion.header
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-          className="sticky top-0 z-40"
-        >
-          {header}
-        </motion.header>
-      )}
-
       <div className="container mx-auto px-4 py-6">
+        {header && (
+          <motion.header
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4 }}
+            className="mb-6"
+          >
+            {header}
+          </motion.header>
+        )}
         <div className="flex gap-6">
           {/* 左侧栏 - 导航/筛选区 */}
           <motion.aside

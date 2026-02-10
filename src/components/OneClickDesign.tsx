@@ -222,36 +222,49 @@ const OneClickDesign: React.FC<OneClickDesignProps> = ({ onGenerate }) => {
         setImages([]);
       } else if (generationMode === 'image-to-video') {
         // 图生视频
-        if (uploadedImage.startsWith('data:')) {
-          toast.error('参考图片为本地数据，需使用可公网访问的图片URL');
-          setVideos([]);
-        } else {
-          try {
-            const text = `${prompt}  --resolution ${videoParams.resolution}  --duration ${videoParams.duration} --camerafixed ${videoParams.cameraFixed}`;
-            // 调用实际的图生视频API
-            const result = await llmService.generateVideo({
-              prompt: text,
-              imageUrl: uploadedImage,
-              duration: videoParams.duration,
-              resolution: videoParams.resolution
-            });
-            const videoUrl = result.data?.video_url || result.data?.url;
-            if (!result.ok || !videoUrl) {
-              const msg = result.error || '视频生成失败，请检查API配置或稍后重试';
-              toast.error(msg);
-              console.error('[Video Generation] Failed:', result);
+        try {
+          // 如果图片是本地 base64，先上传到云存储获取公网 URL
+          let publicImageUrl = uploadedImage;
+          if (uploadedImage.startsWith('data:')) {
+            toast.info('正在上传图片到云存储...');
+            const { getPublicImageUrl } = await import('@/services/imageService');
+            try {
+              publicImageUrl = await getPublicImageUrl(uploadedImage);
+              console.log('[OneClickDesign] Image uploaded to:', publicImageUrl);
+              toast.success('图片上传成功，开始生成视频...');
+            } catch (uploadError: any) {
+              console.error('[OneClickDesign] Failed to upload image:', uploadError);
+              toast.error('图片上传失败: ' + (uploadError.message || '请重试'));
               setVideos([]);
-            } else {
-              // 由于API一次只生成一个视频，我们创建多个占位符
-              const videos = Array(generationCount).fill(videoUrl);
-              setVideos(videos);
-              toast.success('视频生成成功！');
+              setImages([]);
+              return;
             }
-          } catch (e: any) {
-            toast.error(e?.message || '视频生成失败');
-            console.error('[Video Generation] Exception:', e);
-            setVideos([]);
           }
+          
+          const text = `${prompt}  --resolution ${videoParams.resolution}  --duration ${videoParams.duration} --camerafixed ${videoParams.cameraFixed}`;
+          // 调用实际的图生视频API
+          const result = await llmService.generateVideo({
+            prompt: text,
+            imageUrl: publicImageUrl,
+            duration: videoParams.duration,
+            resolution: videoParams.resolution
+          });
+          const videoUrl = result.data?.video_url || result.data?.url;
+          if (!result.ok || !videoUrl) {
+            const msg = result.error || '视频生成失败，请检查API配置或稍后重试';
+            toast.error(msg);
+            console.error('[Video Generation] Failed:', result);
+            setVideos([]);
+          } else {
+            // 由于API一次只生成一个视频，我们创建多个占位符
+            const videos = Array(generationCount).fill(videoUrl);
+            setVideos(videos);
+            toast.success('视频生成成功！');
+          }
+        } catch (e: any) {
+          toast.error(e?.message || '视频生成失败');
+          console.error('[Video Generation] Exception:', e);
+          setVideos([]);
         }
         setImages([]);
       }

@@ -183,8 +183,8 @@ const SearchBar: React.FC<SearchBarProps> = memo(({
   const groupKeys = Object.keys(groupedSuggestions);
 
   return (
-    <div className={`pinterest-search-wrapper ${isDark ? 'dark' : ''}`} style={{ position: 'relative', zIndex: 1, overflow: 'visible' }}>
-      <div className={`pinterest-search-bar ${isFocused ? 'focused' : ''}`} style={{ position: 'relative', zIndex: 1, overflow: 'visible' }}>
+    <div className={`pinterest-search-wrapper ${isDark ? 'dark' : ''}`} style={{ position: 'relative', zIndex: 9999, overflow: 'visible' }}>
+      <div className={`pinterest-search-bar ${isFocused ? 'focused' : ''}`} style={{ position: 'relative', zIndex: 9999, overflow: 'visible' }}>
         
         {/* Search Icon */}
         <div className="search-icon-wrapper">

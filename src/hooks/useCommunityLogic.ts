@@ -186,9 +186,36 @@ export const useCommunityLogic = () => {
   }
   const { addNotification, unreadCount } = notificationsContext;
 
+  // 从URL解析初始社区ID
+  const getInitialCommunityId = (): string | null => {
+    const pathParts = location.pathname.split('/');
+    if (pathParts[1] === 'community' && pathParts[2] && pathParts[2] !== 'admin') {
+      return pathParts[2];
+    }
+    return null;
+  };
+  
+  // 从URL解析初始频道
+  const getInitialChannel = (communityId: string | null): string => {
+    if (!communityId) return 'communities';
+    
+    const pathParts = location.pathname.split('/');
+    const channelIndex = pathParts[3];
+    
+    if (channelIndex && ['feed', 'chat', 'members', 'announcements'].includes(channelIndex)) {
+      return channelIndex;
+    }
+    
+    return 'feed';
+  };
+  
+  // 初始化状态
+  const initialCommunityId = getInitialCommunityId();
+  const initialChannel = getInitialChannel(initialCommunityId);
+
   // --- State: Navigation ---
-  const [activeCommunityId, setActiveCommunityId] = useState<string | null>(null);
-  const [activeChannel, setActiveChannel] = useState<string>('communities'); // Default to 'communities'
+  const [activeCommunityId, setActiveCommunityId] = useState<string | null>(initialCommunityId);
+  const [activeChannel, setActiveChannel] = useState<string>(initialChannel);
   
   // Derived State: Mode
   const mode: 'community' | 'discovery' = activeCommunityId ? 'community' : 'discovery';
@@ -505,6 +532,9 @@ export const useCommunityLogic = () => {
       if (isJoined) {
         console.log('[handleSelectCommunity] Setting active community:', id);
         setActiveCommunityId(id);
+        setActiveChannel('feed'); // 默认进入帖子频道
+        // 更新URL
+        navigate(`/community/${id}/feed`, { replace: true });
         // 切换社群后，useEffect 会自动触发 loadData 加载帖子数据
       } else {
         // 用户未加入该社群，不允许进入
@@ -516,13 +546,24 @@ export const useCommunityLogic = () => {
       console.log('[handleSelectCommunity] Setting to discovery mode');
       setActiveCommunityId(id);
       setActiveChannel('communities'); // Default back to communities grid
+      // 更新URL为发现模式
+      navigate('/community', { replace: true });
     }
-  }, [joinedCommunities]);
+  }, [joinedCommunities, navigate]);
 
   const handleSelectChannel = useCallback((channel: string) => {
     setActiveChannel(channel);
-    // Removed creator community switch
-  }, []);
+    
+    // 更新URL以记住当前频道状态
+    if (activeCommunityId) {
+      const newPath = `/community/${activeCommunityId}/${channel}`;
+      navigate(newPath, { replace: true });
+    } else if (mode === 'discovery') {
+      // 发现模式下更新URL
+      const newPath = `/community/discovery/${channel}`;
+      navigate(newPath, { replace: true });
+    }
+  }, [activeCommunityId, mode, navigate]);
 
   const handleUpvote = useCallback(async (id: string) => {
     try {
@@ -1034,7 +1075,9 @@ export const useCommunityLogic = () => {
           content: data.content,
           topic: data.topic,
           communityId: currentCommunityId,
-          images: data.images
+          images: data.images,
+          videos: data.videos,
+          audios: data.audios
         }, user.id, user.username || '用户', user.avatar || '');
         
         if (newThread) {

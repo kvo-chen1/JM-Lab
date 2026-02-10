@@ -151,7 +151,7 @@ export const CommunityNavigation: React.FC<CommunityNavigationProps> = ({
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className={`absolute top-full left-0 right-0 mt-1 rounded-xl shadow-lg z-50 ${isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'}`}
+              className={`absolute top-full left-0 right-0 mt-1 rounded-xl shadow-lg z-[100] ${isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'}`}
             >
               {/* Search History */}
               {!search && searchHistory.length > 0 && (

@@ -4,6 +4,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { AuthContext } from '@/contexts/authContext';
 import { toast } from 'sonner';
 import culturalMemoryGameService, { MemoryLevel, MemoryCard, MemoryGameProgress } from '@/services/culturalMemoryGameService';
+import { gameScoringService } from '@/services/gameScoringService';
 import LazyImage from './LazyImage';
 
 interface CulturalMemoryGameProps {
@@ -180,7 +181,7 @@ const CulturalMemoryGame: React.FC<CulturalMemoryGameProps> = ({ isOpen, onClose
   }, []);
 
   // 完成关卡
-  const handleCompleteLevel = useCallback(() => {
+  const handleCompleteLevel = useCallback(async () => {
     if (!user || !selectedLevel) return;
     
     const endTime = new Date();
@@ -205,9 +206,32 @@ const CulturalMemoryGame: React.FC<CulturalMemoryGameProps> = ({ isOpen, onClose
     );
     setGameProgress(updatedProgress);
     
+    // 记录游戏结果到积分系统
+    const result = await gameScoringService.recordGameResult({
+      gameType: 'cultural-memory',
+      score: finalScore,
+      playTime: timeDiff,
+      level: selectedLevel.id,
+      completed: true
+    });
+    
+    if (result.success) {
+      // 显示成就解锁提示
+      if (result.newAchievements.length > 0) {
+        result.newAchievements.forEach(achievement => {
+          toast.success(`🏆 解锁成就: ${achievement.name}`, {
+            description: `${achievement.description} (+${achievement.reward.points}积分)`,
+            duration: 5000
+          });
+        });
+      }
+    }
+    
     setGameState('completed');
     
-    toast.success(`关卡完成！得分：${finalScore}`);
+    toast.success(`关卡完成！获得 ${finalScore} 积分`, {
+      description: `总积分: ${result.totalScore}`
+    });
   }, [user, selectedLevel, matchedPairs, startTime]);
 
   // 返回主菜单

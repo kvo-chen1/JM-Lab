@@ -1195,27 +1195,27 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* 任务进度 */}
+            {/* 成就进度 */}
             <div className={`p-6 rounded-3xl ${isDark
               ? 'bg-gray-800/60 backdrop-blur-xl border border-gray-700/50'
               : 'bg-white/80 backdrop-blur-xl border border-white/50 shadow-lg shadow-gray-200/30'
               }`}>
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-xl bg-gradient-to-br from-orange-500 to-red-500 text-white">
-                    <Target className="w-5 h-5" />
+                  <div className="p-2 rounded-xl bg-gradient-to-br from-yellow-500 to-amber-500 text-white">
+                    <Award className="w-5 h-5" />
                   </div>
-                  <h3 className={`font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>任务进度</h3>
+                  <h3 className={`font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>成就进度</h3>
                 </div>
-                <Link to="/tasks" className="text-xs text-red-500 hover:text-red-600 font-medium">
-                  全部任务
+                <Link to="/achievement-museum" className="text-xs text-amber-500 hover:text-amber-600 font-medium">
+                  全部成就
                 </Link>
               </div>
 
               <div className="space-y-3">
-                {noviceTasks.slice(0, 3).map((task, index) => (
+                {achievements.slice(0, 3).map((achievement, index) => (
                   <motion.div
-                    key={task.id}
+                    key={achievement.id}
                     initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.1 * index }}
@@ -1225,40 +1225,33 @@ export default function Dashboard() {
                       }`}
                   >
                     <div className="flex items-start gap-3">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                        task.status === 'completed'
-                          ? 'bg-green-100 text-green-600'
-                          : isDark
-                            ? 'bg-gray-600 text-gray-300'
-                            : 'bg-gray-200 text-gray-600'
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-gradient-to-br ${
+                        achievement.rarity === 'legendary' ? 'from-yellow-400 to-amber-600 text-white' :
+                        achievement.rarity === 'epic' ? 'from-purple-400 to-indigo-600 text-white' :
+                        achievement.rarity === 'rare' ? 'from-blue-400 to-cyan-600 text-white' :
+                        'from-gray-400 to-gray-600 text-white'
                       }`}>
-                        {task.status === 'completed' ? (
-                          <CheckCircle2 className="w-5 h-5" />
-                        ) : (
-                          <Target className="w-5 h-5" />
-                        )}
+                        <span className="text-lg">{achievement.icon}</span>
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className={`text-sm font-medium ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
-                          {task.title}
+                          {achievement.name}
                         </p>
                         <p className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                          {task.reward.points} 积分
+                          {achievement.points} 积分 · {achievement.rarity === 'legendary' ? '传说' : achievement.rarity === 'epic' ? '史诗' : achievement.rarity === 'rare' ? '稀有' : '普通'}
                         </p>
                       </div>
                     </div>
-                    {task.status !== 'completed' && (
-                      <div className="mt-3">
-                        <div className={`h-1.5 rounded-full ${isDark ? 'bg-gray-600' : 'bg-gray-200'}`}>
-                          <div
-                            className="h-full rounded-full bg-gradient-to-r from-orange-500 to-red-500"
-                            style={{ width: `${(task.progress / task.requirements.count) * 100}%` }}
-                          />
-                        </div>
-                      </div>
-                    )}
                   </motion.div>
                 ))}
+                {achievements.length === 0 && (
+                  <div className={`p-4 rounded-2xl text-center ${isDark ? 'bg-gray-700/30' : 'bg-gray-50'}`}>
+                    <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>暂无解锁的成就</p>
+                    <Link to="/achievement-museum" className="text-xs text-amber-500 hover:text-amber-600 mt-1 inline-block">
+                      去解锁成就 →
+                    </Link>
+                  </div>
+                )}
               </div>
             </div>
 

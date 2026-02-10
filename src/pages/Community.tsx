@@ -6,6 +6,8 @@ import { CommunityNavigation } from '@/components/Community/CommunityNavigation'
 import { CommunityInfoSidebar } from '@/components/Community/CommunityInfoSidebar';
 import { FeedSection } from '@/components/Community/Feed/FeedSection';
 import { ChatSection } from '@/components/Community/Chat/ChatSection';
+import { MembersSection } from '@/components/Community/Members/MembersSection';
+import { AnnouncementsSection } from '@/components/Community/Announcements/AnnouncementsSection';
 import { CreatePostModal } from '@/components/Community/Modals/CreatePostModal';
 import { CreateCommunityModal } from '@/components/Community/Modals/CreateCommunityModal';
 import { DiscoverySection } from '@/components/Community/Discovery/DiscoverySection';
@@ -27,6 +29,7 @@ export type Thread = {
   topic?: string;
   upvotes?: number;
   images?: Array<string>;
+  videos?: Array<string>;
   communityId: string; // 添加社群ID字段，关联到所属社群
   author?: string; // 作者用户名
   authorAvatar?: string; // 作者头像
@@ -46,7 +49,7 @@ export type ChatMessage = {
     created_at?: string;
     is_pinned?: boolean;
     // 扩展支持多种内容类型
-    type?: 'text' | 'image' | 'file' | 'rich_text' | 'emoji';
+    type?: 'text' | 'image' | 'file' | 'rich_text' | 'emoji' | 'share_card';
     // 图片内容
     images?: Array<{
         url: string;
@@ -67,6 +70,19 @@ export type ChatMessage = {
     }>;
     // 富文本内容
     richContent?: string;
+    // 分享卡片内容
+    shareCard?: {
+        type: 'work' | 'activity' | 'post';
+        id: string;
+        title: string;
+        description?: string;
+        thumbnail?: string;
+        url: string;
+        author?: {
+            name: string;
+            avatar?: string;
+        };
+    };
     // 发送状态
     sendStatus?: 'sending' | 'sent' | 'failed';
     // 重试次数
@@ -263,35 +279,43 @@ const CommunityPageWithNotifications = React.memo(function CommunityPageWithNoti
               loading={loading.threads} // 传递帖子加载状态
             />
             )
+          ) : activeChannel === 'chat' ? (
+            <ChatSection
+                isDark={isDark}
+                channelName={activeChannel}
+                messages={messages}
+                onSendMessage={onSendMessage}
+                retrySendMessage={retrySendMessage}
+                onAddReaction={onAddReaction}
+                onReplyToMessage={onReplyToMessage}
+                currentUser={{ name: user?.username || 'Guest' }}
+            />
+          ) : activeChannel === 'members' ? (
+            <MembersSection
+                communityId={activeCommunityId}
+                isDark={isDark}
+            />
+          ) : activeChannel === 'announcements' ? (
+            <AnnouncementsSection
+                communityId={activeCommunityId}
+                isDark={isDark}
+            />
           ) : (
-             activeChannel === 'chat' ? (
-                  <ChatSection
-                      isDark={isDark}
-                      channelName={activeChannel}
-                      messages={messages}
-                      onSendMessage={onSendMessage}
-                      retrySendMessage={retrySendMessage}
-                      onAddReaction={onAddReaction}
-                      onReplyToMessage={onReplyToMessage}
-                      currentUser={{ name: user?.username || 'Guest' }}
-                  />
-             ) : (
-                 /* Default to Feed for other channels for now, or specific components */
-                 <FeedSection
-                      isDark={isDark}
-                      threads={filteredThreads}
-                      onUpvote={onUpvote}
-                      onToggleFavorite={onToggleFavorite}
-                      onAddComment={onAddComment}
-                      onOpenThread={(id) => console.log('Open thread', id)}
-                      onViewThread={(id) => console.log('View thread', id)}
-                      onCreateThread={onCreateThread}
-                      isThreadFavorited={isThreadFavorited}
-                      activeCommunity={activeCommunity} // 传递活跃社群信息，用于自定义风格
-                      user={user} // 传递用户信息，用于显示头像
-                      loading={loading.threads} // 传递帖子加载状态
-                 />
-             )
+            /* Default to Feed for other channels */
+            <FeedSection
+                isDark={isDark}
+                threads={filteredThreads}
+                onUpvote={onUpvote}
+                onToggleFavorite={onToggleFavorite}
+                onAddComment={onAddComment}
+                onOpenThread={(id) => console.log('Open thread', id)}
+                onViewThread={(id) => console.log('View thread', id)}
+                onCreateThread={onCreateThread}
+                isThreadFavorited={isThreadFavorited}
+                activeCommunity={activeCommunity}
+                user={user}
+                loading={loading.threads}
+            />
           )}
         </PageTransition>
         </Suspense>

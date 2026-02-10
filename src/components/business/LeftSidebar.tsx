@@ -1,40 +1,57 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import BRANDS from '@/lib/brands';
+import { BrandPartnership } from '@/services/brandPartnershipService';
 import { 
   Building2, 
   Handshake, 
   TrendingUp, 
   Sparkles,
   ChevronRight,
-  Search
+  Search,
+  CheckCircle2
 } from 'lucide-react';
 
 interface LeftSidebarProps {
   isDark: boolean;
-  selectedBrand: typeof BRANDS[0];
-  onBrandSelect: (brand: typeof BRANDS[0]) => void;
-  searchQuery: string;
-  onSearchChange: (query: string) => void;
-  partnershipCount: number;
+  selectedBrand?: { id: string; name: string; image: string };
+  onBrandSelect?: (brand: { id: string; name: string; image: string }) => void;
+  searchQuery?: string;
+  onSearchChange?: (query: string) => void;
+  partnershipCount?: number;
+  approvedBrands?: BrandPartnership[];
+  stats?: {
+    approvedPartnerships: number;
+    totalEvents: number;
+  };
 }
 
 const LeftSidebar: React.FC<LeftSidebarProps> = ({
   isDark,
   selectedBrand,
   onBrandSelect,
-  searchQuery,
+  searchQuery = '',
   onSearchChange,
-  partnershipCount
+  partnershipCount = 0,
+  approvedBrands = [],
+  stats
 }) => {
-  const filteredBrands = BRANDS.filter(b => 
+  // 使用已入驻的品牌数据
+  const displayBrands = approvedBrands.length > 0 
+    ? approvedBrands.map(p => ({
+        id: p.id,
+        name: p.brand_name,
+        image: p.brand_logo || 'https://via.placeholder.com/40?text=Brand'
+      }))
+    : [];
+
+  const filteredBrands = displayBrands.filter(b => 
     b.name.toLowerCase().includes(searchQuery.trim().toLowerCase())
   ).slice(0, 8);
 
   const menuItems = [
-    { icon: Building2, label: '品牌库', count: BRANDS.length, active: true },
+    { icon: Building2, label: '品牌入驻', count: stats?.approvedPartnerships || 0, active: true },
     { icon: Handshake, label: '合作申请', count: partnershipCount, active: false },
-    { icon: TrendingUp, label: '成功案例', count: 120, active: false },
+    { icon: TrendingUp, label: '品牌活动', count: stats?.totalEvents || 0, active: false },
     { icon: Sparkles, label: 'AI创意', count: null, active: false },
   ];
 
@@ -93,15 +110,15 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
       {/* 品牌搜索 */}
       <div className="space-y-3">
         <h3 className={`text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-          选择意向品牌
+          搜索入驻品牌
         </h3>
         <div className="relative">
           <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
           <input
             type="text"
             value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="搜索品牌..."
+            onChange={(e) => onSearchChange?.(e.target.value)}
+            placeholder="搜索已入驻品牌..."
             className={`
               w-full pl-10 pr-4 py-2.5 rounded-xl text-sm transition-all duration-200
               ${isDark 
@@ -114,42 +131,60 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
         </div>
       </div>
 
-      {/* 品牌列表 */}
+      {/* 已入驻品牌列表 */}
       <div className="space-y-2">
-        <h3 className={`text-xs font-semibold uppercase tracking-wider mb-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-          热门品牌
-        </h3>
+        <div className="flex items-center justify-between">
+          <h3 className={`text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+            已入驻品牌
+          </h3>
+          <span className={`
+            text-xs px-2 py-0.5 rounded-full flex items-center gap-1
+            ${isDark ? 'bg-green-500/20 text-green-400' : 'bg-green-100 text-green-600'}
+          `}>
+            <CheckCircle2 className="w-3 h-3" />
+            官方认证
+          </span>
+        </div>
+        
         <div className="space-y-1 max-h-64 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
-          {filteredBrands.map((brand, index) => (
-            <motion.button
-              key={brand.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.03 }}
-              onClick={() => onBrandSelect(brand)}
-              className={`
-                w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200
-                ${selectedBrand.id === brand.id
-                  ? (isDark ? 'bg-blue-600/20 border border-blue-500/30' : 'bg-blue-50 border border-blue-200')
-                  : (isDark ? 'hover:bg-gray-700/50' : 'hover:bg-gray-100')
-                }
-              `}
-            >
-              <img 
-                src={brand.image} 
-                alt={brand.name}
-                className="w-8 h-8 rounded-lg object-cover border border-gray-200 dark:border-gray-600"
-              />
-              <div className="flex-1 text-left">
-                <p className={`text-sm font-medium truncate ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-                  {brand.name}
-                </p>
-              </div>
-              {selectedBrand.id === brand.id && (
-                <div className="w-2 h-2 rounded-full bg-blue-500" />
-              )}
-            </motion.button>
-          ))}
+          {filteredBrands.length > 0 ? (
+            filteredBrands.map((brand, index) => (
+              <motion.button
+                key={brand.id}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.03 }}
+                onClick={() => onBrandSelect?.(brand)}
+                className={`
+                  w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200
+                  ${selectedBrand?.id === brand.id
+                    ? (isDark ? 'bg-blue-600/20 border border-blue-500/30' : 'bg-blue-50 border border-blue-200')
+                    : (isDark ? 'hover:bg-gray-700/50' : 'hover:bg-gray-100')
+                  }
+                `}
+              >
+                <img 
+                  src={brand.image} 
+                  alt={brand.name}
+                  className="w-8 h-8 rounded-lg object-cover border border-gray-200 dark:border-gray-600"
+                />
+                <div className="flex-1 text-left">
+                  <p className={`text-sm font-medium truncate ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                    {brand.name}
+                  </p>
+                </div>
+                {selectedBrand?.id === brand.id && (
+                  <div className="w-2 h-2 rounded-full bg-blue-500" />
+                )}
+              </motion.button>
+            ))
+          ) : (
+            <div className={`text-center py-6 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+              <Building2 className="w-8 h-8 mx-auto mb-2 opacity-50" />
+              <p className="text-xs">暂无入驻品牌</p>
+              <p className="text-xs mt-1">成为第一个入驻的品牌！</p>
+            </div>
+          )}
         </div>
       </div>
 

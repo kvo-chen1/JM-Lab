@@ -377,16 +377,32 @@ export default function SketchPanel() {
       return;
     }
     
-    if (uploadedImage.startsWith('data:')) {
-      toast.error('参考图片为本地数据，需使用可公网访问的图片URL');
-      return;
-    }
-    
     try {
       setIsGenerating(true);
       setVideoGenerationProgress(0);
-      setVideoGenerationStatus('正在提交视频生成任务...');
+      setVideoGenerationStatus('正在准备图片...');
       toast.info('视频生成开始，预计需要 1-3 分钟，请耐心等待...');
+      
+      // 如果图片是本地 base64，先上传到云存储获取公网 URL
+      let publicImageUrl = uploadedImage;
+      if (uploadedImage.startsWith('data:')) {
+        setVideoGenerationStatus('正在上传图片到云存储...');
+        const { getPublicImageUrl } = await import('@/services/imageService');
+        try {
+          publicImageUrl = await getPublicImageUrl(uploadedImage);
+          console.log('[ImageToVideo] Image uploaded to:', publicImageUrl);
+          toast.success('图片上传成功，开始生成视频...');
+        } catch (uploadError: any) {
+          console.error('[ImageToVideo] Failed to upload image:', uploadError);
+          toast.error('图片上传失败: ' + (uploadError.message || '请重试'));
+          setIsGenerating(false);
+          setVideoGenerationProgress(0);
+          setVideoGenerationStatus('');
+          return;
+        }
+      }
+      
+      setVideoGenerationStatus('正在提交视频生成任务...');
       
       // 模拟进度更新
       const progressInterval = setInterval(() => {
@@ -411,7 +427,7 @@ export default function SketchPanel() {
       
       const result = await llmService.generateVideo({
         prompt: prompt,
-        imageUrl: uploadedImage,
+        imageUrl: publicImageUrl,
         duration: videoDuration,
         aspectRatio: videoAspectRatio
       });

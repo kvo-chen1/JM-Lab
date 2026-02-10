@@ -56,16 +56,31 @@ export default function Generation() {
   const genVideo = async (idx: number) => {
     const v = variants[idx]
     if (!v || !v.image) return
-    if (v.image.startsWith('data:')) {
-      toast.error('首帧为本地数据，需使用可公网访问的图片URL')
-      return
-    }
+    
     const text = `${prompt}  --resolution 720p  --duration 5 --camerafixed false`
     setVariants((arr) => arr.map((it, i) => (i === idx ? { ...it, video: '生成中...' } : it)))
+    
     try {
+      // 如果图片是本地 base64，先上传到云存储获取公网 URL
+      let publicImageUrl = v.image;
+      if (v.image.startsWith('data:')) {
+        toast.info('正在上传图片到云存储...');
+        const { getPublicImageUrl } = await import('@/services/imageService');
+        try {
+          publicImageUrl = await getPublicImageUrl(v.image);
+          console.log('[Generation] Image uploaded to:', publicImageUrl);
+          toast.success('图片上传成功，开始生成视频...');
+        } catch (uploadError: any) {
+          console.error('[Generation] Failed to upload image:', uploadError);
+          toast.error('图片上传失败: ' + (uploadError.message || '请重试'));
+          setVariants((arr) => arr.map((it, i) => (i === idx ? { ...it, video: '图片上传失败' } : it)));
+          return;
+        }
+      }
+      
       const result = await llmService.generateVideo({
         prompt: text,
-        imageUrl: v.image,
+        imageUrl: publicImageUrl,
         duration: 5,
         resolution: '720p'
       })

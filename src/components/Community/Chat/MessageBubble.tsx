@@ -1,4 +1,5 @@
 import React, { memo, useCallback, useState } from 'react';
+import { Link } from 'react-router-dom';
 import type { ChatMessage } from '@/pages/Community';
 import { TianjinAvatar } from '@/components/TianjinStyleComponents';
 
@@ -173,6 +174,80 @@ const MessageBubble: React.FC<MessageBubbleProps> = memo(({
     );
   };
 
+  // 渲染分享卡片
+  const renderShareCard = () => {
+    if (!message.shareCard) return null;
+    
+    const { shareCard } = message;
+    
+    return (
+      <Link 
+        to={shareCard.url}
+        className={`block mt-2 rounded-xl overflow-hidden border transition-all hover:shadow-lg ${
+          isDark 
+            ? 'bg-gray-800 border-gray-700 hover:border-gray-600' 
+            : 'bg-white border-gray-200 hover:border-gray-300'
+        }`}
+      >
+        <div className="flex">
+          {/* 缩略图 */}
+          {shareCard.thumbnail && (
+            <div className="w-24 h-24 flex-shrink-0">
+              <img 
+                src={shareCard.thumbnail} 
+                alt={shareCard.title}
+                className="w-full h-full object-cover"
+              />
+            </div>
+          )}
+          
+          {/* 内容 */}
+          <div className="flex-1 p-3 min-w-0">
+            {/* 类型标签 */}
+            <div className="flex items-center gap-2 mb-1">
+              <span className={`text-xs px-2 py-0.5 rounded-full ${
+                isDark ? 'bg-blue-900/30 text-blue-300' : 'bg-blue-100 text-blue-700'
+              }`}>
+                {shareCard.type === 'work' ? '作品' : shareCard.type === 'activity' ? '活动' : '帖子'}
+              </span>
+              <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                分享
+              </span>
+            </div>
+            
+            {/* 标题 */}
+            <h4 className={`font-medium truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
+              {shareCard.title}
+            </h4>
+            
+            {/* 描述 */}
+            {shareCard.description && (
+              <p className={`text-sm mt-1 line-clamp-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                {shareCard.description}
+              </p>
+            )}
+            
+            {/* 作者 */}
+            {shareCard.author && (
+              <div className="flex items-center gap-2 mt-2">
+                {shareCard.author.avatar && (
+                  <img 
+                    src={shareCard.author.avatar} 
+                    alt={shareCard.author.name}
+                    className="w-5 h-5 rounded-full"
+                  />
+                )}
+                <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                  {shareCard.author.name}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      </Link>
+    );
+  };
+
   // 渲染反应按钮
   const renderReactions = () => {
     const reactions = message.reactions || {};
@@ -298,6 +373,9 @@ const MessageBubble: React.FC<MessageBubbleProps> = memo(({
         
         {/* Rich Content */}
         {renderRichContent()}
+        
+        {/* Share Card */}
+        {renderShareCard()}
         
         {/* Reactions */}
         {renderReactions()}

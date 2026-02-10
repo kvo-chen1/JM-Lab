@@ -1,0 +1,425 @@
+import { supabase } from '@/lib/supabase';
+
+// 品牌合作申请类型定义
+export interface BrandPartnership {
+  id: string;
+  brand_name: string;
+  brand_logo: string;
+  brand_id?: string;
+  description: string;
+  contact_name: string;
+  contact_phone: string;
+  contact_email?: string;
+  reward: string;
+  status: 'pending' | 'negotiating' | 'approved' | 'rejected';
+  applicant_id?: string;
+  admin_notes?: string;
+  reviewed_by?: string;
+  reviewed_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// 品牌活动类型定义
+export interface BrandEvent {
+  id: string;
+  title: string;
+  description: string;
+  content: string;
+  start_time: string;
+  end_time: string;
+  location?: string;
+  brand_id: string;
+  brand_name: string;
+  organizer_id: string;
+  participants: number;
+  max_participants?: number;
+  is_public: boolean;
+  type: 'online' | 'offline';
+  tags: string[];
+  thumbnail_url?: string;
+  media: any[];
+  status: 'draft' | 'pending' | 'published' | 'rejected';
+  admin_notes?: string;
+  reviewed_by?: string;
+  reviewed_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// 品牌合作服务类
+class BrandPartnershipService {
+  // 创建品牌合作申请
+  async createPartnership(data: {
+    brand_name: string;
+    brand_logo: string;
+    brand_id?: string;
+    description: string;
+    contact_name: string;
+    contact_phone: string;
+    contact_email?: string;
+    reward?: string;
+  }): Promise<BrandPartnership | null> {
+    try {
+      const { data: partnership, error } = await supabase
+        .from('brand_partnerships')
+        .insert([{
+          ...data,
+          reward: data.reward || '待协商',
+          status: 'pending',
+        }])
+        .select()
+        .single();
+
+      if (error) {
+        console.error('创建品牌合作申请失败:', error);
+        // 如果表不存在，使用 localStorage 作为临时存储
+        if (error.code === '42P01' || error.message?.includes('does not exist')) {
+          return this.createPartnershipLocal(data);
+        }
+        throw error;
+      }
+      return partnership;
+    } catch (error) {
+      console.error('创建品牌合作申请失败:', error);
+      // 使用 localStorage 作为回退
+      return this.createPartnershipLocal(data);
+    }
+  }
+
+  // 使用 localStorage 创建品牌合作申请（回退方案）
+  private createPartnershipLocal(data: {
+    brand_name: string;
+    brand_logo: string;
+    brand_id?: string;
+    description: string;
+    contact_name: string;
+    contact_phone: string;
+    contact_email?: string;
+    reward?: string;
+  }): BrandPartnership {
+    const partnerships = this.getPartnershipsLocal();
+    const newPartnership: BrandPartnership = {
+      id: `local-${Date.now()}`,
+      ...data,
+      reward: data.reward || '待协商',
+      status: 'pending',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    partnerships.push(newPartnership);
+    localStorage.setItem('jmzf_brand_partnerships', JSON.stringify(partnerships));
+    return newPartnership;
+  }
+
+  // 从 localStorage 获取品牌合作申请
+  private getPartnershipsLocal(): BrandPartnership[] {
+    try {
+      const data = localStorage.getItem('jmzf_brand_partnerships');
+      return data ? JSON.parse(data) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  // 获取所有品牌合作申请（管理员用）
+  async getAllPartnerships(options?: {
+    status?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<{ partnerships: BrandPartnership[]; total: number }> {
+    try {
+      const { status, page = 1, limit = 20 } = options || {};
+      
+      let query = supabase
+        .from('brand_partnerships')
+        .select('*', { count: 'exact' });
+
+      if (status && status !== 'all') {
+        query = query.eq('status', status);
+      }
+
+      const from = (page - 1) * limit;
+      const to = from + limit - 1;
+
+      const { data, error, count } = await query
+        .order('created_at', { ascending: false })
+        .range(from, to);
+
+      if (error) throw error;
+
+      return {
+        partnerships: data || [],
+        total: count || 0,
+      };
+    } catch (error) {
+      console.error('获取品牌合作申请失败:', error);
+      return { partnerships: [], total: 0 };
+    }
+  }
+
+  // 获取当前用户的品牌合作申请
+  async getMyPartnerships(): Promise<BrandPartnership[]> {
+    try {
+      const { data, error } = await supabase
+        .from('brand_partnerships')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('获取我的品牌合作申请失败:', error);
+        // 如果表不存在，使用 localStorage
+        if (error.code === '42P01' || error.message?.includes('does not exist')) {
+          return this.getPartnershipsLocal();
+        }
+        throw error;
+      }
+      return data || [];
+    } catch (error) {
+      console.error('获取我的品牌合作申请失败:', error);
+      // 使用 localStorage 作为回退
+      return this.getPartnershipsLocal();
+    }
+  }
+
+  // 更新品牌合作申请状态（管理员用）
+  async updatePartnershipStatus(
+    id: string,
+    status: 'pending' | 'negotiating' | 'approved' | 'rejected',
+    adminNotes?: string
+  ): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('brand_partnerships')
+        .update({
+          status,
+          admin_notes: adminNotes,
+          reviewed_at: new Date().toISOString(),
+        })
+        .eq('id', id);
+
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.error('更新品牌合作申请状态失败:', error);
+      return false;
+    }
+  }
+
+  // 获取已审核通过的品牌列表
+  async getApprovedBrands(): Promise<BrandPartnership[]> {
+    try {
+      const { data, error } = await supabase
+        .from('brand_partnerships')
+        .select('*')
+        .eq('status', 'approved')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('获取已审核品牌失败:', error);
+      return [];
+    }
+  }
+
+  // ==================== 品牌活动管理 ====================
+
+  // 创建品牌活动
+  async createBrandEvent(data: {
+    title: string;
+    description: string;
+    content: string;
+    start_time: string;
+    end_time: string;
+    location?: string;
+    brand_id: string;
+    brand_name: string;
+    max_participants?: number;
+    type: 'online' | 'offline';
+    tags?: string[];
+    thumbnail_url?: string;
+    media?: any[];
+  }): Promise<BrandEvent | null> {
+    try {
+      const { data: event, error } = await supabase
+        .from('brand_events')
+        .insert([{
+          ...data,
+          status: 'pending', // 创建后需要审核
+          participants: 0,
+          is_public: true,
+        }])
+        .select()
+        .single();
+
+      if (error) throw error;
+      return event;
+    } catch (error) {
+      console.error('创建品牌活动失败:', error);
+      return null;
+    }
+  }
+
+  // 获取所有品牌活动（管理员用）
+  async getAllBrandEvents(options?: {
+    status?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<{ events: BrandEvent[]; total: number }> {
+    try {
+      const { status, page = 1, limit = 20 } = options || {};
+      
+      let query = supabase
+        .from('brand_events')
+        .select('*', { count: 'exact' });
+
+      if (status && status !== 'all') {
+        query = query.eq('status', status);
+      }
+
+      const from = (page - 1) * limit;
+      const to = from + limit - 1;
+
+      const { data, error, count } = await query
+        .order('created_at', { ascending: false })
+        .range(from, to);
+
+      if (error) throw error;
+
+      return {
+        events: data || [],
+        total: count || 0,
+      };
+    } catch (error) {
+      console.error('获取品牌活动失败:', error);
+      return { events: [], total: 0 };
+    }
+  }
+
+  // 获取已发布的品牌活动（公开用）
+  async getPublishedBrandEvents(): Promise<BrandEvent[]> {
+    try {
+      const { data, error } = await supabase
+        .from('brand_events')
+        .select('*')
+        .eq('status', 'published')
+        .gte('end_time', new Date().toISOString())
+        .order('start_time', { ascending: true });
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('获取已发布品牌活动失败:', error);
+      return [];
+    }
+  }
+
+  // 获取品牌方的活动
+  async getBrandEventsByBrandId(brandId: string): Promise<BrandEvent[]> {
+    try {
+      const { data, error } = await supabase
+        .from('brand_events')
+        .select('*')
+        .eq('brand_id', brandId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('获取品牌活动失败:', error);
+      return [];
+    }
+  }
+
+  // 更新品牌活动状态（管理员用）
+  async updateBrandEventStatus(
+    id: string,
+    status: 'draft' | 'pending' | 'published' | 'rejected',
+    adminNotes?: string
+  ): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('brand_events')
+        .update({
+          status,
+          admin_notes: adminNotes,
+          reviewed_at: new Date().toISOString(),
+        })
+        .eq('id', id);
+
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.error('更新品牌活动状态失败:', error);
+      return false;
+    }
+  }
+
+  // 获取统计数据
+  async getStats(): Promise<{
+    totalPartnerships: number;
+    pendingPartnerships: number;
+    approvedPartnerships: number;
+    totalEvents: number;
+    publishedEvents: number;
+  }> {
+    try {
+      const { count: totalPartnerships, error: totalError } = await supabase
+        .from('brand_partnerships')
+        .select('*', { count: 'exact', head: true });
+
+      // 如果表不存在，使用 localStorage 数据
+      if (totalError && (totalError.code === '42P01' || totalError.message?.includes('does not exist'))) {
+        const localPartnerships = this.getPartnershipsLocal();
+        return {
+          totalPartnerships: localPartnerships.length,
+          pendingPartnerships: localPartnerships.filter(p => p.status === 'pending').length,
+          approvedPartnerships: localPartnerships.filter(p => p.status === 'approved').length,
+          totalEvents: 0,
+          publishedEvents: 0,
+        };
+      }
+
+      const { count: pendingPartnerships } = await supabase
+        .from('brand_partnerships')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'pending');
+
+      const { count: approvedPartnerships } = await supabase
+        .from('brand_partnerships')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'approved');
+
+      const { count: totalEvents } = await supabase
+        .from('brand_events')
+        .select('*', { count: 'exact', head: true });
+
+      const { count: publishedEvents } = await supabase
+        .from('brand_events')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'published');
+
+      return {
+        totalPartnerships: totalPartnerships || 0,
+        pendingPartnerships: pendingPartnerships || 0,
+        approvedPartnerships: approvedPartnerships || 0,
+        totalEvents: totalEvents || 0,
+        publishedEvents: publishedEvents || 0,
+      };
+    } catch (error) {
+      console.error('获取统计数据失败:', error);
+      // 使用 localStorage 作为回退
+      const localPartnerships = this.getPartnershipsLocal();
+      return {
+        totalPartnerships: localPartnerships.length,
+        pendingPartnerships: localPartnerships.filter(p => p.status === 'pending').length,
+        approvedPartnerships: localPartnerships.filter(p => p.status === 'approved').length,
+        totalEvents: 0,
+        publishedEvents: 0,
+      };
+    }
+  }
+}
+
+export const brandPartnershipService = new BrandPartnershipService();

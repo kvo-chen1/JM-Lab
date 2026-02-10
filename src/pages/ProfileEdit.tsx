@@ -286,6 +286,7 @@ export default function ProfileEdit() {
       // 构造数据库更新对象
       // 注意：我们需要同时更新一级列和 metadata 列，以保持数据同步
       // Supabase users 表使用 avatar_url 列，不是 avatar 列
+      // 注意：updated_at 由后端自动处理，不需要前端设置
       const updatesForDb: any = {
         username: updatedUser.username,
         age: updatedUser.age,
@@ -294,7 +295,6 @@ export default function ProfileEdit() {
         tags: updatedUser.tags,
         avatar_url: finalAvatarUrl, // 使用正确的列名
         cover_image: finalCoverUrl, // 添加封面图片列
-        updated_at: new Date().toISOString(), // 使用 ISO 格式时间戳
         metadata: {
             ...user?.metadata, // 保留原有 metadata
             username: updatedUser.username,
@@ -359,25 +359,8 @@ export default function ProfileEdit() {
         console.log('后端 API 更新成功:', result);
       }
 
-      // 2. 同步更新 Supabase 数据库 (public.users) - 使用 supabaseAdmin 绕过 RLS
-      try {
-        const { error: dbError } = await supabaseAdmin
-          .from('users')
-          .update(updatesForDb)
-          .eq('id', user?.id);
-          
-        if (dbError) {
-          console.error('Supabase 数据库更新失败:', dbError);
-          // 不阻断流程，因为后端已经更新成功
-        } else {
-          console.log('Supabase 数据库更新成功');
-        }
-      } catch (dbErr) {
-        console.error('Supabase 数据库更新异常:', dbErr);
-        // 不阻断流程
-      }
-
-      // 3. 同步更新 Supabase Auth User Metadata (这对 AuthContext 很重要)
+      // 2. 同步更新 Supabase Auth User Metadata (这对 AuthContext 很重要)
+      // 注意：public.users 表已由后端 API 更新，这里只更新 Auth Metadata
       if (supabase) {
         const { error: authUpdateError } = await supabase.auth.updateUser({
           data: updatesForDb.metadata

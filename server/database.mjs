@@ -1601,8 +1601,8 @@ export const userDB = {
         if (cover_image !== undefined) addPgField('cover_image', cover_image)
         if (updateData.is_new_user !== undefined) addPgField('is_new_user', updateData.is_new_user)
 
-        // 确保 updated_at 使用 PostgreSQL 的 NOW() 函数
-        pgUpdateFields.push(`updated_at = NOW()`)
+        // 确保 updated_at 使用毫秒时间戳 (bigint) 以匹配数据库字段类型
+        pgUpdateFields.push(`updated_at = ${Date.now()}`)
         
         // ID 是最后一个参数
         pgParams.push(id)

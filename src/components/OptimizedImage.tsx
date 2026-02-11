@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, ImgHTMLAttributes, useCallback } from 'react';
 import { resourceOptimizer } from '@/utils/performanceOptimization.tsx';
 
-interface OptimizedImageProps extends ImgHTMLAttributes<HTMLImageElement> {
+interface OptimizedImageProps extends Omit<ImgHTMLAttributes<HTMLImageElement>, 'loading'> {
   src: string;
   alt: string;
   priority?: boolean;
@@ -11,7 +11,7 @@ interface OptimizedImageProps extends ImgHTMLAttributes<HTMLImageElement> {
   aspectRatio?: string;
   quality?: number;
   sizes?: string;
-  loading?: 'lazy' | 'eager' | 'auto';
+  loading?: 'lazy' | 'eager';
   webp?: boolean;
   cache?: boolean;
   blur?: number;
@@ -61,7 +61,7 @@ const OptimizedImage = ({
       const optimized = await resourceOptimizer.optimizeImage(src, {
         quality,
         priority: priority ? 'high' : 'medium',
-        webp: webp
+        formats: webp ? ['webp'] : undefined
       });
 
       // 缓存结果
@@ -142,7 +142,7 @@ const OptimizedImage = ({
           style={{
             transitionDuration: `${transitionDuration}ms`
           }}
-          loading={loading}
+          loading={loading as 'eager' | 'lazy' | undefined}
           sizes={sizes}
           onError={handleError}
           onLoad={handleLoad}

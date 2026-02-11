@@ -267,14 +267,18 @@ export const TemplateShowcaseGrid: React.FC<TemplateShowcaseGridProps> = ({
         setIsLoading(false);
         return;
       }
-      
+
+      const templateIds = templates.map(t => t.id);
+      const batchStates = await templateInteractionService.getBatchTemplateInteractions(templateIds);
+
       const states: Record<number, TemplateInteractionState> = {};
-      
       for (const template of templates) {
-        const state = await templateInteractionService.getTemplateInteractionState(template.id);
-        states[template.id] = state;
+        const state = batchStates.get(template.id);
+        if (state) {
+          states[template.id] = state;
+        }
       }
-      
+
       setInteractionStates(states);
       setIsLoading(false);
     };

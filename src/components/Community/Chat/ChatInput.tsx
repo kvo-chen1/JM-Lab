@@ -124,29 +124,43 @@ type ChatInputAction =
   | { type: 'TOGGLE_CUSTOM_EMOJI_UPLOAD' }
   | { type: 'SET_CUSTOM_EMOJI_FILE'; payload: File | null }
   | { type: 'SET_CUSTOM_EMOJI_NAME'; payload: string }
-  | { type: 'RESET' };
+  | { type: 'RESET' }
+  | ((state: ChatInputState) => ChatInputAction | ChatInputState);
 
 // Reducer函数
 function chatInputReducer(state: ChatInputState, action: ChatInputAction): ChatInputState {
-  switch (action.type) {
+  // 处理函数式action
+  let actualAction: ChatInputAction | ChatInputState = action;
+  if (typeof action === 'function') {
+    actualAction = action(state);
+  }
+
+  // 如果返回的是state本身，直接返回
+  if (actualAction && typeof actualAction === 'object' && 'text' in actualAction && 'images' in actualAction) {
+    return actualAction as unknown as ChatInputState;
+  }
+
+  const typedAction = actualAction as Exclude<ChatInputAction, Function>;
+  
+  switch (typedAction.type) {
     case 'SET_TEXT':
-      return { ...state, text: action.payload };
+      return { ...state, text: typedAction.payload };
     case 'SET_IMAGES':
-      return { ...state, images: action.payload };
+      return { ...state, images: typedAction.payload };
     case 'ADD_IMAGE':
       return {
         ...state,
         images: {
-          files: [...state.images.files, action.payload.file],
-          previews: [...state.images.previews, action.payload.preview],
+          files: [...state.images.files, typedAction.payload.file],
+          previews: [...state.images.previews, typedAction.payload.preview],
           showPreview: true
         }
       };
     case 'REMOVE_IMAGE':
       const newFiles = [...state.images.files];
       const newPreviews = [...state.images.previews];
-      newFiles.splice(action.payload, 1);
-      newPreviews.splice(action.payload, 1);
+      newFiles.splice(typedAction.payload, 1);
+      newPreviews.splice(typedAction.payload, 1);
       return {
         ...state,
         images: {
@@ -156,10 +170,10 @@ function chatInputReducer(state: ChatInputState, action: ChatInputAction): ChatI
         }
       };
     case 'SET_FILES':
-      return { ...state, files: action.payload };
+      return { ...state, files: typedAction.payload };
     case 'UPDATE_FILE':
       const updatedItems = [...state.files.items];
-      updatedItems[action.payload.index] = action.payload.file;
+      updatedItems[typedAction.payload.index] = typedAction.payload.file;
       return {
         ...state,
         files: {
@@ -169,7 +183,7 @@ function chatInputReducer(state: ChatInputState, action: ChatInputAction): ChatI
       };
     case 'REMOVE_FILE':
       const remainingItems = [...state.files.items];
-      remainingItems.splice(action.payload, 1);
+      remainingItems.splice(typedAction.payload, 1);
       return {
         ...state,
         files: {
@@ -182,7 +196,7 @@ function chatInputReducer(state: ChatInputState, action: ChatInputAction): ChatI
         ...state,
         richText: {
           ...state.richText,
-          isRichTextMode: action.payload !== undefined ? action.payload : !state.richText.isRichTextMode
+          isRichTextMode: typedAction.payload !== undefined ? typedAction.payload : !state.richText.isRichTextMode
         }
       };
     case 'TOGGLE_PREVIEW':
@@ -198,7 +212,7 @@ function chatInputReducer(state: ChatInputState, action: ChatInputAction): ChatI
         ...state,
         tags: {
           ...state.tags,
-          selected: action.payload
+          selected: typedAction.payload
         }
       };
     case 'SET_TOPIC':
@@ -206,7 +220,7 @@ function chatInputReducer(state: ChatInputState, action: ChatInputAction): ChatI
         ...state,
         tags: {
           ...state.tags,
-          currentTopic: action.payload
+          currentTopic: typedAction.payload
         }
       };
     case 'TOGGLE_EMOJI_PANEL':
@@ -222,7 +236,7 @@ function chatInputReducer(state: ChatInputState, action: ChatInputAction): ChatI
         ...state,
         emoji: {
           ...state.emoji,
-          emojis: action.payload
+          emojis: typedAction.payload
         }
       };
     case 'SET_CUSTOM_EMOJIS':
@@ -230,7 +244,7 @@ function chatInputReducer(state: ChatInputState, action: ChatInputAction): ChatI
         ...state,
         emoji: {
           ...state.emoji,
-          customEmojis: action.payload
+          customEmojis: typedAction.payload
         }
       };
     case 'SET_FAVORITE_EMOJIS':
@@ -238,7 +252,7 @@ function chatInputReducer(state: ChatInputState, action: ChatInputAction): ChatI
         ...state,
         emoji: {
           ...state.emoji,
-          favoriteEmojis: action.payload
+          favoriteEmojis: typedAction.payload
         }
       };
     case 'SET_EMOJI_CATEGORY':
@@ -246,7 +260,7 @@ function chatInputReducer(state: ChatInputState, action: ChatInputAction): ChatI
         ...state,
         emoji: {
           ...state.emoji,
-          currentCategory: action.payload
+          currentCategory: typedAction.payload
         }
       };
     case 'SET_EMOJI_SEARCH':
@@ -254,7 +268,7 @@ function chatInputReducer(state: ChatInputState, action: ChatInputAction): ChatI
         ...state,
         emoji: {
           ...state.emoji,
-          searchTerm: action.payload
+          searchTerm: typedAction.payload
         }
       };
     case 'TOGGLE_CUSTOM_EMOJI_UPLOAD':
@@ -270,7 +284,7 @@ function chatInputReducer(state: ChatInputState, action: ChatInputAction): ChatI
         ...state,
         emoji: {
           ...state.emoji,
-          customFile: action.payload
+          customFile: typedAction.payload
         }
       };
     case 'SET_CUSTOM_EMOJI_NAME':
@@ -278,7 +292,7 @@ function chatInputReducer(state: ChatInputState, action: ChatInputAction): ChatI
         ...state,
         emoji: {
           ...state.emoji,
-          customName: action.payload
+          customName: typedAction.payload
         }
       };
     case 'RESET':
@@ -353,17 +367,15 @@ const ChatInput: React.FC<ChatInputProps> = memo(({
 
   // 切换表情包收藏状态
   const toggleFavorite = useCallback((emoji: Emoji) => {
-    dispatch(state => {
-      const favorites = state.emoji.favoriteEmojis;
-      let newFavorites;
-      if (favorites.some(e => e.id === emoji.id)) {
-        newFavorites = favorites.filter(e => e.id !== emoji.id);
-      } else {
-        newFavorites = [...favorites, { ...emoji, isFavorite: true }];
-      }
-      return { type: 'SET_FAVORITE_EMOJIS', payload: newFavorites };
-    });
-  }, []);
+    const favorites = state.emoji.favoriteEmojis;
+    let newFavorites;
+    if (favorites.some(e => e.id === emoji.id)) {
+      newFavorites = favorites.filter(e => e.id !== emoji.id);
+    } else {
+      newFavorites = [...favorites, { ...emoji, isFavorite: true }];
+    }
+    dispatch({ type: 'SET_FAVORITE_EMOJIS', payload: newFavorites });
+  }, [state.emoji.favoriteEmojis]);
 
   // 搜索表情包
   const filteredEmojis = state.emoji.emojis.filter(emoji => {
@@ -376,10 +388,8 @@ const ChatInput: React.FC<ChatInputProps> = memo(({
   const selectEmoji = useCallback((emoji: Emoji) => {
     // 添加到最近使用（简化实现）
     if (state.emoji.currentCategory === 'recent') {
-      dispatch(state => {
-        const newEmojis = [emoji, ...state.emoji.emojis.filter(e => e.id !== emoji.id)];
-        return { type: 'SET_EMOJIS', payload: newEmojis };
-      });
+      const newEmojis = [emoji, ...state.emoji.emojis.filter(e => e.id !== emoji.id)];
+      dispatch({ type: 'SET_EMOJIS', payload: newEmojis });
     }
     
     // 发送表情包
@@ -413,12 +423,10 @@ const ChatInput: React.FC<ChatInputProps> = memo(({
         uploader: 'currentUser'
       };
       
-      dispatch(state => {
-        const newCustomEmojis = [...state.emoji.customEmojis, newEmoji];
-        return {
-          type: 'SET_CUSTOM_EMOJIS',
-          payload: newCustomEmojis
-        };
+      const newCustomEmojis = [...state.emoji.customEmojis, newEmoji];
+      dispatch({
+        type: 'SET_CUSTOM_EMOJIS',
+        payload: newCustomEmojis
       });
       dispatch({ type: 'TOGGLE_CUSTOM_EMOJI_UPLOAD' });
       dispatch({ type: 'SET_CUSTOM_EMOJI_FILE', payload: null });
@@ -633,7 +641,7 @@ const ChatInput: React.FC<ChatInputProps> = memo(({
   const uploadFileChunks = useCallback((index: number) => {
     dispatch(state => {
       const fileObj = state.files.items[index];
-      if (!fileObj.chunks || !fileObj.totalChunks) return state;
+      if (!fileObj.chunks || !fileObj.totalChunks) return { type: 'SET_FILES', payload: { items: state.files.items, showUpload: state.files.showUpload } };
       
       // 查找未上传的块
       const nextChunk = fileObj.chunks.find(chunk => !chunk.uploaded);
@@ -660,7 +668,7 @@ const ChatInput: React.FC<ChatInputProps> = memo(({
         dispatch(state => {
           const updatedItems = [...state.files.items];
           const fileObj = updatedItems[index];
-          if (!fileObj.chunks || !fileObj.totalChunks) return state;
+          if (!fileObj.chunks || !fileObj.totalChunks) return { type: 'SET_FILES', payload: { items: state.files.items, showUpload: state.files.showUpload } };
           
           // 更新块状态
           fileObj.chunks[nextChunk.index].uploaded = true;
@@ -736,7 +744,7 @@ const ChatInput: React.FC<ChatInputProps> = memo(({
     dispatch(state => {
       const updatedItems = [...state.files.items];
       const fileObj = updatedItems[index];
-      if (!fileObj.chunks) return state;
+      if (!fileObj.chunks) return { type: 'SET_FILES', payload: { items: state.files.items, showUpload: state.files.showUpload } };
       
       // 重置所有块的上传状态
       fileObj.chunks.forEach(chunk => {

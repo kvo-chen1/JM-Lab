@@ -3,7 +3,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { llmService, Message, AssistantPersonality, AssistantTheme, ConnectionStatus } from '@/services/llmService';
-import { MessageBubble, ChatInput } from '@/components/chat';
+import { aiAssistantService, AIResponse, ChatMessage } from '@/services/aiAssistantService';
+import { aiKnowledgeService } from '@/services/aiKnowledgeService';
+import { MessageBubble, ChatInput } from '@/components/Chat';
 
 interface FloatingAIAssistantProps {
   // 可以添加一些自定义配置属性
@@ -87,37 +89,30 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
     visible: boolean;
   }
 
-  // 根据当前页面动态生成预设问题
-  const getPresetQuestions = () => {
-    const pageQuestions: Record<string, string[]> = {
-      '/': ['平台上如何创作', '如何使用AI生成功能', '如何分享我的作品', '平台有哪些功能', '如何获取创作灵感'],
-      '/cultural-knowledge': ['文化知识如何分类', '如何搜索特定文化内容', '如何收藏文化知识', '如何参与文化讨论', '如何贡献文化知识'],
-      '/creation-workshop': ['如何开始创作', 'AI生成功能怎么用', '如何导出我的作品', '如何查看创作数据', '如何使用创作模板'],
-      '/marketplace': ['如何购买文创产品', '如何成为卖家', '如何评价商品', '如何查看订单', '如何设置店铺'],
-      '/community': ['如何参与社区活动', '如何关注其他用户', '如何创建话题', '如何获取社区积分', '如何加入兴趣小组'],
-      '/my-works': ['如何管理我的作品', '如何编辑已发布作品', '如何查看作品统计', '如何设置作品隐私', '如何批量操作作品'],
-      '/explore': ['如何搜索作品', '如何筛选作品', '如何点赞收藏', '如何查看热门作品', '如何关注热门创作者'],
-      '/create': ['如何使用创作工具', '如何添加素材', '如何使用AI辅助创作', '如何保存草稿', '如何使用快捷键'],
-      '/dashboard': ['如何查看创作数据', '如何查看收益情况', '如何设置通知', '如何管理账户信息', '如何查看系统通知'],
-      '/settings': ['如何修改密码', '如何绑定手机号', '如何设置隐私', '如何管理API密钥', '如何清除缓存']
+  // 根据当前页面动态生成预设问题 - 使用知识库服务
+  const [presetQuestions, setPresetQuestions] = useState<string[]>([]);
+  
+  useEffect(() => {
+    const loadPresetQuestions = async () => {
+      // 使用知识库服务获取上下文相关的问题
+      const contextualQuestions = await aiAssistantService.getPresetQuestions(currentPath);
+      
+      // 根据对话历史调整预设问题，避免重复
+      const recentUserMessages = messages.filter(msg => msg.role === 'user').slice(-5).map(msg => msg.content);
+      let questions = contextualQuestions.filter(q => !recentUserMessages.some(msg => msg.includes(q)));
+      
+      // 如果过滤后问题太少，添加一些通用问题
+      if (questions.length < 3) {
+        const generalQuestions = ['如何使用平台', '平台有哪些AI功能', '如何获取帮助', '如何联系客服', '如何反馈问题'];
+        const additionalQuestions = generalQuestions.filter(q => !recentUserMessages.some(msg => msg.includes(q))).slice(0, 3 - questions.length);
+        questions = [...questions, ...additionalQuestions];
+      }
+      
+      setPresetQuestions(questions.slice(0, 5));
     };
     
-    // 获取基础预设问题
-    let questions = pageQuestions[currentPath] || ['平台上如何创作', '如何使用AI生成功能', '如何分享我的作品', '如何查看创作数据', '如何参与社区活动'];
-    
-    // 根据对话历史调整预设问题，避免重复
-    const recentUserMessages = messages.filter(msg => msg.role === 'user').slice(-5).map(msg => msg.content);
-    questions = questions.filter(q => !recentUserMessages.some(msg => msg.includes(q)));
-    
-    // 如果过滤后问题太少，添加一些通用问题
-    if (questions.length < 3) {
-      const generalQuestions = ['如何使用平台', '平台有哪些AI功能', '如何获取帮助', '如何联系客服', '如何反馈问题'];
-      const additionalQuestions = generalQuestions.filter(q => !recentUserMessages.some(msg => msg.includes(q))).slice(0, 3 - questions.length);
-      questions = [...questions, ...additionalQuestions];
-    }
-    
-    return questions;
-  };
+    loadPresetQuestions();
+  }, [currentPath, messages]);
 
   // 生成快捷操作
   const getShortcutActions = (): ShortcutAction[] => {
@@ -126,14 +121,14 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
         id: 'new-conversation',
         label: '新对话',
         icon: '💬',
-        action: () => {
+        action: async () => {
           if (messages.length > 1) {
-            if (confirm('创建新对话将丢失当前对话历史，确定要继续吗？')) {
-              llmService.createSession('新对话');
+            if (confirm('创建新对话将保存当前对话历史并开启新对话，确定要继续吗？')) {
+              await aiAssistantService.createNewConversation();
               setMessages([]);
             }
           } else {
-            llmService.createSession('新对话');
+            await aiAssistantService.createNewConversation();
             setMessages([]);
           }
         },
@@ -143,9 +138,9 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
         id: 'clear-history',
         label: '清空历史',
         icon: '🗑️',
-        action: () => {
-          if (confirm('确定要清空对话历史吗？此操作不可恢复。')) {
-            llmService.clearHistory();
+        action: async () => {
+          if (confirm('确定要清空当前对话吗？此操作不可恢复。')) {
+            await aiAssistantService.clearCurrentConversation();
             setMessages([]);
             setCopiedMessage(null);
             setFeedbackRatings({});
@@ -186,8 +181,7 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
     return actions.filter(action => action.visible);
   };
   
-  // 动态预设问题
-  const presetQuestions = getPresetQuestions();
+  // 动态预设问题 - 使用上面定义的presetQuestions状态
 
   // 监听路由变化，更新当前页面信息
   useEffect(() => {
@@ -233,6 +227,29 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
     setShowPresetQuestions(config.show_preset_questions);
     setEnableTypingEffect(config.enable_typing_effect);
     setAutoScroll(config.auto_scroll);
+  }, []);
+
+  // 初始化AI助手服务
+  useEffect(() => {
+    const initAIAssistant = async () => {
+      try {
+        await aiAssistantService.initialize();
+        // 加载历史对话
+        const history = await aiAssistantService.getConversationHistory();
+        if (history.length > 0) {
+          setMessages(history.map(msg => ({
+            role: msg.role,
+            content: msg.content,
+            timestamp: msg.timestamp,
+            isError: msg.isError
+          })));
+        }
+      } catch (error) {
+        console.error('初始化AI助手服务失败:', error);
+      }
+    };
+    
+    initAIAssistant();
   }, []);
 
   // 保存个性化设置
@@ -585,7 +602,7 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
     }
   }, [autoScroll, scrollToBottom]);
 
-  // 处理发送消息
+  // 处理发送消息 - 使用增强的AI助手服务
   const handleSendMessage = async () => {
     if (!inputMessage.trim() || isGenerating) return;
 
@@ -605,102 +622,58 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
     }, 0);
 
     try {
-      // 简单的数字映射回答和页面跳转
-      let response = '';
       const message = inputMessage.trim();
       
       // 处理常见问候语和身份问题
       const greetings = ['你好', '您好', 'hi', 'hello', '嗨', '早上好', '下午好', '晚上好'];
       let isGreeting = false;
       for (const greeting of greetings) {
-        if (message.includes(greeting)) {
+        if (message.toLowerCase().includes(greeting.toLowerCase())) {
           isGreeting = true;
-          response = `你好！我是津小脉，很高兴为你服务。你现在在「${currentPage}」页面，有什么可以帮助你的吗？你可以问我关于平台使用、创作技巧、文化知识等方面的问题，我会尽力为你解答。`;
-          break;
+          const greetingResponse = `你好！我是津小脉，很高兴为你服务。你现在在「${currentPage}」页面，有什么可以帮助你的吗？\n\n我可以帮你：\n- 导航到平台各个页面\n- 指导你使用平台功能\n- 回答关于创作的问题\n- 提供文化知识\n\n试试问我："如何发布作品" 或 "带我去创作中心"`;
+          await addTypingEffect(greetingResponse);
+          setIsGenerating(false);
+          return;
         }
       }
       
       // 处理身份问题
       if (!isGreeting && (message.includes('你是谁') || message.includes('你是什么') || message.includes('你的名字'))) {
-        isGreeting = true;
-        response = `你好！我是津小脉，津脉智坊平台的专属AI助手，由Kimi模型驱动。我专注于传统文化创作与设计，能够为你提供平台功能导航、创作辅助、文化知识普及等全方位支持。我的使命是连接传统文化与青年创意，推动文化传承与创新。`;
+        const identityResponse = `你好！我是津小脉，津脉智坊平台的专属AI助手。我专注于传统文化创作与设计，能够为你提供：\n\n🎯 **平台导航** - 快速跳转到任何页面\n📚 **操作指导** - 详细的功能使用教程\n💡 **创作辅助** - AI驱动的创意建议\n🧠 **长记忆** - 记住你的偏好和历史\n\n我的使命是连接传统文化与青年创意，推动文化传承与创新！`;
+        await addTypingEffect(identityResponse);
+        setIsGenerating(false);
+        return;
       }
       
-      if (!isGreeting) {
-        // 检查页面跳转关键词
-        const navigationKeywords: Record<string, { path: string; name: string }> = {
-          '首页': { path: '/', name: '首页' },
-          '文化知识': { path: '/cultural-knowledge', name: '文化知识' },
-          '创作中心': { path: '/create', name: '创作中心' },
-          '创作工坊': { path: '/create', name: '创作工坊' },
-          '文创市集': { path: '/marketplace', name: '文创市集' },
-          '社区': { path: '/community', name: '社区' },
-          '我的作品': { path: '/my-works', name: '我的作品' }
-        };
-        
-        let navigationTarget = null;
-        for (const [keyword, target] of Object.entries(navigationKeywords)) {
-          if (message.includes(keyword)) {
-            navigationTarget = target;
-            break;
-          }
-        }
-        
-        if (navigationTarget) {
-          // 执行页面跳转
-          response = `正在为你跳转到「${navigationTarget.name}」页面...`;
-          
-          // 使用打字效果显示跳转提示
-          await addTypingEffect(response, () => {
-            setIsGenerating(false);
-            
-            // 延迟跳转，让用户看到反馈
-            setTimeout(() => {
-              navigate(navigationTarget.path);
-            }, 1000);
-          });
-          
-          return;
-        }
-        
-        // 检查是否为纯数字或数字相关问题
-        const numericMatch = message.match(/^\s*([0-9]+)\s*$/);
-        if (numericMatch) {
-          const num = parseInt(numericMatch[1]);
-          
-          // 根据数字提供不同回答
-          const numberResponses: Record<number, string> = {
-            1: '1 代表了开始与创新，正如我们平台鼓励用户开启创作之旅。你可以在创作工坊中尝试各种非遗技艺的数字化创作，或者参与社区讨论分享你的创意灵感。',
-            2: '2 象征着合作与平衡。在我们平台上，你可以与其他创作者合作完成作品，也可以在传承与创新之间找到平衡，将传统非遗文化以现代方式呈现。',
-            3: '3 意味着多样性与丰富性。我们的平台涵盖了多种非遗技艺类型，包括陶瓷、刺绣、木雕等。你可以探索不同的文化元素，丰富你的创作素材库。',
-            4: '4 代表着稳定与结构。创作需要坚实的基础，你可以通过平台的教程视频学习非遗基础知识，掌握创作技巧，构建自己的创作体系。',
-            5: '5 象征着活力与探索。我们鼓励用户不断探索新的创作方式，尝试将AI生成技术与传统技艺结合，创造出既有文化底蕴又具现代美感的作品。',
-            6: '6 代表着和谐与完美。在创作过程中，你可以注重作品的整体协调性，将各种元素有机结合，创造出和谐统一的视觉效果。',
-            7: '7 象征着神秘与深度。非遗文化蕴含着深厚的历史底蕴和文化内涵，你可以深入挖掘其背后的故事，为你的作品增添深度和内涵。',
-            8: '8 意味着发展与繁荣。我们希望通过平台的发展，推动非遗文化的繁荣传承，让更多人了解和喜爱传统技艺。',
-            9: '9 代表着智慧与成就。通过不断学习和实践，你可以在非遗创作领域取得成就，成为传承和创新的使者。',
-            10: '10 象征着圆满与开始。每一次创作都是一个新的开始，也是对传统文化的一次圆满传承。'          
-          };
-          
-          response = numberResponses[num] || `你输入的数字是 ${num}。在我们的平台上，每个数字都可以成为创作的灵感来源。你可以尝试将数字元素融入你的作品中，创造出独特的视觉效果。`;
-        } else {
-          // 调用LLM服务生成响应，传递当前页面上下文
-          // 始终使用Kimi模型
-          llmService.setCurrentModel('kimi');
-          // 使用简化的直接生成响应方法，绕过任务队列
-          console.log('调用llmService.directGenerateResponse，提示词:', userMessage.content);
-          response = await llmService.directGenerateResponse(userMessage.content, {
-            context: {
-              page: currentPage,
-              path: currentPath
-            }
-          });
-          console.log('llmService.directGenerateResponse返回:', response);
-        }
+      // 使用增强的AI助手服务处理消息
+      const aiResponse = await aiAssistantService.processMessage(message, currentPath);
+      
+      if (aiResponse.type === 'navigation' && aiResponse.target) {
+        // 导航响应
+        await addTypingEffect(aiResponse.content, () => {
+          setIsGenerating(false);
+          // 延迟跳转，让用户看到反馈
+          setTimeout(() => {
+            navigate(aiResponse.target!.path);
+          }, 1000);
+        });
+        return;
       }
       
-      // 使用打字效果显示回复
-      await addTypingEffect(response);
+      if (aiResponse.type === 'guide') {
+        // 操作指导响应
+        await addTypingEffect(aiResponse.content);
+        setIsGenerating(false);
+        return;
+      }
+      
+      if (aiResponse.type === 'chat' || aiResponse.type === 'error') {
+        // 普通聊天响应或错误响应
+        await addTypingEffect(aiResponse.content, undefined, aiResponse.type === 'error');
+        setIsGenerating(false);
+        return;
+      }
+      
     } catch (error) {
       console.error('Failed to generate response:', error);
       
@@ -782,10 +755,9 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
     }
     
     const lowerInput = input.toLowerCase();
-    const currentQuestions = getPresetQuestions();
     
     // 从当前页面的预设问题中过滤匹配的建议
-    const matchingQuestions = currentQuestions.filter(question => 
+    const matchingQuestions = presetQuestions.filter((question: string) => 
       question.toLowerCase().includes(lowerInput)
     );
     

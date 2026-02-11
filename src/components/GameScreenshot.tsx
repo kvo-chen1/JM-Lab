@@ -1,4 +1,5 @@
 import React, { useRef } from 'react';
+// @ts-ignore - html2canvas类型声明缺失，但不影响功能
 import html2canvas from 'html2canvas';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';

@@ -4,7 +4,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { toast } from 'sonner';
 import TagSelector from './TagSelector';
 import { aiRecommendationService } from '@/services/aiRecommendationService';
-import { aiCreativeAssistantService, CreativeSuggestion } from '@/services/aiCreativeAssistantService';
+import aiCreativeAssistantService, { CreativeSuggestion } from '@/services/aiCreativeAssistantService';
 import { useNavigate } from 'react-router-dom';
 
 // 为语音识别 API 添加类型定义
@@ -33,6 +33,10 @@ interface WindowWithSpeechRecognition extends Window {
 }
 
 declare const window: WindowWithSpeechRecognition;
+
+// 安全获取SpeechRecognition
+declare const webkitSpeechRecognition: new () => SpeechRecognition | undefined;
+declare const SpeechRecognition: new () => SpeechRecognition | undefined;
 
 interface InspirationInputProps {
   onGenerate?: (prompt: string, tags: string[]) => void;
@@ -247,9 +251,9 @@ const InspirationInput = memo(function InspirationInput({
 
   // 开始语音输入
   const startVoiceInput = () => {
-    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-      const SpeechRecognition = window.webkitSpeechRecognition || window.SpeechRecognition;
-      const recognition = new SpeechRecognition();
+    const SpeechRecognitionAPI = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
+    if (SpeechRecognitionAPI) {
+      const recognition = new SpeechRecognitionAPI();
       recognition.lang = 'zh-CN';
       recognition.continuous = false;
       recognition.interimResults = false;
@@ -257,13 +261,13 @@ const InspirationInput = memo(function InspirationInput({
       setVoiceInputActive(true);
       toast.info('正在聆听...');
 
-      recognition.onresult = (event) => {
+      recognition.onresult = (event: SpeechRecognitionEvent) => {
         const transcript = event.results[0][0].transcript;
         setPrompt(prev => prev + transcript);
         toast.success('语音输入成功');
       };
 
-      recognition.onerror = (event) => {
+      recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
         console.error('语音识别错误:', event.error);
         toast.error('语音输入失败，请重试');
       };

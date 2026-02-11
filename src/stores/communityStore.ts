@@ -183,10 +183,14 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
             author: {
               id: 'user-1',
               username: '管理员',
+              email: 'admin@example.com',
               avatar_url: 'https://neeko-copilot.bytedance.net/api/text2image?prompt=Admin%20avatar%2C%20professional%20portrait&size=512x512',
               full_name: '系统管理员',
               bio: '津脉社区管理员',
-              created_at: new Date(Date.now() - 30 * 86400000).toISOString()
+              is_verified: true,
+              metadata: {},
+              created_at: new Date(Date.now() - 30 * 86400000).toISOString(),
+              updated_at: new Date(Date.now() - 30 * 86400000).toISOString()
             },
             attachments: [
               {
@@ -211,10 +215,14 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
             author: {
               id: 'user-2',
               username: '设计师小王',
+              email: 'designer@example.com',
               avatar_url: 'https://neeko-copilot.bytedance.net/api/text2image?prompt=Designer%20avatar%2C%20creative%20portrait&size=512x512',
               full_name: '王设计师',
               bio: '专注于文化元素在设计中的应用',
-              created_at: new Date(Date.now() - 15 * 86400000).toISOString()
+              is_verified: false,
+              metadata: {},
+              created_at: new Date(Date.now() - 15 * 86400000).toISOString(),
+              updated_at: new Date(Date.now() - 15 * 86400000).toISOString()
             },
             attachments: [
               {
@@ -239,10 +247,14 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
             author: {
               id: 'user-3',
               username: '摄影爱好者',
+              email: 'photo@example.com',
               avatar_url: 'https://neeko-copilot.bytedance.net/api/text2image?prompt=Photographer%20avatar%2C%20artistic%20portrait&size=512x512',
               full_name: '张摄影',
               bio: '热爱记录天津的文化与风景',
-              created_at: new Date(Date.now() - 10 * 86400000).toISOString()
+              is_verified: false,
+              metadata: {},
+              created_at: new Date(Date.now() - 10 * 86400000).toISOString(),
+              updated_at: new Date(Date.now() - 10 * 86400000).toISOString()
             },
             attachments: [
               {
@@ -350,10 +362,14 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
             author: {
               id: 'user-3',
               username: '摄影爱好者',
+              email: 'photo@example.com',
               avatar_url: 'https://neeko-copilot.bytedance.net/api/text2image?prompt=Photographer%20avatar%2C%20artistic%20portrait&size=512x512',
               full_name: '张摄影',
               bio: '热爱记录天津的文化与风景',
-              created_at: new Date(Date.now() - 10 * 86400000).toISOString()
+              is_verified: false,
+              metadata: {},
+              created_at: new Date(Date.now() - 10 * 86400000).toISOString(),
+              updated_at: new Date(Date.now() - 10 * 86400000).toISOString()
             },
             attachments: [
               {

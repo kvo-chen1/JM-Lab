@@ -145,7 +145,7 @@ export default function PublishToSquareModal({ isOpen, onClose }: PublishToSquar
         scheduledPublishDate: null
       };
       
-      const post = await postsApi.addPost(postData, user || undefined);
+      const post = await postsApi.addPost(postData, user as import('@/services/postService').User | undefined);
       
       if (post) {
         toast.success('作品发布成功！');

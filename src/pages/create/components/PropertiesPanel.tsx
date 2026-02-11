@@ -10,9 +10,9 @@ import RemixPanel from './panels/RemixPanel';
 import LayoutPanel from './panels/LayoutPanel';
 import MockupPanel from './panels/MockupPanel';
 import TilePanel from './panels/TilePanel';
+import UploadPanel from './panels/UploadPanel';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toolOptions } from "../data";
-import CreateWorkForm from '@/components/CreateWorkForm';
 import { toast } from 'sonner';
 
 export default function PropertiesPanel() {
@@ -55,13 +55,10 @@ export default function PropertiesPanel() {
       case 'tile':
         return <TilePanel />;
       case 'upload':
-        return (
-          <CreateWorkForm 
-            embedded={true} 
-            onClose={() => updateState({ activeTool: 'sketch' })} 
-            onSuccess={() => {}} 
-          />
-        );
+        return <UploadPanel onSelectUpload={(upload) => {
+          toast.success(`已选择作品: ${upload.title}`);
+          // 可以在这里添加将上传作品应用到画布的逻辑
+        }} />;
       default:
         return (
           <div className="flex flex-col items-center justify-center h-64 text-center opacity-50">

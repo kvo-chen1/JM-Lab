@@ -840,7 +840,7 @@ const CommunityManagement: React.FC<CommunityManagementProps> = ({
         <CommunityTabs
           tabs={tabs}
           activeTab={activeTab}
-          onTabChange={setActiveTab}
+          onTabChange={(tabId) => setActiveTab(tabId as ManagementTab)}
           isDark={isDark}
         />
 

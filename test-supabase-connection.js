@@ -1,6 +1,6 @@
 // 测试 Supabase 连接
 const SUPABASE_URL = 'https://pptqdicaaewtnaiflfcs.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_AYUZnzF2LNBPXi2o_3LGbA_7ceksBnv';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBwdHFkaWNhYWV3dG5haWZsZmNzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY0OTE1MzIsImV4cCI6MjA4MjA2NzUzMn0.hXdokiVrdl8mc5DNa3SjJtsfJpXmNhfJ3ztfHP6YV8c';
 
 async function testConnection() {
   console.log('Testing Supabase connection...');

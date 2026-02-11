@@ -18,7 +18,9 @@ if (process.env.NODE_ENV === 'production') {
 import { motion } from "framer-motion";
 import { debounce } from '@/lib/utils';
 
-import { Routes, Route, Outlet, useLocation, useNavigationType, Link, Navigate, useNavigate } from "react-router-dom";
+import { Routes, Route, Outlet, useLocation, useNavigationType, Link, Navigate, useNavigate, useParams } from "react-router-dom";
+import { useTheme } from '@/hooks/useTheme';
+import { useAuth } from '@/hooks/useAuth';
 // 导入postService用于初始化
 import postsApi from '@/services/postService';
 import { addPost } from '@/services/postService';
@@ -355,6 +357,47 @@ import AdminRoute from '@/components/AdminRoute';
 const CommunityAdminPanel = createLazyComponent(() => import(/* webpackChunkName: "components-community" */ '@/components/Community/Admin/CommunityAdminPanel'), {
   priority: ROUTE_PRIORITIES.MEDIUM
 });
+
+// 社群管理面板包装组件 - 提供必要的props
+const CommunityAdminPanelWrapper: React.FC = () => {
+  const { isDark } = useTheme();
+  const { id } = useParams<{ id: string }>();
+  const [community, setCommunity] = useState<any>(null);
+  const [members, setMembers] = useState<any[]>([]);
+  const [pendingContent, setPendingContent] = useState<any[]>([]);
+  const [approvedContent, setApprovedContent] = useState<any[]>([]);
+  const [rejectedContent, setRejectedContent] = useState<any[]>([]);
+  const [moderationRules, setModerationRules] = useState<any[]>([]);
+  const [announcement, setAnnouncement] = useState('');
+  const { user } = useAuth();
+  
+  const isAdmin = user?.isAdmin || false;
+  
+  return (
+    <CommunityAdminPanel
+      isDark={isDark}
+      communityId={id || ''}
+      community={community}
+      members={members}
+      pendingContent={pendingContent}
+      approvedContent={approvedContent}
+      rejectedContent={rejectedContent}
+      moderationRules={moderationRules}
+      announcement={announcement}
+      isAdmin={isAdmin}
+      onAddMember={(email, role) => console.log('Add member:', email, role)}
+      onRemoveMember={(memberId) => console.log('Remove member:', memberId)}
+      onUpdateMemberRole={(memberId, role) => console.log('Update role:', memberId, role)}
+      onUpdateAnnouncement={(content) => setAnnouncement(content)}
+      onUpdateCommunity={(community) => setCommunity({ ...community })}
+      onApproveContent={(contentId) => console.log('Approve:', contentId)}
+      onRejectContent={(contentId, reason) => console.log('Reject:', contentId, reason)}
+      onAddModerationRule={(rule) => setModerationRules([...moderationRules, { ...rule, id: Date.now().toString() }])}
+      onUpdateModerationRule={(rule) => setModerationRules(moderationRules.map(r => r.id === rule.id ? rule : r))}
+      onDeleteModerationRule={(ruleId) => setModerationRules(moderationRules.filter(r => r.id !== ruleId))}
+    />
+  );
+};
 // PWA 安装按钮组件 - 懒加载
 const PWAInstallButton = createLazyComponent(() => import(/* webpackChunkName: "components-auxiliary" */ '@/components/PWAInstallButton'), {
   priority: ROUTE_PRIORITIES.LOW
@@ -485,12 +528,12 @@ export default function App() {
         }
       };
 
-      // 监听登录成功事件
-      eventBus.subscribe('auth:login', handleLogin);
+      // 监听登录成功事件，保存listenerId用于取消订阅
+      const listenerId = eventBus.subscribe('auth:login', handleLogin);
 
       return () => {
         // 清理事件监听
-        eventBus.unsubscribe('auth:login', handleLogin);
+        eventBus.unsubscribe('auth:login', listenerId);
       };
     });
   }, [navigate]);
@@ -690,7 +733,7 @@ export default function App() {
           <Route path="/community" element={<LazyComponent><PrivateRoute><Community /></PrivateRoute></LazyComponent>} />
           <Route path="/community/:id" element={<LazyComponent><PrivateRoute><Community /></PrivateRoute></LazyComponent>} />
           <Route path="/community/:id/:channel" element={<LazyComponent><PrivateRoute><Community /></PrivateRoute></LazyComponent>} />
-          <Route path="/community/:id/admin" element={<LazyComponent><PrivateRoute><CommunityAdminPanel /></PrivateRoute></LazyComponent>} />
+          <Route path="/community/:id/admin" element={<LazyComponent><PrivateRoute><CommunityAdminPanelWrapper /></PrivateRoute></LazyComponent>} />
           <Route path="/friends" element={<LazyComponent><PrivateRoute><Friends /></PrivateRoute></LazyComponent>} />
           <Route path="/chat/:userId" element={<LazyComponent><PrivateRoute><ChatPage /></PrivateRoute></LazyComponent>} />
           <Route path="/post/:id" element={<LazyComponent><PostDetail /></LazyComponent>} />

@@ -1,10 +1,5 @@
 import { Document, Paragraph, TextRun, HeadingLevel, Packer, Table, TableCell, TableRow, WidthType, BorderStyle, AlignmentType } from 'docx';
 
-// Declare file-saver module
-declare module 'file-saver' {
-  export function saveAs(blob: Blob, filename: string): void;
-}
-
 // Import file-saver dynamically to avoid type issues
 const saveAs = (blob: Blob, filename: string) => {
   const link = document.createElement('a');
@@ -132,7 +127,7 @@ function convertHtmlToDocxElements(element: HTMLElement): any[] {
 /**
  * 创建标题
  */
-function createHeading(text: string, level: typeof HeadingLevel.HEADING_1): Paragraph {
+function createHeading(text: string, level: HeadingLevel): Paragraph {
   return new Paragraph({
     text: text.trim(),
     heading: level,

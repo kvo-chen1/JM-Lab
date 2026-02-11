@@ -48,14 +48,14 @@ export default function CrossDeviceSync() {
     updateStats();
 
     // Subscribe to sync events
-    const unsubQueue = eventBus.on(SyncEventType.SYNC_QUEUE_UPDATED, updateStats);
-    const unsubSyncStart = eventBus.on(SyncEventType.SYNC_STARTED, () => setSyncStatus('syncing'));
-    const unsubSyncComplete = eventBus.on(SyncEventType.SYNC_COMPLETED, () => {
+    const queueSub = eventBus.on(SyncEventType.SYNC_QUEUE_UPDATED, updateStats);
+    const syncStartSub = eventBus.on(SyncEventType.SYNC_STARTED, () => setSyncStatus('syncing'));
+    const syncCompleteSub = eventBus.on(SyncEventType.SYNC_COMPLETED, () => {
         setSyncStatus('synced');
         updateStats();
         setTimeout(() => setSyncStatus('idle'), 5000);
     });
-    const unsubSyncFail = eventBus.on(SyncEventType.SYNC_FAILED, () => {
+    const syncFailSub = eventBus.on(SyncEventType.SYNC_FAILED, () => {
         setSyncStatus('idle'); // Or 'failed' if we had that state
         toast.error('同步失败');
     });
@@ -108,10 +108,10 @@ export default function CrossDeviceSync() {
     }, 800);
 
     return () => {
-        unsubQueue();
-        unsubSyncStart();
-        unsubSyncComplete();
-        unsubSyncFail();
+        queueSub.unsubscribe?.();
+        syncStartSub.unsubscribe?.();
+        syncCompleteSub.unsubscribe?.();
+        syncFailSub.unsubscribe?.();
     };
   }, []);
 

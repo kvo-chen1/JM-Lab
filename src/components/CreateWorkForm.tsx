@@ -176,10 +176,10 @@ const CreateWorkForm: React.FC<CreateWorkFormProps> = ({
     
     try {
       // 创建新作品
-      const newWork: Omit<Work, 'id' | 'createdAt' | 'updatedAt' | 'likes' | 'comments' | 'views' | 'userId' | 'isPublic' | 'type' | 'thumbnailUrl' | 'isFeatured'> = {
+      const newWork: Omit<Work, 'id' | 'createdAt' | 'updatedAt' | 'likes' | 'comments' | 'views' | 'userId' | 'isPublic' | 'type' | 'thumbnailUrl' | 'isFeatured' | 'thumbnail' | 'creator' | 'creatorAvatar' | 'featured'> = {
         title,
         description,
-        categoryId: category,
+        category,
         tags,
       };
       
@@ -364,9 +364,8 @@ const CreateWorkForm: React.FC<CreateWorkFormProps> = ({
               {imagePreview ? (
                 <div className="relative group">
                   {image && image.type.startsWith('video/') ? (
-                    <video 
-                      src={imagePreview} 
-                      alt="预览" 
+                    <video
+                      src={imagePreview}
                       className="w-full max-h-[300px] object-contain bg-gray-100 dark:bg-gray-900/50"
                       controls
                       autoPlay

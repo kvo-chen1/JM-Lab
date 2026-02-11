@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Heart } from 'lucide-react';
 import LazyImage from '../LazyImage';
-import { CompactAuthorCard } from './AuthorCard';
+// import { CompactAuthorCard } from './AuthorCard';
 import type { PostWithAuthor } from '../../lib/supabase';
 import { useResponsive } from '../../utils/responsiveDesign';
 
@@ -80,7 +80,7 @@ export const MobileWaterfallGrid: React.FC<MobileWaterfallGridProps> = ({
               {/* Image Area */}
               <div className="relative">
                 <LazyImage
-                  src={post.attachments?.[0] || '/images/placeholder-image.jpg'}
+                  src={typeof post.attachments?.[0] === 'string' ? post.attachments[0] : post.attachments?.[0]?.url || '/images/placeholder-image.jpg'}
                   alt={post.title}
                   ratio="auto"
                   className="w-full"
@@ -97,7 +97,7 @@ export const MobileWaterfallGrid: React.FC<MobileWaterfallGridProps> = ({
                 </h3>
                 
                 <div className="flex items-center justify-between">
-                  <CompactAuthorCard author={post.author} className="scale-90 origin-left -ml-1" />
+                  <span className="text-xs text-gray-500">{post.author?.username || 'Unknown'}</span>
                   
                   <button 
                     onClick={(e) => {

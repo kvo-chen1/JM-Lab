@@ -287,7 +287,8 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
   }, [])
 
   const [showNotifications, setShowNotifications] = useState(false)
-  // 中文注释：滚动超过一定距离后显示“回到顶部”悬浮按钮，提升长页可用性
+  const [showShortcuts, setShowShortcuts] = useState(false)
+  // 中文注释：滚动超过一定距离后显示"回到顶部"悬浮按钮，提升长页可用性
   const [showBackToTop, setShowBackToTop] = useState(false)
 
   // 中文注释：问题反馈弹层显示状态
@@ -938,7 +939,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                   whileHover={{ scale: 1.1, y: -2 }}
                   whileTap={{ scale: 0.95 }}
                 >
-                  <i className={`fas ${theme === 'dark' ? 'fa-sun' : theme === 'light' ? 'fa-moon' : theme === 'blue' ? 'fa-water' : theme === 'green' ? 'fa-leaf' : 'fa-dungeon'} transition-transform duration-300 hover:scale-110`}></i>
+                  <i className={`fas ${theme === 'dark' ? 'fa-moon' : theme === 'light' ? 'fa-sun' : theme === 'blue' ? 'fa-water' : theme === 'green' ? 'fa-leaf' : 'fa-dungeon'} transition-transform duration-300 hover:scale-110`}></i>
                   <i className={`fas fa-chevron-down transition-transform duration-200 ${showThemeDropdown ? 'rotate-180' : ''}`}></i>
                 </motion.button>
                 {showThemeDropdown && (

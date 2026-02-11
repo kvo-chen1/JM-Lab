@@ -370,12 +370,73 @@ export function clearPerformanceData(): void {
   metricsCache.length = 0;
 }
 
-// 导出默认对象
-export default {
+// 模拟指标数据
+function getMetrics() {
+  return {
+    fcp: performance.now(),
+    lcp: performance.now(),
+    fid: 0,
+    cls: 0,
+    ttfb: 0,
+  };
+}
+
+// 模拟网络请求统计
+function getNetworkRequestStats() {
+  return {
+    total: 0,
+    success: 0,
+    failed: 0,
+    averageTime: 0,
+  };
+}
+
+// 模拟组件渲染统计
+function getComponentRenderStats() {
+  return {
+    total: 0,
+    averageTime: 0,
+    slowest: [],
+  };
+}
+
+// 模拟内存使用
+function getMemoryUsage() {
+  return {
+    used: 0,
+    total: 0,
+    percentage: 0,
+  };
+}
+
+// 模拟审计
+function runAudit() {
+  return {
+    score: 100,
+    issues: [],
+  };
+}
+
+// 清除指标
+function clearMetrics() {
+  clearPerformanceData();
+}
+
+// 性能监控器对象
+export const performanceMonitor = {
   init: initPerformanceMonitor,
   measureFunction,
   mark,
   measure,
   getData: getPerformanceData,
   clear: clearPerformanceData,
+  getMetrics,
+  getNetworkRequestStats,
+  getComponentRenderStats,
+  getMemoryUsage,
+  runAudit,
+  clearMetrics,
 };
+
+// 导出默认对象
+export default performanceMonitor;

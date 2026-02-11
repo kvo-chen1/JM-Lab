@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
-import postsApi, { Post, Comment, followUser, unfollowUser, checkUserFollowing } from '@/services/postService';
+import postsApi, { Post, Comment, followUser, unfollowUser, checkUserFollowing, addComment } from '@/services/postService';
 import { TianjinAvatar } from '@/components/TianjinStyleComponents';
 import LazyImage from './LazyImage';
 import LazyVideo from './LazyVideo';
@@ -11,6 +11,68 @@ import WaterfallGallery, { GalleryItem } from './WaterfallGallery/WaterfallGalle
 import styles from './WaterfallGallery/WaterfallGallery.module.scss';
 import type { UserProfile } from '@/lib/supabase';
 import type { User as AuthUser } from '@/contexts/authContext';
+
+// 常用表情列表
+const EMOJI_LIST = [
+  '😀', '😃', '😄', '😁', '😆', '😅', '🤣', '😂',
+  '🙂', '🙃', '😉', '😊', '😇', '🥰', '😍', '🤩',
+  '😘', '😗', '😚', '😙', '😋', '😛', '😜', '🤪',
+  '😝', '🤑', '🤗', '🤭', '🤫', '🤔', '🤐', '🤨',
+  '😐', '😑', '😶', '😏', '😒', '🙄', '😬', '🤥',
+  '😌', '😔', '😪', '🤤', '😴', '😷', '🤒', '🤕',
+  '🤢', '🤮', '🤧', '🥵', '🥶', '🥴', '😵', '🤯',
+  '🤠', '🥳', '😎', '🤓', '🧐', '😕', '😟', '🙁',
+  '☹️', '😮', '😯', '😲', '😳', '🥺', '😦', '😧',
+  '😨', '😰', '😥', '😢', '😭', '😱', '😖', '😣',
+  '😞', '😓', '😩', '😫', '🥱', '😤', '😡', '😠',
+  '🤬', '😈', '👿', '💀', '☠️', '💩', '🤡', '👹',
+  '👺', '👻', '👽', '👾', '🤖', '😺', '😸', '😹',
+  '😻', '😼', '😽', '🙀', '😿', '😾', '❤️', '🧡',
+  '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔',
+  '❣️', '💕', '💞', '💓', '💗', '💖', '💘', '💝',
+  '👍', '👎', '👏', '🙌', '👐', '🤲', '🤝', '🙏',
+  '✌️', '🤞', '🤟', '🤘', '🤙', '👈', '👉', '👆',
+  '👇', '☝️', '👋', '🤚', '🖐️', '✋', '🖖', '👌',
+  '🤏', '✌️', '🤞', '🤟', '🤘', '🤙', '👍', '👎',
+  '👊', '✊', '🤛', '🤜', '👏', '🙌', '👐', '🤲',
+  '🤝', '🙏', '💪', '🦾', '🦵', '🦿', '🦶', '👣',
+  '👂', '🦻', '👃', '🧠', '🦷', '🦴', '👀', '👁️',
+  '👅', '👄', '💋', '🩸', '🎉', '🎊', '🎁', '🎈',
+  '🌟', '⭐', '✨', '⚡', '🔥', '💥', '☄️', '☀️',
+  '🌤️', '⛅', '🌥️', '☁️', '🌦️', '🌧️', '⛈️', '🌩️',
+  '🌨️', '❄️', '🌬️', '💨', '🌪️', '🌫️', '🌈', '☔',
+  '💧', '💦', '🌊', '🌑', '🌒', '🌓', '🌔', '🌕',
+  '🌖', '🌗', '🌘', '🌙', '🌚', '🌛', '🌜', '🌡️',
+  '☀️', '🌝', '🌞', '🪐', '⭐', '🌟', '🌠', '🌌',
+  '☁️', '⛅', '⛈️', '🌤️', '🌥️', '🌦️', '🌧️', '🌨️',
+  '❄️', '🌬️', '💨', '🌪️', '🌫️', '🌈', '☔', '💧',
+  '💦', '🌊', '🌍', '🌎', '🌏', '🌐', '🗺️', '🧭',
+  '⛰️', '🏔️', '🌋', '🗻', '🏕️', '🏖️', '🏜️', '🏝️',
+  '🏞️', '🏟️', '🏛️', '🏗️', '🧱', '🪨', '🪵', '🛖',
+  '🏘️', '🏚️', '🏠', '🏡', '🏢', '🏣', '🏤', '🏥',
+  '🏦', '🏨', '🏩', '🏪', '🏫', '🏬', '🏭', '🏯',
+  '🏰', '💒', '🗼', '🗽', '⛪', '🕌', '🛕', '🕍',
+  '⛩️', '🕋', '⛲', '⛺', '🌁', '🌃', '🏙️', '🌄',
+  '🌅', '🌆', '🌇', '🌉', '♨️', '🎠', '🎡', '🎢',
+  '💈', '🎪', '🚂', '🚃', '🚄', '🚅', '🚆', '🚇',
+  '🚈', '🚉', '🚊', '🚝', '🚞', '🚋', '🚌', '🚍',
+  '🚎', '🚐', '🚑', '🚒', '🚓', '🚔', '🚕', '🚖',
+  '🚗', '🚘', '🚙', '🛻', '🚚', '🚛', '🚜', '🏎️',
+  '🏍️', '🛵', '🦽', '🦼', '🛺', '🚲', '🛴', '🛹',
+  '🛼', '🚏', '🛣️', '🛤️', '🛢️', '⛽', '🚨', '🚥',
+  '🚦', '🛑', '🚧', '⚓', '⛵', '🛶', '🚤', '🛳️',
+  '⛴️', '🚢', '✈️', '🛩️', '🛫', '🛬', '🪂', '💺',
+  '🚁', '🚟', '🚠', '🚡', '🛰️', '🚀', '🛸', '🛎️',
+  '🧳', '⌚', '⏰', '⏱️', '⏲️', '🕰️', '🕛', '🕧',
+  '🕐', '🕜', '🕑', '🕝', '🕒', '🕞', '🕓', '🕟',
+  '🕔', '🕠', '🕕', '🕡', '🕖', '🕢', '🕗', '🕣',
+  '🕘', '🕤', '🕙', '🕥', '🕚', '🕦', '🌑', '🌒',
+  '🌓', '🌔', '🌕', '🌖', '🌗', '🌘', '🌙', '🌚',
+  '🌛', '🌜', '🌡️', '☀️', '🌝', '🌞', '🪐', '⭐',
+  '🌟', '🌠', '🌌', '☁️', '⛅', '⛈️', '🌤️', '🌥️',
+  '🌦️', '🌧️', '🌨️', '❄️', '🌬️', '💨', '🌪️', '🌫️',
+  '🌈', '☔', '💧', '💦', '🌊'
+];
 
 interface PostDetailModalProps {
   post: Post | null;
@@ -49,12 +111,18 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
   const [isFollowing, setIsFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
   const [isSwitchingPost, setIsSwitchingPost] = useState(false);
-  const commentInputRef = useRef<HTMLInputElement>(null);
+  // 评论图片和表情相关状态
+  const [commentImages, setCommentImages] = useState<File[]>([]);
+  const [commentImagePreviews, setCommentImagePreviews] = useState<string[]>([]);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const commentInputRef = useRef<HTMLTextAreaElement>(null);
   const replyInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Load comments when post changes
   useEffect(() => {
@@ -82,9 +150,10 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
   // Check follow status
   useEffect(() => {
     const checkFollowStatus = async () => {
-      if (post?.author?.id && currentUser?.id) {
+      const authorId = typeof post?.author === 'object' ? post?.author?.id : post?.author;
+      if (authorId && currentUser?.id) {
         try {
-          const following = await checkUserFollowing(currentUser.id, post.author.id);
+          const following = await checkUserFollowing(currentUser.id, authorId);
           setIsFollowing(following);
         } catch (error) {
           console.error('Failed to check follow status:', error);
@@ -92,7 +161,7 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
       }
     };
     checkFollowStatus();
-  }, [post?.author?.id, currentUser?.id]);
+  }, [post?.author, currentUser?.id]);
 
   // Load related posts
   useEffect(() => {
@@ -121,6 +190,9 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
       setReplyToComment(null);
       setIsImageFull(false);
       setIsSwitchingPost(false);
+      setCommentImages([]);
+      setCommentImagePreviews([]);
+      setShowEmojiPicker(false);
     }
   }, [isOpen, post]);
 
@@ -158,19 +230,65 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
     }
   };
 
+  // 处理图片选择
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+
+    const newFiles = Array.from(files).slice(0, 4 - commentImages.length); // 最多4张图片
+    if (newFiles.length === 0) {
+      toast.error('最多只能上传4张图片');
+      return;
+    }
+
+    setCommentImages(prev => [...prev, ...newFiles]);
+
+    // 生成预览
+    newFiles.forEach(file => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setCommentImagePreviews(prev => [...prev, reader.result as string]);
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  // 删除已选择的图片
+  const handleRemoveImage = (index: number) => {
+    setCommentImages(prev => prev.filter((_, i) => i !== index));
+    setCommentImagePreviews(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // 插入表情
+  const handleEmojiSelect = (emoji: string) => {
+    setCommentText(prev => prev + emoji);
+    setShowEmojiPicker(false);
+    commentInputRef.current?.focus();
+  };
+
   const handleSendComment = async () => {
-    if (post && commentText.trim()) {
-      try {
-        await onComment(post.id, commentText);
-        setCommentText('');
-        toast.success('评论发送成功！');
-        // 刷新评论列表
-        const updatedComments = await postsApi.getWorkComments(post.id);
-        setComments(updatedComments);
-      } catch (error: any) {
-        console.error('发送评论失败:', error);
-        toast.error(error.message || '评论发送失败，请稍后重试');
-      }
+    if (!post) return;
+    if (!commentText.trim() && commentImages.length === 0) {
+      toast.error('请输入评论内容或上传图片');
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      // 使用新的 addComment 函数，支持图片上传
+      await addComment(post.id, commentText, undefined, currentUser as any, commentImages);
+      setCommentText('');
+      setCommentImages([]);
+      setCommentImagePreviews([]);
+      toast.success('评论发送成功！');
+      // 刷新评论列表
+      const updatedComments = await postsApi.getWorkComments(post.id);
+      setComments(updatedComments);
+    } catch (error: any) {
+      console.error('发送评论失败:', error);
+      toast.error(error.message || '评论发送失败，请稍后重试');
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -258,11 +376,15 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
     if (!post) return;
 
     try {
+      if (!currentUser?.id) {
+        toast.error('请先登录');
+        return;
+      }
       if (post.isBookmarked) {
-        await postsApi.unbookmarkPost(post.id);
+        await postsApi.unbookmarkPost(post.id, currentUser.id);
         toast.success('已取消收藏');
       } else {
-        await postsApi.bookmarkPost(post.id);
+        await postsApi.bookmarkPost(post.id, currentUser.id);
         toast.success('已添加到收藏');
       }
     } catch (error: any) {
@@ -569,7 +691,8 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
                                disabled={followLoading}
                                onClick={async (e) => {
                                  e.stopPropagation();
-                                 if (!currentUser?.id || !post?.author?.id) {
+                                 const authorId = typeof post?.author === 'object' ? post?.author?.id : post?.author;
+                                 if (!currentUser?.id || !authorId) {
                                    toast.error('请先登录');
                                    return;
                                  }
@@ -577,11 +700,11 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
                                  setFollowLoading(true);
                                  try {
                                    if (isFollowing) {
-                                     await unfollowUser(currentUser.id, post.author.id);
+                                     await unfollowUser(currentUser.id, authorId);
                                      setIsFollowing(false);
                                      toast.success('已取消关注');
                                    } else {
-                                     await followUser(currentUser.id, post.author.id);
+                                     await followUser(currentUser.id, authorId);
                                      setIsFollowing(true);
                                      toast.success('已关注');
                                    }
@@ -684,6 +807,26 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
                                       <div className="text-gray-700 dark:text-gray-200 text-base leading-relaxed mb-3">
                                         {comment.content}
                                       </div>
+                                      {/* 评论图片 */}
+                                      {comment.images && comment.images.length > 0 && (
+                                        <div className="flex gap-2 mb-3 flex-wrap">
+                                          {comment.images.map((imageUrl, imgIndex) => (
+                                            <a 
+                                              key={imgIndex} 
+                                              href={imageUrl} 
+                                              target="_blank" 
+                                              rel="noopener noreferrer"
+                                              className="block"
+                                            >
+                                              <img
+                                                src={imageUrl}
+                                                alt={`评论图片 ${imgIndex + 1}`}
+                                                className="w-20 h-20 object-cover rounded-lg border border-gray-200 dark:border-gray-700 hover:opacity-90 transition-opacity cursor-pointer"
+                                              />
+                                            </a>
+                                          ))}
+                                        </div>
+                                      )}
                                       <div className="flex items-center gap-4">
                                         <button 
                                           className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 transition-colors group/btn"
@@ -735,6 +878,26 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
                                             <div className="text-gray-700 dark:text-gray-300 text-sm leading-relaxed mb-2">
                                               {reply.content}
                                             </div>
+                                            {/* 回复图片 */}
+                                            {reply.images && reply.images.length > 0 && (
+                                              <div className="flex gap-2 mb-2 flex-wrap">
+                                                {reply.images.map((imageUrl, imgIndex) => (
+                                                  <a 
+                                                    key={imgIndex} 
+                                                    href={imageUrl} 
+                                                    target="_blank" 
+                                                    rel="noopener noreferrer"
+                                                    className="block"
+                                                  >
+                                                    <img
+                                                      src={imageUrl}
+                                                      alt={`回复图片 ${imgIndex + 1}`}
+                                                      className="w-16 h-16 object-cover rounded-lg border border-gray-200 dark:border-gray-700 hover:opacity-90 transition-opacity cursor-pointer"
+                                                    />
+                                                  </a>
+                                                ))}
+                                              </div>
+                                            )}
                                             <div className="flex items-center gap-3">
                                               <button 
                                                 className="flex items-center gap-1 text-xs text-gray-500 hover:text-red-500 transition-colors"
@@ -781,6 +944,27 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
 
                     {/* Bottom Sticky Comment Input */}
                     <div className="p-4 md:p-6 border-t border-gray-100 dark:border-gray-800 bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl sticky bottom-0 z-10">
+                      {/* 图片预览 */}
+                      {commentImagePreviews.length > 0 && (
+                        <div className="flex gap-2 mb-3 flex-wrap">
+                          {commentImagePreviews.map((preview, index) => (
+                            <div key={index} className="relative group">
+                              <img
+                                src={preview}
+                                alt={`预览 ${index + 1}`}
+                                className="w-16 h-16 object-cover rounded-lg border border-gray-200 dark:border-gray-700"
+                              />
+                              <button
+                                onClick={() => handleRemoveImage(index)}
+                                className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
+                              >
+                                <i className="fas fa-times"></i>
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
                       <div className="flex items-start gap-3 bg-white dark:bg-gray-800 rounded-2xl px-4 py-3 shadow-lg border border-gray-100 dark:border-gray-700 transition-all duration-300 focus-within:shadow-xl focus-within:border-blue-300 dark:focus-within:border-blue-600 focus-within:ring-4 focus-within:ring-blue-100/50 dark:focus-within:ring-blue-900/30">
                         <TianjinAvatar 
                           src={currentUser?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=current`} 
@@ -802,28 +986,75 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
                         </div>
                         <button 
                           onClick={handleSendComment}
-                          disabled={!commentText.trim()}
+                          disabled={(!commentText.trim() && commentImages.length === 0) || isUploading}
                           className={`
                             flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-300
-                            ${commentText.trim() 
+                            ${(commentText.trim() || commentImages.length > 0) && !isUploading
                               ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40 hover:scale-105' 
                               : 'bg-gray-100 dark:bg-gray-700 text-gray-400 cursor-not-allowed'
                             }
                           `}
                         >
-                          <i className="fas fa-paper-plane text-sm"></i>
+                          {isUploading ? (
+                            <i className="fas fa-spinner fa-spin text-sm"></i>
+                          ) : (
+                            <i className="fas fa-paper-plane text-sm"></i>
+                          )}
                         </button>
                       </div>
                       <div className="flex items-center justify-between mt-2 px-1">
                         <div className="flex items-center gap-4 text-xs text-gray-400">
-                          <button className="hover:text-gray-600 dark:hover:text-gray-300 transition-colors flex items-center gap-1">
+                          {/* 图片上传按钮 */}
+                          <input
+                            type="file"
+                            ref={fileInputRef}
+                            onChange={handleImageSelect}
+                            accept="image/*"
+                            multiple
+                            className="hidden"
+                          />
+                          <button 
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={commentImages.length >= 4}
+                            className="hover:text-gray-600 dark:hover:text-gray-300 transition-colors flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
                             <i className="far fa-image"></i>
-                            <span>图片</span>
+                            <span>图片{commentImages.length > 0 && `(${commentImages.length}/4)`}</span>
                           </button>
-                          <button className="hover:text-gray-600 dark:hover:text-gray-300 transition-colors flex items-center gap-1">
-                            <i className="far fa-smile"></i>
-                            <span>表情</span>
-                          </button>
+                          
+                          {/* 表情选择按钮 */}
+                          <div className="relative">
+                            <button 
+                              onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                              className="hover:text-gray-600 dark:hover:text-gray-300 transition-colors flex items-center gap-1"
+                            >
+                              <i className="far fa-smile"></i>
+                              <span>表情</span>
+                            </button>
+                            
+                            {/* 表情选择器弹窗 */}
+                            {showEmojiPicker && (
+                              <>
+                                <div 
+                                  className="fixed inset-0 z-40"
+                                  onClick={() => setShowEmojiPicker(false)}
+                                />
+                                <div className="absolute bottom-full left-0 mb-2 p-3 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 z-50 w-72">
+                                  <div className="grid grid-cols-8 gap-1 max-h-48 overflow-y-auto">
+                                    {EMOJI_LIST.map((emoji, index) => (
+                                      <button
+                                        key={index}
+                                        onClick={() => handleEmojiSelect(emoji)}
+                                        className="w-8 h-8 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors text-lg"
+                                      >
+                                        {emoji}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              </>
+                            )}
+                          </div>
                         </div>
                         <span className="text-xs text-gray-400">
                           {commentText.length > 0 && `${commentText.length} 字`}

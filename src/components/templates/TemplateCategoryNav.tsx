@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 
-interface Category {
+export interface Category {
   id: string;
   name: string;
   icon: React.ReactNode;

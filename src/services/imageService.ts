@@ -862,70 +862,99 @@ const PREFER_BACKEND_UPLOAD = false;
 // 默认 Storage bucket 名称
 const DEFAULT_BUCKET = 'works';
 
-export const uploadImage = async (file: File): Promise<string> => {
+export const uploadImage = async (file: File, folder: string = 'works'): Promise<string> => {
   try {
-    // 如果设置了优先使用后端上传，直接跳过 Supabase
-    if (PREFER_BACKEND_UPLOAD) {
-      console.log('[uploadImage] Using backend API upload (PREFER_BACKEND_UPLOAD=true)');
-      return await uploadToBackend(file);
-    }
-    
     // 动态导入 supabase 避免循环依赖
-    const { supabase, isSupabaseConfigured } = await import('@/lib/supabase');
-    
+    const { supabaseAdmin, isSupabaseConfigured } = await import('@/lib/supabase');
+
     // 检查 supabase 是否配置正确
-    if (!isSupabaseConfigured() || !supabase || !supabase.storage) {
-      console.warn('Supabase not configured, using backend API upload');
-      return await uploadToBackend(file);
+    if (!isSupabaseConfigured() || !supabaseAdmin || !supabaseAdmin.storage) {
+      console.error('Supabase not configured, cannot upload image');
+      throw new Error('Supabase 未配置，无法上传图片');
     }
-    
+
     // 生成唯一文件名
     const fileExt = file.name.split('.').pop() || 'jpg';
     const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-    const filePath = `works/${fileName}`; // 使用 works 子目录
+    const filePath = `${folder}/${fileName}`; // 使用指定的子目录
 
-    try {
-      // 上传到 works bucket
-      const { error: uploadError } = await supabase.storage
-        .from(DEFAULT_BUCKET)
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: false
-        });
+    // 使用 supabaseAdmin 上传到 works bucket（绕过 RLS）
+    const { error: uploadError } = await supabaseAdmin.storage
+      .from(DEFAULT_BUCKET)
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: false
+      });
 
-      if (uploadError) {
-        // 如果存储桶不存在、RLS 策略错误或上传失败，使用后端 API 上传
-        if (uploadError.message?.includes('bucket') || 
-            uploadError.message?.includes('not found') ||
-            uploadError.message?.includes('row-level security') ||
-            uploadError.message?.includes('violates row-level security')) {
-          console.warn('Supabase storage not available (RLS policy or bucket issue), using backend API upload');
-          // 使用后端 API 上传文件
-          return await uploadToBackend(file);
-        }
-        console.error('Supabase upload error:', uploadError);
-        throw uploadError;
-      }
-
-      // 获取公开 URL
-      const { data } = supabase.storage
-        .from(DEFAULT_BUCKET)
-        .getPublicUrl(filePath);
-
-      if (!data.publicUrl) {
-        throw new Error('Failed to get public URL');
-      }
-
-      return data.publicUrl;
-    } catch (storageError: any) {
-      // 存储错误时使用后端 API 上传
-      console.warn('Supabase storage error, using backend API upload:', storageError.message || storageError);
-      return await uploadToBackend(file);
+    if (uploadError) {
+      console.error('Supabase upload error:', uploadError);
+      throw new Error(`上传到 Supabase 失败: ${uploadError.message}`);
     }
+
+    // 获取公开 URL
+    const { data } = supabaseAdmin.storage
+      .from(DEFAULT_BUCKET)
+      .getPublicUrl(filePath);
+
+    if (!data.publicUrl) {
+      throw new Error('Failed to get public URL');
+    }
+
+    console.log('[uploadImage] Image uploaded successfully:', data.publicUrl);
+    return data.publicUrl;
   } catch (error: any) {
-    // 任何错误都尝试后端 API 上传
-    console.warn('Image upload failed, trying backend API upload:', error.message || error);
-    return await uploadToBackend(file);
+    console.error('Image upload failed:', error);
+    throw new Error('图片上传失败: ' + (error.message || 'Unknown error'));
+  }
+};
+
+// 头像 bucket 名称
+const AVATARS_BUCKET = 'avatars';
+
+// 专门用于上传头像的函数
+export const uploadAvatar = async (file: File): Promise<string> => {
+  try {
+    // 动态导入 supabase 避免循环依赖
+    const { supabaseAdmin, isSupabaseConfigured } = await import('@/lib/supabase');
+
+    // 检查 supabase 是否配置正确
+    if (!isSupabaseConfigured() || !supabaseAdmin || !supabaseAdmin.storage) {
+      console.error('Supabase not configured, cannot upload avatar');
+      throw new Error('Supabase 未配置，无法上传头像');
+    }
+
+    // 生成唯一文件名
+    const fileExt = file.name.split('.').pop() || 'jpg';
+    const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+    const filePath = `${fileName}`; // 直接上传到 avatars bucket 根目录
+
+    // 使用 supabaseAdmin 上传到 avatars bucket（绕过 RLS）
+    const { error: uploadError } = await supabaseAdmin.storage
+      .from(AVATARS_BUCKET)
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: false
+      });
+
+    if (uploadError) {
+      console.error('Supabase avatar upload error:', uploadError);
+      throw new Error(`上传到 Supabase 失败: ${uploadError.message}`);
+    }
+
+    // 获取公开 URL
+    const { data } = supabaseAdmin.storage
+      .from(AVATARS_BUCKET)
+      .getPublicUrl(filePath);
+
+    if (!data.publicUrl) {
+      throw new Error('Failed to get public URL');
+    }
+
+    console.log('[uploadAvatar] Avatar uploaded successfully:', data.publicUrl);
+    return data.publicUrl;
+  } catch (error: any) {
+    console.error('Avatar upload failed:', error);
+    throw new Error('头像上传失败: ' + (error.message || 'Unknown error'));
   }
 };
 
@@ -981,12 +1010,12 @@ export const uploadVideo = async (file: File): Promise<string> => {
     console.log('[uploadVideo] Uploading video:', file.name, 'size:', (file.size / 1024 / 1024).toFixed(2), 'MB');
     
     // 复用图片上传逻辑，但使用视频专用的存储路径
-    const { supabase, isSupabaseConfigured } = await import('@/lib/supabase');
+    const { supabaseAdmin, isSupabaseConfigured } = await import('@/lib/supabase');
     
     // 检查 supabase 是否配置正确
-    if (!isSupabaseConfigured() || !supabase || !supabase.storage) {
-      console.warn('Supabase not configured, using backend API upload for video');
-      return await uploadToBackend(file);
+    if (!isSupabaseConfigured() || !supabaseAdmin || !supabaseAdmin.storage) {
+      console.error('Supabase not configured, cannot upload video');
+      throw new Error('Supabase 未配置，无法上传视频');
     }
     
     // 生成唯一文件名
@@ -994,36 +1023,31 @@ export const uploadVideo = async (file: File): Promise<string> => {
     const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
     const filePath = `videos/${fileName}`; // 使用 videos 子目录
 
-    try {
-      // 上传到 works bucket
-      const { error: uploadError } = await supabase.storage
-        .from(DEFAULT_BUCKET)
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: false,
-          contentType: file.type || 'video/mp4'
-        });
+    // 使用 supabaseAdmin 上传到 works bucket（绕过 RLS）
+    const { error: uploadError } = await supabaseAdmin.storage
+      .from(DEFAULT_BUCKET)
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: false,
+        contentType: file.type || 'video/mp4'
+      });
 
-      if (uploadError) {
-        console.warn('Supabase video upload error:', uploadError);
-        return await uploadToBackend(file);
-      }
-
-      // 获取公开 URL
-      const { data } = supabase.storage
-        .from(DEFAULT_BUCKET)
-        .getPublicUrl(filePath);
-
-      if (!data.publicUrl) {
-        throw new Error('Failed to get public URL for video');
-      }
-
-      console.log('[uploadVideo] Video uploaded successfully:', data.publicUrl);
-      return data.publicUrl;
-    } catch (storageError: any) {
-      console.warn('Supabase storage error, using backend API upload for video:', storageError.message || storageError);
-      return await uploadToBackend(file);
+    if (uploadError) {
+      console.error('Supabase video upload error:', uploadError);
+      throw new Error(`上传到 Supabase 失败: ${uploadError.message}`);
     }
+
+    // 获取公开 URL
+    const { data } = supabaseAdmin.storage
+      .from(DEFAULT_BUCKET)
+      .getPublicUrl(filePath);
+
+    if (!data.publicUrl) {
+      throw new Error('Failed to get public URL for video');
+    }
+
+    console.log('[uploadVideo] Video uploaded successfully:', data.publicUrl);
+    return data.publicUrl;
   } catch (error: any) {
     console.error('Video upload failed:', error);
     throw new Error('视频上传失败: ' + (error.message || 'Unknown error'));

@@ -77,7 +77,8 @@ export interface Community {
   joinApprovalRequired?: boolean;
   cover?: string;
   tags?: string[];
-  bookmarks?: Array<{ id: string; name: string; icon: string }>;
+  bookmarks?: Array<{ id: string; name: string; icon: string; url?: string }>;
+  guidelines?: string[];
 }
 
 // 帖子类型定义
@@ -98,6 +99,26 @@ export interface Thread {
   authorAvatar?: string;
   authorId?: string;
   comments?: Array<any>;
+}
+
+// 消息类型定义
+export interface Message {
+  id: string;
+  text: string;
+  user: string;
+  userId: string;
+  avatar?: string;
+  timestamp: number;
+  type?: 'text' | 'image' | 'emoji';
+  images?: Array<{ url: string; name: string; size: number }>;
+  sender?: {
+    username: string;
+    avatar_url?: string;
+  };
+  created_at?: number;
+  reactions?: Record<string, string[]>;
+  is_pinned?: boolean;
+  username?: string;
 }
 
 // 通知类型定义
@@ -2262,5 +2283,31 @@ export const communityService = {
       console.error('Error in getCommunityAnnouncements:', error);
       return [];
     }
+  },
+
+  // 关注/取消关注用户
+  async toggleFollow(currentUserId: string, targetUserId: string, action: 'follow' | 'unfollow'): Promise<void> {
+    if (action === 'follow') {
+      const { error } = await supabase
+        .from('follows')
+        .insert({ follower_id: currentUserId, following_id: targetUserId });
+      if (error) throw error;
+    } else {
+      const { error } = await supabase
+        .from('follows')
+        .delete()
+        .eq('follower_id', currentUserId)
+        .eq('following_id', targetUserId);
+      if (error) throw error;
+    }
+  },
+
+  // 订阅帖子实时更新
+  subscribeToPosts(callback: (payload: any) => void): RealtimeChannel {
+    const channel = supabase
+      .channel('posts_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, callback)
+      .subscribe();
+    return channel;
   }
 };

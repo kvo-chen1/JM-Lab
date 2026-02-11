@@ -252,20 +252,70 @@ export default function SketchPanel() {
 
   // 图生图
   const generateImageToImage = async () => {
-    // TODO: 实现图生图API调用
-    toast.info('图生图功能开发中，使用模拟数据预览');
+    if (!uploadedImage) {
+      toast.error('请先上传参考图片');
+      return;
+    }
     
-    // 模拟延迟
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    const fallback = [
-      { id: Date.now(), thumbnail: 'https://images.unsplash.com/photo-1606787366850-de6330128bfc?w=600&h=400&fit=crop', score: 85, type: 'image' },
-      { id: Date.now()+1, thumbnail: 'https://images.unsplash.com/photo-1558981806-ec527fa84f3d?w=600&h=400&fit=crop', score: 82, type: 'image' },
-      { id: Date.now()+2, thumbnail: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?w=600&h=400&fit=crop', score: 88, type: 'image' },
-    ];
-    setGeneratedResults(fallback);
-    setSelectedResult(fallback[0].id);
-    setCurrentStep(2);
+    try {
+      llmService.setCurrentModel('qwen');
+      const currentModel = llmService.getCurrentModel();
+      
+      // 准备提示词
+      const inputBase = (prompt || '保持原图主体，转换风格').trim();
+      const input = stylePreset ? `${inputBase}；风格：${stylePreset}` : inputBase;
+      
+      // 如果图片是本地 base64，先上传到云存储获取公网 URL
+      let publicImageUrl = uploadedImage;
+      if (uploadedImage.startsWith('data:')) {
+        toast.info('正在上传图片到云存储...');
+        const { getPublicImageUrl } = await import('@/services/imageService');
+        try {
+          publicImageUrl = await getPublicImageUrl(uploadedImage);
+          console.log('[ImageToImage] Image uploaded to:', publicImageUrl);
+        } catch (uploadError: any) {
+          console.error('[ImageToImage] Failed to upload image:', uploadError);
+          toast.error('图片上传失败: ' + (uploadError.message || '请重试'));
+          return;
+        }
+      }
+      
+      toast.info('正在进行风格转换...');
+      
+      // 调用图生图API
+      const r = await llmService.generateImage({ 
+        prompt: input, 
+        size: '1024x1024', 
+        n: Math.min(Math.max(generateCount, 1), 6), 
+        response_format: 'url', 
+        watermark: true,
+        reference_image: publicImageUrl,
+        reference_strength: imageStrength / 100 // 转换为0-1范围
+      });
+
+      const dataArray = (r as any)?.data?.data || (r as any)?.data || [];
+      const urls = dataArray.map((d: any) => d.url || (d.b64_json ? `data:image/png;base64,${d.b64_json}` : '')).filter(Boolean);
+
+      if (urls.length) {
+        const mapped = urls.map((u: string, idx: number) => ({ 
+          id: Date.now() + idx, 
+          thumbnail: u, 
+          score: 80 + Math.floor(Math.random() * 15),
+          type: 'image'
+        }));
+        setGeneratedResults(mapped);
+        setSelectedResult(mapped[0]?.id ?? null);
+        setCurrentStep(2);
+        toast.success(`${currentModel.name}风格转换完成，生成${urls.length}张图片`);
+      } else {
+        throw new Error('未获取到生成结果');
+      }
+    } catch (e: any) {
+      console.error('[ImageToImage] Generation failed:', e);
+      toast.error(e?.message || '风格转换失败，请重试');
+      // 使用备用数据
+      useFallbackData('image');
+    }
   };
 
   // 文生视频
@@ -323,7 +373,7 @@ export default function SketchPanel() {
         setVideoGenerationStatus('视频生成完成！正在保存视频...');
         
         // 下载视频并上传到永久存储
-        let permanentVideoUrl = videoUrl;
+        let permanentVideoUrl: string;
         try {
           const { downloadAndUploadVideo } = await import('@/services/imageService');
           permanentVideoUrl = await downloadAndUploadVideo(videoUrl);
@@ -331,8 +381,11 @@ export default function SketchPanel() {
           toast.success('视频已保存到永久存储');
         } catch (uploadError: any) {
           console.error('[TextToVideo] Failed to upload video to permanent storage:', uploadError);
-          toast.warning('视频已生成但保存到永久存储失败，请稍后重试');
-          // 继续使用原始URL，让用户可以重试
+          toast.error('视频生成成功但上传到永久存储失败，请检查 Supabase 配置');
+          setIsGenerating(false);
+          setVideoGenerationProgress(0);
+          setVideoGenerationStatus('');
+          return; // 上传失败，不保存结果
         }
         
         // 使用视频占位图作为缩略图 - 使用可靠的图片服务
@@ -447,7 +500,7 @@ export default function SketchPanel() {
         setVideoGenerationStatus('视频生成完成！正在保存视频...');
         
         // 下载视频并上传到永久存储
-        let permanentVideoUrl = videoUrl;
+        let permanentVideoUrl: string;
         try {
           const { downloadAndUploadVideo } = await import('@/services/imageService');
           permanentVideoUrl = await downloadAndUploadVideo(videoUrl);
@@ -455,7 +508,11 @@ export default function SketchPanel() {
           toast.success('视频已保存到永久存储');
         } catch (uploadError: any) {
           console.error('[ImageToVideo] Failed to upload video to permanent storage:', uploadError);
-          toast.warning('视频已生成但保存到永久存储失败，请稍后重试');
+          toast.error('视频生成成功但上传到永久存储失败，请检查 Supabase 配置');
+          setIsGenerating(false);
+          setVideoGenerationProgress(0);
+          setVideoGenerationStatus('');
+          return; // 上传失败，不保存结果
         }
         
         // 使用上传的图片作为缩略图，如果没有则使用视频占位图 - 使用可靠的图片服务

@@ -3,7 +3,7 @@
 class WebSocketService {
   private socket: WebSocket | null = null;
   private listeners: Record<string, ((data: any) => void)[]> = {};
-  private lifecycleListeners: Record<string, (() => void)[]> = {};
+  private lifecycleListeners: Record<string, ((data?: any) => void)[]> = {};
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private reconnectDelay = 1000;
@@ -201,6 +201,31 @@ class WebSocketService {
   // 检查连接状态
   getConnectionStatus(): boolean {
     return this.isConnected;
+  }
+
+  // 发送文本编辑
+  sendTextEdit(sessionId: string, content: string, position: number): void {
+    this.send('text_edit', { sessionId, content, position });
+  }
+
+  // 发送光标移动
+  sendCursorMove(sessionId: string, position: number): void {
+    this.send('cursor_move', { sessionId, position });
+  }
+
+  // 发送选择变化
+  sendSelectionChange(sessionId: string, start: number, end: number): void {
+    this.send('selection_change', { sessionId, start, end });
+  }
+
+  // 发送开始输入
+  sendTypingStart(sessionId: string, userId: string): void {
+    this.send('typing_start', { sessionId, userId });
+  }
+
+  // 发送停止输入
+  sendTypingStop(sessionId: string, userId: string): void {
+    this.send('typing_stop', { sessionId, userId });
   }
 }
 

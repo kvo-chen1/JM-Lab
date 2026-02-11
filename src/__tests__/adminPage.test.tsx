@@ -108,7 +108,12 @@ const mockContextValue = {
     membershipStart: new Date().toISOString(),
   },
   isAuthenticated: true,
+  isLoading: false,
   login: jest.fn().mockResolvedValue(true),
+  loginWithCode: jest.fn().mockResolvedValue(true),
+  sendEmailOtp: jest.fn().mockResolvedValue({ success: true }),
+  sendRegisterEmailOtp: jest.fn().mockResolvedValue({ success: true }),
+  sendSmsOtp: jest.fn().mockResolvedValue({ success: true }),
   register: jest.fn().mockResolvedValue({ success: true }),
   logout: jest.fn(),
   setIsAuthenticated: jest.fn(),
@@ -119,7 +124,11 @@ const mockContextValue = {
   getMembershipBenefits: jest.fn().mockReturnValue([]),
   enableTwoFactorAuth: jest.fn().mockResolvedValue(true),
   verifyTwoFactorCode: jest.fn().mockResolvedValue(true),
+  resendTwoFactorCode: jest.fn().mockResolvedValue(true),
+  disableTwoFactorAuth: jest.fn().mockResolvedValue(true),
   refreshToken: jest.fn().mockResolvedValue(true),
+  resetPassword: jest.fn().mockResolvedValue({ success: true }),
+  verifyUserIdConsistency: jest.fn().mockResolvedValue(true),
 };
 
 // Create a custom render function with auth context provider

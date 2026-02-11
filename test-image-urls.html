@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>测试图片URL</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .image-test { margin: 20px 0; padding: 20px; border: 1px solid #ccc; }
+        .image-test img { max-width: 300px; max-height: 200px; border: 2px solid #ddd; }
+        .success { border-color: green; }
+        .error { border-color: red; }
+        .status { margin-top: 10px; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>测试作品缩略图URL</h1>
+    <p>如果这些图片无法显示，说明URL有问题（可能是防盗链或过期）</p>
+    
+    <div class="image-test">
+        <h3>作品1: 流水</h3>
+        <img src="https://dashscope-result-wlcb-acdr-1.oss-cn-wulanchabu-acdr-1.aliyuncs.com/1d/9b4b5b5b5b5b5b5b5b5b5b5b5b5b5b5b.jpg?Expires=1773239999&OSSAccessKeyId=LTAI5t8Z3y8Y7Z7Z7Z7Z7Z7Z&Signature=xxxxxxxxxxxxxxxx" 
+             alt="流水" 
+             onload="this.parentElement.classList.add('success'); this.nextElementSibling.textContent='✅ 加载成功'"
+             onerror="this.parentElement.classList.add('error'); this.nextElementSibling.textContent='❌ 加载失败'">
+        <div class="status">加载中...</div>
+    </div>
+    
+    <div class="image-test">
+        <h3>作品2: 1 (picsum)</h3>
+        <img src="https://picsum.photos/id/1015/600/400" 
+             alt="1" 
+             onload="this.parentElement.classList.add('success'); this.nextElementSibling.textContent='✅ 加载成功'"
+             onerror="this.parentElement.classList.add('error'); this.nextElementSibling.textContent='❌ 加载失败'">
+        <div class="status">加载中...</div>
+    </div>
+    
+    <div class="image-test">
+        <h3>作品3: 果然这样天津就会变得很可爱</h3>
+        <img src="https://picsum.photos/seed/video-1770644989341/800/600" 
+             alt="果然这样天津就会变得很可爱" 
+             onload="this.parentElement.classList.add('success'); this.nextElementSibling.textContent='✅ 加载成功'"
+             onerror="this.parentElement.classList.add('error'); this.nextElementSibling.textContent='❌ 加载失败'">
+        <div class="status">加载中...</div>
+    </div>
+    
+    <div class="image-test">
+        <h3>作品4: 。</h3>
+        <img src="https://dashscope-result-wlcb-acdr-1.oss-cn-wulanchabu-acdr-1.aliyuncs.com/1d/8b4b5b5b5b5b5b5b5b5b5b5b5b5b5b5b.jpg?Expires=1773239999&OSSAccessKeyId=LTAI5t8Z3y8Y7Z7Z7Z7Z7Z7Z&Signature=xxxxxxxxxxxxxxxx" 
+             alt="。" 
+             onload="this.parentElement.classList.add('success'); this.nextElementSibling.textContent='✅ 加载成功'"
+             onerror="this.parentElement.classList.add('error'); this.nextElementSibling.textContent='❌ 加载失败'">
+        <div class="status">加载中...</div>
+    </div>
+    
+    <div class="image-test">
+        <h3>作品5: 来尝尝天津伯伯亲手做的煎饼</h3>
+        <img src="https://dashscope-result-wlcb-acdr-1.oss-cn-wulanchabu-acdr-1.aliyuncs.com/1d/ee4b5b5b5b5b5b5b5b5b5b5b5b5b5b5b.jpg?Expires=1773239999&OSSAccessKeyId=LTAI5t8Z3y8Y7Z7Z7Z7Z7Z7Z&Signature=xxxxxxxxxxxxxxxx" 
+             alt="来尝尝天津伯伯亲手做的煎饼" 
+             onload="this.parentElement.classList.add('success'); this.nextElementSibling.textContent='✅ 加载成功'"
+             onerror="this.parentElement.classList.add('error'); this.nextElementSibling.textContent='❌ 加载失败'">
+        <div class="status">加载中...</div>
+    </div>
+    
+    <script>
+        // 检查每个图片的加载状态
+        document.querySelectorAll('img').forEach(img => {
+            if (img.complete) {
+                if (img.naturalWidth === 0) {
+                    img.parentElement.classList.add('error');
+                    img.nextElementSibling.textContent = '❌ 加载失败 (complete but no width)';
+                }
+            }
+        });
+    </script>
+</body>
+</html>

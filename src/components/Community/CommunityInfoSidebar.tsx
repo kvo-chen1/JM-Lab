@@ -479,7 +479,7 @@ export const CommunityInfoSidebar: React.FC<CommunityInfoSidebarProps> = ({
             type: 'post',
             title: '发布了新帖子',
             timestamp: timeAgo,
-            user: { username: thread.author?.username || '未知用户' }
+            user: { username: thread.author || '未知用户' }
           });
         });
 
@@ -535,9 +535,9 @@ export const CommunityInfoSidebar: React.FC<CommunityInfoSidebarProps> = ({
           .map((thread, index) => ({
             id: thread.id,
             title: thread.title || '无标题',
-            comments: thread.comments?.length || thread.commentCount || 0,
+            comments: thread.comments?.length || 0,
             upvotes: thread.upvotes || 0,
-            thumbnail: thread.images?.[0] || thread.cover || undefined
+            thumbnail: thread.images?.[0] || undefined
           }));
 
         setHotPosts(sortedPosts);
@@ -797,7 +797,7 @@ export const CommunityInfoSidebar: React.FC<CommunityInfoSidebarProps> = ({
               {communityBookmarks.map((bookmark) => (
                 <button
                   key={bookmark.id}
-                  onClick={() => window.open(bookmark.url, '_blank')}
+                  onClick={() => bookmark.url && window.open(bookmark.url, '_blank')}
                   className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all duration-200 ${
                     isDark
                       ? 'text-gray-300 hover:bg-gray-700/50'

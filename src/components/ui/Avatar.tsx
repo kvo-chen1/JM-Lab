@@ -1,6 +1,6 @@
 // src/components/ui/Avatar.tsx
 
-import { ReactNode, HTMLAttributes, forwardRef } from 'react';
+import React, { ReactNode, HTMLAttributes, forwardRef } from 'react';
 import { clsx } from 'clsx';
 
 // 头像大小类型

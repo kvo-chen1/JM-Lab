@@ -46,7 +46,7 @@ export default function NotificationPanel({
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [showSettings, setShowSettings] = React.useState(false);
-  const [notificationFilter, setNotificationFilter] = React.useState<'all' | 'unread' | 'info' | 'success' | 'warning' | 'error' | 'like' | 'join' | 'message' | 'mention' | 'task' | 'points'>('all');
+  const [notificationFilter, setNotificationFilter] = React.useState<'all' | 'unread' | 'info' | 'success' | 'warning' | 'error' | 'like' | 'join' | 'message' | 'mention' | 'task' | 'points' | 'social' | 'activity' | 'system'>('all');
 
   // 过滤通知
   const filteredNotifications = React.useMemo(() => {
@@ -55,11 +55,11 @@ export default function NotificationPanel({
     if (notificationFilter === 'unread') {
       result = result.filter(n => !n.read);
     } else if (notificationFilter === 'social') {
-      result = result.filter(n => ['like', 'join', 'mention', 'social'].includes(n.category));
+      result = result.filter(n => (['like', 'join', 'mention', 'social'] as string[]).includes(n.category));
     } else if (notificationFilter === 'activity') {
-      result = result.filter(n => ['task', 'points', 'learning', 'creation'].includes(n.category));
+      result = result.filter(n => (['task', 'points', 'learning', 'creation'] as string[]).includes(n.category));
     } else if (notificationFilter === 'system') {
-      result = result.filter(n => ['system', 'warning', 'info'].includes(n.category) || n.type === 'warning');
+      result = result.filter(n => (['system', 'warning', 'info'] as string[]).includes(n.category) || n.type === 'warning');
     } else if (notificationFilter === 'message') {
       result = result.filter(n => n.category === 'message');
     }

@@ -38,7 +38,7 @@ interface AIReviewResult {
     image?: string;
   }>;
   similarWorks?: Array<{
-    id: number;
+    id: string;
     thumbnail: string;
     title: string;
   }>;
@@ -67,7 +67,7 @@ const AIReview: React.FC<AIReviewProps> = ({ workId, prompt, aiExplanation, sele
   const [showMoreSuggestions, setShowMoreSuggestions] = useState(false);
   const [currentTab, setCurrentTab] = useState<'overall' | 'detail' | 'commercial'>('overall');
   const [loadingWorks, setLoadingWorks] = useState(false);
-  const [similarWorks, setSimilarWorks] = useState<Array<{id: number; thumbnail: string; title: string}>>([]);
+  const [similarWorks, setSimilarWorks] = useState<Array<{id: string; thumbnail: string; title: string}>>([]);
   
   // 加载相似作品数据
   useEffect(() => {
@@ -78,7 +78,7 @@ const AIReview: React.FC<AIReviewProps> = ({ workId, prompt, aiExplanation, sele
   }, [reviewResult]);
   
   // 处理作品点击
-  const handleWorkClick = (workId: number) => {
+  const handleWorkClick = (workId: string) => {
     try {
       setLoadingWorks(true);
       // 跳转到作品详情页面
@@ -114,7 +114,7 @@ const AIReview: React.FC<AIReviewProps> = ({ workId, prompt, aiExplanation, sele
               ...reviewData,
               similarWorks: randomWorks.map(work => ({
                 id: work.id,
-                thumbnail: work.thumbnail || work.imageUrl,
+                thumbnail: work.thumbnailUrl || '',
                 title: work.title
               }))
             });
@@ -236,13 +236,16 @@ const AIReview: React.FC<AIReviewProps> = ({ workId, prompt, aiExplanation, sele
                             details: (t('review.aestheticsDetails', { returnObjects: true }) as unknown) as string[]
                           },
                           suggestions: issues.length > 0 ? issues : (t('review.suggestions', { returnObjects: true }) as unknown) as string[],
+                          highlights: [],
+                          recommendedCommercialPaths: [],
+                          relatedActivities: [],
                           commercialPotential: {
                             score: Math.max(65, Math.min(95, generatedScore + Math.floor(Math.random() * 10) - 5)),
                             analysis: (t('review.commercialAnalysisDetails', { returnObjects: true }) as unknown) as string[]
                           },
                           similarWorks: randomWorks.map(work => ({
                             id: work.id,
-                            thumbnail: work.thumbnail || work.imageUrl,
+                            thumbnail: work.thumbnailUrl || '',
                             title: work.title
                           }))
                         });
@@ -264,6 +267,9 @@ const AIReview: React.FC<AIReviewProps> = ({ workId, prompt, aiExplanation, sele
                             details: (t('review.aestheticsDetails', { returnObjects: true }) as unknown) as string[]
                           },
                           suggestions: issues.length > 0 ? issues : (t('review.suggestions', { returnObjects: true }) as unknown) as string[],
+                          highlights: [],
+                          recommendedCommercialPaths: [],
+                          relatedActivities: [],
                           commercialPotential: {
                             score: Math.max(65, Math.min(95, generatedScore + Math.floor(Math.random() * 10) - 5)),
                             analysis: (t('review.commercialAnalysisDetails', { returnObjects: true }) as unknown) as string[]
@@ -536,7 +542,7 @@ const AIReview: React.FC<AIReviewProps> = ({ workId, prompt, aiExplanation, sele
                           const randomWorks = [...worksData].sort(() => 0.5 - Math.random()).slice(0, 3);
                           setSimilarWorks(randomWorks.map(work => ({
                             id: work.id,
-                            thumbnail: work.thumbnail || work.imageUrl,
+                            thumbnail: work.thumbnailUrl || '',
                             title: work.title
                           })));
                         } catch (error) {

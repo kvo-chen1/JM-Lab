@@ -53,11 +53,11 @@ interface LazyVideoProps extends React.VideoHTMLAttributes<HTMLVideoElement> {
   playsInline?: boolean;
 }
 
-const LazyVideo = React.memo(forwardRef<HTMLVideoElement, LazyVideoProps>(({ 
-  src, 
+const LazyVideo = React.memo(forwardRef<HTMLVideoElement, LazyVideoProps>(({
+  src,
   poster,
   alt,
-  className, 
+  className,
   onLoad,
   onError,
   bare = false,
@@ -68,7 +68,7 @@ const LazyVideo = React.memo(forwardRef<HTMLVideoElement, LazyVideoProps>(({
   loop = false,
   controls = true,
   playsInline = true,
-  ...rest 
+  ...rest
 }, ref) => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isError, setIsError] = useState(false);
@@ -190,12 +190,14 @@ const LazyVideo = React.memo(forwardRef<HTMLVideoElement, LazyVideoProps>(({
 
   // bare模式：直接输出<video>，不包裹额外div，避免任何额外的布局影响
   if (bare) {
+    // 从rest中移除alt属性，因为video标签不支持alt
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { alt: _alt, ...videoRest } = { alt, ...rest };
     return (
       <video
             ref={ref}
             src={src}
             poster={poster}
-            alt={alt}
             className={getVideoClasses()}
             onLoadedData={handleLoad}
             onError={handleError}
@@ -204,7 +206,7 @@ const LazyVideo = React.memo(forwardRef<HTMLVideoElement, LazyVideoProps>(({
             loop={loop}
             controls={controls}
             playsInline={playsInline}
-            {...rest}
+            {...videoRest}
           />
     );
   }
@@ -218,22 +220,23 @@ const LazyVideo = React.memo(forwardRef<HTMLVideoElement, LazyVideoProps>(({
       >
         {/* 视频元素 - 只在可见时渲染，实现真正的懒加载 */}
         {isVisible && (
-          <video
-            ref={ref}
-            src={src}
-            poster={poster}
-            alt={alt}
-            className={getVideoClasses()}
-            onLoadedData={handleLoad}
-            onError={handleError}
-            loading="eager"
-            autoPlay={autoPlay && isVisible}
-            muted={muted}
-            loop={loop}
-            controls={controls}
-            playsInline={playsInline}
-            {...rest}
-          />
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          (({ alt: _altProp, ...videoProps }: any) => (
+            <video
+              ref={ref}
+              src={src}
+              poster={poster}
+              className={getVideoClasses()}
+              onLoadedData={handleLoad}
+              onError={handleError}
+              autoPlay={autoPlay && isVisible}
+              muted={muted}
+              loop={loop}
+              controls={controls}
+              playsInline={playsInline}
+              {...videoProps}
+            />
+          ))({ alt, ...rest })
         )}
         
         {/* 加载状态指示器 */}

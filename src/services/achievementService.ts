@@ -10,7 +10,8 @@ export interface CreatorLevel {
   name: string;
   icon: string;
   requiredPoints: number;
-  权益: string[];
+  benefits: string[];
+  权益?: string[]; // 保留中文属性以兼容旧代码
   description: string;
 }
 
@@ -44,12 +45,14 @@ export interface CreatorLevelInfo {
 export interface LevelUpNotification {
   id: string;
   userId: string;
-  fromLevel: number;
-  toLevel: number;
+  fromLevel?: number;
+  toLevel?: number;
+  oldLevel?: number;
+  newLevel?: number;
   points: number;
   notifiedAt: number;
-  isRead: boolean;
-  createdAt: number;
+  isRead?: boolean;
+  createdAt?: number;
 }
 
 // 积分记录类型定义
@@ -91,13 +94,13 @@ export interface ConsumptionRecord {
 class AchievementService {
   // 创作者等级数据
   private creatorLevels: CreatorLevel[] = [
-    { level: 1, name: '创作新手', icon: '🌱', requiredPoints: 0, 权益: ['基础创作工具', '作品发布权限', '社区评论权限', '每日签到奖励'], description: '刚刚开始创作之旅的新手' },
-    { level: 2, name: '创作爱好者', icon: '✏️', requiredPoints: 100, 权益: ['高级创作工具', '模板库访问', '作品打赏权限', '积分商城9折'], description: '热爱创作的积极用户' },
-    { level: 3, name: '创作达人', icon: '🌟', requiredPoints: 300, 权益: ['AI创意助手', '专属客服支持', '作品推广机会', '积分商城8折', '徽章解锁权限'], description: '创作能力突出的达人' },
-    { level: 4, name: '创作精英', icon: '🏆', requiredPoints: 600, 权益: ['精英创作工具', '优先活动邀请', '作品商业化机会', '积分商城7折', '专属创作空间'], description: '创作领域的精英人物' },
-    { level: 5, name: '创作大师', icon: '🎨', requiredPoints: 1000, 权益: ['大师创作工具', '线下活动邀请', '品牌合作机会', '积分商城6折', '大师认证标识'], description: '创作领域的大师级人物' },
-    { level: 6, name: '创作宗师', icon: '👑', requiredPoints: 2000, 权益: ['宗师创作工具', '全球作品展示', '平台顾问身份', '积分商城5折', '定制化创作工具'], description: '创作界的宗师级人物' },
-    { level: 7, name: '创作传奇', icon: '💎', requiredPoints: 5000, 权益: ['传奇创作工具', 'IP孵化支持', '平台荣誉殿堂', '积分商城4折', '专属商务合作'], description: '创作界的传奇人物' }
+    { level: 1, name: '创作新手', icon: '🌱', requiredPoints: 0, benefits: ['基础创作工具', '作品发布权限', '社区评论权限', '每日签到奖励'], description: '刚刚开始创作之旅的新手' },
+    { level: 2, name: '创作爱好者', icon: '✏️', requiredPoints: 100, benefits: ['高级创作工具', '模板库访问', '作品打赏权限', '积分商城9折'], description: '热爱创作的积极用户' },
+    { level: 3, name: '创作达人', icon: '🌟', requiredPoints: 300, benefits: ['AI创意助手', '专属客服支持', '作品推广机会', '积分商城8折', '徽章解锁权限'], description: '创作能力突出的达人' },
+    { level: 4, name: '创作精英', icon: '🏆', requiredPoints: 600, benefits: ['精英创作工具', '优先活动邀请', '作品商业化机会', '积分商城7折', '专属创作空间'], description: '创作领域的精英人物' },
+    { level: 5, name: '创作大师', icon: '🎨', requiredPoints: 1000, benefits: ['大师创作工具', '线下活动邀请', '品牌合作机会', '积分商城6折', '大师认证标识'], description: '创作领域的大师级人物' },
+    { level: 6, name: '创作宗师', icon: '👑', requiredPoints: 2000, benefits: ['宗师创作工具', '全球作品展示', '平台顾问身份', '积分商城5折', '定制化创作工具'], description: '创作界的宗师级人物' },
+    { level: 7, name: '创作传奇', icon: '💎', requiredPoints: 5000, benefits: ['传奇创作工具', 'IP孵化支持', '平台荣誉殿堂', '积分商城4折', '专属商务合作'], description: '创作界的传奇人物' }
   ];
 
   // 等级提升通知数据
@@ -353,9 +356,57 @@ class AchievementService {
     return this.achievements.find(achievement => achievement.id === id);
   }
 
-  // 更新成就进度 (暂保留为本地模拟，实际应调用API)
-  updateAchievementProgress(id: number, progress: number): boolean {
-    // TODO: 调用后端API更新进度
+  // 更新成就进度 - 调用后端API
+  async updateAchievementProgress(id: number, progress: number): Promise<boolean> {
+    try {
+      const achievement = this.getAchievementById(id);
+      if (!achievement || achievement.isUnlocked) {
+        return false;
+      }
+
+      // 调用后端API更新进度
+      const response = await apiClient.post<{ unlocked: boolean; achievement?: Achievement }>(
+        `/api/user/achievements/${id}/progress`,
+        { progress }
+      );
+
+      if (response.ok && response.data) {
+        // 更新本地数据
+        const updatedAchievement = this.achievements.find(a => a.id === id);
+        if (updatedAchievement) {
+          updatedAchievement.progress = Math.min(progress, 100);
+          
+          // 如果后端返回已解锁，更新解锁状态
+          if (response.data.unlocked) {
+            updatedAchievement.isUnlocked = true;
+            updatedAchievement.unlockedAt = new Date().toISOString().split('T')[0];
+            
+            // 显示解锁通知
+            toast.success(
+              `🏆 解锁成就：${updatedAchievement.name}`,
+              {
+                description: updatedAchievement.description,
+                duration: 5000,
+              }
+            );
+            
+            // 刷新积分数据（后端会自动添加成就积分）
+            await this.fetchPointsStats();
+            
+            return true;
+          }
+        }
+      }
+      return false;
+    } catch (error) {
+      console.error('Update achievement progress failed:', error);
+      // 网络失败时回退到本地更新
+      return this.updateAchievementProgressLocal(id, progress);
+    }
+  }
+
+  // 本地更新成就进度（回退方案）
+  private updateAchievementProgressLocal(id: number, progress: number): boolean {
     const achievement = this.getAchievementById(id);
     if (achievement && !achievement.isUnlocked) {
       achievement.progress = Math.min(progress, 100);
@@ -364,8 +415,6 @@ class AchievementService {
       if (achievement.progress >= 100) {
         achievement.isUnlocked = true;
         achievement.unlockedAt = new Date().toISOString().split('T')[0];
-        // 实际上应该由后端触发积分添加
-        // this.addPoints(achievement.points, 'achievement', achievement.name, `解锁成就：${achievement.name}`);
         return true;
       }
     }
@@ -373,15 +422,15 @@ class AchievementService {
   }
 
   // 批量更新成就进度
-  updateMultipleAchievements(updates: Array<{id: number, progress: number}>): Array<number> {
+  async updateMultipleAchievements(updates: Array<{id: number, progress: number}>): Promise<Array<number>> {
     const newlyUnlocked: Array<number> = [];
     
-    updates.forEach(update => {
-      const unlocked = this.updateAchievementProgress(update.id, update.progress);
+    for (const update of updates) {
+      const unlocked = await this.updateAchievementProgress(update.id, update.progress);
       if (unlocked) {
         newlyUnlocked.push(update.id);
       }
-    });
+    }
     
     return newlyUnlocked;
   }

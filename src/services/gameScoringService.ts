@@ -22,7 +22,7 @@ export interface GameResult {
   gameType: GameType;
   score: number;
   playTime: number; // 游戏时长（秒）
-  level?: number; // 关卡/难度
+  level?: number | string; // 关卡/难度
   completed: boolean; // 是否完成
 }
 

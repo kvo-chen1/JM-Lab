@@ -45,6 +45,7 @@ export interface Work extends BaseEntity {
   title: string;
   description?: string;
   userId: string;
+  category?: string;
   categoryId?: string;
   tags?: string[];
   likes: number;
@@ -54,8 +55,12 @@ export interface Work extends BaseEntity {
   isFeatured?: boolean;
   metadata?: Record<string, any>;
   thumbnailUrl?: string;
+  thumbnail?: string;
   fileUrl?: string;
   type: 'image' | 'video' | 'audio' | 'text' | '3d';
+  creator?: string;
+  creatorAvatar?: string;
+  featured?: boolean;
 }
 
 // 评论相关类型

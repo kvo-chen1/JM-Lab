@@ -150,7 +150,15 @@ export const FriendProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         return [];
       }
       
-      return data || [];
+      return (data || []).map(u => ({
+        id: u.id,
+        username: u.username,
+        email: u.email,
+        avatar: u.avatar_url,
+        bio: u.bio,
+        membershipLevel: 'free' as const,
+        membershipStatus: 'active' as const
+      })) as User[];
     } catch (err: any) {
       setError('搜索用户失败');
       console.error('搜索用户失败:', err);
@@ -249,12 +257,23 @@ export const FriendProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             .select('id, username, email, avatar_url')
             .eq('id', req.sender_id)
             .single();
-          return { ...req, sender };
+          return {
+            ...req,
+            updated_at: req.updated_at || req.created_at,
+            sender: sender ? {
+              id: sender.id,
+              username: sender.username,
+              email: sender.email,
+              avatar: sender.avatar_url,
+              membershipLevel: 'free' as const,
+              membershipStatus: 'active' as const
+            } : undefined
+          };
         })
       );
       
-      setFriendRequests(requestsWithSender);
-      return requestsWithSender;
+      setFriendRequests(requestsWithSender as FriendRequest[]);
+      return requestsWithSender as FriendRequest[];
     } catch (err) {
       setError('获取好友请求失败');
       console.error('获取好友请求失败:', err);
@@ -303,7 +322,20 @@ export const FriendProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             friend_id: friendId,
             created_at: relation.created_at,
             updated_at: relation.updated_at,
-            friend: friendUser || { id: friendId, username: '未知用户' }
+            friend: friendUser ? {
+              id: friendUser.id,
+              username: friendUser.username,
+              email: friendUser.email,
+              avatar: friendUser.avatar_url,
+              membershipLevel: 'free' as const,
+              membershipStatus: 'active' as const
+            } : {
+              id: friendId,
+              username: '未知用户',
+              email: '',
+              membershipLevel: 'free' as const,
+              membershipStatus: 'active' as const
+            }
           };
         })
       );

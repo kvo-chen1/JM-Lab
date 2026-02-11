@@ -20,7 +20,10 @@ jest.mock('../lib/apiClient', () => {
     __esModule: true,
     apiClient: {
       get: jest.fn().mockResolvedValue({ ok: true, data: null }),
-      post: jest.fn(),
+      post: jest.fn().mockResolvedValue({ ok: true, data: null }),
+      put: jest.fn().mockResolvedValue({ ok: true, data: null }),
+      patch: jest.fn().mockResolvedValue({ ok: true, data: null }),
+      delete: jest.fn().mockResolvedValue({ ok: true, data: null }),
     },
   };
 });
@@ -142,7 +145,7 @@ describe('AuthContext', () => {
 
   test('should handle failed login', async () => {
     // 设置mock失败响应
-    apiClient.post.mockResolvedValue({
+    (apiClient.post as jest.Mock).mockResolvedValue({
       ok: false,
     });
 

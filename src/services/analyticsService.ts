@@ -51,6 +51,8 @@ export interface WorkPerformance {
   title: string;
   thumbnail: string;
   category: string;
+  type?: 'image' | 'video' | 'audio' | 'text' | '3d';
+  videoUrl?: string;
   metrics: {
     likes: number;
     views: number;

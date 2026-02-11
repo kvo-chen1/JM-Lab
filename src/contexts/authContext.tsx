@@ -60,6 +60,7 @@ export interface User {
   username: string;
   email: string;
   avatar?: string;
+  avatar_url?: string;
   phone?: string;
   interests?: string[];
   isAdmin?: boolean;
@@ -87,6 +88,11 @@ export interface User {
   github?: string;
   twitter?: string;
   coverImage?: string;
+  // 其他字段
+  is_verified?: boolean;
+  metadata?: Record<string, any>;
+  created_at?: string;
+  updated_at?: string;
 }
 
 // AuthContext 类型定义
@@ -463,8 +469,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             updateAuthState(userWithMembership, true, false);
             
             // 检查用户信息是否完整
-            const isProfileComplete = userWithMembership.username && userWithMembership.username.trim() !== '' && 
-                                   userWithMembership.avatar && userWithMembership.avatar.trim() !== '';
+            const isProfileComplete = !!(userWithMembership.username && userWithMembership.username.trim() !== '' &&
+                                   userWithMembership.avatar && userWithMembership.avatar.trim() !== '');
             
             // 延迟发布事件
             setTimeout(() => {
@@ -838,7 +844,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         metadata: userData.metadata || {},
         created_at: userData.created_at || new Date().toISOString(),
         updated_at: userData.updated_at || new Date().toISOString(),
-        isNewUser: !userData.username || userData.username.trim() === ''
+        isNewUser: !userData.username || userData.username.trim() === '',
+        membershipLevel: userData.membershipLevel || 'free',
+        membershipStatus: userData.membershipStatus || 'active'
       };
       
       // 存储用户信息和token到本地
@@ -854,8 +862,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       updateAuthState(userWithMembership, true, false);
       
       // 检查用户信息是否完整
-      const isProfileComplete = userWithMembership.username && userWithMembership.username.trim() !== '' && 
-                               userWithMembership.avatar && userWithMembership.avatar.trim() !== '';
+      const isProfileComplete = !!(userWithMembership.username && userWithMembership.username.trim() !== '' &&
+                               userWithMembership.avatar && userWithMembership.avatar.trim() !== '');
       
       // 发布登录成功事件
       eventBus.publish('auth:login', { 
@@ -956,8 +964,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         updateAuthState(userWithMembership, true, false);
         
         // 检查用户信息是否完整
-        const isProfileComplete = userWithMembership.username && userWithMembership.username.trim() !== '' && 
-                               userWithMembership.avatar && userWithMembership.avatar.trim() !== '';
+        const isProfileComplete = !!(userWithMembership.username && userWithMembership.username.trim() !== '' &&
+                               userWithMembership.avatar && userWithMembership.avatar.trim() !== '');
         
         // 发布登录成功事件
         eventBus.publish('auth:login', { 
@@ -1513,8 +1521,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       }
       
       // 验证验证码
-      const { success } = await loginWithCode('email', user.email, code);
-      
+      const success = await loginWithCode('email', user.email, code);
+
       if (success) {
         // 保存双因素认证状态到用户信息
         updateUser({ twoFactorEnabled: true });
@@ -1585,6 +1593,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     getMembershipBenefits,
     enableTwoFactorAuth,
     verifyTwoFactorCode,
+    resendTwoFactorCode,
+    disableTwoFactorAuth,
     refreshToken,
     resetPassword,
     verifyUserIdConsistency,

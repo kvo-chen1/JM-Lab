@@ -30,7 +30,7 @@ interface CardHeaderProps extends HTMLAttributes<HTMLDivElement> {
 }
 
 // 卡片标题属性接口
-interface CardTitleProps extends HTMLAttributes<HTMLHeadingElement> {
+interface CardTitleProps extends Omit<HTMLAttributes<HTMLHeadingElement>, 'size'> {
   children: ReactNode;
   className?: string;
   level?: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6';
@@ -93,12 +93,14 @@ const CardHeader = ({ children, className, ...props }: CardHeaderProps) => {
 
 // 卡片标题组件
 const CardTitle = ({ children, className, level = 'h3', ...props }: CardTitleProps) => {
-  const Tag = level as keyof JSX.IntrinsicElements;
-  return (
-    <Tag className={clsx('text-xl font-semibold text-foreground', className)} {...props}>
-      {children}
-    </Tag>
-  );
+  const Tag = level;
+  const headingClass = clsx('text-xl font-semibold text-foreground', className);
+  if (Tag === 'h1') return <h1 className={headingClass} {...props}>{children}</h1>;
+  if (Tag === 'h2') return <h2 className={headingClass} {...props}>{children}</h2>;
+  if (Tag === 'h3') return <h3 className={headingClass} {...props}>{children}</h3>;
+  if (Tag === 'h4') return <h4 className={headingClass} {...props}>{children}</h4>;
+  if (Tag === 'h5') return <h5 className={headingClass} {...props}>{children}</h5>;
+  return <h6 className={headingClass} {...props}>{children}</h6>;
 };
 
 // 卡片正文组件

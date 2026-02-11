@@ -53,7 +53,7 @@ const ThemePreviewModal: React.FC<ThemePreviewModalProps> = ({ isOpen, onClose }
             initial={{ scale: 0.9, y: 20, opacity: 0 }}
             animate={{ scale: 1, y: 0, opacity: 1 }}
             exit={{ scale: 0.95, y: 20, opacity: 0 }}
-            transition={ANIMATION_VARIANTS.modal.transition}
+            transition={{ duration: 0.3, ease: "easeOut" }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* 模态框头部 */}

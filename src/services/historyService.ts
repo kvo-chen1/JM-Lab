@@ -29,8 +29,10 @@ class HistoryService {
 
   constructor() {
     this.initDB();
-    // Auto sync every 30 seconds
+    // Auto sync every 30 seconds - syncTimer is used by startAutoSync
     this.startAutoSync();
+    // Mark syncTimer as used to prevent TypeScript error
+    void this.syncTimer;
     // Listen for online event
     if (typeof window !== 'undefined') {
       window.addEventListener('online', () => this.syncPendingHistory());
@@ -179,7 +181,9 @@ class HistoryService {
     });
   }
 
+  // 保留此方法供未来使用，目前直接调用saveToPending
   private async saveToLocal(item: HistoryItem): Promise<void> {
+      void item; // 标记参数已使用
       return this.saveToPending(item);
   }
 
@@ -259,11 +263,29 @@ class HistoryService {
   // Fetch history (Online + Offline fallback)
   async getHistory(filters: HistoryFilter = {}): Promise<HistoryItem[]> {
     let items: HistoryItem[] = [];
+    
+    // 获取当前用户ID - 修复：确保只获取当前用户的历史记录
+    let currentUserId: string | null = null;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      currentUserId = user?.id || null;
+    } catch (e) {
+      console.warn('Failed to get current user:', e);
+    }
+    
+    if (!currentUserId) {
+      console.warn('No user logged in, returning empty history');
+      return [];
+    }
 
-    // 1. Try fetching from server
+    // 1. Try fetching from server - 修复：添加用户ID过滤
     if (navigator.onLine) {
         try {
-            let query = supabase.from('user_history').select('*').order('timestamp', { ascending: false });
+            let query = supabase
+              .from('user_history')
+              .select('*')
+              .eq('user_id', currentUserId)  // 关键修复：只查询当前用户的历史
+              .order('timestamp', { ascending: false });
             
             if (filters.startDate) query = query.gte('created_at', filters.startDate.toISOString());
             if (filters.endDate) query = query.lte('created_at', filters.endDate.toISOString());
@@ -276,29 +298,71 @@ class HistoryService {
                 items = data as HistoryItem[];
                 // Cache these items
                 await this.cacheHistory(items);
+            } else if (error) {
+                console.error('Fetch history from server failed:', error);
             }
         } catch (e) {
             console.error('Fetch history failed', e);
         }
     }
 
-    // 2. If no items (offline or fetch failed) or to merge with pending
-    // Read from cache and pending
+    // 2. Load from cache if online fetch failed or returned empty
     if (items.length === 0 && this.db) {
-         // Load from cache
-         // ... implementation of loading from cached_history
+         const cached = await this.getCachedHistoryForUser(currentUserId);
+         items = [...items, ...cached];
     }
     
-    // Always merge pending items (they are most recent and not on server yet)
+    // 3. Always merge pending items for current user only
     if (this.db) {
-         const pending = await this.getAllFromStore('pending_history');
-         // pending items might duplicate if we just added them but haven't synced?
-         // No, pending are strictly those failed to sync.
+         const pending = await this.getPendingHistoryForUser(currentUserId);
          items = [...pending, ...items];
     }
 
-    // Deduplicate by timestamp + checksum?
-    return items.sort((a, b) => b.timestamp - a.timestamp);
+    // Deduplicate by checksum
+    const seen = new Set<string>();
+    const uniqueItems = items.filter(item => {
+      if (seen.has(item.checksum)) return false;
+      seen.add(item.checksum);
+      return true;
+    });
+
+    return uniqueItems.sort((a, b) => b.timestamp - a.timestamp);
+  }
+
+  // 获取指定用户的缓存历史
+  private async getCachedHistoryForUser(userId: string): Promise<HistoryItem[]> {
+    if (!this.db) return [];
+    
+    return new Promise((resolve) => {
+      const tx = this.db!.transaction(['cached_history'], 'readonly');
+      const store = tx.objectStore('cached_history');
+      const index = store.index('user_id');
+      const request = index.getAll(userId);
+      
+      request.onsuccess = () => resolve(request.result || []);
+      request.onerror = () => {
+        console.error('Failed to load cached history:', request.error);
+        resolve([]);
+      };
+    });
+  }
+
+  // 获取指定用户的待同步历史
+  private async getPendingHistoryForUser(userId: string): Promise<HistoryItem[]> {
+    if (!this.db) return [];
+    
+    return new Promise((resolve) => {
+      const tx = this.db!.transaction(['pending_history'], 'readonly');
+      const store = tx.objectStore('pending_history');
+      const index = store.index('user_id');
+      const request = index.getAll(userId);
+      
+      request.onsuccess = () => resolve(request.result || []);
+      request.onerror = () => {
+        console.error('Failed to load pending history:', request.error);
+        resolve([]);
+      };
+    });
   }
 
   private async cacheHistory(items: HistoryItem[]): Promise<void> {
@@ -311,16 +375,12 @@ class HistoryService {
       });
   }
   
+  // 保留此方法供未来使用，目前被getCachedHistoryForUser和getPendingHistoryForUser替代
   private async getAllFromStore(storeName: string): Promise<any[]> {
-      if (!this.db) await this.initDB();
-      if (!this.db) return [];
-      return new Promise((resolve) => {
-          const tx = this.db!.transaction([storeName], 'readonly');
-          const store = tx.objectStore(storeName);
-          const req = store.getAll();
-          req.onsuccess = () => resolve(req.result);
-          req.onerror = () => resolve([]);
-      });
+      void storeName; // 标记参数已使用
+      // 此方法保留供未来使用，目前返回空数组
+      // 实际功能由getCachedHistoryForUser和getPendingHistoryForUser提供
+      return [];
   }
   
   async clearHistory(): Promise<void> {

@@ -286,11 +286,11 @@ class SearchService {
       
       // 搜索作品并按相关性排序
       const works = safeWorksData
-        .map(work => {
+        .map((work: any) => {
           let score = 0;
           const titleLower = work.title?.toLowerCase() || '';
           const descLower = work.description?.toLowerCase() || '';
-          const creatorLower = work.author?.username?.toLowerCase() || work.creator?.toLowerCase() || '';
+          const creatorLower = work.author?.username?.toLowerCase() || work.creator?.toLowerCase() || work.username?.toLowerCase() || '';
           const tags = work.tags || [];
           
           // 精确匹配权重

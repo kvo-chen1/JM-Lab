@@ -32,6 +32,14 @@ export interface ExchangeRecord {
   userId: string;
   status: 'completed' | 'pending' | 'cancelled' | 'processing' | 'refunded';
   productImage?: string;
+  // 管理员查看的额外字段
+  userName?: string;
+  userEmail?: string;
+  shippingAddress?: string;
+  contactPhone?: string;
+  adminNotes?: string;
+  processedAt?: string;
+  processedBy?: string;
 }
 
 // 商品分类类型
@@ -326,6 +334,197 @@ class ProductService {
       status: dbRecord.status,
       productImage: dbRecord.product_image
     };
+  }
+
+  // ============ 订单管理功能（管理员） ============
+
+  /**
+   * 获取所有兑换记录（管理员功能）
+   */
+  async getAllExchangeRecords(options?: {
+    status?: ExchangeRecord['status'];
+    userId?: string;
+    productId?: string;
+    startDate?: string;
+    endDate?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<ExchangeRecordsResponse> {
+    try {
+      const { status, userId, productId, startDate, endDate, limit = 50, offset = 0 } = options || {};
+
+      let query = supabase
+        .from('exchange_records')
+        .select('*', { count: 'exact' });
+
+      if (status) {
+        query = query.eq('status', status);
+      }
+      if (userId) {
+        query = query.eq('user_id', userId);
+      }
+      if (productId) {
+        query = query.eq('product_id', productId);
+      }
+      if (startDate) {
+        query = query.gte('created_at', startDate);
+      }
+      if (endDate) {
+        query = query.lte('created_at', endDate);
+      }
+
+      const { data, error, count } = await query
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1);
+
+      if (error) {
+        console.error('获取兑换记录失败:', error);
+        throw error;
+      }
+
+      // 获取关联的商品信息
+      const productIds = [...new Set((data || []).map(r => r.product_id))];
+      const { data: productsData } = await supabase
+        .from('products')
+        .select('id, name, category, image_url')
+        .in('id', productIds);
+
+      const productMap = new Map(productsData?.map(p => [p.id, p]) || []);
+
+      const records: ExchangeRecord[] = (data || []).map(record => {
+        const product = productMap.get(record.product_id);
+        return {
+          id: record.id,
+          productId: record.product_id,
+          productName: product?.name || '未知商品',
+          productCategory: product?.category || 'unknown',
+          points: record.points_cost,
+          quantity: record.quantity || 1,
+          date: record.created_at,
+          userId: record.user_id,
+          status: record.status,
+          productImage: product?.image_url,
+          userName: record.user_name,
+          userEmail: record.user_email,
+          shippingAddress: record.shipping_address,
+          contactPhone: record.contact_phone,
+          adminNotes: record.admin_notes,
+          processedAt: record.processed_at,
+          processedBy: record.processed_by
+        };
+      });
+
+      return {
+        total: count || 0,
+        records,
+        limit,
+        offset
+      };
+    } catch (error) {
+      console.error('获取兑换记录失败:', error);
+      return { total: 0, records: [], limit: 50, offset: 0 };
+    }
+  }
+
+  /**
+   * 更新订单状态（管理员功能）
+   */
+  async updateOrderStatus(
+    orderId: string,
+    status: ExchangeRecord['status'],
+    adminNotes?: string,
+    processedBy?: string
+  ): Promise<boolean> {
+    try {
+      const updateData: any = {
+        status,
+        processed_at: new Date().toISOString()
+      };
+
+      if (adminNotes !== undefined) {
+        updateData.admin_notes = adminNotes;
+      }
+      if (processedBy) {
+        updateData.processed_by = processedBy;
+      }
+
+      const { error } = await supabase
+        .from('exchange_records')
+        .update(updateData)
+        .eq('id', orderId);
+
+      if (error) {
+        console.error('更新订单状态失败:', error);
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      console.error('更新订单状态失败:', error);
+      return false;
+    }
+  }
+
+  /**
+   * 获取订单统计（管理员功能）
+   */
+  async getOrderStats(): Promise<{
+    total: number;
+    pending: number;
+    processing: number;
+    completed: number;
+    cancelled: number;
+    refunded: number;
+    totalPoints: number;
+    todayOrders: number;
+  }> {
+    try {
+      const { data, error } = await supabase.rpc('get_exchange_stats');
+
+      if (error) {
+        console.error('获取订单统计失败:', error);
+        // 降级：手动统计
+        const { data: allRecords } = await supabase
+          .from('exchange_records')
+          .select('status, points_cost, created_at');
+
+        const today = new Date().toISOString().split('T')[0];
+        const stats = {
+          total: allRecords?.length || 0,
+          pending: 0,
+          processing: 0,
+          completed: 0,
+          cancelled: 0,
+          refunded: 0,
+          totalPoints: 0,
+          todayOrders: 0
+        };
+
+        allRecords?.forEach(record => {
+          stats[record.status as keyof typeof stats]++;
+          stats.totalPoints += record.points_cost || 0;
+          if (record.created_at?.startsWith(today)) {
+            stats.todayOrders++;
+          }
+        });
+
+        return stats;
+      }
+
+      return data as any;
+    } catch (error) {
+      console.error('获取订单统计失败:', error);
+      return {
+        total: 0,
+        pending: 0,
+        processing: 0,
+        completed: 0,
+        cancelled: 0,
+        refunded: 0,
+        totalPoints: 0,
+        todayOrders: 0
+      };
+    }
   }
 
   // ============ 以下方法为兼容旧代码的同步方法，已弃用 ============

@@ -75,6 +75,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       id: tempId,
       sender_id: senderId,
       channel_id: options.channelId || activeChannelId,
+      community_id: null,
+      receiver_id: null,
       content: content,
       status: 'sending',
       type: options.type || 'text',
@@ -84,6 +86,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         timestamp: Date.now()
       },
       retry_count: 0,
+      is_read: false,
       delivered_at: null,
       read_at: null,
       created_at: new Date().toISOString(),
@@ -147,6 +150,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       id: tempId,
       sender_id: senderId,
       channel_id: `cross:${targetPage}:${Date.now()}`,
+      community_id: null,
+      receiver_id: null,
       content: content,
       status: 'sending',
       type: options.type || 'text',
@@ -158,6 +163,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         timestamp: Date.now()
       },
       retry_count: 0,
+      is_read: false,
       delivered_at: null,
       read_at: null,
       created_at: new Date().toISOString(),

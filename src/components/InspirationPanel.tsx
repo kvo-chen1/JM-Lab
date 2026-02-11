@@ -146,13 +146,13 @@ export default function InspirationPanel({ onClose, onApply, className = '' }: I
       });
       
       const list = (res as any)?.data?.data || [];
-      const urls = list.map((d: any) => d?.url).filter(Boolean);
+      const urls = list.map((d: any) => d?.url).filter(Boolean) as string[];
 
       if (urls.length > 0) {
-        const newItems = urls.map(url => ({ image: url, video: '', isGeneratingVideo: false }));
+        const newItems = urls.map((url: string) => ({ image: url, video: '', isGeneratingVideo: false }));
         setGeneratedItems(prev => [...newItems, ...prev]);
         // 检查是否是 Unsplash 的图片，以此判断是否触发了 Mock 模式
-        const isMock = urls.some(u => u.includes('unsplash.com'));
+        const isMock = urls.some((u: string) => u.includes('unsplash.com'));
         if (isMock) {
           toast.success('已生成演示预览图 (API未配置)');
         } else {

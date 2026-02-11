@@ -615,6 +615,8 @@ export const TianjinImage: React.FC<{
   // 图片加载事件
   onLoad?: () => void;
   onError?: () => void;
+  // 自定义样式
+  style?: React.CSSProperties;
 }> = ({
   src,
   alt,
@@ -634,6 +636,7 @@ export const TianjinImage: React.FC<{
   fallbackSrc,
   onLoad,
   onError,
+  style,
 }) => {
   // 简化主题处理
   const { isDark = false } = useTheme() || {};
@@ -684,6 +687,7 @@ export const TianjinImage: React.FC<{
     <div
       className={combinedClassName}
       onClick={onClick}
+      style={style}
     >
       <LazyImage
           src={src}

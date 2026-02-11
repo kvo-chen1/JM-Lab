@@ -86,6 +86,7 @@ export interface ModelRole {
   created_at: number;
   updated_at: number;
   tags?: string[];
+  preferredModel?: string; // 角色偏好的模型
 }
 
 // 助手性格类型定义

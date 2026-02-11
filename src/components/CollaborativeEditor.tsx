@@ -97,10 +97,10 @@ const CollaborativeEditor: React.FC<CollaborativeEditorProps> = React.memo(({
     if (!isMounted) return;
     
     // 连接WebSocket
-    websocketService.connect(sessionId, userId, username);
+    websocketService.connect();
     
     // 设置消息处理器
-    websocketService.onMessage((message: WebSocketMessage) => {
+    websocketService.on('message', (message: WebSocketMessage) => {
       handleWebSocketMessage(message);
     });
     
@@ -369,7 +369,7 @@ const CollaborativeEditor: React.FC<CollaborativeEditorProps> = React.memo(({
     onContentChange?.(newContent);
     
     // 发送文本编辑操作到 WebSocket 服务
-    websocketService.sendTextEdit('insert', 0, newContent, content.length);
+    websocketService.sendTextEdit(sessionId, newContent, content.length);
     
     // 更新历史记录（节流处理，避免频繁更新）
     if (contentChangeTimeoutRef.current) {
@@ -384,7 +384,7 @@ const CollaborativeEditor: React.FC<CollaborativeEditorProps> = React.memo(({
     // 发送输入状态
     if (!isTyping) {
       setIsTyping(true);
-      websocketService.sendTypingStart();
+      websocketService.sendTypingStart(sessionId, userId);
     }
     
     setLastTypingTime(Date.now());
@@ -397,7 +397,7 @@ const CollaborativeEditor: React.FC<CollaborativeEditorProps> = React.memo(({
     // 设置新的定时器
     typingTimeoutRef.current = setTimeout(() => {
       setIsTyping(false);
-      websocketService.sendTypingStop();
+      websocketService.sendTypingStop(sessionId, userId);
     }, 1000);
   }, [readOnly, onContentChange, isTyping, content, history, historyIndex, updateHistory]);
 
@@ -414,7 +414,7 @@ const CollaborativeEditor: React.FC<CollaborativeEditorProps> = React.memo(({
     const position = getCaretPosition(target, range);
     
     // 发送光标位置
-    websocketService.sendCursorMove(position);
+    websocketService.sendCursorMove(sessionId, position);
     
     // 发送选择范围
     if (!range.collapsed) {
@@ -424,9 +424,9 @@ const CollaborativeEditor: React.FC<CollaborativeEditorProps> = React.memo(({
       const endRange = range.cloneRange();
       endRange.collapse(false);
       const end = getCaretPosition(target, endRange);
-      websocketService.sendSelectionChange(start, end);
+      websocketService.sendSelectionChange(sessionId, start, end);
     } else {
-      websocketService.sendSelectionChange(position, position);
+      websocketService.sendSelectionChange(sessionId, position, position);
     }
   }, [readOnly, isMounted]);
 
@@ -450,8 +450,8 @@ const CollaborativeEditor: React.FC<CollaborativeEditorProps> = React.memo(({
     range.collapse(false);
     const end = getCaretPosition(editorRef.current, range);
     
-    websocketService.sendSelectionChange(start, end);
-  }, [readOnly, isMounted]);
+    websocketService.sendSelectionChange(sessionId, start, end);
+  }, [readOnly, isMounted, sessionId]);
 
   // 渲染光标指示器
   const renderCursors = () => {
@@ -579,7 +579,7 @@ const CollaborativeEditor: React.FC<CollaborativeEditorProps> = React.memo(({
           onBlur={() => {
             if (isTyping) {
               setIsTyping(false);
-              websocketService.sendTypingStop();
+              websocketService.sendTypingStop(sessionId, userId);
             }
           }}
           aria-label="协作编辑器"

@@ -236,7 +236,7 @@ const CommunityChat: React.FC<CommunityChatProps> = ({
                                   className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${isDark ? 'bg-gray-800 text-white hover:bg-gray-700' : 'bg-white text-gray-800 hover:bg-gray-200'} ring-1 ${isDark ? 'ring-gray-700' : 'ring-gray-300'} transition-colors`}
                                 >
                                   <span>{emoji}</span>
-                                  <span>{users.length}</span>
+                                  <span>{Array.isArray(users) ? users.length : 0}</span>
                                 </button>
                               ))}
                             </div>

@@ -1,5 +1,11 @@
 import React from 'react';
 
+// Select选项类型
+interface SelectOption {
+  value: string;
+  label: string;
+}
+
 // Input组件
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string;

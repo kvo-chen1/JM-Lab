@@ -12,6 +12,7 @@ export interface NavItem {
   search?: string;
   image?: string; // 对应的社群图片URL
   priority?: 'high' | 'medium' | 'low'; // 导航项优先级
+  badge?: string | number; // 徽章标记
 }
 
 // 导航分组类型定义

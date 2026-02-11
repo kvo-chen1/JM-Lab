@@ -74,11 +74,12 @@ export const FeedSection: React.FC<FeedSectionProps> = ({
   const observerRef = useRef<HTMLDivElement>(null);
 
   // 根据社群布局类型确定容器类名
+  const layoutType = activeCommunity?.layoutType || 'standard';
   const containerClass = {
     standard: "max-w-4xl mx-auto py-3 px-3",
     compact: "max-w-3xl mx-auto py-2 px-2",
     expanded: "max-w-5xl mx-auto py-4 px-4"
-  }[activeCommunity?.layoutType || 'standard'];
+  }[layoutType as 'standard' | 'compact' | 'expanded'] || "max-w-4xl mx-auto py-3 px-3";
 
   // 无限滚动处理函数
   const handleLoadMore = useCallback(() => {

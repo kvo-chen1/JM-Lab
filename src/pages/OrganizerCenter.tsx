@@ -10,6 +10,7 @@ import { eventService } from '@/services/eventService';
 import { brandPartnershipService, BrandPartnership } from '@/services/brandPartnershipService';
 import WorkScoring from './organizer/WorkScoring';
 import AnalyticsDashboard from './organizer/AnalyticsDashboard';
+import OrganizerSettings from './organizer/OrganizerSettings';
 import { StepIndicator } from '@/components/StepIndicator';
 import { InfoCard, StatCard } from '@/components/InfoCard';
 import { EventPreview } from '@/components/EventPreview';
@@ -1552,11 +1553,8 @@ export default function OrganizerCenter() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.2 }}
-              className="text-center py-20"
             >
-              <Settings className="w-16 h-16 mx-auto mb-4 text-gray-300 dark:text-gray-600" />
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">主办方设置功能开发中</h3>
-              <p className="text-gray-500 dark:text-gray-400">敬请期待...</p>
+              <OrganizerSettings />
             </motion.div>
           )}
         </AnimatePresence>

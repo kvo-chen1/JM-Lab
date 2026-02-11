@@ -444,6 +444,11 @@ export interface UserProfile extends User {
   following_count?: number
   posts_count?: number
   is_following?: boolean
+  avatar?: string
+  avatar_url?: string
+  location?: string
+  is_verified?: boolean
+  bio?: string
 }
 
 // 帖子类型（包含作者信息和统计）
@@ -452,12 +457,21 @@ export interface PostWithAuthor extends Post {
   likes_count?: number
   comments_count?: number
   is_liked?: boolean
+  user_id?: string
+  author_id?: string
+  type?: string
+  video_url?: string
+  attachments?: Array<{ type: string; url: string }>
+  thumbnail?: string
+  cover_url?: string
 }
 
 // 评论类型（包含作者信息）
 export interface CommentWithAuthor extends Comment {
   author: UserProfile
   replies?: CommentWithAuthor[]
+  likes_count?: number
+  is_edited?: boolean
 }
 
 // 消息类型（包含发送者信息）

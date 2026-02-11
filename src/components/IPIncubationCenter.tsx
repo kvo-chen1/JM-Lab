@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useContext } from 'react';
+import { useState, useEffect, useMemo, useContext, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { toast } from 'sonner';
@@ -7,14 +7,21 @@ import {
   CartesianGrid, Tooltip, Legend, LineChart, Line, AreaChart, Area
 } from 'recharts';
 import { TianjinImage } from '@/components/TianjinStyleComponents';
-import ipService, { IPAsset, IPStage as ServiceIPStage } from '@/services/ipService';
+import ipService, { 
+  IPAsset, 
+  IPStage as ServiceIPStage, 
+  CommercialOpportunity,
+  CopyrightAsset,
+  IPActivity,
+  IPStats
+} from '@/services/ipService';
 import { AuthContext } from '@/contexts/authContext';
 import {
   Route, Gem, Handshake, Shield, BarChart3, Plus, Search,
   Filter, ChevronDown, MoreHorizontal, ArrowRight, Sparkles,
   TrendingUp, Clock, CheckCircle2, Circle, AlertCircle,
   Lightbulb, Target, Zap, Award, FileText, Share2, Download,
-  Archive, ExternalLink, Bell, Calendar
+  Archive, ExternalLink, Bell, Calendar, RefreshCw, Loader2
 } from 'lucide-react';
 
 // 导航项类型
@@ -24,55 +31,6 @@ interface NavItem {
   icon: React.ElementType;
   badge?: number;
 }
-
-// 商业化机会类型定义
-interface CommercialOpportunity {
-  id: number;
-  name: string;
-  description: string;
-  brand: string;
-  reward: string;
-  status: 'open' | 'matched' | 'closed';
-  image: string;
-  matchScore?: number;
-}
-
-// 版权资产类型定义
-interface CopyrightAsset {
-  id: number;
-  name: string;
-  thumbnail: string;
-  type: string;
-  createdAt: string;
-  status: string;
-  canLicense: boolean;
-}
-
-// 增强的IP孵化阶段类型定义
-interface EnhancedIPStage extends ServiceIPStage {
-  icon: string;
-  active: boolean;
-  index: number;
-}
-
-// 活动/动态类型
-interface Activity {
-  id: string;
-  type: 'progress' | 'opportunity' | 'milestone' | 'alert';
-  title: string;
-  description: string;
-  timestamp: string;
-  read: boolean;
-}
-
-// 阶段图标映射
-const stageIcons: Record<string, string> = {
-  '创意设计': 'palette',
-  '版权存证': 'shield-alt',
-  'IP孵化': 'gem',
-  '商业合作': 'handshake',
-  '收益分成': 'coins'
-};
 
 // 导航配置
 const navItems: NavItem[] = [
@@ -176,20 +134,15 @@ function RightPanel({
   selectedAsset,
   activities,
   opportunities,
-  onApplyOpportunity
+  onApplyOpportunity,
+  isLoading
 }: {
-  ipStats: {
-    totalAssets: number;
-    completedAssets: number;
-    inProgressAssets: number;
-    totalPartnerships: number;
-    activePartnerships: number;
-    totalEstimatedValue: number;
-  };
+  ipStats: IPStats;
   selectedAsset: IPAsset | null;
-  activities: Activity[];
+  activities: IPActivity[];
   opportunities: CommercialOpportunity[];
-  onApplyOpportunity: (id: number) => void;
+  onApplyOpportunity: (id: string, ipAssetId: string) => void;
+  isLoading: boolean;
 }) {
   const { isDark } = useTheme();
 
@@ -200,6 +153,22 @@ function RightPanel({
       .slice(0, 2),
     [opportunities]
   );
+
+  // 格式化时间显示
+  const formatTimeAgo = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return '刚刚';
+    if (diffMins < 60) return `${diffMins}分钟前`;
+    if (diffHours < 24) return `${diffHours}小时前`;
+    if (diffDays < 30) return `${diffDays}天前`;
+    return date.toLocaleDateString('zh-CN');
+  };
 
   return (
     <motion.aside
@@ -214,22 +183,28 @@ function RightPanel({
             <BarChart3 className="w-4 h-4 text-primary-500" />
             数据概览
           </h3>
-          <div className="grid grid-cols-2 gap-3">
-            <div className={`p-3 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
-              <p className="text-2xl font-bold text-primary-600">{ipStats.totalAssets}</p>
-              <p className="text-xs text-gray-500">IP资产</p>
+          {isLoading ? (
+            <div className="flex justify-center py-4">
+              <Loader2 className="w-6 h-6 animate-spin text-primary-500" />
             </div>
-            <div className={`p-3 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
-              <p className="text-2xl font-bold text-blue-600">{ipStats.totalPartnerships}</p>
-              <p className="text-xs text-gray-500">商业合作</p>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              <div className={`p-3 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                <p className="text-2xl font-bold text-primary-600">{ipStats.totalAssets}</p>
+                <p className="text-xs text-gray-500">IP资产</p>
+              </div>
+              <div className={`p-3 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                <p className="text-2xl font-bold text-blue-600">{ipStats.totalPartnerships}</p>
+                <p className="text-xs text-gray-500">商业合作</p>
+              </div>
+              <div className={`p-3 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-50'} col-span-2`}>
+                <p className="text-2xl font-bold text-emerald-600">
+                  ¥{(ipStats.totalEstimatedValue / 10000).toFixed(1)}万
+                </p>
+                <p className="text-xs text-gray-500">预估总价值</p>
+              </div>
             </div>
-            <div className={`p-3 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-50'} col-span-2`}>
-              <p className="text-2xl font-bold text-emerald-600">
-                ¥{(ipStats.totalEstimatedValue / 10000).toFixed(1)}万
-              </p>
-              <p className="text-xs text-gray-500">预估总价值</p>
-            </div>
-          </div>
+          )}
         </div>
 
         {/* 快捷操作 */}
@@ -260,26 +235,35 @@ function RightPanel({
             <Clock className="w-4 h-4 text-blue-500" />
             最近动态
           </h3>
-          <div className="space-y-3">
-            {activities.slice(0, 4).map((activity) => (
-              <div
-                key={activity.id}
-                className={`flex gap-3 p-2 rounded-lg ${!activity.read ? (isDark ? 'bg-blue-900/20' : 'bg-blue-50') : ''}`}
-              >
-                <div className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${
-                  activity.type === 'progress' ? 'bg-emerald-500' :
-                  activity.type === 'opportunity' ? 'bg-amber-500' :
-                  activity.type === 'milestone' ? 'bg-purple-500' :
-                  'bg-red-500'
-                }`} />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{activity.title}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">{activity.description}</p>
-                  <p className="text-xs text-gray-400 mt-1">{activity.timestamp}</p>
+          {isLoading ? (
+            <div className="flex justify-center py-4">
+              <Loader2 className="w-6 h-6 animate-spin text-primary-500" />
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {activities.slice(0, 4).map((activity) => (
+                <div
+                  key={activity.id}
+                  className={`flex gap-3 p-2 rounded-lg ${!activity.isRead ? (isDark ? 'bg-blue-900/20' : 'bg-blue-50') : ''}`}
+                >
+                  <div className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${
+                    activity.type === 'progress' ? 'bg-emerald-500' :
+                    activity.type === 'opportunity' ? 'bg-amber-500' :
+                    activity.type === 'milestone' ? 'bg-purple-500' :
+                    'bg-red-500'
+                  }`} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{activity.title}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">{activity.description}</p>
+                    <p className="text-xs text-gray-400 mt-1">{formatTimeAgo(activity.createdAt)}</p>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+              {activities.length === 0 && (
+                <p className="text-sm text-gray-500 text-center py-4">暂无动态</p>
+              )}
+            </div>
+          )}
         </div>
 
         {/* 推荐机会 */}
@@ -307,10 +291,11 @@ function RightPanel({
                     {opportunity.description}
                   </p>
                   <div className="flex justify-between items-center">
-                    <span className="text-xs text-gray-400">{opportunity.brand}</span>
+                    <span className="text-xs text-gray-400">{opportunity.brandName}</span>
                     <button
-                      onClick={() => onApplyOpportunity(opportunity.id)}
-                      className="text-xs text-primary-600 hover:text-primary-700 font-medium"
+                      onClick={() => selectedAsset && onApplyOpportunity(opportunity.id, selectedAsset.id)}
+                      disabled={!selectedAsset}
+                      className="text-xs text-primary-600 hover:text-primary-700 font-medium disabled:text-gray-400"
                     >
                       申请 →
                     </button>
@@ -328,10 +313,12 @@ function RightPanel({
             智能建议
           </h3>
           <ul className="space-y-2">
-            <li className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-400">
-              <CheckCircle2 className="w-3 h-3 mt-0.5 flex-shrink-0" />
-              <span>您的作品"国潮插画系列"已完成版权存证，可以开始申请商业合作</span>
-            </li>
+            {selectedAsset && selectedAsset.stages[1]?.completed && !selectedAsset.stages[2]?.completed && (
+              <li className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-400">
+                <CheckCircle2 className="w-3 h-3 mt-0.5 flex-shrink-0" />
+                <span>您的作品"{selectedAsset.name}"已完成版权存证，可以开始申请商业合作</span>
+              </li>
+            )}
             <li className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-400">
               <Target className="w-3 h-3 mt-0.5 flex-shrink-0" />
               <span>建议将"传统纹样创新"设计转化为3D模型，提升商业价值</span>
@@ -429,12 +416,14 @@ function StageTimeline({
   stages,
   isDark,
   onUpdateStage,
-  assetId
+  assetId,
+  isLoading
 }: {
   stages: ServiceIPStage[];
   isDark: boolean;
   onUpdateStage: (stageId: string, completed: boolean) => void;
   assetId: string;
+  isLoading: boolean;
 }) {
   const getStageIcon = (stageName: string) => {
     switch (stageName) {
@@ -510,6 +499,7 @@ function StageTimeline({
                         className="sr-only peer"
                         checked={stage.completed}
                         onChange={(e) => onUpdateStage(stage.id, e.target.checked)}
+                        disabled={isLoading}
                       />
                       <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 dark:peer-focus:ring-primary-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary-600" />
                     </label>
@@ -531,14 +521,16 @@ function IncubationPathContent({
   ipStats,
   isDark,
   onAssetChange,
-  onUpdateStage
+  onUpdateStage,
+  isLoading
 }: {
   selectedAsset: IPAsset | null;
   ipAssets: IPAsset[];
-  ipStats: any;
+  ipStats: IPStats;
   isDark: boolean;
   onAssetChange: (asset: IPAsset | null) => void;
   onUpdateStage: (assetId: string, stageId: string, completed: boolean) => void;
+  isLoading: boolean;
 }) {
   const progress = useMemo(() => {
     if (!selectedAsset) return 0;
@@ -550,6 +542,15 @@ function IncubationPathContent({
     if (!selectedAsset) return null;
     return selectedAsset.stages.find(s => !s.completed) || selectedAsset.stages[selectedAsset.stages.length - 1];
   }, [selectedAsset]);
+
+  if (isLoading) {
+    return (
+      <div className={`flex flex-col items-center justify-center py-20 ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-card`}>
+        <Loader2 className="w-12 h-12 animate-spin text-primary-500 mb-4" />
+        <p className="text-gray-500">加载中...</p>
+      </div>
+    );
+  }
 
   if (!selectedAsset) {
     return (
@@ -644,6 +645,7 @@ function IncubationPathContent({
         isDark={isDark}
         assetId={selectedAsset.id}
         onUpdateStage={(stageId, completed) => onUpdateStage(selectedAsset.id, stageId, completed)}
+        isLoading={isLoading}
       />
     </div>
   );
@@ -654,12 +656,14 @@ function AssetsContent({
   ipAssets,
   isDark,
   onSelectAsset,
-  calculateProgress
+  calculateProgress,
+  isLoading
 }: {
   ipAssets: IPAsset[];
   isDark: boolean;
   onSelectAsset: (asset: IPAsset) => void;
   calculateProgress: (stages: ServiceIPStage[]) => number;
+  isLoading: boolean;
 }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
@@ -682,6 +686,15 @@ function AssetsContent({
     };
     return labels[type] || type;
   };
+
+  if (isLoading) {
+    return (
+      <div className={`flex flex-col items-center justify-center py-20 ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-card`}>
+        <Loader2 className="w-12 h-12 animate-spin text-primary-500 mb-4" />
+        <p className="text-gray-500">加载中...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -784,12 +797,18 @@ function AssetsContent({
 function OpportunitiesContent({
   opportunities,
   isDark,
-  onApply
+  onApply,
+  ipAssets,
+  isLoading
 }: {
   opportunities: CommercialOpportunity[];
   isDark: boolean;
-  onApply: (id: number) => void;
+  onApply: (opportunityId: string, ipAssetId: string) => void;
+  ipAssets: IPAsset[];
+  isLoading: boolean;
 }) {
+  const [selectedAssetId, setSelectedAssetId] = useState<string>('');
+
   const getStatusConfig = (status: string) => {
     switch (status) {
       case 'open':
@@ -801,65 +820,99 @@ function OpportunitiesContent({
     }
   };
 
+  if (isLoading) {
+    return (
+      <div className={`flex flex-col items-center justify-center py-20 ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-card`}>
+        <Loader2 className="w-12 h-12 animate-spin text-primary-500 mb-4" />
+        <p className="text-gray-500">加载中...</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      {opportunities.map((opportunity, index) => {
-        const status = getStatusConfig(opportunity.status);
-        return (
-          <motion.div
-            key={opportunity.id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.1 }}
-            whileHover={{ y: -4 }}
-            className={`rounded-2xl overflow-hidden ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-card border ${isDark ? 'border-gray-700' : 'border-gray-200'} hover:shadow-card-hover transition-all`}
+    <div className="space-y-6">
+      {/* IP资产选择 */}
+      {ipAssets.length > 0 && (
+        <div className={`rounded-2xl p-4 ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-card border ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+          <label className="block text-sm font-medium mb-2">选择要申请的IP资产</label>
+          <select
+            value={selectedAssetId}
+            onChange={(e) => setSelectedAssetId(e.target.value)}
+            className={`w-full px-4 py-2.5 rounded-xl border ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'} focus:outline-none focus:ring-2 focus:ring-primary-500`}
           >
-            <div className="relative">
-              <TianjinImage
-                src={opportunity.image}
-                alt={opportunity.name}
-                className="w-full h-44 object-cover"
-                ratio="landscape"
-              />
-              <div className="absolute top-3 left-3">
-                <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${status.color}`}>
-                  {status.label}
-                </span>
-              </div>
-            </div>
-            <div className="p-5">
-              <div className="flex justify-between items-start mb-2">
-                <h3 className="font-semibold text-lg">{opportunity.name}</h3>
-                <span className={`px-2.5 py-1 text-xs rounded-full ${isDark ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                  {opportunity.brand}
-                </span>
-              </div>
-              <p className={`text-sm mb-4 line-clamp-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                {opportunity.description}
-              </p>
-              <div className={`p-3 rounded-xl mb-4 ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-500">奖励</span>
-                  <span className="font-semibold text-primary-600">{opportunity.reward}</span>
+            <option value="">请选择IP资产</option>
+            {ipAssets.map(asset => (
+              <option key={asset.id} value={asset.id}>{asset.name}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {/* 机会列表 */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {opportunities.map((opportunity, index) => {
+          const status = getStatusConfig(opportunity.status);
+          return (
+            <motion.div
+              key={opportunity.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.1 }}
+              whileHover={{ y: -4 }}
+              className={`rounded-2xl overflow-hidden ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-card border ${isDark ? 'border-gray-700' : 'border-gray-200'} hover:shadow-card-hover transition-all`}
+            >
+              <div className="p-5">
+                <div className="flex justify-between items-start mb-2">
+                  <h3 className="font-semibold text-lg">{opportunity.name}</h3>
+                  <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${status.color}`}>
+                    {status.label}
+                  </span>
                 </div>
+                <p className={`text-sm mb-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                  {opportunity.brandName}
+                </p>
+                <p className={`text-sm mb-4 line-clamp-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                  {opportunity.description}
+                </p>
+                {opportunity.requirements && (
+                  <p className={`text-xs mb-4 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                    要求: {opportunity.requirements}
+                  </p>
+                )}
+                <div className={`p-3 rounded-xl mb-4 ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-500">奖励</span>
+                    <span className="font-semibold text-primary-600">{opportunity.reward}</span>
+                  </div>
+                </div>
+                <button
+                  onClick={() => selectedAssetId && onApply(opportunity.id, selectedAssetId)}
+                  disabled={opportunity.status !== 'open' || !selectedAssetId}
+                  className={`w-full py-2.5 rounded-xl font-medium transition-all ${
+                    opportunity.status === 'open' && selectedAssetId
+                      ? 'bg-primary-600 hover:bg-primary-700 text-white'
+                      : isDark
+                        ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                        : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  }`}
+                >
+                  {opportunity.status === 'open' 
+                    ? (selectedAssetId ? '立即申请' : '请先选择IP资产')
+                    : status.label
+                  }
+                </button>
               </div>
-              <button
-                onClick={() => onApply(opportunity.id)}
-                disabled={opportunity.status !== 'open'}
-                className={`w-full py-2.5 rounded-xl font-medium transition-all ${
-                  opportunity.status === 'open'
-                    ? 'bg-primary-600 hover:bg-primary-700 text-white'
-                    : isDark
-                      ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                      : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                }`}
-              >
-                {opportunity.status === 'open' ? '立即申请' : status.label}
-              </button>
-            </div>
-          </motion.div>
-        );
-      })}
+            </motion.div>
+          );
+        })}
+      </div>
+
+      {opportunities.length === 0 && (
+        <div className={`text-center py-12 ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-card`}>
+          <Handshake className="w-12 h-12 mx-auto text-gray-400 mb-4" />
+          <p className="text-gray-500">暂无可申请的商业机会</p>
+        </div>
+      )}
     </div>
   );
 }
@@ -868,12 +921,23 @@ function OpportunitiesContent({
 function CopyrightContent({
   copyrightAssets,
   isDark,
-  onLicense
+  onLicense,
+  isLoading
 }: {
   copyrightAssets: CopyrightAsset[];
   isDark: boolean;
-  onLicense: (id: number) => void;
+  onLicense: (id: string) => void;
+  isLoading: boolean;
 }) {
+  if (isLoading) {
+    return (
+      <div className={`flex flex-col items-center justify-center py-20 ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-card`}>
+        <Loader2 className="w-12 h-12 animate-spin text-primary-500 mb-4" />
+        <p className="text-gray-500">加载中...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -886,7 +950,7 @@ function CopyrightContent({
             className={`rounded-2xl overflow-hidden ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-card border ${isDark ? 'border-gray-700' : 'border-gray-200'}`}
           >
             <TianjinImage
-              src={asset.thumbnail}
+              src={asset.thumbnail || ''}
               alt={asset.name}
               className="w-full h-40 object-cover"
               ratio="landscape"
@@ -899,13 +963,17 @@ function CopyrightContent({
                 </span>
               </div>
               <div className="flex justify-between items-center text-sm mb-4">
-                <span className="text-gray-500">{asset.createdAt}</span>
+                <span className="text-gray-500">
+                  {asset.registeredAt ? new Date(asset.registeredAt).toLocaleDateString('zh-CN') : '-'}
+                </span>
                 <span className={`text-xs px-2 py-1 rounded-full ${
-                  asset.status === '已存证'
+                  asset.status === 'registered'
                     ? 'bg-emerald-100 text-emerald-700'
-                    : 'bg-blue-100 text-blue-700'
+                    : asset.status === 'licensed'
+                      ? 'bg-blue-100 text-blue-700'
+                      : 'bg-gray-100 text-gray-700'
                 }`}>
-                  {asset.status}
+                  {asset.status === 'registered' ? '已存证' : asset.status === 'licensed' ? '已授权' : '已过期'}
                 </span>
               </div>
               <button
@@ -926,65 +994,75 @@ function CopyrightContent({
         ))}
       </div>
 
+      {copyrightAssets.length === 0 && (
+        <div className={`text-center py-12 ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-card`}>
+          <Shield className="w-12 h-12 mx-auto text-gray-400 mb-4" />
+          <p className="text-gray-500">暂无版权资产</p>
+          <p className="text-sm text-gray-400 mt-2">完成作品版权存证后将显示在这里</p>
+        </div>
+      )}
+
       {/* 版权数据分析 */}
-      <div className={`rounded-2xl p-6 ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-card border ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
-        <h3 className="text-lg font-semibold mb-6">版权数据分析</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <h4 className="text-sm font-medium mb-4 text-gray-500">版权类型分布</h4>
-            <div className="h-48">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={[
-                      { name: '插画', value: 4 },
-                      { name: '纹样', value: 2 },
-                      { name: '品牌设计', value: 2 },
-                    ]}
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={60}
-                    dataKey="value"
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                  >
-                    <Cell fill="#f87171" />
-                    <Cell fill="#60a5fa" />
-                    <Cell fill="#34d399" />
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
+      {copyrightAssets.length > 0 && (
+        <div className={`rounded-2xl p-6 ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-card border ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+          <h3 className="text-lg font-semibold mb-6">版权数据分析</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <h4 className="text-sm font-medium mb-4 text-gray-500">版权类型分布</h4>
+              <div className="h-48">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={[
+                        { name: '插画', value: copyrightAssets.filter(a => a.type === '插画').length },
+                        { name: '纹样', value: copyrightAssets.filter(a => a.type === '纹样').length },
+                        { name: '品牌设计', value: copyrightAssets.filter(a => a.type === '品牌设计').length },
+                      ].filter(item => item.value > 0)}
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={60}
+                      dataKey="value"
+                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    >
+                      <Cell fill="#f87171" />
+                      <Cell fill="#60a5fa" />
+                      <Cell fill="#34d399" />
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
             </div>
-          </div>
-          <div>
-            <h4 className="text-sm font-medium mb-4 text-gray-500">收益预估</h4>
-            <div className="space-y-4">
-              <div>
-                <div className="flex justify-between text-sm mb-2">
-                  <span>已授权收益</span>
-                  <span className="font-medium">¥3,500</span>
+            <div>
+              <h4 className="text-sm font-medium mb-4 text-gray-500">收益预估</h4>
+              <div className="space-y-4">
+                <div>
+                  <div className="flex justify-between text-sm mb-2">
+                    <span>已授权收益</span>
+                    <span className="font-medium">¥3,500</span>
+                  </div>
+                  <div className={`h-2 rounded-full ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                    <div className="h-full rounded-full bg-emerald-500" style={{ width: '35%' }} />
+                  </div>
                 </div>
-                <div className={`h-2 rounded-full ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
-                  <div className="h-full rounded-full bg-emerald-500" style={{ width: '35%' }} />
+                <div>
+                  <div className="flex justify-between text-sm mb-2">
+                    <span>待授权预估</span>
+                    <span className="font-medium">¥6,500</span>
+                  </div>
+                  <div className={`h-2 rounded-full ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                    <div className="h-full rounded-full bg-blue-500" style={{ width: '65%' }} />
+                  </div>
                 </div>
-              </div>
-              <div>
-                <div className="flex justify-between text-sm mb-2">
-                  <span>待授权预估</span>
-                  <span className="font-medium">¥6,500</span>
+                <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-50'} text-center mt-6`}>
+                  <p className="text-sm text-gray-500 mb-1">总预估收益</p>
+                  <p className="text-2xl font-bold text-emerald-600">¥10,000</p>
                 </div>
-                <div className={`h-2 rounded-full ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
-                  <div className="h-full rounded-full bg-blue-500" style={{ width: '65%' }} />
-                </div>
-              </div>
-              <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-50'} text-center mt-6`}>
-                <p className="text-sm text-gray-500 mb-1">总预估收益</p>
-                <p className="text-2xl font-bold text-emerald-600">¥10,000</p>
               </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -995,14 +1073,25 @@ function AnalyticsContent({
   ipAssets,
   valueTrendData,
   typeDistributionData,
-  isDark
+  isDark,
+  isLoading
 }: {
-  ipStats: any;
+  ipStats: IPStats;
   ipAssets: IPAsset[];
   valueTrendData: any[];
   typeDistributionData: any[];
   isDark: boolean;
+  isLoading: boolean;
 }) {
+  if (isLoading) {
+    return (
+      <div className={`flex flex-col items-center justify-center py-20 ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-card`}>
+        <Loader2 className="w-12 h-12 animate-spin text-primary-500 mb-4" />
+        <p className="text-gray-500">加载中...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* 统计卡片 */}
@@ -1057,101 +1146,107 @@ function AnalyticsContent({
       </div>
 
       {/* 价值趋势 */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3 }}
-        className={`rounded-2xl p-6 ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-card border ${isDark ? 'border-gray-700' : 'border-gray-200'}`}
-      >
-        <h3 className="text-lg font-semibold mb-6">IP资产价值趋势</h3>
-        <div className="h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={valueTrendData}>
-              <defs>
-                <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#8884d8" stopOpacity={0.8}/>
-                  <stop offset="95%" stopColor="#8884d8" stopOpacity={0.1}/>
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#374151' : '#e5e7eb'} />
-              <XAxis dataKey="timestamp" stroke={isDark ? '#9ca3af' : '#6b7280'} />
-              <YAxis stroke={isDark ? '#9ca3af' : '#6b7280'} tickFormatter={(value) => `¥${value}`} />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: isDark ? '#1f2937' : '#ffffff',
-                  borderColor: isDark ? '#374151' : '#e5e7eb',
-                  color: isDark ? '#f3f4f6' : '#111827',
-                }}
-                formatter={(value: any) => [`¥${value}`, '预估价值']}
-              />
-              <Area type="monotone" dataKey="value" stroke="#8884d8" fillOpacity={1} fill="url(#colorValue)" />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-      </motion.div>
-
-      {/* 类型分布和阶段分布 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {valueTrendData.length > 0 && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
+          transition={{ delay: 0.3 }}
           className={`rounded-2xl p-6 ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-card border ${isDark ? 'border-gray-700' : 'border-gray-200'}`}
         >
-          <h3 className="text-lg font-semibold mb-6">IP类型分布</h3>
+          <h3 className="text-lg font-semibold mb-6">IP资产价值趋势</h3>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={typeDistributionData}
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={80}
-                  dataKey="count"
-                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                >
-                  {typeDistributionData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FECA57'][index % 5]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
-          className={`rounded-2xl p-6 ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-card border ${isDark ? 'border-gray-700' : 'border-gray-200'}`}
-        >
-          <h3 className="text-lg font-semibold mb-6">IP孵化阶段分布</h3>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={[
-                { name: '创意设计', value: ipAssets.filter(asset => asset.stages[0]?.completed).length },
-                { name: '版权存证', value: ipAssets.filter(asset => asset.stages[1]?.completed).length },
-                { name: 'IP孵化', value: ipAssets.filter(asset => asset.stages[2]?.completed).length },
-                { name: '商业合作', value: ipAssets.filter(asset => asset.stages[3]?.completed).length },
-                { name: '收益分成', value: ipAssets.filter(asset => asset.stages[4]?.completed).length },
-              ]}>
+              <AreaChart data={valueTrendData}>
+                <defs>
+                  <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#8884d8" stopOpacity={0.8}/>
+                    <stop offset="95%" stopColor="#8884d8" stopOpacity={0.1}/>
+                  </linearGradient>
+                </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#374151' : '#e5e7eb'} />
-                <XAxis dataKey="name" stroke={isDark ? '#9ca3af' : '#6b7280'} />
-                <YAxis stroke={isDark ? '#9ca3af' : '#6b7280'} />
+                <XAxis dataKey="timestamp" stroke={isDark ? '#9ca3af' : '#6b7280'} />
+                <YAxis stroke={isDark ? '#9ca3af' : '#6b7280'} tickFormatter={(value) => `¥${value}`} />
                 <Tooltip
                   contentStyle={{
                     backgroundColor: isDark ? '#1f2937' : '#ffffff',
                     borderColor: isDark ? '#374151' : '#e5e7eb',
                     color: isDark ? '#f3f4f6' : '#111827',
                   }}
+                  formatter={(value: any) => [`¥${value}`, '预估价值']}
                 />
-                <Bar dataKey="value" fill="#8884d8" radius={[4, 4, 0, 0]} />
-              </BarChart>
+                <Area type="monotone" dataKey="value" stroke="#8884d8" fillOpacity={1} fill="url(#colorValue)" />
+              </AreaChart>
             </ResponsiveContainer>
           </div>
         </motion.div>
+      )}
+
+      {/* 类型分布和阶段分布 */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {typeDistributionData.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className={`rounded-2xl p-6 ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-card border ${isDark ? 'border-gray-700' : 'border-gray-200'}`}
+          >
+            <h3 className="text-lg font-semibold mb-6">IP类型分布</h3>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={typeDistributionData}
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={80}
+                    dataKey="count"
+                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                  >
+                    {typeDistributionData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FECA57'][index % 5]} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </motion.div>
+        )}
+
+        {ipAssets.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5 }}
+            className={`rounded-2xl p-6 ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-card border ${isDark ? 'border-gray-700' : 'border-gray-200'}`}
+          >
+            <h3 className="text-lg font-semibold mb-6">IP孵化阶段分布</h3>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={[
+                  { name: '创意设计', value: ipAssets.filter(asset => asset.stages[0]?.completed).length },
+                  { name: '版权存证', value: ipAssets.filter(asset => asset.stages[1]?.completed).length },
+                  { name: 'IP孵化', value: ipAssets.filter(asset => asset.stages[2]?.completed).length },
+                  { name: '商业合作', value: ipAssets.filter(asset => asset.stages[3]?.completed).length },
+                  { name: '收益分成', value: ipAssets.filter(asset => asset.stages[4]?.completed).length },
+                ]}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#374151' : '#e5e7eb'} />
+                  <XAxis dataKey="name" stroke={isDark ? '#9ca3af' : '#6b7280'} />
+                  <YAxis stroke={isDark ? '#9ca3af' : '#6b7280'} />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: isDark ? '#1f2937' : '#ffffff',
+                      borderColor: isDark ? '#374151' : '#e5e7eb',
+                      color: isDark ? '#f3f4f6' : '#111827',
+                    }}
+                  />
+                  <Bar dataKey="value" fill="#8884d8" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </motion.div>
+        )}
       </div>
     </div>
   );
@@ -1168,7 +1263,7 @@ export default function IPIncubationCenter() {
   const [selectedIPAsset, setSelectedIPAsset] = useState<IPAsset | null>(null);
   const [ipAssets, setIpAssets] = useState<IPAsset[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [ipStats, setIpStats] = useState({
+  const [ipStats, setIpStats] = useState<IPStats>({
     totalAssets: 0,
     completedAssets: 0,
     inProgressAssets: 0,
@@ -1180,198 +1275,138 @@ export default function IPIncubationCenter() {
   // 数据状态
   const [commercialOpportunities, setCommercialOpportunities] = useState<CommercialOpportunity[]>([]);
   const [copyrightAssets, setCopyrightAssets] = useState<CopyrightAsset[]>([]);
-  const [activities, setActivities] = useState<Activity[]>([]);
+  const [activities, setActivities] = useState<IPActivity[]>([]);
   const [valueTrendData, setValueTrendData] = useState<any[]>([]);
   const [typeDistributionData, setTypeDistributionData] = useState<any[]>([]);
 
   // 计算孵化进度
-  const calculateIncubationProgress = (stages: ServiceIPStage[]): number => {
+  const calculateIncubationProgress = useCallback((stages: ServiceIPStage[]): number => {
     const completedStages = stages.filter(stage => stage.completed).length;
     return Math.round((completedStages / stages.length) * 100);
-  };
+  }, []);
 
   // 加载数据
-  useEffect(() => {
+  const loadData = useCallback(async () => {
+    if (!isAuthenticated || !user) return;
+
     setIsLoading(true);
-
-    setTimeout(() => {
-      // 获取IP资产数据
-      const assets = ipService.getAllIPAssets();
-      const stats = ipService.getIPStats();
-
-      // 模拟商业化机会数据
-      const opportunities: CommercialOpportunity[] = [
-        {
-          id: 1,
-          name: '国潮包装设计',
-          description: '为老字号食品品牌设计国潮风格包装，要求融合传统元素与现代审美',
-          brand: '桂发祥',
-          reward: '¥15,000',
-          status: 'open',
-          image: '',
-          matchScore: 95
-        },
-        {
-          id: 2,
-          name: '文创产品开发',
-          description: '设计传统文化元素文创产品系列，包括文具、家居用品等多个品类',
-          brand: '杨柳青画社',
-          reward: '¥20,000',
-          status: 'open',
-          image: '',
-          matchScore: 88
-        },
-        {
-          id: 3,
-          name: '数字藏品创作',
-          description: '创作基于传统纹样的数字藏品系列，要求具有独特的艺术价值和收藏价值',
-          brand: '数字艺术馆',
-          reward: '分成模式',
-          status: 'matched',
-          image: '',
-          matchScore: 92
-        },
-        {
-          id: 4,
-          name: '品牌视觉升级',
-          description: '为传统品牌进行现代化视觉升级，保留品牌基因的同时注入新活力',
-          brand: '天津老字号协会',
-          reward: '¥25,000',
-          status: 'open',
-          image: '',
-          matchScore: 85
-        },
-        {
-          id: 5,
-          name: '文化主题插画',
-          description: '创作以天津传统文化为主题的插画系列，用于城市宣传和文化推广',
-          brand: '天津市文化和旅游局',
-          reward: '¥18,000',
-          status: 'open',
-          image: '',
-          matchScore: 90
-        },
-        {
-          id: 6,
-          name: '传统工艺数字化',
-          description: '将传统工艺通过数字化技术进行创新表达，开发数字艺术作品',
-          brand: '文化创新中心',
-          reward: '分成模式',
-          status: 'closed',
-          image: '',
-          matchScore: 78
-        }
-      ];
-
-      // 模拟版权资产数据
-      const copyrightData = [
-        {
-          id: 1,
-          name: '国潮插画系列',
-          thumbnail: '',
-          type: '插画',
-          createdAt: '2025-11-01',
-          status: '已存证',
-          canLicense: true
-        },
-        {
-          id: 2,
-          name: '传统纹样创新',
-          thumbnail: '',
-          type: '纹样',
-          createdAt: '2025-10-25',
-          status: '已授权',
-          canLicense: false
-        },
-        {
-          id: 3,
-          name: '老字号品牌视觉',
-          thumbnail: '',
-          type: '品牌设计',
-          createdAt: '2025-10-15',
-          status: '已存证',
-          canLicense: true
-        }
-      ];
-
-      // 模拟活动数据
-      const activityData: Activity[] = [
-        {
-          id: '1',
-          type: 'progress',
-          title: '版权存证已完成',
-          description: '您的作品"国潮插画系列"已完成版权存证',
-          timestamp: '2小时前',
-          read: false
-        },
-        {
-          id: '2',
-          type: 'opportunity',
-          title: '新的商业机会',
-          description: '桂发祥包装设计项目与您的作品匹配度95%',
-          timestamp: '5小时前',
-          read: false
-        },
-        {
-          id: '3',
-          type: 'milestone',
-          title: '孵化进度更新',
-          description: '传统纹样创新已完成IP孵化阶段',
-          timestamp: '1天前',
-          read: true
-        },
-        {
-          id: '4',
-          type: 'alert',
-          title: '待办提醒',
-          description: '您有3个商业机会申请即将截止',
-          timestamp: '2天前',
-          read: true
-        }
-      ];
+    try {
+      // 并行加载所有数据
+      const [
+        assets,
+        stats,
+        opportunities,
+        copyright,
+        activitiesData,
+        trendData,
+        typeData
+      ] = await Promise.all([
+        ipService.getAllIPAssets(),
+        ipService.getIPStats(),
+        ipService.getAllOpportunities(),
+        ipService.getCopyrightAssets(),
+        ipService.getIPActivities(10),
+        ipService.getIPValueTrend(),
+        ipService.getIPTypeDistribution()
+      ]);
 
       setIpAssets(assets);
       setIpStats(stats);
       setCommercialOpportunities(opportunities);
-      setCopyrightAssets(copyrightData);
-      setActivities(activityData);
-      setValueTrendData(ipService.getIPValueTrend());
-      setTypeDistributionData(ipService.getIPTypeDistribution());
+      setCopyrightAssets(copyright);
+      setActivities(activitiesData);
+      setValueTrendData(trendData);
+      setTypeDistributionData(typeData);
 
-      if (assets.length > 0) {
+      // 如果没有选中的资产，选择第一个
+      if (assets.length > 0 && !selectedIPAsset) {
         setSelectedIPAsset(assets[0]);
       }
-
+    } catch (error) {
+      console.error('加载IP数据失败:', error);
+      toast.error('加载数据失败，请稍后重试');
+    } finally {
       setIsLoading(false);
-    }, 800);
-  }, [isAuthenticated, user]);
+    }
+  }, [isAuthenticated, user, selectedIPAsset]);
+
+  // 初始加载
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  // 订阅实时更新
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    // 订阅IP资产变化
+    const assetsChannel = ipService.subscribeToIPAssets(() => {
+      loadData();
+    });
+
+    // 订阅活动变化
+    const activitiesChannel = ipService.subscribeToActivities(() => {
+      ipService.getIPActivities(10).then(setActivities);
+    });
+
+    return () => {
+      ipService.unsubscribeAll();
+    };
+  }, [isAuthenticated, loadData]);
 
   // 处理阶段更新
-  const handleUpdateStage = (assetId: string, stageId: string, completed: boolean) => {
-    const success = ipService.updateIPStage(assetId, stageId, completed);
-    if (success) {
-      setIpAssets(ipService.getAllIPAssets());
-      if (selectedIPAsset?.id === assetId) {
-        setSelectedIPAsset(ipService.getIPAssetById(assetId) || null);
+  const handleUpdateStage = async (assetId: string, stageId: string, completed: boolean) => {
+    try {
+      const success = await ipService.updateIPStage(assetId, stageId, completed);
+      if (success) {
+        // 刷新数据
+        await loadData();
+        toast.success('IP孵化阶段更新成功');
+      } else {
+        toast.error('IP孵化阶段更新失败');
       }
-      toast.success('IP孵化阶段更新成功');
-    } else {
-      toast.error('IP孵化阶段更新失败');
+    } catch (error) {
+      console.error('更新阶段失败:', error);
+      toast.error('更新失败，请稍后重试');
     }
   };
 
   // 处理申请机会
-  const handleApplyOpportunity = (opportunityId: number) => {
-    toast.success('已申请商业机会，等待品牌方审核');
+  const handleApplyOpportunity = async (opportunityId: string, ipAssetId: string) => {
+    try {
+      const success = await ipService.applyOpportunity(opportunityId, ipAssetId);
+      if (success) {
+        toast.success('已申请商业机会，等待品牌方审核');
+        // 刷新数据
+        await loadData();
+      } else {
+        toast.error('申请失败，请稍后重试');
+      }
+    } catch (error) {
+      console.error('申请机会失败:', error);
+      toast.error('申请失败，请稍后重试');
+    }
   };
 
   // 处理版权授权
-  const handleLicenseAsset = (assetId: number) => {
-    toast.success('版权授权申请已提交');
+  const handleLicenseAsset = async (assetId: string) => {
+    try {
+      const success = await ipService.updateCopyrightLicense(assetId, false);
+      if (success) {
+        toast.success('版权授权申请已提交');
+        // 刷新数据
+        await loadData();
+      } else {
+        toast.error('申请失败，请稍后重试');
+      }
+    } catch (error) {
+      console.error('版权授权失败:', error);
+      toast.error('申请失败，请稍后重试');
+    }
   };
 
   // 骨架屏
-  if (isLoading) {
+  if (isLoading && ipAssets.length === 0) {
     return (
       <div className="min-h-screen p-6">
         <div className="max-w-[1600px] mx-auto">
@@ -1403,10 +1438,20 @@ export default function IPIncubationCenter() {
               管理和孵化您的知识产权资产
             </p>
           </div>
-          <button className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-medium transition-colors flex items-center gap-2">
-            <Plus className="w-5 h-5" />
-            <span className="hidden sm:inline">提交作品</span>
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={loadData}
+              disabled={isLoading}
+              className={`p-2 rounded-xl transition-colors ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
+              title="刷新数据"
+            >
+              <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
+            </button>
+            <button className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-medium transition-colors flex items-center gap-2">
+              <Plus className="w-5 h-5" />
+              <span className="hidden sm:inline">提交作品</span>
+            </button>
+          </div>
         </motion.div>
 
         {/* 三栏布局 */}
@@ -1437,6 +1482,7 @@ export default function IPIncubationCenter() {
                     isDark={isDark}
                     onAssetChange={setSelectedIPAsset}
                     onUpdateStage={handleUpdateStage}
+                    isLoading={isLoading}
                   />
                 )}
                 {activeTab === 'assets' && (
@@ -1448,6 +1494,7 @@ export default function IPIncubationCenter() {
                       setActiveTab('incubation');
                     }}
                     calculateProgress={calculateIncubationProgress}
+                    isLoading={isLoading}
                   />
                 )}
                 {activeTab === 'opportunities' && (
@@ -1455,6 +1502,8 @@ export default function IPIncubationCenter() {
                     opportunities={commercialOpportunities}
                     isDark={isDark}
                     onApply={handleApplyOpportunity}
+                    ipAssets={ipAssets}
+                    isLoading={isLoading}
                   />
                 )}
                 {activeTab === 'copyright' && (
@@ -1462,6 +1511,7 @@ export default function IPIncubationCenter() {
                     copyrightAssets={copyrightAssets}
                     isDark={isDark}
                     onLicense={handleLicenseAsset}
+                    isLoading={isLoading}
                   />
                 )}
                 {activeTab === 'analytics' && (
@@ -1471,6 +1521,7 @@ export default function IPIncubationCenter() {
                     valueTrendData={valueTrendData}
                     typeDistributionData={typeDistributionData}
                     isDark={isDark}
+                    isLoading={isLoading}
                   />
                 )}
               </motion.div>
@@ -1484,6 +1535,7 @@ export default function IPIncubationCenter() {
             activities={activities}
             opportunities={commercialOpportunities}
             onApplyOpportunity={handleApplyOpportunity}
+            isLoading={isLoading}
           />
         </div>
       </div>

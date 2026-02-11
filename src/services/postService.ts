@@ -20,13 +20,15 @@ export interface Comment {
   author?: string;
   authorAvatar?: string;
   likes: number;
-  reactions: Record<CommentReaction, number>;
+  reactions?: Partial<Record<CommentReaction, number>>;
   parentId?: string;
-  replies: Comment[];
+  replies?: Comment[];
   isLiked?: boolean;
-  userReactions: CommentReaction[];
+  userReactions?: CommentReaction[];
   // Extra fields to match DB
   userId?: string;
+  // 评论图片支持
+  images?: string[];
 }
 
 export interface User {
@@ -36,7 +38,18 @@ export interface User {
   avatar?: string;
   isAdmin?: boolean;
   membershipLevel?: string;
-  membershipStatus?: 'active' | 'inactive' | 'trial';
+  membershipStatus?: 'active' | 'inactive' | 'trial' | 'pending' | 'expired';
+  // 可选的扩展属性
+  coverImage?: string;
+  bio?: string;
+  location?: string;
+  website?: string;
+  occupation?: string;
+  followersCount?: number;
+  followingCount?: number;
+  postsCount?: number;
+  likesCount?: number;
+  viewsCount?: number;
 }
 
 export interface Post {
@@ -1858,13 +1871,71 @@ export async function deleteWorkComment(commentId: string): Promise<void> {
   }
 }
 
-export async function addComment(postId: string, content: string, parentId?: string, user?: User): Promise<Post | undefined> {
+// 上传评论图片到 Supabase Storage
+async function uploadCommentImage(file: File, userId: string): Promise<string> {
+  try {
+    const { supabaseAdmin } = await import('@/lib/supabase');
+    
+    // 生成唯一文件名
+    const fileExt = file.name.split('.').pop() || 'jpg';
+    const fileName = `${userId}/${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+    
+    // 使用 supabaseAdmin 上传到 comment-images bucket（绕过 RLS）
+    const { error: uploadError } = await supabaseAdmin.storage
+      .from('comment-images')
+      .upload(fileName, file, {
+        cacheControl: '3600',
+        upsert: false
+      });
+
+    if (uploadError) {
+      console.error('Comment image upload error:', uploadError);
+      throw new Error(`上传图片失败: ${uploadError.message}`);
+    }
+
+    // 获取公开 URL
+    const { data } = supabaseAdmin.storage
+      .from('comment-images')
+      .getPublicUrl(fileName);
+
+    if (!data.publicUrl) {
+      throw new Error('获取图片 URL 失败');
+    }
+
+    return data.publicUrl;
+  } catch (error: any) {
+    console.error('Upload comment image failed:', error);
+    throw new Error('图片上传失败: ' + (error.message || '未知错误'));
+  }
+}
+
+export async function addComment(
+  postId: string, 
+  content: string, 
+  parentId?: string, 
+  user?: User,
+  images?: File[]
+): Promise<Post | undefined> {
   if (!user?.id) {
     console.error('[addComment] No user provided');
     throw new Error('请先登录后再评论');
   }
   
-  console.log('[addComment] Called with:', { postId, content, userId: user.id });
+  console.log('[addComment] Called with:', { postId, content, userId: user.id, imageCount: images?.length });
+  
+  // 上传图片（如果有）
+  let imageUrls: string[] = [];
+  if (images && images.length > 0) {
+    try {
+      imageUrls = await Promise.all(
+        images.map(file => uploadCommentImage(file, user.id))
+      );
+      console.log('[addComment] Images uploaded:', imageUrls);
+    } catch (error: any) {
+      console.error('[addComment] Image upload failed:', error);
+      throw new Error('图片上传失败: ' + error.message);
+    }
+  }
   
   // 首先尝试使用后端API添加评论
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
@@ -1881,7 +1952,8 @@ export async function addComment(postId: string, content: string, parentId?: str
         },
         body: JSON.stringify({
           content: content,
-          parent_id: parentId || null
+          parent_id: parentId || null,
+          images: imageUrls
         })
       });
       
@@ -1898,7 +1970,8 @@ export async function addComment(postId: string, content: string, parentId?: str
           },
           body: JSON.stringify({
             content: content,
-            parent_id: parentId || null
+            parent_id: parentId || null,
+            images: imageUrls
           })
         });
         console.log('[addComment] Works API response status:', response.status);
@@ -1966,6 +2039,7 @@ export async function addComment(postId: string, content: string, parentId?: str
           content: content,
           parent_id: parentId ? (/^\d+$/.test(parentId) ? parseInt(parentId) : parentId) : null,
           likes: 0,
+          images: imageUrls,
           created_at: Math.floor(Date.now() / 1000),
           updated_at: Math.floor(Date.now() / 1000)
         });
@@ -1989,6 +2063,7 @@ export async function addComment(postId: string, content: string, parentId?: str
         user_id: effectiveUserId,
         author_id: effectiveUserId,
         content: content,
+        images: imageUrls,
         parent_id: parentId ? (/^\d+$/.test(parentId) ? parseInt(parentId) : parentId) : null
       });
 
@@ -2049,7 +2124,32 @@ export async function getAuthorById(userId: string): Promise<User | null> {
       console.error('[getAuthorById] API failed for current user, using fallback:', error)
     }
     
-    // 如果 API 失败，使用 Supabase auth 的数据（基本数据）
+    // 如果 API 失败，尝试从 Supabase 数据库获取用户数据
+    console.log('[getAuthorById] API failed for current user, trying Supabase database')
+    try {
+      const { data: rpcData, error: rpcError } = await supabase
+        .rpc('get_user_profile', { p_user_id: userId })
+      
+      if (!rpcError && rpcData && rpcData.length > 0) {
+        const userData = rpcData[0]
+        console.log('[getAuthorById] Got current user from RPC:', userData)
+        return {
+          id: userData.id,
+          username: userData.username || 'User',
+          email: userData.email || '',
+          avatar: userData.avatar_url || '',
+          coverImage: userData.cover_image || '',
+          bio: userData.bio || '',
+          location: userData.location || '',
+          website: userData.website || '',
+          occupation: userData.occupation || ''
+        }
+      }
+    } catch (rpcErr) {
+      console.log('[getAuthorById] RPC failed for current user:', rpcErr)
+    }
+    
+    // 最后使用 Supabase auth 的数据（基本数据）
     // 安全地访问 user_metadata，避免 undefined 错误
     const userMetadata = currentUser.user_metadata || {}
     const username = userMetadata.username || currentUser.email?.split('@')[0] || 'User'
@@ -2071,9 +2171,35 @@ export async function getAuthorById(userId: string): Promise<User | null> {
       // 如果 API 返回 404，尝试从 Supabase 获取用户数据
       if (response.status === 404) {
         console.log('[getAuthorById] Trying to get user from Supabase users table')
+        
+        // 首先尝试使用 RPC 函数获取完整用户资料
+        try {
+          const { data: rpcData, error: rpcError } = await supabase
+            .rpc('get_user_profile', { p_user_id: userId })
+          
+          if (!rpcError && rpcData && rpcData.length > 0) {
+            const userData = rpcData[0]
+            console.log('[getAuthorById] Got user from RPC:', userData)
+            return {
+              id: userData.id,
+              username: userData.username || 'User',
+              email: userData.email || '',
+              avatar: userData.avatar_url || '',
+              coverImage: userData.cover_image || '',
+              bio: userData.bio || '',
+              location: userData.location || '',
+              website: userData.website || '',
+              occupation: userData.occupation || ''
+            }
+          }
+        } catch (rpcErr) {
+          console.log('[getAuthorById] RPC failed, falling back to direct query:', rpcErr)
+        }
+        
+        // RPC 失败，使用直接查询
         const { data: userData, error: userError } = await supabase
           .from('users')
-          .select('id, username, email, avatar_url, cover_image')
+          .select('id, username, email, avatar_url, cover_image, bio, location, website, occupation')
           .eq('id', userId)
           .single()
         
@@ -2084,7 +2210,11 @@ export async function getAuthorById(userId: string): Promise<User | null> {
             username: userData.username || 'User',
             email: userData.email || '',
             avatar: userData.avatar_url || '',
-            coverImage: userData.cover_image || ''
+            coverImage: userData.cover_image || '',
+            bio: userData.bio || '',
+            location: userData.location || '',
+            website: userData.website || '',
+            occupation: userData.occupation || ''
           }
         }
       }

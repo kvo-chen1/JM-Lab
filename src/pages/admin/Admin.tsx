@@ -12,10 +12,13 @@ import { brandPartnershipService } from '@/services/brandPartnershipService';
 const DataAnalytics = lazy(() => import('./DataAnalytics'));
 const StrategicAdoption = lazy(() => import('./StrategicAdoption'));
 const Settings = lazy(() => import('./Settings'));
+const OrderManagement = lazy(() => import('./OrderManagement'));
+const PermissionManagement = lazy(() => import('./PermissionManagement'));
+const FeedbackManagement = lazy(() => import('./FeedbackManagement'));
 
 const COLORS = ['#f59e0b', '#34d399', '#f87171'];
 
-type TabType = 'dashboard' | 'audit' | 'analytics' | 'adoption' | 'users' | 'settings' | 'campaigns' | 'creators' | 'brandPartnerships';
+type TabType = 'dashboard' | 'audit' | 'analytics' | 'adoption' | 'users' | 'settings' | 'campaigns' | 'creators' | 'brandPartnerships' | 'orders' | 'permissions' | 'feedback';
 
 export default function Admin() {
   const { isDark } = useTheme();
@@ -385,6 +388,9 @@ export default function Admin() {
                   { id: 'adoption', name: '品牌管理', icon: 'star' },
                   { id: 'users', name: '用户管理', icon: 'users' },
                   { id: 'creators', name: '创作者管理', icon: 'trophy' },
+                  { id: 'orders', name: '订单管理', icon: 'shopping-cart' },
+                  { id: 'feedback', name: '反馈管理', icon: 'comments' },
+                  { id: 'permissions', name: '权限管理', icon: 'user-shield' },
                   { id: 'settings', name: '系统设置', icon: 'cog' },
                 ].map((item) => (
                 <li key={item.id}>
@@ -442,6 +448,9 @@ export default function Admin() {
              {activeTab === 'users' && '用户管理'}
              {activeTab === 'campaigns' && '活动管理'}
              {activeTab === 'creators' && '创作者管理'}
+             {activeTab === 'orders' && '订单管理'}
+             {activeTab === 'feedback' && '反馈管理'}
+             {activeTab === 'permissions' && '权限管理'}
              {activeTab === 'settings' && '系统设置'}
            </h1>
           
@@ -1303,7 +1312,52 @@ export default function Admin() {
             <Settings />
           </Suspense>
         )}
-        
+
+        {/* 订单管理页面 */}
+        {activeTab === 'orders' && (
+          <Suspense fallback={
+            <div className={`flex items-center justify-center h-96 ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-md`}>
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+                className="w-12 h-12 border-4 border-red-200 border-t-red-500 rounded-full"
+              />
+            </div>
+          }>
+            <OrderManagement />
+          </Suspense>
+        )}
+
+        {/* 权限管理页面 */}
+        {activeTab === 'permissions' && (
+          <Suspense fallback={
+            <div className={`flex items-center justify-center h-96 ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-md`}>
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+                className="w-12 h-12 border-4 border-red-200 border-t-red-500 rounded-full"
+              />
+            </div>
+          }>
+            <PermissionManagement />
+          </Suspense>
+        )}
+
+        {/* 反馈管理页面 */}
+        {activeTab === 'feedback' && (
+          <Suspense fallback={
+            <div className={`flex items-center justify-center h-96 ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-md`}>
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+                className="w-12 h-12 border-4 border-red-200 border-t-red-500 rounded-full"
+              />
+            </div>
+          }>
+            <FeedbackManagement />
+          </Suspense>
+        )}
+
         {/* 活动管理页面（合并审核活动发布） */}
         {activeTab === 'campaigns' && (
           <motion.div

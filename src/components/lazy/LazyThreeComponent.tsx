@@ -1,7 +1,7 @@
 import React, { lazy, Suspense, ComponentType, ReactNode } from 'react';
 
 interface LazyThreeComponentOptions {
-  priority?: number;
+  priority?: number | string;
   name?: string;
   fallback?: ReactNode;
 }

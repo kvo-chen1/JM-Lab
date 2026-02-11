@@ -51,9 +51,13 @@ export default function TianjinCreativeActivities({
         
         // 加载点赞数
         const counts: Record<number, number> = {};
+        const templateIds = data.map(t => t.id);
+        const batchStates = await templateInteractionService.getBatchTemplateInteractions(templateIds);
         for (const template of data) {
-          const state = await templateInteractionService.getTemplateInteractionState(template.id);
-          counts[template.id] = state.likeCount;
+          const state = batchStates.get(template.id);
+          if (state) {
+            counts[template.id] = state.likeCount;
+          }
         }
         setLikeCounts(counts);
       } catch (error) {

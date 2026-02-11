@@ -60,6 +60,18 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
   // 动态主题样式
   const themeStyles = (() => {
     switch (theme) {
+      case 'dark':
+        return {
+          headerGradient: 'bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600',
+          buttonGradient: 'bg-gradient-to-r from-violet-600 to-indigo-600',
+          activeSessionLight: 'bg-gradient-to-r from-violet-50 to-purple-50',
+          activeSessionDark: 'bg-gradient-to-r from-violet-900/30 to-purple-900/30',
+          hoverLight: 'hover:bg-violet-50',
+          hoverDark: 'hover:bg-violet-900/20',
+          textAccent: 'text-violet-400',
+          borderAccent: 'focus:ring-violet-500',
+          spinner: 'text-violet-500'
+        }
       case 'green':
         return {
           headerGradient: 'bg-gradient-to-r from-green-500 via-emerald-500 to-teal-600',

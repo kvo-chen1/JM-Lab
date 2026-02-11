@@ -112,13 +112,13 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const sendMessage = async (content: string): Promise<boolean> => {
     if (!currentUser || !currentChatFriendId) return false;
-    
+
     try {
-      const newMsg = await sendSupabaseMessage(currentUser.id, currentChatFriendId, content);
-      
-      if (newMsg) {
+      const result = await sendSupabaseMessage(currentUser.id, currentChatFriendId, content);
+
+      if (result.success && result.data) {
         // 乐观更新
-        setMessages(prev => [...prev, newMsg]);
+        setMessages(prev => [...prev, result.data!]);
         return true;
       }
       return false;

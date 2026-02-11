@@ -3,7 +3,7 @@ import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import UploadBox from '@/components/UploadBox';
 import { motion } from 'framer-motion';
-import type { Community } from '@/mock/communities';
+import type { Community } from '@/services/communityService';
 
 interface CreatePostModalProps {
   isOpen: boolean;

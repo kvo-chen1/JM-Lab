@@ -802,4 +802,5 @@ ${resourceSuggestions.map((resource, index) => `   ${index + 1}. ${resource}`).j
 // 创建单例实例
 const aiCreativeAssistantService = new AICreativeAssistantService();
 
+export { aiCreativeAssistantService };
 export default aiCreativeAssistantService;

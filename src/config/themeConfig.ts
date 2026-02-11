@@ -1,7 +1,7 @@
 // src/config/themeConfig.ts
 
 // 主题类型定义
-export type Theme = 'light' | 'blue' | 'green' | 'pixel';
+export type Theme = 'light' | 'blue' | 'green' | 'pixel' | 'dark' | 'pink';
 
 // 自定义主题接口
 export interface CustomTheme {
@@ -46,6 +46,7 @@ interface ThemeConfig {
 // 主题配置列表
 export const themeConfig: ThemeConfig[] = [
   { value: 'light', label: '浅色', icon: 'fas fa-sun', description: '明亮清爽的默认主题', isDefault: true },
+  { value: 'dark', label: '暗色', icon: 'fas fa-moon', description: '墨韵深空暗色主题，专业级深色体验' },
   { value: 'blue', label: '蓝色', icon: 'fas fa-water', description: '清新蓝色主题，带来宁静感' },
   { value: 'green', label: '绿色', icon: 'fas fa-leaf', description: '自然绿色主题，充满生机' },
   { value: 'pixel', label: '赛博像素', icon: 'fas fa-dungeon', description: '复古赛博朋克风格主题' }
@@ -57,6 +58,7 @@ export const themeEnhancements = {
   // 色彩对比度增强
   contrast: {
     light: 1.2,
+    dark: 1.25,
     blue: 1.15,
     green: 1.15,
     pixel: 1.3
@@ -64,6 +66,7 @@ export const themeEnhancements = {
   // 色彩饱和度优化
   saturation: {
     light: 1.05,
+    dark: 1.1,
     blue: 1.1,
     green: 1.1,
     pixel: 1.2
@@ -71,6 +74,7 @@ export const themeEnhancements = {
   // 亮度调整
   brightness: {
     light: 1.0,
+    dark: 0.9,
     blue: 1.0,
     green: 1.0,
     pixel: 0.85
@@ -83,6 +87,11 @@ export const themeEnhancements = {
   },
   // 主题特定效果
   effects: {
+    dark: {
+      glow: true,
+      intensity: 'medium',
+      color: '#8B5CF6'
+    },
     pixel: {
       glow: true,
       intensity: 'high',
@@ -115,13 +124,13 @@ export const autoThemeConfig = {
 // 主题预设配置
 export const themePresets = {
   // 推荐主题组合
-  recommended: ['light', 'blue', 'green', 'pixel'] as Theme[],
-  // 节日主题（可扩展）
+  recommended: ['light', 'dark', 'blue', 'green', 'pixel'] as Theme[],
+  // 季节适配
   seasonal: {
     spring: 'green',
     summer: 'blue',
     autumn: 'light',
-    winter: 'pixel'
+    winter: 'dark'
   },
   // 场景主题推荐
   场景: {
@@ -136,7 +145,7 @@ export const themePresets = {
 export const defaultTheme: Theme = 'light';
 
 // 主题切换顺序
-export const themeOrder: Theme[] = ['light', 'blue', 'green', 'pixel'];
+export const themeOrder: Theme[] = ['light', 'dark', 'blue', 'green', 'pixel'];
 
 // 检测系统主题偏好
 export const getSystemTheme = (): 'light' | 'dark' => {
@@ -170,6 +179,7 @@ export const getTimeBasedTheme = (): 'light' | 'dark' => {
 export const getAppliedTheme = (theme: Theme): Theme => {
   switch (theme) {
     case 'light':
+    case 'dark':
     case 'blue':
     case 'green':
     case 'pixel':

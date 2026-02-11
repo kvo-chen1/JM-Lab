@@ -7,7 +7,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { useNavigate } from 'react-router-dom';
 // 异步导入CreatePostModal组件
 const CreatePostModal = React.lazy(() => import('@/components/Community/Modals/CreatePostModal').then(module => ({ default: module.CreatePostModal })));
-import { mockCommunities, getUserCommunities } from '@/mock/communities';
+import { communityService, type Community } from '@/services/communityService';
 
 export interface WorkItem {
   id: number;
@@ -59,6 +59,7 @@ export const MobileWaterfallWorks: React.FC<MobileWaterfallWorksProps> = ({
   const [isShareToCommunityOpen, setIsShareToCommunityOpen] = useState(false);
   const [selectedWork, setSelectedWork] = useState<WorkItem | null>(null);
   const [shareSuccess, setShareSuccess] = useState(false);
+  const [joinedCommunities, setJoinedCommunities] = useState<Community[]>([]);
   
   // 无限滚动相关状态
   const observerRef = useRef<HTMLDivElement>(null);
@@ -70,7 +71,20 @@ export const MobileWaterfallWorks: React.FC<MobileWaterfallWorksProps> = ({
   const startYRef = useRef<number>(0);
   const isRefreshingRef = useRef<boolean>(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  
+
+  // 加载用户加入的社群
+  useEffect(() => {
+    const loadCommunities = async () => {
+      try {
+        const communities = await communityService.getCommunities();
+        setJoinedCommunities(communities.slice(0, 10));
+      } catch (err) {
+        console.error('Failed to load communities:', err);
+      }
+    };
+    loadCommunities();
+  }, []);
+
   // 处理创作者头像点击
   const handleCreatorClick = (e: React.MouseEvent, creatorName: string) => {
     e.stopPropagation();
@@ -251,8 +265,8 @@ export const MobileWaterfallWorks: React.FC<MobileWaterfallWorksProps> = ({
     if (!selectedWork) return;
     
     // 使用社群服务创建帖子
-    import('@/services/communityService').then(({ createPost }) => {
-      createPost({
+    import('@/services/communityService').then(({ communityService }) => {
+      communityService.createPost({
         title: data.title,
         content: data.content,
         topic: data.topic,
@@ -260,7 +274,7 @@ export const MobileWaterfallWorks: React.FC<MobileWaterfallWorksProps> = ({
         workId: selectedWork.id?.toString() || ''
       }).then(() => {
         toast.success('分享成功！');
-      }).catch((error) => {
+      }).catch((error: any) => {
         console.error('分享失败:', error);
         toast.error('分享失败，请重试');
       });
@@ -363,7 +377,6 @@ export const MobileWaterfallWorks: React.FC<MobileWaterfallWorksProps> = ({
                         loading={isTopItem ? "eager" : "lazy"} // 只有前几行急加载
                         quality="medium"
                         priority={isTopItem} // 高优先级
-                        fetchPriority={isTopItem && ci === 0 ? "high" : "auto"} // 第一列的顶部元素最高优先级
                         style={{ aspectRatio: `${ratio}` }}
                       />
                     </motion.div>
@@ -541,7 +554,7 @@ export const MobileWaterfallWorks: React.FC<MobileWaterfallWorksProps> = ({
                 onSubmit={handleShareToCommunity}
                 isDark={isDark}
                 topics={selectedWork?.tags || []}
-                joinedCommunities={mockCommunities?.slice(0, 10) || []} // 只传递前10个社群进行测试
+                joinedCommunities={joinedCommunities} // 使用从API加载的社群
               />
             </Suspense>
           </div>

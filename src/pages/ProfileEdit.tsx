@@ -21,7 +21,7 @@ import {
 import { userService } from '@/services/apiService'
 import { validationService } from '@/services/validationService'
 import { useAnalyticsStore } from '@/stores/useAnalyticsStore'
-import { uploadImage } from '@/services/imageService'
+import { uploadAvatar, uploadImage } from '@/services/imageService'
 import { supabase, supabaseAdmin } from '@/lib/supabase'
 
 // 辅助函数：base64 转 File
@@ -219,11 +219,28 @@ export default function ProfileEdit() {
       let finalAvatarUrl = avatarPreview;
       let finalCoverUrl = coverPreview;
 
-      // 上传头像
-      if (avatarPreview && avatarPreview.startsWith('data:image')) {
+      // 上传头像 - 需要上传的情况：
+      // 1. data:image 开头的 base64 图片（新上传的）
+      // 2. blob: 开头的 blob URL（本地临时URL，需要转换为永久URL）
+      const needsAvatarUpload = avatarPreview && (
+        avatarPreview.startsWith('data:image') || 
+        avatarPreview.startsWith('blob:')
+      );
+      
+      if (needsAvatarUpload) {
         try {
-          const file = dataURLtoFile(avatarPreview, `avatar-${Date.now()}.jpg`);
-          const uploadedUrl = await uploadImage(file);
+          let file: File;
+          if (avatarPreview.startsWith('data:image')) {
+            // base64 图片直接转换
+            file = dataURLtoFile(avatarPreview, `avatar-${Date.now()}.jpg`);
+          } else {
+            // blob URL 需要先获取 blob 数据
+            const response = await fetch(avatarPreview);
+            const blob = await response.blob();
+            file = new File([blob], `avatar-${Date.now()}.jpg`, { type: blob.type || 'image/jpeg' });
+          }
+          
+          const uploadedUrl = await uploadAvatar(file);
           // 接受任何非空的 URL（包括 blob: 和 http(s): URL）
           if (uploadedUrl && typeof uploadedUrl === 'string' && uploadedUrl.length > 0) {
             finalAvatarUrl = uploadedUrl;
@@ -238,10 +255,25 @@ export default function ProfileEdit() {
         }
       }
 
-      // 上传封面
-      if (coverPreview && coverPreview.startsWith('data:image')) {
+      // 上传封面 - 同样需要处理 blob URL
+      const needsCoverUpload = coverPreview && (
+        coverPreview.startsWith('data:image') || 
+        coverPreview.startsWith('blob:')
+      );
+      
+      if (needsCoverUpload) {
         try {
-          const file = dataURLtoFile(coverPreview, `cover-${Date.now()}.jpg`);
+          let file: File;
+          if (coverPreview.startsWith('data:image')) {
+            // base64 图片直接转换
+            file = dataURLtoFile(coverPreview, `cover-${Date.now()}.jpg`);
+          } else {
+            // blob URL 需要先获取 blob 数据
+            const response = await fetch(coverPreview);
+            const blob = await response.blob();
+            file = new File([blob], `cover-${Date.now()}.jpg`, { type: blob.type || 'image/jpeg' });
+          }
+          
           const uploadedUrl = await uploadImage(file);
           // 接受任何非空的 URL（包括 blob: 和 http(s): URL）
           if (uploadedUrl && typeof uploadedUrl === 'string' && uploadedUrl.length > 0) {

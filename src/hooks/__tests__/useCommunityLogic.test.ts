@@ -1,6 +1,7 @@
 import React from 'react';
 import { renderHook, act, waitFor } from '@testing-library/react';
-import { useCommunityLogic, CREATOR_COMMUNITY_ID } from '../useCommunityLogic';
+import { useCommunityLogic } from '../useCommunityLogic';
+const CREATOR_COMMUNITY_ID = 'creator-community';
 import { AuthProvider } from '@/contexts/authContext';
 import { NotificationProvider } from '@/contexts/NotificationContext';
 import '@testing-library/jest-dom';
@@ -432,6 +433,6 @@ describe('useCommunityLogic', () => {
     // Get recommended posts
     const recommendedPosts = result.current.getRecommendedPosts(CREATOR_COMMUNITY_ID, 1);
     expect(recommendedPosts.length).toBe(1);
-    expect(recommendedPosts[0].id).toBe('thread-1'); // Should return the post with more upvotes
+    expect(recommendedPosts[0]?.id).toBe('thread-1'); // Should return the post with more upvotes
   });
 });

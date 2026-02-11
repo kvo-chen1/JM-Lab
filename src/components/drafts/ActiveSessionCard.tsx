@@ -15,9 +15,9 @@ interface ActiveSessionCardProps {
   draft: {
     name?: string;
     prompt?: string;
-    currentStep: number;
+    currentStep?: number;
     updatedAt: number;
-    activeTool?: 'layout' | 'trace' | 'mockup' | 'tile';
+    activeTool?: 'layout' | 'trace' | 'mockup' | 'tile' | 'aiWriter';
     generatedResults?: any[];
     selectedResult?: number | null;
   } | null;
@@ -26,11 +26,12 @@ interface ActiveSessionCardProps {
   onClear: () => void;
 }
 
-const toolTypeConfig = {
+const toolTypeConfig: Record<'layout' | 'trace' | 'mockup' | 'tile' | 'aiWriter', { name: string; icon: any; color: string; bgColor: string }> = {
   layout: { name: '版式设计', icon: LayoutGrid, color: 'from-blue-500 to-blue-600', bgColor: 'bg-blue-100 dark:bg-blue-900/30' },
   trace: { name: '文化溯源', icon: Search, color: 'from-purple-500 to-purple-600', bgColor: 'bg-purple-100 dark:bg-purple-900/30' },
   mockup: { name: '模型预览', icon: Box, color: 'from-cyan-500 to-cyan-600', bgColor: 'bg-cyan-100 dark:bg-cyan-900/30' },
-  tile: { name: '图案平铺', icon: Grid3X3, color: 'from-pink-500 to-pink-600', bgColor: 'bg-pink-100 dark:bg-pink-900/30' }
+  tile: { name: '图案平铺', icon: Grid3X3, color: 'from-pink-500 to-pink-600', bgColor: 'bg-pink-100 dark:bg-pink-900/30' },
+  aiWriter: { name: 'AI写作', icon: Sparkles, color: 'from-amber-500 to-amber-600', bgColor: 'bg-amber-100 dark:bg-amber-900/30' }
 };
 
 export default function ActiveSessionCard({
@@ -173,13 +174,13 @@ export default function ActiveSessionCard({
               <div className="mt-4">
                 <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-2">
                   <span>创作进度</span>
-                  <span>{Math.round((draft.currentStep / 3) * 100)}%</span>
+                  <span>{Math.round(((draft.currentStep || 0) / 3) * 100)}%</span>
                 </div>
                 <div className={`h-2 rounded-full ${isDark ? 'bg-gray-700' : 'bg-gray-200'} overflow-hidden`}>
                   <motion.div
                     className={`h-full rounded-full bg-gradient-to-r ${config.color}`}
                     initial={{ width: 0 }}
-                    animate={{ width: `${(draft.currentStep / 3) * 100}%` }}
+                    animate={{ width: `${((draft.currentStep || 0) / 3) * 100}%` }}
                     transition={{ duration: 0.8, delay: 0.3 }}
                   />
                 </div>
@@ -188,21 +189,21 @@ export default function ActiveSessionCard({
                     <div
                       key={step}
                       className={`flex items-center gap-1 text-xs ${
-                        index < draft.currentStep
+                        index < (draft.currentStep || 0)
                           ? 'text-primary-500 font-medium'
                           : 'text-gray-400'
                       }`}
                     >
                       <div
                         className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] ${
-                          index < draft.currentStep
+                          index < (draft.currentStep || 0)
                             ? 'bg-primary-500 text-white'
                             : isDark
                             ? 'bg-gray-700 text-gray-500'
                             : 'bg-gray-200 text-gray-500'
                         }`}
                       >
-                        {index < draft.currentStep ? '✓' : index + 1}
+                        {index < (draft.currentStep || 0) ? '✓' : index + 1}
                       </div>
                       {step}
                     </div>

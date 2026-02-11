@@ -88,7 +88,21 @@ const OfflineCreator: React.FC<OfflineCreatorProps> = ({
         colorScheme: [],
         toolsUsed: [],
         isLiked: false,
-        isBookmarked: false
+        isBookmarked: false,
+        publishType: 'explore',
+        communityId: null,
+        moderationStatus: 'pending',
+        rejectionReason: null,
+        scheduledPublishDate: null,
+        visibility: 'private',
+        commentCount: 0,
+        engagementRate: 0,
+        trendingScore: 0,
+        reach: 0,
+        moderator: null,
+        reviewedAt: null,
+        recommendationScore: 0,
+        recommendedFor: []
       };
 
       await offlineService.saveDraft(draft);
@@ -140,7 +154,21 @@ const OfflineCreator: React.FC<OfflineCreatorProps> = ({
         colorScheme: [],
         toolsUsed: [],
         isLiked: false,
-        isBookmarked: false
+        isBookmarked: false,
+        publishType: 'explore',
+        communityId: null,
+        moderationStatus: 'pending',
+        rejectionReason: null,
+        scheduledPublishDate: null,
+        visibility: 'public',
+        commentCount: 0,
+        engagementRate: 0,
+        trendingScore: 0,
+        reach: 0,
+        moderator: null,
+        reviewedAt: null,
+        recommendationScore: 0,
+        recommendedFor: []
       };
 
       if (isOnline) {
@@ -235,7 +263,7 @@ const OfflineCreator: React.FC<OfflineCreatorProps> = ({
           作品分类
         </label>
         <div className="grid grid-cols-2 gap-2">
-          {(['design', 'writing', 'audio', 'video', 'other'] as PostCategory[]).map((cat) => (
+          {(['design', 'text', 'audio', 'video', 'other'] as PostCategory[]).map((cat) => (
             <button
               key={cat}
               type="button"
@@ -247,7 +275,7 @@ const OfflineCreator: React.FC<OfflineCreatorProps> = ({
               }`}
             >
               {cat === 'design' && '设计'}
-              {cat === 'writing' && '文字'}
+              {cat === 'text' && '文字'}
               {cat === 'audio' && '音频'}
               {cat === 'video' && '视频'}
               {cat === 'other' && '其他'}

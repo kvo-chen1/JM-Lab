@@ -288,11 +288,24 @@ export const useCommunityLogic = () => {
             .then(communitiesData => {
               if (communitiesData) {
                 // 转换字段名（下划线命名 -> 驼峰命名）
-                const formattedCommunities = communitiesData.map(c => ({
+                const formattedCommunities: Community[] = communitiesData.map(c => ({
                   ...c,
                   creatorId: (c as any).creator_id || c.creatorId,
                   createdAt: (c as any).created_at || c.createdAt,
                   updatedAt: (c as any).updated_at || c.updatedAt,
+                  theme: {
+                    primaryColor: c.theme?.primaryColor || '#3b82f6',
+                    secondaryColor: c.theme?.secondaryColor || '#60a5fa',
+                    backgroundColor: c.theme?.backgroundColor || '#f3f4f6',
+                    textColor: c.theme?.textColor || '#1f2937'
+                  },
+                  layoutType: c.layoutType || 'standard',
+                  enabledModules: {
+                    posts: c.enabledModules?.posts ?? true,
+                    chat: c.enabledModules?.chat ?? true,
+                    members: c.enabledModules?.members ?? true,
+                    announcements: c.enabledModules?.announcements ?? true
+                  }
                 }));
                 setAllCommunities(formattedCommunities);
               }
@@ -381,7 +394,7 @@ export const useCommunityLogic = () => {
       const fetchCommunityDetail = async () => {
         try {
           // Fetch community details
-          const communityDetail = await apiService.getCommunity(communityIdFromUrl);
+          const communityDetail = await communityService.getCommunity(communityIdFromUrl);
           if (communityDetail) {
             console.log('[useCommunityLogic] Fetched community detail:', communityDetail);
             // Add to allCommunities if not exists
@@ -462,11 +475,11 @@ export const useCommunityLogic = () => {
       text: msg.content,
       avatar: msg.sender?.avatar_url || '',
       createdAt: new Date(msg.created_at).getTime(),
-      type: msg.type || 'text',
+      type: (msg.type as 'text' | 'image' | 'file' | 'rich_text' | 'emoji' | 'share_card') || 'text',
       images: msg.metadata?.images || msg.images,
       files: msg.metadata?.files || msg.files,
       richContent: msg.metadata?.richContent || msg.richContent,
-      sendStatus: msg.status || 'sent'
+      sendStatus: (msg.status as 'sending' | 'sent' | 'failed') || 'sent'
     }));
   }, [chatStoreMessages]);
   
@@ -492,9 +505,9 @@ export const useCommunityLogic = () => {
       websocketService.on('community:updated', (data) => {
         console.log('社群更新:', data);
         // 重新加载社群数据
-        apiService.getCommunity(data.communityId).then(({ data: updatedCommunity }) => {
+        communityService.getCommunity(data.communityId).then((updatedCommunity) => {
           if (updatedCommunity) {
-            setJoinedCommunities(prev => prev.map(c => 
+            setJoinedCommunities(prev => prev.map(c =>
               c.id === data.communityId ? updatedCommunity : c
             ));
           }
@@ -1408,6 +1421,7 @@ export const useCommunityLogic = () => {
     setJoinedCommunities,
     allCommunities, // Export this
     threads: activeThreads,
+    setThreads,
     messages,
     selectedTag,
     setSelectedTag,

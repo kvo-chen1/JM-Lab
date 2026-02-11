@@ -115,8 +115,8 @@ const EnhancedComment: React.FC<EnhancedCommentProps> = ({
   };
 
   return (
-    <div className={`mb-4 ${depth > 0 ? 'ml-8 border-l-2 pl-4' : ''} ${isDark ? 'border-gray-700' : theme === 'pink' ? 'border-pink-200' : 'border-gray-200'}`}>
-      <div className={`flex gap-3 p-3 rounded-lg ${isDark ? 'bg-gray-800' : theme === 'pink' ? 'bg-pink-50' : 'bg-white'}`}>
+    <div className={`mb-4 ${depth > 0 ? 'ml-8 border-l-2 pl-4' : ''} ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+      <div className={`flex gap-3 p-3 rounded-lg ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
         {/* 头像 */}
         <div className="flex-shrink-0">
           <img
@@ -142,7 +142,7 @@ const EnhancedComment: React.FC<EnhancedCommentProps> = ({
               <textarea
                 value={editContent}
                 onChange={(e) => setEditContent(e.target.value)}
-                className={`w-full p-2 rounded border ${isDark ? 'bg-gray-700 border-gray-600' : theme === 'pink' ? 'bg-pink-100 border-pink-300' : 'bg-gray-50 border-gray-300'} resize-none`}
+                className={`w-full p-2 rounded border ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-300'} resize-none`}
                 rows={3}
               />
               <div className="flex gap-2 mt-2">
@@ -154,7 +154,7 @@ const EnhancedComment: React.FC<EnhancedCommentProps> = ({
                 </button>
                 <button
                   onClick={() => setIsEditing(false)}
-                  className={`px-3 py-1 text-sm rounded ${isDark ? 'bg-gray-700 hover:bg-gray-600' : theme === 'pink' ? 'bg-pink-200 hover:bg-pink-300' : 'bg-gray-200 hover:bg-gray-300'}`}
+                  className={`px-3 py-1 text-sm rounded ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'}`}
                 >
                   取消
                 </button>
@@ -209,7 +209,7 @@ const EnhancedComment: React.FC<EnhancedCommentProps> = ({
                   value={replyContent}
                   onChange={(e) => setReplyContent(e.target.value)}
                   placeholder="写下你的回复..."
-                  className={`flex-1 p-2 rounded border ${isDark ? 'bg-gray-700 border-gray-600' : theme === 'pink' ? 'bg-pink-100 border-pink-300' : 'bg-gray-50 border-gray-300'} resize-none`}
+                  className={`flex-1 p-2 rounded border ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-300'} resize-none`}
                   rows={2}
                 />
                 <div className="flex flex-col gap-1">
@@ -221,7 +221,7 @@ const EnhancedComment: React.FC<EnhancedCommentProps> = ({
                   </button>
                   <button
                     onClick={() => setIsReplying(false)}
-                    className={`px-3 py-1 text-sm rounded ${isDark ? 'bg-gray-700 hover:bg-gray-600' : theme === 'pink' ? 'bg-pink-200 hover:bg-pink-300' : 'bg-gray-200 hover:bg-gray-300'}`}
+                    className={`px-3 py-1 text-sm rounded ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'}`}
                   >
                     取消
                   </button>

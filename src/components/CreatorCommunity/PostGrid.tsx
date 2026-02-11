@@ -41,8 +41,7 @@ const PostCard: React.FC<{
   }
 
   // 处理作者点击
-  const handleAuthorClick = (e: React.MouseEvent) => {
-    e.stopPropagation()
+  const handleAuthorClick = () => {
     onAuthorClick?.(post.user_id || post.author_id || post.author?.id)
   }
 

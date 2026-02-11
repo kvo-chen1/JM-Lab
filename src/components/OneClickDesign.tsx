@@ -38,7 +38,7 @@ const OneClickDesign: React.FC<OneClickDesignProps> = ({ onGenerate }) => {
   // 视频参数
   const [videoParams, setVideoParams] = useState({
     duration: 5,
-    resolution: '720p' as '480p' | '720p' | '1080p',
+    resolution: '720p' as '720p' | '1080p' | '4k',
     cameraFixed: false
   });
   
@@ -501,7 +501,7 @@ const OneClickDesign: React.FC<OneClickDesignProps> = ({ onGenerate }) => {
             </div>
             
             {/* 图片上传（针对图生图和图生视频） */}
-            {(['image-to-image', 'image-to-video'] as const).includes(generationMode) && (
+            {(generationMode === 'image-to-image' || generationMode === 'image-to-video') && (
               <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100">
                 <h3 className="text-base font-semibold mb-4 text-gray-900">上传参考图片</h3>
                 <div className="flex flex-col sm:flex-row items-center gap-6">
@@ -593,7 +593,7 @@ const OneClickDesign: React.FC<OneClickDesignProps> = ({ onGenerate }) => {
             )}
             
             {/* 视频参数 */}
-            {(['text-to-video', 'image-to-video'] as const).includes(generationMode) && (
+            {(generationMode === 'text-to-video' || generationMode === 'image-to-video') && (
               <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100">
                 <h3 className="text-base font-semibold mb-5 text-gray-900 flex items-center gap-2">
                   <i className="fas fa-video text-red-500"></i>
@@ -630,12 +630,12 @@ const OneClickDesign: React.FC<OneClickDesignProps> = ({ onGenerate }) => {
                     <div className="relative">
                       <select
                         value={videoParams.resolution}
-                        onChange={(e) => setVideoParams(prev => ({ ...prev, resolution: e.target.value as any }))}
+                        onChange={(e) => setVideoParams(prev => ({ ...prev, resolution: e.target.value as '720p' | '1080p' | '4k' }))}
                         className="w-full p-3 rounded-xl border border-gray-200 text-sm appearance-none cursor-pointer transition-colors hover:border-red-200 shadow-sm focus:outline-none focus:ring-3 focus:ring-red-500/20"
                       >
-                        <option value="480p">480p</option>
                         <option value="720p">720p</option>
                         <option value="1080p">1080p</option>
+                        <option value="4k">4K</option>
                       </select>
                       <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
                         <i className="fas fa-chevron-down"></i>
@@ -648,12 +648,12 @@ const OneClickDesign: React.FC<OneClickDesignProps> = ({ onGenerate }) => {
                     <label className="text-sm font-semibold text-gray-700">相机固定</label>
                     <div className="relative">
                       <select
-                        value={videoParams.cameraFixed}
+                        value={videoParams.cameraFixed ? 'true' : 'false'}
                         onChange={(e) => setVideoParams(prev => ({ ...prev, cameraFixed: e.target.value === 'true' }))}
                         className="w-full p-3 rounded-xl border border-gray-200 text-sm appearance-none cursor-pointer transition-colors hover:border-red-200 shadow-sm focus:outline-none focus:ring-3 focus:ring-red-500/20"
                       >
-                        <option value={false}>跟随移动</option>
-                        <option value={true}>固定视角</option>
+                        <option value="false">跟随移动</option>
+                        <option value="true">固定视角</option>
                       </select>
                       <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
                         <i className="fas fa-chevron-down"></i>

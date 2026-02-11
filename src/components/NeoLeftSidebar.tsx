@@ -247,7 +247,7 @@ const NeoLeftSidebar: React.FC<NeoLeftSidebarProps> = ({
               title="切换主题"
               onClick={() => setShowThemeDropdown(v => !v)}
             >
-              <i className={`fas ${theme === 'dark' ? 'fa-sun' : theme === 'light' ? 'fa-moon' : theme === 'blue' ? 'fa-water' : theme === 'green' ? 'fa-leaf' : 'fa-dungeon'} w-6 text-center text-lg ${collapsed ? 'mx-auto' : 'mr-3'}`}></i>
+              <i className={`fas ${theme === 'dark' ? 'fa-moon' : theme === 'light' ? 'fa-sun' : theme === 'blue' ? 'fa-water' : theme === 'green' ? 'fa-leaf' : 'fa-dungeon'} w-6 text-center text-lg ${collapsed ? 'mx-auto' : 'mr-3'}`}></i>
               {!collapsed && (
                 <div className="flex items-center justify-between w-full">
                   <span className="font-medium">切换主题</span>

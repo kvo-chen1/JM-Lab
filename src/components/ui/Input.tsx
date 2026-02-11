@@ -14,7 +14,7 @@ export type InputSize = keyof typeof componentVariants.input.variants.size;
 export type InputShape = keyof typeof componentVariants.input.variants.shape;
 
 // 输入框属性接口
-interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
+interface InputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> {
   label?: string;
   error?: string;
   icon?: ReactNode;

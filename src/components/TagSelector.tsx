@@ -46,13 +46,13 @@ const TagSelector = memo(function TagSelector({
               transform: 'none',
               transformOrigin: '50% 50% 0px'
             }}
-            tabindex={0}
+            tabIndex={0}
           >
             {tag}
           </motion.button>
         );
       })}
-      
+
       {/* 添加自定义标签按钮 */}
       <motion.button
         whileHover={{ scale: 1.05 }}
@@ -68,7 +68,7 @@ const TagSelector = memo(function TagSelector({
           transform: 'none',
           transformOrigin: '50% 50% 0px'
         }}
-        tabindex={0}
+        tabIndex={0}
       >
         <i className="fas fa-plus mr-1"></i>自定义
       </motion.button>
@@ -114,7 +114,7 @@ const TagSelector = memo(function TagSelector({
                 alignItems: 'center',
                 justifyContent: 'center'
               }}
-              tabindex={0}
+              tabIndex={0}
             >
               <i className="fas fa-check text-xs"></i>
             </motion.button>

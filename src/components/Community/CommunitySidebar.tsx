@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import type { Community } from '@/mock/communities';
+import type { Community } from '@/services/communityService';
 
 // Simple Tooltip component
 const Tooltip = ({ text, children, isDark }: { text: string, children: React.ReactNode, isDark: boolean }) => {

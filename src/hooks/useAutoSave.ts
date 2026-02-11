@@ -1,10 +1,9 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useCreateStore } from '../pages/create/hooks/useCreateStore';
-import { debounce } from 'lodash'; // Assuming lodash is available or I'll implement simple debounce
 
-// Simple debounce implementation if lodash is not available or to reduce deps
-function simpleDebounce<T extends (...args: any[]) => any>(func: T, wait: number) {
-  let timeout: NodeJS.Timeout;
+// Simple debounce implementation to reduce deps
+function debounce<T extends (...args: any[]) => any>(func: T, wait: number) {
+  let timeout: ReturnType<typeof setTimeout>;
   return (...args: Parameters<T>) => {
     clearTimeout(timeout);
     timeout = setTimeout(() => func(...args), wait);

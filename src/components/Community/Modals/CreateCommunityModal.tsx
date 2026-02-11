@@ -197,7 +197,6 @@ export const CreateCommunityModal: React.FC<CreateCommunityModalProps> = ({
           </Button>
         </>
       }
-      maxWidth="lg"
     >
       <div className="space-y-6">
         {/* 基本信息 */}

@@ -11,6 +11,7 @@ import { CreatePostModal } from '@/components/Community/Modals/CreatePostModal';
 import postsApi, { Post } from '@/services/postService';
 import { toast } from 'sonner';
 import { AuthContext } from '@/contexts/authContext';
+import { uploadImage, downloadAndUploadVideo } from '@/services/imageService';
 
 export default function CreateLayout() {
   const { isDark, theme } = useTheme();
@@ -32,6 +33,37 @@ export default function CreateLayout() {
     return result.video ? [result.video] : [result.thumbnail];
   };
 
+  // 辅助函数：将远程图片上传到 Supabase Storage
+  const uploadRemoteImage = async (imageUrl: string): Promise<string> => {
+    try {
+      // 如果已经是 Supabase Storage 的 URL，直接返回
+      if (imageUrl.includes('supabase.co/storage')) {
+        return imageUrl;
+      }
+      
+      // 如果是 data URL，转换为文件并上传
+      if (imageUrl.startsWith('data:')) {
+        const response = await fetch(imageUrl);
+        const blob = await response.blob();
+        const file = new File([blob], `image-${Date.now()}.png`, { type: blob.type || 'image/png' });
+        return await uploadImage(file);
+      }
+      
+      // 下载远程图片并上传
+      const response = await fetch(imageUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch image: ${response.status}`);
+      }
+      const blob = await response.blob();
+      const file = new File([blob], `image-${Date.now()}.png`, { type: blob.type || 'image/png' });
+      return await uploadImage(file);
+    } catch (error) {
+      console.error('[CreateLayout] Failed to upload remote image:', error);
+      // 上传失败时返回原始 URL
+      return imageUrl;
+    }
+  };
+
   const handlePublish = async (data: any) => {
     console.log('[CreateLayout] handlePublish called with:', data);
     console.log('[CreateLayout] Current user:', user);
@@ -41,10 +73,34 @@ export default function CreateLayout() {
     const isVideo = selectedItem?.type === 'video' || selectedItem?.video;
     
     try {
+      // 上传缩略图到 Supabase Storage（如果不是视频）
+      let thumbnailUrl = selectedItem?.thumbnail || data.images?.[0] || 'https://images.unsplash.com/photo-1558655146-d09347e0c766?q=80&w=2560&auto=format&fit=crop';
+      
+      if (!isVideo && thumbnailUrl && !thumbnailUrl.includes('supabase.co/storage')) {
+        console.log('[CreateLayout] Uploading thumbnail to Supabase Storage...');
+        thumbnailUrl = await uploadRemoteImage(thumbnailUrl);
+        console.log('[CreateLayout] Thumbnail uploaded:', thumbnailUrl);
+      }
+      
+      // 处理视频 URL：如果不是 Supabase Storage 的 URL，需要上传
+      let videoUrl = isVideo ? selectedItem?.video : undefined;
+      if (isVideo && videoUrl && !videoUrl.includes('supabase.co/storage')) {
+        console.log('[CreateLayout] Video URL is not from Supabase Storage, uploading...');
+        console.log('[CreateLayout] Original video URL:', videoUrl);
+        try {
+          videoUrl = await downloadAndUploadVideo(videoUrl);
+          console.log('[CreateLayout] Video uploaded to Supabase Storage:', videoUrl);
+        } catch (videoError) {
+          console.error('[CreateLayout] Failed to upload video:', videoError);
+          toast.error('视频上传失败，请重试');
+          return;
+        }
+      }
+      
       const newPost: Partial<Post> = {
         title: data.title,
         description: data.content,
-        thumbnail: selectedItem?.thumbnail || data.images?.[0] || 'https://images.unsplash.com/photo-1558655146-d09347e0c766?q=80&w=2560&auto=format&fit=crop',
+        thumbnail: thumbnailUrl,
         category: isVideo ? 'video' : 'design',
         tags: [data.topic],
         date: new Date().toISOString().split('T')[0],
@@ -56,7 +112,7 @@ export default function CreateLayout() {
         // authorAvatar: user?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${Date.now()}`,
         isLiked: false,
         isBookmarked: false,
-        videoUrl: isVideo && selectedItem?.video ? selectedItem.video : undefined
+        videoUrl: videoUrl
       };
 
       console.log('[CreateLayout] Creating post:', newPost);

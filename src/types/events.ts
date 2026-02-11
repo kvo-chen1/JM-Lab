@@ -583,6 +583,9 @@ export enum EventType {
   // 通知相关事件
   NOTIFICATION_SENT = 'notification:sent',
   NOTIFICATION_READ = 'notification:read',
+
+  // 活动相关事件
+  ACTIVITY_REGISTERED = 'activity:registered',
 }
 
 // 事件优先级枚举

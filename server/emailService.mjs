@@ -61,6 +61,7 @@ let isProcessingQueue = false;
 // 队列配置
 const QUEUE_MAX_RETRIES = 3;
 const QUEUE_PROCESS_INTERVAL = 1000; // 1秒处理一次
+const EMAIL_TIMEOUT = 10000; // 邮件发送超时时间：10秒
 
 /**
  * 将邮件加入队列
@@ -159,7 +160,7 @@ async function sendEmailInternal(to, subject, html) {
     
     console.log('[EmailService] 使用真实邮件发送模式');
 
-    // 设置5秒超时，避免阻塞主流程
+    // 设置超时，避免阻塞主流程
     const sendPromise = transport.sendMail({
       from: emailConfig.from,
       to,
@@ -168,7 +169,7 @@ async function sendEmailInternal(to, subject, html) {
     });
     
     const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Email sending timed out')), 5000)
+      setTimeout(() => reject(new Error('Email sending timed out')), EMAIL_TIMEOUT)
     );
 
     const info = await Promise.race([sendPromise, timeoutPromise]);

@@ -193,7 +193,7 @@ export const MediaGallery: React.FC<MediaGalleryProps> = ({
                 className="relative group"
                 layout
                 drag
-                dragSnapToGrid
+
                 dragConstraints={{ top: 0, left: 0, right: 0, bottom: 0 }}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}

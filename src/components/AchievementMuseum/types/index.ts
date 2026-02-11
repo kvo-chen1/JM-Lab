@@ -54,8 +54,10 @@ export interface UserAchievementInfo {
   levelUpNotifications?: Array<{
     id: string;
     userId: string;
-    oldLevel: number;
-    newLevel: number;
+    oldLevel?: number;
+    newLevel?: number;
+    fromLevel?: number;
+    toLevel?: number;
     notifiedAt: number;
   }>;
 }

@@ -88,11 +88,11 @@ interface CommunityAdminPanelProps {
   onUpdateMemberRole?: (memberId: string, role: CommunityRole) => void;
   onUpdateAnnouncement?: (content: string) => void;
   onUpdateCommunity?: (community: Partial<Community>) => void;
-  onApproveContent?: (contentId: string) => void;
-  onRejectContent?: (contentId: string, reason: string) => void;
-  onAddModerationRule?: (rule: Omit<ModerationRule, 'id'>) => void;
-  onUpdateModerationRule?: (rule: ModerationRule) => void;
-  onDeleteModerationRule?: (ruleId: string) => void;
+  onApproveContent: (contentId: string) => void;
+  onRejectContent: (contentId: string, reason: string) => void;
+  onAddModerationRule: (rule: Omit<ModerationRule, 'id'>) => void;
+  onUpdateModerationRule: (rule: ModerationRule) => void;
+  onDeleteModerationRule: (ruleId: string) => void;
 }
 
 const CommunityAdminPanel: React.FC<CommunityAdminPanelProps> = ({

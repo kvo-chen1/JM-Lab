@@ -523,7 +523,7 @@ const PerformanceCard: React.FC<{
           src={user.avatar} 
           alt={user.username} 
           className="w-16 h-16 object-cover rounded-full shadow-sm ring-2 ring-offset-1" 
-          style={{ ringColor: COLORS.primary + '40' }}
+          style={{ '--tw-ring-color': COLORS.primary + '40' } as React.CSSProperties}
         />
         <div className="flex-1 ml-4 min-w-0">
           <h4 className="font-semibold truncate">{user.username}</h4>
@@ -663,10 +663,24 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
     };
   }, [activeMetric, timeRange, groupBy, userId, fetchData, subscribeToRealtime, unsubscribeFromRealtime]);
   
-  // 获取排行榜数据
-  const topWorks = analyticsService.getWorksPerformance(5);
-  const topUsers = analyticsService.getUserActivity(5);
-  const topThemes = analyticsService.getThemeTrends(5);
+  // 获取排行榜数据 - 使用useState和useEffect
+  const [topWorks, setTopWorks] = useState<WorkPerformance[]>([]);
+  const [topUsers, setTopUsers] = useState<UserActivity[]>([]);
+  const [topThemes, setTopThemes] = useState<ThemeTrend[]>([]);
+  
+  useEffect(() => {
+    const fetchTopData = async () => {
+      const [works, users, themes] = await Promise.all([
+        analyticsService.getWorksPerformance(5),
+        analyticsService.getUserActivity(5),
+        analyticsService.getThemeTrends(5)
+      ]);
+      setTopWorks(works);
+      setTopUsers(users);
+      setTopThemes(themes);
+    };
+    fetchTopData();
+  }, []);
 
   // 处理导出
   const handleExport = useCallback(async (format: ExportFormat) => {

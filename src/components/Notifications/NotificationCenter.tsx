@@ -254,13 +254,13 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
               <div className="flex gap-2 overflow-x-auto pb-2">
                 {[
                   { id: 'all' as NotificationView, label: '全部', count: notifications.length },
-                  { id: 'unread', label: '未读', count: unreadCount },
-                  { id: 'read', label: '已读', count: getReadNotifications().length },
-                  { id: 'archived', label: '归档', count: getArchivedNotifications().length }
+                  { id: 'unread' as NotificationView, label: '未读', count: unreadCount },
+                  { id: 'read' as NotificationView, label: '已读', count: getReadNotifications().length },
+                  { id: 'archived' as NotificationView, label: '归档', count: getArchivedNotifications().length }
                 ].map((view) => (
                   <button
                     key={view.id}
-                    onClick={() => setActiveView(view.id)}
+                    onClick={() => setActiveView(view.id as NotificationView)}
                     className={`px-3 py-1.5 rounded-full whitespace-nowrap font-medium text-sm transition-colors ${activeView === view.id ? 
                       `${isDark ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white'}` : 
                       `${isDark ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`
@@ -275,16 +275,16 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
               <div className="flex gap-2 mt-3 overflow-x-auto pb-2">
                 {[
                   { id: 'all' as NotificationTypeFilter, label: '全部类型' },
-                  { id: 'community', label: '社群' },
-                  { id: 'post', label: '帖子' },
-                  { id: 'comment', label: '评论' },
-                  { id: 'mention', label: '提及' },
-                  { id: 'moderation', label: '审核' },
-                  { id: 'announcement', label: '公告' }
+                  { id: 'community' as NotificationTypeFilter, label: '社群' },
+                  { id: 'post' as NotificationTypeFilter, label: '帖子' },
+                  { id: 'comment' as NotificationTypeFilter, label: '评论' },
+                  { id: 'mention' as NotificationTypeFilter, label: '提及' },
+                  { id: 'moderation' as NotificationTypeFilter, label: '审核' },
+                  { id: 'announcement' as NotificationTypeFilter, label: '公告' }
                 ].map((filter) => (
                   <button
                     key={filter.id}
-                    onClick={() => setActiveTypeFilter(filter.id)}
+                    onClick={() => setActiveTypeFilter(filter.id as NotificationTypeFilter)}
                     className={`px-3 py-1.5 rounded-full whitespace-nowrap text-sm transition-colors ${activeTypeFilter === filter.id ? 
                       `${isDark ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white'}` : 
                       `${isDark ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`

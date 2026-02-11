@@ -105,7 +105,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
   // 清除所有日志
   const clearAllLogs = () => {
     if (window.confirm('确定要清除所有日志吗？')) {
-      logger.clearLogs();
+      logger.clear();
       refreshLogs();
     }
   };

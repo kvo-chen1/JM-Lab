@@ -48,7 +48,7 @@ export interface WorkflowState {
 
 interface WorkflowContextType {
   state: WorkflowState
-  setState: (s: Partial<WorkflowState>) => void
+  setState: (s: Partial<WorkflowState> | ((prev: WorkflowState) => Partial<WorkflowState>)) => void
   reset: () => void
   updatePartial: <K extends keyof WorkflowState>(key: K, value: WorkflowState[K]) => void
   incrementStep: () => void
@@ -123,13 +123,14 @@ export const WorkflowProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [subscribers])
 
-  const setState = (s: Partial<WorkflowState>) => {
+  const setState = (s: Partial<WorkflowState> | ((prev: WorkflowState) => Partial<WorkflowState>)) => {
     set(prev => {
-      const newState = { ...prev, ...s }
+      const changes = typeof s === 'function' ? s(prev) : s
+      const newState = { ...prev, ...changes }
       // 发布状态更新事件
-      eventBus.publish('workflow:update', { state: newState, changes: s })
+      eventBus.publish('workflow:update', { state: newState, changes })
       // 通知订阅者
-      subscribers.forEach(callback => callback(newState, s))
+      subscribers.forEach(callback => callback(newState, changes))
       return newState
     })
   }

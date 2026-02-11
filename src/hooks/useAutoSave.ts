@@ -56,7 +56,7 @@ export const useAutoSave = () => {
   // Create a debounced version of the save function
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const debouncedSave = useCallback(
-    simpleDebounce(saveToLocalStorage, 3000), // 3 seconds debounce
+    debounce(saveToLocalStorage, 3000), // 3 seconds debounce
     [saveToLocalStorage]
   );
 

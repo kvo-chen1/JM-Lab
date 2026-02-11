@@ -1,5 +1,6 @@
-import { createContext, useContext, useState, ReactNode, useEffect } from 'react'
+import { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from 'react'
 import eventBus from '../lib/eventBus'
+import { brandWizardDraftService, BrandWizardDraft } from '@/services/brandWizardDraftService'
 
 export interface WorkflowState {
   // 品牌相关
@@ -44,6 +45,17 @@ export interface WorkflowState {
   
   // 新增：设备信息
   deviceType?: 'desktop' | 'mobile' | 'tablet'
+  
+  // 新增：品牌资产配置
+  brandAssets?: {
+    logo: string
+    colors: string[]
+    font: string
+  }
+  
+  // 新增：草稿相关
+  draftId?: string
+  lastSavedAt?: number
 }
 
 interface WorkflowContextType {
@@ -63,6 +75,11 @@ interface WorkflowContextType {
   resetState: <K extends keyof WorkflowState>(keys: K[]) => void
   // 新增：监听状态变化
   subscribeToChanges: (callback: (state: WorkflowState, changes: Partial<WorkflowState>) => void) => () => void
+  // 新增：草稿相关方法
+  saveToDrafts: (currentStep: number) => Promise<BrandWizardDraft | null>
+  loadFromDraft: (draftId: string) => Promise<boolean>
+  isDirty: boolean
+  lastSavedAt: number | null
 }
 
 const WorkflowContext = createContext<WorkflowContextType>({
@@ -79,6 +96,10 @@ const WorkflowContext = createContext<WorkflowContextType>({
   getState: () => undefined as any,
   resetState: () => {},
   subscribeToChanges: () => () => {},
+  saveToDrafts: async () => null,
+  loadFromDraft: async () => false,
+  isDirty: false,
+  lastSavedAt: null,
 })
 
 export const useWorkflow = () => useContext(WorkflowContext)
@@ -86,6 +107,10 @@ export const useWorkflow = () => useContext(WorkflowContext)
 export const WorkflowProvider = ({ children }: { children: ReactNode }) => {
   const [state, set] = useState<WorkflowState>({})
   const [subscribers, setSubscribers] = useState<Array<(state: WorkflowState, changes: Partial<WorkflowState>) => void>>([])
+  const [isDirty, setIsDirty] = useState(false)
+  const [lastSavedAt, setLastSavedAt] = useState<number | null>(null)
+  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const lastStateRef = useRef<WorkflowState>({})
 
   // 状态变更时发布事件
   useEffect(() => {
@@ -122,6 +147,33 @@ export const WorkflowProvider = ({ children }: { children: ReactNode }) => {
       eventBus.unsubscribe('数据:刷新', listener2)
     }
   }, [subscribers])
+
+  // Auto-save functionality
+  useEffect(() => {
+    // Check if state has meaningful changes
+    const hasChanges = JSON.stringify(state) !== JSON.stringify(lastStateRef.current)
+    if (hasChanges && state.brandName) {
+      setIsDirty(true)
+      
+      // Clear existing timer
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current)
+      }
+      
+      // Set new auto-save timer (30 seconds)
+      autoSaveTimerRef.current = setTimeout(() => {
+        if (state.brandName) {
+          saveToDrafts(state.currentStep || 1)
+        }
+      }, 30000)
+    }
+    
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current)
+      }
+    }
+  }, [state])
 
   const setState = (s: Partial<WorkflowState> | ((prev: WorkflowState) => Partial<WorkflowState>)) => {
     set(prev => {
@@ -212,6 +264,68 @@ export const WorkflowProvider = ({ children }: { children: ReactNode }) => {
     }
   }
 
+  // Save current state to drafts
+  const saveToDrafts = useCallback(async (currentStep: number): Promise<BrandWizardDraft | null> => {
+    try {
+      const draft = await brandWizardDraftService.saveWorkflowState(
+        state,
+        currentStep,
+        state.draftId
+      )
+      
+      // Update state with draft info
+      set(prev => ({
+        ...prev,
+        draftId: draft.id,
+        lastSavedAt: draft.updatedAt
+      }))
+      
+      setLastSavedAt(draft.updatedAt)
+      setIsDirty(false)
+      lastStateRef.current = { ...state, draftId: draft.id, lastSavedAt: draft.updatedAt }
+      
+      // Publish event
+      eventBus.publish('workflow:draftSaved', { draft })
+      
+      return draft
+    } catch (error) {
+      console.error('Failed to save draft:', error)
+      return null
+    }
+  }, [state])
+
+  // Load state from draft
+  const loadFromDraft = useCallback(async (draftId: string): Promise<boolean> => {
+    try {
+      const result = await brandWizardDraftService.loadDraft(draftId)
+      if (!result) return false
+      
+      // Clear auto-save timer
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current)
+      }
+      
+      // Update state with loaded data
+      set({
+        ...result.state,
+        draftId,
+        lastSavedAt: Date.now()
+      })
+      
+      setLastSavedAt(Date.now())
+      setIsDirty(false)
+      lastStateRef.current = result.state
+      
+      // Publish event
+      eventBus.publish('workflow:draftLoaded', { draftId, state: result.state })
+      
+      return true
+    } catch (error) {
+      console.error('Failed to load draft:', error)
+      return false
+    }
+  }, [])
+
   return (
     <WorkflowContext.Provider value={{
       state,
@@ -226,7 +340,11 @@ export const WorkflowProvider = ({ children }: { children: ReactNode }) => {
       shareWork,
       getState,
       resetState,
-      subscribeToChanges
+      subscribeToChanges,
+      saveToDrafts,
+      loadFromDraft,
+      isDirty,
+      lastSavedAt
     }}>
       {children}
     </WorkflowContext.Provider>

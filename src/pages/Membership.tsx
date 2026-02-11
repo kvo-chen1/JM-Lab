@@ -12,6 +12,7 @@ import MembershipStatusCard from '@/components/membership/MembershipStatusCard';
 import BenefitsGrid from '@/components/membership/BenefitsGrid';
 import PricingCards from '@/components/membership/PricingCards';
 import FAQSection from '@/components/membership/FAQSection';
+import OrdersList from '@/components/membership/OrdersList';
 
 // 图标
 import {
@@ -19,38 +20,188 @@ import {
   X,
   Sparkles,
   Crown,
-  User,
-  ChevronRight
+  ChevronRight,
+  Loader2
 } from 'lucide-react';
 
+// 会员权益数据类型
+interface MembershipBenefits {
+  levels: {
+    free: {
+      name: string;
+      description: string;
+      features: Array<{
+        id: string;
+        name: string;
+        value: boolean | string;
+        icon: string;
+      }>;
+      limits: {
+        aiGenerationsPerDay: number;
+        storageGB: number;
+        exportsPerMonth: number;
+      };
+    };
+    premium: {
+      name: string;
+      description: string;
+      features: Array<{
+        id: string;
+        name: string;
+        value: boolean | string;
+        icon: string;
+      }>;
+      limits: {
+        aiGenerationsPerDay: number | null;
+        storageGB: number;
+        exportsPerMonth: number;
+      };
+    };
+    vip: {
+      name: string;
+      description: string;
+      features: Array<{
+        id: string;
+        name: string;
+        value: boolean | string;
+        icon: string;
+      }>;
+      limits: {
+        aiGenerationsPerDay: number | null;
+        storageGB: number | null;
+        exportsPerMonth: number | null;
+      };
+    };
+  };
+  pricing: {
+    premium: {
+      monthly: { price: number; period: string; discount?: string; originalPrice?: number };
+      quarterly: { price: number; period: string; discount?: string; originalPrice?: number };
+      yearly: { price: number; period: string; discount?: string; originalPrice?: number };
+    };
+    vip: {
+      monthly: { price: number; period: string; discount?: string; originalPrice?: number };
+      quarterly: { price: number; period: string; discount?: string; originalPrice?: number };
+      yearly: { price: number; period: string; discount?: string; originalPrice?: number };
+    };
+  };
+  currentLevel: string;
+}
+
+// 使用统计数据类型
+interface UsageStats {
+  aiGenerations: {
+    used: number;
+    total: number | null;
+    percentage: number;
+  };
+  storage: {
+    used: number;
+    total: number | null;
+    percentage: number;
+  };
+  exports: {
+    used: number;
+    total: number | null;
+    percentage: number;
+  };
+}
+
+// 订单数据类型
+interface Order {
+  id: string;
+  plan: string;
+  plan_name: string;
+  period: string;
+  amount: number;
+  currency: string;
+  status: 'pending' | 'completed' | 'failed' | 'cancelled' | 'refunded';
+  payment_method: string;
+  created_at: string;
+  paid_at: string | null;
+  expires_at: string | null;
+}
+
 const Membership: React.FC = () => {
-  const { user, checkMembershipStatus } = useContext(AuthContext);
+  const { user } = useContext(AuthContext);
   const navigate = useNavigate();
-  const { theme, isDark } = useTheme();
+  const { isDark } = useTheme();
 
   const [activeTab, setActiveTab] = useState('overview');
   const [isLeftSidebarCollapsed, setIsLeftSidebarCollapsed] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [benefits, setBenefits] = useState<any>(null);
+  const [benefits, setBenefits] = useState<MembershipBenefits | null>(null);
+  const [usageStats, setUsageStats] = useState<UsageStats | null>(null);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [ordersPagination, setOrdersPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+    totalPages: 0
+  });
 
-  // 获取会员权益
+  // 获取会员权益配置
   useEffect(() => {
     const fetchBenefits = async () => {
       try {
-        const response = await apiClient.get<{ benefits: any }>('/api/membership/benefits');
-        if (response.ok && response.data) {
-          setBenefits(response.data.benefits);
+        const response = await apiClient.get<{ success: boolean; data: MembershipBenefits }>('/api/membership/benefits');
+        if (response.ok && response.data?.success) {
+          setBenefits(response.data.data);
         }
       } catch (err) {
         console.error('获取会员权益失败:', err);
-      } finally {
-        setLoading(false);
       }
     };
 
     fetchBenefits();
   }, []);
+
+  // 获取使用统计
+  useEffect(() => {
+    const fetchUsageStats = async () => {
+      if (!user) return;
+      
+      try {
+        const response = await apiClient.get<{ success: boolean; data: UsageStats }>('/api/membership/usage');
+        if (response.ok && response.data?.success) {
+          setUsageStats(response.data.data);
+        }
+      } catch (err) {
+        console.error('获取使用统计失败:', err);
+      }
+    };
+
+    fetchUsageStats();
+  }, [user]);
+
+  // 获取订单记录
+  useEffect(() => {
+    const fetchOrders = async () => {
+      if (!user) return;
+      
+      try {
+        const response = await apiClient.get<{
+          success: boolean;
+          data: {
+            orders: Order[];
+            pagination: typeof ordersPagination;
+          }
+        }>(`/api/membership/orders?page=${ordersPagination.page}&limit=${ordersPagination.limit}`);
+        
+        if (response.ok && response.data?.success) {
+          setOrders(response.data.data.orders);
+          setOrdersPagination(response.data.data.pagination);
+        }
+      } catch (err) {
+        console.error('获取订单记录失败:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchOrders();
+  }, [user, ordersPagination.page]);
 
   // 处理升级会员
   const handleUpgrade = (planId?: string) => {
@@ -131,7 +282,7 @@ const Membership: React.FC = () => {
               p-6 rounded-3xl border
               ${isDark ? 'bg-slate-800/30 border-slate-700' : 'bg-white border-gray-200'}
             `}>
-              <BenefitsGrid isDark={isDark} user={user} />
+              <BenefitsGrid isDark={isDark} user={user} benefits={benefits} />
             </div>
 
             {/* 升级套餐 */}
@@ -143,6 +294,7 @@ const Membership: React.FC = () => {
                 isDark={isDark}
                 user={user}
                 onUpgrade={handleUpgrade}
+                pricing={benefits?.pricing}
               />
             </div>
 
@@ -167,6 +319,7 @@ const Membership: React.FC = () => {
                 isDark={isDark}
                 user={user}
                 onUpgrade={handleUpgrade}
+                pricing={benefits?.pricing}
               />
             </div>
           </div>
@@ -185,7 +338,7 @@ const Membership: React.FC = () => {
               p-6 rounded-3xl border
               ${isDark ? 'bg-slate-800/30 border-slate-700' : 'bg-white border-gray-200'}
             `}>
-              <BenefitsGrid isDark={isDark} user={user} />
+              <BenefitsGrid isDark={isDark} user={user} benefits={benefits} />
             </div>
           </div>
         );
@@ -193,21 +346,16 @@ const Membership: React.FC = () => {
       case 'orders':
         return (
           <div className={`
-            p-8 rounded-3xl border text-center
+            p-6 rounded-3xl border
             ${isDark ? 'bg-slate-800/30 border-slate-700' : 'bg-white border-gray-200'}
           `}>
-            <div className={`
-              w-16 h-16 mx-auto rounded-2xl flex items-center justify-center mb-4
-              ${isDark ? 'bg-slate-700' : 'bg-gray-100'}
-            `}>
-              <Sparkles size={28} className={isDark ? 'text-slate-500' : 'text-gray-400'} />
-            </div>
-            <h3 className={`text-lg font-semibold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-              暂无订单记录
-            </h3>
-            <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
-              您还没有购买过会员服务
-            </p>
+            <OrdersList
+              isDark={isDark}
+              orders={orders}
+              pagination={ordersPagination}
+              onPageChange={(page) => setOrdersPagination(prev => ({ ...prev, page }))}
+              loading={loading}
+            />
           </div>
         );
 
@@ -261,7 +409,7 @@ const Membership: React.FC = () => {
           {user?.avatar ? (
             <img src={user.avatar} alt="" className="w-full h-full rounded-xl object-cover" />
           ) : (
-            <span className="text-sm font-bold">{user?.username?.charAt(0).toUpperCase()}</span>
+            <span className="text-sm font-bold">{user?.username?.charAt(0)?.toUpperCase() || 'U'}</span>
           )}
         </div>
       </div>
@@ -382,6 +530,7 @@ const Membership: React.FC = () => {
             user={user}
             onRenew={handleRenew}
             onUpgrade={() => handleUpgrade()}
+            usageStats={usageStats}
           />
         </aside>
       </div>

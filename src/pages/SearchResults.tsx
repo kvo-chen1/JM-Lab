@@ -64,7 +64,7 @@ export default function SearchResults() {
 
   // 渲染作品结果
   const renderWorkResults = () => {
-    const { works } = searchResults
+    const works = searchResults?.works || []
     
     if (works.length === 0) return null
     
@@ -76,7 +76,7 @@ export default function SearchResults() {
             作品结果 ({works.length})
           </h2>
           <button
-            onClick={() => navigate(`/explore?search=${encodeURIComponent(query)}`)} 
+            onClick={() => navigate(`/square?search=${encodeURIComponent(query)}`)} 
             className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
           >
             查看全部
@@ -153,7 +153,7 @@ export default function SearchResults() {
 
   // 渲染用户结果
   const renderUserResults = () => {
-    const { users } = searchResults
+    const users = searchResults?.users || []
     
     if (users.length === 0) return null
     
@@ -210,7 +210,7 @@ export default function SearchResults() {
 
   // 渲染分类结果
   const renderCategoryResults = () => {
-    const { categories } = searchResults
+    const categories = searchResults?.categories || []
     
     if (categories.length === 0) return null
     
@@ -241,7 +241,7 @@ export default function SearchResults() {
 
   // 渲染标签结果
   const renderTagResults = () => {
-    const { tags } = searchResults
+    const tags = searchResults?.tags || []
     
     if (tags.length === 0) return null
     
@@ -273,12 +273,11 @@ export default function SearchResults() {
   }
 
   // 执行搜索
-  const performSearch = (searchQuery: string) => {
+  const performSearch = async (searchQuery: string) => {
     setIsLoading(true)
     
-    // 使用setTimeout模拟异步搜索
-    setTimeout(() => {
-      const results = searchService.searchAll(searchQuery)
+    try {
+      const results = await searchService.searchAll(searchQuery)
       setSearchResults(results)
       
       // 检查是否有任何结果
@@ -289,8 +288,13 @@ export default function SearchResults() {
         results.tags.length > 0
       
       setIsNoResults(!hasResults)
+    } catch (error) {
+      console.error('搜索失败:', error)
+      setSearchResults({ works: [], users: [], categories: [], tags: [] })
+      setIsNoResults(true)
+    } finally {
       setIsLoading(false)
-    }, 500)
+    }
   }
 
   // 渲染空结果状态

@@ -1841,6 +1841,239 @@ class AdminService {
       return { creators: [], total: 0 };
     }
   }
+
+  // 通知管理相关方法
+  async getNotifications() {
+    try {
+      const { data, error } = await supabaseAdmin
+        .from('notifications')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.warn('获取通知列表失败:', error);
+        return [];
+      }
+
+      return data || [];
+    } catch (error) {
+      console.error('获取通知列表失败:', error);
+      return [];
+    }
+  }
+
+  async createNotification(notification: {
+    title: string;
+    content: string;
+    type: string;
+    target: string;
+    scheduled_at?: number;
+    target_users?: string[];
+  }) {
+    try {
+      const { data, error } = await supabaseAdmin
+        .from('notifications')
+        .insert({
+          ...notification,
+          status: notification.scheduled_at ? 'scheduled' : 'draft',
+          created_at: Date.now(),
+          recipients_count: 0,
+          read_count: 0,
+          click_count: 0
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('创建通知失败:', error);
+        throw error;
+      }
+
+      return data;
+    } catch (error) {
+      console.error('创建通知失败:', error);
+      throw error;
+    }
+  }
+
+  async sendNotification(id: string) {
+    try {
+      // 获取通知详情
+      const { data: notification, error: fetchError } = await supabaseAdmin
+        .from('notifications')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (fetchError || !notification) {
+        throw new Error('通知不存在');
+      }
+
+      // 获取目标用户
+      let targetUsers: string[] = [];
+      if (notification.target === 'all') {
+        const { data: users } = await supabaseAdmin
+          .from('users')
+          .select('id');
+        targetUsers = users?.map(u => u.id) || [];
+      } else if (notification.target === 'vip') {
+        const { data: users } = await supabaseAdmin
+          .from('users')
+          .select('id')
+          .in('membership_level', ['premium', 'vip']);
+        targetUsers = users?.map(u => u.id) || [];
+      } else if (notification.target === 'specific' && notification.target_users) {
+        targetUsers = notification.target_users;
+      }
+
+      // 创建用户通知记录
+      const userNotifications = targetUsers.map(userId => ({
+        user_id: userId,
+        notification_id: id,
+        title: notification.title,
+        content: notification.content,
+        type: notification.type,
+        is_read: false,
+        created_at: Date.now()
+      }));
+
+      if (userNotifications.length > 0) {
+        const { error: insertError } = await supabaseAdmin
+          .from('user_notifications')
+          .insert(userNotifications);
+
+        if (insertError) {
+          console.error('创建用户通知失败:', insertError);
+        }
+      }
+
+      // 更新通知状态
+      const { error: updateError } = await supabaseAdmin
+        .from('notifications')
+        .update({
+          status: 'sent',
+          sent_at: Date.now(),
+          recipients_count: targetUsers.length
+        })
+        .eq('id', id);
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      return true;
+    } catch (error) {
+      console.error('发送通知失败:', error);
+      throw error;
+    }
+  }
+
+  async deleteNotification(id: string) {
+    try {
+      // 先删除关联的用户通知
+      await supabaseAdmin
+        .from('user_notifications')
+        .delete()
+        .eq('notification_id', id);
+
+      // 再删除通知
+      const { error } = await supabaseAdmin
+        .from('notifications')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        throw error;
+      }
+
+      return true;
+    } catch (error) {
+      console.error('删除通知失败:', error);
+      throw error;
+    }
+  }
+
+  async getNotificationStats() {
+    try {
+      // 获取所有已发送通知
+      const { data: notifications, error } = await supabaseAdmin
+        .from('notifications')
+        .select('*')
+        .eq('status', 'sent');
+
+      if (error) {
+        console.warn('获取通知统计失败:', error);
+        return {
+          totalSent: 0,
+          totalRead: 0,
+          totalClick: 0,
+          readRate: 0,
+          clickRate: 0,
+          dailyStats: [],
+          typeDistribution: []
+        };
+      }
+
+      const totalSent = notifications?.reduce((sum, n) => sum + (n.recipients_count || 0), 0) || 0;
+      const totalRead = notifications?.reduce((sum, n) => sum + (n.read_count || 0), 0) || 0;
+      const totalClick = notifications?.reduce((sum, n) => sum + (n.click_count || 0), 0) || 0;
+
+      // 生成近7天的统计数据
+      const dailyStats = [];
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        const dateStr = date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+        
+        const dayNotifications = notifications?.filter(n => {
+          const sentDate = new Date(n.sent_at);
+          return sentDate.toDateString() === date.toDateString();
+        }) || [];
+
+        dailyStats.push({
+          date: dateStr,
+          sent: dayNotifications.reduce((sum, n) => sum + (n.recipients_count || 0), 0),
+          read: dayNotifications.reduce((sum, n) => sum + (n.read_count || 0), 0),
+          click: dayNotifications.reduce((sum, n) => sum + (n.click_count || 0), 0)
+        });
+      }
+
+      // 类型分布
+      const typeCount: Record<string, number> = {};
+      notifications?.forEach(n => {
+        typeCount[n.type] = (typeCount[n.type] || 0) + 1;
+      });
+
+      const typeDistribution = Object.entries(typeCount).map(([name, value]) => ({
+        name: name === 'system' ? '系统通知' :
+              name === 'activity' ? '活动通知' :
+              name === 'reminder' ? '提醒通知' :
+              name === 'marketing' ? '营销通知' : name,
+        value
+      }));
+
+      return {
+        totalSent,
+        totalRead,
+        totalClick,
+        readRate: totalSent > 0 ? (totalRead / totalSent) * 100 : 0,
+        clickRate: totalSent > 0 ? (totalClick / totalSent) * 100 : 0,
+        dailyStats,
+        typeDistribution
+      };
+    } catch (error) {
+      console.error('获取通知统计失败:', error);
+      return {
+        totalSent: 0,
+        totalRead: 0,
+        totalClick: 0,
+        readRate: 0,
+        clickRate: 0,
+        dailyStats: [],
+        typeDistribution: []
+      };
+    }
+  }
 }
 
 export const adminService = new AdminService();

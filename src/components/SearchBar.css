@@ -9,27 +9,28 @@
   --pb-icon-hover: #111111;
   --pb-text-color: #111111;
   --pb-placeholder-color: #767676;
-  --pb-focus-border: #78909c; /* Fallback or specific color if needed, but Pinterest uses shadow mostly */
-  --pb-focus-shadow: 0 0 0 4px rgba(0, 132, 255, 0.5); /* Pinterest uses a specific blueish shadow often, or rgba(17,17,17,0.08) as per requirement */
+  --pb-focus-shadow: 0 0 0 4px rgba(0, 132, 255, 0.5);
   --pb-clear-bg: #cdcdcd;
   --pb-clear-hover: #767676;
   --pb-transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
   --pb-skeleton-bg: #efefef;
+  --pb-primary-color: #e60023;
+  --pb-primary-hover: #ad081b;
 }
 
 /* Dark mode variables override */
 .dark {
-  --pb-bg-default: #ffffff;
-  --pb-bg-hover: #f5f5f5;
-  --pb-bg-active: #ffffff;
-  --pb-icon-color: #767676;
-  --pb-icon-hover: #111111;
-  --pb-text-color: #111111;
-  --pb-placeholder-color: #767676;
-  --pb-focus-shadow: 0 0 0 4px rgba(0, 132, 255, 0.5);
-  --pb-clear-bg: #cdcdcd;
-  --pb-clear-hover: #767676;
-  --pb-skeleton-bg: #efefef;
+  --pb-bg-default: #1a1a1a;
+  --pb-bg-hover: #2a2a2a;
+  --pb-bg-active: #1a1a1a;
+  --pb-icon-color: #a0a0a0;
+  --pb-icon-hover: #ffffff;
+  --pb-text-color: #ffffff;
+  --pb-placeholder-color: #a0a0a0;
+  --pb-focus-shadow: 0 0 0 4px rgba(255, 255, 255, 0.15);
+  --pb-clear-bg: #4a4a4a;
+  --pb-clear-hover: #6a6a6a;
+  --pb-skeleton-bg: #2a2a2a;
 }
 
 .pinterest-search-wrapper {
@@ -37,9 +38,8 @@
   justify-content: center;
   width: 100%;
   position: relative;
-  z-index: 99999;
+  z-index: 9999;
   overflow: visible;
-  /* padding: 20px 0; Removed padding to fit into header */
 }
 
 .pinterest-search-bar {
@@ -56,32 +56,21 @@
   border: 1px solid #e0e0e0;
   width: 100%;
   overflow: visible;
-  z-index: 99999;
+  z-index: 9999;
 }
 
-/* Responsive Width handled by parent or Tailwind classes, but we can keep max-width logic if needed */
-/* In this context, we let the parent container control the width, but enforce the style */
+.dark .pinterest-search-bar {
+  border-color: #3a3a3a;
+}
 
 .pinterest-search-bar:hover:not(.focused) {
   background-color: var(--pb-bg-hover);
 }
 
-.pinterest-search-bar:hover:not(.focused) .search-icon {
-  fill: var(--pb-icon-hover);
-}
-
 .pinterest-search-bar.focused {
   background-color: var(--pb-bg-active);
-  /* Pinterest focused state: usually white bg + shadow, no border color change or subtle */
-  box-shadow: 0 0 0 4px rgba(17, 17, 17, 0.08); 
-}
-
-.dark .pinterest-search-bar.focused {
-   box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.1);
-}
-
-.pinterest-search-bar.focused .search-icon {
-  fill: var(--pb-icon-hover);
+  box-shadow: var(--pb-focus-shadow);
+  border-color: transparent;
 }
 
 .pinterest-search-bar .search-icon-wrapper {
@@ -89,13 +78,18 @@
   align-items: center;
   justify-content: center;
   margin-right: 12px;
+  flex-shrink: 0;
 }
 
 .pinterest-search-bar .search-icon {
-  width: 16px;
-  height: 16px;
-  fill: var(--pb-icon-color);
-  transition: fill 200ms ease;
+  width: 18px;
+  height: 18px;
+  color: var(--pb-icon-color);
+  transition: color 200ms ease;
+}
+
+.pinterest-search-bar.focused .search-icon {
+  color: var(--pb-icon-hover);
 }
 
 .pinterest-search-bar input {
@@ -117,9 +111,10 @@
   opacity: 1;
 }
 
+/* Clear Button */
 .pinterest-search-bar .clear-btn {
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   background-color: var(--pb-clear-bg);
   border: none;
@@ -147,25 +142,56 @@
 }
 
 .pinterest-search-bar .clear-btn svg {
-  width: 10px;
-  height: 10px;
-  fill: #ffffff;
+  width: 14px;
+  height: 14px;
+  color: #ffffff;
   display: block;
 }
 
-/* Suggestion Box Styles to match Pinterest */
+/* Keyboard Shortcut Hint */
+.keyboard-shortcut {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.keyboard-shortcut kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--pb-placeholder-color);
+  background-color: var(--pb-bg-hover);
+  border: 1px solid #d0d0d0;
+  border-radius: 4px;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.1);
+}
+
+.dark .keyboard-shortcut kbd {
+  background-color: #3a3a3a;
+  border-color: #4a4a4a;
+  color: #a0a0a0;
+}
+
+/* Suggestion Box Styles */
 .pinterest-suggestions {
   position: absolute;
-  top: calc(100% + 12px);
+  top: calc(100% + 8px);
   left: 0;
   width: 100%;
   background: #ffffff;
   border-radius: 16px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-  padding: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
+  padding: 12px;
   box-sizing: border-box;
   z-index: 99999;
-  max-height: 400px;
+  max-height: 480px;
   min-height: 100px;
   overflow-y: auto;
   opacity: 1;
@@ -174,75 +200,375 @@
 }
 
 .dark .pinterest-suggestions {
-    background: #212121;
-    box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+  background: #1a1a1a;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* Scrollbar Styling */
+.pinterest-suggestions::-webkit-scrollbar {
+  width: 8px;
+}
+
+.pinterest-suggestions::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 4px;
+}
+
+.pinterest-suggestions::-webkit-scrollbar-thumb {
+  background: #d0d0d0;
+  border-radius: 4px;
+}
+
+.dark .pinterest-suggestions::-webkit-scrollbar-thumb {
+  background: #4a4a4a;
+}
+
+.pinterest-suggestions::-webkit-scrollbar-thumb:hover {
+  background: #b0b0b0;
 }
 
 /* Suggestion Group Styles */
 .suggestion-group {
-    margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 .suggestion-group:last-child {
-    margin-bottom: 0;
+  margin-bottom: 0;
+}
+
+.suggestion-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px 4px;
 }
 
 .suggestion-group-title {
-    font-size: 14px;
-    font-weight: 600;
-    color: #111111;
-    padding: 8px 12px;
-    margin-bottom: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #111111;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
 }
 
+.dark .suggestion-group-title {
+  color: #ffffff;
+}
+
+.clear-history-btn {
+  font-size: 12px;
+  color: var(--pb-primary-color);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background-color 200ms ease;
+}
+
+.clear-history-btn:hover {
+  background-color: rgba(230, 0, 35, 0.1);
+}
+
+/* Suggestion Item */
 .suggestion-item {
-    display: flex;
-    align-items: center;
-    padding: 8px 12px;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: background-color 0.2s;
-    color: #111111;
-    font-weight: 700; /* Pinterest suggestions are often bold */
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  color: #111111;
+  position: relative;
+  min-height: 40px;
 }
 
-.suggestion-item:hover {
-    background-color: var(--pb-bg-default);
+.dark .suggestion-item {
+  color: #ffffff;
+}
+
+.suggestion-item:hover,
+.suggestion-item.active {
+  background-color: var(--pb-bg-hover);
 }
 
 .suggestion-icon {
-    margin-right: 12px;
-    color: var(--pb-icon-color);
-    width: 16px;
-    display: flex;
-    justify-content: center;
+  margin-right: 12px;
+  color: var(--pb-icon-color);
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
+/* 历史搜索项的特殊样式 */
+.suggestion-item[data-type="history"] .suggestion-icon {
+  color: var(--pb-icon-color);
+  opacity: 0.7;
+}
+
+.suggestion-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.suggestion-text {
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 历史搜索文本样式 */
+.suggestion-item[data-type="history"] .suggestion-text {
+  font-size: 16px;
+  color: var(--pb-text-color);
+}
+
+.suggestion-count {
+  font-size: 12px;
+  color: var(--pb-icon-color);
+}
+
+.suggestion-trend {
+  font-size: 14px;
+  font-weight: 600;
+  margin-left: 8px;
+  flex-shrink: 0;
+}
+
+.suggestion-trend.up {
+  color: #e60023;
+}
+
+.suggestion-trend.down {
+  color: #0a8a0a;
+}
+
+.suggestion-trend.stable {
+  color: var(--pb-icon-color);
+}
+
+/* Remove Button */
 .remove-btn {
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    border: none;
-    background: transparent;
-    color: var(--pb-icon-color);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    margin-left: 8px;
-    opacity: 0;
-    transition: all 0.2s;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--pb-icon-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  margin-left: 8px;
+  opacity: 0;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
 }
 
 .suggestion-item:hover .remove-btn {
-    opacity: 1;
+  opacity: 1;
 }
 
 .remove-btn:hover {
-    background-color: rgba(0,0,0,0.1);
-    color: var(--pb-text-color);
+  background-color: rgba(0, 0, 0, 0.08);
+  color: var(--pb-text-color);
 }
 
 .dark .remove-btn:hover {
-    background-color: rgba(255,255,255,0.1);
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Error Message */
+.suggestion-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px;
+  background-color: #fff2f2;
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+
+.dark .suggestion-error {
+  background-color: #3a1a1a;
+}
+
+.suggestion-error span {
+  font-size: 14px;
+  color: #e60023;
+}
+
+.suggestion-error button {
+  font-size: 13px;
+  color: var(--pb-primary-color);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.suggestion-error button:hover {
+  background-color: rgba(230, 0, 35, 0.1);
+}
+
+/* Empty State */
+.suggestion-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--pb-icon-color);
+}
+
+.suggestion-empty svg {
+  margin-bottom: 12px;
+  opacity: 0.5;
+}
+
+.suggestion-empty p {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--pb-text-color);
+  margin: 0 0 4px;
+}
+
+.suggestion-empty span {
+  font-size: 13px;
+}
+
+/* Footer */
+.suggestion-footer {
+  padding: 12px;
+  border-top: 1px solid #e0e0e0;
+  margin-top: 8px;
+}
+
+.dark .suggestion-footer {
+  border-top-color: #3a3a3a;
+}
+
+.keyboard-hints {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.keyboard-hints span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--pb-icon-color);
+}
+
+.keyboard-hints kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--pb-text-color);
+  background-color: var(--pb-bg-hover);
+  border: 1px solid #d0d0d0;
+  border-radius: 4px;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.1);
+}
+
+.dark .keyboard-hints kbd {
+  background-color: #3a3a3a;
+  border-color: #4a4a4a;
+}
+
+/* Loading Animation */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .pinterest-search-bar {
+    height: 44px;
+  }
+
+  .pinterest-suggestions {
+    max-height: 60vh;
+    border-radius: 12px;
+    padding: 8px;
+  }
+
+  .suggestion-item {
+    padding: 12px;
+  }
+
+  .keyboard-hints {
+    display: none;
+  }
+
+  .keyboard-shortcut {
+    display: none;
+  }
+}
+
+/* High Contrast Mode Support */
+@media (prefers-contrast: high) {
+  .pinterest-search-bar {
+    border-width: 2px;
+  }
+
+  .suggestion-item.active {
+    outline: 2px solid var(--pb-primary-color);
+    outline-offset: -2px;
+  }
+}
+
+/* Reduced Motion Support */
+@media (prefers-reduced-motion: reduce) {
+  .pinterest-search-bar,
+  .suggestion-item,
+  .clear-btn,
+  .remove-btn {
+    transition: none;
+  }
+
+  .animate-spin {
+    animation: none;
+  }
+}
+
+/* Focus Visible for Accessibility */
+.suggestion-item:focus-visible {
+  outline: 2px solid var(--pb-primary-color);
+  outline-offset: -2px;
+}
+
+.clear-btn:focus-visible,
+.remove-btn:focus-visible {
+  outline: 2px solid var(--pb-primary-color);
+  outline-offset: 2px;
 }

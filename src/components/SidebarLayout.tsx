@@ -740,24 +740,13 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
     if (!search.trim()) return
     const q = search.trim()
     
-    // 使用搜索服务分类查询
-    const classification = searchService.classifyQuery(q)
-    
-    // 根据分类结果进行导航
-    if (classification.suggestedResults.length === 1 && classification.confidence > 0.9) {
-      // 高置信度的单一结果，直接导航到对应页面
-      const suggestion = classification.suggestedResults[0]
-      const url = searchService.generateRedirectUrl(suggestion.text, suggestion.type)
-      navigate(url)
-    } else {
-      // 多结果或低置信度，导航到搜索结果页面
-      navigate(`/search?query=${encodeURIComponent(q)}`)
-    }
+    // 直接跳转到津脉广场（square）并带上搜索关键词
+    navigate(`/square?search=${encodeURIComponent(q)}`)
     
     // 跟踪搜索事件
     searchService.trackSearchEvent({
       query: q,
-      resultType: classification.primaryType,
+      resultType: 'work',
       clicked: false,
       timestamp: Date.now()
     })
@@ -919,6 +908,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                   isDark={isDark}
                   onSearch={onSearchSubmit}
                   onSuggestionSelect={handleSuggestionSelect}
+                  userId={user?.id || null}
                 />
               </motion.div>
             </motion.div>

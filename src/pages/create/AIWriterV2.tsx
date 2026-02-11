@@ -173,7 +173,7 @@ ${formData.competitiveAdvantage || '我们的核心竞争优势包括：'}
 
   // 渲染模板列表（用于中栏未选择模板时显示）
   const renderTemplateList = () => (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div className="flex items-center justify-between">
         <h2 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
           {activeCategory === 'all'

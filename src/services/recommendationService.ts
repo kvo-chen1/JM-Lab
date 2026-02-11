@@ -1,5 +1,35 @@
 /**
  * 智能推荐服务模块 - 基于用户行为和偏好提供个性化推荐
+ * 
+ * ============================================
+ * 数据源说明 (重要!)
+ * ============================================
+ * 
+ * 本推荐系统使用以下数据源：
+ * 
+ * 1. WORKS (作品) - 主要推荐内容
+ *    - 存储key: 'works' 或 'jmzf_works'
+ *    - 数据来源: 首页作品展示、用户创作的作品
+ *    - 对应数据库表: works
+ *    - 用途: 推荐给用户浏览和互动的创作内容
+ * 
+ * 2. CHALLENGES (挑战/活动)
+ *    - 存储key: 'challenges' 或 'jmzf_challenges'
+ *    - 数据来源: 平台发布的创作挑战、文化活动
+ *    - 对应数据库表: challenges
+ *    - 用途: 推荐用户参与的活动
+ * 
+ * 3. TEMPLATES (模板)
+ *    - 存储key: 'templates' 或 'jmzf_templates'
+ *    - 数据来源: AI创作模板、设计模板
+ *    - 对应数据库表: templates
+ *    - 用途: 推荐创作时使用的模板
+ * 
+ * 注意: POSTS (帖子/社区内容) 不用于推荐系统
+ *    - posts 用于社区讨论，不是创作作品
+ *    - 推荐系统只推荐 works (作品)
+ * 
+ * ============================================
  */
 
 // 用户行为类型
@@ -75,7 +105,76 @@ export interface UserSimilarity {
   timestamp: string;
 }
 
+// ============================================
+// 数据源类型定义
+// ============================================
+
+/**
+ * 作品 (Work) - 用户创作的原创内容
+ * 对应数据库表: works
+ */
+export interface Work {
+  id: string;
+  title: string;
+  thumbnail?: string;
+  category?: string;
+  tags?: string[];
+  culturalElements?: string[];
+  theme?: string;
+  likes?: number;
+  views?: number;
+  shares?: number;
+  upvotes?: number;
+  comments?: any[];
+  createdAt?: string;
+  authorId?: string;
+  authorName?: string;
+  [key: string]: any;
+}
+
+/**
+ * 挑战/活动 (Challenge)
+ * 对应数据库表: challenges
+ */
+export interface Challenge {
+  id: string;
+  title: string;
+  featuredImage?: string;
+  participants?: number;
+  submissionCount?: number;
+  views?: number;
+  startDate?: string;
+  endDate?: string;
+  [key: string]: any;
+}
+
+/**
+ * 模板 (Template)
+ * 对应数据库表: templates
+ */
+export interface Template {
+  id: string;
+  name: string;
+  preview?: string;
+  category?: string;
+  tags?: string[];
+  usageCount?: number;
+  createdAt?: string;
+  [key: string]: any;
+}
+
+/**
+ * 推荐数据源集合
+ */
+export interface RecommendationDataSource {
+  works: Work[];        // 作品数据 (主要推荐内容)
+  challenges: Challenge[]; // 挑战/活动数据
+  templates: Template[];   // 模板数据
+}
+
+// ============================================
 // 常量定义
+// ============================================
 const USER_ACTIONS_KEY = 'jmzf_user_actions';
 const USER_PREFERENCES_KEY = 'jmzf_user_preferences';
 const RECOMMENDATIONS_KEY = 'jmzf_recommendations';
@@ -145,6 +244,14 @@ export function recordUserAction(action: Omit<UserAction, 'id' | 'timestamp'>): 
   
   // 更新用户偏好
   updateUserPreferences(newAction.userId);
+  
+  // 添加到待同步队列（用于后端同步）
+  try {
+    const { addPendingSyncAction } = require('./recommendationBackendService');
+    addPendingSyncAction(newAction);
+  } catch (e) {
+    // 如果后端服务未加载，忽略错误
+  }
   
   return newAction;
 }
@@ -298,33 +405,122 @@ export function updateUserPreferences(userId: string): UserPreference {
 }
 
 /**
+ * 获取推荐数据源
+ * 尝试从多个可能的来源获取数据
+ * 
+ * 数据源优先级：
+ * 1. works (作品) - 主要推荐内容，对应数据库表: works
+ * 2. challenges (挑战) - 活动推荐，对应数据库表: challenges  
+ * 3. templates (模板) - 模板推荐，对应数据库表: templates
+ * 
+ * 注意：不使用 posts (帖子/社区内容)
+ */
+function getRecommendationData(): RecommendationDataSource {
+  // ============================================
+  // 1. 获取 WORKS (作品) 数据 - 主要推荐内容
+  // ============================================
+  const jmzfWorks = localStorage.getItem('jmzf_works');
+  const worksData = localStorage.getItem('works');
+  
+  // 备选：posts 数据（向后兼容，但 posts 是社区帖子，不是作品）
+  const jmzfPosts = localStorage.getItem('jmzf_posts');
+  const postsData = localStorage.getItem('posts');
+  
+  console.log('📊 推荐系统数据源调试:', {
+    hasJmzfWorks: !!jmzfWorks,
+    hasWorks: !!worksData,
+    hasHomePageData: !!localStorage.getItem('homePageData'),
+    note: 'works = 作品(创作内容), posts = 帖子(社区讨论)'
+  });
+  
+  // 优先使用 works 数据（作品）
+  let works: Work[] = JSON.parse(jmzfWorks || worksData || '[]');
+  
+  // 如果没有 works，尝试使用 posts（向后兼容）
+  if (works.length === 0) {
+    works = JSON.parse(jmzfPosts || postsData || '[]');
+    if (works.length > 0) {
+      console.warn('⚠️ 使用 posts 数据作为备选，建议将作品数据保存到 works key');
+    }
+  }
+  
+  // ============================================
+  // 2. 获取 CHALLENGES (挑战/活动) 数据
+  // ============================================
+  const challenges: Challenge[] = JSON.parse(
+    localStorage.getItem('jmzf_challenges') || 
+    localStorage.getItem('challenges') || 
+    '[]'
+  );
+  
+  // ============================================
+  // 3. 获取 TEMPLATES (模板) 数据
+  // ============================================
+  const templates: Template[] = JSON.parse(
+    localStorage.getItem('jmzf_templates') || 
+    localStorage.getItem('templates') || 
+    '[]'
+  );
+  
+  // ============================================
+  // 4. 如果 localStorage 中没有数据，尝试从首页缓存获取
+  // ============================================
+  if (works.length === 0) {
+    try {
+      const homePageData = localStorage.getItem('homePageData');
+      console.log('🔄 尝试从 homePageData 获取 works:', !!homePageData);
+      if (homePageData) {
+        const { works: homeWorks } = JSON.parse(homePageData);
+        console.log('📦 homePageData 中的 works 数量:', homeWorks?.length);
+        if (Array.isArray(homeWorks) && homeWorks.length > 0) {
+          works = homeWorks;
+        }
+      }
+    } catch (e) {
+      console.error('❌ 解析 homePageData 失败:', e);
+    }
+  }
+  
+  console.log('✅ 推荐数据源结果:', { 
+    works: works.length, 
+    challenges: challenges.length, 
+    templates: templates.length,
+    dataTypes: {
+      works: '作品(创作内容)',
+      challenges: '挑战/活动',
+      templates: '模板'
+    }
+  });
+  
+  return { works, challenges, templates };
+}
+
+/**
  * 生成基于内容的推荐
  */
 export function generateContentBasedRecommendations(userId: string, limit: number = 20): RecommendedItem[] {
   const preference = getUserPreferences(userId) || initializeUserPreferences(userId);
   
-  // 1. 获取所有可能的推荐项（这里我们从localStorage中获取）
-  const posts = JSON.parse(localStorage.getItem('jmzf_posts') || '[]');
-  const challenges = JSON.parse(localStorage.getItem('jmzf_challenges') || '[]');
-  const templates = JSON.parse(localStorage.getItem('jmzf_templates') || '[]');
+  // 1. 获取所有可能的推荐项
+  const { works, challenges, templates } = getRecommendationData();
   
   // 2. 为每个项目计算推荐分数
   const recommendedItems: RecommendedItem[] = [];
   
-  // 处理帖子推荐
-  posts.forEach((post: any) => {
+  // 处理作品推荐
+  works.forEach((work: any) => {
     let score = 0;
     const reasons: string[] = [];
     
     // 根据分类计算分数
-    if (post.category && preference.categories[post.category]) {
-      score += preference.categories[post.category] * 0.3;
-      reasons.push(`您喜欢${post.category}类型的内容`);
+    if (work.category && preference.categories[work.category]) {
+      score += preference.categories[work.category] * 0.3;
+      reasons.push(`您喜欢${work.category}类型的内容`);
     }
     
     // 根据标签计算分数
-    if (post.tags) {
-      post.tags.forEach((tag: string) => {
+    if (work.tags) {
+      work.tags.forEach((tag: string) => {
         if (preference.tags[tag]) {
           score += preference.tags[tag] * 0.2;
           reasons.push(`您对${tag}感兴趣`);
@@ -333,8 +529,8 @@ export function generateContentBasedRecommendations(userId: string, limit: numbe
     }
     
     // 根据文化元素计算分数
-    if (post.culturalElements) {
-      post.culturalElements.forEach((element: string) => {
+    if (work.culturalElements) {
+      work.culturalElements.forEach((element: string) => {
         if (preference.culturalElements[element]) {
           score += preference.culturalElements[element] * 0.25;
           reasons.push(`您喜欢${element}文化元素`);
@@ -343,30 +539,30 @@ export function generateContentBasedRecommendations(userId: string, limit: numbe
     }
     
     // 根据主题计算分数
-    if (post.theme && preference.themes[post.theme]) {
-      score += preference.themes[post.theme] * 0.15;
-      reasons.push(`您喜欢${post.theme}主题`);
+    if (work.theme && preference.themes[work.theme]) {
+      score += preference.themes[work.theme] * 0.15;
+      reasons.push(`您喜欢${work.theme}主题`);
     }
     
     // 根据互动数据调整分数
-    score += (post.likes * 0.01) + (post.views * 0.001) + (post.shares * 0.02) + (post.upvotes || 0) * 0.01;
+    score += (work.likes * 0.01) + (work.views * 0.001) + (work.shares * 0.02) + (work.upvotes || 0) * 0.01;
     
     // 新鲜度权重
-    if (post.createdAt) {
-      const daysOld = (Date.now() - new Date(post.createdAt).getTime()) / (1000 * 60 * 60 * 24);
+    if (work.createdAt) {
+      const daysOld = (Date.now() - new Date(work.createdAt).getTime()) / (1000 * 60 * 60 * 24);
       score += Math.max(0, 1 - daysOld / 30) * DIVERSITY_SETTINGS.recencyWeight;
     }
     
     // 只添加分数大于0的推荐项
     if (score > 0) {
       recommendedItems.push({
-        id: post.id,
+        id: work.id,
         type: 'post',
-        title: post.title,
-        thumbnail: post.thumbnail,
+        title: work.title,
+        thumbnail: work.thumbnail,
         score,
         reason: reasons.slice(0, 2).join('，'),
-        metadata: post
+        metadata: work
       });
     }
   });
@@ -547,6 +743,15 @@ export function generateRecommendations(userId: string, options: RecommendationO
     recommendations = recommendations
       .sort((a, b) => b.score - a.score)
       .slice(0, limit);
+  }
+  
+  // 如果推荐结果为空，返回热门内容作为默认推荐
+  if (recommendations.length === 0) {
+    const trendingRecs = getTrendingContent(limit);
+    return trendingRecs.map(item => ({
+      ...item,
+      reason: item.reason || '热门内容'
+    }));
   }
   
   return recommendations;
@@ -732,6 +937,9 @@ export function generateCollaborativeRecommendations(userId: string, limit: numb
   const allActions = getUserActions();
   const recommendedItems: Record<string, { item: any; type: RecommendedItem['type']; score: number }> = {};
   
+  // 获取数据源
+  const { works: allWorks, challenges: allChallenges, templates: allTemplates } = getRecommendationData();
+  
   similarities.similarUsers.forEach(({ userId: similarUserId, similarity }) => {
     const similarUserActions = allActions.filter(
       action => action.userId === similarUserId && 
@@ -747,16 +955,13 @@ export function generateCollaborativeRecommendations(userId: string, limit: numb
       let type: RecommendedItem['type'];
       
       if (action.itemType === 'post') {
-        const posts = JSON.parse(localStorage.getItem('jmzf_posts') || '[]');
-        item = posts.find((p: any) => p.id === action.itemId);
+        item = allWorks.find((p: any) => p.id === action.itemId);
         type = 'post';
       } else if (action.itemType === 'challenge') {
-        const challenges = JSON.parse(localStorage.getItem('jmzf_challenges') || '[]');
-        item = challenges.find((c: any) => c.id === action.itemId);
+        item = allChallenges.find((c: any) => c.id === action.itemId);
         type = 'challenge';
       } else if (action.itemType === 'template') {
-        const templates = JSON.parse(localStorage.getItem('jmzf_templates') || '[]');
-        item = templates.find((t: any) => t.id === action.itemId);
+        item = allTemplates.find((t: any) => t.id === action.itemId);
         type = 'template';
       } else {
         return; // 跳过用户、标签等类型
@@ -876,22 +1081,21 @@ export function optimizeRecommendationDiversity(items: RecommendedItem[], limit:
  * 获取热门内容（基于所有用户的互动数据）
  */
 export function getTrendingContent(limit: number = 10): RecommendedItem[] {
-  const posts = JSON.parse(localStorage.getItem('jmzf_posts') || '[]');
-  const challenges = JSON.parse(localStorage.getItem('jmzf_challenges') || '[]');
+  const { works, challenges } = getRecommendationData();
   
   const trendingItems: RecommendedItem[] = [];
   
-  // 处理热门帖子
-  posts.forEach((post: any) => {
-    const score = (post.likes * 5) + (post.views * 0.5) + (post.shares * 10) + (post.comments.length * 8);
+  // 处理热门作品
+  works.forEach((work: any) => {
+    const score = (work.likes * 5) + (work.views * 0.5) + (work.shares * 10) + ((work.comments?.length || 0) * 8);
     trendingItems.push({
-      id: post.id,
+      id: work.id,
       type: 'post',
-      title: post.title,
-      thumbnail: post.thumbnail,
+      title: work.title,
+      thumbnail: work.thumbnail,
       score,
       reason: '热门内容',
-      metadata: post
+      metadata: work
     });
   });
   
@@ -922,17 +1126,17 @@ export function getSimilarContent(itemId: string, itemType: 'post' | 'challenge'
   // 这里实现一个简单的相似内容推荐算法
   // 在实际应用中，这应该基于内容相似度计算
   
+  // 获取数据源
+  const { posts: allPosts, challenges: allChallenges, templates: allTemplates } = getRecommendationData();
+  
   // 1. 获取目标项目
   let targetItem: any;
   if (itemType === 'post') {
-    const posts = JSON.parse(localStorage.getItem('jmzf_posts') || '[]');
-    targetItem = posts.find((p: any) => p.id === itemId);
+    targetItem = allPosts.find((p: any) => p.id === itemId);
   } else if (itemType === 'challenge') {
-    const challenges = JSON.parse(localStorage.getItem('jmzf_challenges') || '[]');
-    targetItem = challenges.find((c: any) => c.id === itemId);
+    targetItem = allChallenges.find((c: any) => c.id === itemId);
   } else {
-    const templates = JSON.parse(localStorage.getItem('jmzf_templates') || '[]');
-    targetItem = templates.find((t: any) => t.id === itemId);
+    targetItem = allTemplates.find((t: any) => t.id === itemId);
   }
   
   if (!targetItem) return [];
@@ -940,11 +1144,11 @@ export function getSimilarContent(itemId: string, itemType: 'post' | 'challenge'
   // 2. 获取所有可能的相似项目
   let allItems: any[] = [];
   if (itemType === 'post') {
-    allItems = JSON.parse(localStorage.getItem('jmzf_posts') || '[]').filter((p: any) => p.id !== itemId);
+    allItems = allWorks.filter((p: any) => p.id !== itemId);
   } else if (itemType === 'challenge') {
-    allItems = JSON.parse(localStorage.getItem('jmzf_challenges') || '[]').filter((c: any) => c.id !== itemId);
+    allItems = allChallenges.filter((c: any) => c.id !== itemId);
   } else {
-    allItems = JSON.parse(localStorage.getItem('jmzf_templates') || '[]').filter((t: any) => t.id !== itemId);
+    allItems = allTemplates.filter((t: any) => t.id !== itemId);
   }
   
   // 3. 计算相似度分数

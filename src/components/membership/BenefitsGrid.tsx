@@ -13,139 +13,206 @@ import {
   Clock,
   Download,
   Cloud,
-  Users,
-  Crown,
-  Star,
   CheckCircle2
 } from 'lucide-react';
 import { User } from '@/contexts/authContext';
 
+// 图标映射
+const iconMap: Record<string, React.ElementType> = {
+  Wand2,
+  Image,
+  Video,
+  Music,
+  FileText,
+  Palette,
+  Layers,
+  Zap,
+  Shield,
+  Clock,
+  Download,
+  Cloud
+};
+
 interface BenefitItem {
   id: string;
-  icon: React.ElementType;
-  title: string;
+  icon: string;
+  name: string;
+  value: boolean | string;
+}
+
+interface MembershipLevel {
+  name: string;
   description: string;
-  free: boolean | string;
-  premium: boolean | string;
-  vip: boolean | string;
+  features: BenefitItem[];
 }
 
 interface BenefitsGridProps {
   isDark: boolean;
   user: User | null;
+  benefits?: {
+    levels: {
+      free: MembershipLevel;
+      premium: MembershipLevel;
+      vip: MembershipLevel;
+    };
+  } | null;
 }
 
-const BenefitsGrid: React.FC<BenefitsGridProps> = ({ isDark, user }) => {
-  const benefits: BenefitItem[] = [
-    {
-      id: 'ai-generation',
-      icon: Wand2,
-      title: 'AI生成次数',
-      description: '每月可用的AI创作次数',
-      free: '10次/天',
-      premium: '无限',
-      vip: '无限'
-    },
-    {
-      id: 'ai-model',
-      icon: Zap,
-      title: 'AI模型访问',
-      description: '可用的AI模型等级',
-      free: '基础模型',
-      premium: '高级模型',
-      vip: '专属模型'
-    },
-    {
-      id: 'image-generation',
-      icon: Image,
-      title: '图像生成',
-      description: 'AI图像创作功能',
-      free: true,
-      premium: true,
-      vip: true
-    },
-    {
-      id: 'video-generation',
-      icon: Video,
-      title: '视频生成',
-      description: 'AI视频创作功能',
-      free: false,
-      premium: true,
-      vip: true
-    },
-    {
-      id: 'audio-generation',
-      icon: Music,
-      title: '音频生成',
-      description: 'AI音频创作功能',
-      free: false,
-      premium: true,
-      vip: true
-    },
-    {
-      id: 'text-generation',
-      icon: FileText,
-      title: '文案生成',
-      description: 'AI文案创作功能',
-      free: true,
-      premium: true,
-      vip: true
-    },
-    {
-      id: 'templates',
-      icon: Palette,
-      title: '模板库',
-      description: '可用模板数量',
-      free: '基础模板',
-      premium: '专属模板库',
-      vip: '全部模板'
-    },
-    {
-      id: 'layers',
-      icon: Layers,
-      title: '图层编辑',
-      description: '高级图层编辑功能',
-      free: '基础功能',
-      premium: '完整功能',
-      vip: '完整功能'
-    },
-    {
-      id: 'export',
-      icon: Download,
-      title: '导出功能',
-      description: '作品导出选项',
-      free: '带水印',
-      premium: '高清无水印',
-      vip: '超高清无水印'
-    },
-    {
-      id: 'storage',
-      icon: Cloud,
-      title: '云存储空间',
-      description: '作品存储容量',
-      free: '1GB',
-      premium: '50GB',
-      vip: '无限'
-    },
-    {
-      id: 'priority',
-      icon: Clock,
-      title: '优先处理',
-      description: '任务队列优先级',
-      free: false,
-      premium: true,
-      vip: '最高优先级'
-    },
-    {
-      id: 'commercial',
-      icon: Shield,
-      title: '商业授权',
-      description: '作品商业使用授权',
-      free: false,
-      premium: false,
-      vip: true
+const BenefitsGrid: React.FC<BenefitsGridProps> = ({ isDark, user, benefits }) => {
+  // 使用 API 数据或默认数据
+  const getBenefitsData = () => {
+    if (benefits?.levels) {
+      // 转换 API 数据格式
+      const allFeatures = benefits.levels.free.features.map(feature => {
+        const freeValue = benefits.levels.free.features.find(f => f.id === feature.id)?.value;
+        const premiumValue = benefits.levels.premium.features.find(f => f.id === feature.id)?.value;
+        const vipValue = benefits.levels.vip.features.find(f => f.id === feature.id)?.value;
+        
+        return {
+          id: feature.id,
+          icon: iconMap[feature.icon] || Zap,
+          title: feature.name,
+          description: getFeatureDescription(feature.id),
+          free: freeValue ?? false,
+          premium: premiumValue ?? false,
+          vip: vipValue ?? false
+        };
+      });
+      return allFeatures;
     }
-  ];
+    
+    // 默认数据
+    return [
+      {
+        id: 'ai-generation',
+        icon: Wand2,
+        title: 'AI生成次数',
+        description: '每月可用的AI创作次数',
+        free: '10次/天',
+        premium: '无限',
+        vip: '无限'
+      },
+      {
+        id: 'ai-model',
+        icon: Zap,
+        title: 'AI模型访问',
+        description: '可用的AI模型等级',
+        free: '基础模型',
+        premium: '高级模型',
+        vip: '专属模型'
+      },
+      {
+        id: 'image-generation',
+        icon: Image,
+        title: '图像生成',
+        description: 'AI图像创作功能',
+        free: true,
+        premium: true,
+        vip: true
+      },
+      {
+        id: 'video-generation',
+        icon: Video,
+        title: '视频生成',
+        description: 'AI视频创作功能',
+        free: false,
+        premium: true,
+        vip: true
+      },
+      {
+        id: 'audio-generation',
+        icon: Music,
+        title: '音频生成',
+        description: 'AI音频创作功能',
+        free: false,
+        premium: true,
+        vip: true
+      },
+      {
+        id: 'text-generation',
+        icon: FileText,
+        title: '文案生成',
+        description: 'AI文案创作功能',
+        free: true,
+        premium: true,
+        vip: true
+      },
+      {
+        id: 'templates',
+        icon: Palette,
+        title: '模板库',
+        description: '可用模板数量',
+        free: '基础模板',
+        premium: '专属模板库',
+        vip: '全部模板'
+      },
+      {
+        id: 'layers',
+        icon: Layers,
+        title: '图层编辑',
+        description: '高级图层编辑功能',
+        free: '基础功能',
+        premium: '完整功能',
+        vip: '完整功能'
+      },
+      {
+        id: 'export',
+        icon: Download,
+        title: '导出功能',
+        description: '作品导出选项',
+        free: '带水印',
+        premium: '高清无水印',
+        vip: '超高清无水印'
+      },
+      {
+        id: 'storage',
+        icon: Cloud,
+        title: '云存储空间',
+        description: '作品存储容量',
+        free: '1GB',
+        premium: '50GB',
+        vip: '无限'
+      },
+      {
+        id: 'priority',
+        icon: Clock,
+        title: '优先处理',
+        description: '任务队列优先级',
+        free: false,
+        premium: true,
+        vip: '最高优先级'
+      },
+      {
+        id: 'commercial',
+        icon: Shield,
+        title: '商业授权',
+        description: '作品商业使用授权',
+        free: false,
+        premium: false,
+        vip: true
+      }
+    ];
+  };
+
+  const getFeatureDescription = (id: string): string => {
+    const descriptions: Record<string, string> = {
+      'ai_generation': '每月可用的AI创作次数',
+      'ai_model': '可用的AI模型等级',
+      'image_generation': 'AI图像创作功能',
+      'video_generation': 'AI视频创作功能',
+      'audio_generation': 'AI音频创作功能',
+      'text_generation': 'AI文案创作功能',
+      'templates': '可用模板数量',
+      'layers': '高级图层编辑功能',
+      'export': '作品导出选项',
+      'storage': '作品存储容量',
+      'priority': '任务队列优先级',
+      'commercial': '作品商业使用授权'
+    };
+    return descriptions[id] || '';
+  };
+
+  const benefitsList = getBenefitsData();
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -168,7 +235,7 @@ const BenefitsGrid: React.FC<BenefitsGridProps> = ({ isDark, user }) => {
     return <span className={`text-xs font-medium ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>{value}</span>;
   };
 
-  const getCurrentLevelValue = (benefit: BenefitItem) => {
+  const getCurrentLevelValue = (benefit: typeof benefitsList[0]) => {
     switch (user?.membershipLevel) {
       case 'vip':
         return benefit.vip;
@@ -207,7 +274,7 @@ const BenefitsGrid: React.FC<BenefitsGridProps> = ({ isDark, user }) => {
         animate="visible"
         className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
       >
-        {benefits.map((benefit) => {
+        {benefitsList.map((benefit) => {
           const Icon = benefit.icon;
           const currentValue = getCurrentLevelValue(benefit);
           const hasAccess = currentValue !== false;

@@ -249,39 +249,130 @@ const InspirationInput = memo(function InspirationInput({
     inputRef.current?.focus();
   };
 
+  // 检查浏览器是否支持语音识别
+  const isSpeechRecognitionSupported = useCallback(() => {
+    return !!(window as any).webkitSpeechRecognition || !!(window as any).SpeechRecognition;
+  }, []);
+
+  // 检查是否在安全上下文中（HTTPS 或 localhost）
+  const isSecureContext = useCallback(() => {
+    return window.isSecureContext || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  }, []);
+
   // 开始语音输入
-  const startVoiceInput = () => {
-    const SpeechRecognitionAPI = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
-    if (SpeechRecognitionAPI) {
+  const startVoiceInput = useCallback(async () => {
+    // 检查浏览器支持
+    if (!isSpeechRecognitionSupported()) {
+      toast.error('您的浏览器不支持语音识别，请使用 Chrome 或 Edge 浏览器');
+      return;
+    }
+
+    // 检查安全上下文
+    if (!isSecureContext()) {
+      toast.error('语音输入需要在 HTTPS 环境下使用');
+      return;
+    }
+
+    // 检查麦克风权限
+    try {
+      const permissionStatus = await navigator.permissions.query({ name: 'microphone' as PermissionName });
+      if (permissionStatus.state === 'denied') {
+        toast.error('麦克风权限被拒绝，请在浏览器设置中允许使用麦克风');
+        return;
+      }
+    } catch (e) {
+      // 某些浏览器不支持 permissions API，继续尝试
+      console.log('Permissions API not supported, continuing...');
+    }
+
+    try {
+      // 请求麦克风权限
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach(track => track.stop()); // 立即释放，语音识别会重新请求
+
+      const SpeechRecognitionAPI = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
       const recognition = new SpeechRecognitionAPI();
+      
       recognition.lang = 'zh-CN';
       recognition.continuous = false;
-      recognition.interimResults = false;
+      recognition.interimResults = true; // 启用临时结果，让用户看到识别过程
+      recognition.maxAlternatives = 1;
 
       setVoiceInputActive(true);
-      toast.info('正在聆听...');
+      toast.info('正在聆听，请说话...');
+
+      let finalTranscript = '';
 
       recognition.onresult = (event: SpeechRecognitionEvent) => {
-        const transcript = event.results[0][0].transcript;
-        setPrompt(prev => prev + transcript);
-        toast.success('语音输入成功');
+        let interimTranscript = '';
+        
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            finalTranscript += transcript;
+          } else {
+            interimTranscript += transcript;
+          }
+        }
+
+        // 显示临时结果
+        if (interimTranscript) {
+          setPrompt(prev => prev + interimTranscript);
+        }
+        
+        // 最终结果
+        if (finalTranscript) {
+          setPrompt(prev => {
+            // 移除临时结果，添加最终结果
+            const withoutInterim = prev.replace(interimTranscript, '');
+            return withoutInterim + finalTranscript;
+          });
+        }
       };
 
       recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
         console.error('语音识别错误:', event.error);
-        toast.error('语音输入失败，请重试');
+        
+        let errorMessage = '语音输入失败';
+        switch (event.error) {
+          case 'no-speech':
+            errorMessage = '没有检测到语音，请重试';
+            break;
+          case 'audio-capture':
+            errorMessage = '无法访问麦克风';
+            break;
+          case 'not-allowed':
+            errorMessage = '麦克风权限被拒绝';
+            break;
+          case 'network':
+            errorMessage = '网络错误，请检查网络连接';
+            break;
+          case 'aborted':
+            errorMessage = '语音识别已取消';
+            break;
+          default:
+            errorMessage = `语音输入失败: ${event.error}`;
+        }
+        
+        toast.error(errorMessage);
+        setVoiceInputActive(false);
       };
 
       recognition.onend = () => {
         setVoiceInputActive(false);
+        if (finalTranscript) {
+          toast.success('语音输入完成');
+        }
       };
 
       recognition.start();
       voiceRecognitionRef.current = recognition;
-    } else {
-      toast.error('您的浏览器不支持语音识别');
+    } catch (error) {
+      console.error('启动语音输入失败:', error);
+      toast.error('无法启动语音输入，请检查麦克风权限');
+      setVoiceInputActive(false);
     }
-  };
+  }, [isSpeechRecognitionSupported, isSecureContext]);
 
   // 停止语音输入
   const stopVoiceInput = () => {
@@ -480,14 +571,28 @@ const InspirationInput = memo(function InspirationInput({
             
             {/* 语音输入按钮 */}
             <motion.button
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
+              whileHover={{ scale: isSpeechRecognitionSupported() && isSecureContext() ? 1.1 : 1 }}
+              whileTap={{ scale: isSpeechRecognitionSupported() && isSecureContext() ? 0.9 : 1 }}
               onClick={voiceInputActive ? stopVoiceInput : startVoiceInput}
-              className={`p-2 rounded-full transition-all ${voiceInputActive ? 'text-red-400 bg-red-400/20' : 'text-white/60 hover:bg-white/10'}`}
-              aria-label="开始语音输入"
+              disabled={!isSpeechRecognitionSupported() || !isSecureContext()}
+              className={`p-2 rounded-full transition-all ${
+                voiceInputActive 
+                  ? 'text-red-400 bg-red-400/20' 
+                  : isSpeechRecognitionSupported() && isSecureContext()
+                    ? 'text-white/60 hover:bg-white/10'
+                    : 'text-white/20 cursor-not-allowed'
+              }`}
+              aria-label={isSpeechRecognitionSupported() && isSecureContext() ? '开始语音输入' : '语音输入不可用'}
               tabIndex={0}
+              title={
+                !isSpeechRecognitionSupported() 
+                  ? '您的浏览器不支持语音识别，请使用 Chrome 或 Edge' 
+                  : !isSecureContext() 
+                    ? '语音输入需要在 HTTPS 环境下使用'
+                    : '开始语音输入'
+              }
             >
-              <i className="fas fa-microphone text-xl"></i>
+              <i className={`fas ${voiceInputActive ? 'fa-stop' : 'fa-microphone'} text-xl`}></i>
             </motion.button>
             
             {/* 清除按钮 */}

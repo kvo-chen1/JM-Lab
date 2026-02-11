@@ -27,11 +27,22 @@ interface DraftData {
   isFavorite?: boolean;
 }
 
+interface BrandWizardDraftData {
+  id: string;
+  title: string;
+  brandName: string;
+  currentStep: number;
+  updatedAt: number;
+  thumbnail?: string;
+  isFavorite?: boolean;
+}
+
 interface DraftsMainContentProps {
   isDark: boolean;
   activeDraft: DraftData | null;
   savedDrafts: DraftData[];
   aiWriterDrafts: DraftData[];
+  brandWizardDrafts?: BrandWizardDraftData[];
   searchTerm: string;
   onSearchChange: (term: string) => void;
   sortBy: 'newest' | 'oldest' | 'name';
@@ -44,7 +55,9 @@ interface DraftsMainContentProps {
   onLoadDraft: (draft: DraftData) => void;
   onDeleteDraft: (e: React.MouseEvent, id: string) => void;
   onDeleteAiWriterDraft: (e: React.MouseEvent, id: string) => void;
+  onDeleteBrandWizardDraft?: (e: React.MouseEvent, id: string) => void;
   onExportDraft: (e: React.MouseEvent, draft: DraftData) => void;
+  onLoadBrandWizardDraft?: (draft: BrandWizardDraftData) => void;
   onCreateNew: () => void;
 }
 
@@ -53,6 +66,7 @@ export default function DraftsMainContent({
   activeDraft,
   savedDrafts,
   aiWriterDrafts,
+  brandWizardDrafts = [],
   searchTerm,
   onSearchChange,
   sortBy,
@@ -65,7 +79,9 @@ export default function DraftsMainContent({
   onLoadDraft,
   onDeleteDraft,
   onDeleteAiWriterDraft,
+  onDeleteBrandWizardDraft,
   onExportDraft,
+  onLoadBrandWizardDraft,
   onCreateNew
 }: DraftsMainContentProps) {
   const [showSortDropdown, setShowSortDropdown] = useState(false);
@@ -73,17 +89,23 @@ export default function DraftsMainContent({
   // 合并草稿并根据分类筛选
   const getFilteredDrafts = () => {
     let allDrafts: DraftData[] = [];
+    let allBrandWizardDrafts: BrandWizardDraftData[] = [];
 
     // 根据分类筛选
     switch (activeCategory) {
       case 'all':
         allDrafts = [...savedDrafts, ...aiWriterDrafts];
+        allBrandWizardDrafts = brandWizardDrafts;
         break;
       case 'favorites':
         allDrafts = [...savedDrafts.filter(d => d.isFavorite), ...aiWriterDrafts.filter(d => d.isFavorite)];
+        allBrandWizardDrafts = brandWizardDrafts.filter(d => d.isFavorite);
         break;
       case 'aiWriter':
         allDrafts = aiWriterDrafts;
+        break;
+      case 'brandWizard':
+        allBrandWizardDrafts = brandWizardDrafts;
         break;
       default:
         allDrafts = savedDrafts.filter(d => d.activeTool === activeCategory);
@@ -98,6 +120,10 @@ export default function DraftsMainContent({
         (d.prompt && d.prompt.toLowerCase().includes(term)) ||
         (d.content && d.content.toLowerCase().includes(term))
       );
+      allBrandWizardDrafts = allBrandWizardDrafts.filter(d =>
+        (d.title && d.title.toLowerCase().includes(term)) ||
+        (d.brandName && d.brandName.toLowerCase().includes(term))
+      );
     }
 
     // 排序
@@ -107,11 +133,19 @@ export default function DraftsMainContent({
       if (sortBy === 'name') return (a.name || a.title || '').localeCompare(b.name || b.title || '');
       return 0;
     });
+    
+    allBrandWizardDrafts.sort((a, b) => {
+      if (sortBy === 'newest') return (b.updatedAt || 0) - (a.updatedAt || 0);
+      if (sortBy === 'oldest') return (a.updatedAt || 0) - (b.updatedAt || 0);
+      if (sortBy === 'name') return (a.title || '').localeCompare(b.title || '');
+      return 0;
+    });
 
-    return allDrafts;
+    return { drafts: allDrafts, brandWizardDrafts: allBrandWizardDrafts };
   };
 
-  const filteredDrafts = getFilteredDrafts();
+  const { drafts: filteredDrafts, brandWizardDrafts: filteredBrandWizardDrafts } = getFilteredDrafts();
+  const totalCount = filteredDrafts.length + filteredBrandWizardDrafts.length;
 
   const sortOptions = [
     { value: 'newest', label: '最新修改' },
@@ -259,12 +293,12 @@ export default function DraftsMainContent({
               {searchTerm ? '搜索结果' : '我的草稿'}
             </h2>
             <span className="text-sm text-gray-500 dark:text-gray-400">
-              ({filteredDrafts.length})
+              ({totalCount})
             </span>
           </div>
         </div>
 
-        {filteredDrafts.length === 0 ? (
+        {totalCount === 0 ? (
           <EmptyState
             isDark={isDark}
             type={searchTerm ? 'search' : activeCategory === 'all' ? 'all' : 'category'}
@@ -278,7 +312,8 @@ export default function DraftsMainContent({
               : "flex flex-col gap-3"
           }>
             <AnimatePresence mode="popLayout">
-              {filteredDrafts.map((draft, index) => (
+              {/* Regular Drafts */}
+              {filteredDrafts.map((draft) => (
                 <DraftCard
                   key={draft.id}
                   id={draft.id}
@@ -296,6 +331,27 @@ export default function DraftsMainContent({
                   onClick={() => onLoadDraft(draft)}
                   onDelete={(e) => draft.content ? onDeleteAiWriterDraft(e, draft.id) : onDeleteDraft(e, draft.id)}
                   onExport={draft.content ? undefined : (e) => onExportDraft(e, draft)}
+                />
+              ))}
+              
+              {/* Brand Wizard Drafts */}
+              {filteredBrandWizardDrafts.map((draft) => (
+                <DraftCard
+                  key={draft.id}
+                  id={draft.id}
+                  name={draft.title}
+                  title={draft.brandName}
+                  prompt={`步骤 ${draft.currentStep}/4`}
+                  content={''}
+                  thumbnail={draft.thumbnail}
+                  toolType="brandWizard"
+                  templateName="品牌向导"
+                  updatedAt={draft.updatedAt}
+                  isFavorite={draft.isFavorite}
+                  isDark={isDark}
+                  viewMode={viewMode}
+                  onClick={() => onLoadBrandWizardDraft?.(draft)}
+                  onDelete={(e) => onDeleteBrandWizardDraft?.(e, draft.id)}
                 />
               ))}
             </AnimatePresence>

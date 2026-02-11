@@ -1,13 +1,17 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useCreateStore } from '../hooks/useCreateStore';
 import { toolOptions } from '../data';
 import { useNavigate } from 'react-router-dom';
 
-export default function ToolSidebar() {
+interface ToolSidebarProps {
+  isCollapsed: boolean;
+  setIsCollapsed: (collapsed: boolean) => void;
+}
+
+export default function ToolSidebar({ isCollapsed, setIsCollapsed }: ToolSidebarProps) {
   const { isDark } = useTheme();
-  const [isCollapsed, setIsCollapsed] = useState(false);
   const activeTool = useCreateStore((state) => state.activeTool);
   const setActiveTool = useCreateStore((state) => state.setActiveTool);
   const showPropertiesPanel = useCreateStore((state) => state.showPropertiesPanel);
@@ -25,28 +29,25 @@ export default function ToolSidebar() {
   return (
     <>
       {/* 电脑端：左侧垂直工具栏 (大屏幕 - lg及以上) */}
-        <div id="guide-step-create-sidebar" className={`hidden lg:block ${isCollapsed ? 'w-16' : 'w-24'} h-full flex flex-col items-center py-6 border-r backdrop-blur-xl transition-all duration-300 ${isDark ? 'bg-gray-900/95 border-gray-800' : 'bg-white/95 border-gray-200'} z-20`}>
-          {/* Brand/Logo with collapse functionality */}
-          <div className="mb-6 flex items-center justify-center w-full px-3">
-            <motion.div 
-              className={`w-full h-[68px] flex items-center justify-center py-4 rounded-2xl cursor-pointer ${isDark ? 'bg-red-900/20 text-red-500' : 'bg-red-50 text-red-600'}`}
-              onClick={() => setIsCollapsed(!isCollapsed)}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <i className={`fas fa-layer-group text-xl transition-transform duration-300 ${isCollapsed ? 'rotate-180' : ''}`}></i>
-            </motion.div>
-          </div>
-
+        <motion.div
+          id="guide-step-create-sidebar"
+          initial={false}
+          animate={{
+            width: isCollapsed ? 0 : 96,
+            opacity: isCollapsed ? 0 : 1
+          }}
+          transition={{ duration: 0.3, ease: 'easeInOut' }}
+          className={`hidden lg:flex h-full flex-col items-center pt-4 pb-6 border-r backdrop-blur-xl overflow-hidden ${isDark ? 'bg-gray-900/95 border-gray-800' : 'bg-white/95 border-gray-200'} z-20`}
+        >
           {/* 工具列表 - 允许垂直滚动 */}
           <AnimatePresence>
             {!isCollapsed && (
-              <motion.div 
-                className="flex flex-col space-y-3 w-full px-3 overflow-y-auto custom-scrollbar flex-1"
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                transition={{ duration: 0.3 }}
+              <motion.div
+                className="flex flex-col space-y-3 w-full px-3 overflow-y-auto custom-scrollbar flex-1 min-w-[96px]"
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                transition={{ duration: 0.2 }}
               >
                 {toolOptions.map((tool) => {
                   const isActive = activeTool === tool.id;
@@ -108,7 +109,7 @@ export default function ToolSidebar() {
               </motion.div>
             )}
           </AnimatePresence>
-        </div>
+        </motion.div>
 
       {/* 平板端：水平工具栏 (中等屏幕 - md至lg) */}
       <div className={`hidden md:flex lg:hidden fixed bottom-0 left-0 right-0 h-24 flex-row items-center justify-around py-3 border-t backdrop-blur-xl transition-all duration-300 ${isDark ? 'bg-gray-900/95 border-gray-800' : 'bg-white/95 border-gray-200'} z-50`}>

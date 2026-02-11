@@ -175,6 +175,40 @@ class ApiService {
       return null;
     }
   }
+
+  /**
+   * 收藏帖子
+   */
+  async favoriteThread(threadId: string): Promise<{ success: boolean }> {
+    try {
+      const result = await apiClient.post<{ success: boolean }, void>(`/api/threads/${threadId}/favorite`);
+      if (!result.ok) {
+        console.error('[ApiService.favoriteThread] Failed:', result.status);
+        throw new Error(result.error || '收藏失败');
+      }
+      return result.data || { success: true };
+    } catch (error) {
+      console.error('[ApiService.favoriteThread] Error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 取消收藏帖子
+   */
+  async unfavoriteThread(threadId: string): Promise<{ success: boolean }> {
+    try {
+      const result = await apiClient.post<{ success: boolean }, void>(`/api/threads/${threadId}/unfavorite`);
+      if (!result.ok) {
+        console.error('[ApiService.unfavoriteThread] Failed:', result.status);
+        throw new Error(result.error || '取消收藏失败');
+      }
+      return result.data || { success: true };
+    } catch (error) {
+      console.error('[ApiService.unfavoriteThread] Error:', error);
+      throw error;
+    }
+  }
 }
 
 // 作品服务

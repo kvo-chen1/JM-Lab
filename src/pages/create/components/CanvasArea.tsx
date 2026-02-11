@@ -7,7 +7,12 @@ import { traditionalPatterns } from '../data';
 import { toast } from 'sonner';
 import HistoryPanel from './HistoryPanel';
 
-export default function CanvasArea() {
+interface CanvasAreaProps {
+  isSidebarCollapsed: boolean;
+  setIsSidebarCollapsed: (collapsed: boolean) => void;
+}
+
+export default function CanvasArea({ isSidebarCollapsed, setIsSidebarCollapsed }: CanvasAreaProps) {
   const { isDark } = useTheme();
   const [searchParams] = useSearchParams();
   const eventId = searchParams.get('eventId');
@@ -195,7 +200,16 @@ export default function CanvasArea() {
       {/* Canvas Toolbar / Header - Glassmorphism */}
       <div className={`h-16 px-6 flex items-center justify-between border-b backdrop-blur-md z-10 ${isDark ? 'bg-gray-900/50 border-gray-800' : 'bg-white/50 border-gray-200'}`}>
         <div className="font-medium text-sm flex items-center gap-2">
-          <span className={`px-2 py-1 rounded text-xs font-bold tracking-wider ${isDark ? 'bg-gray-800 text-gray-400' : 'bg-gray-200 text-gray-600'}`}>CANVAS</span>
+          <motion.button
+            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold tracking-wider flex items-center gap-2 transition-all ${isDark ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40' : 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40'} hover:scale-105 active:scale-95`}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            title={isSidebarCollapsed ? '展开工具栏' : '收起工具栏'}
+          >
+            <i className={`fas fa-layer-group transition-transform duration-300 ${isSidebarCollapsed ? 'rotate-180' : ''}`}></i>
+            <span>CANVAS</span>
+          </motion.button>
           <i className="fas fa-chevron-right text-[10px] opacity-30"></i>
           <span className={isDark ? 'text-gray-200' : 'text-gray-900'}>
             {activeTool === 'sketch' ? 'AI创作工坊' : activeTool === 'pattern' ? '纹样嵌入' : '创作预览'}

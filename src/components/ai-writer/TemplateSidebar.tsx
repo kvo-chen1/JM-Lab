@@ -112,9 +112,9 @@ export const TemplateSidebar: React.FC<TemplateSidebarProps> = ({
   return (
     <div className="h-full flex flex-col">
       {/* 顶部标题区 */}
-      <div className={`p-5 border-b ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
+      <div className={`px-6 py-5 border-b ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
         <div className="flex items-center justify-between">
-          <div className="-ml-2">
+          <div>
             <h2 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
               模板分类
             </h2>

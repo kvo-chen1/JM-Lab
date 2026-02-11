@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import ToolSidebar from './components/ToolSidebar';
 import PropertiesPanel from './components/PropertiesPanel';
 import CanvasArea from './components/CanvasArea';
@@ -16,6 +16,7 @@ export default function Studio() {
   const { isDark } = useTheme();
   const [searchParams] = useSearchParams();
   const location = useLocation();
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   
   // 启用自动保存
   useAutoSave();
@@ -104,13 +105,13 @@ export default function Studio() {
   return (
     <div className={`flex h-full ${isDark ? 'bg-gray-950' : 'bg-gray-50'}`}>
       {/* 左侧工具栏 - 内部处理响应式显示 */}
-      <ToolSidebar />
+      <ToolSidebar isCollapsed={isSidebarCollapsed} setIsCollapsed={setIsSidebarCollapsed} />
       
       {/* Main Canvas Area - 主画布区域 */}
       <div id="guide-step-create-canvas" className="flex-1 relative flex flex-col min-w-0 overflow-hidden
         /* 手机端和平板端：为底部工具栏留出空间 */
         md:mb-0 mb-24">
-        <CanvasArea />
+        <CanvasArea isSidebarCollapsed={isSidebarCollapsed} setIsSidebarCollapsed={setIsSidebarCollapsed} />
       </div>
 
       {/* 右侧属性面板 - 内部处理响应式显示 */}

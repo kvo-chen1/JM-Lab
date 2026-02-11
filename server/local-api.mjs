@@ -42,6 +42,8 @@ import { userDB, workDB, favoriteDB, achievementDB, friendDB, messageDB, communi
 import { sendLoginEmailCode } from './emailService.mjs'
 import { randomUUID } from 'crypto'
 import { supabaseServer } from './supabase-server.mjs'
+import membershipRoutes from './routes/membership.mjs'
+import searchRoutes from './routes/search.mjs'
 
 // 内存中存储验证码 (email -> { code, expiresAt })
 const verificationCodes = new Map();
@@ -691,6 +693,20 @@ async function route(req, res, u, path) {
   }
 
   console.log('[Route] Processing:', req.method, path)
+
+  // 会员中心路由
+  if (path.startsWith('/api/membership')) {
+    console.log('[Route] Delegating to membership routes:', path)
+    await membershipRoutes(req, res)
+    return
+  }
+
+  // 搜索功能路由
+  if (path.startsWith('/api/search')) {
+    console.log('[Route] Delegating to search routes:', path)
+    await searchRoutes(req, res)
+    return
+  }
 
   // 获取所有作品列表 (首页)
   if (req.method === 'GET' && path === '/api/works') {
@@ -1519,6 +1535,81 @@ async function route(req, res, u, path) {
     return
   }
 
+  // 审核活动（管理员用）
+  if (req.method === 'POST' && path.match(/^\/api\/events\/[^/]+\/review$/)) {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+
+    // 检查是否为管理员
+    try {
+      const user = await userDB.findById(decoded.userId)
+      if (!user || !user.is_admin) {
+        sendJson(res, 403, { error: 'FORBIDDEN', message: '只有管理员可以审核活动' })
+        return
+      }
+    } catch (e) {
+      console.error('[API] Check admin status failed:', e)
+      sendJson(res, 500, { code: 1, message: '验证管理员权限失败' })
+      return
+    }
+
+    const eventId = path.match(/^\/api\/events\/([^/]+)\/review$/)[1]
+
+    try {
+      const data = await readBody(req)
+      const { status, reason } = data
+
+      if (!status || !['approved', 'rejected'].includes(status)) {
+        sendJson(res, 400, { code: 1, message: '无效的审核状态' })
+        return
+      }
+
+      // 更新活动状态
+      const updateData = {
+        status: status === 'approved' ? 'published' : 'rejected',
+        reviewed_at: Math.floor(Date.now() / 1000),
+        reviewed_by: decoded.userId,
+        review_reason: reason || null
+      }
+
+      if (status === 'approved') {
+        updateData.published_at = Math.floor(Date.now() / 1000)
+      }
+
+      const event = await eventDB.update(eventId, updateData)
+
+      if (!event) {
+        sendJson(res, 404, { code: 1, message: '活动不存在' })
+        return
+      }
+
+      // 清除缓存
+      invalidateCache('events_list')
+
+      sendJson(res, 200, {
+        code: 0,
+        data: {
+          success: true,
+          message: status === 'approved' ? '活动已通过审核' : '活动已拒绝',
+          event: {
+            id: event.id,
+            title: event.title,
+            status: updateData.status,
+            reviewedAt: updateData.reviewed_at,
+            reviewReason: updateData.review_reason
+          }
+        }
+      })
+    } catch (e) {
+      console.error('[API] Review event failed:', e)
+      sendJson(res, 500, { code: 1, message: '审核活动失败: ' + e.message })
+    }
+    return
+  }
+
   // 获取用户分析数据
   if (req.method === 'GET' && path === '/api/user/analytics') {
     const decoded = verifyRequestToken(req)
@@ -1729,11 +1820,14 @@ async function route(req, res, u, path) {
   // 验证码登录 - 支持 /api/auth/login-with-email-code 路径
   if (req.method === 'POST' && (path === '/api/auth/login-with-email-code' || path === '/api/auth/login')) {
     try {
+      console.log('[API] 收到登录请求');
       const body = await readBody(req)
+      console.log('[API] 请求体:', { email: body.email, code: body.code ? '***' : 'empty' });
       const email = body.email
       const code = body.code
       
       if (!email || !code) {
+        console.log('[API] 邮箱或验证码为空');
         sendJson(res, 400, { code: 1, message: '邮箱和验证码不能为空' })
         return
       }
@@ -1782,20 +1876,43 @@ async function route(req, res, u, path) {
       
       // 验证验证码是否有效
       if (!isCodeValid) {
+        console.log('[API] 验证码验证失败');
         sendJson(res, 401, { code: 1, message: '验证码错误或已过期，请重新获取验证码' });
         return;
       }
       
+      console.log('[API] 验证码验证成功');
+      
       // 检查用户是否存在，如果不存在则创建
       console.log(`[API] 开始登录流程，邮箱: ${email}`);
-      let user = await userDB.findByEmail(email);
+      let user = null;
+      try {
+        user = await userDB.findByEmail(email);
+        console.log(`[API] findByEmail 结果:`, user ? '找到用户' : '未找到用户');
+      } catch (findError) {
+        console.error('[API] findByEmail 失败:', findError.message);
+        console.error('[API] 错误堆栈:', findError.stack);
+        throw findError;
+      }
       console.log(`[API] 从 public.users 查询用户:`, user ? `找到用户 ID: ${user.id}` : '未找到用户');
       
       // 检查 Supabase Auth 中是否已有该邮箱的用户
       let supabaseUserId = null;
       try {
         console.log(`[API] 检查 Supabase Auth 中的用户...`);
-        const { data: authData, error: authError } = await supabaseServer.auth.admin.listUsers();
+        // 注意：listUsers API 可能不可用或需要特殊权限，使用 try-catch 包裹
+        let authData = null;
+        let authError = null;
+        
+        try {
+          const result = await supabaseServer.auth.admin.listUsers();
+          authData = result.data;
+          authError = result.error;
+        } catch (listError) {
+          console.warn('[API] listUsers API 调用失败:', listError.message);
+          // listUsers 失败不影响登录流程，继续使用数据库用户
+        }
+        
         if (authError) {
           console.error('[API] 获取 Supabase Auth 用户列表失败:', authError);
         } else if (authData?.users) {
@@ -1812,10 +1929,11 @@ async function route(req, res, u, path) {
         console.warn('[API] 检查 Supabase Auth 用户失败:', supabaseError.message);
       }
       
-      // 如果 Supabase Auth 中没有该用户，创建一个
+      // 如果 Supabase Auth 中没有该用户，尝试创建一个
+      // 注意：如果 createUser 也失败，我们仍然可以使用数据库用户继续登录
       if (!supabaseUserId) {
         try {
-          console.log(`[API] 在 Supabase Auth 中创建用户: ${email}`);
+          console.log(`[API] 尝试在 Supabase Auth 中创建用户: ${email}`);
           const { data: newAuthUser, error: createAuthError } = await supabaseServer.auth.admin.createUser({
             email: email,
             password: randomUUID(), // 随机密码，用户通过验证码登录
@@ -1828,12 +1946,14 @@ async function route(req, res, u, path) {
           
           if (createAuthError) {
             console.error('[API] 在 Supabase Auth 中创建用户失败:', createAuthError);
+            // 创建失败不阻止登录流程
           } else if (newAuthUser?.user) {
             supabaseUserId = newAuthUser.user.id;
             console.log(`[API] 在 Supabase Auth 中创建用户成功，ID: ${supabaseUserId}`);
           }
         } catch (createError) {
-          console.error('[API] 在 Supabase Auth 中创建用户异常:', createError);
+          console.error('[API] 在 Supabase Auth 中创建用户异常:', createError.message);
+          // 异常不阻止登录流程
         }
       }
       
@@ -1937,8 +2057,10 @@ async function route(req, res, u, path) {
         }
       })
     } catch (error) {
-      console.error('[API] 登录失败:', error)
-      sendJson(res, 500, { code: 1, message: '登录失败' })
+      console.error('[API] 登录失败:', error);
+      console.error('[API] 错误详情:', error.message);
+      console.error('[API] 错误堆栈:', error.stack);
+      sendJson(res, 500, { code: 1, message: '登录失败: ' + (error.message || '未知错误') })
     }
     return
   }

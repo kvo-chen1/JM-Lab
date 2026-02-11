@@ -111,6 +111,10 @@ const AIWriter = createLazyComponent(() => import(/* webpackChunkName: "pages-cr
   priority: ROUTE_PRIORITIES.HIGH,
   name: 'ai-writer'
 });
+const AIWriterV2 = createLazyComponent(() => import(/* webpackChunkName: "pages-create" */ "@/pages/create/AIWriterV2"), {
+  priority: ROUTE_PRIORITIES.HIGH,
+  name: 'ai-writer-v2'
+});
 
 // 其他次要页面保持懒加载
 const About = createLazyComponent(() => import(/* webpackChunkName: "pages-other" */ "@/pages/About"), {
@@ -177,6 +181,12 @@ const CulturalKnowledge = createLazyComponent(() => import(/* webpackChunkName: 
 const Tianjin = createLazyComponent(() => import(/* webpackChunkName: "pages-cultural" */ "@/pages/Tianjin"), {
   priority: ROUTE_PRIORITIES.HIGH,
   name: 'tianjin'
+});
+
+// 灵感脉络页面 - 懒加载
+const InspirationMindMapPage = createLazyComponent(() => import(/* webpackChunkName: "pages-cultural" */ "@/pages/InspirationMindMapPage"), {
+  priority: ROUTE_PRIORITIES.HIGH,
+  name: 'inspiration-mindmap'
 });
 
 const CulturalEvents = createLazyComponent(() => import(/* webpackChunkName: "pages-cultural" */ "@/pages/CulturalEvents"), {
@@ -743,7 +753,8 @@ export default function App() {
           <Route path="/create/*" element={<LazyComponent><PrivateRoute><Create /></PrivateRoute></LazyComponent>} />
           <Route path="/create-activity" element={<Navigate to="/create/activity" replace />} />
           <Route path="/creates" element={<Navigate to="/create" replace />} />
-          <Route path="/wizard" element={<Navigate to="/create/wizard" replace />} />
+          <Route path="/wizard" element={<LazyComponent><PrivateRoute><Wizard /></PrivateRoute></LazyComponent>} />
+          <Route path="/ai-writer" element={<LazyComponent><PrivateRoute><AIWriterV2 /></PrivateRoute></LazyComponent>} />
           
           {/* 大型组件和低频访问页面使用懒加载 */}
 
@@ -779,6 +790,7 @@ export default function App() {
           <Route path="/cultural-knowledge" element={<LazyComponent><CulturalKnowledge /></LazyComponent>} />
 
           <Route path="/tianjin" element={<LazyComponent><Tianjin /></LazyComponent>} />
+          <Route path="/inspiration-mindmap" element={<LazyComponent><PrivateRoute><InspirationMindMapPage /></PrivateRoute></LazyComponent>} />
 
           <Route path="/events" element={<LazyComponent><CulturalEvents /></LazyComponent>} />
           <Route path="/events/:id" element={<LazyComponent><EventDetail /></LazyComponent>} />

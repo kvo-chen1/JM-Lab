@@ -16,9 +16,18 @@ const OrderManagement = lazy(() => import('./OrderManagement'));
 const PermissionManagement = lazy(() => import('./PermissionManagement'));
 const FeedbackManagement = lazy(() => import('./FeedbackManagement'));
 
+// 懒加载增强的审核管理模块
+const ContentAudit = lazy(() => import('./ContentAudit'));
+const AuditLog = lazy(() => import('./AuditLog'));
+const UserAudit = lazy(() => import('./UserAudit'));
+const EventAudit = lazy(() => import('./EventAudit'));
+const ProductManagement = lazy(() => import('./ProductManagement'));
+const NotificationManagement = lazy(() => import('./NotificationManagement'));
+const SystemMonitor = lazy(() => import('./SystemMonitor'));
+
 const COLORS = ['#f59e0b', '#34d399', '#f87171'];
 
-type TabType = 'dashboard' | 'audit' | 'analytics' | 'adoption' | 'users' | 'settings' | 'campaigns' | 'creators' | 'brandPartnerships' | 'orders' | 'permissions' | 'feedback';
+type TabType = 'dashboard' | 'audit' | 'analytics' | 'adoption' | 'users' | 'settings' | 'campaigns' | 'creators' | 'brandPartnerships' | 'orders' | 'permissions' | 'feedback' | 'contentAudit' | 'auditLog' | 'userAudit' | 'eventAudit' | 'productManagement' | 'notificationManagement' | 'systemMonitor';
 
 export default function Admin() {
   const { isDark } = useTheme();
@@ -249,6 +258,23 @@ export default function Admin() {
       toast.error('审核失败，请重试');
     }
   };
+
+  const handleAudit = async (id: string | number, action: 'approved' | 'rejected') => {
+    const success = await adminService.auditWork(id.toString(), action === 'approved' ? 'approve' : 'reject');
+    if (success) {
+      toast.success(action === 'approved' ? '已通过审核' : '已拒绝审核');
+      // 刷新待审核列表
+      const pending = await adminService.getPendingWorks();
+      setPendingWorks(pending);
+      // 刷新统计数据
+      const newStats = await adminService.getDashboardStats();
+      setStats(newStats);
+      const newAudit = await adminService.getAuditStats();
+      setAuditStats(newAudit);
+    } else {
+      toast.error('审核失败，请重试');
+    }
+  };
   
   // 密码验证界面
   if (!isPasswordVerified) {
@@ -373,48 +399,58 @@ export default function Admin() {
   return (
     <div className={`min-h-screen flex ${isDark ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'}`}>
       {/* 侧边栏 */}
-      <aside className={`w-64 h-screen ${isDark ? 'bg-gray-800' : 'bg-white'} border-r ${isDark ? 'border-gray-700' : 'border-gray-200'} fixed z-30`}>
-        <div className="p-6">
-          <div className="flex items-center space-x-1 mb-10">
+      <aside className={`w-64 h-screen ${isDark ? 'bg-gray-800' : 'bg-white'} border-r ${isDark ? 'border-gray-700' : 'border-gray-200'} fixed z-30 flex flex-col`}>
+        <div className="p-6 flex-shrink-0">
+          <div className="flex items-center space-x-1 mb-6">
             <span className="text-xl font-bold text-red-600">AI</span>
             <span className="text-xl font-bold">共创</span>
             <span className="ml-2 bg-red-600 text-white text-xs px-2 py-0.5 rounded-full">管理端</span>
-          </div><nav>
-            <ul className="space-y-1">
-               {[
-                  { id: 'dashboard', name: '控制台', icon: 'tachometer-alt' },
-                  { id: 'campaigns', name: '活动管理', icon: 'calendar-alt' },
-                  { id: 'analytics', name: '数据分析', icon: 'chart-bar' },
-                  { id: 'adoption', name: '品牌管理', icon: 'star' },
-                  { id: 'users', name: '用户管理', icon: 'users' },
-                  { id: 'creators', name: '创作者管理', icon: 'trophy' },
-                  { id: 'orders', name: '订单管理', icon: 'shopping-cart' },
-                  { id: 'feedback', name: '反馈管理', icon: 'comments' },
-                  { id: 'permissions', name: '权限管理', icon: 'user-shield' },
-                  { id: 'settings', name: '系统设置', icon: 'cog' },
-                ].map((item) => (
-                <li key={item.id}>
-                  <button
-                    onClick={() => setActiveTab(item.id as TabType)}
-                    className={`w-full flex items-center px-4 py-3 rounded-xl transition-all ${
-                      activeTab === item.id
-                        ? 'bg-red-600 text-white'
-                        : isDark
-                          ? 'hover:bg-gray-700'
-                          : 'hover:bg-gray-100'
-                    }`}
-                  >
-                    <i className={`fas fa-${item.icon} mr-3`}></i>
-                    <span>{item.name}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </nav>
+          </div>
         </div>
         
+        {/* 导航菜单 - 可滚动区域 */}
+        <nav className="flex-1 overflow-y-auto px-4 scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-transparent min-h-0">
+          <ul className="space-y-1">
+             {[
+                { id: 'dashboard', name: '控制台', icon: 'tachometer-alt' },
+                { id: 'campaigns', name: '活动管理', icon: 'calendar-alt' },
+                { id: 'eventAudit', name: '活动审核', icon: 'clipboard-check' },
+                { id: 'contentAudit', name: '内容审核', icon: 'file-alt' },
+                { id: 'analytics', name: '数据分析', icon: 'chart-bar' },
+                { id: 'adoption', name: '品牌管理', icon: 'star' },
+                { id: 'users', name: '用户管理', icon: 'users' },
+                { id: 'userAudit', name: '用户审计', icon: 'user-shield' },
+                { id: 'creators', name: '创作者管理', icon: 'trophy' },
+                { id: 'productManagement', name: '商品管理', icon: 'box' },
+                { id: 'orders', name: '订单管理', icon: 'shopping-cart' },
+                { id: 'feedback', name: '反馈管理', icon: 'comments' },
+                { id: 'permissions', name: '权限管理', icon: 'user-lock' },
+                { id: 'auditLog', name: '审计日志', icon: 'history' },
+                { id: 'notificationManagement', name: '消息通知', icon: 'bell' },
+                { id: 'systemMonitor', name: '系统监控', icon: 'server' },
+                { id: 'settings', name: '系统设置', icon: 'cog' },
+              ].map((item) => (
+              <li key={item.id}>
+                <button
+                  onClick={() => setActiveTab(item.id as TabType)}
+                  className={`w-full flex items-center px-3 py-2 rounded-xl transition-all ${
+                    activeTab === item.id
+                      ? 'bg-red-600 text-white'
+                      : isDark
+                        ? 'hover:bg-gray-700'
+                        : 'hover:bg-gray-100'
+                  }`}
+                >
+                  <i className={`fas fa-${item.icon} mr-2 w-4 text-center text-sm`}></i>
+                  <span className="text-sm">{item.name}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </nav>
+        
         {/* 用户信息 */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-700">
+        <div className="flex-shrink-0 p-4 border-t border-gray-200 dark:border-gray-700">
           <div className="flex items-center">
             <img 
               src={user?.avatar || 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Admin%20avatar'} 
@@ -437,7 +473,7 @@ export default function Admin() {
       </aside>
       
       {/* 主内容区 */}
-      <main className="ml-64 flex-1 p-8">
+      <main className="ml-64 flex-1 p-8 h-screen overflow-y-auto">
         {/* 顶部导航 */}
         <div className="flex justify-between items-center mb-8">
            <h1 className="text-2xl font-bold">
@@ -452,6 +488,13 @@ export default function Admin() {
              {activeTab === 'feedback' && '反馈管理'}
              {activeTab === 'permissions' && '权限管理'}
              {activeTab === 'settings' && '系统设置'}
+             {activeTab === 'contentAudit' && '内容审核管理'}
+             {activeTab === 'auditLog' && '审计日志'}
+             {activeTab === 'userAudit' && '用户行为审计'}
+             {activeTab === 'eventAudit' && '活动审核管理'}
+             {activeTab === 'productManagement' && '商品管理'}
+             {activeTab === 'notificationManagement' && '消息通知管理'}
+             {activeTab === 'systemMonitor' && '系统监控'}
            </h1>
           
           <div className="flex items-center space-x-4">
@@ -1355,6 +1398,111 @@ export default function Admin() {
             </div>
           }>
             <FeedbackManagement />
+          </Suspense>
+        )}
+
+        {/* 内容审核管理页面 */}
+        {activeTab === 'contentAudit' && (
+          <Suspense fallback={
+            <div className={`flex items-center justify-center h-96 ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-md`}>
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+                className="w-12 h-12 border-4 border-red-200 border-t-red-500 rounded-full"
+              />
+            </div>
+          }>
+            <ContentAudit />
+          </Suspense>
+        )}
+
+        {/* 审计日志页面 */}
+        {activeTab === 'auditLog' && (
+          <Suspense fallback={
+            <div className={`flex items-center justify-center h-96 ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-md`}>
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+                className="w-12 h-12 border-4 border-red-200 border-t-red-500 rounded-full"
+              />
+            </div>
+          }>
+            <AuditLog />
+          </Suspense>
+        )}
+
+        {/* 用户行为审计页面 */}
+        {activeTab === 'userAudit' && (
+          <Suspense fallback={
+            <div className={`flex items-center justify-center h-96 ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-md`}>
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+                className="w-12 h-12 border-4 border-red-200 border-t-red-500 rounded-full"
+              />
+            </div>
+          }>
+            <UserAudit />
+          </Suspense>
+        )}
+
+        {/* 活动审核管理页面 */}
+        {activeTab === 'eventAudit' && (
+          <Suspense fallback={
+            <div className={`flex items-center justify-center h-96 ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-md`}>
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+                className="w-12 h-12 border-4 border-red-200 border-t-red-500 rounded-full"
+              />
+            </div>
+          }>
+            <EventAudit />
+          </Suspense>
+        )}
+
+        {/* 商品管理页面 */}
+        {activeTab === 'productManagement' && (
+          <Suspense fallback={
+            <div className={`flex items-center justify-center h-96 ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-md`}>
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+                className="w-12 h-12 border-4 border-red-200 border-t-red-500 rounded-full"
+              />
+            </div>
+          }>
+            <ProductManagement />
+          </Suspense>
+        )}
+
+        {/* 消息通知管理页面 */}
+        {activeTab === 'notificationManagement' && (
+          <Suspense fallback={
+            <div className={`flex items-center justify-center h-96 ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-md`}>
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+                className="w-12 h-12 border-4 border-red-200 border-t-red-500 rounded-full"
+              />
+            </div>
+          }>
+            <NotificationManagement />
+          </Suspense>
+        )}
+
+        {/* 系统监控页面 */}
+        {activeTab === 'systemMonitor' && (
+          <Suspense fallback={
+            <div className={`flex items-center justify-center h-96 ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-md`}>
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+                className="w-12 h-12 border-4 border-red-200 border-t-red-500 rounded-full"
+              />
+            </div>
+          }>
+            <SystemMonitor />
           </Suspense>
         )}
 

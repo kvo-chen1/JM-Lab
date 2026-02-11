@@ -28,6 +28,8 @@ export interface NavGroup {
 export const coreNavItems: NavItem[] = [
   { id: 'home', path: '/', label: '首页', icon: 'fas fa-home', priority: 'high' },
   { id: 'create', path: '/create', label: '创作中心', icon: 'fas fa-tools', priority: 'high' },
+  { id: 'wizard', path: '/wizard', label: '品牌向导', icon: 'fas fa-hat-wizard', priority: 'high' },
+  { id: 'ai-writer', path: '/ai-writer', label: 'AI智作文案', icon: 'fas fa-pen-nib', priority: 'high' },
   { id: 'events', path: '/cultural-events', label: '文化活动', icon: 'fas fa-calendar-alt', priority: 'medium' }
 
 ];
@@ -42,7 +44,7 @@ export const communityNavItems: NavItem[] = [
 // 天津老字号专区导航项
 export const tianjinNavItems: NavItem[] = [
   { id: 'tianjin', path: '/tianjin', label: '津脉作品', icon: 'fas fa-landmark', priority: 'high' },
-
+  { id: 'inspiration-mindmap', path: '/inspiration-mindmap', label: '灵感脉络', icon: 'fas fa-project-diagram', priority: 'high', description: '可视化创作思维导图，记录灵感旅程' },
   { id: 'knowledge', path: '/knowledge', label: '文化知识', icon: 'fas fa-book', priority: 'medium' },
 
 ];

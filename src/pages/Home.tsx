@@ -11,6 +11,8 @@ import { workService, userService } from '@/services/apiService'
 import { useTranslation } from 'react-i18next'
 import PromptInput from '@/components/PromptInput'
 import eventBus from '@/lib/eventBus' // 导入事件总线
+import HomeRecommendationSection from '@/components/HomeRecommendationSection'
+import { recordUserAction } from '@/services/recommendationService'
 import {
   ANIMATION_VARIANTS,
   INTERACTION_VARIANTS,
@@ -51,7 +53,7 @@ const useResponsiveAnimation = () => {
 
 export default function Home() {
   const { isDark } = useTheme();
-  const { isAuthenticated } = useContext(AuthContext);
+  const { isAuthenticated, user } = useContext(AuthContext);
   const navigate = useNavigate();
   
   // 已移除自动跳转逻辑，让已登录用户也能访问首页
@@ -59,6 +61,18 @@ export default function Home() {
   const { t } = useTranslation();
   const { scrollY } = useScroll();
   const { getDuration, getDelay } = useResponsiveAnimation();
+  
+  // 获取用户ID（用于行为追踪）
+  const getUserId = useCallback(() => {
+    if (user?.id) return user.id;
+    // 为未登录用户生成临时ID
+    let deviceId = localStorage.getItem('jmzf_device_id');
+    if (!deviceId) {
+      deviceId = `device_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      localStorage.setItem('jmzf_device_id', deviceId);
+    }
+    return deviceId;
+  }, [user]);
   
   // Parallax effects
   const heroY = useTransform(scrollY, [0, 500], [0, 200]);
@@ -174,6 +188,11 @@ export default function Home() {
       };
       localStorage.setItem('homePageData', JSON.stringify(dataToCache));
       localStorage.setItem('homePageDataTimestamp', now.toString());
+      
+      // 同时保存到推荐系统使用的 key (works)
+      if (Array.isArray(worksData) && worksData.length > 0) {
+        localStorage.setItem('works', JSON.stringify(worksData));
+      }
     } catch (err) {
       console.error('获取数据失败:', err);
       setError('获取数据失败，请稍后重试');
@@ -228,18 +247,63 @@ export default function Home() {
     return inspireOn ? `${result} 灵感加持` : result;
   };
   
-  const handleInspireClick = useCallback(() => {
+  const handleInspireClick = useCallback(async () => {
     const p = ensurePrompt();
-    
-    // 发布创作灵感事件
+
+    // 发布优化开始事件
     eventBus.publish('请求:开始', {
-      url: '/neo',
-      method: 'GET',
-      options: { query: p, from: 'home' }
+      url: '/optimize',
+      method: 'POST',
+      options: { prompt: p }
     });
-    
-    navigate(`/neo?from=home&query=${encodeURIComponent(p)}`);
-  }, [navigate]);
+
+    setIsOptimizing(true);
+    setOptimizeAudioUrl('');
+    setOptimizationSummary('');
+    try {
+      llmService.setCurrentModel('kimi');
+      llmService.updateConfig({
+        stream: false,
+        system_prompt: '你是资深创作优化助手，请针对用户的创作问题进行结构化诊断与优化。'
+      });
+      const issues = llmService.diagnoseCreationIssues(p);
+      setDiagnosedIssues(issues);
+      const summary = await llmService.generateResponse(`${p}（请输出结构化的优化说明与下一步行动）`);
+      if (summary && !/接口不可用|未返回内容/.test(summary)) {
+        setOptimizationSummary(summary);
+      }
+      const optimized = await llmService.generateResponse(
+        `请将以下创作问题提炼为可直接用于AI生成的中文提示词，只输出提示词本句：\n${p}`
+      );
+      const oneLine = optimized.split(/\r?\n/).find(s => s.trim()) || optimized;
+      const cleaned = oneLine.replace(/^"|"$/g, '').replace(/^"|"$/g, '').replace(/^提示词[:：]\s*/, '').trim();
+      if (cleaned && !/接口不可用|未返回内容/.test(cleaned)) {
+        setSearch(cleaned);
+        toast.success('已生成优化提示词');
+      }
+      toast.success(`发现${issues.length}条优化建议`);
+
+      // 发布优化成功事件
+      eventBus.publish('请求:成功', {
+        url: '/optimize',
+        method: 'POST',
+        data: { issues, optimized: cleaned, summary }
+      });
+    } catch (error) {
+      console.error('优化失败:', error);
+
+      // 发布优化失败事件
+      eventBus.publish('请求:失败', {
+        url: '/optimize',
+        method: 'POST',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+
+      toast.error('优化失败，请稍后重试');
+    } finally {
+      setIsOptimizing(false);
+    }
+  }, [search, selectedTags, inspireOn]);
   
   const handleGenerateClick = useCallback(() => {
     const p = ensurePrompt();
@@ -697,7 +761,12 @@ export default function Home() {
       {/* Main Content Area - Overlapping the Hero */}
       <div className="relative z-30 -mt-20 pb-20">
         
-        {/* 1. 创作中心 (Creative Hub) - Highlighted Cards */}
+        {/* 1. 智能推荐区域 - 基于用户行为的个性化推荐 */}
+        <div className="pt-24">
+          <HomeRecommendationSection />
+        </div>
+        
+        {/* 2. 创作中心 (Creative Hub) - Highlighted Cards */}
         <div className="max-w-7xl mx-auto px-4 md:px-6 mb-32">
           <motion.div 
             initial={{ opacity: 0, y: 30 }}
@@ -1411,7 +1480,23 @@ export default function Home() {
                 transition={{ duration: 0.6, delay: idx * 0.08, type: 'spring', stiffness: 100 }}
                 whileHover={{ y: -8, scale: 1.02 }}
                 className={`relative rounded-2xl overflow-hidden cursor-pointer group shadow-md hover:shadow-2xl transition-all duration-500 bg-white dark:bg-gray-800 mb-0`}
-                onClick={() => navigate(`/explore?q=${encodeURIComponent(item.title)}`)}
+                onClick={() => {
+                  // 记录作品点击行为（用于推荐系统）
+                  recordUserAction({
+                    userId: getUserId(),
+                    itemId: item.id,
+                    itemType: 'post',
+                    actionType: 'click',
+                    value: 2,
+                    metadata: {
+                      category: item.category,
+                      tags: item.tags,
+                      title: item.title,
+                      source: 'home_gallery'
+                    }
+                  });
+                  navigate(`/square?q=${encodeURIComponent(item.title)}`);
+                }}
               >
                  {/* Image Section */}
                  <div className="relative w-full aspect-square overflow-hidden">

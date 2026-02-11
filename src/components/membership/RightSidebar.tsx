@@ -15,20 +15,35 @@ import {
   Crown,
   Star,
   AlertCircle,
-  CheckCircle2
+  CheckCircle2,
+  Infinity
 } from 'lucide-react';
 import { User } from '@/contexts/authContext';
+
+interface UsageStats {
+  aiGenerations: {
+    used: number;
+    total: number | null;
+    percentage: number;
+  };
+  storage: {
+    used: number;
+    total: number | null;
+    percentage: number;
+  };
+  exports: {
+    used: number;
+    total: number | null;
+    percentage: number;
+  };
+}
 
 interface RightSidebarProps {
   isDark: boolean;
   user: User | null;
   onRenew: () => void;
   onUpgrade: () => void;
-  usageStats?: {
-    aiGenerations: { used: number; total: number };
-    storage: { used: number; total: number };
-    exports: { used: number; total: number };
-  };
+  usageStats?: UsageStats | null;
 }
 
 const RightSidebar: React.FC<RightSidebarProps> = ({
@@ -36,21 +51,29 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
   user,
   onRenew,
   onUpgrade,
-  usageStats = {
-    aiGenerations: { used: 45, total: 100 },
-    storage: { used: 2.5, total: 10 },
-    exports: { used: 8, total: 20 }
-  }
+  usageStats
 }) => {
   const isActive = user?.membershipStatus === 'active';
   const daysUntilExpiry = user?.membershipEnd
     ? Math.ceil((new Date(user.membershipEnd).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
     : null;
 
+  // 使用传入的统计数据或默认值
+  const stats = usageStats || {
+    aiGenerations: { used: 0, total: 10, percentage: 0 },
+    storage: { used: 0, total: 1, percentage: 0 },
+    exports: { used: 0, total: 5, percentage: 0 }
+  };
+
   const getProgressColor = (percentage: number) => {
     if (percentage >= 80) return 'bg-rose-500';
     if (percentage >= 50) return 'bg-amber-500';
     return 'bg-emerald-500';
+  };
+
+  const formatValue = (value: number | null, suffix: string = '') => {
+    if (value === null) return <Infinity size={14} className="inline" />;
+    return `${value}${suffix}`;
   };
 
   return (
@@ -233,15 +256,15 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
             <div className="flex justify-between items-center mb-1.5">
               <span className={`text-xs ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>AI生成次数</span>
               <span className={`text-xs font-medium ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>
-                {usageStats.aiGenerations.used} / {usageStats.aiGenerations.total === Infinity ? '∞' : usageStats.aiGenerations.total}
+                {stats.aiGenerations.used} / {formatValue(stats.aiGenerations.total)}
               </span>
             </div>
             <div className={`h-2 rounded-full overflow-hidden ${isDark ? 'bg-slate-700' : 'bg-gray-200'}`}>
               <motion.div
                 initial={{ width: 0 }}
-                animate={{ width: `${Math.min((usageStats.aiGenerations.used / usageStats.aiGenerations.total) * 100, 100)}%` }}
+                animate={{ width: `${stats.aiGenerations.total === null ? 100 : Math.min(stats.aiGenerations.percentage, 100)}%` }}
                 transition={{ duration: 0.8, delay: 0.2 }}
-                className={`h-full rounded-full ${getProgressColor((usageStats.aiGenerations.used / usageStats.aiGenerations.total) * 100)}`}
+                className={`h-full rounded-full ${getProgressColor(stats.aiGenerations.percentage)}`}
               />
             </div>
           </div>
@@ -251,15 +274,15 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
             <div className="flex justify-between items-center mb-1.5">
               <span className={`text-xs ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>存储空间</span>
               <span className={`text-xs font-medium ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>
-                {usageStats.storage.used}GB / {usageStats.storage.total}GB
+                {stats.storage.used}GB / {formatValue(stats.storage.total, 'GB')}
               </span>
             </div>
             <div className={`h-2 rounded-full overflow-hidden ${isDark ? 'bg-slate-700' : 'bg-gray-200'}`}>
               <motion.div
                 initial={{ width: 0 }}
-                animate={{ width: `${(usageStats.storage.used / usageStats.storage.total) * 100}%` }}
+                animate={{ width: `${stats.storage.total === null ? 100 : Math.min(stats.storage.percentage, 100)}%` }}
                 transition={{ duration: 0.8, delay: 0.3 }}
-                className={`h-full rounded-full ${getProgressColor((usageStats.storage.used / usageStats.storage.total) * 100)}`}
+                className={`h-full rounded-full ${getProgressColor(stats.storage.percentage)}`}
               />
             </div>
           </div>
@@ -269,15 +292,15 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
             <div className="flex justify-between items-center mb-1.5">
               <span className={`text-xs ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>高清导出</span>
               <span className={`text-xs font-medium ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>
-                {usageStats.exports.used} / {usageStats.exports.total}
+                {stats.exports.used} / {formatValue(stats.exports.total)}
               </span>
             </div>
             <div className={`h-2 rounded-full overflow-hidden ${isDark ? 'bg-slate-700' : 'bg-gray-200'}`}>
               <motion.div
                 initial={{ width: 0 }}
-                animate={{ width: `${(usageStats.exports.used / usageStats.exports.total) * 100}%` }}
+                animate={{ width: `${stats.exports.total === null ? 100 : Math.min(stats.exports.percentage, 100)}%` }}
                 transition={{ duration: 0.8, delay: 0.4 }}
-                className={`h-full rounded-full ${getProgressColor((usageStats.exports.used / usageStats.exports.total) * 100)}`}
+                className={`h-full rounded-full ${getProgressColor(stats.exports.percentage)}`}
               />
             </div>
           </div>

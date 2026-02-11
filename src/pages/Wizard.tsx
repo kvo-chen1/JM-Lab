@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useTheme } from '@/hooks/useTheme';
 import { motion, AnimatePresence } from 'framer-motion';
 import BRANDS from '@/lib/brands';
@@ -7,7 +7,7 @@ import voiceService from '@/services/voiceService';
 import UploadBox from '@/components/UploadBox';
 import { scoreAuthenticity } from '@/services/authenticityService';
 import postService from '@/services/postService';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { llmService } from '@/services/llmService';
 import { TianjinImage, TianjinButton, YangliuqingCard } from '@/components/TianjinStyleComponents';
 import AISuggestionBox from '@/components/AISuggestionBox';
@@ -17,14 +17,20 @@ import {
   TEMPLATES, 
   COMPETITIONS, 
   CREATIVE_TEMPLATES, 
-  BRAND_FONTS 
+  BRAND_FONTS,
+  EXTENDED_TEMPLATES
 } from '@/constants/creativeData';
+import { StepIndicator, BrandCard3D, TemplateGallery, RadarChart } from '@/components/wizard';
+import { brandService } from '@/services/brandService';
+import { eventService } from '@/services/eventService';
 
 export default function Wizard() {
   const { isDark } = useTheme();
-  const { state, setState, reset } = useWorkflow();
+  const { state, setState, reset, saveToDrafts, loadFromDraft, isDirty, lastSavedAt } = useWorkflow();
   const [step, setStep] = useState(1);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const [isSaving, setIsSaving] = useState(false);
   const [aiText, setAiText] = useState('');
   const [aiDirections, setAiDirections] = useState<string[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -32,7 +38,7 @@ export default function Wizard() {
   const [previewRatio, setPreviewRatio] = useState<'landscape' | 'square' | 'portrait'>('landscape');
   const [searchQuery, setSearchQuery] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState<'all' | 'food' | 'craft' | 'daily'>('all');
+  const [selectedCategory, setSelectedCategory] = useState<'all' | 'food' | 'craft' | 'daily' | 'tianjin'>('all');
   
   // New States for enhanced features
   const [brandAssets, setBrandAssets] = useState({
@@ -55,9 +61,75 @@ export default function Wizard() {
   const [generationProgress, setGenerationProgress] = useState(0);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [newColor, setNewColor] = useState('#000000');
+  const [events, setEvents] = useState<ReturnType<typeof eventService.formatEventForDisplay>[]>([]);
+  const [isLoadingEvents, setIsLoadingEvents] = useState(false);
+
+  // Load events from database
+  useEffect(() => {
+    const loadEvents = async () => {
+      setIsLoadingEvents(true);
+      try {
+        const dbEvents = await eventService.getPublishedEvents();
+        const formattedEvents = dbEvents.map(eventService.formatEventForDisplay);
+        setEvents(formattedEvents.length > 0 ? formattedEvents : COMPETITIONS);
+      } catch (error) {
+        console.error('Failed to load events:', error);
+        setEvents(COMPETITIONS);
+      } finally {
+        setIsLoadingEvents(false);
+      }
+    };
+    loadEvents();
+  }, []);
 
   const next = () => setStep(s => Math.min(4, s + 1));
   const prev = () => setStep(s => Math.max(1, s - 1));
+
+  // Load draft from URL parameter
+  useEffect(() => {
+    const draftId = searchParams.get('draft');
+    if (draftId) {
+      loadFromDraft(draftId).then(success => {
+        if (success) {
+          toast.success('已恢复草稿');
+          // Restore step from draft
+          const loadedStep = state.currentStep || 1;
+          setStep(loadedStep);
+        } else {
+          toast.error('加载草稿失败');
+        }
+      });
+    }
+  }, [searchParams]);
+
+  // Handle manual save to drafts
+  const handleSaveToDrafts = async () => {
+    if (!state.brandName) {
+      toast.error('请先选择品牌');
+      return;
+    }
+    
+    setIsSaving(true);
+    try {
+      const draft = await saveToDrafts(step);
+      if (draft) {
+        toast.success('已保存到草稿箱');
+      } else {
+        toast.error('保存失败');
+      }
+    } catch (error) {
+      toast.error('保存失败');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Format last saved time
+  const formatLastSaved = () => {
+    if (!lastSavedAt) return '';
+    const date = new Date(lastSavedAt);
+    return `上次保存: ${date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`;
+  };
 
   // Filter brands based on search and category
   const filteredBrands = useMemo(() => {
@@ -67,6 +139,7 @@ export default function Wizard() {
         food: ['guifaxiang', 'erduoyan', 'guorenzhang', 'goubuli', 'longshunyu', 'hongshunde', 'daoxiangcun', 'quanjude', 'liubiju', 'wangzhihe', 'guangzhoujiujia', 'lianxianglou', 'xinghualou', 'qiaojiashan', 'guanshengyuan', 'dezhoupaji'],
         craft: ['nirenzhang', 'zhangxiaoqian', 'wangmazi', 'hudiepai', 'ruifuxiang', 'qianxiangyi'],
         daily: ['laomeihua', 'seagullwatch', 'huili', 'feiyue', 'shanghaiwatch', 'fenghuangbike', 'yongjiubike', 'yingxiong', 'zhonghuapencil', 'yongshengpen', 'hengdeli', 'pechoin'],
+        tianjin: BRANDS.filter(b => b.id.startsWith('tianjin') || ['guifaxiang', 'erduoyan', 'guorenzhang', 'nirenzhang', 'goubuli', 'laomeihua', 'seagullwatch', 'qianxiangyi', 'longshunyu', 'hongshunde'].includes(b.id)).map(b => b.id),
       };
       brands = brands.filter(b => categoryMap[selectedCategory]?.includes(b.id));
     }
@@ -248,6 +321,16 @@ export default function Wizard() {
     { id: 4, title: '评分发布', icon: 'star', desc: '评估并发布作品' }
   ];
 
+  // Record brand usage when brand is selected
+  useEffect(() => {
+    if (state.brandId && state.brandName) {
+      const brand = BRANDS.find(b => b.id === state.brandId);
+      if (brand) {
+        brandService.recordBrandUsage(brand.id, brand.name, brand.image);
+      }
+    }
+  }, [state.brandId, state.brandName]);
+
   const selectedBrand = useMemo(() => {
     return BRANDS.find(b => b.id === state.brandId || b.name === state.brandName);
   }, [state.brandId, state.brandName]);
@@ -258,55 +341,30 @@ export default function Wizard() {
       <div className={`sticky top-0 z-20 ${isDark ? 'bg-gray-900/80' : 'bg-white/80'} backdrop-blur-md border-b ${isDark ? 'border-gray-800' : 'border-gray-200'}`}>
         <div className="container mx-auto px-4 sm:px-6 py-4">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-400 to-red-500 flex items-center justify-center text-white font-bold shadow-lg shadow-red-500/20">
-                <i className="fas fa-hat-wizard text-lg"></i>
-              </div>
-              <div>
-                <h1 className="text-xl font-bold tracking-tight">品牌向导</h1>
-                <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>AI驱动的品牌创意生成工具</p>
+            <div className="flex items-center gap-4">
+              <motion.div
+                className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-400 via-orange-500 to-red-500 flex items-center justify-center text-white shadow-xl shadow-orange-500/30 ring-4 ring-white/20 dark:ring-gray-800/30"
+                whileHover={{ scale: 1.05, rotate: 5 }}
+                whileTap={{ scale: 0.95 }}
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.3 }}
+              >
+                <i className="fas fa-hat-wizard text-xl"></i>
+              </motion.div>
+              <div className="flex flex-col justify-center pt-2">
+                <h1 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-300 bg-clip-text text-transparent leading-none">
+                  品牌向导
+                </h1>
+                <p className={`text-sm font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'} flex items-center gap-2 mt-1.5`}>
+                  <span className="w-1.5 h-1.5 rounded-full bg-gradient-to-r from-amber-400 to-red-500 flex-shrink-0"></span>
+                  AI驱动的品牌创意生成工具
+                </p>
               </div>
             </div>
             
             {/* Stepper */}
-            <div className="flex items-center gap-1 md:gap-2 w-full md:w-auto overflow-x-auto scrollbar-hide px-2">
-              {steps.map((s, i) => (
-                <div key={s.id} className="flex items-center flex-shrink-0">
-                  <div className={`flex items-center gap-2 ${step >= s.id ? (isDark ? 'text-white' : 'text-gray-900') : (isDark ? 'text-gray-600' : 'text-gray-400')}`}>
-                    <motion.div 
-                      className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-300 ${
-                        step >= s.id 
-                          ? 'bg-red-600 text-white shadow-md shadow-red-500/20' 
-                          : (isDark ? 'bg-gray-800' : 'bg-gray-200')
-                      }`}
-                      initial={{ scale: 0.9 }}
-                      animate={{ scale: step === s.id ? 1.1 : 1 }}
-                      transition={{ duration: 0.3 }}
-                    >
-                      {step > s.id ? (
-                        <motion.i 
-                          className="fas fa-check"
-                          initial={{ scale: 0 }}
-                          animate={{ scale: 1 }}
-                          transition={{ duration: 0.3 }}
-                        />
-                      ) : s.id}
-                    </motion.div>
-                    <div className="hidden sm:block">
-                      <span className="text-sm font-medium">{s.title}</span>
-                      <p className={`text-xs ${step >= s.id ? (isDark ? 'text-gray-400' : 'text-gray-500') : 'opacity-0'}`}>{s.desc}</p>
-                    </div>
-                  </div>
-                  {i < steps.length - 1 && (
-                    <motion.div 
-                      className={`w-6 md:w-10 h-1 mx-1 md:mx-2 rounded-full transition-colors duration-500 ${
-                        step > s.id ? 'bg-red-600' : (isDark ? 'bg-gray-800' : 'bg-gray-200')
-                      }`}
-                    ></motion.div>
-                  )}
-                </div>
-              ))}
-            </div>
+            <StepIndicator steps={steps} currentStep={step} isDark={isDark} />
           </div>
         </div>
       </div>
@@ -336,6 +394,7 @@ export default function Wizard() {
                     <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
                       {[
                         { id: 'all', name: '全部', icon: 'fa-th-large' },
+                        { id: 'tianjin', name: '天津老字号', icon: 'fa-landmark' },
                         { id: 'food', name: '美食', icon: 'fa-utensils' },
                         { id: 'craft', name: '工艺', icon: 'fa-hammer' },
                         { id: 'daily', name: '日用', icon: 'fa-shopping-bag' },
@@ -424,8 +483,8 @@ export default function Wizard() {
                         共 {filteredBrands.length} 个品牌
                       </span>
                     </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                      {(searchQuery ? filteredBrands : BRANDS.slice(0, 9)).map(b => (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 max-h-[600px] overflow-y-auto">
+                      {(searchQuery ? filteredBrands : filteredBrands).map(b => (
                         <motion.button
                           key={b.id}
                           onClick={() => setState({ brandId: b.id, brandName: b.name })}
@@ -1127,37 +1186,66 @@ export default function Wizard() {
                     <div>
                       <label className="block text-sm font-medium mb-2">
                         <i className="fas fa-trophy text-gray-400 mr-1"></i> 参与赛事 (可选)
+                        {isLoadingEvents && <span className="ml-2 text-xs text-gray-400">加载中...</span>}
                       </label>
-                      <div className="space-y-2">
-                        {COMPETITIONS.map(c => (
-                          <button
-                            key={c.id}
-                            onClick={() => setPublishInfo({...publishInfo, competitionId: publishInfo.competitionId === c.id ? '' : c.id})}
-                            className={`w-full p-4 rounded-xl border-2 text-left transition-all ${
-                              publishInfo.competitionId === c.id
-                                ? 'border-red-500 bg-red-50 dark:bg-red-900/20'
-                                : (isDark ? 'border-gray-700 hover:border-gray-600' : 'border-gray-200 hover:border-gray-300')
-                            }`}
-                          >
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-3">
-                                <div className={`w-10 h-10 rounded-lg ${publishInfo.competitionId === c.id ? 'bg-red-100 dark:bg-red-800' : isDark ? 'bg-gray-700' : 'bg-gray-100'} flex items-center justify-center`}>
-                                  <i className={`fas fa-trophy ${publishInfo.competitionId === c.id ? 'text-red-600 dark:text-red-400' : 'text-gray-400'}`}></i>
+                      <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                        {events.length === 0 && !isLoadingEvents ? (
+                          <div className={`p-4 rounded-xl text-center ${isDark ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-500'}`}>
+                            暂无进行中的活动
+                          </div>
+                        ) : (
+                          events.map(c => (
+                            <button
+                              key={c.id}
+                              onClick={() => setPublishInfo({...publishInfo, competitionId: publishInfo.competitionId === c.id ? '' : c.id})}
+                              className={`w-full p-4 rounded-xl border-2 text-left transition-all ${
+                                publishInfo.competitionId === c.id
+                                  ? 'border-red-500 bg-red-50 dark:bg-red-900/20'
+                                  : (isDark ? 'border-gray-700 hover:border-gray-600' : 'border-gray-200 hover:border-gray-300')
+                              }`}
+                            >
+                              <div className="flex items-start justify-between">
+                                <div className="flex items-start gap-3 flex-1">
+                                  <div className={`w-10 h-10 rounded-lg ${publishInfo.competitionId === c.id ? 'bg-red-100 dark:bg-red-800' : isDark ? 'bg-gray-700' : 'bg-gray-100'} flex items-center justify-center flex-shrink-0`}>
+                                    <i className={`fas fa-trophy ${publishInfo.competitionId === c.id ? 'text-red-600 dark:text-red-400' : 'text-gray-400'}`}></i>
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className="font-bold text-sm">{c.title}</span>
+                                      <span className={`text-xs px-2 py-0.5 rounded-full ${
+                                        c.status === 'ongoing' 
+                                          ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' 
+                                          : c.status === 'upcoming'
+                                          ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
+                                          : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+                                      }`}>
+                                        {c.status === 'ongoing' ? '进行中' : c.status === 'upcoming' ? '即将开始' : '已结束'}
+                                      </span>
+                                      <span className={`text-xs px-2 py-0.5 rounded-full ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
+                                        {c.category}
+                                      </span>
+                                    </div>
+                                    <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'} mt-1 line-clamp-2`}>{c.desc}</div>
+                                    <div className="flex items-center gap-4 mt-2 text-xs">
+                                      <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>
+                                        <i className="fas fa-building mr-1"></i> {c.organizer}
+                                      </span>
+                                      <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>
+                                        <i className="fas fa-award mr-1"></i> {c.prize}
+                                      </span>
+                                    </div>
+                                  </div>
                                 </div>
-                                <div>
-                                  <div className="font-bold text-sm">{c.title}</div>
-                                  <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{c.desc}</div>
-                                </div>
+                                {publishInfo.competitionId === c.id && (
+                                  <i className="fas fa-check-circle text-red-500 text-xl flex-shrink-0 ml-2"></i>
+                                )}
                               </div>
-                              {publishInfo.competitionId === c.id && (
-                                <i className="fas fa-check-circle text-red-500 text-xl"></i>
-                              )}
-                            </div>
-                            <div className={`mt-2 text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                              <i className="fas fa-clock mr-1"></i> 截止日期: {c.deadline}
-                            </div>
-                          </button>
-                        ))}
+                              <div className={`mt-2 text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                <i className="fas fa-clock mr-1"></i> 截止日期: {c.deadline}
+                              </div>
+                            </button>
+                          ))
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1171,16 +1259,48 @@ export default function Wizard() {
       {/* Sticky Footer Navigation */}
       <div className={`fixed bottom-0 left-0 right-0 p-4 ${isDark ? 'bg-gray-900/95 border-gray-800' : 'bg-white/95 border-gray-200'} border-t backdrop-blur-md z-30`}>
         <div className="container mx-auto max-w-5xl flex justify-between items-center">
-          <TianjinButton 
-            variant="ghost" 
-            onClick={prev} 
-            disabled={step === 1} 
-            leftIcon={<i className="fas fa-arrow-left"></i>}
-          >
-            上一步
-          </TianjinButton>
+          <div className="flex items-center gap-2">
+            <TianjinButton 
+              variant="ghost" 
+              onClick={prev} 
+              disabled={step === 1} 
+              leftIcon={<i className="fas fa-arrow-left"></i>}
+            >
+              上一步
+            </TianjinButton>
+            
+            {/* Save to Drafts Button */}
+            {state.brandName && (
+              <TianjinButton
+                variant="secondary"
+                size="sm"
+                onClick={handleSaveToDrafts}
+                loading={isSaving}
+                leftIcon={<i className="fas fa-save"></i>}
+              >
+                保存草稿
+              </TianjinButton>
+            )}
+          </div>
           
           <div className="flex items-center gap-4">
+            {/* Auto-save Status */}
+            {lastSavedAt && (
+              <span className={`hidden sm:block text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                {isDirty ? (
+                  <span className="flex items-center gap-1">
+                    <i className="fas fa-circle text-yellow-500 text-[6px]"></i>
+                    有未保存更改
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1">
+                    <i className="fas fa-check-circle text-green-500 text-[8px]"></i>
+                    {formatLastSaved()}
+                  </span>
+                )}
+              </span>
+            )}
+            
             {/* Step Info */}
             <span className={`hidden sm:block text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
               步骤 {step}/4: {steps[step-1].title}

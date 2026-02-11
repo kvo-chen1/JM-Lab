@@ -4,6 +4,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { useCreateStore } from './create/hooks/useCreateStore';
 import { toast } from 'sonner';
 import { draftService, Draft } from '@/services/draftService';
+import { brandWizardDraftService, BrandWizardDraft } from '@/services/brandWizardDraftService';
 import {
   DraftsLayout,
   DraftsLeftSidebar,
@@ -44,6 +45,7 @@ export default function Drafts() {
   const [activeDraft, setActiveDraft] = useState<DraftData | null>(null);
   const [savedDrafts, setSavedDrafts] = useState<DraftData[]>([]);
   const [aiWriterDrafts, setAiWriterDrafts] = useState<Draft[]>([]);
+  const [brandWizardDrafts, setBrandWizardDrafts] = useState<BrandWizardDraft[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'name'>('newest');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -79,6 +81,10 @@ export default function Drafts() {
         const aiDrafts = await draftService.getAllDrafts();
         setAiWriterDrafts(aiDrafts);
 
+        // Load Brand Wizard Drafts
+        const wizardDrafts = await brandWizardDraftService.getAllDrafts();
+        setBrandWizardDrafts(wizardDrafts);
+
         // Generate mock recent activities (in real app, this would come from a service)
         setRecentActivities([
           { id: '1', type: 'edit', title: '天津文化海报设计', time: '2小时前' },
@@ -98,23 +104,25 @@ export default function Drafts() {
 
   // Calculate draft counts
   const draftCounts = useMemo(() => ({
-    all: savedDrafts.length + aiWriterDrafts.length,
+    all: savedDrafts.length + aiWriterDrafts.length + brandWizardDrafts.length,
     layout: savedDrafts.filter(d => d.activeTool === 'layout').length,
     trace: savedDrafts.filter(d => d.activeTool === 'trace').length,
     mockup: savedDrafts.filter(d => d.activeTool === 'mockup').length,
     tile: savedDrafts.filter(d => d.activeTool === 'tile').length,
     aiWriter: aiWriterDrafts.length,
-    favorites: [...savedDrafts, ...aiWriterDrafts].filter(d => d.isFavorite).length
-  }), [savedDrafts, aiWriterDrafts]);
+    brandWizard: brandWizardDrafts.length,
+    favorites: [...savedDrafts, ...aiWriterDrafts, ...brandWizardDrafts].filter(d => d.isFavorite).length
+  }), [savedDrafts, aiWriterDrafts, brandWizardDrafts]);
 
   // Storage stats (mock data - in real app calculate from actual storage)
   const storageStats = useMemo(() => ({
-    used: Math.round(savedDrafts.length * 2.5 + aiWriterDrafts.length * 0.5),
+    used: Math.round(savedDrafts.length * 2.5 + aiWriterDrafts.length * 0.5 + brandWizardDrafts.length * 1.5),
     total: 500,
-    drafts: savedDrafts.length,
+    drafts: savedDrafts.length + brandWizardDrafts.length,
     images: savedDrafts.reduce((acc, d) => acc + (d.generatedResults?.length || 0), 0),
-    aiWritings: aiWriterDrafts.length
-  }), [savedDrafts, aiWriterDrafts]);
+    aiWritings: aiWriterDrafts.length,
+    brandWizards: brandWizardDrafts.length
+  }), [savedDrafts, aiWriterDrafts, brandWizardDrafts]);
 
   // Popular tags (mock data)
   const popularTags = ['海报', 'Logo', '包装', '插画', 'UI设计', '文创'];
@@ -170,6 +178,26 @@ export default function Drafts() {
     }
   };
 
+  const handleDeleteBrandWizardDraft = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    if (confirm('确定要删除这个品牌向导草稿吗？此操作无法撤销。')) {
+      try {
+        await brandWizardDraftService.deleteDraft(id);
+        const newDrafts = brandWizardDrafts.filter(d => d.id !== id);
+        setBrandWizardDrafts(newDrafts);
+        toast.success('草稿已删除');
+      } catch (error) {
+        console.error('Failed to delete brand wizard draft:', error);
+        toast.error('删除草稿失败');
+      }
+    }
+  };
+
+  const handleLoadBrandWizardDraft = (draft: BrandWizardDraft) => {
+    navigate(`/wizard?draft=${draft.id}`);
+    toast.success('已加载品牌向导草稿');
+  };
+
   const handleExportDraft = (e: React.MouseEvent, draft: DraftData) => {
     e.stopPropagation();
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(draft, null, 2));
@@ -187,7 +215,7 @@ export default function Drafts() {
   };
 
   const handleExportAll = () => {
-    const allDrafts = [...savedDrafts, ...aiWriterDrafts];
+    const allDrafts = [...savedDrafts, ...aiWriterDrafts, ...brandWizardDrafts];
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(allDrafts, null, 2));
     const downloadAnchorNode = document.createElement('a');
     downloadAnchorNode.setAttribute("href", dataStr);
@@ -233,6 +261,7 @@ export default function Drafts() {
           activeDraft={activeDraft}
           savedDrafts={savedDrafts}
           aiWriterDrafts={aiWriterDrafts}
+          brandWizardDrafts={brandWizardDrafts}
           searchTerm={searchTerm}
           onSearchChange={setSearchTerm}
           sortBy={sortBy}
@@ -245,7 +274,9 @@ export default function Drafts() {
           onLoadDraft={handleLoadDraft}
           onDeleteDraft={handleDeleteDraft}
           onDeleteAiWriterDraft={handleDeleteAiWriterDraft}
+          onDeleteBrandWizardDraft={handleDeleteBrandWizardDraft}
           onExportDraft={handleExportDraft}
+          onLoadBrandWizardDraft={handleLoadBrandWizardDraft}
           onCreateNew={handleNewDraft}
         />
       }

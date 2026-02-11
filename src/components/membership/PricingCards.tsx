@@ -11,6 +11,13 @@ import {
 } from 'lucide-react';
 import { User as UserType } from '@/contexts/authContext';
 
+interface PricingPeriod {
+  price: number;
+  period: string;
+  discount?: string;
+  originalPrice?: number;
+}
+
 interface PricingPlan {
   id: string;
   name: string;
@@ -27,13 +34,55 @@ interface PricingPlan {
   buttonGradient: string;
 }
 
+interface PricingData {
+  premium: {
+    monthly: PricingPeriod;
+    quarterly: PricingPeriod;
+    yearly: PricingPeriod;
+  };
+  vip: {
+    monthly: PricingPeriod;
+    quarterly: PricingPeriod;
+    yearly: PricingPeriod;
+  };
+}
+
 interface PricingCardsProps {
   isDark: boolean;
   user: UserType | null;
   onUpgrade: (planId: string) => void;
+  pricing?: PricingData;
 }
 
-const PricingCards: React.FC<PricingCardsProps> = ({ isDark, user, onUpgrade }) => {
+const PricingCards: React.FC<PricingCardsProps> = ({ isDark, user, onUpgrade, pricing }) => {
+  // 获取价格显示
+  const getPriceDisplay = (planId: string) => {
+    if (pricing) {
+      const planPricing = pricing[planId as keyof PricingData];
+      if (planPricing) {
+        return {
+          monthly: planPricing.monthly,
+          quarterly: planPricing.quarterly,
+          yearly: planPricing.yearly
+        };
+      }
+    }
+    // 默认价格
+    const defaultPrices: Record<string, { monthly: PricingPeriod; quarterly: PricingPeriod; yearly: PricingPeriod }> = {
+      premium: {
+        monthly: { price: 99, period: '月' },
+        quarterly: { price: 269, period: '季度', discount: '9折', originalPrice: 297 },
+        yearly: { price: 899, period: '年', discount: '7.6折', originalPrice: 1188 }
+      },
+      vip: {
+        monthly: { price: 199, period: '月' },
+        quarterly: { price: 539, period: '季度', discount: '9折', originalPrice: 597 },
+        yearly: { price: 1799, period: '年', discount: '7.5折', originalPrice: 2388 }
+      }
+    };
+    return defaultPrices[planId] || defaultPrices.premium;
+  };
+
   const plans: PricingPlan[] = [
     {
       id: 'free',
@@ -60,8 +109,8 @@ const PricingCards: React.FC<PricingCardsProps> = ({ isDark, user, onUpgrade }) 
     {
       id: 'premium',
       name: '高级会员',
-      price: 99,
-      period: 'month',
+      price: getPriceDisplay('premium').monthly.price,
+      period: '月',
       description: '解锁高级AI创作功能',
       features: [
         '无限AI生成次数',
@@ -85,8 +134,8 @@ const PricingCards: React.FC<PricingCardsProps> = ({ isDark, user, onUpgrade }) 
     {
       id: 'vip',
       name: 'VIP会员',
-      price: 199,
-      period: 'month',
+      price: getPriceDisplay('vip').monthly.price,
+      period: '月',
       description: '享受顶级AI创作体验',
       features: [
         '包含高级会员所有权益',
@@ -210,7 +259,7 @@ const PricingCards: React.FC<PricingCardsProps> = ({ isDark, user, onUpgrade }) 
                       ¥{plan.price}
                     </span>
                     <span className={`text-sm ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
-                      /{plan.period === 'month' ? '月' : plan.period}
+                      /{plan.period}
                     </span>
                   </div>
                 </div>

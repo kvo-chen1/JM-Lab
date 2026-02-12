@@ -4710,8 +4710,6 @@ export const eventDB = {
 
     // Ensure ID
     const eventId = id || randomUUID()
-    const tagsStr = tags ? JSON.stringify(tags) : '[]'
-    const mediaStr = media ? JSON.stringify(media) : '[]'
     // 使用 organizer_id 或 creator_id (支持多种字段名)
     const orgId = organizer_id || organizerId || creatorId
     // 支持 startTime (ISO string) 或 start_date (Unix timestamp)
@@ -4719,6 +4717,9 @@ export const eventDB = {
     const endTimeValue = endTime || (end_date ? new Date(end_date * 1000).toISOString() : null)
     const thumbnailValue = thumbnailUrl || coverUrl || image_url
     const maxPartValue = maxParticipants || max_participants
+    // 确保 tags 和 media 是数组格式
+    const tagsValue = Array.isArray(tags) ? tags : []
+    const mediaValue = Array.isArray(media) ? media : []
 
     switch (typeKey) {
 
@@ -4727,8 +4728,8 @@ export const eventDB = {
         // We'll add table creation to createPostgreSQLTables separately
         await db.query(`
           INSERT INTO events (id, title, description, content, start_time, end_time, location, thumbnail_url, status, organizer_id, type, tags, media, max_participants, is_public, created_at, updated_at)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
-        `, [eventId, title, description, content || description, startTimeValue, endTimeValue, location, thumbnailValue, status || 'draft', orgId, type || 'online', tagsStr, mediaStr, maxPartValue, isPublic, nowISO, nowISO])
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13::jsonb, $14, $15, $16, $17)
+        `, [eventId, title, description, content || description, startTimeValue, endTimeValue, location, thumbnailValue, status || 'draft', orgId, type || 'online', JSON.stringify(tagsValue), JSON.stringify(mediaValue), maxPartValue, isPublic, nowISO, nowISO])
         return { ...eventData, id: eventId, created_at: nowISO, updated_at: nowISO }
         
       case DB_TYPE.MEMORY:

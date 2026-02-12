@@ -202,7 +202,18 @@ export default function Wizard() {
   };
 
   const runAIHelp = async () => {
-    const base = (state.inputText?.trim()) || `${state.brandName || '品牌'} 创意方向与文案`;
+    const userInput = (state.inputText?.trim()) || '';
+    
+    // 输入验证：检查输入是否足够完整
+    if (userInput.length < 4) {
+      toast.error('请输入更详细的描述（至少4个字），以便AI为您提供更好的创意建议');
+      return;
+    }
+    
+    // 构建增强的提示词
+    const brandName = state.brandName || '品牌';
+    const base = userInput || `${brandName} 创意方向与文案`;
+    
     setIsGenerating(true);
     setAiText('');
     try {
@@ -211,17 +222,45 @@ export default function Wizard() {
       const elems = llmService.recommendCulturalElements(base);
       setCulturalElements(elems);
 
-      const zhPolicy = '请用中文分点回答，避免 Markdown 标题或装饰符（如###、####、** 等），每点精炼。';
-      const enLetters = (base.match(/[A-Za-z]/g) || []).length;
-      const zhChars = (base.match(/[\u4e00-\u9fa5]/g) || []).length;
-      const isEnglish = enLetters > zhChars && enLetters > 0;
-      const promptWithPolicy = isEnglish ? base : `${zhPolicy}\n\n${base}`;
+      // 构建结构化的AI提示词
+      const structuredPrompt = `请为以下品牌创作需求提供专业的创意建议：
+
+【创作主题】${base}
+【品牌名称】${brandName}
+【相关文化元素】${elems.join('、')}
+
+请从以下几个方面提供具体、可执行的创意建议：
+
+1. 视觉风格建议：描述适合的设计风格、美学方向
+2. 核心创意概念：提出独特的创意切入点和核心理念
+3. 色彩与元素：推荐具体的色彩搭配和文化元素运用
+4. 文案方向：提供2-3条不同风格的文案参考
+5. 应用场景：建议适合的应用场景和载体
+
+要求：
+- 每点建议具体、可操作，避免空泛
+- 结合传统文化与现代设计
+- 突出品牌特色和文化内涵
+- 用中文回答，分点清晰`;
       
       try {
-        await llmService.generateResponse(promptWithPolicy, { onDelta: (chunk: string) => setAiText(chunk) });
+        await llmService.generateResponse(structuredPrompt, { onDelta: (chunk: string) => setAiText(chunk) });
       } catch (err) {
         console.warn('LLM generation failed, falling back to mock:', err);
-        const mockResponse = `基于${state.brandName || '您的品牌'}，为您提供以下创意建议：\n\n1. 视觉风格：建议采用新中式国潮风格，将传统${elems[0] || '纹样'}与现代极简线条结合。\n2. 核心意象：可以提取${state.brandName ? state.brandName.substring(0, 2) : '品牌'}的核心元素进行符号化重构。\n3. 色彩搭配：推荐使用朱红与钛白的撞色搭配，点缀少量金色提升质感。\n4. 营销文案："传承百年匠心，重塑东方美学"，强调品牌的时间沉淀与创新精神。`;
+        const mockResponse = `基于"${base}"，为您提供以下创意建议：
+
+1. 视觉风格：建议采用新中式国潮风格，将传统${elems[0] || '纹样'}与现代极简线条结合，营造既有文化底蕴又具现代感的视觉效果。
+
+2. 核心意象：可以提取${brandName !== '品牌' ? brandName.substring(0, 2) : '传统'}元素进行符号化重构，创造独特的品牌视觉符号。
+
+3. 色彩搭配：推荐使用朱红与钛白的撞色搭配，点缀少量金色提升质感，体现东方美学的典雅与精致。
+
+4. 文案方向：
+   - "传承百年匠心，重塑东方美学"
+   - "让传统活在当下，让文化走向世界"
+   - "古韵新声，品味非凡"
+
+5. 应用场景：适合用于品牌VI设计、产品包装、宣传海报、社交媒体内容等多种载体。`;
         
         let currentText = '';
         const chars = mockResponse.split('');

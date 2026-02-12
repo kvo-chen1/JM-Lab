@@ -84,9 +84,11 @@ export default function OrganizerCenter() {
   const navigate = useNavigate();
   const { getEvents, getUserEvents, deleteEvent, createEvent, updateEvent } = useEventService();
 
-  // 品牌验证状态
-  const [verifiedBrand, setVerifiedBrand] = useState<BrandPartnership | null>(null);
+  // 品牌验证状态 - 支持多品牌切换
+  const [userBrands, setUserBrands] = useState<BrandPartnership[]>([]);
+  const [selectedBrand, setSelectedBrand] = useState<BrandPartnership | null>(null);
   const [isCheckingBrand, setIsCheckingBrand] = useState(true);
+  const [showBrandSwitch, setShowBrandSwitch] = useState(false);
 
   // 当前标签页
   const [activeTab, setActiveTab] = useState<TabType>('activities');
@@ -128,7 +130,7 @@ export default function OrganizerCenter() {
   const [tagSuggestions, setTagSuggestions] = useState<string[]>([]);
   const [eventId, setEventId] = useState<string | null>(null);
 
-  // 检查品牌验证状态
+  // 检查品牌验证状态 - 支持多品牌
   useEffect(() => {
     const checkBrandVerification = async () => {
       if (!isAuthenticated || !user) {
@@ -142,10 +144,22 @@ export default function OrganizerCenter() {
           id: user.id,
           email: user.email
         });
-        const approvedBrand = myPartnerships.find(p => p.status === 'approved');
         
-        if (approvedBrand) {
-          setVerifiedBrand(approvedBrand);
+        // 获取所有已审核通过的品牌
+        const approvedBrands = myPartnerships.filter(p => p.status === 'approved');
+        setUserBrands(approvedBrands);
+        
+        // 优先从 localStorage 读取上次选中的品牌
+        const savedBrandId = localStorage.getItem('selected_brand_id');
+        if (savedBrandId) {
+          const savedBrand = approvedBrands.find(b => b.id === savedBrandId);
+          if (savedBrand) {
+            setSelectedBrand(savedBrand);
+          } else if (approvedBrands.length > 0) {
+            setSelectedBrand(approvedBrands[0]);
+          }
+        } else if (approvedBrands.length > 0) {
+          setSelectedBrand(approvedBrands[0]);
         }
       } catch (error) {
         console.error('检查品牌验证状态失败:', error);
@@ -156,6 +170,16 @@ export default function OrganizerCenter() {
 
     checkBrandVerification();
   }, [isAuthenticated, user, navigate]);
+
+  // 切换品牌
+  const handleSwitchBrand = (brand: BrandPartnership) => {
+    setSelectedBrand(brand);
+    localStorage.setItem('selected_brand_id', brand.id);
+    setShowBrandSwitch(false);
+    toast.success(`已切换到品牌: ${brand.brand_name}`);
+    // 刷新活动列表
+    fetchEvents();
+  };
 
   // 监听数据同步事件
   useEffect(() => {
@@ -185,7 +209,8 @@ export default function OrganizerCenter() {
     console.log('fetchEvents - 开始获取活动列表', {
       userId: user.id,
       isAdmin: user.isAdmin,
-      statusFilter
+      statusFilter,
+      selectedBrand: selectedBrand?.id
     });
     
     setIsLoading(true);
@@ -201,22 +226,13 @@ export default function OrganizerCenter() {
         }) || [];
         console.log('fetchEvents - 管理员获取到活动数:', eventsData.length);
       } else {
-        // 直接使用 getUserEvents 获取用户活动
-        console.log('fetchEvents - 使用用户ID获取活动:', user.id);
+        // 直接使用 getUserEvents 获取用户活动，传入选中的品牌ID
+        console.log('fetchEvents - 使用用户ID获取活动:', user.id, '品牌:', selectedBrand?.id);
         eventsData = await getUserEvents(user?.id || '', {
           status: statusFilter === 'all' ? undefined : statusFilter,
+          brandId: selectedBrand?.id,
         }) || [];
         console.log('fetchEvents - 获取到活动数:', eventsData.length, '活动列表:', eventsData);
-        
-        // 如果没有找到活动且存在品牌验证，再尝试按品牌查询
-        if (eventsData.length === 0 && verifiedBrand?.id) {
-          console.log('fetchEvents - 未找到活动，尝试按品牌查询:', verifiedBrand.id);
-          eventsData = await getUserEvents(user?.id || '', {
-            status: statusFilter === 'all' ? undefined : statusFilter,
-            brandId: verifiedBrand.id,
-          }) || [];
-          console.log('fetchEvents - 品牌查询获取到活动数:', eventsData.length);
-        }
       }
 
       // 前端搜索过滤
@@ -235,21 +251,21 @@ export default function OrganizerCenter() {
     } finally {
       setIsLoading(false);
     }
-  }, [user, verifiedBrand, searchQuery, statusFilter, typeFilter, currentPage, pageSize]);
+  }, [user, selectedBrand, searchQuery, statusFilter, typeFilter, currentPage, pageSize]);
 
   // 初始加载活动数据
   useEffect(() => {
     if (activeTab === 'activities') {
       fetchEvents();
     }
-  }, [activeTab, verifiedBrand, fetchEvents]);
+  }, [activeTab, selectedBrand, fetchEvents]);
 
   // 筛选变化时重新获取数据
   useEffect(() => {
     if (activeTab === 'activities') {
       fetchEvents();
     }
-  }, [statusFilter, typeFilter, currentPage, activeTab, fetchEvents]);
+  }, [statusFilter, typeFilter, currentPage, activeTab, selectedBrand, fetchEvents]);
 
   // 处理搜索
   const handleSearch = (e: React.FormEvent) => {
@@ -448,8 +464,8 @@ export default function OrganizerCenter() {
         max_participants: formData.maxParticipants,
         status: 'pending' as const,
         organizer_id: user?.id,
-        brand_id: verifiedBrand?.id,
-        brand_name: verifiedBrand?.brand_name,
+        brand_id: selectedBrand?.id,
+        brand_name: selectedBrand?.brand_name,
       };
 
       let event;
@@ -514,7 +530,7 @@ export default function OrganizerCenter() {
   }
 
   // 如果没有通过品牌验证，显示提示
-  if (!verifiedBrand) {
+  if (userBrands.length === 0) {
     return (
       <div className={`min-h-screen ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -564,7 +580,7 @@ export default function OrganizerCenter() {
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex items-center gap-2 mb-3"
+          className="flex items-center gap-2 mb-3 relative z-[100]"
         >
           <button
             onClick={() => navigate(-1)}
@@ -573,11 +589,65 @@ export default function OrganizerCenter() {
             <ArrowLeft className="w-4 h-4 text-gray-400" />
           </button>
           <span className="text-base font-medium text-gray-900 dark:text-white">主办方中心</span>
-          {verifiedBrand && (
-            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-emerald-100/80 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400">
-              <Building2 className="w-3 h-3" />
-              {verifiedBrand.brand_name}
-            </span>
+          
+          {/* 品牌切换按钮 */}
+          {selectedBrand && (
+            <div className="relative z-[100]">
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => setShowBrandSwitch(!showBrandSwitch)}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs bg-emerald-100/80 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-200/80 dark:hover:bg-emerald-900/50 transition-colors"
+              >
+                <Building2 className="w-3.5 h-3.5" />
+                <span className="font-medium">{selectedBrand.brand_name}</span>
+                {userBrands.length > 1 && (
+                  <ChevronRight className={`w-3 h-3 transition-transform ${showBrandSwitch ? 'rotate-90' : ''}`} />
+                )}
+              </motion.button>
+
+              {/* 品牌切换下拉菜单 */}
+              {showBrandSwitch && userBrands.length > 1 && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className={`absolute top-full left-0 mt-2 w-56 rounded-xl shadow-lg border z-[9999] ${
+                    isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+                  }`}
+                >
+                  <div className="p-2">
+                    <p className={`px-3 py-2 text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                      切换品牌
+                    </p>
+                    {userBrands.map((brand) => (
+                      <button
+                        key={brand.id}
+                        onClick={() => handleSwitchBrand(brand)}
+                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors ${
+                          selectedBrand?.id === brand.id
+                            ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400'
+                            : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
+                        }`}
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center text-white text-xs font-bold">
+                          {brand.brand_name?.charAt(0).toUpperCase() || 'B'}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">{brand.brand_name}</p>
+                          <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                            {brand.status === 'approved' ? '已认证' : brand.status}
+                          </p>
+                        </div>
+                        {selectedBrand?.id === brand.id && (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </div>
           )}
         </motion.div>
 
@@ -618,11 +688,12 @@ export default function OrganizerCenter() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.2 }}
+              className="relative z-0"
             >
               {/* 三栏布局 */}
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 relative z-0">
                 {/* 左栏：统计概览 + 快捷筛选 (2列) */}
-                <div className="lg:col-span-3 xl:col-span-2 space-y-6">
+                <div className="lg:col-span-3 xl:col-span-2 space-y-6 relative z-0">
                   {/* 统计卡片 */}
                   <div className="grid grid-cols-2 lg:grid-cols-1 gap-4">
                     <StatCard

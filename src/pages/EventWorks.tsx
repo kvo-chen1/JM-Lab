@@ -7,6 +7,7 @@ import { useEventWorks } from '@/hooks/useEventWorks';
 import { WorkCard, RatingComponent, WorkActionButtons } from '@/components/works';
 import { eventWorkService } from '@/services/eventWorkService';
 import { useEventService } from '@/hooks/useEventService';
+import { eventParticipationService } from '@/services/eventParticipationService';
 import { toast } from 'sonner';
 import {
   ChevronLeft,
@@ -29,6 +30,7 @@ import {
   Calendar,
   MapPin,
   ExternalLink,
+  Lock,
 } from 'lucide-react';
 
 // 媒体类型选项
@@ -53,7 +55,7 @@ export default function EventWorks() {
   const navigate = useNavigate();
   const { isDark } = useTheme();
   const { isAuthenticated, user } = useContext(AuthContext);
-  const { getEventById } = useEventService();
+  const { getEvent } = useEventService();
   
   // 本地状态
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -67,6 +69,14 @@ export default function EventWorks() {
     participantCount?: number;
   } | null>(null);
   const [isLoadingEvent, setIsLoadingEvent] = useState(true);
+  
+  // 用户参与状态
+  const [participationStatus, setParticipationStatus] = useState<{
+    isParticipated: boolean;
+    participationId?: string;
+    status?: string;
+  }>({ isParticipated: false });
+  const [isCheckingParticipation, setIsCheckingParticipation] = useState(true);
 
   // 使用自定义 Hook 获取作品数据
   const {
@@ -90,7 +100,7 @@ export default function EventWorks() {
     userId: user?.id,
   });
 
-  // 加载活动信息
+  // 加载活动信息和用户参与状态
   useEffect(() => {
     if (!eventId) return;
     
@@ -119,7 +129,29 @@ export default function EventWorks() {
     };
 
     loadEventInfo();
-  }, [eventId, getEventById]);
+  }, [eventId, getEvent]);
+
+  // 检查用户参与状态
+  useEffect(() => {
+    if (!eventId || !user?.id) {
+      setIsCheckingParticipation(false);
+      return;
+    }
+
+    const checkParticipation = async () => {
+      setIsCheckingParticipation(true);
+      try {
+        const status = await eventParticipationService.checkParticipation(eventId, user.id);
+        setParticipationStatus(status);
+      } catch (error) {
+        console.error('检查参与状态失败:', error);
+      } finally {
+        setIsCheckingParticipation(false);
+      }
+    };
+
+    checkParticipation();
+  }, [eventId, user?.id]);
 
   // 处理分享
   const handleShare = async () => {
@@ -391,12 +423,54 @@ export default function EventWorks() {
                 <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                   该活动还没有人提交作品，快来参与吧！
                 </p>
-                <button
-                  onClick={() => navigate(`/events/${eventId}/submit`)}
-                  className="mt-6 px-6 py-2 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors"
-                >
-                  提交作品
-                </button>
+                
+                {/* 提交作品按钮 - 根据参与状态显示 */}
+                {isCheckingParticipation ? (
+                  // 检查中
+                  <button
+                    disabled
+                    className="mt-6 px-6 py-2 bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 rounded-xl cursor-not-allowed flex items-center gap-2 mx-auto"
+                  >
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    检查中...
+                  </button>
+                ) : !isAuthenticated ? (
+                  // 未登录
+                  <button
+                    onClick={() => navigate('/login', { state: { from: `/events/${eventId}/works` } })}
+                    className="mt-6 px-6 py-2 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors"
+                  >
+                    登录后提交
+                  </button>
+                ) : participationStatus.isParticipated ? (
+                  // 已报名 - 可以提交
+                  <button
+                    onClick={() => navigate(`/events/${eventId}/submit`)}
+                    className="mt-6 px-6 py-2 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors"
+                  >
+                    提交作品
+                  </button>
+                ) : (
+                  // 未报名 - 禁用状态
+                  <div className="mt-6 space-y-2">
+                    <button
+                      disabled
+                      className="px-6 py-2 bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 rounded-xl cursor-not-allowed flex items-center gap-2 mx-auto"
+                    >
+                      <Lock className="w-4 h-4" />
+                      请先报名活动
+                    </button>
+                    <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                      提交作品前需要先报名参加活动
+                    </p>
+                    <button
+                      onClick={() => navigate(`/events/${eventId}`)}
+                      className="text-sm text-primary-600 hover:text-primary-700 underline"
+                    >
+                      去报名 →
+                    </button>
+                  </div>
+                )}
               </div>
             ) : (
               // 作品列表
@@ -485,7 +559,7 @@ export default function EventWorks() {
                             {selectedSubmission.creatorName || '匿名用户'}
                           </p>
                           <p className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
-                            {new Date(selectedSubmission.submittedAt).toLocaleDateString('zh-CN')}
+                            {selectedSubmission.submittedAt ? new Date(selectedSubmission.submittedAt).toLocaleDateString('zh-CN') : '未知时间'}
                           </p>
                         </div>
                       </div>

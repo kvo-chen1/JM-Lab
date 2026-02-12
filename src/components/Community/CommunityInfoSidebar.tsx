@@ -303,13 +303,17 @@ export const CommunityInfoSidebar: React.FC<CommunityInfoSidebarProps> = ({
         // 先更新用户在社区的活跃时间（标记在线）
         const { data: { session } } = await import('@/lib/supabase').then(m => m.supabase.auth.getSession());
         if (session?.user?.id) {
-          const { supabase } = await import('@/lib/supabaseClient');
+          const { supabaseAdmin } = await import('@/lib/supabaseClient');
           const now = Math.floor(Date.now() / 1000);
-          await supabase
+          const { error: updateError } = await supabaseAdmin
             .from('community_members')
             .update({ last_active: now })
             .eq('community_id', community.id)
             .eq('user_id', session.user.id);
+          
+          if (updateError) {
+            console.error('[CommunityInfoSidebar] Failed to update last_active:', updateError);
+          }
         }
 
         const response = await fetch(`/api/communities/${community.id}/stats`);
@@ -331,6 +335,10 @@ export const CommunityInfoSidebar: React.FC<CommunityInfoSidebarProps> = ({
     };
 
     fetchCommunityStats();
+
+    // 每1秒更新一次统计数据
+    const interval = setInterval(fetchCommunityStats, 1000);
+    return () => clearInterval(interval);
   }, [community.id]);
 
   // 获取真实成员数量
@@ -370,6 +378,7 @@ export const CommunityInfoSidebar: React.FC<CommunityInfoSidebarProps> = ({
       try {
         // 获取社区成员
         const { supabase } = await import('@/lib/supabaseClient');
+        const { supabaseAdmin } = await import('@/lib/supabaseClient');
         const { data: members, error: membersError } = await supabase
           .from('community_members')
           .select('user_id, role, joined_at')
@@ -378,16 +387,18 @@ export const CommunityInfoSidebar: React.FC<CommunityInfoSidebarProps> = ({
 
         if (membersError) throw membersError;
 
-        // 获取成员的用户信息
+        // 获取成员的用户信息（使用 admin 客户端绕过 RLS）
         const userIds = members?.map(m => m.user_id) || [];
         let usersData: any[] = [];
         if (userIds.length > 0) {
-          const { data: users, error: usersError } = await supabase
+          const { data: users, error: usersError } = await supabaseAdmin
             .from('users')
             .select('id, username, avatar_url')
             .in('id', userIds);
           if (!usersError && users) {
             usersData = users;
+          } else if (usersError) {
+            console.error('[CommunityInfoSidebar] Failed to fetch users:', usersError);
           }
         }
 
@@ -428,6 +439,7 @@ export const CommunityInfoSidebar: React.FC<CommunityInfoSidebarProps> = ({
         // 获取社区成员加入记录（从 community_members 表）
         const { communityService } = await import('@/services/communityService');
         const { supabase } = await import('@/lib/supabaseClient');
+        const { supabaseAdmin } = await import('@/lib/supabaseClient');
         const { data: members, error: membersError } = await supabase
           .from('community_members')
           .select('user_id, joined_at')
@@ -437,11 +449,11 @@ export const CommunityInfoSidebar: React.FC<CommunityInfoSidebarProps> = ({
 
         if (membersError) throw membersError;
 
-        // 获取成员的用户信息
+        // 获取成员的用户信息（使用 admin 客户端）
         const userIds = members?.map(m => m.user_id) || [];
         let usersData: any[] = [];
         if (userIds.length > 0) {
-          const { data: users, error: usersError } = await supabase
+          const { data: users, error: usersError } = await supabaseAdmin
             .from('users')
             .select('id, username')
             .in('id', userIds);
@@ -461,7 +473,9 @@ export const CommunityInfoSidebar: React.FC<CommunityInfoSidebarProps> = ({
         members?.forEach((member, index) => {
           const user = usersData.find(u => u.id === member.user_id);
           const username = user?.username || '未知用户';
-          const timeAgo = getTimeAgo(new Date(member.joined_at * 1000));
+          // joined_at 是 ISO 日期字符串，直接使用
+          const joinDate = new Date(member.joined_at);
+          const timeAgo = getTimeAgo(joinDate);
           events.push({
             id: `join-${member.user_id}`,
             type: 'join',

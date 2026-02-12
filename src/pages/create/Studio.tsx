@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import ToolSidebar from './components/ToolSidebar';
 import PropertiesPanel from './components/PropertiesPanel';
 import CanvasArea from './components/CanvasArea';
@@ -9,7 +9,6 @@ import ModelSelector from '@/components/ModelSelector';
 import PublishToSquareModal from '@/components/PublishToSquareModal';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useSearchParams, useLocation } from 'react-router-dom';
-import { useAutoSave } from '@/hooks/useAutoSave';
 import { toast } from 'sonner';
 
 export default function Studio() {
@@ -17,9 +16,7 @@ export default function Studio() {
   const [searchParams] = useSearchParams();
   const location = useLocation();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  
-  // 启用自动保存
-  useAutoSave();
+  const hasProcessedTemplateRef = useRef(false);
 
   const {
     showAIReview,
@@ -81,6 +78,9 @@ export default function Studio() {
   
   // 读取从模板页面传递的数据
   useEffect(() => {
+    // 防止重复处理同一个模板数据
+    if (hasProcessedTemplateRef.current) return;
+    
     const state = location.state as {
       templatePrompt?: string;
       templateId?: number;
@@ -90,6 +90,8 @@ export default function Studio() {
     } | null;
     
     if (state?.templatePrompt) {
+      hasProcessedTemplateRef.current = true;
+      
       // 设置提示词
       setPrompt(state.templatePrompt);
       // 设置自动生成标志

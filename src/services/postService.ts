@@ -161,6 +161,7 @@ export async function getPosts(category?: string, currentUserId?: string, useSup
           console.log('First 5 works from API:', result.data.slice(0, 5).map((w: any) => ({
             id: w.id,
             title: w.title,
+            views: w.views,
             thumbnail: w.thumbnail,
             cover_url: w.cover_url,
             image_url: w.image_url,
@@ -837,7 +838,7 @@ export async function getUserLikes(userId: string): Promise<string[]> {
 }
 export async function createWork(workData: any, imageFile: File, userId?: string): Promise<any> {
   console.log('[createWork] Called with:', { workData, userId, fileType: imageFile.type, fileSize: imageFile.size });
-  
+
   // 1. Upload file (image or video)
   let fileUrl: string;
   try {
@@ -847,19 +848,19 @@ export async function createWork(workData: any, imageFile: File, userId?: string
   } catch (uploadError) {
     console.error('[createWork] File upload failed:', uploadError);
     // If upload fails, use a fallback URL
-    fileUrl = `https://picsum.photos/seed/${Date.now()}/800/600`;
+    fileUrl = `https://placehold.co/800x600/3b82f6/ffffff?text=${encodeURIComponent(workData.title?.slice(0, 10) || '作品')}`;
   }
-  
+
   // 判断是否为视频
   const isVideo = imageFile.type.startsWith('video/');
-  
+
   // 2. Insert into DB
-  // 对于视频，使用通用的视频占位图作为缩略图 - 使用可靠的图片服务
-  // 因为视频文件不能直接作为图片预览
-  const thumbnailUrl = isVideo ? 
-    `https://picsum.photos/seed/video-${Date.now()}/800/600` : 
+  // 对于视频，使用视频URL作为缩略图（视频播放器可以显示第一帧）
+  // 或者使用带有作品标题的占位图
+  const thumbnailUrl = isVideo ?
+    fileUrl : // 视频直接使用视频URL作为缩略图，让视频播放器显示第一帧
     fileUrl;
-  
+
   const result = await addPost({
     title: workData.title,
     description: workData.description,
@@ -869,17 +870,17 @@ export async function createWork(workData: any, imageFile: File, userId?: string
     videoUrl: isVideo ? fileUrl : undefined,
     type: isVideo ? 'video' : 'image'
   }, { id: userId } as User);
-  
+
   console.log('[createWork] Result:', result);
   return result;
 }
 
 export async function createWorkWithUrl(workData: any, imageUrl: string, userId?: string, isVideo: boolean = false): Promise<any> {
-  // 对于视频，使用通用的视频占位图作为缩略图 - 使用可靠的图片服务
-  const thumbnailUrl = isVideo ? 
-    `https://picsum.photos/seed/video-${Date.now()}/800/600` : 
+  // 对于视频，使用视频URL作为缩略图（视频播放器可以显示第一帧）
+  const thumbnailUrl = isVideo ?
+    imageUrl : // 视频直接使用视频URL作为缩略图
     imageUrl;
-  
+
   return await addPost({
     title: workData.title,
     description: workData.description,
@@ -3352,43 +3353,49 @@ function convertWorkToPost(work: any, isLiked: boolean, isBookmarked: boolean): 
 // 记录浏览量
 export async function recordView(itemId: string, type: 'works' | 'posts' = 'works'): Promise<boolean> {
   console.log('[recordView] Recording view:', { itemId, type });
-  
+
   // 检查是否已经浏览过（使用 localStorage 防止重复计数）
   const viewKey = `view_${type}_${itemId}`;
   const lastView = localStorage.getItem(viewKey);
   const now = Date.now();
-  
+
   // 24小时内只记录一次
   if (lastView && (now - parseInt(lastView)) < 24 * 60 * 60 * 1000) {
     console.log('[recordView] Already viewed within 24 hours');
     return false;
   }
-  
+
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-  
-  if (token) {
-    try {
-      const response = await fetch(`/api/${type}/${itemId}/view`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      
-      if (response.ok) {
-        const result = await response.json();
-        if (result.code === 0) {
-          // 记录浏览时间
-          localStorage.setItem(viewKey, now.toString());
-          console.log('[recordView] View recorded successfully');
-          return true;
-        }
-      }
-    } catch (error) {
-      console.warn('[recordView] Backend API error:', error);
+
+  try {
+    // 构建请求头，如果有 token 则添加，否则也允许未登录用户记录浏览量
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json'
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
     }
+
+    const response = await fetch(`/api/${type}/${itemId}/view`, {
+      method: 'POST',
+      headers
+    });
+
+    if (response.ok) {
+      const result = await response.json();
+      if (result.code === 0) {
+        // 记录浏览时间
+        localStorage.setItem(viewKey, now.toString());
+        console.log('[recordView] View recorded successfully');
+        return true;
+      }
+    } else {
+      console.warn('[recordView] API returned error:', response.status);
+    }
+  } catch (error) {
+    console.warn('[recordView] Backend API error:', error);
   }
-  
+
   return false;
 }
 

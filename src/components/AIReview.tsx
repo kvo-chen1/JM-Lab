@@ -10,6 +10,7 @@ import { useNavigate } from 'react-router-dom';
 import { workService } from '../services/apiService';
 import { aiReviewService } from '../services/aiReviewService';
 import { AuthContext } from '../contexts/authContext';
+import { eventService } from '../services/eventService';
 
 // Review result type definition
 interface AIReviewResult {
@@ -105,93 +106,68 @@ const AIReview: React.FC<AIReviewProps> = ({ workId, prompt, aiExplanation, sele
         // Prepare creation description based on actual data
         const creationDescription = aiExplanation || prompt || 'This is a design work created on our platform';
 
-        // Call LLM service to generate real review
-        const reviewData = await llmService.generateWorkReview(prompt || 'General Design', creationDescription);
+        // 从数据库获取真实活动数据
+        const [reviewData, eventsData, worksData] = await Promise.all([
+          llmService.generateWorkReview(prompt || 'General Design', creationDescription),
+          eventService.getPublishedEvents(),
+          workService.getWorks().catch(() => []) // 如果获取作品失败，返回空数组
+        ]);
 
-        // 从API获取作品数据，随机选择3个作品作为相似作品
-        const fetchSimilarWorks = async () => {
-          try {
-            const worksData = await workService.getWorks();
-            const randomWorks = [...worksData].sort(() => 0.5 - Math.random()).slice(0, 3);
+        // 将真实活动数据转换为 relatedActivities 格式
+        const relatedActivities = eventsData.slice(0, 2).map(event => ({
+          title: event.title,
+          deadline: event.endDate 
+            ? new Date(event.endDate).toLocaleDateString('zh-CN')
+            : '长期有效',
+          reward: event.rewards || '参与活动获得奖励',
+          image: event.imageUrl
+        }));
 
-            const finalReviewResult = {
-              ...reviewData,
-              similarWorks: randomWorks.map(work => ({
-                id: work.id,
-                thumbnail: work.thumbnailUrl || '',
-                title: work.title
-              }))
-            };
+        // 随机选择3个作品作为相似作品
+        const randomWorks = [...worksData].sort(() => 0.5 - Math.random()).slice(0, 3);
 
-            setReviewResult(finalReviewResult);
-
-            // 保存AI点评记录到数据库
-            if (user?.id) {
-              setIsSaving(true);
-              try {
-                // 获取当前选中作品的缩略图
-                const selectedWork = generatedResults.find(r => r.id === selectedResult);
-                const workThumbnail = selectedWork?.thumbnail || '';
-
-                await aiReviewService.saveAIReview(user.id, {
-                  workId,
-                  prompt: prompt || 'General Design',
-                  aiExplanation: creationDescription,
-                  reviewResult: finalReviewResult,
-                  workThumbnail
-                });
-
-                console.log('AI点评记录已保存');
-              } catch (saveError) {
-                console.error('保存AI点评记录失败:', saveError);
-                // 保存失败不影响用户查看点评结果
-              } finally {
-                setIsSaving(false);
-              }
-            }
-          } catch (error) {
-            console.error('获取相似作品失败:', error);
-            // 如果API调用失败，使用默认的相似作品为空
-            const finalReviewResult = {
-              ...reviewData,
-              similarWorks: []
-            };
-
-            setReviewResult(finalReviewResult);
-
-            // 即使获取相似作品失败，也尝试保存点评记录
-            if (user?.id) {
-              setIsSaving(true);
-              try {
-                const selectedWork = generatedResults.find(r => r.id === selectedResult);
-                const workThumbnail = selectedWork?.thumbnail || '';
-
-                await aiReviewService.saveAIReview(user.id, {
-                  workId,
-                  prompt: prompt || 'General Design',
-                  aiExplanation: creationDescription,
-                  reviewResult: finalReviewResult,
-                  workThumbnail
-                });
-              } catch (saveError) {
-                console.error('保存AI点评记录失败:', saveError);
-              } finally {
-                setIsSaving(false);
-              }
-            }
-          }
+        const finalReviewResult = {
+          ...reviewData,
+          relatedActivities, // 使用真实活动数据
+          similarWorks: randomWorks.map(work => ({
+            id: work.id,
+            thumbnail: work.thumbnail || work.thumbnailUrl || '/placeholder-image.jpg',
+            title: work.title
+          }))
         };
 
-        await fetchSimilarWorks();
+        setReviewResult(finalReviewResult);
+
+        // 保存AI点评记录到数据库
+        if (user?.id) {
+          setIsSaving(true);
+          try {
+            const selectedWork = generatedResults.find(r => r.id === selectedResult);
+            const workThumbnail = selectedWork?.thumbnail || '';
+
+            await aiReviewService.saveAIReview(user.id, {
+              workId,
+              prompt: prompt || 'General Design',
+              aiExplanation: creationDescription,
+              reviewResult: finalReviewResult,
+              workThumbnail
+            });
+
+            console.log('AI点评记录已保存');
+          } catch (saveError) {
+            console.error('保存AI点评记录失败:', saveError);
+          } finally {
+            setIsSaving(false);
+          }
+        }
       } catch (error) {
         console.error('Failed to generate review:', error);
-        setError('Failed to generate AI review. Please try again later.');
+        setError('生成AI点评失败，请稍后重试。');
       } finally {
         setIsLoading(false);
       }
     };
 
-    // Add a small delay to simulate API call
     generateReview();
   }, [workId, prompt, aiExplanation, selectedResult, generatedResults, t, user?.id]);
   
@@ -275,13 +251,13 @@ const AIReview: React.FC<AIReviewProps> = ({ workId, prompt, aiExplanation, sele
                         const randomWorks = [...worksData].sort(() => 0.5 - Math.random()).slice(0, 3);
                         
                         setReviewResult({
-                          ...reviewData,
-                          similarWorks: randomWorks.map(work => ({
-                            id: work.id,
-                            thumbnail: work.thumbnailUrl || '',
-                            title: work.title
-                          }))
-                        });
+                            ...reviewData,
+                            similarWorks: randomWorks.map(work => ({
+                              id: work.id,
+                              thumbnail: work.thumbnail || work.thumbnailUrl || '/placeholder-image.jpg',
+                              title: work.title
+                            }))
+                          });
                       } catch (worksError) {
                         console.error('获取相似作品失败:', worksError);
                         setReviewResult({
@@ -554,7 +530,7 @@ const AIReview: React.FC<AIReviewProps> = ({ workId, prompt, aiExplanation, sele
                           const randomWorks = [...worksData].sort(() => 0.5 - Math.random()).slice(0, 3);
                           setSimilarWorks(randomWorks.map(work => ({
                             id: work.id,
-                            thumbnail: work.thumbnailUrl || '',
+                            thumbnail: work.thumbnail || work.thumbnailUrl || '/placeholder-image.jpg',
                             title: work.title
                           })));
                         } catch (error) {

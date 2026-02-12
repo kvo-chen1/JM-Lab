@@ -269,14 +269,23 @@ export default function Square() {
           thumbnail: found.thumbnail?.substring(0, 50),
           category: found.category,
           type: found.type,
-          isLiked: found.isLiked
+          isLiked: found.isLiked,
+          views: found.views
         });
-        setActive(found)
 
-        // 记录浏览量（异步执行，不阻塞UI）
-        postsApi.recordView(id, 'works').catch(err => {
-          console.warn('Failed to record view:', err)
-        })
+        // 记录浏览量并更新本地状态
+        postsApi.recordView(id, 'works').then(() => {
+          // 浏览量记录成功后，更新本地状态
+          const updatedViews = (found?.views || 0) + 1;
+          const updatedPost = { ...found, views: updatedViews };
+          setActive(updatedPost);
+          // 同时更新 posts 列表中的浏览量
+          setPosts(prev => prev.map(p => p.id === id ? { ...p, views: updatedViews } : p));
+        }).catch(err => {
+          console.warn('Failed to record view:', err);
+          // 即使记录失败，也显示原始数据
+          setActive(found);
+        });
       } else {
         setActiveError('未找到该资讯内容')
       }
@@ -935,12 +944,8 @@ export default function Square() {
           isOpen={!!active}
           onClose={() => {
             setActive(null)
-            // 恢复URL
-            if (window.history.state?.modal) {
-              window.history.back()
-            } else {
-              window.history.pushState({}, '', '/square')
-            }
+            // 恢复URL - 使用 navigate 避免页面刷新
+            navigate('/square', { replace: true })
           }}
           onLike={like}
           onComment={addComment}
@@ -953,10 +958,16 @@ export default function Square() {
             setActive(newPost)
             // 更新URL
             window.history.pushState({ modal: true }, '', `/post/${newPost.id}`)
-            // 记录浏览量
-            postsApi.recordView(newPost.id, 'works').catch(err => {
-              console.warn('Failed to record view:', err)
-            })
+            // 记录浏览量并更新本地状态
+            postsApi.recordView(newPost.id, 'works').then(() => {
+              const updatedViews = (newPost?.views || 0) + 1;
+              const updatedPost = { ...newPost, views: updatedViews };
+              setActive(updatedPost);
+              // 同时更新 posts 列表中的浏览量
+              setPosts(prev => prev.map(p => p.id === newPost.id ? { ...p, views: updatedViews } : p));
+            }).catch(err => {
+              console.warn('Failed to record view:', err);
+            });
           }}
         />
       )}
@@ -981,6 +992,7 @@ export default function Square() {
             title: shareTarget.post.title,
             description: shareTarget.post.description,
             thumbnail: shareTarget.post.thumbnail,
+            videoUrl: shareTarget.post.videoUrl,
             url: `${location.origin}/square/${shareTarget.post.id}`,
             author: shareTarget.post.author ? {
               name: shareTarget.post.author.username || '未知用户',

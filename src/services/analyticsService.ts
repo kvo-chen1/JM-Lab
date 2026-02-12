@@ -17,6 +17,7 @@ export interface DataPoint {
   category?: string;
   theme?: string;
   userId?: string;
+  count?: number; // 原始数据点的数量（用于 works 等指标）
 }
 
 // 数据统计接口
@@ -196,13 +197,18 @@ class AnalyticsService {
       // 构建基础查询条件
       const userId = query.filters?.userId;
 
+      // 计算时间范围（同时处理秒级和毫秒级时间戳）
+      const startTimeSeconds = Math.floor(startTime.getTime() / 1000);
+      const endTimeSeconds = Math.floor(now.getTime() / 1000);
+      const startTimeMs = startTime.getTime();
+      const endTimeMs = now.getTime();
+
       if (query.metric === 'works') {
         // 从 works 表获取作品数据
+        // 由于 created_at 可能是秒级或毫秒级，先获取用户所有作品，然后在内存中过滤
         let queryBuilder = supabase
           .from('works')
-          .select('created_at, category, creator_id')
-          .gte('created_at', Math.floor(startTime.getTime() / 1000))
-          .lte('created_at', Math.floor(now.getTime() / 1000));
+          .select('created_at, category, creator_id');
 
         // 如果指定了用户ID，只查询该用户的作品
         if (userId) {
@@ -212,14 +218,19 @@ class AnalyticsService {
         const { data: works, error } = await queryBuilder;
 
         if (error) throw error;
-        data = works || [];
+
+        // 在内存中过滤时间范围（处理秒级和毫秒级时间戳）
+        data = (works || []).filter(w => {
+          const createdAt = w.created_at;
+          // 如果是毫秒级时间戳（大于10000000000），转换为秒级比较
+          const createdAtSeconds = createdAt > 10000000000 ? Math.floor(createdAt / 1000) : createdAt;
+          return createdAtSeconds >= startTimeSeconds && createdAtSeconds <= endTimeSeconds;
+        });
       } else if (query.metric === 'likes') {
         // 从 works 表统计 likes 字段
         let queryBuilder = supabase
           .from('works')
-          .select('created_at, likes')
-          .gte('created_at', Math.floor(startTime.getTime() / 1000))
-          .lte('created_at', Math.floor(now.getTime() / 1000));
+          .select('created_at, likes');
 
         // 如果指定了用户ID，只查询该用户的作品
         if (userId) {
@@ -229,15 +240,20 @@ class AnalyticsService {
         const { data: works, error } = await queryBuilder;
 
         if (error) throw error;
-        // 转换数据格式
-        data = (works || []).map(w => ({ created_at: w.created_at, value: w.likes || 0 }));
+
+        // 在内存中过滤时间范围并转换数据格式
+        data = (works || [])
+          .filter(w => {
+            const createdAt = w.created_at;
+            const createdAtSeconds = createdAt > 10000000000 ? Math.floor(createdAt / 1000) : createdAt;
+            return createdAtSeconds >= startTimeSeconds && createdAtSeconds <= endTimeSeconds;
+          })
+          .map(w => ({ created_at: w.created_at, value: w.likes || 0 }));
       } else if (query.metric === 'views') {
         // 从 works 表统计 views 字段
         let queryBuilder = supabase
           .from('works')
-          .select('created_at, views')
-          .gte('created_at', Math.floor(startTime.getTime() / 1000))
-          .lte('created_at', Math.floor(now.getTime() / 1000));
+          .select('created_at, views');
 
         // 如果指定了用户ID，只查询该用户的作品
         if (userId) {
@@ -247,15 +263,20 @@ class AnalyticsService {
         const { data: works, error } = await queryBuilder;
 
         if (error) throw error;
-        // 转换数据格式
-        data = (works || []).map(w => ({ created_at: w.created_at, value: w.views || 0 }));
+
+        // 在内存中过滤时间范围并转换数据格式
+        data = (works || [])
+          .filter(w => {
+            const createdAt = w.created_at;
+            const createdAtSeconds = createdAt > 10000000000 ? Math.floor(createdAt / 1000) : createdAt;
+            return createdAtSeconds >= startTimeSeconds && createdAtSeconds <= endTimeSeconds;
+          })
+          .map(w => ({ created_at: w.created_at, value: w.views || 0 }));
       } else if (query.metric === 'comments') {
         // 从 works 表统计 comments 字段
         let queryBuilder = supabase
           .from('works')
-          .select('created_at, comments')
-          .gte('created_at', Math.floor(startTime.getTime() / 1000))
-          .lte('created_at', Math.floor(now.getTime() / 1000));
+          .select('created_at, comments');
 
         // 如果指定了用户ID，只查询该用户的作品
         if (userId) {
@@ -265,43 +286,57 @@ class AnalyticsService {
         const { data: works, error } = await queryBuilder;
 
         if (error) throw error;
-        // 转换数据格式
-        data = (works || []).map(w => ({ created_at: w.created_at, value: w.comments || 0 }));
+
+        // 在内存中过滤时间范围并转换数据格式
+        data = (works || [])
+          .filter(w => {
+            const createdAt = w.created_at;
+            const createdAtSeconds = createdAt > 10000000000 ? Math.floor(createdAt / 1000) : createdAt;
+            return createdAtSeconds >= startTimeSeconds && createdAtSeconds <= endTimeSeconds;
+          })
+          .map(w => ({ created_at: w.created_at, value: w.comments || 0 }));
       } 
       // ... 其他指标的处理
 
       // 3. 数据转换与分组
-      const groupedData: Record<string, number> = {};
-      
+      const groupedData: Record<string, { value: number; count: number }> = {};
+
       data.forEach(item => {
-        // created_at 是 Unix 时间戳（秒），需要转换为毫秒
-        const timestamp = item.created_at * 1000;
+        // created_at 可能是秒级或毫秒级时间戳，需要统一处理
+        const createdAt = item.created_at;
+        // 如果是毫秒级时间戳（大于10000000000），直接使用；否则转换为毫秒
+        const timestamp = createdAt > 10000000000 ? createdAt : createdAt * 1000;
         const date = new Date(timestamp);
         let key = '';
-        
+
         switch (query.groupBy) {
           case 'day': key = date.toISOString().split('T')[0]; break;
-          case 'week': 
+          case 'week':
             const weekNum = Math.ceil(date.getDate() / 7); // 简化计算
-            key = `${date.getFullYear()}-W${weekNum}`; 
+            key = `${date.getFullYear()}-W${weekNum}`;
             break;
           case 'month': key = `${date.getFullYear()}-${date.getMonth() + 1}`; break;
           case 'category': key = item.category || '其他'; break;
           case 'user': key = item.user_id || '匿名'; break;
           default: key = date.toISOString().split('T')[0];
         }
-        
+
         // 对于 likes/views/comments，使用 value 字段，否则计数为 1
         const value = item.value !== undefined ? item.value : 1;
-        groupedData[key] = (groupedData[key] || 0) + value;
+        if (!groupedData[key]) {
+          groupedData[key] = { value: 0, count: 0 };
+        }
+        groupedData[key].value += value;
+        groupedData[key].count += 1;
       });
 
       // 4. 格式化返回
-      return Object.entries(groupedData).map(([key, value]) => ({
+      return Object.entries(groupedData).map(([key, { value, count }]) => ({
         timestamp: new Date(key).getTime() || Date.now(), // 如果是 category 等非日期 key，timestamp 意义不大
         value,
         label: key,
-        category: query.groupBy === 'category' ? key : undefined
+        category: query.groupBy === 'category' ? key : undefined,
+        count
       })).sort((a, b) => a.timestamp - b.timestamp);
 
     } catch (error) {
@@ -373,7 +408,7 @@ class AnalyticsService {
     try {
       const { data, error } = await supabase
         .from('works')
-        .select('id, title, thumbnail, category, likes, views, comments')
+        .select('id, title, thumbnail, category, likes, views, comments, type, video_url')
         .order('views', { ascending: false }) // 按浏览量排序
         .limit(limit);
 
@@ -384,6 +419,8 @@ class AnalyticsService {
         title: work.title,
         thumbnail: work.thumbnail || '',
         category: work.category || '未分类',
+        type: work.type || 'image',
+        videoUrl: work.video_url,
         metrics: {
           likes: work.likes || 0,
           views: work.views || 0,
@@ -443,7 +480,7 @@ class AnalyticsService {
   }
 
   // 获取数据统计指标
-  getMetricsStats(data: DataPoint[]): DataStats {
+  getMetricsStats(data: DataPoint[], metric?: MetricType): DataStats {
     if (data.length === 0) {
       return {
         total: 0,
@@ -456,8 +493,11 @@ class AnalyticsService {
     }
 
     const values = data.map(d => d.value);
-    const total = values.reduce((sum, val) => sum + val, 0);
-    const average = total / values.length;
+    // 对于 works 指标，total 应该是所有分组的 count 累加（原始作品数）
+    const total = metric === 'works'
+      ? data.reduce((sum, d) => sum + (d.count || 1), 0)
+      : values.reduce((sum, val) => sum + val, 0);
+    const average = total / data.length;
     const peak = Math.max(...values);
     const trough = Math.min(...values);
 
@@ -495,7 +535,7 @@ class AnalyticsService {
   // 导出数据分析报告
   async exportAnalyticsReport(params: AnalyticsQueryParams, format: ExportFormat = 'json'): Promise<Blob> {
     const data = await this.getMetricsData(params);
-    const stats = this.getMetricsStats(data);
+    const stats = this.getMetricsStats(data, params.metric);
 
     if (format === 'csv') {
       // CSV 格式导出

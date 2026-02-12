@@ -50,6 +50,7 @@ const OneClickDesign: React.FC<OneClickDesignProps> = ({ onGenerate }) => {
   
   // 加载状态
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
+  const [isOptimizing, setIsOptimizing] = useState<boolean>(false);
   const [generationStatus, setGenerationStatus] = useState<string>('');
   const [progress, setProgress] = useState<number>(0);
   
@@ -88,7 +89,35 @@ const OneClickDesign: React.FC<OneClickDesignProps> = ({ onGenerate }) => {
       reader.readAsDataURL(file);
     }
   };
-  
+
+  // 优化提示词
+  const handleOptimizePrompt = useCallback(async () => {
+    if (!prompt.trim()) {
+      toast.warning('请先输入创意描述');
+      return;
+    }
+
+    setIsOptimizing(true);
+    try {
+      llmService.setCurrentModel('qwen');
+      const instruction = `请将下面的创作提示优化为更清晰的中文指令，保留原意，突出关键元素（主题、风格、色彩、素材）。用1-3个短句表达，避免礼貌语或解释，只输出优化后的文本：
+
+${prompt}`;
+      const result = await llmService.generateResponse(instruction);
+      const polished = String(result || '').trim();
+      if (polished && !/接口不可用|未返回内容/.test(polished)) {
+        setPrompt(polished);
+        toast.success('提示词优化完成');
+      } else {
+        toast.error('优化失败，请稍后重试');
+      }
+    } catch (e) {
+      toast.error('优化失败，请稍后重试');
+    } finally {
+      setIsOptimizing(false);
+    }
+  }, [prompt]);
+
   // 实际生成过程
   const generateContent = useCallback(async () => {
     // 输入验证
@@ -412,14 +441,19 @@ const OneClickDesign: React.FC<OneClickDesignProps> = ({ onGenerate }) => {
                   className="w-full p-6 rounded-2xl h-56 text-base focus:outline-none focus:ring-3 focus:ring-red-500/20 transition-all resize-none shadow-md bg-white border-gray-200 text-gray-900 placeholder-gray-400 border group-hover:border-red-200"
                 />
                 <div className="absolute bottom-5 right-5 flex gap-3">
-                  <motion.button 
-                    disabled={!prompt.trim()}
+                  <motion.button
+                    onClick={handleOptimizePrompt}
+                    disabled={!prompt.trim() || isOptimizing}
                     whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.9 }}
                     className="p-3 rounded-lg text-sm transition-all hover:bg-gray-100 text-gray-400 hover:text-blue-600 disabled:text-gray-300 shadow-sm"
                     title="AI优化提示词"
                   >
-                    <i className="fas fa-magic text-lg"></i>
+                    {isOptimizing ? (
+                      <i className="fas fa-spinner fa-spin text-lg"></i>
+                    ) : (
+                      <i className="fas fa-magic text-lg"></i>
+                    )}
                   </motion.button>
                   <motion.button 
                     onClick={() => setPrompt('')}
@@ -433,69 +467,53 @@ const OneClickDesign: React.FC<OneClickDesignProps> = ({ onGenerate }) => {
                 </div>
               </div>
               <div className="flex flex-wrap gap-3 pt-2">
-                <motion.button 
-                  onClick={() => setPrompt(prev => prev + ' 青花瓷海报')}
+                <motion.button
+                  onClick={() => setPrompt('新中式国潮插画，传统纹样与现代几何融合，朱砂红与墨黑配色，金色描边，平面设计风格')}
                   whileHover={{ scale: 1.05, y: -2 }}
                   whileTap={{ scale: 0.95 }}
                   className="text-sm px-4 py-2 rounded-full border transition-all duration-300 bg-white border-gray-200 hover:border-red-200 hover:text-red-600 text-gray-700 shadow-sm"
                 >
-                  青花瓷海报
+                  国潮风格
                 </motion.button>
-                <motion.button 
-                  onClick={() => setPrompt(prev => prev + ' 国潮包装')}
+                <motion.button
+                  onClick={() => setPrompt('非遗工艺视觉，剪纸/皮影/刺绣元素，手工质感，民俗图案，暖色调，文化传承主题')}
                   whileHover={{ scale: 1.05, y: -2 }}
                   whileTap={{ scale: 0.95 }}
                   className="text-sm px-4 py-2 rounded-full border transition-all duration-300 bg-white border-gray-200 hover:border-red-200 hover:text-red-600 text-gray-700 shadow-sm"
                 >
-                  国潮包装
+                  非遗元素
                 </motion.button>
-                <motion.button 
-                  onClick={() => setPrompt(prev => prev + ' 老字号焕新')}
+                <motion.button
+                  onClick={() => setPrompt('科技未来感设计，赛博朋克美学，霓虹光效，数字艺术，冷色调蓝紫渐变，智能交互视觉')}
                   whileHover={{ scale: 1.05, y: -2 }}
                   whileTap={{ scale: 0.95 }}
                   className="text-sm px-4 py-2 rounded-full border transition-all duration-300 bg-white border-gray-200 hover:border-red-200 hover:text-red-600 text-gray-700 shadow-sm"
                 >
-                  老字号焕新
+                  科创思维
                 </motion.button>
-                <motion.button 
-                  onClick={() => setPrompt(prev => prev + ' 节日限定')}
+                <motion.button
+                  onClick={() => setPrompt('天津地域文化，海河/津门故里/五大道建筑，方言元素，码头文化，市井气息，本土特色视觉')}
                   whileHover={{ scale: 1.05, y: -2 }}
                   whileTap={{ scale: 0.95 }}
                   className="text-sm px-4 py-2 rounded-full border transition-all duration-300 bg-white border-gray-200 hover:border-red-200 hover:text-red-600 text-gray-700 shadow-sm"
                 >
-                  节日限定
+                  地域素材
                 </motion.button>
-                <motion.button 
-                  onClick={() => setPrompt(prev => prev + ' 非遗传承')}
+                <motion.button
+                  onClick={() => setPrompt('传统节日庆典，红灯笼/烟花/舞龙舞狮，喜庆氛围，中国红金色配色，团圆祝福主题')}
                   whileHover={{ scale: 1.05, y: -2 }}
                   whileTap={{ scale: 0.95 }}
                   className="text-sm px-4 py-2 rounded-full border transition-all duration-300 bg-white border-gray-200 hover:border-red-200 hover:text-red-600 text-gray-700 shadow-sm"
                 >
-                  非遗传承
+                  节日庆典
                 </motion.button>
-                <motion.button 
-                  onClick={() => setPrompt('杨柳青年画风格的现代海报设计')}
+                <motion.button
+                  onClick={() => setPrompt('文创产品设计，博物馆联名/非遗IP/城市符号，实用美学，年轻潮流，包装/周边/礼品设计')}
                   whileHover={{ scale: 1.05, y: -2 }}
                   whileTap={{ scale: 0.95 }}
                   className="text-sm px-4 py-2 rounded-full border transition-all duration-300 bg-white border-gray-200 hover:border-red-200 hover:text-red-600 text-gray-700 shadow-sm"
                 >
-                  杨柳青年画
-                </motion.button>
-                <motion.button 
-                  onClick={() => setPrompt('泥人张彩塑风格的创意设计')}
-                  whileHover={{ scale: 1.05, y: -2 }}
-                  whileTap={{ scale: 0.95 }}
-                  className="text-sm px-4 py-2 rounded-full border transition-all duration-300 bg-white border-gray-200 hover:border-red-200 hover:text-red-600 text-gray-700 shadow-sm"
-                >
-                  泥人张彩塑
-                </motion.button>
-                <motion.button 
-                  onClick={() => setPrompt('赛博朋克风格的天津卫')}
-                  whileHover={{ scale: 1.05, y: -2 }}
-                  whileTap={{ scale: 0.95 }}
-                  className="text-sm px-4 py-2 rounded-full border transition-all duration-300 bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200 hover:border-blue-400 hover:text-blue-600 text-blue-700 shadow-sm"
-                >
-                  <i className="fas fa-random mr-1"></i>随机灵感
+                  文创产品
                 </motion.button>
               </div>
             </div>

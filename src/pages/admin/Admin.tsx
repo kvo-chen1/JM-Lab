@@ -25,9 +25,13 @@ const ProductManagement = lazy(() => import('./ProductManagement'));
 const NotificationManagement = lazy(() => import('./NotificationManagement'));
 const SystemMonitor = lazy(() => import('./SystemMonitor'));
 
+// 新增管理模块
+const CommunityManagement = lazy(() => import('./CommunityManagement'));
+const ContentManagement = lazy(() => import('./ContentManagement'));
+
 const COLORS = ['#f59e0b', '#34d399', '#f87171'];
 
-type TabType = 'dashboard' | 'audit' | 'analytics' | 'adoption' | 'users' | 'settings' | 'campaigns' | 'creators' | 'brandPartnerships' | 'orders' | 'permissions' | 'feedback' | 'contentAudit' | 'auditLog' | 'userAudit' | 'eventAudit' | 'productManagement' | 'notificationManagement' | 'systemMonitor';
+type TabType = 'dashboard' | 'audit' | 'analytics' | 'adoption' | 'users' | 'settings' | 'campaigns' | 'creators' | 'brandPartnerships' | 'orders' | 'permissions' | 'feedback' | 'contentAudit' | 'auditLog' | 'userAudit' | 'eventAudit' | 'productManagement' | 'notificationManagement' | 'systemMonitor' | 'communities' | 'contentManagement';
 
 export default function Admin() {
   const { isDark } = useTheme();
@@ -415,6 +419,8 @@ export default function Admin() {
                 { id: 'dashboard', name: '控制台', icon: 'tachometer-alt' },
                 { id: 'campaigns', name: '活动管理', icon: 'calendar-alt' },
                 { id: 'eventAudit', name: '活动审核', icon: 'clipboard-check' },
+                { id: 'communities', name: '社群管理', icon: 'users-cog' },
+                { id: 'contentManagement', name: '内容管理', icon: 'newspaper' },
                 { id: 'contentAudit', name: '内容审核', icon: 'file-alt' },
                 { id: 'analytics', name: '数据分析', icon: 'chart-bar' },
                 { id: 'adoption', name: '品牌管理', icon: 'star' },
@@ -495,6 +501,8 @@ export default function Admin() {
              {activeTab === 'productManagement' && '商品管理'}
              {activeTab === 'notificationManagement' && '消息通知管理'}
              {activeTab === 'systemMonitor' && '系统监控'}
+             {activeTab === 'communities' && '社群管理'}
+             {activeTab === 'contentManagement' && '内容管理'}
            </h1>
           
           <div className="flex items-center space-x-4">
@@ -1503,6 +1511,36 @@ export default function Admin() {
             </div>
           }>
             <SystemMonitor />
+          </Suspense>
+        )}
+
+        {/* 社群管理页面 */}
+        {activeTab === 'communities' && (
+          <Suspense fallback={
+            <div className={`flex items-center justify-center h-96 ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-md`}>
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+                className="w-12 h-12 border-4 border-red-200 border-t-red-500 rounded-full"
+              />
+            </div>
+          }>
+            <CommunityManagement />
+          </Suspense>
+        )}
+
+        {/* 内容管理页面 */}
+        {activeTab === 'contentManagement' && (
+          <Suspense fallback={
+            <div className={`flex items-center justify-center h-96 ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-md`}>
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+                className="w-12 h-12 border-4 border-red-200 border-t-red-500 rounded-full"
+              />
+            </div>
+          }>
+            <ContentManagement />
           </Suspense>
         )}
 

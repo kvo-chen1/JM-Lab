@@ -33,26 +33,21 @@ interface NavItem {
   badge?: number;
 }
 
-// 导航配置
-const navItems: NavItem[] = [
-  { id: 'incubation', name: 'IP孵化路径', icon: Route },
-  { id: 'assets', name: 'IP资产', icon: Gem },
-  { id: 'opportunities', name: '商业机会', icon: Handshake, badge: 3 },
-  { id: 'copyright', name: '版权资产', icon: Shield },
-  { id: 'analytics', name: '数据分析', icon: BarChart3 },
-];
+
 
 // ==================== 左侧导航栏组件 ====================
 function Sidebar({
   activeTab,
   onTabChange,
   isCollapsed,
-  onToggleCollapse
+  onToggleCollapse,
+  navItems
 }: {
   activeTab: string;
   onTabChange: (tab: string) => void;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
+  navItems: NavItem[];
 }) {
   const { isDark } = useTheme();
 
@@ -1294,6 +1289,15 @@ export default function IPIncubationCenter() {
   const [valueTrendData, setValueTrendData] = useState<any[]>([]);
   const [typeDistributionData, setTypeDistributionData] = useState<any[]>([]);
 
+  // 动态导航配置 - 根据商业机会数量显示 badge
+  const navItems: NavItem[] = useMemo(() => [
+    { id: 'incubation', name: 'IP孵化路径', icon: Route },
+    { id: 'assets', name: 'IP资产', icon: Gem },
+    { id: 'opportunities', name: '商业机会', icon: Handshake, badge: commercialOpportunities.length > 0 ? commercialOpportunities.length : undefined },
+    { id: 'copyright', name: '版权资产', icon: Shield },
+    { id: 'analytics', name: '数据分析', icon: BarChart3 },
+  ], [commercialOpportunities.length]);
+
   // 计算孵化进度
   const calculateIncubationProgress = useCallback((stages: ServiceIPStage[]): number => {
     const completedStages = stages.filter(stage => stage.completed).length;
@@ -1480,6 +1484,7 @@ export default function IPIncubationCenter() {
             onTabChange={setActiveTab}
             isCollapsed={sidebarCollapsed}
             onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+            navItems={navItems}
           />
 
           {/* 中间主内容区 */}

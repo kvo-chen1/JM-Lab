@@ -20,6 +20,7 @@ interface MindMapCanvasProps {
   selectedNodeId: string | null;
   onNodeClick?: (nodeId: string) => void;
   onCanvasClick?: () => void;
+  onNodePositionChange?: (nodeId: string, position: { x: number; y: number }) => void;
   onAddNode?: (category: 'inspiration' | 'culture' | 'ai_generate') => void;
   onOpenBrandPanel?: () => void;
   readonly?: boolean;
@@ -40,6 +41,7 @@ export default function MindMapCanvas({
   selectedNodeId,
   onNodeClick,
   onCanvasClick,
+  onNodePositionChange,
   onAddNode,
   onOpenBrandPanel,
   readonly = false,

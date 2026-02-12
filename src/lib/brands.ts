@@ -92,7 +92,7 @@ export const BRANDS: Brand[] = [
   { id: 'yanghe', name: '洋河', story: '苏酒老品牌，柔顺口感与蓝色瓶身识别度高，适合与现代设计联名。', image: mkImg('SDXL, Yanghe liquor, blue bottle, modern design backdrop, soft lighting') },
   { id: 'changyuwine', name: '张裕葡萄酒', story: '葡萄酒老品牌，近代酿酒工业代表，适合与城市夜生活与餐酒文化联名。', image: mkImg('SDXL, Changyu wine, wine glass and bottle, warm restaurant ambiance, high detail') },
   { id: 'guangyuyuan', name: '广誉远', story: '中药老字号，定坤丹等经典方剂知名，适合与养生文化联名。', image: mkImg('SDXL, Guangyuyuan pharmacy, classic drawers, herb jars, warm light') },
-  { id: 'leiyunshang', name: '雷允上', story: '苏州中药老字号，讲究炮制与选材，适合与健康生活方式联名。', image: mkImg('SDXL, Leiyunshang TCM, apothecary interior, wooden cabinets, warm tone') },
+  { id: 'leiyunshang', name: '雷允上', story: '苏州中药老字号，讲究炮制与选材，适合与健康生活方式联名。', image: 'https://images.unsplash.com/photo-1512069772995-ec65ed45afd6?w=800&q=80' },
   { id: 'hengdeli', name: '亨得利', story: '钟表眼镜老字号，服务与专业并重，适合与时间主题联名。', image: mkImg('SDXL, Hengdeli watch and optical store, elegant interior, warm light') },
   { id: 'pechoin', name: '百雀羚', story: '国货护肤老品牌，复古包装与东方植物配方，适合与美妆与文创联名。', image: mkImg('SDXL, Pechoin skincare, retro packaging, floral botanical elements, soft lighting') },
   { id: 'shuijingfang', name: '水井坊', story: '川酒老品牌，考古与文化叙事结合，适合与典藏主题联名。', image: mkImg('SDXL, Shuijingfang liquor, archaeological motif, premium packaging, warm tone') },
@@ -100,17 +100,17 @@ export const BRANDS: Brand[] = [
   { id: 'hudiepai', name: '蝴蝶牌缝纫机', story: '传统缝纫机械老品牌，工艺与家政记忆，适合与手作文化联名。', image: mkImg('SDXL, Butterfly sewing machine, vintage home setting, warm tone, craftsmanship detail') },
   
   // 天津老字号品牌扩展 - 经核实真实存在的津门老字号
-  { id: 'wanziqianhong', name: '万紫千红', story: '天津渤海轻工集团旗下品牌，以润肤脂等护肤品著称，是天津人记忆中的经典国货。', image: mkImg('SDXL, Wanziqianhong skincare, classic Chinese brand, vintage packaging, red and purple accents') },
-  { id: 'yumeijing', name: '郁美净', story: '天津知名护肤品牌，以儿童护肤品起家，是天津本土成长起来的老字号品牌。', image: mkImg('SDXL, Yumeijing skincare products, children care, classic Chinese brand, soft packaging') },
-  { id: 'haihe', name: '海河牛奶', story: '天津本土乳制品品牌，陪伴几代天津人成长，是天津市民熟悉的本地牛奶品牌。', image: mkImg('SDXL, Haihe milk, Tianjin local dairy brand, classic packaging, fresh milk bottle') },
-  { id: 'xianghe', name: '祥禾饽饽铺', story: '天津传统糕点老字号，以中式传统点心闻名，是天津非物质文化遗产代表性项目。', image: mkImg('SDXL, Xianghe traditional pastries, Tianjin style, Chinese dim sum, elegant packaging') },
-  { id: 'daqiaodao', name: '大桥道', story: '天津知名糕点食品企业，以月饼、汤圆等传统节日食品著称，深受天津市民喜爱。', image: mkImg('SDXL, Daqiaodao pastries, mooncakes, tangyuan, traditional Chinese snacks, festive packaging') },
-  { id: 'fengzhengwei', name: '风筝魏', story: '天津著名风筝制作世家，由魏元泰创始，风筝做工精细，曾在巴拿马万国博览会上获奖。', image: mkImg('SDXL, Tianjin Fengzheng Wei kites, traditional craftsmanship, colorful kites, cultural heritage') },
-  { id: 'yangliuqing', name: '杨柳青年画', story: '中国四大木版年画之一，始于明代，以色彩艳丽、构图饱满著称，是国家级非物质文化遗产。', image: mkImg('SDXL, Yangliuqing New Year paintings, traditional Chinese woodblock prints, colorful, cultural art') },
-  { id: 'zhengchenghao', name: '正兴德', story: '天津传统茶叶老字号，以茉莉花茶著称，是天津人喜爱的本地茶庄品牌。', image: mkImg('SDXL, Zhengxingde tea shop, jasmine tea, traditional Chinese tea, elegant store interior') },
-  { id: 'yuanlong', name: '元隆', story: '天津传统绸布业老字号，历史悠久，是天津传统商业文化的代表之一。', image: mkImg('SDXL, Yuanlong silk and fabric store, traditional textile shop, elegant interior') },
-  { id: 'tongchengxiang', name: '同升祥', story: '天津传统鞋业老字号，以布鞋和皮鞋著称，是天津传统鞋履文化的代表。', image: mkImg('SDXL, Tongshengxiang traditional shoes, cloth and leather footwear, craftsmanship') },
-  { id: 'yizhoucha', name: '一枝春', story: '天津传统茶叶品牌，以优质茶叶和拼配技艺闻名，是天津茶文化的代表。', image: mkImg('SDXL, Yizhoucha tea, traditional Chinese tea, tea tins, cultural atmosphere') },
+  { id: 'wanziqianhong', name: '万紫千红', story: '天津渤海轻工集团旗下品牌，以润肤脂等护肤品著称，是天津人记忆中的经典国货。', image: 'https://images.unsplash.com/photo-1556228578-0d85b1a4d571?w=800&q=80' },
+  { id: 'yumeijing', name: '郁美净', story: '天津知名护肤品牌，以儿童护肤品起家，是天津本土成长起来的老字号品牌。', image: 'https://images.unsplash.com/photo-1571781926291-c477ebfd024b?w=800&q=80' },
+  { id: 'haihe', name: '海河牛奶', story: '天津本土乳制品品牌，陪伴几代天津人成长，是天津市民熟悉的本地牛奶品牌。', image: 'https://images.unsplash.com/photo-1563636619-e9143da7973b?w=800&q=80' },
+  { id: 'xianghe', name: '祥禾饽饽铺', story: '天津传统糕点老字号，以中式传统点心闻名，是天津非物质文化遗产代表性项目。', image: 'https://images.unsplash.com/photo-1563729784474-d77dbb933a9e?w=800&q=80' },
+  { id: 'daqiaodao', name: '大桥道', story: '天津知名糕点食品企业，以月饼、汤圆等传统节日食品著称，深受天津市民喜爱。', image: 'https://images.unsplash.com/photo-1631206753348-db44968fd440?w=800&q=80' },
+  { id: 'fengzhengwei', name: '风筝魏', story: '天津著名风筝制作世家，由魏元泰创始，风筝做工精细，曾在巴拿马万国博览会上获奖。', image: 'https://images.unsplash.com/photo-1534531173927-aeb928d54385?w=800&q=80' },
+  { id: 'yangliuqing', name: '杨柳青年画', story: '中国四大木版年画之一，始于明代，以色彩艳丽、构图饱满著称，是国家级非物质文化遗产。', image: 'https://images.unsplash.com/photo-1545569341-9eb8b30979d9?w=800&q=80' },
+  { id: 'zhengchenghao', name: '正兴德', story: '天津传统茶叶老字号，以茉莉花茶著称，是天津人喜爱的本地茶庄品牌。', image: 'https://images.unsplash.com/photo-1564890369478-c89ca6d9cde9?w=800&q=80' },
+  { id: 'yuanlong', name: '元隆', story: '天津传统绸布业老字号，历史悠久，是天津传统商业文化的代表之一。', image: 'https://images.unsplash.com/photo-1620799140408-edc6dcb6d633?w=800&q=80' },
+  { id: 'tongchengxiang', name: '同升祥', story: '天津传统鞋业老字号，以布鞋和皮鞋著称，是天津传统鞋履文化的代表。', image: 'https://images.unsplash.com/photo-1543163521-1bf539c55dd2?w=800&q=80' },
+  { id: 'yizhoucha', name: '一枝春', story: '天津传统茶叶品牌，以优质茶叶和拼配技艺闻名，是天津茶文化的代表。', image: 'https://images.unsplash.com/photo-1597318181409-cf64d0b5d8a2?w=800&q=80' },
 ]
 
 // 天津老字号品牌分类 - 经核实真实存在的津门老字号

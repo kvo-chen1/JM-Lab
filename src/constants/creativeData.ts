@@ -61,13 +61,20 @@ export interface StylePreset {
   category: string;
 }
 
-export type ToolType = 'sketch' | 'upload' | 'pattern' | 'filter' | 'trace' | 'remix' | 'layout' | 'mockup' | 'tile';
+// 新的工具类型 - 4个核心智能工具 + 基础功能
+export type ToolType = 'sketch' | 'upload' | 'enhance' | 'style' | 'layout' | 'culture';
 
 export interface ToolOption {
   id: ToolType;
   name: string;
   icon: string;
+  description: string;
+  color: string;
+  features: string[];
 }
+
+// 保持向后兼容的旧工具类型
+export type LegacyToolType = 'pattern' | 'filter' | 'trace' | 'remix' | 'mockup' | 'tile';
 
 // 扩展模板库 - 30+模板
 export const EXTENDED_TEMPLATES = [
@@ -580,14 +587,64 @@ export const STYLE_PRESETS: StylePreset[] = [
   }
 ];
 
+// 新的工具选项 - 4个核心智能工具
 export const TOOL_OPTIONS: ToolOption[] = [
-  { id: 'sketch', name: '一键设计', icon: 'magic' },
-  { id: 'upload', name: '上传作品', icon: 'upload' },
+  { 
+    id: 'sketch', 
+    name: 'AI创作', 
+    icon: 'magic',
+    description: '智能生成创意作品',
+    color: '#C02C38',
+    features: ['文生图', '图生图', '智能扩图']
+  },
+  { 
+    id: 'upload', 
+    name: '上传作品', 
+    icon: 'upload',
+    description: '上传本地作品进行编辑',
+    color: '#3B82F6',
+    features: ['支持多种格式', '批量上传']
+  },
+  { 
+    id: 'enhance', 
+    name: '智能美化', 
+    icon: 'sparkles',
+    description: 'AI一键优化作品效果',
+    color: '#8B5CF6',
+    features: ['智能滤镜', '纹样嵌入', '图案平铺', '色彩优化']
+  },
+  { 
+    id: 'style', 
+    name: '风格实验室', 
+    icon: 'palette',
+    description: '探索无限风格可能',
+    color: '#F59E0B',
+    features: ['风格迁移', '多风格融合', '国潮转换', '复古效果']
+  },
+  { 
+    id: 'layout', 
+    name: '智能排版', 
+    icon: 'th-large',
+    description: 'AI自动排版多平台适配',
+    color: '#10B981',
+    features: ['智能布局', '多平台尺寸', '一键适配', '模板库']
+  },
+  { 
+    id: 'culture', 
+    name: '文化智库', 
+    icon: 'landmark',
+    description: '文化灵感与场景预览',
+    color: '#EC4899',
+    features: ['文化溯源', '元素推荐', '场景预览', '知识库']
+  }
+];
+
+// 旧版工具选项（保持向后兼容）
+export const LEGACY_TOOL_OPTIONS = [
   { id: 'pattern', name: '纹样嵌入', icon: 'th' },
   { id: 'filter', name: 'AI滤镜', icon: 'filter' },
   { id: 'trace', name: '文化溯源', icon: 'book-open' },
   { id: 'remix', name: '风格重混', icon: 'random' },
-  { id: 'layout', name: '版式生成', icon: 'th-large' },
   { id: 'mockup', name: '模型预览', icon: 'box-open' },
   { id: 'tile', name: '图案平铺', icon: 'border-all' }
 ];

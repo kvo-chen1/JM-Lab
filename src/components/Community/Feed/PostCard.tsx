@@ -52,6 +52,58 @@ const ImageLightbox = ({ src, onClose }: { src: string; onClose: () => void }) =
   );
 };
 
+// 判断是否为视频URL
+const isVideoUrl = (url: string): boolean => {
+  if (!url) return false;
+  const videoExtensions = ['.mp4', '.webm', '.ogg', '.mov', '.m4v'];
+  const lowerUrl = url.toLowerCase();
+  return videoExtensions.some(ext => lowerUrl.includes(ext)) ||
+         lowerUrl.includes('video') ||
+         lowerUrl.includes('supabase.co/storage/v1/object/public') && !lowerUrl.match(/\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i);
+};
+
+// 视频缩略图组件 - 带错误处理
+const VideoThumbnail = ({ videoUrl }: { videoUrl: string }) => {
+  const [hasError, setHasError] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  if (hasError) {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-gray-200 dark:bg-gray-700">
+        <div className="text-center">
+          <i className="fas fa-video text-gray-400 text-2xl mb-2"></i>
+          <p className="text-xs text-gray-500">视频加载失败</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {isLoading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-gray-100 dark:bg-gray-800 z-10">
+          <i className="fas fa-spinner fa-spin text-gray-400"></i>
+        </div>
+      )}
+      <video
+        src={videoUrl}
+        className="w-full h-full object-cover"
+        muted
+        playsInline
+        loop
+        autoPlay
+        preload="auto"
+        onError={() => {
+          console.warn('Video failed to load:', videoUrl);
+          setHasError(true);
+          setIsLoading(false);
+        }}
+        onLoadedData={() => setIsLoading(false)}
+      />
+    </>
+  );
+};
+
 // 图片网格组件
 const ImageGrid = ({
   images,
@@ -74,40 +126,57 @@ const ImageGrid = ({
 
   return (
     <div className={`mt-4 grid gap-2 ${getGridClass()}`}>
-      {images.slice(0, 4).map((imageUrl, index) => (
-        <motion.div
-          key={index}
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: index * 0.1 }}
-          className={`relative rounded-xl overflow-hidden border cursor-zoom-in group ${
-            isDark ? 'border-gray-700' : 'border-gray-200'
-          } ${
-            images.length === 3 && index === 0 ? 'col-span-2 row-span-1' : ''
-          } ${
-            images.length > 4 && index === 3 ? 'relative' : ''
-          }`}
-          onClick={(e) => {
-            e.stopPropagation();
-            onImageClick(imageUrl);
-          }}
-        >
-          <div className="aspect-[4/3] overflow-hidden">
-            <img
-              src={imageUrl}
-              alt={`Post image ${index + 1}`}
-              className="w-full h-full object-cover transition-all duration-500 group-hover:scale-110"
-              loading="lazy"
-            />
-          </div>
-          {images.length > 4 && index === 3 && (
-            <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-              <span className="text-white text-2xl font-bold">+{images.length - 4}</span>
+      {images.slice(0, 4).map((imageUrl, index) => {
+        const isVideo = isVideoUrl(imageUrl);
+
+        return (
+          <motion.div
+            key={index}
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: index * 0.1 }}
+            className={`relative rounded-xl overflow-hidden border group ${
+              isDark ? 'border-gray-700' : 'border-gray-200'
+            } ${
+              images.length === 3 && index === 0 ? 'col-span-2 row-span-1' : ''
+            } ${
+              images.length > 4 && index === 3 ? 'relative' : ''
+            } ${!isVideo ? 'cursor-zoom-in' : ''}`}
+            onClick={(e) => {
+              if (!isVideo) {
+                e.stopPropagation();
+                onImageClick(imageUrl);
+              }
+            }}
+          >
+            <div className="aspect-[4/3] overflow-hidden bg-gray-100 dark:bg-gray-800">
+              {isVideo ? (
+                <VideoThumbnail videoUrl={imageUrl} />
+              ) : (
+                <img
+                  src={imageUrl}
+                  alt={`Post image ${index + 1}`}
+                  className="w-full h-full object-cover transition-all duration-500 group-hover:scale-110"
+                  loading="lazy"
+                />
+              )}
             </div>
-          )}
-          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300" />
-        </motion.div>
-      ))}
+            {/* 视频标识 */}
+            {isVideo && (
+              <div className="absolute top-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded-full flex items-center gap-1">
+                <i className="fas fa-video text-[10px]"></i>
+                视频
+              </div>
+            )}
+            {images.length > 4 && index === 3 && (
+              <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                <span className="text-white text-2xl font-bold">+{images.length - 4}</span>
+              </div>
+            )}
+            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300" />
+          </motion.div>
+        );
+      })}
     </div>
   );
 };
@@ -443,7 +512,7 @@ export const PostCard: React.FC<PostCardProps> = ({
                   size="md" 
                   src={thread.authorAvatar || ''} 
                   alt={thread.author || '创作者'} 
-                  className="w-10 h-10 ring-2 ring-offset-2 ring-offset-transparent ring-gray-200 dark:ring-gray-700"
+                  className="w-10 h-10"
                 />
               </HoverCard>
               <div className="flex flex-col min-w-0">
@@ -655,7 +724,7 @@ export const PostCard: React.FC<PostCardProps> = ({
                           <div className="flex-shrink-0">
                             <div className={`w-7 h-7 rounded-full overflow-hidden ring-2 ${isDark ? 'ring-gray-600' : 'ring-gray-200'} group-hover:ring-blue-300 transition-all`}>
                               <img 
-                                src={comment.authorAvatar || comment.userAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${comment.userId || comment.id}`}
+                                src={comment.authorAvatar || comment.userAvatar || comment.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${comment.userId || comment.id}`}
                                 alt={comment.user || comment.author || '用户'}
                                 className="w-full h-full object-cover"
                               />

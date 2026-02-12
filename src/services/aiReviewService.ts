@@ -5,6 +5,7 @@
 
 import { supabase } from '@/lib/supabase';
 import { WorkReviewResult } from './llmService';
+import { inspirationMindMapService } from './inspirationMindMapService';
 
 // AI点评记录类型
 export interface AIReviewRecord {
@@ -109,6 +110,47 @@ class AIReviewService {
         console.error('保存AI点评记录失败:', error);
         return null;
       }
+
+      // 同步到灵感脉络
+      (async () => {
+        try {
+          // 获取或创建用户的默认灵感脉络
+          let mindMaps = await inspirationMindMapService.getUserMindMaps(userId);
+          let mindMap = mindMaps.find(m => m.title === '我的创作脉络') || mindMaps[0];
+
+          if (!mindMap) {
+            console.log('[InspirationMindMap] Creating default mind map for user');
+            mindMap = await inspirationMindMapService.createMindMap(userId, '我的创作脉络');
+          }
+
+          // 添加AI点评节点
+          const nodeData = {
+            title: `AI点评: ${reviewResult.overallScore}分`,
+            description: `AI智能点评作品\n文化契合度: ${reviewResult.culturalFit.score}分 | 创意性: ${reviewResult.creativity.score}分 | 美观度: ${reviewResult.aesthetics.score}分`,
+            category: 'ai_generate' as const,
+            content: {
+              type: 'ai_review',
+              workThumbnail: workThumbnail,
+              prompt: prompt,
+              overallScore: reviewResult.overallScore,
+              culturalFitScore: reviewResult.culturalFit.score,
+              creativityScore: reviewResult.creativity.score,
+              aestheticsScore: reviewResult.aesthetics.score,
+              commercialPotentialScore: reviewResult.commercialPotential?.score,
+              highlights: reviewResult.highlights,
+              suggestions: reviewResult.suggestions,
+              reviewedAt: new Date().toISOString(),
+            },
+            tags: ['AI点评', '智能评测', '作品分析'],
+          };
+
+          await inspirationMindMapService.addNode(mindMap.id, nodeData);
+          console.log('[InspirationMindMap] Added AI review node to mind map:', mindMap.id);
+        } catch (err) {
+          console.error('[InspirationMindMap] Failed to sync AI review to mind map:', err);
+          // 不影响主流程，仅记录错误
+        }
+      })();
 
       return data;
     } catch (error) {

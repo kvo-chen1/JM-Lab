@@ -320,12 +320,6 @@ export async function getMembershipOrders(req, res) {
       console.error('[Membership] Get orders error:', e);
     }
 
-    // 如果没有真实数据，返回模拟数据用于展示
-    if (orders.length === 0) {
-      orders = getMockOrders(userId);
-      total = orders.length;
-    }
-
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
       success: true,
@@ -349,41 +343,7 @@ export async function getMembershipOrders(req, res) {
   }
 }
 
-/**
- * 获取模拟订单数据（用于展示）
- */
-function getMockOrders(userId) {
-  return [
-    {
-      id: 'ORD-202402010001',
-      user_id: userId,
-      plan: 'premium',
-      plan_name: '高级会员',
-      period: 'yearly',
-      amount: 899,
-      currency: 'CNY',
-      status: 'completed',
-      payment_method: 'alipay',
-      created_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-      paid_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-      expires_at: new Date(Date.now() + 335 * 24 * 60 * 60 * 1000).toISOString()
-    },
-    {
-      id: 'ORD-202401010001',
-      user_id: userId,
-      plan: 'premium',
-      plan_name: '高级会员',
-      period: 'monthly',
-      amount: 99,
-      currency: 'CNY',
-      status: 'completed',
-      payment_method: 'wechat',
-      created_at: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
-      paid_at: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
-      expires_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
-    }
-  ];
-}
+
 
 /**
  * 获取订阅详情

@@ -3,6 +3,7 @@ import { CreateState, ToolType, GeneratedResult } from '../types';
 import { aiGeneratedResults, traditionalPatterns } from '../data';
 import { workService, communityService, eventService } from '@/services/apiService';
 import postsApi from '@/services/postService';
+import { inspirationMindMapService } from '@/services/inspirationMindMapService';
 
 interface CreateActions {
   setActiveTool: (tool: ToolType) => void;
@@ -177,6 +178,51 @@ export const useCreateStore = create<CreateState & CreateActions>((set) => ({
       const updatedHistory = [...newHistoryItems, ...existingHistory].slice(0, 50);
       localStorage.setItem('CREATE_HISTORY', JSON.stringify(updatedHistory));
       console.log('[History] Saved', newHistoryItems.length, 'items. Total history:', updatedHistory.length);
+
+      // 同步到灵感脉络
+      (async () => {
+        try {
+          const { data: { user } } = await import('@/lib/supabase').then(m => m.supabase.auth.getUser());
+          if (!user) {
+            console.log('[InspirationMindMap] User not logged in, skipping sync');
+            return;
+          }
+
+          // 获取或创建用户的默认灵感脉络
+          let mindMaps = await inspirationMindMapService.getUserMindMaps(user.id);
+          let mindMap = mindMaps.find(m => m.title === '我的创作脉络') || mindMaps[0];
+
+          if (!mindMap) {
+            console.log('[InspirationMindMap] Creating default mind map for user');
+            mindMap = await inspirationMindMapService.createMindMap(user.id, '我的创作脉络');
+          }
+
+          // 为每个生成的作品添加节点
+          for (const item of newHistoryItems) {
+            const nodeData = {
+              title: item.prompt ? item.prompt.substring(0, 30) + (item.prompt.length > 30 ? '...' : '') : '创作作品',
+              description: `创作时间: ${new Date(item.timestamp).toLocaleString('zh-CN')}`,
+              category: 'ai_generate' as const,
+              content: {
+                type: item.type,
+                thumbnail: item.thumbnail,
+                video: item.video,
+                prompt: item.prompt,
+                stylePreset: item.stylePreset,
+              },
+              tags: item.stylePreset ? [item.stylePreset] : ['创作'],
+            };
+
+            await inspirationMindMapService.addNode(mindMap.id, nodeData);
+            console.log('[InspirationMindMap] Added node for creation:', item.id);
+          }
+
+          console.log('[InspirationMindMap] Successfully synced', newHistoryItems.length, 'creations to mind map');
+        } catch (err) {
+          console.error('[InspirationMindMap] Failed to sync to mind map:', err);
+          // 不影响主流程，仅记录错误
+        }
+      })();
     } catch (e) {
       console.error('[History] Failed to save to history:', e);
     }
@@ -226,7 +272,62 @@ export const useCreateStore = create<CreateState & CreateActions>((set) => ({
     };
     
     const updatedHistory = [historyItem, ...state.patternHistory].slice(0, 10);
-    
+
+    // 同步到灵感脉络
+    (async () => {
+      try {
+        const { data: { user } } = await import('@/lib/supabase').then(m => m.supabase.auth.getUser());
+        if (!user) {
+          console.log('[InspirationMindMap] User not logged in, skipping pattern history sync');
+          return;
+        }
+
+        // 获取或创建用户的默认灵感脉络
+        let mindMaps = await inspirationMindMapService.getUserMindMaps(user.id);
+        let mindMap = mindMaps.find(m => m.title === '我的创作脉络') || mindMaps[0];
+
+        if (!mindMap) {
+          console.log('[InspirationMindMap] Creating default mind map for user');
+          mindMap = await inspirationMindMapService.createMindMap(user.id, '我的创作脉络');
+        }
+
+        // 添加纹样编辑节点
+        const nodeData = {
+          title: `纹样: ${currentPattern.name || '未知纹样'}`,
+          description: `编辑传统纹样\n透明度: ${state.patternOpacity}%, 缩放: ${state.patternScale}%, 旋转: ${state.patternRotation}°`,
+          category: 'culture' as const,
+          content: {
+            type: 'pattern',
+            patternId: state.selectedPatternId,
+            patternName: currentPattern.name,
+            thumbnail: currentPattern.thumbnail,
+            properties: {
+              opacity: state.patternOpacity,
+              scale: state.patternScale,
+              rotation: state.patternRotation,
+              blendMode: state.patternBlendMode,
+              tileMode: state.patternTileMode,
+              positionX: state.patternPositionX,
+              positionY: state.patternPositionY,
+            },
+            editedAt: new Date().toISOString(),
+          },
+          tags: ['纹样', '传统文化', currentPattern.name || '纹样'],
+          culturalElements: [{
+            name: currentPattern.name || '传统纹样',
+            description: currentPattern.description || '',
+            significance: '中国传统装饰纹样',
+          }],
+        };
+
+        await inspirationMindMapService.addNode(mindMap.id, nodeData);
+        console.log('[InspirationMindMap] Added pattern edit node to mind map:', mindMap.id);
+      } catch (err) {
+        console.error('[InspirationMindMap] Failed to sync pattern edit to mind map:', err);
+        // 不影响主流程，仅记录错误
+      }
+    })();
+
     return { ...state, patternHistory: updatedHistory };
   }),
   
@@ -336,7 +437,50 @@ export const useCreateStore = create<CreateState & CreateActions>((set) => ({
       const updatedDrafts = [newDraft, ...drafts].slice(0, 10);
       localStorage.setItem('CREATE_DRAFTS', JSON.stringify(updatedDrafts));
       console.log('Design saved to drafts');
-      
+
+      // 同步到灵感脉络
+      (async () => {
+        try {
+          const { data: { user } } = await import('@/lib/supabase').then(m => m.supabase.auth.getUser());
+          if (!user) {
+            console.log('[InspirationMindMap] User not logged in, skipping draft sync');
+            return;
+          }
+
+          // 获取或创建用户的默认灵感脉络
+          let mindMaps = await inspirationMindMapService.getUserMindMaps(user.id);
+          let mindMap = mindMaps.find(m => m.title === '我的创作脉络') || mindMaps[0];
+
+          if (!mindMap) {
+            console.log('[InspirationMindMap] Creating default mind map for user');
+            mindMap = await inspirationMindMapService.createMindMap(user.id, '我的创作脉络');
+          }
+
+          // 添加草稿节点
+          const nodeData = {
+            title: newDraft.name,
+            description: `保存草稿\n提示词: ${state.prompt ? state.prompt.substring(0, 50) + (state.prompt.length > 50 ? '...' : '') : '无'}`,
+            category: 'inspiration' as const,
+            content: {
+              type: selectedImage.type || 'image',
+              thumbnail: selectedImage.thumbnail,
+              video: selectedImage.video,
+              prompt: state.prompt,
+              stylePreset: state.stylePreset,
+              draftId: newDraft.id,
+              savedAt: new Date().toISOString(),
+            },
+            tags: ['草稿', state.stylePreset || '创作'],
+          };
+
+          await inspirationMindMapService.addNode(mindMap.id, nodeData);
+          console.log('[InspirationMindMap] Added draft node to mind map:', mindMap.id);
+        } catch (err) {
+          console.error('[InspirationMindMap] Failed to sync draft to mind map:', err);
+          // 不影响主流程，仅记录错误
+        }
+      })();
+
       if (typeof window !== 'undefined') {
         const toast = document.createElement('div');
         toast.className = 'fixed top-20 right-6 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 transition-all duration-300 ease-in-out';
@@ -379,17 +523,60 @@ export const useCreateStore = create<CreateState & CreateActions>((set) => ({
     
     try {
       const shareUrl = `${window.location.origin}/share/${state.selectedResult}?prompt=${encodeURIComponent(state.prompt)}`;
-      
+
       if (typeof window !== 'undefined') {
         alert(`分享链接: ${shareUrl}\n已复制到剪贴板`);
         navigator.clipboard.writeText(shareUrl);
       }
-      
+
       console.log('Share design:', shareUrl);
+
+      // 同步到灵感脉络
+      (async () => {
+        try {
+          const { data: { user } } = await import('@/lib/supabase').then(m => m.supabase.auth.getUser());
+          if (!user) {
+            console.log('[InspirationMindMap] User not logged in, skipping share sync');
+            return;
+          }
+
+          // 获取或创建用户的默认灵感脉络
+          let mindMaps = await inspirationMindMapService.getUserMindMaps(user.id);
+          let mindMap = mindMaps.find(m => m.title === '我的创作脉络') || mindMaps[0];
+
+          if (!mindMap) {
+            console.log('[InspirationMindMap] Creating default mind map for user');
+            mindMap = await inspirationMindMapService.createMindMap(user.id, '我的创作脉络');
+          }
+
+          // 添加分享节点
+          const nodeData = {
+            title: '分享作品',
+            description: `分享创作作品\n提示词: ${state.prompt ? state.prompt.substring(0, 50) + (state.prompt.length > 50 ? '...' : '') : '无'}`,
+            category: 'culture' as const,
+            content: {
+              type: selectedImage.type || 'image',
+              thumbnail: selectedImage.thumbnail,
+              video: selectedImage.video,
+              prompt: state.prompt,
+              stylePreset: state.stylePreset,
+              shareUrl: shareUrl,
+              sharedAt: new Date().toISOString(),
+            },
+            tags: ['分享', '传播', state.stylePreset || '创作'],
+          };
+
+          await inspirationMindMapService.addNode(mindMap.id, nodeData);
+          console.log('[InspirationMindMap] Added share node to mind map:', mindMap.id);
+        } catch (err) {
+          console.error('[InspirationMindMap] Failed to sync share to mind map:', err);
+          // 不影响主流程，仅记录错误
+        }
+      })();
     } catch (error) {
       console.error('Failed to share design:', error);
     }
-    
+
     return state;
   }),
   
@@ -465,6 +652,57 @@ export const useCreateStore = create<CreateState & CreateActions>((set) => ({
       const result = await postsApi.addPost(newPost as any, { id: 'current-user' } as any);
       
       if (result) {
+        // 同步发布记录到灵感脉络
+        (async () => {
+          try {
+            const { data: { user } } = await import('@/lib/supabase').then(m => m.supabase.auth.getUser());
+            if (!user) {
+              console.log('[InspirationMindMap] User not logged in, skipping publish sync');
+              return;
+            }
+
+            // 获取或创建用户的默认灵感脉络
+            let mindMaps = await inspirationMindMapService.getUserMindMaps(user.id);
+            let mindMap = mindMaps.find(m => m.title === '我的创作脉络') || mindMaps[0];
+
+            if (!mindMap) {
+              console.log('[InspirationMindMap] Creating default mind map for user');
+              mindMap = await inspirationMindMapService.createMindMap(user.id, '我的创作脉络');
+            }
+
+            // 添加发布节点
+            const nodeData = {
+              title: data.title || '发布作品',
+              description: `发布到津脉广场\n${data.description ? data.description.substring(0, 50) + (data.description.length > 50 ? '...' : '') : ''}`,
+              category: 'culture' as const,
+              content: {
+                type: isVideo ? 'video' : 'image',
+                thumbnail: thumbnail,
+                video: videoUrl,
+                title: data.title,
+                description: data.description,
+                category: data.category,
+                tags: data.tags,
+                culturalElements: data.culturalElements,
+                publishType: 'explore',
+                publishedAt: new Date().toISOString(),
+              },
+              tags: [...(data.tags || []), '发布', '津脉广场'],
+              culturalElements: (data.culturalElements || []).map(name => ({
+                name,
+                description: '',
+                significance: '',
+              })),
+            };
+
+            await inspirationMindMapService.addNode(mindMap.id, nodeData);
+            console.log('[InspirationMindMap] Added publish node to mind map:', mindMap.id);
+          } catch (err) {
+            console.error('[InspirationMindMap] Failed to sync publish to mind map:', err);
+            // 不影响主流程，仅记录错误
+          }
+        })();
+
         return {
           success: true,
           message: '发布成功，正在审核中',
@@ -523,8 +761,53 @@ export const useCreateStore = create<CreateState & CreateActions>((set) => ({
       
       // 调用 API 保存到 Supabase
       const result = await postsApi.addPost(newPost as any, { id: 'current-user' } as any);
-      
+
       if (result) {
+        // 同步发布记录到灵感脉络
+        (async () => {
+          try {
+            const { data: { user } } = await import('@/lib/supabase').then(m => m.supabase.auth.getUser());
+            if (!user) {
+              console.log('[InspirationMindMap] User not logged in, skipping community publish sync');
+              return;
+            }
+
+            // 获取或创建用户的默认灵感脉络
+            let mindMaps = await inspirationMindMapService.getUserMindMaps(user.id);
+            let mindMap = mindMaps.find(m => m.title === '我的创作脉络') || mindMaps[0];
+
+            if (!mindMap) {
+              console.log('[InspirationMindMap] Creating default mind map for user');
+              mindMap = await inspirationMindMapService.createMindMap(user.id, '我的创作脉络');
+            }
+
+            // 添加社区发布节点
+            const nodeData = {
+              title: data.title || '社区发布',
+              description: `发布到社区\n${data.description ? data.description.substring(0, 50) + (data.description.length > 50 ? '...' : '') : ''}`,
+              category: 'culture' as const,
+              content: {
+                type: isVideo ? 'video' : 'image',
+                thumbnail: thumbnail,
+                video: isVideo ? selectedImage.video : undefined,
+                title: data.title,
+                description: data.description,
+                communityId: data.communityId,
+                visibility: data.visibility,
+                publishType: 'community',
+                publishedAt: new Date().toISOString(),
+              },
+              tags: ['社区发布', '津脉广场'],
+            };
+
+            await inspirationMindMapService.addNode(mindMap.id, nodeData);
+            console.log('[InspirationMindMap] Added community publish node to mind map:', mindMap.id);
+          } catch (err) {
+            console.error('[InspirationMindMap] Failed to sync community publish to mind map:', err);
+            // 不影响主流程，仅记录错误
+          }
+        })();
+
         return {
           success: true,
           message: '发布成功'
@@ -544,8 +827,52 @@ export const useCreateStore = create<CreateState & CreateActions>((set) => ({
   submitToEvent: async (eventId, workData) => {
     try {
       console.log('Submitting to event:', eventId, workData);
+
+      // 模拟提交延迟
       await new Promise(resolve => setTimeout(resolve, 1000));
-      
+
+      // 同步到灵感脉络
+      (async () => {
+        try {
+          const { data: { user } } = await import('@/lib/supabase').then(m => m.supabase.auth.getUser());
+          if (!user) {
+            console.log('[InspirationMindMap] User not logged in, skipping event submit sync');
+            return;
+          }
+
+          // 获取或创建用户的默认灵感脉络
+          let mindMaps = await inspirationMindMapService.getUserMindMaps(user.id);
+          let mindMap = mindMaps.find(m => m.title === '我的创作脉络') || mindMaps[0];
+
+          if (!mindMap) {
+            console.log('[InspirationMindMap] Creating default mind map for user');
+            mindMap = await inspirationMindMapService.createMindMap(user.id, '我的创作脉络');
+          }
+
+          // 添加活动提交节点
+          const nodeData = {
+            title: workData.title || '活动投稿',
+            description: `提交作品到活动\n${workData.description ? workData.description.substring(0, 50) + (workData.description.length > 50 ? '...' : '') : ''}`,
+            category: 'culture' as const,
+            content: {
+              type: 'image',
+              thumbnail: workData.imageUrl,
+              title: workData.title,
+              description: workData.description,
+              eventId: eventId,
+              submittedAt: new Date().toISOString(),
+            },
+            tags: ['活动投稿', '参赛', '作品提交'],
+          };
+
+          await inspirationMindMapService.addNode(mindMap.id, nodeData);
+          console.log('[InspirationMindMap] Added event submit node to mind map:', mindMap.id);
+        } catch (err) {
+          console.error('[InspirationMindMap] Failed to sync event submit to mind map:', err);
+          // 不影响主流程，仅记录错误
+        }
+      })();
+
       return {
         success: true,
         message: '提交成功'

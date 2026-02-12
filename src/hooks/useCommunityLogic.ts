@@ -479,6 +479,7 @@ export const useCommunityLogic = () => {
       images: msg.metadata?.images || msg.images,
       files: msg.metadata?.files || msg.files,
       richContent: msg.metadata?.richContent || msg.richContent,
+      shareCard: msg.metadata?.shareCard,
       sendStatus: (msg.status as 'sending' | 'sent' | 'failed') || 'sent'
     }));
   }, [chatStoreMessages]);

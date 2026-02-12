@@ -52,8 +52,8 @@ export const useAnalyticsStore = create<AnalyticsState>()(
         try {
           // 从后端获取真实数据
           const data = await analyticsService.getMetricsData(params);
-          const stats = analyticsService.getMetricsStats(data);
-          
+          const stats = analyticsService.getMetricsStats(data, params.metric);
+
           set({ dataPoints: data, stats, isLoading: false, lastSyncTime: Date.now() });
         } catch (err: any) {
           console.error('Fetch analytics data failed:', err);

@@ -185,7 +185,7 @@ const UploadPanel: React.FC<UploadPanelProps> = ({ onSelectUpload }) => {
               管理您上传的设计作品
             </p>
           </div>
-          <label className="cursor-pointer">
+          <label className={`cursor-pointer ${isUploading ? 'pointer-events-none' : ''}`}>
             <input
               type="file"
               accept="image/*"
@@ -193,11 +193,10 @@ const UploadPanel: React.FC<UploadPanelProps> = ({ onSelectUpload }) => {
               className="hidden"
               disabled={isUploading}
             />
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              disabled={isUploading}
-              className="px-4 py-2 bg-[#C02C38] text-white rounded-lg text-sm font-medium flex items-center gap-2 disabled:opacity-50"
+            <motion.div
+              whileHover={isUploading ? undefined : { scale: 1.02 }}
+              whileTap={isUploading ? undefined : { scale: 0.98 }}
+              className={`px-4 py-2 bg-[#C02C38] text-white rounded-lg text-sm font-medium flex items-center gap-2 ${isUploading ? 'opacity-50' : ''}`}
             >
               {isUploading ? (
                 <>
@@ -210,7 +209,7 @@ const UploadPanel: React.FC<UploadPanelProps> = ({ onSelectUpload }) => {
                   上传新作品
                 </>
               )}
-            </motion.button>
+            </motion.div>
           </label>
         </div>
 

@@ -769,7 +769,8 @@ async function route(req, res, u, path) {
           thumbnail: work.thumbnail?.substring(0, 50),
           video_url: work.video_url?.substring(0, 50), 
           type: work.type,
-          hasVideoUrl: !!work.video_url 
+          hasVideoUrl: !!work.video_url,
+          views: work.views
         });
         return {
           ...work,
@@ -1288,6 +1289,44 @@ async function route(req, res, u, path) {
     } catch (e) {
       console.error('[API] Get leaderboard failed:', e)
       sendJson(res, 500, { code: 1, message: '获取排行榜失败' })
+    }
+    return
+  }
+
+  // 获取推荐创作者（按作品数和粉丝数排序）
+  if (req.method === 'GET' && path === '/api/users/recommended') {
+    try {
+      const db = await getDB()
+      const limit = parseInt(query.limit) || 5
+      
+      // 获取有作品的用户，按作品数和总点赞数排序
+      const { rows } = await db.query(`
+        SELECT u.id, u.username, u.avatar_url,
+               COUNT(DISTINCT w.id) as works_count,
+               COALESCE(SUM(w.likes), 0) as total_likes,
+               COUNT(DISTINCT f.follower_id) as followers_count
+        FROM users u
+        LEFT JOIN works w ON u.id = w.creator_id
+        LEFT JOIN follows f ON u.id = f.following_id
+        WHERE w.id IS NOT NULL
+        GROUP BY u.id, u.username, u.avatar_url
+        ORDER BY works_count DESC, total_likes DESC
+        LIMIT $1
+      `, [limit])
+
+      const recommendedUsers = rows.map(row => ({
+        id: row.id,
+        name: row.username || '匿名用户',
+        avatar: row.avatar_url || '',
+        worksCount: parseInt(row.works_count) || 0,
+        followersCount: parseInt(row.followers_count) || 0,
+        likesCount: parseInt(row.total_likes) || 0
+      }))
+
+      sendJson(res, 200, { code: 0, data: recommendedUsers })
+    } catch (e) {
+      console.error('[API] Get recommended users failed:', e)
+      sendJson(res, 500, { code: 1, message: '获取推荐用户失败' })
     }
     return
   }

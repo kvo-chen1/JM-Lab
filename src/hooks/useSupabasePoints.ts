@@ -409,17 +409,23 @@ export function useSupabasePoints(): UseSupabasePointsReturn {
         is_retroactive: false
       });
 
-      // 如果返回的是已有记录，说明已经签到了
-      if (checkinRecord && checkinRecord.checkin_date === existingRecord?.checkin_date) {
+      // 如果返回的是已有记录，说明已经签到了（并发情况）
+      if (!checkinRecord) {
         toast.info('今日已签到');
         return { success: false, alreadyChecked: true };
       }
 
-      if (!checkinRecord) {
-        throw new Error('创建签到记录失败');
+      // 检查是否是新创建的记录（通过比较创建时间）
+      const isNewRecord = checkinRecord.created_at && 
+        new Date(checkinRecord.created_at).getTime() > Date.now() - 5000; // 5秒内创建的视为新记录
+      
+      // 如果不是新记录且已有积分，说明已经处理过了
+      if (!isNewRecord && checkinRecord.points_earned > 0) {
+        toast.info('今日已签到');
+        return { success: false, alreadyChecked: true };
       }
 
-      // 添加积分
+      // 添加积分（即使返回已有记录，也要尝试添加积分，因为可能积分还没加）
       const result = await supabasePointsService.addPoints(
         userId,
         totalPoints,
@@ -440,7 +446,11 @@ export function useSupabasePoints(): UseSupabasePointsReturn {
         await refreshBalance();
         return { success: true, points: totalPoints, consecutiveDays };
       } else {
-        throw new Error(result.error || '添加积分失败');
+        // 积分添加失败，但签到记录已创建，记录错误但不抛出异常
+        console.error('添加积分失败:', result.error);
+        toast.warning('签到成功，但积分添加失败，请联系客服');
+        await refreshCheckinStatus();
+        return { success: true, points: 0, consecutiveDays };
       }
     } catch (err: any) {
       toast.error(err.message || '签到失败');

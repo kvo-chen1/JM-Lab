@@ -174,72 +174,124 @@ const MessageBubble: React.FC<MessageBubbleProps> = memo(({
     );
   };
 
+  // 判断是否为视频URL
+  const isVideoUrl = (url: string): boolean => {
+    if (!url) return false;
+    const videoExtensions = ['.mp4', '.webm', '.ogg', '.mov', '.m4v'];
+    const lowerUrl = url.toLowerCase();
+    return videoExtensions.some(ext => lowerUrl.includes(ext)) ||
+           lowerUrl.includes('video') ||
+           (lowerUrl.includes('supabase.co/storage/v1/object/public') && !lowerUrl.match(/\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i));
+  };
+
   // 渲染分享卡片
   const renderShareCard = () => {
     if (!message.shareCard) return null;
     
     const { shareCard } = message;
+    const isVideo = !!shareCard.videoUrl || isVideoUrl(shareCard.thumbnail || '');
+    const mediaUrl = shareCard.videoUrl || shareCard.thumbnail;
     
     return (
       <Link 
         to={shareCard.url}
-        className={`block mt-2 rounded-xl overflow-hidden border transition-all hover:shadow-lg ${
+        className={`block mt-2 rounded-2xl overflow-hidden border transition-all duration-300 hover:shadow-xl hover:scale-[1.02] ${
           isDark 
-            ? 'bg-gray-800 border-gray-700 hover:border-gray-600' 
-            : 'bg-white border-gray-200 hover:border-gray-300'
+            ? 'bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700 hover:border-gray-500' 
+            : 'bg-gradient-to-br from-white to-gray-50 border-gray-200 hover:border-blue-300'
         }`}
       >
         <div className="flex">
-          {/* 缩略图 */}
-          {shareCard.thumbnail && (
-            <div className="w-24 h-24 flex-shrink-0">
-              <img 
-                src={shareCard.thumbnail} 
-                alt={shareCard.title}
-                className="w-full h-full object-cover"
-              />
+          {/* 缩略图/视频 */}
+          {mediaUrl && (
+            <div className="w-28 h-28 flex-shrink-0 relative overflow-hidden">
+              {isVideo ? (
+                <>
+                  <video
+                    src={shareCard.videoUrl || mediaUrl}
+                    className="w-full h-full object-cover"
+                    muted
+                    playsInline
+                    loop
+                    autoPlay
+                    preload="auto"
+                  />
+                  <div className="absolute top-2 left-2 bg-gradient-to-r from-violet-500 to-purple-600 text-white text-[10px] px-2 py-1 rounded-full flex items-center gap-1 shadow-lg">
+                    <i className="fas fa-video text-[8px]"></i>
+                    视频
+                  </div>
+                </>
+              ) : (
+                <>
+                  <img 
+                    src={shareCard.thumbnail} 
+                    alt={shareCard.title}
+                    className="w-full h-full object-cover transition-transform duration-500 hover:scale-110"
+                  />
+                  <div className="absolute top-2 left-2 bg-gradient-to-r from-blue-500 to-cyan-500 text-white text-[10px] px-2 py-1 rounded-full flex items-center gap-1 shadow-lg">
+                    <i className="fas fa-image text-[8px]"></i>
+                    图片
+                  </div>
+                </>
+              )}
+              {/* 渐变遮罩 */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none"></div>
             </div>
           )}
           
           {/* 内容 */}
-          <div className="flex-1 p-3 min-w-0">
-            {/* 类型标签 */}
-            <div className="flex items-center gap-2 mb-1">
-              <span className={`text-xs px-2 py-0.5 rounded-full ${
-                isDark ? 'bg-blue-900/30 text-blue-300' : 'bg-blue-100 text-blue-700'
-              }`}>
-                {shareCard.type === 'work' ? '作品' : shareCard.type === 'activity' ? '活动' : '帖子'}
-              </span>
-              <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                分享
-              </span>
+          <div className="flex-1 p-4 min-w-0 flex flex-col justify-between">
+            <div>
+              {/* 类型标签 */}
+              <div className="flex items-center gap-2 mb-2">
+                <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
+                  shareCard.type === 'work' 
+                    ? (isDark ? 'bg-gradient-to-r from-violet-500/20 to-purple-500/20 text-violet-300 border border-violet-500/30' : 'bg-gradient-to-r from-violet-100 to-purple-100 text-violet-700 border border-violet-200')
+                    : shareCard.type === 'activity'
+                    ? (isDark ? 'bg-gradient-to-r from-orange-500/20 to-red-500/20 text-orange-300 border border-orange-500/30' : 'bg-gradient-to-r from-orange-100 to-red-100 text-orange-700 border border-orange-200')
+                    : (isDark ? 'bg-gradient-to-r from-blue-500/20 to-cyan-500/20 text-blue-300 border border-blue-500/30' : 'bg-gradient-to-r from-blue-100 to-cyan-100 text-blue-700 border border-blue-200')
+                }`}>
+                  <i className={`fas ${shareCard.type === 'work' ? 'fa-palette' : shareCard.type === 'activity' ? 'fa-calendar-alt' : 'fa-file-alt'} mr-1 text-[10px]`}></i>
+                  {shareCard.type === 'work' ? '作品' : shareCard.type === 'activity' ? '活动' : '帖子'}
+                </span>
+                <span className={`text-xs px-2 py-0.5 rounded-full ${isDark ? 'bg-gray-700/50 text-gray-400' : 'bg-gray-100 text-gray-500'}`}>
+                  分享
+                </span>
+              </div>
+              
+              {/* 标题 */}
+              <h4 className={`font-semibold text-base leading-tight line-clamp-2 mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                {shareCard.title}
+              </h4>
+              
+              {/* 描述 */}
+              {shareCard.description && (
+                <p className={`text-sm line-clamp-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                  {shareCard.description}
+                </p>
+              )}
             </div>
-            
-            {/* 标题 */}
-            <h4 className={`font-medium truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
-              {shareCard.title}
-            </h4>
-            
-            {/* 描述 */}
-            {shareCard.description && (
-              <p className={`text-sm mt-1 line-clamp-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                {shareCard.description}
-              </p>
-            )}
             
             {/* 作者 */}
             {shareCard.author && (
-              <div className="flex items-center gap-2 mt-2">
-                {shareCard.author.avatar && (
-                  <img 
-                    src={shareCard.author.avatar} 
-                    alt={shareCard.author.name}
-                    className="w-5 h-5 rounded-full"
-                  />
-                )}
-                <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+              <div className="flex items-center gap-2 mt-3 pt-2 border-t border-dashed ${isDark ? 'border-gray-700' : 'border-gray-200'}">
+                <div className={`w-6 h-6 rounded-full overflow-hidden ring-2 ${isDark ? 'ring-gray-600' : 'ring-gray-200'}`}>
+                  {shareCard.author.avatar ? (
+                    <img 
+                      src={shareCard.author.avatar} 
+                      alt={shareCard.author.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className={`w-full h-full flex items-center justify-center text-xs font-bold ${isDark ? 'bg-gradient-to-br from-gray-600 to-gray-700 text-gray-300' : 'bg-gradient-to-br from-gray-200 to-gray-300 text-gray-600'}`}>
+                      {shareCard.author.name.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                </div>
+                <span className={`text-xs font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
                   {shareCard.author.name}
                 </span>
+                <i className="fas fa-external-link-alt text-[10px] ml-auto opacity-50"></i>
               </div>
             )}
           </div>

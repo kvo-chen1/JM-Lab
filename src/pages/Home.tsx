@@ -13,6 +13,7 @@ import { useTranslation } from 'react-i18next'
 import PromptInput from '@/components/PromptInput'
 import eventBus from '@/lib/eventBus' // 导入事件总线
 import HomeRecommendationSection from '@/components/HomeRecommendationSection'
+import JinMaiTemplatesSection from '@/components/JinMaiTemplatesSection'
 import { recordUserAction } from '@/services/recommendationService'
 import {
   ANIMATION_VARIANTS,
@@ -270,61 +271,46 @@ export default function Home() {
   
   const handleInspireClick = useCallback(async () => {
     const p = ensurePrompt();
-
-    // 发布优化开始事件
-    eventBus.publish('请求:开始', {
-      url: '/optimize',
-      method: 'POST',
-      options: { prompt: p }
-    });
+    if (!p.trim()) {
+      toast.warning('请先输入创作内容');
+      return;
+    }
 
     setIsOptimizing(true);
-    setOptimizeAudioUrl('');
-    setOptimizationSummary('');
     try {
-      llmService.setCurrentModel('kimi');
-      llmService.updateConfig({
-        stream: false,
-        system_prompt: '你是资深创作优化助手，请针对用户的创作问题进行结构化诊断与优化。'
-      });
-      const issues = llmService.diagnoseCreationIssues(p);
-      setDiagnosedIssues(issues);
-      const summary = await llmService.generateResponse(`${p}（请输出结构化的优化说明与下一步行动）`);
-      if (summary && !/接口不可用|未返回内容/.test(summary)) {
-        setOptimizationSummary(summary);
-      }
+      // 使用千问模型，单次调用优化提示词
+      llmService.setCurrentModel('qwen');
       const optimized = await llmService.generateResponse(
-        `请将以下创作问题提炼为可直接用于AI生成的中文提示词，只输出提示词本句：\n${p}`
-      );
-      const oneLine = optimized.split(/\r?\n/).find(s => s.trim()) || optimized;
-      const cleaned = oneLine.replace(/^"|"$/g, '').replace(/^"|"$/g, '').replace(/^提示词[:：]\s*/, '').trim();
-      if (cleaned && !/接口不可用|未返回内容/.test(cleaned)) {
-        setSearch(cleaned);
-        toast.success('已生成优化提示词');
-      }
-      toast.success(`发现${issues.length}条优化建议`);
+        `请将以下创作描述优化为AI绘画提示词，要求：
+1. 保留核心主题和风格
+2. 添加细节描述（色彩、构图、质感）
+3. 使用逗号分隔关键词
+4. 控制在50字以内
+5. 必须使用中文输出，不要出现英文
+6. 只输出优化后的提示词，不要解释
 
-      // 发布优化成功事件
-      eventBus.publish('请求:成功', {
-        url: '/optimize',
-        method: 'POST',
-        data: { issues, optimized: cleaned, summary }
-      });
+原文：${p}`
+      );
+
+      const cleaned = String(optimized || '').trim()
+        .replace(/^["']|["']$/g, '')
+        .replace(/^(提示词|优化后)[:：]\s*/i, '')
+        .replace(/[\n\r]+/g, ' ')
+        .trim();
+
+      if (cleaned && cleaned !== p && !/接口不可用|未返回内容/.test(cleaned)) {
+        setSearch(cleaned);
+        toast.success('提示词优化完成');
+      } else {
+        toast.info('当前提示词已很完善');
+      }
     } catch (error) {
       console.error('优化失败:', error);
-
-      // 发布优化失败事件
-      eventBus.publish('请求:失败', {
-        url: '/optimize',
-        method: 'POST',
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
-
       toast.error('优化失败，请稍后重试');
     } finally {
       setIsOptimizing(false);
     }
-  }, [search, selectedTags, inspireOn]);
+  }, [search, selectedTags]);
   
   const handleGenerateClick = useCallback(() => {
     const p = ensurePrompt();
@@ -477,17 +463,21 @@ export default function Home() {
     });
   }, [quickTags]);
   
+  // 标签对应的高质量提示词
+  const tagToPrompt: Record<string, string> = {
+    '国潮风格': '新中式国潮插画，传统纹样与现代几何融合，朱砂红与墨黑配色，金色描边，平面设计风格',
+    '非遗元素': '非遗工艺视觉，剪纸皮影刺绣元素，手工质感，民俗图案，暖色调，文化传承主题',
+    '科创思维': '科技未来感设计，赛博朋克美学，霓虹光效，数字艺术，冷色调蓝紫渐变，智能交互视觉',
+    '地域素材': '天津地域文化，海河津门故里五大道建筑，方言元素，码头文化，市井气息，本土特色视觉',
+    '节日庆典': '传统节日庆典，红灯笼烟花舞龙舞狮，喜庆氛围，中国红金色配色，团圆祝福主题',
+    '文创产品': '文创产品设计，博物馆联名非遗IP城市符号，实用美学，年轻潮流，包装周边礼品设计'
+  };
+
   const toggleTag = (tag: string) => {
-    setSelectedTags((prev) => {
-      const exists = prev.includes(tag);
-      const next = exists ? prev.filter(t => t !== tag) : [...prev, tag];
-      return next;
-    });
-    // 立即同步更新 search，不使用防抖
-    setSearch((s) => {
-      const exists = s.includes(tag);
-      return exists ? s.replace(tag, '').trim() : (s ? `${s} ${tag}` : tag);
-    });
+    const promptText = tagToPrompt[tag] || tag;
+    // 单选模式：点击新标签时替换之前的标签和提示词
+    setSelectedTags([tag]);
+    setSearch(promptText);
   };
 
   const clearAllTags = () => {
@@ -614,54 +604,22 @@ export default function Home() {
           >
             <div className="flex flex-col md:flex-row gap-3">
               <div className="flex-grow relative">
-                <input 
-                  type="text" 
+                <textarea
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleGenerateClick()}
-                  placeholder="输入灵感，开启创作之旅..." 
+                  onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleGenerateClick()}
+                  placeholder="输入灵感，开启创作之旅..."
                   autoComplete="off"
                   autoCorrect="off"
                   autoCapitalize="off"
                   spellCheck="false"
-                  className="w-full h-16 bg-transparent text-white placeholder-white/60 px-6 text-lg outline-none transition-all duration-300"
+                  rows={1}
+                  className="w-full min-h-[64px] max-h-[120px] bg-transparent text-white placeholder-white/60 px-6 py-4 text-lg outline-none transition-all duration-300 resize-none overflow-y-auto"
+                  style={{ lineHeight: '1.5' }}
                 />
-                <div className="absolute right-4 top-1/2 transform -translate-y-1/2 flex items-center gap-4">
-                  {/* 随机灵感按钮 */}
-                  <motion.button 
-                    onClick={handleRandomInspiration}
-                    className="p-2 rounded-full transition-all text-white/60 hover:bg-white/10 hover:text-yellow-300"
-                    aria-label="随机灵感"
-                    title="随机灵感"
-                    whileHover={{ scale: 1.1, rotate: 15 }}
-                    whileTap={{ scale: 0.95 }}
-                    transition={{ duration: 0.1 }}
-                  >
-                    <i className="fas fa-dice text-xl"></i>
-                  </motion.button>
-                  <motion.button 
-                    onClick={toggleInspire}
-                    className={`p-2 rounded-full transition-all ${inspireOn ? 'bg-yellow-500/20 text-yellow-400' : 'text-white/60 hover:bg-white/10'}`}
-                    aria-label={inspireOn ? "关闭灵感加持" : "开启灵感加持"}
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.95 }}
-                    transition={{ duration: 0.1 }}
-                  >
-                    <i className="fas fa-bolt text-xl"></i>
-                  </motion.button>
-                  <motion.button 
-                    onClick={handleVoiceInput}
-                    className={`p-2 rounded-full transition-all ${isListening ? 'bg-red-500/20 text-red-400' : 'text-white/60 hover:bg-white/10'}`}
-                    aria-label={isListening ? "停止语音输入" : "开始语音输入"}
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.95 }}
-                    animate={isListening ? { scale: [1, 1.1, 1], rotate: [0, 5, -5, 0] } : {}}
-                    transition={isListening ? { duration: 0.35, repeat: Infinity } : { duration: 0.1 }}
-                  >
-                    <i className="fas fa-microphone text-xl"></i>
-                  </motion.button>
+                <div className="absolute right-4 top-4 flex items-center gap-4">
                   {search && (
-                    <motion.button 
+                    <motion.button
                       onClick={clearAllTags}
                       className="p-2 rounded-full text-white/60 hover:bg-white/10 transition-colors"
                       aria-label="清除所有内容"
@@ -786,8 +744,13 @@ export default function Home() {
         <div className="pt-24">
           <HomeRecommendationSection />
         </div>
+
+        {/* 2. 津脉作品模板区域 - 天津文化特色模板 */}
+        <div className="pt-16">
+          <JinMaiTemplatesSection />
+        </div>
         
-        {/* 2. 创作中心 (Creative Hub) - Highlighted Cards */}
+        {/* 3. 创作中心 (Creative Hub) - Highlighted Cards */}
         <div className="max-w-7xl mx-auto px-4 md:px-6 mb-32">
           <motion.div 
             initial={{ opacity: 0, y: 30 }}
@@ -1521,16 +1484,29 @@ export default function Home() {
               >
                  {/* Image Section */}
                  <div className="relative w-full aspect-square overflow-hidden">
-                    <motion.img 
-                      initial={{ scale: 1.2 }}
-                      whileInView={{ scale: 1 }}
-                      transition={{ duration: 0.8, delay: idx * 0.08 + 0.2 }}
-                      whileHover={{ scale: 1.1 }}
-                      src={item.thumbnail} 
-                      alt={item.title} 
-                      className="w-full h-full object-cover transition-transform duration-1000"
-                      loading="lazy"
-                    />
+                    {/* 判断是否为视频作品 */}
+                    {item.type === 'video' || item.videoUrl ? (
+                      <video
+                        src={item.videoUrl || item.thumbnail}
+                        className="w-full h-full object-cover"
+                        muted
+                        playsInline
+                        loop
+                        autoPlay
+                        preload="auto"
+                      />
+                    ) : (
+                      <motion.img
+                        initial={{ scale: 1.2 }}
+                        whileInView={{ scale: 1 }}
+                        transition={{ duration: 0.8, delay: idx * 0.08 + 0.2 }}
+                        whileHover={{ scale: 1.1 }}
+                        src={item.thumbnail}
+                        alt={item.title}
+                        className="w-full h-full object-cover transition-transform duration-1000"
+                        loading="lazy"
+                      />
+                    )}
                     
                     {/* Top Right Badges */}
                     <div className="absolute top-3 right-3 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-x-4 group-hover:translate-x-0">
@@ -1561,8 +1537,13 @@ export default function Home() {
                  
                  {/* Category Tag at Bottom */}
                  <div className="absolute bottom-3 left-4 z-10">
-                   <span className="bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm text-xs font-medium px-3 py-1 rounded-full shadow-md text-gray-800 dark:text-gray-200">
-                     {item.category}
+                   <span className={`backdrop-blur-sm text-xs font-medium px-3 py-1 rounded-full shadow-md ${item.type === 'video' || item.videoUrl ? 'bg-gradient-to-r from-violet-500 to-purple-600 text-white' : 'bg-white/90 dark:bg-gray-900/90 text-gray-800 dark:text-gray-200'}`}>
+                     {item.type === 'video' || item.videoUrl ? (
+                       <span className="flex items-center gap-1">
+                         <i className="fas fa-video text-[10px]"></i>
+                         视频
+                       </span>
+                     ) : item.category}
                    </span>
                  </div>
               </motion.div>

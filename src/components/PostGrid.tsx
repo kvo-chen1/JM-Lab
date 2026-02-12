@@ -47,6 +47,7 @@ const PostItem = memo(({ post, index, onLike, onComment, onShare, onBookmark, on
   const [isVisible, setIsVisible] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [videoError, setVideoError] = useState(false);
   const videoRef = React.useRef<HTMLVideoElement>(null);
   
 
@@ -93,17 +94,23 @@ const PostItem = memo(({ post, index, onLike, onComment, onShare, onBookmark, on
 
   const isBookmarked = favorites.includes(post.id)
   const isVideo = post.type === 'video' || post.category === 'video' || post.videoUrl
-  
+
   // 调试日志
   if (isVideo) {
-    console.log('Video post in PostGrid:', { 
-      id: post.id, 
-      title: post.title, 
-      thumbnail: post.thumbnail, 
+    console.log('Video post in PostGrid:', {
+      id: post.id,
+      title: post.title,
+      thumbnail: post.thumbnail,
       videoUrl: post.videoUrl,
-      category: post.category 
+      category: post.category
     });
   }
+
+  // 视频加载错误处理
+  const handleVideoError = () => {
+    console.warn('Video failed to load:', post.videoUrl);
+    setVideoError(true);
+  };
 
   // 高级卡片悬停效果：更细腻的位移和多层阴影
   const hoverClasses = "hover:-translate-y-2 hover:shadow-[0_25px_50px_-12px_rgba(0,0,0,0.25),0_12px_24px_-8px_rgba(0,0,0,0.15)] transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]";
@@ -124,7 +131,7 @@ const PostItem = memo(({ post, index, onLike, onComment, onShare, onBookmark, on
     >
       {/* 媒体内容 */}
       <div className="relative w-full overflow-hidden">
-        {isVideo && post.videoUrl ? (
+        {isVideo && post.videoUrl && !videoError ? (
           <div className="relative bg-gray-100 dark:bg-gray-800 aspect-video">
             {/* 视频自动循环播放 */}
             <video
@@ -136,8 +143,9 @@ const PostItem = memo(({ post, index, onLike, onComment, onShare, onBookmark, on
               loop
               autoPlay
               preload="metadata"
+              onError={handleVideoError}
             />
-            
+
             {/* 视频标识 */}
             <div className="absolute top-2 right-2 z-10">
               <span className="text-[10px] px-2 py-1 rounded-full bg-black/60 text-white flex items-center gap-1">
@@ -147,17 +155,18 @@ const PostItem = memo(({ post, index, onLike, onComment, onShare, onBookmark, on
             </div>
           </div>
         ) : (
-          <div className="relative overflow-hidden">
+          <div className="relative overflow-hidden bg-gray-100 dark:bg-gray-800">
             <LazyImage 
               src={post.thumbnail}  
               alt={post.title}
               className="w-full h-auto object-cover transition-transform duration-700 ease-out group-hover:scale-110"
               priority={index < 5}
               quality={index < 6 ? 'high' : 'medium'}
-              placeholder="blur"
-              loadingAnimation="blur"
+              placeholder="skeleton"
+              loadingAnimation="fade"
               fit="cover"
               bare
+              fallbackSrc={`https://placehold.co/600x400/3b82f6/ffffff?text=${encodeURIComponent(post.title?.slice(0, 10) || '作品')}`}
             />
             {/* 图片悬停时的光晕效果 */}
             <div className="absolute inset-0 bg-gradient-to-tr from-blue-500/0 via-purple-500/0 to-pink-500/0 group-hover:from-blue-500/10 group-hover:via-purple-500/5 group-hover:to-pink-500/10 transition-all duration-700 opacity-0 group-hover:opacity-100 pointer-events-none" />

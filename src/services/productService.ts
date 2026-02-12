@@ -382,35 +382,41 @@ class ProductService {
         throw error;
       }
 
-      // 获取关联的商品信息
+      // 获取用户信息和商品图片
+      const userIds = [...new Set((data || []).map(r => r.user_id))];
       const productIds = [...new Set((data || []).map(r => r.product_id))];
+      
+      // 获取用户信息
+      const { data: usersData } = await supabase
+        .from('users')
+        .select('id, username, email')
+        .in('id', userIds);
+      
+      // 获取商品图片（product_id 是 text 类型）
       const { data: productsData } = await supabase
         .from('products')
-        .select('id, name, category, image_url')
+        .select('id, image_url')
         .in('id', productIds);
 
+      const userMap = new Map(usersData?.map(u => [u.id, u]) || []);
       const productMap = new Map(productsData?.map(p => [p.id, p]) || []);
 
       const records: ExchangeRecord[] = (data || []).map(record => {
+        const user = userMap.get(record.user_id);
         const product = productMap.get(record.product_id);
         return {
           id: record.id,
           productId: record.product_id,
-          productName: product?.name || '未知商品',
-          productCategory: product?.category || 'unknown',
+          productName: record.product_name || '未知商品',
+          productCategory: record.product_category || 'unknown',
           points: record.points_cost,
           quantity: record.quantity || 1,
           date: record.created_at,
           userId: record.user_id,
           status: record.status,
           productImage: product?.image_url,
-          userName: record.user_name,
-          userEmail: record.user_email,
-          shippingAddress: record.shipping_address,
-          contactPhone: record.contact_phone,
-          adminNotes: record.admin_notes,
-          processedAt: record.processed_at,
-          processedBy: record.processed_by
+          userName: user?.username || user?.email?.split('@')[0] || '未知用户',
+          userEmail: user?.email
         };
       });
 

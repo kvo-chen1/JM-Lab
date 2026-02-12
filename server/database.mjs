@@ -4221,9 +4221,10 @@ export const communityDB = {
     
     switch (typeKey) {
       case DB_TYPE.POSTGRESQL: {
-        // 获取本周开始时间
+        // 获取本周开始时间（Unix 时间戳，秒）
         const weekAgo = new Date()
         weekAgo.setDate(weekAgo.getDate() - 7)
+        const weekAgoSeconds = Math.floor(weekAgo.getTime() / 1000)
         
         // 获取帖子数、评论数、点赞数
         const postsResult = await db.query(`
@@ -4234,14 +4235,14 @@ export const communityDB = {
           WHERE community_id = $1
         `, [communityId])
         
-        // 获取本周新帖子数（作为访客数估算）
+        // 获取本周新帖子数（created_at 是秒级时间戳）
         const weeklyPostsResult = await db.query(`
           SELECT COUNT(*) as weekly_posts
           FROM posts 
           WHERE community_id = $1 AND created_at >= $2
-        `, [communityId, weekAgo.toISOString()])
+        `, [communityId, weekAgoSeconds])
         
-        // 获取本周评论数
+        // 获取本周评论数（created_at 是 ISO 日期字符串）
         const weeklyCommentsResult = await db.query(`
           SELECT COUNT(*) as weekly_comments
           FROM comments c
@@ -4249,11 +4250,27 @@ export const communityDB = {
           WHERE p.community_id = $1 AND c.created_at >= $2
         `, [communityId, weekAgo.toISOString()])
         
+        // 获取在线人数（最近5分钟内有活动的用户）
+        const fiveMinutesAgo = Math.floor(Date.now() / 1000) - 300
+        const onlineResult = await db.query(`
+          SELECT COUNT(*) as online_count
+          FROM community_members
+          WHERE community_id = $1 AND last_active >= $2
+        `, [communityId, fiveMinutesAgo])
+        
+        // 获取本周访客数（本周内有活动的用户）
+        const visitorsResult = await db.query(`
+          SELECT COUNT(*) as visitor_count
+          FROM community_members
+          WHERE community_id = $1 AND last_active >= $2
+        `, [communityId, weekAgoSeconds])
+        
         return {
           post_count: parseInt(postsResult.rows[0]?.post_count || 0),
           total_upvotes: parseInt(postsResult.rows[0]?.total_upvotes || 0),
-          weekly_visitors: parseInt(weeklyPostsResult.rows[0]?.weekly_posts || 0) * 10, // 估算：每个帖子约10个访客
-          weekly_interactions: parseInt(weeklyCommentsResult.rows[0]?.weekly_comments || 0) + parseInt(postsResult.rows[0]?.total_upvotes || 0)
+          weekly_visitors: parseInt(visitorsResult.rows[0]?.visitor_count || 0),
+          weekly_interactions: parseInt(weeklyCommentsResult.rows[0]?.weekly_comments || 0) + parseInt(postsResult.rows[0]?.total_upvotes || 0),
+          online_count: parseInt(onlineResult.rows[0]?.online_count || 0)
         }
       }
       case DB_TYPE.MEMORY: {
@@ -4262,7 +4279,8 @@ export const communityDB = {
           post_count: 0,
           total_upvotes: 0,
           weekly_visitors: 0,
-          weekly_interactions: 0
+          weekly_interactions: 0,
+          online_count: 0
         }
       }
       default:
@@ -4270,7 +4288,8 @@ export const communityDB = {
           post_count: 0,
           total_upvotes: 0,
           weekly_visitors: 0,
-          weekly_interactions: 0
+          weekly_interactions: 0,
+          online_count: 0
         }
     }
   }

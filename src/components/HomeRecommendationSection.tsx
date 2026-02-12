@@ -4,13 +4,42 @@ import { useNavigate } from 'react-router-dom';
 import { useTheme } from '@/hooks/useTheme';
 import { AuthContext } from '@/contexts/authContext';
 import { TianjinImage, TianjinTag } from '@/components/TianjinStyleComponents';
-import recommendationService, { 
-  RecommendedItem, 
+import recommendationService, {
+  RecommendedItem,
   RecommendationFeedbackType,
-  recordUserAction 
+  recordUserAction
 } from '@/services/recommendationService';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
+import PostDetailModal from '@/components/PostDetailModal';
+import postsApi, { Post } from '@/services/postService';
+
+// 视频卡片组件 - 直接自动播放
+const VideoCard: React.FC<{
+  videoUrl: string;
+  title: string;
+}> = ({ videoUrl, title }) => {
+  return (
+    <div className="relative w-full h-full bg-gray-900">
+      <video
+        src={videoUrl}
+        className="w-full h-full object-cover"
+        muted
+        playsInline
+        loop
+        autoPlay
+        preload="auto"
+      />
+      {/* 视频标识 */}
+      <div className="absolute top-3 left-3 z-10">
+        <span className="px-3 py-1.5 rounded-full text-xs font-semibold bg-gradient-to-r from-violet-500 to-purple-600 text-white shadow-lg flex items-center gap-1.5">
+          <i className="fas fa-video text-[10px]"></i>
+          视频
+        </span>
+      </div>
+    </div>
+  );
+};
 
 interface HomeRecommendationSectionProps {
   className?: string;
@@ -28,6 +57,12 @@ const HomeRecommendationSection: React.FC<HomeRecommendationSectionProps> = ({ c
   const [feedbackStatus, setFeedbackStatus] = useState<Record<string, RecommendationFeedbackType>>({});
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [hoveredCard, setHoveredCard] = useState<string | null>(null);
+
+  // PostDetailModal 状态
+  const [selectedPost, setSelectedPost] = useState<Post | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalLoading, setModalLoading] = useState(false);
+  const [modalError, setModalError] = useState<string | null>(null);
 
   // 获取用户ID（未登录用户使用设备ID）
   const getUserId = useCallback(() => {
@@ -98,42 +133,69 @@ const HomeRecommendationSection: React.FC<HomeRecommendationSectionProps> = ({ c
         .filter(item => item.type === activeTab.slice(0, -1) as 'post' | 'challenge' | 'template')
         .slice(0, 8);
 
+  // 加载帖子详情
+  const loadPostDetail = async (id: string) => {
+    setModalLoading(true);
+    setModalError(null);
+    try {
+      // 从API获取最新的作品数据
+      const allPosts = await postsApi.getPosts(undefined, user?.id, false, 'works');
+      const found = allPosts.find(p => p.id === id);
+
+      if (found) {
+        // 记录浏览量
+        postsApi.recordView(id, 'works').catch(() => {});
+        setSelectedPost(found);
+        setIsModalOpen(true);
+      } else {
+        setModalError('未找到该作品内容');
+        toast.error('未找到该作品内容');
+      }
+    } catch (error) {
+      setModalError('加载作品详情失败，请稍后重试');
+      toast.error('加载作品详情失败，请稍后重试');
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
   // 处理推荐项点击
   const handleItemClick = (item: RecommendedItem) => {
     // 记录点击行为
     recommendationService.recordRecommendationClick(getUserId(), item);
-    
-    // 导航到对应页面
-    let path = '/';
+
+    // 根据类型处理点击
     switch (item.type) {
       case 'post':
-        path = `/square?q=${encodeURIComponent(item.title)}`;
+        // 打开作品详情弹窗
+        loadPostDetail(item.id);
         break;
       case 'challenge':
-        path = `/events`;
+        navigate('/events');
         break;
       case 'template':
-        path = `/create`;
+        navigate('/create');
         break;
+      default:
+        navigate('/');
     }
-    navigate(path);
   };
 
   // 处理反馈
   const handleFeedback = (e: React.MouseEvent, item: RecommendedItem, feedbackType: RecommendationFeedbackType) => {
     e.stopPropagation();
-    
+
     recommendationService.recordRecommendationFeedback(getUserId(), {
       itemId: item.id,
       itemType: item.type,
       feedbackType
     });
-    
+
     setFeedbackStatus(prev => ({
       ...prev,
       [item.id]: feedbackType
     }));
-    
+
     if (feedbackType === 'hide') {
       setRecommendations(prev => prev.filter(i => i.id !== item.id));
       toast.success('已隐藏该推荐');
@@ -142,6 +204,64 @@ const HomeRecommendationSection: React.FC<HomeRecommendationSectionProps> = ({ c
     } else if (feedbackType === 'dislike') {
       toast.success('感谢您的反馈，我们会减少类似推荐');
     }
+  };
+
+  // 处理点赞
+  const handleLike = async (id: string) => {
+    if (!user) {
+      toast.error('请先登录');
+      navigate('/login');
+      return;
+    }
+    try {
+      await postsApi.likeWork(id, user.id);
+      // 更新本地状态
+      if (selectedPost && selectedPost.id === id) {
+        setSelectedPost(prev => prev ? {
+          ...prev,
+          isLiked: !prev.isLiked,
+          likes: prev.isLiked ? prev.likes - 1 : prev.likes + 1
+        } : null);
+      }
+      toast.success(selectedPost?.isLiked ? '取消点赞' : '点赞成功');
+    } catch (error) {
+      toast.error('操作失败，请稍后重试');
+    }
+  };
+
+  // 处理评论
+  const handleComment = async (id: string, content: string) => {
+    if (!user) {
+      toast.error('请先登录');
+      navigate('/login');
+      return;
+    }
+    try {
+      await postsApi.addWorkComment(id, user.id, content);
+      toast.success('评论成功');
+      return Promise.resolve();
+    } catch (error) {
+      toast.error('评论失败，请稍后重试');
+      return Promise.reject(error);
+    }
+  };
+
+  // 处理分享
+  const handleShare = (id: string) => {
+    // 复制链接到剪贴板
+    const url = `${window.location.origin}/square?post=${id}`;
+    navigator.clipboard.writeText(url).then(() => {
+      toast.success('链接已复制到剪贴板');
+    }).catch(() => {
+      toast.error('复制失败，请手动复制');
+    });
+  };
+
+  // 关闭弹窗
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setSelectedPost(null);
+    setModalError(null);
   };
 
   // 获取类型名称
@@ -299,7 +419,12 @@ const HomeRecommendationSection: React.FC<HomeRecommendationSectionProps> = ({ c
         </div>
       ) : filteredRecommendations.length > 0 ? (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
-          {filteredRecommendations.map((item, idx) => (
+          {filteredRecommendations.map((item, idx) => {
+            // 调试：检查异常数据
+            if (!item.title || item.title === '1') {
+              console.warn('推荐项数据异常:', { id: item.id, title: item.title, type: item.type, item });
+            }
+            return (
             <motion.div
               key={item.id}
               initial={{ opacity: 0, y: 30, scale: 0.95 }}
@@ -316,44 +441,53 @@ const HomeRecommendationSection: React.FC<HomeRecommendationSectionProps> = ({ c
             >
               {/* 缩略图容器 */}
               <div className="relative aspect-square overflow-hidden">
-                <TianjinImage
-                  src={item.thumbnail || '/images/placeholder-image.jpg'}
-                  alt={item.title}
-                  className="w-full h-full object-cover transition-all duration-700 group-hover:scale-110"
-                  fallbackSrc="/images/placeholder-image.jpg"
-                  loading="lazy"
-                />
-                
+                {/* 判断是否为视频作品 - 从 metadata 中获取 videoUrl */}
+                {item.type === 'post' && (item.metadata?.videoUrl || item.metadata?.video_url) ? (
+                  <VideoCard
+                    videoUrl={item.metadata?.videoUrl || item.metadata?.video_url}
+                    title={item.title}
+                  />
+                ) : (
+                  <>
+                    <TianjinImage
+                      src={item.thumbnail || '/images/placeholder-image.jpg'}
+                      alt={item.title}
+                      className="w-full h-full object-cover transition-all duration-700 group-hover:scale-110"
+                      fallbackSrc="/images/placeholder-image.jpg"
+                      loading="lazy"
+                    />
+                    {/* 类型标签 - 更精致的设计 */}
+                    <div className="absolute top-3 left-3">
+                      <motion.span
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: idx * 0.08 + 0.2 }}
+                        className={`px-3 py-1.5 rounded-full text-xs font-semibold shadow-lg ${getTypeColor(item.type)} flex items-center gap-1.5`}
+                      >
+                        <i className={`fas ${getTypeIcon(item.type)} text-[10px]`}></i>
+                        {getTypeName(item.type)}
+                      </motion.span>
+                    </div>
+                  </>
+                )}
+
                 {/* 渐变遮罩 */}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
 
-                {/* 类型标签 - 更精致的设计 */}
-                <div className="absolute top-3 left-3">
-                  <motion.span 
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: idx * 0.08 + 0.2 }}
-                    className={`px-3 py-1.5 rounded-full text-xs font-semibold shadow-lg ${getTypeColor(item.type)} flex items-center gap-1.5`}
+                {/* 作品标题与描述（悬停显示） */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-500 flex items-end p-4">
+                  <motion.div 
+                    initial={{ y: 10, opacity: 0 }}
+                    animate={hoveredCard === item.id ? { y: 0, opacity: 1 } : { y: 10, opacity: 0 }}
+                    transition={{ duration: 0.3 }}
+                    className="text-white"
                   >
-                    <i className={`fas ${getTypeIcon(item.type)} text-[10px]`}></i>
-                    {getTypeName(item.type)}
-                  </motion.span>
+                    <h4 className="text-sm font-semibold mb-1 line-clamp-1">{item.title || '未命名作品'}</h4>
+                    <p className="text-xs leading-relaxed line-clamp-2 text-white/80">
+                      {item.metadata?.description || item.metadata?.content || '暂无描述'}
+                    </p>
+                  </motion.div>
                 </div>
-
-                {/* 推荐理由（悬停显示） */}
-                {item.reason && (
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-500 flex items-end p-4">
-                    <motion.p 
-                      initial={{ y: 10, opacity: 0 }}
-                      animate={hoveredCard === item.id ? { y: 0, opacity: 1 } : { y: 10, opacity: 0 }}
-                      transition={{ duration: 0.3 }}
-                      className="text-white text-xs leading-relaxed line-clamp-2"
-                    >
-                      <i className="fas fa-lightbulb text-yellow-400 mr-1.5"></i>
-                      {item.reason}
-                    </motion.p>
-                  </div>
-                )}
 
                 {/* 反馈按钮（悬停显示） */}
                 <div className="absolute top-3 right-3 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-x-2 group-hover:translate-x-0">
@@ -384,10 +518,10 @@ const HomeRecommendationSection: React.FC<HomeRecommendationSectionProps> = ({ c
 
               {/* 内容信息 - 更精致的布局 */}
               <div className="p-4">
-                <h3 className={`font-semibold text-sm mb-3 line-clamp-1 transition-colors duration-300 ${
+                <h3 className={`font-semibold text-sm mb-3 line-clamp-1 transition-colors duration-300 min-h-[1.25rem] ${
                   isDark ? 'text-white group-hover:text-purple-300' : 'text-gray-900 group-hover:text-purple-600'
                 }`}>
-                  {item.title}
+                  {item.title || '未命名作品'}
                 </h3>
                 
                 {/* 互动数据 - 更美观的展示 */}
@@ -424,7 +558,24 @@ const HomeRecommendationSection: React.FC<HomeRecommendationSectionProps> = ({ c
               {/* 底部装饰线 */}
               <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-purple-500 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
             </motion.div>
-          ))}
+          )})}
+
+          {/* 查看更多作品按钮 */}
+          <div className="col-span-2 md:col-span-3 lg:col-span-4 flex justify-center mt-4">
+            <motion.button
+              whileHover={{ scale: 1.05, y: -2 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => navigate('/square')}
+              className={`px-8 py-3 rounded-full font-semibold text-sm transition-all duration-300 flex items-center gap-2 ${
+                isDark
+                  ? 'bg-gray-800 text-white hover:bg-gray-700 border border-gray-700'
+                  : 'bg-white text-gray-900 hover:bg-gray-50 shadow-lg border border-gray-200'
+              }`}
+            >
+              <span>查看更多作品</span>
+              <i className="fas fa-arrow-right text-[#C02C38]"></i>
+            </motion.button>
+          </div>
         </div>
       ) : (
         <div className={`text-center py-16 rounded-3xl ${isDark ? 'bg-gray-800/50' : 'bg-gradient-to-br from-gray-50 to-blue-50/50'} border border-dashed ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
@@ -453,6 +604,20 @@ const HomeRecommendationSection: React.FC<HomeRecommendationSectionProps> = ({ c
           </motion.button>
         </div>
       )}
+
+      {/* 作品详情弹窗 */}
+      <PostDetailModal
+        post={selectedPost}
+        isOpen={isModalOpen}
+        onClose={handleCloseModal}
+        onLike={handleLike}
+        onComment={handleComment}
+        onShare={handleShare}
+        loading={modalLoading}
+        error={modalError}
+        currentUser={user}
+        onPostChange={(newPost) => setSelectedPost(newPost)}
+      />
     </div>
   );
 };

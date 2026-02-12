@@ -52,10 +52,12 @@ export default function AchievementDetail({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-            className={`fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg mx-4 z-50 ${
-              isDark ? 'bg-gray-900' : 'bg-white'
-            } rounded-3xl overflow-hidden shadow-2xl`}
+            className={`fixed inset-0 flex items-center justify-center p-4 z-50`}
           >
+            <div className={`w-full max-w-lg max-h-[90vh] ${
+              isDark ? 'bg-gray-900' : 'bg-white'
+            } rounded-3xl overflow-hidden shadow-2xl flex flex-col`}
+            >
             {/* 头部装饰 */}
             <div
               className={`h-32 relative overflow-hidden ${
@@ -112,7 +114,7 @@ export default function AchievementDetail({
             </div>
 
             {/* 内容区域 */}
-            <div className="pt-14 pb-6 px-6">
+            <div className="pt-14 pb-6 px-6 overflow-y-auto">
               {/* 状态标签 */}
               <div className="flex justify-center mb-4">
                 <span
@@ -245,6 +247,7 @@ export default function AchievementDetail({
                   关闭
                 </button>
               </div>
+            </div>
             </div>
           </motion.div>
         </>

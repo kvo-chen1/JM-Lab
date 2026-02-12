@@ -10,7 +10,7 @@
  * - 分享与导出功能
  */
 
-import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 import { llmService } from './llmService';
 import type { 
   MindNode, 
@@ -106,7 +106,7 @@ export class InspirationMindMapService {
       is_public: false,
     };
 
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabase
       .from('inspiration_mindmaps')
       .insert(mindMapData)
       .select()
@@ -174,7 +174,7 @@ export class InspirationMindMapService {
     if (updates.tags !== undefined) dbUpdates.tags = updates.tags;
     if (updates.isPublic !== undefined) dbUpdates.is_public = updates.isPublic;
 
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabase
       .from('inspiration_mindmaps')
       .update(dbUpdates)
       .eq('id', mapId)
@@ -193,7 +193,7 @@ export class InspirationMindMapService {
    * 删除脉络
    */
   async deleteMindMap(mapId: string): Promise<void> {
-    const { error } = await supabaseAdmin
+    const { error } = await supabase
       .from('inspiration_mindmaps')
       .delete()
       .eq('id', mapId);
@@ -261,7 +261,7 @@ export class InspirationMindMapService {
       }],
     };
 
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabase
       .from('inspiration_nodes')
       .insert(nodeDbData)
       .select()
@@ -323,7 +323,7 @@ export class InspirationMindMapService {
       },
     ];
 
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabase
       .from('inspiration_nodes')
       .update(dbUpdates)
       .eq('id', nodeId)
@@ -343,7 +343,7 @@ export class InspirationMindMapService {
    */
   async deleteNode(nodeId: string): Promise<void> {
     // 删除节点及其子节点
-    const { error } = await supabaseAdmin
+    const { error } = await supabase
       .from('inspiration_nodes')
       .delete()
       .or(`id.eq.${nodeId},parent_id.eq.${nodeId}`);
@@ -570,7 +570,7 @@ export class InspirationMindMapService {
       };
 
       // 保存到数据库
-      await supabaseAdmin.from('inspiration_ai_suggestions').insert({
+      await supabase.from('inspiration_ai_suggestions').insert({
         node_id: nodeId,
         type,
         content: suggestion.content,
@@ -743,7 +743,7 @@ export class InspirationMindMapService {
     };
 
     // 保存到数据库
-    await supabaseAdmin.from('inspiration_stories').insert({
+    await supabase.from('inspiration_stories').insert({
       map_id: mapId,
       title: story.title,
       subtitle: story.subtitle,

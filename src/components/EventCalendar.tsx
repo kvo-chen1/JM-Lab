@@ -19,9 +19,13 @@ import {
   User,
   Filter,
   LayoutGrid,
-  Eye
+  Eye,
+  Users
 } from 'lucide-react';
 import { eventWorkService } from '@/services/eventWorkService';
+import ShareToCommunity from './ShareToCommunity';
+import { useContext } from 'react';
+import { AuthContext } from '@/contexts/authContext';
 
 // 活动类型
 import type { EventType } from '@/services/eventCalendarService';
@@ -30,6 +34,7 @@ import type { EventType } from '@/services/eventCalendarService';
 export default function EventCalendar() {
   const { isDark } = useTheme();
   const navigate = useNavigate();
+  const { user } = useContext(AuthContext);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'upcoming' | 'ongoing' | 'completed'>('upcoming');
   const [selectedEventType, setSelectedEventType] = useState<EventType | 'all'>('all');
@@ -39,6 +44,7 @@ export default function EventCalendar() {
   const [isEventDetailsOpen, setIsEventDetailsOpen] = useState(false);
   const [searchKeyword, setSearchKeyword] = useState('');
   const [selectedEventSubmissionCount, setSelectedEventSubmissionCount] = useState(0);
+  const [isShareToCommunityOpen, setIsShareToCommunityOpen] = useState(false);
   
   const { getEvents } = useEventService();
 
@@ -143,7 +149,25 @@ export default function EventCalendar() {
   const handleRegisterEvent = async (eventId: string) => {
     try {
       await new Promise(resolve => setTimeout(resolve, 500));
-      toast.success('报名成功！请留意通知消息');
+      toast.success(
+        <div className="flex items-center justify-between gap-6">
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-emerald-700">报名成功</span>
+            <span className="text-emerald-500">✓</span>
+          </div>
+          <button
+            onClick={() => navigate(`/events/${eventId}`)}
+            className="text-xs px-3 py-1.5 rounded-full bg-gradient-to-r from-[#C02C38] to-[#D64545] text-white hover:shadow-lg hover:scale-105 transition-all duration-200 flex items-center gap-1 font-medium whitespace-nowrap"
+          >
+            <ExternalLink className="w-3 h-3" />
+            查看活动详情
+          </button>
+        </div>,
+        {
+          duration: 5000,
+          className: 'bg-emerald-50 border-emerald-200'
+        }
+      );
       import('@/services/enhancedEventBus').then(({ default: eventBus }) => {
         // @ts-ignore - 事件类型定义不匹配，但功能正常
         eventBus.emit('activity:registered', { 
@@ -441,246 +465,304 @@ export default function EventCalendar() {
       {/* 详情弹窗 */}
       <AnimatePresence>
         {isEventDetailsOpen && selectedEvent && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
               onClick={() => setIsEventDetailsOpen(false)}
-              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              className="absolute inset-0 bg-gradient-to-br from-black/70 via-black/50 to-black/70 backdrop-blur-md"
             />
             
             <motion.div 
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              initial={{ opacity: 0, scale: 0.95, y: 30 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className={`relative w-full max-w-5xl max-h-[90vh] overflow-hidden rounded-3xl shadow-2xl flex flex-col md:flex-row ${isDark ? 'bg-gray-800' : 'bg-white'}`}
+              exit={{ opacity: 0, scale: 0.95, y: 30 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className={`relative w-full max-w-4xl max-h-[85vh] overflow-hidden rounded-2xl md:rounded-3xl shadow-[0_25px_50px_-12px_rgba(0,0,0,0.4)] flex flex-col md:flex-row ${isDark ? 'bg-slate-900' : 'bg-white'}`}
             >
-              <button 
+              {/* 关闭按钮 */}
+              <motion.button 
+                whileHover={{ scale: 1.1, rotate: 90 }}
+                whileTap={{ scale: 0.9 }}
                 onClick={() => setIsEventDetailsOpen(false)}
-                className="absolute top-4 right-4 z-10 p-2 rounded-full bg-black/20 hover:bg-black/40 text-white backdrop-blur-md transition-colors"
+                className="absolute top-3 right-3 md:top-4 md:right-4 z-20 p-2 rounded-full bg-white/90 dark:bg-slate-800/90 hover:bg-white dark:hover:bg-slate-700 text-gray-600 dark:text-gray-300 shadow-lg backdrop-blur-sm transition-all"
               >
-                <X className="w-5 h-5" />
-              </button>
+                <X className="w-4 h-4 md:w-5 md:h-5" />
+              </motion.button>
 
               {/* 左侧/顶部 图片区 */}
-              <div className="w-full md:w-2/5 h-48 md:h-auto relative shrink-0">
-                <TianjinImage
-                  src={selectedEvent.media?.[0]?.url || `https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=traditional%20chinese%20culture%20${selectedEvent.type}&image_size=portrait_3_4`}
-                  alt={selectedEvent.title}
-                  className="w-full h-full object-cover"
-                  ratio="portrait"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent md:hidden" />
+              <div className="w-full md:w-1/2 h-52 sm:h-60 md:h-auto relative shrink-0 overflow-hidden">
+                <motion.div 
+                  initial={{ scale: 1.1 }}
+                  animate={{ scale: 1 }}
+                  transition={{ duration: 0.6 }}
+                  className="w-full h-full"
+                >
+                  <TianjinImage
+                    src={selectedEvent.media?.[0]?.url || `https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=traditional%20chinese%20culture%20${selectedEvent.type}&image_size=portrait_3_4`}
+                    alt={selectedEvent.title}
+                    className="w-full h-full object-cover"
+                    ratio="portrait"
+                  />
+                </motion.div>
+                {/* 渐变遮罩 - 移动端显示标题 */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent md:hidden" />
                 <div className="absolute bottom-4 left-4 right-4 md:hidden text-white">
-                  <span className={`inline-block px-2 py-1 mb-2 text-xs font-bold rounded-md ${
-                    getEventTimeStatus(selectedEvent) === 'upcoming' ? 'bg-green-600' : 
-                    getEventTimeStatus(selectedEvent) === 'ongoing' ? 'bg-yellow-600' : 'bg-gray-600'
-                  }`}>
-                    {getEventTimeStatus(selectedEvent) === 'upcoming' ? '即将开始' : getEventTimeStatus(selectedEvent) === 'ongoing' ? '进行中' : '已结束'}
-                  </span>
-                  <h2 className="text-xl font-bold line-clamp-2">{selectedEvent.title}</h2>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-full ${
+                      getEventTimeStatus(selectedEvent) === 'upcoming' ? 'bg-emerald-500/90 text-white' : 
+                      getEventTimeStatus(selectedEvent) === 'ongoing' ? 'bg-amber-500/90 text-white' : 'bg-slate-500/90 text-white'
+                    }`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${
+                        getEventTimeStatus(selectedEvent) === 'upcoming' ? 'bg-white animate-pulse' : 
+                        getEventTimeStatus(selectedEvent) === 'ongoing' ? 'bg-white animate-pulse' : 'bg-white/60'
+                      }`} />
+                      {getEventTimeStatus(selectedEvent) === 'upcoming' ? '即将开始' : getEventTimeStatus(selectedEvent) === 'ongoing' ? '进行中' : '已结束'}
+                    </span>
+                    <span className="px-2.5 py-1 text-xs font-medium rounded-full bg-white/20 backdrop-blur-sm">
+                      {selectedEvent.type === 'online' ? '线上活动' : '线下活动'}
+                    </span>
+                  </div>
+                  <h2 className="text-xl font-bold line-clamp-2 leading-snug">{selectedEvent.title}</h2>
                 </div>
               </div>
 
               {/* 右侧/底部 内容区 */}
               <div className="flex-1 flex flex-col h-full overflow-hidden">
-                <div className="flex-1 overflow-y-auto p-6 md:p-8">
-                  {/* Desktop Header */}
-                  <div className="hidden md:block mb-6">
-                    <div className="flex items-center gap-3 mb-3">
-                      <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                        getEventTimeStatus(selectedEvent) === 'upcoming' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
-                        getEventTimeStatus(selectedEvent) === 'ongoing' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
-                        'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
-                      }`}>
-                        {getEventTimeStatus(selectedEvent) === 'upcoming' ? '即将开始' : getEventTimeStatus(selectedEvent) === 'ongoing' ? '进行中' : '已结束'}
-                      </span>
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${isDark ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                        {selectedEvent.type === 'online' ? '线上活动' : '线下活动'}
-                      </span>
-                    </div>
-                    <h2 className="text-3xl font-bold leading-tight">{selectedEvent.title}</h2>
-                  </div>
-
-                  {/* Info Grid */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
-                    <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
-                      <div className="flex items-start gap-3">
-                        <Calendar className="w-5 h-5 text-red-500 mt-0.5" />
-                        <div>
-                          <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">时间</p>
-                          <p className="font-semibold">{formatDateRange(selectedEvent.startTime, selectedEvent.endTime).date}</p>
-                          <p className="text-sm text-gray-500">{formatDateRange(selectedEvent.startTime, selectedEvent.endTime).time}</p>
-                        </div>
+                <div className="flex-1 overflow-y-auto">
+                  <div className="p-5 md:p-8">
+                    {/* Desktop Header */}
+                    <div className="hidden md:block mb-8">
+                      <div className="flex items-center gap-2.5 mb-4">
+                        <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ${
+                          getEventTimeStatus(selectedEvent) === 'upcoming' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400' :
+                          getEventTimeStatus(selectedEvent) === 'ongoing' ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400' :
+                          'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400'
+                        }`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${
+                            getEventTimeStatus(selectedEvent) === 'upcoming' ? 'bg-emerald-500 animate-pulse' : 
+                            getEventTimeStatus(selectedEvent) === 'ongoing' ? 'bg-amber-500 animate-pulse' : 'bg-slate-400'
+                          }`} />
+                          {getEventTimeStatus(selectedEvent) === 'upcoming' ? '即将开始' : getEventTimeStatus(selectedEvent) === 'ongoing' ? '进行中' : '已结束'}
+                        </span>
+                        <span className={`px-3 py-1.5 rounded-full text-xs font-medium ${isDark ? 'bg-slate-700 text-slate-300' : 'bg-slate-100 text-slate-600'}`}>
+                          {selectedEvent.type === 'online' ? '线上活动' : '线下活动'}
+                        </span>
                       </div>
+                      <h2 className="text-2xl md:text-3xl font-bold leading-tight text-gray-900 dark:text-white">{selectedEvent.title}</h2>
                     </div>
 
-                    <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
-                      <div className="flex items-start gap-3">
-                        <MapPin className="w-5 h-5 text-red-500 mt-0.5" />
-                        <div>
-                          <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">地点</p>
-                          <p className="font-semibold line-clamp-2">{selectedEvent.location || (selectedEvent.type === 'online' ? '线上活动' : '暂无地点')}</p>
-                          {selectedEvent.type === 'online' && <p className="text-sm text-blue-500">点击查看链接</p>}
+                    {/* Info Grid - 现代化卡片设计 */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4 mb-8">
+                      <motion.div 
+                        whileHover={{ y: -2, boxShadow: '0 8px 30px -10px rgba(0,0,0,0.15)' }}
+                        className={`group p-4 md:p-5 rounded-xl md:rounded-2xl border transition-all duration-300 ${isDark ? 'bg-slate-800/50 border-slate-700/50 hover:border-slate-600' : 'bg-gradient-to-br from-slate-50 to-white border-slate-100 hover:border-slate-200'}`}
+                      >
+                        <div className="flex items-start gap-3.5">
+                          <div className={`p-2.5 rounded-xl ${isDark ? 'bg-rose-500/10' : 'bg-rose-50'}`}>
+                            <Calendar className="w-5 h-5 text-rose-500" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1.5">时间</p>
+                            <p className="font-semibold text-gray-900 dark:text-white text-sm md:text-base">{formatDateRange(selectedEvent.startTime, selectedEvent.endTime).date}</p>
+                            <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400 mt-0.5">{formatDateRange(selectedEvent.startTime, selectedEvent.endTime).time}</p>
+                          </div>
                         </div>
-                      </div>
+                      </motion.div>
+
+                      <motion.div 
+                        whileHover={{ y: -2, boxShadow: '0 8px 30px -10px rgba(0,0,0,0.15)' }}
+                        className={`group p-4 md:p-5 rounded-xl md:rounded-2xl border transition-all duration-300 ${isDark ? 'bg-slate-800/50 border-slate-700/50 hover:border-slate-600' : 'bg-gradient-to-br from-slate-50 to-white border-slate-100 hover:border-slate-200'}`}
+                      >
+                        <div className="flex items-start gap-3.5">
+                          <div className={`p-2.5 rounded-xl ${isDark ? 'bg-blue-500/10' : 'bg-blue-50'}`}>
+                            <MapPin className="w-5 h-5 text-blue-500" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1.5">地点</p>
+                            <p className="font-semibold text-gray-900 dark:text-white text-sm md:text-base line-clamp-2">{selectedEvent.location || (selectedEvent.type === 'online' ? '线上活动' : '暂无地点')}</p>
+                            {selectedEvent.type === 'online' && (
+                              <p className="text-xs md:text-sm text-blue-500 hover:text-blue-600 cursor-pointer mt-1 inline-flex items-center gap-1">
+                                点击查看链接 <ExternalLink className="w-3 h-3" />
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </motion.div>
                     </div>
-                  </div>
 
-                  {/* Description */}
-                  <div className="prose dark:prose-invert max-w-none mb-8">
-                    <h3 className="text-lg font-bold mb-3 flex items-center gap-2">
-                      <div className="w-1 h-6 bg-red-600 rounded-full" />
-                      活动详情
-                    </h3>
-                    <p className={`text-base leading-relaxed ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                      {selectedEvent.description}
-                    </p>
-                    {selectedEvent.content && (
-                       <div className={`mt-4 p-4 rounded-xl ${isDark ? 'bg-gray-700/30' : 'bg-gray-50'} text-sm`} dangerouslySetInnerHTML={{ __html: selectedEvent.content }} />
-                    )}
-                  </div>
+                    {/* Description - 更精致的排版 */}
+                    <div className="mb-8">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-1 h-6 md:h-7 bg-gradient-to-b from-rose-500 to-rose-600 rounded-full" />
+                        <h3 className="text-lg md:text-xl font-bold text-gray-900 dark:text-white">活动详情</h3>
+                      </div>
+                      <div className={`prose dark:prose-invert max-w-none ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                        <p className="text-sm md:text-base leading-relaxed">
+                          {selectedEvent.description}
+                        </p>
+                      </div>
+                      {selectedEvent.content && (
+                        <motion.div 
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className={`mt-5 p-4 md:p-5 rounded-xl md:rounded-2xl border text-sm leading-relaxed ${isDark ? 'bg-slate-800/30 border-slate-700/50' : 'bg-slate-50/50 border-slate-100'}`} 
+                          dangerouslySetInnerHTML={{ __html: selectedEvent.content }} 
+                        />
+                      )}
+                    </div>
 
-                  {/* Tags & Contact */}
-                  <div className="space-y-6">
+                    {/* Tags */}
                     {selectedEvent.tags && selectedEvent.tags.length > 0 && (
-                      <div>
-                        <h4 className="text-sm font-medium text-gray-500 mb-2">相关标签</h4>
+                      <div className="mb-6">
+                        <h4 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3">相关标签</h4>
                         <div className="flex flex-wrap gap-2">
                           {selectedEvent.tags.map((tag, i) => (
-                            <span key={i} className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
+                            <motion.span 
+                              key={i} 
+                              whileHover={{ scale: 1.05 }}
+                              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${isDark ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                            >
                               <Tag className="w-3 h-3" />
                               {tag}
-                            </span>
+                            </motion.span>
                           ))}
                         </div>
                       </div>
                     )}
-
-                    {/* 联系人信息 - 暂时隐藏，因为Event类型中没有这些字段
-                    {(selectedEvent.contactName || selectedEvent.contactPhone) && (
-                      <div className={`flex flex-wrap gap-4 p-4 rounded-xl border ${isDark ? 'border-gray-700' : 'border-gray-100'}`}>
-                        {(selectedEvent as any).contactName && (
-                          <div className="flex items-center gap-2 text-sm">
-                            <User className="w-4 h-4 text-gray-400" />
-                            <span>{(selectedEvent as any).contactName}</span>
-                          </div>
-                        )}
-                        {(selectedEvent as any).contactPhone && (
-                          <div className="flex items-center gap-2 text-sm">
-                            <Phone className="w-4 h-4 text-gray-400" />
-                            <span>{(selectedEvent as any).contactPhone}</span>
-                          </div>
-                        )}
-                        {(selectedEvent as any).contactEmail && (
-                          <div className="flex items-center gap-2 text-sm">
-                            <Mail className="w-4 h-4 text-gray-400" />
-                            <span>{(selectedEvent as any).contactEmail}</span>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                    */}
                   </div>
                 </div>
 
-                {/* 查看作品按钮 - 在已结束活动中显示 */}
+                {/* 查看作品卡片 - 已结束活动 */}
                 {getEventTimeStatus(selectedEvent) === 'completed' && (
-                  <div className={`px-6 pt-4 ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
+                  <div className={`px-5 md:px-8 pt-3 pb-2 ${isDark ? 'bg-slate-900' : 'bg-white'}`}>
                     <motion.button
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
+                      whileHover={{ scale: 1.01, y: -2 }}
+                      whileTap={{ scale: 0.99 }}
                       onClick={() => {
                         setIsEventDetailsOpen(false);
                         navigate(`/events/${selectedEvent.id}/works`);
                       }}
-                      className="w-full flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white shadow-lg shadow-primary-500/20"
+                      className={`w-full flex items-center justify-between p-4 rounded-xl border-2 transition-all duration-300 group ${isDark ? 'bg-violet-600/20 border-violet-500/50 hover:border-violet-400 hover:bg-violet-600/30' : 'bg-violet-100 border-violet-300 hover:border-violet-400 hover:bg-violet-200'}`}
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center">
-                          <LayoutGrid className="w-5 h-5" />
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${isDark ? 'bg-violet-500/30 group-hover:bg-violet-500/40' : 'bg-violet-200 group-hover:bg-violet-300'}`}>
+                          <LayoutGrid className={`w-5 h-5 ${isDark ? 'text-violet-300' : 'text-violet-700'}`} />
                         </div>
                         <div className="text-left">
-                          <p className="font-semibold">查看作品</p>
-                          <p className="text-primary-100 text-sm">
+                          <p className={`font-semibold text-sm ${isDark ? 'text-violet-200' : 'text-violet-900'}`}>查看作品</p>
+                          <p className={`text-xs ${isDark ? 'text-violet-400' : 'text-violet-700'}`}>
                             {selectedEventSubmissionCount > 0 ? `${selectedEventSubmissionCount} 个作品` : '暂无作品'}
                           </p>
                         </div>
                       </div>
-                      <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
-                        <Eye className="w-4 h-4" />
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${isDark ? 'bg-violet-500/30 group-hover:bg-violet-500/40' : 'bg-violet-200 group-hover:bg-violet-300'}`}>
+                        <Eye className={`w-4 h-4 ${isDark ? 'text-violet-300' : 'text-violet-700'}`} />
                       </div>
                     </motion.button>
                   </div>
                 )}
 
-                {/* Footer Action Bar */}
-                <div className={`p-4 md:p-6 border-t ${isDark ? 'border-gray-700 bg-gray-800' : 'border-gray-100 bg-white'}`}>
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="hidden sm:block">
-                      <p className="text-xs text-gray-500">参与人数</p>
-                      <p className="font-bold text-lg">
-                        {selectedEvent.participants || 0}
-                        <span className="text-sm font-normal text-gray-400 ml-1">
-                          {selectedEvent.maxParticipants ? `/ ${selectedEvent.maxParticipants}` : '人已报名'}
-                        </span>
-                      </p>
+                {/* Footer Action Bar - 现代化设计 */}
+                <div className={`p-4 md:p-6 border-t ${isDark ? 'border-slate-800 bg-slate-900/95' : 'border-slate-100 bg-white/95'} backdrop-blur-sm`}>
+                  <div className="flex items-center justify-between gap-3 md:gap-4">
+                    {/* 参与人数 */}
+                    <div className="hidden sm:flex items-center gap-3">
+                      <div className={`p-2.5 rounded-xl ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
+                        <Users className={`w-4 h-4 ${isDark ? 'text-slate-400' : 'text-slate-500'}`} />
+                      </div>
+                      <div>
+                        <p className="text-[10px] md:text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wider">参与人数</p>
+                        <p className="font-bold text-base md:text-lg text-gray-900 dark:text-white">
+                          {selectedEvent.participants || 0}
+                          <span className="text-xs md:text-sm font-normal text-gray-400 dark:text-gray-500 ml-1">
+                            {selectedEvent.maxParticipants ? `/ ${selectedEvent.maxParticipants}` : '人已报名'}
+                          </span>
+                        </p>
+                      </div>
                     </div>
                     
-                    <div className="flex gap-3 flex-1 sm:flex-none justify-end">
-                      <button 
+                    {/* 操作按钮组 */}
+                    <div className="flex gap-2 md:gap-3 flex-1 sm:flex-none justify-end">
+                      <motion.button 
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
                         onClick={() => handleShare(selectedEvent)}
-                        className={`p-3 rounded-xl transition-colors ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}
+                        className={`p-2.5 md:p-3 rounded-xl transition-all ${isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-600'}`}
+                        title="复制链接"
                       >
-                        <Share2 className="w-5 h-5" />
-                      </button>
+                        <Share2 className="w-4 h-4 md:w-5 md:h-5" />
+                      </motion.button>
+                      
+                      <motion.button 
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => setIsShareToCommunityOpen(true)}
+                        className={`p-2.5 md:p-3 rounded-xl transition-all ${isDark ? 'bg-blue-500/10 hover:bg-blue-500/20 text-blue-400' : 'bg-blue-50 hover:bg-blue-100 text-blue-600'}`}
+                        title="分享到社群"
+                      >
+                        <Users className="w-4 h-4 md:w-5 md:h-5" />
+                      </motion.button>
                       
                       {/* 查看作品按钮 - 在即将开始和进行中活动中显示 */}
                       {(getEventTimeStatus(selectedEvent) === 'upcoming' || getEventTimeStatus(selectedEvent) === 'ongoing') && (
-                        <button 
+                        <motion.button 
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
                           onClick={() => {
                             setIsEventDetailsOpen(false);
                             navigate(`/events/${selectedEvent.id}/works`);
                           }}
-                          className="flex-1 sm:flex-none px-6 py-3 bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white rounded-xl font-bold shadow-lg shadow-primary-500/20 transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
+                          className={`flex-1 sm:flex-none px-4 md:px-6 py-2.5 md:py-3 rounded-xl font-semibold text-sm md:text-base transition-all flex items-center justify-center gap-2 ${isDark ? 'bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white shadow-lg shadow-violet-500/20' : 'bg-gradient-to-r from-violet-500 to-purple-500 hover:from-violet-600 hover:to-purple-600 text-white shadow-lg shadow-violet-500/25'}`}
                         >
                           <LayoutGrid className="w-4 h-4" />
-                          查看作品
+                          <span className="hidden sm:inline">查看作品</span>
+                          <span className="sm:hidden">作品</span>
                           {selectedEventSubmissionCount > 0 && (
-                            <span className="ml-1 text-xs bg-white/20 px-2 py-0.5 rounded-full">
+                            <span className="ml-1 text-xs bg-white/20 px-1.5 py-0.5 rounded-full">
                               {selectedEventSubmissionCount}
                             </span>
                           )}
-                        </button>
+                        </motion.button>
                       )}
                       
+                      {/* 主操作按钮 */}
                       {getEventTimeStatus(selectedEvent) === 'upcoming' ? (
-                        <button 
+                        <motion.button 
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
                           onClick={() => {
                             handleRegisterEvent(selectedEvent.id);
                             setIsEventDetailsOpen(false);
                           }}
-                          className="flex-1 sm:flex-none px-8 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold shadow-lg shadow-red-600/20 transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
+                          className="flex-1 sm:flex-none px-5 md:px-8 py-2.5 md:py-3 bg-gradient-to-r from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700 text-white rounded-xl font-semibold text-sm md:text-base shadow-lg shadow-rose-500/25 transition-all flex items-center justify-center gap-2"
                         >
-                          立即报名
+                          <span className="hidden sm:inline">立即报名</span>
+                          <span className="sm:hidden">报名</span>
                           <ChevronRight className="w-4 h-4" />
-                        </button>
+                        </motion.button>
                       ) : getEventTimeStatus(selectedEvent) === 'ongoing' ? (
-                        <button 
+                        <motion.button 
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
                           onClick={() => {
                             handleSubmitWork(selectedEvent.id);
                             setIsEventDetailsOpen(false);
                           }}
-                          className="flex-1 sm:flex-none px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-lg shadow-blue-600/20 transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
+                          className="flex-1 sm:flex-none px-5 md:px-8 py-2.5 md:py-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-xl font-semibold text-sm md:text-base shadow-lg shadow-blue-500/25 transition-all flex items-center justify-center gap-2"
                         >
-                          提交作品
+                          <span className="hidden sm:inline">提交作品</span>
+                          <span className="sm:hidden">提交</span>
                           <ExternalLink className="w-4 h-4" />
-                        </button>
+                        </motion.button>
                       ) : (
-                        <button disabled className="flex-1 sm:flex-none px-8 py-3 bg-gray-300 dark:bg-gray-700 text-gray-500 rounded-xl font-bold cursor-not-allowed">
-                          活动已结束
-                        </button>
+                        <div className="flex-1 sm:flex-none flex items-center gap-2 px-4 md:px-6 py-2.5 md:py-3 border-2 border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-400 rounded-xl font-semibold text-sm md:text-base cursor-not-allowed bg-slate-50 dark:bg-slate-800/50">
+                          <span className="w-2 h-2 rounded-full bg-slate-400 dark:bg-slate-500" />
+                          <span className="hidden sm:inline">活动已结束</span>
+                          <span className="sm:hidden">已结束</span>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -690,6 +772,25 @@ export default function EventCalendar() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* 分享到社群弹窗 */}
+      {selectedEvent && user && (
+        <ShareToCommunity
+          isOpen={isShareToCommunityOpen}
+          onClose={() => setIsShareToCommunityOpen(false)}
+          shareCard={{
+            type: 'activity',
+            id: selectedEvent.id,
+            title: selectedEvent.title,
+            description: selectedEvent.description,
+            thumbnail: selectedEvent.media?.[0]?.url,
+            url: `${window.location.origin}/events/${selectedEvent.id}`
+          }}
+          userId={user.id}
+          userName={user.username || '用户'}
+          userAvatar={user.avatar}
+        />
+      )}
     </div>
   );
 }

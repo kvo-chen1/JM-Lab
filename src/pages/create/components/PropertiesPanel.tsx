@@ -3,16 +3,13 @@ import { useTheme } from '@/hooks/useTheme';
 import { useCreateStore } from '../hooks/useCreateStore';
 import { useNavigate } from 'react-router-dom';
 import SketchPanel from './panels/SketchPanel';
-import PatternPanel from './panels/PatternPanel';
-import FilterPanel from './panels/FilterPanel';
-import CulturalTracePanel from './panels/CulturalTracePanel';
-import RemixPanel from './panels/RemixPanel';
-import LayoutPanel from './panels/LayoutPanel';
-import MockupPanel from './panels/MockupPanel';
-import TilePanel from './panels/TilePanel';
 import UploadPanel from './panels/UploadPanel';
+import { EnhancePanel } from './panels/EnhancePanel';
+import { StyleLabPanel } from './panels/StyleLabPanel';
+import { SmartLayoutPanel } from './panels/SmartLayoutPanel';
+import { CulturePanel } from './panels/CulturePanel';
 import { motion, AnimatePresence } from 'framer-motion';
-import { toolOptions } from "../data";
+import { TOOL_OPTIONS } from "../../../constants/creativeData";
 import { toast } from 'sonner';
 
 export default function PropertiesPanel() {
@@ -27,38 +24,36 @@ export default function PropertiesPanel() {
   };
 
   const getToolName = () => {
-    const tool = toolOptions.find(t => t.id === activeTool);
+    const tool = TOOL_OPTIONS.find(t => t.id === activeTool);
     return tool ? tool.name : '参数配置';
   };
 
   const getToolIcon = () => {
-    const tool = toolOptions.find(t => t.id === activeTool);
+    const tool = TOOL_OPTIONS.find(t => t.id === activeTool);
     return tool ? `fas fa-${tool.icon}` : 'fas fa-tools';
+  };
+
+  const getToolColor = () => {
+    const tool = TOOL_OPTIONS.find(t => t.id === activeTool);
+    return tool ? tool.color : '#A855F7';
   };
 
   const renderPanel = () => {
     switch (activeTool) {
       case 'sketch':
         return <SketchPanel />;
-      case 'pattern':
-        return <PatternPanel />;
-      case 'filter':
-        return <FilterPanel />;
-      case 'trace':
-        return <CulturalTracePanel />;
-      case 'remix':
-        return <RemixPanel />;
-      case 'layout':
-        return <LayoutPanel />;
-      case 'mockup':
-        return <MockupPanel />;
-      case 'tile':
-        return <TilePanel />;
       case 'upload':
         return <UploadPanel onSelectUpload={(upload) => {
           toast.success(`已选择作品: ${upload.title}`);
-          // 可以在这里添加将上传作品应用到画布的逻辑
         }} />;
+      case 'enhance':
+        return <EnhancePanel />;
+      case 'style':
+        return <StyleLabPanel />;
+      case 'layout':
+        return <SmartLayoutPanel />;
+      case 'culture':
+        return <CulturePanel />;
       default:
         return (
           <div className="flex flex-col items-center justify-center h-64 text-center opacity-50">
@@ -105,18 +100,20 @@ export default function PropertiesPanel() {
     }
   };
 
+  const toolColor = getToolColor();
+
   return (
     <>
       {/* 手机端和平板端属性面板切换按钮 */}
       <motion.button
         onClick={() => updateState({ showPropertiesPanel: !showPropertiesPanel })}
-        className={`md:hidden fixed top-28 right-2 z-40 p-3 rounded-full shadow-lg transition-all duration-300 ${isDark ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-blue-500 text-white hover:bg-blue-600'}`}
+        className={`md:hidden fixed top-28 right-2 z-40 p-3 rounded-full shadow-lg transition-all duration-300 text-white`}
+        style={{ backgroundColor: toolColor }}
         aria-label={showPropertiesPanel ? '关闭属性面板' : '打开属性面板'}
-        whileHover={{ scale: 1.1, boxShadow: "0 8px 25px rgba(0, 0, 0, 0.2)" }}
+        whileHover={{ scale: 1.1, boxShadow: `0 8px 25px ${toolColor}40` }}
         whileTap={{ scale: 0.95 }}
         animate={{
           rotate: showPropertiesPanel ? 180 : 0,
-          backgroundColor: showPropertiesPanel ? (isDark ? "#2563eb" : "#2563eb") : (isDark ? "#3b82f6" : "#3b82f6")
         }}
         transition={{
           type: "spring",
@@ -144,9 +141,10 @@ export default function PropertiesPanel() {
           >
             <motion.span
               className="flex items-center justify-center w-8 h-8 rounded-full relative overflow-hidden"
+              style={{ backgroundColor: `${toolColor}20` }}
               whileHover={{
                 scale: 1.1,
-                boxShadow: '0 4px 12px rgba(168, 85, 247, 0.3)',
+                boxShadow: `0 4px 12px ${toolColor}40`,
                 rotate: [0, -5, 5, -5, 0]
               }}
               transition={{
@@ -154,8 +152,7 @@ export default function PropertiesPanel() {
                 scale: { type: "spring", stiffness: 400, damping: 17 }
               }}
             >
-              <div className={`absolute inset-0 ${isDark ? 'bg-gradient-to-br from-purple-900/60 to-purple-700/40' : 'bg-gradient-to-br from-purple-400/20 to-purple-600/10'}`}></div>
-              <div className={`relative z-10 ${isDark ? 'text-purple-400' : 'text-purple-600'}`}>
+              <div className="relative z-10" style={{ color: toolColor }}>
                 <i className={`${getToolIcon()} text-sm`}></i>
               </div>
             </motion.span>
@@ -188,7 +185,7 @@ export default function PropertiesPanel() {
         </motion.div>
 
         {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
+        <div className="flex-1 overflow-y-auto custom-scrollbar">
           <AnimatePresence mode="wait">
             <motion.div
               key={`desktop-${activeTool}`}
@@ -245,9 +242,11 @@ export default function PropertiesPanel() {
             {/* Glass Header */}
             <div className={`h-16 px-6 flex items-center justify-between border-b backdrop-blur-md flex-shrink-0 ${isDark ? 'bg-gray-900/50 border-gray-800' : 'bg-white/50 border-gray-100'}`}>
               <div className="flex items-center gap-3">
-                <span className="flex items-center justify-center w-8 h-8 rounded-full relative overflow-hidden">
-                  <div className={`absolute inset-0 ${isDark ? 'bg-gradient-to-br from-purple-900/60 to-purple-700/40' : 'bg-gradient-to-br from-purple-400/20 to-purple-600/10'}`}></div>
-                  <div className={`relative z-10 ${isDark ? 'text-purple-400' : 'text-purple-600'}`}>
+                <span 
+                  className="flex items-center justify-center w-8 h-8 rounded-full relative overflow-hidden"
+                  style={{ backgroundColor: `${toolColor}20` }}
+                >
+                  <div className="relative z-10" style={{ color: toolColor }}>
                     <i className={`${getToolIcon()} text-sm`}></i>
                   </div>
                 </span>
@@ -281,7 +280,7 @@ export default function PropertiesPanel() {
             </div>
 
             {/* Scrollable Content */}
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
+            <div className="flex-1 overflow-y-auto custom-scrollbar">
               <AnimatePresence mode="wait">
                 <motion.div
                   key={`mobile-${activeTool}`}

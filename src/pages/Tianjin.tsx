@@ -248,14 +248,7 @@ export default function Tianjin() {
               </div>
             </ErrorBoundary>
 
-            {/* 原有模板列表 */}
-            <ErrorBoundary>
-              <TianjinCreativeActivities 
-                selectedCategory={selectedCategory}
-                onCategoryChange={setSelectedCategory}
-                search={searchQuery}
-              />
-            </ErrorBoundary>
+
           </section>
           
           {/* 右侧边栏 - 精简版 */}

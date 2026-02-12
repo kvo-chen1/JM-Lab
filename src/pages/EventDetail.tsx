@@ -6,7 +6,7 @@ import { useEventService } from '@/hooks/useEventService';
 import { AuthContext } from '@/contexts/authContext';
 import { eventWorkService } from '@/services/eventWorkService';
 import { toast } from 'sonner';
-import { LayoutGrid, Eye } from 'lucide-react';
+import { LayoutGrid, Eye, ExternalLink } from 'lucide-react';
 import type { Event } from '@/types';
 
 // 活动详情页面
@@ -106,15 +106,40 @@ export default function EventDetail() {
         userAvatar: user.avatar
       });
       
-      toast.success('报名成功！');
-      
-      // 注册成功后导航到创作页面
-      navigate('/create', {
-        state: {
-          event: event?.id,
-          prompt: `为活动 "${event?.title}" 创建作品`
+      toast.success(
+        <div className="flex items-center justify-between gap-6">
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-emerald-700">报名成功</span>
+            <span className="text-emerald-500">✓</span>
+          </div>
+          <button
+            onClick={() => navigate('/create', {
+              state: {
+                event: event?.id,
+                prompt: `为活动 "${event?.title}" 创建作品`
+              }
+            })}
+            className="text-xs px-3 py-1.5 rounded-full bg-gradient-to-r from-[#C02C38] to-[#D64545] text-white hover:shadow-lg hover:scale-105 transition-all duration-200 flex items-center gap-1 font-medium whitespace-nowrap"
+          >
+            <ExternalLink className="w-3 h-3" />
+            去创作作品
+          </button>
+        </div>,
+        {
+          duration: 5000,
+          className: 'bg-emerald-50 border-emerald-200'
         }
-      });
+      );
+      
+      // 延迟导航，让用户看到成功提示
+      setTimeout(() => {
+        navigate('/create', {
+          state: {
+            event: event?.id,
+            prompt: `为活动 "${event?.title}" 创建作品`
+          }
+        });
+      }, 1500);
     } catch (error) {
       toast.error('报名失败，请稍后重试');
       console.error('报名失败:', error);

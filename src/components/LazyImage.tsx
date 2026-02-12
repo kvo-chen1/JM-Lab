@@ -123,12 +123,11 @@ const LazyImage: React.FC<LazyImageProps> = React.memo(({
   
   // 备用图片服务 - 当原始图片加载失败时使用
   const getFallbackImageUrl = (alt: string) => {
-    // 使用Lorem Picsum作为备用图片服务
+    // 使用 placehold.co 生成带有文字描述的占位图
     const width = 600;
     const height = 400;
-    // 使用alt文本作为seed，确保相同的alt文本总是返回相同的图片
-    const seed = alt.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    return `https://picsum.photos/seed/${seed}/${width}/${height}`;
+    const text = alt?.slice(0, 10) || '图片';
+    return `https://placehold.co/${width}x${height}/e5e7eb/9ca3af?text=${encodeURIComponent(text)}`;
   };
   
   // 使用useMemo确保currentSrc与src同步更新，避免异步更新问题

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useNavigate } from 'react-router-dom';
-import { TianjinTemplate } from '@/services/tianjinActivityService';
+import { TianjinTemplate, tianjinActivityService } from '@/services/tianjinActivityService';
 import { templateInteractionService, TemplateInteractionState } from '@/services/templateInteractionService';
 import { generateTemplatePrompt } from '@/utils/templatePromptGenerator';
 import { templateUsageService } from '@/services/templateUsageService';
@@ -36,6 +36,7 @@ const CATEGORIES = [
   { id: '美食宣传', name: '美食宣传', icon: '🍜', color: 'from-yellow-500 to-orange-500', bgColor: 'bg-yellow-50' },
   { id: '城市风光', name: '城市风光', icon: '🌆', color: 'from-blue-500 to-cyan-500', bgColor: 'bg-blue-50' },
   { id: '历史风情', name: '历史风情', icon: '🏛️', color: 'from-amber-600 to-yellow-500', bgColor: 'bg-amber-50' },
+  { id: '津门老字号', name: '津门老字号', icon: '🏮', color: 'from-rose-600 to-red-500', bgColor: 'bg-rose-50' },
   { id: '品牌联名', name: '品牌联名', icon: '🏷️', color: 'from-purple-500 to-pink-500', bgColor: 'bg-purple-50' },
   { id: '夜游光影', name: '夜游光影', icon: '🌙', color: 'from-indigo-500 to-purple-500', bgColor: 'bg-indigo-50' },
   { id: '城市休闲', name: '城市休闲', icon: '🌳', color: 'from-green-500 to-teal-500', bgColor: 'bg-green-50' },
@@ -225,7 +226,7 @@ const TemplateCard: React.FC<{
           <div className="flex items-center gap-4 text-sm">
             <span className={`flex items-center gap-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
               <Eye className="w-4 h-4" />
-              {template.usageCount || 0}
+              {template.viewCount || 0}
             </span>
             <span className={`flex items-center gap-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
               <Heart className={`w-4 h-4 ${interactionState.isLiked ? 'text-red-500 fill-current' : ''}`} />
@@ -370,7 +371,20 @@ export const TemplateShowcaseGrid: React.FC<TemplateShowcaseGridProps> = ({
   }, [navigate, user]);
 
   // 处理预览
-  const handlePreview = useCallback((template: TianjinTemplate) => {
+  const handlePreview = useCallback(async (template: TianjinTemplate) => {
+    // 增加浏览次数
+    try {
+      await tianjinActivityService.incrementTemplateView(template.id);
+      // 更新本地状态中的浏览次数
+      setFilteredTemplates(prev => prev.map(t => 
+        t.id === template.id 
+          ? { ...t, viewCount: (t.viewCount || 0) + 1 }
+          : t
+      ));
+    } catch (error) {
+      console.error('增加浏览次数失败:', error);
+    }
+    
     // 可以在这里打开预览弹窗
     console.log('预览模板:', template);
   }, []);

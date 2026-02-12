@@ -11,6 +11,7 @@ interface ShareCardData {
   title: string;
   description?: string;
   thumbnail?: string;
+  videoUrl?: string;
   url: string;
   author?: {
     name: string;
@@ -81,13 +82,16 @@ const ShareToCommunity: React.FC<ShareToCommunityProps> = ({
       // 根据选择的频道决定分享方式
       if (selectedChannel === 'feed') {
         // 分享到动态（帖子）
+        // 判断是否为视频作品
+        const isVideo = !!shareCard.videoUrl;
         await communityService.createPost({
           title: shareCard.title,
           content: shareCard.description || `${userName} 分享了一个${shareCard.type === 'work' ? '作品' : shareCard.type === 'activity' ? '活动' : '帖子'}`,
           topic: '',
           communityIds: [selectedCommunity.id],
           workId: shareCard.id,
-          images: shareCard.thumbnail ? [shareCard.thumbnail] : undefined
+          images: !isVideo && shareCard.thumbnail ? [shareCard.thumbnail] : undefined,
+          videos: isVideo && shareCard.videoUrl ? [shareCard.videoUrl] : undefined
         });
       } else {
         // 分享到聊天
@@ -163,15 +167,34 @@ const ShareToCommunity: React.FC<ShareToCommunityProps> = ({
         {/* Preview Card */}
         <div className="px-6 py-4 bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700">
           <div className="flex gap-4">
-            {shareCard.thumbnail && (
+            {/* 视频作品显示视频预览 */}
+            {shareCard.videoUrl ? (
+              <div className="w-20 h-20 rounded-lg overflow-hidden flex-shrink-0 bg-gray-900 relative">
+                <video
+                  src={shareCard.videoUrl}
+                  className="w-full h-full object-cover"
+                  muted
+                  playsInline
+                  loop
+                  autoPlay
+                  preload="auto"
+                />
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <span className="bg-black/60 text-white text-[8px] px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                    <i className="fas fa-video text-[6px]"></i>
+                    视频
+                  </span>
+                </div>
+              </div>
+            ) : shareCard.thumbnail ? (
               <div className="w-20 h-20 rounded-lg overflow-hidden flex-shrink-0">
-                <img 
-                  src={shareCard.thumbnail} 
+                <img
+                  src={shareCard.thumbnail}
                   alt={shareCard.title}
                   className="w-full h-full object-cover"
                 />
               </div>
-            )}
+            ) : null}
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">

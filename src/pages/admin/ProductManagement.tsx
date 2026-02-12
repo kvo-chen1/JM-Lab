@@ -94,9 +94,15 @@ const ProductManagement: React.FC = () => {
       calculateStats(allProducts);
     };
     loadProducts();
-    fetchOrders();
     fetchCategories();
   }, []);
+
+  // 当切换到订单视图时加载订单数据
+  useEffect(() => {
+    if (currentView === 'orders') {
+      fetchOrders();
+    }
+  }, [currentView]);
   
   // 计算统计数据
   const calculateStats = (productList: Product[]) => {
@@ -113,45 +119,33 @@ const ProductManagement: React.FC = () => {
   };
   
   // 获取订单数据
-  const fetchOrders = () => {
-    // 模拟订单数据
-    const mockOrders: Order[] = [
-      {
-        id: 'order1',
-        product_id: 1,
-        product_name: '国潮T恤',
-        user_id: 'user1',
-        username: '张三',
-        points: 500,
-        quantity: 1,
-        status: 'pending',
-        created_at: Date.now() - 3600000
-      },
-      {
-        id: 'order2',
-        product_id: 2,
-        product_name: '传统纹样笔记本',
-        user_id: 'user2',
-        username: '李四',
-        points: 300,
-        quantity: 2,
-        status: 'completed',
-        created_at: Date.now() - 86400000,
-        completed_at: Date.now() - 80000000
-      },
-      {
-        id: 'order3',
-        product_id: 3,
-        product_name: '文创马克杯',
-        user_id: 'user3',
-        username: '王五',
-        points: 800,
-        quantity: 1,
-        status: 'pending',
-        created_at: Date.now() - 7200000
-      }
-    ];
-    setOrders(mockOrders);
+  const fetchOrders = async () => {
+    try {
+      const response = await productService.getAllExchangeRecords({
+        limit: 50,
+        offset: 0
+      });
+      
+      // 转换数据格式
+      const formattedOrders: Order[] = response.records.map(record => ({
+        id: record.id,
+        product_id: parseInt(record.productId) || 0,
+        product_name: record.productName,
+        user_id: record.userId,
+        username: record.userName || '未知用户',
+        points: record.points,
+        quantity: record.quantity,
+        status: record.status === 'refunded' ? 'cancelled' : record.status,
+        created_at: new Date(record.date).getTime(),
+        completed_at: record.status === 'completed' ? new Date(record.date).getTime() : undefined
+      }));
+      
+      setOrders(formattedOrders);
+    } catch (error) {
+      console.error('获取订单数据失败:', error);
+      toast.error('获取订单数据失败');
+      setOrders([]);
+    }
   };
   
   // 获取分类数据

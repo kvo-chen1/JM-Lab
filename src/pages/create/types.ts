@@ -1,4 +1,4 @@
-export type ToolType = 'sketch' | 'upload' | 'pattern' | 'filter' | 'trace' | 'remix' | 'layout' | 'mockup' | 'tile';
+export type ToolType = 'sketch' | 'upload' | 'enhance' | 'style' | 'layout' | 'culture';
 
 export interface GeneratedResult {
   id: number;

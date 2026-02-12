@@ -556,7 +556,9 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
                                  alt={post.title}
                                  className="w-full h-full object-contain"
                                  controls={true}
-                                 autoPlay={false}
+                                 autoPlay={true}
+                                 muted={true}
+                                 loop={true}
                                  playsInline={true}
                                  priority={true}
                                  onError={(e) => console.error('Video load error:', { videoUrl, error: e })}

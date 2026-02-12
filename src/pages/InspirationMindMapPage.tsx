@@ -64,6 +64,7 @@ const InspirationMindMapPage: React.FC = () => {
     isLoading,
     error,
     createMindMap,
+    updateMindMap,
     addNode,
     updateNode,
     deleteNode,
@@ -215,10 +216,14 @@ const InspirationMindMapPage: React.FC = () => {
     setIsEditingTitle(true);
   };
 
-  const handleSaveTitle = () => {
-    if (mindMap && titleInput.trim()) {
-      // TODO: 更新脉络标题
-      toast.success('标题已更新');
+  const handleSaveTitle = async () => {
+    if (mindMap && titleInput.trim() && titleInput !== mindMap.title) {
+      try {
+        await updateMindMap({ title: titleInput.trim() });
+        toast.success('标题已更新');
+      } catch (err) {
+        toast.error('更新标题失败');
+      }
     }
     setIsEditingTitle(false);
   };

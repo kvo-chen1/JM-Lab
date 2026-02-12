@@ -220,12 +220,19 @@ export default function MainContent({
         <ResponsiveContainer width="100%" height={400}>
           <BarChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#334155' : '#e2e8f0'} vertical={false} />
-            <XAxis 
-              dataKey="label" 
-              stroke={isDark ? '#64748b' : '#64748b'} 
+            <XAxis
+              dataKey="label"
+              stroke={isDark ? '#64748b' : '#64748b'}
               fontSize={12}
               tickLine={false}
               axisLine={false}
+              tickFormatter={(value) => {
+                // 确保日期格式正确显示
+                if (typeof value === 'string' && value.includes('-')) {
+                  return value;
+                }
+                return value;
+              }}
             />
             <YAxis 
               stroke={isDark ? '#64748b' : '#64748b'} 
@@ -254,28 +261,35 @@ export default function MainContent({
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#334155' : '#e2e8f0'} vertical={false} />
-            <XAxis 
-              dataKey="label" 
-              stroke={isDark ? '#64748b' : '#64748b'} 
+            <XAxis
+              dataKey="label"
+              stroke={isDark ? '#64748b' : '#64748b'}
               fontSize={12}
               tickLine={false}
               axisLine={false}
+              tickFormatter={(value) => {
+                // 确保日期格式正确显示
+                if (typeof value === 'string' && value.includes('-')) {
+                  return value;
+                }
+                return value;
+              }}
             />
-            <YAxis 
-              stroke={isDark ? '#64748b' : '#64748b'} 
+            <YAxis
+              stroke={isDark ? '#64748b' : '#64748b'}
               fontSize={12}
               tickLine={false}
               axisLine={false}
             />
             <Tooltip contentStyle={commonTooltipStyle} />
-            <Area 
-              type="monotone" 
-              dataKey="value" 
+            <Area
+              type="monotone"
+              dataKey="value"
               name={currentMetric.label}
-              stroke={currentMetric.color} 
+              stroke={currentMetric.color}
               strokeWidth={2}
-              fillOpacity={1} 
-              fill="url(#colorValue)" 
+              fillOpacity={1}
+              fill="url(#colorValue)"
             />
           </AreaChart>
         </ResponsiveContainer>
@@ -285,25 +299,32 @@ export default function MainContent({
         <ResponsiveContainer width="100%" height={400}>
           <LineChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#334155' : '#e2e8f0'} vertical={false} />
-            <XAxis 
-              dataKey="label" 
-              stroke={isDark ? '#64748b' : '#64748b'} 
+            <XAxis
+              dataKey="label"
+              stroke={isDark ? '#64748b' : '#64748b'}
               fontSize={12}
               tickLine={false}
               axisLine={false}
+              tickFormatter={(value) => {
+                // 确保日期格式正确显示
+                if (typeof value === 'string' && value.includes('-')) {
+                  return value;
+                }
+                return value;
+              }}
             />
-            <YAxis 
-              stroke={isDark ? '#64748b' : '#64748b'} 
+            <YAxis
+              stroke={isDark ? '#64748b' : '#64748b'}
               fontSize={12}
               tickLine={false}
               axisLine={false}
             />
             <Tooltip contentStyle={commonTooltipStyle} />
-            <Line 
-              type="monotone" 
-              dataKey="value" 
-              name={currentMetric.label} 
-              stroke={currentMetric.color} 
+            <Line
+              type="monotone"
+              dataKey="value"
+              name={currentMetric.label}
+              stroke={currentMetric.color}
               strokeWidth={3}
               dot={{ r: 4, fill: currentMetric.color, strokeWidth: 2, stroke: isDark ? '#1e293b' : '#ffffff' }}
               activeDot={{ r: 6, strokeWidth: 0 }}

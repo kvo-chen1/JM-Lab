@@ -14,6 +14,7 @@ interface ContentItem {
   status: 'pending' | 'approved' | 'rejected';
   created_at: number;
   thumbnail?: string;
+  videoUrl?: string;
   authenticity_score?: number;
   cultural_elements?: string[];
   likes_count?: number;
@@ -115,6 +116,7 @@ export default function ContentAudit() {
           status: item.status || 'pending',
           created_at: new Date(item.created_at).getTime(),
           thumbnail: item.thumbnail || item.cover_url || item.image_url,
+          videoUrl: item.videoUrl || item.video_url,
           authenticity_score: item.authenticity_score || 0,
           cultural_elements: item.cultural_elements || [],
           likes_count: item.likes || item.likes_count || 0,
@@ -675,13 +677,32 @@ export default function ContentAudit() {
                         )}
                         <td className="px-4 py-3 text-sm">
                           <div className="flex items-start">
-                            {content.thumbnail && (
-                              <img 
-                                src={content.thumbnail} 
-                                alt={content.title} 
-                                className="w-16 h-16 rounded-lg object-cover mr-3 flex-shrink-0" 
+                            {/* 视频作品显示视频预览 */}
+                            {content.videoUrl ? (
+                              <div className="w-16 h-16 rounded-lg mr-3 flex-shrink-0 overflow-hidden bg-gray-900 relative">
+                                <video
+                                  src={content.videoUrl}
+                                  className="w-full h-full object-cover"
+                                  muted
+                                  playsInline
+                                  loop
+                                  autoPlay
+                                  preload="auto"
+                                />
+                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                  <span className="bg-black/60 text-white text-[8px] px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                                    <i className="fas fa-video text-[6px]"></i>
+                                    视频
+                                  </span>
+                                </div>
+                              </div>
+                            ) : content.thumbnail ? (
+                              <img
+                                src={content.thumbnail}
+                                alt={content.title}
+                                className="w-16 h-16 rounded-lg object-cover mr-3 flex-shrink-0"
                               />
-                            )}
+                            ) : null}
                             <div className="flex-1 min-w-0">
                               <div className="font-medium truncate">{content.title}</div>
                               <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'} mb-1`}>

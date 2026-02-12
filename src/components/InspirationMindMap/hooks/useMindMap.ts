@@ -17,6 +17,7 @@ export interface UseMindMapReturn {
   // 操作方法
   createMindMap: (userId: string, title: string, brandId?: string) => Promise<void>;
   loadMindMap: (mapId: string) => Promise<void>;
+  updateMindMap: (updates: Partial<CreationMindMap>) => Promise<void>;
   addNode: (nodeData: Partial<MindNode>, parentId?: string) => Promise<void>;
   updateNode: (nodeId: string, updates: Partial<MindNode>) => Promise<void>;
   deleteNode: (nodeId: string) => Promise<void>;
@@ -107,6 +108,22 @@ export const useMindMap = (initialMapId?: string): UseMindMapReturn => {
       setIsLoading(false);
     }
   }, [calculatePositions]);
+
+  // 更新脉络
+  const updateMindMap = useCallback(async (updates: Partial<CreationMindMap>) => {
+    const currentMindMap = mindMapRef.current;
+    if (!currentMindMap) return;
+    
+    setIsLoading(true);
+    try {
+      const updatedMap = await service.updateMindMap(currentMindMap.id, updates);
+      setMindMap(updatedMap);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '更新脉络失败');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   // 添加节点
   const addNode = useCallback(async (nodeData: Partial<MindNode>, parentId?: string) => {
@@ -311,6 +328,7 @@ export const useMindMap = (initialMapId?: string): UseMindMapReturn => {
     error,
     createMindMap,
     loadMindMap,
+    updateMindMap,
     addNode,
     updateNode,
     deleteNode,

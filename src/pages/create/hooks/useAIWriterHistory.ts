@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { inspirationMindMapService } from '@/services/inspirationMindMapService';
 
 // AI文案历史记录项接口
 export interface AIWriterHistoryItem {
@@ -62,6 +63,50 @@ export function useAIWriterHistory() {
       saveToStorage(updated);
       return updated;
     });
+
+    // 同步到灵感脉络
+    (async () => {
+      try {
+        const { data: { user } } = await import('@/lib/supabase').then(m => m.supabase.auth.getUser());
+        if (!user) {
+          console.log('[InspirationMindMap] User not logged in, skipping AI writer sync');
+          return;
+        }
+
+        // 获取或创建用户的默认灵感脉络
+        let mindMaps = await inspirationMindMapService.getUserMindMaps(user.id);
+        let mindMap = mindMaps.find(m => m.title === '我的创作脉络') || mindMaps[0];
+
+        if (!mindMap) {
+          console.log('[InspirationMindMap] Creating default mind map for user');
+          mindMap = await inspirationMindMapService.createMindMap(user.id, '我的创作脉络');
+        }
+
+        // 添加AI写作节点
+        const nodeData = {
+          title: item.title || 'AI文案创作',
+          description: `AI辅助文案创作\n模板: ${item.templateName}\n字数: ${item.wordCount}字`,
+          category: 'ai_generate' as const,
+          content: {
+            type: 'ai_write',
+            templateName: item.templateName,
+            templateId: item.templateId,
+            content: item.content.substring(0, 200) + (item.content.length > 200 ? '...' : ''),
+            formData: item.formData,
+            wordCount: item.wordCount,
+            status: item.status,
+            createdAt: newItem.createdAt,
+          },
+          tags: ['AI写作', '文案生成', item.templateName],
+        };
+
+        await inspirationMindMapService.addNode(mindMap.id, nodeData);
+        console.log('[InspirationMindMap] Added AI writer node to mind map:', mindMap.id);
+      } catch (err) {
+        console.error('[InspirationMindMap] Failed to sync AI writer to mind map:', err);
+        // 不影响主流程，仅记录错误
+      }
+    })();
 
     return newItem.id;
   }, [saveToStorage]);

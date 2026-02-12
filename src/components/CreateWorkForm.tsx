@@ -2,6 +2,7 @@ import React, { useState, useRef, useCallback, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
+import { ExternalLink } from 'lucide-react';
 import { useTheme } from '@/hooks/useTheme';
 import { AuthContext } from '@/contexts/authContext';
 import { Work } from '@/mock/works';
@@ -225,12 +226,25 @@ const CreateWorkForm: React.FC<CreateWorkFormProps> = ({
       await new Promise(resolve => setTimeout(resolve, 500));
       
       // 显示成功提示
-      toast.success('作品发布成功！', {
-        action: {
-          label: '去广场看看',
-          onClick: () => navigate('/square')
+      toast.success(
+        <div className="flex items-center justify-between gap-6">
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-emerald-700">作品发布成功</span>
+            <span className="text-emerald-500">✓</span>
+          </div>
+          <button
+            onClick={() => navigate('/square')}
+            className="text-xs px-3 py-1.5 rounded-full bg-gradient-to-r from-[#C02C38] to-[#D64545] text-white hover:shadow-lg hover:scale-105 transition-all duration-200 flex items-center gap-1 font-medium whitespace-nowrap"
+          >
+            <ExternalLink className="w-3 h-3" />
+            去广场查看
+          </button>
+        </div>,
+        {
+          duration: 5000,
+          className: 'bg-emerald-50 border-emerald-200'
         }
-      });
+      );
       
       // 触发更新事件，通知广场页面刷新
       window.dispatchEvent(new Event('square-posts-updated'));

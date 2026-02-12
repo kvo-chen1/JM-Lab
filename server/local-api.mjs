@@ -1451,6 +1451,10 @@ async function route(req, res, u, path) {
         tagsIsArray: Array.isArray(data.tags),
         tagsLength: Array.isArray(data.tags) ? data.tags.length : 'N/A',
         media: data.media,
+        mediaType: typeof data.media,
+        mediaIsArray: Array.isArray(data.media),
+        mediaLength: Array.isArray(data.media) ? data.media.length : 'N/A',
+        mediaFirstItem: Array.isArray(data.media) && data.media.length > 0 ? data.media[0] : null,
         content: data.content
       }))
 

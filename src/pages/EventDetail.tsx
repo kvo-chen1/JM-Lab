@@ -301,7 +301,7 @@ export default function EventDetail() {
               <p className={`mb-4 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{event.description}</p>
 
               {/* 文化元素 */}
-              {event.culturalElements.length > 0 && (
+              {event.culturalElements && Array.isArray(event.culturalElements) && event.culturalElements.length > 0 && (
                 <div className="mb-6">
                   <h3 className={`text-sm font-medium mb-3 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>相关文化元素</h3>
                   <div className="flex flex-wrap gap-2">

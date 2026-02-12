@@ -546,22 +546,27 @@ export function generateContentBasedRecommendations(userId: string, limit: numbe
     
     // 根据互动数据调整分数
     score += (work.likes * 0.01) + (work.views * 0.001) + (work.shares * 0.02) + (work.upvotes || 0) * 0.01;
-    
+
     // 新鲜度权重
     if (work.createdAt) {
       const daysOld = (Date.now() - new Date(work.createdAt).getTime()) / (1000 * 60 * 60 * 24);
       score += Math.max(0, 1 - daysOld / 30) * DIVERSITY_SETTINGS.recencyWeight;
     }
-    
-    // 只添加分数大于0的推荐项
-    if (score > 0) {
+
+    // 如果没有个性化分数但有互动数据，给基础分数
+    if (score === 0 && ((work.likes || 0) + (work.views || 0) + (work.shares || 0)) > 0) {
+      score = 0.1; // 基础分数，确保有互动数据的作品能被推荐
+    }
+
+    // 添加所有作品（只要有基本数据）
+    if (work.id && work.title) {
       recommendedItems.push({
         id: work.id,
         type: 'post',
         title: work.title,
         thumbnail: work.thumbnail,
         score,
-        reason: reasons.slice(0, 2).join('，'),
+        reason: reasons.length > 0 ? reasons.slice(0, 2).join('，') : '热门作品',
         metadata: work
       });
     }
@@ -600,38 +605,43 @@ export function generateContentBasedRecommendations(userId: string, limit: numbe
     
     // 根据参与度调整分数
     score += (challenge.participants * 0.02) + (challenge.submissionCount * 0.03);
-    
+
     // 新鲜度权重
     if (challenge.startDate) {
       const daysToStart = (new Date(challenge.startDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24);
       score += Math.max(0, 1 - Math.abs(daysToStart) / 30) * DIVERSITY_SETTINGS.recencyWeight;
     }
-    
-    // 只添加分数大于0的推荐项
-    if (score > 0) {
+
+    // 如果没有个性化分数但有参与度数据，给基础分数
+    if (score === 0 && ((challenge.participants || 0) + (challenge.submissionCount || 0)) > 0) {
+      score = 0.1;
+    }
+
+    // 添加所有挑战（只要有基本数据）
+    if (challenge.id && challenge.title) {
       recommendedItems.push({
         id: challenge.id,
         type: 'challenge',
         title: challenge.title,
         thumbnail: challenge.featuredImage,
         score,
-        reason: reasons.slice(0, 2).join('，'),
+        reason: reasons.length > 0 ? reasons.slice(0, 2).join('，') : '热门挑战',
         metadata: challenge
       });
     }
   });
-  
+
   // 处理模板推荐
   templates.forEach((template: any) => {
     let score = 0;
     const reasons: string[] = [];
-    
+
     // 根据分类计算分数
     if (template.category && preference.categories[template.category]) {
       score += preference.categories[template.category] * 0.4;
       reasons.push(`您喜欢${template.category}类型的模板`);
     }
-    
+
     // 根据标签计算分数
     if (template.tags) {
       template.tags.forEach((tag: string) => {
@@ -641,25 +651,30 @@ export function generateContentBasedRecommendations(userId: string, limit: numbe
         }
       });
     }
-    
+
     // 根据使用数据调整分数
     score += (template.usageCount || 0) * 0.02;
-    
+
     // 新鲜度权重
     if (template.createdAt) {
       const daysOld = (Date.now() - new Date(template.createdAt).getTime()) / (1000 * 60 * 60 * 24);
       score += Math.max(0, 1 - daysOld / 90) * DIVERSITY_SETTINGS.recencyWeight;
     }
-    
-    // 只添加分数大于0的推荐项
-    if (score > 0) {
+
+    // 如果没有个性化分数但有使用数据，给基础分数
+    if (score === 0 && (template.usageCount || 0) > 0) {
+      score = 0.1;
+    }
+
+    // 添加所有模板（只要有基本数据）
+    if (template.id && template.name) {
       recommendedItems.push({
         id: template.id,
         type: 'template',
         title: template.name,
         thumbnail: template.preview,
         score,
-        reason: reasons.slice(0, 2).join('，'),
+        reason: reasons.length > 0 ? reasons.slice(0, 2).join('，') : '热门模板',
         metadata: template
       });
     }
@@ -1082,37 +1097,42 @@ export function optimizeRecommendationDiversity(items: RecommendedItem[], limit:
  */
 export function getTrendingContent(limit: number = 10): RecommendedItem[] {
   const { works, challenges } = getRecommendationData();
-  
+
   const trendingItems: RecommendedItem[] = [];
-  
+
   // 处理热门作品
   works.forEach((work: any) => {
     const score = (work.likes * 5) + (work.views * 0.5) + (work.shares * 10) + ((work.comments?.length || 0) * 8);
-    trendingItems.push({
-      id: work.id,
-      type: 'post',
-      title: work.title,
-      thumbnail: work.thumbnail,
-      score,
-      reason: '热门内容',
-      metadata: work
-    });
+    // 只要有基本数据就添加，分数为0的也会显示
+    if (work.id && work.title) {
+      trendingItems.push({
+        id: work.id,
+        type: 'post',
+        title: work.title,
+        thumbnail: work.thumbnail,
+        score,
+        reason: score > 0 ? '热门内容' : '精选作品',
+        metadata: work
+      });
+    }
   });
-  
+
   // 处理热门挑战
   challenges.forEach((challenge: any) => {
     const score = (challenge.participants * 10) + (challenge.submissionCount * 8) + (challenge.views || 0) * 0.5;
-    trendingItems.push({
-      id: challenge.id,
-      type: 'challenge',
-      title: challenge.title,
-      thumbnail: challenge.featuredImage,
-      score,
-      reason: '热门挑战',
-      metadata: challenge
-    });
+    if (challenge.id && challenge.title) {
+      trendingItems.push({
+        id: challenge.id,
+        type: 'challenge',
+        title: challenge.title,
+        thumbnail: challenge.featuredImage,
+        score,
+        reason: score > 0 ? '热门挑战' : '精选挑战',
+        metadata: challenge
+      });
+    }
   });
-  
+
   // 按分数排序并返回前N项
   return trendingItems
     .sort((a, b) => b.score - a.score)

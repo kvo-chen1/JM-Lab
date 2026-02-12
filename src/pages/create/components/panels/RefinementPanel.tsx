@@ -30,7 +30,7 @@ const EXPAND_DIRECTIONS = [
 export const RefinementPanel: React.FC = () => {
   const { isDark } = useTheme();
   const { 
-    currentImage,
+    currentImage: rawCurrentImage,
     refinementMode,
     setRefinementMode,
     refinementPrompt,
@@ -40,6 +40,9 @@ export const RefinementPanel: React.FC = () => {
     setGeneratedResults,
     setIsGenerating
   } = useCreateStore();
+  
+  // 确保 currentImage 安全
+  const currentImage = rawCurrentImage || null;
 
   const [activeTab, setActiveTab] = useState<'image2image' | 'expand' | 'inpaint'>('image2image');
   const [selectedStyle, setSelectedStyle] = useState('similar');
@@ -96,7 +99,7 @@ export const RefinementPanel: React.FC = () => {
         n: 1
       });
 
-      if (result.success && result.images.length > 0) {
+      if (result.success && result.images && result.images.length > 0) {
         const newResult = {
           id: Date.now(),
           url: result.images[0].url,

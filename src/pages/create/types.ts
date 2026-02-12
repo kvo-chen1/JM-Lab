@@ -158,6 +158,7 @@ export interface CreateState {
   refinementPrompt: string;
   expandRatio: number;
   inpaintMask: string | null;
+  currentImage: string | null;
   
   // 提示词优化相关状态
   optimizedPrompt: string;

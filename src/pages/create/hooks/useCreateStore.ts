@@ -60,6 +60,7 @@ interface CreateActions {
   setRefinementPrompt: (prompt: string) => void;
   setExpandRatio: (ratio: number) => void;
   setInpaintMask: (mask: string | null) => void;
+  setCurrentImage: (image: string | null) => void;
   // 提示词优化相关
   setOptimizedPrompt: (prompt: string) => void;
   addPromptHistory: (prompt: string) => void;
@@ -139,6 +140,7 @@ const initialState: CreateState = {
   refinementPrompt: '',
   expandRatio: 1.5,
   inpaintMask: null,
+  currentImage: null,
   // 提示词优化相关状态
   optimizedPrompt: '',
   promptHistory: [],
@@ -947,6 +949,7 @@ export const useCreateStore = create<CreateState & CreateActions>((set) => ({
   setRefinementPrompt: (prompt) => set({ refinementPrompt: prompt }),
   setExpandRatio: (ratio) => set({ expandRatio: ratio }),
   setInpaintMask: (mask) => set({ inpaintMask: mask }),
+  setCurrentImage: (image) => set({ currentImage: image }),
   
   // 提示词优化相关方法
   setOptimizedPrompt: (prompt) => set({ optimizedPrompt: prompt }),

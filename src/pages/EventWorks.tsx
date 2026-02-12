@@ -114,7 +114,7 @@ export default function EventWorks() {
           setEventInfo({
             title: event.title,
             description: event.description,
-            thumbnailUrl: event.media && event.media.length > 0 ? event.media[0].url : undefined,
+            thumbnailUrl: event.media && Array.isArray(event.media) && event.media.length > 0 ? event.media[0].url : undefined,
             startTime: event.startTime,
             endTime: event.endTime,
             location: event.location,

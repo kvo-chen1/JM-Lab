@@ -52,10 +52,13 @@ export const PromptAssistantPanel: React.FC = () => {
     setPrompt,
     optimizedPrompt,
     setOptimizedPrompt,
-    promptHistory,
+    promptHistory: rawPromptHistory,
     addPromptHistory,
     removePromptFromHistory
   } = useCreateStore();
+  
+  // 确保 promptHistory 始终是数组
+  const promptHistory = rawPromptHistory || [];
 
   const [activeTab, setActiveTab] = useState<'optimize' | 'templates' | 'history'>('optimize');
   const [isOptimizing, setIsOptimizing] = useState(false);

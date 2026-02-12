@@ -480,7 +480,16 @@ export default function OrganizerCenter() {
     const currentIndex = steps.findIndex(step => step.id === currentStep);
     if (currentIndex < steps.length - 1) {
       const nextStep = steps[currentIndex + 1].id as StepType;
-      handleStepChange(nextStep);
+      // 验证当前步骤
+      if (!validateCurrentStep()) {
+        // 显示验证错误提示
+        const errorMessages = Object.values(errors);
+        if (errorMessages.length > 0) {
+          toast.error(`请完善以下信息：${errorMessages.join('、')}`);
+        }
+        return;
+      }
+      setCurrentStep(nextStep);
     }
   };
 

@@ -9,7 +9,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { workService } from '../services/apiService';
 import { aiReviewService } from '../services/aiReviewService';
-import { AuthContext } from '../contexts/AuthContext';
+import { AuthContext } from '../contexts/authContext';
 
 // Review result type definition
 interface AIReviewResult {

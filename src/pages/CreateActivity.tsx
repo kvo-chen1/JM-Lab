@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { EventCreateRequest, Media } from '@/types';
 import { eventService } from '@/services/eventService';
 import { brandPartnershipService, BrandPartnership } from '@/services/brandPartnershipService';
-import { uploadImage } from '@/services/imageService';
+import { uploadImage, uploadVideo } from '@/services/imageService';
 import { StepIndicator } from '@/components/StepIndicator';
 import { InfoCard } from '@/components/InfoCard';
 import { EventPreview } from '@/components/EventPreview';
@@ -240,8 +240,8 @@ export default function CreateActivity() {
   }, [formData, eventId]);
 
   // 处理步骤切换
-  const handleStepChange = (step: StepType) => {
-    if (!validateCurrentStep()) return;
+  const handleStepChange = (step: StepType, skipValidation = false) => {
+    if (!skipValidation && !validateCurrentStep()) return;
     setCurrentStep(step);
   };
 
@@ -313,6 +313,7 @@ export default function CreateActivity() {
   // 处理媒体上传
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
   const [isDraggingMedia, setIsDraggingMedia] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
 
   const handleMediaUpload = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -322,36 +323,52 @@ export default function CreateActivity() {
 
     try {
       for (const file of Array.from(files)) {
-        // 验证文件类型
-        if (!file.type.startsWith('image/')) {
-          toast.error(`文件 "${file.name}" 不是图片格式`);
+        // 验证文件类型 (图片或视频)
+        const isImage = file.type.startsWith('image/');
+        const isVideo = file.type.startsWith('video/');
+
+        if (!isImage && !isVideo) {
+          toast.error(`文件 "${file.name}" 格式不支持，请上传图片或视频`);
           continue;
         }
 
-        // 验证文件大小 (最大 10MB)
-        if (file.size > 10 * 1024 * 1024) {
-          toast.error(`文件 "${file.name}" 超过 10MB 限制`);
+        // 验证文件大小
+        const maxSize = isVideo ? 100 * 1024 * 1024 : 10 * 1024 * 1024; // 视频100MB，图片10MB
+        if (file.size > maxSize) {
+          toast.error(`文件 "${file.name}" 超过 ${isVideo ? '100MB' : '10MB'} 限制`);
           continue;
         }
 
-        // 上传图片
-        const url = await uploadImage(file, 'events');
-        uploadedMedia.push({
-          type: 'image',
-          url,
-          name: file.name,
-        });
+        // 上传文件
+        let url: string;
+        if (isImage) {
+          url = await uploadImage(file, 'events');
+          uploadedMedia.push({
+            type: 'image',
+            url,
+            name: file.name,
+          });
+        } else {
+          toast.info(`开始上传视频 "${file.name}"，请稍候...`);
+          url = await uploadVideo(file);
+          uploadedMedia.push({
+            type: 'video',
+            url,
+            name: file.name,
+          });
+        }
       }
 
       if (uploadedMedia.length > 0) {
         handleChange('media', [...formData.media, ...uploadedMedia]);
-        toast.success(`成功上传 ${uploadedMedia.length} 张图片`);
+        toast.success(`成功上传 ${uploadedMedia.length} 个文件`);
       }
     } catch (error) {
       console.error('上传失败:', error);
-      toast.error('图片上传失败: ' + (error instanceof Error ? error.message : '请稍后重试'));
+      toast.error('文件上传失败: ' + (error instanceof Error ? error.message : '请稍后重试'));
     } finally {
       setIsUploadingMedia(false);
+      setUploadProgress({});
     }
   };
 
@@ -497,7 +514,7 @@ export default function CreateActivity() {
     const currentIndex = steps.findIndex(step => step.id === currentStep);
     if (currentIndex > 0) {
       const prevStep = steps[currentIndex - 1].id as StepType;
-      handleStepChange(prevStep);
+      handleStepChange(prevStep, true); // 返回上一步跳过验证
     }
   };
 
@@ -898,19 +915,25 @@ export default function CreateActivity() {
                       ) : isDraggingMedia ? (
                         <>
                           <ImageIcon className="w-12 h-12 mx-auto text-primary-500 mb-3" />
-                          <p className="text-sm text-primary-600 dark:text-primary-400 font-medium">释放以上传图片</p>
+                          <p className="text-sm text-primary-600 dark:text-primary-400 font-medium">释放以上传文件</p>
                         </>
                       ) : (
                         <>
-                          <ImageIcon className="w-12 h-12 mx-auto text-gray-400 mb-3" />
-                          <p className="text-sm text-gray-600 dark:text-gray-400">点击或拖拽上传图片</p>
-                          <p className="text-xs text-gray-400 mt-1">支持 JPG、PNG 格式，建议尺寸 1200x630</p>
+                          <div className="flex items-center justify-center gap-4 mb-3">
+                            <ImageIcon className="w-10 h-10 text-gray-400" />
+                            <span className="text-gray-300">|</span>
+                            <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                          </div>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">点击或拖拽上传图片/视频</p>
+                          <p className="text-xs text-gray-400 mt-1">图片: JPG、PNG (≤10MB) | 视频: MP4、MOV (≤100MB)</p>
                         </>
                       )}
                       <input
                         id="media-upload"
                         type="file"
-                        accept="image/*"
+                        accept="image/*,video/*"
                         multiple
                         className="hidden"
                         disabled={isUploadingMedia}
@@ -923,14 +946,28 @@ export default function CreateActivity() {
                   {formData.media.length > 0 && (
                     <div className="grid grid-cols-3 gap-4">
                       {formData.media.map((media, index) => (
-                        <div key={index} className="relative aspect-video rounded-lg overflow-hidden">
-                          <img src={media.url} alt="" className="w-full h-full object-cover" />
+                        <div key={index} className="relative aspect-video rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800">
+                          {media.type === 'video' ? (
+                            <video
+                              src={media.url}
+                              className="w-full h-full object-cover"
+                              controls
+                              preload="metadata"
+                            />
+                          ) : (
+                            <img src={media.url} alt="" className="w-full h-full object-cover" />
+                          )}
                           <button
                             onClick={() => handleChange('media', formData.media.filter((_, i) => i !== index))}
-                            className="absolute top-2 right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600"
+                            className="absolute top-2 right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600 z-10"
                           >
                             ×
                           </button>
+                          {media.type === 'video' && (
+                            <div className="absolute top-2 left-2 px-2 py-1 bg-black/60 text-white text-xs rounded">
+                              视频
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>

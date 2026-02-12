@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { EventCreateRequest, Media } from '@/types';
 import { eventService } from '@/services/eventService';
 import { brandPartnershipService, BrandPartnership } from '@/services/brandPartnershipService';
+import { uploadImage } from '@/services/imageService';
 import { StepIndicator } from '@/components/StepIndicator';
 import { InfoCard } from '@/components/InfoCard';
 import { EventPreview } from '@/components/EventPreview';
@@ -310,10 +311,48 @@ export default function CreateActivity() {
   };
 
   // 处理媒体上传
-  const handleMediaUpload = (files: FileList | null) => {
-    if (!files) return;
-    // 处理文件上传逻辑
-    toast.success('图片上传成功');
+  const [isUploadingMedia, setIsUploadingMedia] = useState(false);
+  const [isDraggingMedia, setIsDraggingMedia] = useState(false);
+
+  const handleMediaUpload = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+
+    setIsUploadingMedia(true);
+    const uploadedMedia: Media[] = [];
+
+    try {
+      for (const file of Array.from(files)) {
+        // 验证文件类型
+        if (!file.type.startsWith('image/')) {
+          toast.error(`文件 "${file.name}" 不是图片格式`);
+          continue;
+        }
+
+        // 验证文件大小 (最大 10MB)
+        if (file.size > 10 * 1024 * 1024) {
+          toast.error(`文件 "${file.name}" 超过 10MB 限制`);
+          continue;
+        }
+
+        // 上传图片
+        const url = await uploadImage(file, 'events');
+        uploadedMedia.push({
+          type: 'image',
+          url,
+          name: file.name,
+        });
+      }
+
+      if (uploadedMedia.length > 0) {
+        handleChange('media', [...formData.media, ...uploadedMedia]);
+        toast.success(`成功上传 ${uploadedMedia.length} 张图片`);
+      }
+    } catch (error) {
+      console.error('上传失败:', error);
+      toast.error('图片上传失败: ' + (error instanceof Error ? error.message : '请稍后重试'));
+    } finally {
+      setIsUploadingMedia(false);
+    }
   };
 
   // 保存草稿
@@ -822,20 +861,59 @@ export default function CreateActivity() {
                       活动封面 <span className="text-red-500">*</span>
                     </label>
                     <div
-                      onClick={() => document.getElementById('media-upload')?.click()}
+                      onClick={() => !isUploadingMedia && document.getElementById('media-upload')?.click()}
+                      onDragEnter={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (!isUploadingMedia) setIsDraggingMedia(true);
+                      }}
+                      onDragLeave={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setIsDraggingMedia(false);
+                      }}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setIsDraggingMedia(false);
+                        if (!isUploadingMedia) {
+                          handleMediaUpload(e.dataTransfer.files);
+                        }
+                      }}
                       className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${
-                        errors.media ? 'border-red-500 bg-red-50 dark:bg-red-900/10' : 'border-gray-300 dark:border-gray-600 hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/10'
-                      }`}
+                        errors.media ? 'border-red-500 bg-red-50 dark:bg-red-900/10' : 
+                        isDraggingMedia ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' :
+                        'border-gray-300 dark:border-gray-600 hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/10'
+                      } ${isUploadingMedia ? 'opacity-70 cursor-not-allowed' : ''}`}
                     >
-                      <ImageIcon className="w-12 h-12 mx-auto text-gray-400 mb-3" />
-                      <p className="text-sm text-gray-600 dark:text-gray-400">点击或拖拽上传图片</p>
-                      <p className="text-xs text-gray-400 mt-1">支持 JPG、PNG 格式，建议尺寸 1200x630</p>
+                      {isUploadingMedia ? (
+                        <>
+                          <Loader2 className="w-12 h-12 mx-auto text-primary-500 mb-3 animate-spin" />
+                          <p className="text-sm text-gray-600 dark:text-gray-400">正在上传...</p>
+                        </>
+                      ) : isDraggingMedia ? (
+                        <>
+                          <ImageIcon className="w-12 h-12 mx-auto text-primary-500 mb-3" />
+                          <p className="text-sm text-primary-600 dark:text-primary-400 font-medium">释放以上传图片</p>
+                        </>
+                      ) : (
+                        <>
+                          <ImageIcon className="w-12 h-12 mx-auto text-gray-400 mb-3" />
+                          <p className="text-sm text-gray-600 dark:text-gray-400">点击或拖拽上传图片</p>
+                          <p className="text-xs text-gray-400 mt-1">支持 JPG、PNG 格式，建议尺寸 1200x630</p>
+                        </>
+                      )}
                       <input
                         id="media-upload"
                         type="file"
                         accept="image/*"
                         multiple
                         className="hidden"
+                        disabled={isUploadingMedia}
                         onChange={(e) => handleMediaUpload(e.target.files)}
                       />
                     </div>

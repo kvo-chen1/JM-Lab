@@ -889,9 +889,18 @@ export default function CreateActivity() {
               {currentStep === 'media' && (
                 <div className="space-y-6">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      活动封面 <span className="text-red-500">*</span>
-                    </label>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        活动封面 <span className="text-red-500">*</span>
+                      </label>
+                      <button
+                        onClick={handleSaveDraft}
+                        disabled={isLoading}
+                        className="text-sm px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"
+                      >
+                        💾 保存草稿
+                      </button>
+                    </div>
                     <div
                       onClick={() => !isUploadingMedia && document.getElementById('media-upload')?.click()}
                       onDragEnter={(e) => {

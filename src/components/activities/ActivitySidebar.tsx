@@ -42,7 +42,7 @@ export const ActivitySidebar: React.FC<ActivitySidebarProps> = ({
 
   const quickActions = [
     { id: 'discover', label: '发现活动', icon: 'fa-compass', href: '/events' },
-    { id: 'create', label: '创建活动', icon: 'fa-plus-circle', href: '/create/activity' },
+    { id: 'create', label: '创建活动', icon: 'fa-plus-circle', href: '/organizer' },
     { id: 'manage', label: '活动管理', icon: 'fa-cog', href: '/activities' },
   ];
 

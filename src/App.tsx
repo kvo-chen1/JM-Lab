@@ -200,10 +200,6 @@ const CulturalEvents = createLazyComponent(() => import(/* webpackChunkName: "pa
 
 
 // 活动相关 - 懒加载优化
-const CreateActivity = createLazyComponent(() => import(/* webpackChunkName: "pages-activities" */ "@/pages/CreateActivity"), {
-  priority: ROUTE_PRIORITIES.MEDIUM,
-  name: 'create-activity'
-});
 const ActivityList = createLazyComponent(() => import(/* webpackChunkName: "pages-activities" */ "@/pages/ActivityList"), {
   priority: ROUTE_PRIORITIES.MEDIUM,
   name: 'activity-list'
@@ -755,7 +751,7 @@ export default function App() {
           <Route path="/dashboard" element={<LazyComponent fallback={<DashboardSkeleton />}><PrivateRoute><Dashboard /></PrivateRoute></LazyComponent>} />
           <Route path="/profile" element={<Navigate to="/dashboard" replace />} />
           <Route path="/create/*" element={<LazyComponent><PrivateRoute><Create /></PrivateRoute></LazyComponent>} />
-          <Route path="/create-activity" element={<Navigate to="/create/activity" replace />} />
+          <Route path="/create-activity" element={<Navigate to="/organizer" replace />} />
           <Route path="/creates" element={<Navigate to="/create" replace />} />
           <Route path="/wizard" element={<LazyComponent><PrivateRoute><Wizard /></PrivateRoute></LazyComponent>} />
           <Route path="/ai-writer" element={<LazyComponent><PrivateRoute><AIWriterV2 /></PrivateRoute></LazyComponent>} />

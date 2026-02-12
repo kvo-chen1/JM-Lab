@@ -8,6 +8,7 @@ import { Event, EventCreateRequest } from '@/types';
 import { useEventService } from '@/hooks/useEventService';
 // import { eventService } from '@/services/eventService'; // 使用 useEventService hook 替代
 import { brandPartnershipService, BrandPartnership } from '@/services/brandPartnershipService';
+import { uploadImage, uploadVideo } from '@/services/imageService';
 import WorkScoring from './organizer/WorkScoring';
 import AnalyticsDashboard from './organizer/AnalyticsDashboard';
 import OrganizerSettings from './organizer/OrganizerSettings';
@@ -42,6 +43,7 @@ import {
   MapPin,
   Tag,
   Image as ImageIcon,
+  Video,
   Loader2,
   AlertCircle,
   Info,
@@ -129,6 +131,8 @@ export default function OrganizerCenter() {
   const [showTagSuggestions, setShowTagSuggestions] = useState(false);
   const [tagSuggestions, setTagSuggestions] = useState<string[]>([]);
   const [eventId, setEventId] = useState<string | null>(null);
+  const [isUploadingMedia, setIsUploadingMedia] = useState(false);
+  const [isDraggingMedia, setIsDraggingMedia] = useState(false);
 
   // 检查品牌验证状态 - 支持多品牌
   useEffect(() => {
@@ -349,6 +353,71 @@ export default function OrganizerCenter() {
         if (field === 'startTime' || field === 'endTime') delete newErrors.time;
         return newErrors;
       });
+    }
+  };
+
+  // 处理媒体上传
+  const handleMediaUpload = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+
+    setIsUploadingMedia(true);
+    const uploadedMedia: any[] = [];
+
+    try {
+      for (const file of Array.from(files)) {
+        // 验证文件类型 (图片或视频)
+        const isImage = file.type.startsWith('image/');
+        const isVideo = file.type.startsWith('video/');
+
+        if (!isImage && !isVideo) {
+          toast.error(`文件 "${file.name}" 格式不支持，请上传图片或视频`);
+          continue;
+        }
+
+        // 验证文件大小
+        const maxSize = isVideo ? 100 * 1024 * 1024 : 10 * 1024 * 1024; // 视频100MB，图片10MB
+        if (file.size > maxSize) {
+          toast.error(`文件 "${file.name}" 超过 ${isVideo ? '100MB' : '10MB'} 限制`);
+          continue;
+        }
+
+        // 上传文件
+        let url: string;
+        if (isImage) {
+          url = await uploadImage(file, 'events');
+          uploadedMedia.push({
+            id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            type: 'image',
+            url,
+            name: file.name,
+            size: file.size,
+            uploadDate: new Date(),
+            order: formData.media.length + uploadedMedia.length,
+          });
+        } else {
+          toast.info(`开始上传视频 "${file.name}"，请稍候...`);
+          url = await uploadVideo(file);
+          uploadedMedia.push({
+            id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            type: 'video',
+            url,
+            name: file.name,
+            size: file.size,
+            uploadDate: new Date(),
+            order: formData.media.length + uploadedMedia.length,
+          });
+        }
+      }
+
+      if (uploadedMedia.length > 0) {
+        handleChange('media', [...formData.media, ...uploadedMedia]);
+        toast.success(`成功上传 ${uploadedMedia.length} 个文件`);
+      }
+    } catch (error) {
+      console.error('上传失败:', error);
+      toast.error('文件上传失败: ' + (error instanceof Error ? error.message : '请稍后重试'));
+    } finally {
+      setIsUploadingMedia(false);
     }
   };
 
@@ -1302,41 +1371,103 @@ export default function OrganizerCenter() {
                     {currentStep === 'media' && (
                       <div className="space-y-6">
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                            活动封面 <span className="text-red-500">*</span>
-                          </label>
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                              活动封面 <span className="text-red-500">*</span>
+                            </label>
+                          </div>
                           <div
-                            onClick={() => document.getElementById('media-upload')?.click()}
+                            onClick={() => !isUploadingMedia && document.getElementById('media-upload')?.click()}
+                            onDragEnter={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              if (!isUploadingMedia) setIsDraggingMedia(true);
+                            }}
+                            onDragLeave={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setIsDraggingMedia(false);
+                            }}
+                            onDragOver={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                            }}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setIsDraggingMedia(false);
+                              if (!isUploadingMedia) {
+                                handleMediaUpload(e.dataTransfer.files);
+                              }
+                            }}
                             className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${
-                              errors.media ? 'border-red-500 bg-red-50 dark:bg-red-900/10' : 'border-gray-300 dark:border-gray-600 hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/10'
-                            }`}
+                              errors.media ? 'border-red-500 bg-red-50 dark:bg-red-900/10' : 
+                              isDraggingMedia ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' :
+                              'border-gray-300 dark:border-gray-600 hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/10'
+                            } ${isUploadingMedia ? 'opacity-70 cursor-not-allowed' : ''}`}
                           >
-                            <ImageIcon className="w-12 h-12 mx-auto text-gray-400 mb-3" />
-                            <p className="text-sm text-gray-600 dark:text-gray-400">点击或拖拽上传图片</p>
-                            <p className="text-xs text-gray-400 mt-1">支持 JPG、PNG 格式，建议尺寸 1200x630</p>
+                            {isUploadingMedia ? (
+                              <>
+                                <Loader2 className="w-12 h-12 mx-auto text-blue-500 mb-3 animate-spin" />
+                                <p className="text-sm text-gray-600 dark:text-gray-400">正在上传...</p>
+                              </>
+                            ) : isDraggingMedia ? (
+                              <>
+                                <ImageIcon className="w-12 h-12 mx-auto text-blue-500 mb-3" />
+                                <p className="text-sm text-blue-600 dark:text-blue-400 font-medium">释放以上传文件</p>
+                              </>
+                            ) : (
+                              <>
+                                <div className="flex items-center justify-center gap-4 mb-3">
+                                  <ImageIcon className="w-10 h-10 text-gray-400" />
+                                  <span className="text-gray-300">|</span>
+                                  <Video className="w-10 h-10 text-gray-400" />
+                                </div>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">点击或拖拽上传图片/视频</p>
+                                <p className="text-xs text-gray-400 mt-1">图片: JPG、PNG (≤10MB) | 视频: MP4、MOV (≤100MB)</p>
+                              </>
+                            )}
                             <input
                               id="media-upload"
                               type="file"
-                              accept="image/*"
+                              accept="image/*,video/*"
                               multiple
                               className="hidden"
-                              onChange={() => toast.success('图片上传成功')}
+                              disabled={isUploadingMedia}
+                              onChange={(e) => handleMediaUpload(e.target.files)}
                             />
                           </div>
                           {errors.media && <p className="mt-1 text-sm text-red-500">{errors.media}</p>}
+                          <p className="mt-2 text-xs text-gray-500">
+                            💡 提示：第一张图片将作为活动封面，建议尺寸 1200x630
+                          </p>
                         </div>
 
                         {formData.media.length > 0 && (
                           <div className="grid grid-cols-3 gap-4">
-                            {formData.media.map((media, index) => (
-                              <div key={index} className="relative aspect-video rounded-lg overflow-hidden">
-                                <img src={media.url} alt="" className="w-full h-full object-cover" />
+                            {formData.media.map((media: any, index: number) => (
+                              <div key={index} className="relative aspect-video rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800">
+                                {media.type === 'video' ? (
+                                  <video
+                                    src={media.url}
+                                    className="w-full h-full object-cover"
+                                    controls
+                                    preload="metadata"
+                                  />
+                                ) : (
+                                  <img src={media.url} alt="" className="w-full h-full object-cover" />
+                                )}
                                 <button
-                                  onClick={() => handleChange('media', formData.media.filter((_, i) => i !== index))}
-                                  className="absolute top-2 right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600"
+                                  onClick={() => handleChange('media', formData.media.filter((_: any, i: number) => i !== index))}
+                                  className="absolute top-2 right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600 z-10"
                                 >
                                   ×
                                 </button>
+                                {media.type === 'video' && (
+                                  <div className="absolute top-2 left-2 px-2 py-1 bg-black/60 text-white text-xs rounded">
+                                    视频
+                                  </div>
+                                )}
                               </div>
                             ))}
                           </div>

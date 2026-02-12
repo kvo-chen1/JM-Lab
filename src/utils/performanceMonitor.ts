@@ -3,7 +3,13 @@
  * 用于监控应用性能指标和用户体验
  */
 
-import { createLogger } from '@/services/errorService';
+// import { createLogger } from '@/services/errorService';
+const createLogger = (name: string) => ({
+  debug: (...args: any[]) => console.debug(`[${name}]`, ...args),
+  info: (...args: any[]) => console.info(`[${name}]`, ...args),
+  warn: (...args: any[]) => console.warn(`[${name}]`, ...args),
+  error: (...args: any[]) => console.error(`[${name}]`, ...args),
+});
 
 // 性能指标接口
 interface PerformanceMetrics {

@@ -218,12 +218,13 @@ class SearchService {
     return classification.suggestedResults
       .sort((a, b) => {
         // 按类型优先级排序
-        const typePriority = {
+        const typePriority: Record<string, number> = {
           [SearchResultType.PAGE]: 5,
           [SearchResultType.WORK]: 4,
           [SearchResultType.USER]: 3,
           [SearchResultType.CATEGORY]: 2,
-          [SearchResultType.TAG]: 1
+          [SearchResultType.TAG]: 1,
+          'history': 0
         };
         
         // 按文本长度排序（更具体的建议优先）
@@ -296,17 +297,17 @@ class SearchService {
           // 精确匹配权重
           if (titleLower === lowerQuery) score += 100;
           if (creatorLower === lowerQuery) score += 80;
-          if (tags.some(tag => tag.toLowerCase() === lowerQuery)) score += 60;
-          
+          if (tags.some((tag: string) => tag.toLowerCase() === lowerQuery)) score += 60;
+
           // 前缀匹配权重
           if (titleLower.startsWith(lowerQuery)) score += 50;
           if (creatorLower.startsWith(lowerQuery)) score += 40;
-          if (tags.some(tag => tag.toLowerCase().startsWith(lowerQuery))) score += 30;
-          
+          if (tags.some((tag: string) => tag.toLowerCase().startsWith(lowerQuery))) score += 30;
+
           // 包含匹配权重
           if (titleLower.includes(lowerQuery)) score += 20;
           if (descLower.includes(lowerQuery)) score += 15;
-          if (tags.some(tag => tag.toLowerCase().includes(lowerQuery))) score += 10;
+          if (tags.some((tag: string) => tag.toLowerCase().includes(lowerQuery))) score += 10;
           if (creatorLower.includes(lowerQuery)) score += 10;
           
           // 热门度加权

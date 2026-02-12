@@ -3,7 +3,7 @@ const performance = typeof window !== 'undefined' ? window.performance : {
   now: () => Date.now(),
   mark: () => {},
   measure: () => {}
-} as Performance;
+} as unknown as Performance;
 
 interface ImageCacheEntry {
   src: string;

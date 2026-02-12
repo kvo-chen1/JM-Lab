@@ -258,6 +258,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
             },
             attachments: [
               {
+                type: 'image',
                 url: 'https://neeko-copilot.bytedance.net/api/text2image?prompt=Tianjin%20ancient%20city%20photography%2C%20traditional%20architecture%2C%20cultural%20heritage%2C%20atmospheric%20lighting&size=landscape_16_9'
               }
             ]
@@ -373,13 +374,14 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
             },
             attachments: [
               {
+                type: 'image',
                 url: 'https://neeko-copilot.bytedance.net/api/text2image?prompt=Tianjin%20ancient%20city%20photography%2C%20traditional%20architecture%2C%20cultural%20heritage%2C%20atmospheric%20lighting&size=landscape_16_9'
               }
             ]
           }
         ]
-      
-      set({ 
+
+      set({
         posts: mockPosts,
         totalPosts: mockPosts.length,
         currentPage: page,

@@ -47,6 +47,8 @@ export interface PointsSourceLimit {
   task: PointsLimit;
   daily: PointsLimit;
   consumption: PointsLimit;
+  exchange: PointsLimit;
+  system: PointsLimit;
   other: PointsLimit;
 }
 

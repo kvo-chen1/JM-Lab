@@ -141,8 +141,8 @@ export class ImageOptimizer {
       responsive,
       priority: adjustedOptions.priority,
       placeholder,
-      blurDataURL,
-      aspectRatio
+      blurDataURL: blurDataURL || '',
+      aspectRatio: aspectRatio || 0
     });
 
     // 缓存结果

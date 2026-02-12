@@ -133,7 +133,7 @@ if (typeof global.TextEncoder === 'undefined') {
 }
 
 if (typeof global.TextDecoder === 'undefined') {
-  global.TextDecoder = TextDecoder;
+  global.TextDecoder = TextDecoder as any;
 }
 
 // Mock import.meta.env for testing environment

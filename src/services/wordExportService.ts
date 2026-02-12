@@ -127,7 +127,7 @@ function convertHtmlToDocxElements(element: HTMLElement): any[] {
 /**
  * 创建标题
  */
-function createHeading(text: string, level: HeadingLevel): Paragraph {
+function createHeading(text: string, level: typeof HeadingLevel[keyof typeof HeadingLevel]): Paragraph {
   return new Paragraph({
     text: text.trim(),
     heading: level,

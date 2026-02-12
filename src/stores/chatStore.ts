@@ -94,8 +94,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
         id: senderId,
         username: 'You', // 临时用户名，会被实际数据替换
         email: '',
-        avatar_url: null,
-        bio: null,
+        avatar_url: undefined,
+        bio: undefined,
         is_verified: false,
         metadata: {},
         created_at: new Date().toISOString(),
@@ -171,17 +171,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
         id: senderId,
         username: 'You',
         email: '',
-        avatar_url: null,
-        bio: null,
+        avatar_url: undefined,
+        bio: undefined,
         is_verified: false,
         metadata: {},
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       }
     }
-    
+
     addMessage(optimisticMessage)
-    
+
     try {
       // 发送跨页面消息
       const newMessage = await chatService.sendCrossPageMessage(senderId, content, targetPage, options)

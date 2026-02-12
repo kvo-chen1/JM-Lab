@@ -860,27 +860,27 @@ export class ResourceOptimizer {
         return Promise.resolve();
       }
 
-      return new Promise((resolve) => {
+      return new Promise<void>((resolve) => {
         const link = document.createElement('link');
         link.rel = 'preload';
         link.as = 'font';
         link.href = font.url;
         link.crossOrigin = 'anonymous';
-        
+
         if (font.format) {
           link.setAttribute('type', `font/${font.format}`);
         }
-        
+
         link.onload = () => {
           this.loadedResources.add(font.url);
           resolve();
         };
-        
+
         link.onerror = () => {
           console.warn(`[ResourceOptimizer] Failed to preload font: ${font.url}`);
           resolve();
         };
-        
+
         document.head.appendChild(link);
       });
     });

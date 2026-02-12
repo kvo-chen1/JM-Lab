@@ -608,7 +608,7 @@ export const TOOL_OPTIONS: ToolOption[] = [
   {
     id: 'refinement',
     name: '图片完善',
-    icon: 'wand-magic-sparkles',
+    icon: 'paint-brush',
     description: '基于AI的图片二次编辑',
     color: '#06B6D4',
     features: ['图生图', '智能扩图', '局部重绘']
@@ -632,7 +632,7 @@ export const TOOL_OPTIONS: ToolOption[] = [
   {
     id: 'prompt',
     name: '提示词助手',
-    icon: 'lightbulb',
+    icon: 'keyboard',
     description: 'AI优化和生成提示词',
     color: '#84CC16',
     features: ['提示词优化', '质量分析', '模板库', '历史管理']

@@ -25,14 +25,24 @@ const UploadPanel: React.FC<UploadPanelProps> = ({ onSelectUpload }) => {
   const loadUploads = useCallback(async () => {
     if (!user) {
       setIsLoading(false);
+      setUploads([]);
       return;
     }
     setIsLoading(true);
-    const { data, error } = await uploadService.getUserUploads();
-    if (error) {
-      console.error('加载作品失败:', error.message);
-    } else {
-      setUploads(data || []);
+    try {
+      const { data, error } = await uploadService.getUserUploads();
+      if (error) {
+        // 静默处理未登录错误，不显示在控制台
+        if (error.message !== '用户未登录') {
+          console.error('加载作品失败:', error.message);
+        }
+        setUploads([]);
+      } else {
+        setUploads(data || []);
+      }
+    } catch (err) {
+      // 静默处理错误
+      setUploads([]);
     }
     setIsLoading(false);
   }, [user]);

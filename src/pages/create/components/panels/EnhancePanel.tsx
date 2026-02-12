@@ -6,7 +6,7 @@ import { TRADITIONAL_PATTERNS, AI_FILTERS } from '@/constants/creativeData';
 import { imageProcessingService } from '@/services/imageProcessingService';
 import { llmService } from '@/services/llmService';
 import { toast } from 'sonner';
-import { Slider } from '@/components/ui/slider';
+import { Slider } from '@/components/ui/Slider';
 import { Eye, Check, RotateCcw, Sparkles, Loader2 } from 'lucide-react';
 
 // 智能美化模式

@@ -25,6 +25,7 @@ import {
   Users,
   Tag,
   Image as ImageIcon,
+  Video,
   FileText,
   Settings,
   Eye,
@@ -241,7 +242,13 @@ export default function CreateActivity() {
 
   // 处理步骤切换
   const handleStepChange = (step: StepType, skipValidation = false) => {
-    if (!skipValidation && !validateCurrentStep()) return;
+    const currentIndex = steps.findIndex(s => s.id === currentStep);
+    const targetIndex = steps.findIndex(s => s.id === step);
+
+    // 如果跳转到之前的步骤，跳过验证
+    if (!skipValidation && targetIndex > currentIndex && !validateCurrentStep()) {
+      return;
+    }
     setCurrentStep(step);
   };
 
@@ -344,17 +351,25 @@ export default function CreateActivity() {
         if (isImage) {
           url = await uploadImage(file, 'events');
           uploadedMedia.push({
+            id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             type: 'image',
             url,
             name: file.name,
+            size: file.size,
+            uploadDate: new Date(),
+            order: formData.media.length + uploadedMedia.length,
           });
         } else {
           toast.info(`开始上传视频 "${file.name}"，请稍候...`);
           url = await uploadVideo(file);
           uploadedMedia.push({
+            id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             type: 'video',
             url,
             name: file.name,
+            size: file.size,
+            uploadDate: new Date(),
+            order: formData.media.length + uploadedMedia.length,
           });
         }
       }
@@ -922,9 +937,7 @@ export default function CreateActivity() {
                           <div className="flex items-center justify-center gap-4 mb-3">
                             <ImageIcon className="w-10 h-10 text-gray-400" />
                             <span className="text-gray-300">|</span>
-                            <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                            </svg>
+                            <Video className="w-10 h-10 text-gray-400" />
                           </div>
                           <p className="text-sm text-gray-600 dark:text-gray-400">点击或拖拽上传图片/视频</p>
                           <p className="text-xs text-gray-400 mt-1">图片: JPG、PNG (≤10MB) | 视频: MP4、MOV (≤100MB)</p>
@@ -941,6 +954,9 @@ export default function CreateActivity() {
                       />
                     </div>
                     {errors.media && <p className="mt-1 text-sm text-red-500">{errors.media}</p>}
+                    <p className="mt-2 text-xs text-gray-500">
+                      💡 提示：第一张图片将作为活动封面，建议尺寸 1200x630
+                    </p>
                   </div>
 
                   {formData.media.length > 0 && (

@@ -245,9 +245,9 @@ export default function CreateActivity() {
     const currentIndex = steps.findIndex(s => s.id === currentStep);
     const targetIndex = steps.findIndex(s => s.id === step);
 
-    // 如果跳转到之前的步骤，跳过验证
-    if (!skipValidation && targetIndex > currentIndex && !validateCurrentStep()) {
-      return;
+    // 只有向前跳转（到后面的步骤）时才需要验证，返回上一步不需要验证
+    if (!skipValidation && targetIndex > currentIndex) {
+      if (!validateCurrentStep()) return;
     }
     setCurrentStep(step);
   };

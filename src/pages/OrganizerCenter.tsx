@@ -513,6 +513,65 @@ export default function OrganizerCenter() {
     handleChange('tags', formData.tags?.filter(tag => tag !== tagToRemove) || []);
   };
 
+  // 保存草稿
+  const handleSaveDraft = async () => {
+    try {
+      setIsLoading(true);
+
+      const eventData = {
+        title: formData.title || '未命名活动',
+        description: formData.description,
+        content: formData.content,
+        start_time: formData.startTime?.toISOString() || new Date().toISOString(),
+        end_time: formData.endTime?.toISOString() || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        location: formData.location,
+        type: formData.type || 'offline',
+        tags: formData.tags || [],
+        media: formData.media || [],
+        is_public: formData.isPublic ?? true,
+        contact_name: formData.contactName,
+        contact_phone: formData.contactPhone,
+        contact_email: formData.contactEmail,
+        max_participants: formData.maxParticipants,
+        status: 'draft' as const,
+        organizer_id: user?.id,
+        brand_id: selectedBrand?.id,
+        brand_name: selectedBrand?.brand_name,
+      };
+
+      let event;
+      if (eventId) {
+        event = await updateEvent(eventId, eventData);
+      } else {
+        event = await createEvent(eventData);
+        if (event?.id) {
+          setEventId(event.id);
+        }
+      }
+
+      toast.success('草稿已保存');
+      fetchEvents();
+    } catch (error) {
+      console.error('保存草稿失败:', error);
+      toast.error('保存失败：' + (error instanceof Error ? error.message : '请稍后重试'));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // 自动保存草稿
+  useEffect(() => {
+    if (activeTab !== 'create' || !formData.title) return;
+
+    const autoSaveTimer = setTimeout(() => {
+      if (formData.title && (formData.description || formData.content || formData.media.length > 0)) {
+        handleSaveDraft();
+      }
+    }, 5000); // 5秒后自动保存
+
+    return () => clearTimeout(autoSaveTimer);
+  }, [formData.title, formData.description, formData.content, formData.media, activeTab]);
+
   const handlePublish = async () => {
     try {
       for (const step of steps) {
@@ -1647,18 +1706,31 @@ export default function OrganizerCenter() {
 
                     {/* 步骤导航按钮 */}
                     <div className="flex items-center justify-between mt-8 pt-6 border-t border-gray-100 dark:border-gray-700">
-                      <button
-                        onClick={handlePrevious}
-                        disabled={currentStep === steps[0].id}
-                        className={`flex items-center gap-2 px-6 py-3 rounded-xl font-medium transition-all ${
-                          currentStep === steps[0].id
-                            ? 'opacity-50 cursor-not-allowed text-gray-400'
-                            : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                        }`}
-                      >
-                        <ChevronRight className="w-5 h-5 rotate-180" />
-                        上一步
-                      </button>
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={handlePrevious}
+                          disabled={currentStep === steps[0].id}
+                          className={`flex items-center gap-2 px-6 py-3 rounded-xl font-medium transition-all ${
+                            currentStep === steps[0].id
+                              ? 'opacity-50 cursor-not-allowed text-gray-400'
+                              : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                          }`}
+                        >
+                          <ChevronRight className="w-5 h-5 rotate-180" />
+                          上一步
+                        </button>
+
+                        <motion.button
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                          onClick={handleSaveDraft}
+                          disabled={isLoading}
+                          className="hidden sm:inline-flex items-center gap-2 px-4 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-all"
+                        >
+                          <Save className="w-4 h-4" />
+                          保存草稿
+                        </motion.button>
+                      </div>
 
                       {currentStep === steps[steps.length - 1].id ? (
                         <motion.button

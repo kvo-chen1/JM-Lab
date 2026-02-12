@@ -1217,18 +1217,31 @@ export default function CreateActivity() {
 
               {/* 步骤导航按钮 */}
               <div className="flex items-center justify-between mt-8 pt-6 border-t border-gray-100 dark:border-gray-700">
-                <button
-                  onClick={handlePrevious}
-                  disabled={currentStep === steps[0].id}
-                  className={`flex items-center gap-2 px-6 py-3 rounded-xl font-medium transition-all ${
-                    currentStep === steps[0].id
-                      ? 'opacity-50 cursor-not-allowed text-gray-400'
-                      : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                  }`}
-                >
-                  <ChevronLeft className="w-5 h-5" />
-                  上一步
-                </button>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handlePrevious}
+                    disabled={currentStep === steps[0].id}
+                    className={`flex items-center gap-2 px-6 py-3 rounded-xl font-medium transition-all ${
+                      currentStep === steps[0].id
+                        ? 'opacity-50 cursor-not-allowed text-gray-400'
+                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    <ChevronLeft className="w-5 h-5" />
+                    上一步
+                  </button>
+
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={handleSaveDraft}
+                    disabled={isLoading}
+                    className="hidden sm:inline-flex items-center gap-2 px-4 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-all"
+                  >
+                    <Save className="w-4 h-4" />
+                    保存草稿
+                  </motion.button>
+                </div>
 
                 {currentStep === steps[steps.length - 1].id ? (
                   <motion.button

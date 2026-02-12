@@ -357,10 +357,16 @@ export default function SketchPanel() {
       
       console.log('[TextToVideo] Result:', result);
       console.log('[TextToVideo] Result data:', result.data);
+      console.log('[TextToVideo] Result data keys:', result.data ? Object.keys(result.data) : 'no data');
       
-      const videoUrl = result.data?.video_url || result.data?.url;
+      const videoUrl = result.data?.video_url || result.data?.url || result.data?.videoUrl;
       
       console.log('[TextToVideo] Video URL:', videoUrl);
+      console.log('[TextToVideo] Video URL sources:', {
+        video_url: result.data?.video_url,
+        url: result.data?.url,
+        videoUrl: result.data?.videoUrl
+      });
       
       if (!result.ok || !videoUrl) {
         console.error('[TextToVideo] Generation failed:', result);
@@ -381,15 +387,13 @@ export default function SketchPanel() {
           toast.success('视频已保存到永久存储');
         } catch (uploadError: any) {
           console.error('[TextToVideo] Failed to upload video to permanent storage:', uploadError);
-          toast.error('视频生成成功但上传到永久存储失败，请检查 Supabase 配置');
-          setIsGenerating(false);
-          setVideoGenerationProgress(0);
-          setVideoGenerationStatus('');
-          return; // 上传失败，不保存结果
+          toast.warning('视频生成成功，但上传到永久存储失败，将在发布时自动重试');
+          // 使用原始 URL，发布时会再次尝试上传
+          permanentVideoUrl = videoUrl;
         }
         
-        // 使用视频占位图作为缩略图 - 使用可靠的图片服务
-        const videoThumbnail = `https://picsum.photos/seed/video-${Date.now()}/800/600`;
+        // 使用视频的第一帧作为缩略图
+        const videoThumbnail = permanentVideoUrl;
         
         const results = [
           { 
@@ -508,17 +512,15 @@ export default function SketchPanel() {
           toast.success('视频已保存到永久存储');
         } catch (uploadError: any) {
           console.error('[ImageToVideo] Failed to upload video to permanent storage:', uploadError);
-          toast.error('视频生成成功但上传到永久存储失败，请检查 Supabase 配置');
-          setIsGenerating(false);
-          setVideoGenerationProgress(0);
-          setVideoGenerationStatus('');
-          return; // 上传失败，不保存结果
+          toast.warning('视频生成成功，但上传到永久存储失败，将在发布时自动重试');
+          // 使用原始 URL，发布时会再次尝试上传
+          permanentVideoUrl = videoUrl;
         }
         
-        // 使用上传的图片作为缩略图，如果没有则使用视频占位图 - 使用可靠的图片服务
+        // 使用上传的图片作为缩略图，如果没有则使用视频的第一帧
         const videoThumbnail = uploadedImage && !uploadedImage.startsWith('data:') ? 
           uploadedImage : 
-          `https://picsum.photos/seed/video-${Date.now()}/800/600`;
+          permanentVideoUrl;
         
         const results = [
           { 

@@ -158,7 +158,7 @@ export const useCreateStore = create<CreateState & CreateActions>((set) => ({
         return { generatedResults: results };
       }
 
-      // 创建新的历史记录项，使用结果中的prompt（如果有）或当前state的prompt
+      // 创建新的历史记录项，使用当前state的prompt
       const newHistoryItems = validResults.map((r, index) => {
         const historyItem = {
           id: `history-${Date.now()}-${index}-${Math.random().toString(36).substr(2, 9)}`,
@@ -166,8 +166,8 @@ export const useCreateStore = create<CreateState & CreateActions>((set) => ({
           thumbnail: r.thumbnail,
           video: r.video || null,
           type: r.type || 'image',
-          prompt: r.prompt || state.prompt || '',
-          stylePreset: r.stylePreset || state.stylePreset || '',
+          prompt: state.prompt || '',
+          stylePreset: state.stylePreset || '',
         };
         console.log('[History] Creating history item:', historyItem.id, 'type:', historyItem.type);
         return historyItem;

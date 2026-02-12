@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useCreateStore } from '../../hooks/useCreateStore';
+import { toast } from 'sonner';
 
 // 定义版式类型
 interface LayoutTemplate {
@@ -218,7 +219,7 @@ const sizePresets = [
 
 const LayoutPanel: React.FC = () => {
   const { isDark } = useTheme();
-  const { updateState, selectedResult } = useCreateStore();
+  const { updateState, selectedResult, generatedResults } = useCreateStore();
   const [selectedLayout, setSelectedLayout] = useState<LayoutTemplate | null>(null);
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [selectedSize, setSelectedSize] = useState<any>(sizePresets[0]);
@@ -267,9 +268,15 @@ const LayoutPanel: React.FC = () => {
   // 生成版式
   const handleGenerateLayout = () => {
     if (!selectedLayout) return;
-    
+
+    // 检查是否有生成作品
+    if (generatedResults.length === 0) {
+      toast.error('请先生成作品后再应用版式');
+      return;
+    }
+
     setIsGenerating(true);
-    
+
     // 模拟生成过程
     setTimeout(() => {
       updateState({

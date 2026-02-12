@@ -408,3 +408,58 @@ export interface ActivityParticipation extends BaseEntity {
   registrationDate: Date;
   submissionDate?: Date;
 }
+
+// 活动作品提交类型
+export interface EventSubmission extends BaseEntity {
+  eventId: string;
+  userId: string;
+  participationId?: string;
+  title: string;
+  description?: string;
+  files: Array<{
+    url: string;
+    name?: string;
+    type?: string;
+    size?: number;
+  }>;
+  status: 'draft' | 'submitted' | 'under_review' | 'reviewed' | 'rejected';
+  submittedAt?: Date;
+  reviewedAt?: Date;
+  reviewNotes?: string;
+  score?: number;
+  metadata?: Record<string, any>;
+  // 互动统计字段
+  voteCount?: number;
+  likeCount?: number;
+  avgRating?: number;
+  ratingCount?: number;
+  coverImage?: string;
+  mediaType?: 'image' | 'video' | 'audio' | 'document' | 'other';
+}
+
+// 作品投票类型
+export interface SubmissionVote extends BaseEntity {
+  submissionId: string;
+  userId: string;
+}
+
+// 作品点赞类型
+export interface SubmissionLike extends BaseEntity {
+  submissionId: string;
+  userId: string;
+}
+
+// 作品评分类型
+export interface SubmissionRating extends BaseEntity {
+  submissionId: string;
+  userId: string;
+  rating: number; // 1-10
+  comment?: string;
+}
+
+// 用户对作品的交互状态
+export interface UserInteraction {
+  hasVoted: boolean;
+  hasLiked: boolean;
+  userRating?: number | null;
+}

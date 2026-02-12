@@ -3,9 +3,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useCreateStore } from '@/pages/create/hooks/useCreateStore';
 import postsApi from '@/services/postService';
+import { llmService } from '@/services/llmService';
 import { toast } from 'sonner';
 import { AuthContext } from '@/contexts/authContext';
-import { X, Plus, Hash, Image as ImageIcon, Video, Type, AlignLeft, Sparkles, Loader2, CheckCircle2 } from 'lucide-react';
+import { X, Hash, Image as ImageIcon, Video, Type, AlignLeft, Sparkles, Loader2, CheckCircle2, Upload, Trash2, ExternalLink } from 'lucide-react';
 
 interface PublishToSquareModalProps {
   isOpen: boolean;
@@ -13,13 +14,76 @@ interface PublishToSquareModalProps {
 }
 
 // 预设标签
+// 预设标签 - 按类别组织
 const PRESET_TAGS = [
+  // 传统文化
   '国潮', '纹样设计', '传统文化', '青花瓷', '山水画',
   '民俗', '剪纸', '刺绣', '书法', '篆刻',
   '敦煌', '壁画', '唐三彩', '景泰蓝', '漆器',
   '汉服', '旗袍', '茶道', '香道', '花道',
-  'AI创作', '数字艺术', '概念设计', '插画', '海报'
+  // 建筑与历史
+  '历史建筑', '欧式建筑', '复古风格', '天津', '五大道',
+  '洋楼', '古建筑', '城市风光', '街景', '历史',
+  // 艺术风格
+  'AI创作', '数字艺术', '概念设计', '插画', '海报',
+  '油画', '水彩', '素描', '工笔画', '写意',
+  // 色彩与氛围
+  '暖色调', '冷色调', '色彩丰富', '黑白', '复古色调',
+  '明亮', '柔和', '对比强烈', '温馨', '梦幻',
+  // 主题内容
+  '风景', '人物', '动物', '植物', '花卉',
+  '静物', '抽象', '写实', '卡通', '唯美'
 ];
+
+// 关键词到标签的映射
+const KEYWORD_TO_TAGS: Record<string, string[]> = {
+  '五大道': ['五大道', '天津', '历史建筑', '欧式建筑'],
+  '天津': ['天津', '历史建筑', '城市风光'],
+  '欧式': ['欧式建筑', '复古风格', '历史建筑'],
+  '复古': ['复古风格', '历史', '欧式建筑'],
+  '历史': ['历史', '历史建筑', '传统文化'],
+  '建筑': ['历史建筑', '欧式建筑', '城市风光'],
+  '洋楼': ['洋楼', '欧式建筑', '历史建筑'],
+  '温暖': ['暖色调', '温馨'],
+  '色调': ['色彩丰富'],
+  '色彩': ['色彩丰富'],
+  '风景': ['风景', '山水画'],
+  '国潮': ['国潮', '传统文化'],
+  '青花': ['青花瓷', '传统文化'],
+  '山水': ['山水画', '风景'],
+  '剪纸': ['剪纸', '民俗'],
+  '刺绣': ['刺绣', '民俗'],
+  '书法': ['书法', '传统文化'],
+  '敦煌': ['敦煌', '壁画', '传统文化'],
+  '汉服': ['汉服', '传统文化'],
+  '旗袍': ['旗袍', '传统文化'],
+  'AI': ['AI创作', '数字艺术'],
+  '数字': ['数字艺术', 'AI创作'],
+  '插画': ['插画', '概念设计'],
+  '海报': ['海报', '概念设计'],
+  '油画': ['油画', '写实'],
+  '水彩': ['水彩', '柔和'],
+  '素描': ['素描', '黑白'],
+  '工笔': ['工笔画', '传统文化'],
+  '写意': ['写意', '山水画'],
+  '卡通': ['卡通', '插画'],
+  '唯美': ['唯美', '梦幻'],
+  '梦幻': ['梦幻', '唯美'],
+  '花卉': ['花卉', '植物'],
+  '花': ['花卉', '植物'],
+  '动物': ['动物'],
+  '人物': ['人物'],
+  '静物': ['静物'],
+  '抽象': ['抽象'],
+  '写实': ['写实'],
+  '黑白': ['黑白', '素描'],
+  '明亮': ['明亮', '暖色调'],
+  '柔和': ['柔和', '温馨'],
+  '温馨': ['温馨', '暖色调'],
+  '对比': ['对比强烈'],
+  '街景': ['街景', '城市风光'],
+  '城市': ['城市风光', '街景']
+};
 
 export default function PublishToSquareModal({ isOpen, onClose }: PublishToSquareModalProps) {
   const { isDark } = useTheme();
@@ -32,16 +96,27 @@ export default function PublishToSquareModal({ isOpen, onClose }: PublishToSquar
   const [contentType, setContentType] = useState<'image' | 'video'>('image');
   const [videoUrl, setVideoUrl] = useState('');
   const [showPresetTags, setShowPresetTags] = useState(false);
+  const [isGeneratingMetadata, setIsGeneratingMetadata] = useState(false);
 
   const selectedResult = useCreateStore((state) => state.selectedResult);
   const generatedResults = useCreateStore((state) => state.generatedResults);
+  const prompt = useCreateStore((state) => state.prompt);
   
   const selectedImage = generatedResults.find(r => r.id === selectedResult);
-  const thumbnail = selectedImage?.thumbnail;
+  const rawThumbnail = selectedImage?.thumbnail;
   const aiVideoUrl = selectedImage?.video;
-  const aiContentType = selectedImage?.type || 'image';
+  
+  // 计算最终视频URL（用于渲染）
+  const finalVideoUrl = contentType === 'video' 
+    ? (videoUrl || aiVideoUrl || '') 
+    : '';
+  
+  // 对于视频，如果缩略图是默认图片，使用视频URL作为缩略图（显示第一帧）
+  const thumbnail = contentType === 'video' && finalVideoUrl && rawThumbnail?.includes('picsum.photos')
+    ? finalVideoUrl  // 使用视频URL，浏览器会显示第一帧
+    : rawThumbnail;
 
-  // 自动检测内容类型并设置视频URL
+  // 自动检测内容类型并设置视频URL - 只在模态框打开时执行一次
   useEffect(() => {
     if (isOpen && selectedImage) {
       console.log('[PublishModal] Selected image:', {
@@ -51,17 +126,31 @@ export default function PublishToSquareModal({ isOpen, onClose }: PublishToSquar
         thumbnail: selectedImage.thumbnail?.substring(0, 50)
       });
 
-      // 如果AI生成的是视频，自动设置为视频类型并填充视频URL
+      // 如果AI生成的是视频，自动填充视频URL
       if (selectedImage.type === 'video' && selectedImage.video) {
         setContentType('video');
         setVideoUrl(selectedImage.video);
         console.log('[PublishModal] Auto-set video type and URL from AI generation');
-      } else {
+      }
+      // 如果AI生成的是图片，默认设置为图片类型
+      else if (selectedImage.type === 'image') {
         setContentType('image');
         setVideoUrl('');
       }
+      // 其他情况（如没有type或video为空），默认设置为图片类型
+      else {
+        setContentType('image');
+        setVideoUrl('');
+      }
+      
+      // 自动填充作品描述（使用全局prompt）
+      if (prompt && !description) {
+        setDescription(prompt);
+        console.log('[PublishModal] Auto-filled description from prompt');
+      }
     }
-  }, [isOpen, selectedImage]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]); // 只在模态框打开时执行，不依赖 selectedImage
 
   // 添加标签
   const addTag = (tag: string) => {
@@ -75,6 +164,75 @@ export default function PublishToSquareModal({ isOpen, onClose }: PublishToSquar
   // 移除标签
   const removeTag = (tagToRemove: string) => {
     setTags(tags.filter(tag => tag !== tagToRemove));
+  };
+
+  // AI 生成标题和标签
+  const generateMetadata = async () => {
+    if (!description.trim()) {
+      toast.error('请先填写作品描述');
+      return;
+    }
+
+    setIsGeneratingMetadata(true);
+    try {
+      // 调用千问 API 生成标题和标签
+      const result = await llmService.generateTitleAndTags(description.trim(), contentType);
+      
+      if (result.title) {
+        setTitle(result.title);
+      }
+      if (result.tags && Array.isArray(result.tags)) {
+        // 过滤掉已存在的标签，最多添加5个
+        const newTags = result.tags.filter((tag: string) => !tags.includes(tag)).slice(0, 5 - tags.length);
+        setTags([...tags, ...newTags]);
+      }
+      toast.success('已使用千问AI生成标题和标签');
+    } catch (error) {
+      console.error('Generate metadata error:', error);
+      // 如果 API 失败，使用本地规则生成
+      generateMetadataLocally();
+    } finally {
+      setIsGeneratingMetadata(false);
+    }
+  };
+
+  // 本地规则生成标题和标签（备用方案）
+  const generateMetadataLocally = () => {
+    const desc = description.trim();
+
+    // 生成标题：提取前20个字，如果没有则使用默认标题
+    let generatedTitle = desc.slice(0, 20);
+    if (generatedTitle.length < 5) {
+      generatedTitle = contentType === 'video' ? '创意视频作品' : '创意设计作品';
+    }
+    setTitle(generatedTitle);
+
+    // 生成标签：使用关键词映射匹配
+    const matchedTags: string[] = [];
+    const descLower = desc.toLowerCase();
+
+    // 遍历关键词映射
+    Object.entries(KEYWORD_TO_TAGS).forEach(([keyword, keywordTags]) => {
+      if (descLower.includes(keyword.toLowerCase())) {
+        keywordTags.forEach(tag => {
+          if (!matchedTags.includes(tag) && !tags.includes(tag) && matchedTags.length < 5) {
+            matchedTags.push(tag);
+          }
+        });
+      }
+    });
+
+    // 如果没有匹配到标签，添加一些默认标签
+    if (matchedTags.length === 0) {
+      if (contentType === 'video') {
+        matchedTags.push('AI创作', '数字艺术');
+      } else {
+        matchedTags.push('AI创作', '概念设计');
+      }
+    }
+
+    setTags([...tags, ...matchedTags.slice(0, 5 - tags.length)]);
+    toast.success('已自动生成标题和标签');
   };
 
   // 处理标签输入
@@ -106,31 +264,127 @@ export default function PublishToSquareModal({ isOpen, onClose }: PublishToSquar
       return;
     }
     
-    if (contentType === 'video' && !videoUrl.trim()) {
-      toast.error('请输入视频链接');
+    // 检查视频URL（使用组件级别的 finalVideoUrl）
+    if (contentType === 'video' && !finalVideoUrl) {
+      toast.error('视频链接为空，请重新生成视频或手动输入视频链接');
+      console.error('[PublishModal] Video URL is empty:', { 
+        contentType, 
+        videoUrl, 
+        aiVideoUrl,
+        selectedImage 
+      });
       return;
     }
 
     setIsSubmitting(true);
     
     try {
-      // 确定最终使用的视频URL
-      const finalVideoUrl = contentType === 'video' 
-        ? (videoUrl || aiVideoUrl || '') 
-        : '';
+      // 确定最终使用的视频URL（使用组件级别的 finalVideoUrl）
+      let submitVideoUrl = finalVideoUrl;
       
-      console.log('[PublishModal] Submitting post:', {
-        contentType,
-        hasThumbnail: !!thumbnail,
-        hasVideoUrl: !!finalVideoUrl,
-        videoUrl: finalVideoUrl?.substring(0, 50)
-      });
+      // 如果是视频但URL为空，尝试从selectedImage重新获取
+      if (contentType === 'video' && !submitVideoUrl && selectedImage) {
+        // 尝试从selectedImage.video获取，或者从其他字段推断
+        submitVideoUrl = selectedImage.video || '';
+        
+        // 如果还是没有，尝试从thumbnail推断（如果thumbnail是视频URL）
+        if (!submitVideoUrl && selectedImage.thumbnail && /\.(mp4|webm|ogg|mov)(\?.*)?$/i.test(selectedImage.thumbnail)) {
+          submitVideoUrl = selectedImage.thumbnail;
+        }
+      }
+      
+      // 如果还是没有视频URL，提示错误
+      if (contentType === 'video' && !submitVideoUrl) {
+        toast.error('无法获取视频链接，请重新生成视频');
+        setIsSubmitting(false);
+        return;
+      }
+      
+      // 处理视频：检查是否有本地临时文件需要上传
+      if (contentType === 'video' && submitVideoUrl) {
+        // 检查是否是本地临时URL（blob URL）
+        if (submitVideoUrl.startsWith('blob:')) {
+          // 有本地视频文件，需要上传
+          const tempFile = (window as any)._tempVideoFile;
+          if (tempFile) {
+            try {
+              console.log('[PublishModal] Uploading local video file to Supabase...');
+              const { uploadVideo } = await import('@/services/imageService');
+              const uploadedUrl = await uploadVideo(tempFile);
+              if (uploadedUrl) {
+                submitVideoUrl = uploadedUrl;
+                console.log('[PublishModal] Video uploaded to:', uploadedUrl);
+                toast.success('视频已上传到永久存储');
+              }
+            } catch (uploadError) {
+              console.error('[PublishModal] Failed to upload video:', uploadError);
+              toast.error('视频上传失败，请重试');
+              setIsSubmitting(false);
+              return;
+            }
+          }
+        } else if (!submitVideoUrl.includes('supabase.co')) {
+          // 外部链接，下载后上传
+          try {
+            console.log('[PublishModal] Downloading and uploading video to Supabase...');
+            const { downloadAndUploadVideo } = await import('@/services/imageService');
+            const uploadedUrl = await downloadAndUploadVideo(submitVideoUrl);
+            if (uploadedUrl) {
+              submitVideoUrl = uploadedUrl;
+              console.log('[PublishModal] Video uploaded to:', uploadedUrl);
+            }
+          } catch (uploadError) {
+            console.warn('[PublishModal] Failed to upload video:', uploadError);
+            // 上传失败继续使用原URL
+          }
+        }
+      }
+      
+      // 处理缩略图：检查是否有本地临时文件需要上传
+      let finalThumbnail = thumbnail || '';
+      if (finalThumbnail) {
+        // 检查是否是本地临时URL（blob URL）
+        if (finalThumbnail.startsWith('blob:')) {
+          // 有本地图片文件，需要上传
+          const tempFile = selectedImage?._tempFile;
+          if (tempFile) {
+            try {
+              console.log('[PublishModal] Uploading local image file to Supabase...');
+              const { uploadImage } = await import('@/services/imageService');
+              const uploadedUrl = await uploadImage(tempFile, user?.id || 'anonymous');
+              if (uploadedUrl) {
+                finalThumbnail = uploadedUrl;
+                console.log('[PublishModal] Thumbnail uploaded to:', uploadedUrl);
+              }
+            } catch (uploadError) {
+              console.error('[PublishModal] Failed to upload thumbnail:', uploadError);
+              toast.error('图片上传失败，请重试');
+              setIsSubmitting(false);
+              return;
+            }
+          }
+        } else if (!finalThumbnail.includes('supabase.co')) {
+          // 外部链接，下载后上传
+          try {
+            console.log('[PublishModal] Downloading and uploading thumbnail to Supabase...');
+            const { downloadAndUploadImage } = await import('@/services/imageService');
+            const uploadedUrl = await downloadAndUploadImage(finalThumbnail, user?.id || 'anonymous');
+            if (uploadedUrl) {
+              finalThumbnail = uploadedUrl;
+              console.log('[PublishModal] Thumbnail uploaded to:', uploadedUrl);
+            }
+          } catch (uploadError) {
+            console.warn('[PublishModal] Failed to upload thumbnail:', uploadError);
+            // 上传失败继续使用原URL
+          }
+        }
+      }
       
       // 创建作品
       const postData = {
         title: title.trim(),
-        thumbnail: thumbnail || '',
-        videoUrl: finalVideoUrl,
+        thumbnail: finalThumbnail,
+        videoUrl: submitVideoUrl,
         type: contentType,
         category: contentType === 'image' ? 'design' : 'video' as any,
         tags: tags,
@@ -145,10 +399,55 @@ export default function PublishToSquareModal({ isOpen, onClose }: PublishToSquar
         scheduledPublishDate: null
       };
       
+      console.log('[PublishModal] Submitting postData:', {
+        type: postData.type,
+        category: postData.category,
+        videoUrl: postData.videoUrl?.substring(0, 50),
+        hasVideoUrl: !!postData.videoUrl,
+        contentType
+      });
+      
       const post = await postsApi.addPost(postData, user as import('@/services/postService').User | undefined);
       
       if (post) {
-        toast.success('作品发布成功！');
+        // 如果发布成功且有视频，尝试同步到 Supabase 确保视频在广场能正常显示
+        if (contentType === 'video' && submitVideoUrl) {
+          try {
+            console.log('[PublishModal] Syncing video to Supabase for square display...');
+            const { syncWorkToSupabase } = await import('@/services/postService');
+            await syncWorkToSupabase({
+              ...post,
+              video_url: submitVideoUrl,
+              type: 'video'
+            }, user as any);
+          } catch (syncError) {
+            console.warn('[PublishModal] Failed to sync to Supabase:', syncError);
+            // 同步失败不影响主流程
+          }
+        }
+        
+        // 显示成功提示，带查看按钮
+        toast.success(
+          <div className="flex items-center justify-between gap-6">
+            <div className="flex items-center gap-2">
+              <span className="font-medium text-emerald-700">作品发布成功</span>
+              <span className="text-emerald-500">✓</span>
+            </div>
+            <button
+              onClick={() => {
+                window.open('/square', '_blank');
+              }}
+              className="text-xs px-3 py-1.5 rounded-full bg-gradient-to-r from-[#C02C38] to-[#D64545] text-white hover:shadow-lg hover:scale-105 transition-all duration-200 flex items-center gap-1 font-medium whitespace-nowrap"
+            >
+              <ExternalLink className="w-3 h-3" />
+              去广场查看
+            </button>
+          </div>,
+          { 
+            duration: 5000,
+            className: 'bg-emerald-50 border-emerald-200'
+          }
+        );
         onClose();
 
         // 重置表单
@@ -259,10 +558,50 @@ export default function PublishToSquareModal({ isOpen, onClose }: PublishToSquar
                 
                 {/* 预览 */}
                 <div className="mb-6">
-                  <h4 className={`text-sm font-medium mb-3 flex items-center gap-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                    <ImageIcon className="w-4 h-4 text-[#C02C38]" />
-                    作品预览
-                  </h4>
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className={`text-sm font-medium flex items-center gap-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                      <ImageIcon className="w-4 h-4 text-[#C02C38]" />
+                      作品预览
+                    </h4>
+                    {/* 清除按钮 */}
+                    {(thumbnail || videoUrl || finalVideoUrl) && (
+                      <motion.button
+                        type="button"
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => {
+                          if (contentType === 'image') {
+                            // 清除图片
+                            const newResults = generatedResults.map(r => 
+                              r.id === selectedResult ? { ...r, thumbnail: '', _tempFile: undefined } : r
+                            );
+                            useCreateStore.setState({ generatedResults: newResults as any });
+                          } else {
+                            // 清除视频
+                            setVideoUrl('');
+                            // 同时清除 store 中的视频
+                            const newResults = generatedResults.map(r => 
+                              r.id === selectedResult ? { ...r, video: '', thumbnail: '', type: 'image' as const, _tempFile: undefined } : r
+                            );
+                            useCreateStore.setState({ generatedResults: newResults as any });
+                            // 清除临时文件引用
+                            (window as any)._tempVideoFile = null;
+                          }
+                        }}
+                        className={`text-xs px-2 py-1 rounded-lg flex items-center gap-1 transition-colors ${
+                          isDark 
+                            ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30' 
+                            : 'bg-red-100 text-red-600 hover:bg-red-200'
+                        }`}
+                        disabled={isSubmitting}
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        清除
+                      </motion.button>
+                    )}
+                  </div>
                   <motion.div
                     layout
                     className={`aspect-video rounded-2xl overflow-hidden border-2 ${
@@ -282,32 +621,80 @@ export default function PublishToSquareModal({ isOpen, onClose }: PublishToSquar
                           图片作品
                         </div>
                       </>
-                    ) : contentType === 'video' && videoUrl ? (
-                      <div className="relative w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-900 to-gray-800">
-                        <motion.div
-                          initial={{ scale: 0.8, opacity: 0 }}
-                          animate={{ scale: 1, opacity: 1 }}
-                          className="w-16 h-16 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center cursor-pointer hover:bg-white/20 transition-colors"
-                        >
-                          <Video className="w-6 h-6 text-white" />
-                        </motion.div>
-                        <div className="absolute bottom-3 right-3 px-2 py-1 rounded-lg bg-black/50 backdrop-blur-sm text-white text-xs font-medium">
+                    ) : contentType === 'video' && (videoUrl || finalVideoUrl) ? (
+                      <div className="relative w-full h-full bg-black">
+                        <video
+                          src={finalVideoUrl || videoUrl}
+                          className="w-full h-full object-cover"
+                          controls
+                          autoPlay
+                          muted
+                          loop
+                          playsInline
+                          preload="auto"
+                          poster={thumbnail}
+                        />
+                        <div className="absolute bottom-3 right-3 px-2 py-1 rounded-lg bg-black/50 backdrop-blur-sm text-white text-xs font-medium pointer-events-none">
                           <Video className="w-3 h-3 inline mr-1" />
                           视频作品
                         </div>
                       </div>
                     ) : (
-                      <div className={`flex flex-col items-center justify-center ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                        <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-3 ${isDark ? 'bg-gray-800' : 'bg-gray-200'}`}>
-                          {contentType === 'image' ? (
-                            <ImageIcon className="w-8 h-8" />
-                          ) : (
-                            <Video className="w-8 h-8" />
-                          )}
+                      <label className={`flex flex-col items-center justify-center cursor-pointer w-full h-full ${isDark ? 'text-gray-500 hover:text-gray-400' : 'text-gray-400 hover:text-gray-600'} transition-colors`}>
+                        <input
+                          type="file"
+                          accept={contentType === 'image' ? 'image/*' : 'video/*'}
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            
+                            // 创建本地临时URL用于预览，发布时再上传到Supabase
+                            try {
+                              const tempUrl = URL.createObjectURL(file);
+                              
+                                  // 创建新的结果对象
+                              const newResultId = Date.now();
+                              const newResult = contentType === 'image' 
+                                ? { 
+                                    id: newResultId, 
+                                    thumbnail: tempUrl, 
+                                    _tempFile: file, 
+                                    type: 'image' as const 
+                                  }
+                                : { 
+                                    id: newResultId, 
+                                    video: tempUrl, 
+                                    thumbnail: tempUrl, 
+                                    type: 'video' as const, 
+                                    _tempFile: file 
+                                  };
+                              
+                              // 添加到 generatedResults 并选中
+                              const newResults = [...generatedResults, newResult];
+                              useCreateStore.setState({ 
+                                generatedResults: newResults as any,
+                                selectedResult: newResultId
+                              });
+                              
+                              if (contentType === 'video') {
+                                setVideoUrl(tempUrl);
+                                (window as any)._tempVideoFile = file;
+                              }
+                              toast.success('文件已选择，发布时将自动上传');
+                            } catch (error) {
+                              console.error('文件选择失败:', error);
+                              toast.error('文件选择失败，请重试');
+                            }
+                          }}
+                          className="hidden"
+                          disabled={isSubmitting}
+                        />
+                        <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-3 ${isDark ? 'bg-gray-800 group-hover:bg-gray-700' : 'bg-gray-200 group-hover:bg-gray-300'} transition-colors`}>
+                          <Upload className="w-8 h-8" />
                         </div>
-                        <span className="text-sm font-medium">{contentType === 'image' ? '图片预览' : '视频预览'}</span>
-                        <span className="text-xs mt-1 opacity-60">请先生成内容</span>
-                      </div>
+                        <span className="text-sm font-medium">{contentType === 'image' ? '点击选择图片' : '点击选择视频'}</span>
+                        <span className="text-xs mt-1 opacity-60">发布时将自动上传</span>
+                      </label>
                     )}
                   </motion.div>
                 </div>
@@ -360,11 +747,40 @@ export default function PublishToSquareModal({ isOpen, onClose }: PublishToSquar
                 
                 {/* 标题 */}
                 <div className="mb-6">
-                  <label className={`block text-sm font-medium mb-2 flex items-center gap-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                    <Type className="w-4 h-4 text-[#C02C38]" />
-                    作品标题
-                    <span className="text-red-500">*</span>
-                  </label>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className={`text-sm font-medium flex items-center gap-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                      <Type className="w-4 h-4 text-[#C02C38]" />
+                      作品标题
+                      <span className="text-red-500">*</span>
+                    </label>
+                    {/* AI 生成按钮 */}
+                    <button
+                      type="button"
+                      onClick={generateMetadata}
+                      disabled={isGeneratingMetadata || !description.trim()}
+                      className={`text-xs px-3 py-1.5 rounded-full flex items-center gap-1.5 transition-all ${
+                        isGeneratingMetadata || !description.trim()
+                          ? 'opacity-50 cursor-not-allowed'
+                          : 'hover:scale-105'
+                      } ${
+                        isDark
+                          ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white'
+                          : 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
+                      }`}
+                    >
+                      {isGeneratingMetadata ? (
+                        <>
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                          生成中...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-3 h-3" />
+                          AI 生成标题标签
+                        </>
+                      )}
+                    </button>
+                  </div>
                   <div className="relative">
                     <input
                       type="text"
@@ -490,31 +906,31 @@ export default function PublishToSquareModal({ isOpen, onClose }: PublishToSquar
                         exit={{ opacity: 0, height: 0 }}
                         className="flex flex-wrap gap-2 mb-3"
                       >
-                        {tags.map((tag, index) => (
+                        {tags.map((tag) => (
                           <motion.span
                             key={tag}
                             layout
                             initial={{ scale: 0.8, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
                             exit={{ scale: 0.8, opacity: 0 }}
-                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium ${
+                            whileHover={{ scale: 1.05 }}
+                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium cursor-pointer group ${
                               isDark
-                                ? 'bg-gradient-to-r from-[#C02C38]/20 to-[#C02C38]/10 text-[#C02C38] border border-[#C02C38]/30'
-                                : 'bg-gradient-to-r from-[#C02C38]/10 to-[#C02C38]/5 text-[#C02C38] border border-[#C02C38]/20'
+                                ? 'bg-gradient-to-r from-[#C02C38]/20 to-[#C02C38]/10 text-[#C02C38] border border-[#C02C38]/30 hover:border-[#C02C38]/50'
+                                : 'bg-gradient-to-r from-[#C02C38]/10 to-[#C02C38]/5 text-[#C02C38] border border-[#C02C38]/20 hover:border-[#C02C38]/40'
                             }`}
+                            onClick={() => removeTag(tag)}
+                            title="点击删除标签"
                           >
                             <Hash className="w-3 h-3 opacity-70" />
                             {tag}
-                            <button
-                              type="button"
-                              onClick={() => removeTag(tag)}
-                              className={`ml-0.5 rounded-full p-0.5 transition-all hover:scale-110 ${
-                                isDark ? 'hover:bg-[#C02C38]/20' : 'hover:bg-[#C02C38]/10'
+                            <span
+                              className={`ml-0.5 rounded-full p-0.5 transition-all group-hover:scale-110 ${
+                                isDark ? 'group-hover:bg-[#C02C38]/20' : 'group-hover:bg-[#C02C38]/10'
                               }`}
-                              disabled={isSubmitting}
                             >
                               <X className="w-3 h-3" />
-                            </button>
+                            </span>
                           </motion.span>
                         ))}
                       </motion.div>
@@ -528,8 +944,8 @@ export default function PublishToSquareModal({ isOpen, onClose }: PublishToSquar
                       value={tagInput}
                       onChange={(e) => setTagInput(e.target.value)}
                       onKeyDown={handleTagInputKeyDown}
-                      placeholder={tags.length >= 5 ? "已达到最大标签数量" : "输入标签后按回车或逗号添加"}
-                      className={`w-full px-4 py-3 pl-11 rounded-xl border-2 transition-all duration-200 ${
+                      placeholder={tags.length >= 5 ? "已达到最大标签数量" : "输入自定义标签，按回车或逗号添加"}
+                      className={`w-full px-4 py-3 pl-11 pr-12 rounded-xl border-2 transition-all duration-200 ${
                         isDark
                           ? 'bg-gray-800/50 border-gray-700 text-white focus:border-[#C02C38]/50 focus:bg-gray-800'
                           : 'bg-white border-gray-200 text-gray-900 focus:border-[#C02C38]/30 focus:bg-white'
@@ -545,15 +961,20 @@ export default function PublishToSquareModal({ isOpen, onClose }: PublishToSquar
                         initial={{ scale: 0.8, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
                         onClick={() => addTag(tagInput)}
-                        className={`absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg transition-colors ${
-                          isDark ? 'hover:bg-[#C02C38]/20 text-[#C02C38]' : 'hover:bg-[#C02C38]/10 text-[#C02C38]'
+                        className={`absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1 rounded-lg text-sm font-medium transition-all ${
+                          isDark 
+                            ? 'bg-[#C02C38]/20 text-[#C02C38] hover:bg-[#C02C38]/30' 
+                            : 'bg-[#C02C38]/10 text-[#C02C38] hover:bg-[#C02C38]/20'
                         }`}
                         disabled={isSubmitting}
                       >
-                        <Plus className="w-4 h-4" />
+                        添加
                       </motion.button>
                     )}
                   </div>
+                  <p className={`text-xs mt-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                    💡 提示：点击已选标签可删除，或点击下方推荐标签快速添加
+                  </p>
 
                   {/* 预设标签 */}
                   <div className="mt-4">

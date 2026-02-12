@@ -494,6 +494,35 @@ async function createPostgreSQLTables(pool) {
         await client.query('CREATE INDEX IF NOT EXISTS idx_work_likes_work_id ON work_likes(work_id);')
         console.log('[DB] work_likes table ensured')
 
+        // 创建活动表 (events)
+        await client.query(`
+          CREATE TABLE IF NOT EXISTS events (
+            id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+            title VARCHAR(255) NOT NULL,
+            description TEXT,
+            content TEXT,
+            start_date BIGINT,
+            end_date BIGINT,
+            location VARCHAR(255),
+            image_url TEXT,
+            status VARCHAR(50) DEFAULT 'draft',
+            category VARCHAR(50),
+            tags TEXT,
+            organizer_id TEXT NOT NULL,
+            organizer_name VARCHAR(255),
+            organizer_avatar TEXT,
+            max_participants INTEGER,
+            participant_count INTEGER DEFAULT 0,
+            visibility VARCHAR(20) DEFAULT 'public',
+            created_at BIGINT DEFAULT extract(epoch from now()),
+            updated_at BIGINT DEFAULT extract(epoch from now())
+          );
+        `)
+        await client.query('CREATE INDEX IF NOT EXISTS idx_events_organizer_id ON events(organizer_id);')
+        await client.query('CREATE INDEX IF NOT EXISTS idx_events_status ON events(status);')
+        await client.query('CREATE INDEX IF NOT EXISTS idx_events_category ON events(category);')
+        console.log('[DB] events table ensured')
+
         console.log('[DB] Column type check completed')
         return
       }

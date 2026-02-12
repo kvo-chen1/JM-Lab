@@ -171,18 +171,67 @@ export async function getPosts(category?: string, currentUserId?: string, useSup
           
           // 转换后端数据为 Post 类型
           worksFromLocal = validWorks.map((w: any) => {
-            // 处理视频URL：优先使用 videoUrl/video_url，如果为空且是视频类型，尝试从 thumbnail 推断
+            // 处理视频URL：优先使用 videoUrl/video_url，如果为空且是视频类型，尝试从其他字段推断
             let videoUrl = w.videoUrl || w.video_url || undefined;
             const thumbnail = w.thumbnail || w.cover_url || '';
             const category = (w.category as PostCategory) || 'other';
             const type = w.type || 'image';
 
-            // 如果没有 videoUrl 但 category 是 video 或 type 是 video，尝试从 thumbnail 推断
+            // 如果没有 videoUrl 但 category 是 video 或 type 是 video，尝试从其他字段推断
             if (!videoUrl && (category === 'video' || type === 'video')) {
-              // 如果 thumbnail 是视频URL，使用它
+              // 1. 尝试从 thumbnail 推断
               if (/\.(mp4|webm|ogg|mov)(\?.*)?$/i.test(thumbnail)) {
                 videoUrl = thumbnail;
                 console.log('Inferred videoUrl from thumbnail:', { id: w.id, videoUrl });
+              }
+              // 2. 尝试从 media 数组获取（可能是数组或 JSON 字符串）
+              else if (w.media) {
+                let mediaArray = w.media;
+                // 如果 media 是字符串，尝试解析为 JSON
+                if (typeof w.media === 'string') {
+                  try {
+                    mediaArray = JSON.parse(w.media);
+                  } catch (e) {
+                    // 如果不是 JSON，当作单个 URL 处理
+                    mediaArray = [w.media];
+                  }
+                }
+                if (Array.isArray(mediaArray) && mediaArray.length > 0) {
+                  const mediaUrl = mediaArray[0];
+                  if (/\.(mp4|webm|ogg|mov)(\?.*)?$/i.test(mediaUrl)) {
+                    videoUrl = mediaUrl;
+                    console.log('Inferred videoUrl from media:', { id: w.id, videoUrl });
+                  }
+                }
+              }
+              // 3. 尝试从 attachments 获取
+              else if (w.attachments) {
+                let attachmentsArray = w.attachments;
+                // 如果 attachments 是字符串，尝试解析为 JSON
+                if (typeof w.attachments === 'string') {
+                  try {
+                    attachmentsArray = JSON.parse(w.attachments);
+                  } catch (e) {
+                    attachmentsArray = [];
+                  }
+                }
+                if (Array.isArray(attachmentsArray) && attachmentsArray.length > 0) {
+                  const attachment = attachmentsArray[0];
+                  const attachmentUrl = typeof attachment === 'string' ? attachment : attachment.url;
+                  if (attachmentUrl && /\.(mp4|webm|ogg|mov)(\?.*)?$/i.test(attachmentUrl)) {
+                    videoUrl = attachmentUrl;
+                    console.log('Inferred videoUrl from attachments:', { id: w.id, videoUrl });
+                  }
+                }
+              }
+              // 4. 如果是视频类型且缩略图包含 "video"，尝试构造视频 URL
+              else if (thumbnail && thumbnail.includes('video')) {
+                // 尝试从缩略图 URL 提取视频种子
+                const seedMatch = thumbnail.match(/seed\/video-([^/]+)/);
+                if (seedMatch) {
+                  // 这里可以构造一个默认的视频 URL，或者从其他地方获取
+                  console.log('Video type detected but no videoUrl found, thumbnail:', thumbnail);
+                }
               }
             }
 
@@ -440,7 +489,7 @@ export async function getPosts(category?: string, currentUserId?: string, useSup
             id: p.id.toString(),
             title: p.title || 'Untitled',
             thumbnail: p.images?.[0] || p.attachments?.[0]?.url || p.attachments?.[0] || '',
-            videoUrl: p.video_url || undefined,
+            videoUrl: p.video_url || p.videoUrl || undefined,
             type: p.type || 'image',
             likes: p.likes_count || 0,
             comments: [],
@@ -733,7 +782,7 @@ export async function getPostById(id: string, currentUserId?: string): Promise<P
     id: p.id.toString(),
     title: p.title || 'Untitled',
     thumbnail: thumbnail,
-    videoUrl: p.video_url || undefined,
+    videoUrl: p.video_url || p.videoUrl || undefined,
     type: p.type || 'image',
     likes: p.likes_count || 0,
     comments: comments,
@@ -1002,7 +1051,14 @@ async function downloadAndUploadImage(imageUrl: string, userId: string): Promise
 
 // 使用后端API创建作品
 async function createWorkViaBackend(p: Partial<Post>, currentUser: User): Promise<Post | undefined> {
-  console.log('[createWorkViaBackend] Called with:', { title: p.title, category: p.category, userId: currentUser.id });
+  console.log('[createWorkViaBackend] Called with:', { 
+    title: p.title, 
+    category: p.category, 
+    userId: currentUser.id,
+    type: p.type,
+    videoUrl: p.videoUrl?.substring(0, 50),
+    hasVideoUrl: !!p.videoUrl
+  });
 
   const token = localStorage.getItem('token')
   if (!token) {
@@ -1012,19 +1068,32 @@ async function createWorkViaBackend(p: Partial<Post>, currentUser: User): Promis
   try {
     // 判断是否为视频 - 优先使用 p.type 字段或 videoUrl
     const isVideo = p.type === 'video' || p.videoUrl;
-    console.log('[createWorkViaBackend] isVideo:', isVideo, 'p.type:', p.type, 'p.videoUrl:', p.videoUrl);
+    console.log('[createWorkViaBackend] isVideo check:', { 
+      isVideo, 
+      p_type: p.type, 
+      p_videoUrl: p.videoUrl?.substring(0, 50),
+      hasVideoUrl: !!p.videoUrl,
+      p_type_is_video: p.type === 'video'
+    });
 
-    // 处理缩略图：如果是外部链接，下载并上传到 Supabase Storage
+    // 处理缩略图：如果是外部链接（非 Supabase Storage），下载并上传到 Supabase Storage
     let thumbnail = p.thumbnail;
-    if (thumbnail && (thumbnail.includes('aliyuncs.com') || thumbnail.includes('dashscope'))) {
+    if (thumbnail && !thumbnail.includes('supabase.co')) {
       console.log('[createWorkViaBackend] Processing external thumbnail...');
-      const uploadedUrl = await downloadAndUploadImage(thumbnail, currentUser.id);
-      if (uploadedUrl) {
-        thumbnail = uploadedUrl;
-        console.log('[createWorkViaBackend] Thumbnail uploaded to:', uploadedUrl);
-      } else {
-        console.warn('[createWorkViaBackend] Failed to upload thumbnail, using original URL');
+      try {
+        const uploadedUrl = await downloadAndUploadImage(thumbnail, currentUser.id);
+        if (uploadedUrl) {
+          thumbnail = uploadedUrl;
+          console.log('[createWorkViaBackend] Thumbnail uploaded to:', uploadedUrl);
+        } else {
+          console.warn('[createWorkViaBackend] Failed to upload thumbnail, using original URL');
+        }
+      } catch (uploadError) {
+        console.warn('[createWorkViaBackend] Thumbnail upload error:', uploadError);
+        // 上传失败继续使用原URL
       }
+    } else if (thumbnail) {
+      console.log('[createWorkViaBackend] Thumbnail already on Supabase, skipping upload');
     }
 
     // 生成时间戳（秒级）
@@ -1083,7 +1152,12 @@ async function createWorkViaBackend(p: Partial<Post>, currentUser: User): Promis
     
     // 同时尝试插入到Supabase（用于广场展示）
     try {
-      await syncWorkToSupabase(work, currentUser)
+      // 合并后端返回的数据和原始数据，确保 video_url 不会丢失
+      const workWithVideo = {
+        ...work,
+        video_url: work.video_url || work.videoUrl || p.videoUrl
+      };
+      await syncWorkToSupabase(workWithVideo, currentUser)
     } catch (syncError) {
       console.warn('[createWorkViaBackend] Failed to sync to Supabase:', syncError);
       // 同步失败不影响主流程
@@ -1134,7 +1208,7 @@ async function createWorkViaBackend(p: Partial<Post>, currentUser: User): Promis
 }
 
 // 同步作品到Supabase
-async function syncWorkToSupabase(work: any, currentUser: User): Promise<void> {
+export async function syncWorkToSupabase(work: any, currentUser: User): Promise<void> {
   try {
     // 检查是否有有效的Supabase会话
     const hasSession = await hasValidSupabaseSession()
@@ -1146,6 +1220,7 @@ async function syncWorkToSupabase(work: any, currentUser: User): Promise<void> {
     // 判断是否为视频
     const isVideo = work.type === 'video' || work.video_url || work.category === 'video';
     
+    const now = Date.now();
     const insertData: any = {
       title: work.title,
       content: work.description,
@@ -1155,16 +1230,17 @@ async function syncWorkToSupabase(work: any, currentUser: User): Promise<void> {
       images: work.thumbnail && !isVideo ? [work.thumbnail] : [],
       attachments: work.thumbnail ? [{ type: isVideo ? 'video' : 'image', url: work.thumbnail }] : [],
       status: 'published',
-      created_at: work.created_at || new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      created_at: work.created_at || now,
+      updated_at: now,
       likes_count: 0,
       view_count: 0,
       comments_count: 0
     }
     
-    // 如果有视频URL，添加到数据中
-    if (work.video_url) {
-      insertData.video_url = work.video_url;
+    // 如果有视频URL，添加到数据中（支持 video_url 和 videoUrl 两种字段名）
+    const videoUrl = work.video_url || work.videoUrl;
+    if (videoUrl) {
+      insertData.video_url = videoUrl;
     }
     
     const { error } = await supabase.from('posts').insert(insertData)
@@ -1179,6 +1255,140 @@ async function syncWorkToSupabase(work: any, currentUser: User): Promise<void> {
   }
 }
 
+// 直接保存到 Supabase works 表（用于视频作品，避免后端 API 不保存 video_url 的问题）
+async function addPostDirectToWorks(p: Partial<Post>, currentUser?: User): Promise<Post | undefined> {
+  console.log('[addPostDirectToWorks] Called with:', {
+    title: p.title,
+    type: p.type,
+    videoUrl: p.videoUrl?.substring(0, 50),
+    userId: currentUser?.id
+  });
+
+  try {
+    const supabaseUserId = await ensureSupabaseSessionUserId()
+    const finalUserId = supabaseUserId || currentUser?.id;
+
+    if (!finalUserId) {
+      throw new Error('请先登录后再发布作品')
+    }
+
+    const isVideo = p.type === 'video' || p.videoUrl;
+    const now = Date.now();
+    
+    // 构建插入数据，匹配 works 表结构
+    const insertData: any = {
+      id: crypto.randomUUID(),
+      creator_id: finalUserId,
+      title: p.title,
+      description: p.description || '',
+      type: isVideo ? 'video' : 'image',
+      category: isVideo ? 'video' : (p.category || 'design'),
+      status: 'published',
+      visibility: 'public',
+      created_at: now,
+      updated_at: now,
+      published_at: now,
+      likes_count: 0,
+      comments_count: 0,
+      views: 0,
+      votes: 0,
+      is_featured: false,
+      creator: currentUser?.username || 'User'
+    };
+
+    // 如果有视频URL，添加到数据中
+    if (p.videoUrl) {
+      insertData.video_url = p.videoUrl;
+    }
+
+    // 如果有缩略图，添加到 cover_url
+    if (p.thumbnail) {
+      insertData.cover_url = p.thumbnail;
+    }
+
+    // 如果有标签，添加到 tags
+    if (p.tags && p.tags.length > 0) {
+      insertData.tags = p.tags;
+    }
+
+    console.log('[addPostDirectToWorks] Inserting to works table:', {
+      title: insertData.title,
+      type: insertData.type,
+      video_url: insertData.video_url?.substring(0, 50),
+      hasVideoUrl: !!insertData.video_url
+    });
+
+    const { data, error } = await supabase
+      .from('works')
+      .insert(insertData)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('[addPostDirectToWorks] Insert failed:', error);
+      throw new Error(`保存到 works 表失败: ${error.message}`);
+    }
+
+    console.log('[addPostDirectToWorks] Success:', data);
+
+    // 同步到 posts 表（用于广场展示）
+    try {
+      await syncWorkToSupabase({ ...insertData, id: data.id }, currentUser as User);
+    } catch (syncError) {
+      console.warn('[addPostDirectToWorks] Failed to sync to posts:', syncError);
+    }
+
+    // 返回 Post 对象
+    return {
+      id: data.id.toString(),
+      title: data.title || 'Untitled',
+      thumbnail: data.cover_url || p.thumbnail || '',
+      videoUrl: data.video_url || p.videoUrl,
+      type: data.type || 'image',
+      likes: 0,
+      comments: [],
+      date: data.created_at ? new Date(data.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+      author: {
+        id: finalUserId,
+        username: currentUser?.username || 'User',
+        email: currentUser?.email || '',
+        avatar: currentUser?.avatar || ''
+      },
+      isLiked: false,
+      isBookmarked: false,
+      category: (data.category as PostCategory) || 'other',
+      tags: p.tags || [],
+      description: data.description || '',
+      views: 0,
+      shares: 0,
+      isFeatured: false,
+      isDraft: false,
+      completionStatus: 'published',
+      creativeDirection: '',
+      culturalElements: [],
+      colorScheme: [],
+      toolsUsed: [],
+      publishType: 'explore',
+      communityId: null,
+      moderationStatus: 'approved',
+      rejectionReason: null,
+      scheduledPublishDate: null,
+      visibility: 'public',
+      commentCount: 0,
+      engagementRate: 0,
+      trendingScore: 0,
+      reach: 0,
+      moderator: null,
+      reviewedAt: null,
+      recommendationScore: 0,
+      recommendedFor: []
+    } as Post;
+  } catch (error) {
+    console.error('[addPostDirectToWorks] Error:', error);
+    throw error;
+  }
+}
+
 
 export async function addPost(p: Partial<Post>, currentUser?: User): Promise<Post | undefined> {
   console.log('[addPost] Called with:', { 
@@ -1190,6 +1400,12 @@ export async function addPost(p: Partial<Post>, currentUser?: User): Promise<Pos
   });
 
   try {
+    // 如果是视频作品，直接保存到 Supabase works 表，避免后端 API 不保存 video_url 的问题
+    if (p.type === 'video' || p.videoUrl) {
+      console.log('[addPost] Video post detected, saving directly to works table');
+      return await addPostDirectToWorks(p, currentUser);
+    }
+    
     // 优先使用后端API创建作品（保存到 works 表）
     const backendToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null
     if (backendToken && currentUser?.id) {

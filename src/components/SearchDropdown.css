@@ -175,8 +175,8 @@
 
 /* 图片容器 */
 .search-dropdown-item-image {
-  width: 72px;
-  height: 72px;
+  width: 80px;
+  height: 80px;
   border-radius: 12px;
   overflow: hidden;
   flex-shrink: 0;

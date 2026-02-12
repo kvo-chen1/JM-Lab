@@ -2320,25 +2320,8 @@ export interface WorkReviewResult {
       return JSON.parse(jsonStr);
     } catch (error) {
       console.error('Failed to generate work review:', error);
-      // 生成失败时的兜底数据
-      return {
-        overallScore: 85,
-        culturalFit: { score: 88, details: ["传统文化元素运用得当，体现了深厚的文化底蕴", "与主题契合度高"] },
-        creativity: { score: 82, details: ["构思新颖独特，展现了良好的创新思维", "设计手法具有一定的原创性"] },
-        aesthetics: { score: 85, details: ["色彩搭配和谐，视觉效果出众", "构图稳重而不失灵动"] },
-        suggestions: ["建议进一步丰富细节处理，提升精致度", "可以尝试更多元的配色方案以增强视觉冲击力", "建议考虑不同应用场景的适配性"],
-        commercialPotential: { score: 80, analysis: ["具有一定的市场潜力，适合开发文创周边", "品牌识别度较高"] },
-        highlights: ["文化内涵丰富", "视觉表现力强", "创意独特且富有深意"],
-        recommendedCommercialPaths: [
-          { title: "文化创意产品开发", description: "适合开发各类文化创意周边产品", icon: "gift" },
-          { title: "品牌包装设计", description: "可应用于老字号品牌包装升级", icon: "box" },
-          { title: "数字藏品", description: "具有孵化为数字藏品的潜力", icon: "gem" }
-        ],
-        relatedActivities: [
-          { title: "老字号品牌创新大赛", deadline: "2025-12-31", reward: "最高奖金50,000元" },
-          { title: "国潮文化创意设计营", deadline: "2025-11-30", reward: "专业导师指导 + 展览机会" }
-        ]
-      };
+      // API调用失败时抛出错误，让调用方处理
+      throw new Error('AI点评生成失败，请稍后重试');
     }
   }
 
@@ -2767,6 +2750,88 @@ export interface WorkReviewResult {
         return true;
       default:
         return false;
+    }
+  }
+
+  /**
+   * 生成作品标题和标签
+   * @param description 作品描述
+   * @param contentType 内容类型（image/video）
+   * @returns 生成的标题和标签
+   */
+  async generateTitleAndTags(description: string, contentType: 'image' | 'video' = 'image'): Promise<{ title: string; tags: string[] }> {
+    const prompt = `请根据以下${contentType === 'video' ? '视频' : '图片'}作品描述，生成一个吸引人的标题和5个相关标签。
+
+作品描述：
+${description}
+
+要求：
+1. 标题要简洁有力，不超过20个字，能够概括作品主题
+2. 标签要与作品内容相关，便于分类和搜索
+3. 标签可以从以下类别中选择：
+   - 传统文化：国潮、纹样设计、青花瓷、山水画、民俗、剪纸、刺绣、书法、敦煌、壁画、汉服、旗袍等
+   - 建筑历史：历史建筑、欧式建筑、天津、五大道、洋楼、古建筑、城市风光等
+   - 艺术风格：AI创作、数字艺术、概念设计、插画、海报、油画、水彩、素描等
+   - 色彩氛围：暖色调、冷色调、复古色调、温馨、梦幻、明亮等
+   - 主题内容：风景、人物、动物、植物、花卉、静物、抽象、写实等
+
+请按以下JSON格式返回结果：
+{
+  "title": "生成的标题",
+  "tags": ["标签1", "标签2", "标签3", "标签4", "标签5"]
+}`;
+
+    try {
+      console.log('[LLM] Generating title and tags for:', description.substring(0, 50));
+      
+      const response = await this.callQwenApi([
+        { role: 'user', content: prompt }
+      ]);
+
+      // 解析JSON响应
+      try {
+        console.log('[LLM] Raw response:', response);
+        
+        // 尝试从响应中提取JSON
+        const jsonMatch = response.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const result = JSON.parse(jsonMatch[0]);
+          console.log('[LLM] Parsed result:', result);
+          
+          // 检查 title 和 tags
+          if (result.title) {
+            console.log('[LLM] Title found:', result.title);
+          } else {
+            console.warn('[LLM] No title in response');
+          }
+          
+          if (Array.isArray(result.tags)) {
+            console.log('[LLM] Tags found:', result.tags);
+          } else {
+            console.warn('[LLM] No tags array in response');
+          }
+          
+          // 只要 title 存在就返回，不强制要求 tags 必须是数组
+          if (result.title) {
+            const finalResult = {
+              title: String(result.title).slice(0, 20),
+              tags: Array.isArray(result.tags) ? result.tags.slice(0, 5) : []
+            };
+            console.log('[LLM] Generated:', finalResult);
+            return finalResult;
+          }
+        } else {
+          console.warn('[LLM] No JSON found in response');
+        }
+      } catch (parseError) {
+        console.error('[LLM] Failed to parse response:', parseError);
+      }
+
+      // 如果解析失败，返回默认值
+      throw new Error('Failed to parse AI response');
+    } catch (error) {
+      console.error('[LLM] Generate title and tags error:', error);
+      throw error;
     }
   }
 }

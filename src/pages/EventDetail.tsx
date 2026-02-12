@@ -2,10 +2,12 @@ import { useState, useEffect, useContext } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTheme } from '@/hooks/useTheme';
 import { motion } from 'framer-motion';
-import eventCalendarService, { CulturalEvent } from '@/services/eventCalendarService';
 import { useEventService } from '@/hooks/useEventService';
 import { AuthContext } from '@/contexts/authContext';
+import { eventWorkService } from '@/services/eventWorkService';
 import { toast } from 'sonner';
+import { LayoutGrid, Eye } from 'lucide-react';
+import type { Event } from '@/types';
 
 // 活动详情页面
 export default function EventDetail() {
@@ -13,26 +15,35 @@ export default function EventDetail() {
   const { isDark } = useTheme();
   const navigate = useNavigate();
   const { isAuthenticated, user } = useContext(AuthContext);
-  const { registerForEvent, getEventParticipants } = useEventService();
-  const [event, setEvent] = useState<CulturalEvent | null>(null);
+  const { registerForEvent, getEventParticipants, getEventById } = useEventService();
+  const [event, setEvent] = useState<Event | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRegistering, setIsRegistering] = useState(false);
   const [participants, setParticipants] = useState<any[]>([]);
   const [hasRegistered, setHasRegistered] = useState(false);
+  const [submissionCount, setSubmissionCount] = useState(0);
 
   // 加载活动数据
   useEffect(() => {
-    setIsLoading(true);
+    const loadEvent = async () => {
+      if (!id) return;
+      setIsLoading(true);
+      
+      try {
+        const eventData = await getEventById(id);
+        setEvent(eventData || null);
+      } catch (error) {
+        console.error('加载活动失败:', error);
+        toast.error('加载活动失败');
+      } finally {
+        setIsLoading(false);
+      }
+    };
     
-    // 模拟API请求延迟
-    setTimeout(() => {
-      const eventData = eventCalendarService.getEventById(id!);
-      setEvent(eventData || null);
-      setIsLoading(false);
-    }, 500);
-  }, [id]);
+    loadEvent();
+  }, [id, getEventById]);
   
-  // 加载参与者数据
+  // 加载参与者数据和作品数量
   useEffect(() => {
     if (event) {
       const loadParticipants = async () => {
@@ -45,6 +56,10 @@ export default function EventDetail() {
             const userRegistered = participantsData.some(p => p.userId === user.id);
             setHasRegistered(userRegistered);
           }
+          
+          // 加载作品数量
+          const count = await eventWorkService.getEventSubmissionCount(event.id);
+          setSubmissionCount(count);
         } catch (error) {
           console.error('加载参与者数据失败:', error);
         }
@@ -278,6 +293,36 @@ export default function EventDetail() {
 
           {/* 右侧边栏 */}
           <div className="lg:col-span-1">
+            {/* 查看作品按钮 */}
+            <motion.div
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => navigate(`/events/${id}/works`)}
+              className={`
+                p-6 rounded-2xl shadow-lg cursor-pointer mb-6
+                bg-gradient-to-r from-primary-500 to-primary-600
+                hover:from-primary-600 hover:to-primary-700
+                text-white
+              `}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center">
+                    <LayoutGrid className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-lg">查看作品</h3>
+                    <p className="text-primary-100 text-sm">
+                      {submissionCount > 0 ? `${submissionCount} 个作品` : '暂无作品'}
+                    </p>
+                  </div>
+                </div>
+                <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+                  <Eye className="w-5 h-5" />
+                </div>
+              </div>
+            </motion.div>
+
             {/* 活动信息卡片 */}
             <div className={`p-6 rounded-2xl shadow-lg ${isDark ? 'bg-gray-800' : 'bg-white'} border ${isDark ? 'border-gray-700' : 'border-gray-200'} mb-6`}>
               <h3 className={`text-sm font-medium mb-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>活动信息</h3>

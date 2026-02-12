@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useContext } from 'react';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
@@ -8,6 +8,8 @@ import { llmService } from '../services/llmService';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { workService } from '../services/apiService';
+import { aiReviewService } from '../services/aiReviewService';
+import { AuthContext } from '../contexts/AuthContext';
 
 // Review result type definition
 interface AIReviewResult {
@@ -61,6 +63,7 @@ const AIReview: React.FC<AIReviewProps> = ({ workId, prompt, aiExplanation, sele
   const { theme, isDark } = useTheme();
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { user } = useContext(AuthContext);
   const [reviewResult, setReviewResult] = useState<AIReviewResult | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -68,6 +71,7 @@ const AIReview: React.FC<AIReviewProps> = ({ workId, prompt, aiExplanation, sele
   const [currentTab, setCurrentTab] = useState<'overall' | 'detail' | 'commercial'>('overall');
   const [loadingWorks, setLoadingWorks] = useState(false);
   const [similarWorks, setSimilarWorks] = useState<Array<{id: string; thumbnail: string; title: string}>>([]);
+  const [isSaving, setIsSaving] = useState(false);
   
   // 加载相似作品数据
   useEffect(() => {
@@ -95,39 +99,89 @@ const AIReview: React.FC<AIReviewProps> = ({ workId, prompt, aiExplanation, sele
   useEffect(() => {
     setIsLoading(true);
     setError(null);
-    
+
     const generateReview = async () => {
       try {
         // Prepare creation description based on actual data
         const creationDescription = aiExplanation || prompt || 'This is a design work created on our platform';
-        
+
         // Call LLM service to generate real review
         const reviewData = await llmService.generateWorkReview(prompt || 'General Design', creationDescription);
-        
+
         // 从API获取作品数据，随机选择3个作品作为相似作品
         const fetchSimilarWorks = async () => {
           try {
             const worksData = await workService.getWorks();
             const randomWorks = [...worksData].sort(() => 0.5 - Math.random()).slice(0, 3);
-            
-            setReviewResult({
+
+            const finalReviewResult = {
               ...reviewData,
               similarWorks: randomWorks.map(work => ({
                 id: work.id,
                 thumbnail: work.thumbnailUrl || '',
                 title: work.title
               }))
-            });
+            };
+
+            setReviewResult(finalReviewResult);
+
+            // 保存AI点评记录到数据库
+            if (user?.id) {
+              setIsSaving(true);
+              try {
+                // 获取当前选中作品的缩略图
+                const selectedWork = generatedResults.find(r => r.id === selectedResult);
+                const workThumbnail = selectedWork?.thumbnail || '';
+
+                await aiReviewService.saveAIReview(user.id, {
+                  workId,
+                  prompt: prompt || 'General Design',
+                  aiExplanation: creationDescription,
+                  reviewResult: finalReviewResult,
+                  workThumbnail
+                });
+
+                console.log('AI点评记录已保存');
+              } catch (saveError) {
+                console.error('保存AI点评记录失败:', saveError);
+                // 保存失败不影响用户查看点评结果
+              } finally {
+                setIsSaving(false);
+              }
+            }
           } catch (error) {
             console.error('获取相似作品失败:', error);
             // 如果API调用失败，使用默认的相似作品为空
-            setReviewResult({
+            const finalReviewResult = {
               ...reviewData,
               similarWorks: []
-            });
+            };
+
+            setReviewResult(finalReviewResult);
+
+            // 即使获取相似作品失败，也尝试保存点评记录
+            if (user?.id) {
+              setIsSaving(true);
+              try {
+                const selectedWork = generatedResults.find(r => r.id === selectedResult);
+                const workThumbnail = selectedWork?.thumbnail || '';
+
+                await aiReviewService.saveAIReview(user.id, {
+                  workId,
+                  prompt: prompt || 'General Design',
+                  aiExplanation: creationDescription,
+                  reviewResult: finalReviewResult,
+                  workThumbnail
+                });
+              } catch (saveError) {
+                console.error('保存AI点评记录失败:', saveError);
+              } finally {
+                setIsSaving(false);
+              }
+            }
           }
         };
-        
+
         await fetchSimilarWorks();
       } catch (error) {
         console.error('Failed to generate review:', error);
@@ -136,10 +190,10 @@ const AIReview: React.FC<AIReviewProps> = ({ workId, prompt, aiExplanation, sele
         setIsLoading(false);
       }
     };
-    
+
     // Add a small delay to simulate API call
     generateReview();
-  }, [workId, prompt, aiExplanation, selectedResult, generatedResults, t]);
+  }, [workId, prompt, aiExplanation, selectedResult, generatedResults, t, user?.id]);
   
   const handleApplySuggestion = (suggestion: string) => {
     toast.success(t('review.applySuggestionSuccess'));
@@ -209,80 +263,41 @@ const AIReview: React.FC<AIReviewProps> = ({ workId, prompt, aiExplanation, sele
                 onClick={() => {
                   setIsLoading(true);
                   setError(null);
-                  // Trigger review generation again
-                  setTimeout(() => {
-                    const creationDescription = aiExplanation || prompt || 'This is a design work created on our platform';
-                    const issues = llmService.diagnoseCreationIssues(creationDescription);
-                    const generatedScore = Math.max(70, Math.min(95, Math.floor(Math.random() * 25) + 75));
-                    
-                    // 从API获取作品数据，随机选择3个作品作为相似作品
-                    const fetchSimilarWorks = async () => {
+                  // 重新调用真实API生成点评
+                  const generateReview = async () => {
+                    try {
+                      const creationDescription = aiExplanation || prompt || 'This is a design work created on our platform';
+                      const reviewData = await llmService.generateWorkReview(prompt || 'General Design', creationDescription);
+                      
+                      // 从API获取作品数据，随机选择3个作品作为相似作品
                       try {
                         const worksData = await workService.getWorks();
                         const randomWorks = [...worksData].sort(() => 0.5 - Math.random()).slice(0, 3);
                         
                         setReviewResult({
-                          overallScore: generatedScore,
-                          culturalFit: {
-                            score: Math.max(65, Math.min(95, generatedScore + Math.floor(Math.random() * 10) - 5)),
-                            details: (t('review.culturalFitDetails', { returnObjects: true }) as unknown) as string[]
-                          },
-                          creativity: {
-                            score: Math.max(65, Math.min(95, generatedScore + Math.floor(Math.random() * 10) - 5)),
-                            details: (t('review.creativityDetails', { returnObjects: true }) as unknown) as string[]
-                          },
-                          aesthetics: {
-                            score: Math.max(65, Math.min(95, generatedScore + Math.floor(Math.random() * 10) - 5)),
-                            details: (t('review.aestheticsDetails', { returnObjects: true }) as unknown) as string[]
-                          },
-                          suggestions: issues.length > 0 ? issues : (t('review.suggestions', { returnObjects: true }) as unknown) as string[],
-                          highlights: [],
-                          recommendedCommercialPaths: [],
-                          relatedActivities: [],
-                          commercialPotential: {
-                            score: Math.max(65, Math.min(95, generatedScore + Math.floor(Math.random() * 10) - 5)),
-                            analysis: (t('review.commercialAnalysisDetails', { returnObjects: true }) as unknown) as string[]
-                          },
+                          ...reviewData,
                           similarWorks: randomWorks.map(work => ({
                             id: work.id,
                             thumbnail: work.thumbnailUrl || '',
                             title: work.title
                           }))
                         });
-                      } catch (error) {
-                        console.error('获取相似作品失败:', error);
-                        // 如果API调用失败，使用默认的相似作品
+                      } catch (worksError) {
+                        console.error('获取相似作品失败:', worksError);
                         setReviewResult({
-                          overallScore: generatedScore,
-                          culturalFit: {
-                            score: Math.max(65, Math.min(95, generatedScore + Math.floor(Math.random() * 10) - 5)),
-                            details: (t('review.culturalFitDetails', { returnObjects: true }) as unknown) as string[]
-                          },
-                          creativity: {
-                            score: Math.max(65, Math.min(95, generatedScore + Math.floor(Math.random() * 10) - 5)),
-                            details: (t('review.creativityDetails', { returnObjects: true }) as unknown) as string[]
-                          },
-                          aesthetics: {
-                            score: Math.max(65, Math.min(95, generatedScore + Math.floor(Math.random() * 10) - 5)),
-                            details: (t('review.aestheticsDetails', { returnObjects: true }) as unknown) as string[]
-                          },
-                          suggestions: issues.length > 0 ? issues : (t('review.suggestions', { returnObjects: true }) as unknown) as string[],
-                          highlights: [],
-                          recommendedCommercialPaths: [],
-                          relatedActivities: [],
-                          commercialPotential: {
-                            score: Math.max(65, Math.min(95, generatedScore + Math.floor(Math.random() * 10) - 5)),
-                            analysis: (t('review.commercialAnalysisDetails', { returnObjects: true }) as unknown) as string[]
-                          },
+                          ...reviewData,
                           similarWorks: []
                         });
-                      } finally {
-                        setIsLoading(false);
                       }
-                    };
-                    
-                    fetchSimilarWorks();
-                  }, 800);
+                    } catch (apiError) {
+                      console.error('AI点评生成失败:', apiError);
+                      setError('AI点评服务暂时不可用，请稍后重试');
+                    } finally {
+                      setIsLoading(false);
+                    }
+                  };
+                  
+                  generateReview();
                 }}
                 className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white transition-colors"
               >
@@ -321,7 +336,15 @@ const AIReview: React.FC<AIReviewProps> = ({ workId, prompt, aiExplanation, sele
       >
         {/* 点评头部 */}
         <div className={`p-6 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'} flex justify-between items-center`}>
-          <h3 className="text-xl font-bold">{t('review.aiReview')}</h3>
+          <div className="flex items-center gap-3">
+            <h3 className="text-xl font-bold">{t('review.aiReview')}</h3>
+            {isSaving && (
+              <span className="text-xs text-gray-500 flex items-center gap-1">
+                <i className="fas fa-spinner fa-spin"></i>
+                保存中...
+              </span>
+            )}
+          </div>
           <button 
             onClick={onClose}
             className={`p-2 rounded-full ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} transition-colors`}
@@ -436,20 +459,9 @@ const AIReview: React.FC<AIReviewProps> = ({ workId, prompt, aiExplanation, sele
                       </li>
                     ))
                   ) : (
-                    <>
-                      <li className="flex items-start">
-                        <i className="fas fa-star text-yellow-500 mt-1 mr-2 flex-shrink-0"></i>
-                        <span className="text-sm">文化元素融入自然，展现了深厚的文化底蕴</span>
-                      </li>
-                      <li className="flex items-start">
-                        <i className="fas fa-star text-yellow-500 mt-1 mr-2 flex-shrink-0"></i>
-                        <span className="text-sm">设计风格现代与传统完美结合，符合当下国潮趋势</span>
-                      </li>
-                      <li className="flex items-start">
-                        <i className="fas fa-star text-yellow-500 mt-1 mr-2 flex-shrink-0"></i>
-                        <span className="text-sm">视觉层次分明，色彩搭配和谐统一</span>
-                      </li>
-                    </>
+                    <li className="text-sm text-gray-500 italic">
+                      暂无亮点数据
+                    </li>
                   )}
                 </ul>
               </div>
@@ -686,21 +698,21 @@ const AIReview: React.FC<AIReviewProps> = ({ workId, prompt, aiExplanation, sele
               <div className={`p-5 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-50'} mb-6`}>
                 <h5 className="font-medium mb-3">{t('review.recommendedCommercialPaths')}</h5>
                 <div className="space-y-3">
-                  {(reviewResult.recommendedCommercialPaths && reviewResult.recommendedCommercialPaths.length > 0 ? reviewResult.recommendedCommercialPaths : [
-                    { title: t('review.culturalCreativeProduct'), icon: 'gift', description: t('review.culturalCreativeProductDesc') },
-                    { title: t('review.brandPackaging'), icon: 'box', description: t('review.brandPackagingDesc') },
-                    { title: t('review.digitalCollectibles'), icon: 'gem', description: t('review.digitalCollectiblesDesc') }
-                  ]).map((path, index) => (
-                    <div key={index} className="flex items-start p-3 rounded-lg bg-white bg-opacity-10">
-                      <div className="w-8 h-8 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center mr-3 flex-shrink-0">
-                        <i className={`fas fa-${path.icon}`}></i>
+                  {reviewResult.recommendedCommercialPaths && reviewResult.recommendedCommercialPaths.length > 0 ? (
+                    reviewResult.recommendedCommercialPaths.map((path, index) => (
+                      <div key={index} className="flex items-start p-3 rounded-lg bg-white bg-opacity-10">
+                        <div className="w-8 h-8 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center mr-3 flex-shrink-0">
+                          <i className={`fas fa-${path.icon}`}></i>
+                        </div>
+                        <div>
+                          <h6 className="font-medium">{path.title}</h6>
+                          <p className="text-xs opacity-80">{path.description}</p>
+                        </div>
                       </div>
-                      <div>
-                        <h6 className="font-medium">{path.title}</h6>
-                        <p className="text-xs opacity-80">{path.description}</p>
-                      </div>
-                    </div>
-                  ))}
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500 italic">暂无商业化路径推荐</p>
+                  )}
                 </div>
               </div>
               
@@ -708,41 +720,32 @@ const AIReview: React.FC<AIReviewProps> = ({ workId, prompt, aiExplanation, sele
               <div className="mb-6">
                 <h5 className="font-medium mb-3">{t('review.relatedActivities')}</h5>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {(reviewResult.relatedActivities && reviewResult.relatedActivities.length > 0 ? reviewResult.relatedActivities : [
-                    { 
-                      title: t('review.timeHonoredBrandCompetition'), 
-                      deadline: t('review.timeHonoredBrandCompetitionDeadline'), 
-                      reward: t('review.timeHonoredBrandCompetitionReward'),
-
-                    },
-                    { 
-                      title: t('review.nationalTrendDesignCamp'), 
-                      deadline: t('review.nationalTrendDesignCampDeadline'), 
-                      reward: t('review.nationalTrendDesignCampReward'),
-
-                    }
-                  ]).map((activity, index) => (
-                    <div key={index} className={`rounded-lg overflow-hidden ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
-                      <div className="flex">
-                        <LazyImage 
-                          src={activity.image || `https://source.unsplash.com/random/200x200?sig=${index}`} 
-                          alt={activity.title} 
-                          className="w-24 h-24 object-cover"
-                          ratio="square"
-                          fit="cover"
-                        />
-                        <div className="p-3 flex-1">
-                          <h6 className="font-medium mb-1">{activity.title}</h6>
-                          <div className="text-xs opacity-80 mb-1">
-                            {activity.deadline}
-                          </div>
-                          <div className="text-xs font-medium text-red-600">
-                            {activity.reward}
+                  {reviewResult.relatedActivities && reviewResult.relatedActivities.length > 0 ? (
+                    reviewResult.relatedActivities.map((activity, index) => (
+                      <div key={index} className={`rounded-lg overflow-hidden ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                        <div className="flex">
+                          <LazyImage 
+                            src={activity.image || `https://source.unsplash.com/random/200x200?sig=${index}`} 
+                            alt={activity.title} 
+                            className="w-24 h-24 object-cover"
+                            ratio="square"
+                            fit="cover"
+                          />
+                          <div className="p-3 flex-1">
+                            <h6 className="font-medium mb-1">{activity.title}</h6>
+                            <div className="text-xs opacity-80 mb-1">
+                              {activity.deadline}
+                            </div>
+                            <div className="text-xs font-medium text-red-600">
+                              {activity.reward}
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500 italic col-span-2">暂无相关活动推荐</p>
+                  )}
                 </div>
               </div>
             </div>

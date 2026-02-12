@@ -12,6 +12,7 @@ import { llmService } from '@/services/llmService';
 import { TianjinImage, TianjinButton, YangliuqingCard } from '@/components/TianjinStyleComponents';
 import AISuggestionBox from '@/components/AISuggestionBox';
 import { toast } from 'sonner';
+import { ExternalLink } from 'lucide-react';
 
 import { 
   TEMPLATES, 
@@ -177,7 +178,27 @@ export default function Wizard() {
     
     reset();
     navigate('/square');
-    toast.success('作品发布成功！');
+    toast.success(
+      <div className="flex items-center justify-between gap-6">
+        <div className="flex items-center gap-2">
+          <span className="font-medium text-emerald-700">作品发布成功</span>
+          <span className="text-emerald-500">✓</span>
+        </div>
+        <button
+          onClick={() => {
+            window.open('/square', '_blank');
+          }}
+          className="text-xs px-3 py-1.5 rounded-full bg-gradient-to-r from-[#C02C38] to-[#D64545] text-white hover:shadow-lg hover:scale-105 transition-all duration-200 flex items-center gap-1 font-medium whitespace-nowrap"
+        >
+          <ExternalLink className="w-3 h-3" />
+          去广场查看
+        </button>
+      </div>,
+      {
+        duration: 5000,
+        className: 'bg-emerald-50 border-emerald-200'
+      }
+    );
   };
 
   const runAIHelp = async () => {

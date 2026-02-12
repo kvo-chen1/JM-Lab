@@ -6,7 +6,7 @@ import { AuthContext } from '@/contexts/authContext';
 import { toast } from 'sonner';
 import { Event, EventCreateRequest } from '@/types';
 import { useEventService } from '@/hooks/useEventService';
-import { eventService } from '@/services/eventService';
+// import { eventService } from '@/services/eventService'; // 使用 useEventService hook 替代
 import { brandPartnershipService, BrandPartnership } from '@/services/brandPartnershipService';
 import WorkScoring from './organizer/WorkScoring';
 import AnalyticsDashboard from './organizer/AnalyticsDashboard';
@@ -82,7 +82,7 @@ export default function OrganizerCenter() {
   const { isDark } = useTheme();
   const { isAuthenticated, user } = useContext(AuthContext);
   const navigate = useNavigate();
-  const { getEvents, getUserEvents, deleteEvent } = useEventService();
+  const { getEvents, getUserEvents, deleteEvent, createEvent, updateEvent } = useEventService();
 
   // 品牌验证状态
   const [verifiedBrand, setVerifiedBrand] = useState<BrandPartnership | null>(null);
@@ -194,17 +194,16 @@ export default function OrganizerCenter() {
 
       if (user?.isAdmin) {
         console.log('fetchEvents - 使用管理员权限获取所有活动');
-        const result = await eventService.getAllEvents({
+        eventsData = await getEvents({
           status: statusFilter === 'all' ? undefined : statusFilter,
           page: currentPage,
           limit: pageSize,
-        });
-        eventsData = result.events || [];
+        }) || [];
         console.log('fetchEvents - 管理员获取到活动数:', eventsData.length);
       } else {
-        // 直接使用 eventService 获取用户活动
+        // 直接使用 getUserEvents 获取用户活动
         console.log('fetchEvents - 使用用户ID获取活动:', user.id);
-        eventsData = await eventService.getUserEvents(user?.id || '', {
+        eventsData = await getUserEvents(user?.id || '', {
           status: statusFilter === 'all' ? undefined : statusFilter,
         }) || [];
         console.log('fetchEvents - 获取到活动数:', eventsData.length, '活动列表:', eventsData);
@@ -212,7 +211,7 @@ export default function OrganizerCenter() {
         // 如果没有找到活动且存在品牌验证，再尝试按品牌查询
         if (eventsData.length === 0 && verifiedBrand?.id) {
           console.log('fetchEvents - 未找到活动，尝试按品牌查询:', verifiedBrand.id);
-          eventsData = await eventService.getUserEvents(user?.id || '', {
+          eventsData = await getUserEvents(user?.id || '', {
             status: statusFilter === 'all' ? undefined : statusFilter,
             brandId: verifiedBrand.id,
           }) || [];
@@ -229,8 +228,10 @@ export default function OrganizerCenter() {
       }
 
       setEvents(eventsData);
-    } catch (error) {
-      toast.error('获取活动列表失败，请稍后重试');
+    } catch (error: any) {
+      console.error('[OrganizerCenter] 获取活动列表失败:', error);
+      console.error('[OrganizerCenter] 错误详情:', error.message, error.stack);
+      toast.error('获取活动列表失败: ' + (error.message || '请稍后重试'));
     } finally {
       setIsLoading(false);
     }
@@ -453,9 +454,9 @@ export default function OrganizerCenter() {
 
       let event;
       if (eventId) {
-        event = await eventService.updateEvent(eventId, eventData);
+        event = await updateEvent(eventId, eventData);
       } else {
-        event = await eventService.createEvent(eventData);
+        event = await createEvent(eventData);
       }
 
       if (!event || !event.id) throw new Error('活动创建失败');

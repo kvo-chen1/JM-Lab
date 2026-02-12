@@ -6,6 +6,7 @@ export interface GeneratedResult {
   score?: number;
   video?: string;
   type?: 'image' | 'video';
+  _tempFile?: File; // 本地临时文件，发布时上传
 }
 
 export interface TraditionalPattern {

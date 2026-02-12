@@ -3,10 +3,11 @@ import { useTheme } from '@/hooks/useTheme';
 import { useCreateStore } from '../../hooks/useCreateStore';
 import { aiFilters } from '../../data';
 import { motion } from 'framer-motion';
+import { toast } from 'sonner';
 
 export default function FilterPanel() {
   const { isDark } = useTheme();
-  const { selectedFilterId, filterIntensity, updateState, selectedResult } = useCreateStore();
+  const { selectedFilterId, filterIntensity, updateState, selectedResult, generatedResults } = useCreateStore();
   const [isApplying, setIsApplying] = useState(false);
   const [realTimePreview, setRealTimePreview] = useState(true);
 
@@ -26,13 +27,19 @@ export default function FilterPanel() {
   // 应用滤镜
   const handleApplyFilter = async () => {
     if (!selectedFilter) return;
-    
+
+    // 检查是否有生成作品
+    if (generatedResults.length === 0) {
+      toast.error('请先生成作品后再应用滤镜');
+      return;
+    }
+
     setIsApplying(true);
-    
+
     try {
       // 模拟API调用，生成应用滤镜的图片
       await new Promise(resolve => setTimeout(resolve, 1500));
-      
+
       updateState({
         aiExplanation: `已成功将「${selectedFilter.name}」滤镜应用到您的作品，强度为${filterIntensity}%`,
         showAIReview: true

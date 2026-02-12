@@ -1,6 +1,6 @@
 /**
- * 连接线组件
- * 渲染思维导图中节点之间的连接线，支持天津风格动画
+ * 连接线组件 - 升级版
+ * 渲染思维导图中节点之间的连接线，支持流畅的动画效果
  */
 
 import React from 'react';
@@ -13,6 +13,7 @@ interface ConnectionLineProps {
   theme?: 'tianjin' | 'modern' | 'minimal';
   isDark?: boolean;
   animated?: boolean;
+  isHighlighted?: boolean;
 }
 
 export default function ConnectionLine({
@@ -21,8 +22,9 @@ export default function ConnectionLine({
   theme = 'tianjin',
   isDark = false,
   animated = true,
+  isHighlighted = false,
 }: ConnectionLineProps) {
-  // 计算路径
+  // 计算路径 - 使用更优雅的贝塞尔曲线
   const calculatePath = () => {
     const startX = from.x;
     const startY = from.y + 40; // 从父节点底部开始
@@ -30,13 +32,15 @@ export default function ConnectionLine({
     const endY = to.y - 40; // 到子节点顶部结束
     
     // 控制点，用于贝塞尔曲线
-    const controlY = (startY + endY) / 2;
+    const deltaY = Math.abs(endY - startY);
+    const controlY1 = startY + deltaY * 0.5;
+    const controlY2 = endY - deltaY * 0.5;
     
     // 天津风格：使用更优雅的曲线
     if (theme === 'tianjin') {
       return `M ${startX} ${startY} 
-              C ${startX} ${controlY}, 
-                ${endX} ${controlY}, 
+              C ${startX} ${controlY1}, 
+                ${endX} ${controlY2}, 
                 ${endX} ${endY}`;
     }
     
@@ -46,15 +50,19 @@ export default function ConnectionLine({
   
   // 获取线条颜色
   const getStrokeColor = () => {
+    if (isHighlighted) {
+      return isDark ? 'rgba(212, 165, 116, 1)' : 'rgba(212, 165, 116, 1)';
+    }
     if (theme === 'tianjin') {
-      return isDark ? 'rgba(212, 165, 116, 0.6)' : 'rgba(212, 165, 116, 0.8)';
+      return isDark ? 'rgba(212, 165, 116, 0.5)' : 'rgba(212, 165, 116, 0.7)';
     }
     return isDark ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.2)';
   };
   
   // 获取线条宽度
   const getStrokeWidth = () => {
-    if (theme === 'tianjin') return 3;
+    if (isHighlighted) return 4;
+    if (theme === 'tianjin') return 2.5;
     return 2;
   };
   
@@ -63,14 +71,33 @@ export default function ConnectionLine({
   const strokeWidth = getStrokeWidth();
   
   return (
-    <g>
+    <g className="connection-line">
       {/* 背景线（用于增加可点击区域） */}
       <motion.path
         d={path}
         fill="none"
         stroke="transparent"
-        strokeWidth={strokeWidth + 10}
+        strokeWidth={strokeWidth + 15}
         className="cursor-pointer"
+      />
+      
+      {/* 阴影线 - 增加深度感 */}
+      <motion.path
+        d={path}
+        fill="none"
+        stroke={isDark ? 'rgba(0, 0, 0, 0.3)' : 'rgba(0, 0, 0, 0.1)'}
+        strokeWidth={strokeWidth + 2}
+        strokeLinecap="round"
+        style={{ 
+          filter: 'blur(2px)',
+          transform: 'translateY(2px)',
+        }}
+        initial={animated ? { pathLength: 0, opacity: 0 } : false}
+        animate={{ pathLength: 1, opacity: 1 }}
+        transition={{
+          pathLength: { duration: 0.6, ease: "easeInOut" },
+          opacity: { duration: 0.3 },
+        }}
       />
       
       {/* 主线条 */}
@@ -88,53 +115,110 @@ export default function ConnectionLine({
         }}
       />
       
-      {/* 天津风格：添加流动动画效果 */}
-      {theme === 'tianjin' && animated && (
+      {/* 流动动画效果 - 能量流动 */}
+      {animated && (
         <motion.path
           d={path}
           fill="none"
-          stroke={isDark ? 'rgba(212, 165, 116, 0.4)' : 'rgba(212, 165, 116, 0.6)'}
-          strokeWidth={strokeWidth - 1}
+          stroke={isDark ? 'rgba(255, 255, 255, 0.6)' : 'rgba(255, 255, 255, 0.8)'}
+          strokeWidth={strokeWidth * 0.6}
           strokeLinecap="round"
-          strokeDasharray="10 20"
-          initial={{ strokeDashoffset: 0 }}
-          animate={{ strokeDashoffset: -30 }}
+          strokeDasharray="8 24"
+          initial={{ strokeDashoffset: 0, opacity: 0 }}
+          animate={{ 
+            strokeDashoffset: -32, 
+            opacity: [0, 1, 1, 0],
+          }}
           transition={{
-            duration: 2,
-            repeat: Infinity,
-            ease: "linear",
+            strokeDashoffset: {
+              duration: 1.5,
+              repeat: Infinity,
+              ease: "linear",
+            },
+            opacity: {
+              duration: 1.5,
+              repeat: Infinity,
+              times: [0, 0.1, 0.9, 1],
+            },
           }}
         />
       )}
       
-      {/* 连接点（天津风格） */}
-      {theme === 'tianjin' && (
-        <>
-          {/* 起点 */}
-          <motion.circle
-            cx={from.x}
-            cy={from.y + 40}
-            r={4}
-            fill={isDark ? '#1a1a2e' : '#ffffff'}
-            stroke={strokeColor}
-            strokeWidth={2}
-            initial={animated ? { scale: 0 } : false}
-            animate={{ scale: 1 }}
-            transition={{ delay: 0.3, duration: 0.2 }}
-          />
-          
-          {/* 终点 */}
-          <motion.circle
-            cx={to.x}
-            cy={to.y - 40}
-            r={4}
-            fill={strokeColor}
-            initial={animated ? { scale: 0 } : false}
-            animate={{ scale: 1 }}
-            transition={{ delay: 0.5, duration: 0.2 }}
-          />
-        </>
+      {/* 高亮时的脉冲效果 */}
+      {isHighlighted && animated && (
+        <motion.path
+          d={path}
+          fill="none"
+          stroke={strokeColor}
+          strokeWidth={strokeWidth + 4}
+          strokeLinecap="round"
+          initial={{ opacity: 0.8, pathLength: 0 }}
+          animate={{ opacity: 0, pathLength: 1 }}
+          transition={{
+            duration: 1,
+            repeat: Infinity,
+            ease: "easeOut",
+          }}
+        />
       )}
+      
+      {/* 连接点 */}
+      <>
+        {/* 起点 */}
+        <motion.circle
+          cx={from.x}
+          cy={from.y + 40}
+          r={isHighlighted ? 5 : 3}
+          fill={isDark ? '#1a1a2e' : '#ffffff'}
+          stroke={strokeColor}
+          strokeWidth={2}
+          initial={animated ? { scale: 0, opacity: 0 } : false}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ delay: 0.3, duration: 0.2 }}
+        />
+        
+        {/* 起点光晕 */}
+        <motion.circle
+          cx={from.x}
+          cy={from.y + 40}
+          r={isHighlighted ? 10 : 6}
+          fill={strokeColor}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: [0, 0.3, 0] }}
+          transition={{
+            duration: 2,
+            repeat: Infinity,
+            ease: "easeInOut",
+          }}
+        />
+        
+        {/* 终点 */}
+        <motion.circle
+          cx={to.x}
+          cy={to.y - 40}
+          r={isHighlighted ? 5 : 3}
+          fill={strokeColor}
+          initial={animated ? { scale: 0, opacity: 0 } : false}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ delay: 0.5, duration: 0.2 }}
+        />
+        
+        {/* 终点光晕 */}
+        <motion.circle
+          cx={to.x}
+          cy={to.y - 40}
+          r={isHighlighted ? 10 : 6}
+          fill={strokeColor}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: [0, 0.3, 0] }}
+          transition={{
+            duration: 2,
+            repeat: Infinity,
+            ease: "easeInOut",
+            delay: 0.5,
+          }}
+        />
+      </>
     </g>
   );
 }

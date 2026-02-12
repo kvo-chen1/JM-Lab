@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useCreateStore } from '../../hooks/useCreateStore';
+import { toast } from 'sonner';
 
 // 定义Mockup类型
 interface MockupTemplate {
@@ -125,7 +126,7 @@ const mockupTemplates: MockupTemplate[] = [
 
 const MockupPanel: React.FC = () => {
   const { isDark } = useTheme();
-  const { updateState, mockupSelectedTemplateId, mockupShowWireframe } = useCreateStore();
+  const { updateState, mockupSelectedTemplateId, mockupShowWireframe, generatedResults } = useCreateStore();
 
   // Derive selectedMockup from ID
   const selectedMockup = React.useMemo(() => 
@@ -167,6 +168,12 @@ const MockupPanel: React.FC = () => {
   // 应用Mockup
   const handleApplyMockup = () => {
     if (!selectedMockup) return;
+    
+    // 检查是否有生成作品
+    if (generatedResults.length === 0) {
+      toast.error('请先生成作品后再应用模型');
+      return;
+    }
     
     setIsApplying(true);
     

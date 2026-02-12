@@ -11,6 +11,7 @@ import { useTheme } from '@/hooks/useTheme';
 import NodeRenderer from './NodeRenderer';
 import ConnectionLine from './ConnectionLine';
 import MiniMap from './MiniMap';
+import EmptyStateGuide from './EmptyStateGuide';
 import type { MindNode, NodePosition } from './types';
 
 interface MindMapCanvasProps {
@@ -19,6 +20,8 @@ interface MindMapCanvasProps {
   selectedNodeId: string | null;
   onNodeClick?: (nodeId: string) => void;
   onCanvasClick?: () => void;
+  onAddNode?: (category: 'inspiration' | 'culture' | 'ai_generate') => void;
+  onOpenBrandPanel?: () => void;
   readonly?: boolean;
   theme?: 'tianjin' | 'modern' | 'minimal';
   className?: string;
@@ -37,6 +40,8 @@ export default function MindMapCanvas({
   selectedNodeId,
   onNodeClick,
   onCanvasClick,
+  onAddNode,
+  onOpenBrandPanel,
   readonly = false,
   theme = 'tianjin',
   className = '',
@@ -299,6 +304,14 @@ export default function MindMapCanvas({
           {nodes.length} 个节点
         </p>
       </div>
+
+      {/* 空状态引导 */}
+      {nodes.length === 0 && onAddNode && onOpenBrandPanel && (
+        <EmptyStateGuide
+          onAddNode={onAddNode}
+          onOpenBrandPanel={onOpenBrandPanel}
+        />
+      )}
     </div>
   );
 }

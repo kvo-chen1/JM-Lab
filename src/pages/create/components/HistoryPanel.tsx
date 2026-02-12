@@ -1,18 +1,34 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState, useContext } from 'react';
 import { createPortal } from 'react-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useCreateStore } from '@/pages/create/hooks/useCreateStore';
 import { useTheme } from '@/hooks/useTheme';
+import { aiReviewService } from '@/services/aiReviewService';
+import { AuthContext } from '@/contexts/authContext';
 
 export default function HistoryPanel({ onClose }: { onClose: () => void }) {
   const { isDark } = useTheme();
-  const generatedResults = useCreateStore((state) => state.generatedResults);
+  const { user } = useContext(AuthContext);
   const setGeneratedResults = useCreateStore((state) => state.setGeneratedResults);
   const setSelectedResult = useCreateStore((state) => state.setSelectedResult);
   const setPrompt = useCreateStore((state) => state.setPrompt);
   const [drafts, setDrafts] = useState<any[]>([]);
   const [history, setHistory] = useState<any[]>([]);
-  const [activeTab, setActiveTab] = useState<'session' | 'drafts' | 'history'>('session');
+  const [aiReviews, setAiReviews] = useState<Array<{
+    id: string;
+    workId: string;
+    prompt: string;
+    overallScore: number;
+    culturalFitScore: number;
+    creativityScore: number;
+    aestheticsScore: number;
+    commercialPotentialScore?: number;
+    highlights: string[];
+    workThumbnail?: string;
+    createdAt: string;
+  }>>([]);
+  const [isLoadingReviews, setIsLoadingReviews] = useState(false);
+  const [activeTab, setActiveTab] = useState<'aiReviews' | 'drafts' | 'history'>('aiReviews');
 
   useEffect(() => {
     console.log('[HistoryPanel] Component mounted');
@@ -50,15 +66,29 @@ export default function HistoryPanel({ onClose }: { onClose: () => void }) {
     }
   }, []);
 
-  // Debug: log generated results
+  // 加载AI点评记录
   useEffect(() => {
-    console.log('Generated results:', generatedResults);
-  }, [generatedResults]);
+    const loadAIReviews = async () => {
+      if (!user?.id) return;
+      
+      setIsLoadingReviews(true);
+      try {
+        const response = await aiReviewService.getUserAIReviews(user.id, 20, 0);
+        console.log('[HistoryPanel] Loaded AI reviews:', response.reviews.length);
+        setAiReviews(response.reviews);
+      } catch (error) {
+        console.error('[HistoryPanel] Failed to load AI reviews:', error);
+      } finally {
+        setIsLoadingReviews(false);
+      }
+    };
 
-  const handleSelectResult = (id: number) => {
-    setSelectedResult(id);
-    onClose();
-  };
+    loadAIReviews();
+  }, [user?.id]);
+
+
+
+
 
   const handleSelectHistory = (historyItem: any) => {
     // 从历史记录中恢复创作
@@ -115,10 +145,10 @@ export default function HistoryPanel({ onClose }: { onClose: () => void }) {
         {/* Tabs */}
         <div className="flex border-b border-gray-200 dark:border-gray-700">
           <button
-            onClick={() => setActiveTab('session')}
-            className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'session' ? (isDark ? 'border-blue-500 text-blue-400' : 'border-blue-600 text-blue-600') : (isDark ? 'border-transparent text-gray-400 hover:text-gray-200' : 'border-transparent text-gray-500 hover:text-gray-700')}`}
+            onClick={() => setActiveTab('aiReviews')}
+            className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'aiReviews' ? (isDark ? 'border-blue-500 text-blue-400' : 'border-blue-600 text-blue-600') : (isDark ? 'border-transparent text-gray-400 hover:text-gray-200' : 'border-transparent text-gray-500 hover:text-gray-700')}`}
           >
-            本次创作 ({generatedResults.length})
+            AI点评 ({aiReviews.length})
           </button>
           <button
             onClick={() => setActiveTab('history')}
@@ -136,51 +166,62 @@ export default function HistoryPanel({ onClose }: { onClose: () => void }) {
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-4">
-          {activeTab === 'session' ? (
-            generatedResults.length > 0 ? (
-              <div className="grid grid-cols-2 gap-3">
-                {generatedResults.map((result) => (
-                  <button
-                    key={result.id}
-                    onClick={() => handleSelectResult(result.id)}
-                    className="relative aspect-square rounded-xl overflow-hidden group border border-transparent hover:border-blue-500 transition-all bg-gray-100 dark:bg-gray-800"
+          {activeTab === 'aiReviews' ? (
+            isLoadingReviews ? (
+              <div className="flex flex-col items-center justify-center h-40 text-gray-400">
+                <i className="fas fa-spinner fa-spin text-4xl mb-3 opacity-50"></i>
+                <p>加载中...</p>
+              </div>
+            ) : aiReviews.length > 0 ? (
+              <div className="space-y-3">
+                {aiReviews.map((review) => (
+                  <div
+                    key={review.id}
+                    className={`w-full p-3 rounded-xl border flex gap-3 transition-all ${isDark ? 'bg-gray-800 border-gray-700 hover:border-gray-600' : 'bg-gray-50 border-gray-200 hover:border-gray-300'}`}
                   >
-                    {result.type === 'video' || result.video ? (
-                      <>
+                    <div className="relative w-24 h-24 flex-shrink-0 rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                      {review.workThumbnail ? (
                         <img 
-                          src={result.thumbnail || 'https://via.placeholder.com/150?text=Video'} 
+                          src={review.workThumbnail} 
                           alt="" 
                           className="w-full h-full object-cover"
                           onError={(e) => {
-                            (e.target as HTMLImageElement).src = 'https://via.placeholder.com/150?text=Video';
+                            (e.target as HTMLImageElement).src = 'https://via.placeholder.com/150?text=No+Image';
                           }}
                         />
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/40">
-                          <i className="fas fa-play-circle text-white text-2xl"></i>
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <i className="fas fa-magic text-gray-400 text-2xl"></i>
                         </div>
-                        <div className="absolute bottom-1 right-1">
-                          <span className="text-[8px] px-1 py-0.5 rounded bg-black/60 text-white">
-                            <i className="fas fa-video"></i>
-                          </span>
-                        </div>
-                      </>
-                    ) : (
-                      <img 
-                        src={result.thumbnail || 'https://via.placeholder.com/150?text=No+Image'} 
-                        alt="" 
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src = 'https://via.placeholder.com/150?text=No+Image';
-                        }}
-                      />
-                    )}
-                  </button>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-sm font-medium line-clamp-1 ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>
+                        {review.prompt || '无提示词'}
+                      </p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${isDark ? 'bg-yellow-900/30 text-yellow-400' : 'bg-yellow-100 text-yellow-600'}`}>
+                          <i className="fas fa-star mr-1"></i>
+                          {review.overallScore}分
+                        </span>
+                        <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                          {new Date(review.createdAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                      {review.highlights && review.highlights.length > 0 && (
+                        <p className={`text-xs line-clamp-1 mt-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                          {review.highlights[0]}
+                        </p>
+                      )}
+                    </div>
+                  </div>
                 ))}
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center h-40 text-gray-400">
-                <i className="fas fa-image text-4xl mb-3 opacity-30"></i>
-                <p>暂无本次创作记录</p>
+                <i className="fas fa-magic text-4xl mb-3 opacity-30"></i>
+                <p>暂无AI点评记录</p>
+                <p className="text-xs mt-1 opacity-60">生成作品后点击AI点评即可保存</p>
               </div>
             )
           ) : activeTab === 'history' ? (
@@ -203,20 +244,28 @@ export default function HistoryPanel({ onClose }: { onClose: () => void }) {
                     <div className="relative w-24 h-24 flex-shrink-0 rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
                       {item.type === 'video' || item.video ? (
                         <>
-                          {item.thumbnail ? (
+                          {/* 对于视频，直接显示视频播放器 */}
+                          {item.video ? (
+                            <video 
+                              src={item.video}
+                              className="w-full h-full object-cover absolute inset-0"
+                              preload="metadata"
+                              muted
+                              playsInline
+                              onMouseEnter={(e) => (e.target as HTMLVideoElement).play()}
+                              onMouseLeave={(e) => (e.target as HTMLVideoElement).pause()}
+                            />
+                          ) : item.thumbnail ? (
                             <img 
                               src={item.thumbnail} 
                               alt="" 
                               className="w-full h-full object-cover absolute inset-0"
-                              onError={(e) => {
-                                (e.target as HTMLImageElement).style.display = 'none';
-                              }}
                             />
                           ) : null}
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/40 z-10">
-                            <i className="fas fa-play-circle text-white text-3xl"></i>
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/20 z-10 pointer-events-none">
+                            <i className="fas fa-play-circle text-white text-2xl"></i>
                           </div>
-                          <div className="absolute bottom-1 right-1 z-10">
+                          <div className="absolute bottom-1 right-1 z-10 pointer-events-none">
                             <span className="text-[10px] px-1.5 py-0.5 rounded bg-black/60 text-white">
                               <i className="fas fa-video mr-1"></i>视频
                             </span>
@@ -262,31 +311,60 @@ export default function HistoryPanel({ onClose }: { onClose: () => void }) {
           ) : (
             drafts.length > 0 ? (
               <div className="grid grid-cols-2 gap-3">
-                {drafts.map((draft) => (
-                  <button
-                    key={draft.id}
-                    className="relative aspect-square rounded-xl overflow-hidden group border border-transparent hover:border-blue-500 transition-all bg-gray-100 dark:bg-gray-800"
-                  >
-                    {draft.generatedResults && draft.generatedResults.length > 0 ? (
-                      <img 
-                        src={draft.generatedResults[0].thumbnail || 'https://via.placeholder.com/150?text=No+Image'} 
-                        alt="" 
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src = 'https://via.placeholder.com/150?text=No+Image';
-                        }}
-                      />
-                    ) : (
-                      <div className="w-full h-full flex flex-col items-center justify-center text-gray-400">
-                        <i className="fas fa-image text-3xl mb-2"></i>
-                        <span className="text-xs">无预览</span>
+                {drafts.map((draft) => {
+                  const firstResult = draft.generatedResults?.[0];
+                  const isVideo = firstResult?.type === 'video' || firstResult?.video;
+                  
+                  return (
+                    <button
+                      key={draft.id}
+                      className="relative aspect-square rounded-xl overflow-hidden group border border-transparent hover:border-blue-500 transition-all bg-gray-100 dark:bg-gray-800"
+                    >
+                      {firstResult ? (
+                        isVideo ? (
+                          <>
+                            <video 
+                              src={firstResult.video || firstResult.thumbnail}
+                              className="w-full h-full object-cover"
+                              preload="metadata"
+                              muted
+                              playsInline
+                              onMouseEnter={(e) => (e.target as HTMLVideoElement).play()}
+                              onMouseLeave={(e) => (e.target as HTMLVideoElement).pause()}
+                            />
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/20 pointer-events-none">
+                              <div className="w-10 h-10 rounded-full bg-white/90 flex items-center justify-center">
+                                <i className="fas fa-play text-[#C02C38] text-sm ml-0.5"></i>
+                              </div>
+                            </div>
+                            <div className="absolute bottom-1 right-1 pointer-events-none">
+                              <span className="text-[8px] px-1.5 py-0.5 rounded bg-black/60 text-white">
+                                <i className="fas fa-video"></i>
+                              </span>
+                            </div>
+                          </>
+                        ) : (
+                          <img 
+                            src={firstResult.thumbnail || 'https://via.placeholder.com/150?text=No+Image'} 
+                            alt="" 
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = 'https://via.placeholder.com/150?text=No+Image';
+                            }}
+                          />
+                        )
+                      ) : (
+                        <div className="w-full h-full flex flex-col items-center justify-center text-gray-400">
+                          <i className="fas fa-image text-3xl mb-2"></i>
+                          <span className="text-xs">无预览</span>
+                        </div>
+                      )}
+                      <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/60 to-transparent">
+                        <h3 className="text-white text-xs font-medium truncate">{draft.name || '未命名'}</h3>
                       </div>
-                    )}
-                    <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/60 to-transparent">
-                      <h3 className="text-white text-xs font-medium truncate">{draft.name || '未命名'}</h3>
-                    </div>
-                  </button>
-                ))}
+                    </button>
+                  );
+                })}
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center h-40 text-gray-400">

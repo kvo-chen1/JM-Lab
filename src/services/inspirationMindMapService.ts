@@ -1,6 +1,6 @@
 /**
  * 灵感脉络服务
- * 管理创作脉络的完整生命周期
+ * 管理创作脉络的完整生命周期 - 使用 Supabase 数据库存储
  * 
  * 功能说明：
  * - 创作脉络的CRUD操作
@@ -10,7 +10,7 @@
  * - 分享与导出功能
  */
 
-import { supabase } from '@/lib/supabase';
+import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { llmService } from './llmService';
 import type { 
   MindNode, 
@@ -62,6 +62,12 @@ export class InspirationMindMapService {
     return InspirationMindMapService.instance;
   }
 
+  // 获取当前用户ID
+  private async getCurrentUserId(): Promise<string | null> {
+    const { data: { user } } = await supabase.auth.getUser();
+    return user?.id || null;
+  }
+
   // ============================================
   // 脉络管理
   // ============================================
@@ -75,15 +81,12 @@ export class InspirationMindMapService {
     brandId?: string
   ): Promise<CreationMindMap> {
     const now = Date.now();
-    const mapId = `map-${now}`;
     
-    const mindMap: CreationMindMap = {
-      id: mapId,
-      userId,
+    const mindMapData = {
+      user_id: userId,
       title,
       description: '',
-      nodes: [],
-      layoutType: 'tree',
+      layout_type: 'tree',
       settings: {
         layoutType: 'tree',
         theme: 'tianjin',
@@ -99,27 +102,59 @@ export class InspirationMindMapService {
         cultureNodes: 0,
         lastActivityAt: now,
       },
-      isPublic: false,
-      createdAt: now,
-      updatedAt: now,
+      tags: [],
+      is_public: false,
     };
 
-    // 保存到本地存储
-    this.saveToLocalStorage(mindMap);
-    
-    return mindMap;
+    const { data, error } = await supabaseAdmin
+      .from('inspiration_mindmaps')
+      .insert(mindMapData)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('创建脉络失败:', error);
+      throw new Error(`创建脉络失败: ${error.message}`);
+    }
+
+    return this.mapDbToMindMap(data);
   }
 
   /**
    * 获取脉络详情
    */
   async getMindMap(mapId: string): Promise<CreationMindMap | null> {
-    // 从本地存储获取（开发阶段）
-    const data = localStorage.getItem(`mindmap-${mapId}`);
-    if (data) {
-      return JSON.parse(data);
+    // 获取脉络基本信息
+    const { data: mindMapData, error: mindMapError } = await supabase
+      .from('inspiration_mindmaps')
+      .select('*')
+      .eq('id', mapId)
+      .single();
+
+    if (mindMapError) {
+      if (mindMapError.code === 'PGRST116') {
+        return null; // 未找到
+      }
+      console.error('获取脉络失败:', mindMapError);
+      throw new Error(`获取脉络失败: ${mindMapError.message}`);
     }
-    return null;
+
+    // 获取脉络的所有节点
+    const { data: nodesData, error: nodesError } = await supabase
+      .from('inspiration_nodes')
+      .select('*')
+      .eq('map_id', mapId)
+      .order('created_at', { ascending: true });
+
+    if (nodesError) {
+      console.error('获取节点失败:', nodesError);
+      throw new Error(`获取节点失败: ${nodesError.message}`);
+    }
+
+    const mindMap = this.mapDbToMindMap(mindMapData);
+    mindMap.nodes = (nodesData || []).map(this.mapDbToNode);
+
+    return mindMap;
   }
 
   /**
@@ -129,46 +164,62 @@ export class InspirationMindMapService {
     mapId: string,
     updates: Partial<CreationMindMap>
   ): Promise<CreationMindMap> {
-    const mindMap = await this.getMindMap(mapId);
-    if (!mindMap) {
-      throw new Error('脉络不存在');
+    const dbUpdates: any = {};
+    
+    if (updates.title !== undefined) dbUpdates.title = updates.title;
+    if (updates.description !== undefined) dbUpdates.description = updates.description;
+    if (updates.layoutType !== undefined) dbUpdates.layout_type = updates.layoutType;
+    if (updates.settings !== undefined) dbUpdates.settings = updates.settings;
+    if (updates.stats !== undefined) dbUpdates.stats = updates.stats;
+    if (updates.tags !== undefined) dbUpdates.tags = updates.tags;
+    if (updates.isPublic !== undefined) dbUpdates.is_public = updates.isPublic;
+
+    const { data, error } = await supabaseAdmin
+      .from('inspiration_mindmaps')
+      .update(dbUpdates)
+      .eq('id', mapId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('更新脉络失败:', error);
+      throw new Error(`更新脉络失败: ${error.message}`);
     }
 
-    const updatedMap = {
-      ...mindMap,
-      ...updates,
-      updatedAt: Date.now(),
-    };
-
-    this.saveToLocalStorage(updatedMap);
-    return updatedMap;
+    return this.mapDbToMindMap(data);
   }
 
   /**
    * 删除脉络
    */
   async deleteMindMap(mapId: string): Promise<void> {
-    localStorage.removeItem(`mindmap-${mapId}`);
+    const { error } = await supabaseAdmin
+      .from('inspiration_mindmaps')
+      .delete()
+      .eq('id', mapId);
+
+    if (error) {
+      console.error('删除脉络失败:', error);
+      throw new Error(`删除脉络失败: ${error.message}`);
+    }
   }
 
   /**
    * 获取用户的所有脉络
    */
   async getUserMindMaps(userId: string): Promise<CreationMindMap[]> {
-    const maps: CreationMindMap[] = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key?.startsWith('mindmap-')) {
-        const data = localStorage.getItem(key);
-        if (data) {
-          const map = JSON.parse(data);
-          if (map.userId === userId) {
-            maps.push(map);
-          }
-        }
-      }
+    const { data, error } = await supabase
+      .from('inspiration_mindmaps')
+      .select('*')
+      .eq('user_id', userId)
+      .order('updated_at', { ascending: false });
+
+    if (error) {
+      console.error('获取用户脉络列表失败:', error);
+      throw new Error(`获取脉络列表失败: ${error.message}`);
     }
-    return maps.sort((a, b) => b.updatedAt - a.updatedAt);
+
+    return (data || []).map(this.mapDbToMindMap);
   }
 
   // ============================================
@@ -183,29 +234,24 @@ export class InspirationMindMapService {
     nodeData: Partial<MindNode>,
     parentId?: string
   ): Promise<MindNode> {
-    const mindMap = await this.getMindMap(mapId);
-    if (!mindMap) {
-      throw new Error('脉络不存在');
-    }
-
     const now = Date.now();
-    const newNode: MindNode = {
-      id: `node-${now}`,
-      mapId,
-      parentId,
+    
+    const nodeDbData = {
+      map_id: mapId,
+      parent_id: parentId || null,
       title: nodeData.title || '新节点',
       description: nodeData.description || '',
       category: nodeData.category || 'inspiration',
-      content: nodeData.content,
-      aiPrompt: nodeData.aiPrompt,
-      aiGeneratedContent: nodeData.aiGeneratedContent,
-      userNote: nodeData.userNote,
+      content: nodeData.content || null,
+      ai_prompt: nodeData.aiPrompt || null,
+      ai_generated_content: nodeData.aiGeneratedContent || null,
+      user_note: nodeData.userNote || null,
       tags: nodeData.tags || [],
-      style: nodeData.style,
-      brandReferences: nodeData.brandReferences,
-      culturalElements: nodeData.culturalElements,
-      aiResults: nodeData.aiResults,
-      position: nodeData.position,
+      style: nodeData.style || null,
+      brand_references: nodeData.brandReferences || null,
+      cultural_elements: nodeData.culturalElements || null,
+      ai_results: nodeData.aiResults || null,
+      position: nodeData.position || null,
       version: 1,
       history: [{
         version: 1,
@@ -213,17 +259,20 @@ export class InspirationMindMapService {
         action: 'create',
         changes: ['创建节点'],
       }],
-      createdAt: now,
-      updatedAt: now,
     };
 
-    mindMap.nodes.push(newNode);
-    mindMap.stats.totalNodes = mindMap.nodes.length;
-    mindMap.stats.lastActivityAt = now;
-    mindMap.updatedAt = now;
+    const { data, error } = await supabaseAdmin
+      .from('inspiration_nodes')
+      .insert(nodeDbData)
+      .select()
+      .single();
 
-    this.saveToLocalStorage(mindMap);
-    return newNode;
+    if (error) {
+      console.error('添加节点失败:', error);
+      throw new Error(`添加节点失败: ${error.message}`);
+    }
+
+    return this.mapDbToNode(data);
   }
 
   /**
@@ -233,87 +282,110 @@ export class InspirationMindMapService {
     nodeId: string,
     updates: Partial<MindNode>
   ): Promise<MindNode> {
-    const mindMap = await this.findMindMapByNodeId(nodeId);
-    if (!mindMap) {
-      throw new Error('节点不存在');
+    // 先获取当前节点
+    const { data: currentNode, error: fetchError } = await supabase
+      .from('inspiration_nodes')
+      .select('*')
+      .eq('id', nodeId)
+      .single();
+
+    if (fetchError) {
+      console.error('获取节点失败:', fetchError);
+      throw new Error(`节点不存在: ${fetchError.message}`);
     }
 
-    const nodeIndex = mindMap.nodes.findIndex(n => n.id === nodeId);
-    if (nodeIndex === -1) {
-      throw new Error('节点不存在');
-    }
-
-    const node = mindMap.nodes[nodeIndex];
-    const now = Date.now();
+    const dbUpdates: any = {};
     
-    const updatedNode: MindNode = {
-      ...node,
-      ...updates,
-      version: node.version + 1,
-      updatedAt: now,
-      history: [
-        ...(node.history || []),
-        {
-          version: node.version + 1,
-          timestamp: now,
-          action: 'edit',
-          changes: Object.keys(updates),
-        },
-      ],
-    };
+    if (updates.title !== undefined) dbUpdates.title = updates.title;
+    if (updates.description !== undefined) dbUpdates.description = updates.description;
+    if (updates.category !== undefined) dbUpdates.category = updates.category;
+    if (updates.content !== undefined) dbUpdates.content = updates.content;
+    if (updates.aiPrompt !== undefined) dbUpdates.ai_prompt = updates.aiPrompt;
+    if (updates.aiGeneratedContent !== undefined) dbUpdates.ai_generated_content = updates.aiGeneratedContent;
+    if (updates.userNote !== undefined) dbUpdates.user_note = updates.userNote;
+    if (updates.tags !== undefined) dbUpdates.tags = updates.tags;
+    if (updates.style !== undefined) dbUpdates.style = updates.style;
+    if (updates.brandReferences !== undefined) dbUpdates.brand_references = updates.brandReferences;
+    if (updates.culturalElements !== undefined) dbUpdates.cultural_elements = updates.culturalElements;
+    if (updates.aiResults !== undefined) dbUpdates.ai_results = updates.aiResults;
+    if (updates.position !== undefined) dbUpdates.position = updates.position;
 
-    mindMap.nodes[nodeIndex] = updatedNode;
-    mindMap.stats.lastActivityAt = now;
-    mindMap.updatedAt = now;
+    // 更新版本和历史
+    const newVersion = (currentNode.version || 1) + 1;
+    dbUpdates.version = newVersion;
+    dbUpdates.history = [
+      ...(currentNode.history || []),
+      {
+        version: newVersion,
+        timestamp: Date.now(),
+        action: 'edit',
+        changes: Object.keys(updates),
+      },
+    ];
 
-    this.saveToLocalStorage(mindMap);
-    return updatedNode;
+    const { data, error } = await supabaseAdmin
+      .from('inspiration_nodes')
+      .update(dbUpdates)
+      .eq('id', nodeId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('更新节点失败:', error);
+      throw new Error(`更新节点失败: ${error.message}`);
+    }
+
+    return this.mapDbToNode(data);
   }
 
   /**
    * 删除节点
    */
   async deleteNode(nodeId: string): Promise<void> {
-    const mindMap = await this.findMindMapByNodeId(nodeId);
-    if (!mindMap) {
-      throw new Error('节点不存在');
-    }
-
     // 删除节点及其子节点
-    const nodesToDelete = new Set<string>();
-    const collectChildren = (id: string) => {
-      nodesToDelete.add(id);
-      mindMap.nodes
-        .filter(n => n.parentId === id)
-        .forEach(child => collectChildren(child.id));
-    };
-    collectChildren(nodeId);
+    const { error } = await supabaseAdmin
+      .from('inspiration_nodes')
+      .delete()
+      .or(`id.eq.${nodeId},parent_id.eq.${nodeId}`);
 
-    mindMap.nodes = mindMap.nodes.filter(n => !nodesToDelete.has(n.id));
-    mindMap.stats.totalNodes = mindMap.nodes.length;
-    mindMap.stats.lastActivityAt = Date.now();
-    mindMap.updatedAt = Date.now();
-
-    this.saveToLocalStorage(mindMap);
+    if (error) {
+      console.error('删除节点失败:', error);
+      throw new Error(`删除节点失败: ${error.message}`);
+    }
   }
 
   /**
-   * 根据节点ID查找脉络
+   * 复制节点
    */
-  private async findMindMapByNodeId(nodeId: string): Promise<CreationMindMap | null> {
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key?.startsWith('mindmap-')) {
-        const data = localStorage.getItem(key);
-        if (data) {
-          const map = JSON.parse(data);
-          if (map.nodes.some((n: MindNode) => n.id === nodeId)) {
-            return map;
-          }
-        }
-      }
+  async duplicateNode(nodeId: string): Promise<MindNode> {
+    // 获取源节点
+    const { data: sourceNode, error: fetchError } = await supabase
+      .from('inspiration_nodes')
+      .select('*')
+      .eq('id', nodeId)
+      .single();
+
+    if (fetchError) {
+      console.error('获取源节点失败:', fetchError);
+      throw new Error(`节点不存在: ${fetchError.message}`);
     }
-    return null;
+
+    const duplicatedData: Partial<MindNode> = {
+      title: `${sourceNode.title} (复制)`,
+      description: sourceNode.description,
+      category: sourceNode.category,
+      content: sourceNode.content,
+      aiPrompt: sourceNode.ai_prompt,
+      aiGeneratedContent: sourceNode.ai_generated_content,
+      userNote: sourceNode.user_note,
+      tags: sourceNode.tags,
+      style: sourceNode.style,
+      brandReferences: sourceNode.brand_references,
+      culturalElements: sourceNode.cultural_elements,
+      aiResults: sourceNode.ai_results,
+    };
+
+    return this.addNode(sourceNode.map_id, duplicatedData, sourceNode.parent_id);
   }
 
   // ============================================
@@ -381,8 +453,42 @@ export class InspirationMindMapService {
    * 径向布局
    */
   private calculateRadialLayout(nodes: MindNode[]): NodePosition[] {
-    // TODO: 实现径向布局
-    return [];
+    const positions: NodePosition[] = [];
+    const centerX = 0;
+    const centerY = 0;
+    const radiusStep = 120;
+
+    // 按层级分组
+    const nodesByLevel = new Map<number, MindNode[]>();
+    
+    const getLevel = (nodeId: string, level: number = 0): number => {
+      const node = nodes.find(n => n.id === nodeId);
+      if (!node || !node.parentId) return level;
+      return getLevel(node.parentId, level + 1);
+    };
+
+    nodes.forEach(node => {
+      const level = getLevel(node.id);
+      if (!nodesByLevel.has(level)) {
+        nodesByLevel.set(level, []);
+      }
+      nodesByLevel.get(level)!.push(node);
+    });
+
+    // 计算位置
+    nodesByLevel.forEach((levelNodes, level) => {
+      const radius = level * radiusStep;
+      const angleStep = (2 * Math.PI) / Math.max(levelNodes.length, 1);
+      
+      levelNodes.forEach((node, index) => {
+        const angle = index * angleStep;
+        const x = centerX + radius * Math.cos(angle);
+        const y = centerY + radius * Math.sin(angle);
+        positions.push({ nodeId: node.id, x, y, level });
+      });
+    });
+
+    return positions;
   }
 
   /**
@@ -420,24 +526,41 @@ export class InspirationMindMapService {
     nodeId: string,
     type: 'continue' | 'branch' | 'optimize' | 'culture'
   ): Promise<AISuggestion> {
-    const mindMap = await this.findMindMapByNodeId(nodeId);
-    if (!mindMap) {
-      throw new Error('节点不存在');
+    // 获取节点信息
+    const { data: node, error: nodeError } = await supabase
+      .from('inspiration_nodes')
+      .select('*')
+      .eq('id', nodeId)
+      .single();
+
+    if (nodeError) {
+      console.error('获取节点失败:', nodeError);
+      throw new Error(`节点不存在: ${nodeError.message}`);
     }
 
-    const node = mindMap.nodes.find(n => n.id === nodeId);
-    if (!node) {
-      throw new Error('节点不存在');
+    // 获取脉络信息
+    const { data: mindMap, error: mapError } = await supabase
+      .from('inspiration_mindmaps')
+      .select('*')
+      .eq('id', node.map_id)
+      .single();
+
+    if (mapError) {
+      console.error('获取脉络失败:', mapError);
     }
 
     // 构建提示词
-    const prompt = this.buildSuggestionPrompt(node, mindMap, type);
+    const prompt = this.buildSuggestionPrompt(
+      this.mapDbToNode(node),
+      mindMap ? this.mapDbToMindMap(mindMap) : null,
+      type
+    );
 
     // 调用AI服务
     try {
       const response = await llmService.generateText(prompt);
       
-      return {
+      const suggestion: AISuggestion = {
         id: `suggestion-${Date.now()}`,
         type,
         content: response.content,
@@ -445,10 +568,47 @@ export class InspirationMindMapService {
         confidence: 0.85,
         timestamp: Date.now(),
       };
+
+      // 保存到数据库
+      await supabaseAdmin.from('inspiration_ai_suggestions').insert({
+        node_id: nodeId,
+        type,
+        content: suggestion.content,
+        prompt,
+        confidence: suggestion.confidence,
+      });
+
+      return suggestion;
     } catch (error) {
+      console.error('AI建议生成失败:', error);
       // 如果AI服务失败，返回默认建议
       return this.getDefaultSuggestion(type);
     }
+  }
+
+  /**
+   * 获取节点的AI建议历史
+   */
+  async getNodeAISuggestions(nodeId: string): Promise<AISuggestion[]> {
+    const { data, error } = await supabase
+      .from('inspiration_ai_suggestions')
+      .select('*')
+      .eq('node_id', nodeId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('获取AI建议失败:', error);
+      return [];
+    }
+
+    return (data || []).map(item => ({
+      id: item.id,
+      type: item.type,
+      content: item.content,
+      prompt: item.prompt,
+      confidence: item.confidence,
+      timestamp: new Date(item.created_at).getTime(),
+    }));
   }
 
   /**
@@ -567,7 +727,7 @@ export class InspirationMindMapService {
       iterationCount: mindMap.nodes.reduce((sum, n) => sum + (n.version || 1), 0),
     };
 
-    return {
+    const story: CreationStory = {
       id: `story-${now}`,
       mapId,
       title: `${mindMap.title}的创作故事`,
@@ -580,6 +740,58 @@ export class InspirationMindMapService {
       themes: mindMap.tags || ['创作', '灵感'],
       participants: [mindMap.userId],
       generatedAt: now,
+    };
+
+    // 保存到数据库
+    await supabaseAdmin.from('inspiration_stories').insert({
+      map_id: mapId,
+      title: story.title,
+      subtitle: story.subtitle,
+      full_story: story.fullStory,
+      key_turning_points: story.keyTurningPoints,
+      culture_elements: story.cultureElements,
+      timeline: story.timeline,
+      stats: story.stats,
+      themes: story.themes,
+      participants: story.participants,
+    });
+
+    return story;
+  }
+
+  /**
+   * 获取脉络的创作故事
+   */
+  async getCreationStory(mapId: string): Promise<CreationStory | null> {
+    const { data, error } = await supabase
+      .from('inspiration_stories')
+      .select('*')
+      .eq('map_id', mapId)
+      .order('generated_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return null;
+      }
+      console.error('获取创作故事失败:', error);
+      return null;
+    }
+
+    return {
+      id: data.id,
+      mapId: data.map_id,
+      title: data.title,
+      subtitle: data.subtitle,
+      fullStory: data.full_story,
+      keyTurningPoints: data.key_turning_points || [],
+      cultureElements: data.culture_elements || [],
+      timeline: data.timeline || [],
+      stats: data.stats,
+      themes: data.themes || [],
+      participants: data.participants || [],
+      generatedAt: new Date(data.generated_at).getTime(),
     };
   }
 
@@ -613,11 +825,68 @@ export class InspirationMindMapService {
   }
 
   // ============================================
-  // 本地存储（开发阶段使用）
+  // 数据映射方法
   // ============================================
 
-  private saveToLocalStorage(mindMap: CreationMindMap): void {
-    localStorage.setItem(`mindmap-${mindMap.id}`, JSON.stringify(mindMap));
+  /**
+   * 将数据库记录映射为 CreationMindMap
+   */
+  private mapDbToMindMap(data: any): CreationMindMap {
+    return {
+      id: data.id,
+      userId: data.user_id,
+      title: data.title,
+      description: data.description || '',
+      nodes: [], // 需要单独加载
+      layoutType: data.layout_type || 'tree',
+      settings: data.settings || {
+        layoutType: 'tree',
+        theme: 'tianjin',
+        autoSave: true,
+        showGrid: true,
+        snapToGrid: false,
+        gridSize: 20,
+      },
+      stats: {
+        totalNodes: data.stats?.totalNodes || 0,
+        maxDepth: data.stats?.maxDepth || 0,
+        aiGeneratedNodes: data.stats?.aiGeneratedNodes || 0,
+        cultureNodes: data.stats?.cultureNodes || 0,
+        lastActivityAt: data.stats?.lastActivityAt || new Date(data.updated_at).getTime(),
+      },
+      tags: data.tags || [],
+      isPublic: data.is_public || false,
+      createdAt: new Date(data.created_at).getTime(),
+      updatedAt: new Date(data.updated_at).getTime(),
+    };
+  }
+
+  /**
+   * 将数据库记录映射为 MindNode
+   */
+  private mapDbToNode(data: any): MindNode {
+    return {
+      id: data.id,
+      mapId: data.map_id,
+      parentId: data.parent_id,
+      title: data.title,
+      description: data.description || '',
+      category: data.category || 'inspiration',
+      content: data.content,
+      aiPrompt: data.ai_prompt,
+      aiGeneratedContent: data.ai_generated_content,
+      userNote: data.user_note,
+      tags: data.tags || [],
+      style: data.style,
+      brandReferences: data.brand_references,
+      culturalElements: data.cultural_elements,
+      aiResults: data.ai_results,
+      position: data.position,
+      version: data.version || 1,
+      history: data.history || [],
+      createdAt: new Date(data.created_at).getTime(),
+      updatedAt: new Date(data.updated_at).getTime(),
+    };
   }
 }
 

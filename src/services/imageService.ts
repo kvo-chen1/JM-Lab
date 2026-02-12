@@ -1107,6 +1107,59 @@ export const downloadAndUploadVideo = async (videoUrl: string): Promise<string> 
   }
 };
 
+// 下载图片并上传到永久存储
+export const downloadAndUploadImage = async (imageUrl: string, folder: string = 'works'): Promise<string> => {
+  try {
+    console.log('[downloadAndUploadImage] Downloading image from:', imageUrl);
+    
+    // 使用后端代理下载图片（解决CORS问题）
+    const proxyResponse = await fetch('/api/image/download', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ imageUrl })
+    });
+    
+    if (!proxyResponse.ok) {
+      const errorData = await proxyResponse.json().catch(() => ({}));
+      throw new Error(errorData.message || `Failed to download image: ${proxyResponse.status}`);
+    }
+    
+    const result = await proxyResponse.json();
+    if (result.code !== 0 || !result.data?.base64) {
+      throw new Error(result.message || 'Failed to download image');
+    }
+    
+    console.log('[downloadAndUploadImage] Image downloaded via proxy, size:', (result.data.size / 1024).toFixed(2), 'KB');
+    
+    // 将base64转换为Blob
+    const base64Data = result.data.base64;
+    const base64Content = base64Data.split(',')[1];
+    const contentType = result.data.type || 'image/jpeg';
+    const byteCharacters = atob(base64Content);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    const blob = new Blob([byteArray], { type: contentType });
+    
+    // 创建 File 对象
+    const fileName = `image-${Date.now()}.${contentType.split('/')[1] || 'jpg'}`;
+    const file = new File([blob], fileName, { type: contentType });
+    
+    // 上传图片
+    const uploadedUrl = await uploadImage(file, folder);
+    console.log('[downloadAndUploadImage] Image uploaded to:', uploadedUrl);
+    
+    return uploadedUrl;
+  } catch (error: any) {
+    console.error('[downloadAndUploadImage] Failed:', error);
+    throw new Error('图片下载或上传失败: ' + (error.message || 'Unknown error'));
+  }
+};
+
 /**
  * 将 base64 图片数据上传到云存储，获取公网可访问的 URL
  * 用于图生视频等功能，因为 AI API 要求图片必须是公网 URL

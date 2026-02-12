@@ -4,10 +4,11 @@ import { useTheme } from '@/hooks/useTheme';
 import { useCreateStore } from '../../hooks/useCreateStore';
 import { stylePresets } from '../../data';
 import { StylePreset } from '../../types';
+import { toast } from 'sonner';
 
 const RemixPanel: React.FC = () => {
   const { isDark } = useTheme();
-  const { updateState, selectedResult } = useCreateStore();
+  const { updateState, selectedResult, generatedResults } = useCreateStore();
   const [selectedStyles, setSelectedStyles] = useState<Array<{ style: StylePreset; weight: number }>>([]);
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
@@ -65,9 +66,15 @@ const RemixPanel: React.FC = () => {
   // 处理风格重混生成
   const handleRemixGenerate = () => {
     if (selectedStyles.length < 2) return;
-    
+
+    // 检查是否有生成作品
+    if (generatedResults.length === 0) {
+      toast.error('请先生成作品后再进行风格重混');
+      return;
+    }
+
     setIsGenerating(true);
-    
+
     // 模拟生成过程
     setTimeout(() => {
       // 这里可以添加实际的生成逻辑

@@ -9,9 +9,7 @@ import {
   Calendar,
   Download,
   Trash2,
-  Edit3,
-  Star,
-  MoreVertical
+  Star
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -22,6 +20,8 @@ interface DraftCardProps {
   prompt?: string;
   content?: string;
   thumbnail?: string | null;
+  videoUrl?: string | null;
+  type?: 'image' | 'video';
   toolType?: 'layout' | 'trace' | 'mockup' | 'tile' | 'aiWriter';
   templateName?: string;
   updatedAt: number;
@@ -42,13 +42,70 @@ const toolTypeConfig = {
   aiWriter: { name: 'AI写作', icon: FileText, color: 'from-emerald-500 to-emerald-600', bgColor: 'bg-emerald-100 dark:bg-emerald-900/30', iconColor: 'text-emerald-600 dark:text-emerald-400' }
 };
 
+// 视频预览组件 - 自动播放
+interface VideoPreviewProps {
+  videoUrl: string;
+  thumbnail?: string | null;
+}
+
+function VideoPreview({ videoUrl, thumbnail }: VideoPreviewProps) {
+  return (
+    <div className="relative w-full h-full">
+      <video
+        src={videoUrl}
+        poster={thumbnail || undefined}
+        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+        muted
+        loop
+        playsInline
+        autoPlay
+        preload="auto"
+      />
+      
+      {/* 视频标签 */}
+      <div className="absolute top-3 left-3 z-10 pointer-events-none">
+        <span className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium text-white backdrop-blur-md bg-purple-500/80">
+          <i className="fas fa-video w-3 h-3"></i>
+          视频
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// 小尺寸视频预览组件（用于列表视图）
+function VideoPreviewSmall({ videoUrl, thumbnail }: VideoPreviewProps) {
+  return (
+    <div className="relative w-full h-full">
+      <video
+        src={videoUrl}
+        poster={thumbnail || undefined}
+        className="w-full h-full object-cover"
+        muted
+        loop
+        playsInline
+        autoPlay
+        preload="auto"
+      />
+      {/* 视频标签 */}
+      <div className="absolute bottom-0.5 right-0.5 z-10 pointer-events-none">
+        <span className="flex items-center px-1 py-0.5 rounded text-[8px] font-medium text-white bg-purple-500/80">
+          <i className="fas fa-video mr-0.5"></i>
+          视频
+        </span>
+      </div>
+    </div>
+  );
+}
+
 export default function DraftCard({
-  id,
   name,
   title,
   prompt,
   content,
   thumbnail,
+  videoUrl,
+  type,
   toolType = 'layout',
   templateName,
   updatedAt,
@@ -63,6 +120,7 @@ export default function DraftCard({
   const [showActions, setShowActions] = useState(false);
   const config = toolTypeConfig[toolType] || toolTypeConfig.layout;
   const Icon = config.icon;
+  const isVideo = type === 'video' || !!videoUrl;
 
   const displayTitle = name || title || '未命名草稿';
   const displayContent = prompt || content || '无内容...';
@@ -104,8 +162,15 @@ export default function DraftCard({
         whileHover={{ y: -2 }}
       >
         {/* 缩略图/图标 */}
-        <div className={`w-16 h-16 rounded-xl flex-shrink-0 overflow-hidden ${config.bgColor} flex items-center justify-center`}>
-          {thumbnail ? (
+        <div 
+          className={`w-16 h-16 rounded-xl flex-shrink-0 overflow-hidden ${config.bgColor} flex items-center justify-center relative`}
+        >
+          {isVideo ? (
+            <VideoPreviewSmall 
+              videoUrl={videoUrl!}
+              thumbnail={thumbnail}
+            />
+          ) : thumbnail ? (
             <img src={thumbnail} alt={displayTitle} className="w-full h-full object-cover" />
           ) : (
             <Icon className={`w-7 h-7 ${config.iconColor}`} />
@@ -191,8 +256,16 @@ export default function DraftCard({
       whileHover={{ y: -4 }}
     >
       {/* 缩略图区域 */}
-      <div className={`relative aspect-video w-full overflow-hidden ${config.bgColor}`}>
-        {thumbnail ? (
+      <div 
+        className={`relative aspect-video w-full overflow-hidden ${config.bgColor}`}
+      >
+        {isVideo ? (
+          // 视频预览 - 使用ref直接控制播放
+          <VideoPreview 
+            videoUrl={videoUrl!}
+            thumbnail={thumbnail}
+          />
+        ) : thumbnail ? (
           <img
             src={thumbnail}
             alt={displayTitle}

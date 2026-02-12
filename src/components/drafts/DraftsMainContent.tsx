@@ -321,7 +321,9 @@ export default function DraftsMainContent({
                   title={draft.title}
                   prompt={draft.prompt}
                   content={draft.content}
-                  thumbnail={draft.generatedResults?.[0]?.imageUrl}
+                  thumbnail={draft.generatedResults?.[0]?.thumbnail || draft.generatedResults?.[0]?.imageUrl}
+                  videoUrl={draft.generatedResults?.[0]?.video || draft.generatedResults?.[0]?.videoUrl}
+                  type={draft.generatedResults?.[0]?.type}
                   toolType={draft.activeTool || (draft.content ? 'aiWriter' : 'layout')}
                   templateName={draft.templateName}
                   updatedAt={draft.updatedAt}

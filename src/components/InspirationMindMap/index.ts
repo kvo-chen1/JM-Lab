@@ -11,6 +11,7 @@ export { default as MiniMap } from './MiniMap';
 export { default as BrandInspirationPanel } from './BrandInspirationPanel';
 export { default as NodeEditor } from './NodeEditor';
 export { default as StoryGenerator } from './StoryGenerator';
+export { default as EmptyStateGuide } from './EmptyStateGuide';
 
 // 类型定义
 export type {

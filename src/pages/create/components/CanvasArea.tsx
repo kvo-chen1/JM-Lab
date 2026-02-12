@@ -233,11 +233,17 @@ export default function CanvasArea({ isSidebarCollapsed, setIsSidebarCollapsed }
           </button>
           
           <button 
-            onClick={() => setShowHistory(true)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2 transition-all ${isDark ? 'bg-gray-800 hover:bg-gray-700 text-gray-300' : 'bg-white hover:bg-gray-50 text-gray-600 shadow-sm border border-gray-200'}`}
+            onClick={() => {
+              if (isEmpty) {
+                toast.error('请先生成作品后再保存到草稿箱');
+                return;
+              }
+              saveToDrafts();
+            }}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2 transition-all ${isEmpty ? 'opacity-50 cursor-not-allowed' : ''} ${isDark ? 'bg-gray-800 hover:bg-gray-700 text-gray-300' : 'bg-white hover:bg-gray-50 text-gray-600 shadow-sm border border-gray-200'}`}
           >
             <i className="fas fa-box-archive text-yellow-500"></i>
-            <span className="hidden sm:inline">草稿箱</span>
+            <span className="hidden sm:inline">保存到草稿箱</span>
           </button>
           
           <button 
@@ -625,29 +631,41 @@ export default function CanvasArea({ isSidebarCollapsed, setIsSidebarCollapsed }
                         whileTap={{ scale: 0.95 }}
                         className={`relative flex-shrink-0 w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 rounded-xl overflow-hidden border-2 transition-all shadow-md ${selectedResult === result.id ? 'border-[#C02C38] ring-2 ring-[#C02C38]/20 scale-110 z-10' : 'border-white dark:border-gray-700 opacity-70 hover:opacity-100'}`}
                       >
-                        <motion.img 
-                          src={result.thumbnail || 'https://via.placeholder.com/150?text=No+Image'} 
-                          alt="" 
-                          className="w-full h-full object-cover" 
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          transition={{ duration: 0.3, delay: 0.15 * index, ease: "easeOut" }}
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = 'https://via.placeholder.com/150?text=No+Image';
-                          }}
-                        />
-                        {/* 视频标识 */}
-                        {(result.type === 'video' || result.video) && (
-                          <motion.div 
-                            initial={{ opacity: 0, scale: 0.5 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            transition={{ duration: 0.2, delay: 0.2 * index, ease: "easeOut" }}
-                            className="absolute inset-0 flex items-center justify-center bg-black/30"
-                          >
-                            <div className="w-8 h-8 rounded-full bg-white/90 flex items-center justify-center">
-                              <i className="fas fa-play text-[#C02C38] text-xs ml-0.5"></i>
-                            </div>
-                          </motion.div>
+                        {/* 视频直接显示视频元素，图片显示图片 */}
+                        {(result.type === 'video' || result.video) ? (
+                          <>
+                            <video 
+                              src={result.video || result.thumbnail}
+                              className="w-full h-full object-cover"
+                              preload="metadata"
+                              muted
+                              playsInline
+                              onMouseEnter={(e) => (e.target as HTMLVideoElement).play()}
+                              onMouseLeave={(e) => (e.target as HTMLVideoElement).pause()}
+                            />
+                            <motion.div 
+                              initial={{ opacity: 0, scale: 0.5 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              transition={{ duration: 0.2, delay: 0.2 * index, ease: "easeOut" }}
+                              className="absolute inset-0 flex items-center justify-center bg-black/20 pointer-events-none"
+                            >
+                              <div className="w-8 h-8 rounded-full bg-white/90 flex items-center justify-center">
+                                <i className="fas fa-play text-[#C02C38] text-xs ml-0.5"></i>
+                              </div>
+                            </motion.div>
+                          </>
+                        ) : (
+                          <motion.img 
+                            src={result.thumbnail || 'https://via.placeholder.com/150?text=No+Image'} 
+                            alt="" 
+                            className="w-full h-full object-cover" 
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ duration: 0.3, delay: 0.15 * index, ease: "easeOut" }}
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = 'https://via.placeholder.com/150?text=No+Image';
+                            }}
+                          />
                         )}
                         {result.score && (
                           <motion.div 

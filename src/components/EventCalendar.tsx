@@ -10,8 +10,6 @@ import { TianjinImage } from './TianjinStyleComponents';
 import { 
   Calendar, 
   MapPin, 
-  Clock, 
-  Users, 
   Search, 
   X, 
   ChevronRight, 
@@ -19,10 +17,11 @@ import {
   Share2,
   ExternalLink,
   User,
-  Phone,
-  Mail,
-  Filter
+  Filter,
+  LayoutGrid,
+  Eye
 } from 'lucide-react';
+import { eventWorkService } from '@/services/eventWorkService';
 
 // 活动类型
 import type { EventType } from '@/services/eventCalendarService';
@@ -39,6 +38,7 @@ export default function EventCalendar() {
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [isEventDetailsOpen, setIsEventDetailsOpen] = useState(false);
   const [searchKeyword, setSearchKeyword] = useState('');
+  const [selectedEventSubmissionCount, setSelectedEventSubmissionCount] = useState(0);
   
   const { getEvents } = useEventService();
 
@@ -128,9 +128,16 @@ export default function EventCalendar() {
     setFilteredEvents(result);
   }, [activeTab, selectedEventType, events, searchKeyword]);
 
-  const handleEventClick = (event: Event) => {
+  const handleEventClick = async (event: Event) => {
     setSelectedEvent(event);
     setIsEventDetailsOpen(true);
+    // 加载作品数量
+    try {
+      const count = await eventWorkService.getEventSubmissionCount(event.id);
+      setSelectedEventSubmissionCount(count);
+    } catch {
+      setSelectedEventSubmissionCount(0);
+    }
   };
 
   const handleRegisterEvent = async (eventId: string) => {
@@ -318,7 +325,7 @@ export default function EventCalendar() {
             className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 px-1"
           >
             {filteredEvents.map((event) => {
-              const { date, time } = formatDateRange(event.startTime, event.endTime);
+              const { date } = formatDateRange(event.startTime, event.endTime);
               return (
                 <motion.div
                   key={event.id}
@@ -578,6 +585,36 @@ export default function EventCalendar() {
                   </div>
                 </div>
 
+                {/* 查看作品按钮 - 在已结束活动中显示 */}
+                {getEventTimeStatus(selectedEvent) === 'completed' && (
+                  <div className={`px-6 pt-4 ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => {
+                        setIsEventDetailsOpen(false);
+                        navigate(`/events/${selectedEvent.id}/works`);
+                      }}
+                      className="w-full flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white shadow-lg shadow-primary-500/20"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center">
+                          <LayoutGrid className="w-5 h-5" />
+                        </div>
+                        <div className="text-left">
+                          <p className="font-semibold">查看作品</p>
+                          <p className="text-primary-100 text-sm">
+                            {selectedEventSubmissionCount > 0 ? `${selectedEventSubmissionCount} 个作品` : '暂无作品'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
+                        <Eye className="w-4 h-4" />
+                      </div>
+                    </motion.button>
+                  </div>
+                )}
+
                 {/* Footer Action Bar */}
                 <div className={`p-4 md:p-6 border-t ${isDark ? 'border-gray-700 bg-gray-800' : 'border-gray-100 bg-white'}`}>
                   <div className="flex items-center justify-between gap-4">
@@ -598,6 +635,25 @@ export default function EventCalendar() {
                       >
                         <Share2 className="w-5 h-5" />
                       </button>
+                      
+                      {/* 查看作品按钮 - 在即将开始和进行中活动中显示 */}
+                      {(getEventTimeStatus(selectedEvent) === 'upcoming' || getEventTimeStatus(selectedEvent) === 'ongoing') && (
+                        <button 
+                          onClick={() => {
+                            setIsEventDetailsOpen(false);
+                            navigate(`/events/${selectedEvent.id}/works`);
+                          }}
+                          className="flex-1 sm:flex-none px-6 py-3 bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white rounded-xl font-bold shadow-lg shadow-primary-500/20 transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
+                        >
+                          <LayoutGrid className="w-4 h-4" />
+                          查看作品
+                          {selectedEventSubmissionCount > 0 && (
+                            <span className="ml-1 text-xs bg-white/20 px-2 py-0.5 rounded-full">
+                              {selectedEventSubmissionCount}
+                            </span>
+                          )}
+                        </button>
+                      )}
                       
                       {getEventTimeStatus(selectedEvent) === 'upcoming' ? (
                         <button 

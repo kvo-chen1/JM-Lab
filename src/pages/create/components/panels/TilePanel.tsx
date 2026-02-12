@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useCreateStore } from '../../hooks/useCreateStore';
 import { traditionalPatterns } from '../../data';
+import { toast } from 'sonner';
 
 // 定义平铺模式类型
 type TileMode = 'repeat' | 'mirror' | 'rotate' | 'random';
@@ -26,7 +27,8 @@ const TilePanel: React.FC = () => {
     tileSize, 
     tileSpacing, 
     tileRotation, 
-    tileOpacity 
+    tileOpacity,
+    generatedResults
   } = useCreateStore();
   
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
@@ -68,6 +70,12 @@ const TilePanel: React.FC = () => {
   // 应用平铺效果
   const handleApplyTile = () => {
     if (!tileConfig.patternId) return;
+    
+    // 检查是否有生成作品
+    if (generatedResults.length === 0) {
+      toast.error('请先生成作品后再应用纹样');
+      return;
+    }
     
     setIsGenerating(true);
     

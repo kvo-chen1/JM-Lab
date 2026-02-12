@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useContext, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
   PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis,
@@ -117,7 +118,10 @@ function Sidebar({
         {/* 底部快捷操作 */}
         {!isCollapsed && (
           <div className={`p-3 border-t ${isDark ? 'border-gray-700' : 'border-gray-100'}`}>
-            <button className="w-full flex items-center gap-2 px-3 py-2 text-sm text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-lg transition-colors">
+            <button 
+              onClick={() => navigate('/wizard')}
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-lg transition-colors"
+            >
               <Plus className="w-4 h-4" />
               <span>提交新作品</span>
             </button>
@@ -135,7 +139,8 @@ function RightPanel({
   activities,
   opportunities,
   onApplyOpportunity,
-  isLoading
+  isLoading,
+  onSubmitWork
 }: {
   ipStats: IPStats;
   selectedAsset: IPAsset | null;
@@ -143,6 +148,7 @@ function RightPanel({
   opportunities: CommercialOpportunity[];
   onApplyOpportunity: (id: string, ipAssetId: string) => void;
   isLoading: boolean;
+  onSubmitWork: () => void;
 }) {
   const { isDark } = useTheme();
 
@@ -214,7 +220,10 @@ function RightPanel({
             快捷操作
           </h3>
           <div className="space-y-2">
-            <button className="w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-xl bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300 hover:bg-primary-100 dark:hover:bg-primary-900/30 transition-colors">
+            <button 
+              onClick={onSubmitWork}
+              className="w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-xl bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300 hover:bg-primary-100 dark:hover:bg-primary-900/30 transition-colors"
+            >
               <Plus className="w-4 h-4" />
               <span>提交新作品</span>
             </button>
@@ -522,7 +531,8 @@ function IncubationPathContent({
   isDark,
   onAssetChange,
   onUpdateStage,
-  isLoading
+  isLoading,
+  onSubmitWork
 }: {
   selectedAsset: IPAsset | null;
   ipAssets: IPAsset[];
@@ -530,6 +540,7 @@ function IncubationPathContent({
   isDark: boolean;
   onAssetChange: (asset: IPAsset | null) => void;
   onUpdateStage: (assetId: string, stageId: string, completed: boolean) => void;
+  onSubmitWork: () => void;
   isLoading: boolean;
 }) {
   const progress = useMemo(() => {
@@ -562,7 +573,10 @@ function IncubationPathContent({
         <p className={`text-center max-w-md mb-6 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
           提交作品并完成版权存证后，即可创建IP资产并开始孵化之旅
         </p>
-        <button className="px-6 py-3 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-xl transition-colors flex items-center gap-2">
+        <button 
+          onClick={onSubmitWork}
+          className="px-6 py-3 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-xl transition-colors flex items-center gap-2"
+        >
           <Plus className="w-5 h-5" />
           提交作品
         </button>
@@ -1256,6 +1270,7 @@ function AnalyticsContent({
 export default function IPIncubationCenter() {
   const { isDark } = useTheme();
   const { user, isAuthenticated } = useContext(AuthContext);
+  const navigate = useNavigate();
 
   // 状态管理
   const [activeTab, setActiveTab] = useState('incubation');
@@ -1447,7 +1462,10 @@ export default function IPIncubationCenter() {
             >
               <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
             </button>
-            <button className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-medium transition-colors flex items-center gap-2">
+            <button 
+              onClick={() => navigate('/wizard')}
+              className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-medium transition-colors flex items-center gap-2"
+            >
               <Plus className="w-5 h-5" />
               <span className="hidden sm:inline">提交作品</span>
             </button>
@@ -1483,6 +1501,7 @@ export default function IPIncubationCenter() {
                     onAssetChange={setSelectedIPAsset}
                     onUpdateStage={handleUpdateStage}
                     isLoading={isLoading}
+                    onSubmitWork={() => navigate('/wizard')}
                   />
                 )}
                 {activeTab === 'assets' && (
@@ -1536,6 +1555,7 @@ export default function IPIncubationCenter() {
             opportunities={commercialOpportunities}
             onApplyOpportunity={handleApplyOpportunity}
             isLoading={isLoading}
+            onSubmitWork={() => navigate('/wizard')}
           />
         </div>
       </div>

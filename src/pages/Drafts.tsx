@@ -100,6 +100,40 @@ export default function Drafts() {
     };
 
     loadAllDrafts();
+
+    // 监听 localStorage 变化，当其他页面保存草稿时自动刷新
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'CREATE_DRAFTS') {
+        console.log('[Drafts] CREATE_DRAFTS changed, reloading...');
+        loadAllDrafts();
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
+  // 页面获得焦点时刷新数据
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('[Drafts] Page visible, reloading drafts...');
+        const rawSaved = localStorage.getItem('CREATE_DRAFTS');
+        if (rawSaved) {
+          try {
+            const parsed = JSON.parse(rawSaved);
+            if (Array.isArray(parsed)) {
+              setSavedDrafts(parsed);
+            }
+          } catch (e) {
+            console.error('Failed to reload drafts:', e);
+          }
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, []);
 
   // Calculate draft counts

@@ -135,6 +135,10 @@ const Neo = createLazyComponent(() => import(/* webpackChunkName: "pages-other" 
 const EventDetail = createLazyComponent(() => import(/* webpackChunkName: "pages-cultural" */ "@/pages/EventDetail"), {
   priority: ROUTE_PRIORITIES.HIGH
 });
+const EventWorks = createLazyComponent(() => import(/* webpackChunkName: "pages-cultural" */ "@/pages/EventWorks"), {
+  priority: ROUTE_PRIORITIES.HIGH,
+  name: 'event-works'
+});
 const SubmitWork = createLazyComponent(() => import(/* webpackChunkName: "pages-cultural" */ "@/pages/SubmitWork"), {
   priority: ROUTE_PRIORITIES.HIGH
 });
@@ -794,6 +798,7 @@ export default function App() {
 
           <Route path="/events" element={<LazyComponent><CulturalEvents /></LazyComponent>} />
           <Route path="/events/:id" element={<LazyComponent><EventDetail /></LazyComponent>} />
+          <Route path="/events/:id/works" element={<LazyComponent><EventWorks /></LazyComponent>} />
           <Route path="/events/:id/submit" element={<LazyComponent><PrivateRoute><SubmitWork /></PrivateRoute></LazyComponent>} />
           <Route path="/cultural-events" element={<LazyComponent><CulturalEvents /></LazyComponent>} />
           

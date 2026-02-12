@@ -178,9 +178,13 @@ export async function callQwenChat(params: ChatCallParams): Promise<string> {
     }
 
     const data = await response.json();
+    console.log('[QwenChat] Raw response data:', JSON.stringify(data).substring(0, 500));
     const responseData = data.ok ? data.data : data;
     const finalData = responseData.data || responseData;
-    return finalData.output?.text || '未获取到响应';
+    console.log('[QwenChat] Final data:', JSON.stringify(finalData).substring(0, 500));
+    const text = finalData.output?.text || finalData.choices?.[0]?.message?.content || '未获取到响应';
+    console.log('[QwenChat] Extracted text:', text.substring(0, 100));
+    return text;
   } catch (error: any) {
     console.error('Qwen Chat Error:', error);
     throw error;

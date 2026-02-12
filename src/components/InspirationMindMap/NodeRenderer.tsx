@@ -1,22 +1,21 @@
 /**
- * 节点渲染组件
- * 渲染思维导图中的单个节点，支持不同类型和样式
+ * 节点渲染组件 - 升级版
+ * 采用玻璃拟态风格，更美观高级的节点设计
  */
 
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { 
-  Sparkles, 
-  Palette, 
-  Lightbulb, 
-  Edit3, 
-  BookOpen, 
+import {
+  Sparkles,
+  Palette,
+  Lightbulb,
+  Edit3,
+  BookOpen,
   CheckCircle2,
-  Plus,
-  Trash2,
-  MoreHorizontal
+  MessageSquare,
+  Wand2,
 } from 'lucide-react';
-import type { MindNode, NodePosition, NodeStyle } from './types';
+import type { MindNode, NodePosition } from './types';
 
 interface NodeRendererProps {
   node: MindNode;
@@ -29,24 +28,56 @@ interface NodeRendererProps {
   animationDelay?: number;
 }
 
-// 节点类别图标
-const categoryIcons: Record<string, React.ComponentType<{ className?: string }>> = {
-  inspiration: Lightbulb,
-  culture: BookOpen,
-  ai_generate: Sparkles,
-  manual_edit: Edit3,
-  reference: BookOpen,
-  final: CheckCircle2,
-};
-
-// 节点类别颜色
-const categoryColors: Record<string, { bg: string; border: string }> = {
-  inspiration: { bg: '#FF6B6B', border: '#EE5A5A' },
-  culture: { bg: '#4ECDC4', border: '#3DBDB4' },
-  ai_generate: { bg: '#95E1D3', border: '#7FD1C3' },
-  manual_edit: { bg: '#F38181', border: '#E07070' },
-  reference: { bg: '#AA96DA', border: '#9985C9' },
-  final: { bg: '#FCBAD3', border: '#EBA9C2' },
+// 节点类别配置
+const categoryConfig: Record<string, {
+  icon: React.ElementType;
+  label: string;
+  gradient: string;
+  shadow: string;
+  borderColor: string;
+}> = {
+  inspiration: {
+    icon: Lightbulb,
+    label: '灵感',
+    gradient: 'from-amber-400 via-orange-400 to-amber-500',
+    shadow: 'shadow-amber-500/30',
+    borderColor: 'border-amber-400/50',
+  },
+  culture: {
+    icon: BookOpen,
+    label: '文化',
+    gradient: 'from-red-400 via-rose-400 to-red-500',
+    shadow: 'shadow-red-500/30',
+    borderColor: 'border-red-400/50',
+  },
+  ai_generate: {
+    icon: Sparkles,
+    label: 'AI生成',
+    gradient: 'from-purple-400 via-violet-400 to-purple-500',
+    shadow: 'shadow-purple-500/30',
+    borderColor: 'border-purple-400/50',
+  },
+  manual_edit: {
+    icon: Edit3,
+    label: '手动编辑',
+    gradient: 'from-blue-400 via-cyan-400 to-blue-500',
+    shadow: 'shadow-blue-500/30',
+    borderColor: 'border-blue-400/50',
+  },
+  reference: {
+    icon: BookOpen,
+    label: '参考',
+    gradient: 'from-green-400 via-emerald-400 to-green-500',
+    shadow: 'shadow-green-500/30',
+    borderColor: 'border-green-400/50',
+  },
+  final: {
+    icon: CheckCircle2,
+    label: '成品',
+    gradient: 'from-emerald-400 via-teal-400 to-emerald-500',
+    shadow: 'shadow-emerald-500/30',
+    borderColor: 'border-emerald-400/50',
+  },
 };
 
 export default function NodeRenderer({
@@ -60,28 +91,13 @@ export default function NodeRenderer({
   animationDelay = 0,
 }: NodeRendererProps) {
   const [isHovered, setIsHovered] = useState(false);
-  
-  const Icon = categoryIcons[node.category] || Lightbulb;
-  const colors = categoryColors[node.category] || categoryColors.inspiration;
-  
+
+  const config = categoryConfig[node.category] || categoryConfig.inspiration;
+  const Icon = config.icon;
+
   // 天津风格特殊处理
-  const getTianjinStyle = () => {
-    if (theme !== 'tianjin') return {};
-    
-    const baseColor = isDark ? 'rgba(212, 165, 116, 0.9)' : 'rgba(212, 165, 116, 1)';
-    const bgColor = isDark ? 'rgba(26, 26, 46, 0.95)' : 'rgba(255, 255, 255, 0.95)';
-    
-    return {
-      borderColor: baseColor,
-      backgroundColor: bgColor,
-      boxShadow: isSelected
-        ? `0 0 0 4px ${baseColor}40, 0 8px 30px ${baseColor}30`
-        : `0 4px 20px ${baseColor}20`,
-    };
-  };
-  
-  const tianjinStyle = getTianjinStyle();
-  
+  const isTianjin = theme === 'tianjin';
+
   return (
     <motion.div
       className="absolute"
@@ -91,9 +107,9 @@ export default function NodeRenderer({
         x: '-50%',
         y: '-50%',
       }}
-      initial={{ opacity: 0, scale: 0.5 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ 
+      initial={{ opacity: 0, scale: 0.5, y: 20 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      transition={{
         type: 'spring',
         stiffness: 300,
         damping: 25,
@@ -102,89 +118,165 @@ export default function NodeRenderer({
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      {/* 节点主体 */}
+      {/* 选中状态光晕 */}
+      {isSelected && (
+        <motion.div
+          layoutId="selection-glow"
+          className={`
+            absolute -inset-3 rounded-2xl opacity-50 blur-xl
+            bg-gradient-to-r ${config.gradient}
+          `}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 0.4 }}
+          exit={{ opacity: 0 }}
+        />
+      )}
+
+      {/* 节点主体 - 玻璃拟态风格 */}
       <motion.div
         className={`
           relative cursor-pointer select-none
-          rounded-xl transition-all duration-200
-          ${isSelected ? 'ring-2 ring-offset-2' : ''}
+          w-[200px] rounded-2xl overflow-hidden
+          transition-all duration-300 ease-out
+          ${isSelected ? 'scale-105' : ''}
         `}
         style={{
-          width: 180,
-          padding: '12px 16px',
-          borderColor: theme === 'tianjin' ? tianjinStyle.borderColor : colors.border,
-          backgroundColor: theme === 'tianjin' ? tianjinStyle.backgroundColor : colors.bg,
-          boxShadow: theme === 'tianjin' ? tianjinStyle.boxShadow : undefined,
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
         }}
         onClick={onClick}
-        whileHover={{ scale: 1.02 }}
+        whileHover={{ scale: 1.02, y: -2 }}
         whileTap={{ scale: 0.98 }}
       >
-        {/* 类别图标 */}
-        <div 
-          className="absolute -top-3 -left-3 w-8 h-8 rounded-full flex items-center justify-center"
-          style={{ backgroundColor: colors.bg }}
-        >
-          <Icon className="w-4 h-4 text-white" />
-        </div>
-        
-        {/* 节点标题 */}
-        <h3 className={`
-          font-semibold text-sm mb-1 truncate
-          ${isDark ? 'text-gray-100' : 'text-gray-800'}
+        {/* 边框渐变 */}
+        <div className={`
+          absolute inset-0 rounded-2xl p-[1.5px]
+          bg-gradient-to-br ${config.gradient}
+          opacity-60
+          ${isSelected ? 'opacity-100' : ''}
+          ${isHovered ? 'opacity-80' : ''}
         `}>
-          {node.title}
-        </h3>
-        
-        {/* 节点描述 */}
-        {node.description && (
-          <p className={`
-            text-xs line-clamp-2
-            ${isDark ? 'text-gray-400' : 'text-gray-600'}
+          <div className={`
+            w-full h-full rounded-2xl
+            ${isDark ? 'bg-gray-900/80' : 'bg-white/80'}
+          `} />
+        </div>
+
+        {/* 内容区域 */}
+        <div className={`
+          relative p-4
+          ${isDark ? 'bg-gray-900/40' : 'bg-white/60'}
+        `}>
+          {/* 顶部：图标和类别 */}
+          <div className="flex items-center justify-between mb-3">
+            {/* 类别图标 */}
+            <div className={`
+              w-10 h-10 rounded-xl flex items-center justify-center
+              bg-gradient-to-br ${config.gradient}
+              shadow-lg ${config.shadow}
+            `}>
+              <Icon className="w-5 h-5 text-white" />
+            </div>
+
+            {/* 类别标签 */}
+            <span className={`
+              text-[10px] font-medium px-2 py-1 rounded-full
+              ${isDark ? 'bg-white/10 text-gray-300' : 'bg-black/5 text-gray-600'}
+            `}>
+              {config.label}
+            </span>
+          </div>
+
+          {/* 节点标题 */}
+          <h3 className={`
+            font-bold text-sm mb-2 line-clamp-2
+            ${isDark ? 'text-gray-100' : 'text-gray-800'}
           `}>
-            {node.description}
-          </p>
-        )}
-        
-        {/* AI生成标记 */}
-        {node.category === 'ai_generate' && (
-          <div className="absolute -top-1 -right-1">
-            <Sparkles className="w-4 h-4 text-purple-500" />
+            {node.title}
+          </h3>
+
+          {/* 节点描述 */}
+          {node.description && (
+            <p className={`
+              text-xs line-clamp-2 mb-3
+              ${isDark ? 'text-gray-400' : 'text-gray-500'}
+            `}>
+              {node.description}
+            </p>
+          )}
+
+          {/* 底部信息栏 */}
+          <div className="flex items-center justify-between pt-2 border-t border-gray-200/30 dark:border-gray-700/30">
+            {/* 标签预览 */}
+            <div className="flex items-center gap-1">
+              {node.tags && node.tags.length > 0 ? (
+                <>
+                  <span className={`
+                    text-[10px] px-1.5 py-0.5 rounded-full
+                    ${isDark ? 'bg-white/10 text-gray-400' : 'bg-black/5 text-gray-500'}
+                  `}>
+                    {node.tags[0]}
+                  </span>
+                  {node.tags.length > 1 && (
+                    <span className={`
+                      text-[10px] text-gray-400
+                    `}>
+                      +{node.tags.length - 1}
+                    </span>
+                  )}
+                </>
+              ) : (
+                <span className="text-[10px] text-gray-400">无标签</span>
+              )}
+            </div>
+
+            {/* 状态指示器 */}
+            <div className="flex items-center gap-1.5">
+              {node.aiGeneratedContent && (
+                <div className="flex items-center gap-0.5 text-[10px] text-purple-500">
+                  <Wand2 className="w-3 h-3" />
+                  <span>AI</span>
+                </div>
+              )}
+              {node.userNote && (
+                <div className="flex items-center gap-0.5 text-[10px] text-blue-500">
+                  <MessageSquare className="w-3 h-3" />
+                  <span>笔记</span>
+                </div>
+              )}
+            </div>
           </div>
-        )}
-        
-        {/* 文化元素标记 */}
-        {node.category === 'culture' && (
-          <div className="absolute -top-1 -right-1">
-            <BookOpen className="w-4 h-4 text-teal-500" />
-          </div>
-        )}
-        
-        {/* 标签 */}
-        {node.tags && node.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1 mt-2">
-            {node.tags.slice(0, 2).map((tag, index) => (
-              <span 
-                key={index}
-                className={`
-                  text-[10px] px-1.5 py-0.5 rounded-full
-                  ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}
-                `}
-              >
-                {tag}
-              </span>
-            ))}
-            {node.tags.length > 2 && (
-              <span className={`
-                text-[10px] px-1.5 py-0.5 rounded-full
-                ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}
-              `}>
-                +{node.tags.length - 2}
-              </span>
-            )}
-          </div>
+        </div>
+
+        {/* 选中指示条 */}
+        {isSelected && (
+          <motion.div
+            layoutId="selection-bar"
+            className={`
+              absolute bottom-0 left-0 right-0 h-1
+              bg-gradient-to-r ${config.gradient}
+            `}
+            initial={{ scaleX: 0 }}
+            animate={{ scaleX: 1 }}
+            transition={{ duration: 0.3 }}
+          />
         )}
       </motion.div>
+
+      {/* 悬停提示 */}
+      {isHovered && !isSelected && (
+        <motion.div
+          initial={{ opacity: 0, y: 5 }}
+          animate={{ opacity: 1, y: 0 }}
+          className={`
+            absolute -bottom-8 left-1/2 -translate-x-1/2
+            px-2 py-1 rounded-lg text-[10px] whitespace-nowrap
+            ${isDark ? 'bg-gray-800 text-gray-300' : 'bg-gray-900 text-white'}
+          `}
+        >
+          点击查看详情
+        </motion.div>
+      )}
     </motion.div>
   );
 }

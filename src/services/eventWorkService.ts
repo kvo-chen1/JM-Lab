@@ -225,18 +225,23 @@ class EventWorkService {
    * 获取活动的作品数量
    */
   async getEventSubmissionCount(eventId: string): Promise<number> {
-    const { count, error } = await supabase
-      .from('event_submissions')
-      .select('*', { count: 'exact', head: true })
-      .eq('event_id', eventId)
-      .eq('status', 'submitted');
+    try {
+      const { count, error } = await supabase
+        .from('event_submissions')
+        .select('*', { count: 'exact', head: true })
+        .eq('event_id', eventId)
+        .eq('status', 'submitted');
 
-    if (error) {
+      if (error) {
+        console.error('获取作品数量失败:', error);
+        return 0;
+      }
+
+      return count || 0;
+    } catch (error) {
       console.error('获取作品数量失败:', error);
       return 0;
     }
-
-    return count || 0;
   }
 
   /**

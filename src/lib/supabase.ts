@@ -68,7 +68,7 @@ const createMockClient = (reason: string): SupabaseClient => {
 
 // 服务角色密钥（用于绕过 RLS 的管理员操作）
 // 注意：这个密钥有完全的数据库访问权限，只能在服务器端或受信任的环境中使用
-const SERVICE_ROLE_KEY = supabaseServiceKey || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBwdHFkaWNhYWV3dG5haWZsZmNzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NjQ5MTUzMiwiZXhwIjoyMDgyMDY3NTMyfQ.Plz64E2BkfbgiyaBNyL2L2grVTPO-U8fcdDxa-MjgX4'
+// 必须通过环境变量 VITE_SUPABASE_SERVICE_ROLE_KEY 注入
 
 // 创建 Supabase 客户端 - 带错误处理
 export let supabase: SupabaseClient
@@ -114,10 +114,10 @@ try {
     })
 
     // 创建管理员客户端（绕过 RLS）
-    if (SERVICE_ROLE_KEY && SERVICE_ROLE_KEY !== 'placeholder-key') {
+    if (supabaseServiceKey) {
       supabaseAdmin = createClient(
         supabaseUrl,
-        SERVICE_ROLE_KEY,
+        supabaseServiceKey,
         {
           auth: {
             autoRefreshToken: false,

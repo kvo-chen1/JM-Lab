@@ -111,6 +111,8 @@ export default function EventWorks() {
         const event = await getEvent(eventId);
         
         if (event) {
+          console.log('[EventWorks] Loaded event:', event);
+          console.log('[EventWorks] Event media:', event.media);
           setEventInfo({
             title: event.title,
             description: event.description,

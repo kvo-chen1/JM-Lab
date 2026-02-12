@@ -179,28 +179,71 @@ export default function Home() {
       // 确保worksData是数组
       setWorks(Array.isArray(worksData) ? worksData : []);
       
-      // 生成热门创作者数据
-      const creatorsMap = new Map();
-      // 确保worksData是数组后再进行操作
-      if (Array.isArray(worksData)) {
-        worksData.forEach(work => {
-          if (work.creator) {
-            if (!creatorsMap.has(work.creator)) {
-              creatorsMap.set(work.creator, {
-                name: work.creator,
-                avatar: work.creatorAvatar || '',
-                likes: 0
-              });
+      // 生成热门创作者数据 - 使用 Supabase 获取真实用户数据
+      let creatorsArray: any[] = [];
+      
+      try {
+        // 从 Supabase 获取真实的创作者数据
+        const { supabase } = await import('@/lib/supabase');
+        const { data: creatorsData, error: creatorsError } = await supabase
+          .from('works')
+          .select(`
+            creator_id,
+            likes,
+            users:creator_id (username, avatar_url)
+          `)
+          .not('creator_id', 'is', null);
+        
+        if (!creatorsError && creatorsData) {
+          const creatorsMap = new Map();
+          
+          creatorsData.forEach((work: any) => {
+            const creatorId = work.creator_id;
+            const username = work.users?.username || '未知用户';
+            const avatarUrl = work.users?.avatar_url;
+            
+            if (creatorId) {
+              if (!creatorsMap.has(creatorId)) {
+                creatorsMap.set(creatorId, {
+                  id: creatorId,
+                  name: username,
+                  avatar: avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}`,
+                  likes: 0
+                });
+              }
+              const creator = creatorsMap.get(creatorId);
+              creator.likes += work.likes || 0;
             }
-            const creator = creatorsMap.get(work.creator);
-            creator.likes += work.likes || 0;
-          }
-        });
+          });
+          
+          creatorsArray = Array.from(creatorsMap.values())
+            .sort((a, b) => b.likes - a.likes)
+            .slice(0, 5);
+        }
+      } catch (err) {
+        console.error('获取创作者数据失败:', err);
+        // 回退到原来的方式
+        const creatorsMap = new Map();
+        if (Array.isArray(worksData)) {
+          worksData.forEach(work => {
+            if (work.creator) {
+              if (!creatorsMap.has(work.creator)) {
+                creatorsMap.set(work.creator, {
+                  name: work.creator,
+                  avatar: work.creatorAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${work.creator}`,
+                  likes: 0
+                });
+              }
+              const creator = creatorsMap.get(work.creator);
+              creator.likes += work.likes || 0;
+            }
+          });
+        }
+        creatorsArray = Array.from(creatorsMap.values())
+          .sort((a, b) => b.likes - a.likes)
+          .slice(0, 5);
       }
       
-      const creatorsArray = Array.from(creatorsMap.values())
-        .sort((a, b) => b.likes - a.likes)
-        .slice(0, 5);
       setPopularCreators(creatorsArray);
       
       // 缓存数据

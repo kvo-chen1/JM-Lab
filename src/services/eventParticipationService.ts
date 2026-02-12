@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { apiService } from './apiService';
 
 // 参与状态类型
 export type ParticipationStatus = 'registered' | 'submitted' | 'reviewing' | 'completed' | 'awarded' | 'cancelled';
@@ -311,19 +312,17 @@ class EventParticipationService {
    */
   async checkParticipation(eventId: string, userId: string): Promise<{ isParticipated: boolean; participationId?: string; status?: ParticipationStatus }> {
     try {
-      const { data, error } = await supabase
-        .from('event_participants')
-        .select('id, status')
-        .eq('event_id', eventId)
-        .eq('user_id', userId)
-        .maybeSingle();
-
-      if (error) throw error;
+      // 使用后端 API 检查参与状态
+      const result = await apiService.get<{
+        isParticipated: boolean;
+        participationId?: string;
+        status?: string;
+      }>(`/api/events/${eventId}/participation-status`, { userId });
 
       return {
-        isParticipated: !!data,
-        participationId: data?.id,
-        status: data?.status ? this.mapStatus(data.status) : undefined,
+        isParticipated: result.isParticipated,
+        participationId: result.participationId,
+        status: result.status ? this.mapStatus(result.status) : undefined,
       };
     } catch (error) {
       console.error('检查参与状态失败:', error);

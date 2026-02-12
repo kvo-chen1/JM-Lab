@@ -186,9 +186,12 @@ export default function EventDetail() {
             {/* 活动图片 */}
             <div className="relative">
               <img 
-                src={event.image} 
+                src={event.thumbnailUrl || (event.media && event.media[0]?.url) || 'https://via.placeholder.com/1200x400?text=No+Image'} 
                 alt={event.title} 
                 className="w-full h-64 md:h-80 object-cover"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = 'https://via.placeholder.com/1200x400?text=No+Image';
+                }}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent flex items-end">
                 <div className="p-6 text-white">

@@ -59,16 +59,23 @@ class ApiService {
    * 通用GET请求
    */
   async get<T>(endpoint: string, params?: Record<string, any>): Promise<T> {
-    const url = this.buildUrl(endpoint, params);
     // Extract cache options from params if present
     const cacheOptions = params?.cache;
-    // Remove cache from params so it's not sent as query param
-    const { cache, ...queryParams } = params || {};
+    // Check if refresh is requested
+    const forceRefresh = params?.refresh === true;
+    // Remove cache and refresh from params so it's not sent as query param
+    const { cache, refresh, ...queryParams } = params || {};
     
-    // Rebuild URL without cache param
+    // Build URL without cache/refresh params
     const requestUrl = this.buildUrl(endpoint, queryParams);
+    console.log('[ApiService] GET', requestUrl, 'params:', queryParams, 'forceRefresh:', forceRefresh);
     
-    const response = await apiClient.get<T>(requestUrl, { cache: cacheOptions });
+    // If forceRefresh is true, disable cache
+    const finalCacheOptions = forceRefresh 
+      ? { enabled: false } 
+      : cacheOptions;
+    
+    const response = await apiClient.get<T>(requestUrl, { cache: finalCacheOptions });
     if (!response.ok) {
       throw new Error(response.error || '请求失败');
     }

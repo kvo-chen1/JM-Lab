@@ -4863,6 +4863,10 @@ export const eventDB = {
           updates.push(`max_participants = $${paramIndex++}`)
           values.push(updateData.max_participants)
         }
+        if (updateData.participant_count !== undefined) {
+          updates.push(`participant_count = $${paramIndex++}`)
+          values.push(updateData.participant_count)
+        }
         if (updateData.requirements !== undefined) {
           updates.push(`requirements = $${paramIndex++}`)
           values.push(updateData.requirements)

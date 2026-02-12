@@ -1342,7 +1342,10 @@ async function route(req, res, u, path) {
     try {
       // 使用缓存减少数据库查询
       const cacheKey = 'events_list';
-      let formattedEvents = getCache(cacheKey);
+      const url = new URL(req.url, `http://${req.headers.host}`);
+      const refresh = url.searchParams.get('refresh') === 'true';
+      
+      let formattedEvents = refresh ? null : getCache(cacheKey);
       
       if (!formattedEvents) {
         console.log('[API] Cache miss for events, querying database...');
@@ -1674,6 +1677,119 @@ async function route(req, res, u, path) {
     } catch (e) {
       console.error('[API] Review event failed:', e)
       sendJson(res, 500, { code: 1, message: '审核活动失败: ' + e.message })
+    }
+    return
+  }
+
+  // 报名参加活动
+  if (req.method === 'POST' && path.match(/^\/api\/events\/[^/]+\/register$/)) {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '用户认证失败' })
+      return
+    }
+    
+    try {
+      const eventId = path.match(/^\/api\/events\/([^/]+)\/register$/)[1]
+      const body = await readBody(req)
+      const { userId } = body
+      
+      console.log('[API] Register for event:', eventId, 'user:', userId)
+      
+      // 验证用户权限
+      if (userId !== decoded.userId) {
+        sendJson(res, 403, { error: 'FORBIDDEN', message: '无权为其他用户报名' })
+        return
+      }
+      
+      // 检查活动是否存在
+      const event = await eventDB.getEvent(eventId)
+      if (!event) {
+        sendJson(res, 404, { error: 'EVENT_NOT_FOUND', message: '活动不存在' })
+        return
+      }
+      
+      // 检查活动是否已结束
+      const now = new Date()
+      const endTime = new Date(event.end_date * 1000)
+      if (endTime < now) {
+        sendJson(res, 400, { error: 'EVENT_ENDED', message: '活动已结束' })
+        return
+      }
+      
+      // 检查人数限制
+      if (event.max_participants && event.participant_count >= event.max_participants) {
+        sendJson(res, 400, { error: 'EVENT_FULL', message: '活动参与人数已达上限' })
+        return
+      }
+      
+      // 生成报名ID
+      const registrationId = randomUUID()
+      
+      // 更新活动参与人数
+      await eventDB.updateEvent(eventId, {
+        participant_count: (event.participant_count || 0) + 1
+      })
+      
+      // 清除缓存
+      invalidateCache('events_list')
+      
+      sendJson(res, 200, {
+        code: 0,
+        data: {
+          success: true,
+          message: '报名成功',
+          registrationId: registrationId,
+          status: 'approved'
+        }
+      })
+    } catch (e) {
+      console.error('[API] Register for event failed:', e)
+      sendJson(res, 500, { code: 1, message: '报名失败: ' + e.message })
+    }
+    return
+  }
+
+  // 获取活动参与状态
+  if (req.method === 'GET' && path.match(/^\/api\/events\/[^/]+\/participation-status$/)) {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '用户认证失败' })
+      return
+    }
+    
+    try {
+      const eventId = path.match(/^\/api\/events\/([^/]+)\/participation-status$/)[1]
+      const url = new URL(req.url, `http://${req.headers.host}`)
+      const userId = url.searchParams.get('userId')
+      
+      console.log('[API] Check participation status:', eventId, 'user:', userId)
+      
+      // 验证用户权限
+      if (userId !== decoded.userId) {
+        sendJson(res, 403, { error: 'FORBIDDEN', message: '无权查询其他用户的参与状态' })
+        return
+      }
+      
+      // 检查活动是否存在
+      const event = await eventDB.getEvent(eventId)
+      if (!event) {
+        sendJson(res, 404, { error: 'EVENT_NOT_FOUND', message: '活动不存在' })
+        return
+      }
+      
+      // 暂时返回未报名状态，后续可以添加真实的参与记录查询
+      sendJson(res, 200, {
+        code: 0,
+        data: {
+          isParticipated: false,
+          participationId: null,
+          status: null
+        }
+      })
+    } catch (e) {
+      console.error('[API] Check participation status failed:', e)
+      sendJson(res, 500, { code: 1, message: '查询参与状态失败: ' + e.message })
     }
     return
   }
@@ -4714,6 +4830,44 @@ async function route(req, res, u, path) {
     } catch (e) {
       console.error('[API] Get user events failed:', e)
       sendJson(res, 500, { code: 1, message: '获取用户活动失败' })
+    }
+    return
+  }
+
+  // 获取活动参与者列表
+  if (req.method === 'GET' && path.match(/^\/api\/events\/[^/]+\/participants$/)) {
+    try {
+      const eventId = path.match(/^\/api\/events\/([^/]+)\/participants$/)[1]
+      console.log('[API] Get event participants:', eventId)
+      
+      // 暂时返回空数组，后续可以添加真实数据
+      sendJson(res, 200, { 
+        code: 0, 
+        data: [],
+        message: '获取成功'
+      })
+    } catch (e) {
+      console.error('[API] Get event participants failed:', e)
+      sendJson(res, 500, { code: 1, message: '获取参与者列表失败' })
+    }
+    return
+  }
+
+  // 获取活动作品列表
+  if (req.method === 'GET' && path.match(/^\/api\/events\/[^/]+\/works$/)) {
+    try {
+      const eventId = path.match(/^\/api\/events\/([^/]+)\/works$/)[1]
+      console.log('[API] Get event works:', eventId)
+      
+      // 暂时返回空数组，后续可以添加真实数据
+      sendJson(res, 200, { 
+        code: 0, 
+        data: [],
+        message: '获取成功'
+      })
+    } catch (e) {
+      console.error('[API] Get event works failed:', e)
+      sendJson(res, 500, { code: 1, message: '获取作品列表失败' })
     }
     return
   }

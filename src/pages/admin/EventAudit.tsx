@@ -93,22 +93,28 @@ export default function EventAudit() {
   
   // 获取活动列表和分类
   useEffect(() => {
-    fetchEvents();
+    fetchEvents(true); // 强制刷新缓存
     fetchCategories();
   }, []);
   
   // 获取活动列表
-  const fetchEvents = async () => {
+  const fetchEvents = async (forceRefresh = false) => {
     try {
       setIsLoading(true);
-      const eventsData = await getEvents({});
+      console.log('[EventAudit] Fetching events...');
+      // 添加 refresh 参数强制刷新缓存
+      const params = forceRefresh ? { refresh: true } : {};
+      const eventsData = await getEvents(params);
+      console.log('[EventAudit] Got events:', eventsData.length, eventsData);
       setEvents(eventsData);
       
       // 计算统计数据
       const now = new Date();
+      const pendingCount = eventsData.filter(e => e.status === 'pending').length;
+      console.log('[EventAudit] Pending events:', pendingCount);
       setStats({
         totalEvents: eventsData.length,
-        pendingEvents: eventsData.filter(e => e.status === 'pending').length,
+        pendingEvents: pendingCount,
         ongoingEvents: eventsData.filter(e => {
           const start = new Date(e.startTime);
           const end = new Date(e.endTime);
@@ -121,6 +127,7 @@ export default function EventAudit() {
           : 0
       });
     } catch (error) {
+      console.error('[EventAudit] Fetch events error:', error);
       toast.error('获取活动列表失败，请稍后重试');
       // 模拟数据
       const mockEvents: Event[] = [
@@ -594,6 +601,12 @@ export default function EventAudit() {
                   className={`text-sm px-3 py-1 rounded ${isBatchMode ? 'bg-red-600 text-white' : isDark ? 'bg-gray-700' : 'bg-gray-100'}`}
                 >
                   批量模式
+                </button>
+                <button
+                  onClick={() => fetchEvents(true)}
+                  className="text-sm px-3 py-1 rounded bg-blue-600 text-white"
+                >
+                  刷新
                 </button>
                 {isBatchMode && (
                   <button

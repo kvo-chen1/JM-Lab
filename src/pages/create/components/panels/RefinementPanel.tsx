@@ -99,10 +99,10 @@ export const RefinementPanel: React.FC = () => {
         n: 1
       });
 
-      if (result.success && result.images && result.images.length > 0) {
+      if (result.ok && result.data?.data && result.data.data.length > 0) {
         const newResult = {
           id: Date.now(),
-          url: result.images[0].url,
+          url: result.data.data[0].url,
           prompt: prompt,
           timestamp: new Date().toISOString()
         };

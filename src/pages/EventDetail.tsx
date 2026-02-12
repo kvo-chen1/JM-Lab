@@ -15,7 +15,7 @@ export default function EventDetail() {
   const { isDark } = useTheme();
   const navigate = useNavigate();
   const { isAuthenticated, user } = useContext(AuthContext);
-  const { registerForEvent, getEventParticipants, getEventById } = useEventService();
+  const { registerForEvent, getEventParticipants, getEvent } = useEventService();
   const [event, setEvent] = useState<Event | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRegistering, setIsRegistering] = useState(false);
@@ -30,7 +30,7 @@ export default function EventDetail() {
       setIsLoading(true);
       
       try {
-        const eventData = await getEventById(id);
+        const eventData = await getEvent(id);
         setEvent(eventData || null);
       } catch (error) {
         console.error('加载活动失败:', error);
@@ -41,7 +41,7 @@ export default function EventDetail() {
     };
     
     loadEvent();
-  }, [id, getEventById]);
+  }, [id, getEvent]);
   
   // 加载参与者数据和作品数量
   useEffect(() => {

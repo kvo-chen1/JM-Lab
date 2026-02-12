@@ -67,6 +67,11 @@ function setCache(key, data) {
   apiCache.set(key, { data, timestamp: Date.now() });
 }
 
+// 清除缓存
+function invalidateCache(key) {
+  apiCache.delete(key);
+}
+
 // 端口配置 - 默认3022与Vite代理配置保持一致
 const PORT = Number(process.env.LOCAL_API_PORT || process.env.PORT) || 3022
 const ORIGIN = process.env.CORS_ALLOW_ORIGIN || '*'
@@ -1437,11 +1442,28 @@ async function route(req, res, u, path) {
 
     try {
       const data = await readBody(req)
+      
+      // 调试日志：查看接收到的数据
+      console.log('[API] Create event - received data:', JSON.stringify({
+        title: data.title,
+        tags: data.tags,
+        tagsType: typeof data.tags,
+        tagsIsArray: Array.isArray(data.tags),
+        tagsLength: Array.isArray(data.tags) ? data.tags.length : 'N/A',
+        media: data.media,
+        content: data.content
+      }))
 
       // 转换前端字段为数据库字段
+      // 注意：tags 是 PostgreSQL 数组类型，空数组会导致 "malformed array literal" 错误
+      const tags = data.tags && Array.isArray(data.tags) && data.tags.length > 0 ? data.tags : null;
+      
+      console.log('[API] Create event - processed tags:', tags)
+      
       const dbEventData = {
         title: data.title,
         description: data.description,
+        content: data.content || data.description || '', // 确保 content 字段不为 null
         start_date: data.startTime ? Math.floor(new Date(data.startTime).getTime() / 1000) : null,
         end_date: data.endTime ? Math.floor(new Date(data.endTime).getTime() / 1000) : null,
         location: data.location,
@@ -1455,7 +1477,7 @@ async function route(req, res, u, path) {
         published_at: data.status === 'published' ? Math.floor(Date.now() / 1000) : null,
         image_url: data.media && data.media.length > 0 ? data.media[0].url : null,
         category: data.category || null,
-        tags: data.tags || null,
+        tags: tags,
         platform_event_id: data.platformEventId || null
       }
 
@@ -1504,10 +1526,13 @@ async function route(req, res, u, path) {
         dbUpdateData.image_url = data.media && data.media.length > 0 ? data.media[0].url : null
       }
       if (data.category !== undefined) dbUpdateData.category = data.category
-      if (data.tags !== undefined) dbUpdateData.tags = data.tags
+      if (data.tags !== undefined) {
+        // 注意：tags 是 PostgreSQL 数组类型，空数组会导致 "malformed array literal" 错误
+        dbUpdateData.tags = data.tags && Array.isArray(data.tags) && data.tags.length > 0 ? data.tags : null
+      }
       if (data.platformEventId !== undefined) dbUpdateData.platform_event_id = data.platformEventId
 
-      const event = await eventDB.update(eventId, dbUpdateData)
+      const event = await eventDB.updateEvent(eventId, dbUpdateData)
       sendJson(res, 200, { code: 0, data: event })
     } catch (e) {
       console.error('[API] Update event failed:', e)
@@ -1527,7 +1552,7 @@ async function route(req, res, u, path) {
     const eventId = path.match(/^\/api\/events\/([^/]+)\/publish$/)[1]
 
     try {
-      const event = await eventDB.update(eventId, {
+      const event = await eventDB.updateEvent(eventId, {
         status: 'published',
         published_at: Math.floor(Date.now() / 1000)
       })
@@ -1553,7 +1578,7 @@ async function route(req, res, u, path) {
       const data = await readBody(req)
 
       // 更新活动状态为已发布
-      const event = await eventDB.update(eventId, {
+      const event = await eventDB.updateEvent(eventId, {
         status: 'published',
         published_at: Math.floor(Date.now() / 1000),
         platform_event_id: `jinmai_${Date.now()}`
@@ -1618,7 +1643,7 @@ async function route(req, res, u, path) {
         updateData.published_at = Math.floor(Date.now() / 1000)
       }
 
-      const event = await eventDB.update(eventId, updateData)
+      const event = await eventDB.updateEvent(eventId, updateData)
 
       if (!event) {
         sendJson(res, 404, { code: 1, message: '活动不存在' })
@@ -4835,6 +4860,386 @@ async function route(req, res, u, path) {
     } catch (error) {
       console.error('[API] Video download proxy failed:', error)
       sendJson(res, 500, { code: 1, message: '视频下载失败: ' + error.message })
+    }
+    return
+  }
+
+  // ==================== AI图片处理API ====================
+  
+  // 图片风格迁移
+  if (req.method === 'POST' && path === '/api/qwen/images/style-transfer') {
+    const b = await readBody(req)
+    
+    if (!b.imageUrl) { sendJson(res, 400, { error: 'IMAGE_REQUIRED', message: 'Image URL is required' }); return }
+    if (!b.style) { sendJson(res, 400, { error: 'STYLE_REQUIRED', message: 'Style is required' }); return }
+    
+    console.log(`[Qwen Style Transfer] Request received:`, b.style);
+    
+    const authKey = process.env.DASHSCOPE_API_KEY || process.env.VITE_QWEN_API_KEY || ''
+    if (!authKey) { 
+      console.error('[Qwen Style Transfer] ERROR: API Key not configured');
+      sendJson(res, 401, { error: 'API_KEY_MISSING', message: 'Missing DashScope API Key' }); 
+      return 
+    }
+
+    try {
+      // 构建风格迁移提示词
+      const stylePrompts = {
+        'guochao': 'Convert to Chinese Guochao style, traditional patterns, red and gold colors, cultural elements',
+        'ink': 'Convert to Chinese ink painting style, black and white, artistic brush strokes, oriental aesthetics',
+        'bluewhite': 'Convert to blue and white porcelain style, classic Chinese ceramic patterns',
+        'dunhuang': 'Convert to Dunhuang mural style, golden and red tones, flying apsaras elements',
+        'paper': 'Convert to Chinese paper-cutting style, red color, intricate patterns',
+        'calligraphy': 'Convert to Chinese calligraphy style, brush strokes, artistic text elements',
+        'minimal': 'Convert to minimalism style, clean lines, simple composition, modern aesthetics',
+        'retro': 'Convert to retro vintage style, warm tones, nostalgic atmosphere',
+        'neon': 'Convert to cyberpunk neon style, purple and blue lights, futuristic elements',
+        'nordic': 'Convert to Nordic Scandinavian style, bright colors, cozy atmosphere'
+      }
+      
+      const stylePrompt = stylePrompts[b.style] || `Convert to ${b.style} style`
+      const prompt = `${stylePrompt}. Keep the main subject and composition.`
+      
+      // 调用图生图API进行风格迁移
+      const result = await dashscopeImageGenerate({
+        prompt: prompt,
+        size: '1024x1024',
+        n: 1,
+        authKey,
+        model: 'wanx2.1-t2i-turbo'
+      })
+      
+      if (!result.ok) {
+        console.error('[Qwen Style Transfer] Failed:', result.data);
+        sendJson(res, result.status, result.data)
+        return
+      }
+      
+      console.log('[Qwen Style Transfer] Success');
+      sendJson(res, 200, { ok: true, data: result.data })
+    } catch (e) {
+      console.error('[Qwen Style Transfer] Error:', e)
+      sendJson(res, 500, { error: 'TRANSFER_FAILED', message: e.message })
+    }
+    return
+  }
+
+  // 图片画质增强
+  if (req.method === 'POST' && path === '/api/qwen/images/enhance') {
+    const b = await readBody(req)
+    
+    if (!b.imageUrl) { sendJson(res, 400, { error: 'IMAGE_REQUIRED', message: 'Image URL is required' }); return }
+    
+    console.log(`[Qwen Enhance] Request received:`, b.type || 'general');
+    
+    const authKey = process.env.DASHSCOPE_API_KEY || process.env.VITE_QWEN_API_KEY || ''
+    if (!authKey) { 
+      console.error('[Qwen Enhance] ERROR: API Key not configured');
+      sendJson(res, 401, { error: 'API_KEY_MISSING', message: 'Missing DashScope API Key' }); 
+      return 
+    }
+
+    try {
+      // 构建增强提示词
+      const enhancePrompts = {
+        'vivid': 'Enhance colors, increase saturation, make the image more vibrant and lively',
+        'soft': 'Soften the image, reduce contrast, create dreamy and elegant atmosphere',
+        'classic': 'Apply vintage retro filter, warm tones, nostalgic feeling',
+        'culture': 'Enhance Chinese traditional colors, cultural characteristics, red and gold tones',
+        'clear': 'Sharpen details, enhance clarity, improve definition',
+        'warm': 'Add warm tones, cozy and comfortable atmosphere'
+      }
+      
+      const enhancePrompt = enhancePrompts[b.type] || 'Enhance image quality, improve details'
+      
+      const result = await dashscopeImageGenerate({
+        prompt: enhancePrompt,
+        size: '1024x1024',
+        n: 1,
+        authKey,
+        model: 'wanx2.1-t2i-turbo'
+      })
+      
+      if (!result.ok) {
+        console.error('[Qwen Enhance] Failed:', result.data);
+        sendJson(res, result.status, result.data)
+        return
+      }
+      
+      console.log('[Qwen Enhance] Success');
+      sendJson(res, 200, { ok: true, data: result.data })
+    } catch (e) {
+      console.error('[Qwen Enhance] Error:', e)
+      sendJson(res, 500, { error: 'ENHANCE_FAILED', message: e.message })
+    }
+    return
+  }
+
+  // 智能扩图
+  if (req.method === 'POST' && path === '/api/qwen/images/expand') {
+    const b = await readBody(req)
+    
+    if (!b.imageUrl) { sendJson(res, 400, { error: 'IMAGE_REQUIRED', message: 'Image URL is required' }); return }
+    
+    console.log(`[Qwen Expand] Request received, ratio:`, b.ratio || 1.5);
+    
+    const authKey = process.env.DASHSCOPE_API_KEY || process.env.VITE_QWEN_API_KEY || ''
+    if (!authKey) { 
+      console.error('[Qwen Expand] ERROR: API Key not configured');
+      sendJson(res, 401, { error: 'API_KEY_MISSING', message: 'Missing DashScope API Key' }); 
+      return 
+    }
+
+    try {
+      const ratio = b.ratio || 1.5
+      const direction = b.direction || 'all'
+      
+      const directionPrompts = {
+        'all': 'Expand the canvas in all directions, outpainting',
+        'left': 'Expand the canvas to the left, outpainting',
+        'right': 'Expand the canvas to the right, outpainting',
+        'top': 'Expand the canvas upward, outpainting',
+        'bottom': 'Expand the canvas downward, outpainting'
+      }
+      
+      const prompt = `${directionPrompts[direction] || directionPrompts['all']}. Maintain style consistency.`
+      
+      const result = await dashscopeImageGenerate({
+        prompt: prompt,
+        size: ratio > 1.5 ? '1440x1024' : '1024x1024',
+        n: 1,
+        authKey,
+        model: 'wanx2.1-t2i-turbo'
+      })
+      
+      if (!result.ok) {
+        console.error('[Qwen Expand] Failed:', result.data);
+        sendJson(res, result.status, result.data)
+        return
+      }
+      
+      console.log('[Qwen Expand] Success');
+      sendJson(res, 200, { ok: true, data: result.data })
+    } catch (e) {
+      console.error('[Qwen Expand] Error:', e)
+      sendJson(res, 500, { error: 'EXPAND_FAILED', message: e.message })
+    }
+    return
+  }
+
+  // 局部重绘
+  if (req.method === 'POST' && path === '/api/qwen/images/inpaint') {
+    const b = await readBody(req)
+    
+    if (!b.imageUrl) { sendJson(res, 400, { error: 'IMAGE_REQUIRED', message: 'Image URL is required' }); return }
+    if (!b.prompt) { sendJson(res, 400, { error: 'PROMPT_REQUIRED', message: 'Prompt is required' }); return }
+    
+    console.log(`[Qwen Inpaint] Request received:`, b.prompt);
+    
+    const authKey = process.env.DASHSCOPE_API_KEY || process.env.VITE_QWEN_API_KEY || ''
+    if (!authKey) { 
+      console.error('[Qwen Inpaint] ERROR: API Key not configured');
+      sendJson(res, 401, { error: 'API_KEY_MISSING', message: 'Missing DashScope API Key' }); 
+      return 
+    }
+
+    try {
+      // 使用图生图实现局部重绘效果
+      const result = await dashscopeImageGenerate({
+        prompt: `Modify the image: ${b.prompt}. Keep the rest unchanged.`,
+        size: '1024x1024',
+        n: 1,
+        authKey,
+        model: 'wanx2.1-t2i-turbo'
+      })
+      
+      if (!result.ok) {
+        console.error('[Qwen Inpaint] Failed:', result.data);
+        sendJson(res, result.status, result.data)
+        return
+      }
+      
+      console.log('[Qwen Inpaint] Success');
+      sendJson(res, 200, { ok: true, data: result.data })
+    } catch (e) {
+      console.error('[Qwen Inpaint] Error:', e)
+      sendJson(res, 500, { error: 'INPAINT_FAILED', message: e.message })
+    }
+    return
+  }
+
+  // 提示词优化
+  if (req.method === 'POST' && path === '/api/qwen/prompt/optimize') {
+    const b = await readBody(req)
+    
+    if (!b.prompt) { sendJson(res, 400, { error: 'PROMPT_REQUIRED', message: 'Prompt is required' }); return }
+    
+    console.log(`[Qwen Prompt Optimize] Request received:`, b.prompt);
+    
+    const authKey = process.env.DASHSCOPE_API_KEY || process.env.VITE_QWEN_API_KEY || ''
+    if (!authKey) { 
+      console.error('[Qwen Prompt Optimize] ERROR: API Key not configured');
+      sendJson(res, 401, { error: 'API_KEY_MISSING', message: 'Missing DashScope API Key' }); 
+      return 
+    }
+
+    try {
+      const optimizationPrompt = `As an AI art prompt expert, please optimize the following image generation prompt to make it more professional and detailed. 
+
+Original prompt: "${b.prompt}"
+
+Please provide:
+1. An optimized version (more detailed, with style, lighting, composition descriptors)
+2. A list of 3-5 suggested keywords to add
+3. A brief explanation of the improvements
+
+Response format (JSON):
+{
+  "optimized": "optimized prompt text",
+  "suggestions": ["keyword1", "keyword2", "keyword3"],
+  "explanation": "explanation text"
+}`
+
+      const response = await fetch(`${DASHSCOPE_BASE_URL}/compatible-mode/v1/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authKey}`
+        },
+        body: JSON.stringify({
+          model: 'qwen-plus',
+          messages: [{ role: 'user', content: optimizationPrompt }],
+          temperature: 0.7,
+          max_tokens: 800
+        })
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        console.error('[Qwen Prompt Optimize] API error:', errorData)
+        sendJson(res, response.status, { error: 'OPTIMIZE_FAILED', message: errorData.error?.message || 'Failed to optimize prompt' })
+        return
+      }
+      
+      const result = await response.json()
+      const content = result.choices?.[0]?.message?.content || ''
+      
+      // 尝试解析JSON响应
+      let parsedResult
+      try {
+        const jsonMatch = content.match(/\{[\s\S]*\}/)
+        if (jsonMatch) {
+          parsedResult = JSON.parse(jsonMatch[0])
+        } else {
+          parsedResult = {
+            optimized: content,
+            suggestions: [],
+            explanation: 'Prompt optimized successfully'
+          }
+        }
+      } catch (e) {
+        parsedResult = {
+          optimized: content,
+          suggestions: [],
+          explanation: 'Prompt optimized successfully'
+        }
+      }
+      
+      console.log('[Qwen Prompt Optimize] Success');
+      sendJson(res, 200, { ok: true, data: parsedResult })
+    } catch (e) {
+      console.error('[Qwen Prompt Optimize] Error:', e)
+      sendJson(res, 500, { error: 'OPTIMIZE_FAILED', message: e.message })
+    }
+    return
+  }
+
+  // 提示词分析
+  if (req.method === 'POST' && path === '/api/qwen/prompt/analyze') {
+    const b = await readBody(req)
+    
+    if (!b.prompt) { sendJson(res, 400, { error: 'PROMPT_REQUIRED', message: 'Prompt is required' }); return }
+    
+    console.log(`[Qwen Prompt Analyze] Request received:`, b.prompt);
+    
+    const authKey = process.env.DASHSCOPE_API_KEY || process.env.VITE_QWEN_API_KEY || ''
+    if (!authKey) { 
+      console.error('[Qwen Prompt Analyze] ERROR: API Key not configured');
+      sendJson(res, 401, { error: 'API_KEY_MISSING', message: 'Missing DashScope API Key' }); 
+      return 
+    }
+
+    try {
+      const analysisPrompt = `As an AI art prompt expert, please analyze the following image generation prompt and provide feedback.
+
+Prompt: "${b.prompt}"
+
+Please analyze:
+1. Completeness score (0-100)
+2. What elements are present (subject, style, lighting, composition, etc.)
+3. What's missing that could improve the result
+4. Specific improvement suggestions
+
+Response format (JSON):
+{
+  "score": 75,
+  "presentElements": ["element1", "element2"],
+  "missingElements": ["element3", "element4"],
+  "suggestions": ["suggestion1", "suggestion2"]
+}`
+
+      const response = await fetch(`${DASHSCOPE_BASE_URL}/compatible-mode/v1/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authKey}`
+        },
+        body: JSON.stringify({
+          model: 'qwen-plus',
+          messages: [{ role: 'user', content: analysisPrompt }],
+          temperature: 0.5,
+          max_tokens: 800
+        })
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        console.error('[Qwen Prompt Analyze] API error:', errorData)
+        sendJson(res, response.status, { error: 'ANALYZE_FAILED', message: errorData.error?.message || 'Failed to analyze prompt' })
+        return
+      }
+      
+      const result = await response.json()
+      const content = result.choices?.[0]?.message?.content || ''
+      
+      // 尝试解析JSON响应
+      let parsedResult
+      try {
+        const jsonMatch = content.match(/\{[\s\S]*\}/)
+        if (jsonMatch) {
+          parsedResult = JSON.parse(jsonMatch[0])
+        } else {
+          parsedResult = {
+            score: 50,
+            presentElements: [],
+            missingElements: ['Style description', 'Lighting details', 'Composition guidance'],
+            suggestions: ['Add more descriptive details']
+          }
+        }
+      } catch (e) {
+        parsedResult = {
+          score: 50,
+          presentElements: [],
+          missingElements: ['Style description', 'Lighting details'],
+          suggestions: ['Add more descriptive details']
+        }
+      }
+      
+      console.log('[Qwen Prompt Analyze] Success');
+      sendJson(res, 200, { ok: true, data: parsedResult })
+    } catch (e) {
+      console.error('[Qwen Prompt Analyze] Error:', e)
+      sendJson(res, 500, { error: 'ANALYZE_FAILED', message: e.message })
     }
     return
   }

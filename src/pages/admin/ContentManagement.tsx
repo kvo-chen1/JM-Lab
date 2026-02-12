@@ -105,11 +105,24 @@ export default function ContentManagement() {
         }
       }
 
-      // 获取点赞数
+      // 获取点赞数和评论数 - 优先使用 posts 表中的统计字段
       const postIds = (data || []).map((item: any) => item.id).filter(Boolean);
       let likesMap: Record<string, number> = {};
+      let commentsMap: Record<string, number> = {};
       
-      if (postIds.length > 0) {
+      // 从 posts 表中获取统计字段
+      (data || []).forEach((post: any) => {
+        // 优先使用 likes_count 或 likes 字段
+        likesMap[post.id] = post.likes_count || post.likes || 0;
+        // 优先使用 comments_count 字段
+        commentsMap[post.id] = post.comments_count || 0;
+      });
+      
+      // 如果 posts 表中没有统计字段，则从 likes 和 comments 表中查询
+      const needsLikesQuery = Object.values(likesMap).every(v => v === 0);
+      const needsCommentsQuery = Object.values(commentsMap).every(v => v === 0);
+      
+      if (needsLikesQuery && postIds.length > 0) {
         const { data: likesData, error: likesError } = await supabaseAdmin
           .from('likes')
           .select('post_id')
@@ -122,10 +135,7 @@ export default function ContentManagement() {
         }
       }
 
-      // 获取评论数
-      let commentsMap: Record<string, number> = {};
-      
-      if (postIds.length > 0) {
+      if (needsCommentsQuery && postIds.length > 0) {
         const { data: commentsData, error: commentsError } = await supabaseAdmin
           .from('comments')
           .select('post_id')
@@ -138,24 +148,75 @@ export default function ContentManagement() {
         }
       }
 
-      const formattedPosts: Post[] = (data || []).map((item: any) => ({
-        id: item.id,
-        title: item.title || '无标题',
-        content: item.content || '',
-        author_id: item.user_id || item.author_id,
-        author_name: userMap[item.user_id || item.author_id]?.username || '未知用户',
-        author_avatar: userMap[item.user_id || item.author_id]?.avatar_url,
-        community_id: item.community_id,
-        community_name: communityMap[item.community_id]?.name || '未知社群',
-        images: item.images || item.attachments || [],
-        likes_count: likesMap[item.id] || 0,
-        comments_count: commentsMap[item.id] || 0,
-        views: item.view_count || 0,
-        is_pinned: item.is_pinned || false,
-        is_announcement: item.is_announcement || false,
-        status: 'active',
-        created_at: item.created_at
-      }));
+      // 提取作品分享帖子中的作品ID，并获取作品信息
+      const workIds: string[] = [];
+      const postWorkMap: Record<string, string> = {};
+      
+      (data || []).forEach((post: any) => {
+        const workIdMatch = post.content?.match(/\[分享作品ID: ([\w-]+)\]/);
+        if (workIdMatch) {
+          workIds.push(workIdMatch[1]);
+          postWorkMap[post.id] = workIdMatch[1];
+        }
+      });
+      
+      // 获取作品信息
+      let workMap: Record<string, any> = {};
+      if (workIds.length > 0) {
+        const { data: worksData, error: worksError } = await supabaseAdmin
+          .from('works')
+          .select('id, title, thumbnail, cover_url, likes, comments, views, shares')
+          .in('id', workIds);
+        
+        if (!worksError && worksData) {
+          workMap = worksData.reduce((acc: Record<string, any>, work: any) => {
+            acc[work.id] = work;
+            return acc;
+          }, {});
+        }
+      }
+
+      const formattedPosts: Post[] = (data || []).map((item: any) => {
+        // 检查是否是作品分享帖子
+        const workId = postWorkMap[item.id];
+        const work = workId ? workMap[workId] : null;
+        
+        // 如果是作品分享，使用作品的图片和互动数据
+        let images = item.images || item.attachments || [];
+        let likesCount = likesMap[item.id] || 0;
+        let commentsCount = commentsMap[item.id] || 0;
+        let viewsCount = item.view_count || 0;
+        
+        if (work) {
+          // 使用作品的缩略图或封面图
+          if (images.length === 0) {
+            images = [work.thumbnail || work.cover_url].filter(Boolean);
+          }
+          // 使用作品的真实互动数据
+          likesCount = work.likes || 0;
+          commentsCount = work.comments || 0;
+          viewsCount = work.views || 0;
+        }
+        
+        return {
+          id: item.id,
+          title: item.title || '无标题',
+          content: item.content || '',
+          author_id: item.user_id || item.author_id,
+          author_name: userMap[item.user_id || item.author_id]?.username || '未知用户',
+          author_avatar: userMap[item.user_id || item.author_id]?.avatar_url,
+          community_id: item.community_id,
+          community_name: communityMap[item.community_id]?.name || '未知社群',
+          images: images,
+          likes_count: likesCount,
+          comments_count: commentsCount,
+          views: viewsCount,
+          is_pinned: item.is_pinned || false,
+          is_announcement: item.is_announcement || false,
+          status: 'active',
+          created_at: item.created_at
+        };
+      });
 
       setPosts(formattedPosts);
       setTotalCount(count || 0);
@@ -435,11 +496,24 @@ export default function ContentManagement() {
                         <td className="px-6 py-4">
                           <div className="flex items-start space-x-3">
                             {post.images && post.images.length > 0 && (
-                              <img
-                                src={post.images[0]}
-                                alt={post.title}
-                                className="w-16 h-16 rounded-lg object-cover flex-shrink-0"
-                              />
+                              (() => {
+                                const imageUrl = post.images[0];
+                                const isVideo = imageUrl.match(/\.(mp4|webm|ogg|mov)$/i);
+                                return isVideo ? (
+                                  <div className="w-16 h-16 rounded-lg flex-shrink-0 bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                                    <i className="fas fa-video text-gray-500 text-xl"></i>
+                                  </div>
+                                ) : (
+                                  <img
+                                    src={imageUrl}
+                                    alt={post.title}
+                                    className="w-16 h-16 rounded-lg object-cover flex-shrink-0"
+                                    onError={(e) => {
+                                      (e.target as HTMLImageElement).src = 'https://via.placeholder.com/64?text=No+Image';
+                                    }}
+                                  />
+                                );
+                              })()
                             )}
                             <div className="flex-1 min-w-0">
                               <p className="font-medium truncate">{post.title}</p>
@@ -723,9 +797,27 @@ export default function ContentManagement() {
                     </p>
                     {selectedItem.images && selectedItem.images.length > 0 && (
                       <div className="grid grid-cols-3 gap-2">
-                        {selectedItem.images.map((img, idx) => (
-                          <img key={idx} src={img} alt="" className="rounded-lg object-cover h-32 w-full" />
-                        ))}
+                        {selectedItem.images.map((img, idx) => {
+                          const isVideo = img.match(/\.(mp4|webm|ogg|mov)$/i);
+                          return isVideo ? (
+                            <div key={idx} className="rounded-lg bg-gray-200 dark:bg-gray-700 h-32 w-full flex items-center justify-center">
+                              <div className="text-center">
+                                <i className="fas fa-video text-gray-500 text-2xl mb-2"></i>
+                                <p className="text-xs text-gray-500">视频文件</p>
+                              </div>
+                            </div>
+                          ) : (
+                            <img 
+                              key={idx} 
+                              src={img} 
+                              alt="" 
+                              className="rounded-lg object-cover h-32 w-full"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = 'https://via.placeholder.com/300x128?text=No+Image';
+                              }}
+                            />
+                          );
+                        })}
                       </div>
                     )}
                     <div className="flex items-center space-x-6 pt-4 border-t dark:border-gray-700">

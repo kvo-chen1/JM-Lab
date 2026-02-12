@@ -55,6 +55,15 @@ interface CreateActions {
   }>;
   saveToPlanLibrary: () => void;
   setAutoGenerate: (value: boolean) => void;
+  // 图片完善相关
+  setRefinementMode: (mode: 'image-to-image' | 'expand' | 'inpaint') => void;
+  setRefinementPrompt: (prompt: string) => void;
+  setExpandRatio: (ratio: number) => void;
+  setInpaintMask: (mask: string | null) => void;
+  // 提示词优化相关
+  setOptimizedPrompt: (prompt: string) => void;
+  addPromptHistory: (prompt: string) => void;
+  removePromptFromHistory: (prompt: string) => void;
 }
 
 const initialState: CreateState = {
@@ -125,6 +134,15 @@ const initialState: CreateState = {
   patternTileMode: 'repeat',
   patternPositionX: 0,
   patternPositionY: 0,
+  // 图片完善相关状态
+  refinementMode: 'image-to-image',
+  refinementPrompt: '',
+  expandRatio: 1.5,
+  inpaintMask: null,
+  // 提示词优化相关状态
+  optimizedPrompt: '',
+  promptHistory: [],
+  isOptimizingPrompt: false,
 };
 
 export const useCreateStore = create<CreateState & CreateActions>((set) => ({
@@ -923,4 +941,20 @@ export const useCreateStore = create<CreateState & CreateActions>((set) => ({
       return state;
     }
   }),
+  
+  // 图片完善相关方法
+  setRefinementMode: (mode) => set({ refinementMode: mode }),
+  setRefinementPrompt: (prompt) => set({ refinementPrompt: prompt }),
+  setExpandRatio: (ratio) => set({ expandRatio: ratio }),
+  setInpaintMask: (mask) => set({ inpaintMask: mask }),
+  
+  // 提示词优化相关方法
+  setOptimizedPrompt: (prompt) => set({ optimizedPrompt: prompt }),
+  addPromptHistory: (prompt) => set((state) => {
+    const newHistory = [prompt, ...state.promptHistory.filter(p => p !== prompt)].slice(0, 20);
+    return { promptHistory: newHistory };
+  }),
+  removePromptFromHistory: (prompt) => set((state) => ({
+    promptHistory: state.promptHistory.filter(p => p !== prompt)
+  })),
 }));

@@ -2834,6 +2834,244 @@ ${description}
       throw error;
     }
   }
+
+  // ==================== AI图片处理API方法 ====================
+
+  /**
+   * 图片风格迁移
+   * @param imageUrl 原图片URL
+   * @param style 目标风格ID
+   * @param intensity 强度 (0-100)
+   * @returns 风格迁移后的图片URL
+   */
+  async styleTransfer(imageUrl: string, style: string, intensity: number = 70): Promise<{ success: boolean; imageUrl?: string; error?: string }> {
+    try {
+      console.log('[LLM] Style transfer:', style, 'intensity:', intensity);
+      
+      const response = await fetch('/api/qwen/images/style-transfer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageUrl, style, intensity })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('[LLM] Style transfer failed:', errorData);
+        return { success: false, error: errorData.error || '风格迁移失败' };
+      }
+
+      const result = await response.json();
+      
+      if (result.ok && result.data?.data?.[0]?.url) {
+        return { success: true, imageUrl: result.data.data[0].url };
+      }
+      
+      return { success: false, error: '未获取到图片URL' };
+    } catch (error) {
+      console.error('[LLM] Style transfer error:', error);
+      return { success: false, error: error instanceof Error ? error.message : '风格迁移失败' };
+    }
+  }
+
+  /**
+   * 图片画质增强
+   * @param imageUrl 原图片URL
+   * @param type 增强类型
+   * @param intensity 强度 (0-100)
+   * @returns 增强后的图片URL
+   */
+  async enhanceImage(imageUrl: string, type: string = 'clear', intensity: number = 70): Promise<{ success: boolean; imageUrl?: string; error?: string }> {
+    try {
+      console.log('[LLM] Enhance image:', type, 'intensity:', intensity);
+      
+      const response = await fetch('/api/qwen/images/enhance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageUrl, type, intensity })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('[LLM] Enhance failed:', errorData);
+        return { success: false, error: errorData.error || '画质增强失败' };
+      }
+
+      const result = await response.json();
+      
+      if (result.ok && result.data?.data?.[0]?.url) {
+        return { success: true, imageUrl: result.data.data[0].url };
+      }
+      
+      return { success: false, error: '未获取到图片URL' };
+    } catch (error) {
+      console.error('[LLM] Enhance error:', error);
+      return { success: false, error: error instanceof Error ? error.message : '画质增强失败' };
+    }
+  }
+
+  /**
+   * 智能扩图
+   * @param imageUrl 原图片URL
+   * @param ratio 扩展比例
+   * @param direction 扩展方向
+   * @returns 扩展后的图片URL
+   */
+  async expandImage(imageUrl: string, ratio: number = 1.5, direction: string = 'all'): Promise<{ success: boolean; imageUrl?: string; error?: string }> {
+    try {
+      console.log('[LLM] Expand image:', ratio, 'direction:', direction);
+      
+      const response = await fetch('/api/qwen/images/expand', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageUrl, ratio, direction })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('[LLM] Expand failed:', errorData);
+        return { success: false, error: errorData.error || '扩图失败' };
+      }
+
+      const result = await response.json();
+      
+      if (result.ok && result.data?.data?.[0]?.url) {
+        return { success: true, imageUrl: result.data.data[0].url };
+      }
+      
+      return { success: false, error: '未获取到图片URL' };
+    } catch (error) {
+      console.error('[LLM] Expand error:', error);
+      return { success: false, error: error instanceof Error ? error.message : '扩图失败' };
+    }
+  }
+
+  /**
+   * 局部重绘
+   * @param imageUrl 原图片URL
+   * @param prompt 修改描述
+   * @param mask 遮罩区域(可选)
+   * @returns 重绘后的图片URL
+   */
+  async inpaintImage(imageUrl: string, prompt: string, mask?: string): Promise<{ success: boolean; imageUrl?: string; error?: string }> {
+    try {
+      console.log('[LLM] Inpaint image:', prompt);
+      
+      const response = await fetch('/api/qwen/images/inpaint', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageUrl, prompt, mask })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('[LLM] Inpaint failed:', errorData);
+        return { success: false, error: errorData.error || '局部重绘失败' };
+      }
+
+      const result = await response.json();
+      
+      if (result.ok && result.data?.data?.[0]?.url) {
+        return { success: true, imageUrl: result.data.data[0].url };
+      }
+      
+      return { success: false, error: '未获取到图片URL' };
+    } catch (error) {
+      console.error('[LLM] Inpaint error:', error);
+      return { success: false, error: error instanceof Error ? error.message : '局部重绘失败' };
+    }
+  }
+
+  /**
+   * 优化提示词
+   * @param prompt 原始提示词
+   * @returns 优化后的提示词和建议
+   */
+  async optimizePrompt(prompt: string): Promise<{ 
+    success: boolean; 
+    optimized?: string; 
+    suggestions?: string[]; 
+    explanation?: string;
+    error?: string 
+  }> {
+    try {
+      console.log('[LLM] Optimize prompt:', prompt);
+      
+      const response = await fetch('/api/qwen/prompt/optimize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('[LLM] Optimize prompt failed:', errorData);
+        return { success: false, error: errorData.error || '提示词优化失败' };
+      }
+
+      const result = await response.json();
+      
+      if (result.ok && result.data) {
+        return { 
+          success: true, 
+          optimized: result.data.optimized,
+          suggestions: result.data.suggestions,
+          explanation: result.data.explanation
+        };
+      }
+      
+      return { success: false, error: '优化结果解析失败' };
+    } catch (error) {
+      console.error('[LLM] Optimize prompt error:', error);
+      return { success: false, error: error instanceof Error ? error.message : '提示词优化失败' };
+    }
+  }
+
+  /**
+   * 分析提示词
+   * @param prompt 提示词
+   * @returns 分析结果
+   */
+  async analyzePrompt(prompt: string): Promise<{ 
+    success: boolean; 
+    score?: number; 
+    presentElements?: string[]; 
+    missingElements?: string[];
+    suggestions?: string[];
+    error?: string 
+  }> {
+    try {
+      console.log('[LLM] Analyze prompt:', prompt);
+      
+      const response = await fetch('/api/qwen/prompt/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('[LLM] Analyze prompt failed:', errorData);
+        return { success: false, error: errorData.error || '提示词分析失败' };
+      }
+
+      const result = await response.json();
+      
+      if (result.ok && result.data) {
+        return { 
+          success: true, 
+          score: result.data.score,
+          presentElements: result.data.presentElements,
+          missingElements: result.data.missingElements,
+          suggestions: result.data.suggestions
+        };
+      }
+      
+      return { success: false, error: '分析结果解析失败' };
+    } catch (error) {
+      console.error('[LLM] Analyze prompt error:', error);
+      return { success: false, error: error instanceof Error ? error.message : '提示词分析失败' };
+    }
+  }
 }
 
 // 导出LLM服务实例

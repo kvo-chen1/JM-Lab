@@ -108,7 +108,7 @@ export default function EventWorks() {
       setIsLoadingEvent(true);
       try {
         // 从 Supabase 获取活动信息
-        const event = await getEventById(eventId);
+        const event = await getEvent(eventId);
         
         if (event) {
           setEventInfo({

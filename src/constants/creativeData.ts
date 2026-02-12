@@ -61,8 +61,8 @@ export interface StylePreset {
   category: string;
 }
 
-// 新的工具类型 - 4个核心智能工具 + 基础功能
-export type ToolType = 'sketch' | 'upload' | 'enhance' | 'style' | 'layout' | 'culture';
+// 新的工具类型 - 6个核心智能工具 + 基础功能
+export type ToolType = 'sketch' | 'upload' | 'enhance' | 'style' | 'layout' | 'culture' | 'refinement' | 'prompt';
 
 export interface ToolOption {
   id: ToolType;
@@ -589,49 +589,65 @@ export const STYLE_PRESETS: StylePreset[] = [
 
 // 新的工具选项 - 4个核心智能工具
 export const TOOL_OPTIONS: ToolOption[] = [
-  { 
-    id: 'sketch', 
-    name: 'AI创作', 
+  {
+    id: 'sketch',
+    name: 'AI创作',
     icon: 'magic',
     description: '智能生成创意作品',
     color: '#C02C38',
     features: ['文生图', '图生图', '智能扩图']
   },
-  { 
-    id: 'upload', 
-    name: '上传作品', 
+  {
+    id: 'upload',
+    name: '上传作品',
     icon: 'upload',
     description: '上传本地作品进行编辑',
     color: '#3B82F6',
     features: ['支持多种格式', '批量上传']
   },
-  { 
-    id: 'enhance', 
-    name: '智能美化', 
+  {
+    id: 'refinement',
+    name: '图片完善',
+    icon: 'wand-magic-sparkles',
+    description: '基于AI的图片二次编辑',
+    color: '#06B6D4',
+    features: ['图生图', '智能扩图', '局部重绘']
+  },
+  {
+    id: 'enhance',
+    name: '智能美化',
     icon: 'sparkles',
     description: 'AI一键优化作品效果',
     color: '#8B5CF6',
-    features: ['智能滤镜', '纹样嵌入', '图案平铺', '色彩优化']
+    features: ['智能滤镜', '画质增强', '色彩优化', '一键美化']
   },
-  { 
-    id: 'style', 
-    name: '风格实验室', 
+  {
+    id: 'style',
+    name: '风格实验室',
     icon: 'palette',
     description: '探索无限风格可能',
     color: '#F59E0B',
     features: ['风格迁移', '多风格融合', '国潮转换', '复古效果']
   },
-  { 
-    id: 'layout', 
-    name: '智能排版', 
+  {
+    id: 'prompt',
+    name: '提示词助手',
+    icon: 'lightbulb',
+    description: 'AI优化和生成提示词',
+    color: '#84CC16',
+    features: ['提示词优化', '质量分析', '模板库', '历史管理']
+  },
+  {
+    id: 'layout',
+    name: '智能排版',
     icon: 'th-large',
     description: 'AI自动排版多平台适配',
     color: '#10B981',
     features: ['智能布局', '多平台尺寸', '一键适配', '模板库']
   },
-  { 
-    id: 'culture', 
-    name: '文化智库', 
+  {
+    id: 'culture',
+    name: '文化智库',
     icon: 'landmark',
     description: '文化灵感与场景预览',
     color: '#EC4899',

@@ -152,4 +152,15 @@ export interface CreateState {
   tileSpacing: number;
   tileRotation: number;
   tileOpacity: number;
+  
+  // 图片完善相关状态
+  refinementMode: 'image-to-image' | 'expand' | 'inpaint';
+  refinementPrompt: string;
+  expandRatio: number;
+  inpaintMask: string | null;
+  
+  // 提示词优化相关状态
+  optimizedPrompt: string;
+  promptHistory: string[];
+  isOptimizingPrompt: boolean;
 }

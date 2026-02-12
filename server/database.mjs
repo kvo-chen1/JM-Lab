@@ -4717,8 +4717,10 @@ export const eventDB = {
     const endTimeValue = endTime || (end_date ? new Date(end_date * 1000).toISOString() : null)
     const thumbnailValue = thumbnailUrl || coverUrl || image_url
     const maxPartValue = maxParticipants || max_participants
-    // 确保 tags 和 media 是数组格式
-    const tagsValue = Array.isArray(tags) ? tags : []
+    // 确保 tags 是数组格式（PostgreSQL text[] 类型）
+    // 注意：空数组会导致 "malformed array literal" 错误，所以使用 null
+    const tagsValue = Array.isArray(tags) && tags.length > 0 ? tags : null
+    // media 是 jsonb 类型，可以是空数组
     const mediaValue = Array.isArray(media) ? media : []
 
     switch (typeKey) {
@@ -4726,11 +4728,36 @@ export const eventDB = {
       case DB_TYPE.POSTGRESQL:
         // Assume table exists or create it (skipping creation here for brevity, assuming migration or createPostgreSQLTables handles it)
         // We'll add table creation to createPostgreSQLTables separately
-        await db.query(`
-          INSERT INTO events (id, title, description, content, start_time, end_time, location, thumbnail_url, status, organizer_id, type, tags, media, max_participants, is_public, created_at, updated_at)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13::jsonb, $14, $15, $16, $17)
-        `, [eventId, title, description, content || description, startTimeValue, endTimeValue, location, thumbnailValue, status || 'draft', orgId, type || 'online', JSON.stringify(tagsValue), JSON.stringify(mediaValue), maxPartValue, isPublic, nowISO, nowISO])
-        return { ...eventData, id: eventId, created_at: nowISO, updated_at: nowISO }
+        
+        // 转换时间戳：优先使用 start_date/end_date (bigint)，否则使用 startTime/endTime (ISO string)
+        const startTimestamp = start_date 
+          ? new Date(start_date * 1000).toISOString() 
+          : (startTime ? new Date(startTime).toISOString() : new Date().toISOString())
+        const endTimestamp = end_date 
+          ? new Date(end_date * 1000).toISOString() 
+          : (endTime ? new Date(endTime).toISOString() : new Date(Date.now() + 86400000).toISOString())
+        
+        // created_at 和 updated_at 是 bigint 类型（Unix 时间戳）
+        const nowTimestamp = Math.floor(Date.now() / 1000)
+        
+        console.log('[DB] Inserting event with values:', {
+        eventId,
+        title,
+        tagsValue,
+        tagsValueType: typeof tagsValue,
+        mediaValue,
+        mediaValueStringified: JSON.stringify(mediaValue)
+      })
+      
+      // 同时需要 start_date/end_date (bigint) 和 start_time/end_time (timestamp)
+      const startDateTimestamp = start_date || Math.floor(new Date(startTimestamp).getTime() / 1000)
+      const endDateTimestamp = end_date || Math.floor(new Date(endTimestamp).getTime() / 1000)
+      
+      await db.query(`
+          INSERT INTO events (id, title, description, content, start_date, end_date, start_time, end_time, location, thumbnail_url, status, organizer_id, type, tags, media, max_participants, is_public, created_at, updated_at)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15::jsonb, $16, $17, $18, $19)
+        `, [eventId, title, description, content || description, startDateTimestamp, endDateTimestamp, startTimestamp, endTimestamp, location, thumbnailValue, status || 'draft', orgId, type || 'online', tagsValue, JSON.stringify(mediaValue), maxPartValue, isPublic, nowTimestamp, nowTimestamp])
+        return { ...eventData, id: eventId, created_at: nowTimestamp, updated_at: nowTimestamp }
         
       case DB_TYPE.MEMORY:
         if (!memoryStore.events) memoryStore.events = []
@@ -4783,22 +4810,114 @@ export const eventDB = {
   async updateEvent(id, updateData) {
     const db = await getDB()
     const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
-    const now = Date.now()
+    const nowTimestamp = Math.floor(Date.now() / 1000)
     
     switch (typeKey) {
         
-      case DB_TYPE.POSTGRESQL:
-        // Simplified for brevity, would need dynamic query building
-        // For now, let's assume we fetch, merge, and update
-        const current = await this.getEvent(id)
-        if (!current) return null
-        // Implementation omitted for brevity, similar to user update
-        return current 
+      case DB_TYPE.POSTGRESQL: {
+        // 构建动态更新字段
+        const updates = []
+        const values = []
+        let paramIndex = 1
+        
+        // 处理各个字段
+        if (updateData.title !== undefined) {
+          updates.push(`title = $${paramIndex++}`)
+          values.push(updateData.title)
+        }
+        if (updateData.description !== undefined) {
+          updates.push(`description = $${paramIndex++}`)
+          values.push(updateData.description)
+        }
+        if (updateData.content !== undefined) {
+          updates.push(`content = $${paramIndex++}`)
+          values.push(updateData.content)
+        }
+        if (updateData.start_date !== undefined) {
+          updates.push(`start_date = $${paramIndex++}`)
+          values.push(updateData.start_date)
+          // 同时更新 start_time
+          updates.push(`start_time = $${paramIndex++}`)
+          values.push(new Date(updateData.start_date * 1000).toISOString())
+        }
+        if (updateData.end_date !== undefined) {
+          updates.push(`end_date = $${paramIndex++}`)
+          values.push(updateData.end_date)
+          // 同时更新 end_time
+          updates.push(`end_time = $${paramIndex++}`)
+          values.push(new Date(updateData.end_date * 1000).toISOString())
+        }
+        if (updateData.location !== undefined) {
+          updates.push(`location = $${paramIndex++}`)
+          values.push(updateData.location)
+        }
+        if (updateData.status !== undefined) {
+          updates.push(`status = $${paramIndex++}`)
+          values.push(updateData.status)
+        }
+        if (updateData.visibility !== undefined) {
+          updates.push(`visibility = $${paramIndex++}`)
+          values.push(updateData.visibility)
+        }
+        if (updateData.max_participants !== undefined) {
+          updates.push(`max_participants = $${paramIndex++}`)
+          values.push(updateData.max_participants)
+        }
+        if (updateData.requirements !== undefined) {
+          updates.push(`requirements = $${paramIndex++}`)
+          values.push(updateData.requirements)
+        }
+        if (updateData.rewards !== undefined) {
+          updates.push(`rewards = $${paramIndex++}`)
+          values.push(updateData.rewards)
+        }
+        if (updateData.image_url !== undefined) {
+          updates.push(`image_url = $${paramIndex++}`)
+          values.push(updateData.image_url)
+        }
+        if (updateData.thumbnail_url !== undefined) {
+          updates.push(`thumbnail_url = $${paramIndex++}`)
+          values.push(updateData.thumbnail_url)
+        }
+        if (updateData.category !== undefined) {
+          updates.push(`category = $${paramIndex++}`)
+          values.push(updateData.category)
+        }
+        if (updateData.tags !== undefined) {
+          updates.push(`tags = $${paramIndex++}`)
+          values.push(updateData.tags)
+        }
+        if (updateData.type !== undefined) {
+          updates.push(`type = $${paramIndex++}`)
+          values.push(updateData.type)
+        }
+        if (updateData.is_public !== undefined) {
+          updates.push(`is_public = $${paramIndex++}`)
+          values.push(updateData.is_public)
+        }
+        
+        // 总是更新 updated_at
+        updates.push(`updated_at = $${paramIndex++}`)
+        values.push(nowTimestamp)
+        
+        // 添加 id 作为最后一个参数
+        values.push(id)
+        
+        const query = `
+          UPDATE events 
+          SET ${updates.join(', ')}
+          WHERE id = $${paramIndex}
+          RETURNING *
+        `
+        
+        const { rows } = await db.query(query, values)
+        return rows[0] || null
+      }
         
       case DB_TYPE.MEMORY:
         const idx = (memoryStore.events || []).findIndex(e => e.id === id)
         if (idx === -1) return null
-        memoryStore.events[idx] = { ...memoryStore.events[idx], ...updateData, updated_at: now }
+        memoryStore.events[idx] = { ...memoryStore.events[idx], ...updateData, updated_at: nowTimestamp }
         saveMemoryStore()
         return memoryStore.events[idx]
         

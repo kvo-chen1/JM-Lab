@@ -8,6 +8,8 @@ import { EnhancePanel } from './panels/EnhancePanel';
 import { StyleLabPanel } from './panels/StyleLabPanel';
 import { SmartLayoutPanel } from './panels/SmartLayoutPanel';
 import { CulturePanel } from './panels/CulturePanel';
+import { RefinementPanel } from './panels/RefinementPanel';
+import { PromptAssistantPanel } from './panels/PromptAssistantPanel';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TOOL_OPTIONS } from "../../../constants/creativeData";
 import { toast } from 'sonner';
@@ -46,10 +48,14 @@ export default function PropertiesPanel() {
         return <UploadPanel onSelectUpload={(upload) => {
           toast.success(`已选择作品: ${upload.title}`);
         }} />;
+      case 'refinement':
+        return <RefinementPanel />;
       case 'enhance':
         return <EnhancePanel />;
       case 'style':
         return <StyleLabPanel />;
+      case 'prompt':
+        return <PromptAssistantPanel />;
       case 'layout':
         return <SmartLayoutPanel />;
       case 'culture':

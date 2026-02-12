@@ -10,7 +10,7 @@
  * - 分享与导出功能
  */
 
-import { supabase } from '@/lib/supabase';
+import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { llmService } from './llmService';
 import type { 
   MindNode, 
@@ -106,7 +106,7 @@ export class InspirationMindMapService {
       is_public: false,
     };
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('inspiration_mindmaps')
       .insert(mindMapData)
       .select()
@@ -125,7 +125,7 @@ export class InspirationMindMapService {
    */
   async getMindMap(mapId: string): Promise<CreationMindMap | null> {
     // 获取脉络基本信息
-    const { data: mindMapData, error: mindMapError } = await supabase
+    const { data: mindMapData, error: mindMapError } = await supabaseAdmin
       .from('inspiration_mindmaps')
       .select('*')
       .eq('id', mapId)
@@ -140,7 +140,7 @@ export class InspirationMindMapService {
     }
 
     // 获取脉络的所有节点
-    const { data: nodesData, error: nodesError } = await supabase
+    const { data: nodesData, error: nodesError } = await supabaseAdmin
       .from('inspiration_nodes')
       .select('*')
       .eq('map_id', mapId)
@@ -174,7 +174,7 @@ export class InspirationMindMapService {
     if (updates.tags !== undefined) dbUpdates.tags = updates.tags;
     if (updates.isPublic !== undefined) dbUpdates.is_public = updates.isPublic;
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('inspiration_mindmaps')
       .update(dbUpdates)
       .eq('id', mapId)
@@ -193,7 +193,7 @@ export class InspirationMindMapService {
    * 删除脉络
    */
   async deleteMindMap(mapId: string): Promise<void> {
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
       .from('inspiration_mindmaps')
       .delete()
       .eq('id', mapId);
@@ -208,7 +208,7 @@ export class InspirationMindMapService {
    * 获取用户的所有脉络
    */
   async getUserMindMaps(userId: string): Promise<CreationMindMap[]> {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('inspiration_mindmaps')
       .select('*')
       .eq('user_id', userId)
@@ -261,7 +261,7 @@ export class InspirationMindMapService {
       }],
     };
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('inspiration_nodes')
       .insert(nodeDbData)
       .select()
@@ -283,7 +283,7 @@ export class InspirationMindMapService {
     updates: Partial<MindNode>
   ): Promise<MindNode> {
     // 先获取当前节点
-    const { data: currentNode, error: fetchError } = await supabase
+    const { data: currentNode, error: fetchError } = await supabaseAdmin
       .from('inspiration_nodes')
       .select('*')
       .eq('id', nodeId)
@@ -323,7 +323,7 @@ export class InspirationMindMapService {
       },
     ];
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('inspiration_nodes')
       .update(dbUpdates)
       .eq('id', nodeId)
@@ -343,7 +343,7 @@ export class InspirationMindMapService {
    */
   async deleteNode(nodeId: string): Promise<void> {
     // 删除节点及其子节点
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
       .from('inspiration_nodes')
       .delete()
       .or(`id.eq.${nodeId},parent_id.eq.${nodeId}`);
@@ -359,7 +359,7 @@ export class InspirationMindMapService {
    */
   async duplicateNode(nodeId: string): Promise<MindNode> {
     // 获取源节点
-    const { data: sourceNode, error: fetchError } = await supabase
+    const { data: sourceNode, error: fetchError } = await supabaseAdmin
       .from('inspiration_nodes')
       .select('*')
       .eq('id', nodeId)
@@ -527,7 +527,7 @@ export class InspirationMindMapService {
     type: 'continue' | 'branch' | 'optimize' | 'culture'
   ): Promise<AISuggestion> {
     // 获取节点信息
-    const { data: node, error: nodeError } = await supabase
+    const { data: node, error: nodeError } = await supabaseAdmin
       .from('inspiration_nodes')
       .select('*')
       .eq('id', nodeId)
@@ -539,7 +539,7 @@ export class InspirationMindMapService {
     }
 
     // 获取脉络信息
-    const { data: mindMap, error: mapError } = await supabase
+    const { data: mindMap, error: mapError } = await supabaseAdmin
       .from('inspiration_mindmaps')
       .select('*')
       .eq('id', node.map_id)
@@ -570,7 +570,7 @@ export class InspirationMindMapService {
       };
 
       // 保存到数据库
-      await supabase.from('inspiration_ai_suggestions').insert({
+      await supabaseAdmin.from('inspiration_ai_suggestions').insert({
         node_id: nodeId,
         type,
         content: suggestion.content,
@@ -590,7 +590,7 @@ export class InspirationMindMapService {
    * 获取节点的AI建议历史
    */
   async getNodeAISuggestions(nodeId: string): Promise<AISuggestion[]> {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('inspiration_ai_suggestions')
       .select('*')
       .eq('node_id', nodeId)
@@ -743,7 +743,7 @@ export class InspirationMindMapService {
     };
 
     // 保存到数据库
-    await supabase.from('inspiration_stories').insert({
+    await supabaseAdmin.from('inspiration_stories').insert({
       map_id: mapId,
       title: story.title,
       subtitle: story.subtitle,
@@ -763,7 +763,7 @@ export class InspirationMindMapService {
    * 获取脉络的创作故事
    */
   async getCreationStory(mapId: string): Promise<CreationStory | null> {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('inspiration_stories')
       .select('*')
       .eq('map_id', mapId)

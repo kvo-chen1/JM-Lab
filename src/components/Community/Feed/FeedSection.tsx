@@ -13,6 +13,8 @@ interface FeedSectionProps {
   onAddComment: (threadId: string, content: string) => void;
   onOpenThread: (id: string) => void;
   onCreateThread: () => void;
+  onDeleteThread?: (id: string) => void;
+  onDeleteComment?: (threadId: string, commentId: string) => void;
   isThreadFavorited?: (id: string) => boolean;
   activeCommunity?: any; // 添加活跃社群信息，用于自定义风格
   user?: { // 添加用户信息
@@ -62,6 +64,8 @@ export const FeedSection: React.FC<FeedSectionProps> = ({
   onAddComment,
   onOpenThread,
   onCreateThread,
+  onDeleteThread,
+  onDeleteComment,
   isThreadFavorited = () => false,
   activeCommunity,
   user,
@@ -249,6 +253,8 @@ export const FeedSection: React.FC<FeedSectionProps> = ({
                     onToggleFavorite={onToggleFavorite}
                     onAddComment={onAddComment}
                     onClick={handleThreadClick}
+                    onDelete={onDeleteThread}
+                    onDeleteComment={onDeleteComment}
                     isFavorited={isThreadFavorited(thread.id)}
                     index={index}
                 />

@@ -1,5 +1,5 @@
 import React, { useCallback, memo, useEffect, useState, useMemo } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Post } from '../services/postService'
 import LazyImage from './LazyImage'
 import { TianjinAvatar } from './TianjinStyleComponents'
@@ -44,6 +44,7 @@ interface PostItemProps {
 }
 
 const PostItem = memo(({ post, index, onLike, onComment, onShare, onBookmark, onDelete, onPostClick, favorites, isDark, style, columnWidth }: PostItemProps) => {
+  const navigate = useNavigate();
   const [isVisible, setIsVisible] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -93,7 +94,9 @@ const PostItem = memo(({ post, index, onLike, onComment, onShare, onBookmark, on
   }, [onDelete, post.id])
 
   const isBookmarked = favorites.includes(post.id)
-  const isVideo = post.type === 'video' || post.category === 'video' || post.videoUrl
+  // 判断是否是视频：根据类型、category、videoUrl 或 thumbnail 的扩展名
+  const isVideo = post.type === 'video' || post.category === 'video' || post.videoUrl ||
+    (post.thumbnail && (post.thumbnail.endsWith('.mp4') || post.thumbnail.endsWith('.webm') || post.thumbnail.endsWith('.mov')))
 
   // 调试日志
   if (isVideo) {
@@ -131,47 +134,57 @@ const PostItem = memo(({ post, index, onLike, onComment, onShare, onBookmark, on
     >
       {/* 媒体内容 */}
       <div className="relative w-full overflow-hidden">
-        {isVideo && post.videoUrl && !videoError ? (
-          <div className="relative bg-gray-100 dark:bg-gray-800 aspect-video">
-            {/* 视频自动循环播放 */}
-            <video
-              ref={videoRef}
-              src={post.videoUrl}
-              className="absolute inset-0 w-full h-full object-cover"
-              muted
-              playsInline
-              loop
-              autoPlay
-              preload="metadata"
-              onError={handleVideoError}
-            />
+        {/* 获取视频URL：优先使用 videoUrl，否则使用 thumbnail（如果是视频） */}
+        {(() => {
+          const videoSrc = post.videoUrl || 
+            (post.thumbnail && (post.thumbnail.endsWith('.mp4') || post.thumbnail.endsWith('.webm') || post.thumbnail.endsWith('.mov')) ? post.thumbnail : null);
+          
+          if (isVideo && videoSrc && !videoError) {
+            return (
+              <div className="relative bg-gray-100 dark:bg-gray-800 aspect-video">
+                {/* 视频自动循环播放 */}
+                <video
+                  ref={videoRef}
+                  src={videoSrc}
+                  className="absolute inset-0 w-full h-full object-cover"
+                  muted
+                  playsInline
+                  loop
+                  autoPlay
+                  preload="metadata"
+                  onError={handleVideoError}
+                />
 
-            {/* 视频标识 */}
-            <div className="absolute top-2 right-2 z-10">
-              <span className="text-[10px] px-2 py-1 rounded-full bg-black/60 text-white flex items-center gap-1">
-                <i className="fas fa-video"></i>
-                视频
-              </span>
+                {/* 视频标识 */}
+                <div className="absolute top-2 right-2 z-10">
+                  <span className="text-[10px] px-2 py-1 rounded-full bg-black/60 text-white flex items-center gap-1">
+                    <i className="fas fa-video"></i>
+                    视频
+                  </span>
+                </div>
+              </div>
+            );
+          }
+          
+          return (
+            <div className="relative overflow-hidden bg-gray-100 dark:bg-gray-800">
+              <LazyImage 
+                src={post.thumbnail}  
+                alt={post.title}
+                className="w-full h-auto object-cover transition-transform duration-700 ease-out group-hover:scale-110"
+                priority={index < 5}
+                quality={index < 6 ? 'high' : 'medium'}
+                placeholder="skeleton"
+                loadingAnimation="fade"
+                fit="cover"
+                bare
+                fallbackSrc={`https://placehold.co/600x400/3b82f6/ffffff?text=${encodeURIComponent(post.title?.slice(0, 10) || '作品')}`}
+              />
+              {/* 图片悬停时的光晕效果 */}
+              <div className="absolute inset-0 bg-gradient-to-tr from-blue-500/0 via-purple-500/0 to-pink-500/0 group-hover:from-blue-500/10 group-hover:via-purple-500/5 group-hover:to-pink-500/10 transition-all duration-700 opacity-0 group-hover:opacity-100 pointer-events-none" />
             </div>
-          </div>
-        ) : (
-          <div className="relative overflow-hidden bg-gray-100 dark:bg-gray-800">
-            <LazyImage 
-              src={post.thumbnail}  
-              alt={post.title}
-              className="w-full h-auto object-cover transition-transform duration-700 ease-out group-hover:scale-110"
-              priority={index < 5}
-              quality={index < 6 ? 'high' : 'medium'}
-              placeholder="skeleton"
-              loadingAnimation="fade"
-              fit="cover"
-              bare
-              fallbackSrc={`https://placehold.co/600x400/3b82f6/ffffff?text=${encodeURIComponent(post.title?.slice(0, 10) || '作品')}`}
-            />
-            {/* 图片悬停时的光晕效果 */}
-            <div className="absolute inset-0 bg-gradient-to-tr from-blue-500/0 via-purple-500/0 to-pink-500/0 group-hover:from-blue-500/10 group-hover:via-purple-500/5 group-hover:to-pink-500/10 transition-all duration-700 opacity-0 group-hover:opacity-100 pointer-events-none" />
-          </div>
-        )}
+          );
+        })()}
         
         {/* 渐变遮罩 - 从底部向上 */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
@@ -230,16 +243,30 @@ const PostItem = memo(({ post, index, onLike, onComment, onShare, onBookmark, on
         {/* 元信息 - 更优雅的排版 */}
         <div className={`flex items-center justify-between pt-3 mt-2 border-t ${isDark ? 'border-slate-700/50' : 'border-gray-100'}`}>
           <div className="flex items-center gap-2.5">
-            <div className="relative">
-              <TianjinAvatar 
+            <div 
+              className="relative cursor-pointer"
+              onClick={(e) => {
+                e.stopPropagation();
+                const authorId = typeof post.author === 'object' ? post.author?.id : post.authorId || post.userId;
+                authorId && navigate(`/author/${authorId}`);
+              }}
+            >
+              <TianjinAvatar
                 src={typeof post.author === 'object' ? post.author?.avatar || '' : `https://api.dicebear.com/7.x/avataaars/svg?seed=${post.author || post.id}`}
                 size="xs"
                 alt="author"
-                className="border-2 border-white dark:border-slate-600 shadow-md"
+                className="border-2 border-white dark:border-slate-600 shadow-md hover:ring-2 hover:ring-blue-400 transition-all"
               />
               <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-white dark:border-slate-800"></div>
             </div>
-            <span className={`text-xs font-medium truncate max-w-[90px] ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>
+            <span 
+              className={`text-xs font-medium truncate max-w-[90px] cursor-pointer hover:text-blue-500 transition-colors ${isDark ? 'text-slate-300' : 'text-gray-700'}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                const authorId = typeof post.author === 'object' ? post.author?.id : post.authorId || post.userId;
+                authorId && navigate(`/author/${authorId}`);
+              }}
+            >
               {typeof post.author === 'object' ? post.author?.username : (post.author || '创作者')}
             </span>
           </div>

@@ -698,7 +698,14 @@ async function route(req, res, u, path) {
       const offset = parseInt(u.searchParams.get('offset') || '0')
       
       const works = await workDB.getWorks(limit, offset)
-      sendJson(res, 200, { code: 0, data: works })
+      
+      // 字段映射，确保 thumbnail 字段包含有效的图片URL
+      const mappedWorks = works.map(work => ({
+        ...work,
+        thumbnail: work.thumbnail || work.cover_url || ''
+      }))
+      
+      sendJson(res, 200, { code: 0, data: mappedWorks })
     } catch (e) {
       console.error('[API] Get works failed:', e)
       sendJson(res, 500, { code: 1, message: '获取作品失败' })

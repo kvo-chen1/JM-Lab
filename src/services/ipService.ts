@@ -97,6 +97,78 @@ export interface IPStats {
   totalEstimatedValue: number;
 }
 
+// 示例IP资产类型
+export interface SampleIPAsset {
+  id: string;
+  name: string;
+  description: string;
+  type: 'illustration' | 'pattern' | 'design' | '3d_model' | 'digital_collectible';
+  stages: IPStage[];
+  commercialValue: number;
+  thumbnail: string;
+  createdAt: string;
+  category: string;
+  highlights: string[];
+}
+
+// 示例IP资产数据
+const sampleIPAssets: SampleIPAsset[] = [
+  {
+    id: 'sample-1',
+    name: '津门古韵·杨柳青年画创新',
+    description: '将传统杨柳青年画元素与现代插画风格融合，创作出具有天津特色的国潮插画系列，适用于文创产品、包装设计等多种商业场景。',
+    type: 'illustration',
+    category: '国潮插画',
+    stages: [
+      { id: 's1-1', name: '创意设计', description: '完成原创设计作品', orderIndex: 1, completed: true, completedAt: '2026-01-15T10:00:00Z' },
+      { id: 's1-2', name: '版权存证', description: '完成作品版权存证', orderIndex: 2, completed: true, completedAt: '2026-01-20T14:30:00Z' },
+      { id: 's1-3', name: 'IP孵化', description: '将设计转化为IP资产', orderIndex: 3, completed: false },
+      { id: 's1-4', name: '商业合作', description: '对接品牌合作机会', orderIndex: 4, completed: false },
+      { id: 's1-5', name: '收益分成', description: '获得作品收益分成', orderIndex: 5, completed: false }
+    ],
+    commercialValue: 15000,
+    thumbnail: 'https://images.unsplash.com/photo-1582555172866-f73bb12a2ab3?w=400&h=300&fit=crop',
+    createdAt: '2026-01-15T10:00:00Z',
+    highlights: ['已获版权存证', '适合文创产品', '预估价值 ¥15,000']
+  },
+  {
+    id: 'sample-2',
+    name: '海河印象·纹样设计',
+    description: '提取海河两岸建筑轮廓与传统纹样，设计出具有地域特色的装饰纹样，可应用于家居用品、服装面料、包装纸等领域。',
+    type: 'pattern',
+    category: '装饰纹样',
+    stages: [
+      { id: 's2-1', name: '创意设计', description: '完成原创设计作品', orderIndex: 1, completed: true, completedAt: '2026-01-10T09:00:00Z' },
+      { id: 's2-2', name: '版权存证', description: '完成作品版权存证', orderIndex: 2, completed: true, completedAt: '2026-01-12T16:00:00Z' },
+      { id: 's2-3', name: 'IP孵化', description: '将设计转化为IP资产', orderIndex: 3, completed: true, completedAt: '2026-01-18T11:00:00Z' },
+      { id: 's2-4', name: '商业合作', description: '对接品牌合作机会', orderIndex: 4, completed: false },
+      { id: 's2-5', name: '收益分成', description: '获得作品收益分成', orderIndex: 5, completed: false }
+    ],
+    commercialValue: 25000,
+    thumbnail: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=300&fit=crop',
+    createdAt: '2026-01-10T09:00:00Z',
+    highlights: ['已匹配商业机会', '多场景应用', '预估价值 ¥25,000']
+  },
+  {
+    id: 'sample-3',
+    name: '泥人张·3D数字藏品',
+    description: '以天津泥人张传统技艺为灵感，创作3D数字艺术藏品，结合区块链技术，打造具有收藏价值的数字艺术品。',
+    type: '3d_model',
+    category: '数字藏品',
+    stages: [
+      { id: 's3-1', name: '创意设计', description: '完成原创设计作品', orderIndex: 1, completed: true, completedAt: '2026-02-01T10:00:00Z' },
+      { id: 's3-2', name: '版权存证', description: '完成作品版权存证', orderIndex: 2, completed: false },
+      { id: 's3-3', name: 'IP孵化', description: '将设计转化为IP资产', orderIndex: 3, completed: false },
+      { id: 's3-4', name: '商业合作', description: '对接品牌合作机会', orderIndex: 4, completed: false },
+      { id: 's3-5', name: '收益分成', description: '获得作品收益分成', orderIndex: 5, completed: false }
+    ],
+    commercialValue: 35000,
+    thumbnail: 'https://images.unsplash.com/photo-1633356122544-f134324a6cee?w=400&h=300&fit=crop',
+    createdAt: '2026-02-01T10:00:00Z',
+    highlights: ['数字藏品热门', '区块链存证', '预估价值 ¥35,000']
+  }
+];
+
 // IP孵化服务类
 class IPService {
   private realtimeChannels: RealtimeChannel[] = [];
@@ -794,6 +866,32 @@ class IPService {
       supabase.removeChannel(channel);
     });
     this.realtimeChannels = [];
+  }
+
+  // ============================================
+  // 示例数据方法
+  // ============================================
+
+  /**
+   * 获取示例IP资产列表
+   */
+  getSampleIPAssets(): SampleIPAsset[] {
+    return sampleIPAssets;
+  }
+
+  /**
+   * 获取单个示例IP资产
+   */
+  getSampleIPAssetById(id: string): SampleIPAsset | undefined {
+    return sampleIPAssets.find(asset => asset.id === id);
+  }
+
+  /**
+   * 计算示例资产的孵化进度
+   */
+  calculateSampleProgress(stages: IPStage[]): number {
+    const completedStages = stages.filter(stage => stage.completed).length;
+    return Math.round((completedStages / stages.length) * 100);
   }
 
   // ============================================

@@ -122,6 +122,7 @@ export default function EventGrid({
                   ? 'bg-gray-900/50 border-gray-700 focus:border-red-500 text-white placeholder-gray-500' 
                   : 'bg-gray-50 border-gray-200 focus:border-red-500 text-gray-900 placeholder-gray-400'
               } focus:outline-none focus:ring-4 focus:ring-red-500/10`}
+              style={{ paddingLeft: '44px' }}
             />
             {searchQuery && (
               <button

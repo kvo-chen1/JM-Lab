@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useContext } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { Event } from '@/types';
@@ -14,10 +14,15 @@ import {
   ChevronRight,
   Tag,
   LayoutGrid,
-  Eye
+  Eye,
+  Loader2,
+  CheckCircle,
+  Edit
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
+import { AuthContext } from '@/contexts/authContext';
+import { eventParticipationService } from '@/services/eventParticipationService';
 
 interface EventDetailModalProps {
   event: Event | null;
@@ -29,7 +34,12 @@ interface EventDetailModalProps {
 export default function EventDetailModal({ event, isOpen, onClose, submissionCount = 0 }: EventDetailModalProps) {
   const { isDark } = useTheme();
   const navigate = useNavigate();
+  const { isAuthenticated, user } = useContext(AuthContext);
   const [isLiked, setIsLiked] = useState(false);
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [hasRegistered, setHasRegistered] = useState(false);
+  const [hasSubmitted, setHasSubmitted] = useState(false);
+  const [isCheckingRegistration, setIsCheckingRegistration] = useState(true);
 
   useEffect(() => {
     if (isOpen) {
@@ -41,6 +51,35 @@ export default function EventDetailModal({ event, isOpen, onClose, submissionCou
       document.body.style.overflow = '';
     };
   }, [isOpen]);
+
+  // 检查用户是否已报名
+  useEffect(() => {
+    const checkRegistration = async () => {
+      if (!isOpen || !event?.id || !user?.id) {
+        setIsCheckingRegistration(false);
+        setHasRegistered(false);
+        return;
+      }
+
+      setIsCheckingRegistration(true);
+      try {
+        console.log('检查报名状态:', { eventId: event.id, userId: user.id });
+        const status = await eventParticipationService.checkParticipation(event.id, user.id);
+        console.log('报名状态结果:', status);
+        setHasRegistered(status.isParticipated);
+        // 如果状态是 'submitted'，说明已经提交过作品
+        setHasSubmitted(status.status === 'submitted');
+      } catch (error) {
+        console.error('检查报名状态失败:', error);
+        setHasRegistered(false);
+        setHasSubmitted(false);
+      } finally {
+        setIsCheckingRegistration(false);
+      }
+    };
+
+    checkRegistration();
+  }, [isOpen, event?.id, user?.id]);
 
   if (!event) return null;
 
@@ -86,14 +125,60 @@ export default function EventDetailModal({ event, isOpen, onClose, submissionCou
     }
   };
 
-  const handleRegister = () => {
-    toast.success('报名成功！', {
-      action: {
-        label: '查看详情',
-        onClick: () => navigate(`/events/${event.id}`),
-      },
-    });
-    onClose();
+  const handleRegister = async () => {
+    // 检查是否登录
+    if (!isAuthenticated || !user) {
+      toast.warning('请先登录后再报名活动');
+      navigate('/login', { state: { from: `/events/${event.id}` } });
+      onClose();
+      return;
+    }
+
+    // 检查活动是否已满
+    if (event.maxParticipants && event.participants >= event.maxParticipants) {
+      toast.error('活动参与人数已达上限');
+      return;
+    }
+
+    // 检查是否已报名
+    if (hasRegistered) {
+      toast.info('您已经报名参加了此活动');
+      navigate(`/events/${event.id}`);
+      onClose();
+      return;
+    }
+
+    setIsRegistering(true);
+    try {
+      const result = await eventParticipationService.registerForEvent(event.id, user.id);
+      
+      if (result.success) {
+        setHasRegistered(true);
+        toast.success(
+          <div className="flex items-center gap-2">
+            <CheckCircle className="w-5 h-5 text-emerald-500" />
+            <span>报名成功！</span>
+          </div>,
+          {
+            description: '您已成功报名参加活动',
+            duration: 3000
+          }
+        );
+        
+        // 延迟后跳转到活动详情页
+        setTimeout(() => {
+          navigate(`/events/${event.id}`);
+          onClose();
+        }, 1500);
+      } else {
+        toast.error(result.error || '报名失败');
+      }
+    } catch (error) {
+      console.error('报名失败:', error);
+      toast.error('报名失败，请稍后重试');
+    } finally {
+      setIsRegistering(false);
+    }
   };
 
   const handleSubmitWork = () => {
@@ -336,17 +421,31 @@ export default function EventDetailModal({ event, isOpen, onClose, submissionCou
                   </motion.button>
 
                   {/* 主操作按钮 */}
-                  {status === 'upcoming' ? (
+                  {isCheckingRegistration ? (
+                    // 检查中
+                    <div className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-gray-100 text-gray-400 rounded-xl font-semibold cursor-not-allowed">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      检查中...
+                    </div>
+                  ) : status === 'completed' ? (
+                    // 活动已结束
+                    <div className="flex-1 flex items-center justify-center gap-2 px-6 py-3 border-2 border-gray-300 text-gray-400 rounded-xl font-semibold cursor-not-allowed">
+                      <span className="w-2 h-2 rounded-full bg-gray-400" />
+                      活动已结束
+                    </div>
+                  ) : hasRegistered && hasSubmitted ? (
+                    // 已报名且已提交作品 - 显示编辑作品按钮
                     <motion.button
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
-                      onClick={handleRegister}
-                      className="flex-1 px-6 py-3 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white rounded-xl font-semibold shadow-lg shadow-red-500/25 transition-all flex items-center justify-center gap-2"
+                      onClick={handleSubmitWork}
+                      className="flex-1 px-6 py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white rounded-xl font-semibold shadow-lg shadow-emerald-500/25 transition-all flex items-center justify-center gap-2"
                     >
-                      立即报名
-                      <ChevronRight className="w-4 h-4" />
+                      <Edit className="w-4 h-4" />
+                      编辑作品
                     </motion.button>
-                  ) : status === 'ongoing' ? (
+                  ) : hasRegistered ? (
+                    // 已报名但未提交作品 - 显示提交作品按钮
                     <motion.button
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
@@ -356,11 +455,60 @@ export default function EventDetailModal({ event, isOpen, onClose, submissionCou
                       提交作品
                       <ExternalLink className="w-4 h-4" />
                     </motion.button>
+                  ) : status === 'upcoming' ? (
+                    // 未报名且活动即将开始 - 显示报名按钮
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={handleRegister}
+                      disabled={isRegistering || Boolean(event.maxParticipants && event.participants >= event.maxParticipants)}
+                      className={`flex-1 px-6 py-3 rounded-xl font-semibold shadow-lg transition-all flex items-center justify-center gap-2 ${
+                        isRegistering || (event.maxParticipants && event.participants >= event.maxParticipants)
+                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                          : 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white shadow-red-500/25'
+                      }`}
+                    >
+                      {isRegistering ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          报名中...
+                        </>
+                      ) : event.maxParticipants && event.participants >= event.maxParticipants ? (
+                        '活动已满'
+                      ) : (
+                        <>
+                          立即报名
+                          <ChevronRight className="w-4 h-4" />
+                        </>
+                      )}
+                    </motion.button>
                   ) : (
-                    <div className="flex-1 flex items-center justify-center gap-2 px-6 py-3 border-2 border-gray-300 text-gray-400 rounded-xl font-semibold cursor-not-allowed">
-                      <span className="w-2 h-2 rounded-full bg-gray-400" />
-                      活动已结束
-                    </div>
+                    // 未报名且活动进行中 - 显示报名按钮（也可以直接参与）
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={handleRegister}
+                      disabled={isRegistering || Boolean(event.maxParticipants && event.participants >= event.maxParticipants)}
+                      className={`flex-1 px-6 py-3 rounded-xl font-semibold shadow-lg transition-all flex items-center justify-center gap-2 ${
+                        isRegistering || (event.maxParticipants && event.participants >= event.maxParticipants)
+                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                          : 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white shadow-red-500/25'
+                      }`}
+                    >
+                      {isRegistering ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          报名中...
+                        </>
+                      ) : event.maxParticipants && event.participants >= event.maxParticipants ? (
+                        '活动已满'
+                      ) : (
+                        <>
+                          立即参与
+                          <ChevronRight className="w-4 h-4" />
+                        </>
+                      )}
+                    </motion.button>
                   )}
                 </div>
               </div>

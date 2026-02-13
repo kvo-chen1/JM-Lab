@@ -34,17 +34,22 @@ class UploadService {
   private readonly tableName = 'user_uploads';
 
   // 获取当前用户的所有上传作品
-  async getUserUploads(): Promise<{ data: UserUpload[] | null; error: Error | null }> {
+  async getUserUploads(userId?: string): Promise<{ data: UserUpload[] | null; error: Error | null }> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        throw new Error('用户未登录');
+      // 优先使用传入的 userId，否则从 supabase auth 获取
+      let targetUserId = userId;
+      if (!targetUserId) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          throw new Error('用户未登录');
+        }
+        targetUserId = user.id;
       }
 
       const { data, error } = await supabase
         .from(this.tableName)
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', targetUserId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;

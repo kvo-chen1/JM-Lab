@@ -7,6 +7,7 @@ export interface SubmissionWithStats extends EventSubmission {
   avgRating: number;
   ratingCount: number;
   coverImage?: string;
+  workThumbnail?: string;
   mediaType: 'image' | 'video' | 'audio' | 'document' | 'other';
   eventTitle?: string;
   eventStartTime?: string;
@@ -288,6 +289,7 @@ class EventWorkService {
       avgRating: data.avg_rating || 0,
       ratingCount: data.rating_count || 0,
       coverImage: data.cover_image,
+      workThumbnail: data.work_thumbnail,
       mediaType: data.media_type || 'image',
       eventTitle: data.event_title,
       eventStartTime: data.event_start_time,

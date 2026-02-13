@@ -24,8 +24,16 @@ interface WorkSubmitFormProps {
     tags: string[];
     files: File[];
   }) => Promise<void>;
+  onChange?: (data: {
+    title: string;
+    description: string;
+    tags: string[];
+    files: File[];
+  }) => void;
   isSubmitting?: boolean;
   isSaving?: boolean;
+  isUploading?: boolean;
+  uploadProgress?: Record<string, number>;
 }
 
 const MAX_TITLE_LENGTH = 100;
@@ -35,14 +43,29 @@ export function WorkSubmitForm({
   initialData,
   onSubmit,
   onSaveDraft,
+  onChange,
   isSubmitting = false,
-  isSaving = false
+  isSaving = false,
+  isUploading = false,
+  uploadProgress = {}
 }: WorkSubmitFormProps) {
   const [title, setTitle] = useState(initialData?.title || '');
   const [description, setDescription] = useState(initialData?.description || '');
   const [tags, setTags] = useState<string[]>(initialData?.tags || []);
   const [files, setFiles] = useState<File[]>(initialData?.files || []);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // 同步数据变化到父组件
+  const syncData = useCallback(() => {
+    if (onChange) {
+      onChange({
+        title: title.trim(),
+        description: description.trim(),
+        tags,
+        files
+      });
+    }
+  }, [title, description, tags, files, onChange]);
 
   // 验证表单
   const validateForm = useCallback(() => {
@@ -151,6 +174,8 @@ export function WorkSubmitForm({
               if (errors.title) {
                 setErrors(prev => ({ ...prev, title: '' }));
               }
+              // 同步到父组件
+              setTimeout(() => syncData(), 0);
             }
           }}
           placeholder="给你的作品起个响亮的名字"
@@ -197,6 +222,8 @@ export function WorkSubmitForm({
           onChange={(e) => {
             if (e.target.value.length <= MAX_DESCRIPTION_LENGTH) {
               setDescription(e.target.value);
+              // 同步到父组件
+              setTimeout(() => syncData(), 0);
               if (errors.description) {
                 setErrors(prev => ({ ...prev, description: '' }));
               }
@@ -243,7 +270,11 @@ export function WorkSubmitForm({
 
         <TagInput
           tags={tags}
-          onTagsChange={setTags}
+          onTagsChange={(newTags) => {
+            setTags(newTags);
+            // 同步到父组件
+            setTimeout(() => syncData(), 0);
+          }}
           disabled={isSubmitting}
         />
       </motion.div>
@@ -267,11 +298,37 @@ export function WorkSubmitForm({
             if (errors.files && newFiles.length > 0) {
               setErrors(prev => ({ ...prev, files: '' }));
             }
+            // 同步到父组件
+            setTimeout(() => syncData(), 0);
           }}
           maxFiles={10}
           maxFileSize={100}
           isUploading={isSubmitting}
         />
+
+        {/* 上传进度指示器 */}
+        {isUploading && Object.keys(uploadProgress).length > 0 && (
+          <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl">
+            <p className="text-sm font-medium text-blue-700 dark:text-blue-300 mb-2">
+              正在上传文件到云端...
+            </p>
+            {Object.entries(uploadProgress).map(([fileName, progress]) => (
+              <div key={fileName} className="flex items-center gap-2 mb-2">
+                <span className="text-xs text-gray-600 dark:text-gray-400 truncate flex-1">
+                  {fileName}
+                </span>
+                <div className="w-24 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${progress}%` }}
+                    className="h-full bg-blue-500 rounded-full"
+                  />
+                </div>
+                <span className="text-xs text-gray-500 w-10 text-right">{progress}%</span>
+              </div>
+            ))}
+          </div>
+        )}
 
         {errors.files && (
           <div className="flex items-center gap-1.5 mt-3 text-red-500 text-sm">

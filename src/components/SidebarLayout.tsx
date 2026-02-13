@@ -922,14 +922,27 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
               {/* 主题切换按钮 */}
               <motion.div className="relative">
                 <motion.button
-                  className={`theme-dropdown-button p-2 rounded-lg transition-all duration-300 flex items-center space-x-1 ${isDark ? 'bg-gray-800 hover:bg-gray-700 ring-1 ring-gray-700 text-gray-100 hover:ring-gray-600' : theme === 'blue' ? 'bg-blue-50 hover:bg-blue-100 ring-1 ring-blue-200 text-blue-800 hover:ring-blue-300' : theme === 'green' ? 'bg-green-50 hover:bg-green-100 ring-1 ring-green-200 text-green-800 hover:ring-green-300' : 'bg-white hover:bg-gray-50 ring-1 ring-gray-200 text-gray-900 hover:ring-gray-300'}`}
+                  className={`theme-dropdown-button p-2 rounded-lg transition-all duration-300 flex items-center space-x-1 ${
+                    isDark ? 'bg-gray-800 hover:bg-gray-700 ring-1 ring-gray-700 text-gray-100 hover:ring-gray-600' : 
+                    theme === 'blue' ? 'bg-blue-50 hover:bg-blue-100 ring-1 ring-blue-200 text-blue-800 hover:ring-blue-300' : 
+                    theme === 'green' ? 'bg-green-50 hover:bg-green-100 ring-1 ring-green-200 text-green-800 hover:ring-green-300' : 
+                    theme === 'tianjin' ? 'bg-[#1E5F8E]/10 hover:bg-[#1E5F8E]/20 ring-1 ring-[#1E5F8E]/30 text-[#1E5F8E] hover:ring-[#1E5F8E]/50' :
+                    'bg-white hover:bg-gray-50 ring-1 ring-gray-200 text-gray-900 hover:ring-gray-300'
+                  }`}
                   aria-label={t('header.toggleTheme')}
                   onClick={() => setShowThemeDropdown(v => !v)}
                   title={t('header.toggleTheme')}
                   whileHover={{ scale: 1.1, y: -2 }}
                   whileTap={{ scale: 0.95 }}
                 >
-                  <i className={`fas ${theme === 'dark' ? 'fa-moon' : theme === 'light' ? 'fa-sun' : theme === 'blue' ? 'fa-water' : theme === 'green' ? 'fa-leaf' : 'fa-dungeon'} transition-transform duration-300 hover:scale-110`}></i>
+                  <i className={`fas ${
+                    theme === 'dark' ? 'fa-moon' : 
+                    theme === 'light' ? 'fa-sun' : 
+                    theme === 'blue' ? 'fa-water' : 
+                    theme === 'green' ? 'fa-leaf' : 
+                    theme === 'tianjin' ? 'fa-landmark' : 
+                    'fa-dungeon'
+                  } transition-transform duration-300 hover:scale-110`}></i>
                   <i className={`fas fa-chevron-down transition-transform duration-200 ${showThemeDropdown ? 'rotate-180' : ''}`}></i>
                 </motion.button>
                 {showThemeDropdown && (

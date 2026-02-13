@@ -312,17 +312,23 @@ class EventParticipationService {
    */
   async checkParticipation(eventId: string, userId: string): Promise<{ isParticipated: boolean; participationId?: string; status?: ParticipationStatus }> {
     try {
-      // 使用后端 API 检查参与状态
-      const result = await apiService.get<{
-        isParticipated: boolean;
-        participationId?: string;
-        status?: string;
-      }>(`/api/events/${eventId}/participation-status`, { userId });
+      // 直接使用 Supabase 查询参与状态
+      const { data, error } = await supabase
+        .from('event_participants')
+        .select('id, status')
+        .eq('event_id', eventId)
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (error) {
+        console.error('检查参与状态失败:', error);
+        return { isParticipated: false };
+      }
 
       return {
-        isParticipated: result.isParticipated,
-        participationId: result.participationId,
-        status: result.status ? this.mapStatus(result.status) : undefined,
+        isParticipated: !!data,
+        participationId: data?.id,
+        status: data?.status ? this.mapStatus(data.status) : undefined,
       };
     } catch (error) {
       console.error('检查参与状态失败:', error);

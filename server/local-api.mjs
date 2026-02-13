@@ -504,12 +504,33 @@ async function dashscopeVideoGenerate(params) {
 }
 
 async function dashscopeImageGenerate(params) {
-  const { prompt, size, n, authKey, model } = params
+  const { prompt, size, n, authKey, model, refImage, refStrength, refMode } = params
   const base = process.env.DASHSCOPE_BASE_URL || 'https://dashscope.aliyuncs.com/api/v1'
+  // 统一使用文生图接口，支持参考图片功能
   const endpoint = `${base}/services/aigc/text2image/image-synthesis`
   const normalizedSize = String(size || '1024x1024').replace('x', '*')
   try {
-    console.log('[DashScope] Starting async image generation...');
+    console.log('[DashScope] Starting async image generation...', refImage ? '(with ref image)' : '(text only)');
+    
+    // 构建请求体 - 使用 wanx-v1 模型支持参考图片
+    const requestBody = {
+      model: 'wanx-v1',  // 使用支持参考图片的 wanx-v1 模型
+      input: { prompt },
+      parameters: { 
+        size: normalizedSize, 
+        n: n || 1,
+        style: '<auto>'  // 自动风格
+      }
+    }
+    
+    // 如果有参考图片，直接传递URL（不需要下载转Base64）
+    if (refImage) {
+      console.log('[DashScope] Using ref image:', refImage.substring(0, 80));
+      requestBody.input.ref_img = refImage;
+      // 参考图强度和模式
+      requestBody.parameters.ref_strength = refStrength || 0.7;
+      requestBody.parameters.ref_mode = refMode || 'repaint';
+    }
     
     // 1. Submit async task
     const createResp = await fetch(endpoint, {
@@ -519,11 +540,7 @@ async function dashscopeImageGenerate(params) {
         'Authorization': `Bearer ${authKey}`,
         'X-DashScope-Async': 'enable' // Enable async mode
       },
-      body: JSON.stringify({
-        model: model || 'wanx2.1-t2i-turbo',
-        input: { prompt },
-        parameters: { size: normalizedSize, n: n || 1 }
-      })
+      body: JSON.stringify(requestBody)
     })
     
     const createData = await createResp.json()
@@ -548,6 +565,8 @@ async function dashscopeImageGenerate(params) {
     const result = await pollDashScopeTask(taskId, authKey);
     
     // 3. Extract results
+    console.log('[DashScope] Task result:', JSON.stringify(result, null, 2));
+    
     if (result?.output?.results) {
       const results = result.output.results
       const list = Array.isArray(results) ? results : []
@@ -556,6 +575,8 @@ async function dashscopeImageGenerate(params) {
         const url = item?.url || item?.image_url || item?.image || ''
         return { url, revised_prompt: prompt }
       }).filter((it) => !!it.url)
+      
+      console.log('[DashScope] Extracted images:', images);
       
       return {
         status: 200,
@@ -767,11 +788,14 @@ async function route(req, res, u, path) {
       // 字段映射，将数据库字段转换为前端期望的格式
       const mappedWorks = works.map(work => {
         const user = usersMap.get(work.creator_id)
+        // 优先使用 thumbnail，如果没有则使用 cover_url
+        const thumbnailUrl = work.thumbnail || work.cover_url || ''
         console.log('[API] Mapping work:', { 
           id: work.id, 
           creator_id: work.creator_id,
           user: user ? { id: user.id, username: user.username } : null,
-          thumbnail: work.thumbnail?.substring(0, 50),
+          thumbnail: thumbnailUrl?.substring(0, 50),
+          cover_url: work.cover_url?.substring(0, 50),
           video_url: work.video_url?.substring(0, 50), 
           type: work.type,
           hasVideoUrl: !!work.video_url,
@@ -779,6 +803,8 @@ async function route(req, res, u, path) {
         });
         return {
           ...work,
+          // 确保 thumbnail 字段包含有效的图片URL
+          thumbnail: thumbnailUrl,
           videoUrl: work.video_url,
           date: work.created_at ? new Date(work.created_at * 1000).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
           author: {
@@ -1341,7 +1367,7 @@ async function route(req, res, u, path) {
     // 允许未登录访问
     try {
       // 使用缓存减少数据库查询
-      const cacheKey = 'events_list';
+      const cacheKey = 'events_list_v2';
       const url = new URL(req.url, `http://${req.headers.host}`);
       const refresh = url.searchParams.get('refresh') === 'true';
       
@@ -1367,7 +1393,7 @@ async function route(req, res, u, path) {
           type: event.category === 'competition' ? 'offline' : 'online',
           category: event.category,
           tags: event.tags || [],
-          participantCount: event.participant_count || 0,
+          participants: event.participants || event.participant_count || 0,
           maxParticipants: event.max_participants,
           media: event.image_url ? [{ url: event.image_url, type: 'image' }] : [],
           organizer: {
@@ -1415,7 +1441,7 @@ async function route(req, res, u, path) {
         type: event.category === 'competition' ? 'offline' : 'online',
         category: event.category,
         tags: event.tags || [],
-        participantCount: event.participant_count || 0,
+        participants: event.participants || event.participant_count || 0,
         maxParticipants: event.max_participants,
         media: event.image_url ? [{ url: event.image_url, type: 'image' }] : [],
         organizer: {
@@ -2205,6 +2231,21 @@ async function route(req, res, u, path) {
               console.log(`[API] 社区创建者ID更新完成`);
             } catch (communityError) {
               console.error('[API] 更新社区创建者ID失败:', communityError);
+            }
+            
+            // 同时更新活动的组织者ID
+            try {
+              console.log(`[API] 检查并更新活动的组织者ID...`);
+              const events = await eventDB.getEvents({});
+              for (const event of events) {
+                if (event.organizer_id === oldUserId) {
+                  console.log(`[API] 更新活动 ${event.id} 的组织者ID从 ${oldUserId} 到 ${supabaseUserId}`);
+                  await eventDB.updateEventOrganizerId(event.id, supabaseUserId);
+                }
+              }
+              console.log(`[API] 活动组织者ID更新完成`);
+            } catch (eventError) {
+              console.error('[API] 更新活动组织者ID失败:', eventError);
             }
           } catch (fixError) {
             console.error('[API] 修复用户ID失败:', fixError);
@@ -4644,6 +4685,147 @@ async function route(req, res, u, path) {
     return
   }
 
+  // 代理下载图片（解决 CORS 问题）
+  if (req.method === 'GET' && path === '/api/proxy-download') {
+    const url = u.searchParams.get('url')
+    
+    if (!url) {
+      sendJson(res, 400, { code: 1, message: '缺少 URL 参数' })
+      return
+    }
+    
+    console.log('[API] Proxy download:', url.substring(0, 100))
+    
+    try {
+      // 使用 node-fetch 或 https 模块下载图片
+      const https = require('https')
+      const http = require('http')
+      
+      const client = url.startsWith('https:') ? https : http
+      
+      const request = client.get(url, { 
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        },
+        timeout: 30000
+      }, (response) => {
+        if (response.statusCode !== 200) {
+          console.error('[API] Proxy download failed with status:', response.statusCode)
+          sendJson(res, 502, { code: 1, message: '下载失败，状态码: ' + response.statusCode })
+          return
+        }
+        
+        // 设置响应头
+        res.writeHead(200, {
+          'Content-Type': response.headers['content-type'] || 'image/png',
+          'Cache-Control': 'public, max-age=3600'
+        })
+        
+        // 管道传输数据
+        response.pipe(res)
+        
+        console.log('[API] Proxy download successful')
+      })
+      
+      request.on('error', (error) => {
+        console.error('[API] Proxy download error:', error)
+        sendJson(res, 500, { code: 1, message: '下载失败: ' + error.message })
+      })
+      
+      request.on('timeout', () => {
+        console.error('[API] Proxy download timeout')
+        request.destroy()
+        sendJson(res, 504, { code: 1, message: '下载超时' })
+      })
+    } catch (err) {
+      console.error('[API] Proxy download failed:', err)
+      sendJson(res, 500, { code: 1, message: '代理下载失败: ' + err.message })
+    }
+    return
+  }
+
+  // 批量删除包含过期阿里云OSS URL的作品（管理员功能）
+  if (req.method === 'POST' && path === '/api/admin/cleanup-expired-works') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '用户认证失败' })
+      return
+    }
+    
+    // 检查是否是管理员
+    if (decoded.role !== 'admin') {
+      sendJson(res, 403, { error: 'FORBIDDEN', message: '需要管理员权限' })
+      return
+    }
+    
+    try {
+      const db = await getDB()
+      
+      // 查询包含阿里云OSS URL的作品
+      const { rows: expiredWorks } = await db.query(`
+        SELECT id, title, thumbnail, cover_url, creator_id 
+        FROM works 
+        WHERE thumbnail LIKE '%dashscope-result%' 
+           OR cover_url LIKE '%dashscope-result%'
+           OR thumbnail LIKE '%aliyuncs.com%'
+           OR cover_url LIKE '%aliyuncs.com%'
+      `)
+      
+      console.log(`[API] Found ${expiredWorks.length} works with expired Aliyun OSS URLs`)
+      
+      if (expiredWorks.length === 0) {
+        sendJson(res, 200, { 
+          code: 0, 
+          message: '没有找到包含过期阿里云OSS URL的作品',
+          data: { deletedCount: 0, works: [] }
+        })
+        return
+      }
+      
+      // 删除这些作品
+      const deletedWorks = []
+      for (const work of expiredWorks) {
+        try {
+          // 删除作品相关的点赞记录
+          await db.query('DELETE FROM work_likes WHERE work_id = $1', [work.id])
+          
+          // 删除作品相关的收藏记录
+          await db.query('DELETE FROM work_bookmarks WHERE work_id = $1', [work.id])
+          
+          // 删除作品相关的评论
+          await db.query('DELETE FROM work_comments WHERE work_id = $1', [work.id])
+          
+          // 删除作品
+          await db.query('DELETE FROM works WHERE id = $1', [work.id])
+          
+          deletedWorks.push({
+            id: work.id,
+            title: work.title,
+            thumbnail: work.thumbnail?.substring(0, 100)
+          })
+          
+          console.log(`[API] Deleted expired work: ${work.id} - ${work.title}`)
+        } catch (deleteError) {
+          console.error(`[API] Failed to delete work ${work.id}:`, deleteError)
+        }
+      }
+      
+      sendJson(res, 200, { 
+        code: 0, 
+        message: `成功删除 ${deletedWorks.length} 个包含过期阿里云OSS URL的作品`,
+        data: { 
+          deletedCount: deletedWorks.length, 
+          totalFound: expiredWorks.length,
+          works: deletedWorks 
+        }
+      })
+    } catch (err) {
+      console.error('[API] Cleanup expired works failed:', err)
+      sendJson(res, 500, { code: 1, message: '清理过期作品失败: ' + err.message })
+    }
+    return
+  }
+
   // 添加帖子评论
   if (req.method === 'POST' && path.startsWith('/api/posts/') && path.endsWith('/comments')) {
     const decoded = verifyRequestToken(req)
@@ -4776,8 +4958,25 @@ async function route(req, res, u, path) {
       const page = parseInt(u.searchParams.get('page') || '1')
       const pageSize = parseInt(u.searchParams.get('pageSize') || '10')
       
-      // 获取用户活动
-      let events = await eventDB.getEvents()
+      console.log('[API] Get user events - userId:', userId, 'status:', status)
+      console.log('[API] userId type:', typeof userId, 'userId length:', userId.length)
+      
+      // 先查询所有活动，看看 organizer_id 的格式
+      const allEvents = await eventDB.getEvents({})
+      console.log('[API] All events count:', allEvents.length)
+      if (allEvents.length > 0) {
+        console.log('[API] Sample event organizer_id:', allEvents[0].organizer_id, 'type:', typeof allEvents[0].organizer_id)
+        console.log('[API] userId vs organizer_id match:', allEvents.filter(e => e.organizer_id === userId).length)
+        console.log('[API] Sample organizer_ids:', allEvents.slice(0, 5).map(e => e.organizer_id))
+      }
+      
+      // 获取用户活动 - 使用 creatorId 过滤
+      const filters = { creatorId: userId }
+      if (status && status !== 'all') {
+        filters.status = status
+      }
+      let events = await eventDB.getEvents(filters)
+      console.log('[API] eventDB.getEvents returned:', events.length, 'events for user:', userId)
       
       // 转换字段格式
       const formattedEvents = events.map(event => ({
@@ -4791,7 +4990,7 @@ async function route(req, res, u, path) {
         type: event.category === 'competition' ? 'offline' : 'online',
         category: event.category,
         tags: event.tags || [],
-        participantCount: event.participant_count || 0,
+        participants: event.participants || event.participant_count || 0,
         maxParticipants: event.max_participants,
         media: event.image_url ? [{ url: event.image_url, type: 'image' }] : [],
         organizer: {
@@ -4804,8 +5003,8 @@ async function route(req, res, u, path) {
         creatorId: event.organizer_id
       }))
       
-      // 过滤用户创建的活动
-      let userEvents = formattedEvents.filter(event => event.creatorId === userId)
+      // 已经通过 eventDB.getEvents 过滤了用户创建的活动，这里不需要再过滤
+      let userEvents = formattedEvents
       
       // 过滤活动
       if (search) {
@@ -5088,7 +5287,7 @@ async function route(req, res, u, path) {
     
     if (!b.imageUrl) { sendJson(res, 400, { error: 'IMAGE_REQUIRED', message: 'Image URL is required' }); return }
     
-    console.log(`[Qwen Enhance] Request received:`, b.type || 'general');
+    console.log(`[Qwen Enhance] Request received:`, b.type || 'general', 'imageUrl:', b.imageUrl?.substring(0, 50) + '...');
     
     const authKey = process.env.DASHSCOPE_API_KEY || process.env.VITE_QWEN_API_KEY || ''
     if (!authKey) { 
@@ -5105,17 +5304,20 @@ async function route(req, res, u, path) {
         'classic': 'Apply vintage retro filter, warm tones, nostalgic feeling',
         'culture': 'Enhance Chinese traditional colors, cultural characteristics, red and gold tones',
         'clear': 'Sharpen details, enhance clarity, improve definition',
-        'warm': 'Add warm tones, cozy and comfortable atmosphere'
+        'warm': 'Add warm tones, cozy and comfortable atmosphere',
+        'smart': 'Enhance image quality, improve colors and details, make it more beautiful'
       }
       
       const enhancePrompt = enhancePrompts[b.type] || 'Enhance image quality, improve details'
       
+      // 使用图生图接口，传入原图作为参考
       const result = await dashscopeImageGenerate({
         prompt: enhancePrompt,
         size: '1024x1024',
         n: 1,
         authKey,
-        model: 'wanx2.1-t2i-turbo'
+        model: 'wanx2.1-t2i-turbo',
+        refImage: b.imageUrl  // 传入原图URL进行图生图
       })
       
       if (!result.ok) {
@@ -5181,6 +5383,81 @@ async function route(req, res, u, path) {
     } catch (e) {
       console.error('[Qwen Expand] Error:', e)
       sendJson(res, 500, { error: 'EXPAND_FAILED', message: e.message })
+    }
+    return
+  }
+
+  // 纹样智能融合
+  if (req.method === 'POST' && path === '/api/qwen/images/pattern-fusion') {
+    const b = await readBody(req)
+    
+    if (!b.imageUrl) { sendJson(res, 400, { error: 'IMAGE_REQUIRED', message: 'Image URL is required' }); return }
+    if (!b.patternName) { sendJson(res, 400, { error: 'PATTERN_REQUIRED', message: 'Pattern name is required' }); return }
+    
+    console.log(`[Qwen Pattern Fusion] Request received:`, b.patternName, 'style:', b.style || 'harmony');
+    
+    const authKey = process.env.DASHSCOPE_API_KEY || process.env.VITE_QWEN_API_KEY || ''
+    if (!authKey) { 
+      console.error('[Qwen Pattern Fusion] ERROR: API Key not configured');
+      sendJson(res, 401, { error: 'API_KEY_MISSING', message: 'Missing DashScope API Key' }); 
+      return 
+    }
+
+    try {
+      const patternName = b.patternName
+      const style = b.style || 'harmony'
+      const intensity = b.intensity || 50
+      
+      // 构建融合提示词
+      const stylePrompts = {
+        'harmony': 'harmoniously blend the pattern with the image, natural integration',
+        'border': 'use the pattern as decorative border around the main content',
+        'corner': 'place the pattern elegantly in corners as decoration',
+        'overlay': 'overlay the pattern subtly across the image',
+        'frame': 'create an elegant frame using the pattern',
+        'background': 'use the pattern as a subtle background texture'
+      }
+      
+      const intensityDesc = intensity < 30 ? 'very subtle' : intensity < 70 ? 'moderate' : 'strong'
+      
+      const prompt = `Intelligently fuse ${patternName} pattern into the image. 
+The pattern should ${stylePrompts[style] || stylePrompts['harmony']}.
+Apply ${intensityDesc} intensity (${intensity}%).
+Maintain the original image content while adding artistic cultural elements.
+The fusion should look natural and aesthetically pleasing.`
+      
+      // 根据融合风格设置 ref_mode
+      const refModeMap = {
+        'harmony': 'repaint',
+        'border': 'repaint',
+        'corner': 'repaint',
+        'overlay': 'repaint',
+        'frame': 'repaint',
+        'background': 'refonly'
+      }
+      
+      const result = await dashscopeImageGenerate({
+        prompt: prompt,
+        size: '1024x1024',
+        n: 1,
+        authKey,
+        model: 'wanx-v1',
+        refImage: b.imageUrl,
+        refStrength: intensity / 100,  // 将百分比转为 0-1
+        refMode: refModeMap[style] || 'repaint'
+      })
+      
+      if (!result.ok) {
+        console.error('[Qwen Pattern Fusion] Failed:', result.data);
+        sendJson(res, result.status, result.data)
+        return
+      }
+      
+      console.log('[Qwen Pattern Fusion] Success');
+      sendJson(res, 200, { ok: true, data: result.data })
+    } catch (e) {
+      console.error('[Qwen Pattern Fusion] Error:', e)
+      sendJson(res, 500, { error: 'PATTERN_FUSION_FAILED', message: e.message })
     }
     return
   }
@@ -5398,6 +5675,47 @@ Response format (JSON):
     } catch (e) {
       console.error('[Qwen Prompt Analyze] Error:', e)
       sendJson(res, 500, { error: 'ANALYZE_FAILED', message: e.message })
+    }
+    return
+  }
+
+  // Trae API 图片生成代理
+  if (req.method === 'GET' && path.startsWith('/api/proxy/trae-api')) {
+    try {
+      const remotePath = path.replace('/api/proxy/trae-api', '')
+      const targetUrl = `https://trae-api-cn.mchost.guru${remotePath}${u.search}`
+      
+      console.log('[Trae API Proxy] Fetching:', targetUrl)
+      
+      const response = await fetch(targetUrl, {
+        method: 'GET',
+        headers: {
+          'Accept': 'image/*, */*',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+      })
+      
+      if (!response.ok) {
+        console.error('[Trae API Proxy] Failed:', response.status, response.statusText)
+        sendJson(res, response.status, { error: 'PROXY_FAILED', message: `Trae API returned ${response.status}` })
+        return
+      }
+      
+      // 获取图片数据
+      const imageBuffer = await response.arrayBuffer()
+      const contentType = response.headers.get('content-type') || 'image/jpeg'
+      
+      console.log('[Trae API Proxy] Success, size:', (imageBuffer.byteLength / 1024).toFixed(2), 'KB')
+      
+      // 设置响应头
+      res.setHeader('Content-Type', contentType)
+      res.setHeader('Cache-Control', 'public, max-age=3600')
+      res.setHeader('Access-Control-Allow-Origin', '*')
+      res.statusCode = 200
+      res.end(Buffer.from(imageBuffer))
+    } catch (error) {
+      console.error('[Trae API Proxy] Error:', error)
+      sendJson(res, 500, { error: 'PROXY_ERROR', message: error.message })
     }
     return
   }

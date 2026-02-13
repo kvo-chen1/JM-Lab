@@ -1,8 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import GradientHero from '@/components/GradientHero';
 import { useLocation } from 'react-router-dom';
+import { supabase } from '@/lib/supabase';
+import { getKnowledgeImageUrl, generatePrompt } from '@/services/culturalKnowledgeImageService';
+import { toast } from 'sonner';
 
 // 示例数据：非遗故事
 const heritageStories = [
@@ -449,16 +452,42 @@ const fallbackImageUrl = (width: number, height: number, isPerson: boolean = fal
   return `https://picsum.photos/seed/fallback/${width}/${height}`;
 }
 
+// 文化知识数据类型
+interface CulturalKnowledgeItem {
+  id: string | number;
+  title: string;
+  content: string;
+  category: string;
+  tags: string[];
+  excerpt?: string;
+  image_url?: string;
+  image?: string;
+  image_generation_status?: 'pending' | 'generating' | 'completed' | 'failed';
+  views?: number;
+  likes?: number;
+  created_at?: string;
+}
+
 export default function CulturalKnowledge() {
   const { isDark = false } = useTheme() || {};
   const location = useLocation();
 
   // 选中的非遗故事
-  const [selectedStory, setSelectedStory] = useState<any>(null);
+  const [selectedStory, setSelectedStory] = useState<CulturalKnowledgeItem | null>(null);
+  
+  // 知识列表
+  const [knowledgeList, setKnowledgeList] = useState<CulturalKnowledgeItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  
+  // 搜索和过滤
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('all');
 
   // 处理故事点击
-  const handleStoryClick = (story: any) => {
+  const handleStoryClick = (story: CulturalKnowledgeItem) => {
     setSelectedStory(story);
+    // 增加浏览数
+    incrementViews(story.id);
   };
 
   // 关闭详情
@@ -468,6 +497,147 @@ export default function CulturalKnowledge() {
   
   // 检测是否为特色专区
   const isTianjin = location.pathname.startsWith('/tianjin');
+  
+  // 从数据库加载文化知识
+  useEffect(() => {
+    loadKnowledgeList();
+  }, []);
+  
+  // 加载文化知识列表
+  const loadKnowledgeList = async () => {
+    try {
+      setLoading(true);
+      
+      // 先尝试从数据库加载
+      const { data, error } = await supabase
+        .from('cultural_knowledge')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        console.log('数据库查询失败，使用本地数据:', error.message);
+        // 静默使用本地数据，不显示错误提示
+        console.log('本地数据长度:', heritageStories.length);
+        console.log('本地数据结构:', heritageStories[0]);
+        setKnowledgeList(heritageStories as CulturalKnowledgeItem[]);
+      } else if (data && data.length > 0) {
+        // 处理数据，添加excerpt字段
+        const processedData = data.map(item => ({
+          ...item,
+          excerpt: item.excerpt || item.content?.substring(0, 100) + '...'
+        }));
+        setKnowledgeList(processedData);
+      } else {
+        // 数据库为空，使用本地数据
+        console.log('数据库为空，使用本地数据');
+        console.log('本地数据长度:', heritageStories.length);
+        console.log('本地数据结构:', heritageStories[0]);
+        setKnowledgeList(heritageStories as CulturalKnowledgeItem[]);
+      }
+    } catch (error) {
+      console.log('加载失败，使用本地数据:', error);
+      console.log('本地数据长度:', heritageStories.length);
+      console.log('本地数据结构:', heritageStories[0]);
+      setKnowledgeList(heritageStories as CulturalKnowledgeItem[]);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // 增加浏览数
+  const incrementViews = async (id: number) => {
+    try {
+      await supabase.rpc('increment_cultural_knowledge_views', { p_id: id });
+    } catch (error) {
+      // 静默处理错误
+    }
+  };
+  
+  // 获取图片URL
+  const getStoryImageUrl = (story: CulturalKnowledgeItem): string => {
+    // 使用稳定的 picsum.photos 图片
+    const stableImages = {
+      '泥人张彩塑': 'https://picsum.photos/seed/clay/800/600',
+      '杨柳青年画': 'https://picsum.photos/seed/painting/800/600',
+      '天津风筝魏': 'https://picsum.photos/seed/kite/800/600',
+      '果仁张': 'https://picsum.photos/seed/food/800/600',
+      '北京同仁堂': 'https://picsum.photos/seed/medicine/800/600',
+      '景德镇瓷器': 'https://picsum.photos/seed/porcelain/800/600',
+      '茅台酒': 'https://picsum.photos/seed/wine/800/600',
+      '相声': 'https://picsum.photos/seed/crosstalk/800/600',
+      '桂发祥十八街麻花': 'https://picsum.photos/seed/snack/800/600',
+      '狗不理包子': 'https://picsum.photos/seed/bun/800/600',
+      '耳朵眼炸糕': 'https://picsum.photos/seed/cake/800/600',
+      '茶汤李': 'https://picsum.photos/seed/tea/800/600',
+      '老美华': 'https://picsum.photos/seed/shoe/800/600',
+      '利顺德饭店': 'https://picsum.photos/seed/hotel/800/600',
+      '海河': 'https://picsum.photos/seed/river/800/600',
+      '泥人张': 'https://picsum.photos/seed/clay2/800/600',
+      '荣宝斋木版水印': 'https://picsum.photos/seed/watermark/800/600',
+      '全聚德烤鸭': 'https://picsum.photos/seed/duck/800/600',
+      '剪纸': 'https://picsum.photos/seed/papercut/800/600',
+      '扬州漆器': 'https://picsum.photos/seed/lacquer/800/600',
+      '周村烧饼': 'https://picsum.photos/seed/biscuit/800/600',
+      '景泰蓝': 'https://picsum.photos/seed/enamel/800/600',
+      '旗袍': 'https://picsum.photos/seed/dress/800/600',
+      '徽墨': 'https://picsum.photos/seed/ink/800/600',
+      '蜀锦': 'https://picsum.photos/seed/silk/800/600',
+      '潍坊风筝': 'https://picsum.photos/seed/kite2/800/600',
+      '宣纸': 'https://picsum.photos/seed/paper/800/600',
+      '京味小吃': 'https://picsum.photos/seed/snack2/800/600',
+      '景德镇青花': 'https://picsum.photos/seed/blue/800/600',
+      '皮影戏': 'https://picsum.photos/seed/shadow/800/600',
+      '苏帮菜': 'https://picsum.photos/seed/dish/800/600',
+      '德化白瓷': 'https://picsum.photos/seed/white/800/600',
+      '张小泉': 'https://picsum.photos/seed/scissors/800/600',
+      '潮绣': 'https://picsum.photos/seed/embroidery/800/600',
+      '宜兴紫砂': 'https://picsum.photos/seed/teapot/800/600',
+      '雕版印刷': 'https://picsum.photos/seed/print/800/600',
+      '苗族银饰': 'https://picsum.photos/seed/silver/800/600',
+      '汴绣': 'https://picsum.photos/seed/embroidery2/800/600',
+      '绍兴黄酒': 'https://picsum.photos/seed/wine2/800/600',
+      '黎族织锦': 'https://picsum.photos/seed/weaving/800/600',
+      '匠作窗棂': 'https://picsum.photos/seed/window/800/600',
+    };
+    
+    // 查找匹配的稳定图片
+    for (const [key, value] of Object.entries(stableImages)) {
+      if (story.title?.includes(key)) {
+        return value;
+      }
+    }
+    
+    // 默认图片
+    return `https://picsum.photos/seed/${encodeURIComponent(story.title || 'culture')}/800/600`;
+  };
+  
+  // 过滤后的列表
+  const filteredStories = knowledgeList.filter(story => {
+    const matchesSearch = searchTerm === '' || 
+      story.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      story.content?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      story.tags?.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()));
+    
+    const matchesCategory = selectedCategory === 'all' || story.category === selectedCategory;
+    
+    return matchesSearch && matchesCategory;
+  });
+  
+  // 调试：查看过滤后的列表
+  useEffect(() => {
+    if (knowledgeList.length > 0) {
+      console.log('knowledgeList 数据结构:', knowledgeList[0]);
+      console.log('filteredStories 长度:', filteredStories.length);
+      if (filteredStories.length > 0) {
+        console.log('filteredStories 数据结构:', filteredStories[0]);
+        console.log('filteredStories[0].image:', filteredStories[0].image);
+        console.log('filteredStories[0].image_url:', filteredStories[0].image_url);
+      }
+    }
+  }, [knowledgeList, filteredStories]);
+  
+  // 获取所有分类
+  const categories = ['all', ...Array.from(new Set(knowledgeList.map(s => s.category)))];
 
   return (
     <div>
@@ -497,6 +667,55 @@ export default function CulturalKnowledge() {
           ]}
         />
 
+        {/* 搜索和过滤栏 */}
+        {!selectedStory && (
+          <motion.div 
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className={`mb-8 p-6 rounded-2xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-lg border ${isDark ? 'border-gray-700' : 'border-gray-200'}`}
+          >
+            <div className="flex flex-col md:flex-row gap-4">
+              {/* 搜索框 */}
+              <div className="flex-1 relative">
+                <i className="fas fa-search absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                <input
+                  type="text"
+                  placeholder="搜索文化知识..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className={`w-full pl-12 pr-4 py-3 rounded-xl border ${isDark ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-500'} focus:outline-none focus:ring-2 focus:ring-red-500 transition-all`}
+                />
+              </div>
+              
+              {/* 分类过滤 */}
+              <div className="flex gap-2 flex-wrap">
+                {categories.map((category) => (
+                  <button
+                    key={category}
+                    onClick={() => setSelectedCategory(category)}
+                    className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+                      selectedCategory === category
+                        ? 'bg-red-600 text-white shadow-md'
+                        : isDark 
+                          ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' 
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    {category === 'all' ? '全部' : category}
+                  </button>
+                ))}
+              </div>
+            </div>
+            
+            {/* 统计信息 */}
+            <div className={`mt-4 text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+              共 {filteredStories.length} 条文化知识
+              {searchTerm && ` · 搜索 "${searchTerm}"`}
+              {selectedCategory !== 'all' && ` · 分类: ${selectedCategory}`}
+            </div>
+          </motion.div>
+        )}
+
         {/* 内容区域 */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -509,7 +728,7 @@ export default function CulturalKnowledge() {
                   <div className="md:col-span-2 space-y-8">
                     <div className="relative h-[650px] overflow-hidden rounded-2xl shadow-2xl">
                       <img
-                        src={getContentImageUrl(selectedStory.title + selectedStory.content, 1200, 800)}
+                        src={getStoryImageUrl(selectedStory)}
                         alt={selectedStory.title}
                         className="w-full h-full object-cover transition-transform duration-700 hover:scale-105"
                         onError={(e) => {
@@ -517,7 +736,6 @@ export default function CulturalKnowledge() {
                           target.src = fallbackImageUrl(1200, 800);
                           target.alt = `${selectedStory.title} - 图片加载失败`;
                         }}
-                        loading="lazy"
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent"></div>
                       <div className="absolute bottom-8 left-8 right-8 text-white">
@@ -571,7 +789,7 @@ export default function CulturalKnowledge() {
                         >
                           <div className="flex-shrink-0">
                             <img
-                              src={getContentImageUrl(story.title, 400, 300)}
+                              src={getStoryImageUrl(story)}
                               alt={story.title}
                               className="w-32 h-24 object-cover rounded-lg"
                               onError={(e) => {
@@ -579,7 +797,6 @@ export default function CulturalKnowledge() {
                                 target.src = fallbackImageUrl(400, 300);
                                 target.alt = `${story.title} - 图片加载失败`;
                               }}
-                              loading="lazy"
                             />
                           </div>
                           <div className="flex-1 flex flex-col justify-center">
@@ -594,7 +811,7 @@ export default function CulturalKnowledge() {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
-                  {heritageStories.map((story) => (
+                  {filteredStories.map((story) => (
                     <motion.div
                       key={story.id}
                       whileHover={{ y: -8 }}
@@ -603,7 +820,7 @@ export default function CulturalKnowledge() {
                     >
                       <div className="relative h-80 overflow-hidden bg-gray-200 dark:bg-gray-700">
                         <img
-                          src={getContentImageUrl(story.title, 600, 400)}
+                          src={getStoryImageUrl(story)}
                           alt={story.title}
                           className="w-full h-full object-cover transition-transform duration-700 hover:scale-110"
                           onError={(e) => {
@@ -611,7 +828,6 @@ export default function CulturalKnowledge() {
                             target.src = fallbackImageUrl(600, 400);
                             target.alt = `${story.title} - 图片加载失败`;
                           }}
-                          loading="lazy"
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent"></div>
                         <div className="absolute bottom-6 left-6">

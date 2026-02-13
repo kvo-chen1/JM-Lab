@@ -133,11 +133,14 @@ const CommunityPageWithNotifications = React.memo(function CommunityPageWithNoti
     retrySendMessage,
     onAddReaction,
     onReplyToMessage,
+    onDeleteMessage,
     isThreadFavorited,
     onCreateThread,
     submitCreateThread,
     onAddComment,
     onCommentUpvote,
+    onDeleteThread,
+    onDeleteComment,
     activeCommunity,
     isCreatePostOpen,
     setIsCreatePostOpen,
@@ -273,6 +276,8 @@ const CommunityPageWithNotifications = React.memo(function CommunityPageWithNoti
               onOpenThread={(id) => console.log('Open thread', id)}
               onViewThread={(id) => console.log('View thread', id)}
               onCreateThread={onCreateThread}
+              onDeleteThread={onDeleteThread}
+              onDeleteComment={onDeleteComment}
               isThreadFavorited={isThreadFavorited}
               activeCommunity={activeCommunity} // 传递活跃社群信息，用于自定义风格
               user={user} // 传递用户信息，用于显示头像
@@ -288,7 +293,8 @@ const CommunityPageWithNotifications = React.memo(function CommunityPageWithNoti
                 retrySendMessage={retrySendMessage}
                 onAddReaction={onAddReaction}
                 onReplyToMessage={onReplyToMessage}
-                currentUser={{ name: user?.username || 'Guest' }}
+                onDeleteMessage={onDeleteMessage}
+                currentUser={{ name: user?.username || 'Guest', id: user?.id }}
             />
           ) : activeChannel === 'members' ? (
             <MembersSection
@@ -311,6 +317,8 @@ const CommunityPageWithNotifications = React.memo(function CommunityPageWithNoti
                 onOpenThread={(id) => console.log('Open thread', id)}
                 onViewThread={(id) => console.log('View thread', id)}
                 onCreateThread={onCreateThread}
+                onDeleteThread={onDeleteThread}
+                onDeleteComment={onDeleteComment}
                 isThreadFavorited={isThreadFavorited}
                 activeCommunity={activeCommunity}
                 user={user}

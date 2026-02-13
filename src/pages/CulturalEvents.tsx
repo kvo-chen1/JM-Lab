@@ -111,12 +111,17 @@ export default function CulturalEvents() {
       setIsLoading(true);
       try {
         const allEvents = await getEvents();
+        console.log('[CulturalEvents] Raw events from API:', allEvents?.length, allEvents);
         // 转换数据格式并过滤已发布活动
         const publishedEvents = Array.isArray(allEvents)
           ? allEvents
               .map(toCamelCase)
-              .filter((event) => event && event.status === 'published')
+              .filter((event) => {
+                console.log('[CulturalEvents] Checking event:', event?.title, 'status:', event?.status);
+                return event && event.status === 'published';
+              })
           : [];
+        console.log('[CulturalEvents] Published events:', publishedEvents.length);
         setEvents(publishedEvents);
       } catch (error) {
         console.error('加载活动失败:', error);

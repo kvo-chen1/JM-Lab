@@ -12,7 +12,9 @@ import {
   Filter,
   ChevronRight,
   Bookmark,
-  Hash
+  Hash,
+  Trophy,
+  Wand2
 } from 'lucide-react';
 
 interface Category {
@@ -37,6 +39,8 @@ interface DraftsLeftSidebarProps {
     mockup: number;
     tile: number;
     aiWriter: number;
+    brandWizard?: number;
+    eventSubmission?: number;
     favorites: number;
   };
   popularTags: string[];
@@ -109,6 +113,22 @@ export default function DraftsLeftSidebar({
       count: draftCounts.aiWriter,
       color: 'from-emerald-500 to-emerald-600',
       gradient: 'bg-gradient-to-r from-emerald-500 to-emerald-600'
+    },
+    {
+      id: 'brandWizard',
+      name: '品牌向导',
+      icon: Wand2,
+      count: draftCounts.brandWizard || 0,
+      color: 'from-indigo-500 to-indigo-600',
+      gradient: 'bg-gradient-to-r from-indigo-500 to-indigo-600'
+    },
+    {
+      id: 'eventSubmission',
+      name: '活动作品',
+      icon: Trophy,
+      count: draftCounts.eventSubmission || 0,
+      color: 'from-red-500 to-orange-500',
+      gradient: 'bg-gradient-to-r from-red-500 to-orange-500'
     }
   ];
 

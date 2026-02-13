@@ -124,6 +124,46 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     // 避免在服务器端渲染时执行
     if (typeof window === 'undefined') return;
     
+    // 天津主题特殊动画效果
+    if (theme === 'tianjin' && typeof document !== 'undefined') {
+      // 添加主题进入动画
+      document.documentElement.classList.add('theme-transitioning');
+      
+      // 创建海河波浪过渡效果
+      const waveTransition = document.createElement('div');
+      waveTransition.className = 'tianjin-theme-transition';
+      waveTransition.innerHTML = `
+        <svg viewBox="0 0 1200 120" preserveAspectRatio="none" style="width: 100%; height: 100%;">
+          <path d="M0,60 C150,120 350,0 600,60 C850,120 1050,0 1200,60 L1200,120 L0,120 Z" fill="#1E5F8E" fill-opacity="0.1">
+            <animate attributeName="d" dur="2s" repeatCount="indefinite" 
+              values="M0,60 C150,120 350,0 600,60 C850,120 1050,0 1200,60 L1200,120 L0,120 Z;
+                      M0,60 C150,0 350,120 600,60 C850,0 1050,120 1200,60 L1200,120 L0,120 Z;
+                      M0,60 C150,120 350,0 600,60 C850,120 1050,0 1200,60 L1200,120 L0,120 Z"/>
+          </path>
+        </svg>
+      `;
+      waveTransition.style.cssText = `
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 100px;
+        pointer-events: none;
+        z-index: 9999;
+        animation: tianjinWaveIn 0.8s ease-out forwards;
+      `;
+      document.body.appendChild(waveTransition);
+      
+      // 移除过渡元素
+      setTimeout(() => {
+        waveTransition.style.animation = 'tianjinWaveOut 0.5s ease-in forwards';
+        setTimeout(() => {
+          waveTransition.remove();
+          document.documentElement.classList.remove('theme-transitioning');
+        }, 500);
+      }, 1500);
+    }
+    
     // 使用requestAnimationFrame优化DOM更新，减少卡顿
     const frameId = requestAnimationFrame(() => {
       updateThemeClass();

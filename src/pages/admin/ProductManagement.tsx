@@ -1,19 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
-import productService, { Product } from '@/services/productService';
+import productService, { Product, ProductCategory } from '@/services/productService';
+import { supabaseAdmin } from '@/lib/supabaseClient';
 import { toast } from 'sonner';
 
 // 订单接口
 interface Order {
   id: string;
-  product_id: number;
+  product_id: string;
   product_name: string;
   user_id: string;
   username: string;
   points: number;
   quantity: number;
-  status: 'pending' | 'completed' | 'cancelled';
+  status: 'pending' | 'completed' | 'cancelled' | 'processing';
   created_at: number;
   completed_at?: number;
 }
@@ -29,7 +30,7 @@ interface SalesStats {
 }
 
 // 产品分类接口
-interface ProductCategory {
+interface ProductCategoryUI {
   id: string;
   name: string;
   description: string;
@@ -46,15 +47,16 @@ const ProductManagement: React.FC = () => {
   const [currentView, setCurrentView] = useState<'products' | 'orders' | 'stats' | 'categories'>('products');
   
   // 表单数据
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<Omit<Product, 'id' | 'createdAt' | 'updatedAt'>>({
     name: '',
     description: '',
     points: 0,
     stock: 0,
-    status: 'active' as 'active' | 'inactive' | 'sold_out',
+    status: 'active',
     category: 'virtual',
-    tags: [] as string[],
-    imageUrl: ''
+    tags: [],
+    imageUrl: '',
+    isFeatured: false
   });
   
   // 筛选和搜索
@@ -63,7 +65,7 @@ const ProductManagement: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   
   // 批量操作
-  const [selectedProducts, setSelectedProducts] = useState<Set<number>>(new Set());
+  const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
   const [isBatchMode, setIsBatchMode] = useState(false);
   
   // 统计数据
@@ -81,19 +83,20 @@ const ProductManagement: React.FC = () => {
   const [orderFilter, setOrderFilter] = useState('all');
   
   // 分类数据
-  const [categories, setCategories] = useState<ProductCategory[]>([]);
+  const [categories, setCategories] = useState<ProductCategoryUI[]>([]);
   
   // 库存预警阈值
   const LOW_STOCK_THRESHOLD = 10;
 
   // 加载商品数据
+  const fetchProducts = async () => {
+    const allProducts = await productService.getAllProducts();
+    setProducts(allProducts);
+    calculateStats(allProducts);
+  };
+
   useEffect(() => {
-    const loadProducts = async () => {
-      const allProducts = await productService.getAllProducts();
-      setProducts(allProducts);
-      calculateStats(allProducts);
-    };
-    loadProducts();
+    fetchProducts();
     fetchCategories();
   }, []);
 
@@ -129,13 +132,13 @@ const ProductManagement: React.FC = () => {
       // 转换数据格式
       const formattedOrders: Order[] = response.records.map(record => ({
         id: record.id,
-        product_id: parseInt(record.productId) || 0,
+        product_id: record.productId,
         product_name: record.productName,
         user_id: record.userId,
         username: record.userName || '未知用户',
         points: record.points,
         quantity: record.quantity,
-        status: record.status === 'refunded' ? 'cancelled' : record.status,
+        status: (record.status === 'refunded' ? 'cancelled' : record.status) as Order['status'],
         created_at: new Date(record.date).getTime(),
         completed_at: record.status === 'completed' ? new Date(record.date).getTime() : undefined
       }));
@@ -161,11 +164,22 @@ const ProductManagement: React.FC = () => {
   // 重置商品数据
   const handleResetProducts = async () => {
     if (window.confirm('确定要重置所有商品数据到默认值吗？这将清除所有自定义的商品。')) {
-      await productService.resetProducts();
-      const allProducts = await productService.getAllProducts();
-      setProducts(allProducts);
-      calculateStats(allProducts);
-      toast.success('商品数据已重置');
+      try {
+        // 删除所有现有商品
+        const { error } = await supabaseAdmin
+          .from('products')
+          .delete()
+          .neq('id', '00000000-0000-0000-0000-000000000000');
+        
+        if (error) throw error;
+        
+        // 重新加载商品列表
+        await fetchProducts();
+        toast.success('商品数据已重置');
+      } catch (error) {
+        console.error('重置商品数据失败:', error);
+        toast.error('重置商品数据失败');
+      }
     }
   };
 
@@ -178,9 +192,10 @@ const ProductManagement: React.FC = () => {
       points: 0,
       stock: 0,
       status: 'active',
-      category: 'virtual',
-      tags: [],
-      imageUrl: ''
+      category: 'virtual' as ProductCategory,
+      tags: [] as string[],
+      imageUrl: '',
+      isFeatured: false
     });
     setShowModal(true);
   };
@@ -196,17 +211,18 @@ const ProductManagement: React.FC = () => {
       stock: product.stock,
       status: product.status,
       category: product.category,
-      tags: [...product.tags],
-      imageUrl: product.imageUrl
+      tags: [...product.tags] as string[],
+      imageUrl: product.imageUrl,
+      isFeatured: product.isFeatured
     });
     setShowModal(true);
   };
 
   // 保存商品
-  const handleSaveProduct = () => {
+  const handleSaveProduct = async () => {
     try {
       if (isEditing && selectedProduct) {
-        const updatedProduct = productService.updateProduct(selectedProduct.id, formData);
+        const updatedProduct = await productService.updateProduct(selectedProduct.id, formData);
         if (updatedProduct) {
           setProducts(products.map(p => p.id === selectedProduct.id ? updatedProduct : p));
           toast.success('商品更新成功');
@@ -214,9 +230,13 @@ const ProductManagement: React.FC = () => {
           toast.error('商品更新失败');
         }
       } else {
-        const newProduct = productService.addProduct(formData);
-        setProducts([...products, newProduct]);
-        toast.success('商品添加成功');
+        const newProduct = await productService.addProduct(formData);
+        if (newProduct) {
+          setProducts([...products, newProduct]);
+          toast.success('商品添加成功');
+        } else {
+          toast.error('商品添加失败');
+        }
       }
       setShowModal(false);
       calculateStats(products);
@@ -226,13 +246,14 @@ const ProductManagement: React.FC = () => {
   };
 
   // 删除商品
-  const handleDeleteProduct = (productId: number) => {
+  const handleDeleteProduct = async (productId: string) => {
     if (window.confirm('确定要删除该商品吗？')) {
-      const success = productService.deleteProduct(productId);
+      const success = await productService.deleteProduct(productId);
       if (success) {
-        setProducts(products.filter(p => p.id !== productId));
+        const updatedProducts = products.filter(p => p.id !== productId);
+        setProducts(updatedProducts);
         toast.success('商品删除成功');
-        calculateStats(products.filter(p => p.id !== productId));
+        calculateStats(updatedProducts);
       } else {
         toast.error('商品删除失败');
       }
@@ -240,9 +261,9 @@ const ProductManagement: React.FC = () => {
   };
 
   // 切换商品状态
-  const toggleProductStatus = (product: Product) => {
+  const toggleProductStatus = async (product: Product) => {
     const newStatus = product.status === 'active' ? 'inactive' : 'active';
-    const updatedProduct = productService.updateProduct(product.id, { status: newStatus });
+    const updatedProduct = await productService.updateProduct(product.id, { status: newStatus });
     if (updatedProduct) {
       setProducts(products.map(p => p.id === product.id ? updatedProduct : p));
       toast.success(`商品已${newStatus === 'active' ? '上架' : '下架'}`);
@@ -327,7 +348,7 @@ const ProductManagement: React.FC = () => {
   };
   
   // 切换商品选择
-  const toggleProductSelection = (productId: number) => {
+  const toggleProductSelection = (productId: string) => {
     const newSelected = new Set(selectedProducts);
     if (newSelected.has(productId)) {
       newSelected.delete(productId);
@@ -939,7 +960,7 @@ const ProductManagement: React.FC = () => {
                       <label className="block text-sm font-medium mb-2">商品分类</label>
                       <select
                         value={formData.category}
-                        onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                        onChange={(e) => setFormData({ ...formData, category: e.target.value as ProductCategory })}
                         className={`w-full px-4 py-2 rounded-lg border ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-300'} focus:outline-none focus:ring-2 focus:ring-red-500`}
                         required
                       >

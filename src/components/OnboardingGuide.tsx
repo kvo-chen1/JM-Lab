@@ -5,7 +5,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useGuide } from '@/contexts/GuideContext';
 
-// 步骤配置
+// 步骤配置 - 保持原有的10步结构
 const STEPS = [
   { 
     title: '欢迎加入 AI 共创平台', 
@@ -13,11 +13,11 @@ const STEPS = [
     icon: 'rocket',
     targetPath: '/dashboard',
     primaryText: '开始探索',
-    targetId: null // 第一步通常是欢迎页，居中显示
+    targetId: null
   },
   { 
     title: '一键开始创作', 
-    desc: '点击这里的“开始创作”按钮，即可进入创作工坊，使用强大的 AI 工具生成您的专属作品。', 
+    desc: '点击这里的"开始创作"按钮，即可进入创作工坊，使用强大的 AI 工具生成您的专属作品。', 
     icon: 'magic',
     targetPath: '/dashboard',
     primaryText: '去试试',
@@ -119,14 +119,24 @@ export default function OnboardingGuide() {
   // 主题样式映射
   const themeStyles: Record<string, { accent: string; text: string; lightBg: string; border: string; shadow: string; stroke: string; progressBar: string; progressBg: string }> = {
     light: {
-      accent: 'bg-red-600 hover:bg-red-700',
-      text: 'text-red-600',
-      lightBg: 'bg-red-100',
-      border: 'border-red-200',
-      shadow: 'shadow-red-500/30',
-      stroke: '#ef4444',
-      progressBar: 'bg-red-500',
-      progressBg: 'bg-red-200'
+      accent: 'bg-blue-600 hover:bg-blue-700',
+      text: 'text-blue-600',
+      lightBg: 'bg-blue-100',
+      border: 'border-blue-200',
+      shadow: 'shadow-blue-500/30',
+      stroke: '#3b82f6',
+      progressBar: 'bg-blue-500',
+      progressBg: 'bg-blue-200'
+    },
+    dark: {
+      accent: 'bg-blue-600 hover:bg-blue-700',
+      text: 'text-blue-400',
+      lightBg: 'bg-blue-900/30',
+      border: 'border-blue-800',
+      shadow: 'shadow-blue-500/30',
+      stroke: '#3b82f6',
+      progressBar: 'bg-blue-500',
+      progressBg: 'bg-blue-800'
     },
     blue: {
       accent: 'bg-blue-600 hover:bg-blue-700',
@@ -157,6 +167,16 @@ export default function OnboardingGuide() {
       stroke: '#9333ea',
       progressBar: 'bg-purple-500',
       progressBg: 'bg-purple-200'
+    },
+    tianjin: {
+      accent: 'bg-[#1E5F8E] hover:bg-[#164a6e]',
+      text: 'text-[#1E5F8E]',
+      lightBg: 'bg-[#1E5F8E]/10',
+      border: 'border-[#1E5F8E]/20',
+      shadow: 'shadow-[#1E5F8E]/30',
+      stroke: '#1E5F8E',
+      progressBar: 'bg-[#1E5F8E]',
+      progressBg: 'bg-[#1E5F8E]/30'
     }
   };
 
@@ -170,14 +190,13 @@ export default function OnboardingGuide() {
       // 1. 处理路由跳转
       if (stepConfig && location.pathname !== stepConfig.targetPath) {
         navigate(stepConfig.targetPath);
-        // 路由跳转后，需要等待页面渲染
         setIsLocating(true);
         
         // 路由跳转后延迟定位，确保页面完全渲染
         const timer = setTimeout(() => {
           const findTarget = () => {
             if (!stepConfig.targetId) {
-              setTargetRect(null); // 居中模式
+              setTargetRect(null);
               setIsLocating(false);
               return true;
             }
@@ -185,11 +204,9 @@ export default function OnboardingGuide() {
             const element = document.getElementById(stepConfig.targetId);
             if (element) {
               const rect = element.getBoundingClientRect();
-              // 检查元素是否可见且有大小
               if (rect.width > 0 && rect.height > 0) {
                 setTargetRect(rect);
                 setIsLocating(false);
-                // 滚动到元素位置 (留出一点边距)
                 element.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 return true;
               }
@@ -205,7 +222,6 @@ export default function OnboardingGuide() {
             if (findTarget() || attempts >= maxAttempts) {
               clearInterval(interval);
               if (attempts >= maxAttempts && stepConfig.targetId) {
-                // 如果最终没找到，降级为居中显示，但也取消定位状态
                 setTargetRect(null); 
                 setIsLocating(false);
               }
@@ -219,7 +235,7 @@ export default function OnboardingGuide() {
       // 2. 定位目标元素
       const findTarget = () => {
         if (!stepConfig.targetId) {
-          setTargetRect(null); // 居中模式
+          setTargetRect(null);
           setIsLocating(false);
           return true;
         }
@@ -227,11 +243,9 @@ export default function OnboardingGuide() {
         const element = document.getElementById(stepConfig.targetId);
         if (element) {
           const rect = element.getBoundingClientRect();
-          // 检查元素是否可见且有大小
           if (rect.width > 0 && rect.height > 0) {
             setTargetRect(rect);
             setIsLocating(false);
-            // 滚动到元素位置 (留出一点边距)
             element.scrollIntoView({ behavior: 'smooth', block: 'center' });
             return true;
           }
@@ -239,7 +253,6 @@ export default function OnboardingGuide() {
         return false;
       };
 
-      // 尝试寻找元素（带有重试机制，应对动态加载）
       setIsLocating(true);
       let attempts = 0;
       const maxAttempts = 15;
@@ -248,7 +261,6 @@ export default function OnboardingGuide() {
         if (findTarget() || attempts >= maxAttempts) {
           clearInterval(interval);
           if (attempts >= maxAttempts && stepConfig.targetId) {
-            // 如果最终没找到，降级为居中显示，但也取消定位状态
             setTargetRect(null); 
             setIsLocating(false);
           }
@@ -272,7 +284,7 @@ export default function OnboardingGuide() {
     };
 
     window.addEventListener('resize', handleResize);
-    window.addEventListener('scroll', handleResize, true); // 捕获滚动事件
+    window.addEventListener('scroll', handleResize, true);
 
     return () => {
       window.removeEventListener('resize', handleResize);
@@ -309,21 +321,20 @@ export default function OnboardingGuide() {
   // 计算 Popover 位置
   const getPopoverStyle = () => {
     if (!targetRect) {
-      // 居中显示
       return {
         top: '50%',
         left: '50%',
         transform: 'translate(-50%, -50%)',
         position: 'fixed' as const,
-        maxWidth: '600px',
+        maxWidth: '480px',
         width: '90%'
       };
     }
 
     const placement = currentStepData.placement || 'bottom';
-    const gap = 12;
-    const popoverWidth = Math.min(400, window.innerWidth * 0.8); // 自适应宽度
-    const popoverHeight = 250; // 预估高度
+    const gap = 16;
+    const popoverWidth = Math.min(420, window.innerWidth * 0.9);
+    const popoverHeight = 260;
 
     let top = 0;
     let left = 0;
@@ -332,7 +343,6 @@ export default function OnboardingGuide() {
       case 'top':
         top = targetRect.top - gap - popoverHeight;
         left = targetRect.left + (targetRect.width / 2) - (popoverWidth / 2);
-        // 如果上方空间不足，转到底部
         if (top < 10) {
           top = targetRect.bottom + gap;
         }
@@ -341,36 +351,33 @@ export default function OnboardingGuide() {
       case 'bottom':
         top = targetRect.bottom + gap;
         left = targetRect.left + (targetRect.width / 2) - (popoverWidth / 2);
-        // 如果下方空间不足，转到顶部
         if (top + popoverHeight > window.innerHeight) {
           top = targetRect.top - gap - popoverHeight;
         }
         break;
         
       case 'left':
-        top = targetRect.top + (targetRect.height / 2) - (popoverHeight / 2); // 垂直居中
+        top = targetRect.top + (targetRect.height / 2) - (popoverHeight / 2);
         left = targetRect.left - gap - popoverWidth;
-        // 如果左侧空间不足，转到右侧
         if (left < 10) {
           left = targetRect.right + gap;
         }
         break;
         
       case 'right':
-        top = targetRect.top + (targetRect.height / 2) - (popoverHeight / 2); // 垂直居中
+        top = targetRect.top + (targetRect.height / 2) - (popoverHeight / 2);
         left = targetRect.right + gap;
-        // 如果右侧空间不足，转到左侧
         if (left + popoverWidth > window.innerWidth) {
           left = targetRect.left - gap - popoverWidth;
         }
         break;
 
       case 'center':
-        top = targetRect.top + (targetRect.width / 2) - (popoverHeight / 2);
+        top = targetRect.top + (targetRect.height / 2) - (popoverHeight / 2);
         left = targetRect.left + (targetRect.width / 2) - (popoverWidth / 2);
         break;
         
-      default: // bottom
+      default:
         top = targetRect.bottom + gap;
         left = targetRect.left + (targetRect.width / 2) - (popoverWidth / 2);
     }
@@ -395,7 +402,7 @@ export default function OnboardingGuide() {
   return (
     <AnimatePresence>
       <div className="fixed inset-0 z-[9999] pointer-events-none">
-        {/* SVG 遮罩层 - 使用 SVG 路径实现"挖孔"效果 */}
+        {/* SVG 遮罩层 */}
         <motion.svg
           className="absolute inset-0 w-full h-full pointer-events-auto"
           initial={{ opacity: 0 }}
@@ -408,11 +415,11 @@ export default function OnboardingGuide() {
               <rect x="0" y="0" width="100%" height="100%" fill="white" />
               {targetRect && (
                 <rect
-                  x={targetRect.left - 4}
-                  y={targetRect.top - 4}
-                  width={targetRect.width + 8}
-                  height={targetRect.height + 8}
-                  rx="8"
+                  x={targetRect.left - 6}
+                  y={targetRect.top - 6}
+                  width={targetRect.width + 12}
+                  height={targetRect.height + 12}
+                  rx="10"
                   fill="black"
                 />
               )}
@@ -424,21 +431,21 @@ export default function OnboardingGuide() {
             y="0"
             width="100%"
             height="100%"
-            fill="rgba(0, 0, 0, 0.7)"
+            fill="rgba(0, 0, 0, 0.75)"
             mask="url(#guide-mask)"
           />
           
-          {/* 高亮框边框动画 */}
+          {/* 高亮框边框 */}
           {targetRect && (
             <motion.rect
-              x={targetRect.left - 4}
-              y={targetRect.top - 4}
-              width={targetRect.width + 8}
-              height={targetRect.height + 8}
-              rx="8"
+              x={targetRect.left - 6}
+              y={targetRect.top - 6}
+              width={targetRect.width + 12}
+              height={targetRect.height + 12}
+              rx="10"
               fill="transparent"
               stroke={currentStyle.stroke}
-              strokeWidth="2"
+              strokeWidth="3"
               initial={{ pathLength: 0, opacity: 0 }}
               animate={{ pathLength: 1, opacity: 1 }}
               transition={{ duration: 0.5, ease: "easeInOut" }}
@@ -446,97 +453,179 @@ export default function OnboardingGuide() {
           )}
         </motion.svg>
 
-        {/* 引导卡片 (Popover) */}
+        {/* 引导卡片 */}
         <motion.div
-          className={`pointer-events-auto absolute flex flex-col p-6 rounded-2xl shadow-2xl ${
-            isDark ? 'bg-gray-800 text-white border border-gray-700' : 'bg-white text-gray-900'
-          }`}
+          key={currentStep}
+          className="pointer-events-auto absolute flex flex-col rounded-2xl shadow-2xl overflow-hidden"
           style={popoverStyle as any}
           initial={{ opacity: 0, scale: 0.9, y: 10 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           transition={{ type: 'spring', damping: 25, stiffness: 300 }}
         >
-          {/* 装饰性箭头 (仅当有目标元素时显示) */}
-          {targetRect && (
-            <div 
-              className={`absolute w-4 h-4 transform rotate-45 ${
-                isDark ? 'bg-gray-800 border-l border-t border-gray-700' : 'bg-white'
-              }`}
-              style={(() => {
-                const placement = currentStepData.placement || 'bottom';
-                switch (placement) {
-                  case 'top':
-                    return { bottom: '-8px', left: '50%', transform: 'translateX(-50%) rotate-45' };
-                  case 'bottom':
-                    return { top: '-8px', left: '50%', transform: 'translateX(-50%) rotate-45' };
-                  case 'left':
-                    return { right: '-8px', top: '50%', transform: 'translateY(-50%) rotate-45' };
-                  case 'right':
-                    return { left: '-8px', top: '50%', transform: 'translateY(-50%) rotate-45' };
-                  default:
-                    return { top: '-8px', left: '50%', transform: 'translateX(-50%) rotate-45' };
-                }
-              })()}
-            />
-          )}
+          {/* 卡片主体 - 使用毛玻璃效果 */}
+          <div className={`relative flex flex-col rounded-2xl overflow-hidden ${
+            isDark ? 'bg-gray-800/95' : 'bg-white/95'
+          } backdrop-blur-md border ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+            
+            {/* 顶部渐变条 */}
+            <div className={`h-1 w-full ${currentStyle.progressBar}`} />
 
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center space-x-2">
-              <span className={`flex items-center justify-center w-8 h-8 rounded-full ${currentStyle.lightBg} ${currentStyle.text} font-bold text-sm`}>
-                <i className={`fas fa-${currentStepData.icon}`}></i>
-              </span>
-              <span className="text-sm font-semibold text-gray-500 dark:text-gray-400">
-                步骤 {currentStep + 1}/{STEPS.length}
-              </span>
+            {/* 装饰性箭头 */}
+            {targetRect && (
+              <div 
+                className={`absolute w-3 h-3 transform rotate-45 ${
+                  isDark ? 'bg-gray-800' : 'bg-white'
+                }`}
+                style={(() => {
+                  const placement = currentStepData.placement || 'bottom';
+                  switch (placement) {
+                    case 'top':
+                      return { bottom: '-6px', left: '50%', transform: 'translateX(-50%) rotate-45' };
+                    case 'bottom':
+                      return { top: '-6px', left: '50%', transform: 'translateX(-50%) rotate-45' };
+                    case 'left':
+                      return { right: '-6px', top: '50%', transform: 'translateY(-50%) rotate-45' };
+                    case 'right':
+                      return { left: '-6px', top: '50%', transform: 'translateY(-50%) rotate-45' };
+                    default:
+                      return { top: '-6px', left: '50%', transform: 'translateX(-50%) rotate-45' };
+                  }
+                })()}
+              />
+            )}
+
+            {/* 头部区域 */}
+            <div className="flex items-center justify-between p-5 pb-3">
+              <div className="flex items-center space-x-3">
+                <span className={`flex items-center justify-center w-10 h-10 rounded-xl ${currentStyle.lightBg} ${currentStyle.text} font-bold text-lg shadow-sm`}>
+                  <i className={`fas fa-${currentStepData.icon}`}></i>
+                </span>
+                <div>
+                  <span className={`text-xs font-semibold ${currentStyle.text} uppercase tracking-wider`}>
+                    步骤 {currentStep + 1}/{STEPS.length}
+                  </span>
+                  <h3 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    {currentStepData.title}
+                  </h3>
+                </div>
+              </div>
+              <button
+                onClick={skipGuide}
+                className={`p-2 rounded-lg transition-colors ${
+                  isDark ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-500'
+                }`}
+              >
+                <i className="fas fa-times" />
+              </button>
             </div>
-            <button
-              onClick={skipGuide}
-              className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
-            >
-              跳过
-            </button>
-          </div>
 
-          <h3 className="text-xl font-bold mb-2">{currentStepData.title}</h3>
-          <p className={`text-sm mb-6 leading-relaxed ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-            {currentStepData.desc}
-          </p>
+            {/* 内容区域 */}
+            <div className="px-5 pb-5">
+              <p className={`text-sm leading-relaxed mb-5 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                {currentStepData.desc}
+              </p>
 
-          <div className="flex items-center justify-between pt-4 border-t border-gray-100 dark:border-gray-700">
-             <div className="flex space-x-1">
-               {STEPS.map((_, idx) => (
-                 <div 
-                   key={idx} 
-                   className={`h-1.5 rounded-full transition-all duration-300 ${
-                     idx === currentStep 
-                       ? `w-6 ${currentStyle.progressBar}` 
-                       : idx < currentStep 
-                         ? `w-1.5 ${currentStyle.progressBg}` 
-                         : 'w-1.5 bg-gray-200 dark:bg-gray-700'
-                   }`} 
-                 />
-               ))}
-             </div>
-             
-             <div className="flex space-x-3">
-               {currentStep > 0 && (
-                 <button
-                   onClick={prevStep}
-                   className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                     isDark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-600 hover:bg-gray-100'
-                   }`}
-                 >
-                   上一步
-                 </button>
-               )}
-               <button
-                 onClick={handleNext}
-                 className={`px-5 py-2 text-sm font-medium text-white ${currentStyle.accent} rounded-lg shadow-lg ${currentStyle.shadow} transition-all hover:scale-105 active:scale-95`}
-               >
-                 {currentStepData.primaryText}
-               </button>
-             </div>
+              {/* 进度条 */}
+              <div className="mb-5">
+                <div className={`h-2 rounded-full ${isDark ? 'bg-gray-700' : 'bg-gray-200'} overflow-hidden`}>
+                  <motion.div 
+                    className={`h-full ${currentStyle.progressBar} rounded-full`}
+                    initial={{ width: 0 }}
+                    animate={{ width: `${progress}%` }}
+                    transition={{ duration: 0.5, ease: "easeOut" }}
+                  />
+                </div>
+                <div className="flex justify-between mt-2">
+                  <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                    进度 {Math.round(progress)}%
+                  </span>
+                  <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                    {STEPS.length - currentStep - 1} 步剩余
+                  </span>
+                </div>
+              </div>
+
+              {/* 按钮区域 */}
+              <div className="flex items-center justify-between">
+                <div className="flex space-x-1">
+                  {STEPS.map((_, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => {}}
+                      className={`h-1.5 rounded-full transition-all duration-300 ${
+                        idx === currentStep 
+                          ? `w-6 ${currentStyle.progressBar}` 
+                          : idx < currentStep 
+                            ? `w-1.5 ${currentStyle.progressBg}` 
+                            : `w-1.5 ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`
+                      }`}
+                    />
+                  ))}
+                </div>
+                
+                <div className="flex space-x-2">
+                  {currentStep > 0 && (
+                    <motion.button
+                      onClick={prevStep}
+                      className={`px-4 py-2 text-sm font-medium rounded-xl transition-colors ${
+                        isDark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-600 hover:bg-gray-100'
+                      }`}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                    >
+                      <i className="fas fa-arrow-left mr-1" />
+                      上一步
+                    </motion.button>
+                  )}
+                  <motion.button
+                    onClick={handleNext}
+                    className={`px-5 py-2 text-sm font-medium text-white ${currentStyle.accent} rounded-xl shadow-lg ${currentStyle.shadow} transition-all`}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    {currentStepData.primaryText}
+                    <i className={`fas fa-${currentStep === STEPS.length - 1 ? 'check' : 'arrow-right'} ml-1`} />
+                  </motion.button>
+                </div>
+              </div>
+            </div>
           </div>
+        </motion.div>
+
+        {/* 跳过引导按钮 */}
+        <motion.button
+          onClick={skipGuide}
+          className={`fixed bottom-6 left-6 px-4 py-2 rounded-full text-sm font-medium transition-all ${
+            isDark 
+              ? 'bg-gray-800/80 text-gray-400 hover:text-white hover:bg-gray-700/80' 
+              : 'bg-white/80 text-gray-600 hover:text-gray-900 hover:bg-white'
+          } backdrop-blur-sm border ${isDark ? 'border-gray-700' : 'border-gray-200'}`}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+        >
+          <i className="fas fa-fast-forward mr-2" />
+          跳过引导
+        </motion.button>
+
+        {/* 键盘提示 */}
+        <motion.div
+          className={`fixed bottom-6 right-6 hidden md:flex items-center gap-4 text-xs ${
+            isDark ? 'text-gray-500' : 'text-gray-400'
+          }`}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.6 }}
+        >
+          <span className="flex items-center gap-1">
+            <kbd className={`px-2 py-1 rounded font-mono text-xs ${isDark ? 'bg-gray-800' : 'bg-gray-100'}`}>←</kbd>
+            <kbd className={`px-2 py-1 rounded font-mono text-xs ${isDark ? 'bg-gray-800' : 'bg-gray-100'}`}>→</kbd>
+            导航
+          </span>
+          <span className="flex items-center gap-1">
+            <kbd className={`px-2 py-1 rounded font-mono text-xs ${isDark ? 'bg-gray-800' : 'bg-gray-100'}`}>ESC</kbd>
+            跳过
+          </span>
         </motion.div>
       </div>
     </AnimatePresence>

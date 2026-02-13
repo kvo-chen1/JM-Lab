@@ -10,6 +10,7 @@ import { SmartLayoutPanel } from './panels/SmartLayoutPanel';
 import { CulturePanel } from './panels/CulturePanel';
 import { RefinementPanel } from './panels/RefinementPanel';
 import { PromptAssistantPanel } from './panels/PromptAssistantPanel';
+import PatternPanel from './panels/PatternPanel';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TOOL_OPTIONS } from "../../../constants/creativeData";
 import { toast } from 'sonner';
@@ -60,6 +61,11 @@ export default function PropertiesPanel() {
         return <SmartLayoutPanel />;
       case 'culture':
         return <CulturePanel />;
+      case 'pattern':
+        return <PatternPanel onSelectPattern={(pattern) => {
+          updateState({ selectedPatternId: pattern.id });
+          toast.success(`已选择「${pattern.name}」纹样`);
+        }} />;
       default:
         return (
           <div className="flex flex-col items-center justify-center h-64 text-center opacity-50">

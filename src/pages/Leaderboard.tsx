@@ -813,7 +813,7 @@ const Leaderboard: React.FC = () => {
                           {/* 头像 */}
                           <div className="mt-6 mb-4 relative">
                             <div className="absolute inset-0 bg-white dark:bg-gray-800 rounded-full transform scale-110 shadow-sm opacity-50"></div>
-                            <LazyImage
+                            <img
                               src={user.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.username)}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`}
                               alt={user.username}
                               className="w-24 h-24 rounded-full border-[3px] border-white dark:border-gray-800 shadow-md object-cover relative z-10 group-hover:scale-105 transition-transform duration-300"

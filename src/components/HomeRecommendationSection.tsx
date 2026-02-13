@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
 import PostDetailModal from '@/components/PostDetailModal';
 import postsApi, { Post } from '@/services/postService';
+import { workService } from '@/services/apiService';
 
 // 视频卡片组件 - 直接自动播放
 const VideoCard: React.FC<{
@@ -82,6 +83,22 @@ const HomeRecommendationSection: React.FC<HomeRecommendationSectionProps> = ({ c
     try {
       const userId = getUserId();
       
+      // 尝试从服务器获取最新作品数据
+      try {
+        console.log('🔄 从服务器获取最新作品数据...');
+        const freshWorks = await workService.getWorks({ limit: 50 });
+        console.log('✅ 获取到最新作品:', freshWorks.length, '个');
+        
+        if (Array.isArray(freshWorks) && freshWorks.length > 0) {
+          // 更新 localStorage 中的作品数据
+          localStorage.setItem('works', JSON.stringify(freshWorks));
+          // 同时更新 jmzf_works
+          localStorage.setItem('jmzf_works', JSON.stringify(freshWorks));
+        }
+      } catch (apiError) {
+        console.warn('⚠️ 从服务器获取作品失败，使用缓存数据:', apiError);
+      }
+      
       // 调试：检查数据源
       const homePageData = localStorage.getItem('homePageData');
       const works = localStorage.getItem('works');
@@ -100,7 +117,23 @@ const HomeRecommendationSection: React.FC<HomeRecommendationSectionProps> = ({ c
       });
       
       console.log('推荐结果:', items.length, '项');
-      setRecommendations(items);
+      
+      // 过滤掉无效的作品（没有有效缩略图的）
+      const validItems = items.filter(item => {
+        if (item.type !== 'post') return true; // 非作品类型不过滤
+        
+        const thumbnail = item.thumbnail || item.metadata?.thumbnail || '';
+        const hasValidThumbnail = thumbnail && typeof thumbnail === 'string' && thumbnail.trim() !== '';
+        
+        if (!hasValidThumbnail) {
+          console.warn('⚠️ 过滤掉没有缩略图的作品:', { id: item.id, title: item.title });
+        }
+        
+        return hasValidThumbnail;
+      });
+      
+      console.log('有效推荐结果:', validItems.length, '项');
+      setRecommendations(validItems);
     } catch (error) {
       console.error('加载推荐失败:', error);
     } finally {

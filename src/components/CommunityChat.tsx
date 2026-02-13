@@ -3,7 +3,7 @@ import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import { TianjinAvatar } from './TianjinStyleComponents';
-import { Message } from '@/services/communityService';
+import { Message, communityService } from '@/services/communityService';
 
 // 类型定义
 export type ChatMessage = Message & {
@@ -111,8 +111,24 @@ const CommunityChat: React.FC<CommunityChatProps> = ({
      toast.info('消息置顶功能开发中...');
   };
 
-  const deleteMessage = (id: string) => {
-    toast.info('消息删除功能开发中...');
+  const deleteMessage = async (id: string) => {
+    try {
+      // 获取当前用户ID
+      const userStr = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
+      const user = userStr ? JSON.parse(userStr) : null;
+      const userId = user?.id;
+      
+      if (!userId) {
+        toast.error('请先登录');
+        return;
+      }
+      
+      await communityService.deleteMessage(id, userId);
+      toast.success('消息已删除');
+    } catch (error: any) {
+      console.error('删除消息失败:', error);
+      toast.error(error.message || '删除消息失败');
+    }
   };
   
   const addReaction = (id: string, emoji: string) => {

@@ -102,7 +102,7 @@ export const RefinementPanel: React.FC = () => {
       if (result.ok && result.data?.data && result.data.data.length > 0) {
         const newResult = {
           id: Date.now(),
-          url: result.data.data[0].url,
+          thumbnail: result.data.data[0].url,
           prompt: prompt,
           timestamp: new Date().toISOString()
         };
@@ -136,7 +136,7 @@ export const RefinementPanel: React.FC = () => {
       if (result.success && result.imageUrl) {
         const newResult = {
           id: Date.now(),
-          url: result.imageUrl,
+          thumbnail: result.imageUrl,
           prompt: `扩图 ${expandRatio}x ${selectedDirection}`,
           timestamp: new Date().toISOString()
         };
@@ -175,7 +175,7 @@ export const RefinementPanel: React.FC = () => {
       if (result.success && result.imageUrl) {
         const newResult = {
           id: Date.now(),
-          url: result.imageUrl,
+          thumbnail: result.imageUrl,
           prompt: `局部重绘: ${refinementPrompt}`,
           timestamp: new Date().toISOString()
         };

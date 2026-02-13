@@ -23,14 +23,15 @@ const UploadPanel: React.FC<UploadPanelProps> = ({ onSelectUpload }) => {
 
   // 加载用户上传的作品
   const loadUploads = useCallback(async () => {
-    if (!user) {
+    if (!user?.id) {
       setIsLoading(false);
       setUploads([]);
       return;
     }
     setIsLoading(true);
     try {
-      const { data, error } = await uploadService.getUserUploads();
+      // 传递 user.id 避免 supabase auth session 不同步问题
+      const { data, error } = await uploadService.getUserUploads(user.id);
       if (error) {
         // 静默处理未登录错误，不显示在控制台
         if (error.message !== '用户未登录') {

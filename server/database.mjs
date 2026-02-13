@@ -2923,6 +2923,8 @@ export const workDB = {
           await db.query(`ALTER TABLE works ADD COLUMN IF NOT EXISTS votes INTEGER DEFAULT 0`);
           // 添加 creator 列（如果不存在），用于存储创建者用户名
           await db.query(`ALTER TABLE works ADD COLUMN IF NOT EXISTS creator TEXT`);
+          // 添加 video_url 列（如果不存在），用于存储视频URL
+          await db.query(`ALTER TABLE works ADD COLUMN IF NOT EXISTS video_url TEXT`);
         } catch (e) {
           console.log('Column already exists or error adding column:', e.message);
         }
@@ -2975,14 +2977,18 @@ export const workDB = {
             }
           }
           
+          // 获取 video_url
+          const videoUrl = workData.video_url || workData.videoUrl || null;
+          
           const { rows } = await db.query(`
-            INSERT INTO works (title, description, cover_url, thumbnail, creator_id, creator, category, tags, media, views, likes, votes, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+            INSERT INTO works (title, description, cover_url, thumbnail, creator_id, creator, category, tags, media, video_url, views, likes, votes, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
             RETURNING *
           `, [
             title, description, cover_url, thumbnail || cover_url, creator_id, creatorName || '未知用户', category, 
             tagsValue, 
-            mediaValue, 
+            mediaValue,
+            videoUrl,
             0, // views
             0, // likes
             0, // votes
@@ -3000,6 +3006,7 @@ export const workDB = {
         const newWork = {
           id: Date.now(), // Simple numeric ID
           title, description, cover_url, thumbnail: thumbnail || cover_url, creator_id, category, tags, media,
+          video_url: workData.video_url || workData.videoUrl || null,
           views: 0, likes: 0, comments: 0,
           created_at: now, updated_at: now
         }
@@ -3067,7 +3074,14 @@ export const workDB = {
       case DB_TYPE.POSTGRESQL: {
         // 将 creator_id 转换为 UUID 类型进行比较
         const { rows } = await db.query('SELECT w.*, u.username, u.avatar_url FROM works w LEFT JOIN users u ON w.creator_id = u.id ORDER BY w.created_at DESC')
-        console.log('[workDB.getAllWorks] First work:', rows[0] ? { id: rows[0].id, title: rows[0].title, thumbnail: rows[0].thumbnail, cover_url: rows[0].cover_url } : 'no works')
+        console.log('[workDB.getAllWorks] First work:', rows[0] ? { 
+          id: rows[0].id, 
+          title: rows[0].title, 
+          thumbnail: rows[0].thumbnail,
+          thumbnail_length: rows[0].thumbnail?.length,
+          cover_url: rows[0].cover_url,
+          cover_url_length: rows[0].cover_url?.length
+        } : 'no works')
         return rows
       }
       default: return []
@@ -4943,6 +4957,30 @@ export const eventDB = {
         memoryStore.events = memoryStore.events.filter(e => e.id !== id)
         saveMemoryStore()
         return memoryStore.events.length < initialLen
+      default: return false
+    }
+  },
+
+  async updateEventOrganizerId(eventId, newOrganizerId) {
+    const db = await getDB()
+    const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
+    const nowTimestamp = Math.floor(Date.now() / 1000)
+    
+    switch (typeKey) {
+      case DB_TYPE.POSTGRESQL:
+        await db.query(
+          'UPDATE events SET organizer_id = $1, updated_at = $2 WHERE id = $3',
+          [newOrganizerId, nowTimestamp, eventId]
+        )
+        return true
+      case DB_TYPE.MEMORY:
+        const idx = (memoryStore.events || []).findIndex(e => e.id === eventId)
+        if (idx === -1) return false
+        memoryStore.events[idx].organizerId = newOrganizerId
+        memoryStore.events[idx].creatorId = newOrganizerId
+        memoryStore.events[idx].updated_at = nowTimestamp
+        saveMemoryStore()
+        return true
       default: return false
     }
   },

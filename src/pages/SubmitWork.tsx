@@ -13,7 +13,7 @@ import { AIAssistantPanel } from '@/components/submit/AIAssistantPanel';
 
 // Hooks 导入
 import { useEventService } from '@/hooks/useEventService';
-import { useAutoSave } from '@/hooks/useAutoSave';
+import { useDraftWithFiles } from '@/hooks/useDraftWithFiles';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -62,18 +62,27 @@ export default function SubmitWork() {
     files: []
   });
 
-  // 自动保存 Hook
+  // 带文件的草稿保存 Hook
   const {
     lastSavedAt,
     isSaving,
+    isUploading,
     saveNow,
-    clearSavedData,
-    loadSavedData
-  } = useAutoSave<FormData>({
+    clearDraft,
+    hasDraft,
+    loadDraft,
+    uploadProgress
+  } = useDraftWithFiles<FormData>({
     key: `event_submission_${id}`,
-    data: formData,
+    formData: {
+      title: formData.title,
+      description: formData.description,
+      tags: formData.tags
+    },
+    files: formData.files,
     interval: 30000,
-    enabled: !!id && !submitting && isAuthenticated
+    enabled: !!id && !submitting && isAuthenticated,
+    userId: user?.id
   });
 
   // 检查用户认证状态
@@ -86,20 +95,22 @@ export default function SubmitWork() {
     }
   }, [authLoading, isAuthenticated, navigate, id]);
 
+  // 验证活动ID
+  useEffect(() => {
+    if (!id) {
+      setError('活动ID无效');
+      setLoading(false);
+    }
+  }, [id]);
+
   // 加载活动信息和用户参与状态
   useEffect(() => {
+    // 如果缺少必要参数，不执行加载
+    if (!id || !user?.id) {
+      return;
+    }
+
     const fetchEventAndParticipation = async () => {
-      if (!id) {
-        setError('活动ID无效');
-        setLoading(false);
-        return;
-      }
-
-      if (!user?.id) {
-        // 等待用户认证完成
-        return;
-      }
-
       try {
         setLoading(true);
         setError(null);
@@ -131,21 +142,86 @@ export default function SubmitWork() {
         }
 
         setParticipationId(participationStatus.participationId || null);
+        console.log('[SubmitWork] participationStatus:', participationStatus);
 
-        // 尝试恢复草稿
-        const savedData = loadSavedData();
-        if (savedData) {
-          setFormData(prev => ({
-            ...prev,
-            title: savedData.title || '',
-            description: savedData.description || '',
-            tags: savedData.tags || []
-          }));
+        // 如果用户已经提交过作品，加载已提交的作品数据
+        if (participationStatus.status === 'submitted' && participationStatus.participationId) {
+          console.log('[SubmitWork] 用户已提交作品，尝试加载...');
+          try {
+            const submission = await eventSubmissionService.getSubmissionByParticipation(
+              participationStatus.participationId
+            );
+            console.log('[SubmitWork] 加载的提交作品:', submission);
+            if (submission) {
+              // 注意：已提交作品的文件无法恢复为 File 对象，需要用户重新上传
+              // 这里只加载文本内容
+              setFormData({
+                title: submission.title || '',
+                description: submission.description || '',
+                tags: submission.tags || [],
+                files: [] // 文件需要重新上传
+              });
+              
+              // 如果有文件，显示提示
+              if (submission.files && submission.files.length > 0) {
+                toast.success('已加载您提交的作品', {
+                  description: `文本内容已恢复，${submission.files.length} 个文件需要重新上传`,
+                  duration: 5000
+                });
+              } else {
+                toast.success('已加载您提交的作品', {
+                  description: '您可以继续编辑并重新提交',
+                  duration: 3000
+                });
+              }
+            } else {
+              console.log('[SubmitWork] 未找到提交作品，尝试恢复草稿');
+              // 尝试恢复草稿
+              await restoreDraft();
+            }
+          } catch (err) {
+            console.error('[SubmitWork] 加载已提交作品失败:', err);
+            // 尝试恢复草稿
+            await restoreDraft();
+          }
+        } else {
+          console.log('[SubmitWork] 用户未提交作品，尝试恢复草稿');
+          // 尝试恢复草稿（包括文件）
+          await restoreDraft();
+        }
 
-          toast.success('已恢复上次编辑的草稿', {
-            description: '你可以继续编辑或提交作品',
-            duration: 3000
-          });
+        async function restoreDraft() {
+          const draft = await loadDraft();
+          if (draft) {
+            setFormData(prev => ({
+              ...prev,
+              title: draft.formData.title || '',
+              description: draft.formData.description || '',
+              tags: draft.formData.tags || [],
+              files: draft.files || [] // 从云端恢复文件
+            }));
+
+            // 检查文件恢复情况
+            const restoredFilesCount = draft.files?.length || 0;
+            const originalFilesCount = draft.formData.files?.length || 0;
+
+            if (restoredFilesCount > 0) {
+              toast.success('已恢复上次编辑的草稿', {
+                description: `文本内容和 ${restoredFilesCount} 个文件已恢复`,
+                duration: 5000
+              });
+            } else if (originalFilesCount > 0) {
+              toast.warning('草稿部分恢复', {
+                description: '文本内容已恢复，但文件恢复失败，请重新上传',
+                duration: 5000
+              });
+            } else {
+              toast.success('已恢复上次编辑的草稿', {
+                description: '你可以继续编辑或提交作品',
+                duration: 3000
+              });
+            }
+          }
         }
       } catch (err: any) {
         console.error('加载活动信息失败:', err);
@@ -157,7 +233,7 @@ export default function SubmitWork() {
     };
 
     fetchEventAndParticipation();
-  }, [id, getEvent, user?.id, navigate, loadSavedData]);
+  }, [id, getEvent, user?.id, navigate, loadDraft]);
 
   // 处理表单提交
   const handleSubmit = useCallback(async (data: FormData) => {
@@ -208,7 +284,7 @@ export default function SubmitWork() {
 
       if (result.success) {
         // 清除草稿
-        clearSavedData();
+        await clearDraft();
 
         toast.success('作品提交成功！', {
           description: '你的作品已成功提交，等待审核',
@@ -228,7 +304,7 @@ export default function SubmitWork() {
     } finally {
       setSubmitting(false);
     }
-  }, [id, user?.id, participationId, navigate, clearSavedData]);
+  }, [id, user?.id, participationId, navigate, clearDraft]);
 
   // 处理保存草稿
   const handleSaveDraft = useCallback(async (data: FormData) => {
@@ -271,6 +347,15 @@ export default function SubmitWork() {
     setLoading(true);
     setError(null);
     window.location.reload();
+  }, []);
+
+  // 处理AI建议应用 - 必须在所有条件渲染之前定义
+  const handleAISuggestionApply = useCallback((field: string, value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+    toast.success('已应用AI建议');
   }, []);
 
   // 加载中状态
@@ -330,15 +415,6 @@ export default function SubmitWork() {
     );
   }
 
-  // 处理AI建议应用
-  const handleAISuggestionApply = useCallback((field: string, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
-    toast.success('已应用AI建议');
-  }, []);
-
   return (
     <div className={`min-h-screen ${isDark ? 'bg-gray-900' : 'bg-gray-50/50'}`}>
       {/* 顶部导航 */}
@@ -363,8 +439,11 @@ export default function SubmitWork() {
               initialData={formData}
               onSubmit={handleSubmit}
               onSaveDraft={handleSaveDraft}
+              onChange={(data) => setFormData(data)}
               isSubmitting={submitting}
               isSaving={isSaving}
+              isUploading={isUploading}
+              uploadProgress={uploadProgress}
             />
           </div>
 

@@ -5,8 +5,9 @@ import { motion } from 'framer-motion';
 import { useEventService } from '@/hooks/useEventService';
 import { AuthContext } from '@/contexts/authContext';
 import { eventWorkService } from '@/services/eventWorkService';
+import { eventSubmissionService } from '@/services/eventSubmissionService';
 import { toast } from 'sonner';
-import { LayoutGrid, Eye, ExternalLink } from 'lucide-react';
+import { LayoutGrid, Eye, ExternalLink, Edit } from 'lucide-react';
 import type { Event } from '@/types';
 
 // 活动详情页面
@@ -21,6 +22,7 @@ export default function EventDetail() {
   const [isRegistering, setIsRegistering] = useState(false);
   const [participants, setParticipants] = useState<any[]>([]);
   const [hasRegistered, setHasRegistered] = useState(false);
+  const [hasSubmitted, setHasSubmitted] = useState(false);
   const [submissionCount, setSubmissionCount] = useState(0);
 
   // 加载活动数据
@@ -50,13 +52,22 @@ export default function EventDetail() {
         try {
           const participantsData = await getEventParticipants(event.id);
           setParticipants(participantsData);
-          
+
           // 检查当前用户是否已经报名
+          console.log('EventDetail - user:', user?.id);
           if (user) {
             const userRegistered = participantsData.some(p => p.userId === user.id);
             setHasRegistered(userRegistered);
+            console.log('EventDetail - userRegistered:', userRegistered);
+
+            // 检查当前用户是否已经提交作品
+            const submissionStatus = await eventSubmissionService.checkSubmissionStatus(event.id, user.id);
+            console.log('EventDetail - submissionStatus:', submissionStatus);
+            setHasSubmitted(submissionStatus.hasSubmitted);
+          } else {
+            console.log('EventDetail - no user logged in');
           }
-          
+
           // 加载作品数量
           const count = await eventWorkService.getEventSubmissionCount(event.id);
           setSubmissionCount(count);
@@ -64,7 +75,7 @@ export default function EventDetail() {
           console.error('加载参与者数据失败:', error);
         }
       };
-      
+
       loadParticipants();
     }
   }, [event, user, getEventParticipants]);
@@ -78,7 +89,7 @@ export default function EventDetail() {
     }
     
     // 检查活动是否已满
-    if (event?.maxParticipants && event?.participantCount >= event?.maxParticipants) {
+    if (event?.maxParticipants && event?.participants >= event?.maxParticipants) {
       toast.error('活动参与人数已达上限');
       return;
     }
@@ -230,7 +241,7 @@ export default function EventDetail() {
                   <div>
                     <h3 className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>参与人数</h3>
                     <p className={isDark ? 'text-gray-100' : 'text-gray-900'}>
-                      {event.participantCount} 人已参与{event.maxParticipants && ` / 最多 ${event.maxParticipants} 人`}
+                      {event.participants || 0} 人已参与{event.maxParticipants && ` / 最多 ${event.maxParticipants} 人`}
                     </p>
                   </div>
                 </div>
@@ -250,7 +261,7 @@ export default function EventDetail() {
                 {event.status !== 'completed' && (
                   <button
                     onClick={handleRegister}
-                    disabled={isRegistering || Boolean(event.maxParticipants && event.participantCount >= event.maxParticipants)}
+                    disabled={isRegistering || Boolean(event.maxParticipants && event.participants >= event.maxParticipants)}
                     className={`flex-1 py-3 px-6 rounded-lg font-medium transition-all duration-300 flex items-center justify-center gap-2 ${isDark 
                       ? 'bg-primary hover:bg-primary/90 text-white' 
                       : 'bg-primary hover:bg-primary/90 text-white'}`}
@@ -260,7 +271,7 @@ export default function EventDetail() {
                         <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
                         正在注册...
                       </>
-                    ) : event.maxParticipants && event.participantCount >= event.maxParticipants ? (
+                    ) : event.maxParticipants && event.participants >= event.maxParticipants ? (
                       '活动已满'
                     ) : hasRegistered ? (
                       <>
@@ -276,18 +287,22 @@ export default function EventDetail() {
                   </button>
                 )}
                 <button
-                  onClick={() => navigate('/create', {
-                    state: {
-                      event: event.id,
-                      prompt: `为活动 "${event.title}" 创建作品`
-                    }
-                  })}
-                  className={`flex-1 py-3 px-6 rounded-lg font-medium transition-all duration-300 flex items-center justify-center gap-2 ${isDark 
-                    ? 'bg-gray-700 hover:bg-gray-600 text-white' 
+                  onClick={() => navigate(`/events/${event.id}/submit`)}
+                  className={`flex-1 py-3 px-6 rounded-lg font-medium transition-all duration-300 flex items-center justify-center gap-2 ${isDark
+                    ? 'bg-gray-700 hover:bg-gray-600 text-white'
                     : 'bg-white hover:bg-gray-100 text-gray-900 border border-gray-300'}`}
                 >
-                  <i className="fas fa-paint-brush"></i>
-                  开始创作
+                  {hasSubmitted ? (
+                    <>
+                      <Edit className="w-4 h-4" />
+                      编辑作品
+                    </>
+                  ) : (
+                    <>
+                      <i className="fas fa-paint-brush"></i>
+                      提交作品
+                    </>
+                  )}
                 </button>
               </div>
             </div>

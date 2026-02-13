@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { toast } from 'sonner';
 import { useEventService } from '@/hooks/useEventService';
+import { supabaseAdmin } from '@/lib/supabaseClient';
 import { Event } from '@/types';
 
 // 审核类型
@@ -41,6 +42,12 @@ interface EventCategory {
   color: string;
 }
 
+// 扩展 Event 类型以适应 admin 需求
+interface AdminEvent extends Event {
+  category?: string;
+  participantsList?: any[];
+}
+
 export default function EventAudit() {
   const { isDark } = useTheme();
   const { getEvents, reviewEvent } = useEventService();
@@ -49,13 +56,13 @@ export default function EventAudit() {
   const [auditType, setAuditType] = useState<AuditType>('events');
   
   // 活动列表
-  const [events, setEvents] = useState<Event[]>([]);
+  const [events, setEvents] = useState<AdminEvent[]>([]);
   
   // 加载状态
   const [isLoading, setIsLoading] = useState(true);
   
   // 选中的活动
-  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<AdminEvent | null>(null);
   
   // 审核意见
   const [reviewComment, setReviewComment] = useState('');
@@ -102,106 +109,78 @@ export default function EventAudit() {
     try {
       setIsLoading(true);
       console.log('[EventAudit] Fetching events...');
-      // 添加 refresh 参数强制刷新缓存
-      const params = forceRefresh ? { refresh: true } : {};
-      const eventsData = await getEvents(params);
-      console.log('[EventAudit] Got events:', eventsData.length, eventsData);
-      setEvents(eventsData);
+      
+      // 从 Supabase 获取真实活动数据
+      const { data: eventsData, error } = await supabaseAdmin
+        .from('events')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        console.error('[EventAudit] Supabase error:', error);
+        throw error;
+      }
+      
+      console.log('[EventAudit] Got events:', eventsData?.length || 0);
+      
+      // 转换数据格式
+      const formattedEvents: AdminEvent[] = (eventsData || []).map((event: any) => ({
+        id: event.id,
+        title: event.title || event.name || '未命名活动',
+        description: event.description || '',
+        content: event.content || event.description || '',
+        startTime: new Date(event.start_date || event.start_time || event.startTime),
+        endTime: new Date(event.end_date || event.end_time || event.endTime),
+        location: event.location || '',
+        organizerId: event.organizer_id || event.creator_id || event.user_id || '',
+        createdAt: new Date(event.created_at || Date.now()),
+        updatedAt: new Date(event.updated_at || Date.now()),
+        maxParticipants: event.max_participants || event.maxParticipants || 0,
+        participants: event.participants_count || event.participants?.length || 0,
+        participantsList: event.participants || [],
+        category: event.category || 'other',
+        tags: event.tags || [],
+        media: event.media || event.images || [],
+        isPublic: event.is_public !== false,
+        type: event.type || event.event_type || 'offline',
+        status: event.status || 'pending',
+        viewCount: event.view_count || 0,
+        shareCount: event.share_count || 0,
+        likeCount: event.like_count || 0
+      }));
+      
+      setEvents(formattedEvents);
       
       // 计算统计数据
       const now = new Date();
-      const pendingCount = eventsData.filter(e => e.status === 'pending').length;
+      const pendingCount = formattedEvents.filter(e => e.status === 'pending').length;
       console.log('[EventAudit] Pending events:', pendingCount);
+      
       setStats({
-        totalEvents: eventsData.length,
+        totalEvents: formattedEvents.length,
         pendingEvents: pendingCount,
-        ongoingEvents: eventsData.filter(e => {
+        ongoingEvents: formattedEvents.filter(e => {
           const start = new Date(e.startTime);
           const end = new Date(e.endTime);
           return start <= now && end >= now;
         }).length,
-        endedEvents: eventsData.filter(e => new Date(e.endTime) < now).length,
-        totalParticipants: eventsData.reduce((sum, e) => sum + (e.participants?.length || 0), 0),
-        averageAttendance: eventsData.length > 0 
-          ? Math.round(eventsData.reduce((sum, e) => sum + (e.participants?.length || 0), 0) / eventsData.length)
+        endedEvents: formattedEvents.filter(e => new Date(e.endTime) < now).length,
+        totalParticipants: formattedEvents.reduce((sum, e) => sum + (typeof e.participants === 'number' ? e.participants : e.participantsList?.length || 0), 0),
+        averageAttendance: formattedEvents.length > 0 
+          ? Math.round(formattedEvents.reduce((sum, e) => sum + (typeof e.participants === 'number' ? e.participants : e.participantsList?.length || 0), 0) / formattedEvents.length)
           : 0
       });
     } catch (error) {
       console.error('[EventAudit] Fetch events error:', error);
       toast.error('获取活动列表失败，请稍后重试');
-      // 模拟数据
-      const mockEvents: Event[] = [
-        {
-          id: '1',
-          title: '国潮设计工作坊',
-          description: '探索传统与现代的融合，学习国潮设计技巧',
-          content: '<p>在这个工作坊中，我们将深入探讨国潮设计的核心理念...</p>',
-          type: 'offline',
-          location: '北京市朝阳区创意园区',
-          startTime: new Date(Date.now() + 86400000 * 3),
-          endTime: new Date(Date.now() + 86400000 * 3 + 3600000 * 4),
-          status: 'pending',
-          organizerId: 'user1',
-          createdAt: new Date(Date.now() - 86400000 * 2),
-          maxParticipants: 50,
-          participants: [],
-          category: 'workshop',
-          tags: ['国潮', '设计', '工作坊'],
-          media: []
-        },
-        {
-          id: '2',
-          title: '传统纹样创新大赛',
-          description: '用现代视角重新诠释传统纹样',
-          content: '<p>参赛者需要将传统纹样进行创新设计...</p>',
-          type: 'online',
-          location: '线上活动',
-          startTime: new Date(Date.now() - 86400000 * 5),
-          endTime: new Date(Date.now() + 86400000 * 25),
-          status: 'approved',
-          organizerId: 'user2',
-          createdAt: new Date(Date.now() - 86400000 * 10),
-          maxParticipants: 200,
-          participants: Array(45).fill(null).map((_, i) => ({
-            id: `p${i}`,
-            userId: `user${i}`,
-            registeredAt: new Date(Date.now() - 86400000 * Math.random() * 5)
-          })),
-          category: 'competition',
-          tags: ['纹样', '创新', '比赛'],
-          media: []
-        },
-        {
-          id: '3',
-          title: '非遗文化体验日',
-          description: '亲身体验非物质文化遗产的魅力',
-          content: '<p>邀请多位非遗传承人现场展示技艺...</p>',
-          type: 'offline',
-          location: '上海市静安区文化中心',
-          startTime: new Date(Date.now() - 86400000 * 2),
-          endTime: new Date(Date.now() - 86400000 * 2 + 3600000 * 8),
-          status: 'ended',
-          organizerId: 'user3',
-          createdAt: new Date(Date.now() - 86400000 * 15),
-          maxParticipants: 100,
-          participants: Array(78).fill(null).map((_, i) => ({
-            id: `p${i}`,
-            userId: `user${i}`,
-            registeredAt: new Date(Date.now() - 86400000 * Math.random() * 10)
-          })),
-          category: 'exhibition',
-          tags: ['非遗', '文化', '体验'],
-          media: []
-        }
-      ];
-      setEvents(mockEvents);
+      setEvents([]);
       setStats({
-        totalEvents: mockEvents.length,
-        pendingEvents: mockEvents.filter(e => e.status === 'pending').length,
-        ongoingEvents: 1,
-        endedEvents: 1,
-        totalParticipants: 123,
-        averageAttendance: 41
+        totalEvents: 0,
+        pendingEvents: 0,
+        ongoingEvents: 0,
+        endedEvents: 0,
+        totalParticipants: 0,
+        averageAttendance: 0
       });
     } finally {
       setIsLoading(false);
@@ -210,30 +189,153 @@ export default function EventAudit() {
   
   // 获取活动分类
   const fetchCategories = async () => {
-    // 模拟数据
-    setCategories([
-      { id: '1', name: '工作坊', description: '互动式学习活动', event_count: 12, color: '#3B82F6' },
-      { id: '2', name: '比赛', description: '创意竞赛活动', event_count: 8, color: '#EF4444' },
-      { id: '3', name: '展览', description: '作品展示活动', event_count: 15, color: '#10B981' },
-      { id: '4', name: '讲座', description: '知识分享活动', event_count: 20, color: '#F59E0B' },
-      { id: '5', name: '交流会', description: '社交 networking 活动', event_count: 6, color: '#8B5CF6' }
-    ]);
+    try {
+      // 从 Supabase 获取活动分类数据
+      const { data: categoriesData, error } = await supabaseAdmin
+        .from('event_categories')
+        .select('*');
+      
+      if (error) {
+        console.warn('[EventAudit] 获取分类失败:', error);
+        // 从现有活动统计生成分类
+        const categoryMap = new Map<string, { name: string; count: number; color: string }>();
+        events.forEach(event => {
+          const cat = event.category || '其他';
+          const existing = categoryMap.get(cat);
+          if (existing) {
+            existing.count++;
+          } else {
+            categoryMap.set(cat, {
+              name: cat,
+              count: 1,
+              color: getCategoryColor(cat)
+            });
+          }
+        });
+        
+        const generatedCategories: EventCategory[] = Array.from(categoryMap.entries()).map(([id, data], index) => ({
+          id: id,
+          name: data.name,
+          description: `${data.name}类活动`,
+          event_count: data.count,
+          color: data.color
+        }));
+        
+        setCategories(generatedCategories);
+        return;
+      }
+      
+      // 统计每个分类的活动数量
+      const categoryCounts = new Map<string, number>();
+      events.forEach(event => {
+        const catId = event.category || 'other';
+        categoryCounts.set(catId, (categoryCounts.get(catId) || 0) + 1);
+      });
+      
+      const formattedCategories: EventCategory[] = (categoriesData || []).map((cat: any, index: number) => ({
+        id: cat.id || `cat_${index}`,
+        name: cat.name || cat.category_name || '未命名分类',
+        description: cat.description || '',
+        event_count: categoryCounts.get(cat.id) || categoryCounts.get(cat.name) || 0,
+        color: cat.color || getCategoryColor(cat.name || cat.id)
+      }));
+      
+      setCategories(formattedCategories);
+    } catch (error) {
+      console.error('[EventAudit] 获取分类失败:', error);
+      setCategories([]);
+    }
+  };
+  
+  // 获取分类颜色
+  const getCategoryColor = (category: string): string => {
+    const colorMap: Record<string, string> = {
+      'workshop': '#3B82F6',
+      'competition': '#EF4444',
+      'exhibition': '#10B981',
+      'lecture': '#F59E0B',
+      'meetup': '#8B5CF6',
+      'other': '#6B7280'
+    };
+    return colorMap[category] || '#6B7280';
   };
   
   // 获取参与者列表
   const fetchParticipants = async (eventId: string) => {
-    // 模拟数据
-    const mockParticipants: Participant[] = Array(20).fill(null).map((_, i) => ({
-      id: `p${i}`,
-      user_id: `user${i}`,
-      username: `参与者${i + 1}`,
-      avatar_url: `https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1024x1024&prompt=User%20avatar%20${i}`,
-      registered_at: Date.now() - Math.random() * 86400000 * 7,
-      status: Math.random() > 0.3 ? 'attended' : 'registered',
-      check_in_at: Math.random() > 0.3 ? Date.now() - Math.random() * 86400000 : undefined
-    }));
-    setParticipants(mockParticipants);
-    setShowParticipantsModal(true);
+    try {
+      setIsLoading(true);
+      
+      // 从 Supabase 获取真实的参与者数据
+      // 尝试从 event_registrations 表获取
+      const { data: registrations, error: regError } = await supabaseAdmin
+        .from('event_registrations')
+        .select('*')
+        .eq('event_id', eventId);
+      
+      if (regError) {
+        console.warn('[EventAudit] 从 event_registrations 获取失败:', regError);
+      }
+      
+      // 如果 event_registrations 表不存在或没有数据，尝试从 events 表的 participants 字段获取
+      let participantIds: string[] = [];
+      
+      if (registrations && registrations.length > 0) {
+        participantIds = registrations.map((r: any) => r.user_id).filter(Boolean);
+      } else {
+        // 从当前选中的活动中获取参与者ID
+        const currentEvent = events.find(e => e.id === eventId);
+        if (currentEvent?.participantsList && currentEvent.participantsList.length > 0) {
+          participantIds = currentEvent.participantsList.map((p: any) => 
+            typeof p === 'string' ? p : p.userId || p.user_id
+          ).filter(Boolean);
+        }
+      }
+      
+      if (participantIds.length === 0) {
+        setParticipants([]);
+        setShowParticipantsModal(true);
+        return;
+      }
+      
+      // 获取用户信息
+      const { data: users, error: usersError } = await supabaseAdmin
+        .from('users')
+        .select('id, username, avatar_url')
+        .in('id', participantIds);
+      
+      if (usersError) {
+        console.error('[EventAudit] 获取用户信息失败:', usersError);
+        throw usersError;
+      }
+      
+      // 格式化参与者数据
+      const formattedParticipants: Participant[] = (users || []).map((user: any, index: number) => {
+        const registration = registrations?.find((r: any) => r.user_id === user.id);
+        return {
+          id: user.id,
+          user_id: user.id,
+          username: user.username || '未知用户',
+          avatar_url: user.avatar_url || `https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1024x1024&prompt=User%20avatar%20${index}`,
+          registered_at: registration?.created_at 
+            ? new Date(registration.created_at).getTime() 
+            : Date.now() - Math.random() * 86400000 * 7,
+          status: registration?.status === 'attended' ? 'attended' : 'registered',
+          check_in_at: registration?.check_in_at 
+            ? new Date(registration.check_in_at).getTime() 
+            : undefined
+        };
+      });
+      
+      setParticipants(formattedParticipants);
+      setShowParticipantsModal(true);
+    } catch (error) {
+      console.error('[EventAudit] 获取参与者列表失败:', error);
+      toast.error('获取参与者列表失败');
+      setParticipants([]);
+      setShowParticipantsModal(true);
+    } finally {
+      setIsLoading(false);
+    }
   };
   
   // 审核通过
@@ -269,36 +371,58 @@ export default function EventAudit() {
   // 批量审核
   const handleBatchApprove = async () => {
     try {
-      // 模拟批量审核
+      setIsLoading(true);
+      
+      // 批量更新活动状态为 approved
+      const eventIds = Array.from(selectedEvents);
+      const { error } = await supabaseAdmin
+        .from('events')
+        .update({ 
+          status: 'approved',
+          updated_at: new Date().toISOString()
+        })
+        .in('id', eventIds);
+      
+      if (error) throw error;
+      
       toast.success(`已批量通过 ${selectedEvents.size} 个活动`);
       setSelectedEvents(new Set());
       setIsBatchMode(false);
       fetchEvents();
     } catch (error) {
+      console.error('[EventAudit] 批量审核失败:', error);
       toast.error('批量审核失败');
+    } finally {
+      setIsLoading(false);
     }
   };
-  
+
   // 更新活动状态
   const handleUpdateEventStatus = async (eventId: string, status: EventStatus) => {
     try {
-      // 模拟API调用
-      await fetch(`/api/admin/events/${eventId}/status`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ status })
-      });
+      setIsLoading(true);
+      
+      // 使用 Supabase 更新活动状态
+      const { error } = await supabaseAdmin
+        .from('events')
+        .update({ 
+          status,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', eventId);
+      
+      if (error) throw error;
       
       setEvents(prev => prev.map(e => 
-        e.id === eventId ? { ...e, status } : e
+        e.id === eventId ? { ...e, status: status as any } : e
       ));
       
       toast.success(`活动状态已更新为${getStatusName(status)}`);
     } catch (error) {
+      console.error('[EventAudit] 更新活动状态失败:', error);
       toast.error('更新活动状态失败');
+    } finally {
+      setIsLoading(false);
     }
   };
   
@@ -684,7 +808,7 @@ export default function EventAudit() {
                       <div className="flex items-center justify-between text-sm">
                         <span className={`${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                           <i className="fas fa-users mr-1"></i>
-                          {event.participants?.length || 0} / {event.maxParticipants || '不限'} 人
+                          {typeof event.participants === 'number' ? event.participants : event.participantsList?.length || 0} / {event.maxParticipants || '不限'} 人
                         </span>
                         <button
                           onClick={(e) => {

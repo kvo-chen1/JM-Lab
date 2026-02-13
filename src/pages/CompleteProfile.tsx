@@ -1,7 +1,7 @@
 import React, { useState, useContext, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AuthContext } from '@/contexts/authContext';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -10,6 +10,8 @@ export default function CompleteProfile() {
   const { isDark } = useTheme();
   const { user, updateUser, isAuthenticated } = useContext(AuthContext);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const isReEditing = searchParams.get('mode') === 'reedit';
   
   const [formData, setFormData] = useState({
     username: user?.username || '',
@@ -32,17 +34,17 @@ export default function CompleteProfile() {
   useEffect(() => {
     if (!isAuthenticated) {
       navigate('/login');
-    } else if (user) {
+    } else if (user && !isReEditing) {
       // 检查用户信息是否完整
       const isProfileComplete = user.username && user.username.trim() !== '' && 
                                user.avatar && user.avatar.trim() !== '';
       
-      // 如果用户信息完整，重定向到主页
+      // 如果用户信息完整且不是重新编辑模式，重定向到主页
       if (isProfileComplete) {
         navigate('/');
       }
     }
-  }, [isAuthenticated, user, navigate]);
+  }, [isAuthenticated, user, navigate, isReEditing]);
   
   // 兴趣标签选项
   const interestOptions = [

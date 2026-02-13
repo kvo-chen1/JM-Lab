@@ -184,6 +184,7 @@ const WaterfallGallery: React.FC<WaterfallGalleryProps> = ({
                   className="w-full h-full object-cover transition-transform duration-500 hover:scale-110"
                   placeholder="blur"
                   bare
+                  fallbackSrc={`https://placehold.co/400x300/3b82f6/ffffff?text=${encodeURIComponent(layoutItem.item.title?.slice(0, 8) || '作品')}`}
                 />
               )}
               {layoutItem.item.type === 'video' && (

@@ -958,6 +958,27 @@ class CommunityService extends ApiService {
       topic: string;
     }, any>(`/api/communities/${data.communityId}/threads`, data);
   }
+
+  /**
+   * 删除消息
+   */
+  async deleteMessage(messageId: string, userId: string): Promise<void> {
+    return this.delete<void>(`/api/messages/${messageId}`, { userId });
+  }
+
+  /**
+   * 添加消息反应
+   */
+  async addReaction(messageId: string, reaction: string, userId: string): Promise<void> {
+    return this.post<void, any>(`/api/messages/${messageId}/reactions`, { reaction, userId });
+  }
+
+  /**
+   * 回复消息
+   */
+  async replyToMessage(messageId: string, content: string, userId: string): Promise<void> {
+    return this.post<void, any>(`/api/messages/${messageId}/replies`, { content, userId });
+  }
 }
 
 // 导出单例实例

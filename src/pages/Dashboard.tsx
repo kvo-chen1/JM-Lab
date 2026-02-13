@@ -477,15 +477,98 @@ export default function Dashboard() {
     other: 0
   };
 
+  // 从真实作品数据生成图表数据
+  const generateChartDataFromWorks = () => {
+    if (!realUserWorks || realUserWorks.length === 0) {
+      return null;
+    }
+
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+
+    switch (activePeriod) {
+      case '周': {
+        // 生成最近7天的数据
+        const days = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+        const data = [];
+        for (let i = 6; i >= 0; i--) {
+          const date = new Date(now);
+          date.setDate(date.getDate() - i);
+          const dayName = days[date.getDay()];
+          
+          // 统计这一天的数据
+          const dayWorks = realUserWorks.filter(w => {
+            const workDate = new Date(w.date);
+            return workDate.toDateString() === date.toDateString();
+          });
+          
+          data.push({
+            name: dayName,
+            views: dayWorks.reduce((sum, w) => sum + (w.views || 0), 0),
+            likes: dayWorks.reduce((sum, w) => sum + (w.likes || 0), 0),
+            comments: dayWorks.reduce((sum, w) => sum + (w.metrics?.comments || 0), 0)
+          });
+        }
+        return data;
+      }
+      case '月': {
+        // 生成最近6个月的数据
+        const monthNames = ['一月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '十一月', '十二月'];
+        const data = [];
+        for (let i = 5; i >= 0; i--) {
+          const monthIndex = (currentMonth - i + 12) % 12;
+          const year = currentYear - (currentMonth - i < 0 ? 1 : 0);
+          
+          // 统计这个月的作品数据
+          const monthWorks = realUserWorks.filter(w => {
+            const workDate = new Date(w.date);
+            return workDate.getMonth() === monthIndex && workDate.getFullYear() === year;
+          });
+          
+          data.push({
+            name: monthNames[monthIndex],
+            views: monthWorks.reduce((sum, w) => sum + (w.views || 0), 0),
+            likes: monthWorks.reduce((sum, w) => sum + (w.likes || 0), 0),
+            comments: monthWorks.reduce((sum, w) => sum + (w.metrics?.comments || 0), 0)
+          });
+        }
+        return data;
+      }
+      case '年': {
+        // 生成最近4年的数据
+        const data = [];
+        for (let i = 3; i >= 0; i--) {
+          const year = currentYear - i;
+          
+          // 统计这一年的作品数据
+          const yearWorks = realUserWorks.filter(w => {
+            const workDate = new Date(w.date);
+            return workDate.getFullYear() === year;
+          });
+          
+          data.push({
+            name: year.toString(),
+            views: yearWorks.reduce((sum, w) => sum + (w.views || 0), 0),
+            likes: yearWorks.reduce((sum, w) => sum + (w.likes || 0), 0),
+            comments: yearWorks.reduce((sum, w) => sum + (w.metrics?.comments || 0), 0)
+          });
+        }
+        return data;
+      }
+      default:
+        return null;
+    }
+  };
+
   const chartData = () => {
-    if (isRealUser && analyticsChartData && analyticsChartData.length > 0) {
-      return analyticsChartData;
+    // 优先使用从真实作品生成的数据
+    const realData = generateChartDataFromWorks();
+    if (realData) {
+      return realData;
     }
 
-    if (isRealUser && worksPerformance && (worksPerformance as any).chartData) {
-      return (worksPerformance as any).chartData;
-    }
-
+    // 如果没有真实数据，使用模拟数据
     switch (activePeriod) {
       case '周':
         return [

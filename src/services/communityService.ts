@@ -1440,8 +1440,31 @@ export const communityService = {
         });
         if (response.ok) {
           const result = await response.json();
+          console.log('[getThreadsByCommunity] API response:', result);
           if (result.code === 0 && result.data) {
-            return result.data.map((post: any) => ({
+            return result.data.map((post: any) => {
+              console.log('[getThreadsByCommunity] Post data:', {
+                id: post.id,
+                title: post.title,
+                hasImages: post.images && post.images.length > 0,
+                images: post.images,
+                thumbnail: post.thumbnail,
+                media: post.media
+              });
+              // 处理图片 URL，移除签名参数
+              let images: string[] = [];
+              if (post.images && post.images.length > 0) {
+                images = post.images.map((url: string) => url.split('?')[0]);
+              } else if (post.media) {
+                try {
+                  images = JSON.parse(post.media).map((url: string) => url.split('?')[0]);
+                } catch (e) {
+                  images = [];
+                }
+              } else if (post.thumbnail) {
+                images = [post.thumbnail.split('?')[0]];
+              }
+              return {
               id: post.id,
               title: post.title,
               content: post.content,
@@ -1449,8 +1472,8 @@ export const communityService = {
               replies: [],
               topic: post.topic,
               upvotes: post.likes || 0,
-              images: post.images,
-              videos: post.videos,
+              images: images,
+              videos: post.videos || [],
               communityId: post.community_id,
               author: post.author_name || '未知用户',
               authorAvatar: post.author_avatar || '',
@@ -1468,7 +1491,7 @@ export const communityService = {
                 likes: c.likes || 0
               })),
               commentCount: post.comments_count || 0
-            }));
+            }});
           }
         }
       } catch (error) {
@@ -1555,7 +1578,7 @@ export const communityService = {
         })) || [],
         topic: item.topic || item.category,
         upvotes: item.upvotes || item.likes || 0,
-        images: item.images || (item.thumbnail ? [item.thumbnail] : undefined),
+        images: item.images || (item.media ? JSON.parse(item.media).map((url: string) => url.split('?')[0]) : (item.thumbnail ? [item.thumbnail.split('?')[0]] : undefined)),
         videos: item.videos,
         audios: item.audios,
         communityId: item.community_id || item.category,
@@ -2300,6 +2323,124 @@ export const communityService = {
         .eq('following_id', targetUserId);
       if (error) throw error;
     }
+  },
+
+  // 删除帖子
+  async deleteThread(threadId: string, userId: string): Promise<void> {
+    console.log('[deleteThread] Attempting to delete thread:', threadId, 'by user:', userId);
+    
+    // 检查用户是否是帖子作者
+    const { data: thread, error: threadError } = await supabase
+      .from('posts')
+      .select('author_id, user_id')
+      .eq('id', threadId)
+      .single();
+
+    console.log('[deleteThread] Thread data:', thread, 'Error:', threadError);
+
+    if (threadError) {
+      console.error('Error fetching thread:', threadError);
+      throw new Error('帖子不存在');
+    }
+
+    // 检查 author_id 或 user_id 字段
+    const threadAuthorId = thread.author_id || thread.user_id;
+    console.log('[deleteThread] Thread author_id:', threadAuthorId, 'Current userId:', userId);
+    
+    if (threadAuthorId !== userId) {
+      console.error('[deleteThread] Permission denied. Thread author:', threadAuthorId, 'Current user:', userId);
+      throw new Error('您没有权限删除此帖子');
+    }
+
+    const { error } = await supabase
+      .from('posts')
+      .delete()
+      .eq('id', threadId);
+
+    if (error) {
+      console.error('Error deleting thread:', error);
+      throw new Error('删除帖子失败');
+    }
+    
+    console.log('[deleteThread] Thread deleted successfully:', threadId);
+  },
+
+  // 删除评论
+  async deleteComment(commentId: string, userId: string): Promise<void> {
+    console.log('[deleteComment] Attempting to delete comment:', commentId, 'by user:', userId);
+    
+    // 检查用户是否是评论作者
+    const { data: comment, error: commentError } = await supabase
+      .from('comments')
+      .select('user_id, author_id')
+      .eq('id', commentId)
+      .single();
+
+    console.log('[deleteComment] Comment data:', comment, 'Error:', commentError);
+
+    if (commentError) {
+      console.error('Error fetching comment:', commentError);
+      throw new Error('评论不存在');
+    }
+
+    // 检查 user_id 或 author_id 字段
+    const commentAuthorId = comment.user_id || comment.author_id;
+    console.log('[deleteComment] Comment author_id:', commentAuthorId, 'Current userId:', userId);
+    
+    if (commentAuthorId !== userId) {
+      console.error('[deleteComment] Permission denied. Comment author:', commentAuthorId, 'Current user:', userId);
+      throw new Error('您没有权限删除此评论');
+    }
+
+    const { error } = await supabase
+      .from('comments')
+      .delete()
+      .eq('id', commentId);
+
+    if (error) {
+      console.error('Error deleting comment:', error);
+      throw new Error('删除评论失败');
+    }
+    
+    console.log('[deleteComment] Comment deleted successfully:', commentId);
+  },
+
+  // 删除消息
+  async deleteMessage(messageId: string, userId: string): Promise<void> {
+    console.log('[deleteMessage] Attempting to delete message:', messageId, 'by user:', userId);
+    
+    // 检查用户是否是消息作者
+    const { data: message, error: messageError } = await supabase
+      .from('messages')
+      .select('sender_id')
+      .eq('id', messageId)
+      .single();
+
+    console.log('[deleteMessage] Message data:', message, 'Error:', messageError);
+
+    if (messageError) {
+      console.error('Error fetching message:', messageError);
+      throw new Error('消息不存在');
+    }
+
+    console.log('[deleteMessage] Message sender_id:', message.sender_id, 'Current userId:', userId);
+    
+    if (message.sender_id !== userId) {
+      console.error('[deleteMessage] Permission denied. Message sender:', message.sender_id, 'Current user:', userId);
+      throw new Error('您没有权限删除此消息');
+    }
+
+    const { error } = await supabase
+      .from('messages')
+      .delete()
+      .eq('id', messageId);
+
+    if (error) {
+      console.error('Error deleting message:', error);
+      throw new Error('删除消息失败');
+    }
+    
+    console.log('[deleteMessage] Message deleted successfully:', messageId);
   },
 
   // 订阅帖子实时更新

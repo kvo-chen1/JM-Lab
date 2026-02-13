@@ -152,11 +152,13 @@ export const EnhancePanel: React.FC = () => {
       const effectType = selectedPreset || 'vivid';
 
       // 调用新的API方法
+      console.log('[EnhancePanel] Calling enhanceImage with:', currentWork.thumbnail?.substring(0, 50), effectType, intensity);
       const result = await llmService.enhanceImage(
         currentWork.thumbnail,
         effectType,
         intensity
       );
+      console.log('[EnhancePanel] enhanceImage result:', result);
 
       if (result.success && result.imageUrl) {
         const newResult = {
@@ -407,22 +409,48 @@ export const EnhancePanel: React.FC = () => {
         {activeMode === 'pattern' && (
           <div className="space-y-3">
             <h4 className="text-sm font-medium">选择传统纹样</h4>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              选择纹样后将自动切换到纹样工具模式
+            </p>
             <div className="grid grid-cols-3 gap-2">
               {TRADITIONAL_PATTERNS.slice(0, 6).map((pattern) => (
                 <motion.button
                   key={pattern.id}
+                  onClick={() => {
+                    // 设置选中的纹样ID并切换到pattern工具
+                    updateState({ 
+                      selectedPatternId: pattern.id,
+                      activeTool: 'pattern'
+                    });
+                    toast.success(`已选择「${pattern.name}」纹样，可在画布上调整`);
+                  }}
                   className={`p-3 rounded-xl text-center transition-all border-2 ${
                     isDark
-                      ? 'border-gray-700 bg-gray-800 hover:border-gray-600'
-                      : 'border-gray-200 bg-white hover:border-gray-300'
+                      ? 'border-gray-700 bg-gray-800 hover:border-violet-500 hover:bg-gray-700'
+                      : 'border-gray-200 bg-white hover:border-violet-500 hover:bg-violet-50'
                   }`}
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                 >
-                  <i className="fas fa-yin-yang text-2xl text-violet-500 mb-2"></i>
+                  <img 
+                    src={pattern.thumbnail} 
+                    alt={pattern.name}
+                    className="w-10 h-10 mx-auto mb-2 rounded-lg object-cover"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = 'https://via.placeholder.com/40?text=纹';
+                    }}
+                  />
                   <p className="text-xs font-medium">{pattern.name}</p>
                 </motion.button>
               ))}
+            </div>
+            
+            {/* 提示信息 */}
+            <div className={`p-3 rounded-xl text-xs ${isDark ? 'bg-blue-900/20 text-blue-300' : 'bg-blue-50 text-blue-600'}`}>
+              <div className="flex items-start gap-2">
+                <i className="fas fa-info-circle mt-0.5 flex-shrink-0"></i>
+                <p>选择纹样后将自动切换到纹样工具，您可以在画布上调整纹样的位置、大小、透明度等属性。</p>
+              </div>
             </div>
           </div>
         )}

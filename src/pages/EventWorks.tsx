@@ -120,7 +120,7 @@ export default function EventWorks() {
             startTime: event.startTime,
             endTime: event.endTime,
             location: event.location,
-            participantCount: event.participantCount,
+            participantCount: event.participants,
           });
         }
       } catch (error) {
@@ -552,12 +552,23 @@ export default function EventWorks() {
                       <h2 className={`text-xl font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                         {selectedSubmission.title}
                       </h2>
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white font-medium">
-                          {selectedSubmission.creatorName?.charAt(0).toUpperCase() || '?'}
-                        </div>
+                      <div 
+                        className="flex items-center gap-3 cursor-pointer group"
+                        onClick={() => selectedSubmission.userId && navigate(`/author/${selectedSubmission.userId}`)}
+                      >
+                        {selectedSubmission.creatorAvatar ? (
+                          <img 
+                            src={selectedSubmission.creatorAvatar} 
+                            alt={selectedSubmission.creatorName || '用户'}
+                            className="w-10 h-10 rounded-full object-cover group-hover:ring-2 group-hover:ring-primary-400 transition-all"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white font-medium group-hover:ring-2 group-hover:ring-primary-400 transition-all">
+                            {selectedSubmission.creatorName?.charAt(0).toUpperCase() || '?'}
+                          </div>
+                        )}
                         <div>
-                          <p className={`font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                          <p className={`font-medium group-hover:text-primary-500 transition-colors ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
                             {selectedSubmission.creatorName || '匿名用户'}
                           </p>
                           <p className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>

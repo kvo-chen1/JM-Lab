@@ -176,17 +176,15 @@ const LazyImage: React.FC<LazyImageProps> = React.memo(({
   const displaySrc = useMemo(() => {
     // 如果已经出错且传入了fallbackSrc，直接使用fallbackSrc
     if (isError && fallbackSrc) {
+      console.log('[LazyImage] Using fallbackSrc due to error:', fallbackSrc);
       return fallbackSrc;
     }
     
-    // 如果已经重试过两次，优先使用传入的fallbackSrc，否则使用默认的SVG占位符
-    if (retryCount >= 2) {
-      return fallbackSrc || defaultFallbackSrc;
-    }
-    
-    // 如果已经重试过一次，优先使用传入的fallbackSrc，否则使用备用图片URL
+    // 如果已经重试过，优先使用传入的fallbackSrc
     if (retryCount >= 1) {
-      return fallbackSrc || getFallbackImageUrl(alt);
+      const result = fallbackSrc || getFallbackImageUrl(alt) || defaultFallbackSrc;
+      console.log('[LazyImage] Using fallback after retry:', { retryCount, result, fallbackSrc });
+      return result;
     }
     
     // 确保currentSrc有效
@@ -254,6 +252,8 @@ const LazyImage: React.FC<LazyImageProps> = React.memo(({
   
   // 图片加载失败处理
   const handleError = (event: React.SyntheticEvent<HTMLImageElement, Event>) => {
+    console.log('[LazyImage] Image load error:', { src, alt, fallbackSrc, retryCount });
+    
     if (onError) {
       onError(event);
     }
@@ -262,21 +262,27 @@ const LazyImage: React.FC<LazyImageProps> = React.memo(({
     if (!disableFallback) {
       // 如果已经重试过两次，不再重试
       if (retryCount >= 2) {
+        console.log('[LazyImage] Max retries reached, showing error state');
         setIsError(true);
         setIsLoaded(true);
         return;
       }
       
       // 增加重试计数
-      setRetryCount(prev => prev + 1);
+      const newRetryCount = retryCount + 1;
+      setRetryCount(newRetryCount);
+      console.log('[LazyImage] Retrying image load, new retry count:', newRetryCount);
       
       // 如果传入了fallbackSrc，直接显示错误状态（使用fallback图片）
       // 如果没有fallbackSrc，继续重试
       if (fallbackSrc) {
+        console.log('[LazyImage] Using fallbackSrc:', fallbackSrc);
         setIsError(true);
         setIsLoaded(true);
-      } else {
-        // 设置为已加载，确保fallback图片能够显示
+      } else if (newRetryCount >= 2) {
+        // 重试两次后仍失败，显示错误状态
+        console.log('[LazyImage] No fallbackSrc, showing error state after retries');
+        setIsError(true);
         setIsLoaded(true);
       }
     }
@@ -435,8 +441,10 @@ const LazyImage: React.FC<LazyImageProps> = React.memo(({
   
   // bare模式：直接输出<img>，不包裹额外div，避免任何额外的布局影响
   if (bare) {
+    console.log('[LazyImage] Bare mode render:', { alt, src, displaySrc, retryCount, isError });
     return (
       <img
+        key={displaySrc}
         ref={imgRef}
         src={displaySrc}
         alt={alt}

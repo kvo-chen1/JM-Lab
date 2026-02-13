@@ -157,13 +157,25 @@ export async function getPosts(category?: string, currentUserId?: string, useSup
             return hasValidThumbnail || hasVideo;
           });
           console.log('Backend API returned:', result.data.length, 'items, filtered to:', validWorks.length, 'valid works');
+          
+          // 检查最新的作品（按 created_at 排序）
+          const sortedWorks = [...result.data].sort((a: any, b: any) => (b.created_at || 0) - (a.created_at || 0));
+          console.log('Latest 3 works (sorted by created_at):', sortedWorks.slice(0, 3).map((w: any) => ({
+            id: w.id,
+            title: w.title,
+            created_at: w.created_at,
+            thumbnail: w.thumbnail?.substring(0, 50),
+            hasValidThumbnail: w.thumbnail && w.thumbnail !== 'EMPTY' && !w.thumbnail.toLowerCase().includes('empty')
+          })));
           // 调试：打印前5个作品的完整数据结构
           console.log('First 5 works from API:', result.data.slice(0, 5).map((w: any) => ({
             id: w.id,
             title: w.title,
             views: w.views,
             thumbnail: w.thumbnail,
+            thumbnail_length: w.thumbnail?.length,
             cover_url: w.cover_url,
+            cover_url_length: w.cover_url?.length,
             image_url: w.image_url,
             thumbnail_url: w.thumbnail_url,
             videoUrl: w.videoUrl,
@@ -174,6 +186,7 @@ export async function getPosts(category?: string, currentUserId?: string, useSup
           worksFromLocal = validWorks.map((w: any) => {
             // 处理视频URL：优先使用 videoUrl/video_url，如果为空且是视频类型，尝试从其他字段推断
             let videoUrl = w.videoUrl || w.video_url || undefined;
+            // 处理图片URL：保留原始URL（包括阿里云OSS签名参数）
             const thumbnail = w.thumbnail || w.cover_url || '';
             const category = (w.category as PostCategory) || 'other';
             const type = w.type || 'image';
@@ -994,30 +1007,53 @@ async function downloadAndUploadImage(imageUrl: string, userId: string): Promise
       return imageUrl;
     }
 
-    console.log('[downloadAndUploadImage] Downloading image:', imageUrl.substring(0, 50));
+    console.log('[downloadAndUploadImage] Downloading image:', imageUrl.substring(0, 100));
 
-    // 尝试下载图片 - 使用 no-cors 模式避免 CORS 错误
-    let blob: Blob;
+    // 尝试下载图片
+    let blob: Blob | null = null;
+    
+    // 方法1: 直接 fetch（适用于没有 CORS 限制的图片）
     try {
       const response = await fetch(imageUrl, { 
-        mode: 'no-cors',
-        headers: {
-          'Accept': 'image/*'
-        }
+        headers: { 'Accept': 'image/*' }
       });
       
-      // no-cors 模式下无法检查 response.ok，直接尝试获取 blob
-      blob = await response.blob();
-      
-      // 检查 blob 是否有效
-      if (blob.size === 0) {
-        throw new Error('Downloaded blob is empty');
+      if (response.ok) {
+        blob = await response.blob();
+        if (blob.size > 0) {
+          console.log('[downloadAndUploadImage] Direct fetch successful, blob size:', blob.size);
+        } else {
+          blob = null;
+        }
       }
-    } catch (fetchError) {
-      console.error('[downloadAndUploadImage] Fetch failed:', fetchError);
-      // 如果下载失败，返回原始 URL 作为降级方案
-      console.warn('[downloadAndUploadImage] Using original URL due to CORS/download error');
-      return imageUrl;
+    } catch (directError) {
+      console.log('[downloadAndUploadImage] Direct fetch failed:', directError);
+    }
+    
+    // 方法2: 使用代理服务器（如果直接下载失败）
+    if (!blob) {
+      try {
+        console.log('[downloadAndUploadImage] Trying proxy download...');
+        const proxyUrl = `/api/proxy-download?url=${encodeURIComponent(imageUrl)}`;
+        const response = await fetch(proxyUrl);
+        
+        if (response.ok) {
+          blob = await response.blob();
+          if (blob.size > 0) {
+            console.log('[downloadAndUploadImage] Proxy download successful, blob size:', blob.size);
+          } else {
+            blob = null;
+          }
+        }
+      } catch (proxyError) {
+        console.log('[downloadAndUploadImage] Proxy download failed:', proxyError);
+      }
+    }
+    
+    // 如果所有下载方法都失败，返回 null（而不是原始 URL）
+    if (!blob || blob.size === 0) {
+      console.error('[downloadAndUploadImage] All download methods failed');
+      return null;
     }
 
     const fileName = `works/${userId}/${Date.now()}-${Math.random().toString(36).substring(7)}.png`;
@@ -1032,8 +1068,7 @@ async function downloadAndUploadImage(imageUrl: string, userId: string): Promise
 
     if (error) {
       console.error('[downloadAndUploadImage] Upload error:', error);
-      // 上传失败时返回原始 URL
-      return imageUrl;
+      return null;
     }
 
     // 获取公共 URL
@@ -1087,11 +1122,14 @@ async function createWorkViaBackend(p: Partial<Post>, currentUser: User): Promis
           thumbnail = uploadedUrl;
           console.log('[createWorkViaBackend] Thumbnail uploaded to:', uploadedUrl);
         } else {
-          console.warn('[createWorkViaBackend] Failed to upload thumbnail, using original URL');
+          console.error('[createWorkViaBackend] Failed to upload thumbnail');
+          // 上传失败，使用占位图
+          thumbnail = 'https://placehold.co/600x400/e5e7eb/9ca3af?text=图片上传失败';
         }
       } catch (uploadError) {
-        console.warn('[createWorkViaBackend] Thumbnail upload error:', uploadError);
-        // 上传失败继续使用原URL
+        console.error('[createWorkViaBackend] Thumbnail upload error:', uploadError);
+        // 上传失败，使用占位图
+        thumbnail = 'https://placehold.co/600x400/e5e7eb/9ca3af?text=图片上传失败';
       }
     } else if (thumbnail) {
       console.log('[createWorkViaBackend] Thumbnail already on Supabase, skipping upload');
@@ -3126,66 +3164,76 @@ export async function replyToComment(postId: string, commentId: string, content:
 export async function deletePost(id: string): Promise<boolean> {
   console.log('[deletePost] Deleting work/post:', id);
   
-  // 优先使用后端 API 删除作品
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
   
-  if (token) {
-    try {
-      console.log('[deletePost] Trying backend API...');
-      const response = await fetch(`/api/works/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      
-      if (response.ok) {
-        const result = await response.json();
-        console.log('[deletePost] Backend API success:', result);
-        return result.code === 0;
-      } else if (response.status === 404) {
-        // 后端 API 不存在该作品，尝试 Supabase
-        console.log('[deletePost] Backend API returned 404, trying Supabase');
-      } else {
-        console.warn('[deletePost] Backend API failed:', response.status);
-        const errorText = await response.text();
-        console.warn('[deletePost] Error response:', errorText);
-      }
-    } catch (error) {
-      console.warn('[deletePost] Backend API error:', error);
-    }
+  if (!token) {
+    console.error('[deletePost] No token found');
+    return false;
   }
   
-  // 回退到 Supabase 删除
-  console.log('[deletePost] Trying Supabase...');
+  let success = false;
   
-  // 判断ID类型：数字ID（后端works）或UUID（Supabase posts）
-  const isNumericId = /^\d+$/.test(id);
+  // 1. 从 Supabase works 表删除
+  console.log('[deletePost] Deleting from Supabase works...');
+  try {
+    const { error } = await supabase
+      .from('works')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('[deletePost] Supabase works error:', error);
+    } else {
+      console.log('[deletePost] Supabase works success');
+      success = true;
+    }
+  } catch (supabaseError) {
+    console.error('[deletePost] Supabase works exception:', supabaseError);
+  }
   
-  if (isNumericId) {
-    // 后端 API 的 work，使用 works_likes 等表
-    // 先删除相关记录
-    await supabase.from('work_likes').delete().eq('work_id', parseInt(id));
-    await supabase.from('work_bookmarks').delete().eq('work_id', parseInt(id));
-    await supabase.from('work_comments').delete().eq('work_id', parseInt(id));
+  // 2. 从后端 PostgreSQL works 表删除
+  console.log('[deletePost] Deleting from backend PostgreSQL...');
+  try {
+    const response = await fetch(`/api/works/${id}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
     
-    // 注意：后端 works 表不在 Supabase 中，所以这里只能删除 Supabase 相关记录
-    console.log('[deletePost] Numeric ID, only deleted Supabase related records');
-    return true;
-  } else {
-    // Supabase 的 post
+    if (response.ok) {
+      const result = await response.json();
+      console.log('[deletePost] Backend API success:', result);
+      success = true;
+    } else if (response.status === 404) {
+      console.log('[deletePost] Backend API returned 404, work not found in backend');
+    } else {
+      console.warn('[deletePost] Backend API failed:', response.status);
+      const errorText = await response.text();
+      console.warn('[deletePost] Error response:', errorText);
+    }
+  } catch (error) {
+    console.warn('[deletePost] Backend API error:', error);
+  }
+  
+  // 3. 同时尝试从 Supabase posts 表删除（兼容旧数据）
+  console.log('[deletePost] Also trying Supabase posts...');
+  try {
     const { error } = await supabase
       .from('posts')
       .delete()
       .eq('id', id);
 
     if (error) {
-      console.error('[deletePost] Supabase error:', error);
-      return false;
+      console.log('[deletePost] Supabase posts error (may not exist):', error);
+    } else {
+      console.log('[deletePost] Supabase posts success');
     }
-    console.log('[deletePost] Supabase success');
-    return true;
+  } catch (postsError) {
+    console.log('[deletePost] Supabase posts exception:', postsError);
   }
+  
+  return success;
 }
 
 export function clearAllCaches() {

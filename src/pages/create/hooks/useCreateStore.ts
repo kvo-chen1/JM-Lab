@@ -67,8 +67,19 @@ interface CreateActions {
   removePromptFromHistory: (prompt: string) => void;
 }
 
+// 从 localStorage 读取保存的工具状态
+const getSavedTool = (): ToolType => {
+  if (typeof localStorage === 'undefined') return 'sketch';
+  try {
+    const saved = localStorage.getItem('CREATE_ACTIVE_TOOL');
+    return (saved as ToolType) || 'sketch';
+  } catch {
+    return 'sketch';
+  }
+};
+
 const initialState: CreateState = {
-  activeTool: 'sketch',
+  activeTool: getSavedTool(),
   prompt: '',
   generatedResults: aiGeneratedResults,
   selectedResult: aiGeneratedResults.length > 0 ? aiGeneratedResults[0].id : null,
@@ -150,7 +161,17 @@ const initialState: CreateState = {
 export const useCreateStore = create<CreateState & CreateActions>((set) => ({
   ...initialState,
 
-  setActiveTool: (tool) => set({ activeTool: tool }),
+  setActiveTool: (tool) => {
+    // 保存到 localStorage
+    if (typeof localStorage !== 'undefined') {
+      try {
+        localStorage.setItem('CREATE_ACTIVE_TOOL', tool);
+      } catch (error) {
+        console.error('Failed to save active tool:', error);
+      }
+    }
+    set({ activeTool: tool });
+  },
   setAutoGenerate: (value) => set({ autoGenerate: value }),
   setPrompt: (prompt) => set({ prompt }),
   setGeneratedResults: (results) => set((state) => {

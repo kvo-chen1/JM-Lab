@@ -512,6 +512,30 @@ export function generateContentBasedRecommendations(userId: string, limit: numbe
     let score = 0;
     const reasons: string[] = [];
     
+    // 验证作品数据是否有效
+    if (!work.id || !work.title) {
+      return; // 跳过无效数据
+    }
+    
+    // 检查作品是否已被删除（标记为删除状态）
+    if (work.isDeleted === true || work.deleted === true || work.status === 'deleted') {
+      return; // 跳过已删除的作品
+    }
+    
+    // 优先使用 thumbnail，如果没有则使用 cover_url
+    const thumbnailUrl = work.thumbnail || work.cover_url || work.thumbnailUrl || '';
+    
+    // 验证作品是否有有效的图片或视频
+    const hasValidMedia = thumbnailUrl && typeof thumbnailUrl === 'string' && thumbnailUrl.trim() !== '';
+    const hasVideo = work.video_url || work.videoUrl;
+    
+    // 如果没有有效的媒体文件，降低推荐优先级或跳过
+    if (!hasValidMedia && !hasVideo) {
+      console.warn('⚠️ 作品缺少有效的媒体文件:', { id: work.id, title: work.title });
+      // 仍然添加，但给一个较低的分数
+      score = 0.01;
+    }
+    
     // 根据分类计算分数
     if (work.category && preference.categories[work.category]) {
       score += preference.categories[work.category] * 0.3;
@@ -558,18 +582,20 @@ export function generateContentBasedRecommendations(userId: string, limit: numbe
       score = 0.1; // 基础分数，确保有互动数据的作品能被推荐
     }
 
-    // 添加所有作品（只要有基本数据）
-    if (work.id && work.title) {
-      recommendedItems.push({
-        id: work.id,
-        type: 'post',
-        title: work.title,
-        thumbnail: work.thumbnail,
-        score,
-        reason: reasons.length > 0 ? reasons.slice(0, 2).join('，') : '热门作品',
-        metadata: work
-      });
-    }
+    // 添加作品到推荐列表
+    recommendedItems.push({
+      id: work.id,
+      type: 'post',
+      title: work.title,
+      thumbnail: thumbnailUrl,
+      score,
+      reason: reasons.length > 0 ? reasons.slice(0, 2).join('，') : '热门作品',
+      metadata: {
+        ...work,
+        // 确保 metadata 中也有正确的缩略图URL
+        thumbnail: thumbnailUrl
+      }
+    });
   });
   
   // 处理挑战推荐
@@ -994,15 +1020,30 @@ export function generateCollaborativeRecommendations(userId: string, limit: numb
   
   // 转换为RecommendedItem数组
   return Object.values(recommendedItems)
-    .map(({ item, type, score }) => ({
-      id: item.id,
-      type,
-      title: type === 'post' ? item.title : type === 'challenge' ? item.title : item.name,
-      thumbnail: type === 'post' ? item.thumbnail : type === 'challenge' ? item.featuredImage : item.preview,
-      score,
-      reason: '相似用户喜欢',
-      metadata: item
-    }))
+    .map(({ item, type, score }) => {
+      // 处理作品类型的缩略图，优先使用 thumbnail，如果没有则使用 cover_url
+      let thumbnailUrl = '';
+      if (type === 'post') {
+        thumbnailUrl = item.thumbnail || item.cover_url || item.thumbnailUrl || '';
+      } else if (type === 'challenge') {
+        thumbnailUrl = item.featuredImage || '';
+      } else {
+        thumbnailUrl = item.preview || '';
+      }
+      
+      return {
+        id: item.id,
+        type,
+        title: type === 'post' ? item.title : type === 'challenge' ? item.title : item.name,
+        thumbnail: thumbnailUrl,
+        score,
+        reason: '相似用户喜欢',
+        metadata: {
+          ...item,
+          thumbnail: thumbnailUrl
+        }
+      };
+    })
     .sort((a, b) => b.score - a.score)
     .slice(0, limit);
 }
@@ -1102,19 +1143,33 @@ export function getTrendingContent(limit: number = 10): RecommendedItem[] {
 
   // 处理热门作品
   works.forEach((work: any) => {
-    const score = (work.likes * 5) + (work.views * 0.5) + (work.shares * 10) + ((work.comments?.length || 0) * 8);
-    // 只要有基本数据就添加，分数为0的也会显示
-    if (work.id && work.title) {
-      trendingItems.push({
-        id: work.id,
-        type: 'post',
-        title: work.title,
-        thumbnail: work.thumbnail,
-        score,
-        reason: score > 0 ? '热门内容' : '精选作品',
-        metadata: work
-      });
+    // 验证作品数据是否有效
+    if (!work.id || !work.title) {
+      return; // 跳过无效数据
     }
+    
+    // 检查作品是否已被删除
+    if (work.isDeleted === true || work.deleted === true || work.status === 'deleted') {
+      return; // 跳过已删除的作品
+    }
+    
+    const score = (work.likes * 5) + (work.views * 0.5) + (work.shares * 10) + ((work.comments?.length || 0) * 8);
+    
+    // 优先使用 thumbnail，如果没有则使用 cover_url
+    const thumbnailUrl = work.thumbnail || work.cover_url || work.thumbnailUrl || '';
+    
+    trendingItems.push({
+      id: work.id,
+      type: 'post',
+      title: work.title,
+      thumbnail: thumbnailUrl,
+      score,
+      reason: score > 0 ? '热门内容' : '精选作品',
+      metadata: {
+        ...work,
+        thumbnail: thumbnailUrl
+      }
+    });
   });
 
   // 处理热门挑战
@@ -1208,14 +1263,27 @@ export function getSimilarContent(itemId: string, itemType: 'post' | 'challenge'
     
     // 只添加相似度大于0的项目
     if (score > 0) {
+      // 处理作品类型的缩略图，优先使用 thumbnail，如果没有则使用 cover_url
+      let thumbnailUrl = '';
+      if (itemType === 'post') {
+        thumbnailUrl = item.thumbnail || item.cover_url || item.thumbnailUrl || '';
+      } else if (itemType === 'challenge') {
+        thumbnailUrl = item.featuredImage || '';
+      } else {
+        thumbnailUrl = item.preview || '';
+      }
+      
       similarItems.push({
         id: item.id,
         type: itemType,
         title: itemType === 'post' ? item.title : itemType === 'challenge' ? item.title : item.name,
-        thumbnail: itemType === 'post' ? item.thumbnail : itemType === 'challenge' ? item.featuredImage : item.preview,
+        thumbnail: thumbnailUrl,
         score,
         reason: '相似内容',
-        metadata: item
+        metadata: {
+          ...item,
+          thumbnail: thumbnailUrl
+        }
       });
     }
   });

@@ -3,8 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { llmService, Message, AssistantPersonality, AssistantTheme, ConnectionStatus } from '@/services/llmService';
-import { aiAssistantService, AIResponse, ChatMessage } from '@/services/aiAssistantService';
-import { aiKnowledgeService } from '@/services/aiKnowledgeService';
+import { aiAssistantService, AIResponse, ChatMessage, AIAction } from '@/services/aiAssistantService';
+import { culturalExpertService } from '@/services/culturalExpertService';
 import { MessageBubble, ChatInput } from '@/components/Chat';
 
 interface FloatingAIAssistantProps {
@@ -43,6 +43,8 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
   // 复制相关状态
   const [copiedMessage, setCopiedMessage] = useState<number | null>(null);
   const [windowWidth, setWindowWidth] = useState<number>(0);
+  // 交互式操作按钮状态
+  const [messageActions, setMessageActions] = useState<{[key: number]: AIAction[]}>({});
   // 连接状态相关状态
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
   const [connectionError, setConnectionError] = useState<string>('');
@@ -126,10 +128,12 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
             if (confirm('创建新对话将保存当前对话历史并开启新对话，确定要继续吗？')) {
               await aiAssistantService.createNewConversation();
               setMessages([]);
+              setMessageActions({});
             }
           } else {
             await aiAssistantService.createNewConversation();
             setMessages([]);
+            setMessageActions({});
           }
         },
         visible: true
@@ -142,6 +146,7 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
           if (confirm('确定要清空当前对话吗？此操作不可恢复。')) {
             await aiAssistantService.clearCurrentConversation();
             setMessages([]);
+            setMessageActions({});
             setCopiedMessage(null);
             setFeedbackRatings({});
             setFeedbackComments({});
@@ -151,20 +156,30 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
         visible: messages.length > 0
       },
       {
+        id: 'cultural-knowledge',
+        label: '文化知识',
+        icon: '🏛️',
+        action: () => {
+          setInputMessage('天津有哪些非遗文化？');
+          setTimeout(() => handleSendMessage(), 100);
+        },
+        visible: true
+      },
+      {
+        id: 'work-review',
+        label: '作品点评',
+        icon: '🎨',
+        action: () => {
+          setInputMessage('帮我点评一下作品');
+          setTimeout(() => handleSendMessage(), 100);
+        },
+        visible: true
+      },
+      {
         id: 'toggle-settings',
         label: '设置',
         icon: '⚙️',
         action: () => setShowSettings(!showSettings),
-        visible: true
-      },
-      {
-        id: 'feedback',
-        label: '反馈',
-        icon: '📝',
-        action: () => {
-          // 这里可以添加反馈功能
-          alert('反馈功能开发中，敬请期待！');
-        },
         visible: true
       },
       {
@@ -177,7 +192,7 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
         visible: true
       }
     ];
-    
+
     return actions.filter(action => action.visible);
   };
   
@@ -667,6 +682,36 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
         return;
       }
       
+      if (aiResponse.type === 'cultural') {
+        // 文化专家响应
+        await addTypingEffect(aiResponse.content, () => {
+          setIsGenerating(false);
+          // 保存交互式操作按钮
+          if (aiResponse.actions && aiResponse.actions.length > 0) {
+            setMessageActions(prev => ({
+              ...prev,
+              [messages.length]: aiResponse.actions!
+            }));
+          }
+        });
+        return;
+      }
+      
+      if (aiResponse.type === 'review') {
+        // 作品点评响应
+        await addTypingEffect(aiResponse.content, () => {
+          setIsGenerating(false);
+          // 保存交互式操作按钮
+          if (aiResponse.actions && aiResponse.actions.length > 0) {
+            setMessageActions(prev => ({
+              ...prev,
+              [messages.length]: aiResponse.actions!
+            }));
+          }
+        });
+        return;
+      }
+      
       if (aiResponse.type === 'chat' || aiResponse.type === 'error') {
         // 普通聊天响应或错误响应
         await addTypingEffect(aiResponse.content, undefined, aiResponse.type === 'error');
@@ -746,6 +791,103 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
   const handlePresetQuestionClick = (question: string) => {
     setInputMessage(question);
     handleSendMessage();
+  };
+
+  // 处理交互式操作按钮点击
+  const handleActionClick = async (action: AIAction) => {
+    const sendMessage = (msg: string) => {
+      setInputMessage(msg);
+      setTimeout(() => handleSendMessage(), 100);
+    };
+
+    switch (action.action) {
+      case 'explore_intangible':
+        sendMessage('天津有哪些非遗技艺？');
+        break;
+      case 'explore_brands':
+        sendMessage('天津有哪些老字号品牌？');
+        break;
+      case 'explore_architecture':
+        sendMessage('五大道有什么特色？');
+        break;
+      case 'show_element':
+        if (action.data) {
+          const element = culturalExpertService.getCulturalElementById(action.data);
+          if (element) {
+            sendMessage(`详细介绍一下${element.name}`);
+          }
+        }
+        break;
+      case 'usage_guide':
+        if (action.data) {
+          const element = culturalExpertService.getCulturalElementById(action.data);
+          if (element) {
+            sendMessage(`${element.name}怎么用？`);
+          }
+        }
+        break;
+      case 'related_elements':
+        if (action.data) {
+          const element = culturalExpertService.getCulturalElementById(action.data);
+          if (element) {
+            sendMessage(`${element.name}相关的文化元素有哪些？`);
+          }
+        }
+        break;
+      case 'fusion_suggestion':
+        if (action.data) {
+          const element = culturalExpertService.getCulturalElementById(action.data);
+          if (element) {
+            sendMessage(`${element.name}可以和什么元素融合？`);
+          }
+        }
+        break;
+      case 'upload_work':
+        // 导航到创作中心
+        navigate('/create');
+        setIsOpen(false);
+        break;
+      case 'review_example':
+        // 显示示例点评
+        sendMessage('请给我展示一个作品点评示例');
+        break;
+      case 'improve_suggestions':
+        sendMessage('给我一些优化建议');
+        break;
+      case 'cultural_fusion':
+        sendMessage('怎么融合文化元素更好？');
+        break;
+      case 'commercial_analysis':
+        sendMessage('分析一下商业潜力');
+        break;
+      default:
+        // 对于其他操作，发送按钮标签作为消息
+        sendMessage(action.label);
+    }
+  };
+
+  // 渲染交互式操作按钮
+  const renderMessageActions = (messageIndex: number) => {
+    const actions = messageActions[messageIndex];
+    if (!actions || actions.length === 0) return null;
+
+    return (
+      <div className="mt-3 flex flex-wrap gap-2">
+        {actions.map((action) => (
+          <button
+            key={action.id}
+            onClick={() => handleActionClick(action)}
+            className={`px-3 py-1.5 text-xs rounded-full transition-all duration-200 ${
+              isDark
+                ? 'bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30 border border-indigo-500/30'
+                : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200'
+            }`}
+          >
+            {action.label}
+          </button>
+        ))}
+      </div>
+    );
   };
 
   // 自动完成建议生成函数
@@ -1295,20 +1437,23 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
                     }}
                   >
                     {messages.map((message, index) => (
-                      <MessageBubble
-                        key={index}
-                        type={message.isError ? 'error' : message.role === 'user' ? 'user' : 'assistant'}
-                        content={message.content}
-                        timestamp={new Date(message.timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
-                        isLoading={false}
-                        onRetry={message.isError ? () => {
-                          if (index > 0 && messages[index - 1].role === 'user') {
-                            setInputMessage(messages[index - 1].content);
-                            setMessages(prev => prev.slice(0, index));
-                            setTimeout(() => handleSendMessage(), 100);
-                          }
-                        } : undefined}
-                      />
+                      <div key={index}>
+                        <MessageBubble
+                          type={message.isError ? 'error' : message.role === 'user' ? 'user' : 'assistant'}
+                          content={message.content}
+                          timestamp={new Date(message.timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                          isLoading={false}
+                          onRetry={message.isError ? () => {
+                            if (index > 0 && messages[index - 1].role === 'user') {
+                              setInputMessage(messages[index - 1].content);
+                              setMessages(prev => prev.slice(0, index));
+                              setTimeout(() => handleSendMessage(), 100);
+                            }
+                          } : undefined}
+                        />
+                        {/* 渲染交互式操作按钮 */}
+                        {message.role === 'assistant' && renderMessageActions(index)}
+                      </div>
                     ))}
 
                     {/* 正在生成指示器 */}

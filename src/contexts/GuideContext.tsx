@@ -1,6 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { AuthContext } from './authContext';
-import { useNavigate, useLocation } from 'react-router-dom';
 import eventBus from '@/lib/eventBus';
 
 export interface GuideStep {
@@ -25,8 +24,6 @@ const GuideContext = createContext<GuideContextType | undefined>(undefined);
 
 export const GuideProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { user } = useContext(AuthContext);
-  const navigate = useNavigate();
-  const location = useLocation();
   
   const [isOpen, setIsOpen] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
@@ -41,15 +38,64 @@ export const GuideProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
   }, [user]);
 
-  const startGuide = () => {
+  const startGuide = useCallback(() => {
     setCurrentStep(0);
     setIsOpen(true);
     setIsCompleted(false);
-  };
+  }, []);
+
+  const nextStep = useCallback(() => {
+    setCurrentStep(prev => prev + 1);
+  }, []);
+
+  const prevStep = useCallback(() => {
+    setCurrentStep(prev => Math.max(0, prev - 1));
+  }, []);
+
+  const skipGuide = useCallback(() => {
+    setIsOpen(false);
+    if (user?.id) {
+      localStorage.setItem(`guide_completed_${user.id}`, 'true');
+    }
+    setIsCompleted(true);
+  }, [user]);
+
+  const finishGuide = useCallback(() => {
+    setIsOpen(false);
+    if (user?.id) {
+      localStorage.setItem(`guide_completed_${user.id}`, 'true');
+    }
+    setIsCompleted(true);
+  }, [user]);
+
+  // 键盘导航支持
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      switch (e.key) {
+        case 'ArrowRight':
+        case 'Enter':
+          e.preventDefault();
+          nextStep();
+          break;
+        case 'ArrowLeft':
+          e.preventDefault();
+          prevStep();
+          break;
+        case 'Escape':
+          e.preventDefault();
+          skipGuide();
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, nextStep, prevStep, skipGuide]);
 
   // 监听注册成功和登录成功事件
   useEffect(() => {
-    // 监听注册成功事件
     const registerListenerId = eventBus.subscribe('auth:register', () => {
       console.log('Detected new user registration, starting guide...');
       setTimeout(() => {
@@ -57,28 +103,19 @@ export const GuideProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       }, 500);
     });
 
-    // 监听登录成功事件，检查是否需要重新触发新手引导
     const loginListenerId = eventBus.subscribe('auth:login', (data: any) => {
       console.log('Detected user login, checking guide status...', data);
       
-      // 检查是否需要显示新手引导：
-      // 1. 是新用户 (isNewUser = true)
-      // 2. 或者 localStorage 中没有完成标记
       if (user?.id) {
         const key = `guide_completed_${user.id}`;
         const completedInStorage = localStorage.getItem(key) === 'true';
         const isNewUser = data?.user?.isNewUser || false;
         
-        // 如果是新用户且未完成引导，显示引导
         if (isNewUser && !completedInStorage) {
           console.log('New user detected and guide not completed, starting guide...');
           setTimeout(() => {
             startGuide();
-          }, 1000); // 延迟1秒，确保页面完全加载
-        } else if (!completedInStorage) {
-          console.log('Guide not completed, but user is not new. Skipping auto-start.');
-        } else {
-          console.log('Guide already completed.');
+          }, 1000);
         }
       }
     });
@@ -87,31 +124,7 @@ export const GuideProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       eventBus.unsubscribe('auth:register', registerListenerId);
       eventBus.unsubscribe('auth:login', loginListenerId);
     };
-  }, [user]);
-
-  const nextStep = () => {
-     setCurrentStep(prev => prev + 1);
-  };
-
-  const prevStep = () => {
-    setCurrentStep(prev => Math.max(0, prev - 1));
-  };
-
-  const skipGuide = () => {
-    setIsOpen(false);
-    if (user?.id) {
-      localStorage.setItem(`guide_completed_${user.id}`, 'true');
-    }
-    setIsCompleted(true);
-  };
-
-  const finishGuide = () => {
-    setIsOpen(false);
-    if (user?.id) {
-      localStorage.setItem(`guide_completed_${user.id}`, 'true');
-    }
-    setIsCompleted(true);
-  };
+  }, [user, startGuide]);
 
   return (
     <GuideContext.Provider value={{
@@ -136,3 +149,5 @@ export const useGuide = () => {
   }
   return context;
 };
+
+export default GuideContext;

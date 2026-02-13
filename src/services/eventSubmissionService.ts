@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase';
+import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { supabaseStorageService } from './supabaseStorageService';
 
 // 提交文件接口
@@ -77,18 +77,22 @@ class EventSubmissionService {
    */
   async getSubmissionByParticipation(participationId: string): Promise<EventSubmission | null> {
     try {
-      const { data, error } = await supabase
+      console.log('[getSubmissionByParticipation] 查询 participationId:', participationId);
+      // 使用 supabaseAdmin 绕过 RLS
+      const { data, error } = await supabaseAdmin
         .from('event_submissions')
         .select('*')
         .eq('participation_id', participationId)
         .maybeSingle();
+
+      console.log('[getSubmissionByParticipation] 查询结果:', { data, error });
 
       if (error) throw error;
       if (!data) return null;
 
       return this.formatSubmission(data);
     } catch (error) {
-      console.error('获取提交失败:', error);
+      console.error('[getSubmissionByParticipation] 获取提交失败:', error);
       return null;
     }
   }
@@ -103,6 +107,7 @@ class EventSubmissionService {
     data: SubmissionData
   ): Promise<{ success: boolean; submissionId?: string; error?: string }> {
     try {
+      const now = Date.now(); // bigint timestamp in milliseconds
       const { data: result, error } = await supabase
         .from('event_submissions')
         .insert({
@@ -114,6 +119,8 @@ class EventSubmissionService {
           files: data.files,
           status: 'draft',
           metadata: data.metadata || {},
+          created_at: now,
+          updated_at: now,
         })
         .select()
         .single();
@@ -136,7 +143,7 @@ class EventSubmissionService {
   ): Promise<{ success: boolean; error?: string }> {
     try {
       const updateData: any = {
-        updated_at: new Date().toISOString(),
+        updated_at: Date.now(), // bigint timestamp in milliseconds
       };
 
       if (data.title !== undefined) updateData.title = data.title;

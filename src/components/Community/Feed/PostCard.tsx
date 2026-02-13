@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Thread } from '@/pages/Community';
 import { TianjinAvatar } from '@/components/TianjinStyleComponents';
@@ -12,6 +13,8 @@ interface PostCardProps {
   onToggleFavorite: (id: string) => void;
   onAddComment: (threadId: string, content: string) => void;
   onClick: (id: string) => void;
+  onDelete?: (id: string) => void;
+  onDeleteComment?: (threadId: string, commentId: string) => void;
   isFavorited?: boolean;
   index?: number;
 }
@@ -158,6 +161,13 @@ const ImageGrid = ({
                   alt={`Post image ${index + 1}`}
                   className="w-full h-full object-cover transition-all duration-500 group-hover:scale-110"
                   loading="lazy"
+                  onError={(e) => {
+                    console.error('[PostCard] Image failed to load:', imageUrl);
+                    // 显示占位图
+                    const target = e.target as HTMLImageElement;
+                    target.src = 'https://placehold.co/400x300/e5e7eb/9ca3af?text=图片已过期';
+                    target.style.objectFit = 'contain';
+                  }}
                 />
               )}
             </div>
@@ -414,9 +424,12 @@ export const PostCard: React.FC<PostCardProps> = ({
   onToggleFavorite,
   onAddComment,
   onClick,
+  onDelete,
+  onDeleteComment,
   isFavorited = false,
   index = 0
 }) => {
+  const navigate = useNavigate();
   const { user: currentUser } = useAuth();
   const [showCommentInput, setShowCommentInput] = useState(false);
   const [commentContent, setCommentContent] = useState('');
@@ -432,7 +445,8 @@ export const PostCard: React.FC<PostCardProps> = ({
     hasVideos: thread.videos && thread.videos.length > 0,
     videos: thread.videos,
     hasImages: thread.images && thread.images.length > 0,
-    images: thread.images
+    images: thread.images,
+    firstImage: thread.images && thread.images.length > 0 ? thread.images[0] : null
   });
 
   const handleCommentSubmit = useCallback((e: React.FormEvent) => {
@@ -466,7 +480,10 @@ export const PostCard: React.FC<PostCardProps> = ({
     { icon: 'fab fa-weibo', label: '微博分享', onClick: () => handleShare('weibo') },
   ];
 
+  const isAuthor = currentUser?.id === thread.authorId;
+
   const moreMenuItems = [
+    ...(isAuthor && onDelete ? [{ icon: 'fas fa-trash-alt', label: '删除帖子', onClick: () => onDelete(thread.id), danger: true }] : []),
     { icon: 'fas fa-history', label: '查看编辑历史', onClick: () => {} },
     { icon: 'fas fa-flag', label: '举报内容', onClick: () => {}, danger: true },
     { icon: 'fas fa-ban', label: '屏蔽作者', onClick: () => {}, danger: true },
@@ -508,15 +525,29 @@ export const PostCard: React.FC<PostCardProps> = ({
             {/* Header: User & Time */}
             <div className="flex items-center gap-3 mb-3">
               <HoverCard scale={1.1}>
-                <TianjinAvatar 
-                  size="md" 
-                  src={thread.authorAvatar || ''} 
-                  alt={thread.author || '创作者'} 
-                  className="w-10 h-10"
-                />
+                <div 
+                  className="cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    thread.authorId && navigate(`/author/${thread.authorId}`);
+                  }}
+                >
+                  <TianjinAvatar 
+                    size="md" 
+                    src={thread.authorAvatar || ''} 
+                    alt={thread.author || '创作者'} 
+                    className="w-10 h-10 hover:ring-2 hover:ring-blue-400 transition-all"
+                  />
+                </div>
               </HoverCard>
               <div className="flex flex-col min-w-0">
-                <span className={`font-semibold text-sm truncate ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>
+                <span 
+                  className={`font-semibold text-sm truncate cursor-pointer hover:text-blue-500 transition-colors ${isDark ? 'text-gray-200' : 'text-gray-900'}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    thread.authorId && navigate(`/author/${thread.authorId}`);
+                  }}
+                >
                   {thread.author || '用户'}
                 </span>
                 <div className="flex items-center gap-2 text-xs">
@@ -722,7 +753,13 @@ export const PostCard: React.FC<PostCardProps> = ({
                         >
                           {/* 头像 */}
                           <div className="flex-shrink-0">
-                            <div className={`w-7 h-7 rounded-full overflow-hidden ring-2 ${isDark ? 'ring-gray-600' : 'ring-gray-200'} group-hover:ring-blue-300 transition-all`}>
+                            <div 
+                              className={`w-7 h-7 rounded-full overflow-hidden ring-2 ${isDark ? 'ring-gray-600' : 'ring-gray-200'} group-hover:ring-blue-300 transition-all cursor-pointer`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                (comment.userId || comment.authorId) && navigate(`/author/${comment.userId || comment.authorId}`);
+                              }}
+                            >
                               <img 
                                 src={comment.authorAvatar || comment.userAvatar || comment.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${comment.userId || comment.id}`}
                                 alt={comment.user || comment.author || '用户'}
@@ -733,13 +770,40 @@ export const PostCard: React.FC<PostCardProps> = ({
                           
                           {/* 内容 */}
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className={`text-sm font-bold ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>
-                                {comment.user || comment.author || '用户'}
-                              </span>
-                              <span className="text-xs text-gray-400">
-                                {comment.date ? new Date(comment.date).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }) : ''}
-                              </span>
+                            <div className="flex items-center justify-between mb-1">
+                              <div className="flex items-center gap-2">
+                                <span 
+                                  className={`text-sm font-bold cursor-pointer hover:text-blue-500 transition-colors ${isDark ? 'text-gray-200' : 'text-gray-900'}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    (comment.userId || comment.authorId) && navigate(`/author/${comment.userId || comment.authorId}`);
+                                  }}
+                                >
+                                  {comment.user || comment.author || '用户'}
+                                </span>
+                                <span className="text-xs text-gray-400">
+                                  {comment.date ? new Date(comment.date).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }) : ''}
+                                </span>
+                              </div>
+                              {/* 删除评论按钮 */}
+                              {onDeleteComment && (currentUser?.id === comment.userId || currentUser?.id === comment.authorId) && (
+                                <motion.button
+                                  whileHover={{ scale: 1.1 }}
+                                  whileTap={{ scale: 0.9 }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (confirm('确定要删除这条评论吗？')) {
+                                      onDeleteComment(thread.id, comment.id);
+                                    }
+                                  }}
+                                  className={`text-xs px-2 py-1 rounded transition-colors ${
+                                    isDark ? 'text-red-400 hover:bg-red-500/10' : 'text-red-600 hover:bg-red-50'
+                                  }`}
+                                >
+                                  <i className="fas fa-trash-alt mr-1"></i>
+                                  删除
+                                </motion.button>
+                              )}
                             </div>
                             <p className={`text-sm leading-relaxed line-clamp-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                               {comment.content}

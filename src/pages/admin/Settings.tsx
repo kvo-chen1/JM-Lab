@@ -72,14 +72,27 @@ interface SecuritySettings {
   requireStrongPassword: boolean;
 }
 
-// 积分规则
+// 积分规则（适配现有数据库表结构）
 interface PointsRule {
   id: string;
-  action: string;
-  points: number;
-  dailyLimit: number;
+  name: string;
   description: string;
-  enabled: boolean;
+  rule_type: string;
+  source_type: string;
+  points: number;
+  daily_limit: number;
+  weekly_limit: number | null;
+  monthly_limit: number | null;
+  yearly_limit: number | null;
+  is_active: boolean;
+  priority: number;
+  conditions: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+  // 前端兼容字段
+  action?: string;
+  dailyLimit?: number;
+  enabled?: boolean;
 }
 
 const settingSections: SettingSection[] = [
@@ -90,18 +103,19 @@ const settingSections: SettingSection[] = [
   { id: 'users', title: '用户管理', icon: Users, description: '用户权限和注册设置' },
   { id: 'points', title: '积分系统', icon: Key, description: '积分规则和奖励机制' },
   { id: 'storage', title: '存储设置', icon: Database, description: '文件存储和备份配置' },
+  { id: 'maintenance', title: '数据维护', icon: Trash2, description: '清理过期数据和维护工具' },
 ];
 
-// 默认积分规则
+// 默认积分规则（当数据库没有数据时使用）
 const defaultPointsRules: PointsRule[] = [
-  { id: '1', action: 'daily_checkin', points: 10, dailyLimit: 1, description: '每日签到', enabled: true },
-  { id: '2', action: 'create_post', points: 20, dailyLimit: 5, description: '发布帖子', enabled: true },
-  { id: '3', action: 'like_content', points: 2, dailyLimit: 50, description: '点赞内容', enabled: true },
-  { id: '4', action: 'comment', points: 5, dailyLimit: 20, description: '发表评论', enabled: true },
-  { id: '5', action: 'share_content', points: 10, dailyLimit: 10, description: '分享内容', enabled: true },
-  { id: '6', action: 'invite_friend', points: 100, dailyLimit: 0, description: '邀请好友', enabled: true },
-  { id: '7', action: 'complete_profile', points: 50, dailyLimit: 1, description: '完善资料', enabled: true },
-  { id: '8', action: 'work_adopted', points: 500, dailyLimit: 0, description: '作品被采纳', enabled: true },
+  { id: '1', name: '每日签到', description: '每日签到获得基础积分', rule_type: 'earn', source_type: 'checkin', points: 10, daily_limit: 1, weekly_limit: null, monthly_limit: null, yearly_limit: null, is_active: true, priority: 100, conditions: {}, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  { id: '2', name: '发布帖子', description: '发布新帖子获得积分', rule_type: 'earn', source_type: 'post', points: 20, daily_limit: 5, weekly_limit: null, monthly_limit: null, yearly_limit: null, is_active: true, priority: 90, conditions: {}, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  { id: '3', name: '点赞内容', description: '点赞他人内容获得积分', rule_type: 'earn', source_type: 'like', points: 2, daily_limit: 50, weekly_limit: null, monthly_limit: null, yearly_limit: null, is_active: true, priority: 80, conditions: {}, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  { id: '4', name: '发表评论', description: '发表评论获得积分', rule_type: 'earn', source_type: 'comment', points: 5, daily_limit: 20, weekly_limit: null, monthly_limit: null, yearly_limit: null, is_active: true, priority: 70, conditions: {}, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  { id: '5', name: '分享内容', description: '分享内容获得积分', rule_type: 'earn', source_type: 'share', points: 10, daily_limit: 10, weekly_limit: null, monthly_limit: null, yearly_limit: null, is_active: true, priority: 60, conditions: {}, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  { id: '6', name: '邀请好友', description: '邀请新用户注册获得积分', rule_type: 'earn', source_type: 'invite', points: 100, daily_limit: 0, weekly_limit: null, monthly_limit: null, yearly_limit: null, is_active: true, priority: 50, conditions: {}, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  { id: '7', name: '完善资料', description: '完善个人资料获得积分', rule_type: 'earn', source_type: 'profile', points: 50, daily_limit: 1, weekly_limit: null, monthly_limit: null, yearly_limit: null, is_active: true, priority: 40, conditions: {}, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  { id: '8', name: '作品被采纳', description: '作品被采纳获得积分', rule_type: 'earn', source_type: 'adoption', points: 500, daily_limit: 0, weekly_limit: null, monthly_limit: null, yearly_limit: null, is_active: true, priority: 30, conditions: {}, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
 ];
 
 export default function AdminSettings() {
@@ -157,11 +171,15 @@ export default function AdminSettings() {
   // 积分规则
   const [pointsRules, setPointsRules] = useState<PointsRule[]>(defaultPointsRules);
   const [newRule, setNewRule] = useState<Partial<PointsRule>>({
-    action: '',
-    points: 0,
-    dailyLimit: 0,
+    name: '',
     description: '',
-    enabled: true,
+    rule_type: 'earn',
+    source_type: 'system',
+    points: 0,
+    daily_limit: 0,
+    is_active: true,
+    priority: 100,
+    conditions: {},
   });
   const [showAddRule, setShowAddRule] = useState(false);
 
@@ -169,9 +187,10 @@ export default function AdminSettings() {
   const loadSettings = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [settings, storage] = await Promise.all([
+      const [settings, storage, pointsRulesData] = await Promise.all([
         adminService.getAllSettings(),
         adminService.getStorageStats(),
+        adminService.getPointsRules(),
       ]);
 
       setDbSettings(settings);
@@ -205,6 +224,11 @@ export default function AdminSettings() {
         sessionTimeout: parseInt(settings['session_timeout'] || '30'),
         requireStrongPassword: settings['require_strong_password'] === 'true',
       }));
+
+      // 加载积分规则
+      if (pointsRulesData && pointsRulesData.length > 0) {
+        setPointsRules(pointsRulesData);
+      }
     } catch (error) {
       console.error('加载设置失败:', error);
       toast.error('加载设置失败');
@@ -244,11 +268,47 @@ export default function AdminSettings() {
         require_strong_password: securitySettings.requireStrongPassword.toString(),
       };
 
-      const success = await adminService.updateSettings(settingsToSave);
+      // 保存系统设置
+      const settingsSuccess = await adminService.updateSettings(settingsToSave);
       
-      if (success) {
+      // 保存积分规则
+      let pointsSuccess = true;
+      for (const rule of pointsRules) {
+        // 检查规则是否已存在（有 UUID 格式的 id 表示已存在）
+        const isExistingRule = rule.id && rule.id.length === 36;
+        if (isExistingRule) {
+          // 更新现有规则
+          const result = await adminService.updatePointsRule(rule.id, {
+            name: rule.name,
+            description: rule.description,
+            points: rule.points,
+            daily_limit: rule.daily_limit,
+            is_active: rule.is_active,
+            priority: rule.priority,
+          });
+          if (!result) pointsSuccess = false;
+        } else {
+          // 创建新规则
+          const result = await adminService.createPointsRule({
+            name: rule.name,
+            description: rule.description,
+            rule_type: rule.rule_type || 'earn',
+            source_type: rule.source_type || 'system',
+            points: rule.points,
+            daily_limit: rule.daily_limit,
+            is_active: rule.is_active ?? true,
+            priority: rule.priority || 100,
+            conditions: rule.conditions || {},
+          });
+          if (!result) pointsSuccess = false;
+        }
+      }
+      
+      if (settingsSuccess && pointsSuccess) {
         setHasChanges(false);
         toast.success('设置已保存');
+        // 重新加载以获取最新的 ID
+        await loadSettings();
       } else {
         toast.error('保存设置失败');
       }
@@ -271,40 +331,96 @@ export default function AdminSettings() {
 
   // 添加积分规则
   const handleAddRule = () => {
-    if (!newRule.action || !newRule.description) {
+    if (!newRule.name || !newRule.description) {
       toast.error('请填写完整信息');
       return;
     }
     
+    const dailyLimitValue = newRule.daily_limit || 0;
     const rule: PointsRule = {
-      id: Date.now().toString(),
-      action: newRule.action!,
-      points: newRule.points || 0,
-      dailyLimit: newRule.dailyLimit || 0,
+      id: Date.now().toString(), // 临时 ID，保存后会从数据库获取真实 ID
+      name: newRule.name!,
       description: newRule.description!,
-      enabled: newRule.enabled ?? true,
+      rule_type: newRule.rule_type || 'earn',
+      source_type: newRule.source_type || 'system',
+      points: newRule.points || 0,
+      daily_limit: dailyLimitValue,
+      weekly_limit: null,
+      monthly_limit: null,
+      yearly_limit: null,
+      is_active: newRule.is_active ?? true,
+      priority: newRule.priority || 100,
+      conditions: {},
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     };
     
     setPointsRules([...pointsRules, rule]);
-    setNewRule({ action: '', points: 0, dailyLimit: 0, description: '', enabled: true });
+    setNewRule({ 
+      name: '', 
+      description: '', 
+      rule_type: 'earn',
+      source_type: 'system',
+      points: 0, 
+      daily_limit: 0, 
+      is_active: true, 
+      priority: 100,
+      conditions: {} 
+    });
     setShowAddRule(false);
     setHasChanges(true);
-    toast.success('规则已添加');
+    toast.success('规则已添加，请保存设置');
   };
 
   // 删除积分规则
-  const handleDeleteRule = (id: string) => {
+  const handleDeleteRule = async (id: string) => {
+    // 检查是否是已存在的规则（UUID 格式）
+    const isExistingRule = id && id.length === 36;
+    
+    if (isExistingRule) {
+      // 从数据库删除
+      const success = await adminService.deletePointsRule(id);
+      if (!success) {
+        toast.error('删除规则失败');
+        return;
+      }
+    }
+    
+    // 从本地状态删除
     setPointsRules(pointsRules.filter(r => r.id !== id));
     setHasChanges(true);
     toast.success('规则已删除');
   };
 
   // 切换积分规则状态
-  const toggleRule = (id: string) => {
+  const toggleRule = async (id: string) => {
+    const rule = pointsRules.find(r => r.id === id);
+    if (!rule) return;
+    
+    const newIsActive = !rule.is_active;
+    
+    // 检查是否是已存在的规则（UUID 格式）
+    const isExistingRule = id && id.length === 36;
+    
+    if (isExistingRule) {
+      // 立即更新数据库
+      const success = await adminService.updatePointsRule(id, { is_active: newIsActive });
+      if (!success) {
+        toast.error('更新规则状态失败');
+        return;
+      }
+    }
+    
+    // 更新本地状态
     setPointsRules(pointsRules.map(r => 
-      r.id === id ? { ...r, enabled: !r.enabled } : r
+      r.id === id ? { ...r, is_active: newIsActive } : r
     ));
-    setHasChanges(true);
+    
+    if (!isExistingRule) {
+      setHasChanges(true);
+    } else {
+      toast.success('规则状态已更新');
+    }
   };
 
   // 渲染通用设置
@@ -752,9 +868,9 @@ export default function AdminSettings() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <input
               type="text"
-              placeholder="行为标识"
-              value={newRule.action}
-              onChange={(e) => setNewRule({ ...newRule, action: e.target.value })}
+              placeholder="规则名称"
+              value={newRule.name}
+              onChange={(e) => setNewRule({ ...newRule, name: e.target.value })}
               className={`px-3 py-2 rounded-lg text-sm outline-none ${
                 isDark ? 'bg-gray-600 text-white' : 'bg-white text-gray-900'
               }`}
@@ -781,8 +897,8 @@ export default function AdminSettings() {
               <input
                 type="number"
                 placeholder="每日限制"
-                value={newRule.dailyLimit}
-                onChange={(e) => setNewRule({ ...newRule, dailyLimit: parseInt(e.target.value) || 0 })}
+                value={newRule.daily_limit}
+                onChange={(e) => setNewRule({ ...newRule, daily_limit: parseInt(e.target.value) || 0 })}
                 className={`flex-1 px-3 py-2 rounded-lg text-sm outline-none ${
                   isDark ? 'bg-gray-600 text-white' : 'bg-white text-gray-900'
                 }`}
@@ -821,17 +937,17 @@ export default function AdminSettings() {
               <button
                 onClick={() => toggleRule(rule.id)}
                 className={`w-10 h-6 rounded-full transition-colors ${
-                  rule.enabled ? 'bg-green-500' : isDark ? 'bg-gray-600' : 'bg-gray-300'
+                  rule.is_active ? 'bg-green-500' : isDark ? 'bg-gray-600' : 'bg-gray-300'
                 }`}
               >
                 <div className={`w-4 h-4 rounded-full bg-white transition-transform ${
-                  rule.enabled ? 'translate-x-5' : 'translate-x-1'
+                  rule.is_active ? 'translate-x-5' : 'translate-x-1'
                 }`} />
               </button>
               <div>
-                <p className="font-medium">{rule.description}</p>
+                <p className="font-medium">{rule.name}</p>
                 <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                  {rule.action} · 每日限制: {rule.dailyLimit || '无限制'}
+                  {rule.description} · 每日限制: {rule.daily_limit || '无限制'}
                 </p>
               </div>
             </div>
@@ -1019,6 +1135,120 @@ export default function AdminSettings() {
     );
   };
 
+  // 渲染数据维护设置
+  const renderMaintenanceSettings = () => {
+    const [isCleaning, setIsCleaning] = useState(false);
+    const [cleanupResult, setCleanupResult] = useState<any>(null);
+
+    const handleCleanupExpiredWorks = async () => {
+      if (!confirm('确定要删除所有包含过期阿里云OSS URL的作品吗？此操作不可恢复！')) {
+        return;
+      }
+
+      setIsCleaning(true);
+      try {
+        const response = await fetch('/api/admin/cleanup-expired-works', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+
+        const result = await response.json();
+        setCleanupResult(result);
+
+        if (result.code === 0) {
+          toast.success(result.message);
+        } else {
+          toast.error(result.message || '清理失败');
+        }
+      } catch (error) {
+        console.error('清理过期作品失败:', error);
+        toast.error('清理过期作品失败');
+      } finally {
+        setIsCleaning(false);
+      }
+    };
+
+    return (
+      <div className="space-y-6">
+        <div className={`p-6 rounded-2xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-md`}>
+          <div className="flex items-center gap-3 mb-4">
+            <Trash2 className="w-6 h-6 text-red-500" />
+            <h3 className="font-semibold">清理过期作品</h3>
+          </div>
+          <p className={`text-sm mb-4 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+            删除数据库中包含过期阿里云OSS URL的作品。这些作品的图片链接已失效，无法正常显示。
+          </p>
+          
+          <div className="flex items-center gap-4">
+            <button
+              onClick={handleCleanupExpiredWorks}
+              disabled={isCleaning}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
+                isCleaning
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  : 'bg-red-600 hover:bg-red-700 text-white'
+              }`}
+            >
+              {isCleaning ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  清理中...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="w-4 h-4" />
+                  清理过期作品
+                </>
+              )}
+            </button>
+          </div>
+
+          {cleanupResult && (
+            <div className={`mt-4 p-4 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-100'}`}>
+              <h4 className="font-medium mb-2">清理结果</h4>
+              <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                找到: {cleanupResult.data?.totalFound || 0} 个作品
+              </p>
+              <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                成功删除: {cleanupResult.data?.deletedCount || 0} 个作品
+              </p>
+              {cleanupResult.data?.works && cleanupResult.data.works.length > 0 && (
+                <div className="mt-2">
+                  <p className={`text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                    已删除的作品:
+                  </p>
+                  <ul className={`text-xs space-y-1 max-h-40 overflow-y-auto ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                    {cleanupResult.data.works.map((work: any) => (
+                      <li key={work.id} className="truncate">
+                        {work.title} (ID: {work.id})
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className={`p-6 rounded-2xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-md`}>
+          <div className="flex items-center gap-3 mb-4">
+            <AlertTriangle className="w-6 h-6 text-yellow-500" />
+            <h3 className="font-semibold">注意事项</h3>
+          </div>
+          <ul className={`text-sm space-y-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+            <li>• 此操作会永久删除作品数据，包括点赞、收藏和评论记录</li>
+            <li>• 删除后，用户需要重新发布作品</li>
+            <li>• 建议先备份重要数据</li>
+            <li>• 新发布的作品将正确保存到 Supabase Storage，不会有过期问题</li>
+          </ul>
+        </div>
+      </div>
+    );
+  };
+
   // 渲染用户管理设置
   const renderUserSettings = () => (
     <div className="space-y-6">
@@ -1094,6 +1324,8 @@ export default function AdminSettings() {
         return renderPointsSettings();
       case 'storage':
         return renderStorageSettings();
+      case 'maintenance':
+        return renderMaintenanceSettings();
       default:
         return renderGeneralSettings();
     }

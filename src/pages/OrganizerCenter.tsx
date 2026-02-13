@@ -242,19 +242,35 @@ export default function OrganizerCenter() {
 
       if (user?.isAdmin) {
         console.log('fetchEvents - 使用管理员权限获取所有活动');
-        eventsData = await getEvents({
-          status: statusFilter === 'all' ? undefined : statusFilter,
+        
+        // 构建查询参数，避免传递 undefined，并禁用缓存
+        const params: any = {
           page: currentPage,
           limit: pageSize,
-        }) || [];
+          refresh: true, // 禁用缓存，强制刷新
+        };
+        if (statusFilter && statusFilter !== 'all') {
+          params.status = statusFilter;
+        }
+        
+        eventsData = await getEvents(params) || [];
         console.log('fetchEvents - 管理员获取到活动数:', eventsData.length);
       } else {
         // 直接使用 getUserEvents 获取用户活动，传入选中的品牌ID
-        console.log('fetchEvents - 使用用户ID获取活动:', user.id, '品牌:', selectedBrand?.id);
-        eventsData = await getUserEvents(user?.id || '', {
-          status: statusFilter === 'all' ? undefined : statusFilter,
-          brandId: selectedBrand?.id,
-        }) || [];
+        console.log('fetchEvents - 使用用户ID获取活动:', user.id, '品牌:', selectedBrand?.id, 'statusFilter:', statusFilter);
+        
+        // 构建查询参数，避免传递 undefined，并禁用缓存
+        const params: any = {
+          refresh: true, // 禁用缓存，强制刷新
+        };
+        if (statusFilter && statusFilter !== 'all') {
+          params.status = statusFilter;
+        }
+        if (selectedBrand?.id) {
+          params.brandId = selectedBrand.id;
+        }
+        
+        eventsData = await getUserEvents(user?.id || '', params) || [];
         console.log('fetchEvents - 获取到活动数:', eventsData.length, '活动列表:', eventsData);
       }
 

@@ -13,7 +13,7 @@ import exportService, { ExportOptions, ExportFormat } from '@/services/exportSer
 import { toast } from 'sonner'
 import LazyImage from '@/components/LazyImage'
 // 导入API服务
-import { apiService } from '@/services/apiService'
+import { apiService, workService } from '@/services/apiService'
 // 导入Supabase客户端
 import { supabase } from '@/lib/supabase'
 
@@ -44,115 +44,118 @@ export default function WorkDetail() {
   const [showMockup, setShowMockup] = useState(false)
   const [shareSuccess, setShareSuccess] = useState(false)
   const [communityTopics, setCommunityTopics] = useState<string[]>(['国潮', '非遗', '极简', '赛博朋克', '传统文化', '数字艺术', '工艺创新'])
+  const [isLoading, setIsLoading] = useState(true)
 
-  // 从API获取作品详情
+  // 从API获取作品详情 - 优化版本：并行请求 + 缓存
   useEffect(() => {
     if (!id) return;
-    
+
     let isMounted = true;
-    
+
     const fetchWorkDetails = async () => {
+      setIsLoading(true);
       try {
-        // 首先尝试从 Supabase 获取数据（作为回退机制）
-        let workData = null;
-        
-        try {
-          // 尝试从API获取
-          workData = await apiService.getWorkById(id);
-        } catch (apiError) {
-          console.log('API获取失败，尝试从Supabase获取:', apiError);
-        }
-        
-        // 如果API获取失败，从Supabase获取
-        if (!workData && supabase) {
-          const { data: postData, error: postError } = await supabase
-            .from('posts')
-            .select('*')
-            .eq('id', id)
-            .eq('status', 'published')
-            .single();
-          
-          if (postError) {
-            console.error('Supabase获取作品详情失败:', postError);
-          } else if (postData) {
-            // 获取作者信息
-            const { data: authorData } = await supabase
-              .from('users')
-              .select('username, avatar_url')
-              .eq('id', postData.author_id)
-              .single();
-            
-            workData = {
-              id: postData.id,
-              title: postData.title,
-              content: postData.content,
-              images: postData.images,
-              author: authorData?.username || 'Unknown',
-              authorAvatar: authorData?.avatar_url,
-              likes: postData.likes_count || 0,
-              views: postData.views || 0,
-              createdAt: postData.created_at ? new Date(postData.created_at * 1000).toISOString() : new Date().toISOString(),
-              tags: postData.tags || [],
-              category: postData.category || '设计'
-            };
-          }
-        }
-        
-        if (!isMounted) return;
-        
-        setWork(workData);
-        
-        if (workData) {
-          // 初始化点赞和收藏状态
-          if (isAuthenticated && user) {
-              const userBookmarks = await postsApi.getUserBookmarks(user.id);
-              const userLikes = await postsApi.getUserLikes(user.id);
-              
-              if (!isMounted) return;
-              
-              setBookmarked(workData.isBookmarked || userBookmarks.includes(id));
-              setLiked(workData.isLiked || userLikes.includes(id));
-          } else {
-              setBookmarked(false);
-              setLiked(false);
-          }
-          
-          setLikes(workData.likes || 0);
-          
-          // 获取相关作品（从Supabase）
-          if (supabase) {
+        // 并行发起所有独立请求
+        const [workResult, relatedResult] = await Promise.allSettled([
+          // 1. 获取作品详情
+          (async () => {
+            try {
+              // 尝试从API获取（启用缓存）
+              return await workService.getWorkById(Number(id));
+            } catch (apiError) {
+              console.log('API获取失败，尝试从Supabase获取:', apiError);
+              // API失败时从Supabase获取
+              if (!supabase) return null;
+
+              const { data: postData, error: postError } = await supabase
+                .from('posts')
+                .select('*, author:users!posts_author_id_fkey(username, avatar_url)')
+                .eq('id', id)
+                .eq('status', 'published')
+                .single();
+
+              if (postError || !postData) return null;
+
+              return {
+                id: postData.id,
+                title: postData.title,
+                content: postData.content,
+                images: postData.images,
+                thumbnail: postData.images?.[0],
+                creator: postData.author?.username || 'Unknown',
+                creatorAvatar: postData.author?.avatar_url,
+                likes: postData.likes_count || 0,
+                views: postData.views || 0,
+                comments: postData.comments_count || 0,
+                createdAt: postData.created_at ? new Date(postData.created_at * 1000).toISOString() : new Date().toISOString(),
+                tags: postData.tags || [],
+                category: postData.category || '设计'
+              };
+            }
+          })(),
+          // 2. 获取相关作品（使用关联查询避免N+1问题）
+          (async () => {
+            if (!supabase) return [];
+
             const { data: relatedData } = await supabase
               .from('posts')
-              .select('*')
+              .select('*, author:users!posts_author_id_fkey(username, avatar_url)')
               .eq('status', 'published')
               .neq('id', id)
               .limit(6);
-            
-            if (!isMounted) return;
-            
-            if (relatedData) {
-              const relatedWorks = await Promise.all(
-                relatedData.map(async (post) => {
-                  const { data: author } = await supabase
-                    .from('users')
-                    .select('username')
-                    .eq('id', post.author_id)
-                    .single();
-                  
-                  return {
-                    id: post.id,
-                    title: post.title,
-                    images: post.images,
-                    author: author?.username || 'Unknown',
-                    likes: post.likes_count || 0
-                  };
-                })
-              );
-              if (isMounted) {
-                setRelated(relatedWorks);
-              }
-            }
+
+            if (!relatedData) return [];
+
+            return relatedData.map((post) => ({
+              id: post.id,
+              title: post.title,
+              thumbnail: post.images?.[0],
+              images: post.images,
+              creator: post.author?.username || 'Unknown',
+              creatorAvatar: post.author?.avatar_url,
+              likes: post.likes_count || 0,
+              category: post.category || '设计',
+              tags: post.tags || []
+            }));
+          })()
+        ]);
+
+        if (!isMounted) return;
+
+        // 处理作品详情结果
+        let workData: any = null;
+        if (workResult.status === 'fulfilled' && workResult.value) {
+          workData = workResult.value;
+          // 确保 thumbnail 字段存在
+          if (!workData.thumbnail && workData.images?.length > 0) {
+            workData.thumbnail = workData.images[0];
           }
+        }
+
+        setWork(workData);
+
+        if (workData) {
+          setLikes(workData.likes || 0);
+
+          // 并行获取用户交互状态（点赞/收藏）
+          if (isAuthenticated && user && id) {
+            Promise.all([
+              postsApi.getUserBookmarks(user.id).catch(() => [] as string[]),
+              postsApi.getUserLikes(user.id).catch(() => [] as string[])
+            ]).then(([userBookmarks, userLikes]) => {
+              if (!isMounted) return;
+              setBookmarked(workData.isBookmarked || userBookmarks.includes(id as string));
+              setLiked(workData.isLiked || userLikes.includes(id as string));
+            });
+          } else {
+            setBookmarked(false);
+            setLiked(false);
+          }
+        }
+
+        // 处理相关作品结果
+        if (relatedResult.status === 'fulfilled' && relatedResult.value) {
+          setRelated(relatedResult.value);
         }
       } catch (error) {
         console.error('获取作品详情失败:', error);
@@ -160,11 +163,15 @@ export default function WorkDetail() {
           toast.error('加载作品详情失败，请稍后重试');
           setWork(null);
         }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     };
-    
+
     fetchWorkDetails();
-    
+
     return () => {
       isMounted = false;
     };
@@ -192,7 +199,7 @@ export default function WorkDetail() {
              // 记录行为日志
              logUserAction('like_work', { workId: stringId, userId: user.id });
           } else {
-             await apiService.likeWork(stringId);
+             await workService.likeWork(Number(stringId));
           }
         } else {
           // 调用API取消点赞，同时更新本地缓存
@@ -200,7 +207,7 @@ export default function WorkDetail() {
              await postsApi.unlikePost(stringId, user.id);
              logUserAction('unlike_work', { workId: stringId, userId: user.id });
           } else {
-             await apiService.unlikeWork(stringId);
+             await workService.unlikeWork(Number(stringId));
           }
         }
       } catch (error) {
@@ -227,15 +234,11 @@ export default function WorkDetail() {
           // 调用API收藏，同时更新本地缓存
           if (isAuthenticated && user) {
              await postsApi.bookmarkPost(stringId, user.id);
-          } else {
-             await apiService.bookmarkWork(stringId);
           }
         } else {
           // 调用API取消收藏，同时更新本地缓存
           if (isAuthenticated && user) {
              await postsApi.unbookmarkPost(stringId, user.id);
-          } else {
-             await apiService.unbookmarkWork(stringId);
           }
         }
       } catch (error) {
@@ -356,7 +359,110 @@ export default function WorkDetail() {
     setExportOptions(prev => ({ ...prev, [key]: value }))
   }
 
+  // 骨架屏组件
+  const WorkDetailSkeleton = () => (
+    <div className={`min-h-screen ${isDark ? 'bg-gray-900' : 'bg-gray-100'}`}>
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+        {/* 面包屑骨架 */}
+        <div className="mb-6 flex items-center gap-2">
+          <div className={`h-4 w-12 rounded ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`} />
+          <div className={`h-4 w-4 rounded ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`} />
+          <div className={`h-4 w-16 rounded ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`} />
+          <div className={`h-4 w-4 rounded ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`} />
+          <div className={`h-4 w-24 rounded ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`} />
+        </div>
+
+        <div className={`rounded-xl shadow-lg overflow-hidden ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-0">
+            {/* 主图骨架 */}
+            <div className="order-1 lg:order-1 lg:col-span-8">
+              <div className={`w-full h-[400px] sm:h-[500px] lg:h-[600px] ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`} />
+            </div>
+
+            {/* 信息区骨架 */}
+            <div className="p-6 sm:p-8 order-2 lg:order-2 lg:col-span-4 space-y-6">
+              {/* 分类标签骨架 */}
+              <div className={`h-6 w-20 rounded-full ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`} />
+
+              {/* 标题骨架 */}
+              <div className={`h-8 w-3/4 rounded ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`} />
+
+              {/* 作者信息骨架 */}
+              <div className={`p-3 rounded-lg ${isDark ? 'bg-gray-700/50' : 'bg-gray-100'} flex items-center gap-3`}>
+                <div className={`w-12 h-12 rounded-full ${isDark ? 'bg-gray-600' : 'bg-gray-300'} animate-pulse`} />
+                <div className="space-y-2">
+                  <div className={`h-4 w-24 rounded ${isDark ? 'bg-gray-600' : 'bg-gray-300'} animate-pulse`} />
+                  <div className={`h-3 w-16 rounded ${isDark ? 'bg-gray-600' : 'bg-gray-300'} animate-pulse`} />
+                </div>
+              </div>
+
+              {/* 统计骨架 */}
+              <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-700/50' : 'bg-gray-100'} flex justify-between`}>
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="flex flex-col items-center gap-2">
+                    <div className={`h-6 w-12 rounded ${isDark ? 'bg-gray-600' : 'bg-gray-300'} animate-pulse`} />
+                    <div className={`h-3 w-8 rounded ${isDark ? 'bg-gray-600' : 'bg-gray-300'} animate-pulse`} />
+                  </div>
+                ))}
+              </div>
+
+              {/* 标签骨架 */}
+              <div className="space-y-3">
+                <div className={`h-4 w-12 rounded ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`} />
+                <div className="flex flex-wrap gap-2">
+                  {[1, 2, 3, 4].map((i) => (
+                    <div key={i} className={`h-7 w-16 rounded-full ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`} />
+                  ))}
+                </div>
+              </div>
+
+              {/* 按钮骨架 */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className={`h-10 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`} />
+                <div className={`h-10 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`} />
+              </div>
+              <div className="space-y-3">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className={`h-10 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`} />
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 相关作品骨架 */}
+        <div className="mt-12">
+          <div className="text-center mb-8">
+            <div className={`h-8 w-32 mx-auto rounded ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse mb-3`} />
+            <div className={`h-4 w-48 mx-auto rounded ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`} />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className={`rounded-xl overflow-hidden ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
+                <div className={`h-56 ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`} />
+                <div className="p-4 space-y-3">
+                  <div className={`h-4 w-3/4 rounded ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`} />
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-6 h-6 rounded-full ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`} />
+                      <div className={`h-3 w-16 rounded ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`} />
+                    </div>
+                    <div className={`h-3 w-8 rounded ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`} />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+
   // 渲染内容
+  if (isLoading) {
+    return <WorkDetailSkeleton />;
+  }
+
   if (!work) {
     return (
       <div className={`min-h-screen ${isDark ? 'bg-gray-900' : 'bg-gray-100'}`}>

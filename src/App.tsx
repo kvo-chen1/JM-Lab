@@ -38,6 +38,7 @@ import "sonner/dist/styles.css";
 
 import CommandPalette from '@/components/CommandPalette';
 import ErrorBoundary from '@/components/ErrorBoundary';
+import { TianjinThemeWrapper } from '@/components/TianjinThemeWrapper';
 
 // 核心页面 - 只保留最关键的页面进行同步加载，减少初始加载时间
 import Home from "@/pages/Home";
@@ -868,6 +869,9 @@ export default function App() {
       
       {/* 全局 Toast 通知 */}
       <Toaster position="top-center" richColors closeButton />
+      
+      {/* 天津主题特色功能 */}
+      <TianjinThemeWrapper />
     </div>
             </ThemeProvider>
           </EventProvider>

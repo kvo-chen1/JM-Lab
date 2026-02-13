@@ -568,19 +568,33 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
                          </div>
                        ) : (
                          <div 
-                           className="w-full h-full cursor-zoom-in"
-                           onClick={() => setIsImageFull(true)}
-                         >
-                           <LazyImage
-                            src={post.thumbnail}
-                            alt={post.title}
-                            className="w-full h-full object-cover md:rounded-l-[32px]"
-                            priority={true}
-                            quality="high"
-                            bare
-                            disableFallback={true}
-                          />
-                         </div>
+                          className="w-full h-full cursor-zoom-in bg-gray-100 dark:bg-gray-800 flex items-center justify-center"
+                          onClick={() => setIsImageFull(true)}
+                        >
+                          {post.thumbnail ? (
+                            <LazyImage
+                             src={post.thumbnail}
+                             alt={post.title}
+                             className="w-full h-full object-cover md:rounded-l-[32px]"
+                             priority={true}
+                             quality="high"
+                             bare
+                             disableFallback={true}
+                             onError={(e) => {
+                               console.error('[PostDetailModal] Image failed to load:', post.thumbnail);
+                               // 显示占位图
+                               const target = e.target as HTMLImageElement;
+                               target.src = 'https://placehold.co/600x400/e5e7eb/9ca3af?text=图片已过期';
+                               target.style.objectFit = 'contain';
+                             }}
+                           />
+                          ) : (
+                            <div className="text-center p-8">
+                              <i className="fas fa-image text-4xl text-gray-400 mb-4"></i>
+                              <p className="text-gray-500">暂无图片</p>
+                            </div>
+                          )}
+                        </div>
                        )}
 
                        {/* View Fullscreen Button Overlay */}
@@ -790,19 +804,25 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
                                   {/* 主评论 */}
                                   <div className="flex gap-4 p-4 rounded-2xl bg-gradient-to-r from-gray-50/50 to-transparent dark:from-gray-800/30 dark:to-transparent hover:from-gray-100/50 dark:hover:from-gray-800/50 transition-all duration-300">
                                     <div className="flex-shrink-0">
-                                      <div className="relative">
+                                      <div 
+                                        className="relative cursor-pointer"
+                                        onClick={() => comment.userId && navigate(`/author/${comment.userId}`)}
+                                      >
                                         <TianjinAvatar
                                           src={comment.authorAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${comment.userId || comment.id}`}
                                           alt="User"
                                           size="sm"
-                                          className="ring-2 ring-white dark:ring-gray-700 shadow-lg"
+                                          className="ring-2 ring-white dark:ring-gray-700 shadow-lg hover:ring-blue-400 transition-all"
                                         />
                                         <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white dark:border-gray-800"></div>
                                       </div>
                                     </div>
                                     <div className="flex-1 min-w-0">
                                       <div className="flex items-center gap-2 mb-2">
-                                        <span className="font-bold text-gray-900 dark:text-white text-base">{comment.author || '用户'}</span>
+                                        <span 
+                                          className="font-bold text-gray-900 dark:text-white text-base cursor-pointer hover:text-blue-600 transition-colors"
+                                          onClick={() => comment.userId && navigate(`/author/${comment.userId}`)}
+                                        >{comment.author || '用户'}</span>
                                         <span className="text-xs text-gray-400">·</span>
                                         <span className="text-xs text-gray-400">{new Date(comment.date).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
                                       </div>
@@ -866,15 +886,23 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
                                     <div className="ml-12 mt-3 space-y-3">
                                       {replies.filter(r => r.parentId === comment.id).map(reply => (
                                         <div key={reply.id} className="flex gap-3 p-3 rounded-xl bg-gray-50/80 dark:bg-gray-800/40 hover:bg-gray-100/80 dark:hover:bg-gray-800/60 transition-all duration-200">
-                                          <TianjinAvatar
-                                            src={reply.authorAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${reply.userId || reply.id}`}
-                                            alt="User"
-                                            size="xs"
-                                            className="ring-2 ring-white dark:ring-gray-700"
-                                          />
+                                          <div 
+                                            className="cursor-pointer"
+                                            onClick={() => reply.userId && navigate(`/author/${reply.userId}`)}
+                                          >
+                                            <TianjinAvatar
+                                              src={reply.authorAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${reply.userId || reply.id}`}
+                                              alt="User"
+                                              size="xs"
+                                              className="ring-2 ring-white dark:ring-gray-700 hover:ring-blue-400 transition-all"
+                                            />
+                                          </div>
                                           <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-2 mb-1">
-                                              <span className="font-semibold text-gray-900 dark:text-white text-sm">{reply.author || '用户'}</span>
+                                              <span 
+                                                className="font-semibold text-gray-900 dark:text-white text-sm cursor-pointer hover:text-blue-600 transition-colors"
+                                                onClick={() => reply.userId && navigate(`/author/${reply.userId}`)}
+                                              >{reply.author || '用户'}</span>
                                               <span className="text-xs text-gray-400">{new Date(reply.date).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })}</span>
                                             </div>
                                             <div className="text-gray-700 dark:text-gray-300 text-sm leading-relaxed mb-2">

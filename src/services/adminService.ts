@@ -44,6 +44,25 @@ export interface CommercialApplication {
   applyTime: string;
 }
 
+// 积分规则类型（适配现有数据库表结构）
+interface PointsRule {
+  id: string;
+  name: string;
+  description: string;
+  rule_type: string;
+  source_type: string;
+  points: number;
+  daily_limit: number;
+  weekly_limit: number | null;
+  monthly_limit: number | null;
+  yearly_limit: number | null;
+  is_active: boolean;
+  priority: number;
+  conditions: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+}
+
 class AdminService {
   // 获取控制台统计数据
   async getDashboardStats(): Promise<DashboardStats> {
@@ -1194,6 +1213,80 @@ class AdminService {
       return true;
     } catch (error) {
       console.error('添加评论失败:', error);
+      return false;
+    }
+  }
+
+  // ==================== 积分规则管理 ====================
+
+  // 获取所有积分规则
+  async getPointsRules(): Promise<PointsRule[]> {
+    try {
+      const { data, error } = await supabaseAdmin
+        .from('points_rules')
+        .select('*')
+        .order('priority', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('获取积分规则失败:', error);
+      return [];
+    }
+  }
+
+  // 创建积分规则
+  async createPointsRule(rule: Partial<PointsRule>): Promise<PointsRule | null> {
+    try {
+      const { data, error } = await supabaseAdmin
+        .from('points_rules')
+        .insert([{
+          ...rule,
+          rule_type: rule.rule_type || 'earn',
+          source_type: rule.source_type || 'system',
+          priority: rule.priority || 100,
+          is_active: rule.is_active ?? true,
+          conditions: rule.conditions || {},
+        }])
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('创建积分规则失败:', error);
+      return null;
+    }
+  }
+
+  // 更新积分规则
+  async updatePointsRule(id: string, rule: Partial<PointsRule>): Promise<boolean> {
+    try {
+      const { error } = await supabaseAdmin
+        .from('points_rules')
+        .update({ ...rule, updated_at: new Date().toISOString() })
+        .eq('id', id);
+
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.error('更新积分规则失败:', error);
+      return false;
+    }
+  }
+
+  // 删除积分规则
+  async deletePointsRule(id: string): Promise<boolean> {
+    try {
+      const { error } = await supabaseAdmin
+        .from('points_rules')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.error('删除积分规则失败:', error);
       return false;
     }
   }

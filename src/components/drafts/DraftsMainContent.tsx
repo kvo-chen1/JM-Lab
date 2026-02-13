@@ -37,12 +37,25 @@ interface BrandWizardDraftData {
   isFavorite?: boolean;
 }
 
+interface EventSubmissionDraftData {
+  eventId: string;
+  eventTitle?: string;
+  formData: {
+    title: string;
+    description: string;
+    tags: string[];
+  };
+  files: any[];
+  savedAt: string;
+}
+
 interface DraftsMainContentProps {
   isDark: boolean;
   activeDraft: DraftData | null;
   savedDrafts: DraftData[];
   aiWriterDrafts: DraftData[];
   brandWizardDrafts?: BrandWizardDraftData[];
+  eventSubmissionDrafts?: EventSubmissionDraftData[];
   searchTerm: string;
   onSearchChange: (term: string) => void;
   sortBy: 'newest' | 'oldest' | 'name';
@@ -58,6 +71,8 @@ interface DraftsMainContentProps {
   onDeleteBrandWizardDraft?: (e: React.MouseEvent, id: string) => void;
   onExportDraft: (e: React.MouseEvent, draft: DraftData) => void;
   onLoadBrandWizardDraft?: (draft: BrandWizardDraftData) => void;
+  onLoadEventSubmissionDraft?: (draft: EventSubmissionDraftData) => void;
+  onDeleteEventSubmissionDraft?: (e: React.MouseEvent, eventId: string) => void;
   onCreateNew: () => void;
 }
 
@@ -67,6 +82,7 @@ export default function DraftsMainContent({
   savedDrafts,
   aiWriterDrafts,
   brandWizardDrafts = [],
+  eventSubmissionDrafts = [],
   searchTerm,
   onSearchChange,
   sortBy,
@@ -82,6 +98,8 @@ export default function DraftsMainContent({
   onDeleteBrandWizardDraft,
   onExportDraft,
   onLoadBrandWizardDraft,
+  onLoadEventSubmissionDraft,
+  onDeleteEventSubmissionDraft,
   onCreateNew
 }: DraftsMainContentProps) {
   const [showSortDropdown, setShowSortDropdown] = useState(false);
@@ -90,22 +108,28 @@ export default function DraftsMainContent({
   const getFilteredDrafts = () => {
     let allDrafts: DraftData[] = [];
     let allBrandWizardDrafts: BrandWizardDraftData[] = [];
+    let allEventSubmissionDrafts: EventSubmissionDraftData[] = [];
 
     // 根据分类筛选
     switch (activeCategory) {
       case 'all':
         allDrafts = [...savedDrafts, ...aiWriterDrafts];
         allBrandWizardDrafts = brandWizardDrafts;
+        allEventSubmissionDrafts = eventSubmissionDrafts;
         break;
       case 'favorites':
         allDrafts = [...savedDrafts.filter(d => d.isFavorite), ...aiWriterDrafts.filter(d => d.isFavorite)];
         allBrandWizardDrafts = brandWizardDrafts.filter(d => d.isFavorite);
+        allEventSubmissionDrafts = [];
         break;
       case 'aiWriter':
         allDrafts = aiWriterDrafts;
         break;
       case 'brandWizard':
         allBrandWizardDrafts = brandWizardDrafts;
+        break;
+      case 'eventSubmission':
+        allEventSubmissionDrafts = eventSubmissionDrafts;
         break;
       default:
         allDrafts = savedDrafts.filter(d => d.activeTool === activeCategory);
@@ -124,6 +148,10 @@ export default function DraftsMainContent({
         (d.title && d.title.toLowerCase().includes(term)) ||
         (d.brandName && d.brandName.toLowerCase().includes(term))
       );
+      allEventSubmissionDrafts = allEventSubmissionDrafts.filter(d =>
+        (d.formData.title && d.formData.title.toLowerCase().includes(term)) ||
+        (d.formData.description && d.formData.description.toLowerCase().includes(term))
+      );
     }
 
     // 排序
@@ -141,11 +169,20 @@ export default function DraftsMainContent({
       return 0;
     });
 
-    return { drafts: allDrafts, brandWizardDrafts: allBrandWizardDrafts };
+    allEventSubmissionDrafts.sort((a, b) => {
+      const aTime = new Date(a.savedAt).getTime();
+      const bTime = new Date(b.savedAt).getTime();
+      if (sortBy === 'newest') return bTime - aTime;
+      if (sortBy === 'oldest') return aTime - bTime;
+      if (sortBy === 'name') return (a.formData.title || '').localeCompare(b.formData.title || '');
+      return 0;
+    });
+
+    return { drafts: allDrafts, brandWizardDrafts: allBrandWizardDrafts, eventSubmissionDrafts: allEventSubmissionDrafts };
   };
 
-  const { drafts: filteredDrafts, brandWizardDrafts: filteredBrandWizardDrafts } = getFilteredDrafts();
-  const totalCount = filteredDrafts.length + filteredBrandWizardDrafts.length;
+  const { drafts: filteredDrafts, brandWizardDrafts: filteredBrandWizardDrafts, eventSubmissionDrafts: filteredEventSubmissionDrafts } = getFilteredDrafts();
+  const totalCount = filteredDrafts.length + filteredBrandWizardDrafts.length + filteredEventSubmissionDrafts.length;
 
   const sortOptions = [
     { value: 'newest', label: '最新修改' },
@@ -354,6 +391,26 @@ export default function DraftsMainContent({
                   viewMode={viewMode}
                   onClick={() => onLoadBrandWizardDraft?.(draft)}
                   onDelete={(e) => onDeleteBrandWizardDraft?.(e, draft.id)}
+                />
+              ))}
+
+              {/* Event Submission Drafts */}
+              {filteredEventSubmissionDrafts.map((draft) => (
+                <DraftCard
+                  key={draft.eventId}
+                  id={draft.eventId}
+                  name={draft.formData.title || '未命名作品'}
+                  title={`活动作品提交`}
+                  prompt={draft.formData.description?.substring(0, 50) + (draft.formData.description?.length > 50 ? '...' : '')}
+                  content={''}
+                  toolType="eventSubmission"
+                  templateName="活动提交"
+                  updatedAt={new Date(draft.savedAt).getTime()}
+                  isFavorite={false}
+                  isDark={isDark}
+                  viewMode={viewMode}
+                  onClick={() => onLoadEventSubmissionDraft?.(draft)}
+                  onDelete={(e) => onDeleteEventSubmissionDraft?.(e, draft.eventId)}
                 />
               ))}
             </AnimatePresence>

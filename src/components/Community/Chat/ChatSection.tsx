@@ -11,7 +11,8 @@ interface ChatSectionProps {
   retrySendMessage?: (messageId: string) => void;
   onAddReaction?: (messageId: string, reaction: string) => void;
   onReplyToMessage?: (messageId: string, content: string) => void;
-  currentUser: { name: string };
+  onDeleteMessage?: (messageId: string) => void;
+  currentUser: { name: string; id?: string };
   unreadCount?: number;
   onMarkAsRead?: () => void;
 }
@@ -24,6 +25,7 @@ const ChatSection: React.FC<ChatSectionProps> = memo(({
   retrySendMessage,
   onAddReaction,
   onReplyToMessage,
+  onDeleteMessage,
   currentUser,
   unreadCount = 0,
   onMarkAsRead
@@ -137,6 +139,8 @@ const ChatSection: React.FC<ChatSectionProps> = memo(({
                         retrySendMessage={retrySendMessage}
                         onAddReaction={onAddReaction}
                         onReplyToMessage={handleReplyClick}
+                        onDeleteMessage={onDeleteMessage}
+                        currentUserId={currentUser.id}
                     />
                 );
             })}

@@ -247,6 +247,24 @@ export default function Settings() {
     });
   };
 
+  // 处理重新进行新手引导
+  const handleRestartGuide = () => {
+    // 清除本地存储中的引导完成标记
+    if (user?.id) {
+      localStorage.removeItem(`guide_completed_${user.id}`);
+    }
+    // 立即开始引导
+    startGuide();
+    toast.success('新手引导已开始', {
+      description: '请跟随指引了解应用功能',
+    });
+  };
+
+  // 处理完善个人信息
+  const handleCompleteProfile = () => {
+    navigate('/complete-profile?mode=reedit');
+  };
+
   return (
     <>
       <div className="flex relative">
@@ -284,6 +302,8 @@ export default function Settings() {
               onResetGuide={handleResetGuide}
               onExportData={handleExportData}
               isExporting={isExporting}
+              onRestartGuide={handleRestartGuide}
+              onCompleteProfile={handleCompleteProfile}
               developerMode={developerMode}
               onDeveloperModeChange={setDeveloperMode}
               apiDebugging={apiDebugging}

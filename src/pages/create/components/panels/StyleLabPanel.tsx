@@ -31,7 +31,7 @@ const MODERN_PRESETS = [
 
 export const StyleLabPanel: React.FC = () => {
   const { isDark } = useTheme();
-  const { updateState, generatedResults, selectedResult } = useCreateStore();
+  const { updateState, generatedResults, selectedResult, currentImage } = useCreateStore();
 
   const [activeMode, setActiveMode] = useState<StyleMode>('transfer');
   const [selectedStyle, setSelectedStyle] = useState<string | null>(null);
@@ -44,7 +44,10 @@ export const StyleLabPanel: React.FC = () => {
 
   // 风格转换（使用千问API）
   const handleStyleTransfer = async (styleId: string) => {
-    if (!hasWork) {
+    // 获取当前图片 URL - 优先使用 currentImage
+    const imageUrl = currentImage || (generatedResults[selectedResult || 0]?.thumbnail);
+    
+    if (!imageUrl) {
       toast.error('请先生成或上传作品');
       return;
     }
@@ -56,16 +59,11 @@ export const StyleLabPanel: React.FC = () => {
     const preset = allPresets.find(p => p.id === styleId);
 
     try {
-      const currentWork = generatedResults[selectedResult || 0];
-      if (!currentWork) {
-        toast.error('未找到可处理的作品');
-        setIsProcessing(false);
-        return;
-      }
+      console.log('[StyleLab] Style transfer with image:', imageUrl.substring(0, 80));
 
       // 调用千问API进行风格迁移
       const result = await llmService.styleTransfer(
-        currentWork.thumbnail,
+        imageUrl,
         styleId,
         intensity
       );
@@ -100,7 +98,15 @@ export const StyleLabPanel: React.FC = () => {
 
   // 多风格融合（使用千问API）
   const handleStyleMix = async () => {
-    if (!hasWork || selectedStyles.length < 2) {
+    // 获取当前图片 URL - 优先使用 currentImage
+    const imageUrl = currentImage || (generatedResults[selectedResult || 0]?.thumbnail);
+    
+    if (!imageUrl) {
+      toast.error('请先生成或上传作品');
+      return;
+    }
+    
+    if (selectedStyles.length < 2) {
       toast.error('请至少选择2种风格进行融合');
       return;
     }
@@ -110,17 +116,12 @@ export const StyleLabPanel: React.FC = () => {
     const styleNames = selectedStyles.map(id => allPresets.find(p => p.id === id)?.name).join(' + ');
 
     try {
-      const currentWork = generatedResults[selectedResult || 0];
-      if (!currentWork) {
-        toast.error('未找到可处理的作品');
-        setIsProcessing(false);
-        return;
-      }
+      console.log('[StyleLab] Style mix with image:', imageUrl.substring(0, 80));
 
       // 使用第一个选中的风格作为主要风格，调用千问API
       const primaryStyle = selectedStyles[0];
       const result = await llmService.styleTransfer(
-        currentWork.thumbnail,
+        imageUrl,
         primaryStyle,
         mixRatio
       );

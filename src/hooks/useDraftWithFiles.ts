@@ -1,0 +1,408 @@
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { supabase } from '@/lib/supabase';
+import { toast } from 'sonner';
+
+// 文件信息接口
+export interface DraftFile {
+  id: string;
+  name: string;
+  size: number;
+  type: string;
+  url: string; // Supabase Storage URL
+  path: string; // Supabase Storage path
+  lastModified: number;
+}
+
+// 草稿数据接口
+export interface DraftData<T> {
+  formData: T;
+  files: DraftFile[];
+  savedAt: string;
+}
+
+interface UseDraftWithFilesOptions<T> {
+  key: string;
+  formData: T;
+  files: File[];
+  interval?: number;
+  enabled?: boolean;
+  userId?: string;
+}
+
+interface UseDraftWithFilesReturn<T> {
+  lastSavedAt: Date | null;
+  isSaving: boolean;
+  isUploading: boolean;
+  saveNow: () => Promise<void>;
+  clearDraft: () => Promise<void>;
+  hasDraft: boolean;
+  loadDraft: () => Promise<{ formData: T; files: File[] } | null>;
+  uploadProgress: Record<string, number>;
+}
+
+/**
+ * 带文件上传功能的草稿保存 Hook
+ * 
+ * 功能：
+ * 1. 自动保存表单数据到 localStorage
+ * 2. 自动上传文件到 Supabase Storage
+ * 3. 恢复时从 Supabase Storage 下载文件
+ */
+export function useDraftWithFiles<T extends Record<string, any>>({
+  key,
+  formData,
+  files,
+  interval = 30000,
+  enabled = true,
+  userId
+}: UseDraftWithFilesOptions<T>): UseDraftWithFilesReturn<T> {
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [hasDraft, setHasDraft] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
+
+  const formDataRef = useRef(formData);
+  const filesRef = useRef(files);
+  const uploadedFilesRef = useRef<DraftFile[]>([]);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isMountedRef = useRef(true);
+
+  // 更新引用
+  useEffect(() => {
+    formDataRef.current = formData;
+  }, [formData]);
+
+  useEffect(() => {
+    filesRef.current = files;
+  }, [files]);
+
+  // 检查是否有草稿
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const draftData = localStorage.getItem(`draft_${key}`);
+    setHasDraft(!!draftData);
+
+    if (draftData) {
+      try {
+        const parsed = JSON.parse(draftData);
+        if (parsed.savedAt) {
+          setLastSavedAt(new Date(parsed.savedAt));
+        }
+      } catch {
+        // 忽略解析错误
+      }
+    }
+  }, [key]);
+
+  /**
+   * 上传文件到 Supabase Storage
+   */
+  const uploadFiles = useCallback(async (filesToUpload: File[]): Promise<DraftFile[]> => {
+    if (!userId || filesToUpload.length === 0) return [];
+
+    setIsUploading(true);
+    const uploadedFiles: DraftFile[] = [];
+
+    try {
+      // 首先检查 bucket 是否存在
+      const { data: bucketData, error: bucketError } = await supabase.storage.getBucket('draft-files');
+      if (bucketError) {
+        console.warn('draft-files bucket 不存在，跳过文件上传:', bucketError.message);
+        return [];
+      }
+
+      for (const file of filesToUpload) {
+        // 检查文件是否已上传
+        const existingFile = uploadedFilesRef.current.find(
+          f => f.name === file.name && f.size === file.size && f.lastModified === file.lastModified
+        );
+
+        if (existingFile) {
+          uploadedFiles.push(existingFile);
+          continue;
+        }
+
+        const fileId = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const filePath = `drafts/${userId}/${key}/${fileId}_${file.name}`;
+
+        try {
+          // 上传文件到 Supabase Storage
+          const { data, error } = await supabase.storage
+            .from('draft-files')
+            .upload(filePath, file, {
+              cacheControl: '3600',
+              upsert: false
+            });
+
+          if (error) {
+            console.error('文件上传失败:', error);
+            continue;
+          }
+
+          // 获取文件 URL
+          const { data: { publicUrl } } = supabase.storage
+            .from('draft-files')
+            .getPublicUrl(filePath);
+
+          const draftFile: DraftFile = {
+            id: fileId,
+            name: file.name,
+            size: file.size,
+            type: file.type,
+            url: publicUrl,
+            path: filePath,
+            lastModified: file.lastModified
+          };
+
+          uploadedFiles.push(draftFile);
+          uploadedFilesRef.current.push(draftFile);
+
+          // 更新上传进度
+          setUploadProgress(prev => ({
+            ...prev,
+            [file.name]: 100
+          }));
+        } catch (fileError) {
+          console.error(`上传文件 ${file.name} 时出错:`, fileError);
+          // 继续处理下一个文件
+        }
+      }
+
+      return uploadedFiles;
+    } catch (error) {
+      console.error('上传文件时出错:', error);
+      return [];
+    } finally {
+      setIsUploading(false);
+    }
+  }, [userId, key]);
+
+  /**
+   * 从 URL 下载文件
+   */
+  const downloadFile = useCallback(async (draftFile: DraftFile): Promise<File | null> => {
+    try {
+      const response = await fetch(draftFile.url);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const blob = await response.blob();
+      const file = new File([blob], draftFile.name, {
+        type: draftFile.type,
+        lastModified: draftFile.lastModified
+      });
+
+      return file;
+    } catch (error) {
+      console.error('下载文件失败:', error);
+      return null;
+    }
+  }, []);
+
+  /**
+   * 执行保存草稿
+   */
+  const executeSave = useCallback(async () => {
+    if (!enabled || isSaving || !userId) {
+      // 确保如果提前返回，isSaving 不会被卡住
+      if (isMountedRef.current) {
+        setIsSaving(false);
+      }
+      return;
+    }
+
+    setIsSaving(true);
+
+    try {
+      // 1. 上传新文件
+      const newFiles = filesRef.current.filter(file => 
+        !uploadedFilesRef.current.some(
+          uploaded => uploaded.name === file.name && 
+                     uploaded.size === file.size && 
+                     uploaded.lastModified === file.lastModified
+        )
+      );
+
+      if (newFiles.length > 0) {
+        const uploaded = await uploadFiles(newFiles);
+        uploadedFilesRef.current = [...uploadedFilesRef.current, ...uploaded];
+      }
+
+      // 2. 清理已删除的文件（添加错误处理）
+      try {
+        const currentFileNames = filesRef.current.map(f => f.name);
+        const filesToDelete = uploadedFilesRef.current.filter(
+          uploaded => !currentFileNames.includes(uploaded.name)
+        );
+
+        if (filesToDelete.length > 0) {
+          // 检查 bucket 是否存在
+          const { error: bucketError } = await supabase.storage.getBucket('draft-files');
+          if (!bucketError) {
+            for (const fileToDelete of filesToDelete) {
+              try {
+                await supabase.storage
+                  .from('draft-files')
+                  .remove([fileToDelete.path]);
+              } catch (removeError) {
+                console.warn('删除文件失败:', removeError);
+              }
+            }
+          }
+        }
+
+        uploadedFilesRef.current = uploadedFilesRef.current.filter(
+          uploaded => currentFileNames.includes(uploaded.name)
+        );
+      } catch (cleanupError) {
+        console.warn('清理文件时出错:', cleanupError);
+      }
+
+      // 3. 保存草稿数据到 localStorage
+      const draftData: DraftData<T> = {
+        formData: formDataRef.current,
+        files: uploadedFilesRef.current,
+        savedAt: new Date().toISOString()
+      };
+
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`draft_${key}`, JSON.stringify(draftData));
+      }
+
+      if (isMountedRef.current) {
+        setLastSavedAt(new Date());
+        setHasDraft(true);
+      }
+    } catch (error) {
+      console.error('保存草稿失败:', error);
+    } finally {
+      if (isMountedRef.current) {
+        setIsSaving(false);
+      }
+    }
+  }, [enabled, isSaving, userId, key, uploadFiles]);
+
+  /**
+   * 立即保存
+   */
+  const saveNow = useCallback(async () => {
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+    await executeSave();
+  }, [executeSave]);
+
+  /**
+   * 加载草稿
+   */
+  const loadDraft = useCallback(async (): Promise<{ formData: T; files: File[] } | null> => {
+    if (typeof window === 'undefined') return null;
+
+    try {
+      const draftData = localStorage.getItem(`draft_${key}`);
+      if (!draftData) return null;
+
+      const parsed: DraftData<T> = JSON.parse(draftData);
+
+      // 下载所有文件
+      const files: File[] = [];
+      for (const draftFile of parsed.files) {
+        const file = await downloadFile(draftFile);
+        if (file) {
+          files.push(file);
+        }
+      }
+
+      // 更新已上传文件列表
+      uploadedFilesRef.current = parsed.files;
+
+      return {
+        formData: parsed.formData,
+        files
+      };
+    } catch (error) {
+      console.error('加载草稿失败:', error);
+      return null;
+    }
+  }, [key, downloadFile]);
+
+  /**
+   * 清除草稿
+   */
+  const clearDraft = useCallback(async () => {
+    if (typeof window === 'undefined') return;
+
+    try {
+      // 删除 Supabase Storage 中的文件
+      if (userId) {
+        const { data: files } = await supabase.storage
+          .from('draft-files')
+          .list(`drafts/${userId}/${key}`);
+
+        if (files && files.length > 0) {
+          const paths = files.map(f => `drafts/${userId}/${key}/${f.name}`);
+          await supabase.storage
+            .from('draft-files')
+            .remove(paths);
+        }
+      }
+
+      // 清除 localStorage
+      localStorage.removeItem(`draft_${key}`);
+      uploadedFilesRef.current = [];
+
+      setLastSavedAt(null);
+      setHasDraft(false);
+    } catch (error) {
+      console.error('清除草稿失败:', error);
+    }
+  }, [key, userId]);
+
+  // 自动保存定时器
+  useEffect(() => {
+    if (!enabled) return;
+
+    if (saveTimeoutRef.current) {
+      clearInterval(saveTimeoutRef.current);
+    }
+
+    saveTimeoutRef.current = setInterval(() => {
+      executeSave();
+    }, interval);
+
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearInterval(saveTimeoutRef.current);
+      }
+    };
+  }, [enabled, interval, executeSave]);
+
+  // 组件卸载时保存
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+      if (saveTimeoutRef.current) {
+        clearInterval(saveTimeoutRef.current);
+      }
+      if (enabled) {
+        executeSave();
+      }
+    };
+  }, [enabled, executeSave]);
+
+  return {
+    lastSavedAt,
+    isSaving,
+    isUploading,
+    saveNow,
+    clearDraft,
+    hasDraft,
+    loadDraft,
+    uploadProgress
+  };
+}
+
+export default useDraftWithFiles;

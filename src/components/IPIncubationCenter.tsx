@@ -14,7 +14,8 @@ import ipService, {
   CommercialOpportunity,
   CopyrightAsset,
   IPActivity,
-  IPStats
+  IPStats,
+  SampleIPAsset
 } from '@/services/ipService';
 import { AuthContext } from '@/contexts/authContext';
 import {
@@ -41,13 +42,15 @@ function Sidebar({
   onTabChange,
   isCollapsed,
   onToggleCollapse,
-  navItems
+  navItems,
+  onSubmitWork
 }: {
   activeTab: string;
   onTabChange: (tab: string) => void;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   navItems: NavItem[];
+  onSubmitWork: () => void;
 }) {
   const { isDark } = useTheme();
 
@@ -114,7 +117,7 @@ function Sidebar({
         {!isCollapsed && (
           <div className={`p-3 border-t ${isDark ? 'border-gray-700' : 'border-gray-100'}`}>
             <button 
-              onClick={() => navigate('/wizard')}
+              onClick={onSubmitWork}
               className="w-full flex items-center gap-2 px-3 py-2 text-sm text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-lg transition-colors"
             >
               <Plus className="w-4 h-4" />
@@ -518,6 +521,381 @@ function StageTimeline({
   );
 }
 
+// ==================== 示例IP资产卡片组件 ====================
+function SampleIPAssetCard({
+  asset,
+  isDark,
+  onViewDetails
+}: {
+  asset: SampleIPAsset;
+  isDark: boolean;
+  onViewDetails: (asset: SampleIPAsset) => void;
+}) {
+  const progress = useMemo(() => {
+    const completedStages = asset.stages.filter(s => s.completed).length;
+    return Math.round((completedStages / asset.stages.length) * 100);
+  }, [asset]);
+
+  const getTypeLabel = (type: string) => {
+    const labels: Record<string, string> = {
+      'illustration': '插画',
+      'pattern': '纹样',
+      'design': '设计',
+      '3d_model': '3D模型',
+      'digital_collectible': '数字藏品'
+    };
+    return labels[type] || type;
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      whileHover={{ y: -4, scale: 1.02 }}
+      className={`rounded-2xl overflow-hidden cursor-pointer ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-card border ${isDark ? 'border-gray-700' : 'border-gray-200'} hover:shadow-card-hover transition-all`}
+      onClick={() => onViewDetails(asset)}
+    >
+      <div className="relative">
+        <img
+          src={asset.thumbnail}
+          alt={asset.name}
+          className="w-full h-40 object-cover"
+        />
+        <div className="absolute top-3 left-3">
+          <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${isDark ? 'bg-gray-800/80' : 'bg-white/80'} backdrop-blur`}>
+            {getTypeLabel(asset.type)}
+          </span>
+        </div>
+        <div className="absolute top-3 right-3">
+          <span className="px-2.5 py-1 text-xs font-medium rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300">
+            ¥{asset.commercialValue.toLocaleString()}
+          </span>
+        </div>
+      </div>
+      <div className="p-4">
+        <div className="flex justify-between items-start mb-2">
+          <h3 className="font-semibold text-sm">{asset.name}</h3>
+          <span className={`text-xs px-2 py-1 rounded-full ${
+            progress === 100
+              ? 'bg-emerald-100 text-emerald-700'
+              : 'bg-primary-100 text-primary-700'
+          }`}>
+            {progress}%
+          </span>
+        </div>
+        <p className={`text-xs mb-3 line-clamp-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+          {asset.description}
+        </p>
+        <div className={`h-1.5 rounded-full ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-primary-500 to-blue-500"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+        <div className="flex flex-wrap gap-1 mt-3">
+          {asset.highlights.map((highlight, idx) => (
+            <span
+              key={idx}
+              className={`text-xs px-2 py-0.5 rounded-full ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}
+            >
+              {highlight}
+            </span>
+          ))}
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+// ==================== 示例资产详情弹窗组件 ====================
+function SampleAssetDetailModal({
+  asset,
+  isDark,
+  onClose,
+  onCreateSimilar
+}: {
+  asset: SampleIPAsset | null;
+  isDark: boolean;
+  onClose: () => void;
+  onCreateSimilar: () => void;
+}) {
+  if (!asset) return null;
+
+  const progress = useMemo(() => {
+    const completedStages = asset.stages.filter(s => s.completed).length;
+    return Math.round((completedStages / asset.stages.length) * 100);
+  }, [asset]);
+
+  const getStageIcon = (stageName: string) => {
+    switch (stageName) {
+      case '创意设计': return <Sparkles className="w-4 h-4" />;
+      case '版权存证': return <Shield className="w-4 h-4" />;
+      case 'IP孵化': return <Gem className="w-4 h-4" />;
+      case '商业合作': return <Handshake className="w-4 h-4" />;
+      case '收益分成': return <Award className="w-4 h-4" />;
+      default: return <Circle className="w-4 h-4" />;
+    }
+  };
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+        onClick={onClose}
+      >
+        <motion.div
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          exit={{ scale: 0.9, opacity: 0 }}
+          className={`w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-2xl`}
+          onClick={e => e.stopPropagation()}
+        >
+          {/* 头部图片 */}
+          <div className="relative h-48">
+            <img
+              src={asset.thumbnail}
+              alt={asset.name}
+              className="w-full h-full object-cover"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+            <button
+              onClick={onClose}
+              className="absolute top-4 right-4 w-8 h-8 rounded-full bg-black/30 hover:bg-black/50 text-white flex items-center justify-center transition-colors"
+            >
+              ×
+            </button>
+            <div className="absolute bottom-4 left-6 right-6">
+              <h2 className="text-2xl font-bold text-white mb-1">{asset.name}</h2>
+              <p className="text-white/80 text-sm">{asset.category}</p>
+            </div>
+          </div>
+
+          {/* 内容 */}
+          <div className="p-6">
+            {/* 进度总览 */}
+            <div className="mb-6">
+              <div className="flex justify-between items-center mb-3">
+                <span className="text-sm text-gray-500">孵化进度</span>
+                <span className="text-lg font-bold text-primary-600">{progress}%</span>
+              </div>
+              <div className={`h-3 rounded-full ${isDark ? 'bg-gray-700' : 'bg-gray-200'} overflow-hidden`}>
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-primary-500 via-purple-500 to-blue-500"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+            </div>
+
+            {/* 描述 */}
+            <div className={`p-4 rounded-xl mb-6 ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
+              <h3 className="font-semibold mb-2 flex items-center gap-2">
+                <Lightbulb className="w-4 h-4 text-amber-500" />
+                作品描述
+              </h3>
+              <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                {asset.description}
+              </p>
+            </div>
+
+            {/* 孵化阶段 */}
+            <div className="mb-6">
+              <h3 className="font-semibold mb-4 flex items-center gap-2">
+                <Target className="w-4 h-4 text-primary-500" />
+                孵化阶段
+              </h3>
+              <div className="space-y-3">
+                {asset.stages.map((stage, index) => (
+                  <div
+                    key={stage.id}
+                    className={`flex items-center gap-3 p-3 rounded-xl ${
+                      stage.completed
+                        ? isDark ? 'bg-emerald-900/20' : 'bg-emerald-50'
+                        : isDark ? 'bg-gray-700' : 'bg-gray-50'
+                    }`}
+                  >
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                      stage.completed
+                        ? 'bg-emerald-500 text-white'
+                        : isDark ? 'bg-gray-600 text-gray-400' : 'bg-gray-300 text-gray-500'
+                    }`}>
+                      {stage.completed ? <CheckCircle2 className="w-4 h-4" /> : getStageIcon(stage.name)}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex justify-between items-center">
+                        <span className={`font-medium ${stage.completed ? 'text-emerald-700 dark:text-emerald-300' : ''}`}>
+                          {stage.name}
+                        </span>
+                        {stage.completed && stage.completedAt && (
+                          <span className="text-xs text-gray-400">
+                            {new Date(stage.completedAt).toLocaleDateString('zh-CN')}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-500">{stage.description}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 亮点 */}
+            <div className="mb-6">
+              <h3 className="font-semibold mb-3 flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-purple-500" />
+                作品亮点
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {asset.highlights.map((highlight, idx) => (
+                  <span
+                    key={idx}
+                    className="px-3 py-1.5 text-sm rounded-full bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300"
+                  >
+                    {highlight}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* 商业价值 */}
+            <div className={`p-4 rounded-xl mb-6 ${isDark ? 'bg-gradient-to-br from-emerald-900/20 to-blue-900/20' : 'bg-gradient-to-br from-emerald-50 to-blue-50'} border ${isDark ? 'border-emerald-800' : 'border-emerald-200'}`}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-500 mb-1">预估商业价值</p>
+                  <p className="text-2xl font-bold text-emerald-600">¥{asset.commercialValue.toLocaleString()}</p>
+                </div>
+                <div className="w-12 h-12 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
+                  <TrendingUp className="w-6 h-6 text-emerald-600" />
+                </div>
+              </div>
+            </div>
+
+            {/* 操作按钮 */}
+            <div className="flex gap-3">
+              <button
+                onClick={onCreateSimilar}
+                className="flex-1 py-3 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-xl transition-colors flex items-center justify-center gap-2"
+              >
+                <Plus className="w-5 h-5" />
+                创建类似作品
+              </button>
+              <button
+                onClick={onClose}
+                className={`px-6 py-3 rounded-xl font-medium transition-colors ${
+                  isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'
+                }`}
+              >
+                关闭
+              </button>
+            </div>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
+// ==================== 空状态组件 - 带示例展示 ====================
+function EmptyStateWithSamples({
+  isDark,
+  onSubmitWork,
+  sampleAssets,
+  onViewSampleDetails
+}: {
+  isDark: boolean;
+  onSubmitWork: () => void;
+  sampleAssets: SampleIPAsset[];
+  onViewSampleDetails: (asset: SampleIPAsset) => void;
+}) {
+  return (
+    <div className="space-y-8">
+      {/* 主空状态 */}
+      <div className={`flex flex-col items-center justify-center py-12 ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-card`}>
+        <div className="w-20 h-20 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center mb-4">
+          <Gem className="w-10 h-10 text-primary-600" />
+        </div>
+        <h3 className="text-xl font-bold mb-2">还没有IP资产</h3>
+        <p className={`text-center max-w-md mb-4 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+          提交作品并完成版权存证后，即可创建IP资产并开始孵化之旅
+        </p>
+        <div className="flex gap-3">
+          <button
+            onClick={onSubmitWork}
+            className="px-6 py-3 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-xl transition-colors flex items-center gap-2"
+          >
+            <Plus className="w-5 h-5" />
+            提交作品
+          </button>
+        </div>
+      </div>
+
+      {/* 示例展示区域 */}
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-lg font-semibold flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-amber-500" />
+              参考示例
+            </h3>
+            <p className={`text-sm mt-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+              查看其他创作者的IP资产，了解孵化流程
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {sampleAssets.map((asset, index) => (
+            <motion.div
+              key={asset.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.1 }}
+            >
+              <SampleIPAssetCard
+                asset={asset}
+                isDark={isDark}
+                onViewDetails={onViewSampleDetails}
+              />
+            </motion.div>
+          ))}
+        </div>
+      </div>
+
+      {/* 孵化流程说明 */}
+      <div className={`p-6 rounded-2xl ${isDark ? 'bg-gradient-to-br from-primary-900/20 to-purple-900/20' : 'bg-gradient-to-br from-primary-50 to-purple-50'} border ${isDark ? 'border-primary-800' : 'border-primary-200'}`}>
+        <h3 className="font-semibold mb-4 flex items-center gap-2">
+          <Route className="w-5 h-5 text-primary-500" />
+          IP孵化流程
+        </h3>
+        <div className="grid grid-cols-5 gap-2">
+          {[
+            { icon: Sparkles, name: '创意设计', desc: '完成原创作品' },
+            { icon: Shield, name: '版权存证', desc: '保护知识产权' },
+            { icon: Gem, name: 'IP孵化', desc: '转化为IP资产' },
+            { icon: Handshake, name: '商业合作', desc: '对接品牌方' },
+            { icon: Award, name: '收益分成', desc: '获得持续收益' }
+          ].map((step, index) => (
+            <div key={index} className="text-center">
+              <div className="flex items-center justify-center mb-2">
+                <div className="w-10 h-10 rounded-xl bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center">
+                  <step.icon className="w-5 h-5 text-primary-600" />
+                </div>
+                {index < 4 && (
+                  <div className="hidden md:block w-full h-0.5 bg-primary-200 dark:bg-primary-800 ml-2" />
+                )}
+              </div>
+              <p className="text-sm font-medium">{step.name}</p>
+              <p className="text-xs text-gray-500">{step.desc}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ==================== 主内容区组件 - IP孵化路径 ====================
 function IncubationPathContent({
   selectedAsset,
@@ -527,7 +905,9 @@ function IncubationPathContent({
   onAssetChange,
   onUpdateStage,
   isLoading,
-  onSubmitWork
+  onSubmitWork,
+  sampleAssets,
+  onViewSampleDetails
 }: {
   selectedAsset: IPAsset | null;
   ipAssets: IPAsset[];
@@ -537,6 +917,8 @@ function IncubationPathContent({
   onUpdateStage: (assetId: string, stageId: string, completed: boolean) => void;
   onSubmitWork: () => void;
   isLoading: boolean;
+  sampleAssets: SampleIPAsset[];
+  onViewSampleDetails: (asset: SampleIPAsset) => void;
 }) {
   const progress = useMemo(() => {
     if (!selectedAsset) return 0;
@@ -560,22 +942,12 @@ function IncubationPathContent({
 
   if (!selectedAsset) {
     return (
-      <div className={`flex flex-col items-center justify-center py-20 ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-card`}>
-        <div className="w-24 h-24 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center mb-6">
-          <Gem className="w-12 h-12 text-primary-600" />
-        </div>
-        <h3 className="text-xl font-bold mb-2">还没有IP资产</h3>
-        <p className={`text-center max-w-md mb-6 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-          提交作品并完成版权存证后，即可创建IP资产并开始孵化之旅
-        </p>
-        <button 
-          onClick={onSubmitWork}
-          className="px-6 py-3 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-xl transition-colors flex items-center gap-2"
-        >
-          <Plus className="w-5 h-5" />
-          提交作品
-        </button>
-      </div>
+      <EmptyStateWithSamples
+        isDark={isDark}
+        onSubmitWork={onSubmitWork}
+        sampleAssets={sampleAssets}
+        onViewSampleDetails={onViewSampleDetails}
+      />
     );
   }
 
@@ -1288,6 +1660,8 @@ export default function IPIncubationCenter() {
   const [activities, setActivities] = useState<IPActivity[]>([]);
   const [valueTrendData, setValueTrendData] = useState<any[]>([]);
   const [typeDistributionData, setTypeDistributionData] = useState<any[]>([]);
+  const [sampleAssets, setSampleAssets] = useState<SampleIPAsset[]>([]);
+  const [selectedSampleAsset, setSelectedSampleAsset] = useState<SampleIPAsset | null>(null);
 
   // 动态导航配置 - 根据商业机会数量显示 badge
   const navItems: NavItem[] = useMemo(() => [
@@ -1352,6 +1726,8 @@ export default function IPIncubationCenter() {
   // 初始加载
   useEffect(() => {
     loadData();
+    // 加载示例数据
+    setSampleAssets(ipService.getSampleIPAssets());
   }, [loadData]);
 
   // 订阅实时更新
@@ -1485,6 +1861,7 @@ export default function IPIncubationCenter() {
             isCollapsed={sidebarCollapsed}
             onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
             navItems={navItems}
+            onSubmitWork={() => navigate('/wizard')}
           />
 
           {/* 中间主内容区 */}
@@ -1507,6 +1884,8 @@ export default function IPIncubationCenter() {
                     onUpdateStage={handleUpdateStage}
                     isLoading={isLoading}
                     onSubmitWork={() => navigate('/wizard')}
+                    sampleAssets={sampleAssets}
+                    onViewSampleDetails={setSelectedSampleAsset}
                   />
                 )}
                 {activeTab === 'assets' && (
@@ -1564,6 +1943,17 @@ export default function IPIncubationCenter() {
           />
         </div>
       </div>
+
+      {/* 示例资产详情弹窗 */}
+      <SampleAssetDetailModal
+        asset={selectedSampleAsset}
+        isDark={isDark}
+        onClose={() => setSelectedSampleAsset(null)}
+        onCreateSimilar={() => {
+          setSelectedSampleAsset(null);
+          navigate('/wizard');
+        }}
+      />
     </div>
   );
 }

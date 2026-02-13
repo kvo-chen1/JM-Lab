@@ -1,0 +1,958 @@
+/* 天津城市特色主题 - 古今交融、中西合璧 */
+/* 设计灵感：海河蓝、历史砖红、活力金黄、生态翠绿、现代银白 */
+
+.tianjin {
+  /* ========================================
+     核心色彩系统 - 天津城市五色
+     ======================================== */
+  
+  /* 主色调：海河蓝 - 象征天津港口城市的开放与包容 */
+  --color-primary: #1E5F8E;
+  --color-primary-light: #4A90B8;
+  --color-primary-dark: #153D5C;
+  
+  /* 辅助色1：历史砖红 - 体现五大道历史建筑特色 */
+  --color-secondary: #A0522D;
+  --color-secondary-light: #C17A54;
+  --color-secondary-dark: #7A3D22;
+  
+  /* 辅助色2：活力金黄 - 象征商业繁荣与城市活力 */
+  --color-accent: #D4A84B;
+  --color-accent-light: #E8C878;
+  --color-accent-dark: #B08A3A;
+  
+  /* 辅助色3：生态翠绿 - 代表城市绿化与生态环境 */
+  --color-success: #4A9B5E;
+  --color-success-light: #6BB87E;
+  --color-success-dark: #3A7A4A;
+  
+  /* 辅助色4：现代银白 - 展现都市现代风貌 */
+  --color-neutral: #C0C5CE;
+  --color-neutral-light: #E0E3E8;
+  --color-neutral-dark: #9BA0A8;
+  
+  /* ========================================
+     老字号品牌色彩基因
+     ======================================== */
+  
+  /* 泥人张红 - 用于重要操作和强调 */
+  --brand-nirenzhang: #C21807;
+  --brand-nirenzhang-light: #E8453A;
+  
+  /* 杨柳青绿 - 用于成功状态和生态主题 */
+  --brand-yangliuqing: #228B22;
+  --brand-yangliuqing-light: #4CAF50;
+  
+  /* 风筝魏蓝 - 用于信息提示和链接 */
+  --brand-fengzhengwei: #87CEEB;
+  --brand-fengzhengwei-dark: #5DADE2;
+  
+  /* 桂发祥金 - 用于VIP标识和会员等级 */
+  --brand-guifaxiang: #C68E17;
+  --brand-guifaxiang-light: #E6B84D;
+  
+  /* 狗不理棕 - 用于暖色调装饰 */
+  --brand-goubuli: #8B4513;
+  --brand-goubuli-light: #A0522D;
+  
+  /* ========================================
+     背景层次系统
+     ======================================== */
+  
+  /* 日常模式背景 */
+  --bg-primary: #F8F6F3;
+  --bg-secondary: #FFFFFF;
+  --bg-tertiary: #F0EDE8;
+  --bg-hover: #E8E5E0;
+  --bg-active: #DCD8D2;
+  --bg-muted: #F5F3F0;
+  
+  /* ========================================
+     文字层次系统
+     ======================================== */
+  
+  --text-primary: #1A1918;
+  --text-secondary: #4A4744;
+  --text-tertiary: #7A756F;
+  --text-muted: #9A9590;
+  --text-inverse: #FFFFFF;
+  
+  /* ========================================
+     边框层次系统
+     ======================================== */
+  
+  --border-primary: #E8E5E0;
+  --border-secondary: #D5D0CA;
+  --border-tertiary: #C5C0BA;
+  --border-muted: #E0DCD6;
+  
+  /* ========================================
+     阴影系统
+     ======================================== */
+  
+  --shadow-sm: 0 1px 2px 0 rgba(30, 95, 142, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(30, 95, 142, 0.08), 0 2px 4px -1px rgba(30, 95, 142, 0.04);
+  --shadow-lg: 0 10px 15px -3px rgba(30, 95, 142, 0.1), 0 4px 6px -2px rgba(30, 95, 142, 0.05);
+  --shadow-xl: 0 20px 25px -5px rgba(30, 95, 142, 0.12), 0 8px 10px -6px rgba(30, 95, 142, 0.06);
+  
+  /* ========================================
+     发光效果
+     ======================================== */
+  
+  --glow-primary: 0 0 15px rgba(30, 95, 142, 0.25);
+  --glow-secondary: 0 0 15px rgba(160, 82, 45, 0.25);
+  --glow-accent: 0 0 15px rgba(212, 168, 75, 0.25);
+  --glow-success: 0 0 15px rgba(74, 155, 94, 0.25);
+  
+  /* ========================================
+     渐变效果
+     ======================================== */
+  
+  /* 海河晨曦渐变 - 主背景渐变 */
+  --gradient-primary: linear-gradient(135deg, #F8F6F3 0%, #FFFFFF 50%, #F0EDE8 100%);
+  
+  /* 五大道黄昏渐变 - 卡片背景 */
+  --gradient-secondary: linear-gradient(135deg, #FFFFFF 0%, #F8F6F3 100%);
+  
+  /* 津门繁华渐变 - 强调元素 */
+  --gradient-accent: linear-gradient(135deg, #1E5F8E 0%, #4A90B8 100%);
+  
+  /* 历史记忆渐变 - 次强调 */
+  --gradient-warm: linear-gradient(135deg, #A0522D 0%, #C17A54 100%);
+  
+  /* 金玉满堂渐变 - 节日/VIP */
+  --gradient-gold: linear-gradient(135deg, #D4A84B 0%, #E8C878 50%, #C68E17 100%);
+  
+  /* 生态天津渐变 - 环保主题 */
+  --gradient-eco: linear-gradient(135deg, #4A9B5E 0%, #6BB87E 100%);
+  
+  /* ========================================
+     状态色彩
+     ======================================== */
+  
+  --state-error: #DC2626;
+  --state-error-light: #FEE2E2;
+  --state-warning: #D97706;
+  --state-warning-light: #FEF3C7;
+  --state-info: #1E5F8E;
+  --state-info-light: #DBEAFE;
+  --state-success: #4A9B5E;
+  --state-success-light: #D1FAE5;
+  
+  /* ========================================
+     天津特色装饰
+     ======================================== */
+  
+  /* 海河波纹效果 */
+  --haihe-ripple: radial-gradient(circle at center, rgba(30, 95, 142, 0.1) 0%, transparent 70%);
+  
+  /* 砖墙纹理 */
+  --brick-texture: repeating-linear-gradient(
+    90deg,
+    transparent,
+    transparent 48px,
+    rgba(160, 82, 45, 0.05) 48px,
+    rgba(160, 82, 45, 0.05) 50px
+  );
+}
+
+/* ========================================
+   天津主题 - 节日模式
+   ======================================== */
+
+.tianjin.festival {
+  --bg-primary: #FFF8E7;
+  --bg-secondary: #FFFAF0;
+  --bg-tertiary: #FFEFD5;
+  --bg-hover: #FFE4B5;
+  
+  --color-primary: #C68E17;
+  --color-secondary: #D4A84B;
+  --color-accent: #E8C878;
+  
+  --gradient-primary: linear-gradient(135deg, #FFF8E7 0%, #FFFAF0 50%, #FFEFD5 100%);
+  --glow-primary: 0 0 20px rgba(212, 168, 75, 0.3);
+}
+
+/* ========================================
+   天津主题 - 夜间模式
+   ======================================== */
+
+.tianjin.night {
+  --bg-primary: #1A1918;
+  --bg-secondary: #2C2A28;
+  --bg-tertiary: #3A3834;
+  --bg-hover: #4A4744;
+  --bg-active: #5A5754;
+  
+  --text-primary: #F0EDE8;
+  --text-secondary: #D5D0CA;
+  --text-tertiary: #B5B0AA;
+  --text-muted: #9A9590;
+  
+  --border-primary: #4A4744;
+  --border-secondary: #5A5754;
+  --border-tertiary: #6A6764;
+  
+  --color-primary: #4A90B8;
+  --color-primary-light: #6BA5C8;
+  --color-secondary: #C17A54;
+  --color-accent: #E8C878;
+  
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.4);
+  
+  --glow-primary: 0 0 20px rgba(74, 144, 184, 0.4);
+  --glow-secondary: 0 0 20px rgba(193, 122, 84, 0.3);
+  --glow-accent: 0 0 20px rgba(232, 200, 120, 0.3);
+  
+  --gradient-primary: linear-gradient(135deg, #1A1918 0%, #2C2A28 100%);
+}
+
+/* ========================================
+   天津主题组件样式
+   ======================================== */
+
+/* 卡片样式 - 融入天津建筑元素 */
+.tianjin .card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: 0.75rem;
+  box-shadow: var(--shadow-md);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+/* 卡片顶部装饰线 - 海河波浪 */
+.tianjin .card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, 
+    var(--color-primary) 0%, 
+    var(--color-primary-light) 25%,
+    var(--color-secondary) 50%,
+    var(--color-primary-light) 75%,
+    var(--color-primary) 100%
+  );
+  opacity: 0.8;
+}
+
+.tianjin .card:hover {
+  box-shadow: var(--shadow-lg), var(--glow-primary);
+  transform: translateY(-2px);
+  border-color: var(--color-primary-light);
+}
+
+/* 按钮样式 - 老字号风格 */
+.tianjin button {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 2px solid var(--border-primary);
+  border-radius: 0.5rem;
+  padding: 0.625rem 1.25rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+/* 主按钮 - 海河蓝 */
+.tianjin button.primary {
+  background: var(--color-primary);
+  color: white;
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.tianjin button.primary:hover {
+  background: var(--color-primary-light);
+  border-color: var(--color-primary-light);
+  box-shadow: var(--shadow-md), var(--glow-primary);
+  transform: translateY(-1px);
+}
+
+/* 次按钮 - 历史砖红 */
+.tianjin button.secondary {
+  background: var(--color-secondary);
+  color: white;
+  border-color: var(--color-secondary);
+}
+
+.tianjin button.secondary:hover {
+  background: var(--color-secondary-light);
+  border-color: var(--color-secondary-light);
+  box-shadow: var(--shadow-md), var(--glow-secondary);
+}
+
+/* 强调按钮 - 泥人张红 */
+.tianjin button.accent {
+  background: var(--brand-nirenzhang);
+  color: white;
+  border-color: var(--brand-nirenzhang);
+}
+
+.tianjin button.accent:hover {
+  background: var(--brand-nirenzhang-light);
+  box-shadow: var(--shadow-md), 0 0 15px rgba(194, 24, 7, 0.3);
+}
+
+/* 成功按钮 - 杨柳青绿 */
+.tianjin button.success {
+  background: var(--brand-yangliuqing);
+  color: white;
+  border-color: var(--brand-yangliuqing);
+}
+
+.tianjin button.success:hover {
+  background: var(--brand-yangliuqing-light);
+  box-shadow: var(--shadow-md), 0 0 15px rgba(34, 139, 34, 0.3);
+}
+
+/* VIP按钮 - 桂发祥金 */
+.tianjin button.vip {
+  background: linear-gradient(135deg, var(--brand-guifaxiang) 0%, var(--brand-guifaxiang-light) 100%);
+  color: white;
+  border: none;
+  font-weight: 600;
+}
+
+.tianjin button.vip:hover {
+  box-shadow: var(--shadow-md), 0 0 20px rgba(198, 142, 23, 0.4);
+  transform: translateY(-1px);
+}
+
+/* 输入框样式 */
+.tianjin input,
+.tianjin textarea,
+.tianjin select {
+  background: var(--bg-secondary);
+  border: 2px solid var(--border-primary);
+  color: var(--text-primary);
+  border-radius: 0.5rem;
+  padding: 0.625rem 0.875rem;
+  font-size: 0.9375rem;
+  transition: all 0.3s ease;
+}
+
+.tianjin input:focus,
+.tianjin textarea:focus,
+.tianjin select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(30, 95, 142, 0.1), var(--glow-primary);
+}
+
+.tianjin input:hover,
+.tianjin textarea:hover,
+.tianjin select:hover {
+  border-color: var(--border-secondary);
+}
+
+/* 导航样式 - 天津风格 */
+.tianjin nav {
+  background: var(--bg-secondary);
+  border-bottom: 2px solid var(--border-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.tianjin nav a {
+  color: var(--text-primary);
+  padding: 0.75rem 1.25rem;
+  border-radius: 0.5rem;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.tianjin nav a:hover {
+  background: var(--bg-hover);
+  color: var(--color-primary);
+}
+
+.tianjin nav a.active {
+  background: var(--color-primary);
+  color: white;
+  box-shadow: var(--shadow-md);
+}
+
+/* 导航底部装饰 - 海河波浪线 */
+.tianjin nav a.active::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, 
+    transparent 0%,
+    var(--color-accent) 20%,
+    var(--color-accent-light) 50%,
+    var(--color-accent) 80%,
+    transparent 100%
+  );
+}
+
+/* 通知/提示样式 */
+.tianjin .notification {
+  background: var(--bg-secondary);
+  border-left: 4px solid var(--color-primary);
+  border-radius: 0.5rem;
+  padding: 1rem 1.25rem;
+  box-shadow: var(--shadow-md);
+}
+
+.tianjin .notification.success {
+  border-left-color: var(--color-success);
+  background: linear-gradient(135deg, var(--bg-secondary) 0%, rgba(74, 155, 94, 0.05) 100%);
+}
+
+.tianjin .notification.warning {
+  border-left-color: var(--state-warning);
+  background: linear-gradient(135deg, var(--bg-secondary) 0%, rgba(217, 119, 6, 0.05) 100%);
+}
+
+.tianjin .notification.error {
+  border-left-color: var(--state-error);
+  background: linear-gradient(135deg, var(--bg-secondary) 0%, rgba(220, 38, 38, 0.05) 100%);
+}
+
+.tianjin .notification.info {
+  border-left-color: var(--state-info);
+  background: linear-gradient(135deg, var(--bg-secondary) 0%, rgba(30, 95, 142, 0.05) 100%);
+}
+
+/* 标签/徽章样式 */
+.tianjin .badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.tianjin .badge-primary {
+  background: rgba(30, 95, 142, 0.1);
+  color: var(--color-primary);
+  border: 1px solid rgba(30, 95, 142, 0.2);
+}
+
+.tianjin .badge-gold {
+  background: linear-gradient(135deg, rgba(212, 168, 75, 0.15) 0%, rgba(198, 142, 23, 0.15) 100%);
+  color: var(--brand-guifaxiang);
+  border: 1px solid rgba(212, 168, 75, 0.3);
+}
+
+.tianjin .badge-vip {
+  background: linear-gradient(135deg, var(--brand-guifaxiang) 0%, var(--brand-guifaxiang-light) 100%);
+  color: white;
+  box-shadow: 0 2px 4px rgba(198, 142, 23, 0.3);
+}
+
+/* 分割线 - 海河波浪风格 */
+.tianjin hr {
+  border: none;
+  height: 2px;
+  background: linear-gradient(90deg, 
+    transparent 0%,
+    var(--border-primary) 10%,
+    var(--color-primary-light) 30%,
+    var(--color-primary) 50%,
+    var(--color-primary-light) 70%,
+    var(--border-primary) 90%,
+    transparent 100%
+  );
+  margin: 2rem 0;
+  opacity: 0.6;
+}
+
+/* 链接样式 */
+.tianjin a {
+  color: var(--color-primary);
+  text-decoration: none;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.tianjin a:hover {
+  color: var(--color-primary-light);
+}
+
+.tianjin a::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 0;
+  height: 2px;
+  background: var(--color-accent);
+  transition: width 0.3s ease;
+}
+
+.tianjin a:hover::after {
+  width: 100%;
+}
+
+/* 滚动条样式 */
+.tianjin ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.tianjin ::-webkit-scrollbar-track {
+  background: var(--bg-tertiary);
+  border-radius: 4px;
+}
+
+.tianjin ::-webkit-scrollbar-thumb {
+  background: var(--color-neutral);
+  border-radius: 4px;
+  border: 2px solid var(--bg-tertiary);
+  transition: all 0.3s ease;
+}
+
+.tianjin ::-webkit-scrollbar-thumb:hover {
+  background: var(--color-primary-light);
+  box-shadow: var(--glow-primary);
+}
+
+/* 文本选中样式 */
+.tianjin ::selection {
+  background: var(--color-primary-light);
+  color: white;
+}
+
+/* ========================================
+   天津特色动画效果
+   ======================================== */
+
+/* 海河波浪动画 */
+@keyframes haihe-wave {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(10px);
+  }
+}
+
+.tianjin .wave-animation {
+  animation: haihe-wave 3s ease-in-out infinite;
+}
+
+/* 金光闪烁动画 - 桂发祥风格 */
+@keyframes golden-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.tianjin .shimmer-gold {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(212, 168, 75, 0.3) 25%,
+    rgba(232, 200, 120, 0.5) 50%,
+    rgba(212, 168, 75, 0.3) 75%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: golden-shimmer 2s ease-in-out infinite;
+}
+
+/* 砖墙纹理背景 */
+.tianjin .brick-pattern {
+  background-color: var(--bg-secondary);
+  background-image: 
+    linear-gradient(90deg, rgba(160, 82, 45, 0.03) 1px, transparent 1px),
+    linear-gradient(rgba(160, 82, 45, 0.03) 1px, transparent 1px);
+  background-size: 50px 25px;
+}
+
+/* ========================================
+   响应式适配
+   ======================================== */
+
+@media (max-width: 768px) {
+  .tianjin {
+    /* 移动端增强对比度 */
+    --text-primary: #0F0E0D;
+    --color-primary: #2471A8;
+    --color-secondary: #B8623A;
+    
+    /* 移动端优化阴影 */
+    --shadow-sm: 0 1px 2px 0 rgba(30, 95, 142, 0.08);
+    --shadow-md: 0 4px 6px -1px rgba(30, 95, 142, 0.1), 0 2px 4px -1px rgba(30, 95, 142, 0.06);
+    --shadow-lg: 0 10px 15px -3px rgba(30, 95, 142, 0.12), 0 4px 6px -2px rgba(30, 95, 142, 0.08);
+  }
+  
+  .tianjin button {
+    padding: 0.75rem 1.5rem;
+    font-size: 1rem;
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  .tianjin .card {
+    border-radius: 0.625rem;
+    margin: 0.5rem;
+  }
+  
+  /* 移动端卡片优化 */
+  .tianjin .card::before {
+    height: 2px;
+  }
+  
+  /* 移动端导航优化 */
+  .tianjin nav a {
+    padding: 0.875rem 1rem;
+    font-size: 0.9375rem;
+  }
+  
+  /* 移动端输入框优化 */
+  .tianjin input,
+  .tianjin textarea,
+  .tianjin select {
+    padding: 0.875rem;
+    font-size: 16px; /* 防止iOS缩放 */
+    min-height: 44px;
+  }
+  
+  /* 移动端减少动画 */
+  .tianjin .card-tianjin-eye::before {
+    animation-duration: 40s;
+  }
+  
+  /* 移动端场景切换按钮优化 */
+  .tianjin .scene-switcher .mode-buttons {
+    flex-direction: column;
+  }
+  
+  .tianjin .scene-switcher .mode-buttons button {
+    width: 100%;
+    justify-content: flex-start;
+    gap: 0.75rem;
+  }
+  
+  /* 移动端老字号展示优化 */
+  .tianjin .brand-showcase {
+    grid-template-columns: 1fr;
+  }
+  
+  /* 移动端地标卡片优化 */
+  .tianjin .landmark-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+  }
+  
+  .tianjin .landmark-card {
+    padding: 0.75rem;
+  }
+  
+  /* 移动端减少装饰元素 */
+  .tianjin .deco-nirenzhang::after,
+  .tianjin .fengzhengwei-kite {
+    display: none;
+  }
+  
+  /* 移动端触摸反馈优化 */
+  .tianjin button:active,
+  .tianjin .card:active {
+    transform: scale(0.98);
+    transition: transform 0.1s ease;
+  }
+  
+  /* 移动端字体大小调整 */
+  .tianjin h1 { font-size: 1.75rem; }
+  .tianjin h2 { font-size: 1.5rem; }
+  .tianjin h3 { font-size: 1.25rem; }
+  .tianjin p { font-size: 1rem; line-height: 1.6; }
+}
+
+/* 小屏幕手机适配 */
+@media (max-width: 480px) {
+  .tianjin {
+    --text-primary: #000000;
+    --text-secondary: #333333;
+  }
+  
+  .tianjin .landmark-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .tianjin button {
+    width: 100%;
+    margin-bottom: 0.5rem;
+  }
+  
+  /* 简化卡片效果 */
+  .tianjin .card:hover {
+    transform: none;
+    box-shadow: var(--shadow-md);
+  }
+}
+
+/* 平板适配 */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .tianjin .landmark-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  
+  .tianjin .card {
+    border-radius: 0.75rem;
+  }
+}
+
+/* 暗色模式下的移动端适配 */
+@media (max-width: 768px) and (prefers-color-scheme: dark) {
+  .tianjin {
+    --text-primary: #FFFFFF;
+    --text-secondary: #E0E0E0;
+    --color-primary: #5A9BC8;
+  }
+}
+
+/* 减少动画偏好 */
+@media (prefers-reduced-motion: reduce) {
+  .tianjin *,
+  .tianjin *::before,
+  .tianjin *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  
+  .tianjin .card-tianjin-eye::before {
+    animation: none;
+  }
+}
+
+/* ========================================
+   主题切换动画
+   ======================================== */
+
+@keyframes tianjinWaveIn {
+  0% {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes tianjinWaveOut {
+  0% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+}
+
+/* 主题过渡状态 */
+.theme-transitioning {
+  pointer-events: none;
+}
+
+.theme-transitioning * {
+  transition: background-color 0.5s ease, color 0.5s ease, border-color 0.5s ease !important;
+}
+
+/* ========================================
+   天津特色页面装饰
+   ======================================== */
+
+/* 页面顶部海河波浪装饰 */
+.tianjin-page-header {
+  position: relative;
+  overflow: hidden;
+}
+
+.tianjin-page-header::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 60px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 120' preserveAspectRatio='none'%3E%3Cpath d='M0,60 C150,120 350,0 600,60 C850,120 1050,0 1200,60 L1200,120 L0,120 Z' fill='%231E5F8E' fill-opacity='0.05'/%3E%3C/svg%3E") no-repeat bottom;
+  background-size: cover;
+}
+
+/* 卡片悬浮效果 - 天津之眼风格 */
+.tianjin .card-tianjin-eye {
+  position: relative;
+  overflow: hidden;
+}
+
+.tianjin .card-tianjin-eye::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -50%;
+  width: 200%;
+  height: 200%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    rgba(192, 197, 206, 0.1) 60deg,
+    transparent 120deg,
+    rgba(192, 197, 206, 0.1) 180deg,
+    transparent 240deg,
+    rgba(192, 197, 206, 0.1) 300deg,
+    transparent 360deg
+  );
+  animation: tianjinEyeRotate 20s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes tianjinEyeRotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 五大道砖墙纹理卡片 */
+.tianjin .card-brick {
+  background-image: 
+    linear-gradient(90deg, rgba(160, 82, 45, 0.03) 1px, transparent 1px),
+    linear-gradient(rgba(160, 82, 45, 0.03) 1px, transparent 1px);
+  background-size: 20px 10px;
+  border: 2px solid rgba(160, 82, 45, 0.2);
+}
+
+/* 杨柳青年画风格边框 */
+.tianjin .border-yangliuqing {
+  border: 3px double rgba(34, 139, 34, 0.3);
+  position: relative;
+}
+
+.tianjin .border-yangliuqing::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: -6px;
+  right: -6px;
+  bottom: -6px;
+  border: 1px solid rgba(34, 139, 34, 0.15);
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+/* 泥人张风格装饰 */
+.tianjin .deco-nirenzhang {
+  position: relative;
+}
+
+.tianjin .deco-nirenzhang::after {
+  content: '';
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: radial-gradient(circle, rgba(194, 24, 7, 0.3), transparent);
+  border-radius: 50%;
+  animation: nirenzhangPulse 2s ease-in-out infinite;
+}
+
+@keyframes nirenzhangPulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scale(1.5);
+    opacity: 0.8;
+  }
+}
+
+/* 桂发祥麻花装饰线 */
+.tianjin .line-guifaxiang {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(198, 142, 23, 0.3) 20%,
+    rgba(230, 184, 77, 0.5) 50%,
+    rgba(198, 142, 23, 0.3) 80%,
+    transparent 100%
+  );
+  height: 2px;
+  position: relative;
+}
+
+.tianjin .line-guifaxiang::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 100%;
+  background: inherit;
+  transform: translateY(-4px) scaleY(0.5);
+  opacity: 0.5;
+}
+
+.tianjin .line-guifaxiang::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 100%;
+  background: inherit;
+  transform: translateY(4px) scaleY(0.5);
+  opacity: 0.5;
+}
+
+/* 风筝魏风格悬浮效果 */
+.tianjin .hover-fengzhengwei {
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.tianjin .hover-fengzhengwei:hover {
+  transform: translateY(-5px) rotate(1deg);
+  box-shadow: 
+    0 10px 20px rgba(135, 206, 235, 0.2),
+    0 0 0 1px rgba(135, 206, 235, 0.1);
+}
+
+/* ========================================
+   打印样式
+   ======================================== */
+
+@media print {
+  .tianjin {
+    --bg-primary: #FFFFFF;
+    --bg-secondary: #FFFFFF;
+    --text-primary: #000000;
+    --color-primary: #1E5F8E;
+    --shadow-sm: none;
+    --shadow-md: none;
+    --shadow-lg: none;
+  }
+  
+  .tianjin .card {
+    box-shadow: none;
+    border: 1px solid #CCCCCC;
+  }
+  
+  .tianjin .card-tianjin-eye::before,
+  .tianjin .deco-nirenzhang::after {
+    display: none;
+  }
+}

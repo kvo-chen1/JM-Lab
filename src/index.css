@@ -4,6 +4,7 @@
 @import './styles/themes/green.css';
 @import './styles/themes/pixel.css';
 @import './styles/themes/dark.css';
+@import './styles/themes/tianjin.css';
 
 @tailwind base;
 @tailwind components;
@@ -258,7 +259,7 @@ button, input, select, textarea, a, .card, .modal, .notification, .nav-item, .bt
 }
 
 /* 优化主题类切换的过渡效果 */
-.dark, .light {
+.dark, .light, .tianjin {
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 

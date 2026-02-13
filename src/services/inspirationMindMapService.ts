@@ -80,8 +80,9 @@ export class InspirationMindMapService {
     title: string,
     brandId?: string
   ): Promise<CreationMindMap> {
-    const now = Date.now();
-    
+    const now = new Date().toISOString();
+    const nowTimestamp = Date.now();
+
     const mindMapData = {
       user_id: userId,
       title,
@@ -100,7 +101,7 @@ export class InspirationMindMapService {
         maxDepth: 0,
         aiGeneratedNodes: 0,
         cultureNodes: 0,
-        lastActivityAt: now,
+        lastActivityAt: nowTimestamp,
       },
       tags: [],
       is_public: false,
@@ -234,24 +235,31 @@ export class InspirationMindMapService {
     nodeData: Partial<MindNode>,
     parentId?: string
   ): Promise<MindNode> {
-    const now = Date.now();
-    
+    const now = new Date().toISOString();
+    const nowTimestamp = Date.now();
+
+    // 从 nodeData 中排除可能导致问题的字段
+    const {
+      id, mapId: _, parentId: __, createdAt, updatedAt, history,
+      ...cleanNodeData
+    } = nodeData as any;
+
     const nodeDbData = {
       map_id: mapId,
       parent_id: parentId || null,
-      title: nodeData.title || '新节点',
-      description: nodeData.description || '',
-      category: nodeData.category || 'inspiration',
-      content: nodeData.content || null,
-      ai_prompt: nodeData.aiPrompt || null,
-      ai_generated_content: nodeData.aiGeneratedContent || null,
-      user_note: nodeData.userNote || null,
-      tags: nodeData.tags || [],
-      style: nodeData.style || null,
-      brand_references: nodeData.brandReferences || null,
-      cultural_elements: nodeData.culturalElements || null,
-      ai_results: nodeData.aiResults || null,
-      position: nodeData.position || null,
+      title: cleanNodeData.title || '新节点',
+      description: cleanNodeData.description || '',
+      category: cleanNodeData.category || 'inspiration',
+      content: cleanNodeData.content || null,
+      ai_prompt: cleanNodeData.aiPrompt || null,
+      ai_generated_content: cleanNodeData.aiGeneratedContent || null,
+      user_note: cleanNodeData.userNote || null,
+      tags: cleanNodeData.tags || [],
+      style: cleanNodeData.style || null,
+      brand_references: cleanNodeData.brandReferences || null,
+      cultural_elements: cleanNodeData.culturalElements || null,
+      ai_results: cleanNodeData.aiResults || null,
+      position: cleanNodeData.position || null,
       version: 1,
       history: [{
         version: 1,
@@ -317,7 +325,7 @@ export class InspirationMindMapService {
       ...(currentNode.history || []),
       {
         version: newVersion,
-        timestamp: Date.now(),
+        timestamp: new Date().toISOString(),
         action: 'edit',
         changes: Object.keys(updates),
       },
@@ -681,18 +689,19 @@ export class InspirationMindMapService {
       throw new Error('脉络不存在');
     }
 
-    const now = Date.now();
-    
+    const now = new Date().toISOString();
+    const nowTimestamp = Date.now();
+
     // 构建故事内容
     const storyContent = this.buildStoryContent(mindMap);
-    
+
     // 提取关键转折点
     const keyTurningPoints: TurningPoint[] = mindMap.nodes
       .filter(n => n.category === 'ai_generate' || n.category === 'culture')
       .map(n => ({
         nodeId: n.id,
         description: n.title,
-        timestamp: n.createdAt,
+        timestamp: new Date(n.createdAt).toISOString(),
       }));
 
     // 提取文化元素
@@ -711,24 +720,24 @@ export class InspirationMindMapService {
     const timeline: TimelineEvent[] = mindMap.nodes
       .sort((a, b) => a.createdAt - b.createdAt)
       .map(node => ({
-        phase: node.category === 'inspiration' ? '灵感收集' : 
-               node.category === 'ai_generate' ? 'AI协作' : 
+        phase: node.category === 'inspiration' ? '灵感收集' :
+               node.category === 'ai_generate' ? 'AI协作' :
                node.category === 'culture' ? '文化融合' : '创作',
         description: node.title,
-        timestamp: node.createdAt,
+        timestamp: new Date(node.createdAt).toISOString(),
         nodeIds: [node.id],
       }));
 
     // 计算统计
     const stats: StoryStats = {
-      totalDuration: now - mindMap.createdAt,
+      totalDuration: nowTimestamp - mindMap.createdAt,
       inspirationCount: mindMap.nodes.filter(n => n.category === 'inspiration').length,
       aiInteractionCount: mindMap.nodes.filter(n => n.category === 'ai_generate').length,
       iterationCount: mindMap.nodes.reduce((sum, n) => sum + (n.version || 1), 0),
     };
 
     const story: CreationStory = {
-      id: `story-${now}`,
+      id: `story-${nowTimestamp}`,
       mapId,
       title: `${mindMap.title}的创作故事`,
       subtitle: `从灵感到成品的${mindMap.nodes.length}个节点创作历程`,
@@ -739,7 +748,7 @@ export class InspirationMindMapService {
       stats,
       themes: mindMap.tags || ['创作', '灵感'],
       participants: [mindMap.userId],
-      generatedAt: now,
+      generatedAt: nowTimestamp,
     };
 
     // 保存到数据库

@@ -28,6 +28,19 @@ interface DraftData {
   [key: string]: any;
 }
 
+// 活动作品提交草稿接口
+interface EventSubmissionDraft {
+  eventId: string;
+  eventTitle?: string;
+  formData: {
+    title: string;
+    description: string;
+    tags: string[];
+  };
+  files: any[];
+  savedAt: string;
+}
+
 interface RecentActivity {
   id: string;
   type: 'edit' | 'create' | 'delete' | 'export';
@@ -46,6 +59,7 @@ export default function Drafts() {
   const [savedDrafts, setSavedDrafts] = useState<DraftData[]>([]);
   const [aiWriterDrafts, setAiWriterDrafts] = useState<Draft[]>([]);
   const [brandWizardDrafts, setBrandWizardDrafts] = useState<BrandWizardDraft[]>([]);
+  const [eventSubmissionDrafts, setEventSubmissionDrafts] = useState<EventSubmissionDraft[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'name'>('newest');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -84,6 +98,30 @@ export default function Drafts() {
         // Load Brand Wizard Drafts
         const wizardDrafts = await brandWizardDraftService.getAllDrafts();
         setBrandWizardDrafts(wizardDrafts);
+
+        // Load Event Submission Drafts
+        const eventDrafts: EventSubmissionDraft[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith('draft_event_submission_')) {
+            try {
+              const draftData = localStorage.getItem(key);
+              if (draftData) {
+                const parsed = JSON.parse(draftData);
+                const eventId = key.replace('draft_event_submission_', '');
+                eventDrafts.push({
+                  eventId,
+                  formData: parsed.formData,
+                  files: parsed.files,
+                  savedAt: parsed.savedAt
+                });
+              }
+            } catch (e) {
+              console.error('Failed to parse event submission draft:', e);
+            }
+          }
+        }
+        setEventSubmissionDrafts(eventDrafts);
 
         // Generate mock recent activities (in real app, this would come from a service)
         setRecentActivities([
@@ -138,15 +176,16 @@ export default function Drafts() {
 
   // Calculate draft counts
   const draftCounts = useMemo(() => ({
-    all: savedDrafts.length + aiWriterDrafts.length + brandWizardDrafts.length,
+    all: savedDrafts.length + aiWriterDrafts.length + brandWizardDrafts.length + eventSubmissionDrafts.length,
     layout: savedDrafts.filter(d => d.activeTool === 'layout').length,
     trace: savedDrafts.filter(d => d.activeTool === 'trace').length,
     mockup: savedDrafts.filter(d => d.activeTool === 'mockup').length,
     tile: savedDrafts.filter(d => d.activeTool === 'tile').length,
     aiWriter: aiWriterDrafts.length,
     brandWizard: brandWizardDrafts.length,
+    eventSubmission: eventSubmissionDrafts.length,
     favorites: [...savedDrafts, ...aiWriterDrafts, ...brandWizardDrafts].filter(d => d.isFavorite).length
-  }), [savedDrafts, aiWriterDrafts, brandWizardDrafts]);
+  }), [savedDrafts, aiWriterDrafts, brandWizardDrafts, eventSubmissionDrafts]);
 
   // Storage stats (mock data - in real app calculate from actual storage)
   const storageStats = useMemo(() => ({
@@ -232,6 +271,21 @@ export default function Drafts() {
     toast.success('已加载品牌向导草稿');
   };
 
+  const handleLoadEventSubmissionDraft = (draft: EventSubmissionDraft) => {
+    navigate(`/events/${draft.eventId}/submit`);
+    toast.success('已加载活动作品草稿');
+  };
+
+  const handleDeleteEventSubmissionDraft = (e: React.MouseEvent, eventId: string) => {
+    e.stopPropagation();
+    if (confirm('确定要删除这个活动作品草稿吗？此操作无法撤销。')) {
+      localStorage.removeItem(`draft_event_submission_${eventId}`);
+      const newDrafts = eventSubmissionDrafts.filter(d => d.eventId !== eventId);
+      setEventSubmissionDrafts(newDrafts);
+      toast.success('草稿已删除');
+    }
+  };
+
   const handleExportDraft = (e: React.MouseEvent, draft: DraftData) => {
     e.stopPropagation();
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(draft, null, 2));
@@ -296,6 +350,7 @@ export default function Drafts() {
           savedDrafts={savedDrafts}
           aiWriterDrafts={aiWriterDrafts}
           brandWizardDrafts={brandWizardDrafts}
+          eventSubmissionDrafts={eventSubmissionDrafts}
           searchTerm={searchTerm}
           onSearchChange={setSearchTerm}
           sortBy={sortBy}
@@ -311,6 +366,8 @@ export default function Drafts() {
           onDeleteBrandWizardDraft={handleDeleteBrandWizardDraft}
           onExportDraft={handleExportDraft}
           onLoadBrandWizardDraft={handleLoadBrandWizardDraft}
+          onLoadEventSubmissionDraft={handleLoadEventSubmissionDraft}
+          onDeleteEventSubmissionDraft={handleDeleteEventSubmissionDraft}
           onCreateNew={handleNewDraft}
         />
       }

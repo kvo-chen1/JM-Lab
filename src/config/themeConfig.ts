@@ -1,7 +1,7 @@
 // src/config/themeConfig.ts
 
 // 主题类型定义
-export type Theme = 'light' | 'blue' | 'green' | 'pixel' | 'dark' | 'pink';
+export type Theme = 'light' | 'blue' | 'green' | 'pixel' | 'dark' | 'pink' | 'tianjin';
 
 // 自定义主题接口
 export interface CustomTheme {
@@ -49,7 +49,8 @@ export const themeConfig: ThemeConfig[] = [
   { value: 'dark', label: '暗色', icon: 'fas fa-moon', description: '墨韵深空暗色主题，专业级深色体验' },
   { value: 'blue', label: '蓝色', icon: 'fas fa-water', description: '清新蓝色主题，带来宁静感' },
   { value: 'green', label: '绿色', icon: 'fas fa-leaf', description: '自然绿色主题，充满生机' },
-  { value: 'pixel', label: '赛博像素', icon: 'fas fa-dungeon', description: '复古赛博朋克风格主题' }
+  { value: 'pixel', label: '赛博像素', icon: 'fas fa-dungeon', description: '复古赛博朋克风格主题' },
+  { value: 'tianjin', label: '津门雅韵', icon: 'fas fa-landmark', description: '天津城市特色主题，融合海河蓝、历史砖红、老字号文化元素，体现古今交融的城市气质' }
 ];
 
 
@@ -61,7 +62,8 @@ export const themeEnhancements = {
     dark: 1.25,
     blue: 1.15,
     green: 1.15,
-    pixel: 1.3
+    pixel: 1.3,
+    tianjin: 1.18
   },
   // 色彩饱和度优化
   saturation: {
@@ -69,7 +71,8 @@ export const themeEnhancements = {
     dark: 1.1,
     blue: 1.1,
     green: 1.1,
-    pixel: 1.2
+    pixel: 1.2,
+    tianjin: 1.08
   },
   // 亮度调整
   brightness: {
@@ -77,7 +80,8 @@ export const themeEnhancements = {
     dark: 0.9,
     blue: 1.0,
     green: 1.0,
-    pixel: 0.85
+    pixel: 0.85,
+    tianjin: 1.02
   },
   // 主题过渡动画
   transition: {
@@ -96,6 +100,13 @@ export const themeEnhancements = {
       glow: true,
       intensity: 'high',
       color: '#00ffff'
+    },
+    tianjin: {
+      glow: true,
+      intensity: 'medium',
+      color: '#1E5F8E',
+      waveAnimation: true,
+      brickTexture: true
     }
   }
 };
@@ -124,20 +135,23 @@ export const autoThemeConfig = {
 // 主题预设配置
 export const themePresets = {
   // 推荐主题组合
-  recommended: ['light', 'dark', 'blue', 'green', 'pixel'] as Theme[],
+  recommended: ['light', 'dark', 'blue', 'green', 'pixel', 'tianjin'] as Theme[],
   // 季节适配
   seasonal: {
     spring: 'green',
     summer: 'blue',
     autumn: 'light',
-    winter: 'dark'
+    winter: 'dark',
+    festival: 'tianjin'
   },
   // 场景主题推荐
   场景: {
     reading: 'light',
     gaming: 'pixel',
     creative: 'blue',
-    relaxation: 'green'
+    relaxation: 'green',
+    cultural: 'tianjin',
+    travel: 'tianjin'
   }
 };
 
@@ -145,7 +159,7 @@ export const themePresets = {
 export const defaultTheme: Theme = 'light';
 
 // 主题切换顺序
-export const themeOrder: Theme[] = ['light', 'dark', 'blue', 'green', 'pixel'];
+export const themeOrder: Theme[] = ['light', 'dark', 'blue', 'green', 'pixel', 'tianjin'];
 
 // 检测系统主题偏好
 export const getSystemTheme = (): 'light' | 'dark' => {
@@ -183,6 +197,7 @@ export const getAppliedTheme = (theme: Theme): Theme => {
     case 'blue':
     case 'green':
     case 'pixel':
+    case 'tianjin':
       return theme;
     default:
       return defaultTheme;

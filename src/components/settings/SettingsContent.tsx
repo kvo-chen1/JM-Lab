@@ -25,11 +25,20 @@ import {
   Bug,
   Gauge,
   AlertOctagon,
-  ChevronRight
+  ChevronRight,
+  Sparkles,
+  UserPlus
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { SettingCategory } from './SettingsSidebar';
 import { SettingItem, SettingSwitch, SettingSelect, SettingSlider, SettingButton } from './SettingItem';
+import { TianjinSceneSelector } from '@/components/TianjinSceneSelector';
+import { TianjinBrandShowcase } from '@/components/TianjinBrandShowcase';
+import { TianjinLandmarks } from '@/components/TianjinLandmarks';
+import { TianjinCultureDecorations, YangliuqingBorder } from '@/components/TianjinCultureDecorations';
+import { TianjinFoodGallery } from '@/components/TianjinFoodGallery';
+import { TianjinTimeline } from '@/components/TianjinTimeline';
+import { TianjinFestivalCalendar } from '@/components/TianjinFestivalCalendar';
 
 interface SettingsContentProps {
   activeCategory: SettingCategory;
@@ -60,6 +69,8 @@ interface SettingsContentProps {
   // 账户设置
   onExportData: () => void;
   isExporting: boolean;
+  onRestartGuide: () => void;
+  onCompleteProfile: () => void;
   // 高级设置
   developerMode: boolean;
   onDeveloperModeChange: (enabled: boolean) => void;
@@ -142,10 +153,13 @@ function renderCategoryContent(props: SettingsContentProps) {
                    props.theme === 'light' ? '浅色' :
                    props.theme === 'dark' ? '深色' :
                    props.theme === 'pink' ? '粉色' :
-                   props.theme === 'blue' ? '蓝色' : '绿色'}
+                   props.theme === 'blue' ? '蓝色' :
+                   props.theme === 'green' ? '绿色' :
+                   props.theme === 'pixel' ? '赛博像素' :
+                   props.theme === 'tianjin' ? '津门雅韵' : '浅色'}
                 </span>
                 <SettingButton onClick={() => {
-                  const themes = ['light', 'dark', 'auto', 'pink', 'blue', 'green'];
+                  const themes = ['light', 'dark', 'auto', 'pink', 'blue', 'green', 'pixel', 'tianjin'];
                   const currentIndex = themes.indexOf(props.theme);
                   const nextIndex = (currentIndex + 1) % themes.length;
                   props.onThemeChange(themes[nextIndex]);
@@ -155,6 +169,115 @@ function renderCategoryContent(props: SettingsContentProps) {
               </div>
             </SettingItem>
           </div>
+
+          {/* 天津主题场景模式 - 仅在天津主题下显示 */}
+          {props.theme === 'tianjin' && (
+            <>
+              <div className="md:col-span-2 mt-4">
+                <div className="p-4 rounded-xl bg-gradient-to-r from-[#1E5F8E]/10 to-[#A0522D]/10 border border-[#1E5F8E]/20">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2 flex items-center gap-2">
+                    <span className="text-2xl">🏛️</span>
+                    天津主题场景模式
+                  </h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                    选择适合当前氛围的场景模式，体验天津城市特色
+                  </p>
+                  <TianjinSceneSelector />
+                </div>
+              </div>
+
+              <div className="md:col-span-2">
+                <SettingItem
+                  icon={Palette}
+                  title="主题色彩说明"
+                  description="海河蓝 · 历史砖红 · 活力金黄 · 生态翠绿 · 现代银白"
+                >
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-full bg-[#1E5F8E]" title="海河蓝"></div>
+                    <div className="w-6 h-6 rounded-full bg-[#A0522D]" title="历史砖红"></div>
+                    <div className="w-6 h-6 rounded-full bg-[#D4A84B]" title="活力金黄"></div>
+                    <div className="w-6 h-6 rounded-full bg-[#4A9B5E]" title="生态翠绿"></div>
+                    <div className="w-6 h-6 rounded-full bg-[#C0C5CE]" title="现代银白"></div>
+                  </div>
+                </SettingItem>
+              </div>
+
+              {/* 老字号品牌色彩展示 */}
+              <div className="md:col-span-2 mt-4">
+                <YangliuqingBorder>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2 flex items-center gap-2">
+                    <span className="text-2xl">🏪</span>
+                    天津老字号品牌色彩
+                  </h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                    融合天津传统老字号品牌色彩基因，体现城市文化底蕴
+                  </p>
+                  <TianjinBrandShowcase />
+                </YangliuqingBorder>
+              </div>
+
+              {/* 天津地标建筑展示 */}
+              <div className="md:col-span-2 mt-4">
+                <div className="p-4 rounded-xl bg-gradient-to-br from-[#1E5F8E]/5 via-[#C0C5CE]/5 to-[#A0522D]/5 border border-[#1E5F8E]/10 relative overflow-hidden">
+                  {/* 装饰元素 */}
+                  <TianjinCultureDecorations />
+                  
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2 flex items-center gap-2 relative z-10">
+                    <span className="text-2xl">🏛️</span>
+                    天津地标建筑
+                  </h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 relative z-10">
+                    探索天津标志性建筑，感受古今交融的城市魅力
+                  </p>
+                  <div className="relative z-10">
+                    <TianjinLandmarks />
+                  </div>
+                </div>
+              </div>
+
+              {/* 天津美食展示 */}
+              <div className="md:col-span-2 mt-4">
+                <div className="p-4 rounded-xl bg-gradient-to-br from-[#8B4513]/5 via-[#C68E17]/5 to-[#D4A84B]/5 border border-[#8B4513]/10">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2 flex items-center gap-2">
+                    <span className="text-2xl">🍜</span>
+                    天津美食
+                  </h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                    探索天津特色美食，了解"三绝"和地道小吃的历史文化
+                  </p>
+                  <TianjinFoodGallery />
+                </div>
+              </div>
+
+              {/* 天津历史时间轴 */}
+              <div className="md:col-span-2 mt-4">
+                <div className="p-4 rounded-xl bg-gradient-to-br from-[#1E5F8E]/5 via-[#A0522D]/5 to-[#C0C5CE]/5 border border-[#1E5F8E]/10">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2 flex items-center gap-2">
+                    <span className="text-2xl">📜</span>
+                    天津历史时间轴
+                  </h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                    追溯天津620年历史，了解城市发展的关键节点
+                  </p>
+                  <TianjinTimeline />
+                </div>
+              </div>
+
+              {/* 天津特色节日日历 */}
+              <div className="md:col-span-2 mt-4">
+                <div className="p-4 rounded-xl bg-gradient-to-br from-[#C21807]/5 via-[#D4A84B]/5 to-[#4A9B5E]/5 border border-[#C21807]/10">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2 flex items-center gap-2">
+                    <span className="text-2xl">📅</span>
+                    天津特色节日日历
+                  </h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                    了解天津全年特色节日活动，不错过任何精彩时刻
+                  </p>
+                  <TianjinFestivalCalendar />
+                </div>
+              </div>
+            </>
+          )}
         </>
       );
 
@@ -365,6 +488,34 @@ function renderCategoryContent(props: SettingsContentProps) {
               disabled={props.isExporting}
             >
               {props.isExporting ? '导出中...' : '开始导出'}
+            </SettingButton>
+          </SettingItem>
+
+          <SettingItem
+            icon={Sparkles}
+            title="重新进行新手引导"
+            description="重新体验应用的新手引导教程"
+          >
+            <SettingButton
+              onClick={props.onRestartGuide}
+              variant="secondary"
+              icon={ChevronRight}
+            >
+              开始引导
+            </SettingButton>
+          </SettingItem>
+
+          <SettingItem
+            icon={UserPlus}
+            title="完善个人信息"
+            description="重新填写新账号的个人信息"
+          >
+            <SettingButton
+              onClick={props.onCompleteProfile}
+              variant="secondary"
+              icon={ChevronRight}
+            >
+              前往填写
             </SettingButton>
           </SettingItem>
         </>

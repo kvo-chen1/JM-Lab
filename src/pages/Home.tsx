@@ -14,6 +14,7 @@ import PromptInput from '@/components/PromptInput'
 import eventBus from '@/lib/eventBus' // 导入事件总线
 import HomeRecommendationSection from '@/components/HomeRecommendationSection'
 import JinMaiTemplatesSection from '@/components/JinMaiTemplatesSection'
+import PartnerBrandsSection from '@/components/PartnerBrandsSection'
 import { recordUserAction } from '@/services/recommendationService'
 import {
   ANIMATION_VARIANTS,
@@ -164,84 +165,62 @@ export default function Home() {
       const now = Date.now();
       const CACHE_DURATION = 5 * 60 * 1000; // 5分钟缓存
       
-      if (cachedData && cacheTimestamp && (now - parseInt(cacheTimestamp)) < CACHE_DURATION) {
-        // 使用缓存数据
-        const { works: cachedWorks, creators: cachedCreators } = JSON.parse(cachedData);
-        // 确保数据是数组格式
-        setWorks(Array.isArray(cachedWorks) ? cachedWorks : []);
-        setPopularCreators(Array.isArray(cachedCreators) ? cachedCreators : []);
-        setIsLoading(false);
-        return;
-      }
+      // 临时禁用缓存以便调试
+      // if (cachedData && cacheTimestamp && (now - parseInt(cacheTimestamp)) < CACHE_DURATION) {
+      //   // 使用缓存数据
+      //   const { works: cachedWorks, creators: cachedCreators } = JSON.parse(cachedData);
+      //   // 确保数据是数组格式
+      //   setWorks(Array.isArray(cachedWorks) ? cachedWorks : []);
+      //   setPopularCreators(Array.isArray(cachedCreators) ? cachedCreators : []);
+      //   setIsLoading(false);
+      //   return;
+      // }
       
       // 缓存过期或不存在，从API获取
+      console.log('[Home] Fetching works data...');
       const worksData = await workService.getWorks({ limit: 20 });
+      console.log('[Home] Works data:', worksData);
       // 确保worksData是数组
       setWorks(Array.isArray(worksData) ? worksData : []);
       
-      // 生成热门创作者数据 - 使用 Supabase 获取真实用户数据
+      // 生成热门创作者数据 - 从 worksData 中提取创作者信息
       let creatorsArray: any[] = [];
       
       try {
-        // 从 Supabase 获取真实的创作者数据
-        const { supabase } = await import('@/lib/supabase');
-        const { data: creatorsData, error: creatorsError } = await supabase
-          .from('works')
-          .select(`
-            creator_id,
-            likes,
-            users:creator_id (username, avatar_url)
-          `)
-          .not('creator_id', 'is', null);
+        console.log('[Home] Processing creators data from worksData...');
         
-        if (!creatorsError && creatorsData) {
-          const creatorsMap = new Map();
-          
-          creatorsData.forEach((work: any) => {
-            const creatorId = work.creator_id;
-            const username = work.users?.username || '未知用户';
-            const avatarUrl = work.users?.avatar_url;
-            
-            if (creatorId) {
-              if (!creatorsMap.has(creatorId)) {
-                creatorsMap.set(creatorId, {
-                  id: creatorId,
-                  name: username,
-                  avatar: avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}`,
-                  likes: 0
-                });
-              }
-              const creator = creatorsMap.get(creatorId);
-              creator.likes += work.likes || 0;
-            }
-          });
-          
-          creatorsArray = Array.from(creatorsMap.values())
-            .sort((a, b) => b.likes - a.likes)
-            .slice(0, 5);
-        }
-      } catch (err) {
-        console.error('获取创作者数据失败:', err);
-        // 回退到原来的方式
+        // 从 worksData 中提取创作者信息（后端 API 已返回 author 字段）
         const creatorsMap = new Map();
+        
         if (Array.isArray(worksData)) {
           worksData.forEach(work => {
-            if (work.creator) {
-              if (!creatorsMap.has(work.creator)) {
-                creatorsMap.set(work.creator, {
-                  name: work.creator,
-                  avatar: work.creatorAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${work.creator}`,
+            // 优先使用 author 字段（后端 API 返回的结构）
+            const authorId = work.author?.id || work.creator_id;
+            const authorName = work.author?.username || work.creator || '未知用户';
+            const authorAvatar = work.author?.avatar || work.creatorAvatar;
+            
+            if (authorId) {
+              if (!creatorsMap.has(authorId)) {
+                creatorsMap.set(authorId, {
+                  id: authorId,
+                  name: authorName,
+                  avatar: authorAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${authorName}`,
                   likes: 0
                 });
               }
-              const creator = creatorsMap.get(work.creator);
+              const creator = creatorsMap.get(authorId);
               creator.likes += work.likes || 0;
             }
           });
         }
+        
         creatorsArray = Array.from(creatorsMap.values())
           .sort((a, b) => b.likes - a.likes)
           .slice(0, 5);
+        
+        console.log('[Home] Creators array:', creatorsArray);
+      } catch (err) {
+        console.error('获取创作者数据失败:', err);
       }
       
       setPopularCreators(creatorsArray);
@@ -792,8 +771,13 @@ export default function Home() {
         <div className="pt-16">
           <JinMaiTemplatesSection />
         </div>
+
+        {/* 3. 已入驻品牌方 - 合作伙伴展示 */}
+        <div className="pt-16">
+          <PartnerBrandsSection />
+        </div>
         
-        {/* 3. 创作中心 (Creative Hub) - Highlighted Cards */}
+        {/* 4. 创作中心 (Creative Hub) - Highlighted Cards */}
         <div className="max-w-7xl mx-auto px-4 md:px-6 mb-32">
           <motion.div 
             initial={{ opacity: 0, y: 30 }}
@@ -1177,7 +1161,7 @@ export default function Home() {
             </div>
             <div className="flex gap-6 overflow-x-auto pb-4 px-2 snap-x scrollbar-hide">
                {popularCreators.map((creator, idx) => (
-                 <motion.div 
+                 <motion.div
                    key={idx}
                    initial={{ opacity: 0, y: 30, scale: 0.9 }}
                    whileInView={{ opacity: 1, y: 0, scale: 1 }}
@@ -1185,15 +1169,16 @@ export default function Home() {
                    transition={{ duration: getDuration(0.35), delay: idx * 0.02 }}
                    whileHover={{ y: -5, scale: 1.05, transition: { duration: 0.15 } }}
                    className="flex flex-col items-center min-w-[100px] snap-center cursor-pointer group"
+                   onClick={() => creator.id && navigate(`/author/${creator.id}`)}
                  >
                     <div className="relative mb-3">
-                      <TianjinAvatar 
-                        src={creator.avatar} 
-                        alt={creator.name} 
-                        size="xl" 
+                      <TianjinAvatar
+                        src={creator.avatar}
+                        alt={creator.name}
+                        size="xl"
                         variant="gradient"
                         online={idx < 3}
-                        className="shadow-lg group-hover:shadow-xl transition-all"
+                        className="shadow-lg group-hover:shadow-xl transition-all hover:ring-2 hover:ring-blue-400"
                       />
                       <motion.div 
                         initial={{ opacity: 0, scale: 0 }}
@@ -1530,7 +1515,7 @@ export default function Home() {
                     {/* 判断是否为视频作品 */}
                     {item.type === 'video' || item.videoUrl ? (
                       <video
-                        src={item.videoUrl || item.thumbnail}
+                        src={item.videoUrl || item.thumbnail || item.cover_url}
                         className="w-full h-full object-cover"
                         muted
                         playsInline
@@ -1544,7 +1529,7 @@ export default function Home() {
                         whileInView={{ scale: 1 }}
                         transition={{ duration: 0.8, delay: idx * 0.08 + 0.2 }}
                         whileHover={{ scale: 1.1 }}
-                        src={item.thumbnail}
+                        src={item.thumbnail || item.cover_url || '/images/placeholder-image.jpg'}
                         alt={item.title}
                         className="w-full h-full object-cover transition-transform duration-1000"
                         loading="lazy"
@@ -1567,8 +1552,22 @@ export default function Home() {
                          <h4 className="text-white font-bold truncate text-lg mb-2 drop-shadow-lg">{item.title}</h4>
                          <div className="flex items-center justify-between">
                            <div className="flex items-center gap-2">
-                              <TianjinAvatar src={item.creatorAvatar} alt={item.creator} size="xs" withBorder={false} />
-                              <span className="text-white/90 text-xs font-medium">{item.creator}</span>
+                              <div
+                                className="cursor-pointer"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  (item.author?.id || item.creator_id || item.user_id) && navigate(`/author/${item.author?.id || item.creator_id || item.user_id}`);
+                                }}
+                              >
+                                <TianjinAvatar src={item.creatorAvatar || item.author?.avatar} alt={item.creator || item.author?.username} size="xs" withBorder={false} className="hover:ring-2 hover:ring-blue-400 transition-all" />
+                              </div>
+                              <span
+                                className="text-white/90 text-xs font-medium cursor-pointer hover:text-blue-400 transition-colors"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  (item.author?.id || item.creator_id || item.user_id) && navigate(`/author/${item.author?.id || item.creator_id || item.user_id}`);
+                                }}
+                              >{item.creator || item.author?.username}</span>
                            </div>
                            <span className="text-white/70 text-xs bg-white/20 backdrop-blur-sm px-2 py-1 rounded-full">
                              {item.category}

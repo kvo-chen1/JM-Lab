@@ -11,6 +11,8 @@ interface MessageBubbleProps {
   retrySendMessage?: (messageId: string) => void;
   onAddReaction?: (messageId: string, reaction: string) => void;
   onReplyToMessage?: (messageId: string) => void;
+  onDeleteMessage?: (messageId: string) => void;
+  currentUserId?: string;
 }
 
 const MessageBubble: React.FC<MessageBubbleProps> = memo(({
@@ -20,7 +22,9 @@ const MessageBubble: React.FC<MessageBubbleProps> = memo(({
   showAvatar = true,
   retrySendMessage,
   onAddReaction,
-  onReplyToMessage
+  onReplyToMessage,
+  onDeleteMessage,
+  currentUserId
 }) => {
   const [showReactionMenu, setShowReactionMenu] = useState(false);
   // 使用useCallback缓存函数，减少不必要的重新渲染
@@ -358,14 +362,28 @@ const MessageBubble: React.FC<MessageBubbleProps> = memo(({
 
   // 渲染消息操作菜单
   const renderMessageMenu = () => {
+    const canDelete = onDeleteMessage && message.id && (isMe || currentUserId === message.user);
+    
     return (
-      <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
         <button 
           onClick={handleReplyTo}
           className={`text-xs px-2 py-1 rounded hover:bg-gray-200/20 transition-colors ${isDark ? 'text-gray-400 hover:text-gray-300' : 'text-gray-600 hover:text-gray-900'}`}
         >
           回复
         </button>
+        {canDelete && (
+          <button 
+            onClick={() => {
+              if (confirm('确定要删除这条消息吗？')) {
+                onDeleteMessage(message.id!);
+              }
+            }}
+            className={`text-xs px-2 py-1 rounded hover:bg-red-200/20 transition-colors ${isDark ? 'text-red-400 hover:text-red-300' : 'text-red-600 hover:text-red-700'}`}
+          >
+            删除
+          </button>
+        )}
       </div>
     );
   };

@@ -5,20 +5,39 @@ import { toast } from 'sonner';
 import patternService, { UserPattern } from '@/services/patternService';
 import { TRADITIONAL_PATTERNS, TraditionalPattern } from '@/constants/creativeData';
 import { AuthContext } from '@/contexts/authContext';
+import { llmService } from '@/services/llmService';
+import { useCreateStore } from '../../hooks/useCreateStore';
+import { Loader2, Sparkles } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 
 interface PatternPanelProps {
   onSelectPattern?: (pattern: TraditionalPattern | UserPattern) => void;
 }
 
+// 融合风格选项
+const FUSION_STYLES = [
+  { id: 'harmony', name: '和谐融合', description: '纹样与图片自然融合' },
+  { id: 'border', name: '边框装饰', description: '纹样作为边框围绕内容' },
+  { id: 'corner', name: '角落点缀', description: '纹样装饰在四角' },
+  { id: 'frame', name: '画框效果', description: '创建精美画框' },
+  { id: 'background', name: '背景纹理', description: '纹样作为背景' },
+];
+
 const PatternPanel: React.FC<PatternPanelProps> = ({ onSelectPattern }) => {
   const { isDark } = useTheme();
   const { user } = useContext(AuthContext);
-  const [activeTab, setActiveTab] = useState<'traditional' | 'custom'>('traditional');
+  const { generatedResults, selectedResult, updateState, currentImage } = useCreateStore();
+  const [activeTab, setActiveTab] = useState<'traditional' | 'custom' | 'ai-fusion'>('traditional');
   const [userPatterns, setUserPatterns] = useState<UserPattern[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [favorites, setFavorites] = useState<number[]>([]);
   const [selectedPattern, setSelectedPattern] = useState<TraditionalPattern | UserPattern | null>(null);
+  
+  // AI 融合相关状态
+  const [fusionStyle, setFusionStyle] = useState('harmony');
+  const [fusionIntensity, setFusionIntensity] = useState(50);
+  const [isFusing, setIsFusing] = useState(false);
 
   // 加载用户收藏的纹样
   const loadUserPatterns = useCallback(async () => {
@@ -103,6 +122,155 @@ const PatternPanel: React.FC<PatternPanelProps> = ({ onSelectPattern }) => {
   // 获取传统纹样的收藏状态
   const isFavorited = (patternId: number) => favorites.includes(patternId);
 
+  // 上传图片到 Supabase Storage 获取稳定 URL
+  const uploadImageToStorage = async (imageUrl: string): Promise<string | null> => {
+    try {
+      console.log('[PatternPanel] Starting upload for image:', imageUrl.substring(0, 80));
+      
+      // 下载图片
+      let response;
+      try {
+        response = await fetch(imageUrl);
+      } catch (fetchError) {
+        console.error('[PatternPanel] Fetch error:', fetchError);
+        toast.error('无法下载图片，可能是跨域限制或网络问题');
+        return null;
+      }
+      
+      if (!response.ok) {
+        console.error('[PatternPanel] Download failed:', response.status, response.statusText);
+        toast.error(`下载图片失败: ${response.status}`);
+        return null;
+      }
+      
+      const blob = await response.blob();
+      console.log('[PatternPanel] Image downloaded, size:', blob.size);
+      
+      if (blob.size === 0) {
+        toast.error('图片数据为空');
+        return null;
+      }
+      
+      // 生成文件名
+      const fileName = `ai-fusion/${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`;
+      console.log('[PatternPanel] Uploading to:', fileName);
+      
+      // 上传到 Supabase
+      const { data, error } = await supabase.storage
+        .from('event-submissions')
+        .upload(fileName, blob, {
+          contentType: 'image/jpeg',
+          upsert: false
+        });
+      
+      if (error) {
+        console.error('[PatternPanel] Supabase upload error:', error);
+        toast.error(`上传失败: ${error.message}`);
+        return null;
+      }
+      
+      // 获取公开 URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('event-submissions')
+        .getPublicUrl(fileName);
+      
+      console.log('[PatternPanel] Upload successful, public URL:', publicUrl.substring(0, 80));
+      return publicUrl;
+    } catch (error) {
+      console.error('[PatternPanel] Failed to upload image:', error);
+      toast.error('图片上传失败，请检查网络连接');
+      return null;
+    }
+  };
+
+  // AI 智能融合处理
+  const handleAIFusion = async () => {
+    if (!selectedPattern) {
+      toast.error('请先选择一个纹样');
+      return;
+    }
+
+    // 获取当前图片 URL - 优先使用 currentImage，其次是 selectedResult
+    let imageUrl = currentImage;
+    
+    if (!imageUrl) {
+      const currentWork = selectedResult 
+        ? generatedResults.find(r => r.id === selectedResult) 
+        : generatedResults[0];
+      
+      if (!currentWork) {
+        toast.error('请先生成或上传作品');
+        return;
+      }
+      
+      imageUrl = currentWork.thumbnail;
+    }
+    
+    if (!imageUrl) {
+      toast.error('请先生成或上传作品');
+      return;
+    }
+
+    // 检查图片URL是否是公开可访问的
+    if (imageUrl.startsWith('blob:') || imageUrl.startsWith('data:') || 
+        imageUrl.includes('localhost') || imageUrl.includes('127.0.0.1')) {
+      toast.error('请先保存作品到云端后再使用AI融合功能');
+      return;
+    }
+
+    setIsFusing(true);
+    try {
+      // 先将图片上传到云存储获取稳定 URL
+      toast.info('正在准备图片...');
+      const stableImageUrl = await uploadImageToStorage(imageUrl);
+      
+      if (!stableImageUrl) {
+        toast.error('图片上传失败，请重试');
+        setIsFusing(false);
+        return;
+      }
+      
+      console.log('[PatternPanel] Image uploaded to:', stableImageUrl.substring(0, 80));
+      
+      const patternName = 'name' in selectedPattern 
+        ? selectedPattern.name 
+        : (selectedPattern as any).pattern_name || '传统纹样';
+      
+      const result = await llmService.fusePattern(
+        stableImageUrl,
+        patternName,
+        fusionStyle,
+        fusionIntensity
+      );
+
+      if (result.success && result.imageUrl) {
+        const newResult = {
+          id: Date.now(),
+          thumbnail: result.imageUrl,
+          prompt: currentWork.prompt,
+          style: `${currentWork.style || ''} + ${patternName}纹样融合`,
+          timestamp: Date.now(),
+          score: Math.min((currentWork.score || 85) + 3, 100)
+        };
+
+        updateState({
+          generatedResults: [...generatedResults, newResult],
+          selectedResult: generatedResults.length,
+          aiExplanation: `已使用AI将「${patternName}」纹样以「${FUSION_STYLES.find(s => s.id === fusionStyle)?.name}」风格融合到图片中`
+        });
+
+        toast.success('纹样智能融合完成！');
+      } else {
+        toast.error(result.error || '融合失败');
+      }
+    } catch (error) {
+      console.error('AI融合失败:', error);
+      toast.error('融合失败，请确保图片已保存到云端');
+    } finally {
+      setIsFusing(false);
+    }
+  };
+
   // 未登录提示 - 只在"我的纹样"标签显示
   if (!user && activeTab === 'custom') {
     return (
@@ -139,6 +307,17 @@ const PatternPanel: React.FC<PatternPanelProps> = ({ onSelectPattern }) => {
             }`}
           >
             我的纹样
+          </button>
+          <button
+            onClick={() => setActiveTab('ai-fusion')}
+            className={`flex-1 py-3 text-sm font-medium transition-colors flex items-center justify-center gap-1 ${
+              activeTab === 'ai-fusion'
+                ? 'text-[#C02C38] border-b-2 border-[#C02C38]'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <Sparkles className="w-3 h-3" />
+            AI 融合
           </button>
         </div>
 
@@ -196,11 +375,22 @@ const PatternPanel: React.FC<PatternPanelProps> = ({ onSelectPattern }) => {
         >
           我的纹样
         </button>
+        <button
+          onClick={() => setActiveTab('ai-fusion')}
+          className={`flex-1 py-3 text-sm font-medium transition-colors flex items-center justify-center gap-1 ${
+            activeTab === 'ai-fusion'
+              ? 'text-[#C02C38] border-b-2 border-[#C02C38]'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <Sparkles className="w-3 h-3" />
+          AI 融合
+        </button>
       </div>
 
       {/* 内容区域 */}
       <div className="flex-1 overflow-y-auto p-4">
-        {activeTab === 'traditional' ? (
+        {activeTab === 'traditional' && (
           <div className="grid grid-cols-2 gap-3">
             {TRADITIONAL_PATTERNS.map((pattern, index) => (
               <motion.div
@@ -209,9 +399,11 @@ const PatternPanel: React.FC<PatternPanelProps> = ({ onSelectPattern }) => {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.05 }}
                 className={`group relative rounded-xl overflow-hidden border cursor-pointer ${
-                  isDark
-                    ? 'bg-gray-800 border-gray-700 hover:border-gray-600'
-                    : 'bg-white border-gray-200 hover:border-gray-300'
+                  selectedPattern?.id === pattern.id
+                    ? 'ring-2 ring-[#C02C38] border-[#C02C38]'
+                    : isDark
+                      ? 'bg-gray-800 border-gray-700 hover:border-gray-600'
+                      : 'bg-white border-gray-200 hover:border-gray-300'
                 }`}
                 onClick={() => {
                   setSelectedPattern(pattern);
@@ -246,6 +438,14 @@ const PatternPanel: React.FC<PatternPanelProps> = ({ onSelectPattern }) => {
                       }`}
                     ></i>
                   </button>
+                  {/* 选中标记 */}
+                  {selectedPattern?.id === pattern.id && (
+                    <div className="absolute inset-0 bg-[#C02C38]/10 flex items-center justify-center">
+                      <div className="w-8 h-8 rounded-full bg-[#C02C38] text-white flex items-center justify-center">
+                        <i className="fas fa-check"></i>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div className="p-3">
                   <h4 className="font-medium text-sm">{pattern.name}</h4>
@@ -256,7 +456,119 @@ const PatternPanel: React.FC<PatternPanelProps> = ({ onSelectPattern }) => {
               </motion.div>
             ))}
           </div>
-        ) : (
+        )}
+
+        {activeTab === 'ai-fusion' && (
+          <div className="space-y-4">
+            {/* 选择纹样 */}
+            <div>
+              <h4 className="text-sm font-medium mb-2">选择要融合的纹样</h4>
+              <div className="grid grid-cols-4 gap-2">
+                {TRADITIONAL_PATTERNS.slice(0, 8).map((pattern) => (
+                  <motion.button
+                    type="button"
+                    key={pattern.id}
+                    onClick={() => setSelectedPattern(pattern)}
+                    className={`p-2 rounded-lg border-2 transition-all ${
+                      selectedPattern?.id === pattern.id
+                        ? 'border-[#C02C38] bg-[#C02C38]/10'
+                        : isDark
+                          ? 'border-gray-700 hover:border-gray-600'
+                          : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    <img
+                      src={pattern.thumbnail}
+                      alt={pattern.name}
+                      className="w-full aspect-square object-cover rounded-md mb-1"
+                    />
+                    <p className="text-xs truncate">{pattern.name}</p>
+                  </motion.button>
+                ))}
+              </div>
+            </div>
+
+            {/* 融合风格 */}
+            <div>
+              <h4 className="text-sm font-medium mb-2">融合风格</h4>
+              <div className="grid grid-cols-2 gap-2">
+                {FUSION_STYLES.map((style) => (
+                  <motion.button
+                    type="button"
+                    key={style.id}
+                    onClick={() => setFusionStyle(style.id)}
+                    className={`p-3 rounded-xl text-left border-2 transition-all ${
+                      fusionStyle === style.id
+                        ? 'border-[#C02C38] bg-[#C02C38]/10'
+                        : isDark
+                          ? 'border-gray-700 hover:border-gray-600'
+                          : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    <p className="font-medium text-sm">{style.name}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      {style.description}
+                    </p>
+                  </motion.button>
+                ))}
+              </div>
+            </div>
+
+            {/* 融合强度 */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-sm font-medium">融合强度</h4>
+                <span className="text-xs text-[#C02C38]">{fusionIntensity}%</span>
+              </div>
+              <input
+                type="range"
+                min="10"
+                max="100"
+                value={fusionIntensity}
+                onChange={(e) => setFusionIntensity(parseInt(e.target.value))}
+                className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-[#C02C38]"
+              />
+              <div className="flex justify-between text-xs text-gray-400 mt-1">
+                <span>淡雅</span>
+                <span>适中</span>
+                <span>浓郁</span>
+              </div>
+            </div>
+
+            {/* 说明 */}
+            <div className={`p-3 rounded-xl text-xs ${isDark ? 'bg-blue-900/20 text-blue-300' : 'bg-blue-50 text-blue-600'}`}>
+              <div className="flex items-start gap-2">
+                <i className="fas fa-magic mt-0.5 flex-shrink-0"></i>
+                <p>AI 将智能分析图片内容，将纹样以自然的方式融合到画面中，保持原图主体不变。</p>
+              </div>
+            </div>
+
+            {/* 融合按钮 */}
+            <motion.button
+              type="button"
+              onClick={handleAIFusion}
+              disabled={isFusing || !selectedPattern}
+              className="w-full py-3 bg-gradient-to-r from-[#C02C38] to-[#D43A45] text-white rounded-xl font-medium shadow-lg disabled:opacity-50 flex items-center justify-center gap-2"
+              whileTap={{ scale: 0.98 }}
+            >
+              {isFusing ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  AI 融合中...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4" />
+                  开始智能融合
+                </>
+              )}
+            </motion.button>
+          </div>
+        )}
+
+        {activeTab === 'custom' && (
           <div>
             {/* 上传按钮 */}
             <label className="block mb-4">

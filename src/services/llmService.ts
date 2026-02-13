@@ -1938,7 +1938,7 @@ export interface WorkReviewResult {
       } catch (error) {
         clearTimeout(timeoutId);
         
-        if (error.name === 'AbortError') {
+        if (error instanceof Error && error.name === 'AbortError') {
           console.warn('[LLM] Video generation request timed out after 5 minutes');
           return { ok: false, error: '视频生成请求超时，请稍后重试' };
         }
@@ -2785,7 +2785,7 @@ ${description}
       console.log('[LLM] Generating title and tags for:', description.substring(0, 50));
       
       const response = await this.callQwenApi([
-        { role: 'user', content: prompt }
+        { role: 'user', content: prompt, timestamp: Date.now() }
       ]);
 
       // 解析JSON响应
@@ -2861,11 +2861,13 @@ ${description}
       }
 
       const result = await response.json();
+      console.log('[LLM] Enhance response:', result);
       
       if (result.ok && result.data?.data?.[0]?.url) {
         return { success: true, imageUrl: result.data.data[0].url };
       }
       
+      console.error('[LLM] Enhance invalid response structure:', result);
       return { success: false, error: '未获取到图片URL' };
     } catch (error) {
       console.error('[LLM] Style transfer error:', error);
@@ -2978,6 +2980,48 @@ ${description}
     } catch (error) {
       console.error('[LLM] Inpaint error:', error);
       return { success: false, error: error instanceof Error ? error.message : '局部重绘失败' };
+    }
+  }
+
+  /**
+   * 纹样智能融合
+   * @param imageUrl 原图片URL
+   * @param patternName 纹样名称
+   * @param style 融合风格: 'harmony' | 'border' | 'corner' | 'overlay' | 'frame' | 'background'
+   * @param intensity 融合强度 0-100
+   * @returns 融合后的图片URL
+   */
+  async fusePattern(
+    imageUrl: string, 
+    patternName: string, 
+    style: string = 'harmony',
+    intensity: number = 50
+  ): Promise<{ success: boolean; imageUrl?: string; error?: string }> {
+    try {
+      console.log('[LLM] Fuse pattern:', patternName, 'style:', style, 'intensity:', intensity);
+      
+      const response = await fetch('/api/qwen/images/pattern-fusion', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageUrl, patternName, style, intensity })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('[LLM] Pattern fusion failed:', errorData);
+        return { success: false, error: errorData.error || '纹样融合失败' };
+      }
+
+      const result = await response.json();
+      
+      if (result.ok && result.data?.data?.[0]?.url) {
+        return { success: true, imageUrl: result.data.data[0].url };
+      }
+      
+      return { success: false, error: '未获取到图片URL' };
+    } catch (error) {
+      console.error('[LLM] Pattern fusion error:', error);
+      return { success: false, error: error instanceof Error ? error.message : '纹样融合失败' };
     }
   }
 

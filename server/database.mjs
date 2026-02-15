@@ -5033,6 +5033,26 @@ export const eventDB = {
           updates.push(`is_public = $${paramIndex++}`)
           values.push(updateData.is_public)
         }
+        if (updateData.registration_deadline !== undefined) {
+          updates.push(`registration_deadline = $${paramIndex++}`)
+          values.push(updateData.registration_deadline)
+        }
+        if (updateData.review_start_date !== undefined) {
+          updates.push(`review_start_date = $${paramIndex++}`)
+          values.push(updateData.review_start_date)
+        }
+        if (updateData.result_date !== undefined) {
+          updates.push(`result_date = $${paramIndex++}`)
+          values.push(updateData.result_date)
+        }
+        if (updateData.published_at !== undefined) {
+          updates.push(`published_at = $${paramIndex++}`)
+          values.push(updateData.published_at)
+        }
+        if (updateData.phase_status !== undefined) {
+          updates.push(`phase_status = $${paramIndex++}`)
+          values.push(updateData.phase_status)
+        }
         
         // 总是更新 updated_at
         updates.push(`updated_at = $${paramIndex++}`)

@@ -20,6 +20,8 @@ import apiClient from '@/lib/apiClient'
 // 懒加载组件
 const PostGrid = lazy(() => import('@/components/PostGrid'))
 const SearchBar = lazy(() => import('@/components/SearchBar'))
+// 移动端瀑布流组件
+const MobileWorksGallery = lazy(() => import('@/pages/MobileWorksGallery'))
 
 export default function Square() {
   const { isDark } = useTheme()
@@ -28,6 +30,26 @@ export default function Square() {
   const [searchParams] = useSearchParams()
   const { user } = useContext(AuthContext)
   const { addNotification } = useNotifications()
+  
+  // 检测是否为移动端（屏幕宽度小于 768px）
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return window.innerWidth < 768
+  })
+  
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768)
+    }
+    
+    // 初始化
+    handleResize()
+    
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
   const [posts, setPosts] = useState<Post[]>([])
   
   // 搜索功能状态
@@ -812,6 +834,29 @@ export default function Square() {
     }
   };
   
+  // 将 Post 数据转换为移动端瀑布流所需的 ArtworkItem 格式
+  const artworksForMobile = useMemo(() => {
+    return viewList.map((post, index) => ({
+      id: post.id,
+      title: post.title,
+      imageUrl: post.thumbnail || 'https://images.unsplash.com/photo-1558655146-d09347e0c766?q=80&w=2560&auto=format&fit=crop',
+      // 根据索引交替使用不同的宽高比，创建瀑布流效果
+      aspectRatio: 0.8 + (index % 3) * 0.3, // 0.8, 1.1, 1.4 循环
+      author: {
+        id: typeof post.author === 'string' ? post.author : post.author?.id || 'unknown',
+        name: typeof post.author === 'string' ? post.author : post.author?.username || '未知用户',
+        avatar: typeof post.author === 'string' 
+          ? 'https://api.dicebear.com/7.x/avataaars/svg?seed=default' 
+          : post.author?.avatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed=default'
+      },
+      likes: post.likes || 0,
+      views: post.views || 0,
+      tags: post.tags || [],
+      createdAt: post.date || new Date().toISOString(),
+      isLiked: post.isLiked || false
+    }));
+  }, [viewList]);
+  
   // 确保详情弹窗也显示最新的用户信息
   const hydratedActive = useMemo(() => {
     if (!active || !user) return active;
@@ -895,7 +940,7 @@ export default function Square() {
       <main className={`w-full min-h-screen transition-colors duration-300 ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
 
 
-        {/* 作品网格 */}
+        {/* 作品网格 - 移动端使用瀑布流，桌面端使用 PostGrid */}
         <Suspense fallback={
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 p-4">
             {Array.from({ length: 6 }).map((_, i) => (
@@ -905,34 +950,82 @@ export default function Square() {
             ))}
           </div>
         }>
-          <PostGrid
-            posts={viewList}
-            onLike={like}
-            onComment={(id) => {
-              loadPostDetail(id)
-            }}
-            onShare={sharePost}
-            onBookmark={toggleFavorite}
-            onDelete={deletePost}
-            onPostClick={(id) => {
-              loadPostDetail(id)
-              // 更新URL但不跳转，保持模态框体验
-              window.history.pushState({ modal: true }, '', `/post/${id}`)
-            }}
-            favorites={favorites}
-            isLoading={isLoading}
-            isLoadingMore={isLoadingMore}
-            hasMore={hasMore}
-            isDark={isDark}
-          />
+          {isMobile ? (
+            // 移动端：两列瀑布流布局
+            <MobileWorksGallery
+              artworks={artworksForMobile}
+              onLoadMore={async () => {
+                // 触发加载更多
+                if (!loadingRef.current && hasMore) {
+                  loadingRef.current = true
+                  setIsLoadingMore(true)
+                  
+                  if (viewList.length >= merged.length) {
+                    setHasMore(false)
+                    loadingRef.current = false
+                    setIsLoadingMore(false)
+                    return
+                  }
+                  
+                  setPage(prev => prev + 1)
+                  setTimeout(() => {
+                    loadingRef.current = false
+                    setIsLoadingMore(false)
+                  }, 500)
+                }
+              }}
+              onArtworkClick={(artwork) => {
+                loadPostDetail(artwork.id)
+                window.history.pushState({ modal: true }, '', `/post/${artwork.id}`)
+              }}
+              onAuthorClick={(authorId) => {
+                navigate(`/profile/${authorId}`)
+              }}
+              onLike={async (artworkId) => {
+                await like(artworkId)
+              }}
+              onShare={(artwork) => {
+                const post = viewList.find(p => p.id === artwork.id)
+                if (post) {
+                  sharePost(post.id)
+                }
+              }}
+              loading={isLoading}
+              hasMore={hasMore}
+            />
+          ) : (
+            // 桌面端：原有 PostGrid 布局
+            <PostGrid
+              posts={viewList}
+              onLike={like}
+              onComment={(id) => {
+                loadPostDetail(id)
+              }}
+              onShare={sharePost}
+              onBookmark={toggleFavorite}
+              onDelete={deletePost}
+              onPostClick={(id) => {
+                loadPostDetail(id)
+                // 更新URL但不跳转，保持模态框体验
+                window.history.pushState({ modal: true }, '', `/post/${id}`)
+              }}
+              favorites={favorites}
+              isLoading={isLoading}
+              isLoadingMore={isLoadingMore}
+              hasMore={hasMore}
+              isDark={isDark}
+            />
+          )}
         </Suspense>
 
-        {/* 加载更多指示器 */}
-        <div ref={sentinelRef} className="h-16 flex items-center justify-center">
-          {isLoadingMore && (
-            <div className="text-gray-500">加载中...</div>
-          )}
-        </div>
+        {/* 加载更多指示器 - 仅在桌面端显示，移动端由瀑布流组件内部处理 */}
+        {!isMobile && (
+          <div ref={sentinelRef} className="h-16 flex items-center justify-center">
+            {isLoadingMore && (
+              <div className="text-gray-500">加载中...</div>
+            )}
+          </div>
+        )}
       </main>
 
 

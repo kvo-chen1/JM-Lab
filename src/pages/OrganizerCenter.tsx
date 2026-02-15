@@ -17,6 +17,9 @@ import { StepIndicator } from '@/components/StepIndicator';
 import { InfoCard, StatCard } from '@/components/InfoCard';
 import { EventPreview } from '@/components/EventPreview';
 import eventBus from '@/services/enhancedEventBus';
+import { useDraftAutoSave } from '@/hooks/useDraftAutoSave';
+import { AutoSaveStatus } from '@/components/AutoSaveStatus';
+import { DraftRestoreDialog } from '@/components/DraftRestoreDialog';
 import {
   CalendarDays,
   Users,
@@ -149,8 +152,27 @@ export default function OrganizerCenter() {
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
   const [isDraggingMedia, setIsDraggingMedia] = useState(false);
 
-  // 从 AuthContext 获取 isLoading 状态
+  // 从 AuthContext 获取 isLoading 状态（必须在其他 hooks 之前声明）
   const { isAuthenticated, user, isLoading: isAuthLoading } = useContext(AuthContext);
+
+  // ========== 自动草稿保存相关状态 ==========
+  const [showDraftRestoreDialog, setShowDraftRestoreDialog] = useState(false);
+  const [isDraftRestored, setIsDraftRestored] = useState(false);
+
+  // 使用自动草稿保存 hook
+  const {
+    saveStatus,
+    lastSavedAt,
+    clearDraft,
+    loadDraft,
+    hasDraft,
+    getDraftSavedTime,
+  } = useDraftAutoSave(formData, currentStep, {
+    key: user?.id || 'anonymous',
+    debounceMs: 2000,
+    encrypt: true,
+    version: 1,
+  });
 
   // 检查品牌验证状态 - 支持多品牌
   useEffect(() => {
@@ -198,6 +220,60 @@ export default function OrganizerCenter() {
 
     checkBrandVerification();
   }, [isAuthenticated, user, navigate, isAuthLoading]);
+
+  // 检测并提示恢复草稿
+  useEffect(() => {
+    // 只有在进入创建活动标签页时才检测草稿
+    if (activeTab === 'create' && !isDraftRestored && user) {
+      const hasSavedDraft = hasDraft();
+      if (hasSavedDraft) {
+        setShowDraftRestoreDialog(true);
+      }
+    }
+  }, [activeTab, hasDraft, isDraftRestored, user]);
+
+  // 恢复草稿
+  const handleRestoreDraft = useCallback(() => {
+    const draft = loadDraft();
+    if (draft) {
+      // 恢复表单数据，将日期字符串转换回 Date 对象
+      const restoredFormData: EventCreateRequest = {
+        ...draft.formData,
+        title: draft.formData.title || '',
+        description: draft.formData.description || '',
+        content: draft.formData.content || '',
+        location: draft.formData.location || '',
+        type: draft.formData.type || 'offline',
+        tags: draft.formData.tags || [],
+        media: draft.formData.media || [],
+        isPublic: draft.formData.isPublic ?? true,
+        contactName: draft.formData.contactName || '',
+        contactPhone: draft.formData.contactPhone || '',
+        contactEmail: draft.formData.contactEmail || '',
+        pushToCommunity: draft.formData.pushToCommunity || false,
+        applyForRecommendation: draft.formData.applyForRecommendation || false,
+        startTime: draft.formData.startTime ? new Date(draft.formData.startTime) : new Date(),
+        endTime: draft.formData.endTime ? new Date(draft.formData.endTime) : new Date(Date.now() + 24 * 60 * 60 * 1000),
+        registrationDeadline: draft.formData.registrationDeadline ? new Date(draft.formData.registrationDeadline) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        reviewStartDate: draft.formData.reviewStartDate ? new Date(draft.formData.reviewStartDate) : new Date(Date.now() + 8 * 24 * 60 * 60 * 1000),
+        resultDate: draft.formData.resultDate ? new Date(draft.formData.resultDate) : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+      };
+      
+      setFormData(restoredFormData);
+      setCurrentStep(draft.currentStep as StepType);
+      setIsDraftRestored(true);
+      toast.success('已恢复上次编辑的草稿');
+    }
+    setShowDraftRestoreDialog(false);
+  }, [loadDraft]);
+
+  // 丢弃草稿
+  const handleDiscardDraft = useCallback(() => {
+    clearDraft();
+    setIsDraftRestored(true);
+    setShowDraftRestoreDialog(false);
+    toast.info('已丢弃草稿，开始创建新活动');
+  }, [clearDraft]);
 
   // 切换品牌
   const handleSwitchBrand = (brand: BrandPartnership) => {
@@ -565,7 +641,8 @@ export default function OrganizerCenter() {
     const currentIndex = steps.findIndex(step => step.id === currentStep);
     if (currentIndex > 0) {
       const prevStep = steps[currentIndex - 1].id as StepType;
-      handleStepChange(prevStep);
+      // 返回上一步时不进行验证，直接切换步骤
+      setCurrentStep(prevStep);
     }
   };
 
@@ -716,6 +793,10 @@ export default function OrganizerCenter() {
       if (!event || !event.id) throw new Error('活动创建失败');
 
       toast.success('活动已提交审核，审核通过后将发布到津脉活动平台');
+
+      // 清除草稿数据
+      clearDraft();
+      setIsDraftRestored(false);
 
       // 重置表单并切换到活动管理
       handleTabChange('activities');
@@ -1430,12 +1511,22 @@ export default function OrganizerCenter() {
                   >
                     {/* 步骤标题 */}
                     <div className="mb-6 pb-4 border-b border-gray-100 dark:border-gray-700">
-                      <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                        {steps.find(s => s.id === currentStep)?.name}
-                      </h2>
-                      <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                        {steps.find(s => s.id === currentStep)?.description}
-                      </p>
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                            {steps.find(s => s.id === currentStep)?.name}
+                          </h2>
+                          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                            {steps.find(s => s.id === currentStep)?.description}
+                          </p>
+                        </div>
+                        {/* 自动保存状态 */}
+                        <AutoSaveStatus
+                          status={saveStatus}
+                          lastSavedAt={lastSavedAt}
+                          className="flex-shrink-0"
+                        />
+                      </div>
                     </div>
 
                     {/* 基本信息步骤 */}
@@ -1495,7 +1586,12 @@ export default function OrganizerCenter() {
                             <input
                               type="datetime-local"
                               value={formData.endTime ? new Date(formData.endTime.getTime() - formData.endTime.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ''}
-                              onChange={(e) => handleChange('endTime', new Date(e.target.value))}
+                              onChange={(e) => {
+                                const newEndTime = new Date(e.target.value);
+                                handleChange('endTime', newEndTime);
+                                // 结束时间改变时，同步更新结果公布时间
+                                handleChange('resultDate', newEndTime);
+                              }}
                               className={`w-full px-4 py-3 rounded-xl border text-sm ${
                                 isDark ? 'bg-gray-700 text-white border-gray-600' : 'bg-gray-50 text-gray-900 border-gray-200'
                               } focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20`}
@@ -1544,10 +1640,11 @@ export default function OrganizerCenter() {
                               <input
                                 type="datetime-local"
                                 value={formData.resultDate ? new Date(formData.resultDate.getTime() - formData.resultDate.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ''}
-                                onChange={(e) => handleChange('resultDate', new Date(e.target.value))}
+                                readOnly
                                 className={`w-full px-4 py-3 rounded-xl border text-sm ${
-                                  isDark ? 'bg-gray-700 text-white border-gray-600' : 'bg-gray-50 text-gray-900 border-gray-200'
-                                } focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20`}
+                                  isDark ? 'bg-gray-600 text-gray-300 border-gray-500' : 'bg-gray-100 text-gray-600 border-gray-300'
+                                } cursor-not-allowed`}
+                                title="结果公布时间与结束时间保持一致"
                               />
                             </div>
                           </div>
@@ -2029,6 +2126,14 @@ export default function OrganizerCenter() {
           )}
         </AnimatePresence>
       </div>
+
+      {/* 草稿恢复对话框 */}
+      <DraftRestoreDialog
+        isOpen={showDraftRestoreDialog}
+        savedAt={getDraftSavedTime()}
+        onRestore={handleRestoreDraft}
+        onDiscard={handleDiscardDraft}
+      />
     </div>
   );
 }

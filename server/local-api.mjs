@@ -1506,6 +1506,8 @@ async function route(req, res, u, path) {
         visibility: data.isPublic ? 'public' : 'private',
         status: data.status || 'draft',
         registration_deadline: data.registrationDeadline ? Math.floor(new Date(data.registrationDeadline).getTime() / 1000) : null,
+        review_start_date: data.reviewStartDate ? Math.floor(new Date(data.reviewStartDate).getTime() / 1000) : null,
+        result_date: data.resultDate ? Math.floor(new Date(data.resultDate).getTime() / 1000) : null,
         max_participants: data.maxParticipants || null,
         published_at: data.status === 'published' ? Math.floor(Date.now() / 1000) : null,
         image_url: data.media && data.media.length > 0 ? data.media[0].url : null,
@@ -1553,7 +1555,9 @@ async function route(req, res, u, path) {
           dbUpdateData.published_at = Math.floor(Date.now() / 1000)
         }
       }
-      if (data.registrationDeadline !== undefined) dbUpdateData.registration_deadline = data.registrationDeadline
+      if (data.registrationDeadline !== undefined) dbUpdateData.registration_deadline = Math.floor(new Date(data.registrationDeadline).getTime() / 1000)
+      if (data.reviewStartDate !== undefined) dbUpdateData.review_start_date = Math.floor(new Date(data.reviewStartDate).getTime() / 1000)
+      if (data.resultDate !== undefined) dbUpdateData.result_date = Math.floor(new Date(data.resultDate).getTime() / 1000)
       if (data.maxParticipants !== undefined) dbUpdateData.max_participants = data.maxParticipants
       if (data.media !== undefined) {
         dbUpdateData.image_url = data.media && data.media.length > 0 ? data.media[0].url : null

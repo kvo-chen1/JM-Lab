@@ -268,8 +268,8 @@ export function useSupabasePoints(): UseSupabasePointsReturn {
       userId,
       (newRecord) => {
         setRecords((prev) => [newRecord, ...prev]);
-        // 显示通知
-        if (newRecord.points > 0) {
+        // 显示通知（排除签到类型，由签到页面自己处理）
+        if (newRecord.points > 0 && newRecord.source_type !== 'daily') {
           toast.success(`获得 ${newRecord.points} 积分！`, {
             description: newRecord.description
           });
@@ -437,18 +437,14 @@ export function useSupabasePoints(): UseSupabasePointsReturn {
       );
 
       if (result.success) {
-        toast.success(
-          bonusPoints > 0
-            ? `🎉 连续签到 ${consecutiveDays} 天！获得 ${totalPoints} 积分`
-            : `✅ 签到成功！获得 ${totalPoints} 积分`
-        );
+        // 不在这里显示通知，由调用方处理
         await refreshCheckinStatus();
         await refreshBalance();
         return { success: true, points: totalPoints, consecutiveDays };
       } else {
         // 积分添加失败，但签到记录已创建，记录错误但不抛出异常
         console.error('添加积分失败:', result.error);
-        toast.warning('签到成功，但积分添加失败，请联系客服');
+        // 不在这里显示警告，由调用方处理
         await refreshCheckinStatus();
         return { success: true, points: 0, consecutiveDays };
       }

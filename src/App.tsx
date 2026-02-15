@@ -317,6 +317,12 @@ const Notifications = createLazyComponent(() => import(/* webpackChunkName: "pag
   name: 'notifications'
 });
 
+// 移动端瀑布流作品展示页面
+const MobileWorksGalleryDemo = createLazyComponent(() => import(/* webpackChunkName: "pages-mobile-gallery" */ "@/pages/MobileWorksGalleryDemo"), {
+  priority: ROUTE_PRIORITIES.HIGH,
+  name: 'mobile-works-gallery'
+});
+
 // 特殊功能组件 - 懒加载
 const IPIncubationCenter = createLazyComponent(() => import(/* webpackChunkName: "components-other" */ "@/components/IPIncubationCenter"), {
   priority: ROUTE_PRIORITIES.LOW
@@ -821,6 +827,9 @@ export default function App() {
           <Route path="/membership/payment" element={<LazyComponent><PrivateRoute><MembershipPayment /></PrivateRoute></LazyComponent>} />
           <Route path="/membership/benefits" element={<LazyComponent><MembershipBenefits /></LazyComponent>} />
           <Route path="/membership/upgrade" element={<LazyComponent><PrivateRoute><Membership /></PrivateRoute></LazyComponent>} />
+          
+          {/* 移动端瀑布流作品展示页面 */}
+          <Route path="/mobile-works" element={<LazyComponent><MobileWorksGalleryDemo /></LazyComponent>} />
           
           {/* 管理员路由 - 懒加载 */}
           <Route path="/admin" element={<LazyComponent><AdminRoute component={Admin} /></LazyComponent>} />

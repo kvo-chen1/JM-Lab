@@ -177,6 +177,241 @@ class AchievementService {
       category: 'special',
       criteria: '完成10个文化知识问答',
       points: 300
+    },
+    // 创作成就 - 普通
+    {
+      id: 8,
+      name: '创作新手',
+      description: '发布3篇作品',
+      icon: 'pen-tool',
+      rarity: 'common',
+      category: 'creation',
+      criteria: '发布3篇作品',
+      points: 15
+    },
+    {
+      id: 9,
+      name: '多产作者',
+      description: '发布50篇作品',
+      icon: 'layers',
+      rarity: 'rare',
+      category: 'creation',
+      criteria: '发布50篇作品',
+      points: 100
+    },
+    {
+      id: 10,
+      name: '创作狂人',
+      description: '发布100篇作品',
+      icon: 'zap',
+      rarity: 'epic',
+      category: 'creation',
+      criteria: '发布100篇作品',
+      points: 200
+    },
+    {
+      id: 11,
+      name: '创作传奇',
+      description: '发布500篇作品',
+      icon: 'crown',
+      rarity: 'legendary',
+      category: 'creation',
+      criteria: '发布500篇作品',
+      points: 1000
+    },
+    // 社区成就 - 普通
+    {
+      id: 12,
+      name: '点赞新手',
+      description: '获得10个点赞',
+      icon: 'heart',
+      rarity: 'common',
+      category: 'community',
+      criteria: '获得10个点赞',
+      points: 10
+    },
+    {
+      id: 13,
+      name: '受欢迎',
+      description: '获得500个点赞',
+      icon: 'award',
+      rarity: 'rare',
+      category: 'community',
+      criteria: '获得500个点赞',
+      points: 80
+    },
+    {
+      id: 14,
+      name: '超级明星',
+      description: '获得1000个点赞',
+      icon: 'star',
+      rarity: 'epic',
+      category: 'community',
+      criteria: '获得1000个点赞',
+      points: 150
+    },
+    {
+      id: 15,
+      name: '评论达人',
+      description: '发表评论50次',
+      icon: 'message-circle',
+      rarity: 'rare',
+      category: 'community',
+      criteria: '发表评论50次',
+      points: 60
+    },
+    {
+      id: 16,
+      name: '收藏专家',
+      description: '收藏100个作品',
+      icon: 'bookmark',
+      rarity: 'rare',
+      category: 'community',
+      criteria: '收藏100个作品',
+      points: 70
+    },
+    {
+      id: 17,
+      name: '分享大使',
+      description: '分享作品30次',
+      icon: 'share-2',
+      rarity: 'rare',
+      category: 'community',
+      criteria: '分享作品30次',
+      points: 50
+    },
+    // 连续登录成就
+    {
+      id: 18,
+      name: '坚持就是胜利',
+      description: '连续登录30天',
+      icon: 'calendar',
+      rarity: 'rare',
+      category: 'community',
+      criteria: '连续登录30天',
+      points: 100
+    },
+    {
+      id: 19,
+      name: '忠实用户',
+      description: '连续登录100天',
+      icon: 'calendar-check',
+      rarity: 'epic',
+      category: 'community',
+      criteria: '连续登录100天',
+      points: 300
+    },
+    {
+      id: 20,
+      name: '年度用户',
+      description: '连续登录365天',
+      icon: 'calendar-days',
+      rarity: 'legendary',
+      category: 'community',
+      criteria: '连续登录365天',
+      points: 1000
+    },
+    // AI创作成就
+    {
+      id: 21,
+      name: 'AI探索者',
+      description: '使用AI生成10张图片',
+      icon: 'cpu',
+      rarity: 'common',
+      category: 'creation',
+      criteria: '使用AI生成10张图片',
+      points: 20
+    },
+    {
+      id: 22,
+      name: 'AI创作者',
+      description: '使用AI生成100张图片',
+      icon: 'sparkles',
+      rarity: 'rare',
+      category: 'creation',
+      criteria: '使用AI生成100张图片',
+      points: 100
+    },
+    {
+      id: 23,
+      name: '视频创作者',
+      description: '发布10个视频作品',
+      icon: 'video',
+      rarity: 'rare',
+      category: 'creation',
+      criteria: '发布10个视频作品',
+      points: 80
+    },
+    {
+      id: 24,
+      name: '视频大师',
+      description: '发布50个视频作品',
+      icon: 'film',
+      rarity: 'epic',
+      category: 'creation',
+      criteria: '发布50个视频作品',
+      points: 250
+    },
+    // 特殊成就
+    {
+      id: 25,
+      name: '文化守护者',
+      description: '使用10种不同文化元素',
+      icon: 'shield',
+      rarity: 'epic',
+      category: 'special',
+      criteria: '使用10种不同文化元素',
+      points: 150
+    },
+    {
+      id: 26,
+      name: '津门传承者',
+      description: '创作20个天津文化相关作品',
+      icon: 'landmark',
+      rarity: 'epic',
+      category: 'special',
+      criteria: '创作20个天津文化相关作品',
+      points: 200
+    },
+    {
+      id: 27,
+      name: '完美主义者',
+      description: '获得10个作品评分超过90分',
+      icon: 'target',
+      rarity: 'epic',
+      category: 'special',
+      criteria: '获得10个作品评分超过90分',
+      points: 180
+    },
+    {
+      id: 28,
+      name: '社交达人',
+      description: '获得100个粉丝',
+      icon: 'users',
+      rarity: 'rare',
+      category: 'community',
+      criteria: '获得100个粉丝',
+      points: 100
+    },
+    {
+      id: 29,
+      name: '意见领袖',
+      description: '获得1000个粉丝',
+      icon: 'user-check',
+      rarity: 'epic',
+      category: 'community',
+      criteria: '获得1000个粉丝',
+      points: 300
+    },
+    {
+      id: 30,
+      name: '津脉之星',
+      description: '登上排行榜前10名',
+      icon: 'trophy',
+      rarity: 'legendary',
+      category: 'special',
+      criteria: '登上排行榜前10名',
+      points: 500
     }
   ];
 
@@ -479,7 +714,7 @@ class AchievementService {
 
   // 计算用户总积分
   calculateUserPoints(): number {
-    return this.userPoints;
+    return Math.max(0, this.userPoints);
   }
 
   // 获取创作者等级信息

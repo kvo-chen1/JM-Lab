@@ -188,7 +188,7 @@ const Tianjin = createLazyComponent(() => import(/* webpackChunkName: "pages-cul
   name: 'tianjin'
 });
 
-// 灵感脉络页面 - 懒加载
+// 津脉脉络页面 - 懒加载
 const InspirationMindMapPage = createLazyComponent(() => import(/* webpackChunkName: "pages-cultural" */ "@/pages/InspirationMindMapPage"), {
   priority: ROUTE_PRIORITIES.HIGH,
   name: 'inspiration-mindmap'

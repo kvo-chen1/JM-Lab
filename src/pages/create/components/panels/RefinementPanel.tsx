@@ -100,14 +100,27 @@ export const RefinementPanel: React.FC = () => {
       });
 
       if (result.ok && result.data?.data && result.data.data.length > 0) {
+        toast.info('正在保存图片到云存储...');
+        
+        // 上传图片到 Supabase Storage
+        let permanentUrl = result.data.data[0].url;
+        try {
+          const { downloadAndUploadImage } = await import('@/services/imageService');
+          permanentUrl = await downloadAndUploadImage(result.data.data[0].url, 'works');
+          console.log('[RefinementPanel] Image uploaded to:', permanentUrl);
+        } catch (uploadError) {
+          console.error('[RefinementPanel] Failed to upload image:', uploadError);
+          toast.warning('图片生成成功，但上传到永久存储失败');
+        }
+        
         const newResult = {
           id: Date.now(),
-          thumbnail: result.data.data[0].url,
+          thumbnail: permanentUrl,
           prompt: prompt,
           timestamp: new Date().toISOString()
         };
         setGeneratedResults([newResult]);
-        toast.success('图生图完成！');
+        toast.success('图生图完成并保存到云存储！');
       } else {
         toast.error(result.error || '生成失败');
       }
@@ -134,14 +147,27 @@ export const RefinementPanel: React.FC = () => {
       const result = await llmService.expandImage(imageUrl, expandRatio, selectedDirection);
 
       if (result.success && result.imageUrl) {
+        toast.info('正在保存图片到云存储...');
+        
+        // 上传图片到 Supabase Storage
+        let permanentUrl = result.imageUrl;
+        try {
+          const { downloadAndUploadImage } = await import('@/services/imageService');
+          permanentUrl = await downloadAndUploadImage(result.imageUrl, 'works');
+          console.log('[RefinementPanel] Expanded image uploaded to:', permanentUrl);
+        } catch (uploadError) {
+          console.error('[RefinementPanel] Failed to upload expanded image:', uploadError);
+          toast.warning('扩图成功，但上传到永久存储失败');
+        }
+        
         const newResult = {
           id: Date.now(),
-          thumbnail: result.imageUrl,
+          thumbnail: permanentUrl,
           prompt: `扩图 ${expandRatio}x ${selectedDirection}`,
           timestamp: new Date().toISOString()
         };
         setGeneratedResults([newResult]);
-        toast.success('扩图完成！');
+        toast.success('扩图完成并保存到云存储！');
       } else {
         toast.error(result.error || '扩图失败');
       }
@@ -173,14 +199,27 @@ export const RefinementPanel: React.FC = () => {
       const result = await llmService.inpaintImage(imageUrl, refinementPrompt);
 
       if (result.success && result.imageUrl) {
+        toast.info('正在保存图片到云存储...');
+        
+        // 上传图片到 Supabase Storage
+        let permanentUrl = result.imageUrl;
+        try {
+          const { downloadAndUploadImage } = await import('@/services/imageService');
+          permanentUrl = await downloadAndUploadImage(result.imageUrl, 'works');
+          console.log('[RefinementPanel] Inpainted image uploaded to:', permanentUrl);
+        } catch (uploadError) {
+          console.error('[RefinementPanel] Failed to upload inpainted image:', uploadError);
+          toast.warning('局部重绘成功，但上传到永久存储失败');
+        }
+        
         const newResult = {
           id: Date.now(),
-          thumbnail: result.imageUrl,
+          thumbnail: permanentUrl,
           prompt: `局部重绘: ${refinementPrompt}`,
           timestamp: new Date().toISOString()
         };
         setGeneratedResults([newResult]);
-        toast.success('局部重绘完成！');
+        toast.success('局部重绘完成并保存到云存储！');
       } else {
         toast.error(result.error || '重绘失败');
       }

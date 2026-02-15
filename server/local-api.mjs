@@ -1574,6 +1574,44 @@ async function route(req, res, u, path) {
     return
   }
 
+  // 删除活动
+  if (req.method === 'DELETE' && path.match(/^\/api\/events\/[^/]+$/)) {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+
+    const eventId = path.match(/^\/api\/events\/([^/]+)$/)[1]
+
+    try {
+      // 先检查活动是否存在且属于当前用户
+      const event = await eventDB.getEvent(eventId)
+      if (!event) {
+        sendJson(res, 404, { code: 1, message: '活动不存在' })
+        return
+      }
+
+      // 检查权限：只有活动创建者或管理员可以删除
+      if (event.organizer_id !== decoded.userId && !decoded.isAdmin) {
+        sendJson(res, 403, { code: 1, message: '无权删除此活动' })
+        return
+      }
+
+      await eventDB.deleteEvent(eventId)
+      
+      // 清除缓存
+      invalidateCache('events_list')
+      invalidateCache('events_list_v2')
+      
+      sendJson(res, 200, { code: 0, message: '活动已删除' })
+    } catch (e) {
+      console.error('[API] Delete event failed:', e)
+      sendJson(res, 500, { code: 1, message: '删除活动失败: ' + e.message })
+    }
+    return
+  }
+
   // 发布活动
   if (req.method === 'POST' && path.match(/^\/api\/events\/[^/]+\/publish$/)) {
     const decoded = verifyRequestToken(req)
@@ -1703,6 +1741,112 @@ async function route(req, res, u, path) {
     } catch (e) {
       console.error('[API] Review event failed:', e)
       sendJson(res, 500, { code: 1, message: '审核活动失败: ' + e.message })
+    }
+    return
+  }
+
+  // 图片下载代理接口（用于解决CORS问题）
+  if (req.method === 'POST' && path === '/api/image/download') {
+    try {
+      const body = await readBody(req)
+      const { imageUrl } = body
+      
+      if (!imageUrl) {
+        sendJson(res, 400, { code: 1, message: '缺少图片URL' })
+        return
+      }
+      
+      console.log('[API] Downloading image from:', imageUrl)
+      
+      // 下载图片
+      const response = await fetch(imageUrl, {
+        method: 'GET',
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+      })
+      
+      if (!response.ok) {
+        throw new Error(`Failed to download image: ${response.status}`)
+      }
+      
+      // 获取图片数据
+      const blob = await response.blob()
+      const arrayBuffer = await blob.arrayBuffer()
+      const buffer = Buffer.from(arrayBuffer)
+      
+      // 转换为base64
+      const base64Data = buffer.toString('base64')
+      const contentType = response.headers.get('content-type') || 'image/jpeg'
+      const base64 = `data:${contentType};base64,${base64Data}`
+      
+      sendJson(res, 200, {
+        code: 0,
+        data: {
+          base64,
+          type: contentType,
+          size: buffer.length
+        }
+      })
+    } catch (error) {
+      console.error('[API] Image download failed:', error)
+      sendJson(res, 500, {
+        code: 1,
+        message: `下载图片失败: ${error.message}`
+      })
+    }
+    return
+  }
+
+  // 视频下载代理接口（用于解决CORS问题）
+  if (req.method === 'POST' && path === '/api/video/download') {
+    try {
+      const body = await readBody(req)
+      const { videoUrl } = body
+      
+      if (!videoUrl) {
+        sendJson(res, 400, { code: 1, message: '缺少视频URL' })
+        return
+      }
+      
+      console.log('[API] Downloading video from:', videoUrl)
+      
+      // 下载视频
+      const response = await fetch(videoUrl, {
+        method: 'GET',
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+      })
+      
+      if (!response.ok) {
+        throw new Error(`Failed to download video: ${response.status}`)
+      }
+      
+      // 获取视频数据
+      const blob = await response.blob()
+      const arrayBuffer = await blob.arrayBuffer()
+      const buffer = Buffer.from(arrayBuffer)
+      
+      // 转换为base64
+      const base64Data = buffer.toString('base64')
+      const contentType = response.headers.get('content-type') || 'video/mp4'
+      const base64 = `data:${contentType};base64,${base64Data}`
+      
+      sendJson(res, 200, {
+        code: 0,
+        data: {
+          base64,
+          type: contentType,
+          size: buffer.length
+        }
+      })
+    } catch (error) {
+      console.error('[API] Video download failed:', error)
+      sendJson(res, 500, {
+        code: 1,
+        message: `下载视频失败: ${error.message}`
+      })
     }
     return
   }

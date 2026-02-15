@@ -173,6 +173,34 @@ export function processImageUrls(urls: string[], options: ImageProcessingOptions
 }
 
 /**
+ * 生成内联 SVG 占位图
+ * @param text 显示文本
+ * @param width 宽度
+ * @param height 高度
+ * @param bgColor 背景色
+ * @param textColor 文字色
+ * @returns base64 编码的 SVG 数据 URL
+ */
+export function generatePlaceholderSvg(
+  text: string = '图片',
+  width: number = 600,
+  height: number = 400,
+  bgColor: string = '#e5e7eb',
+  textColor: string = '#9ca3af'
+): string {
+  const safeText = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .slice(0, 10);
+  const svg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg"><rect width="${width}" height="${height}" fill="${bgColor}"/><text x="50%" y="50%" font-family="Arial" font-size="24" fill="${textColor}" text-anchor="middle" dominant-baseline="middle">${safeText}</text></svg>`;
+  const base64 = typeof window !== 'undefined'
+    ? btoa(unescape(encodeURIComponent(svg)))
+    : Buffer.from(svg).toString('base64');
+  return `data:image/svg+xml;base64,${base64}`;
+}
+
+/**
  * 构建响应式图片srcset属性
  * @param url 基础图片URL
  * @param widths 宽度数组

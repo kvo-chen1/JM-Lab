@@ -67,8 +67,8 @@ class EventNotificationService {
       const to = from + pageSize - 1;
 
       let query = supabase
-        .from('user_notification_summary')
-        .select('*', { count: 'exact' })
+        .from('event_notifications')
+        .select('*, events!inner(title, thumbnail_url)', { count: 'exact' })
         .eq('user_id', userId);
 
       if (filter.isRead !== undefined) {
@@ -103,9 +103,9 @@ class EventNotificationService {
         metadata: item.metadata || {},
         createdAt: item.created_at,
         readAt: item.read_at,
-        event: item.event_id ? {
-          title: item.event_title || '',
-          thumbnailUrl: item.event_thumbnail,
+        event: item.event_id && item.events ? {
+          title: item.events.title || '',
+          thumbnailUrl: item.events.thumbnail_url,
         } : undefined,
       }));
 

@@ -130,7 +130,7 @@ export default function RightSidebar({
                   <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>总积分</span>
                 </div>
                 <span className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                  {userInfo?.currentPoints?.toLocaleString() || 0}
+                  {Math.max(0, userInfo?.currentPoints || 0).toLocaleString()}
                 </span>
               </div>
             </div>

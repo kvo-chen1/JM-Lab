@@ -94,9 +94,9 @@ export async function sendDirectMessage(
       }
     }
 
-    // 使用 Supabase 直接发送消息
+    // 使用 Supabase 直接发送消息到 direct_messages 表
     const { data, error } = await supabase
-      .from('messages')
+      .from('direct_messages')
       .insert({
         sender_id: senderId,
         receiver_id: receiverId,
@@ -163,9 +163,9 @@ export async function getDirectMessages(
       }
     }
 
-    // 使用 Supabase 直接获取消息
+    // 使用 Supabase 直接获取消息从 direct_messages 表
     const { data, error } = await supabase
-      .from('messages')
+      .from('direct_messages')
       .select('*')
       .or(`and(sender_id.eq.${userId},receiver_id.eq.${otherUserId}),and(sender_id.eq.${otherUserId},receiver_id.eq.${userId})`)
       .order('created_at', { ascending: true })

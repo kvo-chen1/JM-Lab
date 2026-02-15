@@ -1,10 +1,10 @@
-// 灵感脉络 - 类型定义
+// 津脉脉络 - 类型定义
 
 // 节点类别
 export type NodeCategory = 'inspiration' | 'culture' | 'ai_generate' | 'manual_edit' | 'reference' | 'final';
 
-// 布局类型
-export type LayoutType = 'tree' | 'radial' | 'timeline';
+// 布局类型 - 只支持时间线
+export type LayoutType = 'timeline';
 
 // 节点内容
 export interface NodeContent {

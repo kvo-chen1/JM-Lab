@@ -33,7 +33,7 @@ const PointsDisplay: React.FC<PointsDisplayProps> = ({
 
   // 格式化数字
   const formatNumber = (num: number) => {
-    return num.toLocaleString('zh-CN');
+    return Math.max(0, num).toLocaleString('zh-CN');
   };
 
   // 获取变动图标

@@ -133,9 +133,13 @@ export default function MindMapCanvas({
   
   // 渲染节点
   const renderNodes = () => {
+    console.log('[MindMapCanvas] Rendering nodes:', nodes.length, 'positions:', nodePositions.length);
     return nodes.map((node, index) => {
       const position = getNodePosition(node.id);
-      if (!position) return null;
+      if (!position) {
+        console.log('[MindMapCanvas] No position for node:', node.id, node.title?.substring(0, 20));
+        return null;
+      }
       
       return (
         <NodeRenderer

@@ -39,7 +39,7 @@ export default function StatsPanel({ stats, userInfo }: StatsPanelProps) {
     {
       icon: Zap,
       label: '总积分',
-      value: userInfo?.currentPoints?.toLocaleString() || 0,
+      value: Math.max(0, userInfo?.currentPoints || 0).toLocaleString(),
       color: '#F59E0B',
       bgColor: isDark ? 'bg-amber-500/10' : 'bg-amber-500/5',
     },

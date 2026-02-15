@@ -30,7 +30,7 @@ DROP POLICY IF EXISTS "Users can update own stories" ON inspiration_stories;
 DROP POLICY IF EXISTS "Users can delete own stories" ON inspiration_stories;
 
 -- 3. 添加注释说明
-COMMENT ON TABLE inspiration_mindmaps IS '创作灵感脉络表 (RLS已禁用，权限在应用层控制)';
+COMMENT ON TABLE inspiration_mindmaps IS '创作津脉脉络表 (RLS已禁用，权限在应用层控制)';
 COMMENT ON TABLE inspiration_nodes IS '脉络节点表 (RLS已禁用，权限在应用层控制)';
 COMMENT ON TABLE inspiration_ai_suggestions IS 'AI建议表 (RLS已禁用，权限在应用层控制)';
 COMMENT ON TABLE inspiration_stories IS '创作故事表 (RLS已禁用，权限在应用层控制)';

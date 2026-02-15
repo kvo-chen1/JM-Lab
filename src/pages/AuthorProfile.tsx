@@ -242,7 +242,9 @@ export const AuthorProfile: React.FC<AuthorProfileProps> = ({ currentUser }) => 
             category: p.category,
             tags: p.tags || [],
             isLiked: false,
-            isBookmarked: false
+            isBookmarked: false,
+            video_url: p.videoUrl || p.video_url,
+            type: p.type
           }))
           
           setPosts(adaptedPosts)
@@ -329,8 +331,8 @@ export const AuthorProfile: React.FC<AuthorProfileProps> = ({ currentUser }) => 
     // 类型筛选
     if (filterType !== 'all') {
       result = result.filter(post => {
-        if (filterType === 'image') return post.attachments?.length > 0
-        if (filterType === 'video') return post.videoUrl
+        if (filterType === 'image') return post.attachments?.length > 0 && !post.video_url && post.type !== 'video'
+        if (filterType === 'video') return post.video_url || post.type === 'video'
         if (filterType === 'article') return post.content?.length > 500
         return true
       })
@@ -603,6 +605,7 @@ export const AuthorProfile: React.FC<AuthorProfileProps> = ({ currentUser }) => 
                   alt={author.username}
                   className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
                   placeholder="blur"
+                  ratio="square"
                 />
               </div>
               

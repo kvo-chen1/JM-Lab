@@ -2,6 +2,10 @@ import { createContext, useContext, useState, ReactNode, useEffect, useCallback,
 import eventBus from '../lib/eventBus'
 import { brandWizardDraftService, BrandWizardDraft } from '@/services/brandWizardDraftService'
 
+// localStorage key for workflow state persistence
+const WORKFLOW_STATE_KEY = 'workflow_current_state'
+const WORKFLOW_STEP_KEY = 'workflow_current_step'
+
 export interface WorkflowState {
   // 品牌相关
   brandId?: string
@@ -104,13 +108,38 @@ const WorkflowContext = createContext<WorkflowContextType>({
 
 export const useWorkflow = () => useContext(WorkflowContext)
 
+// Load persisted state from localStorage
+const loadPersistedState = (): WorkflowState => {
+  if (typeof localStorage === 'undefined') return {}
+  try {
+    const saved = localStorage.getItem(WORKFLOW_STATE_KEY)
+    if (saved) {
+      return JSON.parse(saved)
+    }
+  } catch (e) {
+    console.error('Failed to load persisted workflow state:', e)
+  }
+  return {}
+}
+
+// Load persisted step from localStorage
+const loadPersistedStep = (): number => {
+  if (typeof localStorage === 'undefined') return 1
+  try {
+    const saved = localStorage.getItem(WORKFLOW_STEP_KEY)
+    return saved ? parseInt(saved, 10) || 1 : 1
+  } catch (e) {
+    return 1
+  }
+}
+
 export const WorkflowProvider = ({ children }: { children: ReactNode }) => {
-  const [state, set] = useState<WorkflowState>({})
+  const [state, set] = useState<WorkflowState>(loadPersistedState())
   const [subscribers, setSubscribers] = useState<Array<(state: WorkflowState, changes: Partial<WorkflowState>) => void>>([])
   const [isDirty, setIsDirty] = useState(false)
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null)
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null)
-  const lastStateRef = useRef<WorkflowState>({})
+  const lastStateRef = useRef<WorkflowState>(loadPersistedState())
 
   // 状态变更时发布事件
   useEffect(() => {
@@ -175,6 +204,20 @@ export const WorkflowProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [state])
 
+  // Persist state to localStorage whenever it changes
+  useEffect(() => {
+    if (typeof localStorage !== 'undefined') {
+      try {
+        // Only persist if there's meaningful data
+        if (state.brandName || state.variants?.length || state.inputText) {
+          localStorage.setItem(WORKFLOW_STATE_KEY, JSON.stringify(state))
+        }
+      } catch (e) {
+        console.error('Failed to persist workflow state:', e)
+      }
+    }
+  }, [state])
+
   const setState = (s: Partial<WorkflowState> | ((prev: WorkflowState) => Partial<WorkflowState>)) => {
     set(prev => {
       const changes = typeof s === 'function' ? s(prev) : s
@@ -189,6 +232,15 @@ export const WorkflowProvider = ({ children }: { children: ReactNode }) => {
 
   const reset = () => {
     set({})
+    // 清除持久化的状态
+    if (typeof localStorage !== 'undefined') {
+      try {
+        localStorage.removeItem(WORKFLOW_STATE_KEY)
+        localStorage.removeItem(WORKFLOW_STEP_KEY)
+      } catch (e) {
+        console.error('Failed to clear persisted workflow state:', e)
+      }
+    }
     // 发布重置事件
     eventBus.publish('workflow:reset', undefined)
     // 通知订阅者

@@ -5,7 +5,6 @@ import { useTheme } from '@/hooks/useTheme';
 interface ActivityStatsProps {
   stats: {
     total: number;
-    awarded: number;
     totalViews: number;
     totalInteractions: number;
   };
@@ -32,14 +31,6 @@ export const ActivityStats: React.FC<ActivityStatsProps> = ({ stats }) => {
       color: 'text-blue-500',
       bgColor: 'bg-blue-100 dark:bg-blue-900/30',
       description: '您参与的活动总数',
-    },
-    {
-      label: '获得奖项',
-      value: stats.awarded,
-      icon: 'fa-trophy',
-      color: 'text-yellow-500',
-      bgColor: 'bg-yellow-100 dark:bg-yellow-900/30',
-      description: '您获得的奖项数量',
     },
     {
       label: '作品浏览',

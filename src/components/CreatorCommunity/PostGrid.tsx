@@ -147,20 +147,45 @@ const PostCard: React.FC<{
   }
 
   // 列表视图
+  // 判断是否为视频
+  const isVideoList = post.type === 'video' || post.attachments?.[0]?.type === 'video' || post.video_url;
+  const mediaUrlList = post.attachments?.[0]?.url || post.video_url || post.thumbnail || post.cover_url;
+  
   return (
     <div 
       className="bg-white rounded-lg shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer p-4 group active:scale-98"
       onClick={handlePostClick}
     >
       <div className="flex space-x-4">
-        {/* 图片缩略图 */}
-        <div className="flex-shrink-0 w-24 h-24 bg-gray-100 rounded-lg overflow-hidden">
-          <LazyImage
-            src={post.attachments?.[0]?.url || 'https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=现代创意社区缩略图，简洁设计&image_size=square'}
-            alt={post.title}
-            className="w-full h-full object-cover"
-            placeholder="blur"
-          />
+        {/* 媒体缩略图（图片或视频） */}
+        <div className="flex-shrink-0 w-24 h-24 bg-gray-100 rounded-lg overflow-hidden relative">
+          {isVideoList ? (
+            <>
+              <video
+                src={mediaUrlList}
+                className="w-full h-full object-cover"
+                muted
+                loop
+                autoPlay
+                playsInline
+                preload="metadata"
+              />
+              {/* 视频标签 */}
+              <div className="absolute top-1 right-1 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
+                <svg className="w-2 h-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z" />
+                </svg>
+                视频
+              </div>
+            </>
+          ) : (
+            <LazyImage
+              src={mediaUrlList || 'https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=现代创意社区缩略图，简洁设计&image_size=square'}
+              alt={post.title}
+              className="w-full h-full object-cover"
+              placeholder="blur"
+            />
+          )}
         </div>
 
         {/* 内容区域 */}

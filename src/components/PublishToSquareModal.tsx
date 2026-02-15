@@ -6,7 +6,9 @@ import postsApi from '@/services/postService';
 import { llmService } from '@/services/llmService';
 import { toast } from 'sonner';
 import { AuthContext } from '@/contexts/authContext';
+import { generatePlaceholderSvg } from '@/utils/imageUrlUtils';
 import { X, Hash, Image as ImageIcon, Video, Type, AlignLeft, Sparkles, Loader2, CheckCircle2, Upload, Trash2, ExternalLink } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 interface PublishToSquareModalProps {
   isOpen: boolean;
@@ -88,6 +90,7 @@ const KEYWORD_TO_TAGS: Record<string, string[]> = {
 export default function PublishToSquareModal({ isOpen, onClose }: PublishToSquareModalProps) {
   const { isDark } = useTheme();
   const { user } = useContext(AuthContext);
+  const navigate = useNavigate();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [tags, setTags] = useState<string[]>([]);
@@ -105,16 +108,28 @@ export default function PublishToSquareModal({ isOpen, onClose }: PublishToSquar
   const selectedImage = generatedResults.find(r => r.id === selectedResult);
   const rawThumbnail = selectedImage?.thumbnail;
   const aiVideoUrl = selectedImage?.video;
-  
+
   // 计算最终视频URL（用于渲染）
-  const finalVideoUrl = contentType === 'video' 
-    ? (videoUrl || aiVideoUrl || '') 
+  const finalVideoUrl = contentType === 'video'
+    ? (videoUrl || aiVideoUrl || '')
     : '';
+
+  // 对于视频，如果缩略图是默认图片或为空，使用视频URL作为缩略图（显示第一帧）
+  // 对于图片，如果缩略图是 picsum.photos（默认占位图）或内联 SVG，需要生成真实图片
+  const isDefaultPlaceholder = rawThumbnail?.includes('picsum.photos') || 
+                                rawThumbnail?.includes('placehold.co') ||
+                                rawThumbnail?.includes('via.placeholder.com') ||
+                                rawThumbnail?.startsWith('data:image/svg+xml');
   
-  // 对于视频，如果缩略图是默认图片，使用视频URL作为缩略图（显示第一帧）
-  const thumbnail = contentType === 'video' && finalVideoUrl && rawThumbnail?.includes('picsum.photos')
-    ? finalVideoUrl  // 使用视频URL，浏览器会显示第一帧
-    : rawThumbnail;
+  let thumbnail: string;
+  if (contentType === 'video' && finalVideoUrl && (!rawThumbnail || isDefaultPlaceholder)) {
+    thumbnail = finalVideoUrl;  // 使用视频URL，浏览器会显示第一帧
+  } else if (isDefaultPlaceholder) {
+    // 使用默认占位图时，生成内联 SVG（稍后在上传时会替换为真实上传的URL或保持SVG）
+    thumbnail = rawThumbnail || '';
+  } else {
+    thumbnail = rawThumbnail || '';  // 确保 thumbnail 不为 undefined
+  }
 
   // 自动检测内容类型并设置视频URL - 只在模态框打开时执行一次
   useEffect(() => {
@@ -259,21 +274,35 @@ export default function PublishToSquareModal({ isOpen, onClose }: PublishToSquar
       return;
     }
     
-    if (!thumbnail && contentType === 'image') {
-      toast.error('请选择要发布的图片');
+    // 检查是否有真实图片（不是默认占位图）
+    const isPlaceholderImage = !thumbnail || 
+                                thumbnail.includes('picsum.photos') || 
+                                thumbnail.includes('placehold.co') ||
+                                thumbnail.includes('via.placeholder.com') ||
+                                thumbnail.startsWith('data:image/svg+xml');
+    
+    if (isPlaceholderImage && contentType === 'image') {
+      toast.error('请先上传或生成真实图片后再发布作品');
       return;
     }
-    
+
     // 检查视频URL（使用组件级别的 finalVideoUrl）
     if (contentType === 'video' && !finalVideoUrl) {
       toast.error('视频链接为空，请重新生成视频或手动输入视频链接');
-      console.error('[PublishModal] Video URL is empty:', { 
-        contentType, 
-        videoUrl, 
+      console.error('[PublishModal] Video URL is empty:', {
+        contentType,
+        videoUrl,
         aiVideoUrl,
-        selectedImage 
+        selectedImage
       });
       return;
+    }
+
+    // 对于视频类型，如果没有缩略图，使用视频URL作为缩略图（显示第一帧）
+    let effectiveThumbnail = thumbnail;
+    if (contentType === 'video' && !thumbnail && finalVideoUrl) {
+      effectiveThumbnail = finalVideoUrl;
+      console.log('[PublishModal] Using video URL as thumbnail:', finalVideoUrl);
     }
 
     setIsSubmitting(true);
@@ -341,8 +370,18 @@ export default function PublishToSquareModal({ isOpen, onClose }: PublishToSquar
       }
       
       // 处理缩略图：检查是否有本地临时文件需要上传
-      let finalThumbnail = thumbnail || '';
-      if (finalThumbnail) {
+      let finalThumbnail = effectiveThumbnail || '';
+      
+      // 检查是否是默认占位图服务（这些不需要上传，直接生成内联 SVG）
+      const isPlaceholderService = finalThumbnail.includes('picsum.photos') || 
+                                    finalThumbnail.includes('placehold.co') ||
+                                    finalThumbnail.includes('via.placeholder.com');
+      
+      if (isPlaceholderService) {
+        // 使用默认占位图时，生成内联 SVG
+        console.log('[PublishModal] Detected placeholder service, generating inline SVG');
+        finalThumbnail = generatePlaceholderSvg(title?.slice(0, 10) || '作品', 600, 400, '#3b82f6', '#ffffff');
+      } else if (finalThumbnail) {
         // 检查是否是本地临时URL（blob URL）
         if (finalThumbnail.startsWith('blob:')) {
           // 有本地图片文件，需要上传
@@ -372,10 +411,17 @@ export default function PublishToSquareModal({ isOpen, onClose }: PublishToSquar
             if (uploadedUrl) {
               finalThumbnail = uploadedUrl;
               console.log('[PublishModal] Thumbnail uploaded to:', uploadedUrl);
+            } else {
+              // 上传失败，使用内联 SVG 占位图
+              console.warn('[PublishModal] Upload returned empty, using placeholder');
+              const safeTitle = (title?.slice(0, 10) || 'Work').replace(/[^\x00-\x7F]/g, '?');
+              finalThumbnail = generatePlaceholderSvg(safeTitle, 600, 400, '#3b82f6', '#ffffff');
             }
           } catch (uploadError) {
             console.warn('[PublishModal] Failed to upload thumbnail:', uploadError);
-            // 上传失败继续使用原URL
+            // 上传失败，使用内联 SVG 占位图
+            const safeTitle2 = (title?.slice(0, 10) || 'Work').replace(/[^\x00-\x7F]/g, '?');
+            finalThumbnail = generatePlaceholderSvg(safeTitle2, 600, 400, '#3b82f6', '#ffffff');
           }
         }
       }
@@ -428,16 +474,13 @@ export default function PublishToSquareModal({ isOpen, onClose }: PublishToSquar
         
         // 显示成功提示，带查看按钮
         toast.success(
-          <div className="flex items-center justify-between gap-6">
+          <div className="flex items-center justify-between gap-4 min-w-[280px]">
             <div className="flex items-center gap-2">
-              <span className="font-medium text-emerald-700">作品发布成功</span>
-              <span className="text-emerald-500">✓</span>
+              <span className="text-sm text-emerald-700">作品发布成功</span>
             </div>
             <button
-              onClick={() => {
-                window.open('/square', '_blank');
-              }}
-              className="text-xs px-3 py-1.5 rounded-full bg-gradient-to-r from-[#C02C38] to-[#D64545] text-white hover:shadow-lg hover:scale-105 transition-all duration-200 flex items-center gap-1 font-medium whitespace-nowrap"
+              onClick={() => navigate('/square')}
+              className="text-xs px-2.5 py-1 rounded-full bg-gradient-to-r from-[#C02C38] to-[#D64545] text-white hover:shadow-md hover:scale-105 transition-all duration-200 flex items-center gap-1 font-medium whitespace-nowrap"
             >
               <ExternalLink className="w-3 h-3" />
               去广场查看
@@ -445,7 +488,7 @@ export default function PublishToSquareModal({ isOpen, onClose }: PublishToSquar
           </div>,
           { 
             duration: 5000,
-            className: 'bg-emerald-50 border-emerald-200'
+            className: 'bg-emerald-50 border-emerald-200 !py-2 !px-3'
           }
         );
         onClose();

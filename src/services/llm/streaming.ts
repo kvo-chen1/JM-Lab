@@ -6,6 +6,7 @@ export async function handleSseStreamingResponse(response: Response, onDelta: (c
 
   const decoder = new TextDecoder('utf-8')
   let fullResponse = ''
+  let chunkCount = 0
 
   try {
     while (true) {
@@ -34,9 +35,12 @@ export async function handleSseStreamingResponse(response: Response, onDelta: (c
               ''
             if (content) {
               fullResponse += content
+              chunkCount++
+              console.log(`[Streaming] Chunk ${chunkCount}, content: "${content.substring(0, 50)}...", total length: ${fullResponse.length}`)
               onDelta(content)
             }
-          } catch {
+          } catch (e) {
+            console.log('[Streaming] Failed to parse SSE data:', trimmedLine.substring(0, 100))
             continue
           }
         }
@@ -52,9 +56,12 @@ export async function handleSseStreamingResponse(response: Response, onDelta: (c
               ''
             if (content) {
               fullResponse += content
+              chunkCount++
+              console.log(`[Streaming] JSON chunk ${chunkCount}, content: "${content.substring(0, 50)}...", total length: ${fullResponse.length}`)
               onDelta(content)
             }
-          } catch {
+          } catch (e) {
+            console.log('[Streaming] Failed to parse JSON:', trimmedLine.substring(0, 100))
             continue
           }
         }
@@ -63,6 +70,8 @@ export async function handleSseStreamingResponse(response: Response, onDelta: (c
   } finally {
     reader.releaseLock()
   }
+
+  console.log(`[Streaming] Completed. Total chunks: ${chunkCount}, total length: ${fullResponse.length}`)
 
   // 如果fullResponse为空，返回一个默认的提示信息
   if (!fullResponse) {

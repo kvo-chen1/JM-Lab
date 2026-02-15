@@ -44,7 +44,7 @@ export const communityNavItems: NavItem[] = [
 // 天津老字号专区导航项
 export const tianjinNavItems: NavItem[] = [
   { id: 'tianjin', path: '/tianjin', label: '津脉作品', icon: 'fas fa-landmark', priority: 'high' },
-  { id: 'inspiration-mindmap', path: '/inspiration-mindmap', label: '灵感脉络', icon: 'fas fa-project-diagram', priority: 'high', description: '可视化创作思维导图，记录灵感旅程' },
+  { id: 'inspiration-mindmap', path: '/inspiration-mindmap', label: '津脉脉络', icon: 'fas fa-project-diagram', priority: 'high', description: '可视化创作思维导图，记录灵感旅程' },
   { id: 'knowledge', path: '/knowledge', label: '文化知识', icon: 'fas fa-book', priority: 'medium' },
 
 ];

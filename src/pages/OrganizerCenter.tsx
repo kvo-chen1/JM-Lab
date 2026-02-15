@@ -9,6 +9,7 @@ import { useEventService } from '@/hooks/useEventService';
 // import { eventService } from '@/services/eventService'; // 使用 useEventService hook 替代
 import { brandPartnershipService, BrandPartnership } from '@/services/brandPartnershipService';
 import { uploadImage, uploadVideo } from '@/services/imageService';
+import { supabase } from '@/lib/supabase';
 import WorkScoring from './organizer/WorkScoring';
 import AnalyticsDashboard from './organizer/AnalyticsDashboard';
 import OrganizerSettings from './organizer/OrganizerSettings';
@@ -133,6 +134,10 @@ export default function OrganizerCenter() {
     contactEmail: '',
     pushToCommunity: false,
     applyForRecommendation: false,
+    // 多阶段时间字段默认值
+    registrationDeadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 默认7天后截止报名
+    reviewStartDate: new Date(Date.now() + 8 * 24 * 60 * 60 * 1000), // 默认8天后开始评审
+    resultDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // 默认14天后公布结果
   });
   const [isPublishing, setIsPublishing] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -332,6 +337,34 @@ export default function OrganizerCenter() {
       event.id === eventId ? { ...event, status: newStatus } : event
     ));
     toast.success(`活动状态已更新为${statusConfig[newStatus].label}`);
+  };
+
+  // 更新活动阶段状态
+  const handleUpdatePhaseStatus = async (eventId: string, newPhaseStatus: string) => {
+    try {
+      // 调用 API 更新活动阶段状态
+      const { error } = await supabase
+        .from('events')
+        .update({ phase_status: newPhaseStatus })
+        .eq('id', eventId);
+
+      if (error) throw error;
+
+      // 更新本地状态
+      setEvents(prev => prev.map(event =>
+        event.id === eventId ? { ...event, phaseStatus: newPhaseStatus } : event
+      ));
+
+      const phaseLabels: Record<string, string> = {
+        'registration': '报名阶段',
+        'review': '评审阶段',
+        'completed': '已结束'
+      };
+      toast.success(`活动已进入${phaseLabels[newPhaseStatus]}`);
+    } catch (error) {
+      console.error('更新活动阶段失败:', error);
+      toast.error('更新失败，请稍后重试');
+    }
   };
 
   // 统计数据
@@ -576,6 +609,11 @@ export default function OrganizerCenter() {
         organizer_id: user?.id,
         brand_id: selectedBrand?.id,
         brand_name: selectedBrand?.brand_name,
+        // 多阶段时间字段
+        registration_deadline: formData.registrationDeadline?.toISOString(),
+        review_start_date: formData.reviewStartDate?.toISOString(),
+        result_date: formData.resultDate?.toISOString(),
+        phase_status: 'registration', // 默认报名阶段
       };
       
       // 只在有值时才添加 tags 和 media 字段
@@ -654,6 +692,10 @@ export default function OrganizerCenter() {
         organizer_id: user?.id,
         brand_id: selectedBrand?.id,
         brand_name: selectedBrand?.brand_name,
+        // 多阶段时间字段
+        registration_deadline: formData.registrationDeadline?.toISOString(),
+        review_start_date: formData.reviewStartDate?.toISOString(),
+        result_date: formData.resultDate?.toISOString(),
       };
       
       // 只在有值时才添加 tags 和 media 字段
@@ -694,6 +736,9 @@ export default function OrganizerCenter() {
         contactEmail: '',
         pushToCommunity: false,
         applyForRecommendation: false,
+        registrationDeadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        reviewStartDate: new Date(Date.now() + 8 * 24 * 60 * 60 * 1000),
+        resultDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
       });
       fetchEvents();
     } catch (error) {
@@ -1214,6 +1259,36 @@ export default function OrganizerCenter() {
                                     </motion.button>
                                   )}
 
+                                  {/* 活动阶段控制 - 仅已发布活动显示 */}
+                                  {event.status === 'published' && (
+                                    <>
+                                      {/* 开始评审按钮 - 报名阶段显示 */}
+                                      {(event.phaseStatus === 'registration' || !event.phaseStatus) && (
+                                        <motion.button
+                                          whileHover={{ scale: 1.05 }}
+                                          whileTap={{ scale: 0.95 }}
+                                          onClick={(e) => { e.stopPropagation(); handleUpdatePhaseStatus(event.id, 'review'); }}
+                                          className="p-2 rounded-lg text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20"
+                                          title="开始评审"
+                                        >
+                                          <Search className="w-4 h-4" />
+                                        </motion.button>
+                                      )}
+                                      {/* 公布结果按钮 - 评审阶段显示 */}
+                                      {event.phaseStatus === 'review' && (
+                                        <motion.button
+                                          whileHover={{ scale: 1.05 }}
+                                          whileTap={{ scale: 0.95 }}
+                                          onClick={(e) => { e.stopPropagation(); handleUpdatePhaseStatus(event.id, 'completed'); }}
+                                          className="p-2 rounded-lg text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
+                                          title="公布结果"
+                                        >
+                                          <Trophy className="w-4 h-4" />
+                                        </motion.button>
+                                      )}
+                                    </>
+                                  )}
+
                                   {/* 删除按钮 */}
                                   <motion.button
                                     whileHover={{ scale: 1.05 }}
@@ -1428,6 +1503,58 @@ export default function OrganizerCenter() {
                           </div>
                         </div>
                         {errors.time && <p className="text-sm text-red-500">{errors.time}</p>}
+
+                        {/* 多阶段时间设置 */}
+                        <div className="border-t border-gray-200 dark:border-gray-700 pt-6 mt-6">
+                          <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-4 flex items-center gap-2">
+                            <Clock className="w-4 h-4" />
+                            活动阶段时间设置
+                          </h4>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                报名截止时间
+                              </label>
+                              <input
+                                type="datetime-local"
+                                value={formData.registrationDeadline ? new Date(formData.registrationDeadline.getTime() - formData.registrationDeadline.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ''}
+                                onChange={(e) => handleChange('registrationDeadline', new Date(e.target.value))}
+                                className={`w-full px-4 py-3 rounded-xl border text-sm ${
+                                  isDark ? 'bg-gray-700 text-white border-gray-600' : 'bg-gray-50 text-gray-900 border-gray-200'
+                                } focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20`}
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                评审开始时间
+                              </label>
+                              <input
+                                type="datetime-local"
+                                value={formData.reviewStartDate ? new Date(formData.reviewStartDate.getTime() - formData.reviewStartDate.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ''}
+                                onChange={(e) => handleChange('reviewStartDate', new Date(e.target.value))}
+                                className={`w-full px-4 py-3 rounded-xl border text-sm ${
+                                  isDark ? 'bg-gray-700 text-white border-gray-600' : 'bg-gray-50 text-gray-900 border-gray-200'
+                                } focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20`}
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                结果公布时间
+                              </label>
+                              <input
+                                type="datetime-local"
+                                value={formData.resultDate ? new Date(formData.resultDate.getTime() - formData.resultDate.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ''}
+                                onChange={(e) => handleChange('resultDate', new Date(e.target.value))}
+                                className={`w-full px-4 py-3 rounded-xl border text-sm ${
+                                  isDark ? 'bg-gray-700 text-white border-gray-600' : 'bg-gray-50 text-gray-900 border-gray-200'
+                                } focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20`}
+                              />
+                            </div>
+                          </div>
+                          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                            提示：报名截止后，主办方可以开始评审作品；结果公布后，参与者可以查看获奖信息。
+                          </p>
+                        </div>
 
                         <div>
                           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">

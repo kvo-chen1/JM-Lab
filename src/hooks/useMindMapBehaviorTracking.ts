@@ -1,6 +1,6 @@
 /**
- * 灵感脉络行为追踪Hook
- * 自动记录用户在灵感脉络中的创作行为
+ * 津脉脉络行为追踪Hook
+ * 自动记录用户在津脉脉络中的创作行为
  */
 
 import { useCallback, useContext } from 'react';

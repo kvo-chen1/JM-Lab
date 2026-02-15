@@ -1,7 +1,7 @@
-import { useState, useEffect, useMemo, useCallback, useContext } from 'react';
+import { useState, useEffect, useMemo, useCallback, useContext, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useEventService } from '@/hooks/useEventService';
 import { Event } from '@/types';
 import { useEventFilters } from '@/hooks/useEventFilters';
@@ -65,6 +65,7 @@ function MobileFilterDrawer({
 export default function CulturalEvents() {
   const { isDark } = useTheme();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user, isAuthenticated } = useContext(AuthContext);
   const [isLoading, setIsLoading] = useState(true);
   const [events, setEvents] = useState<Event[]>([]);
@@ -74,6 +75,11 @@ export default function CulturalEvents() {
   const [submissionCount, setSubmissionCount] = useState(0);
   const [userActivityStats, setUserActivityStats] = useState<ParticipationStats | null>(null);
   const [recommendedCreators, setRecommendedCreators] = useState<any[]>([]);
+
+  // 从 URL 参数中获取 eventId 和 openModal
+  const eventIdFromUrl = searchParams.get('eventId');
+  const openModalFromUrl = searchParams.get('openModal');
+  const hasOpenedModal = useRef(false);
 
   const { getEvents } = useEventService();
   const {
@@ -123,6 +129,21 @@ export default function CulturalEvents() {
           : [];
         console.log('[CulturalEvents] Published events:', publishedEvents.length);
         setEvents(publishedEvents);
+
+        // 检查 sessionStorage 中是否有需要打开的活动弹窗
+        const eventIdToOpen = sessionStorage.getItem('openEventModal');
+        console.log('[CulturalEvents] Checking sessionStorage for eventId:', eventIdToOpen);
+        if (eventIdToOpen && !hasOpenedModal.current) {
+          const eventToOpen = publishedEvents.find(e => e.id === eventIdToOpen);
+          console.log('[CulturalEvents] Found event in published events:', eventToOpen?.title);
+          if (eventToOpen) {
+            hasOpenedModal.current = true;
+            setSelectedEvent(eventToOpen);
+            setIsDetailModalOpen(true);
+            // 清除 sessionStorage，避免刷新时重复打开
+            sessionStorage.removeItem('openEventModal');
+          }
+        }
       } catch (error) {
         console.error('加载活动失败:', error);
         setEvents([]);
@@ -132,7 +153,7 @@ export default function CulturalEvents() {
     };
 
     loadEvents();
-  }, [getEvents]);
+  }, [getEvents, eventIdFromUrl, openModalFromUrl, setSearchParams]);
 
   // 加载用户活动统计数据
   useEffect(() => {

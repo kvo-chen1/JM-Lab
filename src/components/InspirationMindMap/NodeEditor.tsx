@@ -185,6 +185,45 @@ export const NodeEditor: React.FC<NodeEditorProps> = ({
                   />
                 </div>
 
+                {/* 媒体内容（图片/视频） */}
+                {(editedNode.content?.thumbnail || editedNode.content?.video) && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      媒体内容
+                    </label>
+                    <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                      {/* 视频 */}
+                      {editedNode.content?.video && (
+                        <div className="mb-3">
+                          <p className="text-xs text-gray-500 mb-2">视频</p>
+                          <video
+                            src={editedNode.content.video}
+                            controls
+                            className="w-full rounded-lg max-h-48 object-cover"
+                            poster={editedNode.content.thumbnail}
+                          />
+                        </div>
+                      )}
+                      {/* 图片 */}
+                      {editedNode.content?.thumbnail && (
+                        <div>
+                          {!editedNode.content?.video && (
+                            <p className="text-xs text-gray-500 mb-2">图片</p>
+                          )}
+                          <img
+                            src={editedNode.content.thumbnail}
+                            alt="节点图片"
+                            className="w-full rounded-lg max-h-48 object-cover"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).style.display = 'none';
+                            }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {/* AI提示词 */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">

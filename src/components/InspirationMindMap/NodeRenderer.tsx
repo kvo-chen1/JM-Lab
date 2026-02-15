@@ -132,11 +132,11 @@ export default function NodeRenderer({
         />
       )}
 
-      {/* 节点主体 - 玻璃拟态风格 */}
+      {/* 节点主体 - 紧凑玻璃拟态风格 */}
       <motion.div
         className={`
           relative cursor-pointer select-none
-          w-[200px] rounded-2xl overflow-hidden
+          w-[180px] rounded-xl overflow-hidden
           transition-all duration-300 ease-out
           ${isSelected ? 'scale-105' : ''}
         `}
@@ -162,25 +162,25 @@ export default function NodeRenderer({
           `} />
         </div>
 
-        {/* 内容区域 */}
+        {/* 内容区域 - 紧凑设计 */}
         <div className={`
-          relative p-4
+          relative p-3
           ${isDark ? 'bg-gray-900/40' : 'bg-white/60'}
         `}>
           {/* 顶部：图标和类别 */}
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-2">
             {/* 类别图标 */}
             <div className={`
-              w-10 h-10 rounded-xl flex items-center justify-center
+              w-8 h-8 rounded-lg flex items-center justify-center
               bg-gradient-to-br ${config.gradient}
               shadow-lg ${config.shadow}
             `}>
-              <Icon className="w-5 h-5 text-white" />
+              <Icon className="w-4 h-4 text-white" />
             </div>
 
             {/* 类别标签 */}
             <span className={`
-              text-[10px] font-medium px-2 py-1 rounded-full
+              text-[9px] font-medium px-1.5 py-0.5 rounded-full
               ${isDark ? 'bg-white/10 text-gray-300' : 'bg-black/5 text-gray-600'}
             `}>
               {config.label}
@@ -189,19 +189,19 @@ export default function NodeRenderer({
 
           {/* 节点标题 */}
           <h3 className={`
-            font-bold text-sm mb-2 line-clamp-2
+            font-bold text-xs mb-1 line-clamp-2 leading-tight
             ${isDark ? 'text-gray-100' : 'text-gray-800'}
           `}>
             {node.title}
           </h3>
 
-          {/* 节点描述 */}
+          {/* 节点描述 - 更紧凑 */}
           {node.description && (
             <p className={`
-              text-xs line-clamp-2 mb-3
+              text-[10px] line-clamp-1 mb-2
               ${isDark ? 'text-gray-400' : 'text-gray-500'}
             `}>
-              {node.description}
+              {node.description.split('\n')[0]}
             </p>
           )}
 

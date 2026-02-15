@@ -25,11 +25,11 @@ SELECT
     COALESCE(es.avg_rating, 0) as avg_rating,
     COALESCE(es.rating_count, 0) as rating_count,
     COALESCE(es.cover_image, es.work_thumbnail) as cover_image,
+    es.work_thumbnail as work_thumbnail,
     COALESCE(es.media_type, 'image') as media_type,
     e.title as event_title,
     e.start_time as event_start_time,
     e.end_time as event_end_time,
-    -- 优先从 public.users 获取用户信息
     COALESCE(pu.username, u.raw_user_meta_data->>'username') as creator_name,
     COALESCE(pu.avatar_url, u.raw_user_meta_data->>'avatar_url') as creator_avatar,
     u.raw_user_meta_data->>'full_name' as creator_full_name

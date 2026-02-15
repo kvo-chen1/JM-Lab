@@ -34,7 +34,12 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
     return 'pending';
   };
 
-  const getStatusConfig = (status: string) => {
+  const getStatusConfig = (status: string, isEventEnded: boolean) => {
+    // 如果活动已结束，显示已结束状态
+    if (isEventEnded && status !== 'awarded') {
+      return { label: '已结束', color: 'text-gray-600', bgColor: 'bg-gray-100 dark:bg-gray-700' };
+    }
+    
     const configs: Record<string, { label: string; color: string; bgColor: string }> = {
       registered: { label: '已报名', color: 'text-blue-600', bgColor: 'bg-blue-100 dark:bg-blue-900/30' },
       submitted: { label: '已提交', color: 'text-purple-600', bgColor: 'bg-purple-100 dark:bg-purple-900/30' },
@@ -67,10 +72,15 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
   };
 
   const handleViewDetails = () => {
-    navigate(`/activities/${participation.eventId}`);
+    // 只存储 eventId 到 sessionStorage，然后跳转到津脉作品页面
+    sessionStorage.setItem('openEventModal', participation.eventId);
+    navigate('/cultural-events');
   };
 
-  const statusConfig = getStatusConfig(participation.participationStatus);
+  // 判断活动是否已结束
+  const isEventEnded = new Date(participation.event.endTime) < new Date();
+  
+  const statusConfig = getStatusConfig(participation.participationStatus, isEventEnded);
 
   return (
     <motion.div
@@ -135,14 +145,14 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
             <div className="mb-4">
               <div className="flex justify-between text-xs mb-2">
                 <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>参与进度</span>
-                <span className="font-medium">{participation.progress}%</span>
+                <span className="font-medium">{isEventEnded ? 100 : participation.progress}%</span>
               </div>
               <div className={`h-2 rounded-full overflow-hidden ${isDark ? 'bg-gray-700' : 'bg-gray-100'}`}>
                 <motion.div
                   initial={{ width: 0 }}
-                  animate={{ width: `${participation.progress}%` }}
+                  animate={{ width: `${isEventEnded ? 100 : participation.progress}%` }}
                   transition={{ duration: 0.5 }}
-                  className="h-full bg-gradient-to-r from-red-500 to-red-400 rounded-full"
+                  className={`h-full rounded-full ${isEventEnded ? 'bg-gradient-to-r from-gray-500 to-gray-400' : 'bg-gradient-to-r from-red-500 to-red-400'}`}
                 />
               </div>
             </div>
@@ -151,15 +161,16 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
             <div className="relative">
               <div className="flex justify-between">
                 {steps.map((step, idx) => {
-                  const status = getStepStatus(participation.currentStep, idx + 1);
+                  // 如果活动已结束，所有步骤都显示为已完成
+                  const stepStatus = isEventEnded ? 'completed' : getStepStatus(participation.currentStep, idx + 1);
                   return (
                     <div key={idx} className="flex flex-col items-center flex-1 relative">
                       {/* 连接线 */}
                       {idx < steps.length - 1 && (
                         <div
                           className={`absolute top-4 left-1/2 w-full h-0.5 ${
-                            status === 'completed'
-                              ? 'bg-red-500'
+                            stepStatus === 'completed'
+                              ? isEventEnded ? 'bg-gray-400' : 'bg-red-500'
                               : isDark
                               ? 'bg-gray-700'
                               : 'bg-gray-200'
@@ -170,9 +181,9 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
                       {/* 步骤图标 */}
                       <div
                         className={`w-8 h-8 rounded-full flex items-center justify-center z-10 transition-all duration-300 ${
-                          status === 'completed'
-                            ? 'bg-red-500 text-white'
-                            : status === 'current'
+                          stepStatus === 'completed'
+                            ? isEventEnded ? 'bg-gray-500 text-white' : 'bg-red-500 text-white'
+                            : stepStatus === 'current'
                             ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400 ring-2 ring-red-500'
                             : isDark
                             ? 'bg-gray-700 text-gray-500'
@@ -184,9 +195,9 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
                       {/* 步骤标题 */}
                       <span
                         className={`text-xs mt-2 font-medium ${
-                          status === 'current'
+                          stepStatus === 'current'
                             ? 'text-red-600 dark:text-red-400'
-                            : status === 'completed'
+                            : stepStatus === 'completed'
                             ? 'text-gray-700 dark:text-gray-300'
                             : isDark
                             ? 'text-gray-500'
@@ -213,18 +224,26 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
             )}
 
             {participation.participationStatus === 'submitted' && (
-              <div className={`p-4 rounded-lg text-center ${isDark ? 'bg-purple-900/20' : 'bg-purple-50'}`}>
-                <i className="fas fa-check-circle text-purple-500 text-2xl mb-2"></i>
-                <p className="text-sm font-medium text-purple-700 dark:text-purple-400">作品已提交</p>
-                <p className="text-xs text-purple-600 dark:text-purple-500 mt-1">等待评审中...</p>
+              <div className={`p-4 rounded-lg text-center ${isEventEnded ? (isDark ? 'bg-gray-900/20' : 'bg-gray-50') : (isDark ? 'bg-purple-900/20' : 'bg-purple-50')}`}>
+                <i className={`fas fa-check-circle ${isEventEnded ? 'text-gray-500' : 'text-purple-500'} text-2xl mb-2`}></i>
+                <p className={`text-sm font-medium ${isEventEnded ? (isDark ? 'text-gray-400' : 'text-gray-600') : 'text-purple-700 dark:text-purple-400'}`}>
+                  {isEventEnded ? '活动已结束' : '作品已提交'}
+                </p>
+                <p className={`text-xs mt-1 ${isEventEnded ? (isDark ? 'text-gray-500' : 'text-gray-400') : 'text-purple-600 dark:text-purple-500'}`}>
+                  {isEventEnded ? '等待结果公布' : '等待评审中...'}
+                </p>
               </div>
             )}
 
             {participation.participationStatus === 'reviewing' && (
-              <div className={`p-4 rounded-lg text-center ${isDark ? 'bg-indigo-900/20' : 'bg-indigo-50'}`}>
-                <i className="fas fa-search text-indigo-500 text-2xl mb-2"></i>
-                <p className="text-sm font-medium text-indigo-700 dark:text-indigo-400">评审进行中</p>
-                <p className="text-xs text-indigo-600 dark:text-indigo-500 mt-1">专家正在评审...</p>
+              <div className={`p-4 rounded-lg text-center ${isEventEnded ? (isDark ? 'bg-gray-900/20' : 'bg-gray-50') : (isDark ? 'bg-indigo-900/20' : 'bg-indigo-50')}`}>
+                <i className={`fas ${isEventEnded ? 'fa-clock' : 'fa-search'} ${isEventEnded ? 'text-gray-500' : 'text-indigo-500'} text-2xl mb-2`}></i>
+                <p className={`text-sm font-medium ${isEventEnded ? (isDark ? 'text-gray-400' : 'text-gray-600') : 'text-indigo-700 dark:text-indigo-400'}`}>
+                  {isEventEnded ? '活动已结束' : '评审进行中'}
+                </p>
+                <p className={`text-xs mt-1 ${isEventEnded ? (isDark ? 'text-gray-500' : 'text-gray-400') : 'text-indigo-600 dark:text-indigo-500'}`}>
+                  {isEventEnded ? '等待结果公布' : '专家正在评审...'}
+                </p>
               </div>
             )}
 

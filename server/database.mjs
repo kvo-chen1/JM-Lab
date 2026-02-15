@@ -523,6 +523,13 @@ async function createPostgreSQLTables(pool) {
         await client.query('CREATE INDEX IF NOT EXISTS idx_events_category ON events(category);')
         console.log('[DB] events table ensured')
 
+        // 添加活动时间相关字段（如果不存在）
+        await client.query(`ALTER TABLE IF EXISTS events ADD COLUMN IF NOT EXISTS registration_deadline BIGINT;`)
+        await client.query(`ALTER TABLE IF EXISTS events ADD COLUMN IF NOT EXISTS review_start_date BIGINT;`)
+        await client.query(`ALTER TABLE IF EXISTS events ADD COLUMN IF NOT EXISTS result_date BIGINT;`)
+        await client.query(`ALTER TABLE IF EXISTS events ADD COLUMN IF NOT EXISTS phase_status VARCHAR(50) DEFAULT 'registration';`)
+        console.log('[DB] events time fields ensured')
+
         console.log('[DB] Column type check completed')
         return
       }
@@ -869,6 +876,16 @@ async function createPostgreSQLTables(pool) {
         
         -- 为messages表启用RLS
         ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
+        
+        -- 创建messages表的RLS策略
+        CREATE POLICY IF NOT EXISTS messages_select_policy ON messages
+          FOR SELECT USING (true);
+        CREATE POLICY IF NOT EXISTS messages_insert_policy ON messages
+          FOR INSERT WITH CHECK (true);
+        CREATE POLICY IF NOT EXISTS messages_update_policy ON messages
+          FOR UPDATE USING (true);
+        CREATE POLICY IF NOT EXISTS messages_delete_policy ON messages
+          FOR DELETE USING (true);
       `)
       
       // 创建messages表的索引
@@ -890,6 +907,12 @@ async function createPostgreSQLTables(pool) {
         
         -- 为direct_messages表启用RLS
         ALTER TABLE direct_messages ENABLE ROW LEVEL SECURITY;
+        
+        -- 删除旧的宽松策略（如果存在）
+        DROP POLICY IF EXISTS direct_messages_select_policy ON direct_messages;
+        DROP POLICY IF EXISTS direct_messages_insert_policy ON direct_messages;
+        DROP POLICY IF EXISTS direct_messages_update_policy ON direct_messages;
+        DROP POLICY IF EXISTS direct_messages_delete_policy ON direct_messages;
       `)
 
       // Friend Requests
@@ -2891,6 +2914,95 @@ export const messageDB = {
         return unreadRows
       default: throw new Error(`Unsupported DB Type: ${config.dbType}`)
     }
+  },
+
+  async getConversations(userId) {
+    const db = await getDB(userId)
+    const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
+    
+    switch (typeKey) {
+      case DB_TYPE.MEMORY:
+        // 获取所有与该用户相关的消息
+        const userMessages = memoryStore.messages.filter(m => 
+          m.sender_id === userId || m.receiver_id === userId
+        )
+        
+        // 按对话分组
+        const conversations = {}
+        userMessages.forEach(m => {
+          const friendId = m.sender_id === userId ? m.receiver_id : m.sender_id
+          if (!conversations[friendId]) {
+            conversations[friendId] = {
+              friend_id: friendId,
+              last_message: m.content,
+              last_message_time: m.created_at,
+              unread_count: m.receiver_id === userId && !m.is_read ? 1 : 0
+            }
+          } else {
+            // 更新最后一条消息
+            if (m.created_at > conversations[friendId].last_message_time) {
+              conversations[friendId].last_message = m.content
+              conversations[friendId].last_message_time = m.created_at
+            }
+            // 统计未读数
+            if (m.receiver_id === userId && !m.is_read) {
+              conversations[friendId].unread_count++
+            }
+          }
+        })
+        
+        return Object.values(conversations).sort((a, b) => b.last_message_time - a.last_message_time)
+        
+      case DB_TYPE.POSTGRESQL:
+        console.log('[DB] getConversations for user:', userId);
+        const { rows: convRows } = await db.query(`
+          WITH user_conversations AS (
+            SELECT 
+              CASE 
+                WHEN sender_id::text = $1 THEN receiver_id::text
+                ELSE sender_id::text
+              END as friend_id,
+              sender_id::text as sender_id,
+              content as last_message,
+              created_at as last_message_time,
+              is_read,
+              CASE 
+                WHEN receiver_id::text = $1 AND is_read = false THEN 1
+                ELSE 0
+              END as is_unread
+            FROM direct_messages
+            WHERE sender_id::text = $1 OR receiver_id::text = $1
+          ),
+          latest_messages AS (
+            SELECT DISTINCT ON (friend_id)
+              friend_id,
+              sender_id as last_sender_id,
+              last_message,
+              last_message_time,
+              is_read as is_last_message_read
+            FROM user_conversations
+            ORDER BY friend_id, last_message_time DESC
+          )
+          SELECT 
+            lm.friend_id as "userId",
+            u.username,
+            u.avatar_url as avatar,
+            lm.last_message as "lastMessage",
+            lm.last_message_time as "lastMessageTime",
+            lm.last_sender_id as "lastSenderId",
+            lm.is_last_message_read as "isLastMessageRead",
+            COALESCE(SUM(uc.is_unread), 0)::int as "unreadCount"
+          FROM latest_messages lm
+          JOIN users u ON u.id::text = lm.friend_id
+          LEFT JOIN user_conversations uc ON uc.friend_id = lm.friend_id
+          GROUP BY lm.friend_id, u.username, u.avatar_url, lm.last_message, lm.last_message_time, lm.last_sender_id, lm.is_last_message_read
+          ORDER BY lm.last_message_time DESC
+        `, [userId])
+        console.log('[DB] getConversations result:', convRows);
+        return convRows
+        
+      default: throw new Error(`Unsupported DB Type: ${config.dbType}`)
+    }
   }
 }
 
@@ -4545,7 +4657,8 @@ export const achievementDB = {
         const { rows } = await db.query('SELECT SUM(points) as total FROM points_records WHERE user_id = $1', [userId])
         if (!rows || rows.length === 0) return 0
         const total = rows[0].total
-        return total ? Number(total) : 0
+        // 确保积分不会返回负数
+        return total ? Math.max(0, Number(total)) : 0
       default: return 0
     }
   },
@@ -4561,6 +4674,13 @@ export const achievementDB = {
         // 获取当前总积分
         const { rows: currentRows } = await db.query('SELECT SUM(points) as total FROM points_records WHERE user_id = $1', [userId])
         const currentBalance = parseInt(currentRows[0]?.total || '0')
+        
+        // 如果要扣除积分，检查余额是否足够
+        if (points < 0 && currentBalance + points < 0) {
+          console.log(`[DB] Insufficient points for user ${userId}: current=${currentBalance}, required=${Math.abs(points)}`)
+          throw new Error('积分余额不足')
+        }
+        
         const newBalance = currentBalance + points
 
         // 插入积分记录

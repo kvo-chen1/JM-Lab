@@ -83,6 +83,8 @@ const videoDurations = [
 export default function SketchPanel() {
   const { isDark } = useTheme();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
   // 本地状态
   const [activeMode, setActiveMode] = useState<GenerationMode>('text-to-image');
@@ -173,6 +175,29 @@ export default function SketchPanel() {
     }
   }, [autoGenerate, prompt, isGenerating]);
 
+  // 取消生成
+  const handleCancelGenerate = () => {
+    // 取消 AbortController
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    
+    // 清除进度定时器
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = null;
+    }
+    
+    // 重置状态
+    setIsGenerating(false);
+    setVideoGenerationProgress(0);
+    setVideoGenerationStatus('');
+    updateState({ streamStatus: 'idle' });
+    
+    toast.info('已取消生成');
+  };
+
   // 生成处理
   const handleGenerate = async () => {
     // 验证输入
@@ -186,6 +211,9 @@ export default function SketchPanel() {
       toast.error('请先上传图片');
       return;
     }
+    
+    // 创建新的 AbortController
+    abortControllerRef.current = new AbortController();
     
     setIsGenerating(true);
     updateState({ streamStatus: 'running' });
@@ -206,12 +234,17 @@ export default function SketchPanel() {
           await generateImageToVideo();
           break;
       }
-    } catch (e) {
-      console.error(e);
-      toast.error('生成失败，请重试');
+    } catch (e: any) {
+      if (e.name === 'AbortError') {
+        console.log('生成已取消');
+      } else {
+        console.error(e);
+        toast.error('生成失败，请重试');
+      }
     } finally {
       setIsGenerating(false);
       updateState({ streamStatus: 'completed' });
+      abortControllerRef.current = null;
     }
   };
 
@@ -235,7 +268,28 @@ export default function SketchPanel() {
     const urls = dataArray.map((d: any) => d.url || (d.b64_json ? `data:image/png;base64,${d.b64_json}` : '')).filter(Boolean);
 
     if (urls.length) {
-      const mapped = urls.map((u: string, idx: number) => ({ 
+      toast.info('正在保存图片到云存储...');
+      
+      // 下载图片并上传到 Supabase Storage
+      const { downloadAndUploadImage } = await import('@/services/imageService');
+      const uploadedUrls = await Promise.all(
+        urls.map(async (url: string, idx: number) => {
+          try {
+            // 如果是 base64 数据，直接上传；如果是 URL，下载后上传
+            if (url.startsWith('data:')) {
+              const { uploadBase64Image } = await import('@/services/imageService');
+              return await uploadBase64Image(url);
+            } else {
+              return await downloadAndUploadImage(url, 'works');
+            }
+          } catch (error) {
+            console.error(`[generateTextToImage] Failed to upload image ${idx}:`, error);
+            return url; // 上传失败，使用原始 URL
+          }
+        })
+      );
+      
+      const mapped = uploadedUrls.map((u: string, idx: number) => ({ 
         id: Date.now() + idx, 
         thumbnail: u, 
         score: 80,
@@ -244,7 +298,7 @@ export default function SketchPanel() {
       setGeneratedResults(mapped);
       setSelectedResult(mapped[0]?.id ?? null);
       setCurrentStep(2);
-      toast.success(`${currentModel.name}已生成${urls.length}张图片方案`);
+      toast.success(`${currentModel.name}已生成${urls.length}张图片方案并保存到云存储`);
     } else {
       useFallbackData('image');
     }
@@ -297,7 +351,28 @@ export default function SketchPanel() {
       const urls = dataArray.map((d: any) => d.url || (d.b64_json ? `data:image/png;base64,${d.b64_json}` : '')).filter(Boolean);
 
       if (urls.length) {
-        const mapped = urls.map((u: string, idx: number) => ({ 
+        toast.info('正在保存图片到云存储...');
+        
+        // 下载图片并上传到 Supabase Storage
+        const { downloadAndUploadImage } = await import('@/services/imageService');
+        const uploadedUrls = await Promise.all(
+          urls.map(async (url: string, idx: number) => {
+            try {
+              // 如果是 base64 数据，直接上传；如果是 URL，下载后上传
+              if (url.startsWith('data:')) {
+                const { uploadBase64Image } = await import('@/services/imageService');
+                return await uploadBase64Image(url);
+              } else {
+                return await downloadAndUploadImage(url, 'works');
+              }
+            } catch (error) {
+              console.error(`[generateImageToImage] Failed to upload image ${idx}:`, error);
+              return url; // 上传失败，使用原始 URL
+            }
+          })
+        );
+        
+        const mapped = uploadedUrls.map((u: string, idx: number) => ({ 
           id: Date.now() + idx, 
           thumbnail: u, 
           score: 80 + Math.floor(Math.random() * 15),
@@ -306,7 +381,7 @@ export default function SketchPanel() {
         setGeneratedResults(mapped);
         setSelectedResult(mapped[0]?.id ?? null);
         setCurrentStep(2);
-        toast.success(`${currentModel.name}风格转换完成，生成${urls.length}张图片`);
+        toast.success(`${currentModel.name}风格转换完成，生成${urls.length}张图片并保存到云存储`);
       } else {
         throw new Error('未获取到生成结果');
       }
@@ -327,10 +402,13 @@ export default function SketchPanel() {
       toast.info('视频生成开始，预计需要 1-3 分钟，请耐心等待...');
       
       // 模拟进度更新
-      const progressInterval = setInterval(() => {
+      progressIntervalRef.current = setInterval(() => {
         setVideoGenerationProgress(prev => {
           if (prev >= 90) {
-            clearInterval(progressInterval);
+            if (progressIntervalRef.current) {
+              clearInterval(progressIntervalRef.current);
+              progressIntervalRef.current = null;
+            }
             return 90;
           }
           const newProgress = prev + Math.random() * 15;
@@ -353,7 +431,10 @@ export default function SketchPanel() {
         aspectRatio: videoAspectRatio
       });
       
-      clearInterval(progressInterval);
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
+      }
       
       console.log('[TextToVideo] Result:', result);
       console.log('[TextToVideo] Result data:', result.data);
@@ -462,10 +543,13 @@ export default function SketchPanel() {
       setVideoGenerationStatus('正在提交视频生成任务...');
       
       // 模拟进度更新
-      const progressInterval = setInterval(() => {
+      progressIntervalRef.current = setInterval(() => {
         setVideoGenerationProgress(prev => {
           if (prev >= 90) {
-            clearInterval(progressInterval);
+            if (progressIntervalRef.current) {
+              clearInterval(progressIntervalRef.current);
+              progressIntervalRef.current = null;
+            }
             return 90;
           }
           const newProgress = prev + Math.random() * 15;
@@ -489,7 +573,10 @@ export default function SketchPanel() {
         aspectRatio: videoAspectRatio
       });
       
-      clearInterval(progressInterval);
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
+      }
       
       const videoUrl = result.data?.video_url || result.data?.url;
       
@@ -1081,28 +1168,43 @@ ${prompt}`;
 
       {/* 生成按钮 */}
       <div className="pt-2 space-y-3">
-        <motion.button
-          onClick={handleGenerate}
-          disabled={isGenerating || !prompt.trim() || (isImageInputMode && !uploadedImage)}
-          whileHover={{ scale: isGenerating ? 1 : 1.02 }}
-          whileTap={{ scale: isGenerating ? 1 : 0.98 }}
-          className={`w-full py-4 rounded-2xl font-bold text-white shadow-xl transition-all relative overflow-hidden group ${
-            isGenerating 
-              ? 'bg-gray-400 cursor-not-allowed' 
-              : `bg-gradient-to-r ${currentMode.color} hover:shadow-2xl`
-          }`}
-        >
-          {/* 光泽动画效果 */}
-          <div className="absolute top-0 -inset-full h-full w-1/2 z-5 block transform -skew-x-12 bg-gradient-to-r from-transparent to-white opacity-20 group-hover:animate-shine" />
-          
-          {isGenerating ? (
-            <span className="flex items-center justify-center gap-2">
-              <i className="fas fa-circle-notch fa-spin"></i>
-              <span>
-                {isVideoMode ? '正在生成视频...' : '正在生成图片...'}
+        {isGenerating ? (
+          // 生成中状态 - 显示取消按钮
+          <div className="flex gap-2">
+            <motion.button
+              disabled
+              className="flex-1 py-4 rounded-2xl font-bold text-white shadow-xl bg-gray-400 cursor-not-allowed"
+            >
+              <span className="flex items-center justify-center gap-2">
+                <i className="fas fa-circle-notch fa-spin"></i>
+                <span>
+                  {isVideoMode ? '正在生成视频...' : '正在生成图片...'}
+                </span>
               </span>
-            </span>
-          ) : (
+            </motion.button>
+            <motion.button
+              onClick={handleCancelGenerate}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="px-6 py-4 rounded-2xl font-bold text-white shadow-xl bg-gradient-to-r from-red-500 to-red-600 hover:shadow-2xl transition-all"
+            >
+              <span className="flex items-center justify-center gap-2">
+                <i className="fas fa-times"></i>
+                <span>取消</span>
+              </span>
+            </motion.button>
+          </div>
+        ) : (
+          <motion.button
+            onClick={handleGenerate}
+            disabled={!prompt.trim() || (isImageInputMode && !uploadedImage)}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            className={`w-full py-4 rounded-2xl font-bold text-white shadow-xl transition-all relative overflow-hidden group bg-gradient-to-r ${currentMode.color} hover:shadow-2xl disabled:bg-gray-400 disabled:cursor-not-allowed`}
+          >
+            {/* 光泽动画效果 */}
+            <div className="absolute top-0 -inset-full h-full w-1/2 z-5 block transform -skew-x-12 bg-gradient-to-r from-transparent to-white opacity-20 group-hover:animate-shine" />
+            
             <span className="flex items-center justify-center gap-2">
               <i className={`fas ${currentMode.icon}`}></i>
               <span>
@@ -1112,8 +1214,8 @@ ${prompt}`;
                 {activeMode === 'image-to-video' && '生成动态视频'}
               </span>
             </span>
-          )}
-        </motion.button>
+          </motion.button>
+        )}
         
         {/* 算力提示 */}
         <p className={`text-center text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
@@ -1215,8 +1317,19 @@ ${prompt}`;
                 ))}
               </div>
 
+              {/* 取消按钮 */}
+              <motion.button
+                onClick={handleCancelGenerate}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="mt-6 w-full py-3 rounded-xl font-semibold text-white shadow-lg bg-gradient-to-r from-red-500 to-red-600 hover:shadow-xl transition-all flex items-center justify-center gap-2"
+              >
+                <i className="fas fa-times"></i>
+                <span>取消生成</span>
+              </motion.button>
+
               {/* 提示信息 */}
-              <div className={`mt-6 p-4 rounded-xl text-xs leading-relaxed ${
+              <div className={`mt-4 p-4 rounded-xl text-xs leading-relaxed ${
                 isDark ? 'bg-gray-700/50 text-gray-300' : 'bg-orange-50 text-gray-600'
               }`}>
                 <i className="fas fa-info-circle mr-2 text-orange-500"></i>

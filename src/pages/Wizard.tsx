@@ -25,10 +25,21 @@ import { StepIndicator, BrandCard3D, TemplateGallery, RadarChart } from '@/compo
 import { brandService } from '@/services/brandService';
 import { eventService } from '@/services/eventService';
 
+// Load persisted step from localStorage
+const loadPersistedStep = (): number => {
+  if (typeof localStorage === 'undefined') return 1;
+  try {
+    const saved = localStorage.getItem('workflow_current_step');
+    return saved ? parseInt(saved, 10) || 1 : 1;
+  } catch (e) {
+    return 1;
+  }
+};
+
 export default function Wizard() {
   const { isDark } = useTheme();
   const { state, setState, reset, saveToDrafts, loadFromDraft, isDirty, lastSavedAt } = useWorkflow();
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(loadPersistedStep());
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [isSaving, setIsSaving] = useState(false);
@@ -37,6 +48,10 @@ export default function Wizard() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [culturalElements, setCulturalElements] = useState<string[]>([]);
   const [previewRatio, setPreviewRatio] = useState<'landscape' | 'square' | 'portrait'>('landscape');
+  
+  // 草稿恢复提示状态
+  const [showDraftRestorePrompt, setShowDraftRestorePrompt] = useState(false);
+  const [restoredDraftInfo, setRestoredDraftInfo] = useState<{from: 'url' | 'local' | null, draftId?: string}>({ from: null });
   const [searchQuery, setSearchQuery] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<'all' | 'food' | 'craft' | 'daily' | 'tianjin'>('all');
@@ -64,6 +79,9 @@ export default function Wizard() {
   const [newColor, setNewColor] = useState('#000000');
   const [events, setEvents] = useState<ReturnType<typeof eventService.formatEventForDisplay>[]>([]);
   const [isLoadingEvents, setIsLoadingEvents] = useState(false);
+  
+  // 模板详情弹窗状态
+  const [selectedTemplateDetail, setSelectedTemplateDetail] = useState<typeof CREATIVE_TEMPLATES[0] | null>(null);
 
   // Load events from database
   useEffect(() => {
@@ -83,16 +101,51 @@ export default function Wizard() {
     loadEvents();
   }, []);
 
-  const next = () => setStep(s => Math.min(4, s + 1));
-  const prev = () => setStep(s => Math.max(1, s - 1));
+  const next = () => {
+    const newStep = Math.min(4, step + 1);
+    setStep(newStep);
+    // Persist step to localStorage
+    if (typeof localStorage !== 'undefined') {
+      try {
+        localStorage.setItem('workflow_current_step', String(newStep));
+      } catch (e) {
+        console.error('Failed to persist step:', e);
+      }
+    }
+  };
+  
+  const prev = () => {
+    const newStep = Math.max(1, step - 1);
+    setStep(newStep);
+    // Persist step to localStorage
+    if (typeof localStorage !== 'undefined') {
+      try {
+        localStorage.setItem('workflow_current_step', String(newStep));
+      } catch (e) {
+        console.error('Failed to persist step:', e);
+      }
+    }
+  };
 
-  // Load draft from URL parameter
+  // Persist step whenever it changes
+  useEffect(() => {
+    if (typeof localStorage !== 'undefined') {
+      try {
+        localStorage.setItem('workflow_current_step', String(step));
+      } catch (e) {
+        console.error('Failed to persist step:', e);
+      }
+    }
+  }, [step]);
+
+  // Load draft from URL parameter or restore from localStorage
   useEffect(() => {
     const draftId = searchParams.get('draft');
     if (draftId) {
       loadFromDraft(draftId).then(success => {
         if (success) {
-          toast.success('已恢复草稿');
+          setRestoredDraftInfo({ from: 'url', draftId });
+          setShowDraftRestorePrompt(true);
           // Restore step from draft
           const loadedStep = state.currentStep || 1;
           setStep(loadedStep);
@@ -100,8 +153,49 @@ export default function Wizard() {
           toast.error('加载草稿失败');
         }
       });
+    } else {
+      // 检查是否有本地持久化的状态
+      const hasPersistedState = state.brandName || state.variants?.length || state.inputText;
+      if (hasPersistedState && !searchParams.get('new')) {
+        setRestoredDraftInfo({ from: 'local' });
+        setShowDraftRestorePrompt(true);
+      }
     }
   }, [searchParams]);
+
+  // Restore step from persisted state when component mounts
+  useEffect(() => {
+    // Check if there's persisted state and restore step accordingly
+    const hasPersistedState = state.brandName || state.variants?.length || state.inputText;
+    if (hasPersistedState) {
+      // Restore step from persisted state if available
+      const persistedStep = state.currentStep || loadPersistedStep();
+      setStep(persistedStep);
+
+      // 如果有变体数据但没有选中的变体，默认选择第一个
+      if (state.variants?.length && selectedVariantIndex < 0) {
+        setSelectedVariantIndex(0);
+      }
+    }
+  }, [state.brandName, state.variants, state.inputText, state.currentStep, selectedVariantIndex]);
+
+  // 放弃草稿，重新开始
+  const handleDiscardDraft = () => {
+    reset();
+    setStep(1);
+    setShowDraftRestorePrompt(false);
+    // 清除URL中的draft参数
+    if (searchParams.get('draft')) {
+      navigate('/wizard?new=true', { replace: true });
+    }
+    toast.info('已重新开始，之前的草稿仍可在草稿箱中找到');
+  };
+
+  // 继续编辑草稿
+  const handleContinueDraft = () => {
+    setShowDraftRestorePrompt(false);
+    toast.success(`已恢复${restoredDraftInfo.from === 'url' ? '草稿' : '上次编辑状态'}，继续创作吧！`);
+  };
 
   // Handle manual save to drafts
   const handleSaveToDrafts = async () => {
@@ -179,16 +273,13 @@ export default function Wizard() {
     reset();
     navigate('/square');
     toast.success(
-      <div className="flex items-center justify-between gap-6">
+      <div className="flex items-center justify-between gap-4 min-w-[280px]">
         <div className="flex items-center gap-2">
-          <span className="font-medium text-emerald-700">作品发布成功</span>
-          <span className="text-emerald-500">✓</span>
+          <span className="text-sm text-emerald-700">作品发布成功</span>
         </div>
         <button
-          onClick={() => {
-            window.open('/square', '_blank');
-          }}
-          className="text-xs px-3 py-1.5 rounded-full bg-gradient-to-r from-[#C02C38] to-[#D64545] text-white hover:shadow-lg hover:scale-105 transition-all duration-200 flex items-center gap-1 font-medium whitespace-nowrap"
+          onClick={() => navigate('/square')}
+          className="text-xs px-2.5 py-1 rounded-full bg-gradient-to-r from-[#C02C38] to-[#D64545] text-white hover:shadow-md hover:scale-105 transition-all duration-200 flex items-center gap-1 font-medium whitespace-nowrap"
         >
           <ExternalLink className="w-3 h-3" />
           去广场查看
@@ -196,7 +287,7 @@ export default function Wizard() {
       </div>,
       {
         duration: 5000,
-        className: 'bg-emerald-50 border-emerald-200'
+        className: 'bg-emerald-50 border-emerald-200 !py-2 !px-3'
       }
     );
   };
@@ -216,37 +307,42 @@ export default function Wizard() {
     
     setIsGenerating(true);
     setAiText('');
+    
+    // 创建中止控制器用于超时处理
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15秒超时
+    
     try {
       const dirs = llmService.generateCreativeDirections(base);
       setAiDirections(dirs);
       const elems = llmService.recommendCulturalElements(base);
       setCulturalElements(elems);
 
-      // 构建结构化的AI提示词
-      const structuredPrompt = `请为以下品牌创作需求提供专业的创意建议：
+      // 构建结构化的AI提示词 - 简化版以提高响应速度
+      const structuredPrompt = `请为"${brandName}"品牌创作提供创意建议：${base}
 
-【创作主题】${base}
-【品牌名称】${brandName}
-【相关文化元素】${elems.join('、')}
+请简洁回答以下4点（每点2-3句话）：
+1. 视觉风格建议
+2. 核心创意概念  
+3. 色彩与元素推荐
+4. 2-3条文案参考
 
-请从以下几个方面提供具体、可执行的创意建议：
-
-1. 视觉风格建议：描述适合的设计风格、美学方向
-2. 核心创意概念：提出独特的创意切入点和核心理念
-3. 色彩与元素：推荐具体的色彩搭配和文化元素运用
-4. 文案方向：提供2-3条不同风格的文案参考
-5. 应用场景：建议适合的应用场景和载体
-
-要求：
-- 每点建议具体、可操作，避免空泛
-- 结合传统文化与现代设计
-- 突出品牌特色和文化内涵
-- 用中文回答，分点清晰`;
+要求：结合传统文化与现代设计，突出品牌特色，用中文分点回答。`;
       
       try {
-        await llmService.generateResponse(structuredPrompt, { onDelta: (chunk: string) => setAiText(chunk) });
+        console.log('[Wizard] Starting AI help generation...');
+        // 使用 directGenerateResponse 绕过任务队列，直接调用API
+        await llmService.directGenerateResponse(structuredPrompt, { 
+          onDelta: (chunk: string) => setAiText(prev => prev + chunk),
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        console.log('[Wizard] AI help generation completed');
       } catch (err) {
+        clearTimeout(timeoutId);
         console.warn('LLM generation failed, falling back to mock:', err);
+        
+        // 使用模拟数据作为后备
         const mockResponse = `基于"${base}"，为您提供以下创意建议：
 
 1. 视觉风格：建议采用新中式国潮风格，将传统${elems[0] || '纹样'}与现代极简线条结合，营造既有文化底蕴又具现代感的视觉效果。
@@ -258,19 +354,13 @@ export default function Wizard() {
 4. 文案方向：
    - "传承百年匠心，重塑东方美学"
    - "让传统活在当下，让文化走向世界"
-   - "古韵新声，品味非凡"
-
-5. 应用场景：适合用于品牌VI设计、产品包装、宣传海报、社交媒体内容等多种载体。`;
+   - "古韵新声，品味非凡"`;
         
-        let currentText = '';
-        const chars = mockResponse.split('');
-        for (let i = 0; i < chars.length; i++) {
-          currentText += chars[i];
-          setAiText(currentText);
-          await new Promise(r => setTimeout(r, 30));
-        }
+        // 快速显示模拟响应（减少打字效果延迟）
+        setAiText(mockResponse);
       }
     } catch (e) {
+      clearTimeout(timeoutId);
       console.error('AI Help Error:', e);
       toast.error('AI 创意助理暂时无法连接，请稍后再试');
     }
@@ -280,35 +370,81 @@ export default function Wizard() {
   const generateVariants = async () => {
     const template = TEMPLATES.find(t => t.id === selectedTemplate);
     const templateStyle = template?.style || '';
-    const basePrompt = `${(state.inputText || '').trim()} ${templateStyle} ${(aiText || '').trim()}`.trim() || 'Tianjin cultural design';
-    
+    const templateTitle = template?.title || '';
+
+    // 构建基础prompt：创意描述 + 设计模板风格
+    const basePrompt = `${(state.inputText || '').trim()} ${templateStyle}`.trim() || 'Tianjin cultural design';
+
     setIsGeneratingVariants(true);
     setGenerationProgress(0);
-    
-    const placeholders = [
-      { script: '方案A：经典传承', image: '', loading: true },
-      { script: '方案B：现代融合', image: '', loading: true },
-      { script: '方案C：未来探索', image: '', loading: true },
-    ];
-    setState({ variants: placeholders });
 
-    const styles = [
-      { name: '经典传承', promptSuffix: 'classic traditional chinese style, elegant, heritage' },
-      { name: '现代融合', promptSuffix: 'modern minimalist mixed with traditional elements, clean, bold' },
-      { name: '未来探索', promptSuffix: 'futuristic cyberpunk style, neon lights, traditional patterns, 8k' }
-    ];
+    // 根据设计模板类型生成不同的变体风格
+    const getVariantStyles = (designTemplateTitle: string) => {
+      switch (designTemplateTitle) {
+        case '节日促销海报':
+          return [
+            { name: '喜庆红金', promptSuffix: 'festive red and gold color scheme, celebration atmosphere, promotional poster style, vibrant, eye-catching' },
+            { name: '传统纹样', promptSuffix: 'traditional chinese patterns, paper-cut art style, folk art, cultural heritage' },
+            { name: '现代节庆', promptSuffix: 'modern festival design, clean layout, bold typography, contemporary celebration style' }
+          ];
+        case '极简产品包装':
+          return [
+            { name: '纯净留白', promptSuffix: 'minimalist white space, clean background, elegant simplicity, premium packaging' },
+            { name: '材质质感', promptSuffix: 'texture focus, natural materials, tactile quality, sophisticated packaging' },
+            { name: '几何极简', promptSuffix: 'geometric minimalism, bold shapes, monochrome palette, modern packaging' }
+          ];
+        case '社交媒体封面':
+          return [
+            { name: '潮流 bold', promptSuffix: 'trendy bold design, vibrant colors, social media optimized, high engagement' },
+            { name: '信息图表', promptSuffix: 'infographic style, data visualization, informative layout, professional' },
+            { name: '品牌展示', promptSuffix: 'brand showcase, logo prominent, brand identity, corporate style' }
+          ];
+        case '国潮插画KV':
+          return [
+            { name: '工笔精细', promptSuffix: 'gongbi style, fine brushwork, detailed illustration, traditional chinese painting' },
+            { name: '水墨写意', promptSuffix: 'ink wash painting, xieyi style, expressive brushstrokes, artistic' },
+            { name: '新国潮风', promptSuffix: 'neo-chinese style, modern illustration, cultural fusion, trendy guochao' }
+          ];
+        default:
+          return [
+            { name: '经典传承', promptSuffix: 'classic traditional chinese style, elegant, heritage' },
+            { name: '现代融合', promptSuffix: 'modern minimalist mixed with traditional elements, clean, bold' },
+            { name: '未来探索', promptSuffix: 'futuristic cyberpunk style, neon lights, traditional patterns, 8k' }
+          ];
+      }
+    };
+
+    const styles = getVariantStyles(templateTitle);
+
+    const placeholders = styles.map((style, index) => ({
+      script: `方案${String.fromCharCode(65 + index)}：${style.name}`,
+      image: '',
+      loading: true
+    }));
+    setState({ variants: placeholders });
 
     try {
       const newVariants = await Promise.all(styles.map(async (style, index) => {
-        setGenerationProgress((index + 1) * 25);
+        setGenerationProgress((index + 1) * 30);
+        console.log(`[Wizard] Generating image for ${templateTitle} - ${style.name}, prompt: ${basePrompt} ${style.promptSuffix}`);
+
         const response = await llmService.generateImage({
           prompt: `${basePrompt} ${style.promptSuffix}`,
           size: '1024x1024',
           n: 1
         });
 
-        const imageUrl = response.data?.data?.[0]?.url || 
-                        `https://images.unsplash.com/photo-${index === 0 ? '1535139262971-c51845709a48' : index === 1 ? '1550684848-fac1c5b4e853' : '1515630278258-407f66498911'}?w=800&q=80`;
+        console.log(`[Wizard] Image generation response for ${style.name}:`, response);
+
+        // 检查响应是否成功
+        let imageUrl: string;
+        if (response.ok && response.data?.data?.[0]?.url) {
+          imageUrl = response.data.data[0].url;
+          console.log(`[Wizard] Successfully got image URL for ${style.name}:`, imageUrl);
+        } else {
+          console.warn(`[Wizard] Failed to get image URL for ${style.name}, using fallback`);
+          imageUrl = `https://images.unsplash.com/photo-${index === 0 ? '1535139262971-c51845709a48' : index === 1 ? '1550684848-fac1c5b4e853' : '1515630278258-407f66498911'}?w=800&q=80`;
+        }
 
         return {
           script: `方案${String.fromCharCode(65 + index)}：${style.name}`,
@@ -321,7 +457,7 @@ export default function Wizard() {
       setGenerationProgress(100);
       toast.success('创意方案生成完成！');
     } catch (error) {
-      console.error('Image generation failed:', error);
+      console.error('[Wizard] Image generation failed:', error);
       toast.error('生成图片失败，已加载示例图片');
       setState({ variants: [
         { script: '方案A：经典传承', image: 'https://images.unsplash.com/photo-1535139262971-c51845709a48?w=800&q=80', video: '' },
@@ -352,9 +488,85 @@ export default function Wizard() {
   const applyTemplate = (templateId: string) => {
     const template = CREATIVE_TEMPLATES.find(t => t.id === templateId);
     if (template) {
-      const content = template.content.replace('${brand}', state.brandName || '品牌');
+      let content: string;
+
+      // 如果有详细描述，使用详细版本
+      if (template.detailDescription) {
+        const dd = template.detailDescription;
+        content = `【${template.name}模板】
+
+设计理念：
+${dd.designPhilosophy}
+
+核心功能：
+${dd.coreFeatures.map((f, i) => `${i + 1}. ${f}`).join('\n')}
+
+适用场景：
+${dd.applicableScenarios.map((s, i) => `${i + 1}. ${s}`).join('\n')}
+
+视觉风格：
+${dd.visualStyle}
+
+使用方法：
+${dd.usageSteps.map((step, i) => `${i + 1}. ${step}`).join('\n')}
+
+预期效果：
+${dd.expectedEffect}
+
+---
+基于以上信息，为${state.brandName || '品牌'}设计${template.name}风格的创意方案。`;
+      } else {
+        // 否则使用简短内容
+        content = template.content.replace('${brand}', state.brandName || '品牌');
+      }
+
       setState({ inputText: content });
-      toast.success(`已应用「${template.name}」模板`);
+      toast.success(`已应用「${template.name}」模板（详细版）`);
+    }
+  };
+
+  // 应用设计模板（步骤3）
+  const applyDesignTemplate = (templateId: string) => {
+    const template = TEMPLATES.find(t => t.id === templateId);
+    if (template) {
+      setSelectedTemplate(templateId);
+
+      // 如果有详细描述，追加到创意描述中
+      if (template.detailDescription) {
+        const dd = template.detailDescription;
+        const designContent = `
+
+【设计模板：${template.title}】
+
+设计理念：
+${dd.designPhilosophy}
+
+核心功能：
+${dd.coreFeatures.map((f, i) => `${i + 1}. ${f}`).join('\n')}
+
+适用场景：
+${dd.applicableScenarios.map((s, i) => `${i + 1}. ${s}`).join('\n')}
+
+视觉风格：
+${dd.visualStyle}
+
+使用方法：
+${dd.usageSteps.map((step, i) => `${i + 1}. ${step}`).join('\n')}
+
+预期效果：
+${dd.expectedEffect}
+
+---
+设计要求：采用${template.title}风格，${template.style}`;
+
+        // 追加到现有创意描述
+        const currentText = state.inputText || '';
+        const newText = currentText + designContent;
+        setState({ inputText: newText });
+        toast.success(`已选择「${template.title}」设计模板并加载详细描述`);
+      } else {
+        toast.success(`已选择「${template.title}」设计模板`);
+      }
     }
   };
 
@@ -397,6 +609,118 @@ export default function Wizard() {
 
   return (
     <main className={`min-h-screen ${isDark ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'} pb-24`}>
+      {/* 草稿恢复提示弹窗 */}
+      <AnimatePresence>
+        {showDraftRestorePrompt && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className={`w-full max-w-md rounded-2xl shadow-2xl overflow-hidden ${isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'}`}
+            >
+              {/* 头部 */}
+              <div className={`p-6 ${isDark ? 'bg-gradient-to-br from-blue-900/30 to-purple-900/30' : 'bg-gradient-to-br from-blue-50 to-purple-50'}`}>
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white shadow-lg">
+                    <i className="fas fa-history text-xl"></i>
+                  </div>
+                  <div>
+                    <h3 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                      {restoredDraftInfo.from === 'url' ? '发现未完成的草稿' : '恢复上次编辑状态'}
+                    </h3>
+                    <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                      {restoredDraftInfo.from === 'url' 
+                        ? '您有之前保存的草稿，是否继续编辑？' 
+                        : '检测到您上次未完成的创作，是否继续？'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* 内容 */}
+              <div className="p-6 space-y-4">
+                {/* 草稿信息 */}
+                <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-amber-400 to-red-500 flex items-center justify-center text-white">
+                      <i className="fas fa-store"></i>
+                    </div>
+                    <div>
+                      <div className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        {state.brandName || '未命名品牌'}
+                      </div>
+                      <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        当前步骤: {step}/4 · {steps[step-1]?.title}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* 进度条 */}
+                  <div className="mt-3">
+                    <div className={`h-2 rounded-full ${isDark ? 'bg-gray-600' : 'bg-gray-200'}`}>
+                      <div 
+                        className="h-2 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 transition-all"
+                        style={{ width: `${(step / 4) * 100}%` }}
+                      />
+                    </div>
+                    <div className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                      完成进度: {Math.round((step / 4) * 100)}%
+                    </div>
+                  </div>
+
+                  {/* 最后保存时间 */}
+                  {lastSavedAt && (
+                    <div className={`mt-3 text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'} flex items-center gap-1`}>
+                      <i className="fas fa-clock"></i>
+                      最后保存: {new Date(lastSavedAt).toLocaleString('zh-CN', { 
+                        month: 'short', 
+                        day: 'numeric', 
+                        hour: '2-digit', 
+                        minute: '2-digit' 
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* 提示信息 */}
+                <div className={`p-3 rounded-lg text-xs ${isDark ? 'bg-amber-900/20 text-amber-300 border border-amber-800' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
+                  <i className="fas fa-info-circle mr-1"></i>
+                  {restoredDraftInfo.from === 'url' 
+                    ? '放弃草稿后，您仍可在草稿箱中找到它' 
+                    : '放弃后当前进度将被保存为草稿，您可以随时从草稿箱恢复'}
+                </div>
+
+                {/* 按钮组 */}
+                <div className="flex gap-3">
+                  <TianjinButton
+                    variant="secondary"
+                    fullWidth
+                    onClick={handleDiscardDraft}
+                    leftIcon={<i className="fas fa-trash-alt"></i>}
+                  >
+                    放弃草稿
+                  </TianjinButton>
+                  <TianjinButton
+                    primary
+                    fullWidth
+                    onClick={handleContinueDraft}
+                    leftIcon={<i className="fas fa-play"></i>}
+                  >
+                    继续编辑
+                  </TianjinButton>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Header & Stepper */}
       <div className={`sticky top-0 z-20 ${isDark ? 'bg-gray-900/80' : 'bg-white/80'} backdrop-blur-md border-b ${isDark ? 'border-gray-800' : 'border-gray-200'}`}>
         <div className="container mx-auto px-4 sm:px-6 py-4">
@@ -750,23 +1074,38 @@ export default function Wizard() {
                 </h3>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                   {CREATIVE_TEMPLATES.map(t => (
-                    <motion.button
+                    <motion.div
                       key={t.id}
-                      onClick={() => applyTemplate(t.id)}
-                      className={`p-4 rounded-xl border text-left transition-all ${
-                        isDark 
-                          ? 'border-gray-700 bg-gray-800 hover:border-gray-600' 
+                      className={`p-4 rounded-xl border text-left transition-all relative group ${
+                        isDark
+                          ? 'border-gray-700 bg-gray-800 hover:border-gray-600'
                           : 'border-gray-200 bg-white hover:border-red-300 hover:shadow-md'
                       }`}
                       whileHover={{ y: -2 }}
-                      whileTap={{ scale: 0.98 }}
                     >
-                      <div className={`w-10 h-10 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-red-50'} flex items-center justify-center mb-3`}>
-                        <i className={`fas ${t.icon} ${isDark ? 'text-red-400' : 'text-red-600'}`}></i>
-                      </div>
-                      <h4 className="font-bold text-sm">{t.name}</h4>
-                      <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'} mt-1`}>{t.desc}</p>
-                    </motion.button>
+                      {/* 详情按钮 */}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setSelectedTemplateDetail(t); }}
+                        className={`absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity ${
+                          isDark ? 'bg-gray-700 text-gray-400 hover:bg-gray-600' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                        }`}
+                        title="查看详情"
+                      >
+                        <i className="fas fa-info text-xs"></i>
+                      </button>
+                      
+                      <motion.button
+                        onClick={() => applyTemplate(t.id)}
+                        className="w-full text-left"
+                        whileTap={{ scale: 0.98 }}
+                      >
+                        <div className={`w-10 h-10 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-red-50'} flex items-center justify-center mb-3`}>
+                          <i className={`fas ${t.icon} ${isDark ? 'text-red-400' : 'text-red-600'}`}></i>
+                        </div>
+                        <h4 className="font-bold text-sm">{t.name}</h4>
+                        <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'} mt-1 line-clamp-2`}>{t.desc}</p>
+                      </motion.button>
+                    </motion.div>
                   ))}
                 </div>
               </div>
@@ -886,30 +1225,135 @@ export default function Wizard() {
                         ))}
                       </div>
                     </div>
-                    <div className={`relative rounded-xl overflow-hidden ${isDark ? 'bg-gray-700' : 'bg-gray-100'} flex items-center justify-center`}
+                    <div className={`relative rounded-xl overflow-hidden ${isDark ? 'bg-gray-700' : 'bg-gray-100'}`}
                       style={{ aspectRatio: previewRatio === 'landscape' ? '16/9' : previewRatio === 'square' ? '1/1' : '9/16' }}
                     >
-                      {state.imageUrl ? (
-                        <img src={state.imageUrl} alt="Preview" className="w-full h-full object-cover" />
+                      {state.imageUrl || brandAssets.logo ? (
+                        <div className="w-full h-full relative">
+                          {/* 背景层 - 参考图或品牌图 */}
+                          {state.imageUrl ? (
+                            <img src={state.imageUrl} alt="参考图" className="w-full h-full object-cover" />
+                          ) : selectedBrand ? (
+                            <img src={selectedBrand.image} alt={selectedBrand.name} className="w-full h-full object-cover opacity-30" />
+                          ) : null}
+                          
+                          {/* 品牌Logo叠加层 */}
+                          {brandAssets.logo && (
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <motion.div 
+                                initial={{ scale: 0.8, opacity: 0 }}
+                                animate={{ scale: 1, opacity: 1 }}
+                                className="relative"
+                                style={{
+                                  filter: 'drop-shadow(0 4px 20px rgba(0,0,0,0.3))'
+                                }}
+                              >
+                                <img 
+                                  src={brandAssets.logo} 
+                                  alt="品牌Logo" 
+                                  className="max-w-[40%] max-h-[40%] object-contain"
+                                  style={{ 
+                                    minWidth: '80px',
+                                    minHeight: '80px'
+                                  }}
+                                />
+                              </motion.div>
+                            </div>
+                          )}
+                          
+                          {/* 品牌色边框效果 */}
+                          {brandAssets.colors.length > 0 && (
+                            <div 
+                              className="absolute inset-0 pointer-events-none"
+                              style={{
+                                boxShadow: `inset 0 0 0 4px ${brandAssets.colors[0]}40, inset 0 0 30px ${brandAssets.colors[0]}20`
+                              }}
+                            />
+                          )}
+                          
+                          {/* 预览标签 */}
+                          <div className="absolute top-3 left-3 flex gap-2">
+                            {brandAssets.logo && (
+                              <span className={`px-2 py-1 rounded-full text-[10px] font-medium ${isDark ? 'bg-black/50 text-white' : 'bg-white/80 text-gray-700'} backdrop-blur-sm`}>
+                                <i className="fas fa-cube mr-1"></i>Logo
+                              </span>
+                            )}
+                            {state.imageUrl && (
+                              <span className={`px-2 py-1 rounded-full text-[10px] font-medium ${isDark ? 'bg-black/50 text-white' : 'bg-white/80 text-gray-700'} backdrop-blur-sm`}>
+                                <i className="fas fa-image mr-1"></i>参考图
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ) : selectedBrand ? (
+                        <div className="w-full h-full relative">
+                          <img src={selectedBrand.image} alt={selectedBrand.name} className="w-full h-full object-cover" />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent flex items-end justify-center pb-6">
+                            <span className="text-white text-sm font-medium">
+                              <i className="fas fa-store mr-2"></i>
+                              {selectedBrand.name}
+                            </span>
+                          </div>
+                        </div>
                       ) : (
-                        <div className="text-center p-4 opacity-40">
+                        <div className="w-full h-full flex flex-col items-center justify-center opacity-40">
                           <i className="fas fa-image text-4xl mb-2"></i>
                           <p className="text-xs">预览区域</p>
+                          <p className="text-[10px] mt-1">上传Logo或参考图查看效果</p>
                         </div>
                       )}
                     </div>
                     
-                    {/* Brand Info Summary */}
-                    <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                    {/* Brand Info Summary - 增强版 */}
+                    <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 space-y-3">
+                      {/* 品牌信息 */}
                       <div className="flex items-center gap-3">
                         {selectedBrand && (
                           <>
                             <img src={selectedBrand.image} alt={selectedBrand.name} className="w-10 h-10 rounded-lg object-cover" />
-                            <div>
-                              <div className="font-bold text-sm">{selectedBrand.name}</div>
+                            <div className="flex-1 min-w-0">
+                              <div className="font-bold text-sm truncate">{selectedBrand.name}</div>
                               <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>已选择品牌</div>
                             </div>
                           </>
+                        )}
+                      </div>
+                      
+                      {/* 品牌色预览 */}
+                      {brandAssets.colors.length > 0 && (
+                        <div className="flex items-center gap-2">
+                          <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>品牌色:</span>
+                          <div className="flex gap-1">
+                            {brandAssets.colors.slice(0, 5).map((color, idx) => (
+                              <div
+                                key={idx}
+                                className="w-5 h-5 rounded-full border-2 border-white dark:border-gray-600 shadow-sm"
+                                style={{ backgroundColor: color }}
+                                title={color}
+                              />
+                            ))}
+                            {brandAssets.colors.length > 5 && (
+                              <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[8px] ${isDark ? 'bg-gray-600 text-gray-300' : 'bg-gray-200 text-gray-600'}`}>
+                                +{brandAssets.colors.length - 5}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Logo状态 */}
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Logo:</span>
+                        {brandAssets.logo ? (
+                          <span className="text-xs text-green-500 flex items-center gap-1">
+                            <i className="fas fa-check-circle"></i>
+                            已上传
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-400 flex items-center gap-1">
+                            <i className="fas fa-circle text-[6px]"></i>
+                            未上传
+                          </span>
                         )}
                       </div>
                     </div>
@@ -934,28 +1378,43 @@ export default function Wizard() {
                 </h3>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                   {TEMPLATES.map(t => (
-                    <motion.button
+                    <motion.div
                       key={t.id}
-                      onClick={() => setSelectedTemplate(t.id)}
-                      className={`relative p-4 rounded-xl border-2 text-left transition-all overflow-hidden ${
+                      className={`relative p-4 rounded-xl border-2 text-left transition-all overflow-hidden group ${
                         selectedTemplate === t.id
                           ? 'border-red-500 bg-red-50 dark:bg-red-900/20 shadow-lg shadow-red-500/10'
                           : (isDark ? 'border-gray-700 bg-gray-800 hover:border-gray-600' : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-md')
                       }`}
                       whileHover={{ y: -2 }}
-                      whileTap={{ scale: 0.98 }}
                     >
-                      <div className={`w-12 h-12 rounded-xl ${selectedTemplate === t.id ? 'bg-red-100 dark:bg-red-800' : isDark ? 'bg-gray-700' : 'bg-gray-100'} flex items-center justify-center mb-3`}>
-                        <i className={`fas fa-${t.icon} ${selectedTemplate === t.id ? 'text-red-600 dark:text-red-400' : isDark ? 'text-gray-400' : 'text-gray-600'} text-xl`}></i>
-                      </div>
-                      <h4 className={`font-bold text-sm ${selectedTemplate === t.id ? 'text-red-600 dark:text-red-400' : ''}`}>{t.title}</h4>
-                      <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'} mt-1`}>{t.desc}</p>
-                      {selectedTemplate === t.id && (
-                        <div className="absolute top-2 right-2 w-6 h-6 bg-red-600 rounded-full flex items-center justify-center text-white text-xs">
-                          <i className="fas fa-check"></i>
+                      {/* 详情按钮 */}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setSelectedTemplateDetail({...t, name: t.title, content: t.style} as any); }}
+                        className={`absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10 ${
+                          isDark ? 'bg-gray-700 text-gray-400 hover:bg-gray-600' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                        }`}
+                        title="查看详情"
+                      >
+                        <i className="fas fa-info text-xs"></i>
+                      </button>
+                      
+                      <motion.button
+                        onClick={() => applyDesignTemplate(t.id)}
+                        className="w-full text-left"
+                        whileTap={{ scale: 0.98 }}
+                      >
+                        <div className={`w-12 h-12 rounded-xl ${selectedTemplate === t.id ? 'bg-red-100 dark:bg-red-800' : isDark ? 'bg-gray-700' : 'bg-gray-100'} flex items-center justify-center mb-3`}>
+                          <i className={`fas fa-${t.icon} ${selectedTemplate === t.id ? 'text-red-600 dark:text-red-400' : isDark ? 'text-gray-400' : 'text-gray-600'} text-xl`}></i>
                         </div>
-                      )}
-                    </motion.button>
+                        <h4 className={`font-bold text-sm ${selectedTemplate === t.id ? 'text-red-600 dark:text-red-400' : ''}`}>{t.title}</h4>
+                        <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'} mt-1 line-clamp-2`}>{t.desc}</p>
+                        {selectedTemplate === t.id && (
+                          <div className="absolute top-2 right-2 w-6 h-6 bg-red-600 rounded-full flex items-center justify-center text-white text-xs">
+                            <i className="fas fa-check"></i>
+                          </div>
+                        )}
+                      </motion.button>
+                    </motion.div>
                   ))}
                 </div>
               </div>
@@ -1183,7 +1642,7 @@ export default function Wizard() {
                   {selectedVariantIndex >= 0 && state.variants && (
                     <div className={`p-4 rounded-2xl ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'} border`}>
                       <h4 className="font-bold text-sm mb-3">已选方案预览</h4>
-                      <div className="relative rounded-xl overflow-hidden">
+                      <div className="relative rounded-xl overflow-hidden mb-4">
                         <TianjinImage 
                           src={state.variants[selectedVariantIndex].image} 
                           alt="Selected" 
@@ -1196,6 +1655,35 @@ export default function Wizard() {
                           </span>
                         </div>
                       </div>
+                      
+                      {/* 创意描述展示 */}
+                      {state.inputText && (
+                        <div className={`p-3 rounded-lg ${isDark ? 'bg-gray-700/50' : 'bg-gray-50'} border ${isDark ? 'border-gray-600' : 'border-gray-200'}`}>
+                          <h5 className="text-xs font-bold mb-2 flex items-center gap-1.5 text-gray-500">
+                            <i className="fas fa-file-alt"></i>
+                            创意描述
+                          </h5>
+                          <div 
+                            id="creative-desc-content"
+                            className={`text-xs ${isDark ? 'text-gray-300' : 'text-gray-600'} line-clamp-6 whitespace-pre-wrap transition-all duration-300`}
+                          >
+                            {state.inputText}
+                          </div>
+                          {state.inputText.length > 300 && (
+                            <button 
+                              onClick={() => {
+                                const el = document.getElementById('creative-desc-content');
+                                if (el) {
+                                  el.classList.toggle('line-clamp-6');
+                                }
+                              }}
+                              className="text-xs text-red-500 hover:text-red-600 mt-2 font-medium cursor-pointer"
+                            >
+                              展开/收起
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1344,21 +1832,41 @@ export default function Wizard() {
           </div>
           
           <div className="flex items-center gap-4">
-            {/* Auto-save Status */}
-            {lastSavedAt && (
-              <span className={`hidden sm:block text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+            {/* Auto-save Status - 增强版 */}
+            {state.brandName && (
+              <motion.span 
+                className={`hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full text-xs ${
+                  isDirty 
+                    ? (isDark ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/30' : 'bg-yellow-50 text-yellow-700 border border-yellow-200')
+                    : lastSavedAt
+                      ? (isDark ? 'bg-green-500/10 text-green-400 border border-green-500/30' : 'bg-green-50 text-green-700 border border-green-200')
+                      : (isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-500')
+                }`}
+                animate={isDirty ? { scale: [1, 1.02, 1] } : {}}
+                transition={isDirty ? { repeat: Infinity, duration: 2 } : {}}
+              >
                 {isDirty ? (
-                  <span className="flex items-center gap-1">
-                    <i className="fas fa-circle text-yellow-500 text-[6px]"></i>
-                    有未保存更改
-                  </span>
+                  <>
+                    <motion.i 
+                      className="fas fa-circle text-yellow-500 text-[6px]"
+                      animate={{ opacity: [1, 0.5, 1] }}
+                      transition={{ repeat: Infinity, duration: 1.5 }}
+                    />
+                    <span>有未保存更改</span>
+                    <span className="text-[10px] opacity-70">(自动保存中...)</span>
+                  </>
+                ) : lastSavedAt ? (
+                  <>
+                    <i className="fas fa-check-circle text-green-500 text-[10px]"></i>
+                    <span>{formatLastSaved()}</span>
+                  </>
                 ) : (
-                  <span className="flex items-center gap-1">
-                    <i className="fas fa-check-circle text-green-500 text-[8px]"></i>
-                    {formatLastSaved()}
-                  </span>
+                  <>
+                    <i className="fas fa-info-circle text-[10px]"></i>
+                    <span>草稿将自动保存</span>
+                  </>
                 )}
-              </span>
+              </motion.span>
             )}
             
             {/* Step Info */}
@@ -1388,6 +1896,179 @@ export default function Wizard() {
           </div>
         </div>
       </div>
+
+      {/* 模板详情弹窗 */}
+      <AnimatePresence>
+        {selectedTemplateDetail && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+            onClick={() => setSelectedTemplateDetail(null)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className={`relative w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-2xl shadow-2xl ${
+                isDark ? 'bg-gray-800' : 'bg-white'
+              }`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* 弹窗头部 */}
+              <div className={`sticky top-0 z-10 flex items-center justify-between p-6 border-b ${
+                isDark ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'
+              }`}>
+                <div className="flex items-center gap-4">
+                  <div className={`w-12 h-12 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-red-50'} flex items-center justify-center`}>
+                    <i className={`fas ${selectedTemplateDetail.icon} text-xl ${isDark ? 'text-red-400' : 'text-red-600'}`}></i>
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold">{selectedTemplateDetail.name}</h3>
+                    <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{selectedTemplateDetail.desc}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSelectedTemplateDetail(null)}
+                  className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
+                    isDark ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-500'
+                  }`}
+                >
+                  <i className="fas fa-times"></i>
+                </button>
+              </div>
+
+              {/* 弹窗内容 */}
+              <div className="p-6 space-y-6">
+                {selectedTemplateDetail.detailDescription ? (
+                  <>
+                    {/* 设计理念 */}
+                    <div>
+                      <h4 className="font-bold text-lg mb-3 flex items-center gap-2">
+                        <i className="fas fa-lightbulb text-yellow-500"></i>
+                        设计理念
+                      </h4>
+                      <p className={`text-sm leading-relaxed ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                        {selectedTemplateDetail.detailDescription.designPhilosophy}
+                      </p>
+                    </div>
+
+                    {/* 核心功能 */}
+                    <div>
+                      <h4 className="font-bold text-lg mb-3 flex items-center gap-2">
+                        <i className="fas fa-star text-amber-500"></i>
+                        核心功能
+                      </h4>
+                      <ul className="space-y-2">
+                        {selectedTemplateDetail.detailDescription.coreFeatures.map((feature, idx) => (
+                          <li key={idx} className={`flex items-start gap-2 text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                            <i className="fas fa-check-circle text-green-500 mt-0.5 flex-shrink-0"></i>
+                            <span>{feature}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    {/* 适用场景 */}
+                    <div>
+                      <h4 className="font-bold text-lg mb-3 flex items-center gap-2">
+                        <i className="fas fa-map-marker-alt text-red-500"></i>
+                        适用场景
+                      </h4>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedTemplateDetail.detailDescription.applicableScenarios.map((scenario, idx) => (
+                          <span
+                            key={idx}
+                            className={`px-3 py-1.5 rounded-full text-xs ${
+                              isDark
+                                ? 'bg-gray-700 text-gray-300 border border-gray-600'
+                                : 'bg-gray-100 text-gray-600 border border-gray-200'
+                            }`}
+                          >
+                            {scenario}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* 视觉风格 */}
+                    <div>
+                      <h4 className="font-bold text-lg mb-3 flex items-center gap-2">
+                        <i className="fas fa-palette text-purple-500"></i>
+                        视觉风格
+                      </h4>
+                      <p className={`text-sm leading-relaxed ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                        {selectedTemplateDetail.detailDescription.visualStyle}
+                      </p>
+                    </div>
+
+                    {/* 使用方法 */}
+                    <div>
+                      <h4 className="font-bold text-lg mb-3 flex items-center gap-2">
+                        <i className="fas fa-list-ol text-blue-500"></i>
+                        使用方法
+                      </h4>
+                      <ol className="space-y-2">
+                        {selectedTemplateDetail.detailDescription.usageSteps.map((step, idx) => (
+                          <li key={idx} className={`flex items-start gap-3 text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                            <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
+                              isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'
+                            }`}>
+                              {idx + 1}
+                            </span>
+                            <span className="pt-0.5">{step}</span>
+                          </li>
+                        ))}
+                      </ol>
+                    </div>
+
+                    {/* 预期效果 */}
+                    <div>
+                      <h4 className="font-bold text-lg mb-3 flex items-center gap-2">
+                        <i className="fas fa-chart-line text-green-500"></i>
+                        预期效果
+                      </h4>
+                      <p className={`text-sm leading-relaxed ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                        {selectedTemplateDetail.detailDescription.expectedEffect}
+                      </p>
+                    </div>
+                  </>
+                ) : (
+                  <div className={`text-center py-8 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                    <i className="fas fa-info-circle text-4xl mb-3 opacity-50"></i>
+                    <p>该模板暂无详细描述</p>
+                  </div>
+                )}
+              </div>
+
+              {/* 弹窗底部 */}
+              <div className={`sticky bottom-0 p-4 border-t ${
+                isDark ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'
+              }`}>
+                <div className="flex justify-end gap-3">
+                  <TianjinButton
+                    variant="ghost"
+                    onClick={() => setSelectedTemplateDetail(null)}
+                  >
+                    关闭
+                  </TianjinButton>
+                  <TianjinButton
+                    primary
+                    onClick={() => {
+                      applyTemplate(selectedTemplateDetail.id);
+                      setSelectedTemplateDetail(null);
+                    }}
+                    leftIcon={<i className="fas fa-magic"></i>}
+                  >
+                    使用此模板
+                  </TianjinButton>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </main>
   );
 }

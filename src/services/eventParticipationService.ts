@@ -2,7 +2,7 @@ import { supabase } from '@/lib/supabase';
 import { apiService } from './apiService';
 
 // 参与状态类型
-export type ParticipationStatus = 'registered' | 'submitted' | 'reviewing' | 'completed' | 'awarded' | 'cancelled';
+export type ParticipationStatus = 'registered' | 'reviewing' | 'completed' | 'awarded' | 'cancelled';
 
 // 参与步骤类型
 export type ParticipationStep = 1 | 2 | 3 | 4;
@@ -48,11 +48,6 @@ export interface ParticipationDetail {
 // 参与统计接口
 export interface ParticipationStats {
   total: number;
-  registered: number;
-  submitted: number;
-  reviewing: number;
-  completed: number;
-  awarded: number;
   totalViews: number;
   totalLikes: number;
   totalShares: number;
@@ -80,44 +75,160 @@ class EventParticipationService {
       const from = (page - 1) * pageSize;
       const to = from + pageSize - 1;
 
-      // 使用视图获取参与详情
-      let query = supabase
-        .from('user_participation_details')
-        .select('*', { count: 'exact' })
-        .eq('user_id', userId);
+      // 首先尝试使用视图获取参与详情
+      let useView = true;
+      let data: any[] = [];
+      let count = 0;
+      
+      try {
+        let query = supabase
+          .from('user_participation_details')
+          .select('*', { count: 'exact' })
+          .eq('user_id', userId);
 
-      // 应用状态筛选
-      if (filter.status && filter.status !== 'all') {
-        query = query.eq('participation_status', filter.status);
+        // 应用状态筛选
+        if (filter.status && filter.status !== 'all') {
+          const dbStatusMap: Record<string, string[]> = {
+            'registered': ['registered', 'checked_in'], // 已报名：已报名、已签到
+            'reviewing': ['submitted', 'reviewing'], // 评审中：已提交、评审中
+            'completed': ['completed', 'submitted', 'reviewing'], // 已结束：已完成、已提交（活动结束）、评审中（活动结束）
+            'awarded': ['awarded'],
+          };
+          const dbStatuses = dbStatusMap[filter.status];
+          if (dbStatuses) {
+            if (dbStatuses.length === 1) {
+              query = query.eq('participation_status', dbStatuses[0]);
+            } else {
+              query = query.in('participation_status', dbStatuses);
+            }
+          }
+        }
+
+        const result = await query
+          .order('created_at', { ascending: false })
+          .range(from, to);
+
+        if (result.error) {
+          // 如果视图不存在，会返回错误
+          if (result.error.message?.includes('Could not find the table')) {
+            console.log('[getUserParticipations] View not found, will use direct query');
+            useView = false;
+          } else {
+            throw result.error;
+          }
+        } else {
+          data = result.data || [];
+          count = result.count || 0;
+        }
+      } catch (viewError: any) {
+        if (viewError.message?.includes('Could not find the table')) {
+          console.log('[getUserParticipations] View not found, will use direct query');
+          useView = false;
+        } else {
+          throw viewError;
+        }
       }
 
-      const { data, error, count } = await query
-        .order('created_at', { ascending: false })
-        .range(from, to);
+      // 如果视图不可用，直接从 event_participants 表查询
+      if (!useView) {
+        console.log('[getUserParticipations] Using direct query from event_participants');
+        
+        // 先查询 event_participants
+        let participantsQuery = supabase
+          .from('event_participants')
+          .select('*', { count: 'exact' })
+          .eq('user_id', userId);
 
-      if (error) throw error;
+        // 调试：先查询所有记录，查看实际状态
+        const debugResult = await supabase
+          .from('event_participants')
+          .select('id, event_id, status')
+          .eq('user_id', userId);
+        console.log('[getUserParticipations] Debug - All participations:', debugResult.data);
+        if (debugResult.data && debugResult.data.length > 0) {
+          console.log('[getUserParticipations] Debug - First participation status:', debugResult.data[0].status);
+        }
+
+        // 应用状态筛选
+        if (filter.status && filter.status !== 'all') {
+          const dbStatusMap: Record<string, string[]> = {
+            'registered': ['registered', 'checked_in'], // 已报名：已报名、已签到
+            'reviewing': ['submitted', 'reviewing'], // 评审中：已提交、评审中
+            'completed': ['completed', 'submitted', 'reviewing'], // 已结束：已完成、已提交（活动结束）、评审中（活动结束）
+            'awarded': ['awarded'],
+          };
+          const dbStatuses = dbStatusMap[filter.status];
+          console.log('[getUserParticipations] Debug - Filter status:', filter.status);
+          console.log('[getUserParticipations] Debug - DB statuses:', dbStatuses);
+          if (dbStatuses) {
+            if (dbStatuses.length === 1) {
+              participantsQuery = participantsQuery.eq('status', dbStatuses[0]);
+              console.log('[getUserParticipations] Debug - Using eq filter:', dbStatuses[0]);
+            } else {
+              participantsQuery = participantsQuery.in('status', dbStatuses);
+              console.log('[getUserParticipations] Debug - Using in filter:', dbStatuses);
+            }
+          }
+        }
+
+        const participantsResult = await participantsQuery
+          .order('created_at', { ascending: false })
+          .range(from, to);
+
+        console.log('[getUserParticipations] Debug - Participants query result:', {
+          data: participantsResult.data,
+          count: participantsResult.count,
+          error: participantsResult.error
+        });
+
+        if (participantsResult.error) {
+          console.error('[getUserParticipations] Participants query error:', participantsResult.error);
+          throw participantsResult.error;
+        }
+
+        const participants = participantsResult.data || [];
+        count = participantsResult.count || 0;
+        console.log('[getUserParticipations] Debug - Processed participants:', participants);
+        console.log('[getUserParticipations] Debug - Total count:', count);
+
+        // 获取所有相关的 event_id
+        const eventIds = participants.map(p => p.event_id).filter(Boolean);
+        
+        // 批量查询 events 信息
+        let eventsMap: Record<string, any> = {};
+        if (eventIds.length > 0) {
+          const { data: events, error: eventsError } = await supabase
+            .from('events')
+            .select('*')
+            .in('id', eventIds);
+          
+          if (eventsError) {
+            console.error('[getUserParticipations] Events query error:', eventsError);
+          } else {
+            eventsMap = (events || []).reduce((map, event) => {
+              map[event.id] = event;
+              return map;
+            }, {} as Record<string, any>);
+          }
+        }
+
+        // 合并数据
+        data = participants.map(p => ({
+          ...p,
+          events: eventsMap[p.event_id] || null
+        }));
+      }
 
       if (!data || data.length === 0) {
         return { data: [], total: 0 };
       }
 
       // 格式化数据
-      const formattedData: ParticipationDetail[] = data.map((item: any) => ({
-        id: item.id,
-        userId: item.user_id,
-        eventId: item.event_id,
-        participationStatus: this.mapStatus(item.participation_status),
-        progress: item.progress || 0,
-        currentStep: (item.current_step || 1) as ParticipationStep,
-        submittedWorkId: item.submitted_work_id,
-        submissionDate: item.submission_date,
-        ranking: item.ranking,
-        award: item.award,
-        registrationDate: item.registration_date || item.created_at,
-        notes: item.notes,
-        createdAt: item.created_at,
-        updatedAt: item.updated_at,
-        event: {
+      console.log('[getUserParticipations] Debug - Raw data before formatting:', data);
+      
+      const formattedData: ParticipationDetail[] = data.map((item: any) => {
+        // 根据查询方式处理数据格式
+        const event = useView ? {
           id: item.event_id,
           title: item.event_title || '未知活动',
           description: item.event_description || '',
@@ -127,18 +238,49 @@ class EventParticipationService {
           type: 'offline',
           status: item.event_status || 'published',
           thumbnailUrl: item.event_thumbnail,
-          participants: 0, // 视图已移除该字段
+          participants: 0,
           maxParticipants: item.event_max_participants,
-        },
-        submission: item.submission_id ? {
-          id: item.submission_id,
-          title: item.submission_title || '',
-          status: item.submission_status || 'draft',
-          score: item.submission_score,
-          reviewNotes: item.review_notes,
-        } : undefined,
-      }));
+        } : {
+          id: item.events?.id || item.event_id,
+          title: item.events?.title || '未知活动',
+          description: item.events?.description || '',
+          startTime: item.events?.start_time || new Date().toISOString(),
+          endTime: item.events?.end_time || new Date().toISOString(),
+          location: item.events?.location,
+          type: 'offline',
+          status: item.events?.status || 'published',
+          thumbnailUrl: item.events?.thumbnail_url,
+          participants: item.events?.participants || 0,
+          maxParticipants: item.events?.max_participants,
+        };
 
+        return {
+          id: item.id,
+          userId: item.user_id,
+          eventId: item.event_id,
+          participationStatus: this.mapStatus(useView ? item.participation_status : item.status),
+          progress: item.progress || 0,
+          currentStep: (item.current_step || 1) as ParticipationStep,
+          submittedWorkId: item.submitted_work_id,
+          submissionDate: item.submission_date,
+          ranking: item.ranking,
+          award: item.award,
+          registrationDate: item.registration_date || item.created_at,
+          notes: item.notes,
+          createdAt: item.created_at,
+          updatedAt: item.updated_at,
+          event,
+          submission: item.submission_id || item.submitted_work_id ? {
+            id: item.submission_id || item.submitted_work_id,
+            title: item.submission_title || '',
+            status: item.submission_status || 'draft',
+            score: item.submission_score,
+            reviewNotes: item.review_notes,
+          } : undefined,
+        };
+      });
+
+      console.log('[getUserParticipations] Debug - Formatted data:', formattedData);
       return { data: formattedData, total: count || 0 };
     } catch (error) {
       console.error('获取用户参与记录失败:', error);
@@ -151,19 +293,102 @@ class EventParticipationService {
    */
   async getParticipationDetail(participationId: string): Promise<ParticipationDetail | null> {
     try {
-      const { data, error } = await supabase
-        .from('user_participation_details')
-        .select('*')
-        .eq('id', participationId)
-        .single();
+      // 首先尝试使用视图
+      let useView = true;
+      let data: any = null;
+      
+      try {
+        const result = await supabase
+          .from('user_participation_details')
+          .select('*')
+          .eq('id', participationId)
+          .single();
 
-      if (error || !data) return null;
+        if (result.error) {
+          if (result.error.message?.includes('Could not find the table')) {
+            console.log('[getParticipationDetail] View not found, will use direct query');
+            useView = false;
+          } else {
+            throw result.error;
+          }
+        } else {
+          data = result.data;
+        }
+      } catch (viewError: any) {
+        if (viewError.message?.includes('Could not find the table')) {
+          console.log('[getParticipationDetail] View not found, will use direct query');
+          useView = false;
+        } else {
+          throw viewError;
+        }
+      }
+
+      // 如果视图不可用，直接从 event_participants 表查询
+      if (!useView || !data) {
+        console.log('[getParticipationDetail] Using direct query from event_participants');
+        
+        const { data: participant, error: participantError } = await supabase
+          .from('event_participants')
+          .select('*')
+          .eq('id', participationId)
+          .single();
+        
+        if (participantError || !participant) {
+          console.error('[getParticipationDetail] Participant not found');
+          return null;
+        }
+        
+        // 查询关联的 event 信息
+        let eventData = null;
+        if (participant.event_id) {
+          const { data: event } = await supabase
+            .from('events')
+            .select('*')
+            .eq('id', participant.event_id)
+            .single();
+          eventData = event;
+        }
+        
+        data = {
+          ...participant,
+          events: eventData
+        };
+      }
+
+      if (!data) return null;
+
+      // 根据查询方式处理数据格式
+      const event = useView ? {
+        id: data.event_id,
+        title: data.event_title || '未知活动',
+        description: data.event_description || '',
+        startTime: data.event_start || new Date().toISOString(),
+        endTime: data.event_end || new Date().toISOString(),
+        location: data.event_location,
+        type: 'offline',
+        status: data.event_status || 'published',
+        thumbnailUrl: data.event_thumbnail,
+        participants: 0,
+        maxParticipants: data.event_max_participants,
+      } : {
+        id: data.events?.id || data.event_id,
+        title: data.events?.title || '未知活动',
+        description: data.events?.description || '',
+        startTime: data.events?.start_time || new Date().toISOString(),
+        endTime: data.events?.end_time || new Date().toISOString(),
+        location: data.events?.location,
+        type: 'offline',
+        status: data.events?.status || 'published',
+        thumbnailUrl: data.events?.thumbnail_url,
+        participants: data.events?.participants || 0,
+        maxParticipants: data.events?.max_participants,
+      };
 
       return {
         id: data.id,
         userId: data.user_id,
         eventId: data.event_id,
-        participationStatus: this.mapStatus(data.participation_status),
+        participationStatus: this.mapStatus(useView ? data.participation_status : data.status),
         progress: data.progress || 0,
         currentStep: (data.current_step || 1) as ParticipationStep,
         submittedWorkId: data.submitted_work_id,
@@ -174,21 +399,9 @@ class EventParticipationService {
         notes: data.notes,
         createdAt: data.created_at,
         updatedAt: data.updated_at,
-        event: {
-          id: data.event_id,
-          title: data.event_title || '未知活动',
-          description: data.event_description || '',
-          startTime: data.event_start || new Date().toISOString(),
-          endTime: data.event_end || new Date().toISOString(),
-          location: data.event_location,
-          type: 'offline',
-          status: data.event_status || 'published',
-          thumbnailUrl: data.event_thumbnail,
-          participants: 0,
-          maxParticipants: data.event_max_participants,
-        },
-        submission: data.submission_id ? {
-          id: data.submission_id,
+        event,
+        submission: data.submission_id || data.submitted_work_id ? {
+          id: data.submission_id || data.submitted_work_id,
           title: data.submission_title || '',
           status: data.submission_status || 'draft',
           score: data.submission_score,
@@ -215,11 +428,6 @@ class EventParticipationService {
 
       const stats: ParticipationStats = {
         total: 0,
-        registered: 0,
-        submitted: 0,
-        reviewing: 0,
-        completed: 0,
-        awarded: 0,
         totalViews: 0,
         totalLikes: 0,
         totalShares: 0,
@@ -227,23 +435,6 @@ class EventParticipationService {
 
       (data || []).forEach((item: any) => {
         stats.total++;
-        switch (item.status) {
-          case 'registered':
-            stats.registered++;
-            break;
-          case 'submitted':
-            stats.submitted++;
-            break;
-          case 'reviewing':
-            stats.reviewing++;
-            break;
-          case 'completed':
-            stats.completed++;
-            break;
-          case 'awarded':
-            stats.awarded++;
-            break;
-        }
       });
 
       return stats;
@@ -251,11 +442,6 @@ class EventParticipationService {
       console.error('获取参与统计失败:', error);
       return {
         total: 0,
-        registered: 0,
-        submitted: 0,
-        reviewing: 0,
-        completed: 0,
-        awarded: 0,
         totalViews: 0,
         totalLikes: 0,
         totalShares: 0,
@@ -389,9 +575,9 @@ class EventParticipationService {
   private mapStatus(status: string): ParticipationStatus {
     const statusMap: Record<string, ParticipationStatus> = {
       'registered': 'registered',
-      'checked_in': 'submitted',
+      'checked_in': 'registered', // 已签到属于已报名状态
       'cancelled': 'cancelled',
-      'submitted': 'submitted',
+      'submitted': 'reviewing', // 已提交作品进入评审中状态
       'reviewing': 'reviewing',
       'completed': 'completed',
       'awarded': 'awarded',

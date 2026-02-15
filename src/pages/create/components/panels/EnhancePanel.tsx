@@ -161,9 +161,22 @@ export const EnhancePanel: React.FC = () => {
       console.log('[EnhancePanel] enhanceImage result:', result);
 
       if (result.success && result.imageUrl) {
+        toast.info('正在保存图片到云存储...');
+        
+        // 上传图片到 Supabase Storage
+        let permanentUrl = result.imageUrl;
+        try {
+          const { downloadAndUploadImage } = await import('@/services/imageService');
+          permanentUrl = await downloadAndUploadImage(result.imageUrl, 'works');
+          console.log('[EnhancePanel] Image uploaded to:', permanentUrl);
+        } catch (uploadError) {
+          console.error('[EnhancePanel] Failed to upload image:', uploadError);
+          toast.warning('图片处理成功，但上传到永久存储失败');
+        }
+        
         const newResult = {
           id: Date.now(),
-          thumbnail: result.imageUrl,
+          thumbnail: permanentUrl,
           prompt: currentWork.prompt,
           style: `${currentWork.style || ''} + ${effectName}`,
           timestamp: Date.now(),
@@ -176,7 +189,7 @@ export const EnhancePanel: React.FC = () => {
           aiExplanation: `已应用「${effectName}」效果，强度${intensity}%`
         });
 
-        toast.success(`已应用${effectName}效果`);
+        toast.success(`已应用${effectName}效果并保存到云存储`);
         
         // 重置预览
         setPreviewFilter('');
@@ -211,9 +224,22 @@ export const EnhancePanel: React.FC = () => {
       );
 
       if (result.success && result.imageUrl) {
+        toast.info('正在保存图片到云存储...');
+        
+        // 上传图片到 Supabase Storage
+        let permanentUrl = result.imageUrl;
+        try {
+          const { downloadAndUploadImage } = await import('@/services/imageService');
+          permanentUrl = await downloadAndUploadImage(result.imageUrl, 'works');
+          console.log('[EnhancePanel] AI enhanced image uploaded to:', permanentUrl);
+        } catch (uploadError) {
+          console.error('[EnhancePanel] Failed to upload AI enhanced image:', uploadError);
+          toast.warning('图片美化成功，但上传到永久存储失败');
+        }
+        
         const newResult = {
           id: Date.now(),
-          thumbnail: result.imageUrl,
+          thumbnail: permanentUrl,
           prompt: currentWork.prompt,
           style: `${currentWork.style || ''} + AI智能美化`,
           timestamp: Date.now(),
@@ -226,7 +252,7 @@ export const EnhancePanel: React.FC = () => {
           aiExplanation: '已应用AI智能美化，自动优化色彩、对比度和细节'
         });
 
-        toast.success('AI智能美化完成！');
+        toast.success('AI智能美化完成并保存到云存储！');
       } else {
         toast.error(result.error || '美化失败');
       }

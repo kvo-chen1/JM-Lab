@@ -1,5 +1,5 @@
 /**
- * 灵感脉络服务
+ * 津脉脉络服务
  * 管理创作脉络的完整生命周期 - 使用 Supabase 数据库存储
  * 
  * 功能说明：
@@ -10,7 +10,7 @@
  * - 分享与导出功能
  */
 
-import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 import { llmService } from './llmService';
 import type { 
   MindNode, 
@@ -47,7 +47,7 @@ interface StoryEvent {
 }
 
 // ============================================
-// 灵感脉络服务类
+// 津脉脉络服务类
 // ============================================
 
 export class InspirationMindMapService {
@@ -87,9 +87,9 @@ export class InspirationMindMapService {
       user_id: userId,
       title,
       description: '',
-      layout_type: 'tree',
+      layout_type: 'timeline',
       settings: {
-        layoutType: 'tree',
+        layoutType: 'timeline',
         theme: 'tianjin',
         autoSave: true,
         showGrid: true,
@@ -107,17 +107,19 @@ export class InspirationMindMapService {
       is_public: false,
     };
 
-    const { data, error } = await supabaseAdmin
+    console.log('[InspirationMindMapService] Creating mind map for user:', userId);
+    const { data, error } = await supabase
       .from('inspiration_mindmaps')
       .insert(mindMapData)
       .select()
       .single();
 
     if (error) {
-      console.error('创建脉络失败:', error);
+      console.error('[InspirationMindMapService] 创建脉络失败:', error);
       throw new Error(`创建脉络失败: ${error.message}`);
     }
 
+    console.log('[InspirationMindMapService] Mind map created:', data?.id);
     return this.mapDbToMindMap(data);
   }
 
@@ -126,7 +128,7 @@ export class InspirationMindMapService {
    */
   async getMindMap(mapId: string): Promise<CreationMindMap | null> {
     // 获取脉络基本信息
-    const { data: mindMapData, error: mindMapError } = await supabaseAdmin
+    const { data: mindMapData, error: mindMapError } = await supabase
       .from('inspiration_mindmaps')
       .select('*')
       .eq('id', mapId)
@@ -141,19 +143,24 @@ export class InspirationMindMapService {
     }
 
     // 获取脉络的所有节点
-    const { data: nodesData, error: nodesError } = await supabaseAdmin
+    console.log('[InspirationMindMapService] Fetching nodes for map:', mapId);
+    const { data: nodesData, error: nodesError } = await supabase
       .from('inspiration_nodes')
       .select('*')
       .eq('map_id', mapId)
       .order('created_at', { ascending: true });
 
     if (nodesError) {
-      console.error('获取节点失败:', nodesError);
+      console.error('[InspirationMindMapService] 获取节点失败:', nodesError);
       throw new Error(`获取节点失败: ${nodesError.message}`);
     }
+    
+    console.log('[InspirationMindMapService] Nodes data:', nodesData?.length || 0, nodesData?.map((n: any) => ({ id: n.id, title: n.title?.substring(0, 20) })));
 
     const mindMap = this.mapDbToMindMap(mindMapData);
     mindMap.nodes = (nodesData || []).map(this.mapDbToNode);
+    
+    console.log('[InspirationMindMapService] getMindMap:', mapId, 'nodes:', mindMap.nodes.length);
 
     return mindMap;
   }
@@ -175,7 +182,7 @@ export class InspirationMindMapService {
     if (updates.tags !== undefined) dbUpdates.tags = updates.tags;
     if (updates.isPublic !== undefined) dbUpdates.is_public = updates.isPublic;
 
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabase
       .from('inspiration_mindmaps')
       .update(dbUpdates)
       .eq('id', mapId)
@@ -194,7 +201,7 @@ export class InspirationMindMapService {
    * 删除脉络
    */
   async deleteMindMap(mapId: string): Promise<void> {
-    const { error } = await supabaseAdmin
+    const { error } = await supabase
       .from('inspiration_mindmaps')
       .delete()
       .eq('id', mapId);
@@ -209,17 +216,19 @@ export class InspirationMindMapService {
    * 获取用户的所有脉络
    */
   async getUserMindMaps(userId: string): Promise<CreationMindMap[]> {
-    const { data, error } = await supabaseAdmin
+    console.log('[InspirationMindMapService] Fetching mind maps for user:', userId);
+    const { data, error } = await supabase
       .from('inspiration_mindmaps')
       .select('*')
       .eq('user_id', userId)
       .order('updated_at', { ascending: false });
 
     if (error) {
-      console.error('获取用户脉络列表失败:', error);
+      console.error('[InspirationMindMapService] 获取用户脉络列表失败:', error);
       throw new Error(`获取脉络列表失败: ${error.message}`);
     }
 
+    console.log('[InspirationMindMapService] Found', data?.length || 0, 'mind maps');
     return (data || []).map(this.mapDbToMindMap);
   }
 
@@ -269,17 +278,19 @@ export class InspirationMindMapService {
       }],
     };
 
-    const { data, error } = await supabaseAdmin
+    console.log('[InspirationMindMapService] Adding node to map:', mapId);
+    const { data, error } = await supabase
       .from('inspiration_nodes')
       .insert(nodeDbData)
       .select()
       .single();
 
     if (error) {
-      console.error('添加节点失败:', error);
+      console.error('[InspirationMindMapService] 添加节点失败:', error);
       throw new Error(`添加节点失败: ${error.message}`);
     }
 
+    console.log('[InspirationMindMapService] Node added:', data?.id);
     return this.mapDbToNode(data);
   }
 
@@ -291,7 +302,7 @@ export class InspirationMindMapService {
     updates: Partial<MindNode>
   ): Promise<MindNode> {
     // 先获取当前节点
-    const { data: currentNode, error: fetchError } = await supabaseAdmin
+    const { data: currentNode, error: fetchError } = await supabase
       .from('inspiration_nodes')
       .select('*')
       .eq('id', nodeId)
@@ -331,7 +342,7 @@ export class InspirationMindMapService {
       },
     ];
 
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabase
       .from('inspiration_nodes')
       .update(dbUpdates)
       .eq('id', nodeId)
@@ -351,7 +362,7 @@ export class InspirationMindMapService {
    */
   async deleteNode(nodeId: string): Promise<void> {
     // 删除节点及其子节点
-    const { error } = await supabaseAdmin
+    const { error } = await supabase
       .from('inspiration_nodes')
       .delete()
       .or(`id.eq.${nodeId},parent_id.eq.${nodeId}`);
@@ -367,7 +378,7 @@ export class InspirationMindMapService {
    */
   async duplicateNode(nodeId: string): Promise<MindNode> {
     // 获取源节点
-    const { data: sourceNode, error: fetchError } = await supabaseAdmin
+    const { data: sourceNode, error: fetchError } = await supabase
       .from('inspiration_nodes')
       .select('*')
       .eq('id', nodeId)
@@ -405,119 +416,48 @@ export class InspirationMindMapService {
    */
   calculateLayout(
     nodes: MindNode[],
-    layoutType: LayoutType = 'tree'
+    layoutType: LayoutType = 'timeline'
   ): NodePosition[] {
-    switch (layoutType) {
-      case 'tree':
-        return this.calculateTreeLayout(nodes);
-      case 'radial':
-        return this.calculateRadialLayout(nodes);
-      case 'timeline':
-        return this.calculateTimelineLayout(nodes);
-      default:
-        return this.calculateTreeLayout(nodes);
-    }
-  }
-
-  /**
-   * 树形布局
-   */
-  private calculateTreeLayout(nodes: MindNode[]): NodePosition[] {
-    const positions: NodePosition[] = [];
-    const nodeMap = new Map(nodes.map(n => [n.id, n]));
-    
-    // 找到根节点（没有 parentId 的节点）
-    const rootNode = nodes.find(n => !n.parentId);
-    if (!rootNode) return positions;
-
-    const levelHeight = 150;
-    const nodeWidth = 200;
-    
-    const calculatePosition = (nodeId: string, level: number, index: number, totalSiblings: number): NodePosition => {
-      const x = index * nodeWidth - (totalSiblings - 1) * nodeWidth / 2;
-      const y = level * levelHeight;
-      return { x, y, level };
-    };
-
-    const traverse = (nodeId: string, level: number, index: number, totalSiblings: number) => {
-      const node = nodeMap.get(nodeId);
-      if (!node) return;
-
-      const position = calculatePosition(nodeId, level, index, totalSiblings);
-      positions.push({ nodeId, ...position });
-
-      // 从 nodes 数组中查找子节点
-      const children = nodes.filter(n => n.parentId === nodeId);
-      children.forEach((child, childIndex) => {
-        traverse(child.id, level + 1, childIndex, children.length);
-      });
-    };
-
-    traverse(rootNode.id, 0, 0, 1);
-    return positions;
-  }
-
-  /**
-   * 径向布局
-   */
-  private calculateRadialLayout(nodes: MindNode[]): NodePosition[] {
-    const positions: NodePosition[] = [];
-    const centerX = 0;
-    const centerY = 0;
-    const radiusStep = 120;
-
-    // 按层级分组
-    const nodesByLevel = new Map<number, MindNode[]>();
-    
-    const getLevel = (nodeId: string, level: number = 0): number => {
-      const node = nodes.find(n => n.id === nodeId);
-      if (!node || !node.parentId) return level;
-      return getLevel(node.parentId, level + 1);
-    };
-
-    nodes.forEach(node => {
-      const level = getLevel(node.id);
-      if (!nodesByLevel.has(level)) {
-        nodesByLevel.set(level, []);
-      }
-      nodesByLevel.get(level)!.push(node);
-    });
-
-    // 计算位置
-    nodesByLevel.forEach((levelNodes, level) => {
-      const radius = level * radiusStep;
-      const angleStep = (2 * Math.PI) / Math.max(levelNodes.length, 1);
-      
-      levelNodes.forEach((node, index) => {
-        const angle = index * angleStep;
-        const x = centerX + radius * Math.cos(angle);
-        const y = centerY + radius * Math.sin(angle);
-        positions.push({ nodeId: node.id, x, y, level });
-      });
-    });
-
-    return positions;
+    // 只使用时间线布局
+    return this.calculateTimelineLayout(nodes);
   }
 
   /**
    * 时间轴布局
    */
   private calculateTimelineLayout(nodes: MindNode[]): NodePosition[] {
+    console.log('[calculateTimelineLayout] Input nodes:', nodes.length, nodes.map(n => ({ id: n.id, createdAt: n.createdAt })));
+    
     // 按创建时间排序
-    const sortedNodes = [...nodes].sort((a, b) => 
-      new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-    );
+    const sortedNodes = [...nodes].sort((a, b) => {
+      const timeA = new Date(a.createdAt || 0).getTime();
+      const timeB = new Date(b.createdAt || 0).getTime();
+      return timeA - timeB;
+    });
 
     const positions: NodePosition[] = [];
-    const itemWidth = 250;
+    // 三行交错布局参数 - 匹配紧凑节点尺寸
+    const itemWidth = 200; // 节点宽度 + 间距
+    const itemHeight = 120; // 行高（紧凑）
+    const rowCount = 3; // 三行
 
     sortedNodes.forEach((node, index) => {
+      // 计算行和列
+      const row = index % rowCount; // 0, 1, 2 循环
+      const col = Math.floor(index / rowCount);
+      
       positions.push({
         nodeId: node.id,
-        x: index * itemWidth,
-        y: 0,
-        level: 0,
+        x: col * itemWidth,
+        y: row * itemHeight,
+        level: row,
       });
+
+      // 为每个节点（除了第一个）设置前一个节点作为父节点，以便绘制连接线
+      if (index > 0) {
+        const prevNode = sortedNodes[index - 1];
+        (node as any).parentId = prevNode.id;
+      }
     });
 
     return positions;
@@ -535,7 +475,7 @@ export class InspirationMindMapService {
     type: 'continue' | 'branch' | 'optimize' | 'culture'
   ): Promise<AISuggestion> {
     // 获取节点信息
-    const { data: node, error: nodeError } = await supabaseAdmin
+    const { data: node, error: nodeError } = await supabase
       .from('inspiration_nodes')
       .select('*')
       .eq('id', nodeId)
@@ -547,7 +487,7 @@ export class InspirationMindMapService {
     }
 
     // 获取脉络信息
-    const { data: mindMap, error: mapError } = await supabaseAdmin
+    const { data: mindMap, error: mapError } = await supabase
       .from('inspiration_mindmaps')
       .select('*')
       .eq('id', node.map_id)
@@ -578,7 +518,7 @@ export class InspirationMindMapService {
       };
 
       // 保存到数据库
-      await supabaseAdmin.from('inspiration_ai_suggestions').insert({
+      await supabase.from('inspiration_ai_suggestions').insert({
         node_id: nodeId,
         type,
         content: suggestion.content,
@@ -598,7 +538,7 @@ export class InspirationMindMapService {
    * 获取节点的AI建议历史
    */
   async getNodeAISuggestions(nodeId: string): Promise<AISuggestion[]> {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabase
       .from('inspiration_ai_suggestions')
       .select('*')
       .eq('node_id', nodeId)
@@ -752,7 +692,7 @@ export class InspirationMindMapService {
     };
 
     // 保存到数据库
-    await supabaseAdmin.from('inspiration_stories').insert({
+    await supabase.from('inspiration_stories').insert({
       map_id: mapId,
       title: story.title,
       subtitle: story.subtitle,
@@ -772,7 +712,7 @@ export class InspirationMindMapService {
    * 获取脉络的创作故事
    */
   async getCreationStory(mapId: string): Promise<CreationStory | null> {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabase
       .from('inspiration_stories')
       .select('*')
       .eq('map_id', mapId)
@@ -847,9 +787,9 @@ export class InspirationMindMapService {
       title: data.title,
       description: data.description || '',
       nodes: [], // 需要单独加载
-      layoutType: data.layout_type || 'tree',
+      layoutType: data.layout_type || 'timeline',
       settings: data.settings || {
-        layoutType: 'tree',
+        layoutType: 'timeline',
         theme: 'tianjin',
         autoSave: true,
         showGrid: true,

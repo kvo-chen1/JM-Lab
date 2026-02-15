@@ -42,6 +42,14 @@ export function WorkCard({ submission, interaction, isSelected = false, onClick,
   const coverImage = submission.coverImage || submission.workThumbnail ||
     (submission.files && submission.files.length > 0 ? submission.files[0].url : null);
   
+  // 调试日志
+  console.log('[WorkCard] 视频URL检查:', {
+    coverImage: coverImage,
+    workThumbnail: submission.workThumbnail,
+    files: submission.files,
+    mediaType: submission.mediaType
+  });
+  
   // 判断是否是视频
   const isVideo = submission.mediaType === 'video' || 
     (coverImage && (coverImage.endsWith('.mp4') || coverImage.endsWith('.webm') || coverImage.endsWith('.mov')));
@@ -82,7 +90,7 @@ export function WorkCard({ submission, interaction, isSelected = false, onClick,
               <video
                 ref={videoRef}
                 src={coverImage}
-                className={`w-full h-full object-cover transition-transform duration-500 hover:scale-110 ${isVideoLoaded ? 'opacity-100' : 'opacity-0'}`}
+                className="w-full h-full object-cover transition-transform duration-500 hover:scale-110"
                 muted
                 loop
                 playsInline

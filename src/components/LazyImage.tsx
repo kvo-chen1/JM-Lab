@@ -119,15 +119,20 @@ const LazyImage: React.FC<LazyImageProps> = React.memo(({
   const observerRef = useRef<IntersectionObserver | null>(null);
   
   // 默认fallback图片 - 使用内联base64图片作为占位符，确保可靠加载
-  const defaultFallbackSrc = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDIwMCAyMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxjaXJjbGUgY3g9IjEwMCIgY3k9IjEwMCIgcj0iMTAwIiBmaWxsPSIjZmZmZmZmIi8+CjxjaXJjbGUgY3g9IjEwMCIgY3k9IjEwMCIgcj0iNzAiIGZpbGw9IiM2NjY2NjYiLz4KPHN2ZyB4PSI3MCIgeT0iNzAiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgZmlsbD0ibm9uZSI+CjxyZWN0IHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgZmlsbD0id2hpdGUiLz4KPHJlY3QgeD0iODAiIHk9IjgwIiB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIGZpbGw9IiNkY2RjZGMiLz4KPHJlY3QgeD0iOTAuNSIgeT0iOTEiIHdpZHRoPSIxOSIgaGVpZ2h0PSIxOCIgc3Ryb2tlPSIjNzc3Nzc3IiBzdHJva2Utb3BhY2l0eT0iMC41IiBzdHJva2Utd2lkdGg9IjIiLz4KPC9zdmc+Cjwvc3ZnPg==';
+  // 使用简单的灰色矩形作为占位符（不含中文，避免编码问题）
+  const defaultFallbackSrc = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAwIiBoZWlnaHQ9IjQwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iNjAwIiBoZWlnaHQ9IjQwMCIgZmlsbD0iI2UzZTZmMCIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMjQiIGZpbGw9IiM5Y2EzYWYiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGRvbWluYW50LWJhc2VsaW5lPSJtaWRkbGUiPkltYWdlPC90ZXh0Pjwvc3ZnPg=='
   
   // 备用图片服务 - 当原始图片加载失败时使用
   const getFallbackImageUrl = (alt: string) => {
-    // 使用 placehold.co 生成带有文字描述的占位图
+    // 使用内联 SVG 作为占位图，避免外部服务不稳定
+    // 使用英文文本避免编码问题
     const width = 600;
     const height = 400;
-    const text = alt?.slice(0, 10) || '图片';
-    return `https://placehold.co/${width}x${height}/e5e7eb/9ca3af?text=${encodeURIComponent(text)}`;
+    const safeAlt = alt?.slice(0, 10) || 'Image';
+    // 只使用 ASCII 字符避免编码问题
+    const safeText = safeAlt.replace(/[^\x00-\x7F]/g, '?').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const svg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg"><rect width="${width}" height="${height}" fill="#e5e7eb"/><text x="50%" y="50%" font-family="Arial" font-size="24" fill="#9ca3af" text-anchor="middle" dominant-baseline="middle">${safeText}</text></svg>`;
+    return `data:image/svg+xml;base64,${btoa(svg)}`;
   };
   
   // 使用useMemo确保currentSrc与src同步更新，避免异步更新问题
@@ -136,18 +141,44 @@ const LazyImage: React.FC<LazyImageProps> = React.memo(({
     if (!src || src.trim() === '') {
       return fallbackSrc || defaultFallbackSrc;
     }
-    
+
     // 检查URL是否是trae-api的文本生成图片API
     if (src.includes('/api/proxy/trae-api/api/ide/v1/text_to_image') || src.includes('trae-api-sg.mchost.guru') || src.includes('trae-api-cn.mchost.guru')) {
       // 对于AI生成图片API，返回原始URL，让后端处理
       return src;
     }
-    
+
     // 如果disableFallback为true，直接使用原始URL，不经过处理
     if (disableFallback) {
       return src;
     }
-    
+
+    // 检查是否是占位图服务（这些服务可能不稳定，直接使用fallback）
+    const placeholderServices = [
+      'placehold.co',
+      'via.placeholder.com',
+      'picsum.photos'
+    ];
+    const isPlaceholder = placeholderServices.some(service => src.includes(service));
+    if (isPlaceholder) {
+      console.log('[LazyImage] Detected placeholder service, using fallback:', src);
+      return fallbackSrc || getFallbackImageUrl(alt) || defaultFallbackSrc;
+    }
+
+    // 检查是否是 data:image/svg+xml;base64,... 格式
+    // 如果是，检查 base64 部分是否有效（只包含 base64 字符）
+    if (src.startsWith('data:image/svg+xml;base64,')) {
+      const base64Part = src.split(',')[1];
+      if (base64Part) {
+        // 检查是否只包含有效的 base64 字符
+        const isValidBase64 = /^[A-Za-z0-9+/=]+$/.test(base64Part);
+        if (!isValidBase64) {
+          console.log('[LazyImage] Invalid base64 in data URL, using fallback:', src.substring(0, 50));
+          return fallbackSrc || getFallbackImageUrl(alt) || defaultFallbackSrc;
+        }
+      }
+    }
+
     // 使用新的图片处理选项处理URL
     try {
       const processedSrc = processImageUrl(src, {
@@ -157,12 +188,12 @@ const LazyImage: React.FC<LazyImageProps> = React.memo(({
         format,
         ...processingOptions
       });
-      
+
       // 确保返回有效的URL
       if (processedSrc && typeof processedSrc === 'string' && processedSrc.trim() !== '') {
         return processedSrc;
       }
-      
+
       // 如果处理后的URL无效，返回原始URL
       return src;
     } catch (error) {
@@ -170,7 +201,7 @@ const LazyImage: React.FC<LazyImageProps> = React.memo(({
       // 出错时返回原始URL或fallback
       return src || fallbackSrc || defaultFallbackSrc;
     }
-  }, [src, fallbackSrc, disableFallback, quality, responsive, autoFormat, format, processingOptions]);
+  }, [src, fallbackSrc, disableFallback, quality, responsive, autoFormat, format, processingOptions, alt, getFallbackImageUrl, defaultFallbackSrc]);
   
   // 计算实际显示的图片URL，如果加载失败则使用fallback
   const displaySrc = useMemo(() => {
@@ -252,12 +283,21 @@ const LazyImage: React.FC<LazyImageProps> = React.memo(({
   
   // 图片加载失败处理
   const handleError = (event: React.SyntheticEvent<HTMLImageElement, Event>) => {
-    console.log('[LazyImage] Image load error:', { src, alt, fallbackSrc, retryCount });
-    
+    console.log('[LazyImage] Image load error:', { src, alt, fallbackSrc, retryCount, isError });
+
     if (onError) {
       onError(event);
     }
-    
+
+    // 如果已经处于错误状态，不再处理（防止无限循环）
+    if (isError) {
+      console.log('[LazyImage] Already in error state, skipping');
+      return;
+    }
+
+    // 阻止默认错误行为（防止显示损坏的图片图标）
+    event.preventDefault();
+
     // 只有当disableFallback为false时，才显示错误状态UI
     if (!disableFallback) {
       // 如果已经重试过两次，不再重试
@@ -267,16 +307,15 @@ const LazyImage: React.FC<LazyImageProps> = React.memo(({
         setIsLoaded(true);
         return;
       }
-      
+
       // 增加重试计数
       const newRetryCount = retryCount + 1;
       setRetryCount(newRetryCount);
       console.log('[LazyImage] Retrying image load, new retry count:', newRetryCount);
-      
-      // 如果传入了fallbackSrc，直接显示错误状态（使用fallback图片）
-      // 如果没有fallbackSrc，继续重试
-      if (fallbackSrc) {
-        console.log('[LazyImage] Using fallbackSrc:', fallbackSrc);
+
+      // 如果传入了fallbackSrc，或者已经重试过一次，使用fallback图片
+      if (fallbackSrc || newRetryCount >= 1) {
+        console.log('[LazyImage] Using fallbackSrc:', fallbackSrc || getFallbackImageUrl(alt));
         setIsError(true);
         setIsLoaded(true);
       } else if (newRetryCount >= 2) {
@@ -286,7 +325,7 @@ const LazyImage: React.FC<LazyImageProps> = React.memo(({
         setIsLoaded(true);
       }
     }
-    
+
     // 阻止事件冒泡，避免影响父组件
     if (event && typeof event.stopPropagation === 'function') {
       event.stopPropagation();
@@ -442,15 +481,22 @@ const LazyImage: React.FC<LazyImageProps> = React.memo(({
   // bare模式：直接输出<img>，不包裹额外div，避免任何额外的布局影响
   if (bare) {
     console.log('[LazyImage] Bare mode render:', { alt, src, displaySrc, retryCount, isError });
+    
+    // 确保 displaySrc 不为空
+    const safeDisplaySrc = displaySrc || fallbackSrc || defaultFallbackSrc;
+    
+    // 如果已经处于错误状态（使用fallback图片），禁用onError防止无限循环
+    const isUsingFallback = isError || retryCount >= 1;
+    
     return (
       <img
-        key={displaySrc}
+        key={safeDisplaySrc}
         ref={imgRef}
-        src={displaySrc}
+        src={safeDisplaySrc}
         alt={alt}
         className={getImageClasses()}
         onLoad={handleLoad}
-        onError={handleError}
+        onError={isUsingFallback ? undefined : handleError}
         loading={loading}
         srcSet={srcSet}
         sizes={sizes}

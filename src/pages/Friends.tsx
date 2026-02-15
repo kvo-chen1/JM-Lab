@@ -36,6 +36,21 @@ const FriendsPage: React.FC = () => {
     }
   }, [activeTab]);
 
+  // 当在私信标签页时，定期刷新列表
+  useEffect(() => {
+    if (activeTab !== 'messages') return;
+    
+    // 立即刷新一次
+    loadChatList();
+    
+    // 每5秒刷新一次
+    const interval = setInterval(() => {
+      loadChatList();
+    }, 5000);
+    
+    return () => clearInterval(interval);
+  }, [activeTab, currentUser?.id]);
+
   // 加载关注列表
   const loadFollowingList = async () => {
     setLoading(true);

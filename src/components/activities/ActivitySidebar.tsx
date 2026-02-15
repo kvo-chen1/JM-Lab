@@ -8,11 +8,6 @@ interface ActivitySidebarProps {
   onFilterChange: (filter: string) => void;
   stats: {
     total: number;
-    registered: number;
-    submitted: number;
-    reviewing: number;
-    completed: number;
-    awarded: number;
   };
 }
 
@@ -33,11 +28,6 @@ export const ActivitySidebar: React.FC<ActivitySidebarProps> = ({
 
   const filters: FilterItem[] = [
     { id: 'all', label: '全部活动', icon: 'fa-th-large', count: stats.total, color: 'bg-gray-500' },
-    { id: 'registered', label: '已报名', icon: 'fa-user-check', count: stats.registered, color: 'bg-blue-500' },
-    { id: 'submitted', label: '已提交', icon: 'fa-upload', count: stats.submitted, color: 'bg-purple-500' },
-    { id: 'reviewing', label: '评审中', icon: 'fa-search', count: stats.reviewing, color: 'bg-indigo-500' },
-    { id: 'completed', label: '已结束', icon: 'fa-check-circle', count: stats.completed, color: 'bg-gray-400' },
-    { id: 'awarded', label: '获奖记录', icon: 'fa-trophy', count: stats.awarded, color: 'bg-yellow-500' },
   ];
 
   const quickActions = [
@@ -114,55 +104,15 @@ export const ActivitySidebar: React.FC<ActivitySidebarProps> = ({
         </div>
       </div>
 
-      {/* 参与进度概览 */}
+      {/* 参与统计 */}
       <div className={`rounded-xl shadow-sm ${isDark ? 'bg-gray-800' : 'bg-white'} overflow-hidden`}>
         <div className={`px-4 py-3 border-b ${isDark ? 'border-gray-700' : 'border-gray-100'}`}>
-          <h3 className="font-semibold text-sm">参与概览</h3>
+          <h3 className="font-semibold text-sm">参与统计</h3>
         </div>
-        <div className="p-4 space-y-4">
-          {/* 进度条 */}
-          <div>
-            <div className="flex justify-between text-xs mb-1">
-              <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>总体进度</span>
-              <span className="font-medium">
-                {stats.total > 0
-                  ? Math.round(
-                      ((stats.submitted + stats.reviewing + stats.completed + stats.awarded) /
-                        stats.total) *
-                        100
-                    )
-                  : 0}
-                %
-              </span>
-            </div>
-            <div className={`h-2 rounded-full overflow-hidden ${isDark ? 'bg-gray-700' : 'bg-gray-100'}`}>
-              <motion.div
-                initial={{ width: 0 }}
-                animate={{
-                  width: `${
-                    stats.total > 0
-                      ? ((stats.submitted + stats.reviewing + stats.completed + stats.awarded) /
-                          stats.total) *
-                        100
-                      : 0
-                  }%`,
-                }}
-                transition={{ duration: 0.5, delay: 0.5 }}
-                className="h-full bg-gradient-to-r from-red-500 to-red-400 rounded-full"
-              />
-            </div>
-          </div>
-
-          {/* 统计数字 */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className={`p-3 rounded-lg ${isDark ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
-              <div className="text-2xl font-bold text-blue-500">{stats.registered}</div>
-              <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>待提交</div>
-            </div>
-            <div className={`p-3 rounded-lg ${isDark ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
-              <div className="text-2xl font-bold text-yellow-500">{stats.awarded}</div>
-              <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>获奖数</div>
-            </div>
+        <div className="p-4">
+          <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-700/50' : 'bg-gray-50'} text-center`}>
+            <div className="text-3xl font-bold text-blue-500">{stats.total}</div>
+            <div className={`text-sm mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>参与活动</div>
           </div>
         </div>
       </div>

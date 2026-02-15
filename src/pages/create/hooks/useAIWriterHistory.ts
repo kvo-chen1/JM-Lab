@@ -1,6 +1,44 @@
 import { useState, useEffect, useCallback } from 'react';
 import { inspirationMindMapService } from '@/services/inspirationMindMapService';
 
+// 辅助函数：获取当前用户（先尝试 localStorage，再尝试 session/getUser）
+const getCurrentUser = async () => {
+  // 首先尝试从 localStorage 获取（应用使用自定义认证存储）
+  if (typeof window !== 'undefined') {
+    const userStr = localStorage.getItem('user');
+    if (userStr) {
+      try {
+        const user = JSON.parse(userStr);
+        if (user?.id) {
+          console.log('[getCurrentUser] Got user from localStorage:', user.id);
+          return user;
+        }
+      } catch (e) {
+        console.log('[getCurrentUser] Failed to parse user from localStorage');
+      }
+    }
+  }
+
+  const { supabase } = await import('@/lib/supabase');
+  
+  // 尝试获取 session
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+  if (session?.user) {
+    console.log('[getCurrentUser] Got user from session:', session.user.id);
+    return session.user;
+  }
+  
+  // 如果没有 session，再尝试 getUser
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (user) {
+    console.log('[getCurrentUser] Got user from getUser:', user.id);
+    return user;
+  }
+  
+  console.log('[getCurrentUser] No user found:', { sessionError: sessionError?.message, userError: userError?.message });
+  return null;
+};
+
 // AI文案历史记录项接口
 export interface AIWriterHistoryItem {
   id: string;
@@ -64,16 +102,16 @@ export function useAIWriterHistory() {
       return updated;
     });
 
-    // 同步到灵感脉络
+    // 同步到津脉脉络
     (async () => {
       try {
-        const { data: { user } } = await import('@/lib/supabase').then(m => m.supabase.auth.getUser());
+        const user = await getCurrentUser();
         if (!user) {
           console.log('[InspirationMindMap] User not logged in, skipping AI writer sync');
           return;
         }
 
-        // 获取或创建用户的默认灵感脉络
+        // 获取或创建用户的默认津脉脉络
         let mindMaps = await inspirationMindMapService.getUserMindMaps(user.id);
         let mindMap = mindMaps.find(m => m.title === '我的创作脉络') || mindMaps[0];
 

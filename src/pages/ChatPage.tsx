@@ -114,8 +114,8 @@ const ChatPage: React.FC = () => {
       const userData = result.data;
       setOtherUser({
         id: userData.id,
-        username: userData.username,
-        avatar_url: userData.avatar || userData.avatar_url
+        username: userData.username || userData.name || '用户 ' + userId.substring(0, 8),
+        avatar_url: userData.avatar || userData.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${userId}`
       });
     } catch (error: any) {
       console.error('加载用户信息失败:', error);
@@ -261,7 +261,7 @@ const ChatPage: React.FC = () => {
               </div>
               <div>
                 <h2 className="font-semibold text-gray-800 dark:text-white">
-                  {otherUser?.username || '未知用户'}
+                  {otherUser?.username || otherUser?.name || '未知用户'}
                 </h2>
                 <p className="text-xs text-gray-500">在线</p>
               </div>

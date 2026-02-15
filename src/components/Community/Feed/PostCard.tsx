@@ -163,9 +163,10 @@ const ImageGrid = ({
                   loading="lazy"
                   onError={(e) => {
                     console.error('[PostCard] Image failed to load:', imageUrl);
-                    // 显示占位图
+                    // 显示内联 SVG 占位图
                     const target = e.target as HTMLImageElement;
-                    target.src = 'https://placehold.co/400x300/e5e7eb/9ca3af?text=图片已过期';
+                    const svg = `<svg width="400" height="300" xmlns="http://www.w3.org/2000/svg"><rect width="400" height="300" fill="#e5e7eb"/><text x="50%" y="50%" font-family="Arial" font-size="20" fill="#9ca3af" text-anchor="middle" dominant-baseline="middle">图片已过期</text></svg>`;
+                    target.src = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
                     target.style.objectFit = 'contain';
                   }}
                 />

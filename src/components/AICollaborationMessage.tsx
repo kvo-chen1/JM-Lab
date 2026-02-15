@@ -154,6 +154,12 @@ const AICollaborationMessage: React.FC<AICollaborationMessageProps> = ({
                     p: ({node, ...props}) => <p className="mb-3 last:mb-0 leading-relaxed" {...props} />,
                     blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-indigo-400 dark:border-indigo-500 pl-4 italic text-gray-600 dark:text-gray-400 my-3 bg-gray-50/50 dark:bg-gray-800/50 py-2 pr-3 rounded-r-lg" {...props} />,
                     strong: ({node, ...props}) => <strong className="font-semibold text-indigo-600 dark:text-indigo-400" {...props} />,
+                    table: ({node, ...props}) => <table className={`w-full border-collapse my-4 text-sm ${isDark ? 'border-gray-700' : 'border-gray-200'}`} {...props} />,
+                    thead: ({node, ...props}) => <thead className={`${isDark ? 'bg-gray-800' : 'bg-gray-100'}`} {...props} />,
+                    tbody: ({node, ...props}) => <tbody {...props} />,
+                    tr: ({node, ...props}) => <tr className={`border-b ${isDark ? 'border-gray-700 hover:bg-gray-800/50' : 'border-gray-200 hover:bg-gray-50'}`} {...props} />,
+                    th: ({node, ...props}) => <th className={`px-4 py-2 text-left font-semibold ${isDark ? 'text-gray-200 border-gray-700' : 'text-gray-700 border-gray-200'}`} {...props} />,
+                    td: ({node, ...props}) => <td className={`px-4 py-2 ${isDark ? 'text-gray-300 border-gray-700' : 'text-gray-600 border-gray-200'}`} {...props} />,
                   }}
                 >
                   {message.content}

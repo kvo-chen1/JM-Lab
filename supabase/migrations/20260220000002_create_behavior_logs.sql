@@ -1,5 +1,5 @@
 -- 用户行为日志表
--- 用于自动记录用户在灵感脉络中的创作行为
+-- 用于自动记录用户在津脉脉络中的创作行为
 -- 支持AI分析和个性化推荐
 
 -- 1. 用户行为日志主表
@@ -310,6 +310,6 @@ CREATE POLICY "Users can view own daily stats"
     USING (user_id = auth.uid());
 
 -- 添加注释
-COMMENT ON TABLE public.user_behavior_logs IS '用户行为日志表 - 记录用户在灵感脉络中的创作行为';
+COMMENT ON TABLE public.user_behavior_logs IS '用户行为日志表 - 记录用户在津脉脉络中的创作行为';
 COMMENT ON TABLE public.user_creative_profiles IS '用户创作画像表 - AI分析用户的创作偏好和风格';
 COMMENT ON TABLE public.user_behavior_daily_stats IS '用户行为每日统计表';

@@ -13,6 +13,9 @@ export interface Event {
   visibility: string;
   status: string;
   registrationDeadline?: number;
+  reviewStartDate?: number; // 评审开始时间
+  resultDate?: number; // 结果公布时间
+  phaseStatus?: string; // 活动阶段状态: registration, review, completed
   maxParticipants?: number;
   createdAt: number;
   updatedAt: number;
@@ -51,6 +54,9 @@ export const eventService = {
       visibility: item.visibility,
       status: item.status,
       registrationDeadline: item.registration_deadline,
+      reviewStartDate: item.review_start_date,
+      resultDate: item.result_date,
+      phaseStatus: item.phase_status,
       maxParticipants: item.max_participants,
       createdAt: item.created_at,
       updatedAt: item.updated_at,
@@ -88,6 +94,9 @@ export const eventService = {
       visibility: data.visibility,
       status: data.status,
       registrationDeadline: data.registration_deadline,
+      reviewStartDate: data.review_start_date,
+      resultDate: data.result_date,
+      phaseStatus: data.phase_status,
       maxParticipants: data.max_participants,
       createdAt: data.created_at,
       updatedAt: data.updated_at,

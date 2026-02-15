@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { uploadImage } from './imageService';
+import { generatePlaceholderSvg } from '@/utils/imageUrlUtils';
 
 // 评论反应类型
 export type CommentReaction = 'like' | 'heart' | 'laugh' | 'wow' | 'sad' | 'angry';
@@ -1113,7 +1114,13 @@ async function createWorkViaBackend(p: Partial<Post>, currentUser: User): Promis
     });
 
     // 处理缩略图：如果是外部链接（非 Supabase Storage），下载并上传到 Supabase Storage
+    // 对于视频类型，如果没有缩略图但有视频URL，使用视频URL作为缩略图
     let thumbnail = p.thumbnail;
+    if (!thumbnail && p.videoUrl && isVideo) {
+      thumbnail = p.videoUrl;
+      console.log('[createWorkViaBackend] Using video URL as thumbnail:', thumbnail);
+    }
+
     if (thumbnail && !thumbnail.includes('supabase.co')) {
       console.log('[createWorkViaBackend] Processing external thumbnail...');
       try {
@@ -1123,13 +1130,13 @@ async function createWorkViaBackend(p: Partial<Post>, currentUser: User): Promis
           console.log('[createWorkViaBackend] Thumbnail uploaded to:', uploadedUrl);
         } else {
           console.error('[createWorkViaBackend] Failed to upload thumbnail');
-          // 上传失败，使用占位图
-          thumbnail = 'https://placehold.co/600x400/e5e7eb/9ca3af?text=图片上传失败';
+          // 上传失败，使用内联 SVG 占位图
+          thumbnail = generatePlaceholderSvg('Upload Failed', 600, 400, '#e5e7eb', '#9ca3af');
         }
       } catch (uploadError) {
         console.error('[createWorkViaBackend] Thumbnail upload error:', uploadError);
-        // 上传失败，使用占位图
-        thumbnail = 'https://placehold.co/600x400/e5e7eb/9ca3af?text=图片上传失败';
+        // 上传失败，使用内联 SVG 占位图
+        thumbnail = generatePlaceholderSvg('Upload Failed', 600, 400, '#e5e7eb', '#9ca3af');
       }
     } else if (thumbnail) {
       console.log('[createWorkViaBackend] Thumbnail already on Supabase, skipping upload');
@@ -1341,8 +1348,11 @@ async function addPostDirectToWorks(p: Partial<Post>, currentUser?: User): Promi
     }
 
     // 如果有缩略图，添加到 cover_url
+    // 对于视频类型，如果没有缩略图但有视频URL，使用视频URL作为缩略图（显示第一帧）
     if (p.thumbnail) {
       insertData.cover_url = p.thumbnail;
+    } else if (p.videoUrl && (p.type === 'video' || insertData.type === 'video')) {
+      insertData.cover_url = p.videoUrl;
     }
 
     // 如果有标签，添加到 tags

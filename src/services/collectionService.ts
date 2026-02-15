@@ -114,28 +114,8 @@ async function getBookmarkedSquareWorks(
   sort: SortOption = SortOption.NEWEST
 ): Promise<CollectionItem[]> {
   try {
-    // 获取当前用户ID - 优先从 localStorage 获取，因为登录信息存储在那里
-    let userId: string | null = null;
-    let userStr: string | null = null;
-    
-    // 首先尝试从 localStorage 获取
-    userStr = localStorage.getItem('user');
-    if (userStr) {
-      try {
-        const userData = JSON.parse(userStr);
-        userId = userData?.id || null;
-        console.log('[getBookmarkedSquareWorks] Got userId from localStorage:', userId);
-      } catch (e) {
-        console.error('Failed to parse user from localStorage:', e);
-      }
-    }
-    
-    // 如果 localStorage 没有，再尝试从 Supabase Auth 获取
-    if (!userId) {
-      const { data: { user } } = await supabase.auth.getUser();
-      userId = user?.id || null;
-      console.log('[getBookmarkedSquareWorks] Got userId from Supabase Auth:', userId);
-    }
+    // 获取当前用户ID
+    const userId = await getCurrentUserId();
     
     if (!userId) {
       console.log('[getBookmarkedSquareWorks] No userId found');
@@ -235,47 +215,9 @@ async function getLikedSquareWorks(
 ): Promise<CollectionItem[]> {
   try {
     // 获取当前用户ID
-    const { data: { user } } = await supabase.auth.getUser();
-    const userId = user?.id;
+    const userId = await getCurrentUserId();
 
     if (!userId) {
-      // 如果没有Supabase会话，尝试从localStorage获取
-      const userStr = localStorage.getItem('user');
-      if (userStr) {
-        try {
-          const userData = JSON.parse(userStr);
-          // 使用后端API获取点赞
-          const response = await apiClient.get('/api/user/likes');
-          if (response.ok && response.data) {
-            return response.data.map((work: any) => ({
-              id: work.id?.toString() || '',
-              title: work.title || '未命名作品',
-              thumbnail: work.thumbnail || work.cover_url || '/placeholder-image.jpg',
-              type: CollectionType.SQUARE_WORK,
-              category: work.category || '其他',
-              createdAt: work.created_at && !isNaN(Date.parse(work.created_at))
-                ? new Date(work.created_at).toISOString()
-                : new Date().toISOString(),
-              stats: {
-                views: work.views || 0,
-                likes: work.likes || 0,
-                comments: work.comments || 0,
-              },
-              isBookmarked: false,
-              isLiked: true,
-              link: `/explore/${work.id}`,
-              author: work.creator_id ? {
-                id: work.creator_id,
-                name: work.username || work.creator_name || '未知作者',
-                avatar: work.avatar_url || work.creator_avatar || '/default-avatar.jpg',
-              } : undefined,
-              description: work.description,
-            }));
-          }
-        } catch (e) {
-          console.error('Failed to parse user from localStorage:', e);
-        }
-      }
       return [];
     }
 
@@ -703,58 +645,84 @@ export async function getUserCollectionStats(): Promise<UserCollectionStats> {
     // 获取当前用户ID
     const userId = await getCurrentUserId();
 
+    if (!userId) {
+      return {
+        total: 0,
+        squareWork: 0,
+        communityPost: 0,
+        activity: 0,
+        template: 0,
+        totalLikes: 0,
+        templateLikes: 0,
+      };
+    }
+
+    // 获取广场作品收藏 - 只统计实际存在的作品
     let squareWorkBookmarks = 0;
+    const { data: bookmarks, error: bookmarksError } = await supabase
+      .from('bookmarks')
+      .select('post_id')
+      .eq('user_id', userId);
+
+    if (!bookmarksError && bookmarks && bookmarks.length > 0) {
+      const workIds = bookmarks.map(b => b.post_id);
+      const { data: existingWorks } = await supabase
+        .from('works')
+        .select('id')
+        .in('id', workIds);
+      const existingWorkIds = new Set(existingWorks?.map(w => w.id) || []);
+      squareWorkBookmarks = bookmarks.filter(b => existingWorkIds.has(b.post_id)).length;
+    }
+
+    // 获取广场作品点赞 - 只统计实际存在的作品
     let squareWorkLikes = 0;
+    const { data: likes, error: likesError } = await supabase
+      .from('likes')
+      .select('post_id')
+      .eq('user_id', userId);
+
+    if (!likesError && likes && likes.length > 0) {
+      const workIds = likes.map(l => l.post_id);
+      const { data: existingWorks } = await supabase
+        .from('works')
+        .select('id')
+        .in('id', workIds);
+      const existingWorkIds = new Set(existingWorks?.map(w => w.id) || []);
+      squareWorkLikes = likes.filter(l => existingWorkIds.has(l.post_id)).length;
+    }
+
+    // 获取模板收藏 - 只统计实际存在的模板
     let templateBookmarks = 0;
+    const { data: templateFavorites, error: templateFavoritesError } = await supabase
+      .from('template_favorites')
+      .select('template_id')
+      .eq('user_id', userId);
+
+    if (!templateFavoritesError && templateFavorites && templateFavorites.length > 0) {
+      const templateIds = templateFavorites.map(f => f.template_id);
+      const { data: existingTemplates } = await supabase
+        .from('tianjin_templates')
+        .select('id')
+        .in('id', templateIds);
+      const existingTemplateIds = new Set(existingTemplates?.map(t => t.id) || []);
+      templateBookmarks = templateFavorites.filter(f => existingTemplateIds.has(f.template_id)).length;
+    }
+
+    // 获取模板点赞 - 只统计实际存在的模板
     let templateLikes = 0;
+    const { data: templateLikesData, error: templateLikesError } = await supabase
+      .from('template_likes')
+      .select('template_id')
+      .eq('user_id', userId);
 
-    if (userId) {
-      // 从 Supabase 获取广场作品收藏数量
-      const { count: bookmarksCountResult, error: bookmarksError } = await supabase
-        .from('bookmarks')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', userId);
-
-      if (!bookmarksError && bookmarksCountResult !== null) {
-        squareWorkBookmarks = bookmarksCountResult;
-      }
-
-      // 从 Supabase 获取广场作品点赞数量
-      const { count: likesCountResult, error: likesError } = await supabase
-        .from('likes')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', userId);
-
-      if (!likesError && likesCountResult !== null) {
-        squareWorkLikes = likesCountResult;
-      }
-
-      // 从 Supabase 获取模板收藏数量
-      const { count: templateFavoritesResult, error: templateFavoritesError } = await supabase
-        .from('template_favorites')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', userId);
-
-      if (!templateFavoritesError && templateFavoritesResult !== null) {
-        templateBookmarks = templateFavoritesResult;
-      }
-
-      // 从 Supabase 获取模板点赞数量
-      const { count: templateLikesResult, error: templateLikesError } = await supabase
-        .from('template_likes')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', userId);
-
-      if (!templateLikesError && templateLikesResult !== null) {
-        templateLikes = templateLikesResult;
-      }
-    } else {
-      // 如果没有Supabase会话，使用后端API
-      const bookmarksRes = await apiClient.get('/api/user/bookmarks/count');
-      squareWorkBookmarks = bookmarksRes.ok ? (bookmarksRes.data?.count || 0) : 0;
-
-      const likesRes = await apiClient.get('/api/user/likes/count');
-      squareWorkLikes = likesRes.ok ? (likesRes.data?.count || 0) : 0;
+    if (!templateLikesError && templateLikesData && templateLikesData.length > 0) {
+      const templateIds = templateLikesData.map(l => l.template_id);
+      const { data: existingTemplates } = await supabase
+        .from('tianjin_templates')
+        .select('id')
+        .in('id', templateIds);
+      const existingTemplateIds = new Set(existingTemplates?.map(t => t.id) || []);
+      templateLikes = templateLikesData.filter(l => existingTemplateIds.has(l.template_id)).length;
     }
 
     const totalBookmarks = squareWorkBookmarks + templateBookmarks;

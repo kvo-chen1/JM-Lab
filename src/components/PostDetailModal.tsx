@@ -544,9 +544,12 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
                              const isVideoUrl = /\.(mp4|webm|ogg|mov)(\?.*)?$/i.test(thumbnailUrl);
                              
                              // 如果 thumbnail 是视频URL，不使用它作为 poster
+                             // 使用内联 SVG 作为视频占位图
+                             const videoPlaceholderSvg = `<svg width="800" height="600" xmlns="http://www.w3.org/2000/svg"><rect width="800" height="600" fill="#3b82f6"/><text x="50%" y="50%" font-family="Arial" font-size="32" fill="white" text-anchor="middle" dominant-baseline="middle">Video</text></svg>`;
+                             const videoPlaceholder = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(videoPlaceholderSvg)))}`;
                              const posterUrl = isImageUrl && !isVideoUrl && thumbnailUrl.startsWith('http') 
                                ? thumbnailUrl 
-                               : 'https://via.placeholder.com/800x600/3b82f6/ffffff?text=Video';
+                               : videoPlaceholder;
                              
                              return (
                                <LazyVideo 
@@ -582,9 +585,10 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
                              disableFallback={true}
                              onError={(e) => {
                                console.error('[PostDetailModal] Image failed to load:', post.thumbnail);
-                               // 显示占位图
+                               // 显示内联 SVG 占位图
                                const target = e.target as HTMLImageElement;
-                               target.src = 'https://placehold.co/600x400/e5e7eb/9ca3af?text=图片已过期';
+                               const svg = `<svg width="600" height="400" xmlns="http://www.w3.org/2000/svg"><rect width="600" height="400" fill="#e5e7eb"/><text x="50%" y="50%" font-family="Arial" font-size="24" fill="#9ca3af" text-anchor="middle" dominant-baseline="middle">图片已过期</text></svg>`;
+                               target.src = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
                                target.style.objectFit = 'contain';
                              }}
                            />

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * 最终修复 RLS 策略
- * 禁用所有灵感脉络相关表的 RLS
+ * 禁用所有津脉脉络相关表的 RLS
  */
 
 import { createClient } from '@supabase/supabase-js';

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useContext } from 'react';
+import React, { useState, useCallback, useEffect, useContext, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus,
@@ -26,7 +26,7 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 
-// 导入灵感脉络组件
+// 导入津脉脉络组件
 import {
   MindMapCanvas,
   NodeEditor,
@@ -36,6 +36,7 @@ import {
 } from '@/components/InspirationMindMap';
 import { MindNode, AISuggestion, CreationStory } from '@/components/InspirationMindMap/types';
 import { AuthContext } from '@/contexts/authContext';
+import { inspirationMindMapService } from '@/services/inspirationMindMapService';
 
 // 天津风格装饰组件
 const TianjinDecoration = () => (
@@ -64,6 +65,7 @@ const InspirationMindMapPage: React.FC = () => {
     isLoading,
     error,
     createMindMap,
+    loadMindMap,
     updateMindMap,
     addNode,
     updateNode,
@@ -88,16 +90,49 @@ const InspirationMindMapPage: React.FC = () => {
   const [titleInput, setTitleInput] = useState('');
   const [lastSaved, setLastSaved] = useState<Date>();
   const [nodeFilter, setNodeFilter] = useState<'all' | 'inspiration' | 'culture' | 'ai'>('all');
+  
+  // 脉络列表状态
+  const [showMindMapList, setShowMindMapList] = useState(false);
+  const [userMindMaps, setUserMindMaps] = useState<any[]>([]);
+  const [isLoadingMindMaps, setIsLoadingMindMaps] = useState(false);
 
   // 获取选中的节点
   const selectedNode = selectedNodeId ? nodes.find(n => n.id === selectedNodeId) || null : null;
 
-  // 初始化创建一个新的脉络
+  // 初始化：加载或创建脉络
+  const hasInitialized = useRef(false);
   useEffect(() => {
-    if (!mindMap && user) {
-      createMindMap(user.id, '我的创作脉络');
+    if (!mindMap && user && !isLoading && !hasInitialized.current) {
+      hasInitialized.current = true;
+      // 加载用户最近更新的脉络（不一定是"我的创作脉络"）
+      (async () => {
+        try {
+          const mindMaps = await inspirationMindMapService.getUserMindMaps(user.id);
+          console.log('[InspirationMindMapPage] Found', mindMaps.length, 'mind maps');
+          
+          // 优先找"我的创作脉络"，如果没有则找最近更新的脉络
+          let targetMap = mindMaps.find(m => m.title === '我的创作脉络');
+          if (!targetMap && mindMaps.length > 0) {
+            targetMap = mindMaps[0]; // 最近更新的脉络
+          }
+          
+          if (targetMap) {
+            // 加载现有的脉络
+            console.log('[InspirationMindMapPage] Loading mind map:', targetMap.id, 'title:', targetMap.title);
+            await loadMindMap(targetMap.id);
+          } else {
+            // 创建新的脉络
+            console.log('[InspirationMindMapPage] Creating new mind map');
+            await createMindMap(user.id, '我的创作脉络');
+          }
+        } catch (err) {
+          console.error('[InspirationMindMapPage] Error initializing mind map:', err);
+          // 出错时创建新的脉络
+          await createMindMap(user.id, '我的创作脉络');
+        }
+      })();
     }
-  }, [mindMap, createMindMap, user]);
+  }, [mindMap, user, createMindMap, loadMindMap, isLoading]);
 
   // 更新保存时间
   useEffect(() => {
@@ -171,7 +206,7 @@ const InspirationMindMapPage: React.FC = () => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `灵感脉络_${mindMap?.title || '未命名'}.json`;
+      a.download = `津脉脉络_${mindMap?.title || '未命名'}.json`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -209,6 +244,55 @@ const InspirationMindMapPage: React.FC = () => {
     await addNode(newNode, selectedNodeId || undefined);
     toast.success(`已添加文化元素：${element.name}`);
   }, [addNode, selectedNodeId]);
+
+  // 加载脉络列表（包含节点预览）
+  const loadMindMapList = useCallback(async () => {
+    if (!user?.id) return;
+    setIsLoadingMindMaps(true);
+    try {
+      const mindMaps = await inspirationMindMapService.getUserMindMaps(user.id);
+      
+      // 为每个脉络加载节点预览（最多3个）
+      const mindMapsWithNodes = await Promise.all(
+        mindMaps.map(async (map) => {
+          try {
+            const fullMap = await inspirationMindMapService.getMindMap(map.id);
+            return {
+              ...map,
+              previewNodes: fullMap.nodes?.slice(0, 3) || []
+            };
+          } catch (e) {
+            return { ...map, previewNodes: [] };
+          }
+        })
+      );
+      
+      setUserMindMaps(mindMapsWithNodes);
+      console.log('[InspirationMindMapPage] Loaded mind maps with nodes:', mindMapsWithNodes.length);
+    } catch (err) {
+      console.error('[InspirationMindMapPage] Failed to load mind maps:', err);
+      toast.error('加载脉络列表失败');
+    } finally {
+      setIsLoadingMindMaps(false);
+    }
+  }, [user?.id]);
+
+  // 打开脉络列表
+  const handleOpenMindMapList = () => {
+    setShowMindMapList(true);
+    loadMindMapList();
+  };
+
+  // 切换到指定脉络
+  const handleSwitchMindMap = async (mapId: string) => {
+    try {
+      await loadMindMap(mapId);
+      setShowMindMapList(false);
+      toast.success('已切换脉络');
+    } catch (err) {
+      toast.error('切换脉络失败');
+    }
+  };
 
   // 处理标题编辑
   const handleStartEditTitle = () => {
@@ -261,7 +345,7 @@ const InspirationMindMapPage: React.FC = () => {
           </div>
           <h2 className="text-xl font-bold text-gray-900 mb-2">请先登录</h2>
           <p className="text-gray-600 mb-6">
-            灵感脉络功能需要登录后才能使用，您的创作数据将被安全保存到云端。
+            津脉脉络功能需要登录后才能使用，您的创作数据将被安全保存到云端。
           </p>
           <button
             onClick={() => window.location.href = '/login'}
@@ -340,30 +424,22 @@ const InspirationMindMapPage: React.FC = () => {
             </div>
           </div>
 
-          {/* 中间：布局切换 */}
-          <div className="flex items-center gap-1 bg-gray-100/80 backdrop-blur-sm rounded-xl p-1">
-            {[
-              { id: 'tree', label: '树形', icon: Layout },
-              { id: 'radial', label: '放射', icon: Sparkles },
-              { id: 'timeline', label: '时间', icon: Clock },
-            ].map((layout) => (
-              <button
-                key={layout.id}
-                onClick={() => changeLayout(layout.id as any)}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                  mindMap?.layoutType === layout.id
-                    ? 'bg-white text-[#D4A574] shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/50'
-                }`}
-              >
-                <layout.icon className="w-4 h-4" />
-                {layout.label}
-              </button>
-            ))}
+          {/* 中间：布局显示 */}
+          <div className="flex items-center gap-2 px-4 py-2 bg-gray-100/80 backdrop-blur-sm rounded-xl">
+            <Clock className="w-4 h-4 text-[#D4A574]" />
+            <span className="text-sm font-medium text-gray-700">时间线</span>
           </div>
 
           {/* 右侧：操作按钮 */}
           <div className="flex items-center gap-2">
+            <button
+              onClick={handleOpenMindMapList}
+              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl hover:shadow-lg hover:shadow-blue-200 transition-all"
+            >
+              <Layout className="w-4 h-4" />
+              <span className="font-medium">我的脉络</span>
+            </button>
+            
             <button
               onClick={() => setShowBrandPanel(true)}
               className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-red-500 to-rose-500 text-white rounded-xl hover:shadow-lg hover:shadow-red-200 transition-all"
@@ -631,6 +707,146 @@ const InspirationMindMapPage: React.FC = () => {
         onClose={() => setShowStoryGenerator(false)}
         onGenerate={handleGenerateStory}
       />
+
+      {/* 脉络列表弹窗 */}
+      <AnimatePresence>
+        {showMindMapList && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setShowMindMapList(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">我的创作脉络</h2>
+                  <p className="text-sm text-gray-500 mt-1">
+                    共 {userMindMaps.length} 个脉络
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowMindMapList(false)}
+                  className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
+                >
+                  <X className="w-5 h-5 text-gray-500" />
+                </button>
+              </div>
+              
+              <div className="p-6 overflow-y-auto max-h-[60vh]">
+                {isLoadingMindMaps ? (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="w-8 h-8 border-2 border-[#D4A574] border-t-transparent rounded-full animate-spin" />
+                    <span className="ml-3 text-gray-600">加载中...</span>
+                  </div>
+                ) : userMindMaps.length === 0 ? (
+                  <div className="text-center py-12 text-gray-500">
+                    <Layout className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                    <p>暂无脉络</p>
+                    <p className="text-sm mt-2">开始创作，自动生成您的第一个脉络</p>
+                  </div>
+                ) : (
+                  <div className="grid gap-4">
+                    {userMindMaps.map((map) => (
+                      <motion.div
+                        key={map.id}
+                        whileHover={{ scale: 1.01 }}
+                        className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                          mindMap?.id === map.id
+                            ? 'border-[#D4A574] bg-amber-50'
+                            : 'border-gray-200 hover:border-[#D4A574] hover:bg-gray-50'
+                        }`}
+                        onClick={() => handleSwitchMindMap(map.id)}
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex-1">
+                            <h3 className="font-semibold text-gray-900">{map.title}</h3>
+                            {map.description && (
+                              <p className="text-sm text-gray-500 mt-1 line-clamp-1">
+                                {map.description}
+                              </p>
+                            )}
+                            <div className="flex items-center gap-4 mt-2 text-xs text-gray-400">
+                              <span>节点: {map.stats?.totalNodes || 0}</span>
+                              <span>AI生成: {map.stats?.aiGeneratedNodes || 0}</span>
+                              <span>文化: {map.stats?.cultureNodes || 0}</span>
+                              <span>
+                                更新: {map.updatedAt
+                                  ? new Date(map.updatedAt).toLocaleDateString('zh-CN')
+                                  : '未知'
+                                }
+                              </span>
+                            </div>
+                          </div>
+                          {mindMap?.id === map.id && (
+                            <div className="px-2 py-1 bg-[#D4A574] text-white text-xs rounded-full">
+                              当前
+                            </div>
+                          )}
+                        </div>
+                        
+                        {/* 节点预览 */}
+                        {map.previewNodes && map.previewNodes.length > 0 && (
+                          <div className="grid grid-cols-3 gap-2 mt-3">
+                            {map.previewNodes.map((node: any) => (
+                              <div
+                                key={node.id}
+                                className="bg-white rounded-lg p-3 border border-gray-100 shadow-sm"
+                              >
+                                <div className="flex items-center gap-2 mb-2">
+                                  <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
+                                    node.category === 'ai_generate' ? 'bg-purple-100 text-purple-600' :
+                                    node.category === 'culture' ? 'bg-amber-100 text-amber-600' :
+                                    node.category === 'inspiration' ? 'bg-blue-100 text-blue-600' :
+                                    'bg-gray-100 text-gray-600'
+                                  }`}>
+                                    {node.category === 'ai_generate' && <Sparkles className="w-3 h-3" />}
+                                    {node.category === 'culture' && <BookOpen className="w-3 h-3" />}
+                                    {node.category === 'inspiration' && <Lightbulb className="w-3 h-3" />}
+                                    {node.category === 'manual_edit' && <Edit3 className="w-3 h-3" />}
+                                  </div>
+                                  <span className="text-xs text-gray-400">
+                                    {node.category === 'ai_generate' && 'AI生成'}
+                                    {node.category === 'culture' && '文化'}
+                                    {node.category === 'inspiration' && '灵感'}
+                                    {node.category === 'manual_edit' && '手动'}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-gray-700 line-clamp-2 font-medium">
+                                  {node.title}
+                                </p>
+                                {node.content?.thumbnail && (
+                                  <div className="mt-2 aspect-video rounded overflow-hidden bg-gray-100">
+                                    <img
+                                      src={node.content.thumbnail}
+                                      alt={node.title}
+                                      className="w-full h-full object-cover"
+                                      onError={(e) => {
+                                        (e.target as HTMLImageElement).style.display = 'none';
+                                      }}
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </motion.div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* 加载状态 */}
       {isLoading && (

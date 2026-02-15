@@ -1,4 +1,4 @@
--- 灵感脉络相关表
+-- 津脉脉络相关表
 -- 创建时间: 2026-02-15
 
 -- 1. 创作脉络表
@@ -296,7 +296,7 @@ CREATE POLICY "Users can delete own stories"
     );
 
 -- 添加注释
-COMMENT ON TABLE inspiration_mindmaps IS '创作灵感脉络表';
+COMMENT ON TABLE inspiration_mindmaps IS '创作津脉脉络表';
 COMMENT ON TABLE inspiration_nodes IS '脉络节点表';
 COMMENT ON TABLE inspiration_ai_suggestions IS 'AI建议表';
 COMMENT ON TABLE inspiration_stories IS '创作故事表';

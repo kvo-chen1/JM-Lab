@@ -1841,20 +1841,28 @@ export interface WorkReviewResult {
         
         // Handle nested data structure from backend
         // Backend returns { ok: true, data: { created: number, data: [] } }
-        const imageData = result.data?.data || result.data;
+        console.log('[LLM] Image generation response:', result);
         
-        if (result.ok && Array.isArray(imageData)) {
-          return {
-            ok: true,
-            data: {
-              created: result.data?.created || Date.now(),
-              data: imageData
-            }
-          };
-        } else {
-          console.warn('[LLM] Invalid response format from backend:', result);
-          return this.getMockImageResponse(params.prompt);
+        // 检查响应结构
+        if (result.ok && result.data) {
+          // 后端返回的结构是 { ok: true, data: { created: number, data: [{url, revised_prompt}] } }
+          const responseData = result.data;
+          const imageArray = responseData.data;
+          
+          if (Array.isArray(imageArray) && imageArray.length > 0) {
+            console.log('[LLM] Image generation successful, images:', imageArray.length);
+            return {
+              ok: true,
+              data: {
+                created: responseData.created || Date.now(),
+                data: imageArray
+              }
+            };
+          }
         }
+        
+        console.warn('[LLM] Invalid response format from backend:', result);
+        return this.getMockImageResponse(params.prompt);
         
       } catch (fetchError) {
         clearTimeout(timeoutId);

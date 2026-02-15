@@ -5,6 +5,44 @@ import { workService, communityService, eventService } from '@/services/apiServi
 import postsApi from '@/services/postService';
 import { inspirationMindMapService } from '@/services/inspirationMindMapService';
 
+// 辅助函数：获取当前用户（先尝试 localStorage，再尝试 session/getUser）
+const getCurrentUser = async () => {
+  // 首先尝试从 localStorage 获取（应用使用自定义认证存储）
+  if (typeof window !== 'undefined') {
+    const userStr = localStorage.getItem('user');
+    if (userStr) {
+      try {
+        const user = JSON.parse(userStr);
+        if (user?.id) {
+          console.log('[getCurrentUser] Got user from localStorage:', user.id);
+          return user;
+        }
+      } catch (e) {
+        console.log('[getCurrentUser] Failed to parse user from localStorage');
+      }
+    }
+  }
+
+  const { supabase } = await import('@/lib/supabase');
+  
+  // 尝试获取 session
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+  if (session?.user) {
+    console.log('[getCurrentUser] Got user from session:', session.user.id);
+    return session.user;
+  }
+  
+  // 如果没有 session，再尝试 getUser
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (user) {
+    console.log('[getCurrentUser] Got user from getUser:', user.id);
+    return user;
+  }
+  
+  console.log('[getCurrentUser] No user found:', { sessionError: sessionError?.message, userError: userError?.message });
+  return null;
+};
+
 interface CreateActions {
   setActiveTool: (tool: ToolType) => void;
   setPrompt: (prompt: string) => void;
@@ -78,14 +116,68 @@ const getSavedTool = (): ToolType => {
   }
 };
 
-const initialState: CreateState = {
-  activeTool: getSavedTool(),
-  prompt: '',
-  generatedResults: aiGeneratedResults,
-  selectedResult: aiGeneratedResults.length > 0 ? aiGeneratedResults[0].id : null,
-  isGenerating: false,
-  showCulturalInfo: false,
-  currentStep: 1,
+// 从 localStorage 读取保存的生成结果
+const getSavedGeneratedResults = (): GeneratedResult[] | null => {
+  if (typeof localStorage === 'undefined') return null;
+  try {
+    const saved = localStorage.getItem('CREATE_GENERATED_RESULTS');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      // 验证数据有效性
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+};
+
+// 从 localStorage 读取保存的当前步骤
+const getSavedCurrentStep = (): number => {
+  if (typeof localStorage === 'undefined') return 1;
+  try {
+    const saved = localStorage.getItem('CREATE_CURRENT_STEP');
+    return saved ? parseInt(saved, 10) || 1 : 1;
+  } catch {
+    return 1;
+  }
+};
+
+// 从 localStorage 读取保存的提示词
+const getSavedPrompt = (): string => {
+  if (typeof localStorage === 'undefined') return '';
+  try {
+    return localStorage.getItem('CREATE_PROMPT') || '';
+  } catch {
+    return '';
+  }
+};
+
+// 获取保存的生成结果，如果没有则使用默认值
+const getInitialState = (): CreateState => {
+  const savedResults = getSavedGeneratedResults();
+  const savedStep = getSavedCurrentStep();
+  const savedPrompt = getSavedPrompt();
+  
+  console.log('[CreateStore] Initializing state:', {
+    hasSavedResults: !!savedResults,
+    savedResultsCount: savedResults?.length || 0,
+    savedStep,
+    hasSavedPrompt: !!savedPrompt
+  });
+  
+  return {
+    activeTool: getSavedTool(),
+    prompt: savedPrompt,
+    generatedResults: savedResults || aiGeneratedResults,
+    selectedResult: savedResults && savedResults.length > 0 
+      ? savedResults[0].id 
+      : aiGeneratedResults.length > 0 ? aiGeneratedResults[0].id : null,
+    isGenerating: false,
+    showCulturalInfo: false,
+    currentStep: savedResults && savedResults.length > 0 ? savedStep : 1,
   isLoading: false,
   showAIReview: false,
   showModelSelector: false,
@@ -102,7 +194,7 @@ const initialState: CreateState = {
   isEngineGenerating: false,
   isPolishing: false,
   stylePreset: '',
-  generateCount: 3,
+  generateCount: 1,
   favorites: [],
   videoGenerating: false,
   culturalInfoText: '云纹是中国传统装饰纹样中常见的一种，象征着吉祥如意、高升和祥瑞。',
@@ -152,14 +244,15 @@ const initialState: CreateState = {
   expandRatio: 1.5,
   inpaintMask: null,
   currentImage: null,
-  // 提示词优化相关状态
-  optimizedPrompt: '',
-  promptHistory: [],
-  isOptimizingPrompt: false,
+    // 提示词优化相关状态
+    optimizedPrompt: '',
+    promptHistory: [],
+    isOptimizingPrompt: false,
+  };
 };
 
 export const useCreateStore = create<CreateState & CreateActions>((set) => ({
-  ...initialState,
+  ...getInitialState(),
 
   setActiveTool: (tool) => {
     // 保存到 localStorage
@@ -173,12 +266,26 @@ export const useCreateStore = create<CreateState & CreateActions>((set) => ({
     set({ activeTool: tool });
   },
   setAutoGenerate: (value) => set({ autoGenerate: value }),
-  setPrompt: (prompt) => set({ prompt }),
+  setPrompt: (prompt) => {
+    // 保存到 localStorage
+    if (typeof localStorage !== 'undefined') {
+      try {
+        localStorage.setItem('CREATE_PROMPT', prompt);
+      } catch (error) {
+        console.error('Failed to save prompt:', error);
+      }
+    }
+    set({ prompt });
+  },
   setGeneratedResults: (results) => set((state) => {
     try {
       // 只处理有效的生成结果（有缩略图且不是空数组）
       if (!results || results.length === 0) {
         console.log('[History] No results to save, skipping history update');
+        // 清除 localStorage 中的结果
+        if (typeof localStorage !== 'undefined') {
+          localStorage.removeItem('CREATE_GENERATED_RESULTS');
+        }
         return { generatedResults: results };
       }
 
@@ -211,7 +318,7 @@ export const useCreateStore = create<CreateState & CreateActions>((set) => ({
           prompt: state.prompt || '',
           stylePreset: state.stylePreset || '',
         };
-        console.log('[History] Creating history item:', historyItem.id, 'type:', historyItem.type);
+        console.log('[History] Creating history item:', historyItem.id, 'type:', historyItem.type, 'prompt:', historyItem.prompt?.substring(0, 50));
         return historyItem;
       });
 
@@ -220,42 +327,101 @@ export const useCreateStore = create<CreateState & CreateActions>((set) => ({
       localStorage.setItem('CREATE_HISTORY', JSON.stringify(updatedHistory));
       console.log('[History] Saved', newHistoryItems.length, 'items. Total history:', updatedHistory.length);
 
-      // 同步到灵感脉络
+      // 同步到津脉脉络
       (async () => {
+        console.log('[InspirationMindMap] Starting sync to mind map...');
         try {
-          const { data: { user } } = await import('@/lib/supabase').then(m => m.supabase.auth.getUser());
+          const user = await getCurrentUser();
+          
           if (!user) {
             console.log('[InspirationMindMap] User not logged in, skipping sync');
             return;
           }
 
-          // 获取或创建用户的默认灵感脉络
-          let mindMaps = await inspirationMindMapService.getUserMindMaps(user.id);
+          console.log('[InspirationMindMap] User logged in:', user.id);
+
+          // 获取或创建用户的默认津脉脉络
+          console.log('[InspirationMindMap] Fetching user mind maps...');
+          let mindMaps;
+          try {
+            mindMaps = await inspirationMindMapService.getUserMindMaps(user.id);
+            console.log('[InspirationMindMap] Found mind maps:', mindMaps?.length || 0);
+          } catch (e) {
+            console.error('[InspirationMindMap] Error fetching mind maps:', e);
+            return;
+          }
+          
           let mindMap = mindMaps.find(m => m.title === '我的创作脉络') || mindMaps[0];
 
           if (!mindMap) {
             console.log('[InspirationMindMap] Creating default mind map for user');
-            mindMap = await inspirationMindMapService.createMindMap(user.id, '我的创作脉络');
+            try {
+              mindMap = await inspirationMindMapService.createMindMap(user.id, '我的创作脉络');
+              console.log('[InspirationMindMap] Created mind map:', mindMap?.id);
+            } catch (e) {
+              console.error('[InspirationMindMap] Error creating mind map:', e);
+              return;
+            }
+          } else {
+            console.log('[InspirationMindMap] Using existing mind map:', mindMap.id);
           }
 
           // 为每个生成的作品添加节点
-          for (const item of newHistoryItems) {
+          console.log('[InspirationMindMap] Adding', newHistoryItems.length, 'nodes...');
+          
+          // 获取脉络中现有的最后一个节点作为父节点
+          let lastParentId: string | undefined;
+          try {
+            const fullMindMap = await inspirationMindMapService.getMindMap(mindMap.id);
+            if (fullMindMap.nodes && fullMindMap.nodes.length > 0) {
+              // 找到最后一个节点（按创建时间排序）
+              const sortedNodes = [...fullMindMap.nodes].sort((a, b) => 
+                new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+              );
+              lastParentId = sortedNodes[0].id;
+              console.log('[InspirationMindMap] Using last node as parent:', lastParentId);
+            }
+          } catch (e) {
+            console.log('[InspirationMindMap] No existing nodes, will create root node');
+          }
+          
+          for (let i = 0; i < newHistoryItems.length; i++) {
+            const item = newHistoryItems[i];
+            console.log('[InspirationMindMap] Processing item:', item.id, 'prompt:', item.prompt?.substring(0, 50));
+            
+            // 确保 prompt 不为空，尝试从 localStorage 获取
+            let prompt = item.prompt;
+            if (!prompt && typeof localStorage !== 'undefined') {
+              prompt = localStorage.getItem('CREATE_PROMPT') || '';
+              console.log('[InspirationMindMap] Using prompt from localStorage:', prompt?.substring(0, 50));
+            }
+            
             const nodeData = {
-              title: item.prompt ? item.prompt.substring(0, 30) + (item.prompt.length > 30 ? '...' : '') : '创作作品',
-              description: `创作时间: ${new Date(item.timestamp).toLocaleString('zh-CN')}`,
+              title: prompt ? prompt.substring(0, 30) + (prompt.length > 30 ? '...' : '') : '创作作品',
+              description: `${prompt || '无描述'}\n\n创作时间: ${new Date(item.timestamp).toLocaleString('zh-CN')}`,
               category: 'ai_generate' as const,
               content: {
                 type: item.type,
                 thumbnail: item.thumbnail,
                 video: item.video,
-                prompt: item.prompt,
+                prompt: prompt,
                 stylePreset: item.stylePreset,
               },
               tags: item.stylePreset ? [item.stylePreset] : ['创作'],
             };
+            
+            console.log('[InspirationMindMap] Node data description:', nodeData.description?.substring(0, 100));
 
-            await inspirationMindMapService.addNode(mindMap.id, nodeData);
-            console.log('[InspirationMindMap] Added node for creation:', item.id);
+            try {
+              // 第一个节点如果没有父节点则作为根节点，否则使用最后一个节点作为父节点
+              const parentId = i === 0 ? lastParentId : undefined;
+              const newNode = await inspirationMindMapService.addNode(mindMap.id, nodeData, parentId);
+              console.log('[InspirationMindMap] Added node for creation:', item.id, 'nodeId:', newNode?.id, 'parentId:', parentId);
+              // 更新 lastParentId 为当前新节点，以便下一个节点使用
+              lastParentId = newNode.id;
+            } catch (e) {
+              console.error('[InspirationMindMap] Error adding node:', e);
+            }
           }
 
           console.log('[InspirationMindMap] Successfully synced', newHistoryItems.length, 'creations to mind map');
@@ -268,12 +434,36 @@ export const useCreateStore = create<CreateState & CreateActions>((set) => ({
       console.error('[History] Failed to save to history:', e);
     }
 
+    // 保存生成结果到 localStorage，用于页面跳转后恢复
+    try {
+      if (typeof localStorage !== 'undefined') {
+        if (results && results.length > 0) {
+          localStorage.setItem('CREATE_GENERATED_RESULTS', JSON.stringify(results));
+        } else {
+          // 如果结果为空，清除保存的结果
+          localStorage.removeItem('CREATE_GENERATED_RESULTS');
+        }
+      }
+    } catch (e) {
+      console.error('[GeneratedResults] Failed to save to localStorage:', e);
+    }
+
     return { generatedResults: results };
   }),
   setSelectedResult: (id) => set({ selectedResult: id }),
   setIsGenerating: (isGenerating) => set({ isGenerating }),
   setShowCulturalInfo: (show) => set({ showCulturalInfo: show }),
-  setCurrentStep: (step) => set({ currentStep: step }),
+  setCurrentStep: (step) => {
+    // 保存到 localStorage
+    if (typeof localStorage !== 'undefined') {
+      try {
+        localStorage.setItem('CREATE_CURRENT_STEP', String(step));
+      } catch (error) {
+        console.error('Failed to save current step:', error);
+      }
+    }
+    set({ currentStep: step });
+  },
   setIsLoading: (isLoading) => set({ isLoading }),
   setFusionMode: (mode) => set({ fusionMode: mode }),
   
@@ -285,7 +475,19 @@ export const useCreateStore = create<CreateState & CreateActions>((set) => ({
     return { favorites: [...state.favorites, { id, thumbnail }] };
   }),
 
-  resetState: () => set(initialState),
+  resetState: () => {
+    // 清除 localStorage 中保存的创作状态
+    if (typeof localStorage !== 'undefined') {
+      try {
+        localStorage.removeItem('CREATE_GENERATED_RESULTS');
+        localStorage.removeItem('CREATE_CURRENT_STEP');
+        localStorage.removeItem('CREATE_PROMPT');
+      } catch (error) {
+        console.error('Failed to clear saved state:', error);
+      }
+    }
+    set(getInitialState());
+  },
   
   updateState: (updates) => set((state) => ({ ...state, ...updates })),
   
@@ -314,16 +516,16 @@ export const useCreateStore = create<CreateState & CreateActions>((set) => ({
     
     const updatedHistory = [historyItem, ...state.patternHistory].slice(0, 10);
 
-    // 同步到灵感脉络
+    // 同步到津脉脉络
     (async () => {
       try {
-        const { data: { user } } = await import('@/lib/supabase').then(m => m.supabase.auth.getUser());
+        const user = await getCurrentUser();
         if (!user) {
           console.log('[InspirationMindMap] User not logged in, skipping pattern history sync');
           return;
         }
 
-        // 获取或创建用户的默认灵感脉络
+        // 获取或创建用户的默认津脉脉络
         let mindMaps = await inspirationMindMapService.getUserMindMaps(user.id);
         let mindMap = mindMaps.find(m => m.title === '我的创作脉络') || mindMaps[0];
 
@@ -479,16 +681,16 @@ export const useCreateStore = create<CreateState & CreateActions>((set) => ({
       localStorage.setItem('CREATE_DRAFTS', JSON.stringify(updatedDrafts));
       console.log('Design saved to drafts');
 
-      // 同步到灵感脉络
+      // 同步到津脉脉络
       (async () => {
         try {
-          const { data: { user } } = await import('@/lib/supabase').then(m => m.supabase.auth.getUser());
+          const user = await getCurrentUser();
           if (!user) {
             console.log('[InspirationMindMap] User not logged in, skipping draft sync');
             return;
           }
 
-          // 获取或创建用户的默认灵感脉络
+          // 获取或创建用户的默认津脉脉络
           let mindMaps = await inspirationMindMapService.getUserMindMaps(user.id);
           let mindMap = mindMaps.find(m => m.title === '我的创作脉络') || mindMaps[0];
 
@@ -572,16 +774,16 @@ export const useCreateStore = create<CreateState & CreateActions>((set) => ({
 
       console.log('Share design:', shareUrl);
 
-      // 同步到灵感脉络
+      // 同步到津脉脉络
       (async () => {
         try {
-          const { data: { user } } = await import('@/lib/supabase').then(m => m.supabase.auth.getUser());
+          const user = await getCurrentUser();
           if (!user) {
             console.log('[InspirationMindMap] User not logged in, skipping share sync');
             return;
           }
 
-          // 获取或创建用户的默认灵感脉络
+          // 获取或创建用户的默认津脉脉络
           let mindMaps = await inspirationMindMapService.getUserMindMaps(user.id);
           let mindMap = mindMaps.find(m => m.title === '我的创作脉络') || mindMaps[0];
 
@@ -693,16 +895,16 @@ export const useCreateStore = create<CreateState & CreateActions>((set) => ({
       const result = await postsApi.addPost(newPost as any, { id: 'current-user' } as any);
       
       if (result) {
-        // 同步发布记录到灵感脉络
+        // 同步发布记录到津脉脉络
         (async () => {
           try {
-            const { data: { user } } = await import('@/lib/supabase').then(m => m.supabase.auth.getUser());
+            const user = await getCurrentUser();
             if (!user) {
               console.log('[InspirationMindMap] User not logged in, skipping publish sync');
               return;
             }
 
-            // 获取或创建用户的默认灵感脉络
+            // 获取或创建用户的默认津脉脉络
             let mindMaps = await inspirationMindMapService.getUserMindMaps(user.id);
             let mindMap = mindMaps.find(m => m.title === '我的创作脉络') || mindMaps[0];
 
@@ -804,16 +1006,16 @@ export const useCreateStore = create<CreateState & CreateActions>((set) => ({
       const result = await postsApi.addPost(newPost as any, { id: 'current-user' } as any);
 
       if (result) {
-        // 同步发布记录到灵感脉络
+        // 同步发布记录到津脉脉络
         (async () => {
           try {
-            const { data: { user } } = await import('@/lib/supabase').then(m => m.supabase.auth.getUser());
+            const user = await getCurrentUser();
             if (!user) {
               console.log('[InspirationMindMap] User not logged in, skipping community publish sync');
               return;
             }
 
-            // 获取或创建用户的默认灵感脉络
+            // 获取或创建用户的默认津脉脉络
             let mindMaps = await inspirationMindMapService.getUserMindMaps(user.id);
             let mindMap = mindMaps.find(m => m.title === '我的创作脉络') || mindMaps[0];
 
@@ -872,16 +1074,16 @@ export const useCreateStore = create<CreateState & CreateActions>((set) => ({
       // 模拟提交延迟
       await new Promise(resolve => setTimeout(resolve, 1000));
 
-      // 同步到灵感脉络
+      // 同步到津脉脉络
       (async () => {
         try {
-          const { data: { user } } = await import('@/lib/supabase').then(m => m.supabase.auth.getUser());
+          const user = await getCurrentUser();
           if (!user) {
             console.log('[InspirationMindMap] User not logged in, skipping event submit sync');
             return;
           }
 
-          // 获取或创建用户的默认灵感脉络
+          // 获取或创建用户的默认津脉脉络
           let mindMaps = await inspirationMindMapService.getUserMindMaps(user.id);
           let mindMap = mindMaps.find(m => m.title === '我的创作脉络') || mindMaps[0];
 

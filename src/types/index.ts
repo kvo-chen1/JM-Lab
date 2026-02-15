@@ -238,6 +238,10 @@ export interface EventCreateRequest {
   contactEmail?: string;
   pushToCommunity?: boolean;
   applyForRecommendation?: boolean;
+  // 多阶段时间字段
+  registrationDeadline?: Date; // 报名截止时间
+  reviewStartDate?: Date; // 评审开始时间
+  resultDate?: Date; // 结果公布时间
 }
 
 // 活动更新请求类型

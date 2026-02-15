@@ -166,10 +166,26 @@ const PostItem = memo(({ post, index, onLike, onComment, onShare, onBookmark, on
             );
           }
           
+          // 调试：检查缩略图URL
+          console.log('[PostGrid] Rendering thumbnail:', { 
+            id: post.id, 
+            title: post.title, 
+            thumbnail: post.thumbnail,
+            hasThumbnail: !!post.thumbnail,
+            thumbnailLength: post.thumbnail?.length
+          });
+          
+          // 使用内联 SVG 作为 fallback，避免外部服务不稳定
+          // 使用英文文本避免编码问题
+          const safeTitle = (post.title?.slice(0, 10) || 'Work').replace(/[^\x00-\x7F]/g, '?');
+          const svgText = safeTitle.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          const svgContent = `<svg width="600" height="400" xmlns="http://www.w3.org/2000/svg"><rect width="600" height="400" fill="#3b82f6"/><text x="50%" y="50%" font-family="Arial" font-size="24" fill="white" text-anchor="middle" dominant-baseline="middle">${svgText}</text></svg>`;
+          const fallbackSvg = `data:image/svg+xml;base64,${btoa(svgContent)}`;
+          
           return (
             <div className="relative overflow-hidden bg-gray-100 dark:bg-gray-800">
               <LazyImage 
-                src={post.thumbnail}  
+                src={post.thumbnail || ''}  
                 alt={post.title}
                 className="w-full h-auto object-cover transition-transform duration-700 ease-out group-hover:scale-110"
                 priority={index < 5}
@@ -178,7 +194,7 @@ const PostItem = memo(({ post, index, onLike, onComment, onShare, onBookmark, on
                 loadingAnimation="fade"
                 fit="cover"
                 bare
-                fallbackSrc={`https://placehold.co/600x400/3b82f6/ffffff?text=${encodeURIComponent(post.title?.slice(0, 10) || '作品')}`}
+                fallbackSrc={fallbackSvg}
               />
               {/* 图片悬停时的光晕效果 */}
               <div className="absolute inset-0 bg-gradient-to-tr from-blue-500/0 via-purple-500/0 to-pink-500/0 group-hover:from-blue-500/10 group-hover:via-purple-500/5 group-hover:to-pink-500/10 transition-all duration-700 opacity-0 group-hover:opacity-100 pointer-events-none" />

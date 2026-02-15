@@ -184,7 +184,11 @@ const WaterfallGallery: React.FC<WaterfallGalleryProps> = ({
                   className="w-full h-full object-cover transition-transform duration-500 hover:scale-110"
                   placeholder="blur"
                   bare
-                  fallbackSrc={`https://placehold.co/400x300/3b82f6/ffffff?text=${encodeURIComponent(layoutItem.item.title?.slice(0, 8) || '作品')}`}
+                  fallbackSrc={(() => {
+                    const text = (layoutItem.item.title?.slice(0, 8) || '作品').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                    const svg = `<svg width="400" height="300" xmlns="http://www.w3.org/2000/svg"><rect width="400" height="300" fill="#3b82f6"/><text x="50%" y="50%" font-family="Arial" font-size="20" fill="white" text-anchor="middle" dominant-baseline="middle">${text}</text></svg>`;
+                    return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
+                  })()}
                 />
               )}
               {layoutItem.item.type === 'video' && (

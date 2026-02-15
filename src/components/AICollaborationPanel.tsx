@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useTheme } from '@/hooks/useTheme'
 import { useNavigate } from 'react-router-dom'
 import { llmService, Message, ConversationSession, AssistantPersonality, AssistantTheme } from '@/services/llmService'
+import { aiAssistantService, ChatMessage, AIResponse } from '@/services/aiAssistantService'
+import { Conversation } from '@/services/aiMemoryService'
 import { toast } from 'sonner'
 import SpeechInput from './SpeechInput'
 import { useTranslation } from 'react-i18next'
@@ -136,16 +138,93 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
     return Array.isArray(value) ? value : []
   })() as Array<{ id: string; name: string; description: string; prompt: string }>
 
-  // 加载会话列表
+  // 加载会话列表 - 使用 Supabase 存储
   useEffect(() => {
-    const loadedSessions = llmService.getSessions()
-    setSessions(loadedSessions)
+    const loadConversations = async () => {
+      try {
+        // 初始化 AI 助手服务
+        await aiAssistantService.initialize()
+        
+        // 从 Supabase 加载对话列表
+        const conversations = await aiAssistantService.getAllConversations()
+        
+        // 转换为组件需要的格式
+        const formattedSessions: ConversationSession[] = conversations.map(conv => ({
+          id: conv.id,
+          name: conv.title || '新对话',
+          modelId: conv.model_id || 'qwen',
+          messages: [], // 消息将在选择会话时加载
+          createdAt: new Date(conv.created_at).getTime(),
+          updatedAt: new Date(conv.updated_at).getTime(),
+          isActive: conv.is_active,
+          currentTopic: conv.context_summary || '',
+          topicHistory: [],
+          contextSummary: conv.context_summary || '',
+          lastMessageTimestamp: new Date(conv.updated_at).getTime()
+        }))
+        
+        setSessions(formattedSessions)
+        
+        // 设置当前活跃会话
+        const activeSession = formattedSessions.find(session => session.isActive) || formattedSessions[0]
+        if (activeSession) {
+          setCurrentSession(activeSession)
+          // 加载会话的消息历史
+          const history = await aiAssistantService.getConversationHistory()
+          setMessages(history.map(msg => ({
+            role: msg.role,
+            content: msg.content,
+            timestamp: msg.timestamp,
+            isError: msg.isError
+          })))
+        } else if (formattedSessions.length === 0) {
+          // 如果没有会话，创建一个新会话（内联逻辑，避免循环依赖）
+          try {
+            await aiAssistantService.createNewConversation()
+            const newConversations = await aiAssistantService.getAllConversations()
+            const newFormattedSessions: ConversationSession[] = newConversations.map(conv => ({
+              id: conv.id,
+              name: conv.title || '新对话',
+              modelId: conv.model_id || 'qwen',
+              messages: [],
+              createdAt: new Date(conv.created_at).getTime(),
+              updatedAt: new Date(conv.updated_at).getTime(),
+              isActive: conv.is_active,
+              currentTopic: conv.context_summary || '',
+              topicHistory: [],
+              contextSummary: conv.context_summary || '',
+              lastMessageTimestamp: new Date(conv.updated_at).getTime()
+            }))
+            setSessions(newFormattedSessions)
+            const newActiveSession = newFormattedSessions.find(session => session.isActive) || newFormattedSessions[0]
+            if (newActiveSession) {
+              setCurrentSession(newActiveSession)
+              setMessages([])
+            }
+          } catch (createError) {
+            console.error('自动创建会话失败:', createError)
+            // 回退到 localStorage
+            const newSession = llmService.createSession('新对话')
+            setSessions([newSession])
+            setCurrentSession(newSession)
+            setMessages([])
+          }
+        }
+      } catch (error) {
+        console.error('加载会话列表失败:', error)
+        // 回退到 localStorage
+        const loadedSessions = llmService.getSessions()
+        setSessions(loadedSessions)
+        const activeSession = loadedSessions.find(session => session.isActive) || loadedSessions[0]
+        if (activeSession) {
+          setCurrentSession(activeSession)
+          setMessages(activeSession.messages)
+        }
+      }
+    }
     
-    // 设置当前会话
-    const activeSession = loadedSessions.find(session => session.isActive) || loadedSessions[0]
-    if (activeSession) {
-      setCurrentSession(activeSession)
-      setMessages(activeSession.messages)
+    if (isOpen) {
+      loadConversations()
     }
   }, [isOpen])
 
@@ -326,62 +405,244 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  // 创建新会话
-  const createNewSession = () => {
-    if (!newSessionName.trim()) {
-      toast.warning(t('aiCollab.toasts.sessionNameRequired'))
-      return
-    }
+  // 创建新会话 - 使用 Supabase 存储
+  const createNewSession = async () => {
+    // 如果没有输入名称，使用默认名称
+    const sessionName = newSessionName.trim() || t('aiCollab.newSession.defaultName') || '新对话'
     
-    const newSession = llmService.createSession(newSessionName.trim())
-    setSessions([newSession, ...sessions.filter(s => !s.isActive)])
-    setCurrentSession(newSession)
-    setMessages(newSession.messages)
-    setNewSessionName('')
-    setShowNewSessionModal(false)
-  }
-
-  // 切换会话
-  const switchSession = (sessionId: string) => {
-    llmService.switchSession(sessionId)
-    const updatedSessions = llmService.getSessions()
-    setSessions(updatedSessions)
-    const activeSession = updatedSessions.find(session => session.isActive) || updatedSessions[0]
-    if (activeSession) {
-      setCurrentSession(activeSession)
-      setMessages(activeSession.messages)
+    try {
+      // 使用 aiAssistantService 创建新对话（保存到 Supabase）
+      await aiAssistantService.createNewConversation()
+      
+      // 如果提供了自定义名称，重命名对话
+      const conversations = await aiAssistantService.getAllConversations()
+      const newConversation = conversations.find(c => c.is_active)
+      if (newConversation && sessionName !== '新对话') {
+        await aiAssistantService.renameConversation(newConversation.id, sessionName)
+      }
+      
+      // 刷新会话列表
+      const updatedConversations = await aiAssistantService.getAllConversations()
+      const formattedSessions: ConversationSession[] = updatedConversations.map(conv => ({
+        id: conv.id,
+        name: conv.title || '新对话',
+        modelId: conv.model_id || 'qwen',
+        messages: [],
+        createdAt: new Date(conv.created_at).getTime(),
+        updatedAt: new Date(conv.updated_at).getTime(),
+        isActive: conv.is_active,
+        currentTopic: conv.context_summary || '',
+        topicHistory: [],
+        contextSummary: conv.context_summary || '',
+        lastMessageTimestamp: new Date(conv.updated_at).getTime()
+      }))
+      
+      setSessions(formattedSessions)
+      const activeSession = formattedSessions.find(session => session.isActive) || formattedSessions[0]
+      if (activeSession) {
+        setCurrentSession(activeSession)
+        setMessages([])
+      }
+      
+      setNewSessionName('')
+      setShowNewSessionModal(false)
+      toast.success('新会话已创建')
+    } catch (error) {
+      console.error('创建会话失败:', error)
+      // 回退到 localStorage
+      const newSession = llmService.createSession(newSessionName.trim())
+      setSessions([newSession, ...sessions.filter(s => !s.isActive)])
+      setCurrentSession(newSession)
+      setMessages(newSession.messages)
+      setNewSessionName('')
+      setShowNewSessionModal(false)
     }
   }
 
-  // 删除会话
-  const deleteSession = (sessionId: string) => {
-    llmService.deleteSession(sessionId)
-    const updatedSessions = llmService.getSessions()
-    setSessions(updatedSessions)
-    const activeSession = updatedSessions.find(session => session.isActive) || updatedSessions[0]
-    if (activeSession) {
-      setCurrentSession(activeSession)
-      setMessages(activeSession.messages)
+  // 切换会话 - 使用 Supabase 存储
+  const switchSession = async (sessionId: string) => {
+    try {
+      await aiAssistantService.switchConversation(sessionId)
+      
+      // 刷新会话列表
+      const conversations = await aiAssistantService.getAllConversations()
+      const formattedSessions: ConversationSession[] = conversations.map(conv => ({
+        id: conv.id,
+        name: conv.title || '新对话',
+        modelId: conv.model_id || 'qwen',
+        messages: [],
+        createdAt: new Date(conv.created_at).getTime(),
+        updatedAt: new Date(conv.updated_at).getTime(),
+        isActive: conv.is_active,
+        currentTopic: conv.context_summary || '',
+        topicHistory: [],
+        contextSummary: conv.context_summary || '',
+        lastMessageTimestamp: new Date(conv.updated_at).getTime()
+      }))
+      
+      setSessions(formattedSessions)
+      const activeSession = formattedSessions.find(session => session.isActive) || formattedSessions[0]
+      if (activeSession) {
+        setCurrentSession(activeSession)
+        // 加载新会话的消息历史
+        const history = await aiAssistantService.getConversationHistory()
+        setMessages(history.map(msg => ({
+          role: msg.role,
+          content: msg.content,
+          timestamp: msg.timestamp,
+          isError: msg.isError
+        })))
+      }
+    } catch (error) {
+      console.error('切换会话失败:', error)
+      // 回退到 localStorage
+      llmService.switchSession(sessionId)
+      const updatedSessions = llmService.getSessions()
+      setSessions(updatedSessions)
+      const activeSession = updatedSessions.find(session => session.isActive) || updatedSessions[0]
+      if (activeSession) {
+        setCurrentSession(activeSession)
+        setMessages(activeSession.messages)
+      }
     }
   }
 
-  // 重命名会话
-  const renameSession = () => {
+  // 删除会话 - 使用 Supabase 存储
+  const deleteSession = async (sessionId: string) => {
+    try {
+      await aiAssistantService.deleteConversation(sessionId)
+      
+      // 刷新会话列表
+      const conversations = await aiAssistantService.getAllConversations()
+      const formattedSessions: ConversationSession[] = conversations.map(conv => ({
+        id: conv.id,
+        name: conv.title || '新对话',
+        modelId: conv.model_id || 'qwen',
+        messages: [],
+        createdAt: new Date(conv.created_at).getTime(),
+        updatedAt: new Date(conv.updated_at).getTime(),
+        isActive: conv.is_active,
+        currentTopic: conv.context_summary || '',
+        topicHistory: [],
+        contextSummary: conv.context_summary || '',
+        lastMessageTimestamp: new Date(conv.updated_at).getTime()
+      }))
+      
+      setSessions(formattedSessions)
+      const activeSession = formattedSessions.find(session => session.isActive) || formattedSessions[0]
+      if (activeSession) {
+        setCurrentSession(activeSession)
+        const history = await aiAssistantService.getConversationHistory()
+        setMessages(history.map(msg => ({
+          role: msg.role,
+          content: msg.content,
+          timestamp: msg.timestamp,
+          isError: msg.isError
+        })))
+      }
+    } catch (error) {
+      console.error('删除会话失败:', error)
+      // 回退到 localStorage
+      llmService.deleteSession(sessionId)
+      const updatedSessions = llmService.getSessions()
+      setSessions(updatedSessions)
+      const activeSession = updatedSessions.find(session => session.isActive) || updatedSessions[0]
+      if (activeSession) {
+        setCurrentSession(activeSession)
+        setMessages(activeSession.messages)
+      }
+    }
+  }
+
+  // 重命名会话 - 使用 Supabase 存储
+  const renameSession = async () => {
     if (!editingSessionName.trim() || !currentSession) return
     
-    llmService.renameSession(currentSession.id, editingSessionName.trim())
-    const updatedSessions = llmService.getSessions()
-    setSessions(updatedSessions)
-    const updatedSession = updatedSessions.find(s => s.id === currentSession.id)
-    if (updatedSession) {
-      setCurrentSession(updatedSession)
+    try {
+      await aiAssistantService.renameConversation(currentSession.id, editingSessionName.trim())
+      
+      // 刷新会话列表
+      const conversations = await aiAssistantService.getAllConversations()
+      const formattedSessions: ConversationSession[] = conversations.map(conv => ({
+        id: conv.id,
+        name: conv.title || '新对话',
+        modelId: conv.model_id || 'qwen',
+        messages: [],
+        createdAt: new Date(conv.created_at).getTime(),
+        updatedAt: new Date(conv.updated_at).getTime(),
+        isActive: conv.is_active,
+        currentTopic: conv.context_summary || '',
+        topicHistory: [],
+        contextSummary: conv.context_summary || '',
+        lastMessageTimestamp: new Date(conv.updated_at).getTime()
+      }))
+      
+      setSessions(formattedSessions)
+      const activeSession = formattedSessions.find(session => session.id === currentSession.id)
+      if (activeSession) {
+        setCurrentSession(activeSession)
+      }
+      setIsEditingSessionName(false)
+      toast.success('会话已重命名')
+    } catch (error) {
+      console.error('重命名会话失败:', error)
+      // 回退到 localStorage
+      llmService.renameSession(currentSession.id, editingSessionName.trim())
+      const updatedSessions = llmService.getSessions()
+      setSessions(updatedSessions)
+      const updatedSession = updatedSessions.find(s => s.id === currentSession.id)
+      if (updatedSession) {
+        setCurrentSession(updatedSession)
+      }
+      setIsEditingSessionName(false)
     }
-    setIsEditingSessionName(false)
   }
 
   // 发送消息
   const sendMessage = async () => {
-    if (!input.trim() || !currentSession || isGenerating) return
+    console.log('[sendMessage] 开始发送消息:', { input: input.trim(), currentSession, isGenerating })
+    
+    if (!input.trim()) {
+      console.log('[sendMessage] 输入为空，不发送')
+      return
+    }
+    
+    if (!currentSession) {
+      console.log('[sendMessage] 没有当前会话，尝试创建新会话')
+      // 尝试创建新会话
+      try {
+        await aiAssistantService.createNewConversation()
+        const conversations = await aiAssistantService.getAllConversations()
+        const formattedSessions: ConversationSession[] = conversations.map(conv => ({
+          id: conv.id,
+          name: conv.title || '新对话',
+          modelId: conv.model_id || 'qwen',
+          messages: [],
+          createdAt: new Date(conv.created_at).getTime(),
+          updatedAt: new Date(conv.updated_at).getTime(),
+          isActive: conv.is_active,
+          currentTopic: conv.context_summary || '',
+          topicHistory: [],
+          contextSummary: conv.context_summary || '',
+          lastMessageTimestamp: new Date(conv.updated_at).getTime()
+        }))
+        setSessions(formattedSessions)
+        const activeSession = formattedSessions.find(session => session.isActive) || formattedSessions[0]
+        if (activeSession) {
+          setCurrentSession(activeSession)
+          console.log('[sendMessage] 新会话已创建:', activeSession)
+        }
+      } catch (error) {
+        console.error('[sendMessage] 创建会话失败:', error)
+        toast.error('创建会话失败，请重试')
+        return
+      }
+    }
+    
+    if (isGenerating) {
+      console.log('[sendMessage] 正在生成中，不发送')
+      return
+    }
     
     setIsGenerating(true)
     setIsTyping(true)
@@ -538,15 +799,21 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
           setMessages(prev => [...prev, tempAssistantMessage]);
           
           // 使用简化的直接生成响应方法，绕过任务队列
+          let fullResponse = '';
           response = await llmService.directGenerateResponse(userInput, {
             context,
             onDelta: (chunk) => {
               // 实现流式响应的实时更新
+              fullResponse += chunk;
               setMessages(prev => {
                 const updatedMessages = [...prev];
                 const lastMessage = updatedMessages[updatedMessages.length - 1];
                 if (lastMessage && lastMessage.role === 'assistant') {
-                  lastMessage.content += chunk;
+                  // 创建新对象而不是修改原对象，避免重复累积
+                  updatedMessages[updatedMessages.length - 1] = {
+                    ...lastMessage,
+                    content: fullResponse
+                  };
                 }
                 return updatedMessages;
               });

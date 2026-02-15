@@ -42,11 +42,6 @@ export default function MyActivities() {
   const [participations, setParticipations] = useState<ParticipationDetail[]>([]);
   const [stats, setStats] = useState<ParticipationStats>({
     total: 0,
-    registered: 0,
-    submitted: 0,
-    reviewing: 0,
-    completed: 0,
-    awarded: 0,
     totalViews: 0,
     totalLikes: 0,
     totalShares: 0,
@@ -73,11 +68,13 @@ export default function MyActivities() {
       const currentPage = isRefresh ? 1 : page;
       const filter = activeFilter === 'all' ? {} : { status: activeFilter as any };
 
+      console.log('[MyActivities] Loading participations with filter:', filter);
       const { data, total } = await eventParticipationService.getUserParticipations(
         user.id,
         filter,
         { page: currentPage, pageSize: 10 }
       );
+      console.log('[MyActivities] Loaded participations:', { dataLength: data.length, total, data });
 
       if (isRefresh || currentPage === 1) {
         setParticipations(data);
@@ -227,7 +224,6 @@ export default function MyActivities() {
     <ActivityStats
       stats={{
         total: stats.total,
-        awarded: stats.awarded,
         totalViews: stats.totalViews,
         totalInteractions: stats.totalLikes + stats.totalShares,
       }}
@@ -241,11 +237,6 @@ export default function MyActivities() {
       onFilterChange={setActiveFilter}
       stats={{
         total: stats.total,
-        registered: stats.registered,
-        submitted: stats.submitted,
-        reviewing: stats.reviewing,
-        completed: stats.completed,
-        awarded: stats.awarded,
       }}
     />
   );
@@ -259,11 +250,6 @@ export default function MyActivities() {
           <div className="flex gap-2">
             {[
               { id: 'all', label: '全部' },
-              { id: 'registered', label: '已报名' },
-              { id: 'submitted', label: '已提交' },
-              { id: 'reviewing', label: '评审中' },
-              { id: 'completed', label: '已结束' },
-              { id: 'awarded', label: '获奖' },
             ].map((filter) => (
               <button
                 key={filter.id}

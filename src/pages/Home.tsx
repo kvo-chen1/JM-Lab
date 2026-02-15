@@ -113,16 +113,13 @@ export default function Home() {
     const workPublishedListener = eventBus.subscribe('作品:发布', (data) => {
       console.log('Home page received work published event:', data);
       toast.success(
-        <div className="flex items-center justify-between gap-6">
+        <div className="flex items-center justify-between gap-4 min-w-[280px]">
           <div className="flex items-center gap-2">
-            <span className="font-medium text-emerald-700">作品发布成功</span>
-            <span className="text-emerald-500">✓</span>
+            <span className="text-sm text-emerald-700">作品发布成功</span>
           </div>
           <button
-            onClick={() => {
-              window.open('/square', '_blank');
-            }}
-            className="text-xs px-3 py-1.5 rounded-full bg-gradient-to-r from-[#C02C38] to-[#D64545] text-white hover:shadow-lg hover:scale-105 transition-all duration-200 flex items-center gap-1 font-medium whitespace-nowrap"
+            onClick={() => navigate('/square')}
+            className="text-xs px-2.5 py-1 rounded-full bg-gradient-to-r from-[#C02C38] to-[#D64545] text-white hover:shadow-md hover:scale-105 transition-all duration-200 flex items-center gap-1 font-medium whitespace-nowrap"
           >
             <ExternalLink className="w-3 h-3" />
             去广场查看
@@ -130,7 +127,7 @@ export default function Home() {
         </div>,
         {
           duration: 5000,
-          className: 'bg-emerald-50 border-emerald-200'
+          className: 'bg-emerald-50 border-emerald-200 !py-2 !px-3'
         }
       );
     });

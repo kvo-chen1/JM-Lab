@@ -61,7 +61,7 @@ export const useMindMap = (initialMapId?: string): UseMindMapReturn => {
   }, [nodes]);
 
   // 计算节点位置
-  const calculatePositions = useCallback((currentNodes: MindNode[], layoutType: 'tree' | 'radial' | 'timeline' = 'tree') => {
+  const calculatePositions = useCallback((currentNodes: MindNode[], layoutType: 'tree' | 'radial' | 'timeline' = 'timeline') => {
     const positions = service.calculateLayout(currentNodes, layoutType);
     setNodePositions(positions);
   }, []);
@@ -72,10 +72,13 @@ export const useMindMap = (initialMapId?: string): UseMindMapReturn => {
     setError(null);
     try {
       const loadedMap = await service.getMindMap(mapId);
+      console.log('[useMindMap] Loaded map:', loadedMap?.id, 'nodes:', loadedMap?.nodes?.length);
       if (loadedMap) {
         setMindMap(loadedMap);
         setNodes(loadedMap.nodes);
-        calculatePositions(loadedMap.nodes, loadedMap.layoutType);
+        console.log('[useMindMap] Calculating positions for', loadedMap.nodes.length, 'nodes, layout:', loadedMap.layoutType);
+        // 强制使用 timeline 布局
+        calculatePositions(loadedMap.nodes, 'timeline');
       } else {
         setError('脉络不存在');
       }
@@ -86,12 +89,8 @@ export const useMindMap = (initialMapId?: string): UseMindMapReturn => {
     }
   }, [calculatePositions]);
 
-  // 初始化加载
-  useEffect(() => {
-    if (initialMapId) {
-      loadMindMap(initialMapId);
-    }
-  }, [initialMapId, loadMindMap]);
+  // 注意：初始化加载由调用方（页面）控制，不在 hook 中自动加载
+  // 这样可以避免重复加载问题
 
   // 创建新脉络
   const createMindMap = useCallback(async (userId: string, title: string, brandId?: string) => {

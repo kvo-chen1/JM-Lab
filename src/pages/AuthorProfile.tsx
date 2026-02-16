@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import { 
   MapPin, 
   Calendar, 
@@ -39,7 +39,11 @@ import {
   ArrowUpRight,
   LayoutDashboard,
   X,
-  Send
+  Send,
+  ChevronLeft,
+  Upload,
+  MoreVertical,
+  Bookmark
 } from 'lucide-react'
 import LazyImage from '../components/LazyImage'
 import { PostGrid } from '../components/CreatorCommunity/PostGrid'
@@ -99,6 +103,18 @@ export const AuthorProfile: React.FC<AuthorProfileProps> = ({ currentUser }) => 
   const [showMessageModal, setShowMessageModal] = useState(false)
   const [messageContent, setMessageContent] = useState('')
   const [sendingMessage, setSendingMessage] = useState(false)
+
+  // 检测是否为移动端
+  const [isMobile, setIsMobile] = useState(false)
+  
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768)
+    }
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
 
   // 模拟成就数据
   const achievements: Achievement[] = useMemo(() => [
@@ -248,6 +264,9 @@ export const AuthorProfile: React.FC<AuthorProfileProps> = ({ currentUser }) => 
           }))
           
           setPosts(adaptedPosts)
+
+          console.log('[AuthorProfile] authorData:', authorData)
+          console.log('[AuthorProfile] bio:', authorData.bio)
 
           setAuthor({
             ...authorData,
@@ -544,11 +563,250 @@ export const AuthorProfile: React.FC<AuthorProfileProps> = ({ currentUser }) => 
 
   const isOwnProfile = currentUser?.id === author.id
 
+  // 移动端个人中心视图
+  if (isMobile) {
+    return (
+      <div className="min-h-screen bg-white dark:bg-gray-900 pb-20">
+        {/* 移动端封面图区域 */}
+        <div className="relative">
+          {/* 封面图 */}
+          <div 
+            className="relative h-48 w-full overflow-hidden"
+            style={(author.coverImage || author.cover_image) ? {
+              backgroundImage: `url(${author.coverImage || author.cover_image})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center'
+            } : {}}
+          >
+            {!(author.coverImage || author.cover_image) && (
+              <div className="absolute inset-0 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500" />
+            )}
+            <div className="absolute inset-0 bg-black/20" />
+            
+            {/* 顶部导航栏 - 图2风格：白色图标，无背景 */}
+            <div className="absolute top-0 left-0 right-0 flex items-center justify-between p-4 pt-safe">
+              <button 
+                onClick={() => navigate(-1)}
+                className="p-2 flex items-center justify-center text-white drop-shadow-lg"
+              >
+                <ChevronLeft className="w-7 h-7" strokeWidth={2.5} />
+              </button>
+              <div className="flex items-center gap-4">
+                <button 
+                  onClick={handleShare}
+                  className="p-2 flex items-center justify-center text-white drop-shadow-lg"
+                >
+                  <Upload className="w-6 h-6" strokeWidth={2.5} />
+                </button>
+                <button className="p-2 flex items-center justify-center text-white drop-shadow-lg">
+                  <MoreHorizontal className="w-6 h-6" strokeWidth={2.5} />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* 用户信息卡片 - 负边距叠加效果 */}
+          <div className="px-4 -mt-4">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-4">
+              {/* 头像和用户名区域 - 左对齐布局 */}
+              <div className="flex items-center gap-4">
+                <div className="relative -mt-2 -ml-1">
+                  <div className="w-20 h-20 rounded-full overflow-hidden border-4 border-white dark:border-gray-800 shadow-lg">
+                    <img
+                      src={author.avatar || author.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${author.username}`}
+                      alt={author.username}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  {isOnline && (
+                    <div className="absolute bottom-0 right-0 w-4 h-4 bg-green-500 rounded-full border-2 border-white dark:border-gray-800" />
+                  )}
+                </div>
+                <div className="pt-0">
+                  <h1 className="text-3xl font-bold text-gray-900 dark:text-white mt-3">{author.username}</h1>
+                  <p className="text-base text-gray-600 dark:text-gray-400">{author.email || 'user@example.com'}</p>
+                </div>
+              </div>
+
+              {/* 个人简介 - 放在中间 */}
+              <p className="mt-3 text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
+                {author.bio || author.description || author.intro || '这个人很懒，还没有写简介~'}
+              </p>
+
+              {/* 统计数据 - 图2风格：同行显示，用点分隔 */}
+              <div className="mt-3 text-sm">
+                <span className="font-bold text-gray-900 dark:text-white">{(author.followersCount || author.followers_count || 0).toLocaleString()}</span>
+                <span className="text-gray-500 dark:text-gray-400">位粉丝</span>
+                <span className="mx-1 text-gray-400">·</span>
+                <span className="font-bold text-gray-900 dark:text-white">{author.followingCount || author.following_count || 0}</span>
+                <span className="text-gray-500 dark:text-gray-400">关注</span>
+              </div>
+
+              {/* 链接 - 有网站才显示 */}
+              {author.website && author.website !== 'https://example.com' && (
+                <a 
+                  href={author.website} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="mt-2 inline-flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400"
+                >
+                  <Globe className="w-4 h-4" />
+                  <span className="underline">{author.website.replace(/^https?:\/\//, '')}</span>
+                </a>
+              )}
+
+              {/* 操作按钮 - 图2风格：圆角较小，宽度自适应 */}
+              <div className="flex items-center gap-3 mt-4">
+                {!isOwnProfile ? (
+                  <>
+                    <button
+                      onClick={handleFollow}
+                      className={`px-6 py-2 rounded-lg font-medium text-sm transition-all ${
+                        isFollowing
+                          ? 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200'
+                          : 'bg-red-500 text-white'
+                      }`}
+                    >
+                      {isFollowing ? '已关注' : '关注'}
+                    </button>
+                    <button
+                      onClick={handleMessage}
+                      className="px-6 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg font-medium text-sm"
+                    >
+                      私信
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => navigate('/settings')}
+                      className="px-6 py-2 bg-red-500 text-white rounded-lg font-medium text-sm"
+                    >
+                      编辑资料
+                    </button>
+                    <button
+                      onClick={() => navigate('/dashboard')}
+                      className="px-6 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg font-medium text-sm"
+                    >
+                      个人中心
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Tab 切换 */}
+        <div className="mt-6 px-4">
+          <div className="flex items-center justify-center border-b border-gray-200 dark:border-gray-700">
+            <button
+              onClick={() => setActiveTab('works')}
+              className={`flex-1 py-3 text-sm font-medium relative ${
+                activeTab === 'works'
+                  ? 'text-gray-900 dark:text-white'
+                  : 'text-gray-500 dark:text-gray-400'
+              }`}
+            >
+              已创建
+              {activeTab === 'works' && (
+                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-gray-900 dark:bg-white rounded-full" />
+              )}
+            </button>
+            <button
+              onClick={() => setActiveTab('activity')}
+              className={`flex-1 py-3 text-sm font-medium relative ${
+                activeTab === 'activity'
+                  ? 'text-gray-900 dark:text-white'
+                  : 'text-gray-500 dark:text-gray-400'
+              }`}
+            >
+              已收藏
+              {activeTab === 'activity' && (
+                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-gray-900 dark:bg-white rounded-full" />
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* 作品网格 */}
+        <div className="px-4 mt-4">
+          {activeTab === 'works' ? (
+            posts.length > 0 ? (
+              <div className="grid grid-cols-3 gap-1">
+                {posts.map((post) => (
+                  <div 
+                    key={post.id}
+                    onClick={() => handlePostClick(post)}
+                    className="aspect-square relative overflow-hidden bg-gray-100 dark:bg-gray-800 cursor-pointer group"
+                  >
+                    {post.video_url || post.videoUrl ? (
+                      <div className="w-full h-full relative">
+                        <video
+                          src={post.video_url || post.videoUrl}
+                          className="w-full h-full object-cover"
+                          autoPlay
+                          muted
+                          loop
+                          playsInline
+                          preload="auto"
+                        />
+                      </div>
+                    ) : post.attachments?.[0]?.url || post.thumbnail ? (
+                      <img
+                        src={post.attachments?.[0]?.url || post.thumbnail}
+                        alt={post.title}
+                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <ImageIcon className="w-8 h-8 text-gray-400" />
+                      </div>
+                    )}
+                    {/* 视频标识 */}
+                    {(post.video_url || post.videoUrl) && (
+                      <div className="absolute top-1 right-1 w-5 h-5 bg-black/60 rounded-full flex items-center justify-center">
+                        <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M8 5v14l11-7z"/>
+                        </svg>
+                      </div>
+                    )}
+                    {/* 悬停遮罩 */}
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <span className="text-white text-xs font-medium px-2 text-center line-clamp-2">
+                        {post.title}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Grid className="w-8 h-8 text-gray-400" />
+                </div>
+                <p className="text-gray-500 dark:text-gray-400 text-sm">暂无作品</p>
+              </div>
+            )
+          ) : (
+            <div className="text-center py-12">
+              <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Bookmark className="w-8 h-8 text-gray-400" />
+              </div>
+              <p className="text-gray-500 dark:text-gray-400 text-sm">暂无收藏</p>
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // 桌面端视图
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
       {/* 头部横幅 */}
       <div 
-        className="relative h-64 md:h-80 rounded-xl mb-8 overflow-hidden"
+        className="relative h-80 md:h-[420px] rounded-xl mb-8 overflow-hidden"
         style={(author.coverImage || author.cover_image) ? {
           backgroundImage: `url(${author.coverImage || author.cover_image})`,
           backgroundSize: 'cover',
@@ -572,25 +830,6 @@ export const AuthorProfile: React.FC<AuthorProfileProps> = ({ currentUser }) => 
           </div>
         )}
         
-        {/* 编辑封面按钮 */}
-        {isOwnProfile && (
-          <button
-            onClick={handleEditCover}
-            className="absolute top-4 right-4 px-4 py-2 bg-white/20 backdrop-blur-sm text-white rounded-lg hover:bg-white/30 transition-all flex items-center gap-2"
-          >
-            <Camera className="w-4 h-4" />
-            <span className="hidden sm:inline">更换封面</span>
-          </button>
-        )}
-        
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="text-center text-white">
-            <h1 className="text-3xl md:text-4xl font-bold mb-2 drop-shadow-lg">{author.username}</h1>
-            {author.bio && (
-              <p className="text-lg opacity-90 max-w-2xl mx-auto px-4 drop-shadow-md">{author.bio}</p>
-            )}
-          </div>
-        </div>
       </div>
 
       {/* 个人信息区域 */}

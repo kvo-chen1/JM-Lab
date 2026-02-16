@@ -5,13 +5,16 @@ import { useTheme } from '@/hooks/useTheme';
 interface ActivityStatsProps {
   stats: {
     total: number;
-    totalViews: number;
-    totalInteractions: number;
+    totalVotes: number;
+    totalLikes: number;
   };
 }
 
 // 格式化数字
-const formatNumber = (num: number): string => {
+const formatNumber = (num: number | undefined | null): string => {
+  if (num === undefined || num === null) {
+    return '0';
+  }
   if (num >= 1000000) {
     return (num / 1000000).toFixed(1) + 'M';
   } else if (num >= 1000) {
@@ -33,20 +36,20 @@ export const ActivityStats: React.FC<ActivityStatsProps> = ({ stats }) => {
       description: '您参与的活动总数',
     },
     {
-      label: '作品浏览',
-      value: stats.totalViews,
-      icon: 'fa-eye',
+      label: '投票数',
+      value: stats.totalVotes,
+      icon: 'fa-heart',
       color: 'text-green-500',
       bgColor: 'bg-green-100 dark:bg-green-900/30',
-      description: '您的作品总浏览量',
+      description: '您的作品总投票数',
     },
     {
-      label: '社群互动',
-      value: stats.totalInteractions,
-      icon: 'fa-comments',
+      label: '点赞数',
+      value: stats.totalLikes,
+      icon: 'fa-thumbs-up',
       color: 'text-purple-500',
       bgColor: 'bg-purple-100 dark:bg-purple-900/30',
-      description: '点赞、分享、评论总数',
+      description: '您的作品总点赞数',
     },
   ];
 

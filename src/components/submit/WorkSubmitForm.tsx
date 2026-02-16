@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Send, Save, Type, FileText, Hash, Upload, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
@@ -54,6 +54,30 @@ export function WorkSubmitForm({
   const [tags, setTags] = useState<string[]>(initialData?.tags || []);
   const [files, setFiles] = useState<File[]>(initialData?.files || []);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // 监听 initialData 变化，恢复草稿数据（只在初始数据变化时执行一次）
+  const hasRestoredRef = useRef(false);
+  useEffect(() => {
+    if (initialData && !hasRestoredRef.current) {
+      console.log('[WorkSubmitForm] 恢复草稿数据:', initialData);
+      hasRestoredRef.current = true;
+      
+      if (initialData.title) setTitle(initialData.title);
+      if (initialData.description) setDescription(initialData.description);
+      if (initialData.tags && initialData.tags.length > 0) setTags(initialData.tags);
+      if (initialData.files && initialData.files.length > 0) setFiles(initialData.files);
+      
+      // 将恢复的数据同步到父组件
+      if (onChange) {
+        onChange({
+          title: initialData.title || '',
+          description: initialData.description || '',
+          tags: initialData.tags || [],
+          files: initialData.files || []
+        });
+      }
+    }
+  }, [initialData]);
 
   // 同步数据变化到父组件
   const syncData = useCallback(() => {
@@ -121,7 +145,7 @@ export function WorkSubmitForm({
         tags,
         files
       });
-      toast.success('草稿已保存');
+      // 提示在父组件 SubmitWork 中显示，这里不重复显示
     } catch (error) {
       console.error('保存草稿失败:', error);
       toast.error('保存草稿失败');
@@ -387,7 +411,7 @@ export function WorkSubmitForm({
               ) : (
                 <>
                   <Send className="w-5 h-5" />
-                  <span>提交作品</span>
+                  <span className="pt-0.5">提交作品</span>
                 </>
               )}
             </motion.button>

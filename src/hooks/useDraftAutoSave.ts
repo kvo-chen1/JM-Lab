@@ -71,8 +71,14 @@ export function useDraftAutoSave<T extends Record<string, any>>(
   const isFirstLoadRef = useRef(true);
   
   // 生成完整的存储 key
-  const storageKey = `event_draft_${key}`;
-  const storageMetaKey = `event_draft_${key}_meta`;
+  const storageKeyRef = useRef(`event_draft_${key}`);
+  const storageMetaKeyRef = useRef(`event_draft_${key}_meta`);
+  
+  // 当 key 改变时更新存储 key
+  useEffect(() => {
+    storageKeyRef.current = `event_draft_${key}`;
+    storageMetaKeyRef.current = `event_draft_${key}_meta`;
+  }, [key]);
 
   /**
    * 保存草稿到 localStorage
@@ -80,6 +86,14 @@ export function useDraftAutoSave<T extends Record<string, any>>(
   const saveDraft = useCallback(() => {
     try {
       setSaveStatus('saving');
+      
+      // 序列化前检查数据
+      console.log('[useDraftAutoSave] 保存草稿前的数据:', {
+        hasTitle: !!formData.title,
+        title: formData.title,
+        hasDescription: !!formData.description,
+        currentStep,
+      });
       
       const draftData: DraftData = {
         formData,
@@ -89,17 +103,21 @@ export function useDraftAutoSave<T extends Record<string, any>>(
       };
       
       const jsonString = JSON.stringify(draftData);
+      console.log('[useDraftAutoSave] 序列化后的数据长度:', jsonString.length);
+      
       const dataToStore = encrypt ? encryptData(jsonString) : jsonString;
       
       // 保存草稿数据
-      localStorage.setItem(storageKey, dataToStore);
+      localStorage.setItem(storageKeyRef.current, dataToStore);
       
       // 保存元数据（用于快速检查）
-      localStorage.setItem(storageMetaKey, JSON.stringify({
+      localStorage.setItem(storageMetaKeyRef.current, JSON.stringify({
         timestamp: draftData.timestamp,
         version,
         hasData: true,
       }));
+      
+      console.log('[useDraftAutoSave] 草稿已保存到 localStorage, key:', storageKeyRef.current);
       
       setSaveStatus('saved');
       setLastSavedAt(new Date());
@@ -113,20 +131,35 @@ export function useDraftAutoSave<T extends Record<string, any>>(
       console.error('[useDraftAutoSave] 保存草稿失败:', error);
       setSaveStatus('error');
     }
-  }, [formData, currentStep, encrypt, storageKey, storageMetaKey, version]);
+  }, [formData, currentStep, encrypt, version]);
 
   /**
    * 加载草稿
    */
   const loadDraft = useCallback((): DraftData | null => {
     try {
-      const stored = localStorage.getItem(storageKey);
-      if (!stored) return null;
+      const stored = localStorage.getItem(storageKeyRef.current);
+      if (!stored) {
+        console.log('[useDraftAutoSave] 未找到草稿数据, key:', storageKeyRef.current);
+        return null;
+      }
       
       const jsonString = encrypt ? decryptData(stored) : stored;
-      if (!jsonString) return null;
+      if (!jsonString) {
+        console.warn('[useDraftAutoSave] 解密失败');
+        return null;
+      }
       
       const draftData: DraftData = JSON.parse(jsonString);
+      console.log('[useDraftAutoSave] 加载草稿成功:', {
+        key: storageKeyRef.current,
+        hasFormData: !!draftData.formData,
+        title: draftData.formData?.title,
+        currentStep: draftData.currentStep,
+        timestamp: draftData.timestamp,
+        startTime: draftData.formData?.startTime,
+        startTimeType: typeof draftData.formData?.startTime,
+      });
       
       // 版本检查
       if (draftData.version !== version) {
@@ -139,28 +172,30 @@ export function useDraftAutoSave<T extends Record<string, any>>(
       console.error('[useDraftAutoSave] 加载草稿失败:', error);
       return null;
     }
-  }, [encrypt, storageKey, version]);
+  }, [encrypt, version]);
 
   /**
    * 清除草稿
    */
   const clearDraft = useCallback(() => {
     try {
-      localStorage.removeItem(storageKey);
-      localStorage.removeItem(storageMetaKey);
+      localStorage.removeItem(storageKeyRef.current);
+      localStorage.removeItem(storageMetaKeyRef.current);
+      console.log('[useDraftAutoSave] 草稿已清除, key:', storageKeyRef.current);
       setSaveStatus('idle');
       setLastSavedAt(null);
     } catch (error) {
       console.error('[useDraftAutoSave] 清除草稿失败:', error);
     }
-  }, [storageKey, storageMetaKey]);
+  }, []);
 
   /**
    * 检查是否有草稿
    */
   const hasDraft = useCallback((): boolean => {
     try {
-      const meta = localStorage.getItem(storageMetaKey);
+      const meta = localStorage.getItem(storageMetaKeyRef.current);
+      console.log('[useDraftAutoSave] 检查草稿, key:', storageMetaKeyRef.current, 'meta:', meta);
       if (!meta) return false;
       
       const parsed = JSON.parse(meta);
@@ -168,14 +203,14 @@ export function useDraftAutoSave<T extends Record<string, any>>(
     } catch {
       return false;
     }
-  }, [storageMetaKey, version]);
+  }, [version]);
 
   /**
    * 获取草稿保存时间
    */
   const getDraftSavedTime = useCallback((): Date | null => {
     try {
-      const meta = localStorage.getItem(storageMetaKey);
+      const meta = localStorage.getItem(storageMetaKeyRef.current);
       if (!meta) return null;
       
       const parsed = JSON.parse(meta);
@@ -185,7 +220,7 @@ export function useDraftAutoSave<T extends Record<string, any>>(
     } catch {
       return null;
     }
-  }, [storageMetaKey, version]);
+  }, [version]);
 
   // 自动保存（防抖）
   useEffect(() => {
@@ -238,7 +273,7 @@ export function useDraftAutoSave<T extends Record<string, any>>(
       try {
         const jsonString = JSON.stringify(draftData);
         const dataToStore = encrypt ? encryptData(jsonString) : jsonString;
-        localStorage.setItem(storageKey, dataToStore);
+        localStorage.setItem(storageKeyRef.current, dataToStore);
       } catch (error) {
         console.error('[useDraftAutoSave] 页面卸载前保存失败:', error);
       }
@@ -249,7 +284,7 @@ export function useDraftAutoSave<T extends Record<string, any>>(
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [formData, currentStep, encrypt, storageKey, version]);
+  }, [formData, currentStep, encrypt, version]);
 
   return {
     saveStatus,

@@ -81,26 +81,40 @@ export const eventService = {
       return null;
     }
 
+    // 辅助函数：转换时间戳为 ISO 字符串
+    const convertTimestamp = (ts: any): string | undefined => {
+      if (!ts) return undefined;
+      // 如果是数字（秒级时间戳），转换为毫秒
+      if (typeof ts === 'number') {
+        return new Date(ts * 1000).toISOString();
+      }
+      // 如果已经是字符串，直接返回
+      if (typeof ts === 'string') {
+        return ts;
+      }
+      return undefined;
+    };
+
     return {
       id: data.id,
       title: data.title,
       description: data.description,
-      startDate: data.start_date,
-      endDate: data.end_date,
+      startDate: convertTimestamp(data.start_date),
+      endDate: convertTimestamp(data.end_date),
       location: data.location,
       organizerId: data.organizer_id,
       requirements: data.requirements,
       rewards: data.rewards,
       visibility: data.visibility,
       status: data.status,
-      registrationDeadline: data.registration_deadline,
-      reviewStartDate: data.review_start_date,
-      resultDate: data.result_date,
+      registrationDeadline: convertTimestamp(data.registration_deadline),
+      reviewStartDate: convertTimestamp(data.review_start_date),
+      resultDate: convertTimestamp(data.result_date),
       phaseStatus: data.phase_status,
       maxParticipants: data.max_participants,
-      createdAt: data.created_at,
+      createdAt: convertTimestamp(data.created_at),
       updatedAt: data.updated_at,
-      publishedAt: data.published_at,
+      publishedAt: convertTimestamp(data.published_at),
       imageUrl: data.image_url,
       category: data.category,
       tags: data.tags || [],

@@ -17,6 +17,7 @@ export interface UseMindMapReturn {
   // 操作方法
   createMindMap: (userId: string, title: string, brandId?: string) => Promise<void>;
   loadMindMap: (mapId: string) => Promise<void>;
+  loadAllUserNodes: (userId: string) => Promise<void>;
   updateMindMap: (updates: Partial<CreationMindMap>) => Promise<void>;
   addNode: (nodeData: Partial<MindNode>, parentId?: string) => Promise<void>;
   updateNode: (nodeId: string, updates: Partial<MindNode>) => Promise<void>;
@@ -103,6 +104,34 @@ export const useMindMap = (initialMapId?: string): UseMindMapReturn => {
       calculatePositions(newMap.nodes, newMap.layoutType);
     } catch (err) {
       setError(err instanceof Error ? err.message : '创建失败');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [calculatePositions]);
+
+  // 加载用户所有脉络的所有节点（合并视图）
+  const loadAllUserNodes = useCallback(async (userId: string) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const { mindMap: primaryMap, allNodes } = await service.getUserAllNodes(userId);
+      console.log('[useMindMap] Loaded all nodes for user:', userId, 'total nodes:', allNodes.length);
+      
+      if (primaryMap) {
+        // 更新主脉络的节点为所有节点
+        const mergedMap = { ...primaryMap, nodes: allNodes };
+        setMindMap(mergedMap);
+        setNodes(allNodes);
+        console.log('[useMindMap] Calculating positions for', allNodes.length, 'nodes from all mind maps');
+        // 强制使用 timeline 布局
+        calculatePositions(allNodes, 'timeline');
+      } else {
+        // 没有脉络时创建新的 - 抛出错误让调用方处理
+        throw new Error('NO_MINDMAP');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '加载失败');
+      throw err;
     } finally {
       setIsLoading(false);
     }
@@ -327,6 +356,7 @@ export const useMindMap = (initialMapId?: string): UseMindMapReturn => {
     error,
     createMindMap,
     loadMindMap,
+    loadAllUserNodes,
     updateMindMap,
     addNode,
     updateNode,

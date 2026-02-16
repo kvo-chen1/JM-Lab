@@ -133,9 +133,6 @@ const Neo = createLazyComponent(() => import(/* webpackChunkName: "pages-other" 
 });
 
 
-const EventDetail = createLazyComponent(() => import(/* webpackChunkName: "pages-cultural" */ "@/pages/EventDetail"), {
-  priority: ROUTE_PRIORITIES.HIGH
-});
 const EventWorks = createLazyComponent(() => import(/* webpackChunkName: "pages-cultural" */ "@/pages/EventWorks"), {
   priority: ROUTE_PRIORITIES.HIGH,
   name: 'event-works'
@@ -201,10 +198,6 @@ const CulturalEvents = createLazyComponent(() => import(/* webpackChunkName: "pa
 
 
 // 活动相关 - 懒加载优化
-const ActivityList = createLazyComponent(() => import(/* webpackChunkName: "pages-activities" */ "@/pages/ActivityList"), {
-  priority: ROUTE_PRIORITIES.MEDIUM,
-  name: 'activity-list'
-});
 const ActivityDetail = createLazyComponent(() => import(/* webpackChunkName: "pages-activities" */ "@/pages/ActivityDetail"), {
   priority: ROUTE_PRIORITIES.MEDIUM,
   name: 'activity-detail'
@@ -220,6 +213,14 @@ const MyActivities = createLazyComponent(() => import(/* webpackChunkName: "page
 const OrganizerCenter = createLazyComponent(() => import(/* webpackChunkName: "pages-activities" */ "@/pages/OrganizerCenter"), {
   priority: ROUTE_PRIORITIES.MEDIUM,
   name: 'organizer-center'
+});
+const OrganizerEventDetail = createLazyComponent(() => import(/* webpackChunkName: "pages-activities" */ "@/pages/OrganizerEventDetail"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'organizer-event-detail'
+});
+const EventRanking = createLazyComponent(() => import(/* webpackChunkName: "pages-activities" */ "@/pages/EventRanking"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'event-ranking'
 });
 
 // 管理相关 - 懒加载
@@ -800,17 +801,17 @@ export default function App() {
           <Route path="/inspiration-mindmap" element={<LazyComponent><PrivateRoute><InspirationMindMapPage /></PrivateRoute></LazyComponent>} />
 
           <Route path="/events" element={<LazyComponent><CulturalEvents /></LazyComponent>} />
-          <Route path="/events/:id" element={<LazyComponent><EventDetail /></LazyComponent>} />
           <Route path="/events/:id/works" element={<LazyComponent><EventWorks /></LazyComponent>} />
           <Route path="/events/:id/submit" element={<LazyComponent><PrivateRoute><SubmitWork /></PrivateRoute></LazyComponent>} />
           <Route path="/cultural-events" element={<LazyComponent><CulturalEvents /></LazyComponent>} />
           
           {/* 活动管理相关路由 */}
-          <Route path="/activities" element={<LazyComponent><PrivateRoute><ActivityList /></PrivateRoute></LazyComponent>} />
           <Route path="/activities/:id" element={<LazyComponent><PrivateRoute><ActivityDetail /></PrivateRoute></LazyComponent>} />
           <Route path="/edit-activity/:id" element={<LazyComponent><PrivateRoute><EditActivity /></PrivateRoute></LazyComponent>} />
           <Route path="/my-activities" element={<LazyComponent><PrivateRoute><MyActivities /></PrivateRoute></LazyComponent>} />
           <Route path="/organizer" element={<LazyComponent><PrivateRoute><OrganizerCenter /></PrivateRoute></LazyComponent>} />
+          <Route path="/organizer/events/:id" element={<LazyComponent><PrivateRoute><OrganizerEventDetail /></PrivateRoute></LazyComponent>} />
+          <Route path="/ranking/:eventId" element={<LazyComponent><PrivateRoute><EventRanking /></PrivateRoute></LazyComponent>} />
           
           {/* 创新功能路由 - 懒加载 */}
           <Route path="/checkin" element={<LazyComponent><PrivateRoute><Checkin /></PrivateRoute></LazyComponent>} />

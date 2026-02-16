@@ -27,7 +27,7 @@ interface LayoutItem {
   height: number;
 }
 
-const GAP = 16; // 最小间距 16px
+const GAP = 8; // 最小间距 8px，更紧凑
 
 const WaterfallGallery: React.FC<WaterfallGalleryProps> = ({
   items,
@@ -48,11 +48,10 @@ const WaterfallGallery: React.FC<WaterfallGalleryProps> = ({
         const width = entry.contentRect.width;
         setContainerWidth(width);
         
-        // 列数自适应逻辑
+        // 列数自适应逻辑 - 移动端强制2列
         if (width >= 1200) setColumns(4);
         else if (width >= 768) setColumns(3);
-        else if (width >= 480) setColumns(2);
-        else setColumns(1);
+        else setColumns(2); // 移动端也强制2列，不再使用单列
       }
     });
 
@@ -107,8 +106,8 @@ const WaterfallGallery: React.FC<WaterfallGalleryProps> = ({
       // 让我们假设 ratio 是 standard w/h。0.75 (3:4, 高) - 1.5 (3:2, 宽)。
       
       const imgHeight = colWidth / ratio;
-      // 加上底部文字区域高度 (约 60px)
-      const cardHeight = imgHeight + 60; 
+      // 加上底部文字区域高度 (约 28px，更紧凑)
+      const cardHeight = imgHeight + 28; 
 
       const x = minColIndex * (colWidth + GAP);
       const y = minColHeight;
@@ -166,7 +165,7 @@ const WaterfallGallery: React.FC<WaterfallGalleryProps> = ({
             className={styles.cardInner}
             onClick={() => onItemClick && onItemClick(layoutItem.item)}
           >
-            <div style={{ height: layoutItem.height - 60, overflow: 'hidden', position: 'relative' }}>
+            <div style={{ height: layoutItem.height - 28, overflow: 'hidden', position: 'relative' }}>
               {layoutItem.item.type === 'video' && layoutItem.item.videoUrl ? (
                 <video
                   src={layoutItem.item.videoUrl}
@@ -200,11 +199,8 @@ const WaterfallGallery: React.FC<WaterfallGalleryProps> = ({
                 </div>
               )}
             </div>
-            <div className="p-3 bg-white dark:bg-gray-800 h-[60px] flex flex-col justify-center">
-              <h3 className="text-sm font-medium truncate text-gray-900 dark:text-white">{layoutItem.item.title}</h3>
-              <p className={styles.metaText}>
-                {layoutItem.item.author?.username || '创作者'}
-              </p>
+            <div className="px-1.5 py-1 bg-white dark:bg-gray-800 h-[28px] flex items-center">
+              <h3 className="text-[11px] font-normal truncate text-gray-600 dark:text-gray-300">{layoutItem.item.title}</h3>
             </div>
           </div>
         </div>

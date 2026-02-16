@@ -836,25 +836,43 @@ export default function Square() {
   
   // 将 Post 数据转换为移动端瀑布流所需的 ArtworkItem 格式
   const artworksForMobile = useMemo(() => {
-    return viewList.map((post, index) => ({
-      id: post.id,
-      title: post.title,
-      imageUrl: post.thumbnail || 'https://images.unsplash.com/photo-1558655146-d09347e0c766?q=80&w=2560&auto=format&fit=crop',
-      // 根据索引交替使用不同的宽高比，创建瀑布流效果
-      aspectRatio: 0.8 + (index % 3) * 0.3, // 0.8, 1.1, 1.4 循环
-      author: {
-        id: typeof post.author === 'string' ? post.author : post.author?.id || 'unknown',
-        name: typeof post.author === 'string' ? post.author : post.author?.username || '未知用户',
-        avatar: typeof post.author === 'string' 
-          ? 'https://api.dicebear.com/7.x/avataaars/svg?seed=default' 
-          : post.author?.avatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed=default'
-      },
-      likes: post.likes || 0,
-      views: post.views || 0,
-      tags: post.tags || [],
-      createdAt: post.date || new Date().toISOString(),
-      isLiked: post.isLiked || false
-    }));
+    return viewList.map((post, index) => {
+      // 获取作者信息
+      const authorId = typeof post.author === 'string' ? post.author : post.author?.id || 'unknown';
+      const authorName = typeof post.author === 'string' ? post.author : post.author?.username || '未知用户';
+      // 使用 Dicebear API 生成基于作者ID的头像，确保每个用户有唯一的默认头像
+      const defaultAvatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${authorId}&backgroundColor=b6e3f4`;
+      const authorAvatar = typeof post.author === 'string' 
+        ? defaultAvatar
+        : (post.author?.avatar && post.author.avatar.trim() !== '' 
+            ? post.author.avatar 
+            : defaultAvatar);
+      
+      // 根据索引交替使用不同的宽高比，创建错落有致的瀑布流效果
+      // 使用更大的宽高比，让图片更长、更美观
+      const aspectRatios = [1.2, 1.5, 1.8, 1.0, 1.4, 1.6];
+      const aspectRatio = aspectRatios[index % aspectRatios.length];
+      
+      return {
+        id: post.id,
+        title: post.title,
+        imageUrl: post.thumbnail || 'https://images.unsplash.com/photo-1558655146-d09347e0c766?q=80&w=2560&auto=format&fit=crop',
+        aspectRatio: aspectRatio,
+        author: {
+          id: authorId,
+          name: authorName,
+          avatar: authorAvatar
+        },
+        likes: post.likes || 0,
+        views: post.views || 0,
+        tags: post.tags || [],
+        createdAt: post.date || new Date().toISOString(),
+        isLiked: post.isLiked || false,
+        // 视频相关字段
+        isVideo: post.category === 'video' || post.type === 'video',
+        videoUrl: post.videoUrl
+      };
+    });
   }, [viewList]);
   
   // 确保详情弹窗也显示最新的用户信息
@@ -898,12 +916,12 @@ export default function Square() {
           </div>
           
           {/* 搜索框 - Pinterest风格 */}
-          <div className="flex-1 max-w-2xl mx-4 md:mx-6 relative z-30">
+          <div id="guide-step-explore-search" className="flex-1 max-w-2xl mx-4 md:mx-6 relative z-30">
             <div className={`relative ${isDark ? 'bg-gray-800' : 'bg-gray-100'} rounded-full overflow-hidden`}>
               <i className="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 z-10"></i>
-              <input 
-                type="text" 
-                placeholder="搜索作品、创作者或标签..." 
+              <input
+                type="text"
+                placeholder="搜索作品、创作者或标签..."
                 className={`w-full pl-10 pr-4 py-2 rounded-full text-sm ${isDark ? 'bg-gray-800 text-white placeholder-gray-500' : 'bg-gray-100 text-gray-900 placeholder-gray-500'} focus:outline-none focus:ring-2 focus:ring-blue-500 relative z-20`}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -922,13 +940,13 @@ export default function Square() {
       </header>
       
       {/* 标签栏 - Pinterest风格 - 放在header外面，确保在搜索框下层 */}
-      <div className={`border-t ${isDark ? 'border-gray-800' : 'border-gray-200'} overflow-x-auto sticky top-[72px] z-10 ${isDark ? 'bg-gray-900' : 'bg-white'}`}>
-        <div className="container mx-auto px-4 py-2 flex items-center gap-2 min-w-max">
+      <div id="guide-step-explore-tags" className={`border-t ${isDark ? 'border-gray-800' : 'border-gray-200'} overflow-x-auto sticky top-[72px] z-10 ${isDark ? 'bg-gray-900' : 'bg-white'} scrollbar-hide`}>
+        <div className="px-4 py-1 flex items-center gap-2">
           {tags.slice(0, 15).map((tag) => (
-            <button 
-              key={tag} 
+            <button
+              key={tag}
               onClick={() => incTagClick(tag)}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all duration-200 ${isDark ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all duration-200 flex-shrink-0 ${isDark ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
             >
               {tag}
             </button>
@@ -937,7 +955,7 @@ export default function Square() {
       </div>
 
       {/* 主要内容 */}
-      <main className={`w-full min-h-screen transition-colors duration-300 ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
+      <main className={`w-full min-h-screen transition-colors duration-300 overflow-x-hidden ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
 
 
         {/* 作品网格 - 移动端使用瀑布流，桌面端使用 PostGrid */}
@@ -1037,8 +1055,11 @@ export default function Square() {
           isOpen={!!active}
           onClose={() => {
             setActive(null)
-            // 恢复URL - 使用 navigate 避免页面刷新
-            navigate('/square', { replace: true })
+            // 恢复URL - 使用 history.back() 避免页面刷新
+            // 因为我们打开弹窗时使用了 pushState，所以这里用 back 可以正确返回
+            if (window.history.state?.modal) {
+              window.history.back()
+            }
           }}
           onLike={like}
           onComment={addComment}

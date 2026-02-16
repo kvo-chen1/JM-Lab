@@ -195,15 +195,18 @@ export interface Event extends BaseEntity {
   type: 'online' | 'offline';
   tags?: string[];
   thumbnailUrl?: string;
+  coverUrl?: string; // 活动封面图片 URL
   media: Media[]; // 多媒体资源列表
   status: 'draft' | 'pending' | 'published' | 'rejected'; // 发布状态
   publishedAt?: Date;
   rejectionReason?: string;
- 审核人Id?: string;
- 审核时间?: Date;
+  审核人Id?: string;
+  审核时间?: Date;
   viewCount: number;
   shareCount: number;
   likeCount: number;
+  // 活动阶段状态
+  phaseStatus?: 'registration' | 'review' | 'completed';
 }
 
 // 媒体资源类型

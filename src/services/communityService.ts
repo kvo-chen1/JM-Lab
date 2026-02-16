@@ -134,6 +134,7 @@ export interface Notification {
   createdAt: string;
   icon?: string;
   color?: string;
+  link?: string; // 跳转链接
 }
 
 export const communityService = {
@@ -1980,7 +1981,8 @@ export const communityService = {
       isRead: notification.is_read,
       createdAt: notification.created_at,
       icon: this.getNotificationIcon(notification.type),
-      color: this.getNotificationColor(notification.type)
+      color: this.getNotificationColor(notification.type),
+      link: notification.link
     }));
   },
 
@@ -2018,7 +2020,30 @@ export const communityService = {
     userId: string;
     relatedId?: string;
     relatedType?: string;
+    link?: string;
   }): Promise<Notification> {
+    // 如果没有提供link，根据类型生成默认链接
+    let link = data.link;
+    if (!link && data.relatedId) {
+      switch (data.type) {
+        case 'post_like':
+        case 'post_comment':
+        case 'comment_reply':
+          link = `/community/post/${data.relatedId}`;
+          break;
+        case 'community_join':
+        case 'community_announcement':
+          link = `/community/${data.relatedId}`;
+          break;
+        case 'friend_request':
+          link = '/friends';
+          break;
+        case 'message':
+          link = '/messages';
+          break;
+      }
+    }
+
     const { data: newNotification, error } = await supabase
       .from('notifications')
       .insert({
@@ -2028,13 +2053,14 @@ export const communityService = {
         user_id: data.userId,
         related_id: data.relatedId,
         related_type: data.relatedType,
+        link: link,
         is_read: false
       })
       .select()
       .single();
-    
+
     if (error) throw error;
-    
+
     return {
       id: newNotification.id,
       type: newNotification.type as Notification['type'],
@@ -2046,7 +2072,8 @@ export const communityService = {
       isRead: newNotification.is_read,
       createdAt: newNotification.created_at,
       icon: this.getNotificationIcon(newNotification.type),
-      color: this.getNotificationColor(newNotification.type)
+      color: this.getNotificationColor(newNotification.type),
+      link: newNotification.link
     };
   },
 

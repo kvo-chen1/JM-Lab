@@ -321,44 +321,29 @@ export function WorkDetailPanel({
               </button>
             </div>
 
-            {/* 发布操作 */}
+            {/* 评分日志按钮 */}
             <div className="flex gap-2">
               <button
-                onClick={() => handlePublish(!workDetail.isPublished)}
-                disabled={isPublishing || workDetail.scores.length === 0}
-                className={`flex-1 py-2.5 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors ${
-                  workDetail.isPublished
-                    ? isDark
-                      ? 'bg-gray-700 hover:bg-gray-600 text-white'
-                      : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
-                    : 'bg-emerald-500 hover:bg-emerald-600 text-white'
-                } ${(isPublishing || workDetail.scores.length === 0) ? 'opacity-50 cursor-not-allowed' : ''}`}
-              >
-                {isPublishing ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : workDetail.isPublished ? (
-                  <>
-                    <EyeOff className="w-4 h-4" />
-                    <span>取消发布</span>
-                  </>
-                ) : (
-                  <>
-                    <Eye className="w-4 h-4" />
-                    <span>发布结果</span>
-                  </>
-                )}
-              </button>
-              
-              <button
                 onClick={onViewAuditLog}
-                className={`px-4 py-2.5 rounded-lg font-medium flex items-center gap-2 transition-colors ${
+                className={`flex-1 py-2.5 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors ${
                   isDark
                     ? 'bg-gray-700 hover:bg-gray-600 text-white'
                     : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
                 }`}
               >
                 <History className="w-4 h-4" />
+                <span>评分日志</span>
               </button>
+            </div>
+
+            {/* 提示信息 */}
+            <div className={`p-3 rounded-lg text-sm ${
+              isDark ? 'bg-blue-500/10 text-blue-400' : 'bg-blue-50 text-blue-600'
+            }`}>
+              <p className="flex items-center gap-2">
+                <Eye className="w-4 h-4" />
+                <span>作品结果将在发布最终排名时统一公布</span>
+              </p>
             </div>
           </div>
         ) : (

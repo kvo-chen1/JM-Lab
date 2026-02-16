@@ -1541,6 +1541,64 @@ export async function addPost(p: Partial<Post>, currentUser?: User): Promise<Pos
         throw new Error('登录已过期，请重新登录后重试');
       }
       
+      // 处理 schema cache 错误（如找不到列）- 尝试使用后端API作为fallback
+      if (error.message.includes('schema cache') || error.message.includes('Could not find')) {
+        console.log('[addPost] Supabase schema cache error, trying backend API as fallback');
+        const backendToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+        if (backendToken && currentUser?.id) {
+          return await createWorkViaBackend(p, currentUser)
+        }
+        // 如果没有后端token，尝试不带category插入
+        console.log('[addPost] Trying insert without category column');
+        delete insertData.category;
+        const { data: retryData, error: retryError } = await supabase
+          .from('posts')
+          .insert(insertData)
+          .select()
+          .single();
+        
+        if (!retryError && retryData) {
+          console.log('[addPost] Insert without category succeeded');
+          // 构建返回的 Post 对象
+          const postDate = retryData.created_at ? new Date(retryData.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+          return {
+            ...p,
+            id: retryData.id.toString(),
+            author: currentUser,
+            date: postDate,
+            likes: 0,
+            comments: [],
+            isLiked: false,
+            isBookmarked: false,
+            views: 0,
+            shares: 0,
+            isFeatured: false,
+            isDraft: false,
+            completionStatus: 'published',
+            creativeDirection: '',
+            culturalElements: [],
+            colorScheme: [],
+            toolsUsed: [],
+            publishType: 'explore',
+            communityId: null,
+            moderationStatus: 'approved',
+            rejectionReason: null,
+            scheduledPublishDate: null,
+            visibility: 'public',
+            commentCount: 0,
+            engagementRate: 0,
+            trendingScore: 0,
+            reach: 0,
+            moderator: null,
+            reviewedAt: null,
+            recommendationScore: 0,
+            recommendedFor: []
+          } as Post;
+        }
+        
+        throw new Error('发布作品失败，数据库结构不匹配，请稍后重试');
+      }
+      
       // 处理其他错误
       throw new Error(error.message || '发布作品失败，请检查网络或登录状态');
     }
@@ -2372,6 +2430,10 @@ export async function getAuthorById(userId: string): Promise<User | null> {
             username: data.username || 'User',
             email: data.email || '',
             avatar: data.avatar || data.avatar_url || '',
+            bio: data.bio || '',
+            coverImage: data.cover_image || '',
+            location: data.location || '',
+            website: data.website || '',
             isAdmin: data.is_admin,
             membershipLevel: data.membership_level,
             membershipStatus: data.membership_status as any,
@@ -2497,7 +2559,10 @@ export async function getAuthorById(userId: string): Promise<User | null> {
       username: data.username || 'User',
       email: data.email || '',
       avatar: data.avatar || data.avatar_url || '',
+      bio: data.bio || '',
       coverImage: data.coverImage || data.cover_image || '',
+      location: data.location || '',
+      website: data.website || '',
       isAdmin: data.is_admin,
       membershipLevel: data.membership_level,
       membershipStatus: data.membership_status as any,

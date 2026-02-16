@@ -12,11 +12,9 @@ export type SortBy = 'views' | 'likes' | 'score' | 'engagement' | 'submitted_at'
 export interface DashboardStats {
   totalEvents: number;
   totalSubmissions: number;
-  totalViews: number;
+  totalVotes: number;
   totalLikes: number;
-  totalComments: number;
   avgScore: number;
-  publishedWorks: number;
   pendingReview: number;
   dailySubmissions: DailySubmission[];
   topWorks: TopWork[];
@@ -84,8 +82,8 @@ export interface EventSummary {
   event_title: string;
   organizer_id: string;
   status: string;
-  start_date: number;
-  end_date: number;
+  start_date: number | null;
+  end_date: number | null;
   total_submissions: number;
   published_count: number;
   avg_score: number;
@@ -105,35 +103,164 @@ class OrganizerAnalyticsService {
       // 计算日期范围
       const { startDate, endDate } = this.getDateRange(timeRange);
 
+      console.log('[Analytics] Calling RPC with:', { organizerId, startDate, endDate });
+
+      // 尝试使用 RPC 函数
       const { data, error } = await supabase.rpc('get_organizer_dashboard_stats', {
         p_organizer_id: organizerId,
         p_start_date: startDate,
         p_end_date: endDate,
       });
 
-      if (error) throw error;
+      console.log('[Analytics] RPC result:', { data, error });
+
+      if (error) {
+        console.warn('RPC 函数调用失败，使用备用方案:', error);
+        // RPC 失败时使用备用方案
+        return this.getDashboardStatsFallback(organizerId, timeRange);
+      }
 
       if (data && data.length > 0) {
         const stats = data[0];
+        console.log('[Analytics] RPC stats:', stats);
         return {
           totalEvents: Number(stats.total_events) || 0,
           totalSubmissions: Number(stats.total_submissions) || 0,
-          totalViews: Number(stats.total_views) || 0,
+          totalVotes: Number(stats.total_votes) || 0,
           totalLikes: Number(stats.total_likes) || 0,
-          totalComments: Number(stats.total_comments) || 0,
           avgScore: Number(stats.avg_score) || 0,
-          publishedWorks: Number(stats.published_works) || 0,
           pendingReview: Number(stats.pending_review) || 0,
           dailySubmissions: stats.daily_submissions || [],
           topWorks: stats.top_works || [],
         };
       }
 
-      return null;
+      // RPC 返回空数据，使用备用方案
+      console.log('[Analytics] RPC 返回空数据，使用备用方案');
+      return this.getDashboardStatsFallback(organizerId, timeRange);
     } catch (error) {
       console.error('获取概览统计数据失败:', error);
-      return null;
+      // 出错时使用备用方案
+      return this.getDashboardStatsFallback(organizerId, timeRange);
     }
+  }
+
+  // 备用方案：使用现有 API 获取统计数据
+  private async getDashboardStatsFallback(
+    organizerId: string,
+    timeRange: TimeRange
+  ): Promise<DashboardStats> {
+    try {
+      // 获取活动列表
+      const { data: events, error: eventsError } = await supabase
+        .from('events')
+        .select('id, status, created_at')
+        .eq('organizer_id', organizerId);
+
+      console.log('[Analytics] Events query result:', { eventsCount: events?.length || 0, error: eventsError, organizerId });
+
+      if (eventsError) throw eventsError;
+
+      const eventIds = events?.map(e => e.id) || [];
+      const totalEvents = events?.length || 0;
+
+      console.log('[Analytics] Event IDs:', eventIds);
+
+      // 获取活动相关的作品提交 - 通过 event_submissions 表
+      let submissions: any[] = [];
+      
+      if (eventIds.length > 0) {
+        const { data: submissionsData, error: submissionsError } = await supabase
+          .from('event_submissions')
+          .select('id, status, vote_count, like_count, rating_count, avg_rating, created_at, title, event_id, user_id, score')
+          .in('event_id', eventIds);
+
+        if (submissionsError) {
+          console.error('[Analytics] Submissions query error:', submissionsError);
+        } else {
+          submissions = submissionsData || [];
+        }
+      }
+
+      console.log('[Analytics] Submissions count:', submissions.length);
+      
+      // 统计计算
+      const totalSubmissions = submissions?.length || 0;
+      const totalVotes = submissions?.reduce((sum, s) => sum + (s.vote_count || 0), 0) || 0;
+      const totalLikes = submissions?.reduce((sum, s) => sum + (s.like_count || 0), 0) || 0;
+      const pendingReview = submissions?.filter(s => s.status === 'draft' || s.status === 'under_review').length || 0;
+      
+      // 计算平均分
+      const scoredSubmissions = submissions?.filter(s => s.avg_rating > 0) || [];
+      const avgScore = scoredSubmissions.length > 0 
+        ? scoredSubmissions.reduce((sum, s) => sum + (s.avg_rating || 0), 0) / scoredSubmissions.length 
+        : 0;
+
+      // 生成每日提交数据
+      const dailySubmissions = this.generateDailySubmissions(submissions || [], timeRange);
+
+      // 获取热门作品
+      const topWorks = (submissions || [])
+        .sort((a, b) => (b.vote_count || 0) - (a.vote_count || 0))
+        .slice(0, 5)
+        .map(s => ({
+          id: s.id,
+          title: s.title || '未命名作品',
+          views: s.vote_count || 0,
+          likes: s.like_count || 0,
+          score: s.avg_rating || 0,
+        }));
+
+      return {
+        totalEvents,
+        totalSubmissions,
+        totalVotes,
+        totalLikes,
+        avgScore: Math.round(avgScore * 10) / 10,
+        pendingReview,
+        dailySubmissions,
+        topWorks,
+      };
+    } catch (error) {
+      console.error('备用方案获取数据失败:', error);
+      // 返回空数据
+      return {
+        totalEvents: 0,
+        totalSubmissions: 0,
+        totalVotes: 0,
+        totalLikes: 0,
+        avgScore: 0,
+        pendingReview: 0,
+        dailySubmissions: [],
+        topWorks: [],
+      };
+    }
+  }
+
+  // 生成每日提交数据
+  private generateDailySubmissions(works: any[], timeRange: TimeRange): DailySubmission[] {
+    const days = timeRange === 'today' ? 1 : 
+                 timeRange === '7d' ? 7 : 
+                 timeRange === '30d' ? 30 : 
+                 timeRange === '90d' ? 90 : 365;
+    
+    const result: DailySubmission[] = [];
+    const today = new Date();
+    
+    for (let i = days - 1; i >= 0; i--) {
+      const date = new Date(today);
+      date.setDate(date.getDate() - i);
+      const dateStr = date.toISOString().split('T')[0];
+      
+      const count = works.filter(w => {
+        const workDate = new Date(w.created_at);
+        return workDate.toISOString().split('T')[0] === dateStr;
+      }).length;
+      
+      result.push({ date: dateStr, count });
+    }
+    
+    return result;
   }
 
   // 获取作品趋势数据
@@ -149,7 +276,10 @@ class OrganizerAnalyticsService {
         p_days: days,
       });
 
-      if (error) throw error;
+      if (error) {
+        console.warn('RPC get_works_trend 失败，使用备用方案:', error);
+        return this.getWorksTrendFallback(organizerId, days);
+      }
 
       return (data || []).map((item: any) => ({
         stat_date: item.stat_date,
@@ -160,6 +290,70 @@ class OrganizerAnalyticsService {
       }));
     } catch (error) {
       console.error('获取作品趋势数据失败:', error);
+      return this.getWorksTrendFallback(organizerId, days);
+    }
+  }
+
+  // 备用方案：获取作品趋势数据
+  private async getWorksTrendFallback(
+    organizerId: string,
+    days: number = 30
+  ): Promise<TrendData[]> {
+    try {
+      // 获取活动列表
+      const { data: events } = await supabase
+        .from('events')
+        .select('id')
+        .eq('organizer_id', organizerId);
+
+      const eventIds = events?.map(e => e.id) || [];
+
+      // 获取活动相关的作品提交列表
+      let submissions: any[] = [];
+      if (eventIds.length > 0) {
+        const { data: submissionsData, error } = await supabase
+          .from('event_submissions')
+          .select('created_at, vote_count, like_count, rating_count, event_id')
+          .in('event_id', eventIds)
+          .gte('created_at', new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString());
+
+        if (error) throw error;
+        submissions = submissionsData || [];
+      }
+
+      // 按日期分组统计
+      const trendMap = new Map<string, { submissions: number; views: number; likes: number; comments: number }>();
+      
+      // 初始化所有日期
+      for (let i = days - 1; i >= 0; i--) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        const dateStr = date.toISOString().split('T')[0];
+        trendMap.set(dateStr, { submissions: 0, views: 0, likes: 0, comments: 0 });
+      }
+
+      // 统计作品数据
+      (submissions || []).forEach(s => {
+        const dateStr = new Date(s.created_at).toISOString().split('T')[0];
+        if (trendMap.has(dateStr)) {
+          const stat = trendMap.get(dateStr)!;
+          stat.submissions += 1;
+          stat.views += s.vote_count || 0;
+          stat.likes += s.like_count || 0;
+          stat.comments += s.rating_count || 0;
+        }
+      });
+
+      // 转换为数组
+      return Array.from(trendMap.entries()).map(([stat_date, stat]) => ({
+        stat_date,
+        submissions_count: stat.submissions,
+        views_count: stat.views,
+        likes_count: stat.likes,
+        comments_count: stat.comments,
+      }));
+    } catch (error) {
+      console.error('备用方案获取趋势数据失败:', error);
       return [];
     }
   }
@@ -175,7 +369,10 @@ class OrganizerAnalyticsService {
         p_event_id: eventId || null,
       });
 
-      if (error) throw error;
+      if (error) {
+        console.warn('RPC get_score_distribution 失败，使用备用方案:', error);
+        return this.getScoreDistributionFallback(organizerId);
+      }
 
       return (data || []).map((item: any) => ({
         score_range: item.score_range,
@@ -184,8 +381,22 @@ class OrganizerAnalyticsService {
       }));
     } catch (error) {
       console.error('获取评分分布失败:', error);
-      return [];
+      return this.getScoreDistributionFallback(organizerId);
     }
+  }
+
+  // 备用方案：获取评分分布（works 表没有 score 字段，返回空数据）
+  private async getScoreDistributionFallback(
+    organizerId: string
+  ): Promise<ScoreDistribution[]> {
+    // 返回默认的评分分布（因为没有评分数据）
+    return [
+      { score_range: '0-60', count: 0, percentage: 0 },
+      { score_range: '60-70', count: 0, percentage: 0 },
+      { score_range: '70-80', count: 0, percentage: 0 },
+      { score_range: '80-90', count: 0, percentage: 0 },
+      { score_range: '90-100', count: 0, percentage: 0 },
+    ];
   }
 
   // 获取热门作品排行
@@ -203,7 +414,10 @@ class OrganizerAnalyticsService {
         p_sort_by: sortBy,
       });
 
-      if (error) throw error;
+      if (error) {
+        console.warn('RPC get_top_works 失败，使用备用方案:', error);
+        return this.getTopWorksFallback(organizerId, limit, sortBy);
+      }
 
       return (data || []).map((item: any) => ({
         work_id: item.work_id,
@@ -218,6 +432,76 @@ class OrganizerAnalyticsService {
       }));
     } catch (error) {
       console.error('获取热门作品排行失败:', error);
+      return this.getTopWorksFallback(organizerId, limit, sortBy);
+    }
+  }
+
+  // 备用方案：获取热门作品排行
+  private async getTopWorksFallback(
+    organizerId: string,
+    limit: number = 10,
+    sortBy: SortBy = 'views'
+  ): Promise<TopWorkDetail[]> {
+    try {
+      // 获取活动列表
+      const { data: events } = await supabase
+        .from('events')
+        .select('id')
+        .eq('organizer_id', organizerId);
+
+      const eventIds = events?.map(e => e.id) || [];
+
+      // 获取活动相关的作品提交列表
+      let submissions: any[] = [];
+      if (eventIds.length > 0) {
+        const { data: submissionsData, error } = await supabase
+          .from('event_submissions')
+          .select('id, title, vote_count, like_count, rating_count, created_at, user_id, event_id, avg_rating, score')
+          .in('event_id', eventIds)
+          .limit(limit * 2); // 多获取一些用于排序
+
+        if (error) throw error;
+        submissions = submissionsData || [];
+      }
+
+      // 获取用户信息
+      const userIds = [...new Set((submissions || []).map(s => s.user_id))];
+      const { data: users } = await supabase
+        .from('users')
+        .select('id, username')
+        .in('id', userIds.length > 0 ? userIds : ['']);
+
+      const userMap = new Map(users?.map(u => [u.id, u.username]) || []);
+
+      // 排序
+      let sortedSubmissions = [...(submissions || [])];
+      switch (sortBy) {
+        case 'likes':
+          sortedSubmissions.sort((a, b) => (b.like_count || 0) - (a.like_count || 0));
+          break;
+        case 'score':
+          sortedSubmissions.sort((a, b) => (b.avg_rating || 0) - (a.avg_rating || 0));
+          break;
+        case 'views':
+        default:
+          sortedSubmissions.sort((a, b) => (b.vote_count || 0) - (a.vote_count || 0));
+          break;
+      }
+
+      // 转换为 TopWorkDetail 格式
+      return sortedSubmissions.slice(0, limit).map(s => ({
+        work_id: s.id,
+        title: s.title || '未命名作品',
+        creator_name: userMap.get(s.user_id) || '未知用户',
+        views: s.vote_count || 0,
+        likes: s.like_count || 0,
+        comments: s.rating_count || 0,
+        score: s.avg_rating || 0,
+        engagement_rate: 0, // 暂时设为 0
+        submitted_at: new Date(s.created_at).toISOString(),
+      }));
+    } catch (error) {
+      console.error('备用方案获取热门作品失败:', error);
       return [];
     }
   }
@@ -233,7 +517,10 @@ class OrganizerAnalyticsService {
         p_limit: limit,
       });
 
-      if (error) throw error;
+      if (error) {
+        console.warn('RPC get_recent_activities 失败，使用备用方案:', error);
+        return this.getRecentActivitiesFallback(organizerId, limit);
+      }
 
       return (data || []).map((item: any) => ({
         activity_id: item.activity_id,
@@ -247,6 +534,63 @@ class OrganizerAnalyticsService {
       }));
     } catch (error) {
       console.error('获取实时活动流失败:', error);
+      return this.getRecentActivitiesFallback(organizerId, limit);
+    }
+  }
+
+  // 备用方案：获取实时活动流
+  private async getRecentActivitiesFallback(
+    organizerId: string,
+    limit: number = 20
+  ): Promise<Activity[]> {
+    try {
+      // 获取活动列表
+      const { data: events } = await supabase
+        .from('events')
+        .select('id')
+        .eq('organizer_id', organizerId);
+
+      const eventIds = events?.map(e => e.id) || [];
+
+      // 获取活动相关的最近作品提交
+      let submissions: any[] = [];
+      if (eventIds.length > 0) {
+        const { data: submissionsData, error } = await supabase
+          .from('event_submissions')
+          .select('id, title, user_id, created_at, event_id')
+          .in('event_id', eventIds)
+          .order('created_at', { ascending: false })
+          .limit(limit);
+
+        if (error) throw error;
+        submissions = submissionsData || [];
+      }
+
+      // 获取用户信息
+      const userIds = [...new Set((submissions || []).map(s => s.user_id))];
+      const { data: users } = await supabase
+        .from('users')
+        .select('id, username, avatar_url')
+        .in('id', userIds.length > 0 ? userIds : ['']);
+
+      const userMap = new Map(users?.map(u => [u.id, { name: u.username, avatar: u.avatar_url }]) || []);
+
+      // 转换为 Activity 格式
+      return (submissions || []).map(s => {
+        const user = userMap.get(s.user_id);
+        return {
+          activity_id: s.id,
+          action_type: 'submission' as const,
+          user_name: user?.name || '未知用户',
+          user_avatar: user?.avatar || '',
+          target_title: s.title || '未命名作品',
+          target_type: 'work',
+          metadata: {},
+          created_at: new Date(s.created_at).toISOString(),
+        };
+      });
+    } catch (error) {
+      console.error('备用方案获取实时活动失败:', error);
       return [];
     }
   }
@@ -260,7 +604,10 @@ class OrganizerAnalyticsService {
         .eq('organizer_id', organizerId)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.warn('organizer_event_summary 查询失败，使用备用方案:', error);
+        return this.getOrganizerEventsFallback(organizerId);
+      }
 
       return (data || []).map((item: any) => ({
         event_id: item.event_id,
@@ -278,6 +625,73 @@ class OrganizerAnalyticsService {
       }));
     } catch (error) {
       console.error('获取活动列表失败:', error);
+      return this.getOrganizerEventsFallback(organizerId);
+    }
+  }
+
+  // 备用方案：获取活动列表
+  private async getOrganizerEventsFallback(organizerId: string): Promise<EventSummary[]> {
+    try {
+      // 从 events 表获取活动列表
+      const { data: events, error } = await supabase
+        .from('events')
+        .select('id, title, organizer_id, status, start_time, end_time, created_at')
+        .eq('organizer_id', organizerId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      // 获取活动ID列表
+      const eventIds = (events || []).map(e => e.id);
+
+      // 获取每个活动的作品提交统计
+      let submissionsStats: any[] = [];
+      if (eventIds.length > 0) {
+        const { data: submissions } = await supabase
+          .from('event_submissions')
+          .select('event_id, status, vote_count, like_count, avg_rating')
+          .in('event_id', eventIds);
+        submissionsStats = submissions || [];
+      }
+
+      // 按活动ID分组统计
+      const statsMap = new Map<string, { submissions: number; published: number; votes: number; likes: number; totalScore: number; scoredCount: number }>();
+      submissionsStats.forEach(s => {
+        if (!statsMap.has(s.event_id)) {
+          statsMap.set(s.event_id, { submissions: 0, published: 0, votes: 0, likes: 0, totalScore: 0, scoredCount: 0 });
+        }
+        const stat = statsMap.get(s.event_id)!;
+        stat.submissions += 1;
+        if (s.status === 'submitted' || s.status === 'reviewed') stat.published += 1;
+        stat.votes += s.vote_count || 0;
+        stat.likes += s.like_count || 0;
+        if (s.avg_rating > 0) {
+          stat.totalScore += s.avg_rating;
+          stat.scoredCount += 1;
+        }
+      });
+
+      // 转换为 EventSummary 格式
+      return (events || []).map(e => {
+        const stat = statsMap.get(e.id) || { submissions: 0, published: 0, votes: 0, likes: 0, totalScore: 0, scoredCount: 0 };
+        const avgScore = stat.scoredCount > 0 ? stat.totalScore / stat.scoredCount : 0;
+        return {
+          event_id: e.id,
+          event_title: e.title || '未命名活动',
+          organizer_id: e.organizer_id,
+          status: e.status || 'draft',
+          start_date: e.start_time ? new Date(e.start_time).getTime() : null,
+          end_date: e.end_time ? new Date(e.end_time).getTime() : null,
+          total_submissions: stat.submissions,
+          published_count: stat.published,
+          avg_score: Math.round(avgScore * 10) / 10,
+          total_views: stat.votes,
+          total_likes: stat.likes,
+          created_at: e.created_at ? new Date(e.created_at).toISOString() : new Date().toISOString(),
+        };
+      });
+    } catch (error) {
+      console.error('备用方案获取活动列表失败:', error);
       return [];
     }
   }
@@ -343,7 +757,10 @@ class OrganizerAnalyticsService {
   }
 
   // 格式化数字
-  formatNumber(num: number): string {
+  formatNumber(num: number | undefined | null): string {
+    if (num === undefined || num === null) {
+      return '0';
+    }
     if (num >= 1000000) {
       return (num / 1000000).toFixed(1) + 'M';
     }
@@ -354,8 +771,10 @@ class OrganizerAnalyticsService {
   }
 
   // 格式化日期
-  formatDate(dateStr: string): string {
+  formatDate(dateStr: string | undefined | null): string {
+    if (!dateStr) return '-';
     const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return '-';
     return date.toLocaleDateString('zh-CN', {
       month: 'short',
       day: 'numeric',
@@ -363,8 +782,10 @@ class OrganizerAnalyticsService {
   }
 
   // 获取相对时间
-  getRelativeTime(dateStr: string): string {
+  getRelativeTime(dateStr: string | undefined | null): string {
+    if (!dateStr) return '未知时间';
     const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return '未知时间';
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffSecs = Math.floor(diffMs / 1000);

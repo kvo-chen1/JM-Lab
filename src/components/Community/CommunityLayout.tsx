@@ -42,13 +42,6 @@ export const CommunityLayout: React.FC<CommunityLayoutProps> = memo(({
       style={containerStyle}
     >
       
-      {/* Mobile Community Bar */}
-      <div className="md:hidden px-4 py-3 border-b dark:border-gray-700 border-gray-200 overflow-x-auto">
-        <div className="flex space-x-4">
-          {sidebar}
-        </div>
-      </div>
-
       {/* Mobile Sidebar Overlay */}
       <AnimatePresence>
         {mobileNavOpen && (
@@ -94,59 +87,40 @@ export const CommunityLayout: React.FC<CommunityLayoutProps> = memo(({
           transition={{ duration: 0.3 }}
           className={`h-full ${isDark ? 'bg-gray-700' : 'bg-white'} min-h-[calc(100vh-64px)] lg:min-h-screen flex-1 w-full max-w-full`}
         >
-             {/* Mobile Navigation Toggle */}
-             <div className="md:hidden h-16 flex items-center justify-between px-4 border-b dark:border-gray-700 border-gray-200">
-               <div className="flex items-center space-x-3">
-                 <button 
-                   onClick={() => setMobileNavOpen(!mobileNavOpen)}
-                   className={`flex items-center justify-center w-10 h-10 rounded-full transition-colors ${isDark ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-100 hover:bg-gray-200'}`}
-                   aria-label="打开导航"
-                 >
-                   <i className="fas fa-bars text-lg"></i>
-                 </button>
-                 
-                 <h1 className="text-lg font-semibold">{activeCommunity?.name || '津脉社区'}</h1>
-               </div>
-               
-               <div className="flex items-center space-x-3">
-                 {/* 通知按钮 */}
-                 <button 
-                   onClick={() => setIsNotificationCenterOpen(!isNotificationCenterOpen)}
-                   className={`flex items-center justify-center w-10 h-10 rounded-full transition-colors ${isDark ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-100 hover:bg-gray-200'} relative`}
-                   aria-label="打开通知"
-                 >
-                   <i className="fas fa-bell text-lg"></i>
-                   {/* 通知徽章 */}
-                   {unreadNotificationCount > 0 && (
-                     <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center text-xs text-white font-bold">
-                       {unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}
-                     </span>
-                   )}
-                 </button>
-                 
-                 {infoSidebar && (
-                   <button 
-                     onClick={() => setMobileInfoSidebarOpen(!mobileInfoSidebarOpen)}
-                     className={`flex items-center justify-center w-10 h-10 rounded-full transition-colors ${isDark ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-100 hover:bg-gray-200'}`}
-                     aria-label="打开信息侧边栏"
-                   >
-                     <i className="fas fa-info-circle text-lg"></i>
-                   </button>
-                 )}
-               </div>
-             </div>
-             
-             {/* Mobile Search Bar */}
-             <div className="md:hidden px-4 py-3 border-b dark:border-gray-700 border-gray-200">
-               <div className="relative">
-                 <i className={`fas fa-search absolute left-3 top-1/2 -translate-y-1/2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}></i>
-                 <input
-                   placeholder="搜索社群关键词..."
-                   value={search}
-                   onChange={(e) => setSearch?.(e.target.value)}
-                   className={`w-full pl-10 pr-4 py-2.5 rounded-xl border focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all ${isDark ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-500' : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400 shadow-sm'}`}
-                 />
-               </div>
+             {/* Mobile Header - 简约风格 */}
+             <div className="md:hidden">
+               {activeCommunity ? (
+                 // 在社群详情页显示简约头部
+                 <div className="h-14 flex items-center justify-between px-4 border-b dark:border-gray-700/50 border-gray-200/80 backdrop-blur-xl bg-white/80 dark:bg-gray-900/80 sticky top-0 z-30">
+                   <div className="flex items-center gap-3">
+                     <motion.button 
+                       whileTap={{ scale: 0.9 }}
+                       onClick={() => setMobileNavOpen(!mobileNavOpen)}
+                       className="w-10 h-10 flex items-center justify-center rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300"
+                     >
+                       <i className="fas fa-bars text-base"></i>
+                     </motion.button>
+                     <h1 className="text-base font-semibold text-gray-900 dark:text-white">
+                       {activeCommunity?.name || '津脉社区'}
+                     </h1>
+                   </div>
+                   
+                   <div className="flex items-center gap-2">
+                     <motion.button 
+                       whileTap={{ scale: 0.9 }}
+                       onClick={() => setIsNotificationCenterOpen(!isNotificationCenterOpen)}
+                       className="w-10 h-10 flex items-center justify-center rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 relative"
+                     >
+                       <i className="fas fa-bell text-base"></i>
+                       {unreadNotificationCount > 0 && (
+                         <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center text-[9px] text-white font-bold">
+                           {unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}
+                         </span>
+                       )}
+                     </motion.button>
+                   </div>
+                 </div>
+               ) : null}
              </div>
              
              {children}

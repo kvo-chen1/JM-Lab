@@ -1430,12 +1430,14 @@ async function route(req, res, u, path) {
       }
       
       // 转换字段格式以匹配前端期望
+      // 注意：event.startTime 和 event.endTime 已经在 database.mjs 中转换为毫秒级时间戳
       const formattedEvent = {
         id: event.id,
         title: event.title,
         description: event.description,
-        startTime: event.start_date ? new Date(event.start_date * 1000).toISOString() : null,
-        endTime: event.end_date ? new Date(event.end_date * 1000).toISOString() : null,
+        content: event.content,
+        startTime: event.startTime ? new Date(event.startTime).toISOString() : (event.start_date ? new Date(event.start_date * 1000).toISOString() : null),
+        endTime: event.endTime ? new Date(event.endTime).toISOString() : (event.end_date ? new Date(event.end_date * 1000).toISOString() : null),
         location: event.location,
         status: event.status,
         type: event.category === 'competition' ? 'offline' : 'online',
@@ -1493,21 +1495,42 @@ async function route(req, res, u, path) {
       
       console.log('[API] Create event - processed tags:', tags)
       
+      // 支持两种字段命名：驼峰式（startTime）和下划线式（start_time）
+      // 返回秒级时间戳（用于 BIGINT 字段）
+      const getTimeValue = (camelCase, snakeCase) => {
+        const value = data[camelCase] !== undefined ? data[camelCase] : data[snakeCase];
+        if (!value) return null;
+        // 如果已经是数字（Unix时间戳），直接返回
+        if (typeof value === 'number') return value;
+        // 如果是字符串，尝试解析为日期
+        return Math.floor(new Date(value).getTime() / 1000);
+      };
+      
+      // 返回 ISO 字符串（用于 TIMESTAMP 字段）
+      const getTimestampValue = (camelCase, snakeCase) => {
+        const value = data[camelCase] !== undefined ? data[camelCase] : data[snakeCase];
+        if (!value) return null;
+        // 如果已经是数字（Unix时间戳），转换为 ISO 字符串
+        if (typeof value === 'number') return new Date(value * 1000).toISOString();
+        // 如果是字符串，尝试解析为日期再转回 ISO 字符串
+        return new Date(value).toISOString();
+      };
+
       const dbEventData = {
         title: data.title,
         description: data.description,
         content: data.content || data.description || '', // 确保 content 字段不为 null
-        start_date: data.startTime ? Math.floor(new Date(data.startTime).getTime() / 1000) : null,
-        end_date: data.endTime ? Math.floor(new Date(data.endTime).getTime() / 1000) : null,
+        start_date: getTimeValue('startTime', 'start_time'),
+        end_date: getTimeValue('endTime', 'end_time'),
         location: data.location,
         organizer_id: decoded.userId,
         requirements: data.requirements || null,
         rewards: data.rewards || null,
         visibility: data.isPublic ? 'public' : 'private',
         status: data.status || 'draft',
-        registration_deadline: data.registrationDeadline ? Math.floor(new Date(data.registrationDeadline).getTime() / 1000) : null,
-        review_start_date: data.reviewStartDate ? Math.floor(new Date(data.reviewStartDate).getTime() / 1000) : null,
-        result_date: data.resultDate ? Math.floor(new Date(data.resultDate).getTime() / 1000) : null,
+        registration_deadline: getTimeValue('registrationDeadline', 'registration_deadline'),
+        review_start_date: getTimeValue('reviewStartDate', 'review_start_date'),
+        result_date: getTimeValue('resultDate', 'result_date'),
         max_participants: data.maxParticipants || null,
         published_at: data.status === 'published' ? Math.floor(Date.now() / 1000) : null,
         image_url: data.media && data.media.length > 0 ? data.media[0].url : null,
@@ -1515,6 +1538,16 @@ async function route(req, res, u, path) {
         tags: tags,
         platform_event_id: data.platformEventId || null
       }
+      
+      console.log('[API] Create event - dbEventData:', {
+        start_date: dbEventData.start_date,
+        end_date: dbEventData.end_date,
+        registration_deadline: dbEventData.registration_deadline,
+        review_start_date: dbEventData.review_start_date,
+        result_date: dbEventData.result_date,
+        start_date_type: typeof dbEventData.start_date,
+        registration_deadline_type: typeof dbEventData.registration_deadline,
+      })
 
       const event = await eventDB.createEvent(dbEventData)
       sendJson(res, 200, { code: 0, data: event })
@@ -1541,10 +1574,26 @@ async function route(req, res, u, path) {
       // 转换前端字段为数据库字段
       const dbUpdateData = {}
 
+      // 辅助函数：处理时间字段（支持驼峰式和下划线式命名）
+      const getUpdateTimeValue = (camelCase, snakeCase) => {
+        const value = data[camelCase] !== undefined ? data[camelCase] : data[snakeCase];
+        if (value === undefined) return undefined;
+        if (value === null) return null;
+        // 如果已经是数字（Unix时间戳），直接返回
+        if (typeof value === 'number') return value;
+        // 如果是字符串，尝试解析为日期
+        return Math.floor(new Date(value).getTime() / 1000);
+      };
+
       if (data.title !== undefined) dbUpdateData.title = data.title
       if (data.description !== undefined) dbUpdateData.description = data.description
-      if (data.startTime !== undefined) dbUpdateData.start_date = Math.floor(new Date(data.startTime).getTime() / 1000)
-      if (data.endTime !== undefined) dbUpdateData.end_date = Math.floor(new Date(data.endTime).getTime() / 1000)
+      
+      const startDateValue = getUpdateTimeValue('startTime', 'start_time');
+      if (startDateValue !== undefined) dbUpdateData.start_date = startDateValue;
+      
+      const endDateValue = getUpdateTimeValue('endTime', 'end_time');
+      if (endDateValue !== undefined) dbUpdateData.end_date = endDateValue;
+      
       if (data.location !== undefined) dbUpdateData.location = data.location
       if (data.requirements !== undefined) dbUpdateData.requirements = data.requirements
       if (data.rewards !== undefined) dbUpdateData.rewards = data.rewards
@@ -1555,9 +1604,15 @@ async function route(req, res, u, path) {
           dbUpdateData.published_at = Math.floor(Date.now() / 1000)
         }
       }
-      if (data.registrationDeadline !== undefined) dbUpdateData.registration_deadline = Math.floor(new Date(data.registrationDeadline).getTime() / 1000)
-      if (data.reviewStartDate !== undefined) dbUpdateData.review_start_date = Math.floor(new Date(data.reviewStartDate).getTime() / 1000)
-      if (data.resultDate !== undefined) dbUpdateData.result_date = Math.floor(new Date(data.resultDate).getTime() / 1000)
+      
+      const registrationDeadlineValue = getUpdateTimeValue('registrationDeadline', 'registration_deadline');
+      if (registrationDeadlineValue !== undefined) dbUpdateData.registration_deadline = registrationDeadlineValue;
+      
+      const reviewStartDateValue = getUpdateTimeValue('reviewStartDate', 'review_start_date');
+      if (reviewStartDateValue !== undefined) dbUpdateData.review_start_date = reviewStartDateValue;
+      
+      const resultDateValue = getUpdateTimeValue('resultDate', 'result_date');
+      if (resultDateValue !== undefined) dbUpdateData.result_date = resultDateValue;
       if (data.maxParticipants !== undefined) dbUpdateData.max_participants = data.maxParticipants
       if (data.media !== undefined) {
         dbUpdateData.image_url = data.media && data.media.length > 0 ? data.media[0].url : null
@@ -5140,6 +5195,10 @@ async function route(req, res, u, path) {
         tags: event.tags || [],
         participants: event.participants || event.participant_count || 0,
         maxParticipants: event.max_participants,
+        // 添加封面图片字段
+        coverUrl: event.image_url || event.thumbnail_url,
+        thumbnailUrl: event.thumbnail_url || event.image_url,
+        imageUrl: event.image_url || event.thumbnail_url,
         media: event.image_url ? [{ url: event.image_url, type: 'image' }] : [],
         organizer: {
           id: event.organizer_id,

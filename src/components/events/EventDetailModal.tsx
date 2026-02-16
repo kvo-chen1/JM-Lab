@@ -17,7 +17,8 @@ import {
   Eye,
   Loader2,
   CheckCircle,
-  Edit
+  Edit,
+  Trophy
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -87,12 +88,39 @@ export default function EventDetailModal({ event, isOpen, onClose, submissionCou
   const eventStart = new Date(event.startTime);
   const eventEnd = new Date(event.endTime);
 
+  // 优先检查 final_ranking_published 字段或活动状态，如果已发布排名或状态为completed则视为已结束
+  const isRankingPublished = (event as any).finalRankingPublished === true || 
+                             (event as any).final_ranking_published === true ||
+                             (event as any).status === 'completed';
+  
+  // 调试日志
+  console.log('[EventDetailModal] 状态判断:', {
+    isRankingPublished,
+    eventStatus: (event as any).status,
+    now: now.toISOString(),
+    nowTime: now.getTime(),
+    eventEnd: eventEnd.toISOString(),
+    eventEndTime: eventEnd.getTime(),
+    rawEndTime: event.endTime,
+    rawEndTimeType: typeof event.endTime,
+    isNowGreaterThanEnd: now > eventEnd,
+    isNowGreaterThanEndTime: now.getTime() > eventEnd.getTime(),
+    timeDiff: eventEnd.getTime() - now.getTime(),
+    calculatedStatus: isRankingPublished ? 'completed' : (now > eventEnd ? 'completed' : (now >= eventStart && now <= eventEnd ? 'ongoing' : 'upcoming'))
+  });
+  
   let status: 'upcoming' | 'ongoing' | 'completed' = 'upcoming';
   let statusText = '即将开始';
   let statusColor = 'bg-emerald-500';
   let statusBg = 'bg-emerald-100 text-emerald-700';
 
-  if (now >= eventStart && now <= eventEnd) {
+  if (isRankingPublished) {
+    // 如果已发布排名，活动视为已结束
+    status = 'completed';
+    statusText = '已结束';
+    statusColor = 'bg-gray-400';
+    statusBg = 'bg-gray-100 text-gray-600';
+  } else if (now >= eventStart && now <= eventEnd) {
     status = 'ongoing';
     statusText = '进行中';
     statusColor = 'bg-amber-500';
@@ -428,11 +456,19 @@ export default function EventDetailModal({ event, isOpen, onClose, submissionCou
                       检查中...
                     </div>
                   ) : status === 'completed' ? (
-                    // 活动已结束
-                    <div className="flex-1 flex items-center justify-center gap-2 px-6 py-3 border-2 border-gray-300 text-gray-400 rounded-xl font-semibold cursor-not-allowed">
-                      <span className="w-2 h-2 rounded-full bg-gray-400" />
-                      活动已结束
-                    </div>
+                    // 活动已结束 - 显示查看排名按钮
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => {
+                        onClose();
+                        navigate(`/ranking/${event.id}`);
+                      }}
+                      className="flex-1 px-6 py-3 bg-gradient-to-r from-yellow-500 to-amber-500 hover:from-yellow-600 hover:to-amber-600 text-white rounded-xl font-semibold shadow-lg shadow-yellow-500/25 transition-all flex items-center justify-center gap-2"
+                    >
+                      <Trophy className="w-4 h-4" />
+                      查看排名
+                    </motion.button>
                   ) : hasRegistered && hasSubmitted ? (
                     // 已报名且已提交作品 - 显示编辑作品按钮
                     <motion.button

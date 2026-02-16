@@ -111,22 +111,49 @@ class EventWorkService {
   ): Promise<Map<string, UserInteraction>> {
     if (!submissionIds.length) return new Map();
 
-    const { data, error } = await supabase.rpc('get_user_interactions', {
-      p_user_id: userId,
-      p_submission_ids: submissionIds,
-    });
+    // 使用 Promise.all 并行查询投票、点赞和评分状态
+    const [votesResult, likesResult, ratingsResult] = await Promise.all([
+      // 查询投票状态
+      supabase
+        .from('submission_votes')
+        .select('submission_id')
+        .eq('user_id', userId)
+        .in('submission_id', submissionIds),
+      // 查询点赞状态
+      supabase
+        .from('submission_likes')
+        .select('submission_id')
+        .eq('user_id', userId)
+        .in('submission_id', submissionIds),
+      // 查询评分状态
+      supabase
+        .from('submission_ratings')
+        .select('submission_id, rating')
+        .eq('user_id', userId)
+        .in('submission_id', submissionIds),
+    ]);
 
-    if (error) {
-      console.error('获取用户交互状态失败:', error);
-      return new Map();
+    if (votesResult.error) {
+      console.error('获取投票状态失败:', votesResult.error);
+    }
+    if (likesResult.error) {
+      console.error('获取点赞状态失败:', likesResult.error);
+    }
+    if (ratingsResult.error) {
+      console.error('获取评分状态失败:', ratingsResult.error);
     }
 
+    // 构建交互状态映射
+    const votedIds = new Set((votesResult.data || []).map((v: any) => v.submission_id));
+    const likedIds = new Set((likesResult.data || []).map((l: any) => l.submission_id));
+    const ratingsMap = new Map((ratingsResult.data || []).map((r: any) => [r.submission_id, r.rating]));
+
     const interactions = new Map<string, UserInteraction>();
-    (data || []).forEach((item: any) => {
-      interactions.set(item.submission_id, {
-        hasVoted: item.has_voted,
-        hasLiked: item.has_liked,
-        userRating: item.user_rating,
+    submissionIds.forEach((id) => {
+      interactions.set(id, {
+        hasVoted: votedIds.has(id),
+        hasLiked: likedIds.has(id),
+        userRating: ratingsMap.get(id),
       });
     });
 

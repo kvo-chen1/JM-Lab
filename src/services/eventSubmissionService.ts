@@ -107,7 +107,8 @@ class EventSubmissionService {
     data: SubmissionData
   ): Promise<{ success: boolean; submissionId?: string; error?: string }> {
     try {
-      const now = Date.now(); // bigint timestamp in milliseconds
+      // 使用 bigint 时间戳（毫秒），与数据库类型兼容
+      const now = Date.now();
       const { data: result, error } = await supabase
         .from('event_submissions')
         .insert({
@@ -143,7 +144,7 @@ class EventSubmissionService {
   ): Promise<{ success: boolean; error?: string }> {
     try {
       const updateData: any = {
-        updated_at: Date.now(), // bigint timestamp in milliseconds
+        updated_at: Date.now(), // 使用 bigint 时间戳（毫秒）
       };
 
       if (data.title !== undefined) updateData.title = data.title;

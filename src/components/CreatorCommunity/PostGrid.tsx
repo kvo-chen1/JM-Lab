@@ -56,7 +56,7 @@ const PostCard: React.FC<{
         onClick={handlePostClick}
       >
         {/* 媒体区域（图片或视频） */}
-        <div className="aspect-video bg-gray-100 relative overflow-hidden">
+        <div className="aspect-[4/3] bg-gray-100 relative overflow-hidden">
           {isVideo ? (
             <video
               src={mediaUrl}
@@ -71,7 +71,7 @@ const PostCard: React.FC<{
             <LazyImage
               src={mediaUrl || 'https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=现代创意社区背景图，抽象艺术风格，渐变色彩&image_size=landscape_16_9'}
               alt={post.title}
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+              className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
               placeholder="blur"
             />
           )}
@@ -364,36 +364,10 @@ export const PostGrid: React.FC<PostGridProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* 视图切换和筛选 */}
-      <div className="flex items-center justify-between">
+      {/* 内容统计 */}
+      <div className="flex items-center">
         <div className="text-sm text-gray-600">
           共 {posts.length} 条内容
-        </div>
-        
-        {/* 视图模式切换 */}
-        <div className="flex items-center space-x-2 bg-gray-100 rounded-lg p-1">
-          <button
-            onClick={() => handleViewModeChange('grid')}
-            className={`p-2 rounded-md transition-colors ${
-              viewMode === 'grid'
-                ? 'bg-white shadow-sm text-blue-600'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-            title="网格视图"
-          >
-            <Grid className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => handleViewModeChange('list')}
-            className={`p-2 rounded-md transition-colors ${
-              viewMode === 'list'
-                ? 'bg-white shadow-sm text-blue-600'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-            title="列表视图"
-          >
-            <List className="w-4 h-4" />
-          </button>
         </div>
       </div>
 

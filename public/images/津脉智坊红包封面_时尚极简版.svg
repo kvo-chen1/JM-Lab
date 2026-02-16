@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 450 600" width="450" height="600">
+  <defs>
+    <!-- 时尚深红色 -->
+    <linearGradient id="fashionRed" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4A1C1C"/>
+      <stop offset="50%" style="stop-color:#6B2424"/>
+      <stop offset="100%" style="stop-color:#4A1C1C"/>
+    </linearGradient>
+    
+    <!-- 玫瑰金色 -->
+    <linearGradient id="roseGold" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#F7FAFC"/>
+      <stop offset="50%" style="stop-color:#D69E2E"/>
+      <stop offset="100%" style="stop-color:#975A16"/>
+    </linearGradient>
+    
+    <!-- 白色渐变 -->
+    <linearGradient id="white" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#F7FAFC"/>
+      <stop offset="100%" style="stop-color:#E2E8F0"/>
+    </linearGradient>
+    
+    <!-- 微妙纹理 -->
+    <pattern id="fashionTexture" x="0" y="0" width="120" height="120" patternUnits="userSpaceOnUse">
+      <circle cx="60" cy="60" r="0.1" fill="#F7FAFC" opacity="0.04"/>
+    </pattern>
+  </defs>
+  
+  <!-- 主背景 -->
+  <rect width="450" height="600" rx="12" fill="url(#fashionRed)"/>
+  
+  <!-- 纹理层 -->
+  <rect width="450" height="600" rx="12" fill="url(#fashionTexture)"/>
+  
+  <!-- 顶部白色装饰条 -->
+  <rect x="150" y="60" width="150" height="1" fill="url(#white)" opacity="0.4"/>
+  
+  <!-- 品牌名称 -->
+  <g transform="translate(225, 100)" text-anchor="middle">
+    <text x="0" y="0" font-family="PingFang SC, SF Pro Display, sans-serif" font-size="24" 
+          font-weight="200" fill="#F7FAFC" letter-spacing="20" opacity="0.95">津脉智坊</text>
+  </g>
+  
+  <!-- 中间装饰 -->
+  <g transform="translate(225, 300)">
+    <!-- 白色圆形 -->
+    <circle cx="0" cy="0" r="50" fill="none" stroke="#F7FAFC" stroke-width="0.3" opacity="0.3"/>
+    
+    <!-- 时尚福字 -->
+    <text x="0" y="10" font-family="PingFang SC, Helvetica Neue, sans-serif" font-size="50" 
+          font-weight="200" fill="url(#roseGold)" text-anchor="middle">福</text>
+  </g>
+  
+  <!-- 底部标语 -->
+  <g transform="translate(225, 480)" text-anchor="middle">
+    <text x="0" y="0" font-family="PingFang SC, SF Pro Display, sans-serif" font-size="12" 
+          font-weight="200" fill="#F7FAFC" letter-spacing="8" opacity="0.7">津创灵感 · 点亮创意</text>
+  </g>
+  
+  <!-- 底部装饰条 -->
+  <rect x="180" y="520" width="90" height="1" fill="url(#roseGold)" opacity="0.4"/>
+</svg>

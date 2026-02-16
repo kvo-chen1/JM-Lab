@@ -24,8 +24,36 @@ export default function EventCard({ event, onClick, viewMode = 'grid' }: EventCa
   const [isLiked, setIsLiked] = useState(false);
 
   const now = new Date();
-  const eventStart = new Date(event.startTime);
-  const eventEnd = new Date(event.endTime);
+  
+  // 处理各种日期格式：Date对象、ISO字符串、bigint时间戳
+  let eventStart: Date;
+  let eventEnd: Date;
+  
+  if (event.startTime instanceof Date) {
+    eventStart = event.startTime;
+  } else if (typeof event.startTime === 'string') {
+    // 检查是否是纯数字（bigint时间戳）
+    if (/^\d+$/.test(event.startTime)) {
+      eventStart = new Date(parseInt(event.startTime, 10));
+    } else {
+      // ISO日期字符串
+      eventStart = new Date(event.startTime);
+    }
+  } else {
+    eventStart = new Date(event.startTime);
+  }
+  
+  if (event.endTime instanceof Date) {
+    eventEnd = event.endTime;
+  } else if (typeof event.endTime === 'string') {
+    if (/^\d+$/.test(event.endTime)) {
+      eventEnd = new Date(parseInt(event.endTime, 10));
+    } else {
+      eventEnd = new Date(event.endTime);
+    }
+  } else {
+    eventEnd = new Date(event.endTime);
+  }
 
   let status: 'upcoming' | 'ongoing' | 'completed' = 'upcoming';
   let statusText = '即将开始';

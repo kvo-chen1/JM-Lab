@@ -67,27 +67,30 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
   // 过滤通知
   const filteredNotifications = getCurrentViewNotifications().filter(notification => {
     // 类型过滤
-    const matchesType = activeTypeFilter === 'all' || 
-      (activeTypeFilter === 'community' && 
-        (notification.type === 'community_join' || 
-         notification.type === 'community_leave' || 
-         notification.type === 'member_invited' || 
-         notification.type === 'member_joined' || 
+    const matchesType = activeTypeFilter === 'all' ||
+      (activeTypeFilter === 'community' &&
+        (notification.type === 'community_join' ||
+         notification.type === 'community_leave' ||
+         notification.type === 'member_invited' ||
+         notification.type === 'member_joined' ||
          notification.type === 'member_left')) ||
-      (activeTypeFilter === 'post' && 
-        (notification.type === 'post_created' || 
-         notification.type === 'post_commented' || 
+      (activeTypeFilter === 'post' &&
+        (notification.type === 'post_created' ||
+         notification.type === 'post_commented' ||
          notification.type === 'post_liked')) ||
-      (activeTypeFilter === 'comment' && 
+      (activeTypeFilter === 'comment' &&
         (notification.type === 'comment_replied')) ||
-      (activeTypeFilter === 'mention' && 
+      (activeTypeFilter === 'mention' &&
         (notification.type === 'mention')) ||
-      (activeTypeFilter === 'moderation' && 
-        (notification.type === 'moderation_approved' || 
-         notification.type === 'moderation_rejected' || 
+      (activeTypeFilter === 'moderation' &&
+        (notification.type === 'moderation_approved' ||
+         notification.type === 'moderation_rejected' ||
          notification.type === 'moderation_flagged')) ||
-      (activeTypeFilter === 'announcement' && 
-        (notification.type === 'announcement'));
+      (activeTypeFilter === 'announcement' &&
+        (notification.type === 'announcement' ||
+         notification.type === 'ranking_published')) ||
+      (activeTypeFilter === 'task' &&
+        (notification.type === 'ranking_published'));
     
     // 搜索过滤
     const matchesSearch = searchQuery === '' || 
@@ -145,6 +148,8 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
         return 'fas fa-user-plus';
       case 'member_left':
         return 'fas fa-user-minus';
+      case 'ranking_published':
+        return 'fas fa-trophy';
       default:
         return 'fas fa-bell';
     }

@@ -16,6 +16,8 @@ import { WorkDetailPanel } from './components/WorkDetailPanel';
 import { BatchActions } from './components/BatchActions';
 import { PublishConfirmModal } from './components/PublishConfirmModal';
 import { ScoreAuditLogModal } from './components/ScoreAuditLogModal';
+import { ScoreRankingPanel } from './components/ScoreRankingPanel';
+import { FinalRankingPublishModal } from './components/FinalRankingPublishModal';
 import {
   Loader2,
   AlertCircle,
@@ -61,6 +63,7 @@ export default function WorkScoring() {
   // 模态框状态
   const [showPublishModal, setShowPublishModal] = useState(false);
   const [showAuditLogModal, setShowAuditLogModal] = useState(false);
+  const [showFinalRankingModal, setShowFinalRankingModal] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
 
   // 加载状态
@@ -332,13 +335,14 @@ export default function WorkScoring() {
         )}
       </AnimatePresence>
 
-      {/* 主内容区 - 三栏布局 */}
+      {/* 主内容区 - 四栏布局 */}
       <div className="flex h-[calc(100vh-64px)]">
         {/* 左栏：活动筛选 */}
         <ActivitySidebar
           events={events}
           selectedEventId={selectedEventId}
           onEventSelect={handleEventSelect}
+          onPublishFinalRanking={() => setShowFinalRankingModal(true)}
           isDark={isDark}
         />
 
@@ -371,6 +375,14 @@ export default function WorkScoring() {
           currentUserId={user?.id}
           isDark={isDark}
         />
+
+        {/* 最右栏：成绩排名面板 */}
+        <ScoreRankingPanel
+          works={works}
+          isDark={isDark}
+          onWorkClick={handleWorkSelect}
+          topN={10}
+        />
       </div>
 
       {/* 发布确认弹窗 */}
@@ -389,6 +401,21 @@ export default function WorkScoring() {
         onClose={() => setShowAuditLogModal(false)}
         submissionId={selectedWorkId}
         isDark={isDark}
+      />
+
+      {/* 最终排名发布弹窗 */}
+      <FinalRankingPublishModal
+        isOpen={showFinalRankingModal}
+        onClose={() => setShowFinalRankingModal(false)}
+        eventId={selectedEventId || ''}
+        eventTitle={events.find(e => e.id === selectedEventId)?.title || ''}
+        works={works}
+        isDark={isDark}
+        currentUserId={user?.id}
+        onPublished={() => {
+          toast.success('最终排名已发布');
+          loadWorks();
+        }}
       />
     </div>
   );

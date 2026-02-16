@@ -32,6 +32,7 @@ interface RightSidebarProps {
     followersCount: number;
     likesCount: number;
   }[];
+  onEventClick?: (eventId: string) => void;
 }
 
 // 迷你日历组件
@@ -121,17 +122,35 @@ function MiniCalendar({ events }: { events: Event[] }) {
 }
 
 // 即将开始的活动
-function UpcomingEvents({ events }: { events: Event[] }) {
+function UpcomingEvents({ events, onEventClick }: { events: Event[]; onEventClick?: (eventId: string) => void }) {
   const { isDark } = useTheme();
   const navigate = useNavigate();
   
   if (events.length === 0) return null;
+  
+  // 处理活动点击
+  const handleEventClick = (eventId: string) => {
+    if (onEventClick) {
+      // 如果有回调函数，使用回调函数（在当前页面打开弹窗）
+      onEventClick(eventId);
+    } else {
+      // 否则跳转到 CulturalEvents 页面
+      navigate(`/cultural-events?eventId=${eventId}&openModal=true`);
+    }
+  };
 
   const getTimeLeft = (startTime: Date) => {
     const now = new Date();
     const diff = new Date(startTime).getTime() - now.getTime();
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
     const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    
+    // 如果活动已经开始或已结束
+    if (diff < 0) {
+      const absDays = Math.abs(days);
+      if (absDays > 0) return `已开始 ${absDays} 天`;
+      return '进行中';
+    }
     
     if (days > 0) return `${days}天后`;
     if (hours > 0) return `${hours}小时后`;
@@ -152,7 +171,7 @@ function UpcomingEvents({ events }: { events: Event[] }) {
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: index * 0.1 }}
-            onClick={() => navigate(`/events/${event.id}`)}
+            onClick={() => handleEventClick(event.id)}
             className={`group flex gap-3 p-3 rounded-xl cursor-pointer transition-all ${
               isDark 
                 ? 'hover:bg-gray-700/50' 
@@ -257,7 +276,7 @@ function MyActivityStats({ stats }: { stats?: { registeredCount: number; submitt
 }
 
 // 热门活动排行
-function TrendingEvents({ events }: { events: Event[] }) {
+function TrendingEvents({ events, onEventClick }: { events: Event[]; onEventClick?: (eventId: string) => void }) {
   const { isDark } = useTheme();
   const navigate = useNavigate();
   
@@ -267,6 +286,15 @@ function TrendingEvents({ events }: { events: Event[] }) {
     .slice(0, 5);
   
   if (trendingEvents.length === 0) return null;
+
+  // 处理活动点击
+  const handleEventClick = (eventId: string) => {
+    if (onEventClick) {
+      onEventClick(eventId);
+    } else {
+      navigate(`/cultural-events?eventId=${eventId}&openModal=true`);
+    }
+  };
 
   return (
     <div className={`rounded-2xl p-5 ${isDark ? 'bg-gray-800/50 border border-gray-700' : 'bg-white border border-gray-100'} shadow-sm`}>
@@ -282,7 +310,7 @@ function TrendingEvents({ events }: { events: Event[] }) {
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: index * 0.1 }}
-            onClick={() => navigate(`/events/${event.id}`)}
+            onClick={() => handleEventClick(event.id)}
             className={`group flex items-center gap-3 p-2 rounded-xl cursor-pointer transition-all ${
               isDark 
                 ? 'hover:bg-gray-700/50' 
@@ -322,7 +350,10 @@ function RecommendedCreators({ creators }: { creators?: { id: string; name: stri
   const navigate = useNavigate();
   
   // 格式化数字
-  const formatCount = (count: number) => {
+  const formatCount = (count: number | undefined | null) => {
+    if (count === undefined || count === null) {
+      return '0';
+    }
     if (count >= 10000) {
       return (count / 10000).toFixed(1) + 'k';
     }
@@ -389,13 +420,13 @@ function RecommendedCreators({ creators }: { creators?: { id: string; name: stri
   );
 }
 
-export default function RightSidebar({ events, upcomingEvents, userStats, recommendedCreators }: RightSidebarProps) {
+export default function RightSidebar({ events, upcomingEvents, userStats, recommendedCreators, onEventClick }: RightSidebarProps) {
   return (
     <aside className="w-full lg:w-[320px] flex-shrink-0 space-y-6">
       <MiniCalendar events={events} />
-      <UpcomingEvents events={upcomingEvents} />
+      <UpcomingEvents events={upcomingEvents} onEventClick={onEventClick} />
       <MyActivityStats stats={userStats} />
-      <TrendingEvents events={events} />
+      <TrendingEvents events={events} onEventClick={onEventClick} />
       <RecommendedCreators creators={recommendedCreators} />
     </aside>
   );

@@ -103,6 +103,11 @@ export function useEventFilters(): UseEventFiltersReturn {
         if (filters.status === 'completed' && !isCompleted) return false;
       }
 
+      // Category filter
+      if (filters.category !== 'all' && event.category !== filters.category) {
+        return false;
+      }
+
       // Type filter
       if (filters.type !== 'all' && event.type !== filters.type) {
         return false;

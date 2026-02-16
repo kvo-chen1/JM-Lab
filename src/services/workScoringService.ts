@@ -481,6 +481,74 @@ class WorkScoringService {
       judgeCount: Number(work.judge_count) || 0,
     };
   }
+
+  /**
+   * 获取作品排名数据
+   */
+  async getWorkRankings(
+    eventId: string,
+    limit: number = 10
+  ): Promise<{
+    rankedWorks: WorkScoringData[];
+    stats: {
+      totalWorks: number;
+      scoredWorks: number;
+      avgScore: number;
+      maxScore: number;
+      minScore: number;
+    };
+  }> {
+    try {
+      // 获取所有作品
+      const { data, error } = await supabase
+        .rpc('get_works_for_scoring', {
+          p_event_id: eventId,
+          p_status: 'all',
+          p_score_status: 'all',
+          p_search_query: null,
+          p_sort_by: 'score',
+          p_sort_order: 'desc',
+          p_page: 1,
+          p_limit: 100, // 获取足够多的数据用于排名
+        });
+
+      if (error) throw error;
+
+      const allWorks = (data?.works || []).map((work: any) => this.formatWorkData(work));
+      
+      // 过滤出有评分的作品并排序
+      const scoredWorks = allWorks
+        .filter((w: WorkScoringData) => w.avgScore !== undefined && w.avgScore > 0)
+        .sort((a: WorkScoringData, b: WorkScoringData) => (b.avgScore || 0) - (a.avgScore || 0));
+
+      // 计算统计数据
+      const scores = scoredWorks.map((w: WorkScoringData) => w.avgScore || 0);
+      const stats = {
+        totalWorks: allWorks.length,
+        scoredWorks: scoredWorks.length,
+        avgScore: scores.length > 0 ? scores.reduce((a: number, b: number) => a + b, 0) / scores.length : 0,
+        maxScore: scores.length > 0 ? Math.max(...scores) : 0,
+        minScore: scores.length > 0 ? Math.min(...scores) : 0,
+      };
+
+      return {
+        rankedWorks: scoredWorks.slice(0, limit),
+        stats,
+      };
+    } catch (error) {
+      console.error('获取作品排名失败:', error);
+      return {
+        rankedWorks: [],
+        stats: {
+          totalWorks: 0,
+          scoredWorks: 0,
+          avgScore: 0,
+          maxScore: 0,
+          minScore: 0,
+        },
+      };
+    }
+  }
 }
 
 export const workScoringService = new WorkScoringService();

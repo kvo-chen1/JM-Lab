@@ -5,6 +5,7 @@ import {
   ChevronRight,
   Trophy,
   FileText,
+  Crown,
 } from 'lucide-react';
 import { BrandEvent } from '@/services/workScoringService';
 import { useState, useMemo } from 'react';
@@ -13,6 +14,7 @@ interface ActivitySidebarProps {
   events: BrandEvent[];
   selectedEventId: string | null;
   onEventSelect: (eventId: string) => void;
+  onPublishFinalRanking?: () => void;
   isDark: boolean;
 }
 
@@ -20,6 +22,7 @@ export function ActivitySidebar({
   events,
   selectedEventId,
   onEventSelect,
+  onPublishFinalRanking,
   isDark,
 }: ActivitySidebarProps) {
   const [searchQuery, setSearchQuery] = useState('');
@@ -182,6 +185,30 @@ export function ActivitySidebar({
           </div>
         )}
       </div>
+
+      {/* 发布最终排名按钮 */}
+      {selectedEventId && onPublishFinalRanking && (
+        <div
+          className={`p-4 border-t ${
+            isDark ? 'border-gray-700 bg-gray-800/80' : 'border-gray-200 bg-gray-50'
+          }`}
+        >
+          <button
+            onClick={onPublishFinalRanking}
+            className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-medium transition-all ${
+              isDark
+                ? 'bg-gradient-to-r from-yellow-500 to-amber-500 hover:from-yellow-400 hover:to-amber-400 text-white'
+                : 'bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-300 hover:to-amber-400 text-white'
+            } shadow-lg hover:shadow-xl`}
+          >
+            <Crown className="w-5 h-5" />
+            <span>发布最终排名</span>
+          </button>
+          <p className={`text-xs text-center mt-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+            确认所有评分完成后发布
+          </p>
+        </div>
+      )}
 
       {/* 统计信息 */}
       <div

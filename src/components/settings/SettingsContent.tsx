@@ -141,7 +141,7 @@ function renderCategoryContent(props: SettingsContentProps) {
     case 'theme':
       return (
         <>
-          <div className="md:col-span-2">
+          <div id="guide-step-settings-theme" className="md:col-span-2">
             <SettingItem
               icon={Moon}
               title="当前主题"
@@ -149,17 +149,15 @@ function renderCategoryContent(props: SettingsContentProps) {
             >
               <div className="flex items-center gap-3">
                 <span className="text-sm text-gray-600 dark:text-gray-400">
-                  {props.theme === 'auto' ? '自动' :
-                   props.theme === 'light' ? '浅色' :
+                  {props.theme === 'light' ? '浅色' :
                    props.theme === 'dark' ? '深色' :
-                   props.theme === 'pink' ? '粉色' :
                    props.theme === 'blue' ? '蓝色' :
                    props.theme === 'green' ? '绿色' :
                    props.theme === 'pixel' ? '赛博像素' :
                    props.theme === 'tianjin' ? '津门雅韵' : '浅色'}
                 </span>
                 <SettingButton onClick={() => {
-                  const themes = ['light', 'dark', 'auto', 'pink', 'blue', 'green', 'pixel', 'tianjin'];
+                  const themes = ['light', 'dark', 'blue', 'green', 'pixel', 'tianjin'];
                   const currentIndex = themes.indexOf(props.theme);
                   const nextIndex = (currentIndex + 1) % themes.length;
                   props.onThemeChange(themes[nextIndex]);

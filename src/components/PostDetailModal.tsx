@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import postsApi, { Post, Comment, followUser, unfollowUser, checkUserFollowing, addComment } from '@/services/postService';
@@ -8,6 +8,7 @@ import LazyImage from './LazyImage';
 import LazyVideo from './LazyVideo';
 import { toast } from 'sonner';
 import WaterfallGallery, { GalleryItem } from './WaterfallGallery/WaterfallGallery';
+import MobileCommentDrawer from './MobileCommentDrawer';
 import styles from './WaterfallGallery/WaterfallGallery.module.scss';
 import type { UserProfile } from '@/lib/supabase';
 import type { User as AuthUser } from '@/contexts/authContext';
@@ -100,7 +101,13 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
   onPostChange,
 }) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { isDark } = useTheme();
+  
+  // 检测是否在设置平台页面（这些页面禁用键盘导航）
+  const isSettingsPlatform = location.pathname.startsWith('/settings') || 
+                             location.pathname.startsWith('/admin') || 
+                             location.pathname.startsWith('/organizer');
   const [commentText, setCommentText] = useState('');
   const [replyText, setReplyText] = useState('');
   const [replyToComment, setReplyToComment] = useState<Comment | null>(null);
@@ -116,6 +123,7 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
   const [commentImagePreviews, setCommentImagePreviews] = useState<string[]>([]);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isMobileCommentDrawerOpen, setIsMobileCommentDrawerOpen] = useState(false);
   const commentInputRef = useRef<HTMLTextAreaElement>(null);
   const replyInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -196,10 +204,20 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
     }
   }, [isOpen, post]);
 
-  // Lock body scroll
+  // Lock body scroll and scroll to top when modal opens
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
+      // 移动端打开时滚动到顶部 - 需要滚动模态框容器(overlayRef)而不是window
+      setTimeout(() => {
+        if (overlayRef.current) {
+          overlayRef.current.scrollTop = 0;
+        }
+        // 同时确保模态框内容区域也滚动到顶部
+        if (contentRef.current) {
+          contentRef.current.scrollIntoView({ behavior: 'auto', block: 'start' });
+        }
+      }, 100);
     } else {
       document.body.style.overflow = '';
     }
@@ -215,13 +233,45 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
         if (isImageFull) setIsImageFull(false);
         else onClose();
       }
+      // 左右方向键切换作品（在设置平台页面禁用）
+      if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && !isSettingsPlatform) {
+        if (!post || relatedPosts.length === 0) return;
+        
+        const currentIndex = relatedPosts.findIndex(p => p.id === post.id);
+        let targetIndex: number;
+        
+        if (e.key === 'ArrowLeft') {
+          // 左键：切换到上一个作品
+          targetIndex = currentIndex > 0 ? currentIndex - 1 : relatedPosts.length - 1;
+        } else {
+          // 右键：切换到下一个作品
+          targetIndex = currentIndex < relatedPosts.length - 1 ? currentIndex + 1 : 0;
+        }
+        
+        const targetPost = relatedPosts[targetIndex];
+        if (targetPost) {
+          e.preventDefault();
+          // 平滑切换作品
+          setIsSwitchingPost(true);
+          contentRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          
+          setTimeout(() => {
+            if (onPostChange) {
+              onPostChange(targetPost);
+            } else {
+              window.location.href = `/square/${targetPost.id}`;
+            }
+            setIsSwitchingPost(false);
+          }, 300);
+        }
+      }
     };
     if (isOpen) {
       window.addEventListener('keydown', handleKeyDown);
       modalRef.current?.focus();
     }
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, isImageFull, onClose]);
+  }, [isOpen, isImageFull, onClose, post, relatedPosts, onPostChange]);
 
   // 点击遮罩关闭 (注意不要点击到内容)
   const handleOverlayClick = (e: React.MouseEvent) => {
@@ -425,7 +475,7 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
     <AnimatePresence mode="wait">
       {isOpen && (
         <motion.div 
-          className="fixed inset-0 z-[100] overflow-y-auto custom-scrollbar bg-black/65 backdrop-blur-sm"
+          className="fixed inset-0 z-[100] overflow-y-auto scrollbar-hide bg-white md:bg-black/65 md:backdrop-blur-sm"
           onClick={handleOverlayClick} 
           ref={overlayRef}
           initial={{ opacity: 0 }}
@@ -433,9 +483,9 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
           exit={{ opacity: 0 }}
           transition={{ duration: 0.25, ease: [0.25, 0.8, 0.25, 1] }}
         >
-          {/* Close Button - Fixed Position */}
+          {/* Close Button - Fixed Position - 仅桌面端显示 */}
           <motion.button 
-            className="fixed top-6 right-6 z-[110] w-12 h-12 flex items-center justify-center rounded-full bg-transparent hover:bg-white/10 text-white transition-colors cursor-pointer"
+            className="hidden md:flex fixed top-6 right-6 z-[110] w-12 h-12 items-center justify-center rounded-full bg-transparent hover:bg-white/10 text-white transition-colors cursor-pointer"
             onClick={onClose}
             aria-label="关闭详情页"
             initial={{ opacity: 0, rotate: -90 }}
@@ -452,11 +502,11 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 60 }}
             transition={{ duration: 0.35, ease: [0.25, 0.8, 0.25, 1] }}
-            className="w-full min-h-screen flex flex-col items-center py-8 px-4 md:py-12 pointer-events-none"
+            className="w-full min-h-screen flex flex-col items-center md:py-8 md:px-4 md:py-12 pointer-events-none"
           >
             {/* Card Content */}
             <motion.div 
-              className={`pointer-events-auto relative w-full max-w-[1000px] bg-white dark:bg-gray-900 rounded-[32px] shadow-2xl overflow-hidden flex flex-col md:flex-row mb-12 transition-colors duration-300`}
+              className={`pointer-events-auto relative w-full md:max-w-[1000px] bg-white dark:bg-gray-900 md:rounded-[32px] md:shadow-2xl overflow-hidden flex flex-col md:flex-row md:mb-12 transition-colors duration-300`}
               ref={modalRef}
               tabIndex={-1}
               onClick={(e) => e.stopPropagation()}
@@ -494,7 +544,14 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
                 >
                   {/* Left: Media Section (50-60% width) */}
                   <div className="w-full md:w-[55%] bg-gray-50 dark:bg-black relative group">
-                    <div className="relative w-full h-full min-h-[400px] flex items-center justify-center">
+                    {/* 移动端返回按钮 */}
+                    <button
+                      onClick={onClose}
+                      className="md:hidden absolute top-4 left-4 z-20 w-10 h-10 flex items-center justify-center rounded-full bg-white/90 dark:bg-black/50 text-gray-800 dark:text-white shadow-lg"
+                    >
+                      <i className="fas fa-arrow-left"></i>
+                    </button>
+                    <div className="relative w-full md:min-h-[400px] flex items-center justify-center" style={{ height: '75vh' }}>
                        {/* Image/Video */}
                        {(post.type === 'video' || post.category === 'video' || post.videoUrl) ? (
                          <div className="w-full h-full flex items-center justify-center">
@@ -571,14 +628,14 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
                          </div>
                        ) : (
                          <div 
-                          className="w-full h-full cursor-zoom-in bg-gray-100 dark:bg-gray-800 flex items-center justify-center"
+                          className="w-full h-full cursor-zoom-in bg-gray-100 dark:bg-gray-800 flex items-center justify-center overflow-hidden"
                           onClick={() => setIsImageFull(true)}
                         >
                           {post.thumbnail ? (
                             <LazyImage
                              src={post.thumbnail}
                              alt={post.title}
-                             className="w-full h-full object-cover md:rounded-l-[32px]"
+                             className="w-full h-full object-cover md:object-contain"
                              priority={true}
                              quality="high"
                              bare
@@ -618,8 +675,8 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
 
                   {/* Right: Info Section */}
                   <div className="w-full md:w-[45%] flex flex-col max-h-[800px] md:h-auto">
-                    {/* Header Actions */}
-                    <div className="px-6 py-6 flex items-center justify-between sticky top-0 bg-white dark:bg-gray-900 z-10">
+                    {/* Header Actions - 桌面端 */}
+                    <div className="hidden md:flex px-6 py-6 items-center justify-between sticky top-0 bg-white dark:bg-gray-900 z-10">
                       <div className="flex gap-2">
                         <button className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
                           <i className="fas fa-ellipsis-h text-gray-700 dark:text-gray-300"></i>
@@ -656,25 +713,64 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
                       </div>
                     </div>
 
+                    {/* Header Actions - 移动端 Pinterest风格 */}
+                    <div className="md:hidden px-4 py-3 flex items-center justify-between bg-white dark:bg-gray-900">
+                      <div className="flex items-center gap-4">
+                        <button 
+                          onClick={() => onLike(post.id)}
+                          className="flex items-center gap-1.5 text-gray-700 dark:text-gray-300"
+                        >
+                          <i className={`${post.isLiked ? 'fas text-red-500' : 'far'} fa-heart text-xl`}></i>
+                          <span className="text-sm font-medium">{post.likes || 0}</span>
+                        </button>
+                        <button 
+                          className="flex items-center gap-1.5 text-gray-700 dark:text-gray-300"
+                          onClick={() => setIsMobileCommentDrawerOpen(true)}
+                        >
+                          <i className="far fa-comment text-xl"></i>
+                          <span className="text-sm font-medium">{comments.length || post.commentCount || 0}</span>
+                        </button>
+                        <button 
+                          onClick={handleShare}
+                          className="text-gray-700 dark:text-gray-300"
+                        >
+                          <i className="fas fa-share-alt text-lg"></i>
+                        </button>
+                        <button className="text-gray-700 dark:text-gray-300">
+                          <i className="fas fa-ellipsis-h text-lg"></i>
+                        </button>
+                      </div>
+                      <button
+                        onClick={handleShare}
+                        className={`px-4 py-2 rounded-full font-semibold text-sm transition-colors ${
+                          post.isBookmarked
+                            ? 'bg-gray-600 text-white'
+                            : 'bg-red-600 text-white'
+                        }`}
+                      >
+                        {post.isBookmarked ? '已保存' : '保存'}
+                      </button>
+                    </div>
+
                     {/* Scrollable Content */}
-                    <div className="flex-1 overflow-y-auto px-6 md:px-8 pb-4 custom-scrollbar">
+                    <div className="flex-1 overflow-y-auto px-4 md:px-8 pb-4 custom-scrollbar">
                       {/* Title & Desc */}
-                      <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white mb-4 leading-tight">
+                      <h1 className="text-xl md:text-3xl font-bold text-gray-900 dark:text-white mb-2 md:mb-4 leading-tight">
                         {post.title}
                       </h1>
-                      <p className="text-gray-600 dark:text-gray-300 text-sm leading-relaxed mb-6 whitespace-pre-wrap">
+                      <p className="text-gray-600 dark:text-gray-300 text-sm leading-relaxed mb-4 md:mb-6 whitespace-pre-wrap">
                         {post.description || "暂无描述。"}
                       </p>
 
                       {/* Author */}
                       <div 
-                        className="flex items-center gap-3 mb-6 cursor-pointer group/author"
+                        className="flex items-center gap-3 mb-2 md:mb-6 cursor-pointer group/author"
                         onClick={handleAuthorClick}
                       >
                          <TianjinAvatar 
                            src={typeof post.author === 'object' ? (post.author?.avatar || '') : `https://api.dicebear.com/7.x/avataaars/svg?seed=${post.author || post.id}`}
                            alt="Author" 
-                           size="md" 
+                           size="sm"
                            className="group-hover/author:opacity-90 transition-opacity"
                          />
                          <div className="flex-1 min-w-0">
@@ -742,8 +838,9 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
                       </div>
 
                       {/* Comments Header */}
-                      <div className="pt-4 border-t border-gray-100 dark:border-gray-800">
-                        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                      <div className="pt-2 border-t border-gray-100 dark:border-gray-800">
+                        {/* 桌面端显示完整评论标题 */}
+                        <h3 className="hidden md:flex text-lg font-semibold mb-4 items-center gap-2">
                           评论 <span className="text-sm font-normal text-gray-500">{comments.length || post.commentCount || 0}</span>
                         </h3>
 
@@ -790,8 +887,8 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
                           </div>
                         )}
 
-                        {/* Comments List */}
-                        <div className="space-y-6 mb-24">
+                        {/* Comments List - 仅桌面端显示 */}
+                        <div className="hidden md:block space-y-6 mb-24">
                           {commentsLoading ? (
                             <div className="flex flex-col items-center justify-center py-12 space-y-3">
                               <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
@@ -964,20 +1061,20 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
                               ));
                             })()
                           ) : (
-                            <div className="flex flex-col items-center justify-center py-16 text-center">
-                              <div className="w-20 h-20 mb-4 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700 flex items-center justify-center">
-                                <i className="far fa-comments text-3xl text-gray-400"></i>
+                            <div className="flex flex-col items-center justify-center py-8 text-center">
+                              <div className="w-14 h-14 mb-3 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700 flex items-center justify-center">
+                                <i className="far fa-comments text-xl text-gray-400"></i>
                               </div>
-                              <p className="text-gray-500 dark:text-gray-400 text-lg font-medium mb-1">暂无评论</p>
-                              <p className="text-gray-400 dark:text-gray-500 text-sm">来抢沙发，发表你的看法吧</p>
+                              <p className="text-gray-500 dark:text-gray-400 text-sm font-medium mb-0.5">暂无评论</p>
+                              <p className="text-gray-400 dark:text-gray-500 text-xs">来抢沙发，发表你的看法吧</p>
                             </div>
                           )}
                         </div>
                       </div>
                     </div>
 
-                    {/* Bottom Sticky Comment Input */}
-                    <div className="p-4 md:p-6 border-t border-gray-100 dark:border-gray-800 bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl sticky bottom-0 z-10">
+                    {/* Bottom Sticky Comment Input - 仅桌面端显示 */}
+                    <div className="hidden md:block p-2 md:p-3 border-t border-gray-100 dark:border-gray-800 bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl sticky bottom-0 z-10">
                       {/* 图片预览 */}
                       {commentImagePreviews.length > 0 && (
                         <div className="flex gap-2 mb-3 flex-wrap">
@@ -999,12 +1096,12 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
                         </div>
                       )}
 
-                      <div className="flex items-start gap-3 bg-white dark:bg-gray-800 rounded-2xl px-4 py-3 shadow-lg border border-gray-100 dark:border-gray-700 transition-all duration-300 focus-within:shadow-xl focus-within:border-blue-300 dark:focus-within:border-blue-600 focus-within:ring-4 focus-within:ring-blue-100/50 dark:focus-within:ring-blue-900/30">
+                      <div className="flex items-center gap-2 bg-white dark:bg-gray-800 rounded-xl px-3 py-2 shadow-md border border-gray-100 dark:border-gray-700 transition-all duration-300 focus-within:shadow-lg focus-within:border-blue-300 dark:focus-within:border-blue-600 focus-within:ring-2 focus-within:ring-blue-100/50 dark:focus-within:ring-blue-900/30">
                         <TianjinAvatar 
                           src={currentUser?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=current`} 
                           alt="Me" 
-                          size="sm"
-                          className="mt-0.5 ring-2 ring-gray-100 dark:ring-gray-700"
+                          size="xs"
+                          className="ring-2 ring-gray-100 dark:ring-gray-700 flex-shrink-0"
                         />
                         <div className="flex-1 min-w-0">
                           <textarea
@@ -1014,30 +1111,30 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
                             onKeyDown={handleCommentKeyDown}
                             placeholder="写下你的评论..."
                             rows={1}
-                            className="w-full bg-transparent border-none outline-none text-base text-gray-900 dark:text-white placeholder-gray-400 resize-none overflow-hidden"
-                            style={{ minHeight: '24px', maxHeight: '120px' }}
+                            className="w-full bg-transparent border-none outline-none text-sm text-gray-900 dark:text-white placeholder-gray-400 resize-none overflow-hidden py-1"
+                            style={{ minHeight: '20px', maxHeight: '80px' }}
                           />
                         </div>
                         <button 
                           onClick={handleSendComment}
                           disabled={(!commentText.trim() && commentImages.length === 0) || isUploading}
                           className={`
-                            flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-300
+                            flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-300 flex-shrink-0
                             ${(commentText.trim() || commentImages.length > 0) && !isUploading
-                              ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40 hover:scale-105' 
+                              ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-md shadow-blue-500/30 hover:shadow-lg hover:shadow-blue-500/40 hover:scale-105' 
                               : 'bg-gray-100 dark:bg-gray-700 text-gray-400 cursor-not-allowed'
                             }
                           `}
                         >
                           {isUploading ? (
-                            <i className="fas fa-spinner fa-spin text-sm"></i>
+                            <i className="fas fa-spinner fa-spin text-xs"></i>
                           ) : (
-                            <i className="fas fa-paper-plane text-sm"></i>
+                            <i className="fas fa-paper-plane text-xs"></i>
                           )}
                         </button>
                       </div>
-                      <div className="flex items-center justify-between mt-2 px-1">
-                        <div className="flex items-center gap-4 text-xs text-gray-400">
+                      <div className="flex items-center justify-between mt-1.5 px-1">
+                        <div className="flex items-center gap-3 text-xs text-gray-400">
                           {/* 图片上传按钮 */}
                           <input
                             type="file"
@@ -1100,10 +1197,13 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
               )}
             </motion.div>
 
-            {/* Related Works (Outside the card, white text on dark overlay) */}
+            {/* Related Works */}
             {post && !loading && !error && (
-              <div className="w-full max-w-[1400px] pointer-events-auto px-4">
-                <h3 className="text-xl font-bold text-white mb-6 text-center">更多精彩推荐</h3>
+              <div className="w-full max-w-[1400px] pointer-events-auto md:px-4">
+                {/* 桌面端标题 */}
+                <h3 className="hidden md:block text-xl font-bold text-white mb-6 text-center">更多精彩推荐</h3>
+                {/* 移动端标题 */}
+                <h3 className="md:hidden text-base font-bold text-gray-900 dark:text-white mb-2 px-4">更多精彩推荐</h3>
                 <WaterfallGallery 
                   items={galleryItems}
                   onItemClick={async (item) => {
@@ -1161,6 +1261,34 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
               </motion.div>
             )}
           </AnimatePresence>
+
+          {/* Mobile Comment Drawer */}
+          <MobileCommentDrawer
+            isOpen={isMobileCommentDrawerOpen}
+            onClose={() => setIsMobileCommentDrawerOpen(false)}
+            comments={comments}
+            commentsLoading={commentsLoading}
+            commentCount={comments.length || post?.commentCount || 0}
+            currentUser={currentUser}
+            postId={post?.id}
+            onSendComment={async (content, images) => {
+              if (!post?.id) return;
+              try {
+                await addComment(post.id, content, undefined, currentUser as any, images);
+                toast.success('评论发送成功！');
+                // 刷新评论列表
+                const updatedComments = await postsApi.getWorkComments(post.id);
+                setComments(updatedComments);
+              } catch (error: any) {
+                console.error('发送评论失败:', error);
+                toast.error(error.message || '评论发送失败');
+                throw error;
+              }
+            }}
+            onLikeComment={handleLikeComment}
+            onDeleteComment={handleDeleteComment}
+            onReplyToComment={handleReplyToComment}
+          />
         </motion.div>
       )}
     </AnimatePresence>

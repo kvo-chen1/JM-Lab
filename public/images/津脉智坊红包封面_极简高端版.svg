@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 450 600" width="450" height="600">
+  <defs>
+    <!-- 极简红色渐变 -->
+    <linearGradient id="minimalRed" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#C53030"/>
+      <stop offset="100%" style="stop-color:#742A2A"/>
+    </linearGradient>
+    
+    <!-- 高级金色 -->
+    <linearGradient id="premiumGold" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#F7FAFC"/>
+      <stop offset="50%" style="stop-color:#D69E2E"/>
+      <stop offset="100%" style="stop-color:#975A16"/>
+    </linearGradient>
+    
+    <!-- 银色渐变 -->
+    <linearGradient id="silver" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#F7FAFC"/>
+      <stop offset="100%" style="stop-color:#A0AEC0"/>
+    </linearGradient>
+    
+    <!-- 微妙纹理 -->
+    <pattern id="minimalTexture" x="0" y="0" width="80" height="80" patternUnits="userSpaceOnUse">
+      <circle cx="40" cy="40" r="0.3" fill="#F7FAFC" opacity="0.08"/>
+      <circle cx="20" cy="20" r="0.2" fill="#F7FAFC" opacity="0.05"/>
+      <circle cx="60" cy="60" r="0.2" fill="#F7FAFC" opacity="0.05"/>
+    </pattern>
+    
+    <!-- 精致阴影 -->
+    <filter id="subtleShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="1"/>
+      <feOffset dx="0" dy="1" result="offsetblur"/>
+      <feComponentTransfer>
+        <feFuncA type="linear" slope="0.2"/>
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- 主背景 -->
+  <rect width="450" height="600" rx="8" fill="url(#minimalRed)"/>
+  
+  <!-- 微妙纹理 -->
+  <rect width="450" height="600" rx="8" fill="url(#minimalTexture)"/>
+  
+  <!-- 顶部装饰 -->
+  <g transform="translate(0, 60)">
+    <line x1="100" y1="0" x2="350" y2="0" stroke="#F7FAFC" stroke-width="0.8" opacity="0.4"/>
+  </g>
+  
+  <!-- 品牌名称 -->
+  <g transform="translate(225, 100)" text-anchor="middle">
+    <text x="0" y="0" font-family="PingFang SC, SF Pro Display, sans-serif" font-size="32" 
+          font-weight="400" fill="#F7FAFC" letter-spacing="12" opacity="0.95">津脉智坊</text>
+  </g>
+  
+  <!-- 中间装饰 -->
+  <g transform="translate(225, 300)">
+    <!-- 圆形装饰 -->
+    <circle cx="0" cy="0" r="60" fill="none" stroke="#F7FAFC" stroke-width="0.5" opacity="0.2"/>
+    <circle cx="0" cy="0" r="70" fill="none" stroke="#D69E2E" stroke-width="0.3" opacity="0.3"/>
+    
+    <!-- 极简福字 -->
+    <text x="0" y="15" font-family="PingFang SC, Helvetica Neue, sans-serif" font-size="70" 
+          font-weight="300" fill="url(#premiumGold)" text-anchor="middle" filter="url(#subtleShadow)">福</text>
+  </g>
+  
+  <!-- 底部标语 -->
+  <g transform="translate(225, 480)" text-anchor="middle">
+    <text x="0" y="0" font-family="PingFang SC, SF Pro Display, sans-serif" font-size="14" 
+          font-weight="300" fill="#F7FAFC" letter-spacing="6" opacity="0.8">津创灵感 · 点亮创意</text>
+  </g>
+  
+  <!-- 底部装饰 -->
+  <g transform="translate(0, 540)">
+    <line x1="150" y1="0" x2="300" y2="0" stroke="#D69E2E" stroke-width="0.5" opacity="0.3"/>
+  </g>
+  
+  <!-- 角落装饰 -->
+  <g fill="none" stroke="#F7FAFC" stroke-width="0.5" opacity="0.2">
+    <path d="M40 40 L40 60"/>
+    <path d="M40 40 L60 40"/>
+    <path d="M410 40 L410 60"/>
+    <path d="M390 40 L410 40"/>
+    <path d="M40 540 L40 560"/>
+    <path d="M40 560 L60 560"/>
+    <path d="M410 540 L410 560"/>
+    <path d="M390 560 L410 560"/>
+  </g>
+</svg>

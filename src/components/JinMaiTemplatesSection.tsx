@@ -212,7 +212,10 @@ const JinMaiTemplatesSection: React.FC<JinMaiTemplatesSectionProps> = ({ classNa
   };
 
   // 格式化数字
-  const formatNumber = (num: number): string => {
+  const formatNumber = (num: number | undefined | null): string => {
+    if (num === undefined || num === null) {
+      return '0';
+    }
     if (num >= 1000) {
       return (num / 1000).toFixed(1) + 'k';
     }

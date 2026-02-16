@@ -102,7 +102,7 @@ export function RealtimeFeed({ activities, loading = false }: RealtimeFeedProps)
     <div className="space-y-2 max-h-[400px] overflow-y-auto scrollbar-thin">
       <AnimatePresence mode="popLayout">
         {activities.map((activity, index) => {
-          const config = actionConfig[activity.action_type];
+          const config = actionConfig[activity.action_type as keyof typeof actionConfig] || actionConfig.view;
           const Icon = config.icon;
 
           return (

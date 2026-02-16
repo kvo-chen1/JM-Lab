@@ -8,6 +8,7 @@ import { llmService } from './llmService';
 
 // 行为类型定义
 export type BehaviorType =
+  // 脉络创作行为
   | 'mindmap_create'
   | 'mindmap_edit'
   | 'mindmap_delete'
@@ -18,16 +19,120 @@ export type BehaviorType =
   | 'ai_suggestion_apply'
   | 'story_generate'
   | 'brand_inspiration_use'
-  | 'work_publish'
-  | 'work_save'
-  | 'work_share'
   | 'layout_change'
   | 'theme_change'
   | 'export'
-  | 'import';
+  | 'import'
+  // 作品行为
+  | 'work_publish'
+  | 'work_save'
+  | 'work_share'
+  | 'work_view'
+  | 'work_download'
+  // 社交互动行为
+  | 'post_like'
+  | 'post_unlike'
+  | 'post_favorite'
+  | 'post_unfavorite'
+  | 'post_comment'
+  | 'post_comment_delete'
+  | 'post_share'
+  | 'post_view'
+  | 'user_follow'
+  | 'user_unfollow'
+  | 'work_like'
+  | 'work_unlike'
+  | 'work_favorite'
+  | 'work_unfavorite'
+  // 搜索行为
+  | 'search'
+  | 'search_click_result'
+  | 'search_filter'
+  // 浏览行为
+  | 'page_view'
+  | 'content_scroll'
+  | 'content_click'
+  // 创作行为
+  | 'creation_start'
+  | 'creation_complete'
+  | 'creation_abandon'
+  | 'ai_generation_request'
+  | 'ai_generation_complete'
+  // 活动参与行为
+  | 'event_view'
+  | 'event_participate'
+  | 'event_submit_work'
+  // 反馈行为
+  | 'feedback_submit'
+  | 'report_submit'
+  | 'help_request'
+  // 认证行为
+  | 'user_login'
+  | 'user_logout'
+  | 'user_register'
+  | 'profile_update'
+  | 'password_change'
+  // 签到行为
+  | 'checkin'
+  | 'checkin_streak'
+  // 积分行为
+  | 'points_earn'
+  | 'points_redeem'
+  // 模板行为
+  | 'template_view'
+  | 'template_use'
+  | 'template_favorite'
+  | 'template_unfavorite'
+  // 游戏/活动行为
+  | 'game_start'
+  | 'game_complete'
+  | 'game_score'
+  // 聊天行为
+  | 'chat_start'
+  | 'chat_message_send'
+  | 'chat_message_receive'
+  // 通知行为
+  | 'notification_receive'
+  | 'notification_click'
+  | 'notification_dismiss'
+  // 分享行为
+  | 'share_copy_link'
+  | 'share_wechat'
+  | 'share_weibo'
+  | 'share_qq'
+  // 设置行为
+  | 'settings_update'
+  | 'privacy_update'
+  // 支付行为
+  | 'payment_start'
+  | 'payment_complete'
+  | 'payment_cancel'
+  // 会员行为
+  | 'membership_view'
+  | 'membership_upgrade'
+  // 收藏夹行为
+  | 'collection_create'
+  | 'collection_delete'
+  | 'collection_item_add'
+  | 'collection_item_remove';
 
 // 目标类型
-export type TargetType = 'mindmap' | 'node' | 'brand' | 'work' | 'story';
+export type TargetType =
+  | 'mindmap'
+  | 'node'
+  | 'brand'
+  | 'work'
+  | 'story'
+  | 'post'
+  | 'user'
+  | 'comment'
+  | 'search_query'
+  | 'page'
+  | 'event'
+  | 'template'
+  | 'challenge'
+  | 'cultural_element'
+  | 'ai_feature';
 
 // 行为日志数据
 export interface BehaviorLogData {
@@ -486,10 +591,469 @@ function getDefaultAnalysisResult(): AIAnalysisResult {
   };
 }
 
+// ============ 便捷的行为记录函数 ============
+
+/**
+ * 记录社交互动行为
+ */
+export async function recordSocialBehavior(
+  userId: string,
+  behaviorType: 'post_like' | 'post_unlike' | 'post_favorite' | 'post_unfavorite' | 'post_comment' | 'post_share' | 'user_follow' | 'user_unfollow',
+  targetId: string,
+  targetTitle?: string,
+  metadata?: Record<string, any>
+): Promise<void> {
+  const targetType: TargetType = behaviorType.startsWith('user_') ? 'user' : 'post';
+  await recordBehavior({
+    userId,
+    behaviorType,
+    targetType,
+    targetId,
+    targetTitle,
+    metadata: {
+      ...metadata,
+      recordedAt: new Date().toISOString(),
+    },
+  });
+}
+
+/**
+ * 记录作品互动行为
+ */
+export async function recordWorkInteraction(
+  userId: string,
+  behaviorType: 'work_like' | 'work_unlike' | 'work_favorite' | 'work_unfavorite' | 'work_view' | 'work_download' | 'work_share',
+  workId: string,
+  workTitle?: string,
+  metadata?: Record<string, any>
+): Promise<void> {
+  await recordBehavior({
+    userId,
+    behaviorType,
+    targetType: 'work',
+    targetId: workId,
+    targetTitle: workTitle,
+    metadata: {
+      ...metadata,
+      recordedAt: new Date().toISOString(),
+    },
+  });
+}
+
+/**
+ * 记录搜索行为
+ */
+export async function recordSearchBehavior(
+  userId: string,
+  query: string,
+  resultCount?: number,
+  filters?: Record<string, any>,
+  clickedResult?: { type: string; id: string; title?: string }
+): Promise<void> {
+  await recordBehavior({
+    userId,
+    behaviorType: clickedResult ? 'search_click_result' : 'search',
+    targetType: 'search_query',
+    targetId: `search_${Date.now()}`,
+    targetTitle: query,
+    metadata: {
+      query,
+      resultCount,
+      filters,
+      clickedResult,
+      searchedAt: new Date().toISOString(),
+    },
+  });
+}
+
+/**
+ * 记录页面浏览行为
+ */
+export async function recordPageView(
+  userId: string,
+  pagePath: string,
+  pageTitle?: string,
+  referrer?: string,
+  metadata?: Record<string, any>
+): Promise<void> {
+  await recordBehavior({
+    userId,
+    behaviorType: 'page_view',
+    targetType: 'page',
+    targetId: pagePath,
+    targetTitle: pageTitle,
+    metadata: {
+      referrer,
+      ...metadata,
+      viewedAt: new Date().toISOString(),
+    },
+  });
+}
+
+/**
+ * 记录创作行为
+ */
+export async function recordCreationBehavior(
+  userId: string,
+  behaviorType: 'creation_start' | 'creation_complete' | 'creation_abandon' | 'ai_generation_request' | 'ai_generation_complete',
+  creationType: string,
+  creationId?: string,
+  metadata?: Record<string, any>
+): Promise<void> {
+  await recordBehavior({
+    userId,
+    behaviorType,
+    targetType: 'work',
+    targetId: creationId || `creation_${Date.now()}`,
+    targetTitle: `${creationType}_${behaviorType}`,
+    metadata: {
+      creationType,
+      ...metadata,
+      recordedAt: new Date().toISOString(),
+    },
+  });
+}
+
+/**
+ * 记录活动参与行为
+ */
+export async function recordEventParticipation(
+  userId: string,
+  behaviorType: 'event_view' | 'event_participate' | 'event_submit_work',
+  eventId: string,
+  eventTitle?: string,
+  metadata?: Record<string, any>
+): Promise<void> {
+  await recordBehavior({
+    userId,
+    behaviorType,
+    targetType: 'event',
+    targetId: eventId,
+    targetTitle: eventTitle,
+    metadata: {
+      ...metadata,
+      recordedAt: new Date().toISOString(),
+    },
+  });
+}
+
+/**
+ * 记录内容点击行为
+ */
+export async function recordContentClick(
+  userId: string,
+  contentType: TargetType,
+  contentId: string,
+  contentTitle?: string,
+  clickContext?: Record<string, any>
+): Promise<void> {
+  await recordBehavior({
+    userId,
+    behaviorType: 'content_click',
+    targetType: contentType,
+    targetId: contentId,
+    targetTitle: contentTitle,
+    metadata: {
+      clickContext,
+      clickedAt: new Date().toISOString(),
+    },
+  });
+}
+
+/**
+ * 记录用户认证行为
+ */
+export async function recordAuthBehavior(
+  userId: string,
+  behaviorType: 'user_login' | 'user_logout' | 'user_register' | 'profile_update' | 'password_change',
+  metadata?: Record<string, any>
+): Promise<void> {
+  await recordBehavior({
+    userId,
+    behaviorType,
+    targetType: 'user',
+    targetId: userId,
+    metadata: {
+      ...metadata,
+      recordedAt: new Date().toISOString(),
+    },
+  });
+}
+
+/**
+ * 记录签到行为
+ */
+export async function recordCheckin(
+  userId: string,
+  streakDays?: number,
+  pointsEarned?: number
+): Promise<void> {
+  await recordBehavior({
+    userId,
+    behaviorType: 'checkin',
+    targetType: 'user',
+    targetId: userId,
+    metadata: {
+      streakDays,
+      pointsEarned,
+      checkedInAt: new Date().toISOString(),
+    },
+  });
+}
+
+/**
+ * 记录积分行为
+ */
+export async function recordPointsBehavior(
+  userId: string,
+  behaviorType: 'points_earn' | 'points_redeem',
+  points: number,
+  source?: string,
+  metadata?: Record<string, any>
+): Promise<void> {
+  await recordBehavior({
+    userId,
+    behaviorType,
+    targetType: 'user',
+    targetId: userId,
+    metadata: {
+      points,
+      source,
+      ...metadata,
+      recordedAt: new Date().toISOString(),
+    },
+  });
+}
+
+/**
+ * 记录模板行为
+ */
+export async function recordTemplateBehavior(
+  userId: string,
+  behaviorType: 'template_view' | 'template_use' | 'template_favorite' | 'template_unfavorite',
+  templateId: string,
+  templateName?: string,
+  metadata?: Record<string, any>
+): Promise<void> {
+  await recordBehavior({
+    userId,
+    behaviorType,
+    targetType: 'template',
+    targetId: templateId,
+    targetTitle: templateName,
+    metadata: {
+      ...metadata,
+      recordedAt: new Date().toISOString(),
+    },
+  });
+}
+
+/**
+ * 记录游戏行为
+ */
+export async function recordGameBehavior(
+  userId: string,
+  behaviorType: 'game_start' | 'game_complete' | 'game_score',
+  gameId: string,
+  gameName?: string,
+  score?: number,
+  metadata?: Record<string, any>
+): Promise<void> {
+  await recordBehavior({
+    userId,
+    behaviorType,
+    targetType: 'challenge',
+    targetId: gameId,
+    targetTitle: gameName,
+    metadata: {
+      score,
+      ...metadata,
+      recordedAt: new Date().toISOString(),
+    },
+  });
+}
+
+/**
+ * 记录聊天行为
+ */
+export async function recordChatBehavior(
+  userId: string,
+  behaviorType: 'chat_start' | 'chat_message_send' | 'chat_message_receive',
+  chatId: string,
+  receiverId?: string,
+  metadata?: Record<string, any>
+): Promise<void> {
+  await recordBehavior({
+    userId,
+    behaviorType,
+    targetType: 'user',
+    targetId: chatId,
+    metadata: {
+      receiverId,
+      ...metadata,
+      recordedAt: new Date().toISOString(),
+    },
+  });
+}
+
+/**
+ * 记录通知行为
+ */
+export async function recordNotificationBehavior(
+  userId: string,
+  behaviorType: 'notification_receive' | 'notification_click' | 'notification_dismiss',
+  notificationId: string,
+  notificationType?: string,
+  metadata?: Record<string, any>
+): Promise<void> {
+  await recordBehavior({
+    userId,
+    behaviorType,
+    targetType: 'user',
+    targetId: notificationId,
+    metadata: {
+      notificationType,
+      ...metadata,
+      recordedAt: new Date().toISOString(),
+    },
+  });
+}
+
+/**
+ * 记录分享行为
+ */
+export async function recordShareBehavior(
+  userId: string,
+  behaviorType: 'share_copy_link' | 'share_wechat' | 'share_weibo' | 'share_qq' | 'work_share' | 'post_share',
+  contentId: string,
+  contentType?: string,
+  metadata?: Record<string, any>
+): Promise<void> {
+  await recordBehavior({
+    userId,
+    behaviorType,
+    targetType: contentType as TargetType || 'work',
+    targetId: contentId,
+    metadata: {
+      ...metadata,
+      recordedAt: new Date().toISOString(),
+    },
+  });
+}
+
+/**
+ * 记录设置行为
+ */
+export async function recordSettingsBehavior(
+  userId: string,
+  behaviorType: 'settings_update' | 'privacy_update',
+  settingsKey?: string,
+  metadata?: Record<string, any>
+): Promise<void> {
+  await recordBehavior({
+    userId,
+    behaviorType,
+    targetType: 'user',
+    targetId: userId,
+    targetTitle: settingsKey,
+    metadata: {
+      ...metadata,
+      recordedAt: new Date().toISOString(),
+    },
+  });
+}
+
+/**
+ * 记录支付行为
+ */
+export async function recordPaymentBehavior(
+  userId: string,
+  behaviorType: 'payment_start' | 'payment_complete' | 'payment_cancel',
+  orderId: string,
+  amount?: number,
+  metadata?: Record<string, any>
+): Promise<void> {
+  await recordBehavior({
+    userId,
+    behaviorType,
+    targetType: 'user',
+    targetId: orderId,
+    metadata: {
+      amount,
+      ...metadata,
+      recordedAt: new Date().toISOString(),
+    },
+  });
+}
+
+/**
+ * 记录会员行为
+ */
+export async function recordMembershipBehavior(
+  userId: string,
+  behaviorType: 'membership_view' | 'membership_upgrade',
+  membershipType?: string,
+  metadata?: Record<string, any>
+): Promise<void> {
+  await recordBehavior({
+    userId,
+    behaviorType,
+    targetType: 'user',
+    targetId: userId,
+    targetTitle: membershipType,
+    metadata: {
+      ...metadata,
+      recordedAt: new Date().toISOString(),
+    },
+  });
+}
+
+/**
+ * 记录收藏夹行为
+ */
+export async function recordCollectionBehavior(
+  userId: string,
+  behaviorType: 'collection_create' | 'collection_delete' | 'collection_item_add' | 'collection_item_remove',
+  collectionId: string,
+  itemId?: string,
+  metadata?: Record<string, any>
+): Promise<void> {
+  await recordBehavior({
+    userId,
+    behaviorType,
+    targetType: 'user',
+    targetId: collectionId,
+    metadata: {
+      itemId,
+      ...metadata,
+      recordedAt: new Date().toISOString(),
+    },
+  });
+}
+
 // 导出服务实例
 export const behaviorAnalysisService = {
   recordBehavior,
   recordBehaviors,
+  recordSocialBehavior,
+  recordWorkInteraction,
+  recordSearchBehavior,
+  recordPageView,
+  recordCreationBehavior,
+  recordEventParticipation,
+  recordContentClick,
+  recordAuthBehavior,
+  recordCheckin,
+  recordPointsBehavior,
+  recordTemplateBehavior,
+  recordGameBehavior,
+  recordChatBehavior,
+  recordNotificationBehavior,
+  recordShareBehavior,
+  recordSettingsBehavior,
+  recordPaymentBehavior,
+  recordMembershipBehavior,
+  recordCollectionBehavior,
   analyzeUserBehavior,
   getUserCreativeProfile,
   getPersonalizedSuggestions,

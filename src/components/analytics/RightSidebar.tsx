@@ -61,7 +61,10 @@ export default function RightSidebar({ onExport }: RightSidebarProps) {
     loadRankingData();
   }, []);
 
-  const formatNumber = (num: number) => {
+  const formatNumber = (num: number | undefined | null) => {
+    if (num === undefined || num === null) {
+      return '0';
+    }
     return num.toLocaleString('zh-CN');
   };
 

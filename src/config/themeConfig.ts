@@ -1,7 +1,7 @@
 // src/config/themeConfig.ts
 
 // 主题类型定义
-export type Theme = 'light' | 'blue' | 'green' | 'pixel' | 'dark' | 'pink' | 'tianjin';
+export type Theme = 'light' | 'blue' | 'green' | 'pixel' | 'dark' | 'tianjin';
 
 // 自定义主题接口
 export interface CustomTheme {
@@ -160,6 +160,9 @@ export const defaultTheme: Theme = 'light';
 
 // 主题切换顺序
 export const themeOrder: Theme[] = ['light', 'dark', 'blue', 'green', 'pixel', 'tianjin'];
+
+// 有效的主题列表（用于验证）
+export const validThemes: Theme[] = ['light', 'dark', 'blue', 'green', 'pixel', 'tianjin'];
 
 // 检测系统主题偏好
 export const getSystemTheme = (): 'light' | 'dark' => {

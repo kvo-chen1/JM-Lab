@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { Notification } from '@/services/communityService';
 import { communityService } from '@/services/communityService';
 
@@ -16,6 +17,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
   isDark,
   userId
 }) => {
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -67,6 +69,44 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
       setNotifications(prev => prev.filter(n => n.id !== notificationId));
     } catch (err) {
       console.error('删除通知失败:', err);
+    }
+  };
+
+  // 处理通知点击
+  const handleNotificationClick = async (notification: Notification) => {
+    // 标记为已读
+    if (!notification.isRead) {
+      await markAsRead(notification.id);
+    }
+    
+    // 如果有跳转链接，则跳转
+    if (notification.link) {
+      navigate(notification.link);
+      onClose();
+    } else if (notification.relatedId) {
+      // 根据类型生成默认跳转链接
+      let targetUrl = '';
+      switch (notification.type) {
+        case 'post_like':
+        case 'post_comment':
+        case 'comment_reply':
+          targetUrl = `/community/post/${notification.relatedId}`;
+          break;
+        case 'community_join':
+        case 'community_announcement':
+          targetUrl = `/community/${notification.relatedId}`;
+          break;
+        case 'friend_request':
+          targetUrl = '/friends';
+          break;
+        case 'message':
+          targetUrl = '/messages';
+          break;
+      }
+      if (targetUrl) {
+        navigate(targetUrl);
+        onClose();
+      }
     }
   };
 
@@ -138,7 +178,8 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 20 }}
-                className={`p-4 hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors ${!notification.isRead ? (isDark ? 'bg-gray-750/50' : 'bg-blue-50/30') : ''}`}
+                onClick={() => handleNotificationClick(notification)}
+                className={`p-4 hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors cursor-pointer ${!notification.isRead ? (isDark ? 'bg-gray-750/50' : 'bg-blue-50/30') : ''}`}
               >
                 <div className="flex items-start space-x-3">
                   {/* Icon */}
@@ -159,7 +200,10 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
                         {notification.title}
                       </h4>
                       <button
-                        onClick={() => deleteNotification(notification.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteNotification(notification.id);
+                        }}
                         className={`text-xs ${isDark ? 'text-gray-400 hover:text-gray-300' : 'text-gray-500 hover:text-gray-700'}`}
                       >
                         <i className="fas fa-trash-alt"></i>
@@ -174,7 +218,10 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
                       </span>
                       {!notification.isRead && (
                         <button
-                          onClick={() => markAsRead(notification.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            markAsRead(notification.id);
+                          }}
                           className={`text-xs ${isDark ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-700'}`}
                         >
                           标记已读

@@ -8,6 +8,10 @@ import {
   organizerSettingsService,
   OrganizerSettings as OrganizerSettingsType,
   OrganizerRole,
+  EmailNotificationSettings,
+  SmsNotificationSettings,
+  SecuritySettings as SecuritySettingsType,
+  DataManagementSettings as DataManagementSettingsType,
 } from '@/services/organizerSettingsService';
 import {
   Settings,
@@ -103,7 +107,7 @@ export default function OrganizerSettings() {
   }, [user]);
 
   // 处理设置变更
-  const handleSettingsChange = useCallback((updates: Partial<OrganizerSettings>) => {
+  const handleSettingsChange = useCallback((updates: Partial<OrganizerSettingsType>) => {
     setSettings(prev => prev ? { ...prev, ...updates } : null);
     setHasChanges(true);
   }, []);
@@ -584,7 +588,7 @@ function NotificationSettings({
   onChange: (updates: Partial<OrganizerSettingsType>) => void;
   isDark: boolean;
 }) {
-  const notificationItems = [
+  const notificationItems: { key: keyof EmailNotificationSettings; label: string; description: string; icon: any }[] = [
     { key: 'newSubmission', label: '新作品提交', description: '当有用户提交作品时通知我', icon: Upload },
     { key: 'statusChange', label: '审核状态变更', description: '活动或作品审核状态变更时通知', icon: RefreshCw },
     { key: 'dailyDigest', label: '每日摘要', description: '每天发送活动数据摘要', icon: Mail },
@@ -593,12 +597,12 @@ function NotificationSettings({
     { key: 'securityAlerts', label: '安全提醒', description: '账号安全相关的重要提醒', icon: Shield },
   ];
 
-  const toggleEmailNotification = (key: string) => {
-    const current = settings?.notifications?.email || {};
+  const toggleEmailNotification = (key: keyof EmailNotificationSettings) => {
+    const current = settings?.notifications?.email || {} as EmailNotificationSettings;
     onChange({
       notifications: {
         ...settings?.notifications,
-        email: { ...current, [key]: !current[key as keyof typeof current] },
+        email: { ...current, [key]: !current[key] },
       },
     });
   };
@@ -675,7 +679,7 @@ function NotificationSettings({
             onClick={() => onChange({
               notifications: {
                 ...settings?.notifications,
-                sms: { ...settings?.notifications?.sms, enabled: !settings?.notifications?.sms?.enabled },
+                sms: { ...(settings?.notifications?.sms || {} as SmsNotificationSettings), enabled: !(settings?.notifications?.sms?.enabled ?? false) },
               },
             })}
             className={`relative w-14 h-7 rounded-full transition-colors ${
@@ -724,7 +728,7 @@ function SecuritySettings({
         </div>
         <button
           onClick={() => onChange({
-            security: { ...settings?.security, twoFactorEnabled: !settings?.security?.twoFactorEnabled },
+            security: { ...(settings?.security || {} as SecuritySettingsType), twoFactorEnabled: !(settings?.security?.twoFactorEnabled ?? false) },
           })}
           className={`relative w-14 h-7 rounded-full transition-colors ${
             settings?.security?.twoFactorEnabled ? 'bg-blue-500' : isDark ? 'bg-gray-600' : 'bg-gray-300'
@@ -751,7 +755,7 @@ function SecuritySettings({
         </div>
         <button
           onClick={() => onChange({
-            security: { ...settings?.security, loginNotification: !settings?.security?.loginNotification },
+            security: { ...(settings?.security || {} as SecuritySettingsType), loginNotification: !(settings?.security?.loginNotification ?? false) },
           })}
           className={`relative w-14 h-7 rounded-full transition-colors ${
             settings?.security?.loginNotification ? 'bg-blue-500' : isDark ? 'bg-gray-600' : 'bg-gray-300'
@@ -780,7 +784,7 @@ function SecuritySettings({
           max="120"
           value={settings?.security?.sessionTimeout || 30}
           onChange={(e) => onChange({
-            security: { ...settings?.security, sessionTimeout: parseInt(e.target.value) },
+            security: { ...(settings?.security || {} as SecuritySettingsType), sessionTimeout: parseInt(e.target.value) },
           })}
           className="w-full"
         />
@@ -1081,7 +1085,7 @@ function DataManagementSettings({
           </div>
           <button
             onClick={() => onChange({
-              dataManagement: { ...settings?.dataManagement, autoBackup: !settings?.dataManagement?.autoBackup },
+              dataManagement: { ...(settings?.dataManagement || {} as DataManagementSettingsType), autoBackup: !(settings?.dataManagement?.autoBackup ?? false) },
             })}
             className={`relative w-14 h-7 rounded-full transition-colors ${
               settings?.dataManagement?.autoBackup ? 'bg-blue-500' : isDark ? 'bg-gray-600' : 'bg-gray-300'

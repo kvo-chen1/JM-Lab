@@ -1114,14 +1114,64 @@ class EventService extends ApiService {
     status: 'pending' | 'approved' | 'rejected';
     submissionCount: number;
   }>> {
-    return this.get<Array<{
-      userId: string;
-      username: string;
-      avatar: string;
-      registrationDate: string;
-      status: 'pending' | 'approved' | 'rejected';
-      submissionCount: number;
-    }>>(`/api/events/${eventId}/participants`, params);
+    // 直接使用 Supabase 查询
+    try {
+      const { data: participants, error } = await supabase
+        .from('event_participants')
+        .select(`
+          id,
+          user_id,
+          status,
+          created_at
+        `)
+        .eq('event_id', eventId);
+      
+      if (error) {
+        console.error('[getEventParticipants] Supabase error:', error);
+        // 回退到 API 调用
+        return this.get<Array<{
+          userId: string;
+          username: string;
+          avatar: string;
+          registrationDate: string;
+          status: 'pending' | 'approved' | 'rejected';
+          submissionCount: number;
+        }>>(`/api/events/${eventId}/participants`, params);
+      }
+      
+      // 获取用户信息
+      const userIds = [...new Set((participants || []).map((p: any) => p.user_id))];
+      const { data: users } = await supabase
+        .from('users')
+        .select('id, username, avatar_url')
+        .in('id', userIds.length > 0 ? userIds : ['']);
+      
+      const userMap = new Map(users?.map((u: any) => [u.id, { username: u.username, avatar: u.avatar_url }]) || []);
+
+      // 转换数据格式
+      return (participants || []).map((p: any) => {
+        const user = userMap.get(p.user_id);
+        return {
+          userId: p.user_id,
+          username: user?.username || '未知用户',
+          avatar: user?.avatar || '',
+          registrationDate: new Date(p.created_at).toISOString(),
+          status: p.status === 'completed' ? 'approved' : p.status,
+          submissionCount: 0
+        };
+      });
+    } catch (err) {
+      console.error('[getEventParticipants] Error:', err);
+      // 回退到 API 调用
+      return this.get<Array<{
+        userId: string;
+        username: string;
+        avatar: string;
+        registrationDate: string;
+        status: 'pending' | 'approved' | 'rejected';
+        submissionCount: number;
+      }>>(`/api/events/${eventId}/participants`, params);
+    }
   }
 
   /**

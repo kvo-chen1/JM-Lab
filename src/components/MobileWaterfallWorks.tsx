@@ -192,11 +192,10 @@ export const MobileWaterfallWorks: React.FC<MobileWaterfallWorksProps> = ({
     }
   }, [isRefreshing, pullDistance, isPulling, onRefresh]);
 
+  // 固定为2列瀑布流布局（移动端）
   const columnsCount = useMemo(() => {
-    if (width < 480) return 2;
-    if (width < 768) return 3;
-    return 4;
-  }, [width]);
+    return 2;
+  }, []);
 
   // 手动计算瀑布流列数据
   const columns = useMemo(() => {
@@ -335,9 +334,10 @@ export const MobileWaterfallWorks: React.FC<MobileWaterfallWorksProps> = ({
         </motion.div>
       )}
 
-      <div className="flex gap-3 pb-20">
+      {/* 瀑布流布局 - 2列，紧凑间距 */}
+      <div className="flex gap-2 pb-20 px-2">
         {columns.map((col, ci) => (
-          <div key={ci} className="flex-1 flex flex-col gap-3">
+          <div key={ci} className="flex-1 flex flex-col gap-2">
             {col.map((work, wi) => {
               const ratio = work.aspectRatio || getRandomAspectRatio(work.id);
               // Calculate global index for priority loading logic
@@ -402,14 +402,15 @@ export const MobileWaterfallWorks: React.FC<MobileWaterfallWorksProps> = ({
                     </motion.div>
                   </div>
                   
+                  {/* 卡片信息区 - 更紧凑 */}
                   <motion.div 
-                    className="p-3"
+                    className="p-2"
                     initial={{ y: 0 }}
-                    whileHover={{ y: -6 }}
+                    whileHover={{ y: -4 }}
                     transition={{ duration: 0.3, ease: "easeOut" }}
                   >
                     <motion.h3 
-                      className="text-sm font-bold text-gray-900 dark:text-gray-100 leading-snug mb-2 line-clamp-2"
+                      className="text-xs font-semibold text-gray-900 dark:text-gray-100 leading-snug mb-1.5 line-clamp-2"
                       whileHover={{ color: isDark ? '#ffffff' : '#1f2937' }}
                       transition={{ duration: 0.3, ease: "easeOut" }}
                     >
@@ -421,9 +422,9 @@ export const MobileWaterfallWorks: React.FC<MobileWaterfallWorksProps> = ({
                       whileHover={{ opacity: 1 }}
                       transition={{ duration: 0.3, ease: "easeOut" }}
                     >
-                      <div className="flex items-center gap-2 min-w-0">
+                      <div className="flex items-center gap-1.5 min-w-0">
                         <motion.div 
-                          className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0 border-2 border-white dark:border-gray-700 shadow-sm cursor-pointer"
+                          className="w-5 h-5 rounded-full overflow-hidden flex-shrink-0 border border-white dark:border-gray-700 shadow-sm cursor-pointer"
                           whileHover={{ scale: 1.1, rotate: 5 }}
                           transition={{ duration: 0.3, ease: "easeOut" }}
                           onClick={(e) => work?.creator && handleCreatorClick(e, work.creator)}
@@ -436,7 +437,7 @@ export const MobileWaterfallWorks: React.FC<MobileWaterfallWorksProps> = ({
                           />
                         </motion.div>
                         <motion.span 
-                          className="text-xs text-gray-500 dark:text-gray-400 truncate cursor-pointer"
+                          className="text-[10px] text-gray-500 dark:text-gray-400 truncate cursor-pointer"
                           onClick={(e) => work?.creator && handleCreatorClick(e, work.creator)}
                         >
                           {work?.creator || '未知创作者'}
@@ -447,13 +448,13 @@ export const MobileWaterfallWorks: React.FC<MobileWaterfallWorksProps> = ({
                           e.stopPropagation();
                           handleShare(work);
                         }}
-                        className={`w-8 h-8 flex items-center justify-center rounded-full transition-all ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} text-gray-500 hover:text-gray-800 dark:hover:text-gray-100`}
+                        className={`w-6 h-6 flex items-center justify-center rounded-full transition-all ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} text-gray-500 hover:text-gray-800 dark:hover:text-gray-100`}
                         title="分享作品"
-                        whileHover={{ scale: 1.2, rotate: 15, backgroundColor: isDark ? '#4b5563' : '#f3f4f6' }}
+                        whileHover={{ scale: 1.15, rotate: 15, backgroundColor: isDark ? '#4b5563' : '#f3f4f6' }}
                         whileTap={{ scale: 0.9 }}
                         transition={{ duration: 0.2, ease: "easeOut" }}
                       >
-                        <i className="fas fa-share-alt text-xs"></i>
+                        <i className="fas fa-share-alt text-[10px]"></i>
                       </motion.button>
                     </motion.div>
                   </motion.div>

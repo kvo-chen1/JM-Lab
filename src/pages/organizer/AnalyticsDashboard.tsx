@@ -12,6 +12,7 @@ import organizerAnalyticsService, {
   Activity,
   EventSummary,
 } from '@/services/organizerAnalyticsService';
+import { eventParticipationService } from '@/services/eventParticipationService';
 import { StatCard } from './components/StatCard';
 import { TrendChart } from './components/TrendChart';
 import { DistributionChart } from './components/DistributionChart';
@@ -137,7 +138,7 @@ export default function AnalyticsDashboard() {
   }, [loadData]);
 
   // 格式化数字
-  const formatNumber = (num: number) => {
+  const formatNumber = (num: number | undefined | null) => {
     return organizerAnalyticsService.formatNumber(num);
   };
 
@@ -254,8 +255,8 @@ export default function AnalyticsDashboard() {
           loading={isLoading}
         />
         <StatCard
-          title="总浏览量"
-          value={formatNumber(stats?.totalViews || 0)}
+          title="总投票数"
+          value={formatNumber(stats?.totalVotes || 0)}
           icon={Eye}
           color="green"
           loading={isLoading}
@@ -291,24 +292,10 @@ export default function AnalyticsDashboard() {
           loading={isLoading}
         />
         <StatCard
-          title="已发布作品"
-          value={stats?.publishedWorks || 0}
-          icon={CheckCircle}
-          color="cyan"
-          loading={isLoading}
-        />
-        <StatCard
           title="待审核作品"
           value={stats?.pendingReview || 0}
           icon={Clock}
           color="orange"
-          loading={isLoading}
-        />
-        <StatCard
-          title="总评论数"
-          value={formatNumber(stats?.totalComments || 0)}
-          icon={MessageCircle}
-          color="purple"
           loading={isLoading}
         />
       </motion.div>

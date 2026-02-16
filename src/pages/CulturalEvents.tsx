@@ -96,15 +96,35 @@ export default function CulturalEvents() {
     activeFiltersCount,
   } = useEventFilters();
 
-  // 辅助函数：将 snake_case 转换为 camelCase
+  // 辅助函数：将 snake_case 转换为 camelCase，并将时间戳转换为 Date
   const toCamelCase = (obj: any): any => {
     if (Array.isArray(obj)) {
       return obj.map(toCamelCase);
     }
     if (obj !== null && typeof obj === 'object') {
       return Object.keys(obj).reduce((acc, key) => {
-        const camelKey = key.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
-        acc[camelKey] = toCamelCase(obj[key]);
+        let camelKey = key.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+        let value = obj[key];
+
+        // 字段名映射：将数据库字段名映射为前端类型定义的字段名
+        const fieldMapping: Record<string, string> = {
+          'startDate': 'startTime',
+          'endDate': 'endTime',
+        };
+        if (fieldMapping[camelKey]) {
+          camelKey = fieldMapping[camelKey];
+        }
+
+        // 将 bigint 时间戳转换为 Date 对象
+        // 处理 startTime, endTime, createdAt, updated_at 等时间字段
+        // 注意：API 返回的时间戳可能是字符串类型，需要转换为数字
+        const timeFields = ['startTime', 'endTime', 'createdAt', 'updatedAt', 'publishedAt', 'registrationDeadline', 'reviewStartDate', 'resultDate'];
+        if (timeFields.includes(camelKey) && (typeof value === 'number' || (typeof value === 'string' && /^\d+$/.test(value)))) {
+          const numValue = typeof value === 'string' ? parseInt(value, 10) : value;
+          value = new Date(numValue);
+        }
+
+        acc[camelKey] = toCamelCase(value);
         return acc;
       }, {} as any);
     }
@@ -123,8 +143,8 @@ export default function CulturalEvents() {
           ? allEvents
               .map(toCamelCase)
               .filter((event) => {
-                console.log('[CulturalEvents] Checking event:', event?.title, 'status:', event?.status);
-                return event && event.status === 'published';
+                console.log('[CulturalEvents] Checking event:', event?.title, 'status:', event?.status, 'raw:', event);
+                return event && (event.status === 'published' || event.status === 'completed');
               })
           : [];
         console.log('[CulturalEvents] Published events:', publishedEvents.length);
@@ -164,7 +184,7 @@ export default function CulturalEvents() {
       }
 
       try {
-        const stats = await eventParticipationService.getUserParticipationStats(user.id);
+        const stats = await eventParticipationService.getUserActivityStats(user.id);
         setUserActivityStats(stats);
       } catch (error) {
         console.error('加载用户活动统计失败:', error);
@@ -232,6 +252,15 @@ export default function CulturalEvents() {
   const handleCreateEvent = useCallback(() => {
     navigate('/create');
   }, [navigate]);
+
+  // 处理活动点击（从 eventId 查找 event 对象）
+  const handleEventClickById = useCallback((eventId: string) => {
+    const event = events.find(e => e.id === eventId);
+    if (event) {
+      setSelectedEvent(event);
+      setIsDetailModalOpen(true);
+    }
+  }, [events]);
 
   return (
     <main className={`min-h-screen ${isDark ? 'bg-gray-950' : 'bg-gray-50'}`}>
@@ -348,6 +377,7 @@ export default function CulturalEvents() {
                   completedCount: userActivityStats.completed,
                 } : undefined}
                 recommendedCreators={recommendedCreators}
+                onEventClick={handleEventClickById}
               />
             </div>
           </div>

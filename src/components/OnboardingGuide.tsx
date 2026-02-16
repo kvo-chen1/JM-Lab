@@ -5,91 +5,127 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useGuide } from '@/contexts/GuideContext';
 
-// 步骤配置 - 保持原有的10步结构
+// 步骤配置 - 14步引导流程
 const STEPS = [
-  { 
-    title: '欢迎加入 AI 共创平台', 
-    desc: '我们将带你快速了解平台核心功能，开启你的创作之旅。', 
+  {
+    title: '欢迎加入 AI 共创平台',
+    desc: '我们将带你快速了解平台核心功能，开启你的创作之旅。',
     icon: 'rocket',
     targetPath: '/dashboard',
     primaryText: '开始探索',
     targetId: null
   },
-  { 
-    title: '一键开始创作', 
-    desc: '点击这里的"开始创作"按钮，即可进入创作工坊，使用强大的 AI 工具生成您的专属作品。', 
+  {
+    title: '一键开始创作',
+    desc: '点击这里的"开始创作"按钮，即可进入创作工坊，使用强大的 AI 工具生成您的专属作品。',
     icon: 'magic',
     targetPath: '/dashboard',
-    primaryText: '去试试',
+    primaryText: '下一步',
     targetId: 'guide-step-dashboard-create',
     placement: 'bottom'
   },
-  { 
-    title: '丰富的创作工具', 
-    desc: '在这里切换不同的创作模式：设计工坊、作品之心、品牌向导等，满足各种创作需求。', 
-    icon: 'palette',
-    targetPath: '/create',
+  {
+    title: '数据概览',
+    desc: '这里展示了您的作品数据：浏览量、获赞数、作品总数，帮助您了解创作影响力。',
+    icon: 'chart-bar',
+    targetPath: '/dashboard',
     primaryText: '下一步',
-    targetId: 'guide-step-create-nav',
+    targetId: 'guide-step-dashboard-stats',
     placement: 'bottom'
   },
-  { 
-    title: '强大的工具箱', 
-    desc: '左侧工具栏提供了各种专业设计工具，点击即可切换，助您高效创作。', 
-    icon: 'tools',
+  {
+    title: '最近作品',
+    desc: '查看您最近创作的作品，点击可查看详情或继续编辑。',
+    icon: 'image',
+    targetPath: '/dashboard',
+    primaryText: '下一步',
+    targetId: 'guide-step-dashboard-works',
+    placement: 'top'
+  },
+  {
+    title: '每日签到',
+    desc: '每天签到可获得积分奖励，连续签到还有额外惊喜！积分可用于解锁更多功能。',
+    icon: 'gift',
+    targetPath: '/dashboard',
+    primaryText: '下一步',
+    targetId: 'guide-step-dashboard-checkin',
+    placement: 'right'
+  },
+  {
+    title: '快捷操作',
+    desc: '快速访问您的收藏、点赞、草稿箱和好友，提高使用效率。',
+    icon: 'th-large',
+    targetPath: '/dashboard',
+    primaryText: '下一步',
+    targetId: 'guide-step-dashboard-quick-actions',
+    placement: 'left'
+  },
+  {
+    title: '热门话题',
+    desc: '关注热门话题，发现创作灵感，让您的作品更容易被看到。',
+    icon: 'fire',
+    targetPath: '/dashboard',
+    primaryText: '去创作',
+    targetId: 'guide-step-dashboard-topics',
+    placement: 'left'
+  },
+  {
+    title: '丰富的创作工具',
+    desc: '左侧工具栏提供了各种专业设计工具：AI草图、智能增强、风格实验室等，点击即可切换，满足各种创作需求。',
+    icon: 'palette',
     targetPath: '/create',
     primaryText: '下一步',
     targetId: 'guide-step-create-sidebar',
     placement: 'right'
   },
-  { 
-    title: '创意画布', 
-    desc: '这是您的主要工作区域，您的所有创意都将在这里实时呈现。', 
+  {
+    title: '创意画布',
+    desc: '这是您的主要工作区域，您的所有创意都将在这里实时呈现。',
     icon: 'paint-brush',
     targetPath: '/create',
     primaryText: '下一步',
     targetId: 'guide-step-create-canvas',
     placement: 'center'
   },
-  { 
-    title: '参数配置', 
-    desc: '在右侧属性面板，您可以调整当前工具的各项参数，精细化打磨您的设计。', 
+  {
+    title: '参数配置',
+    desc: '在右侧属性面板，您可以调整当前工具的各项参数，精细化打磨您的设计。',
     icon: 'sliders-h',
     targetPath: '/create',
     primaryText: '去探索',
     targetId: 'guide-step-create-properties',
     placement: 'left'
   },
-  { 
-    title: '发现灵感', 
-    desc: '在津脉广场，您可以搜索感兴趣的内容，或从热门标签中寻找创作灵感。', 
+  {
+    title: '发现灵感',
+    desc: '在津脉广场，您可以搜索感兴趣的内容，或从热门标签中寻找创作灵感。',
     icon: 'search',
     targetPath: '/square',
     primaryText: '下一步',
     targetId: 'guide-step-explore-search',
     placement: 'bottom'
   },
-  { 
-    title: '热门标签', 
-    desc: '点击热门标签，快速筛选出特定风格的优秀作品，发现更多精彩。', 
+  {
+    title: '热门标签',
+    desc: '点击热门标签，快速筛选出特定风格的优秀作品，发现更多精彩。',
     icon: 'tags',
     targetPath: '/square',
     primaryText: '看报表',
     targetId: 'guide-step-explore-tags',
     placement: 'bottom'
   },
-  { 
-    title: '数据洞察', 
-    desc: '这里展示了您的核心数据图表。您可以直观地看到作品的浏览量、点赞趋势等，助您优化创作方向。', 
+  {
+    title: '数据洞察',
+    desc: '这里展示了您的核心数据图表。您可以直观地看到作品的浏览量、点赞趋势等，助您优化创作方向。',
     icon: 'chart-line',
     targetPath: '/analytics',
-    primaryText: '看报表',
+    primaryText: '下一步',
     targetId: 'guide-step-analytics-chart',
     placement: 'top'
   },
-  { 
-    title: '个性化设置', 
-    desc: '在这里可以切换主题颜色、开启深色模式，打造您最舒适的创作环境。', 
+  {
+    title: '个性化设置',
+    desc: '在这里可以切换主题颜色、开启深色模式，打造您最舒适的创作环境。',
     icon: 'cog',
     targetPath: '/settings',
     primaryText: '完成',

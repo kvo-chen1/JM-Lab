@@ -34,6 +34,7 @@ interface UseDraftWithFilesReturn<T> {
   isSaving: boolean;
   isUploading: boolean;
   saveNow: () => Promise<void>;
+  saveWithData: (data: T, files: File[]) => Promise<void>;
   clearDraft: () => Promise<void>;
   hasDraft: boolean;
   loadDraft: () => Promise<{ formData: T; files: File[] } | null>;
@@ -202,97 +203,93 @@ export function useDraftWithFiles<T extends Record<string, any>>({
     }
   }, []);
 
+  // 使用 ref 来避免闭包问题
+  const isSavingRef = useRef(isSaving);
+  useEffect(() => {
+    isSavingRef.current = isSaving;
+  }, [isSaving]);
+
   /**
-   * 执行保存草稿
+   * 执行保存草稿（简化版 - 只保存到 localStorage）
    */
   const executeSave = useCallback(async () => {
-    if (!enabled || isSaving || !userId) {
-      // 确保如果提前返回，isSaving 不会被卡住
-      if (isMountedRef.current) {
-        setIsSaving(false);
-      }
+    console.log('[useDraftWithFiles] executeSave 被调用，enabled:', enabled, 'isSaving:', isSavingRef.current, 'userId:', userId);
+    
+    if (!enabled || !userId) {
+      console.log('[useDraftWithFiles] 保存被跳过，条件不满足');
       return;
     }
 
+    // 如果正在保存，先重置状态
+    if (isSavingRef.current) {
+      console.log('[useDraftWithFiles] 重置 isSaving 状态');
+      isSavingRef.current = false;
+    }
+    
     setIsSaving(true);
+    isSavingRef.current = true;
 
     try {
-      // 1. 上传新文件
-      const newFiles = filesRef.current.filter(file => 
-        !uploadedFilesRef.current.some(
-          uploaded => uploaded.name === file.name && 
-                     uploaded.size === file.size && 
-                     uploaded.lastModified === file.lastModified
-        )
-      );
-
-      if (newFiles.length > 0) {
-        const uploaded = await uploadFiles(newFiles);
-        uploadedFilesRef.current = [...uploadedFilesRef.current, ...uploaded];
-      }
-
-      // 2. 清理已删除的文件（添加错误处理）
-      try {
-        const currentFileNames = filesRef.current.map(f => f.name);
-        const filesToDelete = uploadedFilesRef.current.filter(
-          uploaded => !currentFileNames.includes(uploaded.name)
-        );
-
-        if (filesToDelete.length > 0) {
-          // 检查 bucket 是否存在
-          const { error: bucketError } = await supabase.storage.getBucket('draft-files');
-          if (!bucketError) {
-            for (const fileToDelete of filesToDelete) {
-              try {
-                await supabase.storage
-                  .from('draft-files')
-                  .remove([fileToDelete.path]);
-              } catch (removeError) {
-                console.warn('删除文件失败:', removeError);
-              }
-            }
-          }
-        }
-
-        uploadedFilesRef.current = uploadedFilesRef.current.filter(
-          uploaded => currentFileNames.includes(uploaded.name)
-        );
-      } catch (cleanupError) {
-        console.warn('清理文件时出错:', cleanupError);
-      }
-
-      // 3. 保存草稿数据到 localStorage
-      const draftData: DraftData<T> = {
+      // 简化：直接保存草稿数据到 localStorage
+      const draftData = {
         formData: formDataRef.current,
-        files: uploadedFilesRef.current,
         savedAt: new Date().toISOString()
       };
 
       if (typeof window !== 'undefined') {
         localStorage.setItem(`draft_${key}`, JSON.stringify(draftData));
+        console.log('[useDraftWithFiles] 草稿已保存到 localStorage');
       }
 
-      if (isMountedRef.current) {
-        setLastSavedAt(new Date());
-        setHasDraft(true);
-      }
+      setLastSavedAt(new Date());
+      setHasDraft(true);
     } catch (error) {
       console.error('保存草稿失败:', error);
     } finally {
-      if (isMountedRef.current) {
-        setIsSaving(false);
-      }
+      setIsSaving(false);
+      isSavingRef.current = false;
     }
-  }, [enabled, isSaving, userId, key, uploadFiles]);
+  }, [enabled, userId, key]);
 
   /**
-   * 立即保存
+   * 立即保存（使用当前状态）
    */
   const saveNow = useCallback(async () => {
     if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current);
+      clearInterval(saveTimeoutRef.current);
     }
     await executeSave();
+  }, [executeSave]);
+
+  /**
+   * 保存指定数据
+   */
+  const saveWithData = useCallback(async (data: T, fileList: File[]) => {
+    if (saveTimeoutRef.current) {
+      clearInterval(saveTimeoutRef.current);
+    }
+    
+    // 更新引用
+    formDataRef.current = data;
+    filesRef.current = fileList;
+    
+    // 强制重置 isSaving 状态，避免卡住
+    if (isSavingRef.current) {
+      console.log('[useDraftWithFiles] 重置 isSaving 状态');
+      isSavingRef.current = false;
+      setIsSaving(false);
+    }
+    
+    try {
+      await executeSave();
+    } catch (error) {
+      console.error('[useDraftWithFiles] saveWithData 失败:', error);
+      // 确保 isSaving 被重置
+      if (isMountedRef.current) {
+        setIsSaving(false);
+      }
+      throw error;
+    }
   }, [executeSave]);
 
   /**
@@ -302,32 +299,26 @@ export function useDraftWithFiles<T extends Record<string, any>>({
     if (typeof window === 'undefined') return null;
 
     try {
-      const draftData = localStorage.getItem(`draft_${key}`);
-      if (!draftData) return null;
-
-      const parsed: DraftData<T> = JSON.parse(draftData);
-
-      // 下载所有文件
-      const files: File[] = [];
-      for (const draftFile of parsed.files) {
-        const file = await downloadFile(draftFile);
-        if (file) {
-          files.push(file);
-        }
+      const draftKey = `draft_${key}`;
+      
+      const draftData = localStorage.getItem(draftKey);
+      
+      if (!draftData) {
+        return null;
       }
 
-      // 更新已上传文件列表
-      uploadedFilesRef.current = parsed.files;
-
+      const parsed = JSON.parse(draftData);
+      
+      // 简化版：只返回 formData，文件不处理
       return {
         formData: parsed.formData,
-        files
+        files: []
       };
     } catch (error) {
-      console.error('加载草稿失败:', error);
+      console.error('[useDraftWithFiles] 加载草稿失败:', error);
       return null;
     }
-  }, [key, downloadFile]);
+  }, [key]);
 
   /**
    * 清除草稿
@@ -361,43 +352,38 @@ export function useDraftWithFiles<T extends Record<string, any>>({
     }
   }, [key, userId]);
 
-  // 自动保存定时器
-  useEffect(() => {
-    if (!enabled) return;
+  // 自动保存定时器（已禁用，避免 isSaving 卡住问题）
+  // useEffect(() => {
+  //   if (!enabled) return;
+  //   saveTimeoutRef.current = setInterval(() => {
+  //     executeSave();
+  //   }, interval);
+  //   return () => {
+  //     if (saveTimeoutRef.current) {
+  //       clearInterval(saveTimeoutRef.current);
+  //     }
+  //   };
+  // }, [enabled, interval, executeSave]);
 
-    if (saveTimeoutRef.current) {
-      clearInterval(saveTimeoutRef.current);
-    }
-
-    saveTimeoutRef.current = setInterval(() => {
-      executeSave();
-    }, interval);
-
-    return () => {
-      if (saveTimeoutRef.current) {
-        clearInterval(saveTimeoutRef.current);
-      }
-    };
-  }, [enabled, interval, executeSave]);
-
-  // 组件卸载时保存
-  useEffect(() => {
-    return () => {
-      isMountedRef.current = false;
-      if (saveTimeoutRef.current) {
-        clearInterval(saveTimeoutRef.current);
-      }
-      if (enabled) {
-        executeSave();
-      }
-    };
-  }, [enabled, executeSave]);
+  // 组件卸载时保存（已禁用）
+  // useEffect(() => {
+  //   return () => {
+  //     isMountedRef.current = false;
+  //     if (saveTimeoutRef.current) {
+  //       clearInterval(saveTimeoutRef.current);
+  //     }
+  //     if (enabled) {
+  //       executeSave();
+  //     }
+  //   };
+  // }, [enabled, executeSave]);
 
   return {
     lastSavedAt,
     isSaving,
     isUploading,
     saveNow,
+    saveWithData,
     clearDraft,
     hasDraft,
     loadDraft,

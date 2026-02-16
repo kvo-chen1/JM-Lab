@@ -693,17 +693,17 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
 
 
 
-  // 中文注释：暗色主题下的导航项悬停时变白，背景使用透明度白色
+  // 中文注释：暗色主题下的导航项悬停效果优化，使用蓝色主题
   // 统一导航项高度和内边距，避免激活时布局变化
   // 平板端优化：在平板尺寸(md)下增加垂直内边距(py-3)，提升触摸体验；桌面端(lg)保持原样
   const navItemClass = useMemo(() => (
-    `${isDark ? 'hover:text-white hover:bg-gray-800/60 text-[13px]' : 'hover:bg-[var(--bg-hover)]'} flex items-center px-3 py-2 md:py-3 lg:py-2 rounded-lg transition-all duration-200`
+    `${isDark ? 'hover:text-blue-200 hover:bg-blue-800/40 text-[13px]' : 'hover:bg-[var(--bg-hover)]'} flex items-center px-3 py-2 md:py-3 lg:py-2 rounded-lg transition-all duration-200`
   ), [isDark])
 
   // 中文注释：主题激活态使用CSS变量，确保主题变化时样式同步更新
-  // 优化激活状态样式，确保不影响整体布局
+  // 优化激活状态样式，暗色主题使用蓝色渐变
   const activeClass = useMemo(() => (
-    `${isDark ? 'bg-gradient-to-r from-red-900/30 to-transparent text-white border-l-2 border-red-500 font-medium shadow-md' : 'bg-gradient-to-r from-red-50 to-red-100 text-[var(--text-primary)] border-b-2 border-red-600 font-semibold shadow-sm relative overflow-hidden group active-nav-item'} border-t border-transparent`
+    `${isDark ? 'bg-gradient-to-r from-blue-600/30 via-blue-500/15 to-transparent text-blue-300 border-l-2 border-blue-500 font-medium shadow-[0_0_15px_rgba(59,130,246,0.3)]' : 'bg-gradient-to-r from-red-50 to-red-100 text-[var(--text-primary)] border-b-2 border-red-600 font-semibold shadow-sm relative overflow-hidden group active-nav-item'} border-t border-transparent`
   ), [isDark])
 
 
@@ -768,31 +768,31 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
   }
 
   return (
-    <div className={`flex min-h-screen ${isDark ? 'bg-gradient-to-br from-[#0b0e13] via-[#0e1218] to-[#0b0e13] text-gray-100' : theme === 'pink' ? 'bg-gradient-to-br from-[#fff0f5] via-[#ffe4ec] to-[#fff0f5] text-gray-900' : 'bg-white text-gray-900'} ${highContrastClasses} ${motionSafeClasses}`}>
+    <div className={`flex min-h-screen ${isDark ? 'bg-gradient-to-br from-[#030712] via-[#0F172A] to-[#030712] text-gray-100' : theme === 'pink' ? 'bg-gradient-to-br from-[#fff0f5] via-[#ffe4ec] to-[#fff0f5] text-gray-900' : 'bg-white text-gray-900'} ${highContrastClasses} ${motionSafeClasses}`}>
       {/* 仅在桌面端显示侧边栏 */}
-      <aside 
+      <aside
         ref={sidebarRef}
-        className={`hidden md:flex flex-col ${isDark ? 'bg-[#10151d]/95 backdrop-blur-sm border-gray-800' : theme === 'pink' ? 'bg-white/90 backdrop-blur-sm border-pink-200' : 'bg-white border-gray-200'} border-r relative ring-1 z-10 ${isDark ? 'ring-gray-800' : theme === 'pink' ? 'ring-pink-200' : 'ring-gray-200'}`} 
+        className={`hidden md:flex flex-col ${isDark ? 'bg-gradient-to-b from-[#0F172A] via-[#1E3A5F] to-[#0F172A] backdrop-blur-xl border-blue-500/50 shadow-[0_0_20px_rgba(59,130,246,0.15)]' : theme === 'pink' ? 'bg-white/90 backdrop-blur-sm border-pink-200' : 'bg-white border-gray-200'} border-r relative ring-1 z-10 ${isDark ? 'ring-blue-500/30' : theme === 'pink' ? 'ring-pink-200' : 'ring-gray-200'}`}
         style={{ width: collapsed ? 72 : width, transition: 'width 0.2s ease-in-out' }}
         role="navigation"
         aria-label={t('sidebar.navigation')}
       >
-        <div className={`px-4 py-3 flex items-center justify-between rounded-lg transition-colors group ${isDark ? 'hover:bg-gray-800/60' : theme === 'pink' ? 'hover:bg-pink-50' : 'hover:bg-gray-50'}`}>
+        <div className={`px-4 py-3 flex items-center justify-between rounded-lg transition-colors group ${isDark ? 'hover:bg-blue-900/30' : theme === 'pink' ? 'hover:bg-pink-50' : 'hover:bg-gray-50'}`}>
           <div className="flex items-center space-x-2 overflow-hidden">
-            {!collapsed && <span className={`font-extrabold bg-gradient-to-r ${isDark ? 'from-red-400 to-rose-500' : 'from-red-600 to-rose-500'} bg-clip-text text-transparent tracking-tight whitespace-nowrap`}>{t('common.appNameBrand')}</span>}
-            {!collapsed && <span className={`font-bold ${isDark ? 'text-white' : ''} whitespace-nowrap`}>{t('common.appNameProduct')}</span>}
+            {!collapsed && <span className={`font-extrabold bg-gradient-to-r ${isDark ? 'from-blue-400 to-cyan-400' : 'from-red-600 to-rose-500'} bg-clip-text text-transparent tracking-tight whitespace-nowrap`}>{t('common.appNameBrand')}</span>}
+            {!collapsed && <span className={`font-bold ${isDark ? 'text-blue-100' : ''} whitespace-nowrap`}>{t('common.appNameProduct')}</span>}
           </div>
           <div className="flex items-center space-x-1">
             {/* 展开/收缩按钮 */}
             <button
-              className={`p-2 rounded-lg ring-1 transition-all ${isDark ? 'hover:bg-gray-800/70 ring-gray-800 hover:ring-2' : 'hover:bg-gray-100 ring-gray-200 hover:ring-2'} hover:shadow-sm ${!collapsed ? 'ring-blue-500' : ''}`}
+              className={`p-2 rounded-lg ring-1 transition-all ${isDark ? 'hover:bg-blue-800/50 ring-blue-500/50 hover:ring-blue-400 hover:ring-2' : 'hover:bg-gray-100 ring-gray-200 hover:ring-2'} hover:shadow-sm ${!collapsed ? (isDark ? 'ring-blue-500' : 'ring-blue-500') : ''}`}
               onClick={() => {
                 setCollapsed(!collapsed);
               }}
               aria-label={collapsed ? '展开侧边栏' : '收缩侧边栏'}
               title={collapsed ? '展开侧边栏' : '收缩侧边栏'}
             >
-              <i className={`fas ${collapsed ? 'fa-toggle-off' : 'fa-toggle-on text-blue-500'} ${isDark ? 'text-white' : 'text-gray-500'} transition-transform group-hover:scale-110`}></i>
+              <i className={`fas ${collapsed ? 'fa-toggle-off' : `fa-toggle-on ${isDark ? 'text-blue-400' : 'text-blue-500'}`} ${isDark ? 'text-blue-200' : 'text-gray-500'} transition-transform group-hover:scale-110`}></i>
             </button>
 
           </div>
@@ -800,21 +800,21 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
 
         <nav className="px-2 pt-3 pb-4 space-y-3">
           {navigationGroups.map((group) => (
-            <motion.div 
-              key={group.id} 
-              className={`rounded-xl ${isDark ? 'bg-[#1e293b]/60 backdrop-blur-md border border-gray-700/50' : 'bg-gray-50 border border-gray-100'} p-3 transition-all duration-300 hover:shadow-md dark:hover:shadow-lg hover:shadow-gray-100/50 dark:hover:shadow-gray-800/30`}
+            <motion.div
+              key={group.id}
+              className={`rounded-xl ${isDark ? 'bg-blue-900/20 backdrop-blur-md border border-blue-500/30' : 'bg-gray-50 border border-gray-100'} p-3 transition-all duration-300 hover:shadow-md dark:hover:shadow-lg hover:shadow-gray-100/50 dark:hover:shadow-blue-900/30`}
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: getDuration(0.3), delay: getDelay(0.1) }}
             >
               {!collapsed && (
-                <motion.h3 
-                  className={`${isDark ? 'text-[10px] text-gray-300' : 'text-[11px] text-blue-600'} font-semibold mb-2 uppercase tracking-wider flex items-center transition-all duration-300 ease-in-out opacity-100`}
+                <motion.h3
+                  className={`${isDark ? 'text-[10px] text-blue-300' : 'text-[11px] text-blue-600'} font-semibold mb-2 uppercase tracking-wider flex items-center transition-all duration-300 ease-in-out opacity-100`}
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: getDuration(0.2), delay: getDelay(0.1) }}
                 >
-                  <span className="mr-2 w-1.5 h-1.5 rounded-full bg-current animate-pulse"></span>
+                  <span className="mr-2 w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
                   <span className="relative overflow-hidden">
                     <span className="relative z-10">{t(navGroupIdToTranslationKey[group.id] || group.title)}</span>
                     <span className="absolute bottom-0 left-0 w-full h-0.5 bg-current transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left"></span>
@@ -828,7 +828,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                     to={`${item.path}${item.search || ''}`}
                     title={collapsed ? item.label : undefined} 
                     onMouseEnter={() => debouncedPrefetch(item.id)} 
-                    className={({ isActive }) => `${navItemClass} ${isActive ? activeClass : (isDark ? 'text-gray-200' : 'text-gray-700')} relative overflow-hidden group ${collapsed ? 'justify-center px-2 py-2.5' : ''}`}
+                    className={({ isActive }) => `${navItemClass} ${isActive ? activeClass : (isDark ? 'text-[#E2E8F0]' : 'text-gray-700')} relative overflow-hidden group ${collapsed ? 'justify-center px-2 py-2.5' : ''}`}
                     end
                   > 
                     <i className={`fas ${item.icon} ${collapsed ? 'mr-0' : 'mr-3'} transition-all duration-300 group-hover:scale-110 group-hover:rotate-5 text-current`}></i>
@@ -840,8 +840,8 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                       </span>
                     )}
                     {item.badge && (
-                      <span 
-                        className={`ml-auto px-2 py-0.5 text-xs rounded-full ${isDark ? 'bg-red-900/30 text-red-400' : 'bg-red-100 text-red-700'} font-medium`}
+                      <span
+                        className={`ml-auto px-2 py-0.5 text-xs rounded-full ${isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-red-100 text-red-700'} font-medium`}
                       >
                         {item.badge}
                       </span>
@@ -860,7 +860,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
         {!collapsed && (
           <div
             onMouseDown={onMouseDown}
-            className={`absolute top-0 right-0 h-full w-1 cursor-col-resize ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}
+            className={`absolute top-0 right-0 h-full w-1 cursor-col-resize ${isDark ? 'bg-blue-600/50 hover:bg-blue-500' : 'bg-gray-200'}`}
           />
         )}
       </aside>
@@ -876,9 +876,9 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
           }
         }}
       >
-        {/* 中文注释：暗色头部采用半透明背景与毛玻璃，弱化硬边 */}
+        {/* 中文注释：暗色头部采用蓝色渐变背景与毛玻璃 */}
         <motion.header
-          className={`sticky top-0 z-[60] ${isDark ? 'bg-[#10151d]/95 backdrop-blur-sm text-white' : theme === 'pink' ? 'bg-white/80 backdrop-blur-sm' : 'bg-white'} border-b ${isDark ? 'border-gray-700' : theme === 'pink' ? 'border-pink-200' : 'border-gray-200'} px-4 py-3 shadow-sm`}
+          className={`sticky top-0 z-[60] ${isDark ? 'bg-gradient-to-r from-[#0F172A]/98 via-[#1E3A5F]/95 to-[#0F172A]/98 backdrop-blur-xl text-blue-50 shadow-[0_4px_20px_rgba(59,130,246,0.15)]' : theme === 'pink' ? 'bg-white/80 backdrop-blur-sm' : 'bg-white'} border-b ${isDark ? 'border-blue-500/50' : theme === 'pink' ? 'border-pink-200' : 'border-gray-200'} px-4 py-3`}
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: getDuration(0.5), delay: getDelay(0.1) }}
@@ -923,9 +923,9 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
               <motion.div className="relative">
                 <motion.button
                   className={`theme-dropdown-button p-2 rounded-lg transition-all duration-300 flex items-center space-x-1 ${
-                    isDark ? 'bg-gray-800 hover:bg-gray-700 ring-1 ring-gray-700 text-gray-100 hover:ring-gray-600' : 
-                    theme === 'blue' ? 'bg-blue-50 hover:bg-blue-100 ring-1 ring-blue-200 text-blue-800 hover:ring-blue-300' : 
-                    theme === 'green' ? 'bg-green-50 hover:bg-green-100 ring-1 ring-green-200 text-green-800 hover:ring-green-300' : 
+                    isDark ? 'bg-blue-900/50 hover:bg-blue-800/60 ring-1 ring-blue-500/50 text-blue-100 hover:ring-blue-400' :
+                    theme === 'blue' ? 'bg-blue-50 hover:bg-blue-100 ring-1 ring-blue-200 text-blue-800 hover:ring-blue-300' :
+                    theme === 'green' ? 'bg-green-50 hover:bg-green-100 ring-1 ring-green-200 text-green-800 hover:ring-green-300' :
                     theme === 'tianjin' ? 'bg-[#1E5F8E]/10 hover:bg-[#1E5F8E]/20 ring-1 ring-[#1E5F8E]/30 text-[#1E5F8E] hover:ring-[#1E5F8E]/50' :
                     'bg-white hover:bg-gray-50 ring-1 ring-gray-200 text-gray-900 hover:ring-gray-300'
                   }`}
@@ -984,7 +984,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
               
               {/* 中文注释：问题反馈入口 */}
               <motion.button
-                className={`p-2 rounded-lg ${isDark ? 'hover:bg-gray-800 ring-1 ring-gray-700' : 'hover:bg-gray-50 ring-1 ring-gray-200'}`}
+                className={`p-2 rounded-lg ${isDark ? 'hover:bg-blue-800/50 ring-1 ring-blue-500/50 text-blue-100 hover:ring-blue-400' : 'hover:bg-gray-50 ring-1 ring-gray-200'}`}
                 aria-label={t('header.feedback')}
                 title={t('header.feedback')}
                 onClick={() => setShowFeedback(true)}
@@ -995,7 +995,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
               </motion.button>
               {/* 好友管理按钮 */}
               <motion.button
-                className={`p-2 rounded-lg transition-all duration-300 hover:scale-110 ${isDark ? 'bg-gray-800/70 ring-1 ring-gray-700 hover:bg-gray-700 hover:ring-blue-500' : 'bg-white/70 ring-1 ring-gray-200 hover:bg-gray-50 hover:ring-blue-500'} hover:shadow-md relative`}
+                className={`p-2 rounded-lg transition-all duration-300 hover:scale-110 ${isDark ? 'bg-blue-900/40 ring-1 ring-blue-500/50 hover:bg-blue-800/50 hover:ring-blue-400 text-blue-100' : 'bg-white/70 ring-1 ring-gray-200 hover:bg-gray-50 hover:ring-blue-500'} hover:shadow-md relative`}
                 aria-label="好友管理"
                 title="好友管理"
                 onClick={() => navigate('/friends')}
@@ -1004,7 +1004,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
               >
                 <i className="fas fa-user-friends transition-transform duration-300 hover:scale-110"></i>
                 {friendRequests && friendRequests.length > 0 && (
-                  <motion.span 
+                  <motion.span
                     className="absolute -top-0.5 -right-0.5 inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-600 text-white text-xs font-bold shadow-lg"
                     initial={{ scale: 0 }}
                     animate={{ scale: [1, 1.2, 1] }}
@@ -1016,15 +1016,15 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
               </motion.button>
               <motion.div className="relative" ref={notifRef}>
                 <motion.button
-                  className={`p-2 rounded-lg transition-all duration-300 hover:scale-110 ${isDark ? 'bg-gray-800/70 ring-1 ring-gray-700 hover:bg-gray-700 hover:ring-blue-500' : 'bg-white/70 ring-1 ring-gray-200 hover:bg-gray-50 hover:ring-blue-500'} hover:shadow-md relative`}
-                  aria-label={t('header.notifications')}
-                  aria-expanded={showNotifications}
-                  onClick={() => setShowNotifications(v => !v)}
-                  title={`${unreadCount > 0 ? t('notification.unreadCount', { count: unreadCount }) : t('notification.view')}`}
-                  whileHover={{ scale: 1.1, y: -2 }}
-                  whileTap={{ scale: 0.95 }}
-                >
-                  <i className="fas fa-bell transition-transform duration-300 hover:scale-110"></i>
+                className={`p-2 rounded-lg transition-all duration-300 hover:scale-110 ${isDark ? 'bg-blue-900/40 ring-1 ring-blue-500/50 hover:bg-blue-800/50 hover:ring-blue-400 text-blue-100' : 'bg-white/70 ring-1 ring-gray-200 hover:bg-gray-50 hover:ring-blue-500'} hover:shadow-md relative`}
+                aria-label={t('header.notifications')}
+                aria-expanded={showNotifications}
+                onClick={() => setShowNotifications(v => !v)}
+                title={`${unreadCount > 0 ? t('notification.unreadCount', { count: unreadCount }) : t('notification.view')}`}
+                whileHover={{ scale: 1.1, y: -2 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <i className="fas fa-bell transition-transform duration-300 hover:scale-110"></i>
                   {unreadCount > 0 && (
                     <motion.span 
                       className="absolute -top-0.5 -right-0.5 inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-600 text-white text-xs font-bold shadow-lg"

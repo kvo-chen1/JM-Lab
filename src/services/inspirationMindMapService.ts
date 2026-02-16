@@ -158,7 +158,7 @@ export class InspirationMindMapService {
     console.log('[InspirationMindMapService] Nodes data:', nodesData?.length || 0, nodesData?.map((n: any) => ({ id: n.id, title: n.title?.substring(0, 20) })));
 
     const mindMap = this.mapDbToMindMap(mindMapData);
-    mindMap.nodes = (nodesData || []).map(this.mapDbToNode);
+    mindMap.nodes = (nodesData || []).map((item: any) => this.mapDbToNode(item));
     
     console.log('[InspirationMindMapService] getMindMap:', mapId, 'nodes:', mindMap.nodes.length);
 
@@ -229,7 +229,54 @@ export class InspirationMindMapService {
     }
 
     console.log('[InspirationMindMapService] Found', data?.length || 0, 'mind maps');
-    return (data || []).map(this.mapDbToMindMap);
+    return (data || []).map((item: any) => this.mapDbToMindMap(item));
+  }
+
+  /**
+   * 获取用户所有脉络的所有节点（合并视图）
+   */
+  async getUserAllNodes(userId: string): Promise<{ mindMap: CreationMindMap | null; allNodes: MindNode[] }> {
+    console.log('[InspirationMindMapService] Fetching all nodes for user:', userId);
+    
+    // 获取用户的所有脉络
+    const mindMaps = await this.getUserMindMaps(userId);
+    
+    if (mindMaps.length === 0) {
+      return { mindMap: null, allNodes: [] };
+    }
+
+    // 使用第一个脉络作为主脉络（通常是"我的创作脉络"或最近更新的）
+    const primaryMap = mindMaps.find(m => m.title === '我的创作脉络') || mindMaps[0];
+    
+    // 获取所有脉络ID
+    const mapIds = mindMaps.map(m => m.id);
+    
+    // 一次性查询所有脉络的所有节点
+    const { data: nodesData, error: nodesError } = await supabase
+      .from('inspiration_nodes')
+      .select('*')
+      .in('map_id', mapIds)
+      .order('created_at', { ascending: true });
+
+    if (nodesError) {
+      console.error('[InspirationMindMapService] 获取所有节点失败:', nodesError);
+      throw new Error(`获取节点失败: ${nodesError.message}`);
+    }
+
+    // 转换节点数据
+    const allNodes: MindNode[] = (nodesData || []).map((item: any) => {
+      const node = this.mapDbToNode(item);
+      // 添加来源脉络信息
+      const sourceMap = mindMaps.find(m => m.id === item.map_id);
+      return {
+        ...node,
+        sourceMapId: item.map_id,
+        sourceMapTitle: sourceMap?.title || '未知脉络',
+      };
+    });
+
+    console.log('[InspirationMindMapService] Total nodes from all mind maps:', allNodes.length);
+    return { mindMap: primaryMap, allNodes };
   }
 
   // ============================================

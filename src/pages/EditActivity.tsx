@@ -11,6 +11,7 @@ import { supabase } from '@/lib/supabase';
 import { StepIndicator } from '@/components/StepIndicator';
 import { InfoCard } from '@/components/InfoCard';
 import { EventPreview } from '@/components/EventPreview';
+import { uploadImage } from '@/services/imageService';
 
 import {
   Save,
@@ -240,9 +241,23 @@ export default function EditActivity() {
   };
 
   // 处理媒体上传
-  const handleMediaUpload = (files: FileList | null) => {
-    if (!files) return;
-    toast.success('图片上传成功');
+  const handleMediaUpload = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+
+    try {
+      const uploadPromises = Array.from(files).map(async (file) => {
+        const url = await uploadImage(file, 'event-media');
+        return { url, type: file.type.startsWith('video/') ? 'video' : 'image' } as Media;
+      });
+
+      const uploadedMedia = await Promise.all(uploadPromises);
+      const currentMedia = eventData.media || [];
+      handleChange('media', [...currentMedia, ...uploadedMedia]);
+      toast.success(`成功上传 ${uploadedMedia.length} 个文件`);
+    } catch (error: any) {
+      console.error('上传失败:', error);
+      toast.error('上传失败: ' + (error.message || '未知错误'));
+    }
   };
 
   // 处理标签选择
@@ -414,7 +429,7 @@ export default function EditActivity() {
         >
           <div className="flex items-center gap-4">
             <button
-              onClick={() => navigate('/activities')}
+              onClick={() => navigate('/organizer')}
               className="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
             >
               <ArrowLeft className="w-5 h-5" />
@@ -649,12 +664,12 @@ export default function EditActivity() {
                       }`}
                     >
                       <ImageIcon className="w-12 h-12 mx-auto text-gray-400 mb-3" />
-                      <p className="text-sm text-gray-600 dark:text-gray-400">点击或拖拽上传图片</p>
-                      <p className="text-xs text-gray-400 mt-1">支持 JPG、PNG 格式</p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">点击或拖拽上传图片或视频</p>
+                      <p className="text-xs text-gray-400 mt-1">支持 JPG、PNG、MP4 格式</p>
                       <input
                         id="media-upload"
                         type="file"
-                        accept="image/*"
+                        accept="image/*,video/*"
                         multiple
                         className="hidden"
                         onChange={(e) => handleMediaUpload(e.target.files)}
@@ -667,7 +682,11 @@ export default function EditActivity() {
                     <div className="grid grid-cols-3 gap-4">
                       {eventData.media.map((media, index) => (
                         <div key={index} className="relative aspect-video rounded-lg overflow-hidden">
-                          <img src={media.url} alt="" className="w-full h-full object-cover" />
+                          {media.type === 'video' ? (
+                            <video src={media.url} className="w-full h-full object-cover" controls />
+                          ) : (
+                            <img src={media.url} alt="" className="w-full h-full object-cover" />
+                          )}
                           <button
                             onClick={() => handleChange('media', eventData.media?.filter((_, i) => i !== index) || [])}
                             className="absolute top-2 right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600"

@@ -26,7 +26,7 @@ interface UseOrganizerSettingsReturn {
   updateBrandInfo: (brandInfo: Partial<BrandInfo>) => Promise<boolean>;
   updateSecuritySettings: (security: Partial<SecuritySettings>) => Promise<boolean>;
   updateNotificationSettings: (notifications: Partial<NotificationSettings>) => Promise<boolean>;
-  addMember: (member: { email: string; name: string; role: OrganizerRole }) => Promise<boolean>;
+  addMember: (member: { email: string; name: string; role: Exclude<OrganizerRole, 'owner'> }) => Promise<boolean>;
   removeMember: (memberId: string) => Promise<boolean>;
   updateMemberRole: (memberId: string, role: OrganizerRole) => Promise<boolean>;
   updateDataManagementSettings: (dataManagement: Partial<DataManagementSettings>) => Promise<boolean>;
@@ -174,7 +174,7 @@ export function useOrganizerSettings(): UseOrganizerSettingsReturn {
   }, [verifiedBrand]);
 
   // 添加成员
-  const addMember = useCallback(async (member: { email: string; name: string; role: OrganizerRole }): Promise<boolean> => {
+  const addMember = useCallback(async (member: { email: string; name: string; role: Exclude<OrganizerRole, 'owner'> }): Promise<boolean> => {
     if (!verifiedBrand) return false;
 
     setIsSaving(true);

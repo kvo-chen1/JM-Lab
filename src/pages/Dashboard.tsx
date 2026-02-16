@@ -709,6 +709,7 @@ export default function Dashboard() {
               </p>
             </div>
             <motion.button
+              id="guide-step-dashboard-create"
               onClick={handleCreateNew}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
@@ -826,7 +827,7 @@ export default function Dashboard() {
             </div>
 
             {/* 每日签到 */}
-            <div className={`p-6 rounded-3xl ${isDark
+            <div id="guide-step-dashboard-checkin" className={`p-6 rounded-3xl ${isDark
               ? 'bg-gradient-to-br from-purple-900/40 to-blue-900/40 backdrop-blur-xl border border-purple-500/20'
               : 'bg-gradient-to-br from-purple-50 to-blue-50 backdrop-blur-xl border border-purple-100'
               }`}>
@@ -915,7 +916,7 @@ export default function Dashboard() {
             className="lg:col-span-6 space-y-6"
           >
             {/* 数据概览卡片 */}
-            <div className="grid grid-cols-3 gap-4">
+            <div id="guide-step-dashboard-stats" className="grid grid-cols-3 gap-4">
               {[
                 {
                   title: '总浏览量',
@@ -1039,7 +1040,7 @@ export default function Dashboard() {
             </div>
 
             {/* 最近作品 */}
-            <div className={`p-6 rounded-3xl ${isDark
+            <div id="guide-step-dashboard-works" className={`p-6 rounded-3xl ${isDark
               ? 'bg-gray-800/60 backdrop-blur-xl border border-gray-700/50'
               : 'bg-white/80 backdrop-blur-xl border border-white/50 shadow-lg shadow-gray-200/30'
               }`}>
@@ -1237,7 +1238,7 @@ export default function Dashboard() {
             className="lg:col-span-3 space-y-6"
           >
             {/* 快捷操作 */}
-            <div className={`p-6 rounded-3xl ${isDark
+            <div id="guide-step-dashboard-quick-actions" className={`p-6 rounded-3xl ${isDark
               ? 'bg-gray-800/60 backdrop-blur-xl border border-gray-700/50'
               : 'bg-white/80 backdrop-blur-xl border border-white/50 shadow-lg shadow-gray-200/30'
               }`}>
@@ -1393,7 +1394,7 @@ export default function Dashboard() {
             </div>
 
             {/* 热门话题 */}
-            <div className={`p-6 rounded-3xl ${isDark
+            <div id="guide-step-dashboard-topics" className={`p-6 rounded-3xl ${isDark
               ? 'bg-gradient-to-br from-orange-900/20 to-red-900/20 backdrop-blur-xl border border-orange-500/20'
               : 'bg-gradient-to-br from-orange-50 to-red-50 backdrop-blur-xl border border-orange-100'
               }`}>

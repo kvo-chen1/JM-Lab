@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>津脉智坊红包封面预览</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+            background: linear-gradient(135deg, #1E5F8E 0%, #A0522D 50%, #D4A84B 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .container {
+            text-align: center;
+            max-width: 600px;
+            width: 100%;
+        }
+        h1 {
+            color: #F8F6F3;
+            margin-bottom: 30px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        .preview-frame {
+            width: 450px;
+            height: 600px;
+            background: linear-gradient(180deg, #C21807 0%, #8B0000 100%);
+            border-radius: 20px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+            margin: 0 auto;
+        }
+        .golden-border {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            right: 10px;
+            bottom: 10px;
+            border: 3px solid #D4A84B;
+            border-radius: 15px;
+            pointer-events: none;
+        }
+        .golden-border::before {
+            content: '';
+            position: absolute;
+            top: 5px;
+            left: 5px;
+            right: 5px;
+            bottom: 5px;
+            border: 1px solid rgba(212, 168, 75, 0.5);
+            border-radius: 10px;
+        }
+        .pattern-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            opacity: 0.1;
+            background-image: 
+                radial-gradient(circle at 20% 30%, #D4A84B 2px, transparent 2px),
+                radial-gradient(circle at 80% 70%, #D4A84B 2px, transparent 2px),
+                radial-gradient(circle at 50% 50%, #D4A84B 1px, transparent 1px);
+            background-size: 60px 60px, 80px 80px, 40px 40px;
+        }
+        .header-decoration {
+            position: absolute;
+            top: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+        }
+        .brand-logo {
+            font-size: 48px;
+            font-weight: bold;
+            color: #D4A84B;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+            letter-spacing: 8px;
+            margin-bottom: 10px;
+        }
+        .brand-subtitle {
+            font-size: 16px;
+            color: #F8F6F3;
+            letter-spacing: 4px;
+            opacity: 0.9;
+        }
+        .center-decoration {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
+        .golden-circle {
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #D4A84B 0%, #C68E17 50%, #D4A84B 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 
+                0 0 30px rgba(212, 168, 75, 0.5),
+                inset 0 0 30px rgba(255, 255, 255, 0.3);
+            position: relative;
+        }
+        .golden-circle::before {
+            content: '';
+            position: absolute;
+            width: 180px;
+            height: 180px;
+            border-radius: 50%;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+        }
+        .fu-character {
+            font-size: 120px;
+            font-weight: bold;
+            color: #C21807;
+            text-shadow: 2px 2px 0px rgba(0, 0, 0, 0.2);
+            transform: rotate(-15deg);
+        }
+        .bottom-decoration {
+            position: absolute;
+            bottom: 40px;
+            left: 0;
+            right: 0;
+            text-align: center;
+        }
+        .slogan {
+            font-size: 20px;
+            color: #F8F6F3;
+            letter-spacing: 6px;
+            margin-bottom: 15px;
+        }
+        .slogan-en {
+            font-size: 12px;
+            color: rgba(248, 246, 243, 0.7);
+            letter-spacing: 3px;
+        }
+        .wave-decoration {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 60px;
+            background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 120' preserveAspectRatio='none'%3E%3Cpath d='M0,60 C150,120 350,0 600,60 C850,120 1050,0 1200,60 L1200,120 L0,120 Z' fill='%23D4A84B' fill-opacity='0.15'/%3E%3C/svg%3E") no-repeat bottom;
+            background-size: cover;
+        }
+        .corner-decoration {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            border: 3px solid #D4A84B;
+        }
+        .corner-decoration.top-left {
+            top: 20px;
+            left: 20px;
+            border-right: none;
+            border-bottom: none;
+        }
+        .corner-decoration.top-right {
+            top: 20px;
+            right: 20px;
+            border-left: none;
+            border-bottom: none;
+        }
+        .corner-decoration.bottom-left {
+            bottom: 20px;
+            left: 20px;
+            border-right: none;
+            border-top: none;
+        }
+        .corner-decoration.bottom-right {
+            bottom: 20px;
+            right: 20px;
+            border-left: none;
+            border-top: none;
+        }
+        .info-box {
+            margin-top: 30px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            color: #F8F6F3;
+        }
+        .info-box h2 {
+            margin-bottom: 15px;
+            color: #D4A84B;
+        }
+        .info-box p {
+            margin-bottom: 10px;
+            line-height: 1.6;
+        }
+        .color-palette {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .color-swatch {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        }
+        .download-btn {
+            margin-top: 20px;
+            padding: 12px 30px;
+            background: linear-gradient(135deg, #D4A84B 0%, #C68E17 100%);
+            color: #1A1918;
+            border: none;
+            border-radius: 30px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(212, 168, 75, 0.4);
+        }
+        .download-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(212, 168, 75, 0.6);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧧 津脉智坊红包封面</h1>
+        
+        <div class="preview-frame">
+            <div class="pattern-bg"></div>
+            <div class="golden-border"></div>
+            
+            <div class="corner-decoration top-left"></div>
+            <div class="corner-decoration top-right"></div>
+            <div class="corner-decoration bottom-left"></div>
+            <div class="corner-decoration bottom-right"></div>
+            
+            <div class="header-decoration">
+                <div class="brand-logo">津脉智坊</div>
+                <div class="brand-subtitle">JINMAI INTELLIGENT WORKSHOP</div>
+            </div>
+            
+            <div class="center-decoration">
+                <div class="golden-circle">
+                    <div class="fu-character">福</div>
+                </div>
+            </div>
+            
+            <div class="bottom-decoration">
+                <div class="slogan">津创灵感 · 点亮创意</div>
+                <div class="slogan-en">TRADITION MEETS INNOVATION</div>
+            </div>
+            
+            <div class="wave-decoration"></div>
+        </div>
+        
+        <div class="info-box">
+            <h2>🎨 设计特点</h2>
+            <p>• 融合天津特色品牌色彩系统</p>
+            <p>• 泥人张红作为主色调，体现传统文化</p>
+            <p>• 桂发祥金作为点缀，彰显高级质感</p>
+            <p>• 传统福字与现代设计元素结合</p>
+            <p>• 适合微信红包、节日祝福等场景使用</p>
+            
+            <div class="color-palette">
+                <div class="color-swatch" style="background: #C21807;" title="泥人张红"></div>
+                <div class="color-swatch" style="background: #D4A84B;" title="桂发祥金"></div>
+                <div class="color-swatch" style="background: #1E5F8E;" title="海河蓝"></div>
+                <div class="color-swatch" style="background: #A0522D;" title="历史砖红"></div>
+                <div class="color-swatch" style="background: #4A9B5E;" title="杨柳青绿"></div>
+            </div>
+            
+            <button class="download-btn" onclick="downloadImage()">📷 保存为图片</button>
+        </div>
+    </div>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script>
+        async function downloadImage() {
+            const element = document.querySelector('.preview-frame');
+            try {
+                const canvas = await html2canvas(element, {
+                    scale: 2,
+                    useCORS: true,
+                    backgroundColor: null
+                });
+                
+                const link = document.createElement('a');
+                link.download = '津脉智坊红包封面.png';
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            } catch (error) {
+                console.error('下载失败:', error);
+                alert('下载失败，请尝试截图保存');
+            }
+        }
+    </script>
+</body>
+</html>

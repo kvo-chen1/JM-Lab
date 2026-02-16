@@ -1,0 +1,132 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 450 600" width="450" height="600">
+  <defs>
+    <!-- 红色渐变背景 -->
+    <linearGradient id="redGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#C21807"/>
+      <stop offset="100%" style="stop-color:#8B0000"/>
+    </linearGradient>
+    
+    <!-- 金色渐变 -->
+    <linearGradient id="goldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#D4A84B"/>
+      <stop offset="50%" style="stop-color:#C68E17"/>
+      <stop offset="100%" style="stop-color:#D4A84B"/>
+    </linearGradient>
+    
+    <!-- 金色发光效果 -->
+    <filter id="goldGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    
+    <!-- 阴影效果 -->
+    <filter id="dropShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="3"/>
+      <feOffset dx="2" dy="2" result="offsetblur"/>
+      <feComponentTransfer>
+        <feFuncA type="linear" slope="0.3"/>
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- 红包主体背景 -->
+  <rect x="0" y="0" width="450" height="600" rx="20" ry="20" fill="url(#redGradient)"/>
+  
+  <!-- 装饰性点阵背景 -->
+  <g opacity="0.1">
+    <circle cx="90" cy="180" r="2" fill="#D4A84B"/>
+    <circle cx="360" cy="420" r="2" fill="#D4A84B"/>
+    <circle cx="225" cy="300" r="1" fill="#D4A84B"/>
+    <circle cx="150" cy="240" r="2" fill="#D4A84B"/>
+    <circle cx="300" cy="360" r="2" fill="#D4A84B"/>
+    <circle cx="120" cy="480" r="1" fill="#D4A84B"/>
+    <circle cx="330" cy="120" r="1" fill="#D4A84B"/>
+    <circle cx="60" cy="300" r="2" fill="#D4A84B"/>
+    <circle cx="390" cy="300" r="2" fill="#D4A84B"/>
+  </g>
+  
+  <!-- 外层金色边框 -->
+  <rect x="10" y="10" width="430" height="580" rx="15" ry="15" 
+        fill="none" stroke="#D4A84B" stroke-width="3"/>
+  
+  <!-- 内层金色边框 -->
+  <rect x="15" y="15" width="420" height="570" rx="10" ry="10" 
+        fill="none" stroke="#D4A84B" stroke-width="1" opacity="0.5"/>
+  
+  <!-- 四角装饰 -->
+  <!-- 左上角 -->
+  <path d="M 20 60 L 20 20 L 60 20" fill="none" stroke="#D4A84B" stroke-width="3" stroke-linecap="round"/>
+  <!-- 右上角 -->
+  <path d="M 390 20 L 430 20 L 430 60" fill="none" stroke="#D4A84B" stroke-width="3" stroke-linecap="round"/>
+  <!-- 左下角 -->
+  <path d="M 20 540 L 20 580 L 60 580" fill="none" stroke="#D4A84B" stroke-width="3" stroke-linecap="round"/>
+  <!-- 右下角 -->
+  <path d="M 390 580 L 430 580 L 430 540" fill="none" stroke="#D4A84B" stroke-width="3" stroke-linecap="round"/>
+  
+  <!-- 品牌名称区域 -->
+  <g transform="translate(225, 80)" text-anchor="middle">
+    <!-- 津脉智坊 -->
+    <text x="0" y="0" font-family="Microsoft YaHei, SimHei, sans-serif" font-size="48" 
+          font-weight="bold" fill="#D4A84B" filter="url(#dropShadow)" letter-spacing="8">津脉智坊</text>
+    <!-- 英文副标题 -->
+    <text x="0" y="30" font-family="Arial, sans-serif" font-size="14" 
+          fill="#F8F6F3" letter-spacing="3" opacity="0.9">JINMAI INTELLIGENT WORKSHOP</text>
+  </g>
+  
+  <!-- 中心金色圆形 -->
+  <g transform="translate(225, 300)">
+    <!-- 外圈发光 -->
+    <circle cx="0" cy="0" r="105" fill="none" stroke="#D4A84B" stroke-width="2" opacity="0.3" filter="url(#goldGlow)"/>
+    <!-- 金色圆环 -->
+    <circle cx="0" cy="0" r="100" fill="url(#goldGradient)" filter="url(#dropShadow)"/>
+    <!-- 内圈装饰线 -->
+    <circle cx="0" cy="0" r="90" fill="none" stroke="#F8F6F3" stroke-width="2" opacity="0.3"/>
+    
+    <!-- 福字 -->
+    <g transform="rotate(-15)">
+      <text x="0" y="25" font-family="SimHei, Microsoft YaHei, serif" font-size="100" 
+            font-weight="bold" fill="#C21807" text-anchor="middle" filter="url(#dropShadow)">福</text>
+    </g>
+  </g>
+  
+  <!-- 底部标语区域 -->
+  <g transform="translate(225, 520)" text-anchor="middle">
+    <!-- 中文标语 -->
+    <text x="0" y="0" font-family="Microsoft YaHei, SimHei, sans-serif" font-size="20" 
+          fill="#F8F6F3" letter-spacing="6">津创灵感 · 点亮创意</text>
+    <!-- 英文标语 -->
+    <text x="0" y="25" font-family="Arial, sans-serif" font-size="11" 
+          fill="#F8F6F3" letter-spacing="2" opacity="0.7">TRADITION MEETS INNOVATION</text>
+  </g>
+  
+  <!-- 底部波浪装饰 -->
+  <path d="M 0 560 Q 112 600 225 560 Q 338 520 450 560 L 450 600 L 0 600 Z" 
+        fill="#D4A84B" opacity="0.15"/>
+  
+  <!-- 顶部装饰线 -->
+  <line x1="100" y1="130" x2="350" y2="130" stroke="#D4A84B" stroke-width="1" opacity="0.5"/>
+  
+  <!-- 祥云装饰图案 -->
+  <g opacity="0.2">
+    <!-- 左侧祥云 -->
+    <path d="M 40 200 Q 50 190 60 200 Q 70 210 80 200 Q 90 190 100 200" 
+          fill="none" stroke="#D4A84B" stroke-width="2"/>
+    <!-- 右侧祥云 -->
+    <path d="M 350 400 Q 360 390 370 400 Q 380 410 390 400 Q 400 390 410 400" 
+          fill="none" stroke="#D4A84B" stroke-width="2"/>
+  </g>
+  
+  <!-- 品牌色彩标注（可选，用于设计参考） -->
+  <g transform="translate(225, 580)" text-anchor="middle" opacity="0.6">
+    <text x="0" y="0" font-family="Arial, sans-serif" font-size="8" fill="#F8F6F3">
+      津脉智坊 · 津门老字号共创平台
+    </text>
+  </g>
+</svg>

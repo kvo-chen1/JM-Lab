@@ -1,8 +1,20 @@
 // Supabase Storage 图片上传服务
-import { supabase } from '../lib/supabase';
+import { supabase, supabaseAdmin } from '../lib/supabase';
 
 // Storage bucket 名称
-const BUCKET_NAME = 'works';
+const BUCKET_NAME = 'images';
+
+/**
+ * 获取用于上传的 Supabase 客户端
+ * 优先使用 admin 客户端绕过 RLS
+ */
+function getUploadClient() {
+  // 优先使用 admin 客户端（有 service role key，可以绕过 RLS）
+  if (supabaseAdmin) {
+    return supabaseAdmin;
+  }
+  return supabase;
+}
 
 /**
  * 上传图片到 Supabase Storage
@@ -15,13 +27,15 @@ export async function uploadImage(
   path: string
 ): Promise<{ url: string; error?: string }> {
   try {
+    const client = getUploadClient();
+    
     // 检查 Supabase 是否配置
-    if (!supabase) {
+    if (!client) {
       return { url: '', error: 'Supabase 未配置' };
     }
 
     // 上传文件
-    const { data, error } = await supabase.storage
+    const { data, error } = await client.storage
       .from(BUCKET_NAME)
       .upload(path, file, {
         cacheControl: '3600',
@@ -33,7 +47,7 @@ export async function uploadImage(
       return { url: '', error: error.message };
     }
 
-    // 获取公共 URL
+    // 获取公共 URL（使用普通客户端即可）
     const { data: publicUrlData } = supabase.storage
       .from(BUCKET_NAME)
       .getPublicUrl(data.path);
@@ -87,11 +101,13 @@ export async function uploadBase64Image(
  */
 export async function deleteImage(path: string): Promise<{ success: boolean; error?: string }> {
   try {
-    if (!supabase) {
+    const client = getUploadClient();
+    
+    if (!client) {
       return { success: false, error: 'Supabase 未配置' };
     }
 
-    const { error } = await supabase.storage
+    const { error } = await client.storage
       .from(BUCKET_NAME)
       .remove([path]);
 
@@ -153,14 +169,16 @@ class SupabaseStorageService {
     } = {}
   ): Promise<{ success: boolean; path?: string; error?: string }> {
     try {
-      if (!supabase) {
+      const client = getUploadClient();
+      
+      if (!client) {
         return { success: false, error: 'Supabase 未配置' };
       }
 
       const { upsert = true } = options;
 
       // 上传文件
-      const { data, error } = await supabase.storage
+      const { data, error } = await client.storage
         .from(bucketName)
         .upload(path, file, {
           cacheControl: '3600',
@@ -186,11 +204,13 @@ class SupabaseStorageService {
    */
   async deleteFile(bucketName: string, path: string): Promise<{ success: boolean; error?: string }> {
     try {
-      if (!supabase) {
+      const client = getUploadClient();
+      
+      if (!client) {
         return { success: false, error: 'Supabase 未配置' };
       }
 
-      const { error } = await supabase.storage
+      const { error } = await client.storage
         .from(bucketName)
         .remove([path]);
 

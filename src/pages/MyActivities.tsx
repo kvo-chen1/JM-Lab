@@ -23,7 +23,10 @@ import {
 } from '@/services/eventParticipationService';
 
 // 格式化数字
-const formatNumber = (num: number): string => {
+const formatNumber = (num: number | undefined | null): string => {
+  if (num === undefined || num === null) {
+    return '0';
+  }
   if (num >= 1000000) {
     return (num / 1000000).toFixed(1) + 'M';
   } else if (num >= 1000) {
@@ -40,11 +43,10 @@ export default function MyActivities() {
   // 状态
   const [activeFilter, setActiveFilter] = useState<string>('all');
   const [participations, setParticipations] = useState<ParticipationDetail[]>([]);
-  const [stats, setStats] = useState<ParticipationStats>({
+  const [stats, setStats] = useState({
     total: 0,
-    totalViews: 0,
+    totalVotes: 0,
     totalLikes: 0,
-    totalShares: 0,
   });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -224,8 +226,8 @@ export default function MyActivities() {
     <ActivityStats
       stats={{
         total: stats.total,
-        totalViews: stats.totalViews,
-        totalInteractions: stats.totalLikes + stats.totalShares,
+        totalVotes: stats.totalVotes,
+        totalLikes: stats.totalLikes,
       }}
     />
   );

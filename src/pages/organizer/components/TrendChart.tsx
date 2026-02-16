@@ -12,7 +12,7 @@ import { TrendData } from '@/services/organizerAnalyticsService';
 
 interface TrendChartProps {
   data: TrendData[];
-  metric?: 'submissions' | 'views' | 'likes' | 'comments' | 'all';
+  metric?: 'submissions' | 'views' | 'likes' | 'all';
   height?: number;
   showGrid?: boolean;
 }
@@ -36,12 +36,6 @@ const metricConfig = {
     color: '#F59E0B',
     gradientId: 'colorLikes',
   },
-  comments: {
-    key: 'comments_count',
-    label: '评论数',
-    color: '#8B5CF6',
-    gradientId: 'colorComments',
-  },
 };
 
 export function TrendChart({
@@ -60,7 +54,7 @@ export function TrendChart({
     });
   };
 
-  const config = metricConfig[metric];
+  const config = metric === 'all' ? null : metricConfig[metric];
 
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {

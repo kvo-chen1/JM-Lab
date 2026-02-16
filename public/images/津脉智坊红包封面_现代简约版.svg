@@ -1,0 +1,141 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 450 600" width="450" height="600">
+  <defs>
+    <!-- 现代红色渐变 -->
+    <linearGradient id="modernRed" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#E53E3E"/>
+      <stop offset="50%" style="stop-color:#C53030"/>
+      <stop offset="100%" style="stop-color:#9B2C2C"/>
+    </linearGradient>
+    
+    <!-- 高级金色渐变 -->
+    <linearGradient id="modernGold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#F7FAFC"/>
+      <stop offset="30%" style="stop-color:#EDD9A3"/>
+      <stop offset="70%" style="stop-color:#D69E2E"/>
+      <stop offset="100%" style="stop-color:#975A16"/>
+    </linearGradient>
+    
+    <!-- 淡金色渐变 -->
+    <linearGradient id="softGold" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#F7FAFC"/>
+      <stop offset="100%" style="stop-color:#EDD9A3"/>
+    </linearGradient>
+    
+    <!-- 现代阴影 -->
+    <filter id="modernShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="2"/>
+      <feOffset dx="0" dy="2" result="offsetblur"/>
+      <feComponentTransfer>
+        <feFuncA type="linear" slope="0.3"/>
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    
+    <!-- 柔和发光 -->
+    <filter id="softGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    
+    <!-- 微妙纹理 -->
+    <pattern id="subtleTexture" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
+      <circle cx="10" cy="10" r="0.5" fill="#F7FAFC" opacity="0.1"/>
+    </pattern>
+    
+    <!-- 几何装饰图案 -->
+    <pattern id="geometricPattern" x="0" y="0" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M0 20 L20 0 L40 20 L20 40 Z" fill="none" stroke="#F7FAFC" stroke-width="0.5" opacity="0.1"/>
+    </pattern>
+  </defs>
+  
+  <!-- 主背景 -->
+  <rect width="450" height="600" rx="12" fill="url(#modernRed)"/>
+  
+  <!-- 微妙纹理层 -->
+  <rect width="450" height="600" rx="12" fill="url(#subtleTexture)"/>
+  
+  <!-- 几何装饰 -->
+  <rect x="50" y="100" width="350" height="400" rx="8" fill="url(#geometricPattern)" opacity="0.6"/>
+  
+  <!-- 顶部装饰条 -->
+  <g transform="translate(0, 60)">
+    <!-- 金色横条 -->
+    <rect x="80" y="0" width="290" height="1" fill="url(#softGold)" opacity="0.6"/>
+    <rect x="120" y="8" width="210" height="1" fill="url(#softGold)" opacity="0.4"/>
+  </g>
+  
+  <!-- 品牌名称区域 -->
+  <g transform="translate(225, 120)" text-anchor="middle">
+    <!-- 品牌名 - 现代字体 -->
+    <text x="0" y="0" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="36" 
+          font-weight="600" fill="#F7FAFC" letter-spacing="10" filter="url(#modernShadow)">津脉智坊</text>
+    
+    <!-- 英文副标题 -->
+    <text x="0" y="30" font-family="Montserrat, Arial, sans-serif" font-size="10" 
+          fill="#EDD9A3" letter-spacing="4" opacity="0.9">JINMAI INTELLIGENT WORKSHOP</text>
+  </g>
+  
+  <!-- 中间装饰区域 -->
+  <g transform="translate(225, 300)">
+    <!-- 圆形装饰 -->
+    <circle cx="0" cy="0" r="90" fill="none" stroke="#F7FAFC" stroke-width="1" opacity="0.3"/>
+    <circle cx="0" cy="0" r="80" fill="none" stroke="#EDD9A3" stroke-width="0.8" opacity="0.4"/>
+    <circle cx="0" cy="0" r="70" fill="none" stroke="#F7FAFC" stroke-width="0.5" opacity="0.2"/>
+    
+    <!-- 现代福字 -->
+    <text x="0" y="20" font-family="PingFang SC, SimHei, sans-serif" font-size="80" 
+          font-weight="500" fill="url(#modernGold)" text-anchor="middle" filter="url(#softGlow)">福</text>
+  </g>
+  
+  <!-- 底部标语区域 -->
+  <g transform="translate(225, 480)" text-anchor="middle">
+    <!-- 装饰线 -->
+    <line x1="-120" y1="-20" x2="120" y2="-20" stroke="#EDD9A3" stroke-width="1" opacity="0.4"/>
+    
+    <!-- 中文标语 -->
+    <text x="0" y="0" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="18" 
+          fill="#F7FAFC" letter-spacing="6" opacity="0.9">津创灵感 · 点亮创意</text>
+    
+    <!-- 英文标语 -->
+    <text x="0" y="25" font-family="Montserrat, Arial, sans-serif" font-size="9" 
+          fill="#EDD9A3" letter-spacing="2" opacity="0.7">TRADITION MEETS INNOVATION</text>
+    
+    <!-- 装饰线 -->
+    <line x1="-100" y1="40" x2="100" y2="40" stroke="#EDD9A3" stroke-width="1" opacity="0.4"/>
+  </g>
+  
+  <!-- 四角现代装饰 -->
+  <g fill="none" stroke="#EDD9A3" stroke-width="1" opacity="0.4">
+    <!-- 左上 -->
+    <path d="M30 30 L30 60"/>
+    <path d="M30 30 L60 30"/>
+    <!-- 右上 -->
+    <path d="M420 30 L420 60"/>
+    <path d="M390 30 L420 30"/>
+    <!-- 左下 -->
+    <path d="M30 570 L30 540"/>
+    <path d="M30 570 L60 570"/>
+    <!-- 右下 -->
+    <path d="M420 570 L420 540"/>
+    <path d="M390 570 L420 570"/>
+  </g>
+  
+  <!-- 侧边装饰点 -->
+  <g fill="#EDD9A3" opacity="0.3">
+    <circle cx="45" cy="200" r="1.5"/>
+    <circle cx="405" cy="200" r="1.5"/>
+    <circle cx="45" cy="400" r="1.5"/>
+    <circle cx="405" cy="400" r="1.5"/>
+  </g>
+  
+  <!-- 底部装饰 -->
+  <g transform="translate(225, 570)">
+    <circle cx="0" cy="0" r="30" fill="none" stroke="#EDD9A3" stroke-width="0.5" opacity="0.3"/>
+  </g>
+</svg>

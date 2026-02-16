@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
@@ -67,7 +67,7 @@ export default function SubmitWork() {
     lastSavedAt,
     isSaving,
     isUploading,
-    saveNow,
+    saveWithData,
     clearDraft,
     hasDraft,
     loadDraft,
@@ -103,6 +103,9 @@ export default function SubmitWork() {
     }
   }, [id]);
 
+  // 防止重复执行的 ref
+  const hasRestoredDraftRef = useRef(false);
+
   // 加载活动信息和用户参与状态
   useEffect(() => {
     // 如果缺少必要参数，不执行加载
@@ -110,7 +113,15 @@ export default function SubmitWork() {
       return;
     }
 
+    // 如果已经恢复过草稿，不再执行
+    if (hasRestoredDraftRef.current) {
+      return;
+    }
+
     const fetchEventAndParticipation = async () => {
+      if (hasRestoredDraftRef.current) return;
+      hasRestoredDraftRef.current = true;
+
       try {
         setLoading(true);
         setError(null);
@@ -191,8 +202,14 @@ export default function SubmitWork() {
         }
 
         async function restoreDraft() {
+          console.log('[SubmitWork] 开始恢复草稿...');
           const draft = await loadDraft();
+          console.log('[SubmitWork] 加载的草稿数据:', draft);
+          
           if (draft) {
+            console.log('[SubmitWork] 草稿 formData:', draft.formData);
+            console.log('[SubmitWork] 草稿 files:', draft.files);
+            
             setFormData(prev => ({
               ...prev,
               title: draft.formData.title || '',
@@ -221,6 +238,8 @@ export default function SubmitWork() {
                 duration: 3000
               });
             }
+          } else {
+            console.log('[SubmitWork] 没有可恢复的草稿');
           }
         }
       } catch (err: any) {
@@ -308,39 +327,68 @@ export default function SubmitWork() {
 
   // 处理保存草稿
   const handleSaveDraft = useCallback(async (data: FormData) => {
-    if (!id || !user?.id || !participationId) {
-      toast.error('无法保存草稿');
+    console.log('[SubmitWork] 保存草稿，participationId:', participationId, 'user:', user?.id);
+    
+    if (!id || !user?.id) {
+      toast.error('无法保存草稿：用户未登录');
       return;
     }
 
     try {
-      // 保存到服务器（只保存文本数据，不保存文件）
-      await eventSubmissionService.createDraft(id, user.id, participationId, {
-        title: data.title,
-        description: data.description,
-        files: [],
-        metadata: { tags: data.tags }
-      });
-
-      // 触发本地保存
-      await saveNow();
+      // 先更新 formData 状态
+      setFormData(data);
+      
+      // 保存到本地（带文件）
+      console.log('[SubmitWork] 调用 saveWithData...');
+      await saveWithData(data, data.files);
+      console.log('[SubmitWork] saveWithData 完成');
+      
+      // 如果有 participationId，保存到服务器
+      if (participationId) {
+        console.log('[SubmitWork] 保存到服务器...');
+        await eventSubmissionService.createDraft(id, user.id, participationId, {
+          title: data.title,
+          description: data.description,
+          files: [],
+          metadata: { tags: data.tags }
+        });
+        console.log('[SubmitWork] 服务器保存完成');
+      } else {
+        console.log('[SubmitWork] 跳过服务器保存，没有 participationId');
+      }
 
       toast.success('草稿已保存');
     } catch (err: any) {
-      console.error('保存草稿失败:', err);
-      toast.error('保存草稿失败');
+      console.error('[SubmitWork] 保存草稿失败:', err);
+      toast.error('保存草稿失败: ' + (err.message || '未知错误'));
       throw err;
     }
-  }, [id, user?.id, participationId, saveNow]);
+  }, [id, user?.id, participationId, saveWithData]);
+
+  // 跟踪是否有未保存的更改
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+
+  // 当表单数据变化时，标记为有未保存的更改
+  useEffect(() => {
+    if (formData.title || formData.description || formData.files.length > 0) {
+      setHasUnsavedChanges(true);
+    }
+  }, [formData]);
 
   // 处理返回
   const handleBack = useCallback(() => {
-    if (formData.title || formData.description || formData.files.length > 0) {
+    if (hasUnsavedChanges) {
       const confirmed = window.confirm('你有未保存的内容，确定要离开吗？');
       if (!confirmed) return;
     }
     navigate(-1);
-  }, [navigate, formData]);
+  }, [navigate, hasUnsavedChanges]);
+
+  // 保存草稿成功后，重置未保存标记
+  const handleSaveDraftWithReset = useCallback(async (data: FormData) => {
+    await handleSaveDraft(data);
+    setHasUnsavedChanges(false);
+  }, [handleSaveDraft]);
 
   // 重试加载
   const handleRetry = useCallback(() => {
@@ -438,7 +486,7 @@ export default function SubmitWork() {
             <WorkSubmitForm
               initialData={formData}
               onSubmit={handleSubmit}
-              onSaveDraft={handleSaveDraft}
+              onSaveDraft={handleSaveDraftWithReset}
               onChange={(data) => setFormData(data)}
               isSubmitting={submitting}
               isSaving={isSaving}

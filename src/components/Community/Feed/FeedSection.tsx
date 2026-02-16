@@ -140,50 +140,51 @@ export const FeedSection: React.FC<FeedSectionProps> = ({
         `}
       </style>
 
-      {/* Create Post Input - 加载时显示骨架屏 */}
+      {/* Create Post Input - 优化移动端发帖输入框 */}
       {loading ? (
         <CreatePostSkeleton isDark={isDark} />
       ) : (
         <motion.div
           whileHover={{ scale: 1.01 }}
+          whileTap={{ scale: 0.99 }}
           onClick={onCreateThread}
-          className={`flex items-center gap-3 p-4 rounded-xl border mb-6 cursor-pointer shadow-sm hover:shadow-md transition-all ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}
+          className={`flex items-center gap-2 md:gap-3 p-3 md:p-4 rounded-xl border mb-4 md:mb-6 cursor-pointer shadow-sm hover:shadow-md transition-all ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}
         >
-          <TianjinAvatar size="md" src={user?.avatar || ''} alt={user?.username || '当前用户'} className="w-10 h-10 border-2 border-white dark:border-gray-700 shadow-sm" />
-          <div className="flex-1 relative group">
+          <TianjinAvatar size="md" src={user?.avatar || ''} alt={user?.username || '当前用户'} className="w-9 h-9 md:w-10 md:h-10 border-2 border-white dark:border-gray-700 shadow-sm flex-shrink-0" />
+          <div className="flex-1 relative group min-w-0">
             <input
                 type="text"
-                placeholder="分享你的创意，开启今日话题..."
+                placeholder="分享你的创意..."
                 readOnly
-                className={`w-full px-4 py-3 rounded-full text-sm focus:outline-none transition-all cursor-pointer ${isDark ? 'bg-gray-700 text-white placeholder-gray-400 group-hover:bg-gray-600' : 'bg-gray-100 text-gray-700 placeholder-gray-500 group-hover:bg-gray-50 group-hover:shadow-inner'}`}
+                className={`w-full px-3 md:px-4 py-2.5 md:py-3 rounded-full text-sm focus:outline-none transition-all cursor-pointer ${isDark ? 'bg-gray-700 text-white placeholder-gray-400 group-hover:bg-gray-600' : 'bg-gray-100 text-gray-700 placeholder-gray-500 group-hover:bg-gray-50 group-hover:shadow-inner'}`}
             />
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-1 md:gap-2 flex-shrink-0">
             <motion.button
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
               onClick={(e) => { e.stopPropagation(); onCreateThread(); }}
-              className={`p-2.5 rounded-full transition-colors ${isDark ? 'text-gray-400 hover:bg-gray-700 hover:text-green-400' : 'text-gray-500 hover:bg-gray-100 hover:text-green-500'}`}
+              className={`p-2 md:p-2.5 rounded-full transition-colors ${isDark ? 'text-gray-400 hover:bg-gray-700 hover:text-green-400' : 'text-gray-500 hover:bg-gray-100 hover:text-green-500'}`}
               title="上传图片"
             >
-              <i className="fas fa-image text-lg"></i>
+              <i className="fas fa-image text-base md:text-lg"></i>
             </motion.button>
             <motion.button
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
               onClick={(e) => { e.stopPropagation(); onCreateThread(); }}
-              className={`p-2.5 rounded-full transition-colors ${isDark ? 'text-gray-400 hover:bg-gray-700 hover:text-blue-400' : 'text-gray-500 hover:bg-gray-100 hover:text-blue-500'}`}
+              className={`p-2 md:p-2.5 rounded-full transition-colors ${isDark ? 'text-gray-400 hover:bg-gray-700 hover:text-blue-400' : 'text-gray-500 hover:bg-gray-100 hover:text-blue-500'}`}
               title="添加链接"
             >
-              <i className="fas fa-link text-lg"></i>
+              <i className="fas fa-link text-base md:text-lg"></i>
             </motion.button>
           </div>
         </motion.div>
       )}
 
-      {/* Filter Tabs - 加载时禁用交互 */}
-      <div className={`flex items-center justify-between mb-6 ${loading ? 'pointer-events-none opacity-50' : ''}`}>
-        <div className="flex items-center gap-2 p-1 rounded-lg bg-gray-100 dark:bg-gray-800/50">
+      {/* Filter Tabs - 优化移动端筛选标签 */}
+      <div className={`flex items-center justify-between mb-4 md:mb-6 ${loading ? 'pointer-events-none opacity-50' : ''}`}>
+        <div className="flex items-center gap-1 md:gap-2 p-1 rounded-lg bg-gray-100 dark:bg-gray-800/50 w-full md:w-auto">
           {[
             { id: 'hot', icon: 'fas fa-fire', label: '热门' },
             { id: 'new', icon: 'fas fa-clock', label: '最新' },
@@ -192,7 +193,7 @@ export const FeedSection: React.FC<FeedSectionProps> = ({
             <button
                 key={tab.id}
                 onClick={() => setSortBy(tab.id as any)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${sortBy === tab.id ? (isDark ? 'bg-gray-700 text-white shadow-sm' : 'bg-white text-blue-600 shadow-sm') : (isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700')}`}
+                className={`flex items-center justify-center gap-1.5 md:gap-2 flex-1 md:flex-none px-3 md:px-4 py-2 rounded-md text-sm font-medium transition-all ${sortBy === tab.id ? (isDark ? 'bg-gray-700 text-white shadow-sm' : 'bg-white text-blue-600 shadow-sm') : (isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700')}`}
             >
                 <i className={`${tab.icon} ${sortBy === tab.id ? 'text-orange-500' : ''}`}></i>
                 <span>{tab.label}</span>

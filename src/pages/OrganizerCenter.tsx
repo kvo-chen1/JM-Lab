@@ -19,7 +19,6 @@ import { EventPreview } from '@/components/EventPreview';
 import eventBus from '@/services/enhancedEventBus';
 import { useDraftAutoSave } from '@/hooks/useDraftAutoSave';
 import { AutoSaveStatus } from '@/components/AutoSaveStatus';
-import { DraftRestoreDialog } from '@/components/DraftRestoreDialog';
 import {
   CalendarDays,
   Users,
@@ -69,7 +68,9 @@ const statusConfig = {
   draft: { label: '草稿', color: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300', icon: FileText },
   pending: { label: '审核中', color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300', icon: Clock },
   published: { label: '已发布', color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300', icon: CheckCircle2 },
-  rejected: { label: '已拒绝', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300', icon: XCircle }
+  rejected: { label: '已拒绝', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300', icon: XCircle },
+  completed: { label: '已结束', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300', icon: CheckCircle2 },
+  active: { label: '进行中', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300', icon: CheckCircle2 }
 };
 
 // 创建活动步骤配置
@@ -119,7 +120,99 @@ export default function OrganizerCenter() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(10);
 
+  // 从 localStorage 读取保存的草稿数据（类似品牌向导的模式）
+  const getSavedDraft = (userId: string): { formData: EventCreateRequest | null; currentStep: StepType } | null => {
+    if (typeof localStorage === 'undefined') return null;
+    try {
+      const storageKey = `event_draft_${userId}`;
+      const stored = localStorage.getItem(storageKey);
+      if (!stored) return null;
+      
+      // 解密数据
+      const decryptData = (encrypted: string): string | null => {
+        try {
+          const decoded = decodeURIComponent(escape(atob(encrypted)));
+          const colonIndex = decoded.indexOf(':');
+          if (colonIndex === -1) return null;
+          return decoded.substring(colonIndex + 1);
+        } catch {
+          return null;
+        }
+      };
+      
+      const jsonString = decryptData(stored);
+      if (!jsonString) return null;
+      
+      const draftData = JSON.parse(jsonString);
+      if (draftData.version !== 1) return null;
+      
+      // 转换日期字符串为 Date 对象
+      const parseDate = (dateStr: string | undefined): Date => {
+        if (!dateStr) return new Date();
+        const date = new Date(dateStr);
+        return isNaN(date.getTime()) ? new Date() : date;
+      };
+      
+      return {
+        formData: {
+          title: draftData.formData?.title || '',
+          description: draftData.formData?.description || '',
+          content: draftData.formData?.content || '',
+          location: draftData.formData?.location || '',
+          type: draftData.formData?.type || 'offline',
+          tags: draftData.formData?.tags || [],
+          media: draftData.formData?.media || [],
+          isPublic: draftData.formData?.isPublic ?? true,
+          contactName: draftData.formData?.contactName || '',
+          contactPhone: draftData.formData?.contactPhone || '',
+          contactEmail: draftData.formData?.contactEmail || '',
+          pushToCommunity: draftData.formData?.pushToCommunity || false,
+          applyForRecommendation: draftData.formData?.applyForRecommendation || false,
+          startTime: parseDate(draftData.formData?.startTime),
+          endTime: parseDate(draftData.formData?.endTime),
+          registrationDeadline: parseDate(draftData.formData?.registrationDeadline),
+          reviewStartDate: parseDate(draftData.formData?.reviewStartDate),
+          resultDate: parseDate(draftData.formData?.resultDate),
+        },
+        currentStep: draftData.currentStep || 'basic',
+      };
+    } catch (error) {
+      console.error('[OrganizerCenter] 读取草稿失败:', error);
+      return null;
+    }
+  };
+
+  // 检查是否有草稿
+  const hasSavedDraft = (userId: string): boolean => {
+    if (typeof localStorage === 'undefined') return false;
+    try {
+      const storageMetaKey = `event_draft_${userId}_meta`;
+      const meta = localStorage.getItem(storageMetaKey);
+      if (!meta) return false;
+      const parsed = JSON.parse(meta);
+      return parsed.hasData && parsed.version === 1;
+    } catch {
+      return false;
+    }
+  };
+
+  // 获取草稿保存时间
+  const getDraftSavedTime = (userId: string): Date | null => {
+    if (typeof localStorage === 'undefined') return null;
+    try {
+      const storageMetaKey = `event_draft_${userId}_meta`;
+      const meta = localStorage.getItem(storageMetaKey);
+      if (!meta) return null;
+      const parsed = JSON.parse(meta);
+      if (!parsed.hasData || parsed.version !== 1) return null;
+      return new Date(parsed.timestamp);
+    } catch {
+      return null;
+    }
+  };
+
   // ========== 创建活动相关状态 ==========
+  // 初始状态为空，等待 user 加载完成后再读取草稿
   const [currentStep, setCurrentStep] = useState<StepType>('basic');
   const [formData, setFormData] = useState<EventCreateRequest>({
     title: '',
@@ -142,6 +235,15 @@ export default function OrganizerCenter() {
     reviewStartDate: new Date(Date.now() + 8 * 24 * 60 * 60 * 1000), // 默认8天后开始评审
     resultDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // 默认14天后公布结果
   });
+  
+  // 标记是否已经恢复过草稿（使用 sessionStorage 防止页面刷新后重复恢复）
+  const [isDraftRestored, setIsDraftRestored] = useState(() => {
+    // 检查 sessionStorage 中是否已标记为恢复过
+    if (typeof sessionStorage !== 'undefined') {
+      return sessionStorage.getItem('event_draft_restored') === 'true';
+    }
+    return false;
+  });
   const [isPublishing, setIsPublishing] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
@@ -155,20 +257,16 @@ export default function OrganizerCenter() {
   // 从 AuthContext 获取 isLoading 状态（必须在其他 hooks 之前声明）
   const { isAuthenticated, user, isLoading: isAuthLoading } = useContext(AuthContext);
 
-  // ========== 自动草稿保存相关状态 ==========
-  const [showDraftRestoreDialog, setShowDraftRestoreDialog] = useState(false);
-  const [isDraftRestored, setIsDraftRestored] = useState(false);
+  // 使用用户ID作为草稿key，确保每个用户有独立的草稿存储
+  const draftKey = useMemo(() => user?.id || 'anonymous', [user?.id]);
 
-  // 使用自动草稿保存 hook
+  // 使用自动草稿保存 hook（用于自动保存当前编辑的内容）
   const {
     saveStatus,
     lastSavedAt,
     clearDraft,
-    loadDraft,
-    hasDraft,
-    getDraftSavedTime,
   } = useDraftAutoSave(formData, currentStep, {
-    key: user?.id || 'anonymous',
+    key: draftKey,
     debounceMs: 2000,
     encrypt: true,
     version: 1,
@@ -221,59 +319,38 @@ export default function OrganizerCenter() {
     checkBrandVerification();
   }, [isAuthenticated, user, navigate, isAuthLoading]);
 
-  // 检测并提示恢复草稿
+  // 当 user 加载完成后，读取并恢复草稿（仅在创建活动标签页时恢复）
   useEffect(() => {
-    // 只有在进入创建活动标签页时才检测草稿
-    if (activeTab === 'create' && !isDraftRestored && user) {
-      const hasSavedDraft = hasDraft();
-      if (hasSavedDraft) {
-        setShowDraftRestoreDialog(true);
+    // 只有在创建活动标签页且未恢复过草稿时才恢复
+    if (user?.id && !isDraftRestored && !isAuthLoading && activeTab === 'create') {
+      const draft = getSavedDraft(user.id);
+      if (draft?.formData) {
+        console.log('[OrganizerCenter] 恢复草稿:', draft);
+        setFormData(draft.formData);
+        setCurrentStep(draft.currentStep);
+        
+        // 显示恢复提示
+        const savedTime = getDraftSavedTime(user.id);
+        if (savedTime) {
+          const timeStr = savedTime.toLocaleString('zh-CN', {
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+          });
+          toast.success(`已自动恢复 ${timeStr} 的草稿`);
+        } else {
+          toast.success('已自动恢复上次编辑的草稿');
+        }
+        
+        // 标记为已恢复，使用 sessionStorage 防止页面刷新后重复恢复
+        setIsDraftRestored(true);
+        if (typeof sessionStorage !== 'undefined') {
+          sessionStorage.setItem('event_draft_restored', 'true');
+        }
       }
     }
-  }, [activeTab, hasDraft, isDraftRestored, user]);
-
-  // 恢复草稿
-  const handleRestoreDraft = useCallback(() => {
-    const draft = loadDraft();
-    if (draft) {
-      // 恢复表单数据，将日期字符串转换回 Date 对象
-      const restoredFormData: EventCreateRequest = {
-        ...draft.formData,
-        title: draft.formData.title || '',
-        description: draft.formData.description || '',
-        content: draft.formData.content || '',
-        location: draft.formData.location || '',
-        type: draft.formData.type || 'offline',
-        tags: draft.formData.tags || [],
-        media: draft.formData.media || [],
-        isPublic: draft.formData.isPublic ?? true,
-        contactName: draft.formData.contactName || '',
-        contactPhone: draft.formData.contactPhone || '',
-        contactEmail: draft.formData.contactEmail || '',
-        pushToCommunity: draft.formData.pushToCommunity || false,
-        applyForRecommendation: draft.formData.applyForRecommendation || false,
-        startTime: draft.formData.startTime ? new Date(draft.formData.startTime) : new Date(),
-        endTime: draft.formData.endTime ? new Date(draft.formData.endTime) : new Date(Date.now() + 24 * 60 * 60 * 1000),
-        registrationDeadline: draft.formData.registrationDeadline ? new Date(draft.formData.registrationDeadline) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-        reviewStartDate: draft.formData.reviewStartDate ? new Date(draft.formData.reviewStartDate) : new Date(Date.now() + 8 * 24 * 60 * 60 * 1000),
-        resultDate: draft.formData.resultDate ? new Date(draft.formData.resultDate) : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
-      };
-      
-      setFormData(restoredFormData);
-      setCurrentStep(draft.currentStep as StepType);
-      setIsDraftRestored(true);
-      toast.success('已恢复上次编辑的草稿');
-    }
-    setShowDraftRestoreDialog(false);
-  }, [loadDraft]);
-
-  // 丢弃草稿
-  const handleDiscardDraft = useCallback(() => {
-    clearDraft();
-    setIsDraftRestored(true);
-    setShowDraftRestoreDialog(false);
-    toast.info('已丢弃草稿，开始创建新活动');
-  }, [clearDraft]);
+  }, [user?.id, isAuthLoading, isDraftRestored, activeTab]);
 
   // 切换品牌
   const handleSwitchBrand = (brand: BrandPartnership) => {
@@ -416,7 +493,7 @@ export default function OrganizerCenter() {
   };
 
   // 更新活动阶段状态
-  const handleUpdatePhaseStatus = async (eventId: string, newPhaseStatus: string) => {
+  const handleUpdatePhaseStatus = async (eventId: string, newPhaseStatus: 'registration' | 'review' | 'completed') => {
     try {
       // 调用 API 更新活动阶段状态
       const { error } = await supabase
@@ -457,11 +534,8 @@ export default function OrganizerCenter() {
 
   // 获取活动的开始时间（兼容不同字段格式）
   const getEventStartTime = (event: Event): Date => {
-    if (event.start_time) {
-      return new Date(event.start_time);
-    }
-    if (event.start_date) {
-      return new Date(event.start_date * 1000); // Unix timestamp 转毫秒
+    if (event.startTime) {
+      return new Date(event.startTime);
     }
     return new Date();
   };
@@ -673,8 +747,8 @@ export default function OrganizerCenter() {
         title: formData.title || '未命名活动',
         description: formData.description,
         content: formData.content,
-        start_time: formData.startTime?.toISOString() || new Date().toISOString(),
-        end_time: formData.endTime?.toISOString() || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        start_time: formData.startTime ? Math.floor(formData.startTime.getTime() / 1000) : Math.floor(Date.now() / 1000),
+        end_time: formData.endTime ? Math.floor(formData.endTime.getTime() / 1000) : Math.floor((Date.now() + 24 * 60 * 60 * 1000) / 1000),
         location: formData.location,
         type: formData.type || 'offline',
         is_public: formData.isPublic ?? true,
@@ -686,10 +760,10 @@ export default function OrganizerCenter() {
         organizer_id: user?.id,
         brand_id: selectedBrand?.id,
         brand_name: selectedBrand?.brand_name,
-        // 多阶段时间字段
-        registration_deadline: formData.registrationDeadline?.toISOString(),
-        review_start_date: formData.reviewStartDate?.toISOString(),
-        result_date: formData.resultDate?.toISOString(),
+        // 多阶段时间字段 - 转换为 Unix 时间戳（秒）
+        registration_deadline: formData.registrationDeadline ? Math.floor(formData.registrationDeadline.getTime() / 1000) : null,
+        review_start_date: formData.reviewStartDate ? Math.floor(formData.reviewStartDate.getTime() / 1000) : null,
+        result_date: formData.resultDate ? Math.floor(formData.resultDate.getTime() / 1000) : null,
         phase_status: 'registration', // 默认报名阶段
       };
       
@@ -756,8 +830,8 @@ export default function OrganizerCenter() {
         title: formData.title,
         description: formData.description,
         content: formData.content,
-        start_time: formData.startTime.toISOString(),
-        end_time: formData.endTime.toISOString(),
+        start_time: Math.floor(formData.startTime.getTime() / 1000),
+        end_time: Math.floor(formData.endTime.getTime() / 1000),
         location: formData.location,
         type: formData.type,
         is_public: formData.isPublic,
@@ -769,10 +843,10 @@ export default function OrganizerCenter() {
         organizer_id: user?.id,
         brand_id: selectedBrand?.id,
         brand_name: selectedBrand?.brand_name,
-        // 多阶段时间字段
-        registration_deadline: formData.registrationDeadline?.toISOString(),
-        review_start_date: formData.reviewStartDate?.toISOString(),
-        result_date: formData.resultDate?.toISOString(),
+        // 多阶段时间字段 - 转换为 Unix 时间戳（秒）
+        registration_deadline: formData.registrationDeadline ? Math.floor(formData.registrationDeadline.getTime() / 1000) : null,
+        review_start_date: formData.reviewStartDate ? Math.floor(formData.reviewStartDate.getTime() / 1000) : null,
+        result_date: formData.resultDate ? Math.floor(formData.resultDate.getTime() / 1000) : null,
       };
       
       // 只在有值时才添加 tags 和 media 字段
@@ -797,6 +871,10 @@ export default function OrganizerCenter() {
       // 清除草稿数据
       clearDraft();
       setIsDraftRestored(false);
+      // 同时清除 sessionStorage 中的恢复标记，以便下次创建新活动时可以恢复草稿
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.removeItem('event_draft_restored');
+      }
 
       // 重置表单并切换到活动管理
       handleTabChange('activities');
@@ -1080,7 +1158,7 @@ export default function OrganizerCenter() {
                             initial={{ opacity: 0, x: -10 }}
                             animate={{ opacity: 1, x: 0 }}
                             transition={{ delay: index * 0.1 }}
-                            onClick={() => navigate(`/activities/${event.id}`)}
+                            onClick={() => navigate(`/cultural-events?eventId=${event.id}&openModal=true`)}
                             className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer transition-colors"
                           >
                             <div className="w-10 h-10 rounded-lg bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center text-primary-600 dark:text-primary-400 text-sm font-bold">
@@ -1194,7 +1272,8 @@ export default function OrganizerCenter() {
                       <div className={viewMode === 'grid' ? 'grid grid-cols-1 sm:grid-cols-2 gap-4 p-4' : 'divide-y divide-gray-100 dark:divide-gray-700'}>
                         <AnimatePresence>
                           {events.map((event, index) => {
-                            const StatusIcon = statusConfig[event.status].icon;
+                            const statusCfg = statusConfig[event.status as keyof typeof statusConfig] || statusConfig.draft;
+                            const StatusIcon = statusCfg.icon;
 
                             if (viewMode === 'grid') {
                               return (
@@ -1206,12 +1285,12 @@ export default function OrganizerCenter() {
                                   transition={{ delay: index * 0.05 }}
                                   whileHover={{ y: -4 }}
                                   className={`rounded-xl overflow-hidden border ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} shadow-card hover:shadow-card-hover transition-all cursor-pointer`}
-                                  onClick={() => navigate(`/activities/${event.id}`)}
+                                  onClick={() => navigate(`/cultural-events?eventId=${event.id}&openModal=true`)}
                                 >
                                   <div className="aspect-video relative">
-                                    {event.thumbnailUrl ? (
+                                    {event.coverUrl || event.thumbnailUrl || event.media?.[0]?.url ? (
                                       <img
-                                        src={event.thumbnailUrl}
+                                        src={event.coverUrl || event.thumbnailUrl || event.media?.[0]?.url}
                                         alt={event.title}
                                         className="w-full h-full object-cover"
                                       />
@@ -1221,9 +1300,9 @@ export default function OrganizerCenter() {
                                       </div>
                                     )}
                                     <div className="absolute top-3 left-3">
-                                      <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${statusConfig[event.status].color}`}>
+                                      <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${statusCfg.color}`}>
                                         <StatusIcon className="w-3 h-3" />
-                                        {statusConfig[event.status].label}
+                                        {statusCfg.label}
                                       </span>
                                     </div>
                                   </div>
@@ -1256,9 +1335,9 @@ export default function OrganizerCenter() {
                               >
                                 {/* 封面 */}
                                 <div className="w-24 h-16 rounded-lg overflow-hidden flex-shrink-0 bg-gray-200 dark:bg-gray-700">
-                                  {event.thumbnailUrl ? (
+                                  {event.coverUrl || event.thumbnailUrl || event.media?.[0]?.url ? (
                                     <img
-                                      src={event.thumbnailUrl}
+                                      src={event.coverUrl || event.thumbnailUrl || event.media?.[0]?.url}
                                       alt={event.title}
                                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                                     />
@@ -1273,9 +1352,9 @@ export default function OrganizerCenter() {
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-2">
                                     <h3 className="font-semibold text-gray-900 dark:text-white truncate">{event.title}</h3>
-                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${statusConfig[event.status].color}`}>
+                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${statusCfg.color}`}>
                                       <StatusIcon className="w-3 h-3" />
-                                      {statusConfig[event.status].label}
+                                      {statusCfg.label}
                                     </span>
                                   </div>
                                   <p className="mt-0.5 text-sm text-gray-500 truncate">{event.description}</p>
@@ -1296,7 +1375,7 @@ export default function OrganizerCenter() {
                                   <motion.button
                                     whileHover={{ scale: 1.05 }}
                                     whileTap={{ scale: 0.95 }}
-                                    onClick={(e) => { e.stopPropagation(); navigate(`/activities/${event.id}`); }}
+                                    onClick={(e) => { e.stopPropagation(); navigate(`/organizer/events/${event.id}`); }}
                                     className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"
                                     title="查看详情"
                                   >
@@ -2127,13 +2206,6 @@ export default function OrganizerCenter() {
         </AnimatePresence>
       </div>
 
-      {/* 草稿恢复对话框 */}
-      <DraftRestoreDialog
-        isOpen={showDraftRestoreDialog}
-        savedAt={getDraftSavedTime()}
-        onRestore={handleRestoreDraft}
-        onDiscard={handleDiscardDraft}
-      />
     </div>
   );
 }
@@ -2161,11 +2233,9 @@ function ActivityMiniCalendar({ events }: { events: Event[] }) {
 
   const hasEventOnDay = (day: number) => {
     return events.some(event => {
-      const eventDate = event.start_time 
-        ? new Date(event.start_time) 
-        : event.start_date 
-          ? new Date(event.start_date * 1000) 
-          : new Date();
+      const eventDate = event.startTime 
+        ? new Date(event.startTime) 
+        : new Date();
       return eventDate.getDate() === day &&
              eventDate.getMonth() === currentMonth &&
              eventDate.getFullYear() === currentYear;

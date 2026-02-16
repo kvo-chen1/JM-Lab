@@ -120,7 +120,7 @@ const config = {
       // 空闲连接超时：快速释放不用的连接
       idleTimeoutMillis: parseInt(process.env.POSTGRES_IDLE_TIMEOUT || '10000'),
       // 连接超时：快速失败，避免长时间等待
-      connectionTimeoutMillis: parseInt(process.env.POSTGRES_CONNECTION_TIMEOUT || '3000'),
+      connectionTimeoutMillis: parseInt(process.env.POSTGRES_CONNECTION_TIMEOUT || '10000'),
       // 连接最大生命周期：防止连接长时间不释放
       maxLifetime: parseInt(process.env.POSTGRES_MAX_LIFETIME || '300000'), // 5分钟
       // SSL 配置：Supabase 通常需要 SSL。本地开发可能不需要。
@@ -128,7 +128,7 @@ const config = {
         rejectUnauthorized: false // 允许自签名证书 (Supabase 兼容性)
       } : false,
       // 查询超时设置：避免长时间运行的查询阻塞连接
-      statement_timeout: 8000, // 8秒查询超时
+      statement_timeout: 30000, // 30秒查询超时
       // 客户端编码设置
       client_encoding: 'UTF8',
       // 连接重试策略
@@ -528,6 +528,9 @@ async function createPostgreSQLTables(pool) {
         await client.query(`ALTER TABLE IF EXISTS events ADD COLUMN IF NOT EXISTS review_start_date BIGINT;`)
         await client.query(`ALTER TABLE IF EXISTS events ADD COLUMN IF NOT EXISTS result_date BIGINT;`)
         await client.query(`ALTER TABLE IF EXISTS events ADD COLUMN IF NOT EXISTS phase_status VARCHAR(50) DEFAULT 'registration';`)
+        // 添加 start_time 和 end_time 字段（timestamp 类型，用于 ISO 格式时间）
+        await client.query(`ALTER TABLE IF EXISTS events ADD COLUMN IF NOT EXISTS start_time TIMESTAMP;`)
+        await client.query(`ALTER TABLE IF EXISTS events ADD COLUMN IF NOT EXISTS end_time TIMESTAMP;`)
         console.log('[DB] events time fields ensured')
 
         console.log('[DB] Column type check completed')
@@ -689,10 +692,13 @@ async function createPostgreSQLTables(pool) {
       await client.query(`ALTER TABLE IF EXISTS works ADD COLUMN IF NOT EXISTS cover_url TEXT;`)
       await client.query(`ALTER TABLE IF EXISTS works ADD COLUMN IF NOT EXISTS media TEXT;`)
       await client.query(`ALTER TABLE IF EXISTS works ADD COLUMN IF NOT EXISTS votes INTEGER DEFAULT 0;`)
+      await client.query(`ALTER TABLE IF EXISTS works ADD COLUMN IF NOT EXISTS event_id TEXT;`)
+      await client.query(`ALTER TABLE IF EXISTS works ADD COLUMN IF NOT EXISTS score INTEGER DEFAULT 0;`)
       
       await client.query('CREATE INDEX IF NOT EXISTS idx_works_creator_id ON works(creator_id);')
       await client.query('CREATE INDEX IF NOT EXISTS idx_works_created_at ON works(created_at);')
       await client.query('CREATE INDEX IF NOT EXISTS idx_works_category ON works(category);')
+      await client.query('CREATE INDEX IF NOT EXISTS idx_works_event_id ON works(event_id);')
 
       // 创建作品收藏表 (work_favorites)
       // 先删除旧表（如果存在）以更新结构
@@ -727,6 +733,20 @@ async function createPostgreSQLTables(pool) {
       `)
       await client.query('CREATE INDEX IF NOT EXISTS idx_work_likes_user_id ON work_likes(user_id);')
       await client.query('CREATE INDEX IF NOT EXISTS idx_work_likes_work_id ON work_likes(work_id);')
+
+      // 创建活动参与者表 (event_participants)
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS event_participants (
+          id SERIAL PRIMARY KEY,
+          event_id TEXT NOT NULL,
+          user_id TEXT NOT NULL,
+          status VARCHAR(20) DEFAULT 'registered',
+          registered_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          UNIQUE(event_id, user_id)
+        );
+      `)
+      await client.query('CREATE INDEX IF NOT EXISTS idx_event_participants_event_id ON event_participants(event_id);')
+      await client.query('CREATE INDEX IF NOT EXISTS idx_event_participants_user_id ON event_participants(user_id);')
 
       // 创建分类表
       await client.query(`
@@ -4864,6 +4884,7 @@ export const eventDB = {
         // We'll add table creation to createPostgreSQLTables separately
         
         // 转换时间戳：优先使用 start_date/end_date (bigint)，否则使用 startTime/endTime (ISO string)
+      // startTimestamp 和 endTimestamp 用于 start_time/end_time (timestamp 类型)
         const startTimestamp = start_date 
           ? new Date(start_date * 1000).toISOString() 
           : (startTime ? new Date(startTime).toISOString() : new Date().toISOString())
@@ -4871,8 +4892,9 @@ export const eventDB = {
           ? new Date(end_date * 1000).toISOString() 
           : (endTime ? new Date(endTime).toISOString() : new Date(Date.now() + 86400000).toISOString())
         
-        // created_at 和 updated_at 是 bigint 类型（Unix 时间戳）
-        const nowTimestamp = Math.floor(Date.now() / 1000)
+        // created_at 是 bigint 类型（秒级时间戳），updated_at 是 timestamptz 类型（ISO 字符串）
+        const nowTimestampSeconds = Math.floor(Date.now() / 1000)
+        const nowTimestampISO = new Date().toISOString()
         
         console.log('[DB] Inserting event with values:', {
         eventId,
@@ -4887,11 +4909,41 @@ export const eventDB = {
       const startDateTimestamp = start_date || Math.floor(new Date(startTimestamp).getTime() / 1000)
       const endDateTimestamp = end_date || Math.floor(new Date(endTimestamp).getTime() / 1000)
       
+      // 处理新添加的时间字段 - 使用秒级时间戳（对应数据库 bigint 类型）
+      const parseTimeField = (value) => {
+        if (!value) return null;
+        if (typeof value === 'number') {
+          // 如果已经是 Unix 时间戳（秒），直接返回
+          return value;
+        }
+        // 如果是字符串，尝试解析为日期并转换为秒级时间戳
+        const date = new Date(value);
+        if (isNaN(date.getTime())) return null;
+        return Math.floor(date.getTime() / 1000);
+      };
+      
+      const registrationDeadline = parseTimeField(eventData.registration_deadline);
+      const reviewStartDate = parseTimeField(eventData.review_start_date);
+      const resultDate = parseTimeField(eventData.result_date);
+      const phaseStatus = eventData.phase_status || 'registration'
+      
+      console.log('[DB] createEvent values:', {
+        startDateTimestamp,
+        endDateTimestamp,
+        startTimestamp,
+        endTimestamp,
+        registrationDeadline,
+        reviewStartDate,
+        resultDate,
+        nowTimestampSeconds,
+        nowTimestampISO
+      })
+      
       await db.query(`
-          INSERT INTO events (id, title, description, content, start_date, end_date, start_time, end_time, location, thumbnail_url, status, organizer_id, type, tags, media, max_participants, is_public, created_at, updated_at)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15::jsonb, $16, $17, $18, $19)
-        `, [eventId, title, description, content || description, startDateTimestamp, endDateTimestamp, startTimestamp, endTimestamp, location, thumbnailValue, status || 'draft', orgId, type || 'online', tagsValue, JSON.stringify(mediaValue), maxPartValue, isPublic, nowTimestamp, nowTimestamp])
-        return { ...eventData, id: eventId, created_at: nowTimestamp, updated_at: nowTimestamp }
+          INSERT INTO events (id, title, description, content, start_date, end_date, start_time, end_time, location, thumbnail_url, status, organizer_id, type, tags, media, max_participants, is_public, created_at, updated_at, registration_deadline, review_start_date, result_date, phase_status)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15::jsonb, $16, $17, $18, $19, $20, $21, $22, $23)
+        `, [eventId, title, description, content || description, startDateTimestamp, endDateTimestamp, startTimestamp, endTimestamp, location, thumbnailValue, status || 'draft', orgId, type || 'online', tagsValue, JSON.stringify(mediaValue), maxPartValue, isPublic, nowTimestampSeconds, nowTimestampISO, registrationDeadline, reviewStartDate, resultDate, phaseStatus])
+        return { ...eventData, id: eventId, created_at: nowTimestampSeconds, updated_at: nowTimestampISO }
         
       case DB_TYPE.MEMORY:
         if (!memoryStore.events) memoryStore.events = []
@@ -4944,7 +4996,8 @@ export const eventDB = {
   async updateEvent(id, updateData) {
     const db = await getDB()
     const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
-    const nowTimestamp = Math.floor(Date.now() / 1000)
+    const nowTimestampSeconds = Math.floor(Date.now() / 1000)
+    const nowTimestampISO = new Date().toISOString()
     
     switch (typeKey) {
         
@@ -5054,9 +5107,9 @@ export const eventDB = {
           values.push(updateData.phase_status)
         }
         
-        // 总是更新 updated_at
+        // 总是更新 updated_at (使用 ISO 字符串，因为字段是 timestamptz 类型)
         updates.push(`updated_at = $${paramIndex++}`)
-        values.push(nowTimestamp)
+        values.push(nowTimestampISO)
         
         // 添加 id 作为最后一个参数
         values.push(id)
@@ -5146,17 +5199,22 @@ export const eventDB = {
           console.log('[DB] Executing SQL:', pgSql, 'with params:', pgParams)
           const { rows } = await db.query(pgSql, pgParams)
           console.log('[DB] getEvents query returned:', rows.length, 'rows')
-          return rows.map(pgRow => ({
-            ...pgRow,
-            startTime: pgRow.start_date * 1000,
-            endTime: pgRow.end_date * 1000,
-            coverUrl: pgRow.image_url,
-            creatorId: pgRow.organizer_id,
-            created_at: pgRow.created_at,
-            updated_at: pgRow.updated_at,
-            tags: pgRow.tags && typeof pgRow.tags === 'string' && pgRow.tags.trim() ? JSON.parse(pgRow.tags) : [],
-            media: pgRow.image_url ? [{ url: pgRow.image_url, type: 'image' }] : []
-          }))
+          return rows.map(pgRow => {
+            console.log('[DB] getEvents row:', { id: pgRow.id, image_url: pgRow.image_url, thumbnail_url: pgRow.thumbnail_url });
+            return {
+              ...pgRow,
+              startTime: pgRow.start_date * 1000,
+              endTime: pgRow.end_date * 1000,
+              coverUrl: pgRow.image_url || pgRow.thumbnail_url,
+              thumbnailUrl: pgRow.thumbnail_url || pgRow.image_url,
+              imageUrl: pgRow.image_url || pgRow.thumbnail_url,
+              creatorId: pgRow.organizer_id,
+              created_at: pgRow.created_at,
+              updated_at: pgRow.updated_at,
+              tags: pgRow.tags && typeof pgRow.tags === 'string' && pgRow.tags.trim() ? JSON.parse(pgRow.tags) : [],
+              media: pgRow.image_url ? [{ url: pgRow.image_url, type: 'image' }] : []
+            };
+          })
         } catch (e) { 
           console.error('[DB] getEvents(filters) error:', e)
           return [] 

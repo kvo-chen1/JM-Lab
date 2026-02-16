@@ -1,0 +1,197 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 450 600" width="450" height="600">
+  <defs>
+    <!-- 高级红色渐变 -->
+    <linearGradient id="luxuryRed" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#8B0000"/>
+      <stop offset="30%" style="stop-color:#A50000"/>
+      <stop offset="60%" style="stop-color:#8B0000"/>
+      <stop offset="100%" style="stop-color:#5C0000"/>
+    </linearGradient>
+    
+    <!-- 暗纹背景渐变 -->
+    <radialGradient id="textureGradient" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" style="stop-color:#9A0000;stop-opacity:0.3"/>
+      <stop offset="100%" style="stop-color:#5C0000;stop-opacity:0"/>
+    </radialGradient>
+    
+    <!-- 金色奢华渐变 -->
+    <linearGradient id="luxuryGold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#F4E4BC"/>
+      <stop offset="25%" style="stop-color:#D4A84B"/>
+      <stop offset="50%" style="stop-color:#C68E17"/>
+      <stop offset="75%" style="stop-color:#D4A84B"/>
+      <stop offset="100%" style="stop-color:#F4E4BC"/>
+    </linearGradient>
+    
+    <!-- 金色立体渐变 -->
+    <linearGradient id="gold3D" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#F4E4BC"/>
+      <stop offset="40%" style="stop-color:#D4A84B"/>
+      <stop offset="100%" style="stop-color:#8B6914"/>
+    </linearGradient>
+    
+    <!-- 高级阴影 -->
+    <filter id="premiumShadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="4"/>
+      <feOffset dx="0" dy="4" result="offsetblur"/>
+      <feComponentTransfer>
+        <feFuncA type="linear" slope="0.4"/>
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    
+    <!-- 金色发光 -->
+    <filter id="goldGlow" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+    
+    <!-- 内阴影 -->
+    <filter id="innerShadow">
+      <feOffset dx="0" dy="3"/>
+      <feGaussianBlur stdDeviation="3" result="offset-blur"/>
+      <feComposite operator="out" in="SourceGraphic" in2="offset-blur" result="inverse"/>
+      <feFlood flood-color="black" flood-opacity="0.3" result="color"/>
+      <feComposite operator="in" in="color" in2="inverse" result="shadow"/>
+      <feComposite operator="over" in="shadow" in2="SourceGraphic"/>
+    </filter>
+    
+    <!-- 丝绸纹理 -->
+    <pattern id="silkPattern" x="0" y="0" width="100" height="100" patternUnits="userSpaceOnUse">
+      <path d="M0,50 Q25,30 50,50 T100,50" fill="none" stroke="#D4A84B" stroke-width="0.5" opacity="0.1"/>
+      <path d="M0,70 Q25,50 50,70 T100,70" fill="none" stroke="#D4A84B" stroke-width="0.5" opacity="0.08"/>
+    </pattern>
+  </defs>
+  
+  <!-- 主背景 -->
+  <rect width="450" height="600" rx="8" fill="url(#luxuryRed)"/>
+  
+  <!-- 丝绸纹理层 -->
+  <rect width="450" height="600" rx="8" fill="url(#silkPattern)"/>
+  
+  <!-- 暗纹装饰 -->
+  <ellipse cx="225" cy="300" rx="200" ry="250" fill="url(#textureGradient)"/>
+  
+  <!-- 外边框 - 双层设计 -->
+  <rect x="12" y="12" width="426" height="576" rx="6" fill="none" stroke="#D4A84B" stroke-width="2" opacity="0.6"/>
+  <rect x="18" y="18" width="414" height="564" rx="4" fill="none" stroke="#D4A84B" stroke-width="1" opacity="0.4"/>
+  
+  <!-- 顶部装饰带 -->
+  <g transform="translate(0, 0)">
+    <!-- 顶部金色横条 -->
+    <rect x="0" y="0" width="450" height="80" fill="url(#luxuryGold)" opacity="0.15"/>
+    <!-- 装饰线 -->
+    <line x1="50" y1="60" x2="400" y2="60" stroke="#D4A84B" stroke-width="1.5" opacity="0.5"/>
+    <line x1="80" y1="68" x2="370" y2="68" stroke="#D4A84B" stroke-width="0.8" opacity="0.3"/>
+  </g>
+  
+  <!-- 四角奢华装饰 -->
+  <g stroke="url(#luxuryGold)" stroke-width="2.5" fill="none" opacity="0.8">
+    <!-- 左上 -->
+    <path d="M25 80 L25 25 L80 25"/>
+    <circle cx="25" cy="25" r="6" fill="#D4A84B" opacity="0.3"/>
+    <!-- 右上 -->
+    <path d="M370 25 L425 25 L425 80"/>
+    <circle cx="425" cy="25" r="6" fill="#D4A84B" opacity="0.3"/>
+    <!-- 左下 -->
+    <path d="M25 520 L25 575 L80 575"/>
+    <circle cx="25" cy="575" r="6" fill="#D4A84B" opacity="0.3"/>
+    <!-- 右下 -->
+    <path d="M370 575 L425 575 L425 520"/>
+    <circle cx="425" cy="575" r="6" fill="#D4A84B" opacity="0.3"/>
+  </g>
+  
+  <!-- 品牌名称区域 - 更高级的设计 -->
+  <g transform="translate(225, 100)" text-anchor="middle">
+    <!-- 品牌名背景装饰 -->
+    <rect x="-140" y="-35" width="280" height="60" rx="30" fill="#5C0000" opacity="0.5"/>
+    <rect x="-135" y="-30" width="270" height="50" rx="25" fill="none" stroke="#D4A84B" stroke-width="1" opacity="0.3"/>
+    
+    <!-- 津脉智坊 - 立体效果 -->
+    <text x="2" y="2" font-family="SimHei, Microsoft YaHei, serif" font-size="42" 
+          font-weight="bold" fill="#5C0000" letter-spacing="12">津脉智坊</text>
+    <text x="0" y="0" font-family="SimHei, Microsoft YaHei, serif" font-size="42" 
+          font-weight="bold" fill="url(#luxuryGold)" letter-spacing="12" filter="url(#premiumShadow)">津脉智坊</text>
+    
+    <!-- 英文副标题 -->
+    <text x="0" y="35" font-family="Georgia, serif" font-size="11" 
+          fill="#D4A84B" letter-spacing="4" opacity="0.8">JINMAI INTELLIGENT WORKSHOP</text>
+  </g>
+  
+  <!-- 中心区域 - 福字设计 -->
+  <g transform="translate(225, 300)">
+    <!-- 外圈装饰环 -->
+    <circle cx="0" cy="0" r="125" fill="none" stroke="#D4A84B" stroke-width="1" opacity="0.2"/>
+    <circle cx="0" cy="0" r="118" fill="none" stroke="#D4A84B" stroke-width="0.5" opacity="0.3"/>
+    
+    <!-- 主圆形背景 -->
+    <circle cx="0" cy="0" r="110" fill="#7A0000" opacity="0.6"/>
+    <circle cx="0" cy="0" r="110" fill="none" stroke="url(#luxuryGold)" stroke-width="3" filter="url(#goldGlow)"/>
+    
+    <!-- 内圈装饰 -->
+    <circle cx="0" cy="0" r="100" fill="none" stroke="#D4A84B" stroke-width="1" opacity="0.4" stroke-dasharray="5,5"/>
+    
+    <!-- 福字背景圆形 -->
+    <circle cx="0" cy="0" r="85" fill="url(#gold3D)"/>
+    
+    <!-- 福字阴影 -->
+    <text x="3" y="28" font-family="SimHei, KaiTi, serif" font-size="95" 
+          font-weight="bold" fill="#5C0000" text-anchor="middle" opacity="0.4">福</text>
+    <!-- 福字主体 -->
+    <text x="0" y="25" font-family="SimHei, KaiTi, serif" font-size="95" 
+          font-weight="bold" fill="#8B0000" text-anchor="middle">福</text>
+    <!-- 福字高光 -->
+    <text x="-1" y="24" font-family="SimHei, KaiTi, serif" font-size="95" 
+          font-weight="bold" fill="url(#luxuryGold)" text-anchor="middle" opacity="0.9">福</text>
+  </g>
+  
+  <!-- 左右装饰元素 -->
+  <g opacity="0.4">
+    <!-- 左侧祥云 -->
+    <path d="M30 250 Q50 230 70 250 Q90 270 110 250" fill="none" stroke="#D4A84B" stroke-width="2"/>
+    <path d="M30 350 Q50 330 70 350 Q90 370 110 350" fill="none" stroke="#D4A84B" stroke-width="2"/>
+    <!-- 右侧祥云 -->
+    <path d="M340 250 Q360 230 380 250 Q400 270 420 250" fill="none" stroke="#D4A84B" stroke-width="2"/>
+    <path d="M340 350 Q360 330 380 350 Q400 370 420 350" fill="none" stroke="#D4A84B" stroke-width="2"/>
+  </g>
+  
+  <!-- 底部标语区域 -->
+  <g transform="translate(225, 500)" text-anchor="middle">
+    <!-- 标语背景 -->
+    <rect x="-160" y="-25" width="320" height="50" rx="25" fill="#5C0000" opacity="0.4"/>
+    
+    <!-- 中文标语 -->
+    <text x="0" y="5" font-family="SimHei, Microsoft YaHei, serif" font-size="22" 
+          fill="#F4E4BC" letter-spacing="8" filter="url(#premiumShadow)">津创灵感 · 点亮创意</text>
+    
+    <!-- 英文标语 -->
+    <text x="0" y="32" font-family="Georgia, serif" font-size="10" 
+          fill="#D4A84B" letter-spacing="3" opacity="0.7">TRADITION MEETS INNOVATION</text>
+  </g>
+  
+  <!-- 底部装饰带 -->
+  <g transform="translate(0, 540)">
+    <!-- 波浪装饰 -->
+    <path d="M0,30 Q112,60 225,30 Q338,0 450,30 L450,60 L0,60 Z" 
+          fill="url(#luxuryGold)" opacity="0.12"/>
+    <!-- 底部金色线 -->
+    <line x1="100" y1="15" x2="350" y2="15" stroke="#D4A84B" stroke-width="1" opacity="0.4"/>
+  </g>
+  
+  <!-- 角落装饰点 -->
+  <g fill="#D4A84B" opacity="0.5">
+    <circle cx="50" cy="150" r="2"/>
+    <circle cx="400" cy="150" r="2"/>
+    <circle cx="50" cy="450" r="2"/>
+    <circle cx="400" cy="450" r="2"/>
+  </g>
+  
+  <!-- 底部品牌信息 -->
+  <g transform="translate(225, 585)" text-anchor="middle">
+    <text x="0" y="0" font-family="Arial, sans-serif" font-size="8" 
+          fill="#D4A84B" opacity="0.5" letter-spacing="2">津脉智坊 · 津门老字号共创平台</text>
+  </g>
+</svg>

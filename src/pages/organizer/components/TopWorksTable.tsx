@@ -103,27 +103,27 @@ export function TopWorksTable({ works, loading = false, onWorkClick }: TopWorksT
             {/* 点赞数 */}
             <div className="flex items-center gap-1 text-pink-500">
               <Heart className="w-4 h-4" />
-              <span>{work.likes}</span>
+              <span>{work.likes || 0}</span>
             </div>
 
             {/* 评论数 */}
             <div className="flex items-center gap-1 text-purple-500">
               <MessageCircle className="w-4 h-4" />
-              <span>{work.comments}</span>
+              <span>{work.comments || 0}</span>
             </div>
 
             {/* 评分 */}
-            {work.score > 0 && (
+            {(work.score || 0) > 0 && (
               <div className="flex items-center gap-1 text-amber-500">
                 <Star className="w-4 h-4 fill-current" />
-                <span className="font-medium">{work.score.toFixed(1)}</span>
+                <span className="font-medium">{(work.score || 0).toFixed(1)}</span>
               </div>
             )}
 
             {/* 互动率 */}
             <div className="flex items-center gap-1 text-emerald-500">
               <TrendingUp className="w-4 h-4" />
-              <span>{work.engagement_rate.toFixed(1)}%</span>
+              <span>{(work.engagement_rate || 0).toFixed(1)}%</span>
             </div>
           </div>
 

@@ -1,5 +1,6 @@
 import { SearchResultType } from '@/components/SearchBar'
 import { workService } from '@/services/apiService'
+import { behaviorAnalysisService } from '@/services/behaviorAnalysisService'
 
 // 搜索结果类型
 export interface SearchResult {
@@ -357,10 +358,55 @@ class SearchService {
     clicked: boolean
     clickIndex?: number
     timestamp: number
+    userId?: string
   }): void {
-    // 这里可以实现搜索事件的跟踪逻辑，例如发送到分析服务
+    // 记录到控制台
     console.log('Search Event:', event)
-    // 实际项目中可以使用第三方分析服务如Google Analytics或自定义API
+
+    // 记录到行为分析服务
+    if (event.userId) {
+      behaviorAnalysisService.recordSearchBehavior(
+        event.userId,
+        event.query,
+        undefined,
+        { resultType: event.resultType },
+        event.clicked ? {
+          type: event.resultType,
+          id: `result_${event.clickIndex || 0}`,
+          position: event.clickIndex
+        } : undefined
+      ).catch(err => console.warn('记录搜索行为失败:', err))
+    }
+  }
+
+  /**
+   * 执行搜索并记录行为
+   */
+  async searchWithTracking(
+    query: string,
+    userId?: string,
+    filters?: Record<string, any>
+  ): Promise<{
+    works: any[]
+    users: any[]
+    categories: string[]
+    tags: string[]
+  }> {
+    // 执行搜索
+    const results = await this.searchAll(query)
+
+    // 记录搜索行为
+    if (userId) {
+      const totalResults = results.works.length + results.users.length + results.categories.length + results.tags.length
+      behaviorAnalysisService.recordSearchBehavior(
+        userId,
+        query,
+        totalResults,
+        filters
+      ).catch(err => console.warn('记录搜索行为失败:', err))
+    }
+
+    return results
   }
 }
 

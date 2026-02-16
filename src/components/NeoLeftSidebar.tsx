@@ -200,7 +200,7 @@ const NeoLeftSidebar: React.FC<NeoLeftSidebarProps> = ({
                         transition={{ duration: 0.2 }}
                       />
                     )}
-                    <i className={`fas fa-${item.icon} w-6 text-center text-lg transition-colors ${collapsed ? 'mx-auto' : 'mr-3'} ${isActive ? '' : 'opacity-70 group-hover:opacity-100'}`}></i>
+                    <i className={`fas fa-${item.icon} w-6 text-center text-lg transition-colors ${collapsed ? 'ml-1' : 'mr-3'} ${isActive ? '' : 'opacity-70 group-hover:opacity-100'}`}></i>
                     {!collapsed && (
                       <span className="font-medium">{item.label}</span>
                     )}
@@ -225,7 +225,7 @@ const NeoLeftSidebar: React.FC<NeoLeftSidebarProps> = ({
                   className={`group flex items-center w-full p-3 rounded-xl transition-all duration-200
                     ${isDark ? 'text-slate-400 hover:bg-slate-800 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}
                 >
-                  <i className={`fas fa-${item.icon} w-6 text-center text-lg transition-colors ${collapsed ? 'mx-auto' : 'mr-3'} opacity-70 group-hover:opacity-100`}></i>
+                  <i className={`fas fa-${item.icon} w-6 text-center text-lg transition-colors ${collapsed ? 'ml-1' : 'mr-3'} opacity-70 group-hover:opacity-100`}></i>
                   {!collapsed && (
                     <span className="font-medium">{item.label}</span>
                   )}
@@ -247,7 +247,7 @@ const NeoLeftSidebar: React.FC<NeoLeftSidebarProps> = ({
               title="切换主题"
               onClick={() => setShowThemeDropdown(v => !v)}
             >
-              <i className={`fas ${theme === 'dark' ? 'fa-moon' : theme === 'light' ? 'fa-sun' : theme === 'blue' ? 'fa-water' : theme === 'green' ? 'fa-leaf' : 'fa-dungeon'} w-6 text-center text-lg ${collapsed ? 'mx-auto' : 'mr-3'}`}></i>
+              <i className={`fas ${theme === 'dark' ? 'fa-moon' : theme === 'light' ? 'fa-sun' : theme === 'blue' ? 'fa-water' : theme === 'green' ? 'fa-leaf' : 'fa-dungeon'} w-6 text-center text-lg ${collapsed ? 'ml-1' : 'mr-3'}`}></i>
               {!collapsed && (
                 <div className="flex items-center justify-between w-full">
                   <span className="font-medium">切换主题</span>
@@ -291,7 +291,7 @@ const NeoLeftSidebar: React.FC<NeoLeftSidebarProps> = ({
               }`}
             title={rightSidebarVisible ? "隐藏辅助面板" : "显示辅助面板"}
           >
-            <i className={`fas ${rightSidebarVisible ? 'fa-eye-slash' : 'fa-eye'} w-6 text-center text-lg ${collapsed ? 'mx-auto' : 'mr-3'}`}></i>
+            <i className={`fas ${rightSidebarVisible ? 'fa-eye-slash' : 'fa-eye'} w-6 text-center text-lg ${collapsed ? 'ml-1' : 'mr-3'}`}></i>
             {!collapsed && <span className="font-medium">{rightSidebarVisible ? '隐藏辅助面板' : '显示辅助面板'}</span>}
           </button>
         </div>

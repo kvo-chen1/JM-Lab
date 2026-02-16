@@ -24,6 +24,10 @@ import {
 import { StepIndicator, BrandCard3D, TemplateGallery, RadarChart } from '@/components/wizard';
 import { brandService } from '@/services/brandService';
 import { eventService } from '@/services/eventService';
+import { eventParticipationService } from '@/services/eventParticipationService';
+import { eventSubmissionService } from '@/services/eventSubmissionService';
+import { supabase } from '@/lib/supabase';
+import { uploadBase64Image, generateFilePath } from '@/services/supabaseStorageService';
 
 // Load persisted step from localStorage
 const loadPersistedStep = (): number => {
@@ -70,6 +74,10 @@ export default function Wizard() {
     competitionId: '',
     tags: '',
   });
+  const [uploadedImageUrl, setUploadedImageUrl] = useState<string>('');
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [showImagePreview, setShowImagePreview] = useState(false);
+  const [isAnalyzingImage, setIsAnalyzingImage] = useState(false);
   const [isConsistencyChecking, setIsConsistencyChecking] = useState(false);
   const [consistencyScore, setConsistencyScore] = useState<number | null>(null);
   const [consistencyDetails, setConsistencyDetails] = useState<{item: string; status: 'pass' | 'warn' | 'fail'; message: string}[]>([]);
@@ -248,48 +256,398 @@ export default function Wizard() {
     return brands;
   }, [searchQuery, selectedCategory]);
 
-  const savePost = async () => {
-    const title = publishInfo.title || `${state.brandName || '作品'} - 生成变体`;
-    const selectedVariant = selectedVariantIndex >= 0 && state.variants ? state.variants[selectedVariantIndex] : state.variants?.[0];
-    const baseThumb = selectedVariant?.image || state.imageUrl || '';
-    const thumb = baseThumb;
+  // 获取当前选中的变体图片
+  const selectedVariantImage = useMemo(() => {
+    if (selectedVariantIndex >= 0 && state.variants && state.variants[selectedVariantIndex]) {
+      return state.variants[selectedVariantIndex].image;
+    }
+    return state.imageUrl || '';
+  }, [selectedVariantIndex, state.variants, state.imageUrl]);
 
-    if (publishInfo.competitionId) {
-      toast.success(`已报名参加：${COMPETITIONS.find(c => c.id === publishInfo.competitionId)?.title}`);
+  // AI分析图片并自动填写信息
+  const analyzeImageWithAI = async () => {
+    const imageUrl = selectedVariantImage;
+    if (!imageUrl) {
+      toast.error('请先生成或选择图片');
+      return;
     }
 
-    await postService.addPost({
-      title,
-      thumbnail: thumb,
-      category: 'design',
-      tags: publishInfo.tags.split(',').filter(Boolean),
-      description: publishInfo.description,
-      creativeDirection: selectedTemplate,
-      culturalElements: culturalElements,
-      colorScheme: brandAssets.colors,
-      toolsUsed: ['Wizard', 'AI']
-    });
-    
-    reset();
-    navigate('/square');
-    toast.success(
-      <div className="flex items-center justify-between gap-4 min-w-[280px]">
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-emerald-700">作品发布成功</span>
-        </div>
-        <button
-          onClick={() => navigate('/square')}
-          className="text-xs px-2.5 py-1 rounded-full bg-gradient-to-r from-[#C02C38] to-[#D64545] text-white hover:shadow-md hover:scale-105 transition-all duration-200 flex items-center gap-1 font-medium whitespace-nowrap"
-        >
-          <ExternalLink className="w-3 h-3" />
-          去广场查看
-        </button>
-      </div>,
-      {
-        duration: 5000,
-        className: 'bg-emerald-50 border-emerald-200 !py-2 !px-3'
+    setIsAnalyzingImage(true);
+    toast.info('AI正在分析图片内容...');
+
+    try {
+      // 将图片转换为 base64
+      const base64Image = await imageUrlToBase64(imageUrl);
+      if (!base64Image) {
+        throw new Error('无法读取图片内容');
       }
-    );
+
+      // 调用千问API分析图片
+      const analysisResult = await analyzeImageWithQwen(base64Image);
+      
+      if (analysisResult) {
+        // 更新表单
+        setPublishInfo(prev => ({
+          ...prev,
+          title: analysisResult.title || prev.title,
+          description: analysisResult.description || prev.description,
+          tags: analysisResult.tags || prev.tags,
+        }));
+        
+        toast.success('AI分析完成，已自动填写信息！');
+      }
+    } catch (error: any) {
+      console.error('AI分析失败:', error);
+      toast.error(`AI分析失败: ${error.message}`);
+    } finally {
+      setIsAnalyzingImage(false);
+    }
+  };
+
+  // 调用千问API分析图片
+  const analyzeImageWithQwen = async (base64Image: string): Promise<{title: string; description: string; tags: string} | null> => {
+    try {
+      const prompt = `请分析这张设计图片，并提供以下信息（用JSON格式返回）：
+{
+  "title": "作品标题，简洁有创意，20字以内",
+  "description": "作品描述，包含设计理念、创意灵感、视觉元素等，100-200字",
+  "tags": "标签，用逗号分隔，包含风格、主题、元素等关键词，如：国潮,端午,绿色,传统文化,包装设计"
+}
+
+要求：
+1. 根据图片内容准确描述
+2. 标题要吸引人
+3. 描述要专业且有感染力
+4. 标签要准确反映图片特点
+5. 只返回JSON格式，不要有其他文字`;
+
+      // 构建消息，包含图片（千问VL格式）
+      const messages = [
+        {
+          role: 'system',
+          content: '你是一个专业的设计师助手，擅长分析设计作品并提供专业的描述。'
+        },
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: prompt },
+            { type: 'image_url', image_url: { url: base64Image } }
+          ]
+        }
+      ];
+
+      // 直接调用千问API（支持多模态）
+      const response = await fetch('/api/qwen/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'qwen-vl-max',
+          messages,
+          temperature: 0.7,
+          max_tokens: 1000,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error?.message || `API请求失败: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const responseData = data.ok ? data.data : data;
+      const finalData = responseData.data || responseData;
+      const aiResponse = finalData.output?.text || finalData.choices?.[0]?.message?.content || '';
+
+      // 解析JSON响应
+      try {
+        // 尝试提取JSON
+        const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const result = JSON.parse(jsonMatch[0]);
+          return {
+            title: result.title || '',
+            description: result.description || '',
+            tags: result.tags || '',
+          };
+        }
+      } catch (parseError) {
+        console.error('解析AI响应失败:', parseError);
+        // 如果JSON解析失败，尝试手动提取
+        const lines: string[] = aiResponse.split('\n').filter((line: string) => line.trim());
+        const title = lines.find((l: string) => l.includes('标题') || l.includes('title'))?.split(/[:：]/)[1]?.trim() || '';
+        const description = lines.find((l: string) => l.includes('描述') || l.includes('description'))?.split(/[:：]/)[1]?.trim() || '';
+        const tags = lines.find((l: string) => l.includes('标签') || l.includes('tags'))?.split(/[:：]/)[1]?.trim() || '';
+        
+        if (title || description || tags) {
+          return { title, description, tags };
+        }
+      }
+
+      return null;
+    } catch (error: any) {
+      console.error('调用千问API失败:', error);
+      throw error;
+    }
+  };
+
+  // 将外部图片 URL 转换为 Base64
+  const imageUrlToBase64 = async (url: string): Promise<string | null> => {
+    try {
+      // 使用代理或 CORS 代理获取图片
+      const response = await fetch(url, {
+        mode: 'cors',
+        cache: 'no-cache',
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch image: ${response.status}`);
+      }
+      
+      const blob = await response.blob();
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    } catch (error) {
+      console.error('[Wizard] Failed to convert image to base64:', error);
+      return null;
+    }
+  };
+
+  // 上传图片到 Supabase Storage
+  const uploadImageToStorage = async (imageUrl: string): Promise<string | null> => {
+    if (!imageUrl) return null;
+    
+    // 如果已经是 Supabase Storage 的 URL，直接返回
+    if (imageUrl.includes('supabase.co') || imageUrl.includes('supabase.in')) {
+      return imageUrl;
+    }
+    
+    setIsUploadingImage(true);
+    toast.info('正在上传图片到存储...');
+    
+    try {
+      // 获取当前用户ID
+      const { data: { user } } = await supabase.auth.getUser();
+      const userId = user?.id || JSON.parse(localStorage.getItem('user') || '{}')?.id;
+      
+      if (!userId) {
+        toast.error('请先登录后再上传图片');
+        return imageUrl;
+      }
+      
+      // 将图片 URL 转换为 Base64
+      const base64Image = await imageUrlToBase64(imageUrl);
+      if (!base64Image) {
+        // 如果转换失败，返回原始 URL
+        console.warn('[Wizard] Failed to convert image to base64, using original URL');
+        toast.info('图片转换失败，将使用原始链接发布');
+        return imageUrl;
+      }
+      
+      // 生成文件路径
+      const fileName = `wizard-${Date.now()}.png`;
+      const filePath = `${userId}/${fileName}`;
+      
+      // 上传到 Supabase Storage
+      const { url, error } = await uploadBase64Image(base64Image, filePath);
+      
+      if (error) {
+        console.error('[Wizard] Failed to upload image:', error);
+        // 检查是否是 RLS 策略错误
+        if (error.includes('row-level security') || error.includes('violates row-level security')) {
+          toast.info('存储权限限制，将使用原始链接发布');
+        } else {
+          toast.info('图片上传失败，将使用原始链接发布');
+        }
+        return imageUrl;
+      }
+      
+      toast.success('图片上传成功！');
+      return url;
+    } catch (error: any) {
+      console.error('[Wizard] Upload error:', error);
+      // 检查是否是 RLS 策略错误
+      if (error.message?.includes('row-level security') || error.message?.includes('violates row-level security')) {
+        toast.info('存储权限限制，将使用原始链接发布');
+      } else {
+        toast.info('图片上传失败，将使用原始链接发布');
+      }
+      return imageUrl;
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
+
+  // 准备发布 - 上传图片并显示预览
+  const preparePublish = async () => {
+    const selectedVariant = selectedVariantIndex >= 0 && state.variants ? state.variants[selectedVariantIndex] : state.variants?.[0];
+    const imageUrl = selectedVariant?.image || state.imageUrl || '';
+    
+    if (!imageUrl) {
+      toast.error('请先生成或上传图片');
+      return;
+    }
+    
+    // 上传图片到存储
+    const uploadedUrl = await uploadImageToStorage(imageUrl);
+    if (uploadedUrl) {
+      setUploadedImageUrl(uploadedUrl);
+      setShowImagePreview(true);
+    }
+  };
+
+  const savePost = async () => {
+    const title = publishInfo.title || `${state.brandName || '作品'} - 生成变体`;
+    const thumb = uploadedImageUrl || (() => {
+      const selectedVariant = selectedVariantIndex >= 0 && state.variants ? state.variants[selectedVariantIndex] : state.variants?.[0];
+      return selectedVariant?.image || state.imageUrl || '';
+    })();
+
+    try {
+      // 1. 首先创建作品
+      const post = await postService.addPost({
+        title,
+        thumbnail: thumb,
+        category: 'design',
+        tags: publishInfo.tags.split(',').filter(Boolean),
+        description: publishInfo.description,
+        creativeDirection: selectedTemplate,
+        culturalElements: culturalElements,
+        colorScheme: brandAssets.colors,
+        toolsUsed: ['Wizard', 'AI']
+      });
+
+      // 2. 如果选择了比赛，提交作品到比赛
+      if (publishInfo.competitionId && post?.id) {
+        await submitToCompetition(post.id, title, thumb);
+      }
+
+      // 重置状态
+      setShowImagePreview(false);
+      setUploadedImageUrl('');
+      reset();
+      navigate('/square');
+      toast.success(
+        <div className="flex items-center justify-between gap-4 min-w-[280px]">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-emerald-700">作品发布成功</span>
+          </div>
+          <button
+            onClick={() => navigate('/square')}
+            className="text-xs px-2.5 py-1 rounded-full bg-gradient-to-r from-[#C02C38] to-[#D64545] text-white hover:shadow-md hover:scale-105 transition-all duration-200 flex items-center gap-1 font-medium whitespace-nowrap"
+          >
+            <ExternalLink className="w-3 h-3" />
+            去广场查看
+          </button>
+        </div>,
+        {
+          duration: 5000,
+          className: 'bg-emerald-50 border-emerald-200 !py-2 !px-3'
+        }
+      );
+    } catch (error: any) {
+      console.error('发布作品失败:', error);
+      toast.error(error.message || '发布作品失败，请重试');
+    }
+  };
+
+  // 提交作品到比赛
+  const submitToCompetition = async (workId: string, title: string, thumbnail: string) => {
+    const eventId = publishInfo.competitionId;
+    if (!eventId) return;
+
+    try {
+      // 获取当前用户ID
+      const { data: { user } } = await supabase.auth.getUser();
+      const userId = user?.id;
+
+      if (!userId) {
+        // 尝试从 localStorage 获取用户ID
+        const userStr = localStorage.getItem('user');
+        if (userStr) {
+          const userData = JSON.parse(userStr);
+          if (userData?.id) {
+            console.log('[submitToCompetition] Using user ID from localStorage:', userData.id);
+          } else {
+            toast.error('请先登录后再参加比赛');
+            return;
+          }
+        } else {
+          toast.error('请先登录后再参加比赛');
+          return;
+        }
+      }
+
+      const effectiveUserId = user?.id || JSON.parse(localStorage.getItem('user') || '{}')?.id;
+
+      // 检查用户是否已报名该活动
+      const { isParticipated, participationId: existingParticipationId } = 
+        await eventParticipationService.checkParticipation(eventId, effectiveUserId);
+
+      let participationId = existingParticipationId;
+
+      // 如果未报名，先报名
+      if (!isParticipated) {
+        toast.info('正在为您报名活动...');
+        const registerResult = await eventParticipationService.registerForEvent(eventId, effectiveUserId);
+        if (!registerResult.success) {
+          toast.error(`报名失败: ${registerResult.error}`);
+          return;
+        }
+        participationId = registerResult.participationId;
+        toast.success('报名成功！');
+      }
+
+      if (!participationId) {
+        toast.error('无法获取参与记录ID');
+        return;
+      }
+
+      // 提交作品到比赛
+      toast.info('正在提交作品到比赛...');
+      
+      // 构建提交文件数据
+      const submissionFiles = [{
+        id: workId,
+        name: `${title}.png`,
+        url: thumbnail,
+        type: 'image/png',
+        size: 0,
+        thumbnailUrl: thumbnail
+      }];
+
+      const submissionResult = await eventSubmissionService.submitWork(
+        eventId,
+        effectiveUserId,
+        participationId,
+        {
+          title: title,
+          description: publishInfo.description || `${state.brandName || '品牌'} 创意设计方案`,
+          files: submissionFiles,
+          metadata: {
+            workId: workId,
+            brandName: state.brandName,
+            creativeDirection: selectedTemplate,
+            culturalElements: culturalElements,
+            colorScheme: brandAssets.colors,
+            toolsUsed: ['Wizard', 'AI']
+          }
+        }
+      );
+
+      if (submissionResult.success) {
+        const eventTitle = events.find(e => e.id === eventId)?.title || '比赛';
+        toast.success(`作品已成功提交到「${eventTitle}」！`);
+      } else {
+        toast.error(`提交失败: ${submissionResult.error}`);
+      }
+    } catch (error: any) {
+      console.error('提交到比赛失败:', error);
+      toast.error(`提交到比赛失败: ${error.message}`);
+    }
   };
 
   const runAIHelp = async () => {
@@ -1690,9 +2048,22 @@ ${dd.expectedEffect}
 
                 {/* Right: Publish Form */}
                 <div className={`p-6 rounded-2xl ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'} border shadow-sm`}>
-                  <h3 className="font-bold text-lg mb-6 flex items-center gap-2">
-                    <i className="fas fa-upload text-green-500"></i> 发布作品
-                  </h3>
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="font-bold text-lg flex items-center gap-2">
+                      <i className="fas fa-upload text-green-500"></i> 发布作品
+                    </h3>
+                    <TianjinButton
+                      size="sm"
+                      variant="secondary"
+                      onClick={analyzeImageWithAI}
+                      loading={isAnalyzingImage}
+                      disabled={!selectedVariantImage}
+                      leftIcon={<i className="fas fa-magic"></i>}
+                      ariaLabel={selectedVariantImage ? 'AI自动识别图片内容并填写信息' : '请先生成或选择图片'}
+                    >
+                      {isAnalyzingImage ? '分析中...' : 'AI自动填写'}
+                    </TianjinButton>
+                  </div>
                   
                   <div className="space-y-5">
                     <div>
@@ -1877,11 +2248,12 @@ ${dd.expectedEffect}
             {step === 4 ? (
               <TianjinButton 
                 primary 
-                onClick={savePost} 
+                onClick={preparePublish} 
                 rightIcon={<i className="fas fa-check"></i>}
-                disabled={!publishInfo.title}
+                disabled={!publishInfo.title || isUploadingImage}
+                loading={isUploadingImage}
               >
-                发布并完成
+                {isUploadingImage ? '上传图片中...' : '发布并完成'}
               </TianjinButton>
             ) : (
               <TianjinButton 
@@ -2062,6 +2434,174 @@ ${dd.expectedEffect}
                     leftIcon={<i className="fas fa-magic"></i>}
                   >
                     使用此模板
+                  </TianjinButton>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 图片预览和确认模态框 */}
+      <AnimatePresence>
+        {showImagePreview && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+            onClick={() => setShowImagePreview(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className={`relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl ${
+                isDark ? 'bg-gray-800' : 'bg-white'
+              }`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* 弹窗头部 */}
+              <div className={`sticky top-0 z-10 flex items-center justify-between p-6 border-b ${
+                isDark ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'
+              }`}>
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-xl ${isDark ? 'bg-red-900/30' : 'bg-red-50'} flex items-center justify-center`}>
+                    <i className={`fas fa-image text-lg ${isDark ? 'text-red-400' : 'text-red-600'}`}></i>
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold">确认发布作品</h3>
+                    <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>请确认图片和作品信息</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowImagePreview(false)}
+                  className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
+                    isDark ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-500'
+                  }`}
+                >
+                  <i className="fas fa-times"></i>
+                </button>
+              </div>
+
+              {/* 弹窗内容 */}
+              <div className="p-6 space-y-6">
+                {/* 图片预览 */}
+                <div className={`rounded-xl overflow-hidden border-2 ${
+                  isDark ? 'border-gray-700' : 'border-gray-200'
+                }`}>
+                  <div className={`aspect-video bg-gray-100 dark:bg-gray-900 flex items-center justify-center relative`}>
+                    {uploadedImageUrl ? (
+                      <img
+                        src={uploadedImageUrl}
+                        alt="作品预览"
+                        className="w-full h-full object-contain"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = 'https://via.placeholder.com/800x450?text=图片加载失败';
+                        }}
+                      />
+                    ) : (
+                      <div className="text-center">
+                        <i className="fas fa-image text-4xl text-gray-300 mb-2"></i>
+                        <p className="text-gray-400">图片加载中...</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* 作品信息 */}
+                <div className={`space-y-4 ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
+                  <div>
+                    <h4 className="font-semibold mb-1 flex items-center gap-2">
+                      <i className="fas fa-heading text-red-500"></i>
+                      作品标题
+                    </h4>
+                    <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                      {publishInfo.title || `${state.brandName || '作品'} - 生成变体`}
+                    </p>
+                  </div>
+
+                  {publishInfo.description && (
+                    <div>
+                      <h4 className="font-semibold mb-1 flex items-center gap-2">
+                        <i className="fas fa-align-left text-blue-500"></i>
+                        作品描述
+                      </h4>
+                      <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'} line-clamp-3`}>
+                        {publishInfo.description}
+                      </p>
+                    </div>
+                  )}
+
+                  {publishInfo.tags && (
+                    <div>
+                      <h4 className="font-semibold mb-1 flex items-center gap-2">
+                        <i className="fas fa-tags text-green-500"></i>
+                        标签
+                      </h4>
+                      <div className="flex flex-wrap gap-2">
+                        {publishInfo.tags.split(',').filter(Boolean).map((tag, idx) => (
+                          <span
+                            key={idx}
+                            className={`px-2 py-1 rounded-full text-xs ${
+                              isDark
+                                ? 'bg-gray-700 text-gray-300'
+                                : 'bg-gray-100 text-gray-600'
+                            }`}
+                          >
+                            {tag.trim()}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {publishInfo.competitionId && (
+                    <div>
+                      <h4 className="font-semibold mb-1 flex items-center gap-2">
+                        <i className="fas fa-trophy text-amber-500"></i>
+                        参与活动
+                      </h4>
+                      <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                        {events.find(e => e.id === publishInfo.competitionId)?.title || '已选择活动'}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* 提示信息 */}
+                <div className={`p-4 rounded-lg ${isDark ? 'bg-blue-900/20 border border-blue-800' : 'bg-blue-50 border border-blue-100'}`}>
+                  <div className="flex items-start gap-3">
+                    <i className="fas fa-info-circle text-blue-500 mt-0.5"></i>
+                    <div className="text-sm">
+                      <p className={`font-medium ${isDark ? 'text-blue-300' : 'text-blue-700'}`}>
+                        图片已保存到存储
+                      </p>
+                      <p className={`mt-1 ${isDark ? 'text-blue-400' : 'text-blue-600'}`}>
+                        图片已上传到 Supabase Storage，确保在广场中正常显示。点击"确认发布"将作品发布到广场。
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 弹窗底部 */}
+              <div className={`sticky bottom-0 p-4 border-t ${
+                isDark ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'
+              }`}>
+                <div className="flex justify-end gap-3">
+                  <TianjinButton
+                    variant="ghost"
+                    onClick={() => setShowImagePreview(false)}
+                  >
+                    取消
+                  </TianjinButton>
+                  <TianjinButton
+                    primary
+                    onClick={savePost}
+                    leftIcon={<i className="fas fa-check"></i>}
+                  >
+                    确认发布
                   </TianjinButton>
                 </div>
               </div>

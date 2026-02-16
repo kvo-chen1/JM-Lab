@@ -32,6 +32,9 @@ export interface ArtworkItem {
   tags: string[];
   createdAt: string;
   isLiked?: boolean;
+  // 视频相关字段
+  isVideo?: boolean;
+  videoUrl?: string;
 }
 
 interface MobileWorksGalleryProps {
@@ -45,21 +48,15 @@ interface MobileWorksGalleryProps {
   hasMore?: boolean;
 }
 
-// 骨架屏组件
+// 骨架屏组件 - Pinterest 风格
 const SkeletonCard: React.FC = () => (
-  <div className="bg-white dark:bg-gray-800 rounded-xl overflow-hidden shadow-sm">
+  <div className="bg-white dark:bg-gray-800 rounded-2xl overflow-hidden shadow-sm">
     <div className="relative bg-gray-200 dark:bg-gray-700 animate-pulse" style={{ aspectRatio: '3/4' }}>
       <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
     </div>
-    <div className="p-3 space-y-2">
-      <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-3/4" />
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse" />
-          <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-16" />
-        </div>
-        <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-8" />
-      </div>
+    <div className="px-2 pt-2 pb-3">
+      <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-full" />
+      <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-2/3 mt-1" />
     </div>
   </div>
 );
@@ -71,6 +68,78 @@ const LoadingMore: React.FC = () => (
     <span className="text-sm">加载更多精彩作品...</span>
   </div>
 );
+
+// 视频播放器组件 - 支持自动播放和视口检测
+interface VideoPlayerProps {
+  videoUrl: string;
+  poster: string;
+  isHovered: boolean;
+  onLoaded: () => void;
+}
+
+const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoUrl, poster, isHovered, onLoaded }) => {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [isInViewport, setIsInViewport] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  // 使用 Intersection Observer 检测视频是否在视口内
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          setIsInViewport(entry.isIntersecting);
+        });
+      },
+      { threshold: 0.5 } // 50% 可见时触发
+    );
+
+    observer.observe(video);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
+  // 控制视频播放/暂停
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !isLoaded) return;
+
+    if (isInViewport) {
+      // 在视口内且加载完成，自动播放
+      video.play().catch(() => {
+        // 自动播放被阻止，静默处理
+      });
+    } else {
+      // 不在视口内，暂停播放
+      video.pause();
+    }
+  }, [isInViewport, isLoaded]);
+
+  const handleLoadedData = () => {
+    setIsLoaded(true);
+    onLoaded();
+  };
+
+  return (
+    <video
+      ref={videoRef}
+      src={videoUrl}
+      poster={poster}
+      className={`w-full h-full object-cover transition-all duration-700 ${
+        isHovered ? 'scale-110' : 'scale-100'
+      }`}
+      muted
+      loop
+      playsInline
+      preload="metadata"
+      onLoadedData={handleLoadedData}
+    />
+  );
+};
 
 // 单个作品卡片组件
 interface ArtworkCardProps {
@@ -140,21 +209,20 @@ const ArtworkCard: React.FC<ArtworkCardProps> = ({
         delay: animationDelay,
         ease: [0.25, 0.46, 0.45, 0.94]
       }}
-      className="group relative bg-white dark:bg-gray-800 rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300"
-      style={{
-        transform: showTouchFeedback ? 'scale(0.98)' : 'scale(1)',
-        transition: 'transform 0.15s ease, box-shadow 0.3s ease'
-      }}
+      className="group relative bg-white dark:bg-gray-800 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200 break-inside-avoid"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       onClick={() => onClick?.(artwork)}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
-      {/* 图片容器 */}
+      {/* 图片容器 - 使用实际宽高比，让图片更大 */}
       <div 
-        className="relative overflow-hidden"
-        style={{ aspectRatio: `1/${artwork.aspectRatio}` }}
+        className="relative overflow-hidden w-full"
+        style={{ 
+          aspectRatio: `${1}/${artwork.aspectRatio}`,
+          minHeight: '200px'
+        }}
       >
         {/* 骨架屏占位 */}
         {!imageLoaded && (
@@ -163,17 +231,29 @@ const ArtworkCard: React.FC<ArtworkCardProps> = ({
           </div>
         )}
         
-        {/* 主图片 */}
-        <LazyImage
-          src={artwork.imageUrl}
-          alt={artwork.title}
-          className={`w-full h-full object-cover transition-all duration-700 ${
-            isHovered ? 'scale-110' : 'scale-100'
-          } ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
-          onLoad={() => setImageLoaded(true)}
-          placeholder="color"
-          quality="high"
-        />
+        {/* 主图片/视频 - 使用 bare 模式避免额外容器 */}
+        {artwork.isVideo && artwork.videoUrl ? (
+          // 视频作品：使用 VideoPlayer 组件
+          <VideoPlayer
+            videoUrl={artwork.videoUrl}
+            poster={artwork.imageUrl}
+            isHovered={isHovered}
+            onLoaded={() => setImageLoaded(true)}
+          />
+        ) : (
+          // 图片作品
+          <LazyImage
+            src={artwork.imageUrl}
+            alt={artwork.title}
+            className={`w-full h-full object-cover transition-all duration-700 ${
+              isHovered ? 'scale-110' : 'scale-100'
+            } ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
+            onLoad={() => setImageLoaded(true)}
+            placeholder="color"
+            quality="high"
+            bare={true}
+          />
+        )}
 
         {/* 渐变遮罩 - 悬停时显示 */}
         <motion.div
@@ -237,52 +317,11 @@ const ArtworkCard: React.FC<ArtworkCardProps> = ({
         )}
       </div>
 
-      {/* 底部信息区 */}
-      <div className="p-3">
-        {/* 标题 - 非悬停状态显示 */}
-        <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100 line-clamp-1 mb-2 group-hover:text-jinmai-red transition-colors">
+      {/* 底部信息区 - Pinterest 风格：只显示标题，紧贴图片 */}
+      <div className="px-2 py-2">
+        <h3 className="text-[13px] font-medium text-gray-900 dark:text-gray-100 line-clamp-2 leading-tight">
           {artwork.title}
         </h3>
-
-        {/* 作者信息 */}
-        <div className="flex items-center justify-between">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onAuthorClick?.(artwork.author.id);
-            }}
-            className="flex items-center gap-2 group/author"
-          >
-            <div className="relative">
-              <img
-                src={artwork.author.avatar}
-                alt={artwork.author.name}
-                className="w-6 h-6 rounded-full object-cover ring-2 ring-transparent group-hover/author:ring-jinmai-red/30 transition-all"
-              />
-              <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-green-500 rounded-full border-2 border-white dark:border-gray-800" />
-            </div>
-            <span className="text-xs text-gray-600 dark:text-gray-400 group-hover/author:text-jinmai-red transition-colors">
-              {artwork.author.name}
-            </span>
-          </button>
-
-          {/* 统计信息 */}
-          <div className="flex items-center gap-3 text-gray-400">
-            <span className="flex items-center gap-1 text-xs">
-              <Eye className="w-3.5 h-3.5" />
-              {artwork.views > 999 ? `${(artwork.views / 1000).toFixed(1)}k` : artwork.views}
-            </span>
-            <button
-              onClick={handleLike}
-              className={`flex items-center gap-1 text-xs transition-colors ${
-                isLiked ? 'text-red-500' : 'hover:text-red-500'
-              }`}
-            >
-              <Heart className={`w-3.5 h-3.5 ${isLiked ? 'fill-current' : ''}`} />
-              {likeCount > 999 ? `${(likeCount / 1000).toFixed(1)}k` : likeCount}
-            </button>
-          </div>
-        </div>
       </div>
     </motion.article>
   );
@@ -358,25 +397,25 @@ const MobileWorksGallery: React.FC<MobileWorksGalleryProps> = ({
     return { leftColumn: left, rightColumn: right };
   }, [displayArtworks]);
 
-  // 计算列间距
-  const gap = width < 375 ? 12 : 16;
-  const padding = width < 375 ? 12 : 16;
+  // 计算列间距 - Pinterest 风格更紧凑
+  const gap = width < 375 ? 8 : 12;
+  const padding = width < 375 ? 8 : 12;
 
   // 初始加载骨架屏数量
   const skeletonCount = 6;
 
   return (
     <div 
-      className="min-h-screen bg-gray-50 dark:bg-gray-900"
+      className="min-h-screen bg-gray-50 dark:bg-gray-900 overflow-x-hidden"
       style={{ padding: `${padding}px` }}
     >
       {/* 瀑布流容器 */}
       <div 
-        className="flex"
+        className="flex w-full"
         style={{ gap: `${gap}px` }}
       >
         {/* 左列 */}
-        <div className="flex-1 flex flex-col" style={{ gap: `${gap}px` }}>
+        <div className="flex-1 flex flex-col min-w-0" style={{ gap: `${gap}px` }}>
           <AnimatePresence mode="popLayout">
             {loading && displayArtworks.length === 0 ? (
               // 初始加载骨架屏
@@ -400,7 +439,7 @@ const MobileWorksGallery: React.FC<MobileWorksGalleryProps> = ({
         </div>
 
         {/* 右列 */}
-        <div className="flex-1 flex flex-col" style={{ gap: `${gap}px` }}>
+        <div className="flex-1 flex flex-col min-w-0" style={{ gap: `${gap}px` }}>
           <AnimatePresence mode="popLayout">
             {loading && displayArtworks.length === 0 ? (
               // 初始加载骨架屏

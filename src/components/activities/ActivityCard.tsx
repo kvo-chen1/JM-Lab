@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useNavigate } from 'react-router-dom';
 import type { ParticipationDetail } from '@/services/eventParticipationService';
 import { TianjinButton } from '@/components/TianjinStyleComponents';
 import { toast } from 'sonner';
+import { supabase } from '@/lib/supabase';
+import { Trophy, Medal, Award, Crown, X, Star, User } from 'lucide-react';
 
 interface ActivityCardProps {
   participation: ParticipationDetail;
@@ -27,6 +29,12 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
   const { isDark } = useTheme();
   const navigate = useNavigate();
   const [isExpanded, setIsExpanded] = useState(false);
+
+
+  // 跳转到最终排名页面
+  const goToFinalRanking = () => {
+    navigate(`/ranking/${participation.eventId}`);
+  };
 
   const getStepStatus = (currentStep: number, stepIndex: number) => {
     if (currentStep > stepIndex) return 'completed';
@@ -163,6 +171,9 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
                 {steps.map((step, idx) => {
                   // 如果活动已结束，所有步骤都显示为已完成
                   const stepStatus = isEventEnded ? 'completed' : getStepStatus(participation.currentStep, idx + 1);
+                  const isResultStep = idx === 3; // 结果公布步骤
+                  const canViewResult = isResultStep && (stepStatus === 'completed' || stepStatus === 'current');
+                  
                   return (
                     <div key={idx} className="flex flex-col items-center flex-1 relative">
                       {/* 连接线 */}
@@ -179,7 +190,9 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
                         />
                       )}
                       {/* 步骤图标 */}
-                      <div
+                      <button
+                        onClick={() => canViewResult && goToFinalRanking()}
+                        disabled={!canViewResult}
                         className={`w-8 h-8 rounded-full flex items-center justify-center z-10 transition-all duration-300 ${
                           stepStatus === 'completed'
                             ? isEventEnded ? 'bg-gray-500 text-white' : 'bg-red-500 text-white'
@@ -188,13 +201,15 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
                             : isDark
                             ? 'bg-gray-700 text-gray-500'
                             : 'bg-gray-100 text-gray-400'
-                        }`}
+                        } ${canViewResult ? 'cursor-pointer hover:scale-110' : 'cursor-default'}`}
                       >
                         <i className={`fas ${step.icon} text-xs`}></i>
-                      </div>
+                      </button>
                       {/* 步骤标题 */}
-                      <span
-                        className={`text-xs mt-2 font-medium ${
+                      <button
+                        onClick={() => canViewResult && goToFinalRanking()}
+                        disabled={!canViewResult}
+                        className={`text-xs mt-2 font-medium transition-colors ${
                           stepStatus === 'current'
                             ? 'text-red-600 dark:text-red-400'
                             : stepStatus === 'completed'
@@ -202,10 +217,11 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
                             : isDark
                             ? 'text-gray-500'
                             : 'text-gray-400'
-                        }`}
+                        } ${canViewResult ? 'cursor-pointer hover:text-red-500' : 'cursor-default'}`}
                       >
                         {step.title}
-                      </span>
+                        {canViewResult && <span className="block text-[10px] opacity-70">(点击查看)</span>}
+                      </button>
                     </div>
                   );
                 })}
@@ -343,6 +359,8 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
           </motion.div>
         )}
       </div>
+
+
     </motion.div>
   );
 };

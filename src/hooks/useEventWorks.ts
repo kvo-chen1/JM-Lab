@@ -61,7 +61,7 @@ export function useEventWorks(options: UseEventWorksOptions): UseEventWorksRetur
   const [filters, setFiltersState] = useState<SubmissionFilters>({
     mediaType: 'all',
     sortBy: 'newest',
-    status: 'submitted',
+    status: 'all',
     ...initialFilters,
   });
   

@@ -4,21 +4,22 @@ import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/hooks/useAuth';
 
 // 通知类型
-export type NotificationType = 
-  | 'community_join' 
-  | 'community_leave' 
-  | 'post_created' 
-  | 'post_commented' 
-  | 'post_liked' 
-  | 'comment_replied' 
-  | 'announcement' 
-  | 'mention' 
-  | 'moderation_approved' 
-  | 'moderation_rejected' 
-  | 'moderation_flagged' 
-  | 'member_invited' 
-  | 'member_joined' 
-  | 'member_left';
+export type NotificationType =
+  | 'community_join'
+  | 'community_leave'
+  | 'post_created'
+  | 'post_commented'
+  | 'post_liked'
+  | 'comment_replied'
+  | 'announcement'
+  | 'mention'
+  | 'moderation_approved'
+  | 'moderation_rejected'
+  | 'moderation_flagged'
+  | 'member_invited'
+  | 'member_joined'
+  | 'member_left'
+  | 'ranking_published';
 
 // 通知优先级
 export type NotificationPriority = 'low' | 'medium' | 'high' | 'urgent';
@@ -99,7 +100,8 @@ const defaultSettings: NotificationSettings = {
     moderation_flagged: true,
     member_invited: true,
     member_joined: true,
-    member_left: true
+    member_left: true,
+    ranking_published: true
   },
   priorities: {
     low: true,

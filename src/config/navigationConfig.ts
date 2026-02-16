@@ -114,9 +114,10 @@ export const topNavItems: NavItem[] = [
 // 底部导航项 (移动端)
 export const bottomNavItems: NavItem[] = [
   { id: 'home', path: '/', label: '首页', icon: 'fas fa-home' },
-  { id: 'create', path: '/create', label: '创作', icon: 'fas fa-plus-circle' },
-  { id: 'square', path: '/square', label: '广场', icon: 'fas fa-th-large' },
-  { id: 'dashboard', path: '/dashboard', label: '我的', icon: 'fas fa-user' }
+  { id: 'square', path: '/square', label: '津脉广场', icon: 'fas fa-th-large' },
+  { id: 'create', path: '/create', label: '创作中心', icon: 'fas fa-plus-circle' },
+  { id: 'community', path: '/community', label: '津脉社区', icon: 'fas fa-users' },
+  { id: 'dashboard', path: '/dashboard', label: '个人中心', icon: 'fas fa-user' }
 ];
 
 // 快捷键配置

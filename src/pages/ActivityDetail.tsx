@@ -1,5 +1,5 @@
 import { useState, useContext, useEffect, useCallback, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AuthContext } from '@/contexts/authContext';
@@ -15,7 +15,6 @@ import {
   CalendarDays,
   Users,
   Eye,
-  Heart,
   MapPin,
   Clock,
   Share2,
@@ -34,7 +33,8 @@ import {
   ArrowRight,
   MoreHorizontal,
   Bookmark,
-  MessageCircle
+  MessageCircle,
+  Crown
 } from 'lucide-react';
 
 // 活动状态配置
@@ -50,6 +50,7 @@ export default function ActivityDetail() {
   const { isAuthenticated, user } = useContext(AuthContext);
   const navigate = useNavigate();
   const { eventId } = useParams<{ eventId: string }>();
+  const [searchParams] = useSearchParams();
   const { getEvent, deleteEvent, updateEvent, getEvents, getEventStats, incrementViewCount } = useEventService();
 
   // 活动数据
@@ -189,6 +190,12 @@ export default function ActivityDetail() {
     if (!event) return false;
     return new Date(event.endTime) < new Date();
   }, [event]);
+
+  // 跳转到最终排名页面
+  const goToFinalRanking = () => {
+    if (!eventId) return;
+    navigate(`/ranking/${eventId}`);
+  };
 
   if (isLoading) {
     return (
@@ -526,6 +533,23 @@ export default function ActivityDetail() {
                   >
                     <Share2 className="w-4 h-4" />
                     发布到广场
+                  </motion.button>
+                )}
+
+                {/* 查看最终排名按钮 */}
+                {(isOrganizer || isEnded) && (
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={goToFinalRanking}
+                    className={`w-full flex items-center justify-center gap-2 px-4 py-3 font-medium rounded-xl transition-all ${
+                      isDark
+                        ? 'bg-gradient-to-r from-yellow-500 to-amber-500 hover:from-yellow-400 hover:to-amber-400 text-white'
+                        : 'bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-300 hover:to-amber-400 text-white'
+                    }`}
+                  >
+                    <Crown className="w-4 h-4" />
+                    查看最终排名
                   </motion.button>
                 )}
 

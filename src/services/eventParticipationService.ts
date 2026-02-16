@@ -48,9 +48,8 @@ export interface ParticipationDetail {
 // 参与统计接口
 export interface ParticipationStats {
   total: number;
-  totalViews: number;
+  totalVotes: number;
   totalLikes: number;
-  totalShares: number;
 }
 
 // 筛选选项接口
@@ -419,6 +418,57 @@ class EventParticipationService {
    */
   async getUserParticipationStats(userId: string): Promise<ParticipationStats> {
     try {
+      // 使用 RPC 函数获取统计数据
+      const { data, error } = await supabase.rpc('get_user_participation_stats', {
+        p_user_id: userId,
+      });
+
+      if (error) {
+        console.error('RPC 调用失败，使用备用查询:', error);
+        
+        // 备用：直接查询
+        const { data: participations, error: participantsError } = await supabase
+          .from('event_participants')
+          .select('id')
+          .eq('user_id', userId);
+
+        if (participantsError) throw participantsError;
+
+        const { data: submissions, error: subError } = await supabase
+          .from('event_submissions')
+          .select('id, vote_count, like_count')
+          .eq('user_id', userId);
+
+        if (subError) throw subError;
+
+        const totalVotes = submissions?.reduce((sum, s) => sum + (s.vote_count || 0), 0) || 0;
+        const totalLikes = submissions?.reduce((sum, s) => sum + (s.like_count || 0), 0) || 0;
+
+        return {
+          total: participations?.length || 0,
+          totalVotes,
+          totalLikes,
+        };
+      }
+
+      return {
+        total: data?.total || 0,
+        totalVotes: data?.totalVotes || 0,
+        totalLikes: data?.totalLikes || 0,
+      };
+    } catch (error) {
+      console.error('获取参与统计失败:', error);
+      return {
+        total: 0,
+        totalVotes: 0,
+        totalLikes: 0,
+      };
+    }
+  }
+
+  // 获取用户活动统计（用于右侧栏）
+  async getUserActivityStats(userId: string): Promise<{ registered: number; submitted: number; completed: number }> {
+    try {
       const { data, error } = await supabase
         .from('event_participants')
         .select('status')
@@ -426,25 +476,104 @@ class EventParticipationService {
 
       if (error) throw error;
 
-      const stats: ParticipationStats = {
-        total: 0,
-        totalViews: 0,
-        totalLikes: 0,
-        totalShares: 0,
+      const stats = {
+        registered: 0,
+        submitted: 0,
+        completed: 0,
       };
 
       (data || []).forEach((item: any) => {
-        stats.total++;
+        // 根据状态统计
+        if (item.status === 'registered' || item.status === 'pending') {
+          stats.registered++;
+        } else if (item.status === 'submitted' || item.status === 'reviewing') {
+          stats.submitted++;
+        } else if (item.status === 'completed' || item.status === 'awarded') {
+          stats.completed++;
+        } else {
+          // 默认计入已报名
+          stats.registered++;
+        }
       });
 
       return stats;
     } catch (error) {
-      console.error('获取参与统计失败:', error);
+      console.error('获取活动统计失败:', error);
       return {
-        total: 0,
+        registered: 0,
+        submitted: 0,
+        completed: 0,
+      };
+    }
+  }
+
+  /**
+   * 获取用户参与的活动的详细统计（用于数据分析页面）
+   */
+  async getUserParticipationDashboardStats(userId: string): Promise<{
+    totalEvents: number;
+    totalSubmissions: number;
+    totalViews: number;
+    totalLikes: number;
+    totalComments: number;
+    avgScore: number;
+    publishedWorks: number;
+    pendingReview: number;
+  }> {
+    try {
+      // 获取用户参与的所有活动ID
+      const { data: participations, error: participationsError } = await supabase
+        .from('event_participants')
+        .select('event_id')
+        .eq('user_id', userId);
+
+      if (participationsError) throw participationsError;
+
+      const eventIds = participations?.map(p => p.event_id) || [];
+      const totalEvents = eventIds.length;
+
+      // 获取用户的作品提交
+      const { data: submissions, error: submissionsError } = await supabase
+        .from('event_submissions')
+        .select('id, status, vote_count, like_count, rating_count, avg_rating')
+        .eq('user_id', userId);
+
+      if (submissionsError) throw submissionsError;
+
+      const totalSubmissions = submissions?.length || 0;
+      const totalViews = submissions?.reduce((sum, s) => sum + (s.vote_count || 0), 0) || 0;
+      const totalLikes = submissions?.reduce((sum, s) => sum + (s.like_count || 0), 0) || 0;
+      const totalComments = submissions?.reduce((sum, s) => sum + (s.rating_count || 0), 0) || 0;
+      const publishedWorks = submissions?.filter(s => s.status === 'submitted' || s.status === 'reviewed').length || 0;
+      const pendingReview = submissions?.filter(s => s.status === 'draft' || s.status === 'under_review').length || 0;
+
+      // 计算平均分
+      const scoredSubmissions = submissions?.filter(s => s.avg_rating > 0) || [];
+      const avgScore = scoredSubmissions.length > 0
+        ? scoredSubmissions.reduce((sum, s) => sum + (s.avg_rating || 0), 0) / scoredSubmissions.length
+        : 0;
+
+      return {
+        totalEvents,
+        totalSubmissions,
+        totalViews,
+        totalLikes,
+        totalComments,
+        avgScore: Math.round(avgScore * 10) / 10,
+        publishedWorks,
+        pendingReview,
+      };
+    } catch (error) {
+      console.error('获取用户参与统计失败:', error);
+      return {
+        totalEvents: 0,
+        totalSubmissions: 0,
         totalViews: 0,
         totalLikes: 0,
-        totalShares: 0,
+        totalComments: 0,
+        avgScore: 0,
+        publishedWorks: 0,
+        pendingReview: 0,
       };
     }
   }

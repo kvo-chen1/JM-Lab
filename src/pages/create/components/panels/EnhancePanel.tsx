@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { motion } from 'framer-motion';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useCreateStore } from '../../hooks/useCreateStore';
 import { TRADITIONAL_PATTERNS, AI_FILTERS } from '@/constants/creativeData';
@@ -83,6 +83,9 @@ export const EnhancePanel: React.FC = () => {
   const [selectedFilter, setSelectedFilter] = useState<number | null>(null);
   const [intensity, setIntensity] = useState(100);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [processingProgress, setProcessingProgress] = useState(0);
+  const [processingStage, setProcessingStage] = useState('');
+  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [previewFilter, setPreviewFilter] = useState<string>('');
 
   const hasWork = generatedResults.length > 0;
@@ -130,6 +133,66 @@ export const EnhancePanel: React.FC = () => {
     }
   };
 
+  // 模拟进度增长
+  const startProgressSimulation = (stages: string[]) => {
+    setProcessingProgress(0);
+    let currentStage = 0;
+    let progress = 0;
+
+    // 清除之前的定时器
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+    }
+
+    setProcessingStage(stages[0]);
+
+    progressIntervalRef.current = setInterval(() => {
+      progress += Math.random() * 3 + 1; // 每次增加 1-4%
+
+      // 根据进度切换阶段
+      const stageIndex = Math.min(
+        Math.floor((progress / 100) * stages.length),
+        stages.length - 1
+      );
+      if (stageIndex !== currentStage) {
+        currentStage = stageIndex;
+        setProcessingStage(stages[stageIndex]);
+      }
+
+      if (progress >= 95) {
+        progress = 95; // 保持在95%，等待实际完成
+        if (progressIntervalRef.current) {
+          clearInterval(progressIntervalRef.current);
+        }
+      }
+      setProcessingProgress(Math.floor(progress));
+    }, 200);
+  };
+
+  // 停止进度模拟
+  const stopProgressSimulation = (completed = true) => {
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = null;
+    }
+    if (completed) {
+      setProcessingProgress(100);
+      setTimeout(() => {
+        setProcessingProgress(0);
+        setProcessingStage('');
+      }, 500);
+    }
+  };
+
+  // 清理定时器
+  useEffect(() => {
+    return () => {
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+      }
+    };
+  }, []);
+
   // 应用效果（使用API）
   const handleApply = async () => {
     if (!hasWork || !currentWork) {
@@ -143,12 +206,19 @@ export const EnhancePanel: React.FC = () => {
     }
 
     setIsProcessing(true);
+    const preset = SMART_PRESETS.find(p => p.id === selectedPreset);
+    const filter = FILTER_PRESETS.find(f => f.id === selectedFilter);
+    const effectName = preset?.name || filter?.name || '效果';
+
+    // 启动进度模拟
+    startProgressSimulation([
+      '正在分析图片...',
+      '正在应用效果...',
+      '正在优化细节...',
+      '正在生成预览...'
+    ]);
 
     try {
-      // 调用千问API进行图片增强
-      const preset = SMART_PRESETS.find(p => p.id === selectedPreset);
-      const filter = FILTER_PRESETS.find(f => f.id === selectedFilter);
-      const effectName = preset?.name || filter?.name || '效果';
       const effectType = selectedPreset || 'vivid';
 
       // 调用新的API方法
@@ -161,8 +231,8 @@ export const EnhancePanel: React.FC = () => {
       console.log('[EnhancePanel] enhanceImage result:', result);
 
       if (result.success && result.imageUrl) {
-        toast.info('正在保存图片到云存储...');
-        
+        setProcessingStage('正在保存到云存储...');
+
         // 上传图片到 Supabase Storage
         let permanentUrl = result.imageUrl;
         try {
@@ -173,7 +243,7 @@ export const EnhancePanel: React.FC = () => {
           console.error('[EnhancePanel] Failed to upload image:', uploadError);
           toast.warning('图片处理成功，但上传到永久存储失败');
         }
-        
+
         const newResult = {
           id: Date.now(),
           thumbnail: permanentUrl,
@@ -185,20 +255,23 @@ export const EnhancePanel: React.FC = () => {
 
         updateState({
           generatedResults: [...generatedResults, newResult],
-          selectedResult: generatedResults.length,
+          selectedResult: newResult.id,
           aiExplanation: `已应用「${effectName}」效果，强度${intensity}%`
         });
 
+        stopProgressSimulation(true);
         toast.success(`已应用${effectName}效果并保存到云存储`);
-        
+
         // 重置预览
         setPreviewFilter('');
         setSelectedPreset(null);
         setSelectedFilter(null);
       } else {
+        stopProgressSimulation(false);
         toast.error(result.error || '处理失败');
       }
     } catch (error) {
+      stopProgressSimulation(false);
       console.error('应用效果失败:', error);
       toast.error('处理失败');
     } finally {
@@ -215,6 +288,14 @@ export const EnhancePanel: React.FC = () => {
 
     setIsProcessing(true);
 
+    // 启动进度模拟
+    startProgressSimulation([
+      'AI正在分析图片内容...',
+      '正在智能优化色彩...',
+      '正在增强细节...',
+      '正在应用智能滤镜...'
+    ]);
+
     try {
       // 调用AI增强API
       const result = await llmService.enhanceImage(
@@ -224,8 +305,8 @@ export const EnhancePanel: React.FC = () => {
       );
 
       if (result.success && result.imageUrl) {
-        toast.info('正在保存图片到云存储...');
-        
+        setProcessingStage('正在保存到云存储...');
+
         // 上传图片到 Supabase Storage
         let permanentUrl = result.imageUrl;
         try {
@@ -236,7 +317,7 @@ export const EnhancePanel: React.FC = () => {
           console.error('[EnhancePanel] Failed to upload AI enhanced image:', uploadError);
           toast.warning('图片美化成功，但上传到永久存储失败');
         }
-        
+
         const newResult = {
           id: Date.now(),
           thumbnail: permanentUrl,
@@ -248,15 +329,18 @@ export const EnhancePanel: React.FC = () => {
 
         updateState({
           generatedResults: [...generatedResults, newResult],
-          selectedResult: generatedResults.length,
+          selectedResult: newResult.id,
           aiExplanation: '已应用AI智能美化，自动优化色彩、对比度和细节'
         });
 
+        stopProgressSimulation(true);
         toast.success('AI智能美化完成并保存到云存储！');
       } else {
+        stopProgressSimulation(false);
         toast.error(result.error || '美化失败');
       }
     } catch (error) {
+      stopProgressSimulation(false);
       console.error('AI美化失败:', error);
       toast.error('美化失败');
     } finally {
@@ -323,6 +407,50 @@ export const EnhancePanel: React.FC = () => {
                   预览中
                 </div>
               )}
+
+              {/* 处理中进度条遮罩 */}
+              <AnimatePresence>
+                {isProcessing && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="absolute inset-0 bg-black/70 backdrop-blur-sm flex flex-col items-center justify-center gap-4"
+                  >
+                    {/* 旋转动画图标 */}
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                      className="w-12 h-12 rounded-full border-4 border-violet-500/30 border-t-violet-500"
+                    />
+
+                    {/* 处理阶段文字 */}
+                    <motion.p
+                      key={processingStage}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="text-white text-sm font-medium"
+                    >
+                      {processingStage}
+                    </motion.p>
+
+                    {/* 进度条 */}
+                    <div className="w-48 h-2 bg-gray-600/50 rounded-full overflow-hidden">
+                      <motion.div
+                        className="h-full bg-gradient-to-r from-violet-500 to-purple-500 rounded-full"
+                        initial={{ width: 0 }}
+                        animate={{ width: `${processingProgress}%` }}
+                        transition={{ duration: 0.3, ease: "easeOut" }}
+                      />
+                    </div>
+
+                    {/* 百分比 */}
+                    <p className="text-violet-400 text-lg font-bold">
+                      {processingProgress}%
+                    </p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </div>
         </div>
@@ -485,6 +613,37 @@ export const EnhancePanel: React.FC = () => {
       {/* 底部操作按钮 */}
       {previewFilter && (
         <div className="p-4 border-t border-gray-200 dark:border-gray-700 space-y-2">
+          {/* 处理进度条（按钮上方） */}
+          <AnimatePresence>
+            {isProcessing && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="mb-3 overflow-hidden"
+              >
+                <div className={`p-3 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-gray-50'}`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                      {processingStage}
+                    </span>
+                    <span className="text-xs font-bold text-violet-500">
+                      {processingProgress}%
+                    </span>
+                  </div>
+                  <div className="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                    <motion.div
+                      className="h-full bg-gradient-to-r from-violet-500 to-purple-500 rounded-full"
+                      initial={{ width: 0 }}
+                      animate={{ width: `${processingProgress}%` }}
+                      transition={{ duration: 0.3, ease: "easeOut" }}
+                    />
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           <button
             onClick={handleApply}
             disabled={isProcessing}
@@ -492,7 +651,7 @@ export const EnhancePanel: React.FC = () => {
           >
             {isProcessing ? (
               <>
-                <i className="fas fa-spinner fa-spin"></i>
+                <Loader2 className="w-4 h-4 animate-spin" />
                 处理中...
               </>
             ) : (

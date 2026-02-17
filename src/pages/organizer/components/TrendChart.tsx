@@ -77,8 +77,8 @@ export function TrendChart({
               ))}
             </div>
           ) : (
-            <p className="text-lg font-bold" style={{ color: config.color }}>
-              {payload[0].value}
+            <p className="text-lg font-bold" style={{ color: config?.color || '#3B82F6' }}>
+              {payload[0]?.value || 0}
             </p>
           )}
         </div>
@@ -156,6 +156,19 @@ export function TrendChart({
           />
         </AreaChart>
       </ResponsiveContainer>
+    );
+  }
+
+  // 如果没有配置或数据为空，显示空状态
+  if (!config || !data || data.length === 0) {
+    return (
+      <div 
+        className={`flex items-center justify-center h-[${height}px] rounded-xl border ${
+          isDark ? 'bg-gray-800/50 border-gray-700' : 'bg-gray-50 border-gray-200'
+        }`}
+      >
+        <p className="text-gray-500 dark:text-gray-400">暂无数据</p>
+      </div>
     );
   }
 

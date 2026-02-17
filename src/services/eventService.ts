@@ -24,6 +24,7 @@ export interface Event {
   category?: string;
   tags: string[];
   platformEventId?: string;
+  eventType?: string; // 活动类型: document, image_description, other
 }
 
 export const eventService = {
@@ -64,7 +65,8 @@ export const eventService = {
       imageUrl: item.image_url,
       category: item.category,
       tags: item.tags || [],
-      platformEventId: item.platform_event_id
+      platformEventId: item.platform_event_id,
+      eventType: item.event_type
     }));
   },
 

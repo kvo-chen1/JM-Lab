@@ -252,18 +252,19 @@ export default function OnboardingGuide() {
 
           // 尝试寻找元素（带有重试机制，应对动态加载）
           let attempts = 0;
-          const maxAttempts = 15;
+          const maxAttempts = 30; // 增加重试次数
           const interval = setInterval(() => {
             attempts++;
             if (findTarget() || attempts >= maxAttempts) {
               clearInterval(interval);
               if (attempts >= maxAttempts && stepConfig.targetId) {
+                console.warn(`Onboarding: Could not find target element ${stepConfig.targetId} after ${maxAttempts} attempts`);
                 setTargetRect(null); 
                 setIsLocating(false);
               }
             }
-          }, 200);
-        }, 500);
+          }, 300); // 增加重试间隔
+        }, 800); // 增加初始延迟
 
         return () => clearTimeout(timer);
       }
@@ -291,17 +292,18 @@ export default function OnboardingGuide() {
 
       setIsLocating(true);
       let attempts = 0;
-      const maxAttempts = 15;
+      const maxAttempts = 30;
       const interval = setInterval(() => {
         attempts++;
         if (findTarget() || attempts >= maxAttempts) {
           clearInterval(interval);
           if (attempts >= maxAttempts && stepConfig.targetId) {
+            console.warn(`Onboarding: Could not find target element ${stepConfig.targetId} after ${maxAttempts} attempts`);
             setTargetRect(null); 
             setIsLocating(false);
           }
         }
-      }, 200);
+      }, 300);
 
       return () => clearInterval(interval);
     }
@@ -353,6 +355,11 @@ export default function OnboardingGuide() {
 
   const currentStepData = STEPS[currentStep];
   const progress = ((currentStep + 1) / STEPS.length) * 100;
+  
+  // 调试日志
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`Onboarding Step ${currentStep + 1}: targetId=${currentStepData.targetId}, targetRect=`, targetRect);
+  }
   
   // 计算 Popover 位置
   const getPopoverStyle = () => {
@@ -429,15 +436,16 @@ export default function OnboardingGuide() {
       left: `${left}px`,
       position: 'fixed' as const,
       width: `${popoverWidth}px`,
-      maxWidth: '90vw'
+      maxWidth: '90vw',
+      transform: 'none'
     };
   };
 
   const popoverStyle = getPopoverStyle();
 
   return (
-    <AnimatePresence>
-      <div className="fixed inset-0 z-[9999] pointer-events-none">
+    <div className="fixed inset-0 z-[9999] pointer-events-none">
+      <AnimatePresence>
         {/* SVG 遮罩层 */}
         <motion.svg
           className="absolute inset-0 w-full h-full pointer-events-auto"
@@ -494,8 +502,8 @@ export default function OnboardingGuide() {
           key={currentStep}
           className="pointer-events-auto absolute flex flex-col rounded-2xl shadow-2xl overflow-hidden"
           style={popoverStyle as any}
-          initial={{ opacity: 0, scale: 0.9, y: 10 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
           transition={{ type: 'spring', damping: 25, stiffness: 300 }}
         >
           {/* 卡片主体 - 使用毛玻璃效果 */}
@@ -663,7 +671,7 @@ export default function OnboardingGuide() {
             跳过
           </span>
         </motion.div>
-      </div>
-    </AnimatePresence>
+      </AnimatePresence>
+    </div>
   );
 }

@@ -13,20 +13,48 @@ import {
   ArrowRight,
 } from 'lucide-react';
 
+// 根据筛选类型获取对应的浏览路径
+const getBrowsePath = (filter: CollectionType | 'all'): string => {
+  switch (filter) {
+    case CollectionType.SQUARE_WORK:
+      return '/square';
+    case CollectionType.COMMUNITY_POST:
+      return '/community';
+    case CollectionType.ACTIVITY:
+      return '/events';
+    case CollectionType.TEMPLATE:
+      return '/tianjin';
+    default:
+      return '/square';
+  }
+};
+
+// 根据筛选类型获取主操作按钮配置
+const getPrimaryAction = (filter: CollectionType | 'all') => {
+  switch (filter) {
+    case CollectionType.SQUARE_WORK:
+      return { label: '去广场', path: '/square', icon: Image };
+    case CollectionType.COMMUNITY_POST:
+      return { label: '去社区', path: '/community', icon: MessageSquare };
+    case CollectionType.ACTIVITY:
+      return { label: '去活动', path: '/events', icon: Calendar };
+    case CollectionType.TEMPLATE:
+      return { label: '去模板', path: '/tianjin', icon: Layers };
+    default:
+      return { label: '去浏览', path: '/square', icon: Compass };
+  }
+};
+
 const emptyConfig = {
   bookmarks: {
     icon: Bookmark,
     title: '暂无收藏',
     description: '您还没有收藏任何内容，去浏览并收藏感兴趣的作品吧',
-    primaryAction: { label: '去浏览', path: '/square', icon: Compass },
-    secondaryAction: { label: '去社区', path: '/community', icon: MessageSquare },
   },
   likes: {
     icon: Heart,
     title: '暂无点赞',
     description: '您还没有点赞任何内容，去发现并支持喜欢的作品吧',
-    primaryAction: { label: '去浏览', path: '/square', icon: Compass },
-    secondaryAction: { label: '去社区', path: '/community', icon: MessageSquare },
   },
 };
 
@@ -44,6 +72,10 @@ export function CollectionEmpty({ type, activeFilter }: CollectionEmptyProps) {
   const config = emptyConfig[type];
   const Icon = config.icon;
   const filterInfo = filterConfig[activeFilter];
+  const primaryAction = getPrimaryAction(activeFilter);
+  const secondaryPath = activeFilter === CollectionType.COMMUNITY_POST ? '/square' : '/community';
+  const secondaryLabel = activeFilter === CollectionType.COMMUNITY_POST ? '去广场' : '去社区';
+  const SecondaryIcon = activeFilter === CollectionType.COMMUNITY_POST ? Image : MessageSquare;
 
   return (
     <motion.div
@@ -106,30 +138,30 @@ export function CollectionEmpty({ type, activeFilter }: CollectionEmptyProps) {
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
-          onClick={() => navigate(config.primaryAction.path)}
+          onClick={() => navigate(primaryAction.path)}
           className={`flex items-center gap-2 px-6 py-3 rounded-xl font-medium transition-colors ${
             type === 'bookmarks'
               ? 'bg-blue-600 hover:bg-blue-700 text-white'
               : 'bg-pink-600 hover:bg-pink-700 text-white'
           }`}
         >
-          <config.primaryAction.icon className="w-5 h-5" />
-          {config.primaryAction.label}
+          <primaryAction.icon className="w-5 h-5" />
+          {primaryAction.label}
           <ArrowRight className="w-4 h-4" />
         </motion.button>
 
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
-          onClick={() => navigate(config.secondaryAction.path)}
+          onClick={() => navigate(secondaryPath)}
           className={`flex items-center gap-2 px-6 py-3 rounded-xl font-medium transition-colors ${
             isDark
               ? 'bg-gray-700 hover:bg-gray-600 text-white'
               : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
           }`}
         >
-          <config.secondaryAction.icon className="w-5 h-5" />
-          {config.secondaryAction.label}
+          <SecondaryIcon className="w-5 h-5" />
+          {secondaryLabel}
         </motion.button>
       </motion.div>
 

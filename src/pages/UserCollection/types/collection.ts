@@ -56,6 +56,7 @@ export interface CollectionCardProps {
   onToggleBookmark: (id: string, type: CollectionType) => void;
   onToggleLike: (id: string, type: CollectionType) => void;
   isLoading?: boolean;
+  activeTab?: TabType;
 }
 
 /**
@@ -69,6 +70,7 @@ export interface CollectionGridProps {
   onLoadMore: () => void;
   onToggleBookmark: (id: string, type: CollectionType) => void;
   onToggleLike: (id: string, type: CollectionType) => void;
+  activeTab?: TabType;
 }
 
 /**
@@ -132,6 +134,8 @@ export interface UseCollectionsReturn {
 export interface UseCollectionActionsReturn {
   toggleBookmark: (id: string, type: CollectionType) => Promise<boolean>;
   toggleLike: (id: string, type: CollectionType) => Promise<boolean>;
+  removeBookmark: (id: string, type: CollectionType) => Promise<boolean>;
+  removeLike: (id: string, type: CollectionType) => Promise<boolean>;
   isToggling: boolean;
 }
 

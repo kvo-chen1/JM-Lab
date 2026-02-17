@@ -1,9 +1,10 @@
 import { create } from 'zustand';
-import { CreateState, ToolType, GeneratedResult } from '../types';
+import { CreateState, ToolType, GeneratedResult, SmartLayoutConfig, LayoutRecommendation } from '../types';
 import { aiGeneratedResults, traditionalPatterns } from '../data';
 import { workService, communityService, eventService } from '@/services/apiService';
 import postsApi from '@/services/postService';
 import { inspirationMindMapService } from '@/services/inspirationMindMapService';
+import { generateLayoutRecommendation } from '../utils/layoutEngine';
 
 // 辅助函数：获取当前用户（先尝试 localStorage，再尝试 session/getUser）
 const getCurrentUser = async () => {
@@ -48,6 +49,7 @@ interface CreateActions {
   setPrompt: (prompt: string) => void;
   setGeneratedResults: (results: GeneratedResult[]) => void;
   setSelectedResult: (id: number | null) => void;
+  deleteGeneratedResult: (id: number) => void;
   setIsGenerating: (isGenerating: boolean) => void;
   setShowCulturalInfo: (show: boolean) => void;
   setCurrentStep: (step: number) => void;
@@ -103,6 +105,12 @@ interface CreateActions {
   setOptimizedPrompt: (prompt: string) => void;
   addPromptHistory: (prompt: string) => void;
   removePromptFromHistory: (prompt: string) => void;
+  
+  // 智能排版相关
+  setSmartLayoutConfig: (config: Partial<SmartLayoutConfig>) => void;
+  analyzeLayout: () => Promise<LayoutRecommendation | null>;
+  applyLayout: () => void;
+  resetLayout: () => void;
 }
 
 // 从 localStorage 读取保存的工具状态
@@ -248,6 +256,19 @@ const getInitialState = (): CreateState => {
     optimizedPrompt: '',
     promptHistory: [],
     isOptimizingPrompt: false,
+    
+    // 智能排版相关状态
+    smartLayoutConfig: {
+      scenario: 'product',
+      platform: 'xiaohongshu',
+      template: 'center',
+      textStyle: 'minimal',
+      customText: '',
+      aspectRatio: '3:4',
+      canvasSize: { width: 1242, height: 1660 }
+    },
+    isAnalyzingLayout: false,
+    layoutRecommendation: null,
   };
 };
 
@@ -326,6 +347,10 @@ export const useCreateStore = create<CreateState & CreateActions>((set) => ({
       const updatedHistory = [...newHistoryItems, ...existingHistory].slice(0, 50);
       localStorage.setItem('CREATE_HISTORY', JSON.stringify(updatedHistory));
       console.log('[History] Saved', newHistoryItems.length, 'items. Total history:', updatedHistory.length);
+
+      // 保存到 CREATE_GENERATED_RESULTS 用于页面刷新后恢复当前作品
+      localStorage.setItem('CREATE_GENERATED_RESULTS', JSON.stringify(validResults));
+      console.log('[CreateStore] Saved generatedResults to localStorage:', validResults.length, 'items');
 
       // 同步到津脉脉络
       (async () => {
@@ -451,6 +476,29 @@ export const useCreateStore = create<CreateState & CreateActions>((set) => ({
     return { generatedResults: results };
   }),
   setSelectedResult: (id) => set({ selectedResult: id }),
+  deleteGeneratedResult: (id) => set((state) => {
+    const newResults = state.generatedResults.filter(r => r.id !== id);
+    // 更新 localStorage
+    if (typeof localStorage !== 'undefined') {
+      try {
+        if (newResults.length === 0) {
+          localStorage.removeItem('CREATE_GENERATED_RESULTS');
+        } else {
+          localStorage.setItem('CREATE_GENERATED_RESULTS', JSON.stringify(newResults));
+        }
+      } catch (error) {
+        console.error('Failed to update localStorage after delete:', error);
+      }
+    }
+    // 如果删除的是当前选中的，则选中第一个或设为null
+    const newSelectedResult = state.selectedResult === id 
+      ? (newResults.length > 0 ? newResults[0].id : null)
+      : state.selectedResult;
+    return { 
+      generatedResults: newResults,
+      selectedResult: newSelectedResult
+    };
+  }),
   setIsGenerating: (isGenerating) => set({ isGenerating }),
   setShowCulturalInfo: (show) => set({ showCulturalInfo: show }),
   setCurrentStep: (step) => {
@@ -1183,4 +1231,64 @@ export const useCreateStore = create<CreateState & CreateActions>((set) => ({
   removePromptFromHistory: (prompt) => set((state) => ({
     promptHistory: state.promptHistory.filter(p => p !== prompt)
   })),
+  
+  // 智能排版相关方法
+  setSmartLayoutConfig: (config: Partial<SmartLayoutConfig>) => set((state) => ({
+    smartLayoutConfig: { ...state.smartLayoutConfig, ...config }
+  })),
+  
+  analyzeLayout: async () => {
+    set({ isAnalyzingLayout: true });
+    
+    try {
+      const state = useCreateStore.getState();
+      const recommendation = await generateLayoutRecommendation(
+        state.smartLayoutConfig,
+        state.generatedResults,
+        state.selectedResult
+      );
+      
+      set({ 
+        layoutRecommendation: recommendation,
+        isAnalyzingLayout: false 
+      });
+      
+      return recommendation;
+    } catch (error) {
+      console.error('Layout analysis failed:', error);
+      set({ isAnalyzingLayout: false });
+      return null;
+    }
+  },
+  
+  applyLayout: () => set((state) => {
+    if (!state.layoutRecommendation) return state;
+    
+    // 应用排版配置到状态
+    return {
+      ...state,
+      smartLayoutConfig: {
+        ...state.smartLayoutConfig,
+        scenario: state.layoutRecommendation.scenario,
+        platform: state.layoutRecommendation.platform,
+        template: state.layoutRecommendation.template,
+        textStyle: state.layoutRecommendation.textStyleId,
+        aspectRatio: state.layoutRecommendation.aspectRatio,
+        canvasSize: state.layoutRecommendation.canvasSize,
+      }
+    };
+  }),
+  
+  resetLayout: () => set({
+    layoutRecommendation: null,
+    smartLayoutConfig: {
+      scenario: 'product',
+      platform: 'xiaohongshu',
+      template: 'center',
+      textStyle: 'minimal',
+      customText: '',
+      aspectRatio: '3:4',
+      canvasSize: { width: 1242, height: 1660 }
+    }
+  }),
 }));

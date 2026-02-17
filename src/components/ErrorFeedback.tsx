@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { toast } from 'sonner';
 import errorService, { ErrorInfo } from '../services/errorService';
+import { feedbackService } from '@/services/feedbackService';
 
 interface ErrorFeedbackProps {
   errorInfo?: ErrorInfo;
@@ -57,18 +58,35 @@ const ErrorFeedback: React.FC<ErrorFeedbackProps> = ({ errorInfo, error, onClose
   
   const handleSubmit = async () => {
     if (isSubmitting) return;
-    
+
     // 验证联系方式格式
     if (!validateContactInfo(contactInfo)) {
       return;
     }
-    
+
     setIsSubmitting(true);
-    
+
     try {
-      // 模拟API调用延迟
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
+      // 将反馈类型映射到数据库支持的类型
+      const typeMap: Record<string, any> = {
+        '功能异常': 'bug',
+        '界面问题': 'bug',
+        '性能问题': 'bug',
+        '建议改进': 'feature',
+        '其他': 'other'
+      };
+
+      // 提交反馈到数据库
+      await feedbackService.submitFeedback({
+        type: typeMap[feedbackType] || 'other',
+        title: errorDetails?.errorType || feedbackType,
+        content: description,
+        contact_info: contactInfo,
+        contact_type: contactInfo.includes('@') ? 'email' : 'phone',
+        screenshots: [],
+        page_url: window.location.href
+      });
+
       // 提交成功后显示更丰富的反馈
       toast.success(
         <div className="flex items-center gap-2">
@@ -80,7 +98,7 @@ const ErrorFeedback: React.FC<ErrorFeedbackProps> = ({ errorInfo, error, onClose
         </div>,
         { duration: 3000 }
       );
-      
+
       // 清空表单
       setDescription('');
       setContactInfo('');
@@ -89,7 +107,7 @@ const ErrorFeedback: React.FC<ErrorFeedbackProps> = ({ errorInfo, error, onClose
       setIncludeLogs(true);
       setContactError('');
       setDragActive(false);
-      
+
       // 延迟关闭弹窗，让用户有时间看到成功提示
       setTimeout(() => {
         onClose();
@@ -313,18 +331,32 @@ const ErrorFeedback: React.FC<ErrorFeedbackProps> = ({ errorInfo, error, onClose
             
             {/* 联系方式 */}
             <div>
-              <label htmlFor="contactInfo" className={getLabelStyles()}>联系方式 (可选)</label>
+              <label htmlFor="contactInfo" className={getLabelStyles()}>
+                联系方式 <span className="text-red-500">*</span>
+                <span className="text-xs text-gray-500 ml-1">(必填，用于接收处理结果通知)</span>
+              </label>
               <input
                 id="contactInfo"
                 type="text"
                 value={contactInfo}
                 onChange={handleContactChange}
-                placeholder="请留下您的邮箱或手机号，方便我们联系您"
-                className={getFormControlStyles(!!contactError)}
+                placeholder="请留下您的邮箱或手机号，方便我们联系您并通知处理结果"
+                className={getFormControlStyles(!!contactError || !contactInfo.trim())}
                 tabIndex={0}
                 aria-label="联系方式"
                 aria-describedby={contactError ? 'contact-error' : undefined}
+                required
               />
+              {!contactInfo.trim() && (
+                <motion.p 
+                  initial={{ opacity: 0, y: -5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="text-xs text-yellow-600 mt-1 flex items-center gap-1"
+                >
+                  <i className="fas fa-info-circle"></i>
+                  填写联系方式后，我们将在处理完成后通知您
+                </motion.p>
+              )}
               {contactError && (
               <motion.p 
                 id="contact-error"
@@ -440,14 +472,14 @@ const ErrorFeedback: React.FC<ErrorFeedbackProps> = ({ errorInfo, error, onClose
           </button>
           <motion.button
             onClick={handleSubmit}
-            disabled={isSubmitting || !description.trim()}
+            disabled={isSubmitting || !description.trim() || !contactInfo.trim() || !!contactError}
             className={`px-5 py-2.5 sm:px-6 rounded-lg transition-all duration-300 hover:scale-105 font-medium ${
-              isSubmitting || !description.trim()
+              isSubmitting || !description.trim() || !contactInfo.trim() || !!contactError
                 ? 'bg-gray-500 cursor-not-allowed text-gray-200' 
                 : 'bg-red-600 hover:bg-red-700 text-white shadow-md hover:shadow-lg'
             }`}
             tabIndex={0}
-            onKeyDown={(e) => e.key === 'Enter' && !isSubmitting && description.trim() && handleSubmit()}
+            onKeyDown={(e) => e.key === 'Enter' && !isSubmitting && description.trim() && contactInfo.trim() && !contactError && handleSubmit()}
             whileTap={{ scale: 0.98 }}
             whileHover={{ scale: 1.05 }}
           >

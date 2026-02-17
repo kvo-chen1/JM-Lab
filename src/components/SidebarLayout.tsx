@@ -347,23 +347,30 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
   
   // 监听用户变化，根据用户类型加载通知数据
   useEffect(() => {
+    console.log('[SidebarLayout] User changed:', user?.id, 'isAuthenticated:', isAuthenticated);
     if (!user) {
+      console.log('[SidebarLayout] No user, clearing notifications');
       setNotifications([])
       return
     }
 
     if (!user.id.startsWith('phone_user_')) {
+      console.log('[SidebarLayout] Fetching notifications for user:', user.id);
       const fetchNotifications = async () => {
         try {
           const token = localStorage.getItem('token');
+          console.log('[SidebarLayout] Token exists:', !!token);
           // 如果没有 token，不调用需要认证的 API
           if (!token) {
+            console.log('[SidebarLayout] No token, skipping notifications fetch');
             setNotifications([]);
             return;
           }
+          console.log('[SidebarLayout] Calling /api/notifications...');
           const response = await fetch('/api/notifications', {
             headers: { 'Authorization': `Bearer ${token}` }
           });
+          console.log('[SidebarLayout] Response status:', response.status);
           // 如果返回 401，静默处理，不显示错误
           if (response.status === 401) {
             setNotifications([]);
@@ -371,17 +378,52 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
           }
           const data = await response.json();
           if (data.code === 0 && data.data && Array.isArray(data.data.list)) {
-            const mappedNotifications: Notification[] = data.data.list.map((n: any) => ({
-              id: n.id.toString(),
-              title: n.title,
-              description: n.content,
-              time: new Date(n.created_at).toLocaleString(),
-              read: n.is_read,
-              type: 'info', // 默认类型
-              category: 'system', // 默认分类，后续可根据后端type字段映射
-              timestamp: new Date(n.created_at).getTime(),
-              sound: false
-            }));
+            // 映射后端通知类型到前端 category
+            const mapNotificationType = (type: string): Notification['category'] => {
+              const typeMap: Record<string, Notification['category']> = {
+                'system': 'system',
+                'message': 'message',
+                'like': 'like',
+                'join': 'join',
+                'mention': 'mention',
+                'task': 'task',
+                'points': 'points',
+                'learning': 'learning',
+                'creation': 'creation',
+                'social': 'social',
+                'ranking_published': 'system'
+              };
+              return typeMap[type] || 'system';
+            };
+
+            const mappedNotifications: Notification[] = data.data.list.map((n: any) => {
+              // 根据通知类型生成 actionUrl
+              let actionUrl: string | undefined;
+              // PostgreSQL 返回的 JSONB 字段
+              const notificationData = n.data;
+              if (notificationData && typeof notificationData === 'object') {
+                if (notificationData.event_id) {
+                  actionUrl = `/events/${notificationData.event_id}`;
+                } else if (notificationData.work_id) {
+                  actionUrl = `/works/${notificationData.work_id}`;
+                } else if (notificationData.user_id) {
+                  actionUrl = `/profile/${notificationData.user_id}`;
+                }
+              }
+
+              return {
+                id: n.id.toString(),
+                title: n.title,
+                description: n.content,
+                time: new Date(n.created_at).toLocaleString(),
+                read: n.is_read,
+                type: n.type === 'warning' ? 'warning' : n.type === 'success' ? 'success' : 'info',
+                category: mapNotificationType(n.type),
+                actionUrl,
+                timestamp: new Date(n.created_at).getTime(),
+                sound: false
+              };
+            });
             setNotifications(mappedNotifications);
           }
         } catch (error) {

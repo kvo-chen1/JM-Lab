@@ -3539,6 +3539,79 @@ export const workDB = {
     switch (typeKey) {
       case DB_TYPE.POSTGRESQL: {
         try {
+          // 判断作品ID类型：UUID 格式（posts 表）或数字格式（works 表）
+          const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(workId);
+          console.log('[workDB.likeWork] WorkId type:', isUUID ? 'UUID (posts)' : 'numeric (works)', workId);
+          
+          // 如果是 UUID 格式，使用 posts 表逻辑
+          if (isUUID) {
+            // 检查是否已点赞（使用 likes 表）
+            const { rows: existing } = await db.query(
+              'SELECT id FROM likes WHERE user_id = $1 AND post_id = $2',
+              [userId, workId]
+            )
+            
+            if (existing.length > 0) {
+              return { success: true, message: '已经点赞过了' }
+            }
+            
+            // 获取作品信息和作者
+            const { rows: postRows } = await db.query(
+              'SELECT id, title, author_id FROM posts WHERE id = $1',
+              [workId]
+            )
+            
+            if (postRows.length === 0) {
+              return { success: false, error: '作品不存在' }
+            }
+            
+            const post = postRows[0]
+            const authorId = post.author_id
+            
+            // 添加点赞记录到 likes 表
+            await db.query(
+              'INSERT INTO likes (user_id, post_id, created_at) VALUES ($1, $2, NOW())',
+              [userId, workId]
+            )
+            
+            // 更新 posts 表的点赞数
+            await db.query(
+              'UPDATE posts SET likes_count = COALESCE(likes_count, 0) + 1 WHERE id = $1',
+              [workId]
+            )
+            
+            // 给作品作者发送通知（如果不是自己点赞自己的作品）
+            if (authorId && authorId !== userId) {
+              try {
+                // 获取点赞者信息
+                const { rows: userRows } = await db.query(
+                  'SELECT username FROM users WHERE id = $1',
+                  [userId]
+                )
+                const likerName = userRows.length > 0 ? userRows[0].username : '有人'
+                
+                await db.query(
+                  `INSERT INTO notifications (user_id, type, title, content, data, is_read, created_at) 
+                   VALUES ($1, $2, $3, $4, $5, false, NOW())`,
+                  [
+                    authorId,
+                    'like',
+                    '作品收到新点赞',
+                    `你的作品"${post.title || '未命名作品'}"收到了${likerName}的点赞`,
+                    JSON.stringify({ work_id: workId, liker_id: userId }),
+                    false
+                  ]
+                )
+                console.log('[workDB.likeWork] Notification sent to author:', authorId)
+              } catch (notifyError) {
+                console.error('[workDB.likeWork] Failed to send notification:', notifyError)
+              }
+            }
+            
+            return { success: true, message: '点赞成功' }
+          }
+          
+          // 处理后端 works 表的点赞（原有逻辑）
           // 检查是否已点赞
           const { rows: existing } = await db.query(
             'SELECT id FROM work_likes WHERE user_id = $1 AND work_id = $2',
@@ -3548,6 +3621,19 @@ export const workDB = {
           if (existing.length > 0) {
             return { success: true, message: '已经点赞过了' }
           }
+          
+          // 获取作品信息和作者
+          const { rows: workRows } = await db.query(
+            'SELECT id, title, creator_id FROM works WHERE id = $1',
+            [workId]
+          )
+          
+          if (workRows.length === 0) {
+            return { success: false, error: '作品不存在' }
+          }
+          
+          const work = workRows[0]
+          const authorId = work.creator_id
           
           // 添加点赞记录
           await db.query(
@@ -3560,6 +3646,35 @@ export const workDB = {
             'UPDATE works SET likes = COALESCE(likes, 0) + 1 WHERE id = $1',
             [workId]
           )
+          
+          // 给作品作者发送通知（如果不是自己点赞自己的作品）
+          if (authorId && authorId !== userId) {
+            try {
+              // 获取点赞者信息
+              const { rows: userRows } = await db.query(
+                'SELECT username FROM users WHERE id = $1',
+                [userId]
+              )
+              const likerName = userRows.length > 0 ? userRows[0].username : '有人'
+              
+              await db.query(
+                `INSERT INTO notifications (user_id, type, title, content, data, is_read, created_at) 
+                 VALUES ($1, $2, $3, $4, $5, false, NOW())`,
+                [
+                  authorId,
+                  'like',
+                  '作品收到新点赞',
+                  `你的作品"${work.title || '未命名作品'}"收到了${likerName}的点赞`,
+                  JSON.stringify({ work_id: workId, liker_id: userId }),
+                  false
+                ]
+              )
+              console.log('[workDB.likeWork] Notification sent to author:', authorId)
+            } catch (notifyError) {
+              console.error('[workDB.likeWork] Failed to send notification:', notifyError)
+              // 通知发送失败不影响点赞成功
+            }
+          }
           
           return { success: true, message: '点赞成功' }
         } catch (error) {
@@ -3809,6 +3924,27 @@ export const workDB = {
       case DB_TYPE.MEMORY: {
         if (!memoryStore.work_likes) return 0
         return memoryStore.work_likes.filter(l => l.user_id === userId).length
+      }
+      default:
+        return 0
+    }
+  },
+
+  async getUserBookmarksCount(userId) {
+    const db = await getDB()
+    const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
+
+    switch (typeKey) {
+      case DB_TYPE.POSTGRESQL: {
+        const { rows } = await db.query(
+          'SELECT COUNT(*) as count FROM work_favorites WHERE user_id = $1',
+          [userId]
+        )
+        return parseInt(rows[0]?.count || 0)
+      }
+      case DB_TYPE.MEMORY: {
+        if (!memoryStore.work_favorites) return 0
+        return memoryStore.work_favorites.filter(f => f.user_id === userId).length
       }
       default:
         return 0

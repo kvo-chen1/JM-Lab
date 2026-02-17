@@ -24,11 +24,11 @@ export default function EventCard({ event, onClick, viewMode = 'grid' }: EventCa
   const [isLiked, setIsLiked] = useState(false);
 
   const now = new Date();
-  
+
   // 处理各种日期格式：Date对象、ISO字符串、bigint时间戳
   let eventStart: Date;
   let eventEnd: Date;
-  
+
   if (event.startTime instanceof Date) {
     eventStart = event.startTime;
   } else if (typeof event.startTime === 'string') {
@@ -42,7 +42,7 @@ export default function EventCard({ event, onClick, viewMode = 'grid' }: EventCa
   } else {
     eventStart = new Date(event.startTime);
   }
-  
+
   if (event.endTime instanceof Date) {
     eventEnd = event.endTime;
   } else if (typeof event.endTime === 'string') {
@@ -55,12 +55,23 @@ export default function EventCard({ event, onClick, viewMode = 'grid' }: EventCa
     eventEnd = new Date(event.endTime);
   }
 
+  // 优先检查 final_ranking_published 字段或活动状态，如果已发布排名或状态为completed则视为已结束
+  const isRankingPublished = (event as any).finalRankingPublished === true ||
+                             (event as any).final_ranking_published === true ||
+                             (event as any).status === 'completed';
+
   let status: 'upcoming' | 'ongoing' | 'completed' = 'upcoming';
   let statusText = '即将开始';
   let statusColor = 'bg-emerald-500';
   let statusBg = 'bg-emerald-100 text-emerald-700';
 
-  if (now >= eventStart && now <= eventEnd) {
+  if (isRankingPublished) {
+    // 如果已发布排名，活动视为已结束
+    status = 'completed';
+    statusText = '已结束';
+    statusColor = 'bg-gray-400';
+    statusBg = 'bg-gray-100 text-gray-600';
+  } else if (now >= eventStart && now <= eventEnd) {
     status = 'ongoing';
     statusText = '进行中';
     statusColor = 'bg-amber-500';

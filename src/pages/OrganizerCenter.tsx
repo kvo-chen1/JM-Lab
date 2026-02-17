@@ -19,6 +19,11 @@ import { EventPreview } from '@/components/EventPreview';
 import eventBus from '@/services/enhancedEventBus';
 import { useDraftAutoSave } from '@/hooks/useDraftAutoSave';
 import { AutoSaveStatus } from '@/components/AutoSaveStatus';
+import { PrizeManager } from '@/components/prize';
+import { Prize, PrizeCreateRequest } from '@/types/prize';
+import { prizeService } from '@/services/prizeService';
+import EventTypeSelector from '@/components/events/EventTypeSelector';
+import SubmissionGuide from '@/components/submit/SubmissionGuide';
 import {
   CalendarDays,
   Users,
@@ -54,14 +59,15 @@ import {
   MoreHorizontal,
   RotateCcw,
   Heart,
-  Trophy
+  Trophy,
+  Gift
 } from 'lucide-react';
 
 // 活动状态筛选类型
 type StatusFilter = 'all' | 'draft' | 'pending' | 'published' | 'rejected';
 type ViewMode = 'list' | 'grid';
 type TabType = 'activities' | 'create' | 'works' | 'analytics' | 'settings';
-type StepType = 'basic' | 'content' | 'media' | 'settings' | 'preview';
+type StepType = 'basic' | 'type' | 'content' | 'media' | 'prizes' | 'settings' | 'preview';
 
 // 状态配置
 const statusConfig = {
@@ -76,8 +82,10 @@ const statusConfig = {
 // 创建活动步骤配置
 const steps = [
   { id: 'basic' as StepType, name: '基本信息', description: '填写活动名称、时间地点' },
+  { id: 'type' as StepType, name: '活动类型', description: '选择活动作品类型' },
   { id: 'content' as StepType, name: '活动内容', description: '详细描述活动流程' },
   { id: 'media' as StepType, name: '多媒体', description: '上传图片和视频' },
+  { id: 'prizes' as StepType, name: '奖品设置', description: '配置活动奖品和奖励' },
   { id: 'settings' as StepType, name: '设置', description: '参与规则和标签' },
   { id: 'preview' as StepType, name: '预览发布', description: '检查并发布活动' },
 ];
@@ -253,6 +261,9 @@ export default function OrganizerCenter() {
   const [eventId, setEventId] = useState<string | null>(null);
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
   const [isDraggingMedia, setIsDraggingMedia] = useState(false);
+
+  // 奖品相关状态
+  const [prizes, setPrizes] = useState<Prize[]>([]);
 
   // 从 AuthContext 获取 isLoading 状态（必须在其他 hooks 之前声明）
   const { isAuthenticated, user, isLoading: isAuthLoading } = useContext(AuthContext);
@@ -785,6 +796,28 @@ export default function OrganizerCenter() {
         }
       }
 
+      // 保存奖品信息
+      if (event?.id && prizes.length > 0) {
+        try {
+          // 删除旧的奖品
+          await prizeService.deletePrizesByEventId(event.id);
+          // 创建新奖品
+          const prizeRequests: PrizeCreateRequest[] = prizes.map(p => ({
+            level: p.level,
+            rankName: p.rankName,
+            combinationType: p.combinationType,
+            singlePrize: p.singlePrize,
+            subPrizes: p.subPrizes,
+            displayOrder: p.displayOrder,
+            isHighlight: p.isHighlight,
+            highlightColor: p.highlightColor,
+          }));
+          await prizeService.createPrizes(event.id, prizeRequests);
+        } catch (prizeError) {
+          console.error('保存奖品失败:', prizeError);
+        }
+      }
+
       toast.success('草稿已保存');
       fetchEvents();
     } catch (error) {
@@ -865,6 +898,28 @@ export default function OrganizerCenter() {
       }
 
       if (!event || !event.id) throw new Error('活动创建失败');
+
+      // 保存奖品信息
+      if (prizes.length > 0) {
+        try {
+          // 删除旧的奖品
+          await prizeService.deletePrizesByEventId(event.id);
+          // 创建新奖品
+          const prizeRequests: PrizeCreateRequest[] = prizes.map(p => ({
+            level: p.level,
+            rankName: p.rankName,
+            combinationType: p.combinationType,
+            singlePrize: p.singlePrize,
+            subPrizes: p.subPrizes,
+            displayOrder: p.displayOrder,
+            isHighlight: p.isHighlight,
+            highlightColor: p.highlightColor,
+          }));
+          await prizeService.createPrizes(event.id, prizeRequests);
+        } catch (prizeError) {
+          console.error('保存奖品失败:', prizeError);
+        }
+      }
 
       toast.success('活动已提交审核，审核通过后将发布到津脉活动平台');
 
@@ -1750,9 +1805,36 @@ export default function OrganizerCenter() {
                           </div>
                         </div>
 
+                      </div>
+                    )}
+
+                    {/* 活动类型步骤 */}
+                    {currentStep === 'type' && (
+                      <div className="space-y-6">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-4">
+                            选择活动作品类型 <span className="text-red-500">*</span>
+                          </label>
+                          <EventTypeSelector
+                            value={formData.eventType || 'document'}
+                            onChange={(type) => handleChange('eventType', type)}
+                          />
+                        </div>
+
+                        <div className={`p-4 rounded-xl border ${isDark ? 'border-gray-700 bg-gray-800/50' : 'border-gray-200 bg-gray-50'}`}>
+                          <h4 className="font-medium text-gray-900 dark:text-white mb-3">
+                            参赛者将看到的上传指引
+                          </h4>
+                          <SubmissionGuide
+                            eventType={formData.eventType || 'document'}
+                            requirements={formData.submissionRequirements}
+                            templates={formData.submissionTemplates}
+                          />
+                        </div>
+
                         <div>
                           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                            活动类型
+                            活动形式
                           </label>
                           <div className="flex gap-3">
                             {['offline', 'online'].map((type) => (
@@ -1905,6 +1987,17 @@ export default function OrganizerCenter() {
                       </div>
                     )}
 
+                    {/* 奖品设置步骤 */}
+                    {currentStep === 'prizes' && (
+                      <div className="space-y-6">
+                        <PrizeManager
+                          eventId={eventId || 'temp'}
+                          initialPrizes={prizes}
+                          onPrizesChange={(newPrizes) => setPrizes(newPrizes)}
+                        />
+                      </div>
+                    )}
+
                     {/* 设置步骤 */}
                     {currentStep === 'settings' && (
                       <div className="space-y-6">
@@ -2043,20 +2136,56 @@ export default function OrganizerCenter() {
                               { condition: formData.content, text: '活动内容已填写' },
                               { condition: formData.media.length > 0, text: '多媒体资源已上传' },
                               { condition: formData.startTime < formData.endTime, text: '活动时间设置正确' },
+                              { condition: prizes.length > 0, text: `已设置 ${prizes.length} 个奖品` },
                             ].map((item, index) => (
                               <li key={index} className="flex items-center gap-2 text-sm">
                                 {item.condition ? (
                                   <CheckCircle2 className="w-4 h-4 text-emerald-500" />
                                 ) : (
-                                  <AlertCircle className="w-4 h-4 text-red-500" />
+                                  <AlertCircle className="w-4 h-4 text-amber-500" />
                                 )}
-                                <span className={item.condition ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}>
+                                <span className={item.condition ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}>
                                   {item.text}
                                 </span>
                               </li>
                             ))}
                           </ul>
                         </InfoCard>
+
+                        {/* 奖品预览 */}
+                        {prizes.length > 0 && (
+                          <div className={`p-4 rounded-xl border ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'}`}>
+                            <h4 className="font-medium text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                              <Gift className="w-4 h-4" />
+                              奖品设置预览
+                            </h4>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                              {prizes.slice(0, 6).map((prize, index) => (
+                                <div key={prize.id} className="flex items-center gap-2 p-2 rounded-lg bg-white dark:bg-gray-800">
+                                  <div
+                                    className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold"
+                                    style={{ backgroundColor: prize.highlightColor }}
+                                  >
+                                    {prize.level}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium truncate">{prize.rankName}</p>
+                                    <p className="text-xs text-gray-500 truncate">
+                                      {prize.combinationType === 'compound' 
+                                        ? `${prize.subPrizes?.length || 0} 项组合` 
+                                        : prize.singlePrize?.name}
+                                    </p>
+                                  </div>
+                                </div>
+                              ))}
+                              {prizes.length > 6 && (
+                                <div className="flex items-center justify-center p-2 rounded-lg bg-white dark:bg-gray-800 text-sm text-gray-500">
+                                  +{prizes.length - 6} 更多
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
 
                         <div className={`p-4 rounded-xl border ${isDark ? 'bg-amber-900/10 border-amber-800' : 'bg-amber-50 border-amber-200'}`}>
                           <p className="text-sm text-amber-800 dark:text-amber-300">

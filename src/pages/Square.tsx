@@ -237,6 +237,18 @@ export default function Square() {
         setIsLoading(true)
         // 清除缓存，确保获取最新数据
         await postsApi.clearAllCaches()
+
+        // 从数据库同步收藏列表到本地状态
+        if (user?.id) {
+          try {
+            const bookmarkedIds = await postsApi.getUserBookmarks(user.id)
+            setFavorites(bookmarkedIds)
+            localStorage.setItem('jmzf_favs', JSON.stringify(bookmarkedIds))
+          } catch (error) {
+            console.warn('同步收藏列表失败:', error)
+          }
+        }
+
         // 津脉广场只显示作品（works表），不显示帖子（posts表）
         const current = await postsApi.getPosts(undefined, user?.id, false, 'works')
 
@@ -650,9 +662,10 @@ export default function Square() {
       navigate('/login')
       return
     }
-    
+
     const isCurrentlyFavorited = favorites.includes(id);
-    
+    const newBookmarkStatus = !isCurrentlyFavorited;
+
     // 先更新本地状态，提供即时反馈
     setFavorites(prev => {
       const has = prev.includes(id)
@@ -660,7 +673,14 @@ export default function Square() {
       try { localStorage.setItem('jmzf_favs', JSON.stringify(next)) } catch {}
       return next
     });
-    
+
+    // 同时更新 posts 数组中的收藏状态
+    setPosts(prev => prev.map(p =>
+      p.id === id
+        ? { ...p, isBookmarked: newBookmarkStatus }
+        : p
+    ));
+
     // 然后调用API更新服务器状态
     try {
       if (isCurrentlyFavorited) {
@@ -670,18 +690,24 @@ export default function Square() {
         await postsApi.bookmarkPost(id, user.id);
         toast.success('收藏成功')
       }
-      
+
       // 更新active状态中的收藏状态
       if (active && active.id === id) {
-        setActive(prev => prev ? { ...prev, isBookmarked: !isCurrentlyFavorited } : null);
+        setActive(prev => prev ? { ...prev, isBookmarked: newBookmarkStatus } : null);
       }
     } catch (error) {
       console.error('更新收藏状态失败:', error);
       toast.error('操作失败，请稍后重试')
       // 如果API调用失败，恢复本地状态
       setFavorites(favorites);
+      // 恢复 posts 数组中的状态
+      setPosts(prev => prev.map(p =>
+        p.id === id
+          ? { ...p, isBookmarked: isCurrentlyFavorited }
+          : p
+      ));
     }
-  }, [active, favorites, user, navigate])
+  }, [active, favorites, user, navigate, posts])
   
   // 优化：使用useCallback稳定deletePost函数
   const deletePost = useCallback(async (id: string) => {
@@ -868,6 +894,7 @@ export default function Square() {
         tags: post.tags || [],
         createdAt: post.date || new Date().toISOString(),
         isLiked: post.isLiked || false,
+        isBookmarked: post.isBookmarked || false,
         // 视频相关字段
         isVideo: post.category === 'video' || post.type === 'video',
         videoUrl: post.videoUrl
@@ -1002,6 +1029,9 @@ export default function Square() {
               onLike={async (artworkId) => {
                 await like(artworkId)
               }}
+              onBookmark={async (artworkId) => {
+                await toggleFavorite(artworkId)
+              }}
               onShare={(artwork) => {
                 const post = viewList.find(p => p.id === artwork.id)
                 if (post) {
@@ -1067,6 +1097,7 @@ export default function Square() {
           loading={activeLoading}
           error={activeError}
           currentUser={user}
+          onBookmark={toggleFavorite}
           onPostChange={(newPost) => {
             // 平滑切换到新作品
             setActive(newPost)

@@ -461,6 +461,75 @@ class EventSubmissionService {
       return { data: [], total: 0 };
     }
   }
+
+  /**
+   * 从AI写作提交作品
+   */
+  async submitWorkFromAIWriter(params: {
+    eventId: string;
+    userId: string;
+    participationId: string;
+    title: string;
+    description: string;
+    aiWriterContent: string;
+    aiWriterHistoryId?: string;
+  }): Promise<{ success: boolean; submissionId?: string; error?: string }> {
+    try {
+      const { data: result, error } = await supabase.rpc('submit_work_from_ai_writer', {
+        p_event_id: params.eventId,
+        p_user_id: params.userId,
+        p_participation_id: params.participationId,
+        p_title: params.title,
+        p_description: params.description,
+        p_ai_writer_content: params.aiWriterContent,
+        p_ai_writer_history_id: params.aiWriterHistoryId || null,
+        p_files: [],
+      });
+
+      if (error) throw error;
+
+      if (result?.success) {
+        return { success: true, submissionId: result.submission_id };
+      } else {
+        return { success: false, error: result?.error || '提交失败' };
+      }
+    } catch (error: any) {
+      console.error('从AI写作提交作品失败:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * 获取活动类型配置
+   */
+  async getEventTypeConfig(typeCode: string): Promise<any | null> {
+    try {
+      const { data, error } = await supabase.rpc('get_event_type_config', {
+        p_type_code: typeCode,
+      });
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('获取活动类型配置失败:', error);
+      return null;
+    }
+  }
+
+  /**
+   * 获取所有活动类型配置
+   */
+  async getAllEventTypeConfigs(): Promise<any[]> {
+    try {
+      const { data, error } = await supabase.rpc('get_all_event_type_configs');
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('获取所有活动类型配置失败:', error);
+      return [];
+    }
+  }
 }
 
 export const eventSubmissionService = new EventSubmissionService();

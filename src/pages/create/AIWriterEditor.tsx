@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTheme } from '@/hooks/useTheme';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -13,8 +13,35 @@ import {
   Sparkles, Wand2, Languages, FileText, LayoutTemplate,
   Save, RotateCcw
 } from 'lucide-react';
-import { llmService } from '@/services/llmService';
+import { llmService, AVAILABLE_MODELS } from '@/services/llmService';
 import { useAIWriterHistory } from './hooks/useAIWriterHistory';
+import ModelSelector from '@/components/ModelSelector';
+import SubmitToEventButton from '@/components/ai-writer/SubmitToEventButton';
+
+// 节流函数 - 用于优化流式显示性能
+function throttle<T extends (...args: any[]) => void>(func: T, limit: number): T {
+  let inThrottle: boolean;
+  let lastFunc: ReturnType<typeof setTimeout>;
+  let lastRan: number;
+  return ((...args: Parameters<T>) => {
+    if (!inThrottle) {
+      func(...args);
+      lastRan = Date.now();
+      inThrottle = true;
+      setTimeout(() => {
+        inThrottle = false;
+      }, limit);
+    } else {
+      clearTimeout(lastFunc);
+      lastFunc = setTimeout(() => {
+        if (Date.now() - lastRan >= limit) {
+          func(...args);
+          lastRan = Date.now();
+        }
+      }, limit - (Date.now() - lastRan));
+    }
+  }) as T;
+}
 
 interface AIWriterEditorProps {
   templateId?: string;
@@ -86,12 +113,18 @@ export default function AIWriterEditor() {
   ]);
   const [inputMessage, setInputMessage] = useState('');
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
-  const [selectedModel, setSelectedModel] = useState('通义千问');
+  const [showModelSelector, setShowModelSelector] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [selectedModel, setSelectedModel] = useState(() => {
+    const currentModel = llmService.getCurrentModel();
+    return currentModel?.name || '通义千问';
+  });
   const [status, setStatus] = useState('草稿');
   const [wordCount, setWordCount] = useState(0);
   const [charCount, setCharCount] = useState(0);
   const [readTime, setReadTime] = useState(0);
   const chatContainerRef = useRef<HTMLDivElement>(null);
+  const editorRef = useRef<HTMLDivElement>(null);
 
   // 从location state获取模板信息
   useEffect(() => {
@@ -149,7 +182,7 @@ export default function AIWriterEditor() {
 
   const { addHistoryItem } = useAIWriterHistory();
 
-  // 生成初始内容 - 调用真实AI服务（流式生成）
+  // 生成初始内容 - 调用真实AI服务（流式生成，带节流优化）
   const generateInitialContent = async (formData: Record<string, string>, templateName?: string) => {
     setIsGenerating(true);
     setContent(''); // 清空内容
@@ -159,6 +192,23 @@ export default function AIWriterEditor() {
       const prompt = buildPrompt(formData, templateName);
       
       let accumulatedContent = '';
+      let pendingContent = '';
+      
+      // 使用节流函数批量更新UI，减少重渲染
+      const throttledUpdate = throttle((content: string) => {
+        // 清理markdown代码块标记
+        let displayContent = content;
+        displayContent = displayContent.replace(/^```html\s*/i, '');
+        displayContent = displayContent.replace(/```\s*$/i, '');
+        
+        setContent(displayContent);
+        
+        // 更新字数统计
+        const textContent = displayContent.replace(/<[^>]*>/g, '');
+        setWordCount(textContent.length);
+        setCharCount(displayContent.length);
+        setReadTime(Math.ceil(textContent.length / 300));
+      }, 100); // 每100ms最多更新一次
       
       // 调用AI服务 - 使用流式生成
       await llmService.directGenerateResponse(prompt, {
@@ -166,25 +216,19 @@ export default function AIWriterEditor() {
           systemPrompt: '你是一位专业的商业文案撰写专家。请根据用户提供的信息，生成一份专业的商业计划书/文案。使用HTML格式输出，包含适当的标题（h1, h2, h3）、段落（p）、加粗（strong）等标签。直接返回HTML内容，不要包含markdown代码块标记。'
         },
         onDelta: (chunk: string) => {
-          // 实时更新内容，展现生成过程
+          // 累积内容
           accumulatedContent += chunk;
+          pendingContent += chunk;
           
-          // 清理markdown代码块标记
-          let displayContent = accumulatedContent;
-          displayContent = displayContent.replace(/^```html\s*/i, '');
-          displayContent = displayContent.replace(/```\s*$/i, '');
-          
-          setContent(displayContent);
-          
-          // 更新字数统计
-          const textContent = displayContent.replace(/<[^>]*>/g, '');
-          setWordCount(textContent.length);
-          setCharCount(displayContent.length);
-          setReadTime(Math.ceil(textContent.length / 300));
+          // 只在累积了足够内容或遇到标点/换行时更新
+          if (pendingContent.length >= 50 || /[。！？.!?\n]/.test(chunk)) {
+            throttledUpdate(accumulatedContent);
+            pendingContent = '';
+          }
         }
       });
 
-      // 最终清理
+      // 最终清理和更新
       let finalContent = accumulatedContent;
       finalContent = finalContent.replace(/^```html\s*/i, '');
       finalContent = finalContent.replace(/```\s*$/i, '');
@@ -193,8 +237,16 @@ export default function AIWriterEditor() {
       // 如果返回的不是HTML格式，尝试包装成HTML
       if (!finalContent.includes('<')) {
         finalContent = convertTextToHtml(finalContent);
-        setContent(finalContent);
       }
+      
+      // 确保最终内容被设置
+      setContent(finalContent);
+      
+      // 更新最终统计
+      const textContent = finalContent.replace(/<[^>]*>/g, '');
+      setWordCount(textContent.length);
+      setCharCount(finalContent.length);
+      setReadTime(Math.ceil(textContent.length / 300));
       
       // 保存到历史记录
       addHistoryItem({
@@ -270,10 +322,23 @@ ${fields}
 
   // 执行编辑命令
   const execCommand = (command: string, value: string = '') => {
-    document.execCommand(command, false, value);
+    // 确保编辑器区域获得焦点
+    if (editorRef.current) {
+      editorRef.current.focus();
+    }
+    
+    // 执行命令
+    const success = document.execCommand(command, false, value);
+    
+    // 如果命令执行成功，更新内容状态
+    if (success && editorRef.current) {
+      setContent(editorRef.current.innerHTML);
+    }
+    
+    return success;
   };
 
-  // 处理AI建议点击 - 使用流式生成
+  // 处理AI建议点击 - 使用流式生成（带节流优化）
   const handleSuggestionClick = async (suggestion: typeof aiSuggestions[0]) => {
     if (!content.trim()) {
       toast.error('请先输入或生成内容');
@@ -284,6 +349,15 @@ ${fields}
     
     try {
       let accumulatedContent = '';
+      let pendingContent = '';
+      
+      // 使用节流函数批量更新UI
+      const throttledUpdate = throttle((content: string) => {
+        let displayContent = content;
+        displayContent = displayContent.replace(/^```html\s*/i, '');
+        displayContent = displayContent.replace(/```\s*$/i, '');
+        setContent(displayContent);
+      }, 100);
       
       await llmService.directGenerateResponse(
         `当前文档内容：\n${content}\n\n修改要求：${suggestion.prompt}\n\n请直接返回修改后的HTML内容。`,
@@ -293,13 +367,22 @@ ${fields}
           },
           onDelta: (chunk: string) => {
             accumulatedContent += chunk;
-            let displayContent = accumulatedContent;
-            displayContent = displayContent.replace(/^```html\s*/i, '');
-            displayContent = displayContent.replace(/```\s*$/i, '');
-            setContent(displayContent);
+            pendingContent += chunk;
+            
+            // 批量更新
+            if (pendingContent.length >= 50 || /[。！？.!?\n]/.test(chunk)) {
+              throttledUpdate(accumulatedContent);
+              pendingContent = '';
+            }
           }
         }
       );
+      
+      // 确保最终内容被设置
+      let finalContent = accumulatedContent;
+      finalContent = finalContent.replace(/^```html\s*/i, '');
+      finalContent = finalContent.replace(/```\s*$/i, '');
+      setContent(finalContent);
       
       toast.success(`${suggestion.label}完成！`);
     } catch (error) {
@@ -310,7 +393,7 @@ ${fields}
     }
   };
 
-  // 处理快捷操作点击 - 使用流式生成
+  // 处理快捷操作点击 - 使用流式生成（带节流优化）
   const handleQuickActionClick = async (action: typeof quickActions[0]) => {
     if (!content.trim()) {
       toast.error('请先输入或生成内容');
@@ -321,6 +404,15 @@ ${fields}
     
     try {
       let accumulatedContent = '';
+      let pendingContent = '';
+      
+      // 使用节流函数批量更新UI
+      const throttledUpdate = throttle((content: string) => {
+        let displayContent = content;
+        displayContent = displayContent.replace(/^```html\s*/i, '');
+        displayContent = displayContent.replace(/```\s*$/i, '');
+        setContent(displayContent);
+      }, 100);
       
       await llmService.directGenerateResponse(
         `当前文档内容：\n${content}\n\n修改要求：${action.prompt}\n\n请直接返回修改后的HTML内容。`,
@@ -330,13 +422,22 @@ ${fields}
           },
           onDelta: (chunk: string) => {
             accumulatedContent += chunk;
-            let displayContent = accumulatedContent;
-            displayContent = displayContent.replace(/^```html\s*/i, '');
-            displayContent = displayContent.replace(/```\s*$/i, '');
-            setContent(displayContent);
+            pendingContent += chunk;
+            
+            // 批量更新
+            if (pendingContent.length >= 50 || /[。！？.!?\n]/.test(chunk)) {
+              throttledUpdate(accumulatedContent);
+              pendingContent = '';
+            }
           }
         }
       );
+      
+      // 确保最终内容被设置
+      let finalContent = accumulatedContent;
+      finalContent = finalContent.replace(/^```html\s*/i, '');
+      finalContent = finalContent.replace(/```\s*$/i, '');
+      setContent(finalContent);
       
       toast.success(`${action.label}完成！`);
     } catch (error) {
@@ -347,7 +448,7 @@ ${fields}
     }
   };
 
-  // 发送消息给AI助手 - 支持聊天对话
+  // 发送消息给AI助手 - 支持聊天对话（带节流优化）
   const handleSendMessage = async () => {
     if (!inputMessage.trim()) return;
     
@@ -367,6 +468,17 @@ ${fields}
     try {
       let accumulatedContent = '';
       let aiResponse = '';
+      let pendingContent = '';
+      
+      // 使用节流函数批量更新UI
+      const throttledUpdate = throttle((content: string) => {
+        if (content.includes('<') && content.includes('>')) {
+          let displayContent = content;
+          displayContent = displayContent.replace(/^```html\s*/i, '');
+          displayContent = displayContent.replace(/```\s*$/i, '');
+          setContent(displayContent);
+        }
+      }, 100);
       
       await llmService.directGenerateResponse(
         `当前文档内容：\n${content}\n\n用户请求：${userMessage}\n\n请根据用户的请求，对文档进行优化修改。如果是修改请求，请直接返回修改后的完整HTML内容；如果是询问或建议，请给出专业的回复。`,
@@ -377,17 +489,24 @@ ${fields}
           onDelta: (chunk: string) => {
             accumulatedContent += chunk;
             aiResponse = accumulatedContent;
+            pendingContent += chunk;
             
-            // 如果内容包含HTML标签，更新文档
-            if (aiResponse.includes('<') && aiResponse.includes('>')) {
-              let displayContent = aiResponse;
-              displayContent = displayContent.replace(/^```html\s*/i, '');
-              displayContent = displayContent.replace(/```\s*$/i, '');
-              setContent(displayContent);
+            // 批量更新
+            if (pendingContent.length >= 50 || /[。！？.!?\n]/.test(chunk)) {
+              throttledUpdate(aiResponse);
+              pendingContent = '';
             }
           }
         }
       );
+      
+      // 确保最终内容被设置
+      if (aiResponse.includes('<') && aiResponse.includes('>')) {
+        let finalContent = aiResponse;
+        finalContent = finalContent.replace(/^```html\s*/i, '');
+        finalContent = finalContent.replace(/```\s*$/i, '');
+        setContent(finalContent);
+      }
       
       // 添加AI回复到聊天
       const aiMsg: ChatMessage = {
@@ -645,11 +764,16 @@ ${fields}
 
         {/* 中间：AI模型选择 */}
         <div className="flex items-center gap-2">
-          <button className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors ${
-            isDark ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400' : 'bg-blue-50 text-blue-600'
-          }`}>
+          <button 
+            onClick={() => setShowModelSelector(true)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors ${
+              isDark ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'
+            }`}
+          >
             <div className="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center">
-              <span className="text-white text-xs font-bold">通</span>
+              <span className="text-white text-xs font-bold">
+                {selectedModel === 'Kimi' ? 'K' : selectedModel === 'DeepSeek' ? 'D' : '通'}
+              </span>
             </div>
             <span>{selectedModel}</span>
             <ChevronDown className="w-3.5 h-3.5" />
@@ -658,14 +782,23 @@ ${fields}
 
         {/* 右侧：操作按钮 */}
         <div className="flex items-center gap-2">
-          <button 
+          {/* 一键参赛按钮 */}
+          <SubmitToEventButton
+            content={content}
+            title={title}
+            disabled={isGenerating || !content.trim()}
+          />
+
+          <div className="w-px h-5 bg-gray-300 dark:bg-gray-600 mx-1" />
+
+          <button
             onClick={handleSave}
             className={`p-2 rounded-lg transition-colors ${isDark ? 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400' : 'hover:bg-gray-100 text-gray-600'}`}
             title="保存"
           >
             <Save className="w-4 h-4" />
           </button>
-          <button 
+          <button
             onClick={() => navigate('/create/ai-writer')}
             className={`p-2 rounded-lg transition-colors ${isDark ? 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400' : 'hover:bg-gray-100 text-gray-600'}`}
             title="历史记录"
@@ -675,42 +808,63 @@ ${fields}
           <button className={`p-2 rounded-lg transition-colors ${isDark ? 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400' : 'hover:bg-gray-100 text-gray-600'}`}>
             <Share2 className="w-4 h-4" />
           </button>
-          
+
           {/* 导出下拉菜单 */}
-          <div className="relative group">
-            <button className={`px-4 py-1.5 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors flex items-center gap-1.5`}>
+          <div className="relative">
+            <button 
+              onClick={() => setShowExportMenu(!showExportMenu)}
+              className={`px-4 py-1.5 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors flex items-center gap-1.5`}
+            >
               <Download className="w-4 h-4" />
               导出
-              <ChevronDown className="w-3.5 h-3.5" />
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showExportMenu ? 'rotate-180' : ''}`} />
             </button>
-            <div className={`absolute right-0 top-full mt-1 w-32 rounded-lg shadow-lg border py-1 z-50 hidden group-hover:block ${
-              isDark ? 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700' : 'bg-white border-gray-200'
-            }`}>
-              <button
-                onClick={() => handleExport('html')}
-                className={`w-full px-4 py-2 text-sm text-left transition-colors ${
-                  isDark ? 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-50'
-                }`}
-              >
-                导出为 HTML
-              </button>
-              <button
-                onClick={() => handleExport('md')}
-                className={`w-full px-4 py-2 text-sm text-left transition-colors ${
-                  isDark ? 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-50'
-                }`}
-              >
-                导出为 Markdown
-              </button>
-              <button
-                onClick={() => handleExport('txt')}
-                className={`w-full px-4 py-2 text-sm text-left transition-colors ${
-                  isDark ? 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-50'
-                }`}
-              >
-                导出为纯文本
-              </button>
-            </div>
+            {showExportMenu && (
+              <>
+                {/* 遮罩层，点击外部关闭菜单 */}
+                <div 
+                  className="fixed inset-0 z-40" 
+                  onClick={() => setShowExportMenu(false)}
+                />
+                <div className={`absolute right-0 top-full mt-1 w-32 rounded-lg shadow-lg border py-1 z-50 ${
+                  isDark ? 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700' : 'bg-white border-gray-200'
+                }`}>
+                  <button
+                    onClick={() => {
+                      handleExport('html');
+                      setShowExportMenu(false);
+                    }}
+                    className={`w-full px-4 py-2 text-sm text-left transition-colors ${
+                      isDark ? 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    导出为 HTML
+                  </button>
+                  <button
+                    onClick={() => {
+                      handleExport('md');
+                      setShowExportMenu(false);
+                    }}
+                    className={`w-full px-4 py-2 text-sm text-left transition-colors ${
+                      isDark ? 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    导出为 Markdown
+                  </button>
+                  <button
+                    onClick={() => {
+                      handleExport('txt');
+                      setShowExportMenu(false);
+                    }}
+                    className={`w-full px-4 py-2 text-sm text-left transition-colors ${
+                      isDark ? 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    导出为纯文本
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </header>
@@ -793,16 +947,59 @@ ${fields}
         
         {/* 插入 */}
         <div className="flex items-center gap-0.5">
-          <button className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400" title="插入链接">
+          <button 
+            onClick={() => {
+              const url = prompt('请输入链接地址:', 'https://');
+              if (url) execCommand('createLink', url);
+            }}
+            className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400" 
+            title="插入链接"
+          >
             <Link className="w-4 h-4" />
           </button>
-          <button className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400" title="插入图片">
+          <button 
+            onClick={() => {
+              const url = prompt('请输入图片地址:', 'https://');
+              if (url) execCommand('insertImage', url);
+            }}
+            className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400" 
+            title="插入图片"
+          >
             <Image className="w-4 h-4" />
           </button>
-          <button className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400" title="插入表格">
+          <button 
+            onClick={() => {
+              const rows = parseInt(prompt('请输入行数:', '3') || '3');
+              const cols = parseInt(prompt('请输入列数:', '3') || '3');
+              if (rows > 0 && cols > 0) {
+                let tableHtml = '<table style="border-collapse: collapse; width: 100%; margin: 1rem 0;">';
+                for (let i = 0; i < rows; i++) {
+                  tableHtml += '<tr>';
+                  for (let j = 0; j < cols; j++) {
+                    tableHtml += '<td style="border: 1px solid #ddd; padding: 8px;">单元格</td>';
+                  }
+                  tableHtml += '</tr>';
+                }
+                tableHtml += '</table><p><br></p>';
+                execCommand('insertHTML', tableHtml);
+              }
+            }}
+            className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400" 
+            title="插入表格"
+          >
             <Table className="w-4 h-4" />
           </button>
-          <button className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400" title="代码块">
+          <button 
+            onClick={() => {
+              const code = prompt('请输入代码:', '');
+              if (code !== null) {
+                const codeHtml = `<pre style="background-color: #1f2937; color: #f9fafb; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; margin: 1rem 0;"><code>${code.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre><p><br></p>`;
+                execCommand('insertHTML', codeHtml);
+              }
+            }}
+            className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400" 
+            title="代码块"
+          >
             <Code className="w-4 h-4" />
           </button>
           <button onClick={() => execCommand('formatBlock', 'BLOCKQUOTE')} className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400" title="引用">
@@ -836,6 +1033,7 @@ ${fields}
             
             {/* 编辑区域 - 美化样式 */}
             <div
+              ref={editorRef}
               className={`editor-content min-h-[500px] outline-none ${
                 isDark ? 'text-gray-800 dark:text-gray-200' : 'text-gray-800'
               }`}
@@ -1043,6 +1241,19 @@ ${fields}
           </button>
         </div>
       </div>
+
+      {/* 模型选择器弹窗 */}
+      <ModelSelector 
+        isOpen={showModelSelector} 
+        onClose={() => {
+          setShowModelSelector(false);
+          // 更新显示的模型名称
+          const currentModel = llmService.getCurrentModel();
+          if (currentModel) {
+            setSelectedModel(currentModel.name);
+          }
+        }} 
+      />
     </div>
   );
 }

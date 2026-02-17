@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useCreateStore } from '../../hooks/useCreateStore';
@@ -38,14 +38,80 @@ export const StyleLabPanel: React.FC = () => {
   const [selectedStyles, setSelectedStyles] = useState<string[]>([]);
   const [mixRatio, setMixRatio] = useState(50);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [processingProgress, setProcessingProgress] = useState(0);
+  const [processingStage, setProcessingStage] = useState('');
+  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [intensity, setIntensity] = useState(70);
 
   const hasWork = generatedResults.length > 0;
 
+  // 模拟进度增长
+  const startProgressSimulation = (stages: string[]) => {
+    setProcessingProgress(0);
+    let currentStage = 0;
+    let progress = 0;
+
+    // 清除之前的定时器
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+    }
+
+    setProcessingStage(stages[0]);
+
+    progressIntervalRef.current = setInterval(() => {
+      progress += Math.random() * 3 + 1; // 每次增加 1-4%
+
+      // 根据进度切换阶段
+      const stageIndex = Math.min(
+        Math.floor((progress / 100) * stages.length),
+        stages.length - 1
+      );
+      if (stageIndex !== currentStage) {
+        currentStage = stageIndex;
+        setProcessingStage(stages[stageIndex]);
+      }
+
+      if (progress >= 95) {
+        progress = 95; // 保持在95%，等待实际完成
+        if (progressIntervalRef.current) {
+          clearInterval(progressIntervalRef.current);
+        }
+      }
+      setProcessingProgress(Math.floor(progress));
+    }, 200);
+  };
+
+  // 停止进度模拟
+  const stopProgressSimulation = (completed = true) => {
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = null;
+    }
+    if (completed) {
+      setProcessingProgress(100);
+      setTimeout(() => {
+        setProcessingProgress(0);
+        setProcessingStage('');
+      }, 500);
+    }
+  };
+
+  // 清理定时器
+  useEffect(() => {
+    return () => {
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+      }
+    };
+  }, []);
+
   // 风格转换（使用千问API）
   const handleStyleTransfer = async (styleId: string) => {
-    // 获取当前图片 URL - 优先使用 currentImage
-    const imageUrl = currentImage || (generatedResults[selectedResult || 0]?.thumbnail);
+    // 获取当前图片 URL - 优先使用 currentImage，否则根据 selectedResult ID 查找对应作品
+    const currentWork = selectedResult 
+      ? generatedResults.find(r => r.id === selectedResult)
+      : generatedResults[0];
+    const imageUrl = currentImage || currentWork?.thumbnail;
     
     if (!imageUrl) {
       toast.error('请先生成或上传作品');
@@ -57,6 +123,14 @@ export const StyleLabPanel: React.FC = () => {
 
     const allPresets = [...CULTURE_PRESETS, ...MODERN_PRESETS];
     const preset = allPresets.find(p => p.id === styleId);
+
+    // 启动进度模拟
+    startProgressSimulation([
+      '正在分析原图风格...',
+      '正在提取风格特征...',
+      '正在应用新风格...',
+      '正在优化转换效果...'
+    ]);
 
     try {
       console.log('[StyleLab] Style transfer with image:', imageUrl.substring(0, 80));
@@ -72,23 +146,26 @@ export const StyleLabPanel: React.FC = () => {
         const newResult = {
           id: Date.now(),
           thumbnail: result.imageUrl,
-          prompt: currentWork.prompt,
+          prompt: currentWork?.prompt || '风格转换作品',
           style: preset?.name || styleId,
           timestamp: Date.now(),
-          score: Math.min((currentWork.score || 85) + 5, 100)
+          score: Math.min((currentWork?.score || 85) + 5, 100)
         };
 
         updateState({
           generatedResults: [...generatedResults, newResult],
-          selectedResult: generatedResults.length,
+          selectedResult: newResult.id,
           aiExplanation: `已将作品转换为「${preset?.name}」风格`
         });
 
+        stopProgressSimulation(true);
         toast.success(`风格转换完成：${preset?.name}`);
       } else {
+        stopProgressSimulation(false);
         toast.error(result.error || '风格转换失败');
       }
     } catch (error) {
+      stopProgressSimulation(false);
       console.error('风格转换失败:', error);
       toast.error('风格转换失败');
     } finally {
@@ -98,8 +175,11 @@ export const StyleLabPanel: React.FC = () => {
 
   // 多风格融合（使用千问API）
   const handleStyleMix = async () => {
-    // 获取当前图片 URL - 优先使用 currentImage
-    const imageUrl = currentImage || (generatedResults[selectedResult || 0]?.thumbnail);
+    // 获取当前图片 URL - 优先使用 currentImage，否则根据 selectedResult ID 查找对应作品
+    const currentWork = selectedResult 
+      ? generatedResults.find(r => r.id === selectedResult)
+      : generatedResults[0];
+    const imageUrl = currentImage || currentWork?.thumbnail;
     
     if (!imageUrl) {
       toast.error('请先生成或上传作品');
@@ -114,6 +194,14 @@ export const StyleLabPanel: React.FC = () => {
     setIsProcessing(true);
     const allPresets = [...CULTURE_PRESETS, ...MODERN_PRESETS];
     const styleNames = selectedStyles.map(id => allPresets.find(p => p.id === id)?.name).join(' + ');
+
+    // 启动进度模拟
+    startProgressSimulation([
+      '正在分析多种风格...',
+      '正在提取风格特征...',
+      '正在智能融合风格...',
+      '正在优化融合效果...'
+    ]);
 
     try {
       console.log('[StyleLab] Style mix with image:', imageUrl.substring(0, 80));
@@ -130,23 +218,26 @@ export const StyleLabPanel: React.FC = () => {
         const newResult = {
           id: Date.now(),
           thumbnail: result.imageUrl,
-          prompt: currentWork.prompt,
+          prompt: currentWork?.prompt || '风格融合作品',
           style: `融合: ${styleNames}`,
           timestamp: Date.now(),
-          score: Math.min((currentWork.score || 85) + 6, 100)
+          score: Math.min((currentWork?.score || 85) + 6, 100)
         };
 
         updateState({
           generatedResults: [...generatedResults, newResult],
-          selectedResult: generatedResults.length,
+          selectedResult: newResult.id,
           aiExplanation: `已融合风格：${styleNames}，融合比例：${mixRatio}%`
         });
 
+        stopProgressSimulation(true);
         toast.success('风格融合完成');
       } else {
+        stopProgressSimulation(false);
         toast.error(result.error || '风格融合失败');
       }
     } catch (error) {
+      stopProgressSimulation(false);
       console.error('风格融合失败:', error);
       toast.error('风格融合失败');
     } finally {
@@ -197,7 +288,49 @@ export const StyleLabPanel: React.FC = () => {
       </div>
 
       {/* 内容区域 */}
-      <div className="flex-1 p-4">
+      <div className="flex-1 p-4 relative">
+        {/* 加载遮罩 */}
+        {isProcessing && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm rounded-lg"
+          >
+            {/* 旋转动画图标 */}
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+              className="w-12 h-12 rounded-full border-4 border-amber-500/30 border-t-amber-500 mb-4"
+            />
+
+            {/* 处理阶段文字 */}
+            <motion.p
+              key={processingStage}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+            >
+              {processingStage}
+            </motion.p>
+
+            {/* 进度条 */}
+            <div className="w-48 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden mb-2">
+              <motion.div
+                className="h-full bg-gradient-to-r from-amber-500 to-orange-500 rounded-full"
+                initial={{ width: 0 }}
+                animate={{ width: `${processingProgress}%` }}
+                transition={{ duration: 0.3, ease: "easeOut" }}
+              />
+            </div>
+
+            {/* 百分比 */}
+            <p className="text-amber-500 text-lg font-bold">
+              {processingProgress}%
+            </p>
+          </motion.div>
+        )}
+
         <AnimatePresence mode="wait">
           {/* 风格转换模式 */}
           {activeMode === 'transfer' && (
@@ -432,6 +565,35 @@ export const StyleLabPanel: React.FC = () => {
                     </div>
                   </div>
 
+                  {/* 融合进度条 */}
+                  {isProcessing && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="mb-3 overflow-hidden"
+                    >
+                      <div className={`p-3 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-gray-50'}`}>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                            {processingStage}
+                          </span>
+                          <span className="text-xs font-bold text-amber-500">
+                            {processingProgress}%
+                          </span>
+                        </div>
+                        <div className="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                          <motion.div
+                            className="h-full bg-gradient-to-r from-amber-500 to-orange-500 rounded-full"
+                            initial={{ width: 0 }}
+                            animate={{ width: `${processingProgress}%` }}
+                            transition={{ duration: 0.3, ease: "easeOut" }}
+                          />
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+
                   <button
                     onClick={handleStyleMix}
                     disabled={isProcessing}
@@ -439,7 +601,7 @@ export const StyleLabPanel: React.FC = () => {
                   >
                     {isProcessing ? (
                       <span className="flex items-center justify-center gap-2">
-                        <i className="fas fa-spinner fa-spin"></i>
+                        <Loader2 className="w-4 h-4 animate-spin" />
                         融合中...
                       </span>
                     ) : (

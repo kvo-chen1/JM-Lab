@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useContext } from 'react';
+import React, { useState, useEffect, useCallback, useContext, useRef } from 'react';
 import { useTheme } from '@/hooks/useTheme';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
@@ -38,6 +38,9 @@ const PatternPanel: React.FC<PatternPanelProps> = ({ onSelectPattern }) => {
   const [fusionStyle, setFusionStyle] = useState('harmony');
   const [fusionIntensity, setFusionIntensity] = useState(50);
   const [isFusing, setIsFusing] = useState(false);
+  const [fusionProgress, setFusionProgress] = useState(0);
+  const [fusionStage, setFusionStage] = useState('');
+  const fusionProgressRef = useRef<NodeJS.Timeout | null>(null);
 
   // 加载用户收藏的纹样
   const loadUserPatterns = useCallback(async () => {
@@ -183,6 +186,66 @@ const PatternPanel: React.FC<PatternPanelProps> = ({ onSelectPattern }) => {
     }
   };
 
+  // 模拟进度增长
+  const startFusionProgress = (stages: string[]) => {
+    setFusionProgress(0);
+    let currentStage = 0;
+    let progress = 0;
+
+    // 清除之前的定时器
+    if (fusionProgressRef.current) {
+      clearInterval(fusionProgressRef.current);
+    }
+
+    setFusionStage(stages[0]);
+
+    fusionProgressRef.current = setInterval(() => {
+      progress += Math.random() * 3 + 1; // 每次增加 1-4%
+
+      // 根据进度切换阶段
+      const stageIndex = Math.min(
+        Math.floor((progress / 100) * stages.length),
+        stages.length - 1
+      );
+      if (stageIndex !== currentStage) {
+        currentStage = stageIndex;
+        setFusionStage(stages[stageIndex]);
+      }
+
+      if (progress >= 95) {
+        progress = 95; // 保持在95%，等待实际完成
+        if (fusionProgressRef.current) {
+          clearInterval(fusionProgressRef.current);
+        }
+      }
+      setFusionProgress(Math.floor(progress));
+    }, 200);
+  };
+
+  // 停止进度模拟
+  const stopFusionProgress = (completed = true) => {
+    if (fusionProgressRef.current) {
+      clearInterval(fusionProgressRef.current);
+      fusionProgressRef.current = null;
+    }
+    if (completed) {
+      setFusionProgress(100);
+      setTimeout(() => {
+        setFusionProgress(0);
+        setFusionStage('');
+      }, 500);
+    }
+  };
+
+  // 清理定时器
+  useEffect(() => {
+    return () => {
+      if (fusionProgressRef.current) {
+        clearInterval(fusionProgressRef.current);
+      }
+    };
+  }, []);
+
   // AI 智能融合处理
   const handleAIFusion = async () => {
     if (!selectedPattern) {
@@ -192,78 +255,102 @@ const PatternPanel: React.FC<PatternPanelProps> = ({ onSelectPattern }) => {
 
     // 获取当前图片 URL - 优先使用 currentImage，其次是 selectedResult
     let imageUrl = currentImage;
-    
+    let currentWork: typeof generatedResults[0] | undefined;
+
     if (!imageUrl) {
-      const currentWork = selectedResult 
-        ? generatedResults.find(r => r.id === selectedResult) 
+      currentWork = selectedResult
+        ? generatedResults.find(r => r.id === selectedResult)
         : generatedResults[0];
-      
+
       if (!currentWork) {
         toast.error('请先生成或上传作品');
         return;
       }
-      
+
       imageUrl = currentWork.thumbnail;
     }
-    
+
     if (!imageUrl) {
       toast.error('请先生成或上传作品');
       return;
     }
 
     // 检查图片URL是否是公开可访问的
-    if (imageUrl.startsWith('blob:') || imageUrl.startsWith('data:') || 
+    if (imageUrl.startsWith('blob:') || imageUrl.startsWith('data:') ||
         imageUrl.includes('localhost') || imageUrl.includes('127.0.0.1')) {
       toast.error('请先保存作品到云端后再使用AI融合功能');
       return;
     }
 
     setIsFusing(true);
+
+    // 启动进度模拟
+    startFusionProgress([
+      '正在准备图片...',
+      '正在分析纹样特征...',
+      'AI正在智能融合...',
+      '正在优化融合效果...'
+    ]);
+
     try {
       // 先将图片上传到云存储获取稳定 URL
-      toast.info('正在准备图片...');
+      setFusionStage('正在准备图片...');
       const stableImageUrl = await uploadImageToStorage(imageUrl);
-      
+
       if (!stableImageUrl) {
+        stopFusionProgress(false);
         toast.error('图片上传失败，请重试');
         setIsFusing(false);
         return;
       }
-      
+
       console.log('[PatternPanel] Image uploaded to:', stableImageUrl.substring(0, 80));
-      
-      const patternName = 'name' in selectedPattern 
-        ? selectedPattern.name 
+
+      const patternName = 'name' in selectedPattern
+        ? selectedPattern.name
         : (selectedPattern as any).pattern_name || '传统纹样';
-      
+
+      // 获取纹样图片URL
+      const patternUrl = 'thumbnail' in selectedPattern
+        ? selectedPattern.thumbnail
+        : (selectedPattern as any).custom_pattern_url || '';
+
+      console.log('[PatternPanel] Using pattern:', patternName, 'patternUrl:', patternUrl ? 'provided' : 'not provided');
+
+      setFusionStage('AI正在智能融合...');
       const result = await llmService.fusePattern(
         stableImageUrl,
         patternName,
         fusionStyle,
-        fusionIntensity
+        fusionIntensity,
+        patternUrl
       );
 
       if (result.success && result.imageUrl) {
+        setFusionStage('正在保存结果...');
         const newResult = {
           id: Date.now(),
           thumbnail: result.imageUrl,
-          prompt: currentWork.prompt,
-          style: `${currentWork.style || ''} + ${patternName}纹样融合`,
+          prompt: currentWork?.prompt || '纹样融合作品',
+          style: `${currentWork?.style || ''} + ${patternName}纹样融合`,
           timestamp: Date.now(),
-          score: Math.min((currentWork.score || 85) + 3, 100)
+          score: Math.min((currentWork?.score || 85) + 3, 100)
         };
 
         updateState({
           generatedResults: [...generatedResults, newResult],
-          selectedResult: generatedResults.length,
+          selectedResult: newResult.id,
           aiExplanation: `已使用AI将「${patternName}」纹样以「${FUSION_STYLES.find(s => s.id === fusionStyle)?.name}」风格融合到图片中`
         });
 
+        stopFusionProgress(true);
         toast.success('纹样智能融合完成！');
       } else {
+        stopFusionProgress(false);
         toast.error(result.error || '融合失败');
       }
     } catch (error) {
+      stopFusionProgress(false);
       console.error('AI融合失败:', error);
       toast.error('融合失败，请确保图片已保存到云端');
     } finally {
@@ -544,6 +631,37 @@ const PatternPanel: React.FC<PatternPanelProps> = ({ onSelectPattern }) => {
                 <p>AI 将智能分析图片内容，将纹样以自然的方式融合到画面中，保持原图主体不变。</p>
               </div>
             </div>
+
+            {/* 融合进度条 */}
+            <AnimatePresence>
+              {isFusing && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="mb-3 overflow-hidden"
+                >
+                  <div className={`p-3 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-gray-50'}`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                        {fusionStage}
+                      </span>
+                      <span className="text-xs font-bold text-[#C02C38]">
+                        {fusionProgress}%
+                      </span>
+                    </div>
+                    <div className="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                      <motion.div
+                        className="h-full bg-gradient-to-r from-[#C02C38] to-[#D43A45] rounded-full"
+                        initial={{ width: 0 }}
+                        animate={{ width: `${fusionProgress}%` }}
+                        transition={{ duration: 0.3, ease: "easeOut" }}
+                      />
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* 融合按钮 */}
             <motion.button

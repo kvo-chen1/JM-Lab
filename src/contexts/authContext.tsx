@@ -858,6 +858,30 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       safeLocalStorage.setItem('user', JSON.stringify(userWithMembership));
       safeLocalStorage.setItem('isAuthenticated', 'true');
       
+      // 同步 Supabase session（如果后端返回了 Supabase session）
+      if (supabase && data.data?.supabaseSession) {
+        try {
+          await supabase.auth.setSession({
+            access_token: data.data.supabaseSession.access_token,
+            refresh_token: data.data.supabaseSession.refresh_token
+          });
+          console.log('[Auth] Supabase session 已同步');
+        } catch (syncError) {
+          console.warn('[Auth] 同步 Supabase session 失败:', syncError);
+        }
+      } else if (supabase && token && refreshToken) {
+        // 尝试使用 token 恢复 Supabase session
+        try {
+          await supabase.auth.setSession({
+            access_token: token,
+            refresh_token: refreshToken
+          });
+          console.log('[Auth] Supabase session 已通过 token 恢复');
+        } catch (syncError) {
+          console.warn('[Auth] 通过 token 恢复 Supabase session 失败:', syncError);
+        }
+      }
+      
       // 更新状态
       updateAuthState(userWithMembership, true, false);
       

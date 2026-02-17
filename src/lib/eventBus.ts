@@ -26,6 +26,9 @@ export type EventType =
   | '请求:成功'         // 请求成功
   | '请求:失败'         // 请求失败
   | '错误:发生'         // 错误发生
+  | 'membership:dataChanged'  // 会员数据变化
+  | 'membership:orderCompleted' // 订单完成
+  | 'membership:pointsChanged'  // 积分变化
 
 // 事件数据类型定义
 export interface EventData {
@@ -53,6 +56,9 @@ export interface EventData {
   '请求:成功': { url: string; method: string; data: any; options?: any }
   '请求:失败': { url: string; method: string; error: any; options?: any }
   '错误:发生': { error: any; context?: any }
+  'membership:dataChanged': { type: string; payload?: any; timestamp?: number }
+  'membership:orderCompleted': { orderId: string; plan: string }
+  'membership:pointsChanged': { userId: string; change: number; balance: number; source: string }
 }
 
 // 事件监听器类型

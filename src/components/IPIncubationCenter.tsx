@@ -23,7 +23,8 @@ import {
   Filter, ChevronDown, MoreHorizontal, ArrowRight, Sparkles,
   TrendingUp, Clock, CheckCircle2, Circle, AlertCircle,
   Lightbulb, Target, Zap, Award, FileText, Share2, Download,
-  Archive, ExternalLink, Bell, Calendar, RefreshCw, Loader2
+  Archive, ExternalLink, Bell, Calendar, RefreshCw, Loader2,
+  X, ChevronLeft, Edit3, Trash2, Eye
 } from 'lucide-react';
 
 // 导航项类型
@@ -138,7 +139,8 @@ function RightPanel({
   opportunities,
   onApplyOpportunity,
   isLoading,
-  onSubmitWork
+  onSubmitWork,
+  onExportData
 }: {
   ipStats: IPStats;
   selectedAsset: IPAsset | null;
@@ -147,6 +149,7 @@ function RightPanel({
   onApplyOpportunity: (id: string, ipAssetId: string) => void;
   isLoading: boolean;
   onSubmitWork: () => void;
+  onExportData: () => void;
 }) {
   const { isDark } = useTheme();
 
@@ -225,9 +228,12 @@ function RightPanel({
               <Plus className="w-4 h-4" />
               <span>提交新作品</span>
             </button>
-            <button className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-xl ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} transition-colors`}>
+            <button 
+              onClick={onExportData}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-xl ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} transition-colors`}
+            >
               <FileText className="w-4 h-4" />
-              <span>生成报告</span>
+              <span>导出数据</span>
             </button>
             <button className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-xl ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} transition-colors`}>
               <Share2 className="w-4 h-4" />
@@ -931,6 +937,9 @@ function IncubationPathContent({
     return selectedAsset.stages.find(s => !s.completed) || selectedAsset.stages[selectedAsset.stages.length - 1];
   }, [selectedAsset]);
 
+  // 调试日志
+  console.log('[IncubationPathContent] 渲染状态:', { isLoading, ipAssetsCount: ipAssets.length, hasSelectedAsset: !!selectedAsset });
+
   if (isLoading) {
     return (
       <div className={`flex flex-col items-center justify-center py-20 ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-card`}>
@@ -941,6 +950,90 @@ function IncubationPathContent({
   }
 
   if (!selectedAsset) {
+    // 如果有资产但没有选中，显示资产列表供选择
+    console.log('[IncubationPathContent] 无选中资产，ipAssets数量:', ipAssets.length);
+    if (ipAssets.length > 0) {
+      return (
+        <div className="space-y-6">
+          <div className={`rounded-2xl p-6 ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-card`}>
+            <h3 className="text-lg font-semibold mb-4">选择IP资产开始孵化</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {ipAssets.map((asset) => (
+                <motion.button
+                  key={asset.id}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => onAssetChange(asset)}
+                  className={`p-4 rounded-xl border-2 text-left transition-all ${
+                    isDark 
+                      ? 'border-gray-700 hover:border-primary-500 bg-gray-800' 
+                      : 'border-gray-200 hover:border-primary-500 bg-white'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    {asset.thumbnail ? (
+                      <img src={asset.thumbnail} alt={asset.name} className="w-16 h-16 rounded-lg object-cover" />
+                    ) : (
+                      <div className={`w-16 h-16 rounded-lg flex items-center justify-center ${isDark ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                        <Gem className="w-8 h-8 text-primary-500" />
+                      </div>
+                    )}
+                    <div className="flex-1">
+                      <h4 className="font-medium">{asset.name}</h4>
+                      <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        预估价值: ¥{asset.commercialValue?.toLocaleString() || 0}
+                      </p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${
+                          asset.stages?.some(s => s.completed) 
+                            ? 'bg-green-100 text-green-700' 
+                            : 'bg-gray-100 text-gray-600'
+                        }`}>
+                          {asset.stages?.filter(s => s.completed).length || 0}/{asset.stages?.length || 5} 阶段完成
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </motion.button>
+              ))}
+            </div>
+          </div>
+          
+          {/* 示例展示 */}
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-amber-500" />
+                  参考示例
+                </h3>
+                <p className={`text-sm mt-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                  查看其他创作者的IP资产，了解孵化流程
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {sampleAssets.map((asset, index) => (
+                <motion.div
+                  key={asset.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                >
+                  <SampleIPAssetCard
+                    asset={asset}
+                    isDark={isDark}
+                    onViewDetails={onViewSampleDetails}
+                  />
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+    
+    // 真正没有资产时显示空状态
     return (
       <EmptyStateWithSamples
         isDark={isDark}
@@ -1633,6 +1726,379 @@ function AnalyticsContent({
   );
 }
 
+// ==================== IP资产详情弹窗组件 ====================
+interface IPAssetDetailModalProps {
+  asset: IPAsset | null;
+  isOpen: boolean;
+  onClose: () => void;
+  isDark: boolean;
+  calculateProgress: (stages: ServiceIPStage[]) => number;
+  onUpdateStage: (assetId: string, stageId: string, completed: boolean) => void;
+  onDeleteAsset: (assetId: string) => void;
+}
+
+function IPAssetDetailModal({
+  asset,
+  isOpen,
+  onClose,
+  isDark,
+  calculateProgress,
+  onUpdateStage,
+  onDeleteAsset
+}: IPAssetDetailModalProps) {
+  const [activeTab, setActiveTab] = useState<'overview' | 'stages' | 'settings'>('overview');
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  if (!asset || !isOpen) return null;
+
+  const progress = calculateProgress(asset.stages);
+
+  const getTypeLabel = (type: string) => {
+    const labels: Record<string, string> = {
+      'illustration': '插画',
+      'pattern': '纹样',
+      'design': '设计',
+      '3d_model': '3D模型',
+      'digital_collectible': '数字藏品'
+    };
+    return labels[type] || type;
+  };
+
+  const handleStageToggle = async (stageId: string, completed: boolean) => {
+    setIsUpdating(true);
+    try {
+      await onUpdateStage(asset.id, stageId, completed);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleDelete = () => {
+    onDeleteAsset(asset.id);
+    setShowDeleteConfirm(false);
+    onClose();
+  };
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <>
+          {/* 遮罩层 */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50"
+            onClick={onClose}
+          />
+
+          {/* 弹窗内容 */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            className={`fixed inset-4 md:inset-10 lg:inset-20 rounded-2xl ${isDark ? 'bg-gray-800' : 'bg-white'} z-50 overflow-hidden flex flex-col shadow-2xl`}
+          >
+            {/* 头部 */}
+            <div className={`flex items-center justify-between p-6 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={onClose}
+                  className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+                <h2 className="text-xl font-bold">IP资产详情</h2>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="p-2 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500 transition-colors"
+                  title="删除资产"
+                >
+                  <Trash2 className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={onClose}
+                  className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* 标签页导航 */}
+            <div className={`flex border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+              {[
+                { id: 'overview', label: '概览', icon: Eye },
+                { id: 'stages', label: '孵化阶段', icon: Route },
+                { id: 'settings', label: '设置', icon: Edit3 },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as any)}
+                  className={`flex items-center gap-2 px-6 py-4 text-sm font-medium transition-colors border-b-2 ${
+                    activeTab === tab.id
+                      ? 'border-primary-500 text-primary-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  <tab.icon className="w-4 h-4" />
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* 内容区域 */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {activeTab === 'overview' && (
+                <div className="space-y-6">
+                  {/* 资产基本信息 */}
+                  <div className="flex gap-6">
+                    <TianjinImage
+                      src={asset.thumbnail}
+                      alt={asset.name}
+                      className="w-48 h-48 rounded-2xl object-cover flex-shrink-0"
+                      ratio="square"
+                    />
+                    <div className="flex-1">
+                      <div className="flex items-start justify-between mb-4">
+                        <div>
+                          <h3 className="text-2xl font-bold mb-2">{asset.name}</h3>
+                          <div className="flex items-center gap-3">
+                            <span className={`px-3 py-1 text-sm rounded-full ${isDark ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                              {getTypeLabel(asset.type)}
+                            </span>
+                            <span className="text-emerald-600 font-semibold">
+                              ¥{asset.commercialValue.toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-3xl font-bold text-primary-600">{progress}%</div>
+                          <div className="text-sm text-gray-500">孵化进度</div>
+                        </div>
+                      </div>
+
+                      <p className={`text-sm leading-relaxed ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                        {asset.description}
+                      </p>
+
+                      {/* 进度条 */}
+                      <div className={`h-3 rounded-full ${isDark ? 'bg-gray-700' : 'bg-gray-200'} overflow-hidden mt-4`}>
+                        <motion.div
+                          className="h-full rounded-full bg-gradient-to-r from-primary-500 via-purple-500 to-blue-500"
+                          initial={{ width: 0 }}
+                          animate={{ width: `${progress}%` }}
+                          transition={{ duration: 0.8, ease: "easeOut" }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 阶段概览 */}
+                  <div className={`rounded-xl p-6 ${isDark ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                    <h4 className="font-semibold mb-4">孵化阶段概览</h4>
+                    <div className="grid grid-cols-5 gap-4">
+                      {asset.stages.map((stage, index) => (
+                        <div key={stage.id} className="text-center">
+                          <div className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-2 ${
+                            stage.completed
+                              ? 'bg-emerald-500 text-white'
+                              : isDark
+                                ? 'bg-gray-700 text-gray-400'
+                                : 'bg-gray-200 text-gray-500'
+                          }`}>
+                            {stage.completed ? (
+                              <CheckCircle2 className="w-6 h-6" />
+                            ) : (
+                              <span className="text-lg font-bold">{index + 1}</span>
+                            )}
+                          </div>
+                          <p className="text-xs font-medium">{stage.name}</p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {stage.completedAt
+                              ? new Date(stage.completedAt).toLocaleDateString()
+                              : '未完成'}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 关联作品信息 */}
+                  {asset.originalWorkId && (
+                    <div className={`rounded-xl p-4 ${isDark ? 'bg-blue-900/20' : 'bg-blue-50'} border ${isDark ? 'border-blue-800' : 'border-blue-200'}`}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <ExternalLink className="w-4 h-4 text-blue-500" />
+                        <span className="font-medium text-sm">关联作品</span>
+                      </div>
+                      <p className="text-sm text-gray-500">此IP资产关联了ID为 {asset.originalWorkId} 的原创作品</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeTab === 'stages' && (
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold mb-4">孵化阶段管理</h3>
+                  {asset.stages.map((stage, index) => (
+                    <motion.div
+                      key={stage.id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: index * 0.1 }}
+                      className={`p-4 rounded-xl border-2 transition-all ${
+                        stage.completed
+                          ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20'
+                          : isDark
+                            ? 'border-gray-700 hover:border-gray-600'
+                            : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${
+                            stage.completed
+                              ? 'bg-emerald-500 text-white'
+                              : isDark
+                                ? 'bg-gray-700 text-gray-400'
+                                : 'bg-gray-200 text-gray-500'
+                          }`}>
+                            {stage.completed ? (
+                              <CheckCircle2 className="w-5 h-5" />
+                            ) : (
+                              index + 1
+                            )}
+                          </div>
+                          <div>
+                            <h4 className="font-medium">{stage.name}</h4>
+                            <p className="text-sm text-gray-500">{stage.description}</p>
+                            {stage.completedAt && (
+                              <p className="text-xs text-emerald-600 mt-1">
+                                完成于 {new Date(stage.completedAt).toLocaleString()}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => handleStageToggle(stage.id, !stage.completed)}
+                          disabled={isUpdating}
+                          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                            stage.completed
+                              ? 'bg-gray-200 dark:bg-gray-700 text-gray-600 hover:bg-gray-300'
+                              : 'bg-primary-600 text-white hover:bg-primary-700'
+                          } disabled:opacity-50`}
+                        >
+                          {isUpdating ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : stage.completed ? (
+                            '标记为未完成'
+                          ) : (
+                            '标记为完成'
+                          )}
+                        </button>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
+
+              {activeTab === 'settings' && (
+                <div className="space-y-6">
+                  <h3 className="text-lg font-semibold mb-4">资产设置</h3>
+                  
+                  {/* 基本信息编辑 */}
+                  <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                    <h4 className="font-medium mb-4">基本信息</h4>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm text-gray-500 mb-1">资产名称</label>
+                        <p className="font-medium">{asset.name}</p>
+                      </div>
+                      <div>
+                        <label className="block text-sm text-gray-500 mb-1">资产类型</label>
+                        <p className="font-medium">{getTypeLabel(asset.type)}</p>
+                      </div>
+                      <div>
+                        <label className="block text-sm text-gray-500 mb-1">预估商业价值</label>
+                        <p className="font-medium text-emerald-600">¥{asset.commercialValue.toLocaleString()}</p>
+                      </div>
+                      <div>
+                        <label className="block text-sm text-gray-500 mb-1">创建时间</label>
+                        <p className="font-medium">{new Date(asset.createdAt).toLocaleString()}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 危险操作 */}
+                  <div className={`p-4 rounded-xl border ${isDark ? 'bg-red-900/20 border-red-800' : 'bg-red-50 border-red-200'}`}>
+                    <h4 className="font-medium text-red-600 mb-2">危险操作</h4>
+                    <p className="text-sm text-gray-500 mb-4">删除后数据将无法恢复，请谨慎操作</p>
+                    <button
+                      onClick={() => setShowDeleteConfirm(true)}
+                      className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors"
+                    >
+                      删除此IP资产
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </motion.div>
+
+          {/* 删除确认弹窗 */}
+          <AnimatePresence>
+            {showDeleteConfirm && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4"
+              >
+                <motion.div
+                  initial={{ scale: 0.9, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.9, opacity: 0 }}
+                  className={`max-w-md w-full rounded-2xl p-6 ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-2xl`}
+                >
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                      <AlertCircle className="w-6 h-6 text-red-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold">确认删除</h3>
+                      <p className="text-sm text-gray-500">此操作不可撤销</p>
+                    </div>
+                  </div>
+                  <p className={`text-sm mb-6 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                    您确定要删除IP资产 <span className="font-semibold">"{asset.name}"</span> 吗？删除后所有相关数据将无法恢复。
+                  </p>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setShowDeleteConfirm(false)}
+                      className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} transition-colors`}
+                    >
+                      取消
+                    </button>
+                    <button
+                      onClick={handleDelete}
+                      className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors"
+                    >
+                      确认删除
+                    </button>
+                  </div>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </>
+      )}
+    </AnimatePresence>
+  );
+}
+
 // ==================== 主组件 ====================
 export default function IPIncubationCenter() {
   const { isDark } = useTheme();
@@ -1662,6 +2128,10 @@ export default function IPIncubationCenter() {
   const [typeDistributionData, setTypeDistributionData] = useState<any[]>([]);
   const [sampleAssets, setSampleAssets] = useState<SampleIPAsset[]>([]);
   const [selectedSampleAsset, setSelectedSampleAsset] = useState<SampleIPAsset | null>(null);
+  
+  // IP资产详情弹窗状态
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
+  const [detailModalAsset, setDetailModalAsset] = useState<IPAsset | null>(null);
 
   // 动态导航配置 - 根据商业机会数量显示 badge
   const navItems: NavItem[] = useMemo(() => [
@@ -1694,15 +2164,16 @@ export default function IPIncubationCenter() {
         trendData,
         typeData
       ] = await Promise.all([
-        ipService.getAllIPAssets(),
-        ipService.getIPStats(),
+        ipService.getAllIPAssets(user.id),
+        ipService.getIPStats(user.id),
         ipService.getAllOpportunities(),
-        ipService.getCopyrightAssets(),
+        ipService.getCopyrightAssets(user.id),
         ipService.getIPActivities(10),
-        ipService.getIPValueTrend(),
-        ipService.getIPTypeDistribution()
+        ipService.getIPValueTrend(user.id),
+        ipService.getIPTypeDistribution(user.id)
       ]);
 
+      console.log('[IPIncubationCenter] 数据加载成功:', { assetsCount: assets.length, stats });
       setIpAssets(assets);
       setIpStats(stats);
       setCommercialOpportunities(opportunities);
@@ -1712,16 +2183,21 @@ export default function IPIncubationCenter() {
       setTypeDistributionData(typeData);
 
       // 如果没有选中的资产，选择第一个
-      if (assets.length > 0 && !selectedIPAsset) {
-        setSelectedIPAsset(assets[0]);
-      }
+      // 使用函数式更新避免依赖问题
+      setSelectedIPAsset(prev => {
+        if (assets.length > 0 && !prev) {
+          console.log('[IPIncubationCenter] 自动选择第一个资产:', assets[0].id);
+          return assets[0];
+        }
+        return prev;
+      });
     } catch (error) {
       console.error('加载IP数据失败:', error);
       toast.error('加载数据失败，请稍后重试');
     } finally {
       setIsLoading(false);
     }
-  }, [isAuthenticated, user, selectedIPAsset]);
+  }, [isAuthenticated, user]);
 
   // 初始加载
   useEffect(() => {
@@ -1750,13 +2226,13 @@ export default function IPIncubationCenter() {
   }, [isAuthenticated, loadData]);
 
   // 处理阶段更新
-  const handleUpdateStage = async (assetId: string, stageId: string, completed: boolean) => {
+  const handleUpdateStage = useCallback(async (assetId: string, stageId: string, completed: boolean) => {
     try {
       const success = await ipService.updateIPStage(assetId, stageId, completed);
       if (success) {
         // 刷新数据
         await loadData();
-        toast.success('IP孵化阶段更新成功');
+        toast.success(completed ? '阶段已标记为完成' : '阶段已标记为未完成');
       } else {
         toast.error('IP孵化阶段更新失败');
       }
@@ -1764,7 +2240,73 @@ export default function IPIncubationCenter() {
       console.error('更新阶段失败:', error);
       toast.error('更新失败，请稍后重试');
     }
-  };
+  }, [loadData]);
+
+  // 打开IP资产详情弹窗
+  const openAssetDetail = useCallback((asset: IPAsset) => {
+    setDetailModalAsset(asset);
+    setDetailModalOpen(true);
+  }, []);
+
+  // 关闭IP资产详情弹窗
+  const closeAssetDetail = useCallback(() => {
+    setDetailModalOpen(false);
+    setDetailModalAsset(null);
+  }, []);
+
+  // 删除IP资产
+  const handleDeleteAsset = useCallback(async (assetId: string) => {
+    try {
+      const success = await ipService.deleteIPAsset(assetId);
+      if (success) {
+        toast.success('IP资产已删除');
+        await loadData();
+      } else {
+        toast.error('删除失败');
+      }
+    } catch (error) {
+      console.error('删除资产失败:', error);
+      toast.error('删除失败，请稍后重试');
+    }
+  }, [loadData]);
+
+  // 导出IP资产数据
+  const handleExportData = useCallback(() => {
+    try {
+      const exportData = {
+        exportTime: new Date().toISOString(),
+        stats: ipStats,
+        assets: ipAssets.map(asset => ({
+          name: asset.name,
+          type: asset.type,
+          description: asset.description,
+          commercialValue: asset.commercialValue,
+          progress: calculateIncubationProgress(asset.stages),
+          stages: asset.stages.map(s => ({
+            name: s.name,
+            completed: s.completed,
+            completedAt: s.completedAt
+          })),
+          createdAt: asset.createdAt
+        }))
+      };
+
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `ip-assets-export-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast.success('数据导出成功');
+    } catch (error) {
+      console.error('导出数据失败:', error);
+      toast.error('导出失败，请稍后重试');
+    }
+  }, [ipAssets, ipStats, calculateIncubationProgress]);
 
   // 处理申请机会
   const handleApplyOpportunity = async (opportunityId: string, ipAssetId: string) => {
@@ -1843,7 +2385,7 @@ export default function IPIncubationCenter() {
               <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
             </button>
             <button 
-              onClick={() => navigate('/wizard')}
+              onClick={() => navigate('/create/ip-submit')}
               className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-medium transition-colors flex items-center gap-2"
             >
               <Plus className="w-5 h-5" />
@@ -1861,7 +2403,7 @@ export default function IPIncubationCenter() {
             isCollapsed={sidebarCollapsed}
             onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
             navItems={navItems}
-            onSubmitWork={() => navigate('/wizard')}
+            onSubmitWork={() => navigate('/create/ip-submit')}
           />
 
           {/* 中间主内容区 */}
@@ -1883,7 +2425,7 @@ export default function IPIncubationCenter() {
                     onAssetChange={setSelectedIPAsset}
                     onUpdateStage={handleUpdateStage}
                     isLoading={isLoading}
-                    onSubmitWork={() => navigate('/wizard')}
+                    onSubmitWork={() => navigate('/create/ip-submit')}
                     sampleAssets={sampleAssets}
                     onViewSampleDetails={setSelectedSampleAsset}
                   />
@@ -1892,10 +2434,7 @@ export default function IPIncubationCenter() {
                   <AssetsContent
                     ipAssets={ipAssets}
                     isDark={isDark}
-                    onSelectAsset={(asset) => {
-                      setSelectedIPAsset(asset);
-                      setActiveTab('incubation');
-                    }}
+                    onSelectAsset={openAssetDetail}
                     calculateProgress={calculateIncubationProgress}
                     isLoading={isLoading}
                   />
@@ -1939,7 +2478,8 @@ export default function IPIncubationCenter() {
             opportunities={commercialOpportunities}
             onApplyOpportunity={handleApplyOpportunity}
             isLoading={isLoading}
-            onSubmitWork={() => navigate('/wizard')}
+            onSubmitWork={() => navigate('/create/ip-submit')}
+            onExportData={handleExportData}
           />
         </div>
       </div>
@@ -1951,8 +2491,19 @@ export default function IPIncubationCenter() {
         onClose={() => setSelectedSampleAsset(null)}
         onCreateSimilar={() => {
           setSelectedSampleAsset(null);
-          navigate('/wizard');
+          navigate('/create/ip-submit');
         }}
+      />
+
+      {/* IP资产详情弹窗 */}
+      <IPAssetDetailModal
+        asset={detailModalAsset}
+        isOpen={detailModalOpen}
+        onClose={closeAssetDetail}
+        isDark={isDark}
+        calculateProgress={calculateIncubationProgress}
+        onUpdateStage={handleUpdateStage}
+        onDeleteAsset={handleDeleteAsset}
       />
     </div>
   );

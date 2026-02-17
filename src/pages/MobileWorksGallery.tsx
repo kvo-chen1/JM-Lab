@@ -11,7 +11,7 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Heart, Eye, Share2, MoreHorizontal, Loader2 } from 'lucide-react';
+import { Heart, Bookmark, Share2, MoreHorizontal, Loader2 } from 'lucide-react';
 import LazyImage from '../components/LazyImage';
 import { useResponsive } from '../utils/responsiveDesign';
 
@@ -32,6 +32,7 @@ export interface ArtworkItem {
   tags: string[];
   createdAt: string;
   isLiked?: boolean;
+  isBookmarked?: boolean;
   // 视频相关字段
   isVideo?: boolean;
   videoUrl?: string;
@@ -43,6 +44,7 @@ interface MobileWorksGalleryProps {
   onArtworkClick?: (artwork: ArtworkItem) => void;
   onAuthorClick?: (authorId: string) => void;
   onLike?: (artworkId: string) => Promise<void>;
+  onBookmark?: (artworkId: string) => Promise<void>;
   onShare?: (artwork: ArtworkItem) => void;
   loading?: boolean;
   hasMore?: boolean;
@@ -148,6 +150,7 @@ interface ArtworkCardProps {
   onClick?: (artwork: ArtworkItem) => void;
   onAuthorClick?: (authorId: string) => void;
   onLike?: (artworkId: string) => Promise<void>;
+  onBookmark?: (artworkId: string) => Promise<void>;
   onShare?: (artwork: ArtworkItem) => void;
 }
 
@@ -157,19 +160,32 @@ const ArtworkCard: React.FC<ArtworkCardProps> = ({
   onClick,
   onAuthorClick,
   onLike,
+  onBookmark,
   onShare
 }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [isLiked, setIsLiked] = useState(artwork.isLiked || false);
   const [likeCount, setLikeCount] = useState(artwork.likes);
   const [isLikeLoading, setIsLikeLoading] = useState(false);
+  const [isBookmarked, setIsBookmarked] = useState(artwork.isBookmarked || false);
+  const [isBookmarkLoading, setIsBookmarkLoading] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [showTouchFeedback, setShowTouchFeedback] = useState(false);
+
+  // 同步外部的收藏状态变化
+  useEffect(() => {
+    setIsBookmarked(artwork.isBookmarked || false);
+  }, [artwork.isBookmarked]);
+
+  // 同步外部的点赞状态变化
+  useEffect(() => {
+    setIsLiked(artwork.isLiked || false);
+  }, [artwork.isLiked]);
 
   const handleLike = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (isLikeLoading) return;
-    
+
     setIsLikeLoading(true);
     try {
       await onLike?.(artwork.id);
@@ -177,6 +193,19 @@ const ArtworkCard: React.FC<ArtworkCardProps> = ({
       setLikeCount(prev => isLiked ? prev - 1 : prev + 1);
     } finally {
       setIsLikeLoading(false);
+    }
+  };
+
+  const handleBookmark = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isBookmarkLoading) return;
+
+    setIsBookmarkLoading(true);
+    try {
+      await onBookmark?.(artwork.id);
+      setIsBookmarked(!isBookmarked);
+    } finally {
+      setIsBookmarkLoading(false);
     }
   };
 
@@ -280,19 +309,35 @@ const ArtworkCard: React.FC<ArtworkCardProps> = ({
           {/* 快捷操作按钮 */}
           <div className="flex items-center gap-2 pointer-events-auto">
             <button
+              type="button"
               onClick={handleLike}
               disabled={isLikeLoading}
               className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 ${
-                isLiked 
-                  ? 'bg-red-500 text-white' 
+                isLiked
+                  ? 'bg-red-500 text-white'
                   : 'bg-white/20 text-white hover:bg-white/30 backdrop-blur-sm'
               }`}
             >
               <Heart className={`w-3.5 h-3.5 ${isLiked ? 'fill-current' : ''} ${isLikeLoading ? 'animate-pulse' : ''}`} />
               <span>{likeCount > 999 ? `${(likeCount / 1000).toFixed(1)}k` : likeCount}</span>
             </button>
-            
+
             <button
+              type="button"
+              onClick={handleBookmark}
+              disabled={isBookmarkLoading}
+              className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 ${
+                isBookmarked
+                  ? 'bg-amber-500 text-white'
+                  : 'bg-white/20 text-white hover:bg-white/30 backdrop-blur-sm'
+              }`}
+            >
+              <Bookmark className={`w-3.5 h-3.5 ${isBookmarked ? 'fill-current' : ''} ${isBookmarkLoading ? 'animate-pulse' : ''}`} />
+              <span>{isBookmarked ? '已收藏' : '收藏'}</span>
+            </button>
+
+            <button
+              type="button"
               onClick={handleShare}
               className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium bg-white/20 text-white hover:bg-white/30 backdrop-blur-sm transition-all duration-200"
             >
@@ -334,6 +379,7 @@ const MobileWorksGallery: React.FC<MobileWorksGalleryProps> = ({
   onArtworkClick,
   onAuthorClick,
   onLike,
+  onBookmark,
   onShare,
   loading = false,
   hasMore = true
@@ -431,6 +477,7 @@ const MobileWorksGallery: React.FC<MobileWorksGalleryProps> = ({
                   onClick={onArtworkClick}
                   onAuthorClick={onAuthorClick}
                   onLike={onLike}
+                  onBookmark={onBookmark}
                   onShare={onShare}
                 />
               ))
@@ -455,6 +502,7 @@ const MobileWorksGallery: React.FC<MobileWorksGalleryProps> = ({
                   onClick={onArtworkClick}
                   onAuthorClick={onAuthorClick}
                   onLike={onLike}
+                  onBookmark={onBookmark}
                   onShare={onShare}
                 />
               ))

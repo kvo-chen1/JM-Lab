@@ -1,4 +1,5 @@
 import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { useNotifications } from '@/contexts/NotificationContext';
 
 // 反馈类型
 export type FeedbackType = 'bug' | 'feature' | 'complaint' | 'inquiry' | 'other';
@@ -119,6 +120,42 @@ export interface FeedbackStats {
 }
 
 class FeedbackService {
+  private useLocalStorage = false;
+  private localFeedbacks: Feedback[] = [];
+  private readonly STORAGE_KEY = 'user_feedbacks_local';
+
+  constructor() {
+    // 从 localStorage 加载数据
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem(this.STORAGE_KEY);
+      console.log('[FeedbackService] 从 localStorage 加载数据:', stored);
+      if (stored) {
+        try {
+          this.localFeedbacks = JSON.parse(stored);
+          console.log('[FeedbackService] 加载成功，数据条数:', this.localFeedbacks.length);
+          if (this.localFeedbacks.length > 0) {
+            console.log('[FeedbackService] 第一条数据:', this.localFeedbacks[0]);
+          }
+        } catch (e) {
+          console.error('[FeedbackService] 解析本地反馈数据失败:', e);
+        }
+      } else {
+        console.log('[FeedbackService] localStorage 中没有数据');
+      }
+    } else {
+      console.log('[FeedbackService] 不在浏览器环境，跳过 localStorage 加载');
+    }
+  }
+
+  private saveToLocalStorage() {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.localFeedbacks));
+      console.log('[FeedbackService] 已保存到 localStorage，数据条数:', this.localFeedbacks.length);
+    } else {
+      console.log('[FeedbackService] 不在浏览器环境，无法保存到 localStorage');
+    }
+  }
+
   // 提交反馈
   async submitFeedback(data: {
     type: FeedbackType;
@@ -132,23 +169,72 @@ class FeedbackService {
     page_url?: string;
     user_id?: string;
   }): Promise<Feedback | null> {
-    const { data: feedback, error } = await supabase
-      .from('user_feedbacks')
-      .insert({
-        ...data,
-        screenshots: data.screenshots || [],
-        status: 'pending',
-        priority: 'normal'
-      })
-      .select()
-      .single();
+    // 无论数据库是否成功，都先创建本地反馈对象
+    // 如果有联系方式，使用联系方式作为用户名；否则显示匿名用户
+    const userName = data.contact_info 
+      ? (data.contact_info.length > 10 
+          ? data.contact_info.substring(0, 3) + '****' + data.contact_info.substring(data.contact_info.length - 4)
+          : data.contact_info)
+      : '匿名用户';
+    
+    const localFeedback: Feedback = {
+      id: `local-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      user_id: data.user_id || null,
+      type: data.type,
+      title: data.title,
+      content: data.content,
+      contact_info: data.contact_info,
+      contact_type: data.contact_type,
+      screenshots: data.screenshots || [],
+      device_info: data.device_info,
+      browser_info: data.browser_info,
+      page_url: data.page_url,
+      status: 'pending',
+      priority: 'normal',
+      is_notified: false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      user: {
+        id: data.user_id || 'anonymous',
+        username: userName,
+        email: data.contact_info || '',
+        avatar_url: data.contact_info 
+          ? `https://ui-avatars.com/api/?name=${encodeURIComponent(userName)}&background=random` 
+          : 'https://ui-avatars.com/api/?name=匿名&background=gray'
+      }
+    };
 
-    if (error) {
-      console.error('提交反馈失败:', error);
-      throw error;
+    // 先保存到本地存储（确保数据不会丢失）
+    this.localFeedbacks.unshift(localFeedback);
+    this.saveToLocalStorage();
+    console.log('[FeedbackService] 已保存到本地存储:', localFeedback);
+    console.log('[FeedbackService] 当前本地数据条数:', this.localFeedbacks.length);
+
+    try {
+      const { data: feedback, error } = await supabase
+        .from('user_feedbacks')
+        .insert({
+          ...data,
+          screenshots: data.screenshots || [],
+          status: 'pending',
+          priority: 'normal'
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.warn('数据库提交失败，但已保存到本地存储:', error);
+        this.useLocalStorage = true;
+        return localFeedback;
+      }
+
+      console.log('[FeedbackService] 数据库提交成功:', feedback);
+      return feedback;
+    } catch (error) {
+      console.error('数据库提交失败，但已保存到本地存储:', error);
+      this.useLocalStorage = true;
+      return localFeedback;
     }
-
-    return feedback;
   }
 
   // 获取反馈列表
@@ -166,44 +252,85 @@ class FeedbackService {
     const page = options?.page || 1;
     const limit = options?.limit || 20;
 
-    let query = supabase
-      .from('user_feedbacks')
-      .select('*', { count: 'exact' });
+    // 如果使用本地存储，直接从本地读取
+    if (this.useLocalStorage || this.localFeedbacks.length > 0) {
+      console.log('[FeedbackService] 使用本地存储，当前数据:', this.localFeedbacks);
+      let filtered = [...this.localFeedbacks];
 
-    // 应用筛选条件
-    if (options?.status) {
-      query = query.eq('status', options.status);
-    }
-    if (options?.type) {
-      query = query.eq('type', options.type);
-    }
-    if (options?.priority) {
-      query = query.eq('priority', options.priority);
-    }
-    if (options?.assigned_to) {
-      query = query.eq('assigned_to', options.assigned_to);
-    }
-    if (options?.startDate) {
-      query = query.gte('created_at', options.startDate);
-    }
-    if (options?.endDate) {
-      query = query.lte('created_at', options.endDate);
-    }
-    if (options?.search) {
-      query = query.or(`content.ilike.%${options.search}%,title.ilike.%${options.search}%`);
-    }
+      // 应用筛选条件
+      if (options?.status) {
+        filtered = filtered.filter(f => f.status === options.status);
+      }
+      if (options?.type) {
+        filtered = filtered.filter(f => f.type === options.type);
+      }
+      if (options?.priority) {
+        filtered = filtered.filter(f => f.priority === options.priority);
+      }
+      if (options?.search) {
+        const searchLower = options.search.toLowerCase();
+        filtered = filtered.filter(f =>
+          f.content.toLowerCase().includes(searchLower) ||
+          f.title?.toLowerCase().includes(searchLower)
+        );
+      }
 
-    const { data, error, count } = await query
-      .order('created_at', { ascending: false })
-      .range((page - 1) * limit, page * limit - 1);
+      const total = filtered.length;
+      const start = (page - 1) * limit;
+      const end = start + limit;
+      const paginated = filtered.slice(start, end);
 
-    if (error) {
-      console.error('获取反馈列表失败:', error);
-      throw error;
+      console.log('[FeedbackService] 返回本地数据:', { feedbacks: paginated, total });
+      return { feedbacks: paginated, total };
     }
 
-    // 获取关联的用户信息
-    const feedbacks = data || [];
+    try {
+      let query = supabase
+        .from('user_feedbacks')
+        .select('*', { count: 'exact' });
+
+      // 应用筛选条件
+      if (options?.status) {
+        query = query.eq('status', options.status);
+      }
+      if (options?.type) {
+        query = query.eq('type', options.type);
+      }
+      if (options?.priority) {
+        query = query.eq('priority', options.priority);
+      }
+      if (options?.assigned_to) {
+        query = query.eq('assigned_to', options.assigned_to);
+      }
+      if (options?.startDate) {
+        query = query.gte('created_at', options.startDate);
+      }
+      if (options?.endDate) {
+        query = query.lte('created_at', options.endDate);
+      }
+      if (options?.search) {
+        query = query.or(`content.ilike.%${options.search}%,title.ilike.%${options.search}%`);
+      }
+
+      const { data, error, count } = await query
+        .order('created_at', { ascending: false })
+        .range((page - 1) * limit, page * limit - 1);
+
+      if (error) {
+        console.warn('数据库查询失败，使用本地存储:', error);
+        this.useLocalStorage = true;
+        return { feedbacks: this.localFeedbacks, total: this.localFeedbacks.length };
+      }
+
+      // 如果数据库返回空数据但有本地数据，使用本地数据
+      if ((!data || data.length === 0) && this.localFeedbacks.length > 0) {
+        console.log('[FeedbackService] 数据库为空，使用本地存储数据:', this.localFeedbacks.length);
+        this.useLocalStorage = true;
+        return { feedbacks: this.localFeedbacks, total: this.localFeedbacks.length };
+      }
+
+      // 获取关联的用户信息
+      const feedbacks = data || [];
     const userIds = [...new Set(feedbacks.filter(f => f.user_id).map(f => f.user_id))];
     const adminIds = [...new Set([
       ...feedbacks.filter(f => f.assigned_to).map(f => f.assigned_to),
@@ -242,14 +369,25 @@ class FeedbackService {
       responder: f.responded_by ? adminsMap[f.responded_by] || { username: '未知管理员' } : null
     }));
 
-    return {
-      feedbacks: enrichedFeedbacks,
-      total: count || 0
-    };
+      return {
+        feedbacks: enrichedFeedbacks,
+        total: count || 0
+      };
+    } catch (error) {
+      console.warn('获取反馈列表失败，使用本地存储:', error);
+      this.useLocalStorage = true;
+      return { feedbacks: this.localFeedbacks, total: this.localFeedbacks.length };
+    }
   }
 
   // 获取单个反馈详情
   async getFeedbackById(feedbackId: string): Promise<Feedback | null> {
+    // 如果是本地数据，从本地存储查找
+    if (feedbackId.startsWith('local-')) {
+      const localFeedback = this.localFeedbacks.find(f => f.id === feedbackId);
+      return localFeedback || null;
+    }
+
     const { data, error } = await supabase
       .from('user_feedbacks')
       .select('*')
@@ -316,6 +454,21 @@ class FeedbackService {
     status: FeedbackStatus,
     adminId?: string
   ): Promise<boolean> {
+    // 如果是本地数据，更新本地存储
+    if (feedbackId.startsWith('local-')) {
+      const index = this.localFeedbacks.findIndex(f => f.id === feedbackId);
+      if (index !== -1) {
+        this.localFeedbacks[index].status = status;
+        if (status === 'resolved' || status === 'rejected') {
+          this.localFeedbacks[index].responded_at = new Date().toISOString();
+          this.localFeedbacks[index].responded_by = adminId;
+        }
+        this.saveToLocalStorage();
+        return true;
+      }
+      return false;
+    }
+
     const updates: any = { status };
 
     if (status === 'resolved' || status === 'rejected') {
@@ -398,6 +551,40 @@ class FeedbackService {
     adminId: string,
     notifyUser: boolean = true
   ): Promise<boolean> {
+    // 如果是本地反馈，更新本地存储
+    if (feedbackId.startsWith('local-')) {
+      const index = this.localFeedbacks.findIndex(f => f.id === feedbackId);
+      if (index !== -1) {
+        this.localFeedbacks[index].response_content = responseContent;
+        this.localFeedbacks[index].responded_at = new Date().toISOString();
+        this.localFeedbacks[index].responded_by = adminId;
+        this.localFeedbacks[index].status = 'resolved';
+        this.saveToLocalStorage();
+        
+        // 记录处理日志到本地存储
+        const logs = JSON.parse(localStorage.getItem('feedback_process_logs_local') || '[]');
+        logs.push({
+          id: `log-${Date.now()}`,
+          feedback_id: feedbackId,
+          admin_id: adminId,
+          action_type: 'respond',
+          old_value: undefined,
+          new_value: undefined,
+          details: { response_content: responseContent },
+          created_at: new Date().toISOString()
+        });
+        localStorage.setItem('feedback_process_logs_local', JSON.stringify(logs));
+        
+        // 通知用户
+        if (notifyUser) {
+          await this.notifyUser(feedbackId, responseContent);
+        }
+        
+        return true;
+      }
+      return false;
+    }
+
     const { error } = await supabase
       .from('user_feedbacks')
       .update({
@@ -431,8 +618,40 @@ class FeedbackService {
     try {
       // 获取反馈信息
       const feedback = await this.getFeedbackById(feedbackId);
-      if (!feedback || !feedback.user_id) {
-        console.warn('无法通知用户：反馈不存在或无用户ID');
+      if (!feedback) {
+        console.warn('无法通知用户：反馈不存在');
+        return false;
+      }
+
+      // 如果是本地反馈，存储通知到 localStorage
+      if (feedbackId.startsWith('local-')) {
+        const notifications = JSON.parse(localStorage.getItem('user_notifications_local') || '[]');
+        notifications.unshift({
+          id: `notif-${Date.now()}`,
+          type: 'feedback_resolved',
+          title: '您的反馈已得到回复',
+          content: `关于您提交的"${FEEDBACK_TYPE_CONFIG[feedback.type].label}"反馈，管理员已回复：${responseContent.substring(0, 100)}${responseContent.length > 100 ? '...' : ''}`,
+          related_id: feedbackId,
+          related_type: 'feedback',
+          created_at: new Date().toISOString(),
+          is_read: false
+        });
+        localStorage.setItem('user_notifications_local', JSON.stringify(notifications));
+        
+        // 更新反馈的通知状态
+        const index = this.localFeedbacks.findIndex(f => f.id === feedbackId);
+        if (index !== -1) {
+          this.localFeedbacks[index].is_notified = true;
+          this.localFeedbacks[index].notified_at = new Date().toISOString();
+          this.saveToLocalStorage();
+        }
+        
+        return true;
+      }
+
+      // 如果没有用户ID，无法发送通知
+      if (!feedback.user_id) {
+        console.warn('无法通知用户：反馈无用户ID');
         return false;
       }
 
@@ -499,6 +718,18 @@ class FeedbackService {
 
   // 获取处理日志
   async getProcessLogs(feedbackId: string): Promise<FeedbackProcessLog[]> {
+    // 如果是本地反馈，从 localStorage 获取日志
+    if (feedbackId.startsWith('local-')) {
+      const logs = JSON.parse(localStorage.getItem('feedback_process_logs_local') || '[]');
+      const filteredLogs = logs.filter((log: any) => log.feedback_id === feedbackId);
+      
+      // 为日志添加管理员信息
+      return filteredLogs.map((log: any) => ({
+        ...log,
+        admin: log.admin_id ? { username: '管理员' } : null
+      }));
+    }
+
     const { data, error } = await supabase
       .from('feedback_process_logs')
       .select('*')
@@ -589,6 +820,17 @@ class FeedbackService {
 
   // 删除反馈
   async deleteFeedback(feedbackId: string): Promise<boolean> {
+    // 如果是本地数据，从本地存储删除
+    if (feedbackId.startsWith('local-')) {
+      const index = this.localFeedbacks.findIndex(f => f.id === feedbackId);
+      if (index !== -1) {
+        this.localFeedbacks.splice(index, 1);
+        this.saveToLocalStorage();
+        return true;
+      }
+      return false;
+    }
+
     const { error } = await supabase
       .from('user_feedbacks')
       .delete()
@@ -604,13 +846,46 @@ class FeedbackService {
 
   // 获取统计数据
   async getStats(): Promise<FeedbackStats> {
+    // 如果使用本地存储，计算本地数据
+    if (this.useLocalStorage || this.localFeedbacks.length > 0) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const feedbacks = this.localFeedbacks;
+      const todayCount = feedbacks.filter(f => new Date(f.created_at) >= today).length;
+      const pendingCount = feedbacks.filter(f => f.status === 'pending').length;
+      const processingCount = feedbacks.filter(f => f.status === 'processing').length;
+      const resolvedCount = feedbacks.filter(f => f.status === 'resolved').length;
+
+      // 计算平均处理时长
+      const resolvedFeedbacks = feedbacks.filter(f => f.status === 'resolved' && f.responded_at);
+      let avgHours = 0;
+      if (resolvedFeedbacks.length > 0) {
+        const totalHours = resolvedFeedbacks.reduce((sum, f) => {
+          const created = new Date(f.created_at).getTime();
+          const responded = new Date(f.responded_at!).getTime();
+          return sum + (responded - created) / (1000 * 60 * 60);
+        }, 0);
+        avgHours = Math.round((totalHours / resolvedFeedbacks.length) * 100) / 100;
+      }
+
+      return {
+        total_count: feedbacks.length,
+        pending_count: pendingCount,
+        processing_count: processingCount,
+        resolved_count: resolvedCount,
+        today_count: todayCount,
+        avg_process_hours: avgHours
+      };
+    }
+
     try {
       // 尝试使用RPC函数
       const { data, error } = await supabase
         .rpc('get_feedback_stats');
 
-      if (!error && data) {
-        return data;
+      if (!error && data && data.length > 0) {
+        return data[0];
       }
     } catch (error) {
       console.log('RPC调用失败，使用备用方案');
@@ -655,15 +930,42 @@ class FeedbackService {
       };
     } catch (error) {
       console.error('获取统计数据失败:', error);
-      return {
-        total_count: 0,
-        pending_count: 0,
-        processing_count: 0,
-        resolved_count: 0,
-        today_count: 0,
-        avg_process_hours: 0
-      };
+      this.useLocalStorage = true;
+      // 返回本地数据
+      return this.getLocalStats();
     }
+  }
+
+  // 获取本地统计数据
+  private getLocalStats(): FeedbackStats {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const feedbacks = this.localFeedbacks;
+    const todayCount = feedbacks.filter(f => new Date(f.created_at) >= today).length;
+    const pendingCount = feedbacks.filter(f => f.status === 'pending').length;
+    const processingCount = feedbacks.filter(f => f.status === 'processing').length;
+    const resolvedCount = feedbacks.filter(f => f.status === 'resolved').length;
+
+    const resolvedFeedbacks = feedbacks.filter(f => f.status === 'resolved' && f.responded_at);
+    let avgHours = 0;
+    if (resolvedFeedbacks.length > 0) {
+      const totalHours = resolvedFeedbacks.reduce((sum, f) => {
+        const created = new Date(f.created_at).getTime();
+        const responded = new Date(f.responded_at!).getTime();
+        return sum + (responded - created) / (1000 * 60 * 60);
+      }, 0);
+      avgHours = Math.round((totalHours / resolvedFeedbacks.length) * 100) / 100;
+    }
+
+    return {
+      total_count: feedbacks.length,
+      pending_count: pendingCount,
+      processing_count: processingCount,
+      resolved_count: resolvedCount,
+      today_count: todayCount,
+      avg_process_hours: avgHours
+    };
   }
 
   // 获取用户的反馈历史

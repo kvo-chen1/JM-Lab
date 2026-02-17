@@ -77,6 +77,20 @@ const MembershipPayment: React.FC = () => {
 
   // 会员套餐数据 - 增强版
   const membershipPlans = {
+    free: {
+      name: '免费会员',
+      nameEn: 'Free',
+      price: 0,
+      originalPrice: 0,
+      period: 'month',
+      periodText: '永久',
+      duration: 0,
+      features: ['基础AI生成', '1GB云存储', '基础模板库', '带水印导出'],
+      badge: '基础',
+      color: 'from-slate-400 to-slate-500',
+      bgColor: 'bg-slate-50',
+      borderColor: 'border-slate-200'
+    },
     premium: {
       name: '高级会员',
       nameEn: 'Premium',
@@ -107,7 +121,7 @@ const MembershipPayment: React.FC = () => {
     }
   };
 
-  const selectedPlan = membershipPlans[plan as keyof typeof membershipPlans];
+  const selectedPlan = membershipPlans[plan as keyof typeof membershipPlans] || membershipPlans.premium;
 
   useEffect(() => {
     if (!user) {

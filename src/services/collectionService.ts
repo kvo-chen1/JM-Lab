@@ -37,8 +37,14 @@ export interface CollectionStats {
 export interface CollectionAuthor {
   id: string;
   name: string;
+  username?: string;
   avatar: string;
 }
+
+/**
+ * 媒体类型
+ */
+export type MediaType = 'image' | 'video' | 'audio' | 'document' | 'other';
 
 /**
  * 统一收藏项接口
@@ -57,6 +63,7 @@ export interface CollectionItem {
   author?: CollectionAuthor;
   description?: string;
   tags?: string[];
+  mediaType?: MediaType;
 }
 
 /**
@@ -116,18 +123,109 @@ async function getBookmarkedSquareWorks(
   try {
     // 获取当前用户ID
     const userId = await getCurrentUserId();
-    
+
     if (!userId) {
       console.log('[getBookmarkedSquareWorks] No userId found');
       return [];
     }
-    
+
     console.log('[getBookmarkedSquareWorks] Fetching bookmarks for user:', userId);
 
-    // 从 Supabase bookmarks 表获取收藏
+    // 首先尝试从后端 API 获取收藏
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (token) {
+      try {
+        console.log('[getBookmarkedSquareWorks] Trying backend API...');
+        const response = await fetch('/api/user/bookmarks', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          console.log('[getBookmarkedSquareWorks] Backend API success:', result);
+          console.log('[getBookmarkedSquareWorks] First item:', result.data?.[0]);
+          console.log('[getBookmarkedSquareWorks] First item author:', result.data?.[0]?.author);
+          if (result.data && result.data.length > 0) {
+            // 收集所有需要查询作者的作品
+            const worksWithoutAuthor = result.data.filter((work: any) => !work.author && (work.creator_id || work.user_id));
+            
+            // 获取作者信息
+            let authorsMap = new Map();
+            if (worksWithoutAuthor.length > 0) {
+              const creatorIds = worksWithoutAuthor.map((w: any) => w.creator_id || w.user_id).filter(Boolean);
+              console.log('[getBookmarkedSquareWorks] Fetching authors for IDs:', creatorIds);
+              
+              const { data: users, error: usersError } = await supabase
+                .from('users')
+                .select('id, username, avatar_url')
+                .in('id', creatorIds);
+              
+              if (!usersError && users) {
+                console.log('[getBookmarkedSquareWorks] Fetched authors:', users);
+                users.forEach(user => {
+                  authorsMap.set(user.id, user);
+                });
+              }
+            }
+            
+            // 后端返回的作品数据，转换为 CollectionItem
+            return result.data.map((work: any) => {
+              // 优先使用 work.author，如果没有则尝试从 authorsMap 获取
+              let author = work.author;
+              if (!author && (work.creator_id || work.user_id)) {
+                const user = authorsMap.get(work.creator_id || work.user_id);
+                if (user) {
+                  author = {
+                    id: user.id,
+                    name: user.username || '未知用户',
+                    username: user.username,
+                    avatar: user.avatar_url || '/default-avatar.png'
+                  };
+                }
+              }
+              
+              return {
+                id: work.id?.toString() || '',
+                title: work.title || '未命名作品',
+                thumbnail: work.thumbnail || work.cover_url || '/placeholder-image.jpg',
+                type: CollectionType.SQUARE_WORK,
+                category: work.category || '其他',
+                createdAt: work.created_at || new Date().toISOString(),
+                stats: {
+                  views: work.views || work.view_count || 0,
+                  likes: work.likes || work.likes_count || 0,
+                  comments: work.comments || work.comments_count || 0
+                },
+                author: author ? {
+                  id: author.id?.toString() || '',
+                  name: author.username || author.name || '未知用户',
+                  username: author.username,
+                  avatar: author.avatar || author.avatar_url || '/default-avatar.png'
+                } : undefined,
+                isBookmarked: true,
+                isLiked: false,
+                link: `/square/${work.id}`,
+                mediaType: work.media_type || 'image',
+              };
+            });
+          }
+          console.log('[getBookmarkedSquareWorks] Backend API returned empty data');
+          return [];
+        } else {
+          console.warn('[getBookmarkedSquareWorks] Backend API failed:', response.status);
+        }
+      } catch (error) {
+        console.warn('[getBookmarkedSquareWorks] Backend API error:', error);
+      }
+    }
+
+    // 如果后端 API 不可用，尝试从 Supabase 获取
+    console.log('[getBookmarkedSquareWorks] Trying Supabase...');
     const { data: bookmarks, error: bookmarksError } = await supabase
-      .from('bookmarks')
-      .select('post_id, created_at')
+      .from('works_bookmarks')
+      .select('work_id, created_at')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
 
@@ -144,7 +242,7 @@ async function getBookmarkedSquareWorks(
     }
 
     // 获取作品详情 - 从 works 表查询
-    const workIds = bookmarks.map(b => b.post_id);
+    const workIds = bookmarks.map(b => b.work_id);
     console.log('[getBookmarkedSquareWorks] Work IDs:', workIds);
 
     const { data: works, error: worksError } = await supabase
@@ -152,11 +250,35 @@ async function getBookmarkedSquareWorks(
       .select('*')
       .in('id', workIds);
 
-    console.log('[getBookmarkedSquareWorks] Works result:', { worksCount: works?.length, error: worksError });
+    console.log('[getBookmarkedSquareWorks] Works result:', { worksCount: works?.length, error: worksError, firstWork: works?.[0] });
 
     if (worksError) {
       console.error('Error fetching works:', worksError);
       return [];
+    }
+
+    // 获取所有作者ID
+    const creatorIds = works?.map(w => w.creator_id).filter(Boolean) || [];
+    console.log('[getBookmarkedSquareWorks] Creator IDs:', creatorIds);
+
+    // 获取作者信息（头像等）
+    let usersMap = new Map();
+    if (creatorIds.length > 0) {
+      console.log('[getBookmarkedSquareWorks] Fetching users for IDs:', creatorIds);
+      const { data: users, error: usersError } = await supabase
+        .from('users')
+        .select('id, username, avatar_url')
+        .in('id', creatorIds);
+      
+      if (usersError) {
+        console.error('Error fetching users:', usersError);
+      } else {
+        console.log('[getBookmarkedSquareWorks] Users fetched:', users);
+        users?.forEach(user => {
+          usersMap.set(user.id, user);
+        });
+        console.log('[getBookmarkedSquareWorks] Users map:', Array.from(usersMap.entries()));
+      }
     }
 
     // 创建作品映射
@@ -169,12 +291,13 @@ async function getBookmarkedSquareWorks(
 
     // 转换为 CollectionItem - 只返回存在的作品
     const result = bookmarks
-      .filter((bookmark: any) => worksMap.has(bookmark.post_id)) // 只保留存在的作品
+      .filter((bookmark: any) => worksMap.has(bookmark.work_id)) // 只保留存在的作品
       .map((bookmark: any) => {
-        const work = worksMap.get(bookmark.post_id);
-        console.log('[getBookmarkedSquareWorks] Mapping bookmark:', bookmark.post_id, '-> work:', work?.title);
+        const work = worksMap.get(bookmark.work_id);
+        const user = usersMap.get(work?.creator_id);
+        console.log('[getBookmarkedSquareWorks] Mapping bookmark:', bookmark.work_id, '-> work:', work?.title, 'creator_id:', work?.creator_id, '-> user:', user);
         return {
-          id: bookmark.post_id?.toString() || '',
+          id: bookmark.work_id?.toString() || '',
           title: work?.title || '未命名作品',
           thumbnail: work?.thumbnail || work?.cover_url || '/placeholder-image.jpg',
           type: CollectionType.SQUARE_WORK,
@@ -189,17 +312,18 @@ async function getBookmarkedSquareWorks(
           },
           isBookmarked: true,
           isLiked: false,
-          link: `/square/${bookmark.post_id}`,
+          link: `/square/${bookmark.work_id}`,
           author: work?.creator_id ? {
             id: work.creator_id,
-            name: work?.creator_name || work?.username || '未知作者',
-            avatar: work?.creator_avatar || work?.avatar_url || '/default-avatar.jpg',
+            name: work?.creator || user?.username || '未知作者',
+            avatar: user?.avatar_url || '/default-avatar.jpg',
           } : undefined,
           description: work?.description || work?.content,
+          mediaType: work?.media_type || 'image',
         };
       });
 
-    console.log('[getBookmarkedSquareWorks] Final result count:', result.length);
+    console.log('[getBookmarkedSquareWorks] Final result count:', result.length, 'first item author:', result[0]?.author);
     return result;
   } catch (error) {
     handleError(error, '获取收藏作品失败');
@@ -221,10 +345,103 @@ async function getLikedSquareWorks(
       return [];
     }
 
-    // 从 Supabase likes 表获取点赞
+    console.log('[getLikedSquareWorks] Fetching likes for user:', userId);
+
+    // 首先尝试从后端 API 获取点赞列表
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (token) {
+      try {
+        console.log('[getLikedSquareWorks] Trying backend API...');
+        const response = await fetch('/api/user/likes', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          console.log('[getLikedSquareWorks] Backend API success:', result);
+          console.log('[getLikedSquareWorks] First item:', result.data?.[0]);
+          console.log('[getLikedSquareWorks] First item author:', result.data?.[0]?.author);
+          if (result.data && Array.isArray(result.data)) {
+            // 收集所有需要查询作者的作品
+            const worksWithoutAuthor = result.data.filter((work: any) => !work.author && (work.creator_id || work.user_id));
+            
+            // 获取作者信息
+            let authorsMap = new Map();
+            if (worksWithoutAuthor.length > 0) {
+              const creatorIds = worksWithoutAuthor.map((w: any) => w.creator_id || w.user_id).filter(Boolean);
+              console.log('[getLikedSquareWorks] Fetching authors for IDs:', creatorIds);
+              
+              const { data: users, error: usersError } = await supabase
+                .from('users')
+                .select('id, username, avatar_url')
+                .in('id', creatorIds);
+              
+              if (!usersError && users) {
+                console.log('[getLikedSquareWorks] Fetched authors:', users);
+                users.forEach(user => {
+                  authorsMap.set(user.id, user);
+                });
+              }
+            }
+            
+            // 后端返回的作品数据，转换为 CollectionItem
+            return result.data.map((work: any) => {
+              // 优先使用 work.author，如果没有则尝试从 authorsMap 获取
+              let author = work.author;
+              if (!author && (work.creator_id || work.user_id)) {
+                const user = authorsMap.get(work.creator_id || work.user_id);
+                if (user) {
+                  author = {
+                    id: user.id,
+                    name: user.username || '未知用户',
+                    username: user.username,
+                    avatar: user.avatar_url || '/default-avatar.png'
+                  };
+                }
+              }
+              
+              return {
+                id: work.id?.toString() || '',
+                title: work.title || '未命名作品',
+                thumbnail: work.thumbnail || work.cover_url || '/placeholder-image.jpg',
+                type: CollectionType.SQUARE_WORK,
+                category: work.category || '其他',
+                createdAt: work.created_at || new Date().toISOString(),
+                stats: {
+                  views: work.views || work.view_count || 0,
+                  likes: work.likes || work.likes_count || 0,
+                  comments: work.comments || work.comments_count || 0
+                },
+                author: author ? {
+                  id: author.id?.toString() || '',
+                  name: author.username || author.name || '未知用户',
+                  username: author.username,
+                  avatar: author.avatar || author.avatar_url || '/default-avatar.png'
+                } : undefined,
+                isLiked: true,
+                isBookmarked: false,
+                link: `/square/${work.id}`,
+                mediaType: work.media_type || 'image',
+              };
+            });
+          }
+          console.log('[getLikedSquareWorks] Backend API returned empty data');
+          return [];
+        } else {
+          console.warn('[getLikedSquareWorks] Backend API failed:', response.status);
+        }
+      } catch (error) {
+        console.warn('[getLikedSquareWorks] Backend API error:', error);
+      }
+    }
+
+    // 如果后端 API 不可用，尝试从 Supabase 获取
+    console.log('[getLikedSquareWorks] Trying Supabase...');
     const { data: likes, error: likesError } = await supabase
-      .from('likes')
-      .select('post_id, created_at')
+      .from('works_likes')
+      .select('work_id, created_at')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
 
@@ -234,11 +451,12 @@ async function getLikedSquareWorks(
     }
 
     if (!likes || likes.length === 0) {
+      console.log('[getLikedSquareWorks] No likes found');
       return [];
     }
 
     // 获取作品详情 - 从 works 表查询
-    const workIds = likes.map(l => l.post_id);
+    const workIds = likes.map(l => l.work_id);
     const { data: works, error: worksError } = await supabase
       .from('works')
       .select('*')
@@ -249,6 +467,26 @@ async function getLikedSquareWorks(
       return [];
     }
 
+    // 获取所有作者ID
+    const creatorIds = works?.map(w => w.creator_id).filter(Boolean) || [];
+
+    // 获取作者信息（头像等）
+    let usersMap = new Map();
+    if (creatorIds.length > 0) {
+      const { data: users, error: usersError } = await supabase
+        .from('users')
+        .select('id, username, avatar_url')
+        .in('id', creatorIds);
+      
+      if (usersError) {
+        console.error('Error fetching users:', usersError);
+      } else {
+        users?.forEach(user => {
+          usersMap.set(user.id, user);
+        });
+      }
+    }
+
     // 创建作品映射
     const worksMap = new Map();
     works?.forEach(work => {
@@ -257,11 +495,12 @@ async function getLikedSquareWorks(
 
     // 转换为 CollectionItem - 只返回存在的作品
     return likes
-      .filter((like: any) => worksMap.has(like.post_id)) // 只保留存在的作品
+      .filter((like: any) => worksMap.has(like.work_id)) // 只保留存在的作品
       .map((like: any) => {
-        const work = worksMap.get(like.post_id);
+        const work = worksMap.get(like.work_id);
+        const user = usersMap.get(work?.creator_id);
         return {
-          id: like.post_id?.toString() || '',
+          id: like.work_id?.toString() || '',
           title: work?.title || '未命名作品',
           thumbnail: work?.thumbnail || work?.cover_url || '/placeholder-image.jpg',
           type: CollectionType.SQUARE_WORK,
@@ -276,13 +515,14 @@ async function getLikedSquareWorks(
           },
           isBookmarked: false,
           isLiked: true,
-          link: `/square/${like.post_id}`,
+          link: `/square/${like.work_id}`,
           author: work?.creator_id ? {
             id: work.creator_id,
-            name: work?.creator_name || work?.username || '未知作者',
-            avatar: work?.creator_avatar || work?.avatar_url || '/default-avatar.jpg',
+            name: work?.creator || user?.username || '未知作者',
+            avatar: user?.avatar_url || '/default-avatar.jpg',
           } : undefined,
           description: work?.description || work?.content,
+          mediaType: work?.media_type || 'image',
         };
       });
   } catch (error) {
@@ -377,25 +617,32 @@ async function getBookmarkedTemplates(
  * 获取当前用户ID（兼容多种登录方式）
  */
 async function getCurrentUserId(): Promise<string | null> {
-  // 首先尝试从 Supabase Auth 获取
-  try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user?.id) return user.id;
-  } catch {
-    // 继续尝试其他方式
-  }
-
-  // 尝试从 localStorage 获取用户信息
+  // 首先尝试从 localStorage 获取用户信息（后端登录方式）
   const userStr = localStorage.getItem('user');
   if (userStr) {
     try {
       const user = JSON.parse(userStr);
-      if (user?.id) return user.id;
+      if (user?.id) {
+        console.log('[getCurrentUserId] Got userId from localStorage:', user.id);
+        return user.id;
+      }
     } catch {
-      // 解析失败
+      // 解析失败，继续尝试其他方式
     }
   }
 
+  // 尝试从 Supabase Auth 获取
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user?.id) {
+      console.log('[getCurrentUserId] Got userId from Supabase Auth:', user.id);
+      return user.id;
+    }
+  } catch {
+    // 继续尝试其他方式
+  }
+
+  console.log('[getCurrentUserId] No userId found');
   return null;
 }
 
@@ -657,38 +904,77 @@ export async function getUserCollectionStats(): Promise<UserCollectionStats> {
       };
     }
 
+    console.log('[getUserCollectionStats] Fetching stats for user:', userId);
+
+    // 首先尝试从后端 API 获取统计数据
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (token) {
+      try {
+        console.log('[getUserCollectionStats] Trying backend API...');
+        const response = await fetch('/api/user/stats', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          console.log('[getUserCollectionStats] Backend API success:', result);
+          if (result.data) {
+            // 后端返回的统计数据
+            return {
+              total: result.data.bookmarks_count || 0,
+              squareWork: result.data.bookmarks_count || 0,
+              communityPost: 0,
+              activity: 0,
+              template: 0,
+              totalLikes: result.data.likes_count || 0,
+              templateLikes: 0,
+            };
+          }
+        } else {
+          console.warn('[getUserCollectionStats] Backend API failed:', response.status);
+        }
+      } catch (error) {
+        console.warn('[getUserCollectionStats] Backend API error:', error);
+      }
+    }
+
+    // 如果后端 API 不可用，从 Supabase 获取
+    console.log('[getUserCollectionStats] Trying Supabase...');
+
     // 获取广场作品收藏 - 只统计实际存在的作品
     let squareWorkBookmarks = 0;
     const { data: bookmarks, error: bookmarksError } = await supabase
-      .from('bookmarks')
-      .select('post_id')
+      .from('works_bookmarks')
+      .select('work_id')
       .eq('user_id', userId);
 
     if (!bookmarksError && bookmarks && bookmarks.length > 0) {
-      const workIds = bookmarks.map(b => b.post_id);
+      const workIds = bookmarks.map(b => b.work_id);
       const { data: existingWorks } = await supabase
         .from('works')
         .select('id')
         .in('id', workIds);
       const existingWorkIds = new Set(existingWorks?.map(w => w.id) || []);
-      squareWorkBookmarks = bookmarks.filter(b => existingWorkIds.has(b.post_id)).length;
+      squareWorkBookmarks = bookmarks.filter(b => existingWorkIds.has(b.work_id)).length;
     }
 
     // 获取广场作品点赞 - 只统计实际存在的作品
     let squareWorkLikes = 0;
     const { data: likes, error: likesError } = await supabase
-      .from('likes')
-      .select('post_id')
+      .from('works_likes')
+      .select('work_id')
       .eq('user_id', userId);
 
     if (!likesError && likes && likes.length > 0) {
-      const workIds = likes.map(l => l.post_id);
+      const workIds = likes.map(l => l.work_id);
       const { data: existingWorks } = await supabase
         .from('works')
         .select('id')
         .in('id', workIds);
       const existingWorkIds = new Set(existingWorks?.map(w => w.id) || []);
-      squareWorkLikes = likes.filter(l => existingWorkIds.has(l.post_id)).length;
+      squareWorkLikes = likes.filter(l => existingWorkIds.has(l.work_id)).length;
     }
 
     // 获取模板收藏 - 只统计实际存在的模板
@@ -765,21 +1051,185 @@ export async function toggleBookmark(
       return false;
     }
 
-    const response = await apiClient.post(`/api/works/${id}/bookmark`, {});
-    if (!response.ok) {
-      throw new Error(response.error || '操作失败');
+    // 获取当前用户ID
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      toast.error('请先登录');
+      return false;
     }
 
-    const result = response.data;
-    if (result.isBookmarked) {
-      toast.success('已添加到收藏');
-    } else {
-      toast.success('已取消收藏');
+    // 首先尝试使用后端 API
+    try {
+      const response = await apiClient.post(`/api/works/${id}/bookmark`, {});
+      if (response.ok && response.data) {
+        const result = response.data;
+        if (result.isBookmarked) {
+          toast.success('已添加到收藏');
+        } else {
+          toast.success('已取消收藏');
+        }
+        return result.isBookmarked;
+      }
+    } catch (apiError) {
+      console.warn('[toggleBookmark] API failed, falling back to Supabase:', apiError);
     }
-    return result.isBookmarked;
+
+    // 后端 API 失败，使用 Supabase 直接操作
+    console.log('[toggleBookmark] Using Supabase fallback');
+    
+    // 检查是否已收藏
+    const { data: existingBookmark } = await supabase
+      .from('works_bookmarks')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('work_id', id)
+      .single();
+
+    if (existingBookmark) {
+      // 取消收藏
+      const { error: deleteError } = await supabase
+        .from('works_bookmarks')
+        .delete()
+        .eq('user_id', userId)
+        .eq('work_id', id);
+
+      if (deleteError) {
+        console.error('[toggleBookmark] Delete error:', deleteError);
+        throw deleteError;
+      }
+      toast.success('已取消收藏');
+      return false;
+    } else {
+      // 添加收藏
+      const { error: insertError } = await supabase
+        .from('works_bookmarks')
+        .insert({
+          user_id: userId,
+          work_id: id,
+          created_at: new Date().toISOString()
+        });
+
+      if (insertError) {
+        console.error('[toggleBookmark] Insert error:', insertError);
+        throw insertError;
+      }
+      toast.success('已添加到收藏');
+      return true;
+    }
   } catch (error) {
+    console.error('[toggleBookmark] Error:', error);
     handleError(error, '操作失败，请重试');
     return false;
+  }
+}
+
+/**
+ * 取消收藏（专门用于收藏页面）
+ */
+export async function removeBookmark(
+  id: string,
+  type: CollectionType
+): Promise<boolean> {
+  try {
+    // 目前只支持作品收藏
+    if (type !== CollectionType.SQUARE_WORK) {
+      toast.error('该类型暂不支持收藏');
+      return false;
+    }
+
+    // 获取当前用户ID
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      toast.error('请先登录');
+      return false;
+    }
+
+    // 首先尝试使用后端 API 删除收藏
+    try {
+      const response = await apiClient.delete(`/api/works/${id}/bookmark`);
+      if (response.ok) {
+        toast.success('已取消收藏');
+        return false; // 返回 false 表示未收藏状态
+      }
+    } catch (apiError) {
+      console.warn('[removeBookmark] API failed, falling back to Supabase:', apiError);
+    }
+
+    // 后端 API 失败，使用 Supabase 直接操作
+    console.log('[removeBookmark] Using Supabase fallback');
+
+    // 直接删除收藏记录
+    const { error: deleteError } = await supabase
+      .from('works_bookmarks')
+      .delete()
+      .eq('user_id', userId)
+      .eq('work_id', id);
+
+    if (deleteError) {
+      console.error('[removeBookmark] Delete error:', deleteError);
+      throw deleteError;
+    }
+    toast.success('已取消收藏');
+    return false;
+  } catch (error) {
+    console.error('[removeBookmark] Error:', error);
+    handleError(error, '取消收藏失败，请重试');
+    return true; // 返回 true 表示操作失败，保持原状态
+  }
+}
+
+/**
+ * 取消点赞（专门用于点赞页面）
+ */
+export async function removeLike(
+  id: string,
+  type: CollectionType
+): Promise<boolean> {
+  try {
+    // 目前只支持作品点赞
+    if (type !== CollectionType.SQUARE_WORK) {
+      toast.error('该类型暂不支持点赞');
+      return false;
+    }
+
+    // 获取当前用户ID
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      toast.error('请先登录');
+      return false;
+    }
+
+    // 首先尝试使用后端 API 删除点赞
+    try {
+      const response = await apiClient.delete(`/api/works/${id}/like`);
+      if (response.ok) {
+        toast.success('已取消点赞');
+        return false; // 返回 false 表示未点赞状态
+      }
+    } catch (apiError) {
+      console.warn('[removeLike] API failed, falling back to Supabase:', apiError);
+    }
+
+    // 后端 API 失败，使用 Supabase 直接操作
+    console.log('[removeLike] Using Supabase fallback');
+
+    // 直接删除点赞记录
+    const { error: deleteError } = await supabase
+      .from('works_likes')
+      .delete()
+      .eq('user_id', userId)
+      .eq('work_id', id);
+
+    if (deleteError) {
+      console.error('[removeLike] Delete error:', deleteError);
+      throw deleteError;
+    }
+    toast.success('已取消点赞');
+    return false;
+  } catch (error) {
+    console.error('[removeLike] Error:', error);
+    handleError(error, '取消点赞失败，请重试');
+    return true; // 返回 true 表示操作失败，保持原状态
   }
 }
 
@@ -797,19 +1247,73 @@ export async function toggleLike(
       return false;
     }
 
-    const response = await apiClient.post(`/api/works/${id}/like`, {});
-    if (!response.ok) {
-      throw new Error(response.error || '操作失败');
+    // 获取当前用户ID
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      toast.error('请先登录');
+      return false;
     }
 
-    const result = response.data;
-    if (result.isLiked) {
-      toast.success('已点赞');
-    } else {
-      toast.success('已取消点赞');
+    // 首先尝试使用后端 API
+    try {
+      const response = await apiClient.post(`/api/works/${id}/like`, {});
+      if (response.ok && response.data) {
+        const result = response.data;
+        if (result.isLiked) {
+          toast.success('已点赞');
+        } else {
+          toast.success('已取消点赞');
+        }
+        return result.isLiked;
+      }
+    } catch (apiError) {
+      console.warn('[toggleLike] API failed, falling back to Supabase:', apiError);
     }
-    return result.isLiked;
+
+    // 后端 API 失败，使用 Supabase 直接操作
+    console.log('[toggleLike] Using Supabase fallback');
+    
+    // 检查是否已点赞
+    const { data: existingLike } = await supabase
+      .from('works_likes')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('work_id', id)
+      .single();
+
+    if (existingLike) {
+      // 取消点赞
+      const { error: deleteError } = await supabase
+        .from('works_likes')
+        .delete()
+        .eq('user_id', userId)
+        .eq('work_id', id);
+
+      if (deleteError) {
+        console.error('[toggleLike] Delete error:', deleteError);
+        throw deleteError;
+      }
+      toast.success('已取消点赞');
+      return false;
+    } else {
+      // 添加点赞
+      const { error: insertError } = await supabase
+        .from('works_likes')
+        .insert({
+          user_id: userId,
+          work_id: id,
+          created_at: new Date().toISOString()
+        });
+
+      if (insertError) {
+        console.error('[toggleLike] Insert error:', insertError);
+        throw insertError;
+      }
+      toast.success('已点赞');
+      return true;
+    }
   } catch (error) {
+    console.error('[toggleLike] Error:', error);
     handleError(error, '操作失败，请重试');
     return false;
   }
@@ -822,8 +1326,12 @@ export const collectionService = {
   getUserCollections,
   getUserLikes,
   getUserCollectionStats,
+  getBookmarkedSquareWorks,
+  getLikedSquareWorks,
   toggleBookmark,
   toggleLike,
+  removeBookmark,
+  removeLike,
   CollectionType,
   SortOption,
 };

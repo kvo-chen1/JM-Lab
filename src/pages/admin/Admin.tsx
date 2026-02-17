@@ -7,6 +7,8 @@ import { LineChart, Line, PieChart, Pie, XAxis, YAxis, CartesianGrid, Tooltip, L
 import { toast } from 'sonner';
 import { adminService, type DashboardStats, type ActivityData, type AuditStats, type PendingWork } from '@/services/adminService';
 import { brandPartnershipService } from '@/services/brandPartnershipService';
+import AdminSidebar from '@/components/admin/AdminSidebar';
+import { useNavNotifications, type NavItemType } from '@/hooks/useNavNotifications';
 
 // 懒加载数据分析页面
 const DataAnalytics = lazy(() => import('./DataAnalytics'));
@@ -33,16 +35,56 @@ const COLORS = ['#f59e0b', '#34d399', '#f87171'];
 
 type TabType = 'dashboard' | 'audit' | 'analytics' | 'adoption' | 'users' | 'settings' | 'campaigns' | 'creators' | 'brandPartnerships' | 'orders' | 'permissions' | 'feedback' | 'contentAudit' | 'auditLog' | 'userAudit' | 'eventAudit' | 'productManagement' | 'notificationManagement' | 'systemMonitor' | 'communities' | 'contentManagement';
 
+// 安全的 localStorage 操作
+const safeLocalStorage = {
+  getItem: (key: string): string | null => {
+    try {
+      return localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  },
+  setItem: (key: string, value: string) => {
+    try {
+      localStorage.setItem(key, value);
+    } catch {
+      // 忽略错误
+    }
+  },
+  removeItem: (key: string) => {
+    try {
+      localStorage.removeItem(key);
+    } catch {
+      // 忽略错误
+    }
+  },
+};
+
 export default function Admin() {
   const { isDark } = useTheme();
   const { isAuthenticated, user, logout } = useContext(AuthContext);
   const navigate = useNavigate();
-  
-  const [activeTab, setActiveTab] = useState<TabType>('dashboard');
+
+  // 从 localStorage 恢复标签页状态
+  const [activeTab, setActiveTab] = useState<TabType>(() => {
+    const savedTab = safeLocalStorage.getItem('admin_active_tab');
+    return (savedTab as TabType) || 'dashboard';
+  });
+
+  // 使用导航通知 hook
+  const {
+    notifications,
+    markAsViewed,
+    markAllAsViewed,
+    refreshNotifications,
+    isLoading: notificationsLoading,
+    totalUnreadCount,
+  } = useNavNotifications();
+
   const [isLoading, setIsLoading] = useState(true);
   const [users, setUsers] = useState<any[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
-  
+
   // 真实数据状态
   const [stats, setStats] = useState<DashboardStats>({
     totalUsers: 0,
@@ -63,14 +105,14 @@ export default function Admin() {
   const [pendingWorks, setPendingWorks] = useState<PendingWork[]>([]);
   const [commercialApplications, setCommercialApplications] = useState<any[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
-  
+
   // 活动管理状态
   const [events, setEvents] = useState<any[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
   const [eventSearch, setEventSearch] = useState('');
   const [eventStatusFilter, setEventStatusFilter] = useState('all');
   const [eventActiveTab, setEventActiveTab] = useState<'pending' | 'list'>('list'); // 活动管理标签页状态
-  
+
   // 创作者管理状态
   const [creators, setCreators] = useState<any[]>([]);
   const [creatorsLoading, setCreatorsLoading] = useState(false);
@@ -79,19 +121,32 @@ export default function Admin() {
   const [selectedCreator, setSelectedCreator] = useState<any>(null);
   const [showCreatorModal, setShowCreatorModal] = useState(false);
   const [creatorModalMode, setCreatorModalMode] = useState<'view' | 'edit'>('view');
-  
-  // 密码验证状态
-  const [isPasswordVerified, setIsPasswordVerified] = useState(false);
+
+  // 密码验证状态 - 从 sessionStorage 恢复（会话级别）
+  const [isPasswordVerified, setIsPasswordVerified] = useState(() => {
+    const verified = sessionStorage.getItem('admin_password_verified');
+    return verified === 'true';
+  });
   const [passwordInput, setPasswordInput] = useState('');
   const ADMIN_PASSWORD = 'jm2026';
-  
+
   // 页面加载完成后关闭 loading
   useEffect(() => {
     setTimeout(() => {
       setIsLoading(false);
     }, 800);
   }, []);
-  
+
+  // 保存标签页状态到 localStorage
+  useEffect(() => {
+    safeLocalStorage.setItem('admin_active_tab', activeTab);
+  }, [activeTab]);
+
+  // 保存密码验证状态到 sessionStorage
+  useEffect(() => {
+    sessionStorage.setItem('admin_password_verified', isPasswordVerified.toString());
+  }, [isPasswordVerified]);
+
   // 密码验证处理
   const handlePasswordSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -400,83 +455,27 @@ export default function Admin() {
     );
   }
   
+  const handleTabChange = (tabId: string) => {
+    // 如果切换到有通知的页面，标记为已查看
+    if (notifications[tabId as NavItemType]?.count > 0) {
+      markAsViewed(tabId as NavItemType);
+    }
+    setActiveTab(tabId as TabType);
+  };
+
   return (
     <div className={`min-h-screen flex ${isDark ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'}`}>
-      {/* 侧边栏 */}
-      <aside className={`w-64 h-screen ${isDark ? 'bg-gray-800' : 'bg-white'} border-r ${isDark ? 'border-gray-700' : 'border-gray-200'} fixed z-30 flex flex-col`}>
-        <div className="p-6 flex-shrink-0">
-          <div className="flex items-center space-x-1 mb-6">
-            <span className="text-xl font-bold text-red-600">AI</span>
-            <span className="text-xl font-bold">共创</span>
-            <span className="ml-2 bg-red-600 text-white text-xs px-2 py-0.5 rounded-full">管理端</span>
-          </div>
-        </div>
-        
-        {/* 导航菜单 - 可滚动区域 */}
-        <nav className="flex-1 overflow-y-auto px-4 scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-transparent min-h-0">
-          <ul className="space-y-1">
-             {[
-                { id: 'dashboard', name: '控制台', icon: 'tachometer-alt' },
-                { id: 'campaigns', name: '活动管理', icon: 'calendar-alt' },
-                { id: 'eventAudit', name: '活动审核', icon: 'clipboard-check' },
-                { id: 'communities', name: '社群管理', icon: 'users-cog' },
-                { id: 'contentManagement', name: '内容管理', icon: 'newspaper' },
-                { id: 'contentAudit', name: '内容审核', icon: 'file-alt' },
-                { id: 'analytics', name: '数据分析', icon: 'chart-bar' },
-                { id: 'adoption', name: '品牌管理', icon: 'star' },
-                { id: 'users', name: '用户管理', icon: 'users' },
-                { id: 'userAudit', name: '用户审计', icon: 'user-shield' },
-                { id: 'creators', name: '创作者管理', icon: 'trophy' },
-                { id: 'productManagement', name: '商品管理', icon: 'box' },
-                { id: 'orders', name: '订单管理', icon: 'shopping-cart' },
-                { id: 'feedback', name: '反馈管理', icon: 'comments' },
-                { id: 'permissions', name: '权限管理', icon: 'user-lock' },
-                { id: 'auditLog', name: '审计日志', icon: 'history' },
-                { id: 'notificationManagement', name: '消息通知', icon: 'bell' },
-                { id: 'systemMonitor', name: '系统监控', icon: 'server' },
-                { id: 'settings', name: '系统设置', icon: 'cog' },
-              ].map((item) => (
-              <li key={item.id}>
-                <button
-                  onClick={() => setActiveTab(item.id as TabType)}
-                  className={`w-full flex items-center px-3 py-2 rounded-xl transition-all ${
-                    activeTab === item.id
-                      ? 'bg-red-600 text-white'
-                      : isDark
-                        ? 'hover:bg-gray-700'
-                        : 'hover:bg-gray-100'
-                  }`}
-                >
-                  <i className={`fas fa-${item.icon} mr-2 w-4 text-center text-sm`}></i>
-                  <span className="text-sm">{item.name}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </nav>
-        
-        {/* 用户信息 */}
-        <div className="flex-shrink-0 p-4 border-t border-gray-200 dark:border-gray-700">
-          <div className="flex items-center">
-            <img 
-              src={user?.avatar || 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Admin%20avatar'} 
-              alt={user?.username || '管理员'} 
-              className="h-10 w-10 rounded-full mr-3"
-            />
-            <div className="flex-1">
-              <p className="font-medium">{user?.username}</p>
-              <p className="text-xs opacity-70">管理员</p>
-            </div>
-            <button 
-              onClick={handleLogout}
-              className="text-red-600 hover:text-red-700 transition-colors"
-              aria-label="退出登录"
-            >
-              <i className="fas fa-sign-out-alt"></i>
-            </button>
-          </div>
-        </div>
-      </aside>
+      {/* 侧边栏 - 使用新的 AdminSidebar 组件 */}
+      <AdminSidebar
+        isDark={isDark}
+        activeTab={activeTab}
+        onTabChange={handleTabChange}
+        user={user}
+        onLogout={handleLogout}
+        notifications={notifications}
+        onMarkAsViewed={markAsViewed}
+        totalUnreadCount={totalUnreadCount}
+      />
       
       {/* 主内容区 */}
       <main className="ml-64 flex-1 p-8 h-screen overflow-y-auto">
@@ -531,10 +530,47 @@ export default function Admin() {
               我的活动
             </button>
             
+            {/* 通知刷新按钮 */}
+            <button
+              onClick={refreshNotifications}
+              disabled={notificationsLoading}
+              className={`
+                p-2 rounded-lg flex items-center gap-2
+                ${isDark ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:bg-gray-100'}
+                transition-colors disabled:opacity-50
+              `}
+              title="刷新通知"
+            >
+              <i className={`fas fa-sync-alt ${notificationsLoading ? 'fa-spin' : ''}`}></i>
+              {totalUnreadCount > 0 && (
+                <span className="text-xs bg-red-500 text-white px-1.5 py-0.5 rounded-full">
+                  {totalUnreadCount}
+                </span>
+              )}
+            </button>
+
+            {/* 标记全部为已读 */}
+            {totalUnreadCount > 0 && (
+              <button
+                onClick={markAllAsViewed}
+                className={`
+                  p-2 rounded-lg text-sm
+                  ${isDark ? 'bg-gray-800 hover:bg-gray-700 text-gray-300' : 'bg-white hover:bg-gray-100 text-gray-600'}
+                  transition-colors
+                `}
+                title="标记全部为已读"
+              >
+                <i className="fas fa-check-double mr-1"></i>
+                全部已读
+              </button>
+            )}
+
             <div className="relative">
               <button className={`p-2 rounded-full ${isDark ? 'bg-gray-800' : 'bg-white'} transition-colors`}>
                 <i className="far fa-bell"></i>
-                <span className="absolute top-0 right-0 h-2 w-2 bg-red-500 rounded-full"></span>
+                {totalUnreadCount > 0 && (
+                  <span className="absolute top-0 right-0 h-2.5 w-2.5 bg-red-500 rounded-full animate-pulse"></span>
+                )}
               </button>
             </div>
           </div>

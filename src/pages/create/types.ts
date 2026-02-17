@@ -6,6 +6,7 @@ export interface GeneratedResult {
   score?: number;
   video?: string;
   type?: 'image' | 'video';
+  prompt?: string; // 作品的创意描述/提示词
   _tempFile?: File; // 本地临时文件，发布时上传
 }
 
@@ -164,4 +165,57 @@ export interface CreateState {
   optimizedPrompt: string;
   promptHistory: string[];
   isOptimizingPrompt: boolean;
+  
+  // 智能排版相关状态
+  smartLayoutConfig: SmartLayoutConfig;
+  isAnalyzingLayout: boolean;
+  layoutRecommendation: LayoutRecommendation | null;
+}
+
+// 智能排版配置
+export interface SmartLayoutConfig {
+  scenario: string; // 使用场景: product, festival, quote, event, brand, social
+  platform: string; // 平台: xiaohongshu, weibo, douyin, wechat, instagram, poster
+  template: string; // 模板: center, left-text, top-text, grid, masonry, fullscreen
+  textStyle: string; // 文字样式: minimal, elegant, bold, vertical, overlay, frame
+  customText: string; // 自定义文案
+  aspectRatio: string; // 宽高比
+  canvasSize: { width: number; height: number }; // 画布尺寸
+}
+
+// 排版推荐结果
+export interface LayoutRecommendation {
+  scenario: string;
+  platform: string;
+  template: string;
+  textStyleId: string; // 文字样式ID: minimal, elegant, bold, vertical, overlay, frame
+  aspectRatio: string;
+  canvasSize: { width: number; height: number };
+  layoutStyle: {
+    display: string;
+    flexDirection?: string;
+    alignItems?: string;
+    justifyContent?: string;
+    gridTemplateColumns?: string;
+    flexWrap?: string;
+  };
+  imageStyle: {
+    width: string;
+    height: string;
+    objectFit: string;
+    borderRadius: string;
+  };
+  textStyle: {
+    position: string;
+    fontSize: string;
+    fontWeight: string;
+    textAlign: string;
+    color: string;
+    backgroundColor: string;
+    padding: string;
+    borderRadius: string;
+    width?: string;
+    height?: string;
+  };
+  recommendation: string;
 }

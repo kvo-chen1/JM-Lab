@@ -70,6 +70,19 @@ export function useDraftAutoSave<T extends Record<string, any>>(
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isFirstLoadRef = useRef(true);
   
+  // 使用 ref 存储最新的 formData 和 currentStep，避免循环依赖
+  const formDataRef = useRef(formData);
+  const currentStepRef = useRef(currentStep);
+  
+  // 更新 ref 值
+  useEffect(() => {
+    formDataRef.current = formData;
+  }, [formData]);
+  
+  useEffect(() => {
+    currentStepRef.current = currentStep;
+  }, [currentStep]);
+  
   // 生成完整的存储 key
   const storageKeyRef = useRef(`event_draft_${key}`);
   const storageMetaKeyRef = useRef(`event_draft_${key}_meta`);
@@ -87,17 +100,20 @@ export function useDraftAutoSave<T extends Record<string, any>>(
     try {
       setSaveStatus('saving');
       
+      const currentFormData = formDataRef.current;
+      const currentStepValue = currentStepRef.current;
+      
       // 序列化前检查数据
       console.log('[useDraftAutoSave] 保存草稿前的数据:', {
-        hasTitle: !!formData.title,
-        title: formData.title,
-        hasDescription: !!formData.description,
-        currentStep,
+        hasTitle: !!currentFormData.title,
+        title: currentFormData.title,
+        hasDescription: !!currentFormData.description,
+        currentStep: currentStepValue,
       });
       
       const draftData: DraftData = {
-        formData,
-        currentStep,
+        formData: currentFormData,
+        currentStep: currentStepValue,
         timestamp: Date.now(),
         version,
       };
@@ -131,7 +147,7 @@ export function useDraftAutoSave<T extends Record<string, any>>(
       console.error('[useDraftAutoSave] 保存草稿失败:', error);
       setSaveStatus('error');
     }
-  }, [formData, currentStep, encrypt, version]);
+  }, [encrypt, version]);
 
   /**
    * 加载草稿
@@ -238,7 +254,8 @@ export function useDraftAutoSave<T extends Record<string, any>>(
     // 设置新的防抖定时器
     debounceTimerRef.current = setTimeout(() => {
       // 只有在有有效数据时才保存
-      const hasValidData = Object.values(formData).some(value => {
+      const currentFormData = formDataRef.current;
+      const hasValidData = Object.values(currentFormData).some(value => {
         if (Array.isArray(value)) return value.length > 0;
         if (typeof value === 'string') return value.trim().length > 0;
         if (typeof value === 'number') return true;
@@ -264,8 +281,8 @@ export function useDraftAutoSave<T extends Record<string, any>>(
     const handleBeforeUnload = () => {
       // 同步保存，确保数据不会丢失
       const draftData: DraftData = {
-        formData,
-        currentStep,
+        formData: formDataRef.current,
+        currentStep: currentStepRef.current,
         timestamp: Date.now(),
         version,
       };
@@ -284,7 +301,7 @@ export function useDraftAutoSave<T extends Record<string, any>>(
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [formData, currentStep, encrypt, version]);
+  }, [encrypt, version]);
 
   return {
     saveStatus,

@@ -1,0 +1,350 @@
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { supabase } from '@/lib/supabaseClient';
+
+export type NavItemType = 
+  | 'feedback'
+  | 'eventAudit'
+  | 'contentAudit'
+  | 'userAudit'
+  | 'orders'
+  | 'permissions'
+  | 'productManagement'
+  | 'notificationManagement'
+  | 'communities'
+  | 'campaigns'
+  | 'users'
+  | 'creators';
+
+export interface NavNotificationState {
+  count: number;
+  hasNew: boolean;
+  lastViewedAt: Date | null;
+}
+
+export type NavNotificationsMap = Record<NavItemType, NavNotificationState>;
+
+const initialState: NavNotificationState = {
+  count: 0,
+  hasNew: false,
+  lastViewedAt: null,
+};
+
+const STORAGE_KEY = 'admin_nav_notifications';
+
+export interface UseNavNotificationsReturn {
+  notifications: NavNotificationsMap;
+  markAsViewed: (navItem: NavItemType) => void;
+  markAllAsViewed: () => void;
+  refreshNotifications: () => Promise<void>;
+  isLoading: boolean;
+  lastUpdated: Date | null;
+  totalUnreadCount: number;
+}
+
+export const useNavNotifications = (): UseNavNotificationsReturn => {
+  const [notifications, setNotifications] = useState<NavNotificationsMap>(() => {
+    // 从 localStorage 恢复状态
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          return Object.keys(parsed).reduce((acc, key) => {
+            acc[key as NavItemType] = {
+              ...parsed[key],
+              lastViewedAt: parsed[key].lastViewedAt ? new Date(parsed[key].lastViewedAt) : null,
+            };
+            return acc;
+          }, {} as NavNotificationsMap);
+        }
+      } catch {
+        // 忽略解析错误
+      }
+    }
+    return {
+      feedback: { ...initialState },
+      eventAudit: { ...initialState },
+      contentAudit: { ...initialState },
+      userAudit: { ...initialState },
+      orders: { ...initialState },
+      permissions: { ...initialState },
+      productManagement: { ...initialState },
+      notificationManagement: { ...initialState },
+      communities: { ...initialState },
+      campaigns: { ...initialState },
+      users: { ...initialState },
+      creators: { ...initialState },
+    };
+  });
+
+  const [isLoading, setIsLoading] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const pollingRef = useRef<NodeJS.Timeout | null>(null);
+
+  // 保存到 localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(notifications));
+      } catch {
+        // 忽略存储错误
+      }
+    }
+  }, [notifications]);
+
+  // 获取各模块的待处理数量
+  const fetchNotificationCounts = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const newNotifications = { ...notifications };
+
+      // 并行获取各模块数据
+      const [
+        feedbackResult,
+        eventAuditResult,
+        contentAuditResult,
+        userAuditResult,
+        ordersResult,
+        communitiesResult,
+        usersResult,
+      ] = await Promise.allSettled([
+        // 反馈管理 - 待处理反馈
+        supabase
+          .from('user_feedback')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'pending'),
+        
+        // 活动审核 - 待审核活动
+        supabase
+          .from('events')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'pending'),
+        
+        // 内容审核 - 待审核内容
+        supabase
+          .from('content_moderation')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'pending'),
+        
+        // 用户审计 - 异常行为记录
+        supabase
+          .from('user_audit_logs')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'pending_review'),
+        
+        // 订单管理 - 待处理订单
+        supabase
+          .from('orders')
+          .select('id', { count: 'exact', head: true })
+          .in('status', ['pending', 'processing']),
+        
+        // 社群管理 - 待审核加入请求
+        supabase
+          .from('community_join_requests')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'pending'),
+        
+        // 用户管理 - 待审核用户
+        supabase
+          .from('profiles')
+          .select('id', { count: 'exact', head: true })
+          .eq('verification_status', 'pending'),
+      ]);
+
+      // 处理反馈管理结果
+      if (feedbackResult.status === 'fulfilled' && feedbackResult.value.count !== null) {
+        const count = feedbackResult.value.count;
+        newNotifications.feedback = {
+          ...newNotifications.feedback,
+          count,
+          hasNew: count > 0 && (!newNotifications.feedback.lastViewedAt || 
+            Date.now() - newNotifications.feedback.lastViewedAt.getTime() < 300000),
+        };
+      }
+
+      // 处理活动审核结果
+      if (eventAuditResult.status === 'fulfilled' && eventAuditResult.value.count !== null) {
+        const count = eventAuditResult.value.count;
+        newNotifications.eventAudit = {
+          ...newNotifications.eventAudit,
+          count,
+          hasNew: count > 0 && (!newNotifications.eventAudit.lastViewedAt || 
+            Date.now() - newNotifications.eventAudit.lastViewedAt.getTime() < 300000),
+        };
+      }
+
+      // 处理内容审核结果
+      if (contentAuditResult.status === 'fulfilled' && contentAuditResult.value.count !== null) {
+        const count = contentAuditResult.value.count;
+        newNotifications.contentAudit = {
+          ...newNotifications.contentAudit,
+          count,
+          hasNew: count > 0 && (!newNotifications.contentAudit.lastViewedAt || 
+            Date.now() - newNotifications.contentAudit.lastViewedAt.getTime() < 300000),
+        };
+      }
+
+      // 处理用户审计结果
+      if (userAuditResult.status === 'fulfilled' && userAuditResult.value.count !== null) {
+        const count = userAuditResult.value.count;
+        newNotifications.userAudit = {
+          ...newNotifications.userAudit,
+          count,
+          hasNew: count > 0 && (!newNotifications.userAudit.lastViewedAt || 
+            Date.now() - newNotifications.userAudit.lastViewedAt.getTime() < 300000),
+        };
+      }
+
+      // 处理订单管理结果
+      if (ordersResult.status === 'fulfilled' && ordersResult.value.count !== null) {
+        const count = ordersResult.value.count;
+        newNotifications.orders = {
+          ...newNotifications.orders,
+          count,
+          hasNew: count > 0 && (!newNotifications.orders.lastViewedAt || 
+            Date.now() - newNotifications.orders.lastViewedAt.getTime() < 300000),
+        };
+      }
+
+      // 处理社群管理结果
+      if (communitiesResult.status === 'fulfilled' && communitiesResult.value.count !== null) {
+        const count = communitiesResult.value.count;
+        newNotifications.communities = {
+          ...newNotifications.communities,
+          count,
+          hasNew: count > 0 && (!newNotifications.communities.lastViewedAt || 
+            Date.now() - newNotifications.communities.lastViewedAt.getTime() < 300000),
+        };
+      }
+
+      // 处理用户管理结果
+      if (usersResult.status === 'fulfilled' && usersResult.value.count !== null) {
+        const count = usersResult.value.count;
+        newNotifications.users = {
+          ...newNotifications.users,
+          count,
+          hasNew: count > 0 && (!newNotifications.users.lastViewedAt || 
+            Date.now() - newNotifications.users.lastViewedAt.getTime() < 300000),
+        };
+      }
+
+      setNotifications(newNotifications);
+      setLastUpdated(new Date());
+    } catch (error) {
+      console.error('获取通知数量失败:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  // 标记某个导航项为已查看
+  const markAsViewed = useCallback((navItem: NavItemType) => {
+    setNotifications((prev) => ({
+      ...prev,
+      [navItem]: {
+        ...prev[navItem],
+        hasNew: false,
+        lastViewedAt: new Date(),
+      },
+    }));
+  }, []);
+
+  // 标记所有为已查看
+  const markAllAsViewed = useCallback(() => {
+    setNotifications((prev) => {
+      const newState = { ...prev };
+      Object.keys(newState).forEach((key) => {
+        newState[key as NavItemType] = {
+          ...newState[key as NavItemType],
+          hasNew: false,
+          lastViewedAt: new Date(),
+        };
+      });
+      return newState;
+    });
+  }, []);
+
+  // 设置实时订阅
+  useEffect(() => {
+    // 初始加载
+    fetchNotificationCounts();
+
+    // 设置轮询（每30秒刷新一次）
+    pollingRef.current = setInterval(() => {
+      fetchNotificationCounts();
+    }, 30000);
+
+    // 设置 Supabase 实时订阅
+    const subscriptions: (() => void)[] = [];
+
+    // 订阅反馈表变化
+    const feedbackSubscription = supabase
+      .channel('feedback_changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'user_feedback' },
+        () => fetchNotificationCounts()
+      )
+      .subscribe();
+    subscriptions.push(() => feedbackSubscription.unsubscribe());
+
+    // 订阅活动表变化
+    const eventsSubscription = supabase
+      .channel('events_changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'events' },
+        () => fetchNotificationCounts()
+      )
+      .subscribe();
+    subscriptions.push(() => eventsSubscription.unsubscribe());
+
+    // 订阅内容审核表变化
+    const contentSubscription = supabase
+      .channel('content_changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'content_moderation' },
+        () => fetchNotificationCounts()
+      )
+      .subscribe();
+    subscriptions.push(() => contentSubscription.unsubscribe());
+
+    // 订阅订单表变化
+    const ordersSubscription = supabase
+      .channel('orders_changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'orders' },
+        () => fetchNotificationCounts()
+      )
+      .subscribe();
+    subscriptions.push(() => ordersSubscription.unsubscribe());
+
+    // 清理函数
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+      }
+      subscriptions.forEach((unsubscribe) => unsubscribe());
+    };
+  }, [fetchNotificationCounts]);
+
+  // 计算总未读数
+  const totalUnreadCount = Object.values(notifications).reduce(
+    (sum, item) => sum + (item.hasNew ? item.count : 0),
+    0
+  );
+
+  return {
+    notifications,
+    markAsViewed,
+    markAllAsViewed,
+    refreshNotifications: fetchNotificationCounts,
+    isLoading,
+    lastUpdated,
+    totalUnreadCount,
+  };
+};
+
+export default useNavNotifications;

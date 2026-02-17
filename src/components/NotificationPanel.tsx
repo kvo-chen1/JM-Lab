@@ -15,6 +15,54 @@ export interface Notification {
   sound?: boolean;
 }
 
+// 标记通知为已读 - 使用后端 API
+const markNotificationAsRead = async (notificationId: string): Promise<boolean> => {
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) return false;
+
+    const response = await fetch(`/api/notifications/${notificationId}/read`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (response.ok) {
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error('标记通知已读失败:', error);
+    return false;
+  }
+};
+
+// 标记所有通知为已读 - 使用后端 API
+const markAllNotificationsAsRead = async (): Promise<boolean> => {
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) return false;
+
+    const response = await fetch('/api/notifications/read-all', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (response.ok) {
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error('标记所有通知已读失败:', error);
+    return false;
+  }
+};
+
 export interface NotificationSettings {
   enableSound: boolean;
   enableDesktop: boolean;
@@ -93,7 +141,10 @@ export default function NotificationPanel({
           <div className="flex items-center space-x-1">
              <button
               className={`p-1.5 rounded-lg transition-colors ${isDark ? 'text-gray-400 hover:text-white hover:bg-gray-700' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'}`}
-              onClick={() => setNotifications(prev => prev.map(n => ({ ...n, read: true })))}
+              onClick={async () => {
+                setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+                await markAllNotificationsAsRead();
+              }}
               title={t('header.markAllAsRead')}
             >
               <i className="fas fa-check-double text-xs"></i>
@@ -153,8 +204,13 @@ export default function NotificationPanel({
           filteredNotifications.map(n => (
             <li key={n.id} className={`border-b last:border-0 ${isDark ? 'border-gray-800' : 'border-gray-50'}`}>
               <button
-                onClick={() => {
+                onClick={async () => {
+                  // 先更新本地状态
                   setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, read: true } : x));
+                  // 调用 API 标记为已读
+                  if (!n.read) {
+                    await markNotificationAsRead(n.id);
+                  }
                   if (n.actionUrl) {
                     navigate(n.actionUrl);
                     onClose();

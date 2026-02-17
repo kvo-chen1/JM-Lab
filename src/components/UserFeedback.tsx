@@ -3,10 +3,10 @@ import { motion } from 'framer-motion'
 import { toast } from 'sonner'
 import { useTheme } from '@/hooks/useTheme'
 import { AuthContext } from '@/contexts/authContext'
-import ticketService from '@/services/ticketService'
+import { feedbackService, type FeedbackType } from '@/services/feedbackService'
 
-// 反馈类型定义
-export type FeedbackType = 'bug' | 'feature' | 'suggestion' | 'other'
+// 反馈类型定义（复用 feedbackService 中的类型）
+export type { FeedbackType }
 
 // 反馈表单数据类型
 export interface FeedbackFormData {
@@ -15,7 +15,7 @@ export interface FeedbackFormData {
   description: string
   email: string
   screenshot?: string
-  priority: 'low' | 'medium' | 'high'
+  priority: 'low' | 'normal' | 'high' | 'urgent'
 }
 
 interface UserFeedbackProps {
@@ -33,7 +33,7 @@ const UserFeedback: React.FC<UserFeedbackProps> = ({ isOpen, onClose }) => {
     title: '',
     description: '',
     email: '',
-    priority: 'medium'
+    priority: 'normal'
   })
   
   // 提交状态
@@ -88,47 +88,42 @@ const UserFeedback: React.FC<UserFeedbackProps> = ({ isOpen, onClose }) => {
   // 表单提交处理
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     // 验证表单
     if (!validateForm()) {
       return
     }
-    
+
     setIsSubmitting(true)
-    
+
     try {
-      // 模拟API请求
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      // 创建工单
-      const ticket = ticketService.createTicket({
-        userId: user?.id || `anonymous-${Date.now()}`,
-        username: user?.username || '匿名用户',
-        email: formData.email,
+      console.log('[UserFeedback] 开始提交反馈:', formData)
+      // 提交反馈到数据库
+      const result = await feedbackService.submitFeedback({
         type: formData.type,
         title: formData.title,
-        description: formData.description,
-        screenshot: formData.screenshot,
-        status: 'pending',
-        priority: formData.priority as any
+        content: formData.description,
+        contact_info: formData.email,
+        contact_type: 'email',
+        screenshots: formData.screenshot ? [formData.screenshot] : [],
+        page_url: window.location.href,
+        user_id: user?.id || null
       })
-      
-      // 实际项目中这里应该调用API提交反馈
-      console.log('创建工单:', ticket)
-      
+      console.log('[UserFeedback] 提交成功:', result)
+
       // 显示成功提示
       toast.success('感谢您的反馈！我们会尽快处理。')
-      
+
       // 关闭反馈表单
       onClose()
-      
+
       // 重置表单
       setFormData({
         type: 'bug',
         title: '',
         description: '',
         email: '',
-        priority: 'medium'
+        priority: 'normal'
       })
     } catch (error) {
       console.error('提交反馈失败:', error)
@@ -141,19 +136,21 @@ const UserFeedback: React.FC<UserFeedbackProps> = ({ isOpen, onClose }) => {
   // 如果表单未打开，返回null
   if (!isOpen) return null
   
-  // 反馈类型选项
+  // 反馈类型选项（必须与数据库 user_feedbacks 表的 type 字段一致）
   const feedbackTypeOptions = [
-    { value: 'bug', label: 'Bug报告' },
-    { value: 'feature', label: '功能请求' },
-    { value: 'suggestion', label: '建议' },
+    { value: 'bug', label: '功能异常' },
+    { value: 'feature', label: '功能建议' },
+    { value: 'complaint', label: '投诉建议' },
+    { value: 'inquiry', label: '咨询问题' },
     { value: 'other', label: '其他' }
   ]
   
   // 优先级选项
   const priorityOptions = [
     { value: 'low', label: '低' },
-    { value: 'medium', label: '中' },
-    { value: 'high', label: '高' }
+    { value: 'normal', label: '普通' },
+    { value: 'high', label: '高' },
+    { value: 'urgent', label: '紧急' }
   ]
   
   return (

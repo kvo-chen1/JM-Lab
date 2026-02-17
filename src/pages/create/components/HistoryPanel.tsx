@@ -1,17 +1,20 @@
 import { useEffect, useState, useContext } from 'react';
 import { createPortal } from 'react-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useCreateStore } from '@/pages/create/hooks/useCreateStore';
 import { useTheme } from '@/hooks/useTheme';
 import { aiReviewService } from '@/services/aiReviewService';
 import { AuthContext } from '@/contexts/authContext';
+import { toast } from 'sonner';
 
 export default function HistoryPanel({ onClose }: { onClose: () => void }) {
   const { isDark } = useTheme();
   const { user } = useContext(AuthContext);
+  const generatedResults = useCreateStore((state) => state.generatedResults);
   const setGeneratedResults = useCreateStore((state) => state.setGeneratedResults);
   const setSelectedResult = useCreateStore((state) => state.setSelectedResult);
   const setPrompt = useCreateStore((state) => state.setPrompt);
+  const [addingId, setAddingId] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<any[]>([]);
   const [history, setHistory] = useState<any[]>([]);
   const [aiReviews, setAiReviews] = useState<Array<{
@@ -90,21 +93,45 @@ export default function HistoryPanel({ onClose }: { onClose: () => void }) {
 
 
 
-  const handleSelectHistory = (historyItem: any) => {
-    // 从历史记录中恢复创作
-    const result = {
-      id: Date.now(),
-      thumbnail: historyItem.thumbnail,
-      video: historyItem.video,
-      type: historyItem.type || 'image',
-      score: 80,
-    };
-    setGeneratedResults([result]);
-    setSelectedResult(result.id);
-    if (historyItem.prompt) {
-      setPrompt(historyItem.prompt);
+  const handleSelectHistory = async (historyItem: any) => {
+    // 检查是否已存在相同的作品
+    const isDuplicate = generatedResults.some(
+      r => r.thumbnail === historyItem.thumbnail
+    );
+    if (isDuplicate) {
+      toast.info('该作品已在缩略框中');
+      return;
     }
-    onClose();
+
+    setAddingId(historyItem.id);
+
+    try {
+      // 从历史记录中恢复创作并添加到现有数组
+      const newResult = {
+        id: Date.now(),
+        thumbnail: historyItem.thumbnail,
+        video: historyItem.video,
+        type: historyItem.type || 'image',
+        score: historyItem.score || 80,
+        prompt: historyItem.prompt || '',
+        timestamp: historyItem.timestamp,
+      };
+
+      // 添加到现有数组而不是替换
+      const updatedResults = [...generatedResults, newResult];
+      setGeneratedResults(updatedResults);
+      setSelectedResult(newResult.id);
+
+      if (historyItem.prompt) {
+        setPrompt(historyItem.prompt);
+      }
+
+      toast.success('作品已添加到缩略框');
+    } catch (error) {
+      toast.error('添加作品失败，请重试');
+    } finally {
+      setAddingId(null);
+    }
   };
 
   const handleClearHistory = () => {
@@ -235,71 +262,119 @@ export default function HistoryPanel({ onClose }: { onClose: () => void }) {
                     <i className="fas fa-trash-alt mr-1"></i>清空历史
                   </button>
                 </div>
-                {history.map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => handleSelectHistory(item)}
-                    className={`w-full p-3 rounded-xl border flex gap-3 transition-all text-left ${isDark ? 'bg-gray-800 border-gray-700 hover:border-gray-600' : 'bg-gray-50 border-gray-200 hover:border-gray-300'}`}
-                  >
-                    <div className="relative w-24 h-24 flex-shrink-0 rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
-                      {item.type === 'video' || item.video ? (
-                        <>
-                          {/* 对于视频，直接显示视频播放器 */}
-                          {item.video ? (
-                            <video 
-                              src={item.video}
-                              className="w-full h-full object-cover absolute inset-0"
-                              preload="metadata"
-                              muted
-                              playsInline
-                              onMouseEnter={(e) => (e.target as HTMLVideoElement).play()}
-                              onMouseLeave={(e) => (e.target as HTMLVideoElement).pause()}
-                            />
-                          ) : item.thumbnail ? (
-                            <img 
-                              src={item.thumbnail} 
-                              alt="" 
-                              className="w-full h-full object-cover absolute inset-0"
-                            />
-                          ) : null}
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/20 z-10 pointer-events-none">
-                            <i className="fas fa-play-circle text-white text-2xl"></i>
+                <AnimatePresence>
+                  {history.map((item, index) => (
+                    <motion.button
+                      key={item.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, x: -100 }}
+                      transition={{ duration: 0.3, delay: index * 0.05 }}
+                      onClick={() => handleSelectHistory(item)}
+                      disabled={addingId === item.id}
+                      className={`w-full p-3 rounded-xl border flex gap-3 transition-all text-left relative overflow-hidden ${
+                        isDark 
+                          ? 'bg-gray-800 border-gray-700 hover:border-blue-500 hover:bg-gray-750' 
+                          : 'bg-gray-50 border-gray-200 hover:border-blue-400 hover:bg-blue-50/50'
+                      } ${addingId === item.id ? 'opacity-70 cursor-wait' : ''}`}
+                    >
+                      {/* 加载遮罩 */}
+                      {addingId === item.id && (
+                        <motion.div
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          className="absolute inset-0 bg-black/20 dark:bg-black/40 flex items-center justify-center z-20"
+                        >
+                          <div className="flex flex-col items-center">
+                            <div className="w-8 h-8 border-3 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                            <span className="text-xs text-blue-500 mt-2 font-medium">添加中...</span>
                           </div>
-                          <div className="absolute bottom-1 right-1 z-10 pointer-events-none">
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-black/60 text-white">
-                              <i className="fas fa-video mr-1"></i>视频
-                            </span>
-                          </div>
-                        </>
-                      ) : (
-                        <img 
-                          src={item.thumbnail || 'https://via.placeholder.com/150?text=No+Image'} 
-                          alt="" 
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = 'https://via.placeholder.com/150?text=No+Image';
-                          }}
-                        />
+                        </motion.div>
                       )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-xs line-clamp-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{item.prompt || '无描述'}</p>
-                      {item.stylePreset && (
-                        <span className={`inline-block mt-1 text-[10px] px-2 py-0.5 rounded-full ${isDark ? 'bg-blue-900/30 text-blue-400' : 'bg-blue-100 text-blue-600'}`}>
-                          {item.stylePreset}
-                        </span>
+
+                      {/* 添加成功提示 */}
+                      {generatedResults.some(r => r.thumbnail === item.thumbnail) && (
+                        <motion.div
+                          initial={{ opacity: 0, scale: 0 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          className="absolute top-2 right-2 w-6 h-6 rounded-full bg-green-500 text-white flex items-center justify-center z-10"
+                        >
+                          <i className="fas fa-check text-xs"></i>
+                        </motion.div>
                       )}
-                      {(item.type === 'video' || item.video) && (
-                        <span className={`inline-block mt-1 ml-1 text-[10px] px-2 py-0.5 rounded-full ${isDark ? 'bg-purple-900/30 text-purple-400' : 'bg-purple-100 text-purple-600'}`}>
-                          <i className="fas fa-video mr-1"></i>视频
-                        </span>
-                      )}
-                      <div className={`text-xs mt-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                        {new Date(item.timestamp).toLocaleString()}
+
+                      <div className="relative w-24 h-24 flex-shrink-0 rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-700 flex items-center justify-center group">
+                        {item.type === 'video' || item.video ? (
+                          <>
+                            {/* 对于视频，直接显示视频播放器 */}
+                            {item.video ? (
+                              <video 
+                                src={item.video}
+                                className="w-full h-full object-cover absolute inset-0 transition-transform duration-300 group-hover:scale-110"
+                                preload="metadata"
+                                muted
+                                playsInline
+                                onMouseEnter={(e) => (e.target as HTMLVideoElement).play()}
+                                onMouseLeave={(e) => (e.target as HTMLVideoElement).pause()}
+                              />
+                            ) : item.thumbnail ? (
+                              <img 
+                                src={item.thumbnail} 
+                                alt="" 
+                                className="w-full h-full object-cover absolute inset-0 transition-transform duration-300 group-hover:scale-110"
+                              />
+                            ) : null}
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/20 z-10 pointer-events-none">
+                              <i className="fas fa-play-circle text-white text-2xl"></i>
+                            </div>
+                            <div className="absolute bottom-1 right-1 z-10 pointer-events-none">
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-black/60 text-white">
+                                <i className="fas fa-video mr-1"></i>视频
+                              </span>
+                            </div>
+                          </>
+                        ) : (
+                          <img 
+                            src={item.thumbnail || 'https://via.placeholder.com/150?text=No+Image'} 
+                            alt="" 
+                            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = 'https://via.placeholder.com/150?text=No+Image';
+                            }}
+                          />
+                        )}
+
+                        {/* 悬浮提示 */}
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all duration-300 flex items-center justify-center opacity-0 group-hover:opacity-100">
+                          <span className="text-white text-xs font-medium px-2 py-1 rounded-full bg-blue-500/80">
+                            <i className="fas fa-plus mr-1"></i>点击添加
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                  </button>
-                ))}
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-xs line-clamp-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{item.prompt || '无描述'}</p>
+                        {item.stylePreset && (
+                          <span className={`inline-block mt-1 text-[10px] px-2 py-0.5 rounded-full ${isDark ? 'bg-blue-900/30 text-blue-400' : 'bg-blue-100 text-blue-600'}`}>
+                            {item.stylePreset}
+                          </span>
+                        )}
+                        {(item.type === 'video' || item.video) && (
+                          <span className={`inline-block mt-1 ml-1 text-[10px] px-2 py-0.5 rounded-full ${isDark ? 'bg-purple-900/30 text-purple-400' : 'bg-purple-100 text-purple-600'}`}>
+                            <i className="fas fa-video mr-1"></i>视频
+                          </span>
+                        )}
+                        {item.score && (
+                          <span className={`inline-block mt-1 ml-1 text-[10px] px-2 py-0.5 rounded-full ${isDark ? 'bg-yellow-900/30 text-yellow-400' : 'bg-yellow-100 text-yellow-600'}`}>
+                            <i className="fas fa-star mr-1"></i>{item.score}分
+                          </span>
+                        )}
+                        <div className={`text-xs mt-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                          {new Date(item.timestamp).toLocaleString()}
+                        </div>
+                      </div>
+                    </motion.button>
+                  ))}
+                </AnimatePresence>
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center h-40 text-gray-400">

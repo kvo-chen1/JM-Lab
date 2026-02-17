@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useNavigate } from 'react-router-dom';
@@ -36,6 +36,8 @@ import {
   MessageSquare,
   Calendar,
   Layers,
+  AlertCircle,
+  RefreshCw,
 } from 'lucide-react';
 
 // 分类配置
@@ -57,9 +59,11 @@ export default function UserCollection() {
   const [activeFilter, setActiveFilter] = useState<CollectionType | 'all'>('all');
   const [sortOption, setSortOption] = useState<SortOption>(SortOption.NEWEST);
   const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.GRID);
+  const [totalBookmarks, setTotalBookmarks] = useState(0);
+  const [totalLikes, setTotalLikes] = useState(0);
 
   // 数据获取
-  const { items, isLoading, hasMore, total, refetch, loadMore } = useCollections({
+  const { items, isLoading, hasMore, total, refetch, loadMore, error } = useCollections({
     type: activeFilter,
     sort: sortOption,
     tab: activeTab,
@@ -68,8 +72,29 @@ export default function UserCollection() {
 
   const { stats, isLoading: statsLoading, refetch: refetchStats } = useCollectionStats();
 
+  // 获取收藏和点赞的总数
+  useEffect(() => {
+    const fetchCounts = async () => {
+      if (!user?.id) return;
+      try {
+        console.log('[UserCollection] Fetching bookmark and like counts...');
+        const { collectionService } = await import('@/services/collectionService');
+        const [bookmarks, likes] = await Promise.all([
+          collectionService.getBookmarkedSquareWorks(),
+          collectionService.getLikedSquareWorks()
+        ]);
+        console.log('[UserCollection] Bookmark count:', bookmarks.length, 'Like count:', likes.length);
+        setTotalBookmarks(bookmarks.length);
+        setTotalLikes(likes.length);
+      } catch (error) {
+        console.error('获取收藏/点赞数量失败:', error);
+      }
+    };
+    fetchCounts();
+  }, [user?.id]);
+
   // 操作
-  const { toggleBookmark, toggleLike } = useCollectionActions();
+  const { toggleBookmark, toggleLike, removeBookmark, removeLike } = useCollectionActions();
 
   // 检查登录状态
   useEffect(() => {
@@ -78,50 +103,89 @@ export default function UserCollection() {
     }
   }, [isAuthenticated, user, authLoading, navigate]);
 
-  // 处理收藏切换
-  const handleToggleBookmark = useCallback(
+  // 处理取消收藏（专门用于收藏页面）
+  const handleRemoveBookmark = useCallback(
     async (id: string, type: CollectionType) => {
-      const result = await toggleBookmark(id, type);
-      if (result) {
-        // 如果在收藏标签页且取消收藏，需要刷新列表
-        if (activeTab === TabType.BOOKMARKS && !result) {
-          refetch();
-        }
+      const result = await removeBookmark(id, type);
+      // result 为 false 表示取消收藏成功
+      if (!result) {
+        refetch();
         refetchStats();
       }
     },
-    [toggleBookmark, activeTab, refetch, refetchStats]
+    [removeBookmark, refetch, refetchStats]
   );
 
-  // 处理点赞切换
+  // 处理取消点赞（专门用于点赞页面）
+  const handleRemoveLike = useCallback(
+    async (id: string, type: CollectionType) => {
+      const result = await removeLike(id, type);
+      // result 为 false 表示取消点赞成功
+      if (!result) {
+        refetch();
+        refetchStats();
+      }
+    },
+    [removeLike, refetch, refetchStats]
+  );
+
+  // 处理收藏切换（用于卡片内部的点赞按钮）
+  const handleToggleBookmark = useCallback(
+    async (id: string, type: CollectionType) => {
+      const result = await toggleBookmark(id, type);
+      if (result !== undefined) {
+        refetchStats();
+      }
+    },
+    [toggleBookmark, refetchStats]
+  );
+
+  // 处理点赞切换（用于卡片内部的点赞按钮）
   const handleToggleLike = useCallback(
     async (id: string, type: CollectionType) => {
       const result = await toggleLike(id, type);
       if (result !== undefined) {
-        // 如果在点赞标签页且取消点赞，需要刷新列表
-        if (activeTab === TabType.LIKES && !result) {
-          refetch();
-        }
         refetchStats();
       }
     },
-    [toggleLike, activeTab, refetch, refetchStats]
+    [toggleLike, refetchStats]
   );
 
-  // 构建分类数据（带数量）
-  const categories: CategoryFilter[] = categoryConfig.map((cat) => ({
-    ...cat,
-    count:
-      cat.id === 'all'
-        ? stats.total
-        : cat.id === CollectionType.SQUARE_WORK
-          ? stats.squareWork
-          : cat.id === CollectionType.COMMUNITY_POST
-            ? stats.communityPost
-            : cat.id === CollectionType.ACTIVITY
-              ? stats.activity
-              : stats.template,
-  }));
+  // 构建分类数据（带数量）- 使用 useMemo 优化，单次遍历计算
+  const categories: CategoryFilter[] = useMemo(() => {
+    const counts: Record<string, number> = {
+      all: items.length,
+      [CollectionType.SQUARE_WORK]: 0,
+      [CollectionType.COMMUNITY_POST]: 0,
+      [CollectionType.ACTIVITY]: 0,
+      [CollectionType.TEMPLATE]: 0,
+    };
+
+    items.forEach((item) => {
+      if (counts[item.type] !== undefined) {
+        counts[item.type]++;
+      }
+    });
+
+    return categoryConfig.map((cat) => ({
+      ...cat,
+      count: counts[cat.id] ?? 0,
+    }));
+  }, [items]);
+
+  // 缓存右侧统计面板数据 - 复用 categories 的计算结果
+  const collectionStatsData = useMemo(
+    () => ({
+      ...stats,
+      total: activeTab === TabType.BOOKMARKS ? items.length : stats.total,
+      totalLikes: activeTab === TabType.LIKES ? items.length : stats.totalLikes,
+      squareWork: categories.find((c) => c.id === CollectionType.SQUARE_WORK)?.count ?? 0,
+      communityPost: categories.find((c) => c.id === CollectionType.COMMUNITY_POST)?.count ?? 0,
+      activity: categories.find((c) => c.id === CollectionType.ACTIVITY)?.count ?? 0,
+      template: categories.find((c) => c.id === CollectionType.TEMPLATE)?.count ?? 0,
+    }),
+    [stats, activeTab, items.length, categories]
+  );
 
   // 加载状态
   if (authLoading) {
@@ -133,6 +197,42 @@ export default function UserCollection() {
               isDark ? 'border-blue-500' : 'border-blue-600'
             }`} />
             <p className={isDark ? 'text-gray-400' : 'text-gray-600'}>检查登录状态...</p>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  // 错误状态
+  if (error) {
+    return (
+      <main className="container mx-auto px-4 py-8">
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="text-center max-w-md">
+            <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${
+              isDark ? 'bg-red-500/20' : 'bg-red-100'
+            }`}>
+              <AlertCircle className={`w-8 h-8 ${isDark ? 'text-red-400' : 'text-red-600'}`} />
+            </div>
+            <h2 className={`text-xl font-semibold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+              加载失败
+            </h2>
+            <p className={`mb-6 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+              {error.message || '获取收藏数据时发生错误，请稍后重试'}
+            </p>
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => refetch()}
+              className={`inline-flex items-center gap-2 px-6 py-3 rounded-xl font-medium transition-colors ${
+                isDark
+                  ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                  : 'bg-blue-600 hover:bg-blue-700 text-white'
+              }`}
+            >
+              <RefreshCw className="w-4 h-4" />
+              重新加载
+            </motion.button>
           </div>
         </div>
       </main>
@@ -176,7 +276,7 @@ export default function UserCollection() {
                   <div>
                     <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>总收藏</p>
                     <p className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                      {statsLoading ? '-' : stats.total}
+                      {isLoading ? '-' : totalBookmarks}
                     </p>
                   </div>
                 </motion.div>
@@ -195,7 +295,7 @@ export default function UserCollection() {
                   <div>
                     <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>总点赞</p>
                     <p className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                      {statsLoading ? '-' : stats.totalLikes}
+                      {isLoading ? '-' : totalLikes}
                     </p>
                   </div>
                 </motion.div>
@@ -225,7 +325,7 @@ export default function UserCollection() {
                     ? 'bg-white/20'
                     : isDark ? 'bg-gray-700' : 'bg-gray-100'
                 }`}>
-                  {stats.total}
+                  {activeTab === TabType.BOOKMARKS ? items.length : totalBookmarks}
                 </span>
               </motion.button>
 
@@ -250,7 +350,7 @@ export default function UserCollection() {
                     ? 'bg-white/20'
                     : isDark ? 'bg-gray-700' : 'bg-gray-100'
                 }`}>
-                  {stats.totalLikes}
+                  {activeTab === TabType.LIKES ? items.length : totalLikes}
                 </span>
               </motion.button>
             </div>
@@ -265,7 +365,10 @@ export default function UserCollection() {
           <CollectionSidebar
             activeFilter={activeFilter}
             onFilterChange={setActiveFilter}
-            stats={stats}
+            stats={{
+              total: activeTab === TabType.BOOKMARKS ? items.length : totalBookmarks,
+              totalLikes: activeTab === TabType.LIKES ? items.length : totalLikes,
+            }}
             categories={categories}
             activeTab={activeTab}
           />
@@ -306,8 +409,9 @@ export default function UserCollection() {
                   isLoading={isLoading}
                   hasMore={hasMore}
                   onLoadMore={loadMore}
-                  onToggleBookmark={handleToggleBookmark}
-                  onToggleLike={handleToggleLike}
+                  onToggleBookmark={activeTab === TabType.BOOKMARKS ? handleRemoveBookmark : handleToggleBookmark}
+                  onToggleLike={activeTab === TabType.LIKES ? handleRemoveLike : handleToggleLike}
+                  activeTab={activeTab}
                 />
               )}
             </AnimatePresence>
@@ -316,7 +420,11 @@ export default function UserCollection() {
           {/* 右侧边栏 */}
           <aside className="w-72 flex-shrink-0 hidden xl:block">
             <div className="sticky top-6 space-y-6">
-              <CollectionStats stats={stats} isLoading={statsLoading} activeTab={activeTab} />
+              <CollectionStats
+                stats={collectionStatsData}
+                isLoading={isLoading}
+                activeTab={activeTab}
+              />
 
               {/* 快速操作 */}
               <motion.div

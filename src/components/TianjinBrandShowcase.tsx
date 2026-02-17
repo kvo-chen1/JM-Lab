@@ -8,6 +8,7 @@ interface Brand {
   description: string;
   category: string;
   icon: string;
+  themeLabel: string;
 }
 
 const brands: Brand[] = [
@@ -16,76 +17,73 @@ const brands: Brand[] = [
     name: '泥人张',
     color: '#C21807',
     colorLight: '#E8453A',
-    description: '用于重要操作和强调',
+    description: '天津传统泥塑艺术，色彩浓烈饱满，体现民间工艺的热烈与生命力',
     category: '工艺美术',
-    icon: '🎨'
+    icon: '🎨',
+    themeLabel: '热烈红'
   },
   {
     id: 'yangliuqing',
     name: '杨柳青',
-    color: '#228B22',
-    colorLight: '#4CAF50',
-    description: '用于成功状态和生态主题',
+    color: '#2E5AAC',
+    colorLight: '#D4351C',
+    description: '天津杨柳青年画，石青配朱砂，半印半绘，色彩鲜艳明快',
     category: '年画艺术',
-    icon: '🖼️'
+    icon: '🖼️',
+    themeLabel: '石青朱砂'
   },
   {
     id: 'fengzhengwei',
     name: '风筝魏',
     color: '#87CEEB',
     colorLight: '#5DADE2',
-    description: '用于信息提示和链接',
+    description: '天津传统风筝技艺，天蓝色彩，轻盈飘逸，承载蓝天梦想',
     category: '传统技艺',
-    icon: '🪁'
+    icon: '🪁',
+    themeLabel: '天空蓝'
   },
   {
     id: 'guifaxiang',
     name: '桂发祥',
     color: '#C68E17',
     colorLight: '#E6B84D',
-    description: '用于VIP标识和会员等级',
+    description: '天津传统美食，金黄酥脆，象征富贵吉祥与美好生活的向往',
     category: '传统美食',
-    icon: '🥨'
+    icon: '🥨',
+    themeLabel: '富贵金'
   },
   {
     id: 'goubuli',
     name: '狗不理',
     color: '#8B4513',
     colorLight: '#A0522D',
-    description: '用于暖色调装饰',
+    description: '天津传统美食，温暖棕色调，体现老字号的厚重与传承',
     category: '传统美食',
-    icon: '🥟'
+    icon: '🥟',
+    themeLabel: '温暖棕'
   }
 ];
 
 export function TianjinBrandShowcase() {
   const [hoveredBrand, setHoveredBrand] = useState<string | null>(null);
-  const [copiedColor, setCopiedColor] = useState<string | null>(null);
-
-  const copyToClipboard = (color: string, brandId: string) => {
-    navigator.clipboard.writeText(color);
-    setCopiedColor(brandId);
-    setTimeout(() => setCopiedColor(null), 2000);
-  };
 
   return (
     <div className="space-y-4">
       <div className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-        点击色值可复制，悬停查看应用说明
+        融合天津传统老字号品牌色彩基因，体现城市文化底蕴
       </div>
-      
+
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {brands.map((brand) => {
           const isHovered = hoveredBrand === brand.id;
-          const isCopied = copiedColor === brand.id;
-          
+
           return (
             <div
               key={brand.id}
               className={`
-                relative p-4 rounded-xl border-2 transition-all duration-300 cursor-pointer
-                ${isHovered 
-                  ? 'border-[#1E5F8E] shadow-lg transform -translate-y-1' 
+                relative p-4 rounded-xl border-2 transition-all duration-300
+                ${isHovered
+                  ? 'shadow-lg transform -translate-y-1 border-gray-300 dark:border-gray-600'
                   : 'border-gray-200 dark:border-gray-700'
                 }
                 bg-white dark:bg-gray-800
@@ -94,80 +92,40 @@ export function TianjinBrandShowcase() {
               onMouseLeave={() => setHoveredBrand(null)}
             >
               {/* 顶部色条 */}
-              <div 
+              <div
                 className="absolute top-0 left-0 right-0 h-1.5 rounded-t-xl"
                 style={{ background: `linear-gradient(90deg, ${brand.color}, ${brand.colorLight})` }}
               />
-              
+
               {/* 品牌图标和名称 */}
               <div className="flex items-center gap-3 mb-3">
-                <div 
+                <div
                   className="w-12 h-12 rounded-full flex items-center justify-center text-2xl"
-                  style={{ 
+                  style={{
                     background: `linear-gradient(135deg, ${brand.color}20, ${brand.colorLight}20)`,
                     border: `2px solid ${brand.color}40`
                   }}
                 >
                   {brand.icon}
                 </div>
-                <div>
+                <div className="flex-1">
                   <h4 className="font-semibold text-gray-900 dark:text-gray-100">
                     {brand.name}
                   </h4>
                   <span className="text-xs text-gray-500 dark:text-gray-400">
-                    {brand.category}
+                    {brand.category} · {brand.themeLabel}
                   </span>
                 </div>
               </div>
-              
+
               {/* 描述 */}
-              <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
                 {brand.description}
               </p>
-              
-              {/* 色值展示 */}
-              <div className="space-y-2">
-                <button
-                  onClick={() => copyToClipboard(brand.color, brand.id)}
-                  className={`
-                    w-full px-3 py-2 rounded-lg text-sm font-mono transition-all duration-200
-                    flex items-center justify-between
-                    ${isCopied 
-                      ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' 
-                      : 'bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600'
-                    }
-                  `}
-                >
-                  <span className="flex items-center gap-2">
-                    <span 
-                      className="w-4 h-4 rounded-full border border-gray-300 dark:border-gray-600"
-                      style={{ backgroundColor: brand.color }}
-                    />
-                    {brand.color}
-                  </span>
-                  <span className="text-xs">
-                    {isCopied ? '✓ 已复制' : '复制'}
-                  </span>
-                </button>
-                
-                <button
-                  onClick={() => copyToClipboard(brand.colorLight, `${brand.id}-light`)}
-                  className="w-full px-3 py-2 rounded-lg text-sm font-mono bg-gray-50 hover:bg-gray-100 dark:bg-gray-700/50 dark:hover:bg-gray-600/50 transition-all duration-200 flex items-center justify-between"
-                >
-                  <span className="flex items-center gap-2">
-                    <span 
-                      className="w-4 h-4 rounded-full border border-gray-300 dark:border-gray-600"
-                      style={{ backgroundColor: brand.colorLight }}
-                    />
-                    {brand.colorLight}
-                  </span>
-                  <span className="text-xs text-gray-400">浅色</span>
-                </button>
-              </div>
-              
+
               {/* 悬停时的装饰效果 */}
               {isHovered && (
-                <div 
+                <div
                   className="absolute -bottom-1 -right-1 w-16 h-16 rounded-full opacity-10"
                   style={{ background: `radial-gradient(circle, ${brand.color}, transparent)` }}
                 />
@@ -176,7 +134,7 @@ export function TianjinBrandShowcase() {
           );
         })}
       </div>
-      
+
       {/* 应用示例 */}
       <div className="mt-6 p-4 rounded-xl bg-gradient-to-r from-[#1E5F8E]/5 to-[#A0522D]/5 border border-[#1E5F8E]/10">
         <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-3 flex items-center gap-2">
@@ -187,7 +145,7 @@ export function TianjinBrandShowcase() {
           <button className="px-4 py-2 rounded-lg text-white text-sm font-medium" style={{ backgroundColor: '#C21807' }}>
             泥人张红 - 主要按钮
           </button>
-          <button className="px-4 py-2 rounded-lg text-white text-sm font-medium" style={{ backgroundColor: '#228B22' }}>
+          <button className="px-4 py-2 rounded-lg text-white text-sm font-medium" style={{ backgroundColor: '#2E5AAC' }}>
             杨柳青绿 - 成功状态
           </button>
           <button className="px-4 py-2 rounded-lg text-white text-sm font-medium" style={{ backgroundColor: '#C68E17' }}>

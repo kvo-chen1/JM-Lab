@@ -82,6 +82,7 @@ interface PostDetailModalProps {
   onLike: (id: string) => void;
   onComment: (id: string, content: string) => Promise<void>;
   onShare?: (id: string) => void;
+  onBookmark?: (id: string) => void;
   loading?: boolean;
   error?: string | null;
   currentUser?: UserProfile | AuthUser | null;
@@ -95,6 +96,7 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
   onLike,
   onComment,
   onShare,
+  onBookmark,
   loading = false,
   error = null,
   currentUser,
@@ -259,7 +261,7 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
             if (onPostChange) {
               onPostChange(targetPost);
             } else {
-              window.location.href = `/square/${targetPost.id}`;
+              navigate(`/square/${targetPost.id}`, { replace: true });
             }
             setIsSwitchingPost(false);
           }, 300);
@@ -421,8 +423,10 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
     }
   };
 
-  // 分享功能
-  const handleShare = async () => {
+  // 收藏功能
+  const handleBookmark = async (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    console.log('[PostDetailModal] handleBookmark called, post:', post?.id, 'currentUser:', currentUser?.id);
     if (!post) return;
 
     try {
@@ -430,16 +434,65 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
         toast.error('请先登录');
         return;
       }
+
+      // 先更新本地状态，提供即时反馈
+      const newIsBookmarked = !post.isBookmarked;
+      console.log('[PostDetailModal] Toggling bookmark from', post.isBookmarked, 'to', newIsBookmarked);
+      if (onPostChange) {
+        onPostChange({ ...post, isBookmarked: newIsBookmarked });
+      }
+
+      // 调用API
       if (post.isBookmarked) {
-        await postsApi.unbookmarkPost(post.id, currentUser.id);
+        console.log('[PostDetailModal] Calling unbookmarkPost...');
+        const result = await postsApi.unbookmarkPost(post.id, currentUser.id);
+        console.log('[PostDetailModal] unbookmarkPost result:', result);
         toast.success('已取消收藏');
       } else {
-        await postsApi.bookmarkPost(post.id, currentUser.id);
+        console.log('[PostDetailModal] Calling bookmarkPost...');
+        const result = await postsApi.bookmarkPost(post.id, currentUser.id);
+        console.log('[PostDetailModal] bookmarkPost result:', result);
         toast.success('已添加到收藏');
       }
+
+      // 调用父组件的onBookmark回调
+      if (onBookmark) {
+        console.log('[PostDetailModal] Calling onBookmark callback...');
+        onBookmark(post.id);
+      }
     } catch (error: any) {
-      console.error('收藏失败:', error);
+      console.error('[PostDetailModal] 收藏失败:', error);
       toast.error('收藏失败');
+      // 恢复状态
+      if (onPostChange) {
+        onPostChange({ ...post, isBookmarked: post.isBookmarked });
+      }
+    }
+  };
+
+  // 分享功能
+  const handleShare = async (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    if (!post) return;
+
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: post.title,
+          text: post.content?.substring(0, 100) || '',
+          url: window.location.href,
+        });
+      } else {
+        // 复制链接到剪贴板
+        await navigator.clipboard.writeText(window.location.href);
+        toast.success('链接已复制到剪贴板');
+      }
+    } catch (error: any) {
+      console.error('分享失败:', error);
+      // 用户取消分享不显示错误
+      if (error.name !== 'AbortError') {
+        toast.error('分享失败');
+      }
     }
   };
 
@@ -543,7 +596,7 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
                   transition={{ duration: 0.3, ease: [0.25, 0.8, 0.25, 1] }}
                 >
                   {/* Left: Media Section (50-60% width) */}
-                  <div className="w-full md:w-[55%] bg-gray-50 dark:bg-black relative group">
+                  <div className="w-full md:w-[55%] bg-gray-50 dark:bg-black relative group md:self-stretch">
                     {/* 移动端返回按钮 */}
                     <button
                       onClick={onClose}
@@ -551,7 +604,7 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
                     >
                       <i className="fas fa-arrow-left"></i>
                     </button>
-                    <div className="relative w-full md:min-h-[400px] flex items-center justify-center" style={{ height: '75vh' }}>
+                    <div className="relative w-full h-full md:min-h-[400px] flex items-center justify-center">
                        {/* Image/Video */}
                        {(post.type === 'video' || post.category === 'video' || post.videoUrl) ? (
                          <div className="w-full h-full flex items-center justify-center">
@@ -628,14 +681,14 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
                          </div>
                        ) : (
                          <div 
-                          className="w-full h-full cursor-zoom-in bg-gray-100 dark:bg-gray-800 flex items-center justify-center overflow-hidden"
+                          className="w-full h-full cursor-zoom-in flex items-center justify-center overflow-hidden"
                           onClick={() => setIsImageFull(true)}
                         >
                           {post.thumbnail ? (
                             <LazyImage
                              src={post.thumbnail}
                              alt={post.title}
-                             className="w-full h-full object-cover md:object-contain"
+                             className="w-full h-full object-cover"
                              priority={true}
                              quality="high"
                              bare
@@ -646,7 +699,7 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
                                const target = e.target as HTMLImageElement;
                                const svg = `<svg width="600" height="400" xmlns="http://www.w3.org/2000/svg"><rect width="600" height="400" fill="#e5e7eb"/><text x="50%" y="50%" font-family="Arial" font-size="24" fill="#9ca3af" text-anchor="middle" dominant-baseline="middle">图片已过期</text></svg>`;
                                target.src = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
-                               target.style.objectFit = 'contain';
+                               target.style.objectFit = 'cover';
                              }}
                            />
                           ) : (
@@ -678,12 +731,13 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
                     {/* Header Actions - 桌面端 */}
                     <div className="hidden md:flex px-6 py-6 items-center justify-between sticky top-0 bg-white dark:bg-gray-900 z-10">
                       <div className="flex gap-2">
-                        <button className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                        <button type="button" className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
                           <i className="fas fa-ellipsis-h text-gray-700 dark:text-gray-300"></i>
                         </button>
                         <button
+                          type="button"
                           className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                          onClick={handleShare}
+                          onClick={(e) => handleShare(e)}
                           title="分享"
                         >
                           <i className="fas fa-share-alt text-gray-700 dark:hover:text-gray-300"></i>
@@ -691,7 +745,11 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
                       </div>
                       <div className="flex gap-3">
                          <button
-                           onClick={() => onLike(post.id)}
+                           type="button"
+                           onClick={(e) => {
+                             e.stopPropagation();
+                             onLike(post.id);
+                           }}
                            className={`px-5 py-2.5 rounded-full font-semibold text-sm transition-all ${
                              post.isLiked
                                ? 'bg-red-500 text-white hover:bg-red-600'
@@ -701,11 +759,12 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
                            {post.isLiked ? '已赞' : '点赞'}
                          </button>
                          <button
-                           onClick={handleShare}
-                           className={`px-5 py-2.5 rounded-full font-semibold text-sm transition-colors shadow-sm ${
+                           type="button"
+                           onClick={(e) => handleBookmark(e)}
+                           className={`px-5 py-2.5 rounded-full font-semibold text-sm transition-all shadow-sm ${
                              post.isBookmarked
-                               ? 'bg-gray-600 text-white hover:bg-gray-700'
-                               : 'bg-red-600 text-white hover:bg-red-700'
+                               ? 'bg-amber-500 text-white hover:bg-amber-600'
+                               : 'bg-gray-100 text-gray-900 hover:bg-gray-200 dark:bg-gray-800 dark:text-white'
                            }`}
                          >
                            {post.isBookmarked ? '已收藏' : '收藏'}
@@ -717,13 +776,18 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
                     <div className="md:hidden px-4 py-3 flex items-center justify-between bg-white dark:bg-gray-900">
                       <div className="flex items-center gap-4">
                         <button 
-                          onClick={() => onLike(post.id)}
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onLike(post.id);
+                          }}
                           className="flex items-center gap-1.5 text-gray-700 dark:text-gray-300"
                         >
                           <i className={`${post.isLiked ? 'fas text-red-500' : 'far'} fa-heart text-xl`}></i>
                           <span className="text-sm font-medium">{post.likes || 0}</span>
                         </button>
                         <button 
+                          type="button"
                           className="flex items-center gap-1.5 text-gray-700 dark:text-gray-300"
                           onClick={() => setIsMobileCommentDrawerOpen(true)}
                         >
@@ -731,21 +795,23 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
                           <span className="text-sm font-medium">{comments.length || post.commentCount || 0}</span>
                         </button>
                         <button 
-                          onClick={handleShare}
+                          type="button"
+                          onClick={(e) => handleShare(e)}
                           className="text-gray-700 dark:text-gray-300"
                         >
                           <i className="fas fa-share-alt text-lg"></i>
                         </button>
-                        <button className="text-gray-700 dark:text-gray-300">
+                        <button type="button" className="text-gray-700 dark:text-gray-300">
                           <i className="fas fa-ellipsis-h text-lg"></i>
                         </button>
                       </div>
                       <button
-                        onClick={handleShare}
-                        className={`px-4 py-2 rounded-full font-semibold text-sm transition-colors ${
+                        type="button"
+                        onClick={(e) => handleBookmark(e)}
+                        className={`px-4 py-2 rounded-full font-semibold text-sm transition-all ${
                           post.isBookmarked
-                            ? 'bg-gray-600 text-white'
-                            : 'bg-red-600 text-white'
+                            ? 'bg-amber-500 text-white'
+                            : 'bg-red-600 text-white hover:bg-red-700'
                         }`}
                       >
                         {post.isBookmarked ? '已保存' : '保存'}
@@ -1225,7 +1291,7 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
                     if (onPostChange) {
                       onPostChange(targetPost);
                     } else {
-                      window.location.href = `/square/${item.id}`;
+                      navigate(`/square/${item.id}`, { replace: true });
                     }
                     
                     setIsSwitchingPost(false);

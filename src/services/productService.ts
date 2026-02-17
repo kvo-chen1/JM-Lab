@@ -2,7 +2,7 @@
  * 商品服务 - 提供商品管理和积分兑换功能 (Supabase 版本)
  */
 
-import { supabase } from '@/lib/supabaseClient';
+import { supabase, supabaseAdmin } from '@/lib/supabaseClient';
 
 // 商品类型定义
 export interface Product {
@@ -385,12 +385,16 @@ class ProductService {
       // 获取用户信息和商品图片
       const userIds = [...new Set((data || []).map(r => r.user_id))];
       const productIds = [...new Set((data || []).map(r => r.product_id))];
-      
-      // 获取用户信息
-      const { data: usersData } = await supabase
+
+      // 获取用户信息（使用 supabaseAdmin 绕过 RLS 限制）
+      const { data: usersData, error: usersError } = await supabaseAdmin
         .from('users')
         .select('id, username, email')
         .in('id', userIds);
+
+      if (usersError) {
+        console.error('获取用户信息失败:', usersError);
+      }
       
       // 获取商品图片（product_id 是 text 类型）
       const { data: productsData } = await supabase
@@ -401,9 +405,28 @@ class ProductService {
       const userMap = new Map(usersData?.map(u => [u.id, u]) || []);
       const productMap = new Map(productsData?.map(p => [p.id, p]) || []);
 
+      // 调试日志
+      if (process.env.NODE_ENV === 'development') {
+        console.log('订单用户ID列表:', userIds);
+        console.log('查询到的用户信息:', usersData);
+        console.log('用户Map:', Array.from(userMap.entries()));
+      }
+
       const records: ExchangeRecord[] = (data || []).map(record => {
         const user = userMap.get(record.user_id);
         const product = productMap.get(record.product_id);
+
+        // 构建用户显示名称
+        let displayUserName = '未知用户';
+        if (user?.username) {
+          displayUserName = user.username;
+        } else if (user?.email) {
+          displayUserName = user.email.split('@')[0];
+        } else if (record.user_id) {
+          // 如果找不到用户信息，显示用户ID的前8位
+          displayUserName = `用户 ${record.user_id.slice(0, 8)}...`;
+        }
+
         return {
           id: record.id,
           productId: record.product_id,
@@ -415,7 +438,7 @@ class ProductService {
           userId: record.user_id,
           status: record.status,
           productImage: product?.image_url,
-          userName: user?.username || user?.email?.split('@')[0] || '未知用户',
+          userName: displayUserName,
           userEmail: user?.email
         };
       });

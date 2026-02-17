@@ -1472,7 +1472,7 @@ export const TOOL_OPTIONS: ToolOption[] = [
   {
     id: 'enhance',
     name: '智能美化',
-    icon: 'sparkles',
+    icon: 'wand-magic-sparkles',
     description: 'AI一键优化作品效果',
     color: '#8B5CF6',
     features: ['智能滤镜', '画质增强', '色彩优化', '一键美化']

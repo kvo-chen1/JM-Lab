@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useCreateStore } from '../../hooks/useCreateStore';
@@ -48,6 +48,9 @@ export const RefinementPanel: React.FC = () => {
   const [selectedStyle, setSelectedStyle] = useState('similar');
   const [selectedDirection, setSelectedDirection] = useState('all');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [processingProgress, setProcessingProgress] = useState(0);
+  const [processingStage, setProcessingStage] = useState('');
+  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
 
   // 处理图片上传
@@ -68,6 +71,66 @@ export const RefinementPanel: React.FC = () => {
     return uploadedImage || currentImage;
   }, [uploadedImage, currentImage]);
 
+  // 模拟进度增长
+  const startProgressSimulation = (stages: string[]) => {
+    setProcessingProgress(0);
+    let currentStage = 0;
+    let progress = 0;
+
+    // 清除之前的定时器
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+    }
+
+    setProcessingStage(stages[0]);
+
+    progressIntervalRef.current = setInterval(() => {
+      progress += Math.random() * 3 + 1; // 每次增加 1-4%
+
+      // 根据进度切换阶段
+      const stageIndex = Math.min(
+        Math.floor((progress / 100) * stages.length),
+        stages.length - 1
+      );
+      if (stageIndex !== currentStage) {
+        currentStage = stageIndex;
+        setProcessingStage(stages[stageIndex]);
+      }
+
+      if (progress >= 95) {
+        progress = 95; // 保持在95%，等待实际完成
+        if (progressIntervalRef.current) {
+          clearInterval(progressIntervalRef.current);
+        }
+      }
+      setProcessingProgress(Math.floor(progress));
+    }, 200);
+  };
+
+  // 停止进度模拟
+  const stopProgressSimulation = (completed = true) => {
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = null;
+    }
+    if (completed) {
+      setProcessingProgress(100);
+      setTimeout(() => {
+        setProcessingProgress(0);
+        setProcessingStage('');
+      }, 500);
+    }
+  };
+
+  // 清理定时器
+  useEffect(() => {
+    return () => {
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+      }
+    };
+  }, []);
+
   // 图生图处理
   const handleImageToImage = useCallback(async () => {
     const imageUrl = getCurrentImage();
@@ -78,6 +141,14 @@ export const RefinementPanel: React.FC = () => {
 
     setIsProcessing(true);
     setIsGenerating(true);
+
+    // 启动进度模拟
+    startProgressSimulation([
+      '正在分析参考图片...',
+      '正在提取风格特征...',
+      '正在生成新图片...',
+      '正在优化生成效果...'
+    ]);
 
     try {
       // 构建提示词
@@ -100,8 +171,8 @@ export const RefinementPanel: React.FC = () => {
       });
 
       if (result.ok && result.data?.data && result.data.data.length > 0) {
-        toast.info('正在保存图片到云存储...');
-        
+        setProcessingStage('正在保存到云存储...');
+
         // 上传图片到 Supabase Storage
         let permanentUrl = result.data.data[0].url;
         try {
@@ -112,7 +183,7 @@ export const RefinementPanel: React.FC = () => {
           console.error('[RefinementPanel] Failed to upload image:', uploadError);
           toast.warning('图片生成成功，但上传到永久存储失败');
         }
-        
+
         const newResult = {
           id: Date.now(),
           thumbnail: permanentUrl,
@@ -120,11 +191,14 @@ export const RefinementPanel: React.FC = () => {
           timestamp: new Date().toISOString()
         };
         setGeneratedResults([newResult]);
+        stopProgressSimulation(true);
         toast.success('图生图完成并保存到云存储！');
       } else {
+        stopProgressSimulation(false);
         toast.error(result.error || '生成失败');
       }
     } catch (error) {
+      stopProgressSimulation(false);
       toast.error('处理过程出错');
     } finally {
       setIsProcessing(false);
@@ -143,12 +217,20 @@ export const RefinementPanel: React.FC = () => {
     setIsProcessing(true);
     setIsGenerating(true);
 
+    // 启动进度模拟
+    startProgressSimulation([
+      '正在分析图片内容...',
+      '正在计算扩展区域...',
+      '正在生成扩展内容...',
+      '正在优化扩展效果...'
+    ]);
+
     try {
       const result = await llmService.expandImage(imageUrl, expandRatio, selectedDirection);
 
       if (result.success && result.imageUrl) {
-        toast.info('正在保存图片到云存储...');
-        
+        setProcessingStage('正在保存到云存储...');
+
         // 上传图片到 Supabase Storage
         let permanentUrl = result.imageUrl;
         try {
@@ -159,7 +241,7 @@ export const RefinementPanel: React.FC = () => {
           console.error('[RefinementPanel] Failed to upload expanded image:', uploadError);
           toast.warning('扩图成功，但上传到永久存储失败');
         }
-        
+
         const newResult = {
           id: Date.now(),
           thumbnail: permanentUrl,
@@ -167,11 +249,14 @@ export const RefinementPanel: React.FC = () => {
           timestamp: new Date().toISOString()
         };
         setGeneratedResults([newResult]);
+        stopProgressSimulation(true);
         toast.success('扩图完成并保存到云存储！');
       } else {
+        stopProgressSimulation(false);
         toast.error(result.error || '扩图失败');
       }
     } catch (error) {
+      stopProgressSimulation(false);
       toast.error('处理过程出错');
     } finally {
       setIsProcessing(false);
@@ -195,12 +280,20 @@ export const RefinementPanel: React.FC = () => {
     setIsProcessing(true);
     setIsGenerating(true);
 
+    // 启动进度模拟
+    startProgressSimulation([
+      '正在分析图片内容...',
+      '正在识别重绘区域...',
+      '正在生成新内容...',
+      '正在优化融合效果...'
+    ]);
+
     try {
       const result = await llmService.inpaintImage(imageUrl, refinementPrompt);
 
       if (result.success && result.imageUrl) {
-        toast.info('正在保存图片到云存储...');
-        
+        setProcessingStage('正在保存到云存储...');
+
         // 上传图片到 Supabase Storage
         let permanentUrl = result.imageUrl;
         try {
@@ -211,7 +304,7 @@ export const RefinementPanel: React.FC = () => {
           console.error('[RefinementPanel] Failed to upload inpainted image:', uploadError);
           toast.warning('局部重绘成功，但上传到永久存储失败');
         }
-        
+
         const newResult = {
           id: Date.now(),
           thumbnail: permanentUrl,
@@ -219,11 +312,14 @@ export const RefinementPanel: React.FC = () => {
           timestamp: new Date().toISOString()
         };
         setGeneratedResults([newResult]);
+        stopProgressSimulation(true);
         toast.success('局部重绘完成并保存到云存储！');
       } else {
+        stopProgressSimulation(false);
         toast.error(result.error || '重绘失败');
       }
     } catch (error) {
+      stopProgressSimulation(false);
       toast.error('处理过程出错');
     } finally {
       setIsProcessing(false);
@@ -352,6 +448,35 @@ export const RefinementPanel: React.FC = () => {
                 />
               </div>
 
+              {/* 进度条 */}
+              {isProcessing && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="mb-3 overflow-hidden"
+                >
+                  <div className={`p-3 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-gray-50'}`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                        {processingStage}
+                      </span>
+                      <span className="text-xs font-bold text-violet-500">
+                        {processingProgress}%
+                      </span>
+                    </div>
+                    <div className="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                      <motion.div
+                        className="h-full bg-gradient-to-r from-violet-500 to-purple-500 rounded-full"
+                        initial={{ width: 0 }}
+                        animate={{ width: `${processingProgress}%` }}
+                        transition={{ duration: 0.3, ease: "easeOut" }}
+                      />
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
               {/* 生成按钮 */}
               <motion.button
                 onClick={handleImageToImage}
@@ -458,6 +583,35 @@ export const RefinementPanel: React.FC = () => {
                 </div>
               </div>
 
+              {/* 进度条 */}
+              {isProcessing && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="mb-3 overflow-hidden"
+                >
+                  <div className={`p-3 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-gray-50'}`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                        {processingStage}
+                      </span>
+                      <span className="text-xs font-bold text-violet-500">
+                        {processingProgress}%
+                      </span>
+                    </div>
+                    <div className="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                      <motion.div
+                        className="h-full bg-gradient-to-r from-violet-500 to-purple-500 rounded-full"
+                        initial={{ width: 0 }}
+                        animate={{ width: `${processingProgress}%` }}
+                        transition={{ duration: 0.3, ease: "easeOut" }}
+                      />
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
               {/* 生成按钮 */}
               <motion.button
                 onClick={handleExpand}
@@ -548,6 +702,35 @@ export const RefinementPanel: React.FC = () => {
                   </div>
                 </div>
               </div>
+
+              {/* 进度条 */}
+              {isProcessing && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="mb-3 overflow-hidden"
+                >
+                  <div className={`p-3 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-gray-50'}`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                        {processingStage}
+                      </span>
+                      <span className="text-xs font-bold text-violet-500">
+                        {processingProgress}%
+                      </span>
+                    </div>
+                    <div className="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                      <motion.div
+                        className="h-full bg-gradient-to-r from-violet-500 to-purple-500 rounded-full"
+                        initial={{ width: 0 }}
+                        animate={{ width: `${processingProgress}%` }}
+                        transition={{ duration: 0.3, ease: "easeOut" }}
+                      />
+                    </div>
+                  </div>
+                </motion.div>
+              )}
 
               {/* 生成按钮 */}
               <motion.button

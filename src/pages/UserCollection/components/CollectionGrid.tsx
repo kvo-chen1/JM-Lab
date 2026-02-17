@@ -1,4 +1,4 @@
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { CollectionGridProps, ViewMode } from '../types/collection';
 import { CollectionCard } from './CollectionCard';
@@ -13,6 +13,7 @@ export function CollectionGrid({
   onLoadMore,
   onToggleBookmark,
   onToggleLike,
+  activeTab,
 }: CollectionGridProps) {
   const { isDark } = useTheme();
   const observerRef = useRef<IntersectionObserver | null>(null);
@@ -56,63 +57,41 @@ export function CollectionGrid({
   return (
     <div className="flex-1 min-w-0">
       {/* 内容网格 */}
-      <motion.div
-        layout
-        className={gridClassName}
-      >
-        <AnimatePresence mode="popLayout">
-          {items.map((item, index) => (
-            <motion.div
-              key={`${item.type}-${item.id}`}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              transition={{
-                duration: 0.3,
-                delay: index * 0.05,
-                ease: [0.25, 0.1, 0.25, 1],
-              }}
-            >
-              <CollectionCard
-                item={item}
-                viewMode={viewMode}
-                onToggleBookmark={onToggleBookmark}
-                onToggleLike={onToggleLike}
-              />
-            </motion.div>
-          ))}
-        </AnimatePresence>
-      </motion.div>
+      <div className={gridClassName}>
+        {items.map((item) => (
+          <div key={`${item.type}-${item.id}`}>
+            <CollectionCard
+              item={item}
+              viewMode={viewMode}
+              onToggleBookmark={onToggleBookmark}
+              onToggleLike={onToggleLike}
+              activeTab={activeTab}
+            />
+          </div>
+        ))}
+      </div>
 
       {/* 加载更多触发器 */}
       <div ref={loadMoreRef} className="h-10" />
 
       {/* 加载状态 */}
       {isLoading && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="flex flex-col items-center justify-center py-12"
-        >
+        <div className="flex flex-col items-center justify-center py-12">
           <Loader2 className={`w-8 h-8 animate-spin ${isDark ? 'text-blue-400' : 'text-blue-600'}`} />
           <p className={`mt-4 text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
             加载中...
           </p>
-        </motion.div>
+        </div>
       )}
 
       {/* 没有更多数据 */}
       {!hasMore && items.length > 0 && !isLoading && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="text-center py-8"
-        >
+        <div className="text-center py-8">
           <div className={`w-16 h-px mx-auto mb-4 ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`} />
           <p className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
             已经到底啦
           </p>
-        </motion.div>
+        </div>
       )}
     </div>
   );

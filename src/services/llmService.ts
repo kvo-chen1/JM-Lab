@@ -2997,21 +2997,23 @@ ${description}
    * @param patternName 纹样名称
    * @param style 融合风格: 'harmony' | 'border' | 'corner' | 'overlay' | 'frame' | 'background'
    * @param intensity 融合强度 0-100
+   * @param patternUrl 纹样图片URL（可选）
    * @returns 融合后的图片URL
    */
   async fusePattern(
     imageUrl: string, 
     patternName: string, 
     style: string = 'harmony',
-    intensity: number = 50
+    intensity: number = 50,
+    patternUrl?: string
   ): Promise<{ success: boolean; imageUrl?: string; error?: string }> {
     try {
-      console.log('[LLM] Fuse pattern:', patternName, 'style:', style, 'intensity:', intensity);
+      console.log('[LLM] Fuse pattern:', patternName, 'style:', style, 'intensity:', intensity, 'patternUrl:', patternUrl ? 'provided' : 'not provided');
       
       const response = await fetch('/api/qwen/images/pattern-fusion', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageUrl, patternName, style, intensity })
+        body: JSON.stringify({ imageUrl, patternName, style, intensity, patternUrl })
       });
 
       if (!response.ok) {

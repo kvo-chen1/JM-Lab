@@ -39,9 +39,11 @@ import "sonner/dist/styles.css";
 import CommandPalette from '@/components/CommandPalette';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { TianjinThemeWrapper } from '@/components/TianjinThemeWrapper';
+import { ScrollRestoration } from '@/components/ScrollRestoration';
 
 // 核心页面 - 只保留最关键的页面进行同步加载，减少初始加载时间
 import Home from "@/pages/Home";
+import ComponentShowcase from "@/pages/ComponentShowcase";
 
 // 认证相关页面 - 懒加载减少初始包大小
 const Login = createLazyComponent(() => import(/* webpackChunkName: "pages-auth" */ "@/pages/Login"), {
@@ -441,7 +443,7 @@ const JinmenCulturePopup = createLazyComponent(() => import(/* webpackChunkName:
 
 
 import { GuideProvider } from '@/contexts/GuideContext';
-import OnboardingGuide from '@/components/OnboardingGuide';
+import { Onboarding } from '@/components/Onboarding';
 import { AuthContext } from '@/contexts/authContext';
 import { EventProvider } from '@/contexts/EventContext';
 import { ThemeProvider } from '@/hooks/useTheme';
@@ -793,6 +795,7 @@ export default function App() {
           <Route path="/collection" element={<LazyComponent><PrivateRoute><UserCollection /></PrivateRoute></LazyComponent>} />
           <Route path="/collections" element={<LazyComponent><PrivateRoute><UserCollection /></PrivateRoute></LazyComponent>} />
           <Route path="/notifications" element={<LazyComponent><PrivateRoute><Notifications /></PrivateRoute></LazyComponent>} />
+          <Route path="/component-showcase" element={<ComponentShowcase />} />
           <Route path="/knowledge" element={<LazyComponent><CulturalKnowledge /></LazyComponent>} />
           <Route path="/knowledge/:type/:id" element={<LazyComponent><CulturalKnowledge /></LazyComponent>} />
           <Route path="/cultural-knowledge" element={<LazyComponent><CulturalKnowledge /></LazyComponent>} />
@@ -873,15 +876,18 @@ export default function App() {
       
       {/* 全局命令面板 */}
       <CommandPalette />
-      
+
       {/* 新手引导组件 */}
-      <OnboardingGuide />
-      
+      <Onboarding />
+
       {/* 全局 Toast 通知 */}
       <Toaster position="top-center" richColors closeButton />
-      
+
       {/* 天津主题特色功能 */}
       <TianjinThemeWrapper />
+
+      {/* 滚动位置恢复 */}
+      <ScrollRestoration />
     </div>
             </ThemeProvider>
           </EventProvider>

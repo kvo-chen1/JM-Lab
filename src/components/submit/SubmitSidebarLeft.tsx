@@ -4,8 +4,9 @@ import { Calendar, Clock, Users, Trophy, FileCheck, AlertCircle, Info, ChevronRi
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import type { Event } from '@/types';
+import SubmissionGuide from './SubmissionGuide';
 
-interface ExtendedEvent extends Event {
+interface ExtendedEvent extends Omit<Event, 'submissionRequirements'> {
   coverImage?: string;
   currentParticipants?: number;
   submissionRequirements?: string[];
@@ -143,33 +144,11 @@ export function SubmitSidebarLeft({ event }: SubmitSidebarLeftProps) {
         </div>
       </motion.div>
 
-      {/* 提交要求 */}
-      <motion.div
-        variants={itemVariants}
-        className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-5"
-      >
-        <div className="flex items-center gap-2 mb-4">
-          <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center">
-            <FileCheck className="w-4 h-4 text-emerald-500" />
-          </div>
-          <h4 className="font-semibold text-gray-900 dark:text-white">提交要求</h4>
-        </div>
-
-        <ul className="space-y-3">
-          {(event.submissionRequirements || [
-            '作品需为原创，严禁抄袭',
-            '图片格式：JPG、PNG、GIF',
-            '视频格式：MP4、WebM',
-            '单个文件不超过 100MB',
-            '最多上传 10 个文件'
-          ]).map((req, index) => (
-            <li key={index} className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-300">
-              <ChevronRight className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
-              <span>{req}</span>
-            </li>
-          ))}
-        </ul>
-      </motion.div>
+      {/* 作品上传指引 - 根据活动类型动态显示 */}
+      <SubmissionGuide
+        eventType={event.eventType || 'document'}
+        templates={event.submissionTemplates}
+      />
 
       {/* 活动规则 */}
       {event.rules && event.rules.length > 0 && (

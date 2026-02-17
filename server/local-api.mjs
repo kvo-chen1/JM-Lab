@@ -44,6 +44,7 @@ import { randomUUID } from 'crypto'
 import { supabaseServer } from './supabase-server.mjs'
 import membershipRoutes from './routes/membership.mjs'
 import searchRoutes from './routes/search.mjs'
+import paymentRoutes from './routes/payment.mjs'
 
 // 内存中存储验证码 (email -> { code, expiresAt })
 const verificationCodes = new Map();
@@ -734,6 +735,13 @@ async function route(req, res, u, path) {
     return
   }
 
+  // 支付路由
+  if (path.startsWith('/api/payment')) {
+    console.log('[Route] Delegating to payment routes:', path)
+    await paymentRoutes(req, res)
+    return
+  }
+
   // 获取所有作品列表 (首页)
   if (req.method === 'GET' && path === '/api/works') {
     const limit = parseInt(u.searchParams.get('limit') || '20')
@@ -1147,11 +1155,17 @@ async function route(req, res, u, path) {
         progress = 100
       }
       
+      // 获取用户的收藏数和点赞数
+      const bookmarksCount = await workDB.getUserBookmarksCount(decoded.userId)
+      const likesCount = await workDB.getUserLikesCount(decoded.userId)
+
       const fullStats = {
         ...stats,
         followers_count: 0,
         following_count: 0,
         favorites_count: (await favoriteDB.getUserFavorites(decoded.userId)).length,
+        bookmarks_count: bookmarksCount,
+        likes_count: likesCount,
         membership_level: user?.membership_level || 'free',
         membership_status: user?.membership_status || 'active',
         points: totalPoints,
@@ -3702,16 +3716,38 @@ async function route(req, res, u, path) {
       const offset = parseInt(u.searchParams.get('offset') || '0')
 
       const notifications = await notificationDB.getNotifications(decoded.userId, limit, offset)
+      console.log('[API] Notifications fetched:', notifications.length);
+      
+      // 处理通知数据，确保 data 字段是对象
+      const processedNotifications = notifications.map(n => {
+        let data = n.data;
+        // 如果 data 是字符串，尝试解析为 JSON
+        if (typeof data === 'string') {
+          try {
+            data = JSON.parse(data);
+          } catch (e) {
+            data = null;
+          }
+        }
+        return {
+          ...n,
+          data: data
+        };
+      });
+      
+      if (processedNotifications.length > 0) {
+        console.log('[API] First notification:', JSON.stringify(processedNotifications[0], null, 2));
+      }
       const total = await notificationDB.getTotalCount(decoded.userId)
       const unreadCount = await notificationDB.getUnreadCount(decoded.userId)
 
       sendJson(res, 200, {
         code: 0,
         data: {
-          list: notifications,
+          list: processedNotifications,
           total: total,
           unreadCount: unreadCount,
-          hasMore: offset + notifications.length < total
+          hasMore: offset + processedNotifications.length < total
         }
       })
     } catch (e) {
@@ -5601,7 +5637,7 @@ async function route(req, res, u, path) {
     if (!b.imageUrl) { sendJson(res, 400, { error: 'IMAGE_REQUIRED', message: 'Image URL is required' }); return }
     if (!b.patternName) { sendJson(res, 400, { error: 'PATTERN_REQUIRED', message: 'Pattern name is required' }); return }
     
-    console.log(`[Qwen Pattern Fusion] Request received:`, b.patternName, 'style:', b.style || 'harmony');
+    console.log(`[Qwen Pattern Fusion] Request received:`, b.patternName, 'style:', b.style || 'harmony', 'patternUrl:', b.patternUrl ? 'provided' : 'not provided');
     
     const authKey = process.env.DASHSCOPE_API_KEY || process.env.VITE_QWEN_API_KEY || ''
     if (!authKey) { 
@@ -5614,24 +5650,27 @@ async function route(req, res, u, path) {
       const patternName = b.patternName
       const style = b.style || 'harmony'
       const intensity = b.intensity || 50
+      const patternUrl = b.patternUrl
       
-      // 构建融合提示词
+      // 构建融合提示词 - 使用中文提示词，更符合通义千问的理解
       const stylePrompts = {
-        'harmony': 'harmoniously blend the pattern with the image, natural integration',
-        'border': 'use the pattern as decorative border around the main content',
-        'corner': 'place the pattern elegantly in corners as decoration',
-        'overlay': 'overlay the pattern subtly across the image',
-        'frame': 'create an elegant frame using the pattern',
-        'background': 'use the pattern as a subtle background texture'
+        'harmony': '将纹样与图片和谐融合，自然融入画面，保持原图主体内容的同时添加传统纹样装饰元素',
+        'border': '将纹样作为装饰性边框围绕在主内容周围，形成精美的边框装饰效果',
+        'corner': '将纹样优雅地放置在画面的四个角落作为点缀装饰',
+        'overlay': '将纹样以半透明叠加的方式覆盖在图片上，形成纹理效果',
+        'frame': '使用纹样创建一个精美的画框效果，框住主内容',
+        'background': '将纹样作为背景纹理，主内容置于前景'
       }
       
-      const intensityDesc = intensity < 30 ? 'very subtle' : intensity < 70 ? 'moderate' : 'strong'
+      const intensityDesc = intensity < 30 ? '淡雅柔和' : intensity < 70 ? '适中平衡' : '浓郁鲜明'
       
-      const prompt = `Intelligently fuse ${patternName} pattern into the image. 
-The pattern should ${stylePrompts[style] || stylePrompts['harmony']}.
-Apply ${intensityDesc} intensity (${intensity}%).
-Maintain the original image content while adding artistic cultural elements.
-The fusion should look natural and aesthetically pleasing.`
+      // 构建详细的提示词
+      let prompt = `将${patternName}纹样智能融合到图片中。`
+      prompt += `${stylePrompts[style] || stylePrompts['harmony']}。`
+      prompt += `融合强度为${intensityDesc}(${intensity}%)。`
+      prompt += `保持原图的主体内容和整体构图，添加艺术性的传统文化元素。`
+      prompt += `融合效果应该自然美观，纹样与画面协调统一。`
+      prompt += `高质量，精细细节，专业设计。`
       
       // 根据融合风格设置 ref_mode
       const refModeMap = {
@@ -5643,13 +5682,17 @@ The fusion should look natural and aesthetically pleasing.`
         'background': 'refonly'
       }
       
+      // 如果提供了纹样图片URL，优先使用纹样图片作为参考
+      // 否则使用原图作为参考
+      const refImage = patternUrl || b.imageUrl
+      
       const result = await dashscopeImageGenerate({
         prompt: prompt,
         size: '1024x1024',
         n: 1,
         authKey,
         model: 'wanx-v1',
-        refImage: b.imageUrl,
+        refImage: refImage,
         refStrength: intensity / 100,  // 将百分比转为 0-1
         refMode: refModeMap[style] || 'repaint'
       })

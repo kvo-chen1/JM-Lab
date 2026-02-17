@@ -1,4 +1,4 @@
-import { useState, useContext, useEffect } from 'react';
+import { useState, useContext, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -6,12 +6,16 @@ import { AuthContext } from '@/contexts/authContext';
 import { toast } from 'sonner';
 import { EventUpdateRequest, Media } from '@/types';
 import { useEventService } from '@/hooks/useEventService';
-import { eventService } from '@/services/eventService';
 import { supabase } from '@/lib/supabase';
 import { StepIndicator } from '@/components/StepIndicator';
 import { InfoCard } from '@/components/InfoCard';
 import { EventPreview } from '@/components/EventPreview';
 import { uploadImage } from '@/services/imageService';
+import EventTypeSelector from '@/components/events/EventTypeSelector';
+import SubmissionGuide from '@/components/submit/SubmissionGuide';
+import { PrizeManager } from '@/components/prize';
+import { Prize, PrizeCreateRequest } from '@/types/prize';
+import { prizeService } from '@/services/prizeService';
 
 import {
   Save,
@@ -28,20 +32,25 @@ import {
   Send,
   Loader2,
   ArrowLeft,
-  RotateCcw
+  RotateCcw,
+  Gift
 } from 'lucide-react';
 
-// 活动编辑步骤类型
-type StepType = 'basic' | 'content' | 'media' | 'settings' | 'preview';
+
 
 // 步骤配置
 const steps = [
   { id: 'basic' as StepType, name: '基本信息', description: '修改活动名称、时间地点' },
+  { id: 'type' as StepType, name: '活动类型', description: '选择活动作品类型' },
   { id: 'content' as StepType, name: '活动内容', description: '编辑活动详细内容' },
   { id: 'media' as StepType, name: '多媒体', description: '更新图片和视频' },
+  { id: 'prizes' as StepType, name: '奖品设置', description: '配置活动奖品和奖励' },
   { id: 'settings' as StepType, name: '设置', description: '修改参与规则和标签' },
   { id: 'preview' as StepType, name: '预览发布', description: '确认并更新活动' },
 ];
+
+// 活动类型步骤类型
+type StepType = 'basic' | 'type' | 'content' | 'media' | 'prizes' | 'settings' | 'preview';
 
 // 预设标签列表
 const presetTags = ['文化展览', '演出活动', '讲座论坛', '节日庆典', '亲子活动', '体育赛事', '公益活动', '艺术创作', '非遗传承', '文创设计', '历史文化', '民俗文化', '红色文化', '天津特色'];
@@ -71,6 +80,9 @@ export default function EditActivity() {
     tags: [],
     media: [],
     isPublic: true,
+    eventType: 'document',
+    submissionRequirements: undefined,
+    submissionTemplates: [],
   });
 
   // 原始数据（用于比较变化）
@@ -88,6 +100,10 @@ export default function EditActivity() {
   const [tagInput, setTagInput] = useState('');
   const [showTagSuggestions, setShowTagSuggestions] = useState(false);
   const [tagSuggestions, setTagSuggestions] = useState<string[]>([]);
+
+  // 奖品相关状态
+  const [prizes, setPrizes] = useState<Prize[]>([]);
+  const [isLoadingPrizes, setIsLoadingPrizes] = useState(false);
 
   // 检查登录状态并加载活动数据
   useEffect(() => {
@@ -189,10 +205,27 @@ export default function EditActivity() {
 
       setEventData(data);
       setOriginalData(data);
+
+      // 加载奖品数据
+      await loadPrizes(eventId);
+
       setIsLoading(false);
     } catch (error) {
       toast.error('加载活动数据失败，请稍后重试');
       navigate('/activities');
+    }
+  };
+
+  // 加载奖品数据
+  const loadPrizes = async (eventId: string) => {
+    setIsLoadingPrizes(true);
+    try {
+      const prizeData = await prizeService.getPrizesByEventId(eventId);
+      setPrizes(prizeData);
+    } catch (error) {
+      console.error('加载奖品数据失败:', error);
+    } finally {
+      setIsLoadingPrizes(false);
     }
   };
 
@@ -292,20 +325,18 @@ export default function EditActivity() {
       // 根据原始状态决定更新方式
       if (originalStatus === 'published' || originalStatus === 'rejected') {
         // 已发布或已拒绝的活动需要重新提交审核
-        const result = await eventService.updateEventAndResubmit(eventId, {
-          ...eventData,
-          organizer_id: user.id,
-        });
-
-        if (result.success) {
-          toast.success(result.message);
-          navigate('/organizer');
-        } else {
-          toast.error(result.message);
-        }
+        await updateEvent(eventId, eventData);
+        // 保存奖品信息
+        await savePrizes(eventId);
+        // 重新提交审核
+        await publishEvent(eventId);
+        toast.success('活动已更新并重新提交审核');
+        navigate('/organizer');
       } else {
         // 草稿或审核中的活动直接更新
         await updateEvent(eventId, eventData);
+        // 保存奖品信息
+        await savePrizes(eventId);
         toast.success('活动已更新');
         navigate('/organizer');
       }
@@ -313,6 +344,31 @@ export default function EditActivity() {
       toast.error('更新活动失败，请稍后重试');
     } finally {
       setIsUpdating(false);
+    }
+  };
+
+  // 保存奖品信息
+  const savePrizes = async (eventId: string) => {
+    if (prizes.length === 0) return;
+
+    try {
+      // 删除旧的奖品
+      await prizeService.deletePrizesByEventId(eventId);
+      // 创建新奖品
+      const prizeRequests: PrizeCreateRequest[] = prizes.map(p => ({
+        level: p.level,
+        rankName: p.rankName,
+        combinationType: p.combinationType,
+        singlePrize: p.singlePrize,
+        subPrizes: p.subPrizes,
+        displayOrder: p.displayOrder,
+        isHighlight: p.isHighlight,
+        highlightColor: p.highlightColor,
+      }));
+      await prizeService.createPrizes(eventId, prizeRequests);
+    } catch (error) {
+      console.error('保存奖品失败:', error);
+      toast.error('保存奖品信息失败');
     }
   };
 
@@ -334,31 +390,26 @@ export default function EditActivity() {
       // 根据原始状态决定操作
       if (originalStatus === 'published' || originalStatus === 'rejected') {
         // 已发布或已拒绝的活动：更新并重新提交审核
-        const result = await eventService.updateEventAndResubmit(eventId, {
-          ...eventData,
-          organizer_id: user.id,
-        });
-
-        if (result.success) {
-          toast.success(result.message);
-          navigate('/organizer');
-        } else {
-          toast.error(result.message);
-        }
+        await updateEvent(eventId, eventData);
+        // 保存奖品信息
+        await savePrizes(eventId);
+        // 重新提交审核
+        await publishEvent(eventId);
+        toast.success('活动已更新并重新提交审核');
+        navigate('/organizer');
       } else if (originalStatus === 'draft') {
         // 草稿状态：先更新再提交审核
         await updateEvent(eventId, eventData);
-        const result = await eventService.submitEventForReview(eventId);
-
-        if (result.success) {
-          toast.success('活动已提交审核，请等待管理员审批');
-          navigate('/organizer');
-        } else {
-          toast.error(result.message);
-        }
+        // 保存奖品信息
+        await savePrizes(eventId);
+        await publishEvent(eventId);
+        toast.success('活动已提交审核，请等待管理员审批');
+        navigate('/organizer');
       } else {
         // 审核中状态：直接更新
         await updateEvent(eventId, eventData);
+        // 保存奖品信息
+        await savePrizes(eventId);
         toast.success('活动已更新');
         navigate('/organizer');
       }
@@ -629,6 +680,32 @@ export default function EditActivity() {
                 </div>
               )}
 
+              {/* 活动类型步骤 */}
+              {currentStep === 'type' && (
+                <div className="space-y-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-4">
+                      选择活动作品类型 <span className="text-red-500">*</span>
+                    </label>
+                    <EventTypeSelector
+                      value={eventData.eventType || 'document'}
+                      onChange={(type) => handleChange('eventType', type)}
+                    />
+                  </div>
+
+                  <div className={`p-4 rounded-xl border ${isDark ? 'border-gray-700 bg-gray-800/50' : 'border-gray-200 bg-gray-50'}`}>
+                    <h4 className="font-medium text-gray-900 dark:text-white mb-3">
+                      参赛者将看到的上传指引
+                    </h4>
+                    <SubmissionGuide
+                      eventType={eventData.eventType || 'document'}
+                      requirements={eventData.submissionRequirements}
+                      templates={eventData.submissionTemplates}
+                    />
+                  </div>
+                </div>
+              )}
+
               {/* 活动内容步骤 */}
               {currentStep === 'content' && (
                 <div className="space-y-6">
@@ -696,6 +773,30 @@ export default function EditActivity() {
                         </div>
                       ))}
                     </div>
+                  )}
+                </div>
+              )}
+
+              {/* 奖品设置步骤 */}
+              {currentStep === 'prizes' && (
+                <div className="space-y-6">
+                  {isLoadingPrizes ? (
+                    <div className="flex items-center justify-center py-12">
+                      <motion.div
+                        className="inline-block"
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                      >
+                        <div className="w-8 h-8 border-4 border-yellow-200 border-t-yellow-500 rounded-full" />
+                      </motion.div>
+                      <span className="ml-3 text-gray-500">加载奖品信息...</span>
+                    </div>
+                  ) : (
+                    <PrizeManager
+                      eventId={eventId || 'temp'}
+                      initialPrizes={prizes}
+                      onPrizesChange={(newPrizes) => setPrizes(newPrizes)}
+                    />
                   )}
                 </div>
               )}
@@ -833,14 +934,15 @@ export default function EditActivity() {
                         { condition: eventData.content, text: '活动内容已填写' },
                         { condition: (eventData.media?.length || 0) > 0, text: '多媒体资源已上传' },
                         { condition: eventData.startTime && eventData.endTime && eventData.startTime < eventData.endTime, text: '活动时间设置正确' },
+                        { condition: prizes.length > 0, text: `已设置 ${prizes.length} 个奖品` },
                       ].map((item, index) => (
                         <li key={index} className="flex items-center gap-2 text-sm">
                           {item.condition ? (
                             <CheckCircle2 className="w-4 h-4 text-emerald-500" />
                           ) : (
-                            <AlertCircle className="w-4 h-4 text-red-500" />
+                            <AlertCircle className="w-4 h-4 text-amber-500" />
                           )}
-                          <span className={item.condition ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}>
+                          <span className={item.condition ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}>
                             {item.text}
                           </span>
                         </li>
@@ -848,10 +950,45 @@ export default function EditActivity() {
                     </ul>
                   </InfoCard>
 
+                  {/* 奖品预览 */}
+                  {prizes.length > 0 && (
+                    <div className={`p-4 rounded-xl border ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'}`}>
+                      <h4 className="font-medium text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                        <Gift className="w-4 h-4" />
+                        奖品设置预览
+                      </h4>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                        {prizes.slice(0, 6).map((prize, index) => (
+                          <div key={prize.id} className="flex items-center gap-2 p-2 rounded-lg bg-white dark:bg-gray-800">
+                            <div
+                              className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold"
+                              style={{ backgroundColor: prize.highlightColor }}
+                            >
+                              {prize.level}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">{prize.rankName}</p>
+                              <p className="text-xs text-gray-500 truncate">
+                                {prize.combinationType === 'compound'
+                                  ? `${prize.subPrizes?.length || 0} 项组合`
+                                  : prize.singlePrize?.name}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                        {prizes.length > 6 && (
+                          <div className="flex items-center justify-center p-2 rounded-lg bg-white dark:bg-gray-800 text-sm text-gray-500">
+                            +{prizes.length - 6} 更多
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   {hasChanges() && (
                     <div className={`p-4 rounded-xl border ${isDark ? 'bg-amber-900/10 border-amber-800' : 'bg-amber-50 border-amber-200'}`}>
                       <p className="text-sm text-amber-800 dark:text-amber-300">
-                        {originalStatus === 'published' 
+                        {originalStatus === 'published'
                           ? '⚠️ 您正在编辑已发布的活动。保存后活动将重新提交审核，审核通过后才能再次发布。'
                           : originalStatus === 'rejected'
                           ? '⚠️ 您正在编辑已拒绝的活动。保存后将重新提交审核。'

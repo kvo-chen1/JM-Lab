@@ -93,7 +93,8 @@ const PostItem = memo(({ post, index, onLike, onComment, onShare, onBookmark, on
     }
   }, [onDelete, post.id])
 
-  const isBookmarked = favorites.includes(post.id)
+  // 优先使用 post.isBookmarked（来自数据库的真实状态），如果不存在则使用 favorites 数组
+  const isBookmarked = post.isBookmarked !== undefined ? post.isBookmarked : favorites.includes(post.id)
   // 判断是否是视频：根据类型、category、videoUrl 或 thumbnail 的扩展名
   const isVideo = post.type === 'video' || post.category === 'video' || post.videoUrl ||
     (post.thumbnail && (post.thumbnail.endsWith('.mp4') || post.thumbnail.endsWith('.webm') || post.thumbnail.endsWith('.mov')))
@@ -208,6 +209,7 @@ const PostItem = memo(({ post, index, onLike, onComment, onShare, onBookmark, on
         {/* 悬停操作按钮 - 从底部滑入 */}
         <div className="absolute bottom-4 left-0 right-0 flex items-center justify-center gap-3 opacity-0 translate-y-4 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]">
             <button
+              type="button"
               onClick={handleLike}
               className={`w-11 h-11 rounded-full flex items-center justify-center hover:scale-110 transition-all duration-300 shadow-[0_4px_20px_rgba(0,0,0,0.3)] backdrop-blur-sm ${
                 post.isLiked
@@ -218,14 +220,20 @@ const PostItem = memo(({ post, index, onLike, onComment, onShare, onBookmark, on
             >
               <i className={`${post.isLiked ? 'fas' : 'far'} fa-heart text-sm`}></i>
             </button>
-            <button 
-              onClick={handleBookmark} 
-              className="w-11 h-11 rounded-full bg-white/95 text-gray-900 flex items-center justify-center hover:scale-110 hover:bg-white transition-all duration-300 shadow-[0_4px_20px_rgba(0,0,0,0.3)] backdrop-blur-sm" 
-              title="收藏"
+            <button
+              type="button"
+              onClick={handleBookmark}
+              className={`w-11 h-11 rounded-full flex items-center justify-center hover:scale-110 transition-all duration-300 shadow-[0_4px_20px_rgba(0,0,0,0.3)] backdrop-blur-sm ${
+                isBookmarked
+                  ? 'bg-amber-500 text-white hover:bg-amber-600'
+                  : 'bg-white/95 text-gray-900 hover:bg-white'
+              }`}
+              title={isBookmarked ? '取消收藏' : '收藏'}
             >
-              <i className={`${isBookmarked ? 'fas text-amber-500' : 'far text-gray-600'} fa-bookmark text-sm`}></i>
+              <i className={`${isBookmarked ? 'fas' : 'far'} fa-bookmark text-sm`}></i>
             </button>
             <button 
+              type="button"
               onClick={handleShare} 
               className="w-11 h-11 rounded-full bg-white/95 text-gray-900 flex items-center justify-center hover:scale-110 hover:bg-white transition-all duration-300 shadow-[0_4px_20px_rgba(0,0,0,0.3)] backdrop-blur-sm" 
               title="分享"
@@ -296,6 +304,11 @@ const PostItem = memo(({ post, index, onLike, onComment, onShare, onBookmark, on
               <i className={`${post.isLiked ? 'fas text-red-400' : 'far'} fa-heart`}></i>
               <span className="font-medium">{post.likes || 0}</span>
             </span>
+            {isBookmarked && (
+              <span className="flex items-center gap-1">
+                <i className="fas fa-bookmark text-amber-500"></i>
+              </span>
+            )}
           </div>
         </div>
       </div>

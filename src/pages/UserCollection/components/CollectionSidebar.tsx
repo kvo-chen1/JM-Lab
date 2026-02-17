@@ -59,24 +59,12 @@ export function CollectionSidebar({
   const categories = isLikesTab ? likeCategories : bookmarkCategories;
 
   // 合并分类数据和统计
+  // 使用 categoryCounts 中的数量（来自实际的 items 计算）
   const categoriesWithCount = categories.map(cat => {
     const countData = categoryCounts.find(c => c.id === cat.id);
-    // 在点赞标签页下，显示点赞数量
-    let count = countData?.count || 0;
-    if (isLikesTab && cat.id === 'all') {
-      count = stats.totalLikes;
-    } else if (isLikesTab && cat.id === CollectionType.SQUARE_WORK) {
-      // 广场作品点赞数 = 总点赞数 - 模板点赞数
-      count = stats.totalLikes - (stats.templateLikes || 0);
-    } else if (isLikesTab && cat.id === CollectionType.TEMPLATE) {
-      // 模板点赞数
-      count = stats.templateLikes || 0;
-    } else if (isLikesTab) {
-      count = 0; // 其他类型暂时没有点赞数据
-    }
     return {
       ...cat,
-      count,
+      count: countData?.count || 0,
     };
   });
 

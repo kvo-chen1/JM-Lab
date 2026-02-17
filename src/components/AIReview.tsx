@@ -56,7 +56,7 @@ interface AIReviewProps {
   prompt: string;
   aiExplanation: string;
   selectedResult: number | null;
-  generatedResults: Array<{ id: number; thumbnail: string; score: number }>;
+  generatedResults: Array<{ id: number; thumbnail: string; score: number; video?: string; type?: 'image' | 'video' }>;
   onClose: () => void;
 }
 
@@ -71,7 +71,7 @@ const AIReview: React.FC<AIReviewProps> = ({ workId, prompt, aiExplanation, sele
   const [showMoreSuggestions, setShowMoreSuggestions] = useState(false);
   const [currentTab, setCurrentTab] = useState<'overall' | 'detail' | 'commercial'>('overall');
   const [loadingWorks, setLoadingWorks] = useState(false);
-  const [similarWorks, setSimilarWorks] = useState<Array<{id: string; thumbnail: string; title: string}>>([]);
+  const [similarWorks, setSimilarWorks] = useState<Array<{id: string; thumbnail: string; title: string; type?: string; video?: string}>>([]);
   const [isSaving, setIsSaving] = useState(false);
   
   // 加载相似作品数据
@@ -132,7 +132,9 @@ const AIReview: React.FC<AIReviewProps> = ({ workId, prompt, aiExplanation, sele
           similarWorks: randomWorks.map(work => ({
             id: work.id,
             thumbnail: work.thumbnail || work.thumbnailUrl || '/placeholder-image.jpg',
-            title: work.title
+            title: work.title,
+            type: work.type,
+            video: work.fileUrl || work.video
           }))
         };
 
@@ -255,7 +257,9 @@ const AIReview: React.FC<AIReviewProps> = ({ workId, prompt, aiExplanation, sele
                             similarWorks: randomWorks.map(work => ({
                               id: work.id,
                               thumbnail: work.thumbnail || work.thumbnailUrl || '/placeholder-image.jpg',
-                              title: work.title
+                              title: work.title,
+                              type: work.type,
+                              video: work.fileUrl || work.video
                             }))
                           });
                       } catch (worksError) {
@@ -470,16 +474,33 @@ const AIReview: React.FC<AIReviewProps> = ({ workId, prompt, aiExplanation, sele
                         )}
                         
                         <div className="relative overflow-hidden group">
-                          <LazyImage 
-                            src={work.thumbnail} 
-                            alt={work.title} 
-                            className="w-full h-32 object-cover transition-transform duration-500 group-hover:scale-110"
-                            ratio="landscape"
-                            fit="cover"
-                          />
+                          {work.type === 'video' || work.video ? (
+                            <div className="relative w-full h-32">
+                              <video
+                                src={work.video}
+                                poster={work.thumbnail}
+                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                preload="metadata"
+                                muted
+                              />
+                              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                <div className="w-10 h-10 rounded-full bg-black/50 flex items-center justify-center">
+                                  <i className="fas fa-play text-white text-sm"></i>
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            <LazyImage
+                              src={work.thumbnail}
+                              alt={work.title}
+                              className="w-full h-32 object-cover transition-transform duration-500 group-hover:scale-110"
+                              ratio="landscape"
+                              fit="cover"
+                            />
+                          )}
                           <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end">
                             <div className="p-2 w-full">
-                              <button 
+                              <button
                                 className="w-full bg-white/90 text-gray-900 text-xs font-medium py-1 px-2 rounded-full hover:bg-white transition-colors"
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -531,7 +552,9 @@ const AIReview: React.FC<AIReviewProps> = ({ workId, prompt, aiExplanation, sele
                           setSimilarWorks(randomWorks.map(work => ({
                             id: work.id,
                             thumbnail: work.thumbnail || work.thumbnailUrl || '/placeholder-image.jpg',
-                            title: work.title
+                            title: work.title,
+                            type: work.type,
+                            video: work.fileUrl || work.video
                           })));
                         } catch (error) {
                           console.error('刷新推荐作品失败:', error);

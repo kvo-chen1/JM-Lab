@@ -1,7 +1,9 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { toast } from 'sonner';
+import { useCreateStore } from '../../hooks/useCreateStore';
+import { getScenarioRecommendation, getRecommendedSize } from '../../utils/layoutEngine';
 
 // 排版模式
 type LayoutMode = 'smart' | 'template' | 'auto' | 'custom';
@@ -23,42 +25,36 @@ const SMART_TEMPLATES = [
     name: '中心聚焦', 
     icon: 'crosshairs',
     description: '内容居中，突出重点',
-    style: { display: 'flex', alignItems: 'center', justifyContent: 'center' }
   },
   { 
     id: 'left-text', 
     name: '左文右图', 
     icon: 'align-left',
     description: '文字左侧，视觉右侧',
-    style: { display: 'flex', flexDirection: 'row' }
   },
   { 
     id: 'top-text', 
     name: '上文下图', 
     icon: 'arrow-up',
     description: '标题在上，内容在下',
-    style: { display: 'flex', flexDirection: 'column' }
   },
   { 
     id: 'grid', 
     name: '网格布局', 
     icon: 'th',
     description: '多图网格排列',
-    style: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)' }
   },
   { 
     id: 'masonry', 
     name: '瀑布流', 
     icon: 'stream',
     description: '错落有致排列',
-    style: { display: 'flex', flexWrap: 'wrap' }
   },
   { 
     id: 'fullscreen', 
     name: '全屏沉浸', 
     icon: 'expand',
     description: '满屏展示，震撼效果',
-    style: { display: 'flex', width: '100%', height: '100%' }
   },
 ];
 
@@ -85,47 +81,140 @@ const AI_SCENARIOS = [
 export const SmartLayoutPanel: React.FC = () => {
   const { isDark } = useTheme();
   const [mode, setMode] = useState<LayoutMode>('smart');
-  const [selectedPlatform, setSelectedPlatform] = useState<string>('xiaohongshu');
-  const [selectedTemplate, setSelectedTemplate] = useState<string>('center');
-  const [selectedTextStyle, setSelectedTextStyle] = useState<string>('minimal');
-  const [selectedScenario, setSelectedScenario] = useState<string>('product');
-  const [customText, setCustomText] = useState<string>('');
-  const [isGenerating, setIsGenerating] = useState(false);
+  
+  // 从 store 获取智能排版状态和方法
+  const smartLayoutConfig = useCreateStore((state) => state.smartLayoutConfig);
+  const layoutRecommendation = useCreateStore((state) => state.layoutRecommendation);
+  const isAnalyzingLayout = useCreateStore((state) => state.isAnalyzingLayout);
+  const setSmartLayoutConfig = useCreateStore((state) => state.setSmartLayoutConfig);
+  const analyzeLayout = useCreateStore((state) => state.analyzeLayout);
+  const applyLayout = useCreateStore((state) => state.applyLayout);
+  const resetLayout = useCreateStore((state) => state.resetLayout);
+  const generatedResults = useCreateStore((state) => state.generatedResults);
+  
+  // 本地状态
+  const [customText, setCustomText] = useState<string>(smartLayoutConfig.customText || '');
   const [aiRecommendation, setAiRecommendation] = useState<string | null>(null);
 
+  // 同步 store 中的配置到本地状态
+  useEffect(() => {
+    setCustomText(smartLayoutConfig.customText || '');
+  }, [smartLayoutConfig.customText]);
+
+  // 处理场景选择
+  const handleScenarioSelect = useCallback((scenarioId: string) => {
+    const recommendation = getScenarioRecommendation(scenarioId);
+    setSmartLayoutConfig({ 
+      scenario: scenarioId,
+      template: recommendation.template,
+      textStyle: recommendation.textStyle
+    });
+    setAiRecommendation(null);
+  }, [setSmartLayoutConfig]);
+
+  // 处理平台选择
+  const handlePlatformSelect = useCallback((platformId: string) => {
+    const size = getRecommendedSize(platformId);
+    setSmartLayoutConfig({ 
+      platform: platformId,
+      aspectRatio: size.ratio,
+      canvasSize: { width: size.width, height: size.height }
+    });
+  }, [setSmartLayoutConfig]);
+
+  // 处理模板选择
+  const handleTemplateSelect = useCallback((templateId: string) => {
+    setSmartLayoutConfig({ template: templateId });
+  }, [setSmartLayoutConfig]);
+
+  // 处理文字样式选择
+  const handleTextStyleSelect = useCallback((styleId: string) => {
+    setSmartLayoutConfig({ textStyle: styleId });
+  }, [setSmartLayoutConfig]);
+
+  // 处理文案输入
+  const handleCustomTextChange = useCallback((text: string) => {
+    setCustomText(text);
+    setSmartLayoutConfig({ customText: text });
+  }, [setSmartLayoutConfig]);
+
   // 处理AI智能排版
-  const handleSmartLayout = useCallback(() => {
-    setIsGenerating(true);
-    toast.loading('AI正在分析内容并生成最佳排版...', { duration: 2000 });
+  const handleSmartLayout = useCallback(async () => {
+    if (generatedResults.length === 0) {
+      toast.error('请先生成或上传图片后再使用智能排版');
+      return;
+    }
     
-    setTimeout(() => {
-      const recommendations = [
-        '根据您的内容，推荐使用「中心聚焦」布局，配合小红书尺寸',
-        'AI检测到产品图片，建议使用「上文下图」布局突出产品',
-        '分析显示文字较多，推荐使用「左文右图」布局',
-      ];
-      const randomRec = recommendations[Math.floor(Math.random() * recommendations.length)];
-      setAiRecommendation(randomRec);
-      setIsGenerating(false);
-      toast.success('智能排版生成完成！');
-    }, 2000);
-  }, []);
+    const loadingToast = toast.loading('AI正在分析内容并生成最佳排版...');
+    
+    try {
+      const recommendation = await analyzeLayout();
+      toast.dismiss(loadingToast);
+      
+      if (recommendation) {
+        setAiRecommendation(recommendation.recommendation);
+        toast.success('智能排版生成完成！');
+      } else {
+        toast.error('排版分析失败，请重试');
+      }
+    } catch (error) {
+      toast.dismiss(loadingToast);
+      console.error('Smart layout analysis failed:', error);
+      toast.error('排版分析失败，请重试');
+    }
+  }, [analyzeLayout, generatedResults.length]);
 
   // 处理一键适配多平台
   const handleMultiPlatform = useCallback(() => {
-    setIsGenerating(true);
-    toast.loading('正在生成多平台尺寸...', { duration: 1500 });
+    const loadingToast = toast.loading('正在生成多平台尺寸...');
     
     setTimeout(() => {
-      setIsGenerating(false);
+      toast.dismiss(loadingToast);
       toast.success('已生成6个平台的适配尺寸！');
     }, 1500);
   }, []);
 
   // 处理应用排版
-  const handleApplyLayout = useCallback(() => {
-    toast.success('排版已应用到画布');
-  }, []);
+  const handleApplyLayout = useCallback(async () => {
+    if (generatedResults.length === 0) {
+      toast.error('请先生成或上传图片后再应用排版');
+      return;
+    }
+    
+    // 如果没有生成过推荐，先根据当前配置生成
+    if (!layoutRecommendation) {
+      const loadingToast = toast.loading('正在生成排版...');
+      try {
+        const recommendation = await analyzeLayout();
+        toast.dismiss(loadingToast);
+        
+        if (!recommendation) {
+          toast.error('排版生成失败，请重试');
+          return;
+        }
+        
+        // 直接应用新生成的推荐
+        applyLayout();
+        toast.success('排版已应用到画布！');
+      } catch (error) {
+        toast.dismiss(loadingToast);
+        toast.error('排版生成失败，请重试');
+        return;
+      }
+    } else {
+      // 已经有推荐，直接应用
+      applyLayout();
+      toast.success('排版已应用到画布！');
+    }
+  }, [applyLayout, layoutRecommendation, analyzeLayout, generatedResults.length]);
+
+  // 处理重置排版
+  const handleResetLayout = useCallback(() => {
+    resetLayout();
+    setAiRecommendation(null);
+    setCustomText('');
+    toast.success('排版已重置');
+  }, [resetLayout]);
 
   const panelBg = isDark ? 'bg-gray-900' : 'bg-white';
   const sectionBg = isDark ? 'bg-gray-800' : 'bg-gray-50';
@@ -185,15 +274,15 @@ export const SmartLayoutPanel: React.FC = () => {
                   {AI_SCENARIOS.map((scenario) => (
                     <button
                       key={scenario.id}
-                      onClick={() => setSelectedScenario(scenario.id)}
+                      onClick={() => handleScenarioSelect(scenario.id)}
                       className={`p-3 rounded-lg border-2 transition-all text-left ${
-                        selectedScenario === scenario.id
+                        smartLayoutConfig.scenario === scenario.id
                           ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
                           : `border-transparent ${isDark ? 'bg-gray-700' : 'bg-white'}`
                       }`}
                     >
                       <i className={`fas fa-${scenario.icon} text-lg mb-1 ${
-                        selectedScenario === scenario.id ? 'text-purple-500' : subTextColor
+                        smartLayoutConfig.scenario === scenario.id ? 'text-purple-500' : subTextColor
                       }`} />
                       <div className={`text-xs font-medium ${textColor}`}>{scenario.name}</div>
                     </button>
@@ -202,14 +291,15 @@ export const SmartLayoutPanel: React.FC = () => {
 
                 <button
                   onClick={handleSmartLayout}
-                  disabled={isGenerating}
+                  disabled={isAnalyzingLayout}
                   className="w-full py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl font-medium hover:shadow-lg hover:shadow-purple-500/30 transition-all disabled:opacity-50"
                 >
-                  <i className={`fas fa-${isGenerating ? 'spinner fa-spin' : 'wand-magic-sparkles'} mr-2`} />
-                  {isGenerating ? 'AI分析中...' : '开始智能排版'}
+                  <i className={`fas fa-${isAnalyzingLayout ? 'spinner fa-spin' : 'wand-magic-sparkles'} mr-2`} />
+                  {isAnalyzingLayout ? 'AI分析中...' : '开始智能排版'}
                 </button>
 
-                {aiRecommendation && (
+                {/* AI 推荐结果 */}
+                {(aiRecommendation || layoutRecommendation?.recommendation) && (
                   <motion.div
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
@@ -217,7 +307,25 @@ export const SmartLayoutPanel: React.FC = () => {
                   >
                     <div className="flex items-start gap-2">
                       <i className="fas fa-lightbulb text-purple-500 mt-0.5" />
-                      <p className={`text-sm ${textColor}`}>{aiRecommendation}</p>
+                      <div className="flex-1">
+                        <p className={`text-sm ${textColor} font-medium mb-1`}>AI 推荐</p>
+                        <p className={`text-sm ${subTextColor}`}>
+                          {aiRecommendation || layoutRecommendation?.recommendation}
+                        </p>
+                        {layoutRecommendation && (
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            <span className={`text-xs px-2 py-1 rounded-full ${isDark ? 'bg-gray-700' : 'bg-white'}`}>
+                              模板: {SMART_TEMPLATES.find(t => t.id === layoutRecommendation.template)?.name}
+                            </span>
+                            <span className={`text-xs px-2 py-1 rounded-full ${isDark ? 'bg-gray-700' : 'bg-white'}`}>
+                              文字: {TEXT_STYLES.find(t => t.id === layoutRecommendation.textStyleId)?.name}
+                            </span>
+                            <span className={`text-xs px-2 py-1 rounded-full ${isDark ? 'bg-gray-700' : 'bg-white'}`}>
+                              尺寸: {layoutRecommendation.aspectRatio}
+                            </span>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </motion.div>
                 )}
@@ -233,15 +341,15 @@ export const SmartLayoutPanel: React.FC = () => {
                   {PLATFORM_PRESETS.map((platform) => (
                     <button
                       key={platform.id}
-                      onClick={() => setSelectedPlatform(platform.id)}
+                      onClick={() => handlePlatformSelect(platform.id)}
                       className={`p-3 rounded-xl border-2 transition-all text-center ${
-                        selectedPlatform === platform.id
+                        smartLayoutConfig.platform === platform.id
                           ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
                           : `border-transparent ${sectionBg}`
                       }`}
                     >
                       <i className={`fas fa-${platform.icon} text-lg mb-1 ${
-                        selectedPlatform === platform.id ? 'text-blue-500' : subTextColor
+                        smartLayoutConfig.platform === platform.id ? 'text-blue-500' : subTextColor
                       }`} />
                       <div className={`text-xs font-medium ${textColor}`}>{platform.name}</div>
                       <div className={`text-[10px] ${subTextColor}`}>{platform.ratio}</div>
@@ -257,16 +365,16 @@ export const SmartLayoutPanel: React.FC = () => {
                   {SMART_TEMPLATES.map((template) => (
                     <button
                       key={template.id}
-                      onClick={() => setSelectedTemplate(template.id)}
+                      onClick={() => handleTemplateSelect(template.id)}
                       className={`p-3 rounded-xl border-2 transition-all text-left ${
-                        selectedTemplate === template.id
+                        smartLayoutConfig.template === template.id
                           ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
                           : `border-transparent ${sectionBg}`
                       }`}
                     >
                       <div className="flex items-center gap-2 mb-1">
                         <i className={`fas fa-${template.icon} ${
-                          selectedTemplate === template.id ? 'text-green-500' : subTextColor
+                          smartLayoutConfig.template === template.id ? 'text-green-500' : subTextColor
                         }`} />
                         <span className={`text-sm font-medium ${textColor}`}>{template.name}</span>
                       </div>
@@ -283,15 +391,15 @@ export const SmartLayoutPanel: React.FC = () => {
                   {TEXT_STYLES.map((style) => (
                     <button
                       key={style.id}
-                      onClick={() => setSelectedTextStyle(style.id)}
+                      onClick={() => handleTextStyleSelect(style.id)}
                       className={`p-3 rounded-lg border-2 transition-all text-center ${
-                        selectedTextStyle === style.id
+                        smartLayoutConfig.textStyle === style.id
                           ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20'
                           : `border-transparent ${sectionBg}`
                       }`}
                     >
                       <i className={`fas fa-${style.icon} mb-1 ${
-                        selectedTextStyle === style.id ? 'text-orange-500' : subTextColor
+                        smartLayoutConfig.textStyle === style.id ? 'text-orange-500' : subTextColor
                       }`} />
                       <div className={`text-xs font-medium ${textColor}`}>{style.name}</div>
                     </button>
@@ -304,7 +412,7 @@ export const SmartLayoutPanel: React.FC = () => {
                 <h3 className={`font-semibold ${textColor} mb-3`}>添加文案</h3>
                 <textarea
                   value={customText}
-                  onChange={(e) => setCustomText(e.target.value)}
+                  onChange={(e) => handleCustomTextChange(e.target.value)}
                   placeholder="输入您想要展示的文字内容..."
                   className={`w-full p-3 rounded-xl border ${borderColor} ${panelBg} ${textColor} text-sm resize-none focus:ring-2 focus:ring-purple-500 focus:border-transparent`}
                   rows={3}
@@ -371,27 +479,39 @@ export const SmartLayoutPanel: React.FC = () => {
 
                 <button
                   onClick={handleMultiPlatform}
-                  disabled={isGenerating}
-                  className="w-full py-3 bg-gradient-to-r from-green-500 to-teal-500 text-white rounded-xl font-medium hover:shadow-lg hover:shadow-green-500/30 transition-all disabled:opacity-50"
+                  className="w-full py-3 bg-gradient-to-r from-green-500 to-teal-500 text-white rounded-xl font-medium hover:shadow-lg hover:shadow-green-500/30 transition-all"
                 >
-                  <i className={`fas fa-${isGenerating ? 'spinner fa-spin' : 'clone'} mr-2`} />
-                  {isGenerating ? '生成中...' : '生成全部尺寸'}
+                  <i className="fas fa-clone mr-2" />
+                  生成全部尺寸
                 </button>
               </div>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* 应用按钮 */}
-        <motion.button
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          onClick={handleApplyLayout}
-          className="w-full py-3 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl font-medium shadow-lg shadow-blue-500/30 hover:shadow-xl transition-all"
-        >
-          <i className="fas fa-check mr-2" />
-          应用排版
-        </motion.button>
+        {/* 操作按钮组 */}
+        <div className="space-y-2">
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={handleApplyLayout}
+            disabled={generatedResults.length === 0}
+            className="w-full py-3 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl font-medium shadow-lg shadow-blue-500/30 hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <i className="fas fa-check mr-2" />
+            应用排版到画布
+          </motion.button>
+          
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={handleResetLayout}
+            className="w-full py-2 text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+          >
+            <i className="fas fa-undo mr-2" />
+            重置排版
+          </motion.button>
+        </div>
       </div>
     </div>
   );

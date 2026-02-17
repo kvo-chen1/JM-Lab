@@ -115,13 +115,30 @@ export default function CulturalEvents() {
           camelKey = fieldMapping[camelKey];
         }
 
-        // 将 bigint 时间戳转换为 Date 对象
+        // 将 bigint 时间戳或 ISO 字符串转换为 Date 对象
         // 处理 startTime, endTime, createdAt, updated_at 等时间字段
         // 注意：API 返回的时间戳可能是字符串类型，需要转换为数字
+        // 注意：数据库返回的是秒级时间戳，需要乘以 1000 转换为毫秒
         const timeFields = ['startTime', 'endTime', 'createdAt', 'updatedAt', 'publishedAt', 'registrationDeadline', 'reviewStartDate', 'resultDate'];
-        if (timeFields.includes(camelKey) && (typeof value === 'number' || (typeof value === 'string' && /^\d+$/.test(value)))) {
-          const numValue = typeof value === 'string' ? parseInt(value, 10) : value;
-          value = new Date(numValue);
+        if (timeFields.includes(camelKey) && value !== null && value !== undefined) {
+          if (typeof value === 'number') {
+            // 判断时间戳是秒级还是毫秒级：如果数值小于 1e12，认为是秒级
+            const msValue = value < 1e12 ? value * 1000 : value;
+            value = new Date(msValue);
+          } else if (typeof value === 'string') {
+            if (/^\d+$/.test(value)) {
+              // 纯数字字符串，认为是时间戳
+              const numValue = parseInt(value, 10);
+              const msValue = numValue < 1e12 ? numValue * 1000 : numValue;
+              value = new Date(msValue);
+            } else {
+              // 非纯数字字符串，尝试作为 ISO 日期字符串解析
+              const parsedDate = new Date(value);
+              if (!isNaN(parsedDate.getTime())) {
+                value = parsedDate;
+              }
+            }
+          }
         }
 
         acc[camelKey] = toCamelCase(value);

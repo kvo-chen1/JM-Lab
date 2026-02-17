@@ -19,7 +19,9 @@ export type NotificationType =
   | 'member_invited'
   | 'member_joined'
   | 'member_left'
-  | 'ranking_published';
+  | 'ranking_published'
+  | 'feedback_resolved'
+  | 'feedback_replied';
 
 // 通知优先级
 export type NotificationPriority = 'low' | 'medium' | 'high' | 'urgent';
@@ -101,7 +103,9 @@ const defaultSettings: NotificationSettings = {
     member_invited: true,
     member_joined: true,
     member_left: true,
-    ranking_published: true
+    ranking_published: true,
+    feedback_resolved: true,
+    feedback_replied: true
   },
   priorities: {
     low: true,

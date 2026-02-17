@@ -1,7 +1,7 @@
 // src/config/themeConfig.ts
 
 // 主题类型定义
-export type Theme = 'light' | 'blue' | 'green' | 'pixel' | 'dark' | 'tianjin';
+export type Theme = 'light' | 'blue' | 'green' | 'pixel' | 'dark' | 'tianjin' | 'nirenzhang' | 'yangliuqing' | 'fengzhengwei' | 'guifaxiang' | 'goubuli';
 
 // 自定义主题接口
 export interface CustomTheme {
@@ -50,7 +50,12 @@ export const themeConfig: ThemeConfig[] = [
   { value: 'blue', label: '蓝色', icon: 'fas fa-water', description: '清新蓝色主题，带来宁静感' },
   { value: 'green', label: '绿色', icon: 'fas fa-leaf', description: '自然绿色主题，充满生机' },
   { value: 'pixel', label: '赛博像素', icon: 'fas fa-dungeon', description: '复古赛博朋克风格主题' },
-  { value: 'tianjin', label: '津门雅韵', icon: 'fas fa-landmark', description: '天津城市特色主题，融合海河蓝、历史砖红、老字号文化元素，体现古今交融的城市气质' }
+  { value: 'tianjin', label: '津门雅韵', icon: 'fas fa-landmark', description: '天津城市特色主题，融合海河蓝、历史砖红、老字号文化元素，体现古今交融的城市气质' },
+  { value: 'nirenzhang', label: '泥人张红', icon: 'fas fa-palette', description: '工艺美术主题，热烈红色调，用于重要操作和强调' },
+  { value: 'yangliuqing', label: '杨柳青绿', icon: 'fas fa-tree', description: '天津杨柳青年画主题，石青配朱砂红，半印半绘工艺，色彩鲜艳明快' },
+  { value: 'fengzhengwei', label: '风筝魏蓝', icon: 'fas fa-paper-plane', description: '传统技艺主题，清新蓝色调，用于信息提示和链接' },
+  { value: 'guifaxiang', label: '桂发祥金', icon: 'fas fa-crown', description: '传统美食主题，尊贵金色调，用于VIP标识和会员等级' },
+  { value: 'goubuli', label: '狗不理棕', icon: 'fas fa-bread-slice', description: '传统美食主题，温暖棕色调，用于暖色调装饰' }
 ];
 
 
@@ -63,7 +68,12 @@ export const themeEnhancements = {
     blue: 1.15,
     green: 1.15,
     pixel: 1.3,
-    tianjin: 1.18
+    tianjin: 1.18,
+    nirenzhang: 1.2,
+    yangliuqing: 1.15,
+    fengzhengwei: 1.15,
+    guifaxiang: 1.18,
+    goubuli: 1.15
   },
   // 色彩饱和度优化
   saturation: {
@@ -72,7 +82,12 @@ export const themeEnhancements = {
     blue: 1.1,
     green: 1.1,
     pixel: 1.2,
-    tianjin: 1.08
+    tianjin: 1.08,
+    nirenzhang: 1.15,
+    yangliuqing: 1.1,
+    fengzhengwei: 1.05,
+    guifaxiang: 1.12,
+    goubuli: 1.08
   },
   // 亮度调整
   brightness: {
@@ -81,7 +96,12 @@ export const themeEnhancements = {
     blue: 1.0,
     green: 1.0,
     pixel: 0.85,
-    tianjin: 1.02
+    tianjin: 1.02,
+    nirenzhang: 1.0,
+    yangliuqing: 1.02,
+    fengzhengwei: 1.05,
+    guifaxiang: 1.0,
+    goubuli: 0.98
   },
   // 主题过渡动画
   transition: {
@@ -107,6 +127,36 @@ export const themeEnhancements = {
       color: '#1E5F8E',
       waveAnimation: true,
       brickTexture: true
+    },
+    nirenzhang: {
+      glow: true,
+      intensity: 'high',
+      color: '#C21807',
+      artStyle: 'clay'
+    },
+    yangliuqing: {
+      glow: true,
+      intensity: 'medium',
+      color: '#228B22',
+      artStyle: 'painting'
+    },
+    fengzhengwei: {
+      glow: true,
+      intensity: 'low',
+      color: '#87CEEB',
+      artStyle: 'kite'
+    },
+    guifaxiang: {
+      glow: true,
+      intensity: 'high',
+      color: '#C68E17',
+      artStyle: 'golden'
+    },
+    goubuli: {
+      glow: true,
+      intensity: 'medium',
+      color: '#8B4513',
+      artStyle: 'warm'
     }
   }
 };
@@ -135,7 +185,7 @@ export const autoThemeConfig = {
 // 主题预设配置
 export const themePresets = {
   // 推荐主题组合
-  recommended: ['light', 'dark', 'blue', 'green', 'pixel', 'tianjin'] as Theme[],
+  recommended: ['light', 'dark', 'blue', 'green', 'pixel', 'tianjin', 'nirenzhang', 'yangliuqing', 'fengzhengwei', 'guifaxiang', 'goubuli'] as Theme[],
   // 季节适配
   seasonal: {
     spring: 'green',
@@ -159,10 +209,10 @@ export const themePresets = {
 export const defaultTheme: Theme = 'light';
 
 // 主题切换顺序
-export const themeOrder: Theme[] = ['light', 'dark', 'blue', 'green', 'pixel', 'tianjin'];
+export const themeOrder: Theme[] = ['light', 'dark', 'blue', 'green', 'pixel', 'tianjin', 'nirenzhang', 'yangliuqing', 'fengzhengwei', 'guifaxiang', 'goubuli'];
 
 // 有效的主题列表（用于验证）
-export const validThemes: Theme[] = ['light', 'dark', 'blue', 'green', 'pixel', 'tianjin'];
+export const validThemes: Theme[] = ['light', 'dark', 'blue', 'green', 'pixel', 'tianjin', 'nirenzhang', 'yangliuqing', 'fengzhengwei', 'guifaxiang', 'goubuli'];
 
 // 检测系统主题偏好
 export const getSystemTheme = (): 'light' | 'dark' => {
@@ -201,6 +251,11 @@ export const getAppliedTheme = (theme: Theme): Theme => {
     case 'green':
     case 'pixel':
     case 'tianjin':
+    case 'nirenzhang':
+    case 'yangliuqing':
+    case 'fengzhengwei':
+    case 'guifaxiang':
+    case 'goubuli':
       return theme;
     default:
       return defaultTheme;

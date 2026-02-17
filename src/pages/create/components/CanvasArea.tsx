@@ -6,6 +6,8 @@ import { useCreateStore } from '../hooks/useCreateStore';
 import { traditionalPatterns } from '../data';
 import { toast } from 'sonner';
 import HistoryPanel from './HistoryPanel';
+import { SmartLayoutCanvas } from './SmartLayoutCanvas';
+import { SmartLayoutPreview } from './SmartLayoutPreview';
 
 interface CanvasAreaProps {
   isSidebarCollapsed: boolean;
@@ -19,6 +21,7 @@ export default function CanvasArea({ isSidebarCollapsed, setIsSidebarCollapsed }
   const generatedResults = useCreateStore((state) => state.generatedResults);
   const selectedResult = useCreateStore((state) => state.selectedResult);
   const setSelectedResult = useCreateStore((state) => state.setSelectedResult);
+  const setPrompt = useCreateStore((state) => state.setPrompt);
   const isGenerating = useCreateStore((state) => state.isGenerating);
   const currentStep = useCreateStore((state) => state.currentStep);
   const activeTool = useCreateStore((state) => state.activeTool);
@@ -47,13 +50,24 @@ export default function CanvasArea({ isSidebarCollapsed, setIsSidebarCollapsed }
   const saveToDrafts = useCreateStore((state) => state.saveToDrafts);
   const shareDesign = useCreateStore((state) => state.shareDesign);
   const applyToOtherTool = useCreateStore((state) => state.applyToOtherTool);
+  const deleteGeneratedResult = useCreateStore((state) => state.deleteGeneratedResult);
+  
+  // 智能排版相关状态
+  const smartLayoutConfig = useCreateStore((state) => state.smartLayoutConfig);
+  const layoutRecommendation = useCreateStore((state) => state.layoutRecommendation);
 
-  // 自动选择第一张图片进行预览
+  // 仅在初始加载且没有选中任何作品时，自动选择第一张图片
   useEffect(() => {
-    if (generatedResults.length > 0 && (!selectedResult || !generatedResults.some(result => result.id === selectedResult))) {
+    // 只在 generatedResults 从空变为有数据时执行，避免覆盖用户手动选择
+    if (generatedResults.length > 0 && !selectedResult) {
       setSelectedResult(generatedResults[0].id);
     }
-  }, [generatedResults, selectedResult, setSelectedResult]);
+    // 如果当前选中的作品不在列表中，则清除选择
+    else if (selectedResult && !generatedResults.some(result => result.id === selectedResult)) {
+      setSelectedResult(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [generatedResults.length]); // 只监听数量变化，不监听 selectedResult
 
   const handleFullscreenToggle = () => {
     if (!document.fullscreenElement) {
@@ -301,111 +315,31 @@ export default function CanvasArea({ isSidebarCollapsed, setIsSidebarCollapsed }
             </motion.div>
           ) : (
             <div className="w-full flex flex-col items-center z-0 pb-6">
-              {/* Focus View */}
-              <div className="w-full flex items-center justify-center min-h-[300px] max-h-[55vh] mb-8">
+              {/* Focus View - 支持智能排版 - 全屏沉浸式 */}
+              <div className="w-full flex items-center justify-center min-h-[400px] max-h-[70vh] mb-8 px-4">
                 {selectedResult ? (
-                  <div className="relative w-full max-w-4xl max-h-full">
-                    <motion.div 
-                      layoutId={`result-${selectedResult}`}
-                      initial={{ opacity: 0, scale: 0.95 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ duration: 0.3, ease: "easeOut" }}
-                      className={`relative w-full max-w-full max-h-full overflow-hidden group ${selectedBorderStyle === 'none' ? 'rounded-2xl' : selectedBorderStyle === 'thin' ? 'rounded-2xl border-2 border-gray-500' : selectedBorderStyle === 'thick' ? 'rounded-2xl border-4 border-gray-500' : 'rounded-full border-2 border-gray-500'} shadow-2xl ${selectedBackground === 'transparent' ? '' : selectedBackground === 'light' ? 'bg-gray-100 dark:bg-gray-200' : selectedBackground === 'dark' ? 'bg-gray-800 dark:bg-gray-900' : 'bg-gradient-to-br from-blue-400 to-purple-400 dark:from-blue-600 dark:to-purple-800'} ${selectedLayout === 'center' ? 'flex items-center justify-center' : selectedLayout === 'left' ? 'flex items-center justify-start' : selectedLayout === 'right' ? 'flex items-center justify-end' : 'w-full'}`}
-                    >
-                      {(() => {
-                        const selectedItem = generatedResults.find(r => r.id === selectedResult);
-                        const isVideo = selectedItem?.type === 'video' || selectedItem?.video;
-                        
-                        if (isVideo && selectedItem?.video) {
-                          return (
-                            <motion.video
-                              src={selectedItem.video}
-                              poster={selectedItem.thumbnail}
-                              controls
-                              autoPlay
-                              loop
-                              className={`w-full h-auto max-h-[55vh] object-contain ${selectedBackground === 'transparent' ? 'bg-gray-100 dark:bg-gray-900' : ''}`}
-                              initial={{ opacity: 0 }}
-                              animate={{ opacity: 1 }}
-                              transition={{ duration: 0.5, delay: 0.1, ease: "easeOut" }}
-                            />
-                          );
-                        }
-                        
-                        return (
-                          <motion.img 
-                            src={selectedItem?.thumbnail || 'https://via.placeholder.com/800x600?text=No+Image'} 
-                            alt="Selected Result" 
-                            className={`w-full h-auto max-h-[55vh] object-contain ${selectedBackground === 'transparent' ? 'bg-gray-100 dark:bg-gray-900' : ''}`}
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            transition={{ duration: 0.5, delay: 0.1, ease: "easeOut" }}
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).src = 'https://via.placeholder.com/800x600?text=No+Image';
-                            }}
-                            style={{
-                              filter: selectedFilter === 'normal' ? 'none' : 
-                                      selectedFilter === 'sepia' ? 'sepia(100%)' : 
-                                      selectedFilter === 'grayscale' ? 'grayscale(100%)' : 
-                                      selectedFilter === 'vintage' ? 'sepia(50%) contrast(120%) brightness(90%)' : 'none'
-                            }}
-                          />
-                        );
-                      })()}
-                        
-                      {/* 纹样叠加层 */}
-                      {selectedPatternId && activeTool === 'pattern' && (
-                        <motion.div 
-                          className="absolute inset-0 pointer-events-none"
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: patternOpacity / 100 }}
-                          transition={{ duration: 0.3, ease: "easeOut" }}
-                          style={{
-                            transform: `scale(${patternScale / 100}) rotate(${patternRotation}deg)`,
-                            transformOrigin: 'center center',
-                            backgroundImage: `url(${traditionalPatterns.find(p => p.id === selectedPatternId)?.thumbnail})`,
-                            backgroundSize: 'auto',
-                            backgroundRepeat: patternTileMode,
-                            backgroundPosition: `${patternPositionX}% ${patternPositionY}%`,
-                            mixBlendMode: patternBlendMode
-                          }}
-                        />
-                      )}
-                        
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors pointer-events-none"></div>
-                        
-                      {/* Floating Actions on Image */}
-                      <div className="absolute bottom-6 right-6 flex gap-3 opacity-0 group-hover:opacity-100 transition-all duration-300 ease-out transform translate-y-4 group-hover:translate-y-0">
-                        {activeTool === 'pattern' && selectedResult && (
-                          <motion.button 
-                            whileHover={{ scale: 1.1, y: -2 }}
-                            whileTap={{ scale: 0.95 }}
-                            className="w-10 h-10 rounded-full bg-white text-gray-900 shadow-lg flex items-center justify-center" 
-                            title="导出纹样图片"
-                            onClick={() => handleExportPatternImage()}
-                          >
-                            <i className="fas fa-file-export"></i>
-                          </motion.button>
-                        )}
-                        <motion.button 
-                          whileHover={{ scale: 1.1, y: -2 }}
-                          whileTap={{ scale: 0.95 }}
-                          className="w-10 h-10 rounded-full bg-white text-gray-900 shadow-lg flex items-center justify-center" 
-                          title="下载"
-                        >
-                          <i className="fas fa-download"></i>
-                        </motion.button>
-                        <motion.button 
-                          whileHover={{ scale: 1.1, y: -2 }}
-                          whileTap={{ scale: 0.95 }}
-                          onClick={handleFullscreenToggle} 
-                          className="w-10 h-10 rounded-full bg-white text-gray-900 shadow-lg flex items-center justify-center" 
-                          title={isFullscreen ? "退出全屏" : "全屏"}
-                        >
-                          <i className={`fas ${isFullscreen ? 'fa-compress' : 'fa-expand'}`}></i>
-                        </motion.button>
-                      </div>
-                    </motion.div>
+                  <div className="relative w-full max-w-5xl max-h-full">
+                    <SmartLayoutCanvas
+                      selectedResult={selectedResult}
+                      generatedResults={generatedResults}
+                      layoutRecommendation={layoutRecommendation}
+                      smartLayoutConfig={smartLayoutConfig}
+                      selectedBorderStyle={selectedBorderStyle}
+                      selectedFilter={selectedFilter}
+                      selectedBackground={selectedBackground}
+                      selectedPatternId={selectedPatternId}
+                      activeTool={activeTool}
+                      patternOpacity={patternOpacity}
+                      patternScale={patternScale}
+                      patternRotation={patternRotation}
+                      patternBlendMode={patternBlendMode}
+                      patternTileMode={patternTileMode}
+                      patternPositionX={patternPositionX}
+                      patternPositionY={patternPositionY}
+                      isFullscreen={isFullscreen}
+                      handleFullscreenToggle={handleFullscreenToggle}
+                      handleExportPatternImage={handleExportPatternImage}
+                    />
                   </div>
                 ) : (
                   <div className="text-gray-400">请选择一张图片进行预览</div>
@@ -618,70 +552,128 @@ export default function CanvasArea({ isSidebarCollapsed, setIsSidebarCollapsed }
                   transition={{ duration: 0.4, delay: 0.2, ease: "easeOut" }}
                   className={`w-full backdrop-blur-md p-3 rounded-2xl border mb-3 shadow-lg ${isDark ? 'bg-black/50 border-white/20' : 'bg-white/50 border-gray-200'}`}
                 >
+                  {/* 缩略图数量提示 */}
+                  <div className="flex items-center justify-between mb-2 px-1">
+                    <div className="flex items-center gap-2">
+                      <span className={`text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                        作品缩略图
+                      </span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${isDark ? 'bg-blue-900/30 text-blue-400' : 'bg-blue-100 text-blue-600'}`}>
+                        共 {generatedResults.length} 个
+                      </span>
+                    </div>
+                    <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                      <i className="fas fa-arrows-alt-h mr-1"></i>可左右拖动浏览
+                    </span>
+                  </div>
+
                   <div className="flex gap-3 sm:gap-4 overflow-x-auto custom-scrollbar justify-center pr-4">
                     {generatedResults.map((result, index) => (
-                      <motion.button
+                      <motion.div
                         key={result.id}
                         layoutId={`thumb-${result.id}`}
-                        onClick={() => setSelectedResult(result.id)}
                         initial={{ opacity: 0, scale: 0.8, y: 10 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         transition={{ duration: 0.3, delay: 0.1 * index, ease: "easeOut" }}
-                        whileHover={{ scale: 1.1, y: -5 }}
-                        whileTap={{ scale: 0.95 }}
-                        className={`relative flex-shrink-0 w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 rounded-xl overflow-hidden border-2 transition-all shadow-md ${selectedResult === result.id ? 'border-[#C02C38] ring-2 ring-[#C02C38]/20 scale-110 z-10' : 'border-white dark:border-gray-700 opacity-70 hover:opacity-100'}`}
+                        className={`relative flex-shrink-0 w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 rounded-xl overflow-hidden border-2 transition-all shadow-md group ${selectedResult === result.id ? 'border-[#C02C38] ring-2 ring-[#C02C38]/20 scale-110 z-10' : 'border-white dark:border-gray-700 opacity-70 hover:opacity-100'}`}
                       >
-                        {/* 视频直接显示视频元素，图片显示图片 */}
-                        {(result.type === 'video' || result.video) ? (
-                          <>
-                            <video 
-                              src={result.video || result.thumbnail}
-                              className="w-full h-full object-cover"
-                              preload="metadata"
-                              muted
-                              playsInline
-                              onMouseEnter={(e) => (e.target as HTMLVideoElement).play()}
-                              onMouseLeave={(e) => (e.target as HTMLVideoElement).pause()}
+                        <motion.button
+                          onClick={() => {
+                            setSelectedResult(result.id);
+                            // 如果作品有保存prompt，则同步更新创意描述
+                            if (result.prompt) {
+                              setPrompt(result.prompt);
+                            }
+                          }}
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          className="w-full h-full"
+                        >
+                          {/* 视频直接显示视频元素，图片显示图片 */}
+                          {(result.type === 'video' || result.video) ? (
+                            <>
+                              <video 
+                                src={result.video || result.thumbnail}
+                                className="w-full h-full object-cover"
+                                preload="metadata"
+                                muted
+                                playsInline
+                                onMouseEnter={(e) => (e.target as HTMLVideoElement).play()}
+                                onMouseLeave={(e) => (e.target as HTMLVideoElement).pause()}
+                              />
+                              <motion.div 
+                                initial={{ opacity: 0, scale: 0.5 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                transition={{ duration: 0.2, delay: 0.2 * index, ease: "easeOut" }}
+                                className="absolute inset-0 flex items-center justify-center bg-black/20 pointer-events-none"
+                              >
+                                <div className="w-8 h-8 rounded-full bg-white/90 flex items-center justify-center">
+                                  <i className="fas fa-play text-[#C02C38] text-xs ml-0.5"></i>
+                                </div>
+                              </motion.div>
+                            </>
+                          ) : (
+                            <motion.img 
+                              src={result.thumbnail || 'https://via.placeholder.com/150?text=No+Image'} 
+                              alt="" 
+                              className="w-full h-full object-cover" 
+                              initial={{ opacity: 0 }}
+                              animate={{ opacity: 1 }}
+                              transition={{ duration: 0.3, delay: 0.15 * index, ease: "easeOut" }}
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = 'https://via.placeholder.com/150?text=No+Image';
+                              }}
                             />
-                            <motion.div 
-                              initial={{ opacity: 0, scale: 0.5 }}
-                              animate={{ opacity: 1, scale: 1 }}
-                              transition={{ duration: 0.2, delay: 0.2 * index, ease: "easeOut" }}
-                              className="absolute inset-0 flex items-center justify-center bg-black/20 pointer-events-none"
-                            >
-                              <div className="w-8 h-8 rounded-full bg-white/90 flex items-center justify-center">
-                                <i className="fas fa-play text-[#C02C38] text-xs ml-0.5"></i>
-                              </div>
-                            </motion.div>
-                          </>
-                        ) : (
-                          <motion.img 
-                            src={result.thumbnail || 'https://via.placeholder.com/150?text=No+Image'} 
-                            alt="" 
-                            className="w-full h-full object-cover" 
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            transition={{ duration: 0.3, delay: 0.15 * index, ease: "easeOut" }}
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).src = 'https://via.placeholder.com/150?text=No+Image';
-                            }}
-                          />
-                        )}
+                          )}
+                        </motion.button>
+                        
+                        {/* 删除按钮 - 默认隐藏，悬浮时显示 */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (confirm('确定要删除这张作品吗？')) {
+                              deleteGeneratedResult(result.id);
+                              toast.success('作品已删除');
+                            }
+                          }}
+                          className="absolute -top-1 -right-1 w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-red-500 text-white flex items-center justify-center shadow-md hover:bg-red-600 z-20 opacity-0 group-hover:opacity-100 transition-all duration-200 hover:scale-110 active:scale-90"
+                          title="删除作品"
+                        >
+                          <i className="fas fa-times text-[10px] sm:text-xs"></i>
+                        </button>
+                        
                         {result.score && (
                           <motion.div 
                             initial={{ opacity: 0, scale: 0.5 }}
                             animate={{ opacity: 1, scale: 1 }}
                             transition={{ duration: 0.2, delay: 0.2 * index, ease: "easeOut" }}
-                            className="absolute top-1 right-1 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded-full backdrop-blur-md"
+                            className="absolute bottom-1 left-1 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded-full backdrop-blur-md"
                           >
-                            {result.score}
+                            {result.score}分
                           </motion.div>
                         )}
-                      </motion.button>
+                      </motion.div>
                     ))}
                   </div>
                 </motion.div>
                 
+                {/* AI 智能排版预览区 - 仅在智能排版工具激活时显示 */}
+                {activeTool === 'layout' && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.4, delay: 0.15, ease: "easeOut" }}
+                    className={`hidden md:block w-full max-w-5xl mx-auto backdrop-blur-md p-10 rounded-2xl border mb-8 shadow-xl ${isDark ? 'bg-black/50 border-white/20' : 'bg-white/50 border-gray-200'}`}
+                  >
+                    <SmartLayoutPreview 
+                      selectedResult={selectedResult}
+                      generatedResults={generatedResults}
+                      layoutRecommendation={layoutRecommendation}
+                      smartLayoutConfig={smartLayoutConfig}
+                    />
+                  </motion.div>
+                )}
+
                 {/* 样式预览区 - 可折叠 - 手机端隐藏 */}
                 <motion.div 
                   initial={{ opacity: 0, y: 20 }}
@@ -820,7 +812,7 @@ export default function CanvasArea({ isSidebarCollapsed, setIsSidebarCollapsed }
                    <i className="fas fa-magic text-[#C02C38] animate-pulse"></i>
                 </div>
               </div>
-              <p className="font-bold text-lg text-[#C02C38] tracking-widest animate-pulse">AI GENERATING</p>
+              <p className="font-bold text-lg text-[#C02C38] tracking-widest animate-pulse">AI 生成中</p>
               <p className="text-sm text-gray-500 mt-2">正在为您构建创意方案...</p>
             </motion.div>
           )}

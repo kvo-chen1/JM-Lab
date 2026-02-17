@@ -180,6 +180,45 @@ export interface UserRole {
   assignedBy?: string;
 }
 
+// 活动作品类型
+export type EventSubmissionType = 'document' | 'image_description' | 'other';
+
+// 活动类型配置
+export interface EventTypeConfig {
+  id: string;
+  typeCode: EventSubmissionType;
+  typeName: string;
+  typeDescription?: string;
+  icon?: string;
+  defaultRequirements: EventSubmissionRequirements;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// 作品上传要求
+export interface EventSubmissionRequirements {
+  formats: string[];
+  formatLabels?: Record<string, string>;
+  maxSize: number;
+  maxSizeLabel?: string;
+  maxFiles: number;
+  description: string;
+  uploadGuide: string;
+  templateAvailable?: boolean;
+  requireDescription?: boolean;
+}
+
+// 作品模板
+export interface SubmissionTemplate {
+  id: string;
+  name: string;
+  description?: string;
+  downloadUrl?: string;
+  previewUrl?: string;
+  fileType?: string;
+}
+
 // 活动相关类型
 export interface Event extends BaseEntity {
   title: string;
@@ -207,6 +246,12 @@ export interface Event extends BaseEntity {
   likeCount: number;
   // 活动阶段状态
   phaseStatus?: 'registration' | 'review' | 'completed';
+  // 活动作品类型
+  eventType?: EventSubmissionType;
+  // 作品上传要求配置
+  submissionRequirements?: EventSubmissionRequirements;
+  // 作品模板列表
+  submissionTemplates?: SubmissionTemplate[];
 }
 
 // 媒体资源类型
@@ -245,6 +290,12 @@ export interface EventCreateRequest {
   registrationDeadline?: Date; // 报名截止时间
   reviewStartDate?: Date; // 评审开始时间
   resultDate?: Date; // 结果公布时间
+  // 活动作品类型
+  eventType?: EventSubmissionType;
+  // 作品上传要求配置
+  submissionRequirements?: EventSubmissionRequirements;
+  // 作品模板列表
+  submissionTemplates?: SubmissionTemplate[];
 }
 
 // 活动更新请求类型
@@ -261,6 +312,12 @@ export interface EventUpdateRequest {
   isPublic?: boolean;
   maxParticipants?: number;
   status?: 'draft' | 'pending' | 'published' | 'rejected';
+  // 活动作品类型
+  eventType?: EventSubmissionType;
+  // 作品上传要求配置
+  submissionRequirements?: EventSubmissionRequirements;
+  // 作品模板列表
+  submissionTemplates?: SubmissionTemplate[];
 }
 
 // 活动发布请求类型
@@ -442,6 +499,12 @@ export interface EventSubmission extends BaseEntity {
   ratingCount?: number;
   coverImage?: string;
   mediaType?: 'image' | 'video' | 'audio' | 'document' | 'other';
+  // 作品提交类型
+  submissionType?: EventSubmissionType;
+  // AI写作关联字段
+  aiWriterContent?: string;
+  aiWriterHistoryId?: string;
+  isFromAiWriter?: boolean;
 }
 
 // 作品投票类型

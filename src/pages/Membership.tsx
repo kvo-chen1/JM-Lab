@@ -212,8 +212,10 @@ const Membership: React.FC = () => {
 
   // 处理续费
   const handleRenew = () => {
+    // 如果当前是免费会员，则引导到升级页面
+    const targetPlan = user?.membershipLevel === 'free' ? 'premium' : user?.membershipLevel;
     navigate('/membership/payment', {
-      state: { plan: user?.membershipLevel, renew: true }
+      state: { plan: targetPlan, renew: user?.membershipLevel !== 'free' }
     });
   };
 

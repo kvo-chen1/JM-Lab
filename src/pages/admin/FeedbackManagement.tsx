@@ -15,6 +15,7 @@ import {
 } from '@/services/feedbackService';
 import { permissionService } from '@/services/permissionService';
 import { AuthContext } from '@/contexts/authContext';
+import { useNotifications } from '@/contexts/NotificationContext';
 import {
   MessageSquare,
   Bug,
@@ -58,6 +59,7 @@ const typeIconMap = {
 export default function FeedbackManagement() {
   const { isDark } = useTheme();
   const { user } = useContext(AuthContext);
+  const { addNotification } = useNotifications();
 
   // 状态
   const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
@@ -103,6 +105,7 @@ export default function FeedbackManagement() {
   const loadFeedbacks = async () => {
     setLoading(true);
     try {
+      console.log('[FeedbackManagement] 开始加载反馈数据');
       const { feedbacks: data, total: count } = await feedbackService.getFeedbacks({
         page,
         limit: 20,
@@ -111,9 +114,11 @@ export default function FeedbackManagement() {
         priority: filters.priority || undefined,
         search: filters.search || undefined
       });
+      console.log('[FeedbackManagement] 加载到的数据:', { data, count });
       setFeedbacks(data);
       setTotal(count);
     } catch (error) {
+      console.error('[FeedbackManagement] 加载反馈列表失败:', error);
       toast.error('加载反馈列表失败');
     } finally {
       setLoading(false);
@@ -122,10 +127,12 @@ export default function FeedbackManagement() {
 
   const loadStats = async () => {
     try {
+      console.log('[FeedbackManagement] 开始加载统计数据');
       const data = await feedbackService.getStats();
+      console.log('[FeedbackManagement] 加载到的统计数据:', data);
       setStats(data);
     } catch (error) {
-      console.error('加载统计数据失败:', error);
+      console.error('[FeedbackManagement] 加载统计数据失败:', error);
     }
   };
 
@@ -216,6 +223,21 @@ export default function FeedbackManagement() {
         user?.id,
         responseForm.notifyUser
       );
+      
+      // 发送前端通知
+      if (responseForm.notifyUser && selectedFeedback.user_id) {
+        addNotification({
+          type: 'feedback_resolved',
+          title: '反馈处理完成',
+          content: `您对"${selectedFeedback.title || FEEDBACK_TYPE_CONFIG[selectedFeedback.type].label}"的反馈已得到回复`,
+          senderId: user?.id || '',
+          senderName: user?.username || '管理员',
+          recipientId: selectedFeedback.user_id,
+          priority: 'medium',
+          link: `/feedback/${selectedFeedback.id}`
+        });
+      }
+      
       toast.success('处理结果已提交' + (responseForm.notifyUser ? '，用户已收到通知' : ''));
       loadFeedbacks();
       loadStats();
@@ -259,8 +281,47 @@ export default function FeedbackManagement() {
     return date.toLocaleDateString();
   };
 
+  // 调试函数：检查 localStorage
+  const checkLocalStorage = () => {
+    const stored = localStorage.getItem('user_feedbacks_local');
+    console.log('[Debug] localStorage 中的数据:', stored);
+    if (stored) {
+      try {
+        const data = JSON.parse(stored);
+        console.log('[Debug] 解析后的数据条数:', data.length);
+        console.log('[Debug] 数据内容:', data);
+        toast.success(`localStorage 中有 ${data.length} 条数据`);
+      } catch (e) {
+        console.error('[Debug] 解析失败:', e);
+        toast.error('解析 localStorage 数据失败');
+      }
+    } else {
+      console.log('[Debug] localStorage 中没有数据');
+      toast.error('localStorage 中没有数据');
+    }
+  };
+
   return (
     <div className="space-y-6">
+      {/* 调试按钮 */}
+      <div className="flex gap-2">
+        <button
+          onClick={checkLocalStorage}
+          className="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600"
+        >
+          检查 localStorage
+        </button>
+        <button
+          onClick={() => {
+            loadFeedbacks();
+            loadStats();
+          }}
+          className="px-4 py-2 bg-green-500 text-white rounded-lg text-sm hover:bg-green-600"
+        >
+          手动刷新
+        </button>
+      </div>
+
       {/* 统计卡片 */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {[

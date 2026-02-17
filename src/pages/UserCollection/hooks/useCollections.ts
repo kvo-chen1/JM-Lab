@@ -66,6 +66,7 @@ export function useCollections({
         return;
       }
 
+      console.log('[useCollections] Fetched items:', result.items.length, 'First item author:', result.items[0]?.author);
       if (append) {
         setItems(prev => [...prev, ...result.items]);
       } else {

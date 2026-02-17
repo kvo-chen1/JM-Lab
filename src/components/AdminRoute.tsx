@@ -1,4 +1,4 @@
-import { useContext, ReactNode, memo, useState, useEffect } from 'react'
+import { useContext, ReactNode, memo, useEffect, useState } from 'react'
 import { AuthContext } from '@/contexts/authContext'
 import { Navigate, useLocation } from 'react-router-dom'
 
@@ -8,14 +8,40 @@ interface AdminRouteProps {
 }
 
 // 使用memo优化，避免不必要的重新渲染
-// 注意：实际的权限验证在 Admin.tsx 页面中通过密码进行
 const AdminRoute = memo(({ component: Component, children }: AdminRouteProps) => {
-  // 如果有children，直接返回children，用于支持懒加载组件
+  const { isAuthenticated, isLoading, user } = useContext(AuthContext);
+  const location = useLocation();
+
+  // 检查是否为开发环境
+  const isDevelopment = import.meta.env.DEV;
+
+  // 如果正在加载认证状态，显示加载指示器
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-red-500 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-lg text-gray-600 dark:text-gray-400">正在检查认证状态...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 检查认证状态 - 未登录则重定向到登录页
+  if (isAuthenticated === false || isAuthenticated === undefined) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  // 开发环境日志记录（仅用于调试，不影响逻辑）
+  if (isDevelopment) {
+    console.log('[AdminRoute] User authenticated:', user?.username);
+  }
+
+  // 认证通过，渲染内容
   if (children) {
     return <>{children}</>;
   }
 
-  // 如果提供了component，则渲染该组件
   if (Component) {
     return <Component />;
   }

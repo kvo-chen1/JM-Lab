@@ -7,12 +7,14 @@ import AIWriterEditor from './AIWriterEditor';
 import AIWriterHistoryPage from './AIWriterHistoryPage';
 import Wizard from '../Wizard';
 import PlanLibrary from './components/PlanLibrary';
+import IPIncubationSubmit from './IPIncubationSubmit';
 
 function Create() {
   return (
     <Routes>
       {/* 独立路由 - 全屏显示，不包含 CreateLayout */}
       <Route path="ai-writer-editor" element={<AIWriterEditor />} />
+      <Route path="ip-submit" element={<IPIncubationSubmit />} />
 
       {/* 包含 CreateLayout 的路由 */}
       <Route element={<CreateLayout />}>

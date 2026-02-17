@@ -97,6 +97,9 @@ export default function SketchPanel() {
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const [videoGenerationProgress, setVideoGenerationProgress] = useState(0);
   const [videoGenerationStatus, setVideoGenerationStatus] = useState('');
+  const [imageGenerationProgress, setImageGenerationProgress] = useState(0);
+  const [imageGenerationStatus, setImageGenerationStatus] = useState('');
+  const imageProgressIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
   // Store 状态
   const { 
@@ -183,16 +186,24 @@ export default function SketchPanel() {
       abortControllerRef.current = null;
     }
     
-    // 清除进度定时器
+    // 清除视频进度定时器
     if (progressIntervalRef.current) {
       clearInterval(progressIntervalRef.current);
       progressIntervalRef.current = null;
+    }
+    
+    // 清除图片进度定时器
+    if (imageProgressIntervalRef.current) {
+      clearInterval(imageProgressIntervalRef.current);
+      imageProgressIntervalRef.current = null;
     }
     
     // 重置状态
     setIsGenerating(false);
     setVideoGenerationProgress(0);
     setVideoGenerationStatus('');
+    setImageGenerationProgress(0);
+    setImageGenerationStatus('');
     updateState({ streamStatus: 'idle' });
     
     toast.info('已取消生成');
@@ -248,6 +259,60 @@ export default function SketchPanel() {
     }
   };
 
+  // 启动图片生成进度模拟
+  const startImageProgressSimulation = () => {
+    setImageGenerationProgress(0);
+    setImageGenerationStatus('正在分析创意...');
+    let progress = 0;
+
+    // 清除之前的定时器
+    if (imageProgressIntervalRef.current) {
+      clearInterval(imageProgressIntervalRef.current);
+    }
+
+    const stages = [
+      { threshold: 0, status: '正在分析创意...' },
+      { threshold: 20, status: '正在构建画面...' },
+      { threshold: 40, status: '正在生成图片...' },
+      { threshold: 60, status: '正在优化细节...' },
+      { threshold: 80, status: '正在保存到云存储...' }
+    ];
+
+    imageProgressIntervalRef.current = setInterval(() => {
+      progress += Math.random() * 4 + 2; // 每次增加 2-6%
+
+      // 更新状态文字
+      const currentStage = stages.findLast(s => progress >= s.threshold);
+      if (currentStage) {
+        setImageGenerationStatus(currentStage.status);
+      }
+
+      if (progress >= 95) {
+        progress = 95; // 保持在95%，等待实际完成
+        if (imageProgressIntervalRef.current) {
+          clearInterval(imageProgressIntervalRef.current);
+        }
+      }
+      setImageGenerationProgress(Math.floor(progress));
+    }, 300);
+  };
+
+  // 停止图片生成进度模拟
+  const stopImageProgressSimulation = (completed = true) => {
+    if (imageProgressIntervalRef.current) {
+      clearInterval(imageProgressIntervalRef.current);
+      imageProgressIntervalRef.current = null;
+    }
+    if (completed) {
+      setImageGenerationProgress(100);
+      setImageGenerationStatus('生成完成！');
+      setTimeout(() => {
+        setImageGenerationProgress(0);
+        setImageGenerationStatus('');
+      }, 1000);
+    }
+  };
+
   // 文生图
   const generateTextToImage = async () => {
     llmService.setCurrentModel('qwen');
@@ -255,6 +320,9 @@ export default function SketchPanel() {
     const inputBase = (prompt || '天津文化设计灵感').trim();
     const input = stylePreset ? `${inputBase}；风格：${stylePreset}` : inputBase;
     const currentModel = llmService.getCurrentModel();
+
+    // 启动进度模拟
+    startImageProgressSimulation();
     
     const r = await llmService.generateImage({ 
       prompt: input, 
@@ -268,7 +336,7 @@ export default function SketchPanel() {
     const urls = dataArray.map((d: any) => d.url || (d.b64_json ? `data:image/png;base64,${d.b64_json}` : '')).filter(Boolean);
 
     if (urls.length) {
-      toast.info('正在保存图片到云存储...');
+      setImageGenerationStatus('正在保存到云存储...');
       
       // 下载图片并上传到 Supabase Storage
       const { downloadAndUploadImage } = await import('@/services/imageService');
@@ -289,17 +357,47 @@ export default function SketchPanel() {
         })
       );
       
-      const mapped = uploadedUrls.map((u: string, idx: number) => ({ 
-        id: Date.now() + idx, 
-        thumbnail: u, 
-        score: 80,
-        type: 'image'
-      }));
-      setGeneratedResults(mapped);
-      setSelectedResult(mapped[0]?.id ?? null);
+      // 为每个生成的作品获取AI评分
+      const newResults = await Promise.all(
+        uploadedUrls.map(async (u: string, idx: number) => {
+          try {
+            // 调用AI评分服务获取真实评分
+            const reviewResult = await llmService.generateWorkReview(
+              prompt || 'AI生成作品',
+              `使用${currentModel.name}模型生成的图片作品`
+            );
+            return {
+              id: Date.now() + idx,
+              thumbnail: u,
+              score: reviewResult.overallScore,
+              type: 'image',
+              prompt: prompt || 'AI生成作品'
+            };
+          } catch (error) {
+            console.error('获取AI评分失败:', error);
+            // 如果评分失败，使用默认分数
+            return {
+              id: Date.now() + idx,
+              thumbnail: u,
+              score: 80,
+              type: 'image',
+              prompt: prompt || 'AI生成作品'
+            };
+          }
+        })
+      );
+      
+      // 将新作品追加到现有数组后面（显示在右边）
+      const currentResults = useCreateStore.getState().generatedResults;
+      const updatedResults = [...currentResults, ...newResults];
+      setGeneratedResults(updatedResults);
+      // 选中新添加的最后一个作品
+      setSelectedResult(newResults[newResults.length - 1]?.id ?? null);
       setCurrentStep(2);
+      stopImageProgressSimulation(true);
       toast.success(`${currentModel.name}已生成${urls.length}张图片方案并保存到云存储`);
     } else {
+      stopImageProgressSimulation(false);
       useFallbackData('image');
     }
   };
@@ -372,14 +470,20 @@ export default function SketchPanel() {
           })
         );
         
-        const mapped = uploadedUrls.map((u: string, idx: number) => ({ 
+        const newResults = uploadedUrls.map((u: string, idx: number) => ({ 
           id: Date.now() + idx, 
           thumbnail: u, 
           score: 80 + Math.floor(Math.random() * 15),
-          type: 'image'
+          type: 'image',
+          prompt: prompt || '图生图作品'
         }));
-        setGeneratedResults(mapped);
-        setSelectedResult(mapped[0]?.id ?? null);
+        
+        // 将新作品追加到现有数组后面（显示在右边）
+        const currentResults = useCreateStore.getState().generatedResults;
+        const updatedResults = [...currentResults, ...newResults];
+        setGeneratedResults(updatedResults);
+        // 选中新添加的最后一个作品
+        setSelectedResult(newResults[newResults.length - 1]?.id ?? null);
         setCurrentStep(2);
         toast.success(`${currentModel.name}风格转换完成，生成${urls.length}张图片并保存到云存储`);
       } else {
@@ -1224,6 +1328,113 @@ ${prompt}`;
           {isVideoMode && <span className="ml-2 text-orange-500">视频生成时间较长，请耐心等待</span>}
         </p>
       </div>
+
+      {/* 图片生成加载状态 - 全屏覆盖 */}
+      <AnimatePresence>
+        {!isVideoMode && isGenerating && imageGenerationProgress > 0 && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+            style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className={`w-full max-w-md mx-4 p-8 rounded-3xl shadow-2xl ${
+                isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'
+              }`}
+            >
+              {/* 图标和标题 */}
+              <div className="text-center mb-6">
+                <div className={`w-20 h-20 mx-auto rounded-2xl flex items-center justify-center mb-4 ${
+                  isDark ? 'bg-gradient-to-br from-violet-500/20 to-purple-600/20' : 'bg-gradient-to-br from-violet-100 to-purple-100'
+                }`}>
+                  <i className="fas fa-image text-3xl text-violet-500 animate-pulse"></i>
+                </div>
+                <h3 className={`text-xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                  正在生成图片
+                </h3>
+                <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                  AI正在创作您的作品，请稍候
+                </p>
+              </div>
+
+              {/* 进度条 */}
+              <div className="mb-6">
+                <div className={`h-3 rounded-full overflow-hidden ${
+                  isDark ? 'bg-gray-700' : 'bg-gray-200'
+                }`}>
+                  <motion.div
+                    className="h-full bg-gradient-to-r from-violet-500 via-purple-500 to-pink-500 rounded-full"
+                    initial={{ width: 0 }}
+                    animate={{ width: `${imageGenerationProgress}%` }}
+                    transition={{ duration: 0.5, ease: "easeOut" }}
+                  />
+                </div>
+                <div className="flex justify-between mt-2">
+                  <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                    {imageGenerationStatus}
+                  </span>
+                  <span className={`text-xs font-bold ${isDark ? 'text-violet-400' : 'text-violet-600'}`}>
+                    {Math.round(imageGenerationProgress)}%
+                  </span>
+                </div>
+              </div>
+
+              {/* 状态步骤 */}
+              <div className="space-y-3">
+                {[
+                  { label: '分析创意', threshold: 10, icon: 'fa-lightbulb' },
+                  { label: '构建画面', threshold: 30, icon: 'fa-paint-brush' },
+                  { label: '生成图片', threshold: 50, icon: 'fa-magic' },
+                  { label: '优化细节', threshold: 70, icon: 'fa-sliders-h' },
+                  { label: '保存作品', threshold: 90, icon: 'fa-check-circle' },
+                ].map((step, index) => (
+                  <div key={index} className="flex items-center gap-3">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs transition-all duration-300 ${
+                      imageGenerationProgress >= step.threshold
+                        ? 'bg-gradient-to-br from-violet-500 to-purple-500 text-white'
+                        : isDark ? 'bg-gray-700 text-gray-500' : 'bg-gray-200 text-gray-400'
+                    }`}>
+                      <i className={`fas ${imageGenerationProgress >= step.threshold ? 'fa-check' : step.icon}`}></i>
+                    </div>
+                    <span className={`text-sm transition-all duration-300 ${
+                      imageGenerationProgress >= step.threshold
+                        ? isDark ? 'text-white font-medium' : 'text-gray-900 font-medium'
+                        : isDark ? 'text-gray-500' : 'text-gray-400'
+                    }`}>
+                      {step.label}
+                    </span>
+                    {imageGenerationProgress >= step.threshold && imageGenerationProgress < step.threshold + 20 && (
+                      <motion.span
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        className="text-xs text-violet-500 ml-auto"
+                      >
+                        进行中...
+                      </motion.span>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* 取消按钮 */}
+              <motion.button
+                onClick={handleCancelGenerate}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="mt-6 w-full py-3 rounded-xl font-semibold text-white shadow-lg bg-gradient-to-r from-red-500 to-red-600 hover:shadow-xl transition-all flex items-center justify-center gap-2"
+              >
+                <i className="fas fa-times"></i>
+                取消生成
+              </motion.button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* 视频生成加载状态 - 全屏覆盖 */}
       <AnimatePresence>

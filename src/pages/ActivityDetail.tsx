@@ -1,7 +1,7 @@
 import { useState, useContext, useEffect, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { AuthContext } from '@/contexts/authContext';
 import { toast } from 'sonner';
 import { Event } from '@/types';
@@ -10,6 +10,9 @@ import { InfoCard, StatCard } from '@/components/InfoCard';
 import PublishToSquareModal from '@/components/PublishToSquareModal';
 import { ShareModal } from '@/components/ShareModal';
 import { EventCard } from '@/components/EventCard';
+import { PrizeDisplay } from '@/components/prize';
+import { Prize } from '@/types/prize';
+import { prizeService } from '@/services/prizeService';
 
 import {
   CalendarDays,
@@ -34,7 +37,10 @@ import {
   MoreHorizontal,
   Bookmark,
   MessageCircle,
-  Crown
+  Crown,
+  Heart,
+  Gift,
+  Sparkles
 } from 'lucide-react';
 
 // 活动状态配置
@@ -64,6 +70,10 @@ export default function ActivityDetail() {
     shares: 0,
     comments: 0
   });
+
+  // 奖品数据
+  const [prizes, setPrizes] = useState<Prize[]>([]);
+  const [isPrizesLoading, setIsPrizesLoading] = useState(false);
 
   // 弹窗状态
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
@@ -108,11 +118,29 @@ export default function ActivityDetail() {
         excludeId: eventId
       });
       setRelatedEvents(related);
+
+      // 加载奖品数据
+      await loadPrizes();
     } catch (error) {
       toast.error('加载活动详情失败');
       navigate('/activities');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // 加载奖品数据
+  const loadPrizes = async () => {
+    if (!eventId) return;
+    
+    setIsPrizesLoading(true);
+    try {
+      const prizeData = await prizeService.getPrizesByEventId(eventId);
+      setPrizes(prizeData);
+    } catch (error) {
+      console.error('加载奖品数据失败:', error);
+    } finally {
+      setIsPrizesLoading(false);
     }
   };
 
@@ -453,6 +481,69 @@ export default function ActivityDetail() {
               </div>
             </motion.div>
 
+            {/* 奖品展示区域 */}
+            {(prizes.length > 0 || isPrizesLoading) && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.25 }}
+                className={`rounded-2xl p-6 mt-6 ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border shadow-card`}
+              >
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                      isDark ? 'bg-yellow-500/20' : 'bg-yellow-100'
+                    }`}>
+                      <Gift className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-bold text-gray-900 dark:text-white">活动奖品</h2>
+                      <p className="text-sm text-gray-500">
+                        共 {prizes.length} 个奖项等你来拿
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-yellow-600 dark:text-yellow-400">
+                    <Sparkles className="w-4 h-4" />
+                    <span>丰厚奖励</span>
+                  </div>
+                </div>
+
+                {isPrizesLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <motion.div
+                      className="inline-block"
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                    >
+                      <div className="w-8 h-8 border-4 border-yellow-200 border-t-yellow-500 rounded-full" />
+                    </motion.div>
+                    <span className="ml-3 text-gray-500">加载奖品信息...</span>
+                  </div>
+                ) : (
+                  <PrizeDisplay
+                    prizes={prizes}
+                    config={{
+                      layout: 'podium',
+                      showValue: true,
+                      showQuantity: true,
+                      animationEnabled: true,
+                      highlightTopThree: true,
+                      cardStyle: 'modern',
+                    }}
+                  />
+                )}
+
+                {/* 奖品说明 */}
+                <div className={`mt-6 p-4 rounded-xl ${isDark ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    <span className="font-medium text-gray-900 dark:text-white">领奖说明：</span>
+                    活动结束后，获奖者将在排名页面公布。请确保您的联系方式准确无误，以便我们与您联系发放奖品。
+                  </p>
+                </div>
+              </motion.div>
+            )}
+
             {/* 多媒体画廊 */}
             {event.media && event.media.length > 0 && (
               <motion.div
@@ -473,6 +564,7 @@ export default function ActivityDetail() {
                         src={media.url}
                         alt={`活动图片 ${index + 1}`}
                         className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                        loading="lazy"
                       />
                     </motion.div>
                   ))}

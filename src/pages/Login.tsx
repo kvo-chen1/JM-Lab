@@ -1,15 +1,21 @@
 import React, { useState, useContext, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { AuthContext } from '@/contexts/authContext';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { usePersistentAuth } from '@/hooks/usePersistentAuth';
 
 export default function Login() {
   const { toggleTheme, isDark } = useTheme();
   const { login, loginWithCode, sendEmailOtp, isAuthenticated, quickLogin } = useContext(AuthContext);
   const navigate = useNavigate();
+  const location = useLocation();
+  const { redirectAfterLogin, getLastPath } = usePersistentAuth({
+    storageKeyPrefix: 'app',
+    persistAuth: true,
+  });
   
   // 邮箱登录类型：只保留验证码登录
   const [emailLoginType] = useState<'password' | 'code'>('code');
@@ -66,9 +72,10 @@ export default function Login() {
   
   useEffect(() => {
     if (isAuthenticated) {
-      navigate('/');
+      // 登录成功后，如果有保存的路径则返回，否则到首页
+      redirectAfterLogin();
     }
-  }, [isAuthenticated, navigate])
+  }, [isAuthenticated, redirectAfterLogin])
   
   // 实时表单验证
   const validateEmail = (value: string) => {
@@ -126,7 +133,8 @@ export default function Login() {
         if (user.isNewUser) {
           navigate('/complete-profile');
         } else {
-          navigate('/');
+          // 登录成功后，如果有保存的路径则返回，否则到首页
+          redirectAfterLogin();
         }
       } else {
         toast.error('邮箱或验证码错误，请重试');

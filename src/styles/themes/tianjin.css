@@ -184,30 +184,407 @@
   --bg-tertiary: #3A3834;
   --bg-hover: #4A4744;
   --bg-active: #5A5754;
-  
+
   --text-primary: #F0EDE8;
   --text-secondary: #D5D0CA;
   --text-tertiary: #B5B0AA;
   --text-muted: #9A9590;
-  
+
   --border-primary: #4A4744;
   --border-secondary: #5A5754;
   --border-tertiary: #6A6764;
-  
+
   --color-primary: #4A90B8;
   --color-primary-light: #6BA5C8;
   --color-secondary: #C17A54;
   --color-accent: #E8C878;
-  
+
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.4);
-  
+
   --glow-primary: 0 0 20px rgba(74, 144, 184, 0.4);
   --glow-secondary: 0 0 20px rgba(193, 122, 84, 0.3);
   --glow-accent: 0 0 20px rgba(232, 200, 120, 0.3);
-  
+
   --gradient-primary: linear-gradient(135deg, #1A1918 0%, #2C2A28 100%);
+}
+
+/* ========================================
+   天津老字号品牌主题 - 泥人张红
+   设计灵感：泥人张彩塑的"塑与绘"结合工艺
+   色彩特点：天然矿物颜料，色彩低调内敛，沉稳大气
+   艺术风格：形神兼备、栩栩如生、富于文气
+   ======================================== */
+
+.nirenzhang {
+  /* 
+   * 泥人张经典配色：
+   * - 朱砂红（主色）：#B8321A - 传统矿物颜料，沉稳内敛
+   * - 赭石（辅色）：#8B5A3C - 泥土本色，朴实自然
+   * - 石青（点缀）：#2E5A6B - 用于服饰点缀
+   * - 藤黄（强调）：#C9A227 - 温暖明亮
+   */
+  
+  /* 主色调：朱砂红 - 泥人张标志性颜色，低调内敛 */
+  --color-primary: #B8321A;
+  --color-primary-light: #D4543A;
+  --color-primary-dark: #8A2410;
+
+  /* 辅助色：赭石 - 泥土本色 */
+  --color-secondary: #8B5A3C;
+  --color-secondary-light: #A67B5B;
+
+  /* 强调色：藤黄 */
+  --color-accent: #C9A227;
+  --color-accent-light: #E0B83A;
+
+  /* 点缀色：石青 */
+  --nirenzhang-qing: #2E5A6B;
+  --nirenzhang-qing-light: #4A7A8B;
+
+  --color-success: #5A7A5A;
+  --color-neutral: #9A8A7A;
+
+  /* 
+   * 背景：仿陶土质感的米灰
+   * 泥人张作品底色多为素雅的陶土色
+   */
+  --bg-primary: #F5F0EB;
+  --bg-secondary: #FAF8F5;
+  --bg-tertiary: #E8E0D8;
+  --bg-hover: #DDD5C8;
+  --bg-active: #D0C8B8;
+
+  /* 文字：深墨色 - 模仿泥塑的立体感 */
+  --text-primary: #2A2420;
+  --text-secondary: #4A4038;
+  --text-tertiary: #6A6050;
+
+  /* 边框：陶土棕 */
+  --border-primary: #D8D0C0;
+  --border-secondary: #C8C0B0;
+  --border-tertiary: #B8B0A0;
+
+  /* 阴影：朱砂红光晕 */
+  --shadow-sm: 0 1px 2px 0 rgba(184, 50, 26, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(184, 50, 26, 0.08), 0 2px 4px -1px rgba(184, 50, 26, 0.04);
+  --shadow-lg: 0 10px 15px -3px rgba(184, 50, 26, 0.1), 0 4px 6px -2px rgba(184, 50, 26, 0.05);
+
+  --glow-primary: 0 0 20px rgba(184, 50, 26, 0.2);
+  --glow-secondary: 0 0 20px rgba(139, 90, 60, 0.15);
+
+  /* 
+   * 渐变：模仿泥塑的立体感
+   * 泥人张作品色彩过渡自然，层次分明
+   */
+  --gradient-primary: linear-gradient(135deg, #F5F0EB 0%, #FAF8F5 50%, #E8E0D8 100%);
+  --gradient-accent: linear-gradient(135deg, #B8321A 0%, #D4543A 100%);
+  --gradient-earth: linear-gradient(135deg, #8B5A3C 0%, #A67B5B 100%);
+  --gradient-gold: linear-gradient(135deg, #C9A227 0%, #E0B83A 100%);
+  
+  /* 泥塑特有的立体渐变 */
+  --gradient-clay: linear-gradient(135deg, #B8321A 0%, #D4543A 50%, #8B5A3C 100%);
+}
+
+/* ========================================
+   天津老字号品牌主题 - 杨柳青绿
+   设计灵感：杨柳青年画的"半印半绘"工艺
+   色彩特点：朱砂红、石青、藤黄等天然颜料
+   艺术风格：色彩鲜艳明快、对比强烈、寓意吉祥
+   ======================================== */
+
+.yangliuqing {
+  /* 
+   * 杨柳青年画经典配色：
+   * - 石青（主色）：#2E5AAC - 年画中的青绿色，来自天然矿物颜料
+   * - 朱砂红（辅色）：#D4351C - 喜庆吉祥，年画最重要的颜色
+   * - 藤黄（强调）：#E6A817 - 温暖明亮，象征富贵
+   * - 胭脂（点缀）：#B83A5E - 柔和妩媚，用于人物服饰
+   */
+  
+  /* 主色调：石青 - 杨柳青年画标志性青绿色 */
+  --color-primary: #2E5AAC;
+  --color-primary-light: #4A7FC9;
+  --color-primary-dark: #1E3D7A;
+
+  /* 辅助色：朱砂红 - 喜庆吉祥的主色 */
+  --color-secondary: #D4351C;
+  --color-secondary-light: #E85A41;
+
+  /* 强调色：藤黄 - 温暖富贵 */
+  --color-accent: #E6A817;
+  --color-accent-light: #F5C842;
+
+  /* 点缀色：胭脂粉 */
+  --yangliuqing-rouge: #B83A5E;
+  --yangliuqing-rouge-light: #D45A7E;
+
+  --color-success: #2E7D32;
+  --color-neutral: #8D6E63;
+
+  /* 
+   * 背景：仿古宣纸质感
+   * 杨柳青年画使用特制宣纸，微微泛黄
+   */
+  --bg-primary: #FAF6ED;
+  --bg-secondary: #FFFEF9;
+  --bg-tertiary: #F2ECD8;
+  --bg-hover: #E8E0C8;
+  --bg-active: #DDD4B8;
+
+  /* 文字：深墨色 - 模仿年画线条 */
+  --text-primary: #2C2416;
+  --text-secondary: #4A3F2A;
+  --text-tertiary: #6B5D45;
+
+  /* 边框：木版印刷的棕色 */
+  --border-primary: #D4C8A8;
+  --border-secondary: #C4B898;
+  --border-tertiary: #B4A888;
+
+  /* 阴影：石青光晕 */
+  --shadow-sm: 0 1px 2px 0 rgba(46, 90, 172, 0.06);
+  --shadow-md: 0 4px 6px -1px rgba(46, 90, 172, 0.1), 0 2px 4px -1px rgba(46, 90, 172, 0.05);
+  --shadow-lg: 0 10px 15px -3px rgba(46, 90, 172, 0.12), 0 4px 6px -2px rgba(46, 90, 172, 0.06);
+
+  --glow-primary: 0 0 20px rgba(46, 90, 172, 0.25);
+  --glow-secondary: 0 0 20px rgba(212, 53, 28, 0.2);
+
+  /* 
+   * 渐变：模仿年画的套色效果
+   * 杨柳青年画采用"半印半绘"，色彩层次丰富
+   */
+  --gradient-primary: linear-gradient(135deg, #FAF6ED 0%, #FFFEF9 50%, #F2ECD8 100%);
+  --gradient-accent: linear-gradient(135deg, #2E5AAC 0%, #4A7FC9 100%);
+  --gradient-warm: linear-gradient(135deg, #D4351C 0%, #E85A41 100%);
+  --gradient-gold: linear-gradient(135deg, #E6A817 0%, #F5C842 100%);
+  --gradient-rouge: linear-gradient(135deg, #B83A5E 0%, #D45A7E 100%);
+  
+  /* 年画特有的套色渐变 */
+  --gradient-nianhua: linear-gradient(135deg, #2E5AAC 0%, #4A7FC9 50%, #E6A817 100%);
+}
+
+/* ========================================
+   天津老字号品牌主题 - 风筝魏蓝
+   设计灵感：天津风筝魏的传统风筝技艺
+   色彩特点：天蓝、云白、朱红点缀，轻盈飘逸
+   艺术风格：骨架精巧、彩绘绚丽、寓意吉祥
+   ======================================== */
+
+.fengzhengwei {
+  /* 
+   * 风筝魏经典配色：
+   * - 天蓝（主色）：#4A90E2 - 晴朗天空的颜色
+   * - 云白（背景）：#F8FAFC - 白云般的纯净
+   * - 朱红（点缀）：#E74C3C - 风筝上的吉祥图案
+   * - 金黄（强调）：#F1C40F - 阳光般的温暖
+   */
+  
+  /* 主色调：天蓝 - 象征蓝天与自由 */
+  --color-primary: #4A90E2;
+  --color-primary-light: #6BA5E8;
+  --color-primary-dark: #2E5AAC;
+
+  /* 辅助色：朱红 - 风筝上的吉祥图案 */
+  --color-secondary: #E74C3C;
+  --color-secondary-light: #FF6B6B;
+
+  /* 强调色：金黄 - 阳光与希望 */
+  --color-accent: #F1C40F;
+  --color-accent-light: #F4D03F;
+
+  /* 点缀色：翠绿 - 春天的颜色 */
+  --fengzhengwei-green: #27AE60;
+  --fengzhengwei-green-light: #2ECC71;
+
+  --color-success: #27AE60;
+  --color-neutral: #95A5A6;
+
+  /* 
+   * 背景：蓝天白云般的清新
+   * 模仿晴朗天空的渐变感
+   */
+  --bg-primary: #F0F7FF;
+  --bg-secondary: #FFFFFF;
+  --bg-tertiary: #E0F0FF;
+  --bg-hover: #C8E0FF;
+  --bg-active: #B0D0FF;
+
+  /* 文字：深空蓝 */
+  --text-primary: #1A2A3A;
+  --text-secondary: #2C3E50;
+  --text-tertiary: #5D6D7E;
+
+  /* 边框：天空蓝 */
+  --border-primary: #D0E0F0;
+  --border-secondary: #B0D0E8;
+  --border-tertiary: #90C0E0;
+
+  /* 阴影：天蓝光晕 */
+  --shadow-sm: 0 1px 2px 0 rgba(74, 144, 226, 0.06);
+  --shadow-md: 0 4px 6px -1px rgba(74, 144, 226, 0.1), 0 2px 4px -1px rgba(74, 144, 226, 0.05);
+  --shadow-lg: 0 10px 15px -3px rgba(74, 144, 226, 0.12), 0 4px 6px -2px rgba(74, 144, 226, 0.06);
+
+  --glow-primary: 0 0 20px rgba(74, 144, 226, 0.25);
+  --glow-secondary: 0 0 20px rgba(231, 76, 60, 0.15);
+
+  /* 
+   * 渐变：模仿天空的渐变
+   * 从地平线到天空的蓝色渐变
+   */
+  --gradient-primary: linear-gradient(135deg, #F0F7FF 0%, #FFFFFF 50%, #E0F0FF 100%);
+  --gradient-accent: linear-gradient(135deg, #4A90E2 0%, #6BA5E8 100%);
+  --gradient-sky: linear-gradient(180deg, #4A90E2 0%, #87CEEB 50%, #E0F0FF 100%);
+  --gradient-kite: linear-gradient(135deg, #E74C3C 0%, #F1C40F 50%, #4A90E2 100%);
+}
+
+/* ========================================
+   天津老字号品牌主题 - 桂发祥金
+   设计灵感：天津桂发祥十八街麻花
+   色彩特点：金黄酥脆、油亮诱人、富贵吉祥
+   艺术风格：传统美食、金黄油亮、层次分明
+   ======================================== */
+
+.guifaxiang {
+  /* 
+   * 桂发祥麻花经典配色：
+   * - 金黄（主色）：#D4A84B - 麻花油炸后的金黄色
+   * - 焦糖（辅色）：#8B4513 - 麻花表面的焦糖色
+   * - 芝麻白（点缀）：#F5F5DC - 芝麻的米白色
+   * - 油亮（强调）：#E8C547 - 油亮的光泽感
+   */
+  
+  /* 主色调：金黄 - 麻花油炸后的诱人色泽 */
+  --color-primary: #D4A84B;
+  --color-primary-light: #E8C547;
+  --color-primary-dark: #B08A3A;
+
+  /* 辅助色：焦糖棕 - 麻花表面的焦香 */
+  --color-secondary: #8B4513;
+  --color-secondary-light: #A0522D;
+
+  /* 强调色：油亮金 - 油炸食品的光泽 */
+  --color-accent: #F0D878;
+  --color-accent-light: #F5E6A3;
+
+  /* 点缀色：芝麻白 */
+  --guifaxiang-sesame: #F5F5DC;
+  --guifaxiang-sesame-dark: #E8E8D0;
+
+  --color-success: #7A9A3A;
+  --color-neutral: #C4B896;
+
+  /* 
+   * 背景：暖黄米白
+   * 模仿麻花和芝麻的暖色调
+   */
+  --bg-primary: #FDF9E8;
+  --bg-secondary: #FFFCF5;
+  --bg-tertiary: #F5ECD0;
+  --bg-hover: #EDE0B8;
+  --bg-active: #E5D4A8;
+
+  /* 文字：深棕 - 焦糖色 */
+  --text-primary: #3A2A1A;
+  --text-secondary: #5A4A3A;
+  --text-tertiary: #7A6A5A;
+
+  /* 边框：金黄 */
+  --border-primary: #E8DCC0;
+  --border-secondary: #D8CCA8;
+  --border-tertiary: #C8BC98;
+
+  /* 阴影：金黄光晕 */
+  --shadow-sm: 0 1px 2px 0 rgba(212, 168, 75, 0.06);
+  --shadow-md: 0 4px 6px -1px rgba(212, 168, 75, 0.1), 0 2px 4px -1px rgba(212, 168, 75, 0.05);
+  --shadow-lg: 0 10px 15px -3px rgba(212, 168, 75, 0.12), 0 4px 6px -2px rgba(212, 168, 75, 0.06);
+
+  --glow-primary: 0 0 20px rgba(212, 168, 75, 0.3);
+  --glow-secondary: 0 0 20px rgba(139, 69, 19, 0.15);
+
+  /* 
+   * 渐变：模仿麻花的层次感
+   * 金黄到焦糖的渐变，体现油炸食品的层次
+   */
+  --gradient-primary: linear-gradient(135deg, #FDF9E8 0%, #FFFCF5 50%, #F5ECD0 100%);
+  --gradient-accent: linear-gradient(135deg, #D4A84B 0%, #E8C547 50%, #F0D878 100%);
+  --gradient-caramel: linear-gradient(135deg, #8B4513 0%, #A0522D 100%);
+  --gradient-mahua: linear-gradient(135deg, #D4A84B 0%, #E8C547 50%, #8B4513 100%);
+}
+
+/* ========================================
+   天津老字号品牌主题 - 狗不理棕
+   设计灵感：天津狗不理包子
+   色彩特点：温暖棕褐、麦香金黄、蒸汽白雾
+   艺术风格：传统面食、温暖厚重、百年传承
+   ======================================== */
+
+.goubuli {
+  /* 
+   * 狗不理包子经典配色：
+   * - 麦香棕（主色）：#9A6B4A - 包子皮的麦香色
+   * - 蒸汽白（背景）：#F8F6F0 - 蒸笼里的白雾
+   * - 焦香黄（强调）：#D4A574 - 包子底部的焦香
+   * - 肉馅红（点缀）：#A0522D - 肉馅的色泽
+   */
+  
+  /* 主色调：麦香棕 - 包子皮的温暖色泽 */
+  --color-primary: #9A6B4A;
+  --color-primary-light: #B88A6A;
+  --color-primary-dark: #7A4B2A;
+
+  /* 辅助色：肉馅红 - 狗不理包子的肉馅 */
+  --color-secondary: #A0522D;
+  --color-secondary-light: #C0704D;
+
+  /* 强调色：焦香黄 - 包子底部的焦香 */
+  --color-accent: #D4A574;
+  --color-accent-light: #E8C090;
+
+  /* 点缀色：葱花绿 */
+  --goubuli-onion: #6B8E6B;
+  --goubuli-onion-light: #8BAE8B;
+
+  --color-success: #7A8A6A;
+  --color-neutral: #B0A090;
+
+  /* 
+   * 背景：蒸笼白雾般的米白
+   * 模仿热气腾腾的包子铺氛围
+   */
+  --bg-primary: #F8F6F0;
+  --bg-secondary: #FDFCFA;
+  --bg-tertiary: #EDE8E0;
+  --bg-hover: #E0D8D0;
+  --bg-active: #D5CCC0;
+
+  /* 文字：深棕 - 老字号的厚重感 */
+  --text-primary: #3A2A1A;
+  --text-secondary: #5A4A3A;
+  --text-tertiary: #7A6A5A;
+
+  /* 边框：麦香 */
+  --border-primary: #E0D8D0;
+  --border-secondary: #D0C8C0;
+  --border-tertiary: #C0B8B0;
+
+  /* 阴影：麦香棕光晕 */
+  --shadow-sm: 0 1px 2px 0 rgba(154, 107, 74, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(154, 107, 74, 0.08), 0 2px 4px -1px rgba(154, 107, 74, 0.04);
+  --shadow-lg: 0 10px 15px -3px rgba(154, 107, 74, 0.1), 0 4px 6px -2px rgba(154, 107, 74, 0.05);
+
+  --glow-primary: 0 0 20px rgba(154, 107, 74, 0.2);
+  --glow-secondary: 0 0 20px rgba(160, 82, 45, 0.15);
+
+  /* 
+   * 渐变：模仿包子的层次感
+   * 从面皮到肉馅的温暖渐变
+   */
+  --gradient-primary: linear-gradient(135deg, #F8F6F0 0%, #FDFCFA 50%, #EDE8E0 100%);
+  --gradient-accent: linear-gradient(135deg, #9A6B4A 0%, #B88A6A 100%);
+  --gradient-crust: linear-gradient(135deg, #D4A574 0%, #E8C090 100%);
+  --gradient-baozi: linear-gradient(135deg, #F8F6F0 0%, #D4A574 50%, #A0522D 100%);
 }
 
 /* ========================================

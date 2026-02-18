@@ -791,7 +791,7 @@ const CommunityManagement: React.FC<CommunityManagementProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className={`fixed inset-0 z-50 ${isDark ? 'bg-black/70' : 'bg-black/50'} backdrop-blur-sm flex items-center justify-center p-0 md:p-4`}>
+    <div className={`fixed inset-0 z-[70] ${isDark ? 'bg-black/70' : 'bg-black/50'} backdrop-blur-sm flex items-center justify-center p-0 md:p-4`}>
       <motion.div 
         className={`
           ${isDark ? 'bg-slate-900' : 'bg-white'} 

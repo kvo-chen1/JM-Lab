@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Message } from '@/services/llmService';
 import { useTheme } from '@/hooks/useTheme';
 import { toast } from 'sonner';
+import { MarkdownTable } from '@/components/MarkdownTable';
 
 interface AICollaborationMessageProps {
   message: Message;
@@ -16,6 +17,7 @@ interface AICollaborationMessageProps {
   onFeedbackSubmit?: (index: number, comment: string) => void;
   onFeedbackCommentChange?: (index: number, comment: string) => void;
   onFeedbackToggle?: (index: number, visible: boolean) => void;
+  onDelete?: (index: number) => void;
 }
 
 const AICollaborationMessage: React.FC<AICollaborationMessageProps> = ({
@@ -28,7 +30,8 @@ const AICollaborationMessage: React.FC<AICollaborationMessageProps> = ({
   onRating,
   onFeedbackSubmit,
   onFeedbackCommentChange,
-  onFeedbackToggle
+  onFeedbackToggle,
+  onDelete
 }) => {
   const { isDark } = useTheme();
   const [isCopied, setIsCopied] = useState(false);
@@ -50,7 +53,7 @@ const AICollaborationMessage: React.FC<AICollaborationMessageProps> = ({
 
   return (
     <motion.div
-      className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-6`}
+      className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-6 group`}
       initial={{ opacity: 0, y: 20, scale: 0.95 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ 
@@ -88,22 +91,24 @@ const AICollaborationMessage: React.FC<AICollaborationMessageProps> = ({
 
         {/* 消息内容 */}
         <div className={`flex-1 min-w-0 flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
-          {/* 气泡 - 优化圆角和阴影 */}
-          <motion.div 
-            className={`relative rounded-2xl p-4 shadow-md transition-shadow duration-300 hover:shadow-lg ${
-              isUser 
-                ? 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white rounded-tr-sm' 
-                : isError
-                  ? 'bg-gradient-to-br from-red-50 to-red-100 text-red-900 border border-red-200 rounded-tl-sm'
-                  : isDark 
-                    ? 'bg-gray-800/95 text-gray-100 border border-gray-700/50 rounded-tl-sm backdrop-blur-sm' 
-                    : 'bg-white/95 text-gray-800 border border-gray-200/50 rounded-tl-sm backdrop-blur-sm shadow-gray-200/50'
-            }`}
-            whileHover={{ scale: 1.01 }}
-            transition={{ type: 'spring', stiffness: 300, damping: 15 }}
-          >
-            
-            {/* 用户消息 */}
+          {/* 气泡容器 - 包含气泡和复制按钮 */}
+          <div className={`flex items-start gap-2 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
+            {/* 气泡 - 优化圆角和阴影 */}
+            <motion.div 
+              className={`relative rounded-2xl p-4 shadow-md transition-shadow duration-300 hover:shadow-lg ${
+                isUser 
+                  ? 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white rounded-tr-sm' 
+                  : isError
+                    ? 'bg-gradient-to-br from-red-50 to-red-100 text-red-900 border border-red-200 rounded-tl-sm'
+                    : isDark 
+                      ? 'bg-gray-800/95 text-gray-100 border border-gray-700/50 rounded-tl-sm backdrop-blur-sm' 
+                      : 'bg-white/95 text-gray-800 border border-gray-200/50 rounded-tl-sm backdrop-blur-sm shadow-gray-200/50'
+              }`}
+              whileHover={{ scale: 1.01 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 15 }}
+            >
+              
+              {/* 用户消息 */}
             {isUser ? (
               <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
             ) : isError ? (
@@ -154,12 +159,9 @@ const AICollaborationMessage: React.FC<AICollaborationMessageProps> = ({
                     p: ({node, ...props}) => <p className="mb-3 last:mb-0 leading-relaxed" {...props} />,
                     blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-indigo-400 dark:border-indigo-500 pl-4 italic text-gray-600 dark:text-gray-400 my-3 bg-gray-50/50 dark:bg-gray-800/50 py-2 pr-3 rounded-r-lg" {...props} />,
                     strong: ({node, ...props}) => <strong className="font-semibold text-indigo-600 dark:text-indigo-400" {...props} />,
-                    table: ({node, ...props}) => <table className={`w-full border-collapse my-4 text-sm ${isDark ? 'border-gray-700' : 'border-gray-200'}`} {...props} />,
-                    thead: ({node, ...props}) => <thead className={`${isDark ? 'bg-gray-800' : 'bg-gray-100'}`} {...props} />,
-                    tbody: ({node, ...props}) => <tbody {...props} />,
-                    tr: ({node, ...props}) => <tr className={`border-b ${isDark ? 'border-gray-700 hover:bg-gray-800/50' : 'border-gray-200 hover:bg-gray-50'}`} {...props} />,
-                    th: ({node, ...props}) => <th className={`px-4 py-2 text-left font-semibold ${isDark ? 'text-gray-200 border-gray-700' : 'text-gray-700 border-gray-200'}`} {...props} />,
-                    td: ({node, ...props}) => <td className={`px-4 py-2 ${isDark ? 'text-gray-300 border-gray-700' : 'text-gray-600 border-gray-200'}`} {...props} />,
+                    table: ({node, ...props}) => <MarkdownTable striped hoverable bordered>{props.children}</MarkdownTable>,
+                    thead: ({node, ...props}) => <>{props.children}</>,
+                    tbody: ({node, ...props}) => <>{props.children}</>,
                   }}
                 >
                   {message.content}
@@ -167,23 +169,59 @@ const AICollaborationMessage: React.FC<AICollaborationMessageProps> = ({
               </div>
             )}
 
-            {/* 复制按钮 - 优化位置和样式 */}
-            {!isUser && (
+          </motion.div>
+            
+            {/* 复制按钮 - 鼠标悬停时显示在旁侧 */}
+            <motion.button
+              initial={{ opacity: 0, x: isUser ? 10 : -10 }}
+              whileHover={{ scale: 1.1 }}
+              animate={{ opacity: 1, x: 0 }}
+              onClick={handleCopy}
+              className={`flex-shrink-0 p-2 rounded-xl opacity-0 group-hover:opacity-100 transition-all duration-200 self-center ${
+                isUser 
+                  ? 'bg-indigo-100 hover:bg-indigo-200 text-indigo-600' 
+                  : isError
+                    ? 'bg-red-100 hover:bg-red-200 text-red-600'
+                    : isDark 
+                      ? 'bg-gray-700/80 hover:bg-gray-600/80 text-gray-300' 
+                      : 'bg-gray-100 hover:bg-gray-200 text-gray-600'
+              }`}
+              title="复制内容"
+            >
+              {isCopied ? (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              ) : (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+              )}
+            </motion.button>
+          </div>
+
+          {/* 时间戳和删除按钮 - 优化样式 */}
+          <div className={`mt-1.5 flex items-center gap-2 px-1`}>
+            <span className="text-xs text-gray-400 font-medium">
+              {formatTime(message.timestamp)}
+            </span>
+            {onDelete && (
               <motion.button
-                onClick={handleCopy}
-                className={`absolute top-2 right-2 p-2 rounded-lg transition-all opacity-0 group-hover:opacity-100 ${isDark ? 'hover:bg-gray-700 text-gray-400 hover:text-white' : 'hover:bg-gray-100 text-gray-400 hover:text-gray-800'}`}
-                title="复制内容"
                 whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.95 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => onDelete(index)}
+                className={`p-1 rounded-full opacity-0 group-hover:opacity-100 transition-all duration-200 ${
+                  isDark
+                    ? 'text-gray-500 hover:text-red-400 hover:bg-red-500/20'
+                    : 'text-gray-400 hover:text-red-500 hover:bg-red-100'
+                }`}
+                title="删除消息"
               >
-                {isCopied ? <i className="fas fa-check text-green-500"></i> : <i className="fas fa-copy text-xs"></i>}
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
               </motion.button>
             )}
-          </motion.div>
-
-          {/* 时间戳 - 优化样式 */}
-          <div className={`mt-1.5 text-xs text-gray-400 px-1 font-medium`}>
-            {formatTime(message.timestamp)}
           </div>
 
           {/* 评分和反馈区域 - 仅 AI 消息显示 */}

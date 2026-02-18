@@ -265,7 +265,7 @@ export const SimpleHtmlEditor: React.FC<SimpleHtmlEditorProps> = ({
   };
 
   return (
-    <div className={`space-y-2 ${isFullscreen ? 'fixed inset-0 z-50 bg-white dark:bg-gray-900 p-4' : ''}`}>
+    <div className={`space-y-2 ${isFullscreen ? 'fixed inset-0 z-[70] bg-white dark:bg-gray-900 p-4' : ''}`}>
       {renderToolbar()}
       <div style={{ height: containerHeight }}>
         {renderContent()}

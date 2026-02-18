@@ -288,7 +288,7 @@ const ErrorMonitoringDashboard: React.FC<ErrorMonitoringDashboardProps> = ({ ref
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[70] flex items-center justify-center p-4"
             onClick={() => setIsDetailOpen(false)}
           >
             <motion.div

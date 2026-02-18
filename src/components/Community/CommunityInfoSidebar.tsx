@@ -24,8 +24,10 @@ import {
   Link as LinkIcon,
   CheckCircle2,
   Clock,
-  AlertCircle
+  AlertCircle,
+  Mail
 } from 'lucide-react';
+import { CommunityInviteDialog } from '@/components/CommunityInviteDialog';
 
 interface CommunityInfoSidebarProps {
   isDark: boolean;
@@ -667,39 +669,49 @@ export const CommunityInfoSidebar: React.FC<CommunityInfoSidebarProps> = ({
             </div>
           </div>
 
-          {/* 加入按钮 */}
-          <button
-            onClick={handleJoin}
-            disabled={isJoining}
-            className={`w-full mt-4 py-2.5 px-4 rounded-xl font-medium text-sm transition-all duration-300 flex items-center justify-center gap-2 ${
-              isJoined
-                ? isDark
-                  ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                : isDark
+          {/* 加入按钮 / 邀请按钮 */}
+          {isJoined ? (
+            <CommunityInviteDialog
+              communityId={community.id}
+              communityName={community.name}
+              trigger={
+                <button
+                  className={`w-full mt-4 py-2.5 px-4 rounded-xl font-medium text-sm transition-all duration-300 flex items-center justify-center gap-2 ${
+                    isDark
+                      ? 'bg-gradient-to-r from-green-600 to-teal-600 text-white hover:from-green-500 hover:to-teal-500 shadow-lg shadow-green-500/25'
+                      : 'bg-gradient-to-r from-green-500 to-teal-500 text-white hover:from-green-600 hover:to-teal-600 shadow-lg shadow-green-500/25'
+                  }`}
+                >
+                  <Mail size={16} />
+                  <span>邀请成员</span>
+                </button>
+              }
+            />
+          ) : (
+            <button
+              onClick={handleJoin}
+              disabled={isJoining}
+              className={`w-full mt-4 py-2.5 px-4 rounded-xl font-medium text-sm transition-all duration-300 flex items-center justify-center gap-2 ${
+                isDark
                   ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-500 hover:to-purple-500 shadow-lg shadow-blue-500/25'
                   : 'bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:from-blue-600 hover:to-purple-600 shadow-lg shadow-blue-500/25'
-            } ${isJoining ? 'opacity-70 cursor-not-allowed' : ''}`}
-          >
-            {isJoining ? (
-              <motion.div
-                animate={{ rotate: 360 }}
-                transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-              >
-                <Activity size={16} />
-              </motion.div>
-            ) : isJoined ? (
-              <>
-                <CheckCircle2 size={16} />
-                <span>已加入</span>
-              </>
-            ) : (
-              <>
-                <UserPlus size={16} />
-                <span>加入社群</span>
-              </>
-            )}
-          </button>
+              } ${isJoining ? 'opacity-70 cursor-not-allowed' : ''}`}
+            >
+              {isJoining ? (
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                >
+                  <Activity size={16} />
+                </motion.div>
+              ) : (
+                <>
+                  <UserPlus size={16} />
+                  <span>加入社群</span>
+                </>
+              )}
+            </button>
+          )}
         </div>
       </div>
 

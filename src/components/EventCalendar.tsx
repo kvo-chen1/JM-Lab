@@ -465,7 +465,7 @@ export default function EventCalendar() {
       {/* 详情弹窗 */}
       <AnimatePresence>
         {isEventDetailsOpen && selectedEvent && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6">
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 md:p-6">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}

@@ -2,6 +2,8 @@ import apiClient from '../lib/apiClient';
 import { Work } from '@/types';
 import { validationService } from './validationService';
 import { historyService } from './historyService';
+import { supabase } from '@/lib/supabase';
+import { toast } from 'sonner';
 
 // 本地定义 User 类型以避免循环引用
 interface User {
@@ -188,12 +190,39 @@ class ApiService {
    */
   async favoriteThread(threadId: string): Promise<{ success: boolean }> {
     try {
-      const result = await apiClient.post<{ success: boolean }, void>(`/api/threads/${threadId}/favorite`);
-      if (!result.ok) {
-        console.error('[ApiService.favoriteThread] Failed:', result.status);
-        throw new Error(result.error || '收藏失败');
+      // 获取当前用户ID（兼容多种登录方式）
+      const userId = await this.getCurrentUserId();
+      if (!userId) {
+        throw new Error('请先登录后再收藏');
       }
-      return result.data || { success: true };
+
+      // 检查是否已收藏
+      const { data: existingFavorite } = await supabase
+        .from('bookmarks')
+        .select('id')
+        .eq('post_id', threadId)
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (existingFavorite) {
+        // 已经收藏过了
+        return { success: true };
+      }
+
+      // 添加收藏
+      const { error } = await supabase
+        .from('bookmarks')
+        .insert({
+          post_id: threadId,
+          user_id: userId,
+        });
+
+      if (error) {
+        console.error('[ApiService.favoriteThread] Error:', error);
+        throw new Error('收藏失败');
+      }
+
+      return { success: true };
     } catch (error) {
       console.error('[ApiService.favoriteThread] Error:', error);
       throw error;
@@ -201,18 +230,135 @@ class ApiService {
   }
 
   /**
+   * 获取当前用户ID（兼容多种登录方式）
+   */
+  private async getCurrentUserId(): Promise<string | null> {
+    // 首先尝试从 localStorage 获取用户信息（后端登录方式）
+    const userStr = localStorage.getItem('user');
+    if (userStr) {
+      try {
+        const user = JSON.parse(userStr);
+        if (user?.id) {
+          return user.id;
+        }
+      } catch {
+        // 解析失败，继续尝试其他方式
+      }
+    }
+
+    // 尝试从 Supabase Auth 获取
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.id) {
+        return user.id;
+      }
+    } catch {
+      // 继续尝试其他方式
+    }
+
+    return null;
+  }
+
+  /**
    * 取消收藏帖子
    */
   async unfavoriteThread(threadId: string): Promise<{ success: boolean }> {
     try {
-      const result = await apiClient.post<{ success: boolean }, void>(`/api/threads/${threadId}/unfavorite`);
-      if (!result.ok) {
-        console.error('[ApiService.unfavoriteThread] Failed:', result.status);
-        throw new Error(result.error || '取消收藏失败');
+      // 获取当前用户ID（兼容多种登录方式）
+      const userId = await this.getCurrentUserId();
+      if (!userId) {
+        throw new Error('请先登录');
       }
-      return result.data || { success: true };
+
+      // 删除收藏
+      const { error } = await supabase
+        .from('bookmarks')
+        .delete()
+        .eq('post_id', threadId)
+        .eq('user_id', userId);
+
+      if (error) {
+        console.error('[ApiService.unfavoriteThread] Error:', error);
+        throw new Error('取消收藏失败');
+      }
+
+      return { success: true };
     } catch (error) {
       console.error('[ApiService.unfavoriteThread] Error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 点赞帖子
+   */
+  async likeThread(threadId: string): Promise<{ success: boolean }> {
+    try {
+      // 获取当前用户ID（兼容多种登录方式）
+      const userId = await this.getCurrentUserId();
+      if (!userId) {
+        throw new Error('请先登录后再点赞');
+      }
+
+      // 检查是否已点赞
+      const { data: existingLike } = await supabase
+        .from('likes')
+        .select('id')
+        .eq('post_id', threadId)
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (existingLike) {
+        // 已经点赞过了
+        return { success: true };
+      }
+
+      // 添加点赞
+      const { error } = await supabase
+        .from('likes')
+        .insert({
+          post_id: threadId,
+          user_id: userId,
+        });
+
+      if (error) {
+        console.error('[ApiService.likeThread] Error:', error);
+        throw new Error('点赞失败');
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error('[ApiService.likeThread] Error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 取消点赞帖子
+   */
+  async unlikeThread(threadId: string): Promise<{ success: boolean }> {
+    try {
+      // 获取当前用户ID（兼容多种登录方式）
+      const userId = await this.getCurrentUserId();
+      if (!userId) {
+        throw new Error('请先登录');
+      }
+
+      // 删除点赞
+      const { error } = await supabase
+        .from('likes')
+        .delete()
+        .eq('post_id', threadId)
+        .eq('user_id', userId);
+
+      if (error) {
+        console.error('[ApiService.unlikeThread] Error:', error);
+        throw new Error('取消点赞失败');
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error('[ApiService.unlikeThread] Error:', error);
       throw error;
     }
   }

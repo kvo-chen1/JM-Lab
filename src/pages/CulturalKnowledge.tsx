@@ -7,6 +7,35 @@ import { supabase } from '@/lib/supabase';
 import { getKnowledgeImageUrl, generatePrompt } from '@/services/culturalKnowledgeImageService';
 import { toast } from 'sonner';
 
+// 分类中文映射
+const CATEGORY_NAME_MAP: Record<string, string> = {
+  'platform': '平台知识',
+  'culture': '文化知识',
+  '非遗传承': '非遗传承',
+  '民间艺术': '民间艺术',
+  '传统工艺': '传统工艺',
+  '传统美食': '传统美食',
+  '中药文化': '中药文化',
+  '陶瓷文化': '陶瓷文化',
+  '酒文化': '酒文化',
+  '曲艺文化': '曲艺文化',
+  '历史建筑': '历史建筑',
+  '城市文化': '城市文化',
+  '服饰文化': '服饰文化',
+  '文房四宝': '文房四宝',
+  '民族文化': '民族文化',
+  '历史人物': '历史人物',
+  '历史事件': '历史事件',
+  '文化遗产': '文化遗产',
+  '传统技艺': '传统技艺',
+  '民俗文化': '民俗文化',
+  '建筑风格': '建筑风格',
+  '地方小吃': '传统美食',
+  '方言文化': '城市文化',
+  '文学艺术': '民间艺术',
+  '宗教信仰': '民族文化',
+};
+
 // 示例数据：非遗故事
 const heritageStories = [
   {
@@ -701,7 +730,7 @@ export default function CulturalKnowledge() {
                           : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                     }`}
                   >
-                    {category === 'all' ? '全部' : category}
+                    {category === 'all' ? '全部' : (CATEGORY_NAME_MAP[category] || category)}
                   </button>
                 ))}
               </div>
@@ -711,7 +740,7 @@ export default function CulturalKnowledge() {
             <div className={`mt-4 text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
               共 {filteredStories.length} 条文化知识
               {searchTerm && ` · 搜索 "${searchTerm}"`}
-              {selectedCategory !== 'all' && ` · 分类: ${selectedCategory}`}
+              {selectedCategory !== 'all' && ` · 分类: ${CATEGORY_NAME_MAP[selectedCategory] || selectedCategory}`}
             </div>
           </motion.div>
         )}
@@ -801,7 +830,7 @@ export default function CulturalKnowledge() {
                           </div>
                           <div className="flex-1 flex flex-col justify-center">
                             <h4 className="font-bold text-base line-clamp-2 leading-tight mb-2">{story.title}</h4>
-                            <span className="inline-block bg-red-600 text-white text-xs px-2 py-0.5 rounded-full w-fit mb-2">{story.category}</span>
+                            <span className="inline-block bg-red-600 text-white text-xs px-2 py-0.5 rounded-full w-fit mb-2">{CATEGORY_NAME_MAP[story.category] || story.category}</span>
                             <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2">{story.excerpt}</p>
                           </div>
                         </motion.div>
@@ -831,7 +860,7 @@ export default function CulturalKnowledge() {
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent"></div>
                         <div className="absolute bottom-6 left-6">
-                          <span className="bg-red-600 text-white px-4 py-2 rounded-full text-sm font-medium shadow-lg">{story.category}</span>
+                          <span className="bg-red-600 text-white px-4 py-2 rounded-full text-sm font-medium shadow-lg">{CATEGORY_NAME_MAP[story.category] || story.category}</span>
                         </div>
                       </div>
                       <div className="p-8">

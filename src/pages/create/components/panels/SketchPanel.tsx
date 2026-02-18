@@ -73,6 +73,15 @@ const videoAspectRatios = [
   { value: '4:3', label: '4:3 标准', icon: 'fa-tv' },
 ];
 
+// 图片尺寸比例选项
+const imageAspectRatios = [
+  { value: '1:1', label: '1:1 方形', description: '适合社交媒体头像、产品展示' },
+  { value: '4:3', label: '4:3 横版', description: '适合PPT、文档插图' },
+  { value: '3:4', label: '3:4 竖版', description: '适合海报、封面' },
+  { value: '16:9', label: '16:9 宽屏', description: '适合视频封面、横幅' },
+  { value: '9:16', label: '9:16 竖屏', description: '适合短视频、手机壁纸' },
+];
+
 // 视频时长选项
 const videoDurations = [
   { value: 5, label: '5秒', desc: '短视频' },
@@ -95,6 +104,9 @@ export default function SketchPanel() {
   const [videoDuration, setVideoDuration] = useState(5);
   const [imageStrength, setImageStrength] = useState(70);
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
+  const [imageAspectRatio, setImageAspectRatio] = useState('1:1');
+  const [negativePrompt, setNegativePrompt] = useState('');
+  const [seed, setSeed] = useState<number | ''>('');
   const [videoGenerationProgress, setVideoGenerationProgress] = useState(0);
   const [videoGenerationStatus, setVideoGenerationStatus] = useState('');
   const [imageGenerationProgress, setImageGenerationProgress] = useState(0);
@@ -313,6 +325,18 @@ export default function SketchPanel() {
     }
   };
 
+  // 将比例转换为像素尺寸
+  const getSizeFromAspectRatio = (ratio: string): string => {
+    const sizeMap: Record<string, string> = {
+      '1:1': '1024x1024',
+      '4:3': '1024x768',
+      '3:4': '768x1024',
+      '16:9': '1024x576',
+      '9:16': '576x1024',
+    };
+    return sizeMap[ratio] || '1024x1024';
+  };
+
   // 文生图
   const generateTextToImage = async () => {
     llmService.setCurrentModel('qwen');
@@ -326,10 +350,12 @@ export default function SketchPanel() {
     
     const r = await llmService.generateImage({ 
       prompt: input, 
-      size: '1024x1024', 
+      size: getSizeFromAspectRatio(imageAspectRatio), 
       n: Math.min(Math.max(generateCount, 1), 6), 
       response_format: 'url', 
-      watermark: true 
+      watermark: true,
+      negative_prompt: negativePrompt || undefined,
+      seed: seed || undefined,
     });
 
     const dataArray = (r as any)?.data?.data || (r as any)?.data || [];
@@ -437,12 +463,14 @@ export default function SketchPanel() {
       // 调用图生图API
       const r = await llmService.generateImage({ 
         prompt: input, 
-        size: '1024x1024', 
+        size: getSizeFromAspectRatio(imageAspectRatio), 
         n: Math.min(Math.max(generateCount, 1), 6), 
         response_format: 'url', 
         watermark: true,
         reference_image: publicImageUrl,
-        reference_strength: imageStrength / 100 // 转换为0-1范围
+        reference_strength: imageStrength / 100, // 转换为0-1范围
+        negative_prompt: negativePrompt || undefined,
+        seed: seed || undefined,
       });
 
       const dataArray = (r as any)?.data?.data || (r as any)?.data || [];
@@ -1229,6 +1257,35 @@ ${prompt}`;
               exit={{ opacity: 0, height: 0 }}
               className="space-y-4 p-4 rounded-xl bg-gray-50 dark:bg-gray-800/30 border border-gray-200 dark:border-gray-700"
             >
+              {/* 尺寸比例 - 仅在图片模式显示 */}
+              {!isVideoMode && (
+                <div className="space-y-2">
+                  <label className={`text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                    尺寸比例
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={imageAspectRatio}
+                      onChange={(e) => setImageAspectRatio(e.target.value)}
+                      className={`w-full p-2.5 pr-8 rounded-lg text-xs appearance-none cursor-pointer transition-colors ${
+                        isDark 
+                          ? 'bg-gray-800 border-gray-700 text-white hover:border-gray-600' 
+                          : 'bg-white border-gray-200 text-gray-900 hover:border-blue-300'
+                      } border focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
+                    >
+                      {imageAspectRatios.map((ratio) => (
+                        <option key={ratio.value} value={ratio.value}>
+                          {ratio.label} - {ratio.description}
+                        </option>
+                      ))}
+                    </select>
+                    <div className={`absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                      <i className="fas fa-chevron-down text-xs"></i>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* 负面提示词 */}
               <div className="space-y-2">
                 <label className={`text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
@@ -1236,6 +1293,8 @@ ${prompt}`;
                 </label>
                 <input
                   type="text"
+                  value={negativePrompt}
+                  onChange={(e) => setNegativePrompt(e.target.value)}
                   placeholder="例如：模糊、变形、低质量..."
                   className={`w-full p-2.5 rounded-lg text-xs ${
                     isDark 
@@ -1251,12 +1310,17 @@ ${prompt}`;
                   <label className={`text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                     随机种子
                   </label>
-                  <button className={`text-[10px] ${isDark ? 'text-blue-400' : 'text-blue-600'}`}>
+                  <button 
+                    onClick={() => setSeed(Math.floor(Math.random() * 1000000))}
+                    className={`text-[10px] ${isDark ? 'text-blue-400' : 'text-blue-600'} hover:underline`}
+                  >
                     <i className="fas fa-random mr-1"></i>随机
                   </button>
                 </div>
                 <input
                   type="number"
+                  value={seed}
+                  onChange={(e) => setSeed(e.target.value === '' ? '' : parseInt(e.target.value))}
                   placeholder="-1"
                   className={`w-full p-2.5 rounded-lg text-xs ${
                     isDark 
@@ -1336,7 +1400,7 @@ ${prompt}`;
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+            className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm"
             style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
           >
             <motion.div
@@ -1443,7 +1507,7 @@ ${prompt}`;
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+            className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm"
             style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
           >
             <motion.div

@@ -48,6 +48,7 @@ interface CreateActions {
   setActiveTool: (tool: ToolType) => void;
   setPrompt: (prompt: string) => void;
   setGeneratedResults: (results: GeneratedResult[]) => void;
+  addGeneratedResult: (result: GeneratedResult) => void;
   setSelectedResult: (id: number | null) => void;
   deleteGeneratedResult: (id: number) => void;
   setIsGenerating: (isGenerating: boolean) => void;
@@ -474,6 +475,21 @@ export const useCreateStore = create<CreateState & CreateActions>((set) => ({
     }
 
     return { generatedResults: results };
+  }),
+  addGeneratedResult: (result) => set((state) => {
+    const newResults = [result, ...state.generatedResults];
+    // 保存到 localStorage
+    if (typeof localStorage !== 'undefined') {
+      try {
+        localStorage.setItem('CREATE_GENERATED_RESULTS', JSON.stringify(newResults));
+      } catch (error) {
+        console.error('Failed to save to localStorage:', error);
+      }
+    }
+    return { 
+      generatedResults: newResults,
+      selectedResult: result.id
+    };
   }),
   setSelectedResult: (id) => set({ selectedResult: id }),
   deleteGeneratedResult: (id) => set((state) => {

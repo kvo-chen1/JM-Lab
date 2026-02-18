@@ -12,7 +12,7 @@ import { useNotifications } from '@/contexts/NotificationContext'
 
 import PostDetailModal from '@/components/PostDetailModal'
 import { CreatePostModal } from '@/components/Community/Modals/CreatePostModal'
-import ShareToCommunity from '@/components/ShareToCommunity'
+import ShareSelector from '@/components/ShareSelector'
 
 
 import apiClient from '@/lib/apiClient'
@@ -943,13 +943,13 @@ export default function Square() {
           </div>
           
           {/* 搜索框 - Pinterest风格 */}
-          <div id="guide-step-explore-search" className="flex-1 max-w-2xl mx-4 md:mx-6 relative z-30">
+          <div id="guide-step-explore-search" className="flex-1 max-w-2xl mx-4 md:mx-6 relative">
             <div className={`relative ${isDark ? 'bg-gray-800' : 'bg-gray-100'} rounded-full overflow-hidden`}>
-              <i className="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 z-10"></i>
+              <i className="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
               <input
                 type="text"
                 placeholder="搜索作品、创作者或标签..."
-                className={`w-full pl-10 pr-4 py-2 rounded-full text-sm ${isDark ? 'bg-gray-800 text-white placeholder-gray-500' : 'bg-gray-100 text-gray-900 placeholder-gray-500'} focus:outline-none focus:ring-2 focus:ring-blue-500 relative z-20`}
+                className={`w-full pl-10 pr-4 py-2 rounded-full text-sm ${isDark ? 'bg-gray-800 text-white placeholder-gray-500' : 'bg-gray-100 text-gray-900 placeholder-gray-500'} focus:outline-none focus:ring-2 focus:ring-blue-500`}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 onKeyPress={(e) => {
@@ -1126,12 +1126,12 @@ export default function Square() {
         topics={DEFAULT_TAGS}
       />
 
-      {/* 分享到社区弹窗 */}
+      {/* 分享选择弹窗 */}
       {shareTarget && (
-        <ShareToCommunity
+        <ShareSelector
           isOpen={!!shareTarget}
           onClose={closeShare}
-          shareCard={{
+          shareData={{
             type: 'work',
             id: shareTarget.post.id,
             title: shareTarget.post.title,

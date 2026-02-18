@@ -469,9 +469,10 @@ class EventParticipationService {
   // 获取用户活动统计（用于右侧栏）
   async getUserActivityStats(userId: string): Promise<{ registered: number; submitted: number; completed: number }> {
     try {
-      const { data, error } = await supabase
+      // 查询用户的所有参与记录
+      const { data: participations, error } = await supabase
         .from('event_participants')
-        .select('status')
+        .select('id, status, submitted_work_id, event_id')
         .eq('user_id', userId);
 
       if (error) throw error;
@@ -482,17 +483,47 @@ class EventParticipationService {
         completed: 0,
       };
 
-      (data || []).forEach((item: any) => {
-        // 根据状态统计
-        if (item.status === 'registered' || item.status === 'pending') {
-          stats.registered++;
-        } else if (item.status === 'submitted' || item.status === 'reviewing') {
-          stats.submitted++;
-        } else if (item.status === 'completed' || item.status === 'awarded') {
+      if (!participations || participations.length === 0) {
+        return stats;
+      }
+
+      // 获取所有活动ID
+      const eventIds = participations.map(p => p.event_id).filter(Boolean);
+      
+      // 批量查询活动结束时间
+      let eventsMap: Record<string, string> = {};
+      if (eventIds.length > 0) {
+        const { data: events } = await supabase
+          .from('events')
+          .select('id, end_time')
+          .in('id', eventIds);
+        
+        eventsMap = (events || []).reduce((map, event) => {
+          map[event.id] = event.end_time;
+          return map;
+        }, {} as Record<string, string>);
+      }
+
+      const now = new Date();
+
+      participations.forEach((item: any) => {
+        const status = item.status;
+        const hasSubmission = !!item.submitted_work_id;
+        // 获取活动结束时间
+        const eventEndTimeStr = eventsMap[item.event_id];
+        const eventEndTime = eventEndTimeStr ? new Date(eventEndTimeStr) : null;
+        const isEventEnded = eventEndTime && eventEndTime < now;
+
+        // 已报名：所有参与记录都算已报名
+        stats.registered++;
+
+        // 根据状态统计其他分类
+        if (status === 'completed' || status === 'awarded' || isEventEnded) {
+          // 已完成：活动已结束或已获奖
           stats.completed++;
-        } else {
-          // 默认计入已报名
-          stats.registered++;
+        } else if (!hasSubmission && (status === 'registered' || status === 'checked_in' || status === 'pending')) {
+          // 待提交：已报名但尚未提交作品，且活动未结束
+          stats.submitted++;
         }
       });
 

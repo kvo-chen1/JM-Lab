@@ -16,6 +16,8 @@ interface FeedSectionProps {
   onDeleteThread?: (id: string) => void;
   onDeleteComment?: (threadId: string, commentId: string) => void;
   isThreadFavorited?: (id: string) => boolean;
+  isThreadLiked?: (id: string) => boolean;
+  onToggleLike?: (id: string) => void;
   activeCommunity?: any; // 添加活跃社群信息，用于自定义风格
   user?: { // 添加用户信息
     id: string;
@@ -67,6 +69,8 @@ export const FeedSection: React.FC<FeedSectionProps> = ({
   onDeleteThread,
   onDeleteComment,
   isThreadFavorited = () => false,
+  isThreadLiked = () => false,
+  onToggleLike,
   activeCommunity,
   user,
   onViewThread,
@@ -257,6 +261,8 @@ export const FeedSection: React.FC<FeedSectionProps> = ({
                     onDelete={onDeleteThread}
                     onDeleteComment={onDeleteComment}
                     isFavorited={isThreadFavorited(thread.id)}
+                    isLiked={isThreadLiked(thread.id)}
+                    onToggleLike={onToggleLike}
                     index={index}
                 />
              </motion.div>

@@ -16,6 +16,8 @@ import LazyImage from '@/components/LazyImage'
 import { apiService, workService } from '@/services/apiService'
 // 导入Supabase客户端
 import { supabase } from '@/lib/supabase'
+// 导入私信分享组件
+import { WorkShareModal } from '@/components/share'
 
 export default function WorkDetail() {
   const { isDark } = useTheme()
@@ -29,6 +31,7 @@ export default function WorkDetail() {
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false)
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false)
   const [isShareToCommunityOpen, setIsShareToCommunityOpen] = useState(false)
+  const [isPrivateShareOpen, setIsPrivateShareOpen] = useState(false)
   const [exportOptions, setExportOptions] = useState<ExportOptions>({
     format: 'png',
     resolution: 'medium',
@@ -300,6 +303,11 @@ export default function WorkDetail() {
         // 打开分享到社群的模态框
         setIsShareDialogOpen(false)
         setIsShareToCommunityOpen(true)
+        break
+      case 'private':
+        // 打开私信分享弹窗
+        setIsShareDialogOpen(false)
+        setIsPrivateShareOpen(true)
         break
       default:
         break
@@ -746,7 +754,7 @@ export default function WorkDetail() {
 
           {/* 周边定制预览弹窗 */}
           {showMockup && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70 p-4" onClick={() => setShowMockup(false)}>
+            <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black bg-opacity-70 p-4" onClick={() => setShowMockup(false)}>
               <div className="w-full max-w-md" onClick={e => e.stopPropagation()}>
                 <Suspense fallback={<div className="text-white text-center">加载预览中...</div>}>
                   <ProductMockupPreview imageUrl={work.thumbnail} onCustomize={() => setShowMockup(false)} />
@@ -763,7 +771,7 @@ export default function WorkDetail() {
 
           {/* 导出选项对话框 */}
           {isExportDialogOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70">
+            <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black bg-opacity-70">
               <div className={`${isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'} rounded-xl p-6 w-full max-w-md`}>
                 <h2 className="text-xl font-bold mb-4">导出作品</h2>
                 
@@ -862,7 +870,7 @@ export default function WorkDetail() {
 
           {/* 分享对话框 */}
           {isShareDialogOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70 p-4">
+            <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black bg-opacity-70 p-4">
               <div className={`${isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'} rounded-xl p-6 w-full max-w-md`}>
                 <h2 className="text-xl font-bold mb-4">分享作品</h2>
                 
@@ -904,6 +912,13 @@ export default function WorkDetail() {
                       <span className="text-xs">津脉社区</span>
                     </button>
                     <button 
+                      onClick={() => shareToPlatform('private')}
+                      className={`flex flex-col items-center justify-center p-3 rounded-lg transition-all hover:shadow-md ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}
+                    >
+                      <i className="fas fa-comment-dots text-2xl text-red-500 mb-1"></i>
+                      <span className="text-xs">私信好友</span>
+                    </button>
+                    <button 
                       onClick={() => shareToPlatform('copy')}
                       className={`flex flex-col items-center justify-center p-3 rounded-lg transition-all hover:shadow-md ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}
                     >
@@ -937,7 +952,7 @@ export default function WorkDetail() {
 
           {/* 分享到津脉社区对话框 */}
           {isShareToCommunityOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70 p-4">
+            <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black bg-opacity-70 p-4">
               <div className={`${isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'} rounded-xl p-6 w-full max-w-md`}>
                 <h2 className="text-xl font-bold mb-4">分享到津脉社区</h2>
                 
@@ -956,6 +971,25 @@ export default function WorkDetail() {
                 </Suspense>
               </div>
             </div>
+          )}
+
+          {/* 私信分享弹窗 */}
+          {isPrivateShareOpen && work && (
+            <WorkShareModal
+              isOpen={isPrivateShareOpen}
+              onClose={() => setIsPrivateShareOpen(false)}
+              preselectedWork={{
+                id: work.id.toString(),
+                title: work.title,
+                thumbnail: work.thumbnail || '',
+                type: work.videoUrl ? 'video' : 'image',
+                status: '已发布',
+                createdAt: Date.now(),
+                views: work.views || 0,
+                likes: work.likes || 0,
+                description: work.description,
+              }}
+            />
           )}
         </main>
       </div>

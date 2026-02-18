@@ -57,7 +57,7 @@ const LoadingSpinner = ({
   if (fullScreen) {
     return (
       <div className={clsx(
-        'fixed inset-0 flex items-center justify-center z-50',
+        'fixed inset-0 flex items-center justify-center z-[70]',
         overlay ? 'bg-black/50 backdrop-blur-sm' : 'bg-transparent'
       )}>
         <div className="flex flex-col items-center gap-4">

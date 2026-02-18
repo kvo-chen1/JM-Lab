@@ -1452,18 +1452,18 @@ export const communityService = {
                 thumbnail: post.thumbnail,
                 media: post.media
               });
-              // 处理图片 URL，移除签名参数
+              // 处理图片 URL，保留完整 URL（包括签名参数）
               let images: string[] = [];
               if (post.images && post.images.length > 0) {
-                images = post.images.map((url: string) => url.split('?')[0]);
+                images = post.images;
               } else if (post.media) {
                 try {
-                  images = JSON.parse(post.media).map((url: string) => url.split('?')[0]);
+                  images = JSON.parse(post.media);
                 } catch (e) {
                   images = [];
                 }
               } else if (post.thumbnail) {
-                images = [post.thumbnail.split('?')[0]];
+                images = [post.thumbnail];
               }
               return {
               id: post.id,
@@ -2437,9 +2437,10 @@ export const communityService = {
     console.log('[deleteMessage] Attempting to delete message:', messageId, 'by user:', userId);
     
     // 检查用户是否是消息作者
+    // 注意：messages 表中使用的是 user_id 字段，不是 sender_id
     const { data: message, error: messageError } = await supabase
       .from('messages')
-      .select('sender_id')
+      .select('user_id, sender_id')
       .eq('id', messageId)
       .single();
 
@@ -2450,10 +2451,12 @@ export const communityService = {
       throw new Error('消息不存在');
     }
 
-    console.log('[deleteMessage] Message sender_id:', message.sender_id, 'Current userId:', userId);
+    // 兼容 user_id 和 sender_id 字段
+    const messageSenderId = message.user_id || message.sender_id;
+    console.log('[deleteMessage] Message sender_id:', messageSenderId, 'Current userId:', userId);
     
-    if (message.sender_id !== userId) {
-      console.error('[deleteMessage] Permission denied. Message sender:', message.sender_id, 'Current user:', userId);
+    if (messageSenderId !== userId) {
+      console.error('[deleteMessage] Permission denied. Message sender:', messageSenderId, 'Current user:', userId);
       throw new Error('您没有权限删除此消息');
     }
 

@@ -97,6 +97,79 @@ const PrivateChatWindow: React.FC = () => {
           ) : (
             messages.map((msg) => {
               const isMe = msg.sender_id !== currentChatFriendId;
+              
+              // 尝试解析 AI 分享消息
+              let aiShareData: any = null;
+              try {
+                const parsed = JSON.parse(msg.content);
+                if (parsed.type === 'ai_share') {
+                  aiShareData = parsed;
+                }
+              } catch (e) {
+                // 不是 JSON 格式，普通消息
+              }
+              
+              // 如果是 AI 分享消息，显示卡片
+              if (aiShareData) {
+                return (
+                  <div 
+                    key={msg.id} 
+                    className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div className="max-w-[85%]">
+                      {/* AI 分享卡片 */}
+                      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden">
+                        {/* 图片 */}
+                        {aiShareData.imageUrl && (
+                          <div className="relative w-full h-40 bg-gray-100">
+                            <img
+                              src={aiShareData.imageUrl}
+                              alt={aiShareData.title}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = 'https://via.placeholder.com/400x160?text=图片加载失败';
+                              }}
+                            />
+                          </div>
+                        )}
+                        {/* 内容 */}
+                        <div className="p-3">
+                          <h4 className="font-semibold text-gray-900 dark:text-gray-100 text-sm mb-1">
+                            {aiShareData.title}
+                          </h4>
+                          {aiShareData.description && (
+                            <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">
+                              {aiShareData.description}
+                            </p>
+                          )}
+                          {aiShareData.note && (
+                            <p className="text-xs text-gray-500 dark:text-gray-500 italic bg-gray-50 dark:bg-gray-700/50 p-2 rounded mb-2">
+                              附言：{aiShareData.note}
+                            </p>
+                          )}
+                          <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-gray-700">
+                            <span className="text-[10px] text-gray-400">
+                              AI生成的{aiShareData.mediaType === 'image' ? '图片' : '视频'}
+                            </span>
+                            <button
+                              onClick={() => window.open(aiShareData.imageUrl, '_blank')}
+                              className="text-[10px] text-blue-500 hover:text-blue-600 font-medium"
+                            >
+                              查看原图
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                      {/* 时间戳 */}
+                      <p className={`text-[10px] mt-1 ${isMe ? 'text-right text-blue-100' : 'text-left text-gray-400'}`}>
+                        {formatTime(msg.created_at)}
+                      </p>
+                    </div>
+                  </div>
+                );
+              }
+              
+              // 普通消息
               return (
                 <div 
                   key={msg.id} 

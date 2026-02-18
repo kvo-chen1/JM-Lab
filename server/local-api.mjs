@@ -921,6 +921,208 @@ async function route(req, res, u, path) {
     return
   }
 
+  // 保存AI生成作品到创作中心
+  if (req.method === 'POST' && path === '/api/works/save') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+    
+    try {
+      const body = await readBody(req)
+      console.log('[API] Save AI generation work:', body)
+      
+      const creatorId = decoded.userId || decoded.sub || decoded.id
+      
+      if (!creatorId) {
+        throw new Error('无法获取用户ID，请重新登录')
+      }
+      
+      const workData = {
+        title: body.title || `AI生成的${body.type === 'image' ? '图片' : '视频'}`,
+        description: body.description || body.prompt || '',
+        cover_url: body.url,
+        thumbnail: body.url,
+        creator_id: creatorId,
+        category: body.type === 'image' ? 'ai-image' : 'ai-video',
+        tags: ['AI生成', body.type === 'image' ? '图片' : '视频'],
+        media: JSON.stringify([{ type: body.type, url: body.url }]),
+        source: 'ai-generation'
+      }
+      
+      const work = await workDB.createWork(workData)
+      console.log('[API] AI generation work saved:', work)
+      sendJson(res, 200, { code: 0, data: work, message: '保存成功' })
+    } catch (e) {
+      console.error('[API] Save AI generation work failed:', e)
+      sendJson(res, 500, { code: 1, message: '保存失败: ' + e.message })
+    }
+    return
+  }
+
+  // 发布AI生成作品到津脉广场
+  if (req.method === 'POST' && path === '/api/works/publish') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+    
+    try {
+      const body = await readBody(req)
+      console.log('[API] Publish AI generation work:', body)
+      
+      const creatorId = decoded.userId || decoded.sub || decoded.id
+      
+      if (!creatorId) {
+        throw new Error('无法获取用户ID，请重新登录')
+      }
+      
+      // 先保存作品
+      const workData = {
+        title: body.title || `AI生成的${body.type === 'image' ? '图片' : '视频'}`,
+        description: body.description || body.prompt || '',
+        cover_url: body.url,
+        thumbnail: body.url,
+        creator_id: creatorId,
+        category: body.type === 'image' ? 'ai-image' : 'ai-video',
+        tags: ['AI生成', body.type === 'image' ? '图片' : '视频'],
+        media: JSON.stringify([{ type: body.type, url: body.url }]),
+        source: 'ai-generation',
+        is_published: true,
+        published_at: Date.now()
+      }
+      
+      const work = await workDB.createWork(workData)
+      console.log('[API] AI generation work published:', work)
+      sendJson(res, 200, { code: 0, data: work, message: '发布成功' })
+    } catch (e) {
+      console.error('[API] Publish AI generation work failed:', e)
+      sendJson(res, 500, { code: 1, message: '发布失败: ' + e.message })
+    }
+    return
+  }
+
+  // 分享AI生成内容到社群
+  if (req.method === 'POST' && path === '/api/share/community') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+
+    try {
+      const body = await readBody(req)
+      console.log('[API] Share to community:', body)
+
+      const userId = decoded.userId || decoded.sub || decoded.id
+
+      if (!userId) {
+        throw new Error('无法获取用户ID，请重新登录')
+      }
+
+      // 获取用户信息
+      const db = await getDB()
+      const { rows: userRows } = await db.query(
+        'SELECT username, avatar_url FROM users WHERE id = $1',
+        [userId]
+      )
+      const user = userRows[0] || { username: '未知用户', avatar_url: null }
+
+      // 创建社群帖子 - 插入到 posts 表
+      const title = body.title || `AI生成的${body.type === 'image' ? '图片' : '视频'}`
+      const content = body.description || ''
+      const communityId = body.communityId || 'general'
+      const now = Date.now()
+
+      const result = await db.query(
+        `INSERT INTO posts (title, content, user_id, community_id, views, likes_count, comments_count, created_at, updated_at, images, videos, audios)
+         VALUES ($1, $2, $3, $4, 0, 0, 0, $5, $5, $6, $7, $8)
+         RETURNING id`,
+        [
+          title,
+          content,
+          userId,
+          communityId,
+          now,
+          [body.imageUrl],
+          [],
+          []
+        ]
+      )
+
+      const postId = result.rows[0].id
+      console.log('[API] Shared to community as post:', postId)
+      sendJson(res, 200, { code: 0, data: { id: postId, title, content, imageUrl: body.imageUrl }, message: '分享成功' })
+    } catch (e) {
+      console.error('[API] Share to community failed:', e)
+      sendJson(res, 500, { code: 1, message: '分享失败: ' + e.message })
+    }
+    return
+  }
+
+  // 分享AI生成内容给好友
+  if (req.method === 'POST' && path === '/api/share/friend') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+
+    try {
+      const body = await readBody(req)
+      console.log('[API] Share to friend:', body)
+
+      const userId = decoded.userId || decoded.sub || decoded.id
+
+      if (!userId) {
+        throw new Error('无法获取用户ID，请重新登录')
+      }
+
+      if (!body.friendIds || !Array.isArray(body.friendIds) || body.friendIds.length === 0) {
+        throw new Error('请选择至少一位好友')
+      }
+
+      // 保存到数据库 - 发送私信
+      const db = await getDB()
+      const title = body.title || `AI生成的${body.type === 'image' ? '图片' : '视频'}`
+      const description = body.description || ''
+      const note = body.note || ''
+
+      // 构建分享内容
+      const shareContent = {
+        type: 'ai_share',
+        title: title,
+        description: description,
+        imageUrl: body.imageUrl,
+        mediaType: body.type,
+        note: note
+      }
+
+      for (const friendId of body.friendIds) {
+        // 插入私信记录
+        await db.query(
+          `INSERT INTO direct_messages (id, sender_id, receiver_id, content, is_read, created_at)
+           VALUES ($1, $2, $3, $4, false, NOW())`,
+          [
+            randomUUID(),
+            userId,
+            friendId,
+            JSON.stringify(shareContent)
+          ]
+        )
+      }
+
+      console.log('[API] Shared to friends via direct message:', body.friendIds.length)
+      sendJson(res, 200, { code: 0, data: { count: body.friendIds.length }, message: '分享成功' })
+    } catch (e) {
+      console.error('[API] Share to friend failed:', e)
+      sendJson(res, 500, { code: 1, message: '分享失败: ' + e.message })
+    }
+    return
+  }
+
   // 获取用户作品
   if (req.method === 'GET' && path === '/api/user/works') {
     const decoded = verifyRequestToken(req)
@@ -4572,7 +4774,7 @@ async function route(req, res, u, path) {
         author_avatar: post.author_avatar,
         community_id: post.community_id,
         likes: post.likes || 0,
-        comments_count: post.comments_count || 0,
+        comments_count: post.comment_count || post.comments_count || 0,
         views: post.views || 0,
         is_pinned: post.is_pinned || false,
         is_announcement: post.is_announcement || false,

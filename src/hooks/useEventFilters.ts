@@ -1,6 +1,39 @@
 import { useState, useCallback, useMemo } from 'react';
 import { Event } from '@/types';
 
+// 辅助函数：解析日期值（处理各种日期格式）
+const parseEventDate = (dateValue: any): Date => {
+  if (dateValue == null) {
+    return new Date(); // 如果日期为空，返回当前时间作为默认值
+  }
+  if (dateValue instanceof Date) {
+    return dateValue;
+  }
+  if (typeof dateValue === 'string') {
+    // 检查是否是纯数字（时间戳）
+    if (/^\d+$/.test(dateValue)) {
+      const numValue = parseInt(dateValue, 10);
+      // 判断时间戳是秒级还是毫秒级：如果数值小于 1e12，认为是秒级
+      const msValue = numValue < 1e12 ? numValue * 1000 : numValue;
+      return new Date(msValue);
+    }
+    // ISO日期字符串
+    const parsed = new Date(dateValue);
+    if (!isNaN(parsed.getTime())) {
+      return parsed;
+    }
+    return new Date(); // 如果解析失败，返回当前时间
+  }
+  if (typeof dateValue === 'number') {
+    // 判断时间戳是秒级还是毫秒级
+    const msValue = dateValue < 1e12 ? dateValue * 1000 : dateValue;
+    return new Date(msValue);
+  }
+  // 对于其他类型，尝试解析，如果失败则返回当前时间
+  const parsed = new Date(dateValue);
+  return isNaN(parsed.getTime()) ? new Date() : parsed;
+};
+
 export type EventStatus = 'all' | 'upcoming' | 'ongoing' | 'completed';
 export type EventCategory = 'all' | 'theme' | 'collaboration' | 'competition' | 'workshop' | 'exhibition';
 export type EventType = 'all' | 'online' | 'offline';
@@ -89,8 +122,8 @@ export function useEventFilters(): UseEventFiltersReturn {
   const filterEvents = useCallback((events: Event[]): Event[] => {
     return events.filter(event => {
       const now = new Date();
-      const eventStart = new Date(event.startTime);
-      const eventEnd = new Date(event.endTime);
+      const eventStart = parseEventDate(event.startTime);
+      const eventEnd = parseEventDate(event.endTime);
 
       // Status filter
       if (filters.status !== 'all') {
@@ -146,11 +179,11 @@ export function useEventFilters(): UseEventFiltersReturn {
     switch (filters.sortBy) {
       case 'latest':
         return sorted.sort((a, b) => 
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          parseEventDate(b.createdAt).getTime() - parseEventDate(a.createdAt).getTime()
         );
       case 'upcoming':
         return sorted.sort((a, b) => 
-          new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+          parseEventDate(a.startTime).getTime() - parseEventDate(b.startTime).getTime()
         );
       case 'popular':
         return sorted.sort((a, b) => (b.viewCount || 0) - (a.viewCount || 0));

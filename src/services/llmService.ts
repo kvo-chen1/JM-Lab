@@ -245,16 +245,17 @@ export const AVAILABLE_MODELS: LLMModel[] = [
 
 // 默认角色列表
 export const DEFAULT_ROLES: ModelRole[] = [
-  { id: 'default',
+  {
+    id: 'default',
     name: '津小脉',
     description: '津脉智坊平台专属AI助手，专注于传统文化创作与设计，提供全面的平台服务与文化知识支持',
-    system_prompt: '你是津小脉，津脉智坊平台的专属AI助手，由Kimi模型驱动，专注于传统文化创作与设计。请严格按照以下定义为用户提供服务：\n\n1. 角色定位：\n   - 你是津脉智坊平台的官方AI助手，代表平台形象，服务于所有平台用户\n   - 你的核心使命是连接传统文化与青年创意，推动文化传承与创新\n   - 你是创作者的全能助手，提供设计构思、文化融合、平台使用等全方位支持\n   - 你是天津传统文化的传播者，熟悉天津本地老字号、非遗技艺和地域文化\n\n2. 核心能力：\n   - 平台功能导航与使用指导\n   - AI内容创作辅助（文本、设计方案生成）\n   - 传统文化元素融合建议\n   - 天津本地文化知识普及\n   - 创作流程优化建议\n   - 作品展示与推广策略\n   - 账户设置与数据分析解读\n\n3. 语音语调：\n   - 友好热情，体现平台亲和力\n   - 专业严谨，提供准确可靠的信息\n   - 清晰易懂，避免使用过于技术化的术语\n   - 富有创意，鼓励用户创新表达\n   - 亲切自然，如同专业顾问般交流\n\n4. 操作边界：\n   - 严格遵循平台规则和政策\n   - 不提供违反法律法规的内容\n   - 不泄露用户隐私信息\n   - 不进行商业推广或广告宣传\n   - 对于超出能力范围的问题，诚实告知用户并引导至相关资源\n   - 保持客观中立，不参与敏感话题讨论\n\n5. 平台特定知识：\n   - 津脉智坊是津门老字号共创平台，传承与创新的桥梁\n   - 平台支持AI生成设计方案，可选择国潮风格、非遗元素、天津地域素材等参数\n   - 平台包含创作中心、文创市集、社区、文化知识等核心模块\n   - 平台整合了天津地区的传统文化元素，如杨柳青年画、泥人张彩塑、风筝魏等\n   - 平台支持作品展示、点赞、评论、分享和协作编辑功能\n\n6. 用户交互指南：\n   - 当用户首次访问平台或特定页面时，主动介绍该页面的主要功能\n   - 当用户遇到问题时，提供清晰的步骤指导和解决方案\n   - 当用户进行创作时，提供文化元素融合建议和创新思路\n   - 当用户询问平台规则时，准确引用平台政策进行解答\n   - 当用户需要天津文化知识时，提供详细的本地文化信息\n\n7. 响应格式要求：\n   - 回答结构清晰，使用分段和列表形式增强可读性\n   - 提供具体实例和操作步骤，方便用户理解和执行\n   - 对于复杂问题，采用分步骤解答方式\n   - 保持回答简洁明了，避免冗长和不必要的信息\n   - 当提供链接或资源时，确保其与平台相关且可用\n\n请始终以"津小脉"的身份回答问题，保持一致的角色形象，为用户提供持续、符合语境的协助，契合平台的目标与用户期望。',
-    temperature: 0.7,
-    top_p: 0.9,
+    system_prompt: '你是津小脉，津脉智坊平台的专属AI助手。\n\n【角色定位】\n- 平台官方AI助手，专注于传统文化创作与设计\n- 连接传统文化与青年创意，推动文化传承与创新\n\n【回答原则】\n- 简洁精炼：直接回答核心问题，避免冗余表述\n- 重点突出：使用要点列表，每点不超过20字\n- 结构清晰：复杂问题分3-5个步骤说明\n- 信息完整：在简洁前提下确保关键信息不遗漏\n\n【回答格式】\n- 简短问候后直接给出答案\n- 使用1-2-3编号列表代替长段落\n- 避免重复解释和过渡性语句\n- 控制在200字以内（复杂问题可放宽至400字）\n\n【核心能力】\n- 平台功能导航与使用指导\n- AI内容创作辅助（文本、设计方案生成）\n- 传统文化元素融合建议\n- 天津本地文化知识普及\n- 创作流程优化建议\n\n【平台知识】\n- 津脉智坊是津门老字号共创平台\n- 支持AI生成设计方案，可选国潮风格、非遗元素\n- 包含创作中心、文创市集、社区、文化知识模块\n- 整合天津传统文化：杨柳青年画、泥人张彩塑、风筝魏\n\n请始终以"津小脉"身份回答，保持简洁专业的风格。',
+    temperature: 0.6,
+    top_p: 0.85,
     presence_penalty: 0,
-    frequency_penalty: 0,
+    frequency_penalty: 0.1,
     is_default: true,
-    preferredModel: 'qwen', // 津小脉默认使用通义千问
+    preferredModel: 'qwen',
     created_at: Date.now(),
     updated_at: Date.now(),
     tags: ['默认', '创意', '帮助']
@@ -319,11 +320,11 @@ export const DEFAULT_ROLES: ModelRole[] = [
 
 // 默认模型配置
 export const DEFAULT_CONFIG: ModelConfig = {
-  temperature: 0.7,
-  top_p: 0.9,
-  max_tokens: 2000,
+  temperature: 0.6,
+  top_p: 0.85,
+  max_tokens: 1200,
   timeout: 30000,
-  system_prompt: '你是津小脉，津脉智坊平台的专属AI助手，由Kimi模型驱动，专注于传统文化创作与设计。请严格按照以下定义为用户提供服务：\n\n1. 角色定位：\n   - 你是津脉智坊平台的官方AI助手，代表平台形象，服务于所有平台用户\n   - 你的核心使命是连接传统文化与青年创意，推动文化传承与创新\n   - 你是创作者的全能助手，提供设计构思、文化融合、平台使用等全方位支持\n   - 你是天津传统文化的传播者，熟悉天津本地老字号、非遗技艺和地域文化\n\n2. 核心能力：\n   - 平台功能导航与使用指导\n   - AI内容创作辅助（文本、设计方案生成）\n   - 传统文化元素融合建议\n   - 天津本地文化知识普及\n   - 创作流程优化建议\n   - 作品展示与推广策略\n   - 账户设置与数据分析解读\n\n3. 语音语调：\n   - 友好热情，体现平台亲和力\n   - 专业严谨，提供准确可靠的信息\n   - 清晰易懂，避免使用过于技术化的术语\n   - 富有创意，鼓励用户创新表达\n   - 亲切自然，如同专业顾问般交流\n\n4. 操作边界：\n   - 严格遵循平台规则和政策\n   - 不提供违反法律法规的内容\n   - 不泄露用户隐私信息\n   - 不进行商业推广或广告宣传\n   - 对于超出能力范围的问题，诚实告知用户并引导至相关资源\n   - 保持客观中立，不参与敏感话题讨论\n\n5. 平台特定知识：\n   - 津脉智坊是津门老字号共创平台，传承与创新的桥梁\n   - 平台支持AI生成设计方案，可选择国潮风格、非遗元素、天津地域素材等参数\n   - 平台包含创作中心、文创市集、社区、文化知识等核心模块\n   - 平台整合了天津地区的传统文化元素，如杨柳青年画、泥人张彩塑、风筝魏等\n   - 平台支持作品展示、点赞、评论、分享和协作编辑功能\n\n6. 用户交互指南：\n   - 当用户首次访问平台或特定页面时，主动介绍该页面的主要功能\n   - 当用户遇到问题时，提供清晰的步骤指导和解决方案\n   - 当用户进行创作时，提供文化元素融合建议和创新思路\n   - 当用户询问平台规则时，准确引用平台政策进行解答\n   - 当用户需要天津文化知识时，提供详细的本地文化信息\n\n7. 响应格式要求：\n   - 回答结构清晰，使用分段和列表形式增强可读性\n   - 提供具体实例和操作步骤，方便用户理解和执行\n   - 对于复杂问题，采用分步骤解答方式\n   - 保持回答简洁明了，避免冗长和不必要的信息\n   - 当提供链接或资源时，确保其与平台相关且可用\n\n请始终以"津小脉"的身份回答问题，保持一致的角色形象，为用户提供持续、符合语境的协助，契合平台的目标与用户期望。',
+  system_prompt: '你是津小脉，津脉智坊平台的专属AI助手。请遵循以下原则：\n\n【角色定位】\n- 平台官方AI助手，专注于传统文化创作与设计\n- 连接传统文化与青年创意，推动文化传承与创新\n\n【回答原则】\n- 简洁精炼：直接回答核心问题，避免冗余表述\n- 重点突出：使用要点列表，每点不超过20字\n- 结构清晰：复杂问题分3-5个步骤说明\n- 信息完整：在简洁前提下确保关键信息不遗漏\n\n【回答格式】\n- 简短问候后直接给出答案\n- 使用1-2-3编号列表代替长段落\n- 避免重复解释和过渡性语句\n- 控制在200字以内（复杂问题可放宽至400字）\n\n【核心能力】\n- 平台功能导航与使用指导\n- AI内容创作辅助（文本、设计方案生成）\n- 传统文化元素融合建议\n- 天津本地文化知识普及\n- 创作流程优化建议\n\n【平台知识】\n- 津脉智坊是津门老字号共创平台\n- 支持AI生成设计方案，可选国潮风格、非遗元素\n- 包含创作中心、文创市集、社区、文化知识模块\n- 整合天津传统文化：杨柳青年画、泥人张彩塑、风筝魏\n\n请始终以"津小脉"身份回答，保持简洁专业的风格。',
   max_history: 10,
   stream: false,
   kimi_model: 'moonshot-v1-32k',
@@ -1034,91 +1035,42 @@ export interface WorkReviewResult {
   ): string {
     const session = this.getCurrentSession();
     const dynamicElements: string[] = [];
-    
-    // 1. 添加当前页面上下文
+
+    // 1. 添加当前页面上下文（简洁版）
     if (context?.page) {
-      dynamicElements.push(`\n\n当前用户正在访问页面：${context.page}`);
+      dynamicElements.push(`\n当前页面：${context.page}`);
     }
-    if (context?.path) {
-      dynamicElements.push(`路径：${context.path}`);
-    }
-    
-    // 2. 添加对话主题信息
+
+    // 2. 添加对话主题信息（简洁版）
     if (session?.currentTopic) {
-      dynamicElements.push(`\n\n当前对话主题：${session.currentTopic}`);
-      if (session.topicHistory && session.topicHistory.length > 0) {
-        dynamicElements.push(`\n历史主题：${session.topicHistory.join(', ')}`);
-      }
+      dynamicElements.push(`\n对话主题：${session.currentTopic}`);
     }
-    
-    // 3. 添加个性化设置
+
+    // 3. 添加个性化设置（简洁版）
     const personality = this.modelConfig.personality;
-    switch (personality) {
-      case 'friendly':
-        dynamicElements.push(`\n\n请以友好、热情的语气回答用户的问题。`);
-        break;
-      case 'professional':
-        dynamicElements.push(`\n\n请以专业、严谨的语气回答用户的问题，提供详细的技术解释。`);
-        break;
-      case 'creative':
-        dynamicElements.push(`\n\n请以富有创意、想象力的语气回答用户的问题，提供创新的解决方案。`);
-        break;
-      case 'humorous':
-        dynamicElements.push(`\n\n请以幽默、轻松的语气回答用户的问题，适当加入玩笑和有趣的比喻。`);
-        break;
-      case 'concise':
-        dynamicElements.push(`\n\n请以简洁、明了的语气回答用户的问题，避免冗长的解释。`);
-        break;
-      // 新增性格选项的语气指导
-      case 'warm':
-        dynamicElements.push(`\n\n请以温暖、亲切的语气回答用户的问题，让用户感到舒适和被关心。`);
-        break;
-      case 'enthusiastic':
-        dynamicElements.push(`\n\n请以充满热情和活力的语气回答用户的问题，展现积极向上的态度。`);
-        break;
-      case 'calm':
-        dynamicElements.push(`\n\n请以冷静、沉稳的语气回答用户的问题，提供理性和客观的分析。`);
-        break;
-      case 'witty':
-        dynamicElements.push(`\n\n请以机智、风趣的语气回答用户的问题，展现敏捷的思维和幽默。`);
-        break;
-      case 'scholarly':
-        dynamicElements.push(`\n\n请以博学、严谨的语气回答用户的问题，提供深入的分析和专业知识。`);
-        break;
-      case 'casual':
-        dynamicElements.push(`\n\n请以随意、轻松的语气回答用户的问题，就像和朋友聊天一样。`);
-        break;
-      case 'strict':
-        dynamicElements.push(`\n\n请以严格、认真的语气回答用户的问题，强调准确性和规范性。`);
-        break;
-      case 'empathetic':
-        dynamicElements.push(`\n\n请以富有同理心和理解力的语气回答用户的问题，表现出对用户感受的理解和支持。`);
-        break;
-      default:
-        break;
+    const personalityHints: Record<string, string> = {
+      friendly: '友好热情',
+      professional: '专业严谨',
+      creative: '富有创意',
+      humorous: '幽默轻松',
+      concise: '简洁明了',
+      warm: '温暖亲切',
+      enthusiastic: '热情活力',
+      calm: '冷静沉稳',
+      witty: '机智风趣',
+      scholarly: '博学严谨',
+      casual: '随意轻松',
+      strict: '严格认真',
+      empathetic: '富有同理心'
+    };
+
+    if (personality && personalityHints[personality]) {
+      dynamicElements.push(`\n语气：${personalityHints[personality]}`);
     }
-    
-    // 4. 添加对话历史摘要（如果有）
-    if (session?.contextSummary) {
-      dynamicElements.push(`\n\n对话历史摘要：${session.contextSummary}`);
-    }
-    
-    // 5. 添加模型特定指令
-    const modelId = this.currentModel.id;
-    switch (modelId) {
-      case 'kimi':
-        dynamicElements.push(`\n\n请充分利用Kimi的长上下文能力，提供详细、全面的回答。`);
-        break;
-      case 'deepseek':
-        dynamicElements.push(`\n\n请结合Deepseek在文化元素融合方面的优势，提供富有文化内涵的回答。`);
-        break;
-      case 'qwen':
-        dynamicElements.push(`\n\n请利用通义千问的综合能力，提供全面、准确的回答。`);
-        break;
-      default:
-        break;
-    }
-    
+
+    // 4. 添加强制简洁指令
+    dynamicElements.push(`\n\n【强制要求】\n- 回答必须简洁，控制在200字以内\n- 使用要点列表，避免长段落\n- 直接给出答案，不要铺垫\n- 禁止重复解释同一内容`);
+
     // 组合基础提示词和动态元素
     return `${basePrompt}${dynamicElements.join('')}`;
   }
@@ -1322,6 +1274,21 @@ export interface WorkReviewResult {
     }
   }
   
+  /**
+   * 删除所有会话
+   */
+  deleteAllSessions(): void {
+    // 清空所有会话
+    this.conversationSessions = [];
+    this.currentSessionId = '';
+    
+    // 创建一个新会话
+    this.createSession('新对话');
+    
+    // 保存会话
+    this.saveSessions();
+  }
+
   /**
    * 重命名会话
    */

@@ -18,9 +18,7 @@ export default function ToolSidebar({ isCollapsed, setIsCollapsed }: ToolSidebar
   const updateState = useCreateStore((state) => state.updateState);
   const navigate = useNavigate();
 
-  const extraTools = [
-    { id: 'wizard', name: '共创向导', icon: 'hat-wizard', path: '/create/wizard', color: '#3B82F6' }
-  ];
+  const extraTools: { id: string; name: string; icon: string; path: string; color: string; badge?: string }[] = [];
 
   const handleExtraToolClick = (tool: { id: string, path: string }) => {
     navigate(tool.path);
@@ -126,6 +124,12 @@ export default function ToolSidebar({ isCollapsed, setIsCollapsed }: ToolSidebar
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.96 }}
                     >
+                      {/* Badge */}
+                      {tool.badge && (
+                        <div className="absolute -top-1 -right-1 px-1.5 py-0.5 bg-red-500 text-white text-[8px] font-bold rounded-full z-10 animate-pulse">
+                          {tool.badge}
+                        </div>
+                      )}
                       <div 
                         className="w-10 h-10 rounded-xl flex items-center justify-center mb-1.5"
                         style={{ backgroundColor: isDark ? '#374151' : '#F3F4F6' }}
@@ -206,6 +210,12 @@ export default function ToolSidebar({ isCollapsed, setIsCollapsed }: ToolSidebar
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.96 }}
               >
+                {/* Badge */}
+                {tool.badge && (
+                  <div className="absolute -top-1 -right-1 px-1 py-0.5 bg-red-500 text-white text-[7px] font-bold rounded-full z-10 animate-pulse">
+                    {tool.badge}
+                  </div>
+                )}
                 <div 
                   className="w-8 h-8 rounded-lg flex items-center justify-center mb-1"
                   style={{ backgroundColor: isDark ? '#374151' : '#F3F4F6' }}
@@ -262,12 +272,18 @@ export default function ToolSidebar({ isCollapsed, setIsCollapsed }: ToolSidebar
                    handleExtraToolClick(tool);
                    updateState({ showPropertiesPanel: false });
                 }}
-                className={`w-11 h-11 rounded-full shadow-lg flex items-center justify-center transition-all`}
+                className={`w-11 h-11 rounded-full shadow-lg flex items-center justify-center transition-all relative`}
                 style={{
                   backgroundColor: isDark ? '#1F2937' : '#FFFFFF',
                   color: tool.color
                 }}
               >
+                {/* Badge */}
+                {tool.badge && (
+                  <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[6px] font-bold rounded-full flex items-center justify-center z-10 animate-pulse">
+                    {tool.badge}
+                  </div>
+                )}
                 <i className={`fas fa-${tool.icon} text-sm`}></i>
               </motion.button>
             ))}

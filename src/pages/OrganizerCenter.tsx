@@ -252,6 +252,8 @@ export default function OrganizerCenter() {
     }
     return false;
   });
+  // 使用 ref 防止 React StrictMode 导致的重复恢复
+  const isRestoringRef = useRef(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
@@ -333,9 +335,13 @@ export default function OrganizerCenter() {
   // 当 user 加载完成后，读取并恢复草稿（仅在创建活动标签页时恢复）
   useEffect(() => {
     // 只有在创建活动标签页且未恢复过草稿时才恢复
-    if (user?.id && !isDraftRestored && !isAuthLoading && activeTab === 'create') {
+    // 使用 isRestoringRef 防止 React StrictMode 导致的重复恢复
+    if (user?.id && !isDraftRestored && !isAuthLoading && activeTab === 'create' && !isRestoringRef.current) {
       const draft = getSavedDraft(user.id);
       if (draft?.formData) {
+        // 标记正在恢复中，防止重复执行
+        isRestoringRef.current = true;
+        
         console.log('[OrganizerCenter] 恢复草稿:', draft);
         setFormData(draft.formData);
         setCurrentStep(draft.currentStep);

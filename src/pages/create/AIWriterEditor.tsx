@@ -713,7 +713,7 @@ ${fields}
 
   return (
     <div 
-      className={`fixed inset-0 z-50 flex flex-col ${isDark ? 'bg-white dark:bg-gray-900' : 'bg-white'}`}
+      className={`fixed inset-0 z-[70] flex flex-col ${isDark ? 'bg-white dark:bg-gray-900' : 'bg-white'}`}
       style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 }}
     >
       {/* 顶部导航栏 */}

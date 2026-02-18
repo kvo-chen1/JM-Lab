@@ -30,10 +30,12 @@ export interface AIAction {
 }
 
 export interface ChatMessage {
+  id?: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: number;
   isError?: boolean;
+  metadata?: Record<string, any>;
 }
 
 // 文化相关意图模式
@@ -69,14 +71,20 @@ class AIAssistantService {
   /**
    * 初始化服务
    */
-  async initialize(): Promise<void> {
-    if (this.isInitialized) return;
+  async initialize(user?: User | null): Promise<void> {
+    if (this.isInitialized && !user) return;
 
-    // 获取当前用户
-    const { data: { user } } = await supabase.auth.getUser();
+    // 获取当前用户（如果未传入）
+    let currentUser = user;
+    if (!currentUser) {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      currentUser = authUser;
+    }
+    console.log('[aiAssistantService.initialize] 获取到的用户:', currentUser?.id || 'null');
     
     // 设置记忆服务的当前用户
-    aiMemoryService.setCurrentUser(user);
+    aiMemoryService.setCurrentUser(currentUser);
+    console.log('[aiAssistantService.initialize] 已设置用户到 aiMemoryService');
 
     // 获取或创建活跃对话
     const conversation = await aiMemoryService.getActiveConversation();
@@ -617,8 +625,16 @@ class AIAssistantService {
       prompt += memoryContext;
     }
 
-    // 添加文化专家角色提示
+    // 添加文化专家角色提示和格式说明
     prompt += `\n\n[角色提示：你是津小脉，津脉智坊平台的AI助手，专注于天津传统文化创作与设计。你可以为用户提供文化知识、设计建议、作品点评等服务。]`;
+    
+    // 添加 Markdown 表格格式说明
+    prompt += `\n\n[格式提示：如果需要使用表格，请使用标准的 Markdown 表格格式。表格使用 | 作为列分隔符，使用 |---| 作为表头分隔符。例如：
+| 列1 | 列2 | 列3 |
+|-----|-----|-----|
+| 数据1 | 数据2 | 数据3 |
+| 数据4 | 数据5 | 数据6 |
+不要使用 ||| 或其他非标准格式。]`;
 
     return prompt;
   }
@@ -656,21 +672,33 @@ class AIAssistantService {
   /**
    * 保存消息
    */
-  private async saveMessage(
+  async saveMessage(
     role: 'user' | 'assistant' | 'system',
     content: string,
-    isError: boolean = false
+    isError: boolean = false,
+    metadata?: Record<string, any>
   ): Promise<void> {
+    console.log('[aiAssistantService.saveMessage] 开始保存消息:', { role, conversationId: this.currentConversationId });
+    
     if (!this.currentConversationId) {
+      console.log('[aiAssistantService.saveMessage] 当前会话ID为空，尝试获取活跃对话');
       const conversation = await aiMemoryService.getActiveConversation();
       if (conversation) {
         this.currentConversationId = conversation.id;
+        console.log('[aiAssistantService.saveMessage] 获取到活跃对话:', conversation.id);
       } else {
+        console.error('[aiAssistantService.saveMessage] 无法获取活跃对话，取消保存');
         return;
       }
     }
 
-    await aiMemoryService.saveMessage(this.currentConversationId, role, content, isError);
+    try {
+      await aiMemoryService.saveMessage(this.currentConversationId, role, content, isError, metadata);
+      console.log('[aiAssistantService.saveMessage] 消息保存成功');
+    } catch (error) {
+      console.error('[aiAssistantService.saveMessage] 保存消息失败:', error);
+      throw error;
+    }
   }
 
   /**
@@ -699,10 +727,12 @@ class AIAssistantService {
     const messages = await aiMemoryService.getConversationMessages(this.currentConversationId, 50);
     
     return messages.map(m => ({
+      id: m.id,
       role: m.role,
       content: m.content,
       timestamp: new Date(m.timestamp).getTime(),
-      isError: m.is_error
+      isError: m.is_error,
+      metadata: m.metadata
     }));
   }
 
@@ -755,11 +785,19 @@ class AIAssistantService {
   /**
    * 切换对话
    */
-  async switchConversation(conversationId: string): Promise<void> {
+  async switchConversation(conversationId: string): Promise<Conversation | null> {
     const conversation = await aiMemoryService.switchConversation(conversationId);
     if (conversation) {
       this.currentConversationId = conversation.id;
     }
+    return conversation;
+  }
+
+  /**
+   * 设置当前对话ID
+   */
+  setCurrentConversationId(conversationId: string | null): void {
+    this.currentConversationId = conversationId;
   }
 
   /**
@@ -794,6 +832,17 @@ class AIAssistantService {
     
     // 创建新对话
     await this.createNewConversation();
+  }
+
+  /**
+   * 删除所有对话
+   */
+  async deleteAllConversations(): Promise<boolean> {
+    const result = await aiMemoryService.deleteAllConversations();
+    if (result) {
+      this.currentConversationId = null;
+    }
+    return result;
   }
 
   /**

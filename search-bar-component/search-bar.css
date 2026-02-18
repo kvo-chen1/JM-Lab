@@ -150,7 +150,6 @@
   padding: 16px;
   box-sizing: border-box;
   display: none;
-  z-index: 1000;
   max-height: 300px;
   overflow-y: auto;
   opacity: 0;

@@ -939,7 +939,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: getDuration(0.3), delay: getDelay(0.2) }}
-                style={{ overflow: 'visible', zIndex: 9999 }}
+                style={{ overflow: 'visible' }}
               >
                 <SearchBar
                   search={search}

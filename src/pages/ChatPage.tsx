@@ -3,6 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Card, Button, LoadingSpinner } from '@/components/ui';
 import { ArrowLeft, Send, MoreVertical, Phone, Video } from 'lucide-react';
 import { getDirectMessages, sendDirectMessage, markMessagesAsRead } from '@/services/messageService';
+import { parseWorkShareMessage } from '@/services/workShareService';
+import { SharedWorkMessage } from '@/components/share';
+import { CommunityInviteMessage } from '@/components/CommunityInviteMessage';
 import { AuthContext } from '@/contexts/authContext';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
@@ -296,9 +299,15 @@ const ChatPage: React.FC = () => {
           ) : (
             messages.map((message, index) => {
               const isMe = message.sender_id === currentUser.id;
-              const showTime = index === 0 || 
+              const showTime = index === 0 ||
                 new Date(message.created_at).getTime() - new Date(messages[index - 1].created_at).getTime() > 5 * 60 * 1000;
+
+              // 检查是否是作品分享消息
+              const workShare = parseWorkShareMessage(message.content);
               
+              // 检查是否是社群邀请消息
+              const communityInvite = parseCommunityInviteMessage(message.content);
+
               return (
                 <div key={message.id}>
                   {showTime && (
@@ -309,7 +318,7 @@ const ChatPage: React.FC = () => {
                     </div>
                   )}
                   <div className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`flex items-end gap-2 max-w-[70%] ${isMe ? 'flex-row-reverse' : ''}`}>
+                    <div className={`flex items-end gap-2 max-w-[80%] ${isMe ? 'flex-row-reverse' : ''}`}>
                       {!isMe && (
                         <img
                           src={otherUser?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${userId}`}
@@ -317,15 +326,47 @@ const ChatPage: React.FC = () => {
                           className="w-8 h-8 rounded-full object-cover bg-gray-100 flex-shrink-0"
                         />
                       )}
-                      <div
-                        className={`px-4 py-2 rounded-2xl ${
-                          isMe
-                            ? 'bg-blue-500 text-white rounded-br-none'
-                            : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-white rounded-bl-none shadow-sm'
-                        }`}
-                      >
-                        <p className="text-sm">{message.content}</p>
-                      </div>
+
+                      {workShare.isWorkShare ? (
+                        // 渲染作品分享卡片
+                        <div className={`${isMe ? 'mr-2' : 'ml-2'}`}>
+                          <SharedWorkMessage
+                            workId={workShare.data.workId}
+                            workTitle={workShare.data.workTitle}
+                            workThumbnail={workShare.data.workThumbnail}
+                            workType={workShare.data.workType}
+                            message={workShare.data.message}
+                            senderName={isMe ? '我' : otherUser?.username}
+                          />
+                        </div>
+                      ) : communityInvite.isCommunityInvite ? (
+                        // 渲染社群邀请卡片
+                        <div className={`${isMe ? 'mr-2' : 'ml-2'}`}>
+                          <CommunityInviteMessage
+                            communityId={communityInvite.data.communityId}
+                            communityName={communityInvite.data.communityName}
+                            communityDescription={communityInvite.data.communityDescription}
+                            communityAvatar={communityInvite.data.communityAvatar}
+                            inviterName={isMe ? '你' : communityInvite.data.inviterName}
+                            inviterAvatar={communityInvite.data.inviterAvatar}
+                            message={communityInvite.data.message}
+                            inviteCode={communityInvite.data.inviteCode}
+                            inviteLink={communityInvite.data.inviteLink}
+                            isInviter={isMe}
+                          />
+                        </div>
+                      ) : (
+                        // 渲染普通文本消息
+                        <div
+                          className={`px-4 py-2 rounded-2xl ${
+                            isMe
+                              ? 'bg-blue-500 text-white rounded-br-none'
+                              : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-white rounded-bl-none shadow-sm'
+                          }`}
+                        >
+                          <p className="text-sm">{message.content}</p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -369,5 +410,21 @@ const ChatPage: React.FC = () => {
     </div>
   );
 };
+
+/**
+ * 解析社群邀请消息
+ */
+function parseCommunityInviteMessage(content: string): { isCommunityInvite: boolean; data?: any } {
+  const match = content.match(/\[COMMUNITY_INVITE\](.*?)\[\/COMMUNITY_INVITE\]/s);
+  if (match) {
+    try {
+      const data = JSON.parse(match[1]);
+      return { isCommunityInvite: true, data };
+    } catch (e) {
+      console.error('解析社群邀请消息失败:', e);
+    }
+  }
+  return { isCommunityInvite: false };
+}
 
 export default ChatPage;

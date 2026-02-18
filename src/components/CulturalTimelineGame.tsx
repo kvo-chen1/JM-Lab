@@ -286,7 +286,7 @@ const CulturalTimelineGame: React.FC<CulturalTimelineGameProps> = ({ isOpen, onC
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.3 }}
-      className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4 overflow-y-auto"
+      className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-[70] p-4 overflow-y-auto"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <motion.div

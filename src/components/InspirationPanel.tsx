@@ -517,7 +517,7 @@ export default function InspirationPanel({ onClose, onApply, className = '' }: I
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+            className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/50"
             onClick={() => setShowPlanLibrary(false)}
           >
             <motion.div

@@ -344,10 +344,10 @@ const SearchBar: React.FC<SearchBarProps> = memo(({
   }, [setShowSuggest]);
 
   return (
-    <div 
+    <div
       ref={dropdownRef}
-      className={`pinterest-search-wrapper ${isDark ? 'dark' : ''}`} 
-      style={{ position: 'relative', zIndex: 9999, overflow: 'visible' }}
+      className={`pinterest-search-wrapper ${isDark ? 'dark' : ''}`}
+      style={{ position: 'relative', overflow: 'visible' }}
     >
       <div className={`pinterest-search-bar ${isFocused ? 'focused' : ''}`}>
         {/* Search Icon */}

@@ -112,7 +112,7 @@ const FirstLaunchGuide: React.FC = () => {
 
   return (
     <div 
-      className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300"
+      className="fixed inset-0 bg-black/80 z-[70] flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300"
       style={{ opacity: showGuide ? 1 : 0 }}
     >
       <div 

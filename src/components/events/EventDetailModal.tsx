@@ -85,8 +85,42 @@ export default function EventDetailModal({ event, isOpen, onClose, submissionCou
   if (!event) return null;
 
   const now = new Date();
-  const eventStart = new Date(event.startTime);
-  const eventEnd = new Date(event.endTime);
+  
+  // 辅助函数：处理各种日期格式（Date对象、ISO字符串、秒级/毫秒级时间戳）
+  const parseEventDate = (dateValue: any): Date => {
+    if (dateValue == null) {
+      return new Date(); // 如果日期为空，返回当前时间作为默认值
+    }
+    if (dateValue instanceof Date) {
+      return dateValue;
+    }
+    if (typeof dateValue === 'string') {
+      // 检查是否是纯数字（时间戳）
+      if (/^\d+$/.test(dateValue)) {
+        const numValue = parseInt(dateValue, 10);
+        // 判断时间戳是秒级还是毫秒级：如果数值小于 1e12，认为是秒级
+        const msValue = numValue < 1e12 ? numValue * 1000 : numValue;
+        return new Date(msValue);
+      }
+      // ISO日期字符串
+      const parsed = new Date(dateValue);
+      if (!isNaN(parsed.getTime())) {
+        return parsed;
+      }
+      return new Date(); // 如果解析失败，返回当前时间
+    }
+    if (typeof dateValue === 'number') {
+      // 判断时间戳是秒级还是毫秒级
+      const msValue = dateValue < 1e12 ? dateValue * 1000 : dateValue;
+      return new Date(msValue);
+    }
+    // 对于其他类型，尝试解析，如果失败则返回当前时间
+    const parsed = new Date(dateValue);
+    return isNaN(parsed.getTime()) ? new Date() : parsed;
+  };
+  
+  const eventStart = parseEventDate(event.startTime);
+  const eventEnd = parseEventDate(event.endTime);
 
   // 优先检查 final_ranking_published 字段或活动状态，如果已发布排名或状态为completed则视为已结束
   const isRankingPublished = (event as any).finalRankingPublished === true || 
@@ -219,7 +253,7 @@ export default function EventDetailModal({ event, isOpen, onClose, submissionCou
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 md:p-6">
           {/* 背景遮罩 */}
           <motion.div
             initial={{ opacity: 0 }}

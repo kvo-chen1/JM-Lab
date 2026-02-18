@@ -467,7 +467,7 @@ export const MobileWaterfallWorks: React.FC<MobileWaterfallWorksProps> = ({
       
       {/* 分享对话框 */}
       {isShareDialogOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70 p-4">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black bg-opacity-70 p-4">
           <div className={`${isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'} rounded-xl p-6 w-full max-w-md`}>
             <h2 className="text-xl font-bold mb-4">分享作品</h2>
             
@@ -542,9 +542,9 @@ export const MobileWaterfallWorks: React.FC<MobileWaterfallWorksProps> = ({
       
       {/* 分享到津脉社区对话框 */}
       {isShareToCommunityOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70 p-4">
-          <div className={`${isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'} rounded-xl p-6 w-full max-w-md`}>
-            <Suspense fallback={
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black bg-opacity-70 p-4">
+            <div className={`${isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'} rounded-xl p-6 w-full max-w-md`}>
+              <Suspense fallback={
               <div className="flex items-center justify-center py-8">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
               </div>

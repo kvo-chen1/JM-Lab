@@ -9,9 +9,23 @@ import { behaviorAnalysisService } from '@/services/behaviorAnalysisService';
  */
 
 /**
- * 获取当前用户ID
+ * 获取当前用户ID（兼容多种登录方式）
  */
 async function getCurrentUserId(): Promise<string | null> {
+  // 首先尝试从 localStorage 获取用户信息（后端登录方式）
+  const userStr = localStorage.getItem('user');
+  if (userStr) {
+    try {
+      const user = JSON.parse(userStr);
+      if (user?.id) {
+        return user.id;
+      }
+    } catch {
+      // 解析失败，继续尝试其他方式
+    }
+  }
+
+  // 尝试从 Supabase Auth 获取
   try {
     const { data: { user } } = await supabase.auth.getUser();
     return user?.id || null;
@@ -36,7 +50,7 @@ export async function getPostLikeState(postId: string): Promise<{ isLiked: boole
   try {
     // 查询点赞数
     const { count: likeCount, error: countError } = await supabase
-      .from('community_post_likes')
+      .from('likes')
       .select('*', { count: 'exact', head: true })
       .eq('post_id', postId);
 
@@ -49,7 +63,7 @@ export async function getPostLikeState(postId: string): Promise<{ isLiked: boole
     let isLiked = false;
     if (userId) {
       const { data, error } = await supabase
-        .from('community_post_likes')
+        .from('likes')
         .select('id')
         .eq('post_id', postId)
         .eq('user_id', userId)
@@ -82,7 +96,7 @@ export async function getPostFavoriteState(postId: string): Promise<boolean> {
 
   try {
     const { data, error } = await supabase
-      .from('community_post_favorites')
+      .from('bookmarks')
       .select('id')
       .eq('post_id', postId)
       .eq('user_id', userId)
@@ -114,7 +128,7 @@ export async function togglePostLike(postId: string, postTitle?: string): Promis
   try {
     // 检查当前状态
     const { data: existingLike, error: checkError } = await supabase
-      .from('community_post_likes')
+      .from('likes')
       .select('id')
       .eq('post_id', postId)
       .eq('user_id', userId)
@@ -131,7 +145,7 @@ export async function togglePostLike(postId: string, postTitle?: string): Promis
     if (existingLike) {
       // 取消点赞
       const { error } = await supabase
-        .from('community_post_likes')
+        .from('likes')
         .delete()
         .eq('post_id', postId)
         .eq('user_id', userId);
@@ -155,7 +169,7 @@ export async function togglePostLike(postId: string, postTitle?: string): Promis
     } else {
       // 添加点赞
       const { error } = await supabase
-        .from('community_post_likes')
+        .from('likes')
         .insert({
           post_id: postId,
           user_id: userId,
@@ -181,7 +195,7 @@ export async function togglePostLike(postId: string, postTitle?: string): Promis
 
     // 获取最新的点赞数
     const { count } = await supabase
-      .from('community_post_likes')
+      .from('likes')
       .select('*', { count: 'exact', head: true })
       .eq('post_id', postId);
 
@@ -198,19 +212,19 @@ export async function togglePostLike(postId: string, postTitle?: string): Promis
 
 /**
  * 切换帖子收藏状态
+ * 注意：此函数不显示 toast，由调用方负责显示
  */
 export async function togglePostFavorite(postId: string, postTitle?: string): Promise<boolean> {
   const userId = await getCurrentUserId();
 
   if (!userId) {
-    toast.error('请先登录后再收藏');
-    return false;
+    throw new Error('请先登录后再收藏');
   }
 
   try {
     // 检查当前状态
     const { data: existingFavorite, error: checkError } = await supabase
-      .from('community_post_favorites')
+      .from('bookmarks')
       .select('id')
       .eq('post_id', postId)
       .eq('user_id', userId)
@@ -218,8 +232,7 @@ export async function togglePostFavorite(postId: string, postTitle?: string): Pr
 
     if (checkError) {
       console.error('Failed to check favorite status:', checkError);
-      toast.error('操作失败，请稍后重试');
-      return false;
+      throw new Error('操作失败，请稍后重试');
     }
 
     let isFavorited: boolean;
@@ -227,19 +240,17 @@ export async function togglePostFavorite(postId: string, postTitle?: string): Pr
     if (existingFavorite) {
       // 取消收藏
       const { error } = await supabase
-        .from('community_post_favorites')
+        .from('bookmarks')
         .delete()
         .eq('post_id', postId)
         .eq('user_id', userId);
 
       if (error) {
         console.error('Failed to delete favorite:', error);
-        toast.error('操作失败，请稍后重试');
-        return true;
+        throw new Error('操作失败，请稍后重试');
       }
 
       isFavorited = false;
-      toast.success('已取消收藏');
 
       // 记录取消收藏行为
       behaviorAnalysisService.recordSocialBehavior(
@@ -251,7 +262,7 @@ export async function togglePostFavorite(postId: string, postTitle?: string): Pr
     } else {
       // 添加收藏
       const { error } = await supabase
-        .from('community_post_favorites')
+        .from('bookmarks')
         .insert({
           post_id: postId,
           user_id: userId,
@@ -259,12 +270,10 @@ export async function togglePostFavorite(postId: string, postTitle?: string): Pr
 
       if (error) {
         console.error('Failed to insert favorite:', error);
-        toast.error('操作失败，请稍后重试');
-        return false;
+        throw new Error('操作失败，请稍后重试');
       }
 
       isFavorited = true;
-      toast.success('已收藏到"我的收藏"');
 
       // 记录收藏行为
       behaviorAnalysisService.recordSocialBehavior(
@@ -278,8 +287,7 @@ export async function togglePostFavorite(postId: string, postTitle?: string): Pr
     return isFavorited;
   } catch (e) {
     console.warn('Error toggling favorite:', e);
-    toast.error('操作失败，请稍后重试');
-    return false;
+    throw e;
   }
 }
 
@@ -295,7 +303,7 @@ export async function getUserFavoritedPostIds(): Promise<string[]> {
 
   try {
     const { data, error } = await supabase
-      .from('community_post_favorites')
+      .from('bookmarks')
       .select('post_id')
       .eq('user_id', userId);
 
@@ -323,7 +331,7 @@ export async function getUserLikedPostIds(): Promise<string[]> {
 
   try {
     const { data, error } = await supabase
-      .from('community_post_likes')
+      .from('likes')
       .select('post_id')
       .eq('user_id', userId);
 
@@ -375,7 +383,7 @@ export async function getUserFavoritesCount(): Promise<number> {
 
   try {
     const { count, error } = await supabase
-      .from('community_post_favorites')
+      .from('bookmarks')
       .select('*', { count: 'exact', head: true })
       .eq('user_id', userId);
 

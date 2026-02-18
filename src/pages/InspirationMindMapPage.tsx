@@ -636,7 +636,7 @@ const InspirationMindMapPage: React.FC = () => {
 
       {/* 加载状态 */}
       {isLoading && (
-        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center">
+        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[70] flex items-center justify-center">
           <div className="bg-white rounded-2xl p-6 shadow-2xl flex items-center gap-3">
             <div className="w-5 h-5 border-2 border-[#D4A574] border-t-transparent rounded-full animate-spin" />
             <span className="text-gray-700">处理中...</span>

@@ -649,7 +649,7 @@ function SampleAssetDetailModal({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+        className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[70] flex items-center justify-center p-4"
         onClick={onClose}
       >
         <motion.div
@@ -1789,7 +1789,7 @@ function IPAssetDetailModal({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50"
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[70]"
             onClick={onClose}
           />
 
@@ -1798,7 +1798,7 @@ function IPAssetDetailModal({
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className={`fixed inset-4 md:inset-10 lg:inset-20 rounded-2xl ${isDark ? 'bg-gray-800' : 'bg-white'} z-50 overflow-hidden flex flex-col shadow-2xl`}
+            className={`fixed inset-4 md:inset-10 lg:inset-20 rounded-2xl ${isDark ? 'bg-gray-800' : 'bg-white'} z-[70] overflow-hidden flex flex-col shadow-2xl`}
           >
             {/* 头部 */}
             <div className={`flex items-center justify-between p-6 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>

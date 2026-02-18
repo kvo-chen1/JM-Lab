@@ -109,7 +109,7 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
     <motion.div 
         initial={{ opacity: 0 }} 
         animate={{ opacity: 1 }}
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-90 p-4"
+        className="fixed inset-0 z-[70] flex items-center justify-center bg-black bg-opacity-90 p-4"
     >
         <div className={`flex flex-col md:flex-row w-full max-w-6xl h-[90vh] rounded-xl overflow-hidden ${isDark ? 'bg-gray-900' : 'bg-white'}`}>
             {/* Canvas Area */}

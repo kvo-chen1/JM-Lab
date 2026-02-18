@@ -5,3 +5,5 @@ export { CollectionEmpty } from './CollectionEmpty';
 export { CollectionStats } from './CollectionStats';
 export { ViewToggle } from './ViewToggle';
 export { SortDropdown } from './SortDropdown';
+export { CollectionSearch } from './CollectionSearch';
+export { SearchEmpty } from './SearchEmpty';

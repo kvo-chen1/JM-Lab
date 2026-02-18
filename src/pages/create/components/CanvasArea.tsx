@@ -567,7 +567,7 @@ export default function CanvasArea({ isSidebarCollapsed, setIsSidebarCollapsed }
                     </span>
                   </div>
 
-                  <div className="flex gap-3 sm:gap-4 overflow-x-auto custom-scrollbar justify-center pr-4">
+                  <div className="flex gap-3 sm:gap-4 overflow-x-auto custom-scrollbar pr-4">
                     {generatedResults.map((result, index) => (
                       <motion.div
                         key={result.id}

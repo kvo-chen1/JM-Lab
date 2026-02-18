@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import uploadService, { UserUpload } from '@/services/uploadService';
 import { uploadImage } from '@/services/imageService';
 import { AuthContext } from '@/contexts/authContext';
+import { useCreateStore } from '../../hooks/useCreateStore';
 
 interface UploadPanelProps {
   onSelectUpload?: (upload: UserUpload) => void;
@@ -21,9 +22,17 @@ const UploadPanel: React.FC<UploadPanelProps> = ({ onSelectUpload }) => {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [editingUpload, setEditingUpload] = useState<UserUpload | null>(null);
 
+  // 获取 create store 的方法
+  const generatedResults = useCreateStore((state) => state.generatedResults);
+  const setGeneratedResults = useCreateStore((state) => state.setGeneratedResults);
+  const setSelectedResult = useCreateStore((state) => state.setSelectedResult);
+  const updateState = useCreateStore((state) => state.updateState);
+
   // 加载用户上传的作品
   const loadUploads = useCallback(async () => {
+    console.log('[UploadPanel] 开始加载上传作品，用户:', user?.id);
     if (!user?.id) {
+      console.log('[UploadPanel] 用户未登录，清空作品列表');
       setIsLoading(false);
       setUploads([]);
       return;
@@ -31,18 +40,21 @@ const UploadPanel: React.FC<UploadPanelProps> = ({ onSelectUpload }) => {
     setIsLoading(true);
     try {
       // 传递 user.id 避免 supabase auth session 不同步问题
+      console.log('[UploadPanel] 调用 uploadService.getUserUploads，用户ID:', user.id);
       const { data, error } = await uploadService.getUserUploads(user.id);
       if (error) {
+        console.error('[UploadPanel] 加载作品失败:', error);
         // 静默处理未登录错误，不显示在控制台
         if (error.message !== '用户未登录') {
           console.error('加载作品失败:', error.message);
         }
         setUploads([]);
       } else {
+        console.log('[UploadPanel] 加载作品成功，数量:', data?.length || 0);
         setUploads(data || []);
       }
-    } catch (err) {
-      // 静默处理错误
+    } catch (err: any) {
+      console.error('[UploadPanel] 加载作品异常:', err);
       setUploads([]);
     }
     setIsLoading(false);
@@ -56,6 +68,12 @@ const UploadPanel: React.FC<UploadPanelProps> = ({ onSelectUpload }) => {
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    // 检查用户是否登录
+    if (!user) {
+      toast.error('上传失败: 用户未登录');
+      return;
+    }
 
     // 验证文件类型
     const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
@@ -72,19 +90,27 @@ const UploadPanel: React.FC<UploadPanelProps> = ({ onSelectUpload }) => {
 
     setIsUploading(true);
     try {
+      console.log('[UploadPanel] 开始上传文件:', file.name, '用户ID:', user?.id);
+      
       const { data, error } = await uploadService.createUpload({
         file,
         title: file.name
-      });
+      }, user?.id);
 
       if (error) {
+        console.error('[UploadPanel] 上传失败:', error);
         toast.error('上传失败: ' + error.message);
       } else if (data) {
+        console.log('[UploadPanel] 上传成功:', data);
         toast.success('上传成功！');
         setUploads(prev => [data, ...prev]);
+      } else {
+        console.error('[UploadPanel] 上传返回空数据');
+        toast.error('上传失败: 返回数据为空');
       }
-    } catch (err) {
-      toast.error('上传过程中出现错误');
+    } catch (err: any) {
+      console.error('[UploadPanel] 上传过程中出现错误:', err);
+      toast.error('上传过程中出现错误: ' + (err.message || '未知错误'));
     } finally {
       setIsUploading(false);
     }
@@ -94,7 +120,7 @@ const UploadPanel: React.FC<UploadPanelProps> = ({ onSelectUpload }) => {
   const handleDelete = async (id: string) => {
     if (!confirm('确定要删除这个作品吗？')) return;
 
-    const { success, error } = await uploadService.deleteUpload(id);
+    const { success, error } = await uploadService.deleteUpload(id, user?.id);
     if (error) {
       toast.error('删除失败: ' + error.message);
     } else {
@@ -115,7 +141,7 @@ const UploadPanel: React.FC<UploadPanelProps> = ({ onSelectUpload }) => {
       title: editingUpload.title,
       description: editingUpload.description,
       tags: editingUpload.tags
-    });
+    }, user?.id);
 
     if (error) {
       toast.error('更新失败: ' + error.message);
@@ -134,7 +160,7 @@ const UploadPanel: React.FC<UploadPanelProps> = ({ onSelectUpload }) => {
     }
 
     setIsLoading(true);
-    const { data, error } = await uploadService.searchUploads(searchQuery);
+    const { data, error } = await uploadService.searchUploads(searchQuery, user?.id);
     if (error) {
       toast.error('搜索失败: ' + error.message);
     } else {
@@ -159,6 +185,40 @@ const UploadPanel: React.FC<UploadPanelProps> = ({ onSelectUpload }) => {
       month: 'short',
       day: 'numeric'
     });
+  };
+
+  // 将上传作品添加到左侧预览
+  const handlePreviewInCanvas = (upload: UserUpload) => {
+    // 生成新的 ID（避免与现有作品冲突）
+    const newId = Date.now();
+    
+    // 创建新的作品对象
+    const newResult = {
+      id: newId,
+      thumbnail: upload.file_url,
+      type: 'image' as const,
+      prompt: upload.description || upload.title || '上传的作品',
+    };
+    
+    // 添加到 generatedResults
+    const updatedResults = [...generatedResults, newResult];
+    setGeneratedResults(updatedResults);
+    
+    // 选中新添加的作品
+    setSelectedResult(newId);
+    
+    toast.success('作品已添加到左侧预览区，可以进行二创加工了！');
+  };
+
+  // 发布作品到广场
+  const handlePublish = (upload: UserUpload) => {
+    // 先将作品添加到预览区
+    handlePreviewInCanvas(upload);
+    
+    // 打开发布弹窗
+    updateState({ showPublishModal: true });
+    
+    toast.success('作品已加载，请填写发布信息');
   };
 
   // 未登录提示
@@ -264,14 +324,14 @@ const UploadPanel: React.FC<UploadPanelProps> = ({ onSelectUpload }) => {
             <p className="text-xs text-gray-400">点击上方按钮上传您的第一个作品</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-3 gap-3">
             {uploads.map((upload, index) => (
               <motion.div
                 key={upload.id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.05 }}
-                className={`group relative rounded-xl overflow-hidden border cursor-pointer ${isDark
+                className={`group relative rounded-lg overflow-hidden border cursor-pointer ${isDark
                   ? 'bg-gray-800 border-gray-700 hover:border-gray-600'
                   : 'bg-white border-gray-200 hover:border-gray-300'
                 }`}
@@ -292,40 +352,70 @@ const UploadPanel: React.FC<UploadPanelProps> = ({ onSelectUpload }) => {
                     }}
                   />
                   {/* 悬停遮罩 */}
-                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditingUpload(upload);
-                      }}
-                      className="p-2 bg-white rounded-full text-gray-800 hover:bg-gray-100"
-                    >
-                      <i className="fas fa-edit"></i>
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDelete(upload.id);
-                      }}
-                      className="p-2 bg-red-500 rounded-full text-white hover:bg-red-600"
-                    >
-                      <i className="fas fa-trash"></i>
-                    </button>
+                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1.5">
+                    {/* 主要操作按钮 */}
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handlePreviewInCanvas(upload);
+                        }}
+                        className="px-2 py-1.5 bg-[#C02C38] rounded text-white text-[10px] font-medium hover:bg-[#A0232F] flex items-center gap-1"
+                        title="在左侧预览区打开，进行二创加工"
+                      >
+                        <i className="fas fa-eye text-[10px]"></i>
+                        预览
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handlePublish(upload);
+                        }}
+                        className="px-2 py-1.5 bg-indigo-600 rounded text-white text-[10px] font-medium hover:bg-indigo-700 flex items-center gap-1"
+                        title="发布到广场"
+                      >
+                        <i className="fas fa-globe text-[10px]"></i>
+                        发布
+                      </button>
+                    </div>
+                    {/* 次要操作按钮 */}
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingUpload(upload);
+                        }}
+                        className="p-1.5 bg-white/90 rounded-full text-gray-800 hover:bg-white"
+                        title="编辑信息"
+                      >
+                        <i className="fas fa-edit text-[10px]"></i>
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(upload.id);
+                        }}
+                        className="p-1.5 bg-red-500/90 rounded-full text-white hover:bg-red-500"
+                        title="删除"
+                      >
+                        <i className="fas fa-trash text-[10px]"></i>
+                      </button>
+                    </div>
                   </div>
                 </div>
 
                 {/* 信息 */}
-                <div className="p-3">
-                  <h4 className="font-medium text-sm truncate">{upload.title}</h4>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                <div className="p-2">
+                  <h4 className="font-medium text-xs truncate">{upload.title}</h4>
+                  <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">
                     {formatFileSize(upload.file_size)} · {formatDate(upload.created_at)}
                   </p>
                   {upload.tags && upload.tags.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-2">
-                      {upload.tags.slice(0, 3).map((tag, i) => (
+                    <div className="flex flex-wrap gap-0.5 mt-1">
+                      {upload.tags.slice(0, 2).map((tag, i) => (
                         <span
                           key={i}
-                          className="text-[10px] px-2 py-0.5 rounded-full bg-[#C02C38]/10 text-[#C02C38]"
+                          className="text-[9px] px-1.5 py-0.5 rounded-full bg-[#C02C38]/10 text-[#C02C38]"
                         >
                           {tag}
                         </span>
@@ -346,7 +436,7 @@ const UploadPanel: React.FC<UploadPanelProps> = ({ onSelectUpload }) => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4"
             onClick={() => setEditingUpload(null)}
           >
             <motion.div

@@ -43,7 +43,7 @@ export default function AchievementDetail({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[70]"
           />
 
           {/* 弹窗内容 */}
@@ -52,7 +52,7 @@ export default function AchievementDetail({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-            className={`fixed inset-0 flex items-center justify-center p-4 z-50`}
+            className={`fixed inset-0 flex items-center justify-center p-4 z-[70]`}
           >
             <div className={`w-full max-w-lg max-h-[90vh] ${
               isDark ? 'bg-gray-900' : 'bg-white'

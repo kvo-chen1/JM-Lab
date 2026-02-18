@@ -11,9 +11,11 @@ import { CulturePanel } from './panels/CulturePanel';
 import { RefinementPanel } from './panels/RefinementPanel';
 import { PromptAssistantPanel } from './panels/PromptAssistantPanel';
 import PatternPanel from './panels/PatternPanel';
+import AIAssistantPanel from './panels/AIAssistantPanel';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TOOL_OPTIONS } from "../../../constants/creativeData";
 import { toast } from 'sonner';
+import clsx from 'clsx';
 
 export default function PropertiesPanel() {
   const { isDark } = useTheme();
@@ -43,6 +45,13 @@ export default function PropertiesPanel() {
 
   const renderPanel = () => {
     switch (activeTool) {
+      case 'ai-assistant':
+        // AI助手面板需要固定高度，不随父容器滚动
+        return (
+          <div className="h-[calc(100vh-140px)] overflow-hidden">
+            <AIAssistantPanel />
+          </div>
+        );
       case 'sketch':
         return <SketchPanel />;
       case 'upload':
@@ -196,8 +205,11 @@ export default function PropertiesPanel() {
           </motion.div>
         </motion.div>
 
-        {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar">
+        {/* Scrollable Content - AI助手面板时不滚动 */}
+        <div className={clsx(
+          "flex-1 custom-scrollbar",
+          activeTool === 'ai-assistant' ? 'overflow-hidden' : 'overflow-y-auto'
+        )}>
           <AnimatePresence mode="wait">
             <motion.div
               key={`desktop-${activeTool}`}
@@ -205,7 +217,7 @@ export default function PropertiesPanel() {
               initial="initial"
               animate="animate"
               exit="exit"
-              className="relative"
+              className="relative h-full"
             >
               {renderPanel()}
             </motion.div>

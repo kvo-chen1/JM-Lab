@@ -335,6 +335,45 @@ async function createPostgreSQLTables(pool) {
         }
       }
 
+      // 创建AI分享表（确保表存在，无论 users 表是否存在）
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS ai_shares (
+          id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+          user_id TEXT NOT NULL,
+          friend_id TEXT,
+          title TEXT NOT NULL,
+          description TEXT,
+          image_url TEXT,
+          type TEXT,
+          share_type TEXT NOT NULL,
+          note TEXT,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+      `)
+      console.log('[DB] ai_shares table ensured')
+
+      // 创建社区帖子表（确保表存在，无论 users 表是否存在）
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS community_posts (
+          id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+          title VARCHAR(255),
+          content TEXT,
+          user_id TEXT,
+          community_id TEXT,
+          community_name VARCHAR(100),
+          images TEXT[],
+          thumbnail TEXT,
+          views INTEGER DEFAULT 0,
+          likes INTEGER DEFAULT 0,
+          comment_count INTEGER DEFAULT 0,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+      `)
+      await client.query('CREATE INDEX IF NOT EXISTS idx_community_posts_user_id ON community_posts(user_id);')
+      await client.query('CREATE INDEX IF NOT EXISTS idx_community_posts_community_id ON community_posts(community_id);')
+      console.log('[DB] community_posts table ensured')
+
       // 检查 users 表是否已存在（Supabase 已创建）
       const { rows: existingUsers } = await client.query(`
         SELECT table_name FROM information_schema.tables 
@@ -2640,8 +2679,10 @@ export const friendDB = {
   },
 
   async getFriends(userId) {
-    const db = await getDB(userId)
+    console.log('[friendDB.getFriends] 开始获取好友列表:', userId)
+    const db = await getDB()
     const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
+    console.log('[friendDB.getFriends] 数据库类型:', typeKey)
     
     switch (typeKey) {
       case DB_TYPE.MEMORY:
@@ -2669,6 +2710,7 @@ export const friendDB = {
              return b.created_at - a.created_at
           })
       case DB_TYPE.POSTGRESQL:
+        console.log('[friendDB.getFriends] 执行 PostgreSQL 查询:', userId)
         const { rows: pgFriends } = await db.query(`
           SELECT f.*, u.username, u.avatar_url, u.email, s.status as online_status, s.last_seen
           FROM friends f
@@ -2677,6 +2719,7 @@ export const friendDB = {
           WHERE f.user_id::text = $1::text
           ORDER BY s.status DESC, f.created_at DESC
         `, [userId])
+        console.log('[friendDB.getFriends] 查询结果数量:', pgFriends.length)
         return pgFriends.map(f => ({
           ...f,
           friend: { 
@@ -4168,7 +4211,7 @@ export const communityDB = {
     const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
     switch (typeKey) {
       case DB_TYPE.POSTGRESQL: {
-        // 关联 users 表获取作者信息
+        // 关联 users 表获取作者信息，查询 posts 表
         const result = await db.query(`
           SELECT 
             p.*,

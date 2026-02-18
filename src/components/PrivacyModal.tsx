@@ -10,7 +10,7 @@ export default function PrivacyModal({ open, onAccept, onClose }: PrivacyModalPr
   const { isDark } = useTheme()
   if (!open) return null
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
       <div className={`relative z-10 w-full max-w-lg ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-xl p-6`}>
         <h3 className="text-lg font-bold mb-3">隐私协议</h3>

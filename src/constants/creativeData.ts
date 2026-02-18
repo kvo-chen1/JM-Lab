@@ -80,7 +80,7 @@ export interface StylePreset {
 }
 
 // 新的工具类型 - 6个核心智能工具 + 基础功能
-export type ToolType = 'sketch' | 'upload' | 'enhance' | 'style' | 'layout' | 'culture' | 'refinement' | 'prompt';
+export type ToolType = 'sketch' | 'upload' | 'enhance' | 'style' | 'layout' | 'culture' | 'refinement' | 'prompt' | 'ai-assistant';
 
 export interface ToolOption {
   id: ToolType;
@@ -1452,6 +1452,14 @@ export const TOOL_OPTIONS: ToolOption[] = [
     description: '智能生成创意作品',
     color: '#C02C38',
     features: ['文生图', '图生图', '智能扩图']
+  },
+  {
+    id: 'ai-assistant',
+    name: 'AI助手',
+    icon: 'robot',
+    description: '基于千问大模型的智能创作助手',
+    color: '#8B5CF6',
+    features: ['图片生成', '视频生成', 'AI对话', '提示词优化']
   },
   {
     id: 'upload',

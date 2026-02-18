@@ -260,7 +260,7 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ isOpen, onClose }) => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className={`fixed inset-0 z-50 flex items-center justify-center ${
+      className={`fixed inset-0 z-[70] flex items-center justify-center ${
         isDark ? 'bg-gray-900 bg-opacity-80' : 'bg-gray-50 bg-opacity-80'
       } backdrop-blur-sm`}
     >

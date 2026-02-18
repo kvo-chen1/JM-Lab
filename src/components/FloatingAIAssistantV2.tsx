@@ -22,7 +22,7 @@ const PATH_TO_PAGE_KEY: Record<string, string> = {
   '/dashboard': 'dashboard',
   '/settings': 'settings',
   '/neo': 'neo',
-
+  '/events': 'events',
   '/wizard': 'wizard',
   '/square': 'square'
 }
@@ -44,13 +44,20 @@ export default function FloatingAIAssistantV2({ defaultOpen = false }: FloatingA
   // 安全获取窗口尺寸，避免hydration mismatch
   useEffect(() => {
     const handleResize = () => {
-      setWindowWidth(window.innerWidth)
-      setWindowHeight(window.innerHeight)
-      // 更新按钮位置
-      setPositionStyle(prev => ({
-        ...prev,
-        y: window.innerHeight - 100
-      }))
+      const newWidth = window.innerWidth
+      const newHeight = window.innerHeight
+      setWindowWidth(newWidth)
+      setWindowHeight(newHeight)
+      
+      // 确保按钮不会超出屏幕边界
+      setPositionStyle(prev => {
+        const buttonWidth = 64
+        const buttonHeight = 64
+        // 确保位置在屏幕范围内
+        const newX = Math.max(0, Math.min(prev.x, newWidth - buttonWidth))
+        const newY = Math.max(0, Math.min(prev.y, newHeight - buttonHeight))
+        return { x: newX, y: newY }
+      })
     }
     
     // 初始设置尺寸
@@ -71,16 +78,27 @@ export default function FloatingAIAssistantV2({ defaultOpen = false }: FloatingA
     return key ? t(`aiAssistant.pages.${key}`) : t('aiAssistant.pages.unknown')
   }, [currentPath, t])
 
+  // 从 localStorage 加载保存的位置，并确保在屏幕范围内
   useEffect(() => {
     const savedPosition = localStorage.getItem('aiAssistantPosition')
-    if (!savedPosition) return
+    if (!savedPosition) {
+      // 如果没有保存的位置，使用默认位置（左下角）
+      setPositionStyle({ x: 20, y: window.innerHeight - 100 })
+      return
+    }
     try {
       const { x, y } = JSON.parse(savedPosition)
       if (typeof x === 'number' && typeof y === 'number') {
-        setPositionStyle({ x, y })
+        // 确保加载的位置在屏幕范围内
+        const buttonWidth = 64
+        const buttonHeight = 64
+        const safeX = Math.max(0, Math.min(x, window.innerWidth - buttonWidth))
+        const safeY = Math.max(0, Math.min(y, window.innerHeight - buttonHeight))
+        setPositionStyle({ x: safeX, y: safeY })
       }
     } catch {
-      return
+      // 解析失败时使用默认位置
+      setPositionStyle({ x: 20, y: window.innerHeight - 100 })
     }
   }, [])
 

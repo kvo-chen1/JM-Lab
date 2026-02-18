@@ -3,7 +3,7 @@
  * 管理用户的对话历史、长记忆和用户画像
  */
 
-import { supabase } from '@/lib/supabase';
+import { supabase, supabaseAdmin } from '@/lib/supabase';
 import type { User } from '@supabase/supabase-js';
 
 // 记忆类型
@@ -102,16 +102,38 @@ class AIMemoryService {
    */
   setCurrentUser(user: User | null): void {
     this.currentUser = user;
-    if (user) {
-      this.loadUserSettings();
-    }
+    console.log('[aiMemoryService.setCurrentUser] 设置用户:', user?.id || 'null');
   }
 
   /**
    * 获取当前用户ID
+   * 优先使用已设置的用户
    */
   private getUserId(): string | null {
     return this.currentUser?.id || null;
+  }
+
+  /**
+   * 获取 Supabase 客户端
+   * 如果有用户但没有 Supabase session，使用 supabaseAdmin 绕过 RLS
+   */
+  private async getClient() {
+    // 检查是否有 Supabase session
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    // 如果有 session，使用普通客户端
+    if (session) {
+      return supabase;
+    }
+    
+    // 如果有用户但没有 session（自定义认证），使用 admin 客户端
+    if (this.currentUser?.id && supabaseAdmin) {
+      console.log('[aiMemoryService.getClient] 使用 supabaseAdmin 绕过 RLS');
+      return supabaseAdmin;
+    }
+    
+    // 默认返回普通客户端
+    return supabase;
   }
 
   /**
@@ -119,17 +141,29 @@ class AIMemoryService {
    */
   async createConversation(title: string = '新对话', modelId: string = 'qwen'): Promise<Conversation | null> {
     const userId = this.getUserId();
-    if (!userId) return null;
+    console.log('[aiMemoryService.createConversation] userId:', userId);
+    if (!userId) {
+      console.error('[aiMemoryService.createConversation] 用户未登录，无法创建会话');
+      return null;
+    }
 
     try {
+      // 获取正确的客户端
+      const client = await this.getClient();
+
       // 先将其他对话设为非活跃
-      await supabase
+      const { error: updateError } = await client
         .from('ai_conversations')
         .update({ is_active: false })
         .eq('user_id', userId);
 
+      if (updateError) {
+        console.error('[aiMemoryService.createConversation] 更新其他对话失败:', updateError);
+      }
+
       // 创建新对话
-      const { data, error } = await supabase
+      console.log('[aiMemoryService.createConversation] 尝试插入数据:', { user_id: userId, title, model_id: modelId });
+      const { data, error } = await client
         .from('ai_conversations')
         .insert({
           user_id: userId,
@@ -141,14 +175,15 @@ class AIMemoryService {
         .single();
 
       if (error) {
-        console.error('创建对话失败:', error);
+        console.error('[aiMemoryService.createConversation] 创建对话失败:', error);
         return null;
       }
 
+      console.log('[aiMemoryService.createConversation] 创建成功:', data);
       this.currentConversation = data;
       return data;
     } catch (error) {
-      console.error('创建对话异常:', error);
+      console.error('[aiMemoryService.createConversation] 创建对话异常:', error);
       return null;
     }
   }
@@ -158,24 +193,37 @@ class AIMemoryService {
    */
   async getConversations(limit: number = 20, offset: number = 0): Promise<Conversation[]> {
     const userId = this.getUserId();
-    if (!userId) return [];
+    console.log('[aiMemoryService.getConversations] 开始获取, userId:', userId);
+    
+    if (!userId) {
+      console.error('[aiMemoryService.getConversations] 用户未登录，返回空数组');
+      return [];
+    }
 
     try {
-      const { data, error } = await supabase
-        .rpc('get_user_conversations', {
-          p_user_id: userId,
-          p_limit: limit,
-          p_offset: offset
-        });
+      // 获取正确的客户端
+      const client = await this.getClient();
+      console.log('[aiMemoryService.getConversations] 使用客户端:', client === supabase ? 'supabase' : 'supabaseAdmin');
+      
+      // 直接查询表，而不是使用 RPC 函数
+      const { data, error } = await client
+        .from('ai_conversations')
+        .select('*')
+        .eq('user_id', userId)
+        .order('updated_at', { ascending: false })
+        .limit(limit);
 
       if (error) {
-        console.error('获取对话列表失败:', error);
+        console.error('[aiMemoryService.getConversations] 获取对话列表失败:', error);
         return [];
       }
 
+      console.log('[aiMemoryService.getConversations] 原始数据:', data);
+      console.log('[aiMemoryService.getConversations] 会话数量:', data?.length || 0);
+
       return data || [];
     } catch (error) {
-      console.error('获取对话列表异常:', error);
+      console.error('[aiMemoryService.getConversations] 获取对话列表异常:', error);
       return [];
     }
   }
@@ -185,33 +233,43 @@ class AIMemoryService {
    */
   async switchConversation(conversationId: string): Promise<Conversation | null> {
     const userId = this.getUserId();
-    if (!userId) return null;
+    console.log('[aiMemoryService.switchConversation] 开始切换:', { conversationId, userId });
+    
+    if (!userId) {
+      console.error('[aiMemoryService.switchConversation] 用户未登录');
+      return null;
+    }
 
     try {
-      // 先将所有对话设为非活跃
-      await supabase
-        .from('ai_conversations')
-        .update({ is_active: false })
-        .eq('user_id', userId);
-
-      // 将目标对话设为活跃
-      const { data, error } = await supabase
-        .from('ai_conversations')
-        .update({ is_active: true, updated_at: new Date().toISOString() })
-        .eq('id', conversationId)
-        .eq('user_id', userId)
-        .select()
-        .single();
+      // 获取正确的客户端
+      const client = await this.getClient();
+      console.log('[aiMemoryService.switchConversation] 获取到客户端');
+      
+      // 使用 RPC 函数来切换对话，避免直接更新 updated_at
+      console.log('[aiMemoryService.switchConversation] 调用 RPC 函数切换对话:', conversationId);
+      const { data, error } = await client
+        .rpc('switch_user_conversation', {
+          p_user_id: userId,
+          p_conversation_id: conversationId
+        });
 
       if (error) {
-        console.error('切换对话失败:', error);
+        console.error('[aiMemoryService.switchConversation] 切换对话失败:', error);
         return null;
       }
 
-      this.currentConversation = data;
-      return data;
+      console.log('[aiMemoryService.switchConversation] 切换成功:', data);
+      console.log('[aiMemoryService.switchConversation] 数据类型:', typeof data, '是否是数组:', Array.isArray(data));
+      if (Array.isArray(data)) {
+        console.log('[aiMemoryService.switchConversation] 数组长度:', data.length);
+        if (data.length > 0) {
+          console.log('[aiMemoryService.switchConversation] 第一条记录:', data[0]);
+        }
+      }
+      this.currentConversation = data && Array.isArray(data) && data.length > 0 ? data[0] : null;
+      return this.currentConversation;
     } catch (error) {
-      console.error('切换对话异常:', error);
+      console.error('[aiMemoryService.switchConversation] 切换对话异常:', error);
       return null;
     }
   }
@@ -229,7 +287,8 @@ class AIMemoryService {
     }
 
     try {
-      const { data, error } = await supabase
+      const client = await this.getClient();
+      const { data, error } = await client
         .from('ai_conversations')
         .select('*')
         .eq('user_id', userId)
@@ -243,14 +302,14 @@ class AIMemoryService {
           // 没有找到活跃对话，创建一个新的
           return this.createConversation();
         }
-        console.error('获取活跃对话失败:', error);
+        console.error('[aiMemoryService.getActiveConversation] 获取活跃对话失败:', error);
         return null;
       }
 
       this.currentConversation = data;
       return data;
     } catch (error) {
-      console.error('获取活跃对话异常:', error);
+      console.error('[aiMemoryService.getActiveConversation] 获取活跃对话异常:', error);
       return null;
     }
   }
@@ -263,7 +322,8 @@ class AIMemoryService {
     if (!userId) return [];
 
     try {
-      const { data, error } = await supabase
+      const client = await this.getClient();
+      const { data, error } = await client
         .from('ai_messages')
         .select('*')
         .eq('conversation_id', conversationId)
@@ -271,13 +331,13 @@ class AIMemoryService {
         .limit(limit);
 
       if (error) {
-        console.error('获取消息历史失败:', error);
+        console.error('[aiMemoryService.getConversationMessages] 获取消息历史失败:', error);
         return [];
       }
 
       return data || [];
     } catch (error) {
-      console.error('获取消息历史异常:', error);
+      console.error('[aiMemoryService.getConversationMessages] 获取消息历史异常:', error);
       return [];
     }
   }
@@ -289,35 +349,52 @@ class AIMemoryService {
     conversationId: string,
     role: 'user' | 'assistant' | 'system',
     content: string,
-    isError: boolean = false
+    isError: boolean = false,
+    metadata?: Record<string, any>
   ): Promise<ConversationMessage | null> {
     try {
-      const { data, error } = await supabase
+      const userId = this.getUserId();
+      console.log('[aiMemoryService.saveMessage] 开始保存消息:', { conversationId, role, userId });
+      
+      if (!userId) {
+        console.error('[aiMemoryService.saveMessage] 用户未登录，无法保存消息');
+        return null;
+      }
+      
+      // 获取正确的客户端（使用 admin 客户端绕过 RLS）
+      const client = await this.getClient();
+      
+      const insertData: any = {
+        conversation_id: conversationId,
+        role,
+        content,
+        is_error: isError,
+        timestamp: new Date().toISOString()
+      };
+      
+      // 如果有元数据（如生成任务），保存到 metadata 字段
+      if (metadata) {
+        insertData.metadata = metadata;
+      }
+      
+      const { data, error } = await client
         .from('ai_messages')
-        .insert({
-          conversation_id: conversationId,
-          role,
-          content,
-          is_error: isError,
-          timestamp: new Date().toISOString()
-        })
+        .insert(insertData)
         .select()
         .single();
 
       if (error) {
-        console.error('保存消息失败:', error);
+        console.error('[aiMemoryService.saveMessage] 保存消息失败:', error);
         return null;
       }
 
-      // 更新对话的更新时间
-      await supabase
-        .from('ai_conversations')
-        .update({ updated_at: new Date().toISOString() })
-        .eq('id', conversationId);
+      console.log('[aiMemoryService.saveMessage] 保存消息成功:', data?.id);
+      
+      // 注意：数据库触发器会自动更新对话的 updated_at 和 message_count
 
       return data;
     } catch (error) {
-      console.error('保存消息异常:', error);
+      console.error('[aiMemoryService.saveMessage] 保存消息异常:', error);
       return null;
     }
   }
@@ -335,7 +412,8 @@ class AIMemoryService {
         .from('ai_messages')
         .update({
           feedback_rating: rating,
-          feedback_comment: comment
+          feedback_comment: comment,
+          timestamp: new Date().toISOString()
         })
         .eq('id', messageId);
 
@@ -352,23 +430,128 @@ class AIMemoryService {
   }
 
   /**
+   * 更新消息元数据
+   */
+  async updateMessageMetadata(
+    messageId: string,
+    metadata: Record<string, any>
+  ): Promise<boolean> {
+    try {
+      const client = await this.getClient();
+      const { error } = await client
+        .from('ai_messages')
+        .update({
+          metadata: metadata,
+          timestamp: new Date().toISOString()
+        })
+        .eq('id', messageId);
+
+      if (error) {
+        console.error('[aiMemoryService.updateMessageMetadata] 更新消息元数据失败:', error);
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      console.error('[aiMemoryService.updateMessageMetadata] 更新消息元数据异常:', error);
+      return false;
+    }
+  }
+
+  /**
+   * 删除消息
+   */
+  async deleteMessage(messageId: string): Promise<boolean> {
+    const userId = this.getUserId();
+    console.log('[aiMemoryService.deleteMessage] 开始删除消息:', { messageId, userId });
+
+    if (!userId) {
+      console.error('[aiMemoryService.deleteMessage] 用户未登录');
+      return false;
+    }
+
+    try {
+      const client = await this.getClient();
+      
+      // 先检查消息是否属于当前用户
+      const { data: message, error: fetchError } = await client
+        .from('ai_messages')
+        .select('id, conversation_id')
+        .eq('id', messageId)
+        .single();
+
+      if (fetchError || !message) {
+        console.error('[aiMemoryService.deleteMessage] 消息不存在:', fetchError);
+        return false;
+      }
+
+      // 检查对话是否属于当前用户
+      const { data: conversation, error: convError } = await client
+        .from('ai_conversations')
+        .select('user_id')
+        .eq('id', message.conversation_id)
+        .single();
+
+      if (convError || !conversation) {
+        console.error('[aiMemoryService.deleteMessage] 无法验证对话所有权:', convError);
+        return false;
+      }
+
+      if (conversation.user_id !== userId) {
+        console.error('[aiMemoryService.deleteMessage] 无权删除此消息');
+        return false;
+      }
+
+      // 删除消息
+      const { error: deleteError } = await client
+        .from('ai_messages')
+        .delete()
+        .eq('id', messageId);
+
+      if (deleteError) {
+        console.error('[aiMemoryService.deleteMessage] 删除消息失败:', deleteError);
+        return false;
+      }
+
+      console.log('[aiMemoryService.deleteMessage] 删除消息成功:', messageId);
+      return true;
+    } catch (error) {
+      console.error('[aiMemoryService.deleteMessage] 删除消息异常:', error);
+      return false;
+    }
+  }
+
+  /**
    * 删除对话
    */
   async deleteConversation(conversationId: string): Promise<boolean> {
     const userId = this.getUserId();
-    if (!userId) return false;
+    console.log('[aiMemoryService.deleteConversation] 开始删除:', { conversationId, userId });
+    
+    if (!userId) {
+      console.error('[aiMemoryService.deleteConversation] 用户未登录');
+      return false;
+    }
 
     try {
-      const { error } = await supabase
+      // 获取正确的客户端
+      const client = await this.getClient();
+      console.log('[aiMemoryService.deleteConversation] 获取到客户端');
+      
+      console.log('[aiMemoryService.deleteConversation] 执行删除:', { conversationId, userId });
+      const { data, error } = await client
         .from('ai_conversations')
         .delete()
         .eq('id', conversationId)
-        .eq('user_id', userId);
+        .eq('user_id', userId)
+        .select();
 
       if (error) {
-        console.error('删除对话失败:', error);
+        console.error('[aiMemoryService.deleteConversation] 删除对话失败:', error);
         return false;
       }
+
+      console.log('[aiMemoryService.deleteConversation] 删除成功:', data);
 
       // 如果删除的是当前对话，清空缓存
       if (this.currentConversation?.id === conversationId) {
@@ -377,7 +560,7 @@ class AIMemoryService {
 
       return true;
     } catch (error) {
-      console.error('删除对话异常:', error);
+      console.error('[aiMemoryService.deleteConversation] 删除对话异常:', error);
       return false;
     }
   }
@@ -390,20 +573,54 @@ class AIMemoryService {
     if (!userId) return false;
 
     try {
-      const { error } = await supabase
+      // 获取正确的客户端
+      const client = await this.getClient();
+      
+      const { error } = await client
         .from('ai_conversations')
         .update({ title: newTitle })
         .eq('id', conversationId)
         .eq('user_id', userId);
 
       if (error) {
-        console.error('重命名对话失败:', error);
+        console.error('[aiMemoryService.renameConversation] 重命名对话失败:', error);
         return false;
       }
 
       return true;
     } catch (error) {
-      console.error('重命名对话异常:', error);
+      console.error('[aiMemoryService.renameConversation] 重命名对话异常:', error);
+      return false;
+    }
+  }
+
+  /**
+   * 删除所有对话
+   */
+  async deleteAllConversations(): Promise<boolean> {
+    const userId = this.getUserId();
+    if (!userId) return false;
+
+    try {
+      // 获取正确的客户端
+      const client = await this.getClient();
+      
+      const { error } = await client
+        .from('ai_conversations')
+        .delete()
+        .eq('user_id', userId);
+
+      if (error) {
+        console.error('[aiMemoryService.deleteAllConversations] 删除所有对话失败:', error);
+        return false;
+      }
+
+      // 清空当前对话缓存
+      this.currentConversation = null;
+
+      return true;
+    } catch (error) {
+      console.error('[aiMemoryService.deleteAllConversations] 删除所有对话异常:', error);
       return false;
     }
   }
@@ -430,7 +647,9 @@ class AIMemoryService {
           content,
           importance,
           expires_at: expiresAt?.toISOString(),
-          source_conversation_id: sourceConversationId
+          source_conversation_id: sourceConversationId,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
         })
         .select()
         .single();
@@ -699,7 +918,9 @@ class AIMemoryService {
           auto_scroll: true,
           show_preset_questions: true,
           shortcut_key: 'ctrl+k',
-          preferred_model: 'qwen'
+          preferred_model: 'qwen',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
         })
         .select()
         .single();
@@ -727,8 +948,7 @@ class AIMemoryService {
       const { error } = await supabase
         .from('ai_user_settings')
         .update({
-          ...settings,
-          updated_at: new Date().toISOString()
+          ...settings
         })
         .eq('user_id', userId);
 

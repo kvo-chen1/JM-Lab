@@ -14,6 +14,39 @@ import { AuthContext } from '@/contexts/authContext';
 import { eventParticipationService, ParticipationStats } from '@/services/eventParticipationService';
 import { userService } from '@/services/userService';
 
+// 辅助函数：解析日期值（处理各种日期格式）
+const parseEventDate = (dateValue: any): Date => {
+  if (dateValue == null) {
+    return new Date(); // 如果日期为空，返回当前时间作为默认值
+  }
+  if (dateValue instanceof Date) {
+    return dateValue;
+  }
+  if (typeof dateValue === 'string') {
+    // 检查是否是纯数字（时间戳）
+    if (/^\d+$/.test(dateValue)) {
+      const numValue = parseInt(dateValue, 10);
+      // 判断时间戳是秒级还是毫秒级：如果数值小于 1e12，认为是秒级
+      const msValue = numValue < 1e12 ? numValue * 1000 : numValue;
+      return new Date(msValue);
+    }
+    // ISO日期字符串
+    const parsed = new Date(dateValue);
+    if (!isNaN(parsed.getTime())) {
+      return parsed;
+    }
+    return new Date(); // 如果解析失败，返回当前时间
+  }
+  if (typeof dateValue === 'number') {
+    // 判断时间戳是秒级还是毫秒级
+    const msValue = dateValue < 1e12 ? dateValue * 1000 : dateValue;
+    return new Date(msValue);
+  }
+  // 对于其他类型，尝试解析，如果失败则返回当前时间
+  const parsed = new Date(dateValue);
+  return isNaN(parsed.getTime()) ? new Date() : parsed;
+};
+
 // 移动端筛选抽屉
 function MobileFilterDrawer({
   isOpen,
@@ -240,8 +273,8 @@ export default function CulturalEvents() {
   const upcomingEvents = useMemo(() => {
     const now = new Date();
     return events
-      .filter((event) => new Date(event.startTime) > now)
-      .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
+      .filter((event) => parseEventDate(event.startTime) > now)
+      .sort((a, b) => parseEventDate(a.startTime).getTime() - parseEventDate(b.startTime).getTime())
       .slice(0, 5);
   }, [events]);
 
@@ -267,7 +300,7 @@ export default function CulturalEvents() {
 
   // 创建活动
   const handleCreateEvent = useCallback(() => {
-    navigate('/create');
+    navigate('/organizer?tab=create');
   }, [navigate]);
 
   // 处理活动点击（从 eventId 查找 event 对象）

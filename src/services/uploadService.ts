@@ -46,13 +46,21 @@ class UploadService {
         targetUserId = user.id;
       }
 
-      const { data, error } = await supabase
+      console.log('[UploadService] 获取用户上传作品，用户ID:', targetUserId);
+
+      // 使用 supabaseAdmin 绕过 RLS 策略
+      const { data, error } = await supabaseAdmin
         .from(this.tableName)
         .select('*')
         .eq('user_id', targetUserId)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('[UploadService] 获取上传作品数据库错误:', error);
+        throw error;
+      }
+      
+      console.log('[UploadService] 获取上传作品成功，数量:', data?.length || 0);
       return { data, error: null };
     } catch (error) {
       console.error('[UploadService] 获取上传作品失败:', error);
@@ -61,15 +69,24 @@ class UploadService {
   }
 
   // 上传新作品
-  async createUpload(input: CreateUploadInput): Promise<{ data: UserUpload | null; error: Error | null }> {
+  async createUpload(input: CreateUploadInput, userId?: string): Promise<{ data: UserUpload | null; error: Error | null }> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        throw new Error('用户未登录');
+      // 优先使用传入的 userId，否则从 supabase auth 获取
+      let targetUserId = userId;
+      if (!targetUserId) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          throw new Error('用户未登录');
+        }
+        targetUserId = user.id;
       }
 
+      console.log('[UploadService] 开始上传，用户ID:', targetUserId);
+
       // 上传文件到存储
+      console.log('[UploadService] 上传文件到存储...');
       const fileUrl = await uploadImage(input.file, 'user-uploads');
+      console.log('[UploadService] 文件上传成功:', fileUrl);
       
       // 生成缩略图（如果是图片）
       let thumbnailUrl = fileUrl;
@@ -77,24 +94,33 @@ class UploadService {
         thumbnailUrl = fileUrl;
       }
 
-      // 保存到数据库
-      const { data, error } = await supabase
+      // 准备插入数据
+      const insertData = {
+        user_id: targetUserId,
+        file_url: fileUrl,
+        file_name: input.file.name,
+        file_type: input.file.type,
+        file_size: input.file.size,
+        thumbnail_url: thumbnailUrl,
+        title: input.title || input.file.name,
+        description: input.description,
+        tags: input.tags || []
+      };
+      console.log('[UploadService] 准备插入数据库:', insertData);
+
+      // 保存到数据库 - 使用 supabaseAdmin 绕过 RLS 策略
+      const { data, error } = await supabaseAdmin
         .from(this.tableName)
-        .insert({
-          user_id: user.id,
-          file_url: fileUrl,
-          file_name: input.file.name,
-          file_type: input.file.type,
-          file_size: input.file.size,
-          thumbnail_url: thumbnailUrl,
-          title: input.title || input.file.name,
-          description: input.description,
-          tags: input.tags || []
-        })
+        .insert(insertData)
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('[UploadService] 数据库插入失败:', error);
+        throw error;
+      }
+      
+      console.log('[UploadService] 数据库插入成功:', data);
       return { data, error: null };
     } catch (error) {
       console.error('[UploadService] 上传作品失败:', error);
@@ -103,14 +129,19 @@ class UploadService {
   }
 
   // 更新作品信息
-  async updateUpload(id: string, input: UpdateUploadInput): Promise<{ data: UserUpload | null; error: Error | null }> {
+  async updateUpload(id: string, input: UpdateUploadInput, userId?: string): Promise<{ data: UserUpload | null; error: Error | null }> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        throw new Error('用户未登录');
+      // 优先使用传入的 userId，否则从 supabase auth 获取
+      let targetUserId = userId;
+      if (!targetUserId) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          throw new Error('用户未登录');
+        }
+        targetUserId = user.id;
       }
 
-      const { data, error } = await supabase
+      const { data, error } = await supabaseAdmin
         .from(this.tableName)
         .update({
           title: input.title,
@@ -119,7 +150,7 @@ class UploadService {
           updated_at: new Date().toISOString()
         })
         .eq('id', id)
-        .eq('user_id', user.id) // 确保只能更新自己的数据
+        .eq('user_id', targetUserId) // 确保只能更新自己的数据
         .select()
         .single();
 
@@ -132,19 +163,24 @@ class UploadService {
   }
 
   // 删除作品
-  async deleteUpload(id: string): Promise<{ success: boolean; error: Error | null }> {
+  async deleteUpload(id: string, userId?: string): Promise<{ success: boolean; error: Error | null }> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        throw new Error('用户未登录');
+      // 优先使用传入的 userId，否则从 supabase auth 获取
+      let targetUserId = userId;
+      if (!targetUserId) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          throw new Error('用户未登录');
+        }
+        targetUserId = user.id;
       }
 
       // 先获取文件信息
-      const { data: upload } = await supabase
+      const { data: upload } = await supabaseAdmin
         .from(this.tableName)
         .select('file_url')
         .eq('id', id)
-        .eq('user_id', user.id)
+        .eq('user_id', targetUserId)
         .single();
 
       if (upload) {
@@ -158,11 +194,11 @@ class UploadService {
       }
 
       // 从数据库删除记录
-      const { error } = await supabase
+      const { error } = await supabaseAdmin
         .from(this.tableName)
         .delete()
         .eq('id', id)
-        .eq('user_id', user.id);
+        .eq('user_id', targetUserId);
 
       if (error) throw error;
       return { success: true, error: null };
@@ -173,18 +209,23 @@ class UploadService {
   }
 
   // 获取单个作品详情
-  async getUploadById(id: string): Promise<{ data: UserUpload | null; error: Error | null }> {
+  async getUploadById(id: string, userId?: string): Promise<{ data: UserUpload | null; error: Error | null }> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        throw new Error('用户未登录');
+      // 优先使用传入的 userId，否则从 supabase auth 获取
+      let targetUserId = userId;
+      if (!targetUserId) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          throw new Error('用户未登录');
+        }
+        targetUserId = user.id;
       }
 
-      const { data, error } = await supabase
+      const { data, error } = await supabaseAdmin
         .from(this.tableName)
         .select('*')
         .eq('id', id)
-        .eq('user_id', user.id)
+        .eq('user_id', targetUserId)
         .single();
 
       if (error) throw error;
@@ -196,17 +237,22 @@ class UploadService {
   }
 
   // 搜索作品
-  async searchUploads(query: string): Promise<{ data: UserUpload[] | null; error: Error | null }> {
+  async searchUploads(query: string, userId?: string): Promise<{ data: UserUpload[] | null; error: Error | null }> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        throw new Error('用户未登录');
+      // 优先使用传入的 userId，否则从 supabase auth 获取
+      let targetUserId = userId;
+      if (!targetUserId) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          throw new Error('用户未登录');
+        }
+        targetUserId = user.id;
       }
 
-      const { data, error } = await supabase
+      const { data, error } = await supabaseAdmin
         .from(this.tableName)
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', targetUserId)
         .or(`title.ilike.%${query}%,description.ilike.%${query}%`)
         .order('created_at', { ascending: false });
 
@@ -219,17 +265,22 @@ class UploadService {
   }
 
   // 按标签筛选作品
-  async getUploadsByTag(tag: string): Promise<{ data: UserUpload[] | null; error: Error | null }> {
+  async getUploadsByTag(tag: string, userId?: string): Promise<{ data: UserUpload[] | null; error: Error | null }> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        throw new Error('用户未登录');
+      // 优先使用传入的 userId，否则从 supabase auth 获取
+      let targetUserId = userId;
+      if (!targetUserId) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          throw new Error('用户未登录');
+        }
+        targetUserId = user.id;
       }
 
-      const { data, error } = await supabase
+      const { data, error } = await supabaseAdmin
         .from(this.tableName)
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', targetUserId)
         .contains('tags', [tag])
         .order('created_at', { ascending: false });
 

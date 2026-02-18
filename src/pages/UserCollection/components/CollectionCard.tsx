@@ -86,6 +86,9 @@ export function CollectionCard({
   isLoading,
   activeTab = TabType.BOOKMARKS,
 }: CollectionCardProps) {
+  // 调试信息
+  console.log('[CollectionCard] Rendering item:', { id: item.id, title: item.title, link: item.link, type: item.type });
+  
   const { isDark } = useTheme();
   const [isHovered, setIsHovered] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -124,6 +127,9 @@ export function CollectionCard({
     setTimeout(() => setIsLikeAnimating(false), 300);
   };
 
+  // 判断是否有缩略图（图片或视频）
+  const hasThumbnail = item.thumbnail && item.thumbnail !== '/placeholder-image.jpg' && item.thumbnail !== '';
+
   // 网格视图
   if (viewMode === ViewMode.GRID) {
     return (
@@ -135,108 +141,120 @@ export function CollectionCard({
         } shadow-lg hover:shadow-2xl transition-shadow duration-300`}
       >
         <Link to={item.link} className="block">
-          {/* 图片/视频区域 */}
-          <div className="relative aspect-[4/3] overflow-hidden">
-            {!imageLoaded && !isVideo && (
-              <div className={`absolute inset-0 ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`} />
-            )}
+          {/* 图片/视频区域 - 只有有缩略图时才显示 */}
+          {hasThumbnail && (
+            <div className="relative aspect-[4/3] overflow-hidden">
+              {!imageLoaded && !isVideo && (
+                <div className={`absolute inset-0 ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`} />
+              )}
 
-            {isVideo ? (
-              // 视频类型
-              <>
-                <video
-                  ref={videoRef}
+              {isVideo ? (
+                // 视频类型
+                <>
+                  <video
+                    ref={videoRef}
+                    src={item.thumbnail}
+                    className={`w-full h-full object-cover transition-transform duration-500 ${
+                      isHovered ? 'scale-110' : 'scale-100'
+                    }`}
+                    muted
+                    loop
+                    playsInline
+                    autoPlay
+                    preload="metadata"
+                    onLoadedData={() => setIsVideoLoaded(true)}
+                    onError={() => setIsVideoError(true)}
+                  />
+                  {!isVideoLoaded && !isVideoError && (
+                    <div className={`absolute inset-0 ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`} />
+                  )}
+                  {isVideoError && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <MediaIcon className={`w-16 h-16 ${isDark ? 'text-gray-600' : 'text-gray-300'}`} />
+                    </div>
+                  )}
+                </>
+              ) : (
+                // 图片类型
+                <img
                   src={item.thumbnail}
+                  alt={item.title}
+                  loading="lazy"
+                  decoding="async"
+                  onLoad={() => setImageLoaded(true)}
                   className={`w-full h-full object-cover transition-transform duration-500 ${
                     isHovered ? 'scale-110' : 'scale-100'
-                  }`}
-                  muted
-                  loop
-                  playsInline
-                  autoPlay
-                  preload="metadata"
-                  onLoadedData={() => setIsVideoLoaded(true)}
-                  onError={() => setIsVideoError(true)}
+                  } ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
                 />
-                {!isVideoLoaded && !isVideoError && (
-                  <div className={`absolute inset-0 ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`} />
-                )}
-                {isVideoError && (
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <MediaIcon className={`w-16 h-16 ${isDark ? 'text-gray-600' : 'text-gray-300'}`} />
-                  </div>
-                )}
-              </>
-            ) : (
-              // 图片类型
-              <img
-                src={item.thumbnail}
-                alt={item.title}
-                loading="lazy"
-                decoding="async"
-                onLoad={() => setImageLoaded(true)}
-                className={`w-full h-full object-cover transition-transform duration-500 ${
-                  isHovered ? 'scale-110' : 'scale-100'
-                } ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
-              />
-            )}
-
-            {/* 类型标签 */}
-            <div
-              className={`absolute top-3 left-3 px-2.5 py-1 rounded-full text-xs font-medium text-white flex items-center gap-1.5 ${typeInfo.bgColor}`}
-            >
-              <TypeIcon className="w-3 h-3" />
-              {typeInfo.label}
-            </div>
-
-            {/* 媒体类型标签 */}
-            <div className={`absolute top-3 right-3 px-2 py-1 rounded-lg text-xs font-medium backdrop-blur-sm ${
-              isDark ? 'bg-gray-900/70 text-gray-200' : 'bg-white/70 text-gray-700'
-            }`}>
-              {mediaTypeLabels[item.mediaType || 'image']}
-            </div>
-
-            {/* 悬停遮罩 */}
-            <div
-              className={`absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent transition-opacity duration-200 ${
-                isHovered ? 'opacity-100' : 'opacity-0'
-              }`}
-            />
-
-            {/* 操作按钮 - 根据标签页显示取消收藏或取消点赞 */}
-            <div
-              className={`absolute top-3 right-3 flex gap-2 transition-all duration-200 z-10 ${
-                isHovered ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
-              }`}
-            >
-              {activeTab === TabType.BOOKMARKS ? (
-                <button
-                  onClick={handleToggleBookmark}
-                  title="取消收藏"
-                  className={`w-9 h-9 rounded-full flex items-center justify-center backdrop-blur-sm transition-colors hover:scale-110 active:scale-95 bg-red-500 text-white hover:bg-red-600 shadow-lg`}
-                >
-                  <Bookmark
-                    className={`w-4 h-4 ${isBookmarkAnimating ? 'animate-bounce' : ''}`}
-                    fill="currentColor"
-                  />
-                </button>
-              ) : (
-                <button
-                  onClick={handleToggleLike}
-                  title="取消点赞"
-                  className={`w-9 h-9 rounded-full flex items-center justify-center backdrop-blur-sm transition-colors hover:scale-110 active:scale-95 bg-pink-500 text-white hover:bg-pink-600 shadow-lg`}
-                >
-                  <Heart
-                    className={`w-4 h-4 ${isLikeAnimating ? 'animate-bounce' : ''}`}
-                    fill="currentColor"
-                  />
-                </button>
               )}
+
+              {/* 类型标签 */}
+              <div
+                className={`absolute top-3 left-3 px-2.5 py-1 rounded-full text-xs font-medium text-white flex items-center gap-1.5 ${typeInfo.bgColor}`}
+              >
+                <TypeIcon className="w-3 h-3" />
+                {typeInfo.label}
+              </div>
+
+              {/* 媒体类型标签 */}
+              <div className={`absolute top-3 right-3 px-2 py-1 rounded-lg text-xs font-medium backdrop-blur-sm ${
+                isDark ? 'bg-gray-900/70 text-gray-200' : 'bg-white/70 text-gray-700'
+              }`}>
+                {mediaTypeLabels[item.mediaType || 'image']}
+              </div>
+
+              {/* 悬停遮罩 */}
+              <div
+                className={`absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent transition-opacity duration-200 ${
+                  isHovered ? 'opacity-100' : 'opacity-0'
+                }`}
+              />
+
+              {/* 操作按钮 - 根据标签页显示取消收藏或取消点赞 */}
+              <div
+                className={`absolute top-3 right-3 flex gap-2 transition-all duration-200 z-10 ${
+                  isHovered ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
+                }`}
+              >
+                {activeTab === TabType.BOOKMARKS ? (
+                  <button
+                    onClick={handleToggleBookmark}
+                    title="取消收藏"
+                    className={`w-9 h-9 rounded-full flex items-center justify-center backdrop-blur-sm transition-colors hover:scale-110 active:scale-95 bg-red-500 text-white hover:bg-red-600 shadow-lg`}
+                  >
+                    <Bookmark
+                      className={`w-4 h-4 ${isBookmarkAnimating ? 'animate-bounce' : ''}`}
+                      fill="currentColor"
+                    />
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleToggleLike}
+                    title="取消点赞"
+                    className={`w-9 h-9 rounded-full flex items-center justify-center backdrop-blur-sm transition-colors hover:scale-110 active:scale-95 bg-pink-500 text-white hover:bg-pink-600 shadow-lg`}
+                  >
+                    <Heart
+                      className={`w-4 h-4 ${isLikeAnimating ? 'animate-bounce' : ''}`}
+                      fill="currentColor"
+                    />
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* 内容区域 */}
-          <div className="p-4">
+          <div className={`p-4 ${!hasThumbnail ? 'pt-6' : ''}`}>
+            {/* 类型标签 - 当没有缩略图时显示在内容区域顶部 */}
+            {!hasThumbnail && (
+              <div
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium text-white mb-3 ${typeInfo.bgColor}`}
+              >
+                <TypeIcon className="w-3 h-3" />
+                {typeInfo.label}
+              </div>
+            )}
+
             {/* 标题 */}
             <h3
               className={`font-semibold text-base line-clamp-2 mb-2 ${
@@ -322,60 +340,72 @@ export function CollectionCard({
         isDark ? 'bg-gray-800 hover:bg-gray-750' : 'bg-white hover:bg-gray-50'
       } shadow-md hover:shadow-lg transition-all duration-200`}
     >
-      {/* 缩略图 */}
-      <Link to={item.link} className="flex-shrink-0">
-        <div className="relative w-32 h-24 rounded-xl overflow-hidden">
-          {!imageLoaded && !isVideo && (
-            <div className={`absolute inset-0 ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`} />
-          )}
+      {/* 缩略图 - 只有有缩略图时才显示 */}
+      {hasThumbnail && (
+        <Link to={item.link} className="flex-shrink-0">
+          <div className="relative w-32 h-24 rounded-xl overflow-hidden">
+            {!imageLoaded && !isVideo && (
+              <div className={`absolute inset-0 ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`} />
+            )}
 
-          {isVideo ? (
-            // 视频类型
-            <>
-              <video
-                ref={videoRef}
+            {isVideo ? (
+              // 视频类型
+              <>
+                <video
+                  ref={videoRef}
+                  src={item.thumbnail}
+                  className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                  muted
+                  loop
+                  playsInline
+                  autoPlay
+                  preload="metadata"
+                  onLoadedData={() => setIsVideoLoaded(true)}
+                  onError={() => setIsVideoError(true)}
+                />
+                {!isVideoLoaded && !isVideoError && (
+                  <div className={`absolute inset-0 ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`} />
+                )}
+                {isVideoError && (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <MediaIcon className={`w-8 h-8 ${isDark ? 'text-gray-600' : 'text-gray-300'}`} />
+                  </div>
+                )}
+              </>
+            ) : (
+              // 图片类型
+              <img
                 src={item.thumbnail}
-                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                muted
-                loop
-                playsInline
-                autoPlay
-                preload="metadata"
-                onLoadedData={() => setIsVideoLoaded(true)}
-                onError={() => setIsVideoError(true)}
+                alt={item.title}
+                loading="lazy"
+                decoding="async"
+                onLoad={() => setImageLoaded(true)}
+                className={`w-full h-full object-cover transition-transform duration-300 group-hover:scale-105 ${
+                  imageLoaded ? 'opacity-100' : 'opacity-0'
+                }`}
               />
-              {!isVideoLoaded && !isVideoError && (
-                <div className={`absolute inset-0 ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`} />
-              )}
-              {isVideoError && (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <MediaIcon className={`w-8 h-8 ${isDark ? 'text-gray-600' : 'text-gray-300'}`} />
-                </div>
-              )}
-            </>
-          ) : (
-            // 图片类型
-            <img
-              src={item.thumbnail}
-              alt={item.title}
-              loading="lazy"
-              decoding="async"
-              onLoad={() => setImageLoaded(true)}
-              className={`w-full h-full object-cover transition-transform duration-300 group-hover:scale-105 ${
-                imageLoaded ? 'opacity-100' : 'opacity-0'
-              }`}
-            />
-          )}
-          <div
-            className={`absolute top-2 left-2 px-2 py-0.5 rounded text-xs font-medium text-white ${typeInfo.bgColor}`}
-          >
-            {typeInfo.label}
+            )}
+            <div
+              className={`absolute top-2 left-2 px-2 py-0.5 rounded text-xs font-medium text-white ${typeInfo.bgColor}`}
+            >
+              {typeInfo.label}
+            </div>
           </div>
-        </div>
-      </Link>
+        </Link>
+      )}
 
       {/* 内容 */}
       <div className="flex-1 min-w-0">
+        {/* 类型标签 - 当没有缩略图时显示在内容区域顶部 */}
+        {!hasThumbnail && (
+          <div
+            className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium text-white mb-2 ${typeInfo.bgColor}`}
+          >
+            <TypeIcon className="w-3 h-3" />
+            {typeInfo.label}
+          </div>
+        )}
+
         <Link to={item.link}>
           <h3
             className={`font-semibold text-base line-clamp-1 mb-1 ${

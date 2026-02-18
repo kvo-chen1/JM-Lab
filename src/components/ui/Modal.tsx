@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
 import Button from './Button';
@@ -42,7 +43,7 @@ const Modal: React.FC<ModalProps> = ({
     full: 'max-w-full h-full m-0 rounded-none'
   };
 
-  return (
+  const modalContent = (
     <AnimatePresence>
       {isOpen && (
         <>
@@ -52,7 +53,7 @@ const Modal: React.FC<ModalProps> = ({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[99999] flex items-center justify-center p-4"
           >
             {/* Modal Content */}
             <motion.div
@@ -96,6 +97,8 @@ const Modal: React.FC<ModalProps> = ({
       )}
     </AnimatePresence>
   );
+
+  return createPortal(modalContent, document.body);
 };
 
 export default Modal;

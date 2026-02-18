@@ -27,7 +27,7 @@ export const FriendRequests: React.FC<FriendRequestsProps> = ({ isOpen, onClose 
   if (!isOpen) return null
   
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 bg-black bg-opacity-50 z-[70] flex items-center justify-center">
       <div className="bg-white rounded-xl shadow-lg w-full max-w-md max-h-[80vh] flex flex-col">
         {/* 标题栏 */}
         <div className="h-16 flex items-center justify-between px-6 border-b border-gray-200">

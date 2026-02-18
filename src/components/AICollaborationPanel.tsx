@@ -1,10 +1,10 @@
-import { useState, useEffect, useRef, useContext } from 'react'
+import React, { useState, useEffect, useRef, useContext } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTheme } from '@/hooks/useTheme'
 import { useNavigate } from 'react-router-dom'
 import { llmService, Message, ConversationSession, AssistantPersonality, AssistantTheme } from '@/services/llmService'
 import { aiAssistantService, ChatMessage, AIResponse } from '@/services/aiAssistantService'
-import { Conversation } from '@/services/aiMemoryService'
+import { Conversation, aiMemoryService } from '@/services/aiMemoryService'
 import { toast } from 'sonner'
 import SpeechInput from './SpeechInput'
 import { useTranslation } from 'react-i18next'
@@ -12,6 +12,9 @@ import { AuthContext } from '../contexts/authContext'
 import AICollaborationMessage from './AICollaborationMessage'
 import localServices from '@/services/localServices'
 import { getRecommendations, RecommendedItem, recordRecommendationClick } from '@/services/recommendationService'
+import InlineGenerationCard from './InlineGenerationCard'
+import { aiGenerationService, GenerationTask } from '@/services/aiGenerationService'
+import ShareDialog from './ShareDialog'
 
 interface AICollaborationPanelProps {
   isOpen: boolean
@@ -39,10 +42,14 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
   const [showNewSessionModal, setShowNewSessionModal] = useState(false)
   const [isEditingSessionName, setIsEditingSessionName] = useState(false)
   const [editingSessionName, setEditingSessionName] = useState('')
+  // 会话列表中正在编辑的会话ID和名称
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null)
+  const [editingSessionNameInList, setEditingSessionNameInList] = useState('')
   const [showTemplates, setShowTemplates] = useState(false)
   const [showExportOptions, setShowExportOptions] = useState(false)
   const [serviceStatus, setServiceStatus] = useState<'unknown' | 'ok' | 'error'>('unknown')
   const [llmHealth, setLlmHealth] = useState<any>(null)
+  const [isHistoryLoaded, setIsHistoryLoaded] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   
   // 个性化设置相关状态
@@ -52,12 +59,22 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
   const [showPresetQuestions, setShowPresetQuestions] = useState(true)
   const [enableTypingEffect, setEnableTypingEffect] = useState(true)
   const [autoScroll, setAutoScroll] = useState(true)
-  // 移动端相关状态
-  const [showSessionList, setShowSessionList] = useState(false)
+  // 移动端相关状态 - 默认显示会话列表
+  const [showSessionList, setShowSessionList] = useState(true)
   // 反馈相关状态
   const [feedbackVisible, setFeedbackVisible] = useState<{[key: number]: boolean}>({})
   const [feedbackRatings, setFeedbackRatings] = useState<{[key: number]: number}>({})
   const [feedbackComments, setFeedbackComments] = useState<{[key: number]: string}>({})
+  
+  // 跟踪已保存到数据库的生成任务消息ID
+  
+  // 跟踪已保存到数据库的生成任务消息ID
+  const savedGenerationMessagesRef = useRef<Map<string, string>>(new Map())
+  
+  // 分享对话框状态
+  const [showShareDialog, setShowShareDialog] = useState(false)
+  const [showFriendShareDialog, setShowFriendShareDialog] = useState(false)
+  const [shareContent, setShareContent] = useState<any>(null)
 
   // 动态主题样式
   const themeStyles = (() => {
@@ -138,15 +155,54 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
     return Array.isArray(value) ? value : []
   })() as Array<{ id: string; name: string; description: string; prompt: string }>
 
-  // 加载会话列表 - 使用 Supabase 存储
+  // 加载会话列表 - 使用 Supabase 存储（已登录）或 localStorage（未登录）
   useEffect(() => {
+    console.log('[loadConversations] 开始加载会话, user:', user?.id || '未登录')
     const loadConversations = async () => {
+      // 如果用户未登录，直接使用 localStorage
+      if (!user) {
+        console.log('[loadConversations] 用户未登录，使用 localStorage')
+        try {
+          const loadedSessions = llmService.getSessions()
+          console.log('[loadConversations] 从 localStorage 加载的会话:', loadedSessions)
+          if (loadedSessions.length > 0) {
+            setSessions(loadedSessions)
+            const activeSession = loadedSessions.find(session => session.isActive) || loadedSessions[0]
+            if (activeSession) {
+              setCurrentSession(activeSession)
+              setMessages(activeSession.messages)
+            }
+          } else {
+            // 如果没有会话，创建一个新会话
+            console.log('[loadConversations] 没有会话，创建新会话')
+            const newSession = llmService.createSession('新对话')
+            console.log('[loadConversations] 创建的新会话:', newSession)
+            setSessions([newSession])
+            setCurrentSession(newSession)
+            setMessages([])
+          }
+        } catch (error) {
+          console.error('[loadConversations] 从 localStorage 加载会话失败:', error)
+          // 创建默认会话
+          const newSession = llmService.createSession('新对话')
+          setSessions([newSession])
+          setCurrentSession(newSession)
+          setMessages([])
+        } finally {
+          setIsHistoryLoaded(true)
+        }
+        return
+      }
+      
+      // 用户已登录，尝试从 Supabase 加载
+      console.log('[loadConversations] 用户已登录，使用 Supabase, user:', user?.id)
       try {
-        // 初始化 AI 助手服务
-        await aiAssistantService.initialize()
+        // 初始化 AI 助手服务，传入当前用户
+        await aiAssistantService.initialize(user)
         
         // 从 Supabase 加载对话列表
         const conversations = await aiAssistantService.getAllConversations()
+        console.log('[loadConversations] 从 Supabase 加载的会话:', conversations)
         
         // 转换为组件需要的格式
         const formattedSessions: ConversationSession[] = conversations.map(conv => ({
@@ -170,15 +226,47 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
         if (activeSession) {
           setCurrentSession(activeSession)
           // 加载会话的消息历史
+          console.log('[loadConversations] 开始加载会话历史:', activeSession.id)
           const history = await aiAssistantService.getConversationHistory()
-          setMessages(history.map(msg => ({
-            role: msg.role,
-            content: msg.content,
-            timestamp: msg.timestamp,
-            isError: msg.isError
-          })))
+          console.log('[loadConversations] 加载到消息数量:', history.length)
+          history.forEach((msg, i) => {
+            console.log(`[loadConversations] 消息 ${i}:`, msg.role, msg.metadata ? '有元数据' : '无元数据')
+          })
+          setMessages(history.map(msg => {
+            const message: any = {
+              id: msg.id, // 保存消息ID，用于删除
+              role: msg.role,
+              content: msg.content,
+              timestamp: msg.timestamp,
+              isError: msg.isError
+            }
+            // 如果有生成任务元数据，恢复生成任务
+            if (msg.metadata?.generationTask) {
+              const task = { ...msg.metadata.generationTask }
+              console.log('[loadConversations] 恢复生成任务:', task.id, '原始状态:', task.status, '有结果:', !!(task.result && task.result.urls && task.result.urls.length > 0))
+              // 如果任务还在处理中（页面刷新导致），根据是否有结果来更新状态
+              if (task.status === 'processing' || task.status === 'pending') {
+                if (task.result && task.result.urls && task.result.urls.length > 0) {
+                  // 有结果，标记为完成
+                  task.status = 'completed'
+                  task.progress = 100
+                  console.log('[loadConversations] 任务有结果，标记为完成')
+                } else {
+                  // 没有结果，标记为失败
+                  task.status = 'failed'
+                  task.error = '生成中断，请重新尝试'
+                  console.log('[loadConversations] 任务无结果，标记为失败')
+                }
+              } else {
+                console.log('[loadConversations] 任务状态无需更新:', task.status)
+              }
+              message.generationTask = task
+              console.log('[loadConversations] 最终任务状态:', task.status)
+            }
+            return message
+          }))
         } else if (formattedSessions.length === 0) {
-          // 如果没有会话，创建一个新会话（内联逻辑，避免循环依赖）
+          // 如果没有会话，创建一个新会话
           try {
             await aiAssistantService.createNewConversation()
             const newConversations = await aiAssistantService.getAllConversations()
@@ -202,31 +290,32 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
               setMessages([])
             }
           } catch (createError) {
-            console.error('自动创建会话失败:', createError)
-            // 回退到 localStorage
-            const newSession = llmService.createSession('新对话')
-            setSessions([newSession])
-            setCurrentSession(newSession)
+            console.error('[loadConversations] 自动创建会话失败:', createError)
+            // 用户已登录，但创建失败，显示空状态
+            setSessions([])
+            setCurrentSession(null)
             setMessages([])
           }
         }
       } catch (error) {
-        console.error('加载会话列表失败:', error)
-        // 回退到 localStorage
-        const loadedSessions = llmService.getSessions()
-        setSessions(loadedSessions)
-        const activeSession = loadedSessions.find(session => session.isActive) || loadedSessions[0]
-        if (activeSession) {
-          setCurrentSession(activeSession)
-          setMessages(activeSession.messages)
-        }
+        console.error('[loadConversations] 从 Supabase 加载会话失败:', error)
+        // 用户已登录，但 Supabase 失败，显示错误并创建空状态
+        // 不要回退到 localStorage，因为 ID 格式不兼容
+        toast.error('加载会话失败，请刷新页面重试')
+        setSessions([])
+        setCurrentSession(null)
+        setMessages([])
+      } finally {
+        // 标记历史消息已加载完成
+        setIsHistoryLoaded(true)
       }
     }
     
     if (isOpen) {
+      setIsHistoryLoaded(false)
       loadConversations()
     }
-  }, [isOpen])
+  }, [isOpen, user])
 
   const checkAIService = async (showToast = true) => {
     const controller = new AbortController()
@@ -275,6 +364,70 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
       const items = getRecommendations(user.id, { limit: 6, strategy: 'hybrid', includeDiverse: true })
       setRecs(items)
     }
+  }, [isOpen, user])
+
+  // 设置AI生成任务监听器
+  useEffect(() => {
+    if (!isOpen) return
+    
+    const unsubscribe = aiGenerationService.addTaskListener(async (task) => {
+      console.log('[TaskListener] 收到任务更新:', task.id, '状态:', task.status, '进度:', task.progress)
+      // 更新消息中的生成任务状态 - 创建新的对象引用以触发React重新渲染
+      setMessages(prev => prev.map(msg => {
+        if ((msg as any).generationTask && (msg as any).generationTask.id === task.id) {
+          return {
+            ...msg,
+            generationTask: { ...task }  // 创建新的对象引用
+          }
+        }
+        return msg
+      }))
+      
+      // 当任务完成或失败时，保存到数据库
+      if ((task.status === 'completed' || task.status === 'failed') && user) {
+        const savedMessageId = savedGenerationMessagesRef.current.get(task.id);
+        const taskMetadata = {
+          generationTask: {
+            id: task.id,
+            type: task.type,
+            status: task.status,
+            progress: task.progress,
+            params: task.params,
+            result: task.result,
+            error: task.error,
+            createdAt: task.createdAt,
+            updatedAt: task.updatedAt
+          }
+        };
+        
+        try {
+          // 获取当前活跃的会话ID
+          const activeConversation = await aiMemoryService.getActiveConversation();
+          if (!activeConversation) {
+            console.error('[TaskListener] 没有活跃的会话，无法保存生成任务消息');
+            return;
+          }
+          
+          if (savedMessageId) {
+            // 更新已存在的消息
+            await aiMemoryService.updateMessageMetadata(savedMessageId, taskMetadata);
+            console.log('[TaskListener] 更新生成任务消息成功:', savedMessageId);
+          } else {
+            // 创建新消息
+            aiAssistantService.setCurrentConversationId(activeConversation.id);
+            const savedMsg = await aiAssistantService.saveMessage('assistant', '', false, taskMetadata);
+            if (savedMsg && savedMsg.id) {
+              savedGenerationMessagesRef.current.set(task.id, savedMsg.id);
+              console.log('[TaskListener] 保存生成任务消息成功:', savedMsg.id);
+            }
+          }
+        } catch (error) {
+          console.error('[TaskListener] 保存/更新生成任务消息失败:', error);
+        }
+      }
+    })
+    
+    return () => unsubscribe()
   }, [isOpen, user])
 
   // 加载个性化设置
@@ -389,8 +542,9 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
   };
 
   // 添加初始欢迎消息 - 上下文感知
+  // 只在历史消息加载完成后，且确实没有消息时才显示欢迎消息
   useEffect(() => {
-    if (messages.length === 0 && isOpen) {
+    if (isHistoryLoaded && messages.length === 0 && isOpen) {
       const initialMessage: Message = {
         role: 'assistant',
         content: getWelcomeMessage(),
@@ -398,7 +552,7 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
       };
       setMessages([initialMessage]);
     }
-  }, [isOpen, messages.length, context]);
+  }, [isHistoryLoaded, messages.length, isOpen, context]);
 
   // 自动滚动到底部
   useEffect(() => {
@@ -410,19 +564,43 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
     // 如果没有输入名称，使用默认名称
     const sessionName = newSessionName.trim() || t('aiCollab.newSession.defaultName') || '新对话'
     
+    // 如果用户未登录，直接使用 localStorage
+    if (!user) {
+      console.log('[createNewSession] 创建新会话:', sessionName)
+      const newSession = llmService.createSession(sessionName)
+      console.log('[createNewSession] 新会话创建成功:', newSession)
+      // 从 llmService 获取最新的会话列表
+      const updatedSessions = llmService.getSessions()
+      console.log('[createNewSession] 更新后的会话列表:', updatedSessions)
+      setSessions(updatedSessions)
+      setCurrentSession(newSession)
+      setMessages([])
+      setNewSessionName('')
+      setShowNewSessionModal(false)
+      toast.success('新会话已创建')
+      return
+    }
+    
     try {
+      console.log('[createNewSession] 使用 Supabase 创建新会话')
+      // 确保服务已初始化
+      await aiAssistantService.initialize(user)
+      
       // 使用 aiAssistantService 创建新对话（保存到 Supabase）
       await aiAssistantService.createNewConversation()
       
       // 如果提供了自定义名称，重命名对话
       const conversations = await aiAssistantService.getAllConversations()
+      console.log('[createNewSession] 创建后的会话列表:', conversations)
       const newConversation = conversations.find(c => c.is_active)
+      console.log('[createNewSession] 新创建的会话:', newConversation)
       if (newConversation && sessionName !== '新对话') {
         await aiAssistantService.renameConversation(newConversation.id, sessionName)
       }
       
       // 刷新会话列表
       const updatedConversations = await aiAssistantService.getAllConversations()
+      console.log('[createNewSession] 更新后的会话列表:', updatedConversations)
       const formattedSessions: ConversationSession[] = updatedConversations.map(conv => ({
         id: conv.id,
         name: conv.title || '新对话',
@@ -437,6 +615,7 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
         lastMessageTimestamp: new Date(conv.updated_at).getTime()
       }))
       
+      console.log('[createNewSession] 格式化后的会话:', formattedSessions)
       setSessions(formattedSessions)
       const activeSession = formattedSessions.find(session => session.isActive) || formattedSessions[0]
       if (activeSession) {
@@ -450,42 +629,79 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
     } catch (error) {
       console.error('创建会话失败:', error)
       // 回退到 localStorage
-      const newSession = llmService.createSession(newSessionName.trim())
-      setSessions([newSession, ...sessions.filter(s => !s.isActive)])
+      const newSession = llmService.createSession(sessionName)
+      // 从 llmService 获取最新的会话列表
+      const updatedSessions = llmService.getSessions()
+      setSessions(updatedSessions)
       setCurrentSession(newSession)
-      setMessages(newSession.messages)
+      setMessages([])
       setNewSessionName('')
       setShowNewSessionModal(false)
+      toast.success('新会话已创建')
     }
   }
 
-  // 切换会话 - 使用 Supabase 存储
+  // 切换会话 - 使用 Supabase 存储（已登录）或 localStorage（未登录）
   const switchSession = async (sessionId: string) => {
+    console.log('[switchSession] 开始切换会话:', sessionId, '用户:', user?.id || '未登录')
+    
+    // 如果用户未登录，直接使用 localStorage
+    if (!user) {
+      console.log('[switchSession] 用户未登录，使用 localStorage')
+      llmService.switchSession(sessionId)
+      const updatedSessions = llmService.getSessions()
+      setSessions(updatedSessions)
+      const activeSession = updatedSessions.find(session => session.isActive) || updatedSessions[0]
+      if (activeSession) {
+        setCurrentSession(activeSession)
+        setMessages(activeSession.messages)
+      }
+      return
+    }
+
+    // 用户已登录，使用 Supabase
     try {
-      await aiAssistantService.switchConversation(sessionId)
+      console.log('[switchSession] 用户已登录，使用 Supabase')
+      // 确保服务已初始化
+      await aiAssistantService.initialize(user)
+      
+      console.log('[switchSession] 调用 switchConversation:', sessionId)
+      const result = await aiAssistantService.switchConversation(sessionId)
+      console.log('[switchSession] switchConversation 结果:', result)
       
       // 刷新会话列表
       const conversations = await aiAssistantService.getAllConversations()
-      const formattedSessions: ConversationSession[] = conversations.map(conv => ({
-        id: conv.id,
-        name: conv.title || '新对话',
-        modelId: conv.model_id || 'qwen',
-        messages: [],
-        createdAt: new Date(conv.created_at).getTime(),
-        updatedAt: new Date(conv.updated_at).getTime(),
-        isActive: conv.is_active,
-        currentTopic: conv.context_summary || '',
-        topicHistory: [],
-        contextSummary: conv.context_summary || '',
-        lastMessageTimestamp: new Date(conv.updated_at).getTime()
-      }))
+      console.log('[switchSession] 获取到的会话列表:', conversations)
       
+      const formattedSessions: ConversationSession[] = conversations.map(conv => {
+        console.log('[switchSession] 处理会话:', conv.id, 'created_at:', conv.created_at, 'updated_at:', conv.updated_at)
+        return {
+          id: conv.id,
+          name: conv.title || '新对话',
+          modelId: conv.model_id || 'qwen',
+          messages: [],
+          createdAt: new Date(conv.created_at).getTime(),
+          updatedAt: new Date(conv.updated_at).getTime(),
+          isActive: conv.is_active,
+          currentTopic: conv.context_summary || '',
+          topicHistory: [],
+          contextSummary: conv.context_summary || '',
+          lastMessageTimestamp: new Date(conv.updated_at).getTime()
+        }
+      })
+      
+      console.log('[switchSession] 格式化后的会话:', formattedSessions)
+      console.log('[switchSession] 所有会话的 isActive 状态:', formattedSessions.map(s => ({ id: s.id.slice(0, 8), isActive: s.isActive })))
       setSessions(formattedSessions)
+      
       const activeSession = formattedSessions.find(session => session.isActive) || formattedSessions[0]
+      console.log('[switchSession] 活跃会话:', activeSession)
+      
       if (activeSession) {
         setCurrentSession(activeSession)
         // 加载新会话的消息历史
         const history = await aiAssistantService.getConversationHistory()
+        console.log('[switchSession] 消息历史:', history)
         setMessages(history.map(msg => ({
           role: msg.role,
           content: msg.content,
@@ -494,7 +710,8 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
         })))
       }
     } catch (error) {
-      console.error('切换会话失败:', error)
+      console.error('[switchSession] 切换会话失败:', error)
+      toast.error('切换会话失败')
       // 回退到 localStorage
       llmService.switchSession(sessionId)
       const updatedSessions = llmService.getSessions()
@@ -507,13 +724,42 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
     }
   }
 
-  // 删除会话 - 使用 Supabase 存储
+  // 删除会话 - 使用 Supabase 存储（已登录）或 localStorage（未登录）
   const deleteSession = async (sessionId: string) => {
+    console.log('[deleteSession] 开始删除会话:', sessionId, '用户:', user?.id || '未登录')
+    
+    // 如果用户未登录，直接使用 localStorage
+    if (!user) {
+      console.log('[deleteSession] 用户未登录，使用 localStorage')
+      llmService.deleteSession(sessionId)
+      const updatedSessions = llmService.getSessions()
+      setSessions(updatedSessions)
+      const activeSession = updatedSessions.find(session => session.isActive) || updatedSessions[0]
+      if (activeSession) {
+        setCurrentSession(activeSession)
+        setMessages(activeSession.messages)
+      }
+      toast.success('会话已删除')
+      return
+    }
+
+    // 用户已登录，使用 Supabase
     try {
-      await aiAssistantService.deleteConversation(sessionId)
+      console.log('[deleteSession] 用户已登录，使用 Supabase')
+      // 确保服务已初始化
+      await aiAssistantService.initialize(user)
+      
+      console.log('[deleteSession] 调用 deleteConversation:', sessionId)
+      const result = await aiAssistantService.deleteConversation(sessionId)
+      console.log('[deleteSession] deleteConversation 结果:', result)
       
       // 刷新会话列表
+      console.log('[deleteSession] 开始刷新会话列表...')
+      await new Promise(resolve => setTimeout(resolve, 500)) // 等待 500ms，确保数据库已更新
       const conversations = await aiAssistantService.getAllConversations()
+      console.log('[deleteSession] 获取到的会话列表:', conversations)
+      console.log('[deleteSession] 会话数量:', conversations.length)
+      
       const formattedSessions: ConversationSession[] = conversations.map(conv => ({
         id: conv.id,
         name: conv.title || '新对话',
@@ -528,20 +774,38 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
         lastMessageTimestamp: new Date(conv.updated_at).getTime()
       }))
       
+      console.log('[deleteSession] 设置会话列表:', formattedSessions.length, '个会话')
       setSessions(formattedSessions)
+      console.log('[deleteSession] 会话列表已设置')
+      
       const activeSession = formattedSessions.find(session => session.isActive) || formattedSessions[0]
+      console.log('[deleteSession] 活跃会话:', activeSession?.id)
+      
       if (activeSession) {
+        // 设置当前会话到 React 状态
         setCurrentSession(activeSession)
+        // 设置当前会话到 aiAssistantService
+        aiAssistantService.setCurrentConversationId(activeSession.id)
+        console.log('[deleteSession] 当前会话已设置:', activeSession.id)
         const history = await aiAssistantService.getConversationHistory()
+        console.log('[deleteSession] 消息历史:', history.length, '条消息')
         setMessages(history.map(msg => ({
           role: msg.role,
           content: msg.content,
           timestamp: msg.timestamp,
           isError: msg.isError
         })))
+      } else {
+        // 如果没有会话了，清空 aiAssistantService 的当前会话ID
+        aiAssistantService.setCurrentConversationId(null)
+        setCurrentSession(null)
+        setMessages([])
       }
+      toast.success('会话已删除')
+      console.log('[deleteSession] 删除完成')
     } catch (error) {
-      console.error('删除会话失败:', error)
+      console.error('[deleteSession] 删除会话失败:', error)
+      toast.error('删除会话失败')
       // 回退到 localStorage
       llmService.deleteSession(sessionId)
       const updatedSessions = llmService.getSessions()
@@ -554,11 +818,31 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
     }
   }
 
-  // 重命名会话 - 使用 Supabase 存储
+  // 重命名会话 - 使用 Supabase 存储（已登录）或 localStorage（未登录）
   const renameSession = async () => {
     if (!editingSessionName.trim() || !currentSession) return
+
+    // 如果用户未登录，直接使用 localStorage
+    if (!user) {
+      console.log('[renameSession] 用户未登录，使用 localStorage')
+      llmService.renameSession(currentSession.id, editingSessionName.trim())
+      const updatedSessions = llmService.getSessions()
+      setSessions(updatedSessions)
+      const updatedSession = updatedSessions.find(s => s.id === currentSession.id)
+      if (updatedSession) {
+        setCurrentSession(updatedSession)
+      }
+      setIsEditingSessionName(false)
+      setEditingSessionName('')
+      toast.success('会话已重命名')
+      return
+    }
     
+    // 用户已登录，使用 Supabase
     try {
+      // 确保服务已初始化
+      await aiAssistantService.initialize(user)
+      
       await aiAssistantService.renameConversation(currentSession.id, editingSessionName.trim())
       
       // 刷新会话列表
@@ -583,6 +867,7 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
         setCurrentSession(activeSession)
       }
       setIsEditingSessionName(false)
+      setEditingSessionName('')
       toast.success('会话已重命名')
     } catch (error) {
       console.error('重命名会话失败:', error)
@@ -595,7 +880,92 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
         setCurrentSession(updatedSession)
       }
       setIsEditingSessionName(false)
+      setEditingSessionName('')
+      toast.success('会话已重命名')
     }
+  }
+
+  // 开始编辑会话列表中的会话名称
+  const startEditingSessionInList = (session: ConversationSession, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setEditingSessionId(session.id)
+    setEditingSessionNameInList(session.name)
+  }
+
+  // 保存会话列表中的会话名称
+  const saveSessionNameInList = async () => {
+    if (!editingSessionNameInList.trim() || !editingSessionId) return
+
+    // 如果用户未登录，直接使用 localStorage
+    if (!user) {
+      llmService.renameSession(editingSessionId, editingSessionNameInList.trim())
+      const updatedSessions = llmService.getSessions()
+      setSessions(updatedSessions)
+      if (currentSession?.id === editingSessionId) {
+        const updatedCurrentSession = updatedSessions.find(s => s.id === editingSessionId)
+        if (updatedCurrentSession) {
+          setCurrentSession(updatedCurrentSession)
+        }
+      }
+      setEditingSessionId(null)
+      setEditingSessionNameInList('')
+      toast.success('会话已重命名')
+      return
+    }
+
+    // 用户已登录，使用 Supabase
+    try {
+      await aiAssistantService.initialize(user)
+      await aiAssistantService.renameConversation(editingSessionId, editingSessionNameInList.trim())
+
+      // 刷新会话列表
+      const conversations = await aiAssistantService.getAllConversations()
+      const formattedSessions: ConversationSession[] = conversations.map(conv => ({
+        id: conv.id,
+        name: conv.title || '新对话',
+        modelId: conv.model_id || 'qwen',
+        messages: [],
+        createdAt: new Date(conv.created_at).getTime(),
+        updatedAt: new Date(conv.updated_at).getTime(),
+        isActive: conv.is_active,
+        currentTopic: conv.context_summary || '',
+        topicHistory: [],
+        contextSummary: conv.context_summary || '',
+        lastMessageTimestamp: new Date(conv.updated_at).getTime()
+      }))
+
+      setSessions(formattedSessions)
+      if (currentSession?.id === editingSessionId) {
+        const activeSession = formattedSessions.find(session => session.id === editingSessionId)
+        if (activeSession) {
+          setCurrentSession(activeSession)
+        }
+      }
+      setEditingSessionId(null)
+      setEditingSessionNameInList('')
+      toast.success('会话已重命名')
+    } catch (error) {
+      console.error('重命名会话失败:', error)
+      // 回退到 localStorage
+      llmService.renameSession(editingSessionId, editingSessionNameInList.trim())
+      const updatedSessions = llmService.getSessions()
+      setSessions(updatedSessions)
+      if (currentSession?.id === editingSessionId) {
+        const updatedCurrentSession = updatedSessions.find(s => s.id === editingSessionId)
+        if (updatedCurrentSession) {
+          setCurrentSession(updatedCurrentSession)
+        }
+      }
+      setEditingSessionId(null)
+      setEditingSessionNameInList('')
+      toast.success('会话已重命名')
+    }
+  }
+
+  // 取消编辑会话列表中的会话名称
+  const cancelEditingSessionInList = () => {
+    setEditingSessionId(null)
+    setEditingSessionNameInList('')
   }
 
   // 发送消息
@@ -611,6 +981,9 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
       console.log('[sendMessage] 没有当前会话，尝试创建新会话')
       // 尝试创建新会话
       try {
+        // 确保服务已初始化
+        await aiAssistantService.initialize(user)
+        
         await aiAssistantService.createNewConversation()
         const conversations = await aiAssistantService.getAllConversations()
         const formattedSessions: ConversationSession[] = conversations.map(conv => ({
@@ -648,15 +1021,28 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
     setIsTyping(true)
     const userInput = input.trim()
     setInput('')
-    
+
     // 添加用户消息到本地状态
     const userMessage: Message = {
       role: 'user',
       content: userInput,
       timestamp: Date.now()
     }
-    
+
     setMessages(prev => [...prev, userMessage])
+
+    // 如果用户已登录，保存用户消息到数据库
+    if (user && currentSession) {
+      try {
+        await aiAssistantService.initialize(user)
+        // 确保设置当前会话ID
+        aiAssistantService.setCurrentConversationId(currentSession.id)
+        console.log('[sendMessage] 保存用户消息到数据库, sessionId:', currentSession.id)
+        await aiAssistantService.saveMessage('user', userInput)
+      } catch (error) {
+        console.error('[sendMessage] 保存用户消息失败:', error)
+      }
+    }
     
     try {
       // 简单的数字映射回答和页面跳转
@@ -679,6 +1065,79 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
       if (!isGreeting && (message.includes('你是谁') || message.includes('你是什么') || message.includes('你的名字'))) {
         isGreeting = true;
         response = `你好！我是津小脉，津脉智坊平台的专属AI助手，由Kimi模型驱动。我专注于传统文化创作与设计，能够为你提供平台功能导航、创作辅助、文化知识普及等全方位支持。我的使命是连接传统文化与青年创意，推动文化传承与创新。`;
+      }
+      
+      // 处理图片/视频生成请求
+      if (!isGreeting) {
+        const imageKeywords = ['生成图片', '生成图像', '画一张', '画个', '画幅', '生成图', '画一下', '帮我画图', '帮我画', '画一', '生成一张图', '生成一张图片', '画一张图', '生成画', '想要一张', '想要个', '想要幅', '给我画', '给我生成', '来一张', '来一幅', '来张', '来幅', '需要一张', '需要张', '需要幅', '做一张', '做张', '做幅', '创作一张', '创作张', '创作幅', '设计一张', '设计张', '设计幅'];
+        const videoKeywords = ['生成视频', '生成影片', '做个视频', '做视频', '生成动画', '生成短片', '帮我做视频', '帮我生成视频', '想要个视频', '想要视频', '给我做个视频', '给我生成视频', '来段视频', '来段', '需要视频', '做段视频', '创作视频', '设计视频'];
+        
+        const isImageRequest = imageKeywords.some(k => message.includes(k));
+        const isVideoRequest = videoKeywords.some(k => message.includes(k));
+        
+        if (isImageRequest || isVideoRequest) {
+          // 提取提示词（去掉生成指令部分）
+          let prompt = message;
+          const allKeywords = [...imageKeywords, ...videoKeywords];
+          for (const keyword of allKeywords) {
+            if (prompt.includes(keyword)) {
+              prompt = prompt.replace(keyword, '').trim();
+            }
+          }
+          // 去除常见的连接词
+          prompt = prompt.replace(/^(有关|关于|一个|一张|一幅|个|张|幅|的|图片|图像|视频|影片)?/, '').trim();
+          prompt = prompt.replace(/^(有关|关于|一个|一张|一幅|个|张|幅|的)?/, '').trim();
+          
+          const type = isImageRequest ? 'image' : 'video';
+          const typeName = isImageRequest ? '图片' : '视频';
+          
+          // 发送AI回复
+          response = `好的，我来为你生成${typeName}！请稍候...`;
+          setMessages(prev => [...prev, { role: 'assistant', content: response, timestamp: Date.now() }]);
+          
+          // 保存AI回复到数据库
+          if (user && currentSession) {
+            try {
+              aiAssistantService.setCurrentConversationId(currentSession.id);
+              await aiAssistantService.saveMessage('assistant', response);
+            } catch (error) {
+              console.error('[sendMessage] 保存AI回复失败:', error);
+            }
+          }
+          
+          // 开始生成 - 先调用服务创建任务，确保使用服务返回的任务对象
+          try {
+            const task = type === 'image' 
+              ? await aiGenerationService.generateImage({
+                  prompt: prompt || '天津传统文化创作',
+                  size: '1024x1024',
+                  quality: 'standard',
+                  n: 1
+                })
+              : await aiGenerationService.generateVideo({
+                  prompt: prompt || '天津传统文化创作',
+                  duration: 5,
+                  resolution: '720p'
+                });
+            
+            // 添加生成卡片消息 - 使用服务返回的任务对象
+            console.log('[AICollaborationPanel] Adding generation message with task:', task.id, task.status, task.progress);
+            const generationMessage = {
+              role: 'assistant' as const,
+              content: '',
+              timestamp: Date.now(),
+              generationTask: task
+            };
+            setMessages(prev => [...prev, generationMessage]);
+            
+            // 注意：生成任务消息将在任务完成时由任务监听器保存到数据库
+          } catch (error) {
+            console.error('生成失败:', error);
+            toast.error('生成失败，请重试');
+          }
+          
+          return;
+        }
       }
       
       if (!isGreeting) {
@@ -710,10 +1169,28 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
             const route = await localServices.getTrafficRoute({ origin, destination, mode: mode as any })
             response = `为你查询到从「${origin}」到「${destination}」的${mode === 'transit' ? '公共交通' : mode === 'walk' ? '步行' : '驾车'}路线：\n\n预计距离：${(route.distance / 1000).toFixed(1)} km\n预计耗时：${Math.round(route.duration / 60)} 分钟\n提供方：${route.provider === 'amap' ? '高德地图' : '本地快速查询'}\n\n步骤：\n${route.steps.map((s, i) => `${i + 1}. ${s.instruction}`).join('\n')}`
             setMessages(prev => [...prev, { role: 'assistant', content: response, timestamp: Date.now() }])
+            // 保存AI回复到数据库
+            if (user && currentSession) {
+              try {
+                aiAssistantService.setCurrentConversationId(currentSession.id)
+                await aiAssistantService.saveMessage('assistant', response)
+              } catch (error) {
+                console.error('[sendMessage] 保存AI回复失败:', error)
+              }
+            }
             return
           } else {
-            response = '请提供完整的出发地与目的地，例如：“从天津站到鼓楼怎么去”。'
+            response = '请提供完整的出发地与目的地，例如："从天津站到鼓楼怎么去"。'
             setMessages(prev => [...prev, { role: 'assistant', content: response, timestamp: Date.now() }])
+            // 保存AI回复到数据库
+            if (user && currentSession) {
+              try {
+                aiAssistantService.setCurrentConversationId(currentSession.id)
+                await aiAssistantService.saveMessage('assistant', response)
+              } catch (error) {
+                console.error('[sendMessage] 保存AI回复失败:', error)
+              }
+            }
             return
           }
         }
@@ -729,6 +1206,15 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
           const guide = await localServices.getGovServiceGuide({ service, city: '天津' })
           response = `为你整理了「${guide.service}」的办理指引：\n\n步骤：\n${guide.steps.map((s, i) => `${i + 1}. ${s}`).join('\n')}\n\n网上办事大厅：${guide.onlinePortal || '—'}\n咨询热线：${guide.hotline || '—'}\n提供方：${guide.provider === 'local' ? '天津政务服务' : '本地指南'}`
           setMessages(prev => [...prev, { role: 'assistant', content: response, timestamp: Date.now() }])
+          // 保存AI回复到数据库
+          if (user && currentSession) {
+            try {
+              aiAssistantService.setCurrentConversationId(currentSession.id)
+              await aiAssistantService.saveMessage('assistant', response)
+            } catch (error) {
+              console.error('[sendMessage] 保存AI回复失败:', error)
+            }
+          }
           return
         }
         // 检查页面跳转关键词
@@ -838,7 +1324,17 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
         }
         return updatedMessages;
       });
-      
+
+      // 如果用户已登录，保存AI回复到数据库
+      if (user && currentSession) {
+        try {
+          aiAssistantService.setCurrentConversationId(currentSession.id)
+          await aiAssistantService.saveMessage('assistant', response)
+        } catch (error) {
+          console.error('[sendMessage] 保存AI回复失败:', error)
+        }
+      }
+
       // 通知父组件内容已生成
       if (onContentGenerated) {
         onContentGenerated(response);
@@ -869,8 +1365,25 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
     }
   }
 
-  // 清除当前会话历史
-  const clearCurrentSession = () => {
+  // 清除当前会话历史 - 使用 Supabase 存储（已登录）或 localStorage（未登录）
+  const clearCurrentSession = async () => {
+    // 如果用户已登录，使用 aiAssistantService
+    if (user) {
+      try {
+        // 确保服务已初始化
+        await aiAssistantService.initialize(user)
+        
+        await aiAssistantService.clearCurrentConversation()
+        setMessages([])
+        toast.success(t('aiCollab.toasts.historyCleared'))
+        return
+      } catch (error) {
+        console.error('清除会话历史失败:', error)
+        // 回退到 localStorage
+      }
+    }
+
+    // 使用 localStorage
     llmService.clearHistory()
     const updatedSessions = llmService.getSessions()
     const activeSession = updatedSessions.find(s => s.isActive)
@@ -880,6 +1393,305 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
       setSessions(updatedSessions)
     }
     toast.success(t('aiCollab.toasts.historyCleared'))
+  }
+
+  // 处理生成任务保存
+  const handleSaveGeneration = async (task: GenerationTask) => {
+    if (!task.result?.urls[0]) {
+      toast.error('生成结果不可用');
+      return;
+    }
+    
+    try {
+      // 获取提示词
+      const prompt = task.params?.prompt || task.result?.revisedPrompt || '';
+      
+      // 获取认证token
+      const token = localStorage.getItem('token');
+      if (!token) {
+        toast.error('请先登录');
+        return;
+      }
+      
+      console.log('[handleSaveGeneration] 保存作品:', { type: task.type, url: task.result.urls[0], prompt });
+      
+      // 保存到创作中心
+      const response = await fetch('/api/works/save', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          type: task.type,
+          url: task.result.urls[0],
+          prompt: prompt,
+          createdAt: new Date().toISOString()
+        })
+      });
+      
+      console.log('[handleSaveGeneration] 响应状态:', response.status);
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('[handleSaveGeneration] 响应数据:', data);
+        toast.success('已保存到创作中心');
+      } else {
+        const errorData = await response.json().catch(() => ({ message: '未知错误' }));
+        console.error('[handleSaveGeneration] 保存失败:', errorData);
+        throw new Error(errorData.message || `保存失败: ${response.status}`);
+      }
+    } catch (error) {
+      console.error('保存失败:', error);
+      toast.error('保存失败: ' + (error instanceof Error ? error.message : '请重试'));
+    }
+  };
+
+  // 处理生成任务发布
+  const handlePublishGeneration = async (task: GenerationTask) => {
+    if (!task.result?.urls[0]) {
+      toast.error('生成结果不可用');
+      return;
+    }
+    
+    try {
+      // 获取提示词
+      const prompt = task.params?.prompt || task.result?.revisedPrompt || '';
+      
+      // 获取认证token
+      const token = localStorage.getItem('token');
+      if (!token) {
+        toast.error('请先登录');
+        return;
+      }
+      
+      console.log('[handlePublishGeneration] 发布作品:', { type: task.type, url: task.result.urls[0], prompt });
+      
+      // 发布到津脉广场
+      const response = await fetch('/api/works/publish', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          type: task.type,
+          url: task.result.urls[0],
+          prompt: prompt,
+          source: 'ai-generation'
+        })
+      });
+      
+      console.log('[handlePublishGeneration] 响应状态:', response.status);
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('[handlePublishGeneration] 响应数据:', data);
+        toast.success('已发布到津脉广场！');
+      } else {
+        const errorData = await response.json().catch(() => ({ message: '未知错误' }));
+        console.error('[handlePublishGeneration] 发布失败:', errorData);
+        throw new Error(errorData.message || `发布失败: ${response.status}`);
+      }
+    } catch (error) {
+      console.error('发布失败:', error);
+      toast.error('发布失败: ' + (error instanceof Error ? error.message : '请重试'));
+    }
+  };
+
+  // 处理生成任务分享
+  const handleShareGeneration = async (task: GenerationTask) => {
+    if (!task.result?.urls[0]) {
+      toast.error('生成结果不可用');
+      return;
+    }
+    
+    // 获取提示词
+    const prompt = task.params?.prompt || task.result?.revisedPrompt || '';
+    
+    // 构建分享内容
+    const shareContent = {
+      title: `AI生成的${task.type === 'image' ? '图片' : '视频'}`,
+      description: prompt,
+      imageUrl: task.result.urls[0],
+      type: task.type
+    };
+    
+    // 打开分享对话框
+    setShareContent(shareContent);
+    setShowShareDialog(true);
+  };
+
+  // 处理生成任务分享给好友
+  const handleShareToFriendGeneration = async (task: GenerationTask) => {
+    if (!task.result?.urls[0]) {
+      toast.error('生成结果不可用');
+      return;
+    }
+    
+    // 获取提示词
+    const prompt = task.params?.prompt || task.result?.revisedPrompt || '';
+    
+    // 打开好友选择对话框
+    setShareContent({
+      title: `AI生成的${task.type === 'image' ? '图片' : '视频'}`,
+      description: prompt,
+      imageUrl: task.result.urls[0],
+      type: task.type
+    });
+    setShowFriendShareDialog(true);
+  };
+
+  // 处理删除单个消息
+  const handleDeleteMessage = async (index: number) => {
+    console.log('[handleDeleteMessage] 删除消息:', index);
+    
+    // 获取要删除的消息
+    const messageToDelete = messages[index];
+    const messageId = (messageToDelete as any).id;
+    
+    if (!messageId) {
+      console.error('[handleDeleteMessage] 消息没有ID，无法从数据库删除');
+      toast.error('删除失败：消息ID不存在');
+      return;
+    }
+    
+    // 从数据库中删除消息
+    try {
+      const success = await aiMemoryService.deleteMessage(messageId);
+      if (!success) {
+        console.error('[handleDeleteMessage] 从数据库删除消息失败');
+        toast.error('删除失败，请重试');
+        return;
+      }
+      console.log('[handleDeleteMessage] 从数据库删除消息成功:', messageId);
+    } catch (error) {
+      console.error('[handleDeleteMessage] 删除消息异常:', error);
+      toast.error('删除失败，请重试');
+      return;
+    }
+    
+    // 从消息列表中删除该消息
+    setMessages(prev => {
+      const newMessages = [...prev];
+      const deletedMessage = newMessages[index];
+      
+      // 如果消息包含生成任务，也从已保存的消息ID映射中删除
+      const task = (deletedMessage as any).generationTask;
+      if (task) {
+        savedGenerationMessagesRef.current.delete(task.id);
+        console.log('[handleDeleteMessage] 删除生成任务:', task.id);
+      }
+      
+      newMessages.splice(index, 1);
+      return newMessages;
+    });
+    
+    toast.success('已删除消息');
+  };
+
+  // 处理删除生成任务消息
+  const handleDeleteGeneration = (task: GenerationTask) => {
+    console.log('[handleDeleteGeneration] 删除生成任务:', task.id);
+    
+    // 从消息列表中删除该生成任务
+    setMessages(prev => prev.filter(msg => {
+      const msgTask = (msg as any).generationTask;
+      return !msgTask || msgTask.id !== task.id;
+    }));
+    
+    // 从已保存的消息ID映射中删除
+    savedGenerationMessagesRef.current.delete(task.id);
+    
+    toast.success('已删除生成记录');
+  };
+
+  // 删除所有会话 - 使用 Supabase 存储（已登录）或 localStorage（未登录）
+  const deleteAllSessions = async () => {
+    // 如果用户已登录，使用 aiAssistantService
+    if (user) {
+      try {
+        // 确保服务已初始化
+        await aiAssistantService.initialize(user)
+        
+        await aiAssistantService.deleteAllConversations()
+        
+        // 刷新会话列表
+        const conversations = await aiAssistantService.getAllConversations()
+        const formattedSessions: ConversationSession[] = conversations.map(conv => ({
+          id: conv.id,
+          name: conv.title || '新对话',
+          modelId: conv.model_id || 'qwen',
+          messages: [],
+          createdAt: new Date(conv.created_at).getTime(),
+          updatedAt: new Date(conv.updated_at).getTime(),
+          isActive: conv.is_active,
+          currentTopic: conv.context_summary || '',
+          topicHistory: [],
+          contextSummary: conv.context_summary || '',
+          lastMessageTimestamp: new Date(conv.updated_at).getTime()
+        }))
+        
+        setSessions(formattedSessions)
+        
+        // 如果没有会话了，创建一个新会话
+        if (formattedSessions.length === 0) {
+          await aiAssistantService.createNewConversation()
+          const newConversations = await aiAssistantService.getAllConversations()
+          const newFormattedSessions: ConversationSession[] = newConversations.map(conv => ({
+            id: conv.id,
+            name: conv.title || '新对话',
+            modelId: conv.model_id || 'qwen',
+            messages: [],
+            createdAt: new Date(conv.created_at).getTime(),
+            updatedAt: new Date(conv.updated_at).getTime(),
+            isActive: conv.is_active,
+            currentTopic: conv.context_summary || '',
+            topicHistory: [],
+            contextSummary: conv.context_summary || '',
+            lastMessageTimestamp: new Date(conv.updated_at).getTime()
+          }))
+          setSessions(newFormattedSessions)
+          const newActiveSession = newFormattedSessions.find(session => session.isActive) || newFormattedSessions[0]
+          if (newActiveSession) {
+            setCurrentSession(newActiveSession)
+            aiAssistantService.setCurrentConversationId(newActiveSession.id)
+            setMessages([])
+          }
+        } else {
+          const activeSession = formattedSessions.find(session => session.isActive) || formattedSessions[0]
+          if (activeSession) {
+            setCurrentSession(activeSession)
+            aiAssistantService.setCurrentConversationId(activeSession.id)
+            const history = await aiAssistantService.getConversationHistory()
+            setMessages(history.map(msg => ({
+              role: msg.role,
+              content: msg.content,
+              timestamp: msg.timestamp,
+              isError: msg.isError
+            })))
+          }
+        }
+        
+        toast.success('所有会话已删除')
+        return
+      } catch (error) {
+        console.error('删除所有会话失败:', error)
+        toast.error('删除所有会话失败')
+        // 回退到 localStorage
+      }
+    }
+
+    // 使用 localStorage
+    llmService.deleteAllSessions()
+    const updatedSessions = llmService.getSessions()
+    const activeSession = updatedSessions.find(s => s.isActive)
+    if (activeSession) {
+      setMessages([])
+      setCurrentSession(activeSession)
+      setSessions(updatedSessions)
+    }
+    toast.success('所有会话已删除')
   }
   
   // 使用对话模板
@@ -1018,6 +1830,17 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
                   {/* 操作按钮组 */}
                   <div className="flex items-center gap-1 bg-white/10 backdrop-blur-sm rounded-full p-1 border border-white/20">
                     <motion.button
+                      onClick={() => setShowGenerationPanel(true)}
+                      className="p-2.5 rounded-full hover:bg-white/20 transition-all duration-300"
+                      aria-label="AI生成"
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.95 }}
+                      title="AI生成"
+                    >
+                      <i className="fas fa-magic text-white/90 text-sm"></i>
+                    </motion.button>
+                    <div className="w-px h-4 bg-white/20"></div>
+                    <motion.button
                       onClick={() => checkAIService(true)}
                       className="p-2.5 rounded-full hover:bg-white/20 transition-all duration-300"
                       aria-label={t('aiCollab.actions.checkService')}
@@ -1052,7 +1875,10 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
                       <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-md">
                         <i className="fas fa-comments text-white text-sm"></i>
                       </div>
-                      <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200">会话列表</h3>
+                      <div>
+                        <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200">会话列表</h3>
+                        <p className="text-xs text-gray-500">{sessions.length} 个会话 | 用户: {user ? '已登录' : '未登录'}</p>
+                      </div>
                     </div>
                     <motion.button
                       onClick={() => setShowNewSessionModal(true)}
@@ -1068,10 +1894,17 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
                 
                 {/* 会话列表 - 优化卡片样式 */}
                 <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                  {sessions.length === 0 && (
+                    <div className="text-center py-8 text-gray-400">
+                      <i className="fas fa-inbox text-3xl mb-2"></i>
+                      <p className="text-sm">暂无会话</p>
+                      <p className="text-xs mt-1">点击 + 创建新会话</p>
+                    </div>
+                  )}
                   {sessions.map((session, idx) => (
                     <motion.div
                       key={session.id}
-                      className={`group relative p-3.5 cursor-pointer rounded-xl transition-all duration-300 border ${currentSession?.id === session.id 
+                      className={`group relative rounded-xl transition-all duration-300 border ${currentSession?.id === session.id 
                         ? (isDark 
                           ? 'bg-gradient-to-r from-indigo-900/40 to-purple-900/40 border-indigo-500/30 shadow-lg shadow-indigo-500/10' 
                           : 'bg-gradient-to-r from-indigo-50 to-purple-50 border-indigo-200 shadow-md shadow-indigo-200/50') 
@@ -1079,62 +1912,119 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
                           ? 'bg-gray-800/40 border-gray-700/30 hover:border-gray-600 hover:bg-gray-800/60' 
                           : 'bg-white border-gray-200/50 hover:border-gray-300 hover:shadow-sm')
                       }`}
-                      whileHover={{ x: 3, scale: 1.01 }}
-                      onClick={() => switchSession(session.id)}
+                      whileHover={{ x: 3 }}
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.3, delay: idx * 0.05 }}
                     >
-                      {/* 活跃指示条 */}
-                      {currentSession?.id === session.id && (
-                        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 rounded-full bg-gradient-to-b from-indigo-500 to-purple-500"></div>
-                      )}
-                      
-                      <div className="flex items-center justify-between pl-2">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate flex items-center gap-2 text-gray-800 dark:text-gray-200">
-                            {session.name}
-                          </p>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
-                              {session.messages.length} 条消息
-                            </span>
-                            {currentSession?.id === session.id && (
-                              <motion.span 
-                                className="w-1.5 h-1.5 rounded-full bg-green-400"
-                                animate={{ scale: [1, 1.3, 1], opacity: [1, 0.7, 1] }}
-                                transition={{ repeat: Infinity, duration: 2 }}
-                              ></motion.span>
+                      {/* 点击区域 */}
+                      <div 
+                        className="p-3.5 cursor-pointer"
+                        onClick={() => switchSession(session.id)}
+                      >
+                        {/* 活跃指示条 */}
+                        {currentSession?.id === session.id && (
+                          <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 rounded-full bg-gradient-to-b from-indigo-500 to-purple-500"></div>
+                        )}
+                        
+                        <div className="flex items-center justify-between pl-2">
+                          <div className="flex-1 min-w-0">
+                            {editingSessionId === session.id ? (
+                              // 编辑模式
+                              <div className="flex items-center gap-1">
+                                <input
+                                  type="text"
+                                  value={editingSessionNameInList}
+                                  onChange={(e) => setEditingSessionNameInList(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      e.stopPropagation()
+                                      saveSessionNameInList()
+                                    } else if (e.key === 'Escape') {
+                                      e.stopPropagation()
+                                      cancelEditingSessionInList()
+                                    }
+                                  }}
+                                  onBlur={saveSessionNameInList}
+                                  onClick={(e) => e.stopPropagation()}
+                                  autoFocus
+                                  className={`text-sm font-medium px-2 py-1 rounded border outline-none w-full ${isDark ? 'bg-gray-800 border-gray-600 text-gray-200 focus:border-indigo-500' : 'bg-white border-gray-300 text-gray-800 focus:border-indigo-500'}`}
+                                />
+                              </div>
+                            ) : (
+                              // 显示模式
+                              <p
+                                onDoubleClick={(e) => startEditingSessionInList(session, e)}
+                                className="text-sm font-medium truncate flex items-center gap-2 text-gray-800 dark:text-gray-200 cursor-pointer"
+                                title="双击重命名"
+                              >
+                                {session.name}
+                              </p>
                             )}
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
+                                {session.messages.length} 条消息
+                              </span>
+                              {currentSession?.id === session.id && (
+                                <motion.span
+                                  className="w-1.5 h-1.5 rounded-full bg-green-400"
+                                  animate={{ scale: [1, 1.3, 1], opacity: [1, 0.7, 1] }}
+                                  transition={{ repeat: Infinity, duration: 2 }}
+                                ></motion.span>
+                              )}
+                            </div>
                           </div>
+                          {editingSessionId !== session.id && (
+                            <div className="flex items-center gap-0.5">
+                              <motion.button
+                                onClick={(e) => startEditingSessionInList(session, e)}
+                                className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-gray-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-all"
+                                title="重命名"
+                                whileHover={{ scale: 1.1 }}
+                                whileTap={{ scale: 0.9 }}
+                              >
+                                <i className="fas fa-pen text-xs"></i>
+                              </motion.button>
+                              <motion.button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  deleteSession(session.id)
+                                }}
+                                className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
+                                aria-label={t('aiCollab.actions.deleteSession')}
+                                whileHover={{ scale: 1.1 }}
+                                whileTap={{ scale: 0.9 }}
+                                title="删除"
+                              >
+                                <i className="fas fa-trash text-xs"></i>
+                              </motion.button>
+                            </div>
+                          )}
                         </div>
-                        <motion.button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            deleteSession(session.id)
-                          }}
-                          className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
-                          aria-label={t('aiCollab.actions.deleteSession')}
-                          whileHover={{ scale: 1.1 }}
-                          whileTap={{ scale: 0.9 }}
-                        >
-                          <i className="fas fa-trash text-xs"></i>
-                        </motion.button>
                       </div>
                     </motion.div>
                   ))}
                 </div>
                 
                 {/* 左侧底部操作 */}
-                <div className="p-3.5 border-t dark:border-gray-800/50">
+                <div className="p-3.5 border-t dark:border-gray-800/50 space-y-2">
                   <motion.button
                     onClick={clearCurrentSession}
-                    className={`w-full text-sm py-3 rounded-2xl transition-all duration-300 font-medium flex items-center justify-center gap-2 ${isDark ? 'bg-red-900/20 text-red-400 hover:bg-red-900/30 hover:text-red-300' : 'bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700'}`}
+                    className={`w-full text-sm py-2.5 rounded-xl transition-all duration-300 font-medium flex items-center justify-center gap-2 ${isDark ? 'bg-red-900/20 text-red-400 hover:bg-red-900/30 hover:text-red-300' : 'bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700'}`}
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                   >
                     <i className="fas fa-trash-alt"></i>
                     {t('aiCollab.actions.clearCurrentSession')}
+                  </motion.button>
+                  <motion.button
+                    onClick={deleteAllSessions}
+                    className={`w-full text-sm py-2.5 rounded-xl transition-all duration-300 font-medium flex items-center justify-center gap-2 ${isDark ? 'bg-orange-900/20 text-orange-400 hover:bg-orange-900/30 hover:text-orange-300' : 'bg-orange-50 text-orange-600 hover:bg-orange-100 hover:text-orange-700'}`}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    <i className="fas fa-trash"></i>
+                    删除所有会话
                   </motion.button>
                 </div>
               </div>
@@ -1235,42 +2125,89 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
                   <AnimatePresence>
                     {showTemplates && (
                       <motion.div
-                        className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-20"
+                        className="fixed inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm z-50"
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         onClick={() => setShowTemplates(false)}
                       >
                         <motion.div
-                          className={`p-5 rounded-xl shadow-2xl ${isDark ? 'bg-gray-800 text-white' : 'bg-white text-black'} max-w-md w-full`}
-                          initial={{ scale: 0.9, opacity: 0 }}
-                          animate={{ scale: 1, opacity: 1 }}
-                          exit={{ scale: 0.9, opacity: 0 }}
+                          className={`w-full max-w-lg mx-4 p-8 rounded-3xl shadow-2xl ${isDark ? 'bg-gray-900/95 border border-gray-700/50' : 'bg-white/95 border border-gray-200/50'} backdrop-blur-xl`}
+                          initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                          animate={{ scale: 1, opacity: 1, y: 0 }}
+                          exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                          transition={{ type: 'spring', damping: 25, stiffness: 300 }}
                           onClick={(e) => e.stopPropagation()}
                         >
-                          <h3 className="text-lg font-bold mb-3">{t('aiCollab.templatesTitle')}</h3>
-                          <div className="space-y-3 max-h-96 overflow-y-auto">
-                            {conversationTemplates.map(template => (
-                              <div
-                                key={template.id}
-                                className={`p-3 rounded-lg border ${isDark ? 'border-gray-700 hover:border-blue-500' : 'border-gray-200 hover:border-blue-500'} cursor-pointer transition-colors`}
-                                onClick={() => useTemplate(template)}
-                              >
-                                <h4 className="font-medium">{template.name}</h4>
-                                <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">{template.description}</p>
-                                <p className="text-xs bg-gray-100 dark:bg-gray-700 p-2 rounded">
-                                  {template.prompt}
-                                </p>
+                          {/* 头部 */}
+                          <div className="flex items-center justify-between mb-6">
+                            <div className="flex items-center gap-4">
+                              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${isDark ? 'bg-gradient-to-br from-indigo-500/20 to-purple-500/20' : 'bg-gradient-to-br from-indigo-100 to-purple-100'}`}>
+                                <svg className="w-6 h-6 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
+                                </svg>
                               </div>
-                            ))}
-                          </div>
-                          <div className="mt-4 flex justify-end">
+                              <div>
+                                <h3 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{t('aiCollab.templatesTitle')}</h3>
+                                <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>选择一个模板开始对话</p>
+                              </div>
+                            </div>
                             <button
                               onClick={() => setShowTemplates(false)}
-                              className={`px-4 py-2 rounded-lg transition-colors ${isDark ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-black'}`}
+                              className={`p-2 rounded-xl transition-colors ${isDark ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}
                             >
-                              {t('aiCollab.actions.cancel')}
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
                             </button>
+                          </div>
+
+                          {/* 模板列表 */}
+                          <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+                            {conversationTemplates.map((template, index) => (
+                              <motion.div
+                                key={template.id}
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: index * 0.05 }}
+                                className={`group p-5 rounded-2xl border-2 cursor-pointer transition-all duration-300 ${
+                                  isDark 
+                                    ? 'border-gray-700/50 hover:border-indigo-500/50 bg-gray-800/30 hover:bg-gray-800/50' 
+                                    : 'border-gray-200 hover:border-indigo-500/30 bg-gray-50/50 hover:bg-white'
+                                }`}
+                                onClick={() => useTemplate(template)}
+                              >
+                                <div className="flex items-start gap-4">
+                                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isDark ? 'bg-indigo-500/20' : 'bg-indigo-100'}`}>
+                                    <span className="text-lg">{template.icon || '💡'}</span>
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <h4 className={`font-semibold text-lg mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>{template.name}</h4>
+                                    <p className={`text-sm mb-3 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{template.description}</p>
+                                    <div className={`p-3 rounded-xl text-sm ${isDark ? 'bg-gray-900/50 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
+                                      <span className="opacity-70">{template.prompt.substring(0, 60)}...</span>
+                                    </div>
+                                  </div>
+                                  <div className={`opacity-0 group-hover:opacity-100 transition-opacity ${isDark ? 'text-indigo-400' : 'text-indigo-500'}`}>
+                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                    </svg>
+                                  </div>
+                                </div>
+                              </motion.div>
+                            ))}
+                          </div>
+
+                          {/* 底部提示 */}
+                          <div className={`mt-6 p-4 rounded-2xl ${isDark ? 'bg-indigo-500/10 border border-indigo-500/20' : 'bg-indigo-50 border border-indigo-100'}`}>
+                            <div className="flex items-center gap-3">
+                              <svg className="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              <p className={`text-sm ${isDark ? 'text-indigo-300' : 'text-indigo-600'}`}>
+                                点击模板即可快速开始对话，你可以在此基础上继续编辑
+                              </p>
+                            </div>
                           </div>
                         </motion.div>
                       </motion.div>
@@ -1447,8 +2384,8 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
                         </label>
                       </div>
                     </motion.div>
-                  ) : messages.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-full text-center">
+                  ) : messages.length <= 1 && !messages.some(m => (m as any).generationTask) ? (
+                    <div className="flex flex-col items-center justify-center h-full text-center overflow-y-auto">
                       <i className="fas fa-comments text-4xl text-gray-400 mb-2"></i>
                       <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
                         {t('aiCollab.empty.title')}
@@ -1480,35 +2417,44 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
                         <i className="fas fa-file-alt mr-2"></i>
                         {t('aiCollab.actions.openTemplates')}
                       </button>
-                      {recs.length > 0 && (
-                        <div className="mt-6 w-full max-w-2xl">
-                          <h4 className={`text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>为你推荐</h4>
+                      {recs.length > 0 && user && (
+                        <div className="mt-6 w-full max-w-2xl px-4">
+                          <h4 className={`text-sm font-medium mb-3 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>为你推荐</h4>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             {recs.slice(0, 6).map(item => (
                               <button
                                 key={`${item.type}_${item.id}`}
                                 onClick={() => {
-                                  recordRecommendationClick(user!.id, item)
+                                  recordRecommendationClick(user.id, item)
                                   setInput(`请介绍一下「${item.title}」相关内容，并给我适合的创作灵感。`)
                                 }}
-                                className={`flex items-center gap-3 p-3 rounded-xl transition-colors border ${
-                                  isDark ? 'bg-gray-800 border-gray-700 hover:bg-gray-700' : 'bg-white border-gray-200 hover:bg-gray-50'
+                                className={`flex items-center gap-3 p-3 rounded-xl transition-all border ${
+                                  isDark ? 'bg-gray-800 border-gray-700 hover:bg-gray-700' : 'bg-white border-gray-200 hover:bg-gray-50 hover:shadow-md'
                                 }`}
                               >
-                                <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-200">
+                                <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-200 flex-shrink-0">
                                   {item.thumbnail ? (
-                                    <img src={item.thumbnail} alt={item.title} className="w-full h-full object-cover" />
+                                    <img 
+                                      src={item.thumbnail} 
+                                      alt={item.title} 
+                                      className="w-full h-full object-cover"
+                                      onError={(e) => {
+                                        // 图片加载失败时显示默认图标
+                                        (e.target as HTMLImageElement).style.display = 'none';
+                                        (e.target as HTMLImageElement).parentElement!.innerHTML = '<div class="w-full h-full flex items-center justify-center text-gray-400"><i class="fas fa-image"></i></div>';
+                                      }}
+                                    />
                                   ) : (
                                     <div className="w-full h-full flex items-center justify-center text-gray-400">
                                       <i className="fas fa-image"></i>
                                     </div>
                                   )}
                                 </div>
-                                <div className="flex-1 min-w-0 text-left">
-                                  <div className={`text-sm font-medium truncate ${isDark ? 'text-white' : 'text-black'}`}>{item.title}</div>
-                                  <div className="text-xs text-gray-500 truncate">{item.reason || '个性化推荐'}</div>
+                                <div className="flex-1 min-w-0 text-left overflow-hidden">
+                                  <div className={`text-sm font-medium truncate ${isDark ? 'text-white' : 'text-gray-900'}`} title={item.title}>{item.title}</div>
+                                  <div className="text-xs text-gray-500 truncate mt-0.5" title={item.reason || '个性化推荐'}>{item.reason || '个性化推荐'}</div>
                                 </div>
-                                <div className="text-[10px] px-2 py-0.5 rounded-full border text-gray-500">{item.type}</div>
+                                <div className="text-[10px] px-2 py-0.5 rounded-full border border-gray-300 text-gray-500 flex-shrink-0">{item.type}</div>
                               </button>
                             ))}
                           </div>
@@ -1517,19 +2463,45 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
                     </div>
                   ) : (
                     messages.map((message, index) => (
-                      <AICollaborationMessage
-                        key={index}
-                        message={message}
-                        index={index}
-                        userAvatar={user?.avatar}
-                        feedbackRating={feedbackRatings[index]}
-                        feedbackComment={feedbackComments[index]}
-                        isFeedbackVisible={feedbackVisible[index]}
-                        onRating={handleRating}
-                        onFeedbackSubmit={(idx) => handleFeedbackSubmit(idx)}
-                        onFeedbackCommentChange={(idx, val) => setFeedbackComments(prev => ({...prev, [idx]: val}))}
-                        onFeedbackToggle={(idx, visible) => setFeedbackVisible(prev => ({...prev, [idx]: visible}))}
-                      />
+                      <React.Fragment key={index}>
+                        {/* 普通消息 */}
+                        <AICollaborationMessage
+                          message={message}
+                          index={index}
+                          userAvatar={user?.avatar}
+                          feedbackRating={feedbackRatings[index]}
+                          feedbackComment={feedbackComments[index]}
+                          isFeedbackVisible={feedbackVisible[index]}
+                          onRating={handleRating}
+                          onFeedbackSubmit={(idx) => handleFeedbackSubmit(idx)}
+                          onFeedbackCommentChange={(idx, val) => setFeedbackComments(prev => ({...prev, [idx]: val}))}
+                          onFeedbackToggle={(idx, visible) => setFeedbackVisible(prev => ({...prev, [idx]: visible}))}
+                          onDelete={handleDeleteMessage}
+                        />
+                        {/* 生成任务卡片 */}
+                        {(message as any).generationTask && (
+                          <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="ml-14 mb-4"
+                          >
+                            {(() => {
+                              const task = (message as any).generationTask;
+                              console.log('[AICollaborationPanel] 渲染生成任务卡片:', task.id, '状态:', task.status);
+                              return (
+                                <InlineGenerationCard
+                                  task={task}
+                                  onSave={() => handleSaveGeneration(task)}
+                                  onPublish={() => handlePublishGeneration(task)}
+                                  onShare={() => handleShareGeneration(task)}
+                                  onShareToFriend={() => handleShareToFriendGeneration(task)}
+                                  onDelete={() => handleDeleteGeneration(task)}
+                                />
+                              );
+                            })()}
+                          </motion.div>
+                        )}
+                      </React.Fragment>
                     ))
                   )}
                   <div ref={messagesEndRef} />
@@ -1616,50 +2588,143 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
             <AnimatePresence>
               {showNewSessionModal && (
                 <motion.div
-                  className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 z-10"
+                  className="fixed inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm z-[70]"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
+                  onClick={() => setShowNewSessionModal(false)}
                 >
                   <motion.div
-                    className={`p-5 rounded-xl shadow-2xl ${isDark ? 'bg-gray-800 text-white' : 'bg-white text-black'}`}
-                    initial={{ scale: 0.9, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0.9, opacity: 0 }}
+                    className={`w-full max-w-md mx-4 p-8 rounded-3xl shadow-2xl ${isDark ? 'bg-gray-900/95 border border-gray-700/50' : 'bg-white/95 border border-gray-200/50'} backdrop-blur-xl`}
+                    initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                    animate={{ scale: 1, opacity: 1, y: 0 }}
+                    exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                    transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+                    onClick={e => e.stopPropagation()}
                   >
-                    <h3 className="text-lg font-bold mb-3">{t('aiCollab.newSession.title')}</h3>
-                    <div className="space-y-3">
-                      <div>
-                        <label className="block text-sm font-medium mb-1">{t('aiCollab.newSession.nameLabel')}</label>
-                        <input
-                          type="text"
-                          value={newSessionName}
-                          onChange={(e) => setNewSessionName(e.target.value)}
-                          onKeyPress={(e) => e.key === 'Enter' && createNewSession()}
-                          placeholder={t('aiCollab.newSession.namePlaceholder')}
-                          className={`w-full p-3 rounded-lg border ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-black'} focus:outline-none focus:ring-2 focus:ring-blue-500`}
-                          autoFocus
-                        />
+                    {/* 头部图标 */}
+                    <div className="flex flex-col items-center mb-8">
+                      <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-4 ${isDark ? 'bg-gradient-to-br from-indigo-500/20 to-purple-500/20' : 'bg-gradient-to-br from-indigo-100 to-purple-100'}`}>
+                        <svg className="w-8 h-8 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
                       </div>
-                      <div className="flex items-center justify-end gap-2">
-                        <button
+                      <h3 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        {t('aiCollab.newSession.title')}
+                      </h3>
+                      <p className={`text-sm mt-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        为你的新对话起一个名字吧
+                      </p>
+                    </div>
+
+                    <div className="space-y-6">
+                      {/* 输入框 */}
+                      <div className="relative">
+                        <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                          {t('aiCollab.newSession.nameLabel')}
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={newSessionName}
+                            onChange={(e) => setNewSessionName(e.target.value)}
+                            onKeyPress={(e) => e.key === 'Enter' && createNewSession()}
+                            placeholder={t('aiCollab.newSession.namePlaceholder')}
+                            className={`w-full px-5 py-4 rounded-2xl border-2 outline-none transition-all duration-300 ${
+                              isDark 
+                                ? 'bg-gray-800/50 border-gray-700 text-white placeholder-gray-500 focus:border-indigo-500 focus:bg-gray-800' 
+                                : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400 focus:border-indigo-500 focus:bg-white'
+                            }`}
+                            autoFocus
+                          />
+                          {newSessionName && (
+                            <button
+                              onClick={() => setNewSessionName('')}
+                              className={`absolute right-4 top-1/2 -translate-y-1/2 p-1 rounded-full transition-colors ${
+                                isDark ? 'text-gray-500 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600'
+                              }`}
+                            >
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* 快捷建议 */}
+                      <div>
+                        <label className={`block text-xs font-medium mb-3 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                          快速选择
+                        </label>
+                        <div className="flex flex-wrap gap-2">
+                          {['新对话', '创意构思', '文案撰写', '设计灵感', '文化知识'].map((suggestion) => (
+                            <button
+                              key={suggestion}
+                              onClick={() => setNewSessionName(suggestion)}
+                              className={`px-4 py-2 rounded-xl text-sm transition-all duration-200 ${
+                                newSessionName === suggestion
+                                  ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/30'
+                                  : isDark
+                                    ? 'bg-gray-800 text-gray-300 hover:bg-gray-700 border border-gray-700'
+                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200'
+                              }`}
+                            >
+                              {suggestion}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* 按钮组 */}
+                      <div className="flex items-center gap-3 pt-4">
+                        <motion.button
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
                           onClick={() => setShowNewSessionModal(false)}
-                          className={`px-4 py-2 rounded-lg transition-colors ${isDark ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-black'}`}
+                          className={`flex-1 py-3.5 px-6 rounded-2xl font-medium transition-all duration-200 ${
+                            isDark 
+                              ? 'bg-gray-800 text-gray-300 hover:bg-gray-700 border border-gray-700' 
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200'
+                          }`}
                         >
                           {t('aiCollab.actions.cancel')}
-                        </button>
-                        <button
+                        </motion.button>
+                        <motion.button
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
                           onClick={createNewSession}
-                          className={`px-4 py-2 rounded-lg transition-colors ${isDark ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-green-600 hover:bg-green-700 text-white'}`}
+                          disabled={!newSessionName.trim()}
+                          className={`flex-1 py-3.5 px-6 rounded-2xl font-medium transition-all duration-200 ${
+                            !newSessionName.trim()
+                              ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                              : 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg shadow-indigo-500/30 hover:shadow-xl hover:shadow-indigo-500/40'
+                          }`}
                         >
                           {t('aiCollab.actions.create')}
-                        </button>
+                        </motion.button>
                       </div>
                     </div>
                   </motion.div>
                 </motion.div>
               )}
             </AnimatePresence>
+            
+            {/* 分享对话框 */}
+            <ShareDialog
+              isOpen={showShareDialog}
+              onClose={() => setShowShareDialog(false)}
+              content={shareContent}
+              mode="community"
+            />
+            
+            {/* 好友分享对话框 */}
+            <ShareDialog
+              isOpen={showFriendShareDialog}
+              onClose={() => setShowFriendShareDialog(false)}
+              content={shareContent}
+              mode="friend"
+            />
           </motion.div>
         </motion.div>
       )}

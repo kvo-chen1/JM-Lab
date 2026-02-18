@@ -149,7 +149,7 @@ export const TemplatePreviewModal: React.FC<TemplatePreviewModalProps> = ({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[70]"
             onClick={onClose}
           />
 
@@ -158,7 +158,7 @@ export const TemplatePreviewModal: React.FC<TemplatePreviewModalProps> = ({
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className={`fixed inset-4 md:inset-10 lg:inset-20 rounded-3xl overflow-hidden z-50 flex flex-col ${
+            className={`fixed inset-4 md:inset-10 lg:inset-20 rounded-3xl overflow-hidden z-[70] flex flex-col ${
               isDark ? 'bg-gray-900' : 'bg-white'
             }`}
           >

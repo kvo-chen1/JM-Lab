@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, Input, Button, LoadingSpinner } from '@/components/ui';
-import { MessageSquare, UserPlus, UserMinus, MessageCircle, Users, Heart } from 'lucide-react';
+import { MessageSquare, UserPlus, UserMinus, MessageCircle, Users, Heart, UserCheck } from 'lucide-react';
 import { getFollowingList, getFollowersList, followUser, unfollowUser } from '@/services/postService';
 import { getConversations, getUnreadMessageCounts, Conversation } from '@/services/messageService';
 import { AuthContext } from '@/contexts/authContext';
@@ -18,12 +18,18 @@ const FriendsPage: React.FC = () => {
   const navigate = useNavigate();
   const { user: currentUser } = useContext(AuthContext);
 
-  const [activeTab, setActiveTab] = useState<'following' | 'followers' | 'messages'>('following');
+  const [activeTab, setActiveTab] = useState<'following' | 'followers' | 'friends' | 'messages'>('following');
   const [followingList, setFollowingList] = useState<User[]>([]);
   const [followersList, setFollowersList] = useState<User[]>([]);
   const [chatList, setChatList] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(false);
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
+
+  // 计算好友列表（互相关注 = 我关注的人 ∩ 关注我的人）
+  const friendsList = useMemo(() => {
+    const followerIds = new Set(followersList.map(u => u.id));
+    return followingList.filter(user => followerIds.has(user.id));
+  }, [followingList, followersList]);
 
   // 加载数据
   useEffect(() => {
@@ -31,6 +37,9 @@ const FriendsPage: React.FC = () => {
       loadFollowingList();
     } else if (activeTab === 'followers') {
       loadFollowersList();
+    } else if (activeTab === 'friends') {
+      // 好友需要同时加载关注和粉丝列表
+      loadFriendsData();
     } else if (activeTab === 'messages') {
       loadChatList();
     }
@@ -79,6 +88,24 @@ const FriendsPage: React.FC = () => {
     }
   };
 
+  // 加载好友数据（同时加载关注和粉丝）
+  const loadFriendsData = async () => {
+    setLoading(true);
+    try {
+      const [following, followers] = await Promise.all([
+        getFollowingList(),
+        getFollowersList()
+      ]);
+      setFollowingList(following);
+      setFollowersList(followers);
+    } catch (error: any) {
+      console.error('加载好友数据失败:', error);
+      toast.error('加载好友数据失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // 加载私信列表
   const loadChatList = async () => {
     console.log('[Friends] loadChatList 被调用, currentUser:', currentUser?.id);
@@ -111,7 +138,11 @@ const FriendsPage: React.FC = () => {
     try {
       await unfollowUser(currentUser?.id || '', userId);
       toast.success('已取消关注');
-      loadFollowingList();
+      if (activeTab === 'friends') {
+        loadFriendsData();
+      } else {
+        loadFollowingList();
+      }
     } catch (error: any) {
       toast.error('操作失败');
     }
@@ -139,7 +170,7 @@ const FriendsPage: React.FC = () => {
   };
 
   // 渲染用户卡片
-  const renderUserCard = (user: User, isFollowing: boolean) => (
+  const renderUserCard = (user: User, isFollowing: boolean, isFriend: boolean = false) => (
     <Card key={user.id} className="p-4 hover:shadow-md transition-shadow">
       <div className="flex items-center justify-between">
         <div 
@@ -172,7 +203,16 @@ const FriendsPage: React.FC = () => {
             <MessageSquare className="w-4 h-4 mr-1" />
             私信
           </Button>
-          {activeTab === 'following' ? (
+          {isFriend ? (
+            <Button 
+              size="small" 
+              variant="danger"
+              onClick={() => handleUnfollow(user.id)}
+            >
+              <UserMinus className="w-4 h-4 mr-1" />
+              解除好友
+            </Button>
+          ) : activeTab === 'following' ? (
             <Button 
               size="small" 
               variant="danger"
@@ -247,7 +287,7 @@ const FriendsPage: React.FC = () => {
         {/* 页面标题 */}
         <div className="text-center mb-4">
           <h1 className="text-3xl font-bold text-gray-800 dark:text-white mb-2">我的社交</h1>
-          <p className="text-gray-600 dark:text-gray-400">管理你的关注、粉丝和私信</p>
+          <p className="text-gray-600 dark:text-gray-400">管理你的关注、粉丝、好友和私信</p>
         </div>
 
         {/* 标签页切换 */}
@@ -277,6 +317,20 @@ const FriendsPage: React.FC = () => {
             {followersList.length > 0 && (
               <span className="ml-1 text-xs bg-gray-200 dark:bg-gray-700 px-2 py-0.5 rounded-full">
                 {followersList.length}
+              </span>
+            )}
+          </button>
+          <button
+            className={`flex items-center gap-2 py-3 px-6 font-medium text-sm ${activeTab === 'friends' 
+              ? 'border-b-2 border-blue-600 text-blue-600 dark:text-blue-400' 
+              : 'text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white'}`}
+            onClick={() => setActiveTab('friends')}
+          >
+            <UserCheck className="w-4 h-4" />
+            好友
+            {friendsList.length > 0 && (
+              <span className="ml-1 text-xs bg-gray-200 dark:bg-gray-700 px-2 py-0.5 rounded-full">
+                {friendsList.length}
               </span>
             )}
           </button>
@@ -340,6 +394,29 @@ const FriendsPage: React.FC = () => {
                     </Card>
                   ) : (
                     followersList.map((user) => renderUserCard(user, false))
+                  )}
+                </div>
+              )}
+
+              {/* 好友列表 */}
+              {activeTab === 'friends' && (
+                <div className="grid gap-4">
+                  {friendsList.length === 0 ? (
+                    <Card className="p-12 text-center">
+                      <div className="text-gray-500 dark:text-gray-400">
+                        <UserCheck className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                        <p className="text-lg">你还没有好友</p>
+                        <p className="text-sm mt-2">互相关注的用户将成为你的好友</p>
+                        <Button 
+                          className="mt-4" 
+                          onClick={() => navigate('/square')}
+                        >
+                          去津脉广场
+                        </Button>
+                      </div>
+                    </Card>
+                  ) : (
+                    friendsList.map((user) => renderUserCard(user, true, true))
                   )}
                 </div>
               )}

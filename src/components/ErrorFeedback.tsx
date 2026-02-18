@@ -207,7 +207,7 @@ const ErrorFeedback: React.FC<ErrorFeedbackProps> = ({ errorInfo, error, onClose
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className={`fixed inset-0 z-50 flex items-center justify-center ${isDark ? 'bg-gray-900/80' : 'bg-gray-50/80'} backdrop-blur-md transition-opacity duration-300`}
+      className={`fixed inset-0 z-[70] flex items-center justify-center ${isDark ? 'bg-gray-900/80' : 'bg-gray-50/80'} backdrop-blur-md transition-opacity duration-300`}
     >
       <motion.div 
         className={`rounded-2xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-2xl max-w-2xl w-full mx-4 overflow-hidden md:max-h-[90vh] md:overflow-y-auto`}

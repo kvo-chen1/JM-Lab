@@ -16,6 +16,8 @@ interface PostCardProps {
   onDelete?: (id: string) => void;
   onDeleteComment?: (threadId: string, commentId: string) => void;
   isFavorited?: boolean;
+  isLiked?: boolean;
+  onToggleLike?: (id: string) => void;
   index?: number;
 }
 
@@ -428,6 +430,8 @@ export const PostCard: React.FC<PostCardProps> = ({
   onDelete,
   onDeleteComment,
   isFavorited = false,
+  isLiked = false,
+  onToggleLike,
   index = 0
 }) => {
   const navigate = useNavigate();
@@ -662,8 +666,22 @@ export const PostCard: React.FC<PostCardProps> = ({
               />
             </div>
 
-            {/* Right: Favorite + More */}
+            {/* Right: Like + Favorite + More */}
             <div className="flex items-center gap-1">
+              {/* 点赞按钮 */}
+              {onToggleLike && (
+                <ActionButton 
+                  icon={isLiked ? 'fas fa-heart' : 'far fa-heart'}
+                  label={isLiked ? '已点赞' : '点赞'}
+                  count={thread.likes || 0}
+                  isDark={isDark}
+                  onClick={(e) => { e.stopPropagation(); onToggleLike(thread.id); }}
+                  isActive={isLiked}
+                  activeColor="text-pink-500"
+                />
+              )}
+              
+              {/* 收藏按钮 */}
               <ActionButton 
                 icon={isFavorited ? 'fas fa-bookmark' : 'far fa-bookmark'}
                 label={isFavorited ? '已收藏' : '收藏'}

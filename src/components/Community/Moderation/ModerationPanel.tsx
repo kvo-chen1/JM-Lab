@@ -655,7 +655,7 @@ export const ModerationPanel: React.FC<ModerationPanelProps> = ({
 
       {/* 添加规则模态框 */}
       {showAddRuleModal && (
-        <div className={`fixed inset-0 z-50 ${isDark ? 'bg-black/70' : 'bg-black/50'} backdrop-blur-sm flex items-center justify-center p-4`}>
+        <div className={`fixed inset-0 z-[70] ${isDark ? 'bg-black/70' : 'bg-black/50'} backdrop-blur-sm flex items-center justify-center p-4`}>
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}

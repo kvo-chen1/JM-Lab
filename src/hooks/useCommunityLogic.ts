@@ -225,8 +225,11 @@ export const useCommunityLogic = () => {
   const [threads, setThreads] = useState<(Thread & { comments?: Comment[] })[]>([]);
   const [selectedTag, setSelectedTag] = useState<string>('国潮');
   const [favoritedThreads, setFavoritedThreads] = useState<string[]>([]); // 收藏的帖子ID列表
+  const [likedThreads, setLikedThreads] = useState<string[]>([]); // 点赞的帖子ID列表
   const [search, setSearch] = useState(''); // 搜索关键词
   const [allCommunities, setAllCommunities] = useState<Community[]>([]); // For Discovery
+  const [isTogglingFavorite, setIsTogglingFavorite] = useState<Set<string>>(new Set()); // 防止重复点击收藏
+  const [isTogglingLike, setIsTogglingLike] = useState<Set<string>>(new Set()); // 防止重复点击点赞
   
   // Loading and Error States
   const [loading, setLoading] = useState({
@@ -629,17 +632,24 @@ export const useCommunityLogic = () => {
   }, [threads, user, addNotification]);
 
   const handleToggleFavorite = useCallback(async (id: string) => {
+    // 防止重复点击
+    if (isTogglingFavorite.has(id)) {
+      return;
+    }
+    
+    setIsTogglingFavorite(prev => new Set(prev).add(id));
+    
+    const isCurrentlyFavorited = favoritedThreads.includes(id);
+    
+    // 乐观更新
+    const newFavorites = isCurrentlyFavorited 
+      ? favoritedThreads.filter(threadId => threadId !== id)
+      : [...favoritedThreads, id];
+    
+    setFavoritedThreads(newFavorites);
+    
+    // 调用API
     try {
-      const isCurrentlyFavorited = favoritedThreads.includes(id);
-      
-      // 乐观更新
-      const newFavorites = isCurrentlyFavorited 
-        ? favoritedThreads.filter(threadId => threadId !== id)
-        : [...favoritedThreads, id];
-      
-      setFavoritedThreads(newFavorites);
-      
-      // 调用API
       if (isCurrentlyFavorited) {
         await apiService.unfavoriteThread(id);
         toast.success('已取消收藏');
@@ -672,17 +682,108 @@ export const useCommunityLogic = () => {
           }
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error toggling favorite:', error);
       // 回滚更新
-      toast.error('操作失败');
+      setFavoritedThreads(favoritedThreads);
+      // 显示具体的错误信息
+      if (error.message?.includes('请先登录')) {
+        toast.error('请先登录后再收藏');
+      } else {
+        toast.error('操作失败');
+      }
+    } finally {
+      setIsTogglingFavorite(prev => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
     }
-  }, [favoritedThreads, threads, user]);
+  }, [favoritedThreads, threads, user, isTogglingFavorite]);
 
   // 检查帖子是否被收藏
   const isThreadFavorited = useCallback((id: string) => {
     return favoritedThreads.includes(id);
   }, [favoritedThreads]);
+
+  // 处理点赞切换
+  const handleToggleLike = useCallback(async (id: string) => {
+    // 防止重复点击
+    if (isTogglingLike.has(id)) {
+      return;
+    }
+
+    setIsTogglingLike(prev => new Set(prev).add(id));
+
+    const isCurrentlyLiked = likedThreads.includes(id);
+
+    // 乐观更新
+    const newLikes = isCurrentlyLiked
+      ? likedThreads.filter(threadId => threadId !== id)
+      : [...likedThreads, id];
+
+    setLikedThreads(newLikes);
+
+    // 更新帖子的点赞数
+    setThreads(prev => prev.map(t =>
+      t.id === id
+        ? { ...t, likes: (t.likes || 0) + (isCurrentlyLiked ? -1 : 1) }
+        : t
+    ));
+
+    // 调用API
+    try {
+      if (isCurrentlyLiked) {
+        // 取消点赞
+        await apiService.unlikeThread(id);
+        toast.success('已取消点赞');
+      } else {
+        // 添加点赞
+        await apiService.likeThread(id);
+        toast.success('点赞成功');
+
+        // 记录用户点赞行为
+        if (user) {
+          const thread = threads.find(t => t.id === id);
+          if (thread) {
+            recommendationService.recordUserAction({
+              userId: user.id,
+              itemId: id,
+              itemType: 'post',
+              actionType: 'like',
+              metadata: thread
+            });
+          }
+        }
+      }
+    } catch (error: any) {
+      console.error('Error toggling like:', error);
+      // 回滚更新
+      setLikedThreads(likedThreads);
+      setThreads(prev => prev.map(t =>
+        t.id === id
+          ? { ...t, likes: (t.likes || 0) + (isCurrentlyLiked ? 1 : -1) }
+          : t
+      ));
+      // 显示错误信息
+      if (error.message?.includes('请先登录')) {
+        toast.error('请先登录后再点赞');
+      } else {
+        toast.error('操作失败');
+      }
+    } finally {
+      setIsTogglingLike(prev => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
+  }, [likedThreads, threads, user, isTogglingLike]);
+
+  // 检查帖子是否被点赞
+  const isThreadLiked = useCallback((id: string) => {
+    return likedThreads.includes(id);
+  }, [likedThreads]);
 
   // 发表评论
   const handleAddComment = useCallback(async (threadId: string, content: string, replyTo?: string) => {
@@ -1227,12 +1328,13 @@ export const useCommunityLogic = () => {
     }
 
     try {
-      // 调用API删除消息
-      await apiCommunityService.deleteMessage(messageId, user.id);
+      // 调用 communityService 删除消息（直接操作 Supabase）
+      await communityService.deleteMessage(messageId, user.id);
 
-      // 更新本地状态
-      // 注意：setMessages 未定义，需要从 chatStore 获取
-      // setMessages(prev => prev.filter(m => m.id !== messageId));
+      // 更新本地状态 - 从 chatStore 中删除消息
+      const { deleteMessage } = useChatStore.getState();
+      deleteMessage(messageId);
+
       toast.success('消息删除成功');
     } catch (error) {
       console.error('Error deleting message:', error);
@@ -1499,7 +1601,9 @@ export const useCommunityLogic = () => {
     setSelectedTag,
     tags: allTags,
     favoritedThreads,
+    likedThreads,
     isThreadFavorited,
+    isThreadLiked,
     search,
     setSearch,
     
@@ -1522,6 +1626,7 @@ export const useCommunityLogic = () => {
     submitCreateCommunity,
     onUpvote: handleUpvote,
     onToggleFavorite: handleToggleFavorite,
+    onToggleLike: handleToggleLike,
     onSendMessage: handleSendMessage,
     retrySendMessage,
     onAddReaction: handleAddReaction,

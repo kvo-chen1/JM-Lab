@@ -148,3 +148,25 @@ export interface AnimationConfig {
   exit?: object;
   transition?: object;
 }
+
+/**
+ * 搜索组件属性
+ */
+export interface CollectionSearchProps {
+  value: string;
+  onChange: (value: string) => void;
+  searchHistory: string[];
+  onClearHistory: () => void;
+  onRemoveHistoryItem: (item: string) => void;
+  isSearching?: boolean;
+  resultCount?: number;
+  placeholder?: string;
+}
+
+/**
+ * 搜索空状态属性
+ */
+export interface SearchEmptyProps {
+  query: string;
+  onClear: () => void;
+}

@@ -30,10 +30,12 @@ const SystemMonitor = lazy(() => import('./SystemMonitor'));
 // 新增管理模块
 const CommunityManagement = lazy(() => import('./CommunityManagement'));
 const ContentManagement = lazy(() => import('./ContentManagement'));
+const KnowledgeBaseManagement = lazy(() => import('./KnowledgeBaseManagement'));
+const TemplateManagement = lazy(() => import('./TemplateManagement'));
 
 const COLORS = ['#f59e0b', '#34d399', '#f87171'];
 
-type TabType = 'dashboard' | 'audit' | 'analytics' | 'adoption' | 'users' | 'settings' | 'campaigns' | 'creators' | 'brandPartnerships' | 'orders' | 'permissions' | 'feedback' | 'contentAudit' | 'auditLog' | 'userAudit' | 'eventAudit' | 'productManagement' | 'notificationManagement' | 'systemMonitor' | 'communities' | 'contentManagement';
+type TabType = 'dashboard' | 'audit' | 'analytics' | 'adoption' | 'users' | 'settings' | 'campaigns' | 'creators' | 'brandPartnerships' | 'orders' | 'permissions' | 'feedback' | 'contentAudit' | 'auditLog' | 'userAudit' | 'eventAudit' | 'productManagement' | 'notificationManagement' | 'systemMonitor' | 'communities' | 'contentManagement' | 'knowledgeBase' | 'templates';
 
 // 安全的 localStorage 操作
 const safeLocalStorage = {
@@ -502,6 +504,8 @@ export default function Admin() {
              {activeTab === 'systemMonitor' && '系统监控'}
              {activeTab === 'communities' && '社群管理'}
              {activeTab === 'contentManagement' && '内容管理'}
+             {activeTab === 'knowledgeBase' && '知识库管理'}
+             {activeTab === 'templates' && '作品模板管理'}
            </h1>
           
           <div className="flex items-center space-x-4">
@@ -1580,6 +1584,36 @@ export default function Admin() {
           </Suspense>
         )}
 
+        {/* 知识库管理页面 */}
+        {activeTab === 'knowledgeBase' && (
+          <Suspense fallback={
+            <div className={`flex items-center justify-center h-96 ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-md`}>
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+                className="w-12 h-12 border-4 border-red-200 border-t-red-500 rounded-full"
+              />
+            </div>
+          }>
+            <KnowledgeBaseManagement />
+          </Suspense>
+        )}
+
+        {/* 作品模板管理页面 */}
+        {activeTab === 'templates' && (
+          <Suspense fallback={
+            <div className={`flex items-center justify-center h-96 ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-md`}>
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+                className="w-12 h12 border-4 border-red-200 border-t-red-500 rounded-full"
+              />
+            </div>
+          }>
+            <TemplateManagement />
+          </Suspense>
+        )}
+
         {/* 活动管理页面（合并审核活动发布） */}
         {activeTab === 'campaigns' && (
           <motion.div
@@ -2079,7 +2113,7 @@ export default function Admin() {
 
         {/* 创作者详情/编辑弹窗 */}
         {showCreatorModal && selectedCreator && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}

@@ -15,6 +15,7 @@ interface ChatState {
   setMessages: (messages: MessageWithSender[]) => void
   addMessage: (message: MessageWithSender) => void
   updateMessageStatus: (messageId: string, status: 'sending' | 'sent' | 'delivered' | 'read' | 'failed') => void
+  deleteMessage: (messageId: string) => void
   setActiveChannel: (channelId: string) => void
   
   fetchMessages: (channelId: string) => Promise<void>
@@ -50,6 +51,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
       messages: state.messages.map(msg => 
         msg.id === messageId ? { ...msg, status } : msg
       )
+    }
+  }),
+
+  deleteMessage: (messageId) => set((state) => {
+    return {
+      messages: state.messages.filter(msg => msg.id !== messageId)
     }
   }),
 

@@ -15,7 +15,7 @@ import {
 import { SortOption } from '@/services/collectionService';
 
 // Hooks
-import { useCollections, useCollectionStats, useCollectionActions } from './hooks';
+import { useCollections, useCollectionStats, useCollectionActions, useCollectionSearch } from './hooks';
 
 // 组件
 import {
@@ -25,6 +25,8 @@ import {
   CollectionStats,
   ViewToggle,
   SortDropdown,
+  CollectionSearch,
+  SearchEmpty,
 } from './components';
 
 // 图标
@@ -38,6 +40,7 @@ import {
   Layers,
   AlertCircle,
   RefreshCw,
+  X,
 } from 'lucide-react';
 
 // 分类配置
@@ -95,6 +98,26 @@ export default function UserCollection() {
 
   // 操作
   const { toggleBookmark, toggleLike, removeBookmark, removeLike } = useCollectionActions();
+
+  // 搜索功能
+  const {
+    searchQuery,
+    setSearch,
+    clearSearch,
+    searchResult,
+    searchHistory,
+    clearHistory,
+    removeFromHistory,
+    isSearching: isSearchLoading,
+  } = useCollectionSearch(items, {
+    fields: ['title', 'description', 'author', 'tags'],
+  });
+
+  // 使用搜索过滤后的数据
+  const displayItems = useMemo(() => {
+    if (!searchQuery.trim()) return items;
+    return searchResult.items;
+  }, [items, searchResult.items, searchQuery]);
 
   // 检查登录状态
   useEffect(() => {
@@ -260,8 +283,21 @@ export default function UserCollection() {
                 </p>
               </div>
 
-              {/* 统计卡片 */}
+              {/* 右侧：搜索框 + 统计卡片 */}
               <div className="flex items-center gap-4">
+                {/* 搜索框 */}
+                <CollectionSearch
+                  value={searchQuery}
+                  onChange={setSearch}
+                  searchHistory={searchHistory}
+                  onClearHistory={clearHistory}
+                  onRemoveHistoryItem={removeFromHistory}
+                  isSearching={isSearchLoading}
+                  resultCount={searchResult.count}
+                  placeholder="搜索标题、描述、作者或标签..."
+                />
+
+                {/* 统计卡片 */}
                 <motion.div
                   whileHover={{ scale: 1.02 }}
                   className={`flex items-center gap-3 px-5 py-3 rounded-xl ${
@@ -385,8 +421,24 @@ export default function UserCollection() {
             >
               <div className="flex items-center gap-4">
                 <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                  共 <span className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{total}</span> 条内容
+                  共 <span className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    {searchQuery.trim() ? searchResult.count : total}
+                  </span> 条内容
+                  {searchQuery.trim() && (
+                    <span className="ml-1">(搜索 "{searchQuery}")</span>
+                  )}
                 </span>
+                {searchQuery.trim() && (
+                  <button
+                    onClick={clearSearch}
+                    className={`text-sm flex items-center gap-1 transition-colors ${
+                      isDark ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-700'
+                    }`}
+                  >
+                    <X className="w-3 h-3" />
+                    清除搜索
+                  </button>
+                )}
               </div>
 
               <div className="flex items-center gap-3">
@@ -397,17 +449,20 @@ export default function UserCollection() {
 
             {/* 内容区域 */}
             <AnimatePresence mode="wait">
-              {items.length === 0 && !isLoading ? (
+              {/* 搜索无结果状态 */}
+              {searchQuery.trim() && displayItems.length === 0 ? (
+                <SearchEmpty query={searchQuery} onClear={clearSearch} />
+              ) : displayItems.length === 0 && !isLoading ? (
                 <CollectionEmpty
                   type={activeTab === TabType.BOOKMARKS ? 'bookmarks' : 'likes'}
                   activeFilter={activeFilter}
                 />
               ) : (
                 <CollectionGrid
-                  items={items}
+                  items={displayItems}
                   viewMode={viewMode}
                   isLoading={isLoading}
-                  hasMore={hasMore}
+                  hasMore={hasMore && !searchQuery.trim()}
                   onLoadMore={loadMore}
                   onToggleBookmark={activeTab === TabType.BOOKMARKS ? handleRemoveBookmark : handleToggleBookmark}
                   onToggleLike={activeTab === TabType.LIKES ? handleRemoveLike : handleToggleLike}

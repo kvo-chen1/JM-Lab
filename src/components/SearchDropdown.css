@@ -25,7 +25,6 @@
   border-radius: var(--sd-radius);
   box-shadow: var(--sd-shadow);
   overflow-y: auto;
-  z-index: 99999;
   padding: 16px;
   box-sizing: border-box;
 }

@@ -974,7 +974,7 @@ ${dd.expectedEffect}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+            className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
@@ -1114,50 +1114,89 @@ ${dd.expectedEffect}
       <div className="container mx-auto px-4 sm:px-6 py-8 max-w-7xl">
         <AnimatePresence mode="wait">
           {step === 1 && (
-            <motion.div 
+            <motion.div
               key="step1"
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="space-y-8"
+              exit={{ opacity: 0, y: -30 }}
+              transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
+              className="space-y-10"
             >
-              {/* Header */}
-              <div className="text-center space-y-3">
-                <h2 className="text-3xl sm:text-4xl font-bold">选择一个老字号品牌</h2>
-                <p className={`text-base sm:text-lg ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>或者输入您自己的品牌名称，我们将为您定制专属创意方案</p>
+              {/* Header - 优化后的标题区域 */}
+              <div className="text-center space-y-4">
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.1, duration: 0.5 }}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-red-500/10 to-amber-500/10 border border-red-200 dark:border-red-800 mb-4"
+                >
+                  <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+                  <span className="text-sm font-medium text-red-600 dark:text-red-400">步骤 1/4</span>
+                </motion.div>
+                <motion.h2
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.15, duration: 0.5 }}
+                  className="text-4xl sm:text-5xl font-bold tracking-tight"
+                >
+                  <span className="bg-gradient-to-r from-gray-900 via-gray-800 to-gray-600 dark:from-white dark:via-gray-200 dark:to-gray-400 bg-clip-text text-transparent">
+                    选择品牌
+                  </span>
+                </motion.h2>
+                <motion.p
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2, duration: 0.5 }}
+                  className={`text-lg max-w-2xl mx-auto leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-600'}`}
+                >
+                  从经典老字号中选择，或输入您的品牌名称，开启创意之旅
+                </motion.p>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 lg:gap-8">
+              <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 lg:gap-10">
                 {/* Left: Brand Selection */}
                 <div className="lg:col-span-3 space-y-6">
-                  {/* Search & Filter */}
-                  <div className={`p-4 sm:p-6 rounded-2xl ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'} border shadow-sm`}>
-                    {/* Category Filter */}
-                    <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
+                  {/* Search & Filter - 优化后的搜索筛选区域 */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.25, duration: 0.5 }}
+                    className={`p-6 rounded-2xl ${isDark ? 'bg-gray-800/80 border-gray-700' : 'bg-white border-gray-200'} border shadow-lg shadow-black/5`}
+                  >
+                    {/* Category Filter - 优化后的分类筛选 */}
+                    <div className="flex gap-2 mb-5 overflow-x-auto pb-2 scrollbar-hide">
                       {[
-                        { id: 'all', name: '全部', icon: 'fa-th-large' },
+                        { id: 'all', name: '全部品牌', icon: 'fa-th-large' },
                         { id: 'tianjin', name: '天津老字号', icon: 'fa-landmark' },
                         { id: 'food', name: '美食', icon: 'fa-utensils' },
                         { id: 'craft', name: '工艺', icon: 'fa-hammer' },
                         { id: 'daily', name: '日用', icon: 'fa-shopping-bag' },
-                      ].map(cat => (
-                        <button
+                      ].map((cat, index) => (
+                        <motion.button
                           key={cat.id}
                           onClick={() => setSelectedCategory(cat.id as any)}
-                          className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm whitespace-nowrap transition-all ${
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 0.3 + index * 0.05, duration: 0.3 }}
+                          className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-sm whitespace-nowrap transition-all duration-300 ${
                             selectedCategory === cat.id
-                              ? 'bg-red-600 text-white shadow-md shadow-red-500/20'
-                              : (isDark ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-100 hover:bg-gray-200 text-gray-700')
+                              ? 'bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg shadow-red-500/25'
+                              : (isDark ? 'bg-gray-700/80 hover:bg-gray-600 text-gray-300 border border-gray-600' : 'bg-gray-50 hover:bg-white text-gray-700 border border-gray-200 hover:border-gray-300 hover:shadow-md')
                           }`}
                         >
-                          <i className={`fas ${cat.icon}`}></i>
+                          <i className={`fas ${cat.icon} ${selectedCategory === cat.id ? 'text-white' : 'text-gray-400'}`}></i>
                           {cat.name}
-                        </button>
+                        </motion.button>
                       ))}
                     </div>
 
-                    {/* Search Input */}
-                    <div className="relative">
+                    {/* Search Input - 优化后的搜索框 */}
+                    <div className="relative group">
+                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                        <i className="fas fa-search text-gray-400 group-focus-within:text-red-500 transition-colors"></i>
+                      </div>
                       <input
                         value={searchQuery}
                         onChange={(e) => {
@@ -1166,270 +1205,448 @@ ${dd.expectedEffect}
                         }}
                         onFocus={() => setShowSuggestions(searchQuery.length > 0)}
                         placeholder="搜索品牌名称..."
-                        className={`w-full p-4 pl-12 text-base rounded-xl border transition-all ${isDark ? 'bg-gray-900 border-gray-700 focus:border-red-500' : 'bg-gray-50 border-gray-200 focus:border-red-500'} focus:ring-2 focus:ring-red-500/20 outline-none`}
+                        className={`w-full p-4 pl-12 pr-12 text-base rounded-xl border-2 transition-all duration-300 ${isDark ? 'bg-gray-900/50 border-gray-700 focus:border-red-500 focus:bg-gray-900' : 'bg-gray-50 border-gray-200 focus:border-red-500 focus:bg-white'} focus:ring-4 focus:ring-red-500/10 outline-none`}
                       />
-                      <i className="fas fa-search absolute left-4 top-1/2 transform -translate-y-1/2 opacity-40 text-lg"></i>
-                      {searchQuery && (
-                        <button 
+                      {searchQuery ? (
+                        <button
                           onClick={() => { setSearchQuery(''); setShowSuggestions(false); }}
-                          className="absolute right-4 top-1/2 transform -translate-y-1/2 opacity-40 hover:opacity-70"
+                          className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600 transition-colors"
                         >
-                          <i className="fas fa-times"></i>
+                          <div className="w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                            <i className="fas fa-times text-xs"></i>
+                          </div>
                         </button>
+                      ) : (
+                        <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none">
+                          <kbd className="hidden sm:inline-flex items-center gap-1 px-2 py-1 text-xs font-sans font-medium text-gray-400 bg-gray-100 dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700">
+                            <span className="text-xs">⌘</span>K
+                          </kbd>
+                        </div>
                       )}
                     </div>
 
-                    {/* Search Suggestions */}
+                    {/* Search Suggestions - 优化后的搜索建议 */}
                     <AnimatePresence>
                       {showSuggestions && searchQuery && (
                         <motion.div
-                          initial={{ opacity: 0, y: -10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -10 }}
-                          className={`mt-2 p-2 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-100'} max-h-48 overflow-y-auto`}
+                          initial={{ opacity: 0, y: -10, scale: 0.98 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: -10, scale: 0.98 }}
+                          transition={{ duration: 0.2 }}
+                          className={`mt-3 p-2 rounded-xl ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-200'} border shadow-xl max-h-60 overflow-y-auto custom-scrollbar`}
                         >
-                          {filteredBrands.slice(0, 5).map(b => (
-                            <button
+                          {filteredBrands.slice(0, 6).map((b, index) => (
+                            <motion.button
                               key={b.id}
                               onClick={() => {
                                 setState({ brandId: b.id, brandName: b.name });
                                 setSearchQuery(b.name);
                                 setShowSuggestions(false);
                               }}
-                              className={`w-full text-left px-4 py-3 rounded-lg transition-colors flex items-center gap-3 ${
-                                isDark ? 'hover:bg-gray-600' : 'hover:bg-white'
+                              initial={{ opacity: 0, x: -10 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              transition={{ delay: index * 0.03 }}
+                              className={`w-full text-left px-4 py-3 rounded-lg transition-all duration-200 flex items-center gap-3 group ${
+                                isDark ? 'hover:bg-gray-600' : 'hover:bg-red-50'
                               }`}
                             >
-                              <img src={b.image} alt={b.name} className="w-10 h-10 rounded-lg object-cover" />
-                              <div>
-                                <div className="font-medium">{b.name}</div>
-                                <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'} truncate max-w-[200px]`}>{b.story}</div>
+                              <div className="relative">
+                                <img src={b.image} alt={b.name} className="w-12 h-12 rounded-xl object-cover shadow-md group-hover:shadow-lg transition-shadow" />
+                                <div className="absolute inset-0 rounded-xl ring-2 ring-white/50 dark:ring-black/20"></div>
                               </div>
-                            </button>
+                              <div className="flex-1 min-w-0">
+                                <div className="font-semibold text-gray-900 dark:text-gray-100 group-hover:text-red-600 dark:group-hover:text-red-400 transition-colors">{b.name}</div>
+                                <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'} truncate max-w-[200px] mt-0.5`}>{b.story}</div>
+                              </div>
+                              <i className="fas fa-chevron-right text-gray-300 group-hover:text-red-400 transition-colors"></i>
+                            </motion.button>
                           ))}
                           {filteredBrands.length === 0 && (
-                            <div className="px-4 py-3 text-sm opacity-60">未找到匹配的品牌，将使用自定义品牌</div>
+                            <div className="px-4 py-6 text-center">
+                              <div className="w-12 h-12 rounded-full bg-gray-100 dark:bg-gray-600 flex items-center justify-center mx-auto mb-3">
+                                <i className="fas fa-search text-gray-400"></i>
+                              </div>
+                              <p className="text-sm text-gray-500 dark:text-gray-400">未找到匹配的品牌</p>
+                              <p className="text-xs text-gray-400 mt-1">将使用自定义品牌名称</p>
+                            </div>
                           )}
                         </motion.div>
                       )}
                     </AnimatePresence>
-                  </div>
+                  </motion.div>
 
-                  {/* Brand Cards Grid */}
-                  <div>
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="font-bold text-lg">
-                        {searchQuery ? '搜索结果' : '热门推荐'}
-                      </h3>
-                      <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                        共 {filteredBrands.length} 个品牌
-                      </span>
+                  {/* Brand Cards Grid - 优化后的品牌卡片网格 */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.35, duration: 0.5 }}
+                  >
+                    <div className="flex items-center justify-between mb-5">
+                      <div className="flex items-center gap-3">
+                        <h3 className="font-bold text-xl">
+                          {searchQuery ? '搜索结果' : '热门品牌'}
+                        </h3>
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
+                          {filteredBrands.length}
+                        </span>
+                      </div>
+                      {!searchQuery && (
+                        <button className="text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 font-medium flex items-center gap-1 transition-colors">
+                          查看全部
+                          <i className="fas fa-arrow-right text-xs"></i>
+                        </button>
+                      )}
                     </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 max-h-[600px] overflow-y-auto">
-                      {(searchQuery ? filteredBrands : filteredBrands).map(b => (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 max-h-[600px] overflow-y-auto custom-scrollbar pr-1">
+                      {filteredBrands.map((b, index) => (
                         <motion.button
                           key={b.id}
                           onClick={() => setState({ brandId: b.id, brandName: b.name })}
-                          className={`relative p-4 rounded-2xl border-2 text-left transition-all overflow-hidden ${
-                            state.brandName === b.name
-                              ? 'border-red-500 bg-red-50 dark:bg-red-900/20 shadow-lg shadow-red-500/10'
-                              : (isDark ? 'border-gray-700 bg-gray-800 hover:border-gray-600' : 'border-gray-100 bg-white hover:border-gray-200 hover:shadow-md')
-                          }`}
-                          whileHover={{ y: -2 }}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 0.4 + index * 0.03, duration: 0.4 }}
+                          whileHover={{ y: -6, scale: 1.02 }}
                           whileTap={{ scale: 0.98 }}
+                          className={`group relative p-4 rounded-2xl border-2 text-left transition-all duration-300 overflow-hidden ${
+                            state.brandName === b.name
+                              ? 'border-red-500 bg-gradient-to-br from-red-50 to-red-100/50 dark:from-red-900/30 dark:to-red-800/20 shadow-xl shadow-red-500/15'
+                              : (isDark ? 'border-gray-700/50 bg-gray-800/80 hover:border-gray-600 hover:bg-gray-800' : 'border-gray-200 bg-white hover:border-red-200 hover:shadow-xl hover:shadow-black/5')
+                          }`}
                         >
-                          <div className="relative aspect-[4/3] rounded-xl overflow-hidden mb-3">
+                          {/* 选中状态的发光效果 */}
+                          {state.brandName === b.name && (
+                            <div className="absolute inset-0 bg-gradient-to-br from-red-500/5 to-transparent pointer-events-none"></div>
+                          )}
+
+                          <div className="relative aspect-[4/3] rounded-xl overflow-hidden mb-3 shadow-md group-hover:shadow-lg transition-shadow duration-300">
                             <TianjinImage src={b.image} alt={b.name} ratio="landscape" className="w-full h-full" />
+
+                            {/* 选中状态的覆盖层 */}
                             {state.brandName === b.name && (
-                              <div className="absolute inset-0 bg-red-500/20 flex items-center justify-center">
-                                <div className="w-8 h-8 bg-red-600 rounded-full flex items-center justify-center text-white">
-                                  <i className="fas fa-check"></i>
-                                </div>
-                              </div>
+                              <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                className="absolute inset-0 bg-gradient-to-t from-red-600/60 via-red-500/20 to-transparent flex items-center justify-center"
+                              >
+                                <motion.div
+                                  initial={{ scale: 0 }}
+                                  animate={{ scale: 1 }}
+                                  transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                                  className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-lg"
+                                >
+                                  <i className="fas fa-check text-red-600 text-lg"></i>
+                                </motion.div>
+                              </motion.div>
                             )}
+
+                            {/* 悬停时的渐变遮罩 */}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                           </div>
-                          <h4 className="font-bold text-sm truncate">{b.name}</h4>
-                          <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'} line-clamp-2 mt-1`}>{b.story}</p>
+
+                          <h4 className={`font-bold text-sm truncate transition-colors ${state.brandName === b.name ? 'text-red-700 dark:text-red-400' : 'group-hover:text-red-600 dark:group-hover:text-red-400'}`}>
+                            {b.name}
+                          </h4>
+                          <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'} line-clamp-2 mt-1.5 leading-relaxed`}>
+                            {b.story}
+                          </p>
                         </motion.button>
                       ))}
                     </div>
-                  </div>
+                  </motion.div>
                 </div>
 
-                {/* Right: Brand Preview & Assets */}
+                {/* Right: Brand Preview & Assets - 优化后的品牌预览区域 */}
                 <div className="lg:col-span-2">
-                  <div className={`sticky top-24 p-6 rounded-2xl ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'} border shadow-sm`}>
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.4, duration: 0.5 }}
+                    className={`sticky top-24 p-6 rounded-2xl ${isDark ? 'bg-gray-800/90 border-gray-700' : 'bg-white border-gray-200'} border shadow-xl shadow-black/5`}
+                  >
                     {selectedBrand ? (
                       <div className="space-y-6">
-                        {/* Brand Header */}
-                        <div className="relative aspect-video rounded-xl overflow-hidden shadow-lg">
+                        {/* Brand Header - 优化后的品牌头部 */}
+                        <div className="relative aspect-video rounded-2xl overflow-hidden shadow-2xl shadow-black/20 group">
                           <TianjinImage src={selectedBrand.image} alt={selectedBrand.name} ratio="landscape" className="w-full h-full" />
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent flex flex-col justify-end p-4">
-                            <h3 className="text-white font-bold text-xl">{selectedBrand.name}</h3>
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent flex flex-col justify-end p-5">
+                            <motion.h3
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              className="text-white font-bold text-2xl tracking-tight"
+                            >
+                              {selectedBrand.name}
+                            </motion.h3>
+                            <p className="text-white/70 text-sm mt-1 flex items-center gap-2">
+                              <i className="fas fa-check-circle text-green-400"></i>
+                              已选择品牌
+                            </p>
                           </div>
+                          {/* 装饰性边框 */}
+                          <div className="absolute inset-0 rounded-2xl ring-2 ring-white/20 pointer-events-none"></div>
                         </div>
 
-                        {/* Brand Story */}
-                        <div>
-                          <h4 className="font-bold mb-2 flex items-center gap-2">
-                            <i className="fas fa-book-open text-red-500"></i> 品牌故事
+                        {/* Brand Story - 优化后的品牌故事 */}
+                        <div className="p-4 rounded-xl bg-gradient-to-br from-gray-50 to-white dark:from-gray-700/50 dark:to-gray-800/50 border border-gray-100 dark:border-gray-700">
+                          <h4 className="font-bold mb-3 flex items-center gap-2 text-sm">
+                            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center">
+                              <i className="fas fa-book-open text-white text-sm"></i>
+                            </div>
+                            品牌故事
                           </h4>
                           <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'} leading-relaxed`}>
                             {selectedBrand.story}
                           </p>
                         </div>
 
-                        {/* Brand Assets Management */}
-                        <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
-                          <h4 className="font-bold mb-4 flex items-center gap-2 text-sm">
-                            <i className="fas fa-sliders-h text-blue-500"></i> 品牌资产配置
+                        {/* Brand Assets Management - 优化后的品牌资产配置 */}
+                        <div className={`p-5 rounded-xl ${isDark ? 'bg-gray-700/30 border-gray-600' : 'bg-gradient-to-br from-blue-50/50 to-indigo-50/30 border-blue-100'} border`}>
+                          <h4 className="font-bold mb-5 flex items-center gap-2 text-sm">
+                            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
+                              <i className="fas fa-sliders-h text-white text-sm"></i>
+                            </div>
+                            品牌资产配置
                           </h4>
                           
-                          {/* Logo Upload */}
-                          <div className="mb-4">
-                            <label className="text-xs opacity-60 mb-2 block">品牌 Logo</label>
-                            <div className="flex items-center gap-3">
-                              <div className="w-16 h-16 rounded-xl bg-gray-200 dark:bg-gray-600 flex items-center justify-center overflow-hidden border-2 border-dashed border-gray-300 dark:border-gray-500">
-                                {brandAssets.logo ? (
-                                  <img src={brandAssets.logo} className="w-full h-full object-cover" alt="Logo" />
-                                ) : (
-                                  <i className="fas fa-image opacity-50 text-2xl"></i>
+                          {/* Logo Upload - 优化后的Logo上传 */}
+                          <div className="mb-5">
+                            <label className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-3 block uppercase tracking-wider">品牌 Logo</label>
+                            <div className="flex items-center gap-4">
+                              <div className="relative">
+                                <div className={`w-20 h-20 rounded-2xl flex items-center justify-center overflow-hidden border-2 transition-all duration-300 ${
+                                  brandAssets.logo
+                                    ? 'border-transparent shadow-lg'
+                                    : 'border-dashed border-gray-300 dark:border-gray-500 bg-gray-100 dark:bg-gray-600'
+                                }`}>
+                                  {brandAssets.logo ? (
+                                    <img src={brandAssets.logo} className="w-full h-full object-cover" alt="Logo" />
+                                  ) : (
+                                    <i className="fas fa-image text-gray-400 text-2xl"></i>
+                                  )}
+                                </div>
+                                {brandAssets.logo && (
+                                  <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center shadow-md">
+                                    <i className="fas fa-check text-white text-xs"></i>
+                                  </div>
                                 )}
                               </div>
                               <div className="flex-1">
-                                <UploadBox 
-                                  accept="image/*" 
-                                  variant="image" 
-                                  compact 
+                                <UploadBox
+                                  accept="image/*"
+                                  variant="image"
+                                  compact
                                   className="flex-1"
                                   title={brandAssets.logo ? '更换 Logo' : '上传 Logo'}
-                                  onFile={(f) => setBrandAssets({...brandAssets, logo: URL.createObjectURL(f)})} 
+                                  onFile={(f) => setBrandAssets({...brandAssets, logo: URL.createObjectURL(f)})}
                                 />
+                                <p className="text-xs text-gray-400 mt-2">支持 PNG, JPG, SVG 格式</p>
                               </div>
                             </div>
                           </div>
 
-                          {/* Brand Colors */}
-                          <div className="mb-4">
-                            <label className="text-xs opacity-60 mb-2 block">品牌色</label>
-                            <div className="flex flex-wrap gap-2 items-center">
+                          {/* Brand Colors - 优化后的品牌色选择 */}
+                          <div className="mb-5">
+                            <label className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-3 block uppercase tracking-wider">品牌色</label>
+                            <div className="flex flex-wrap gap-3 items-center">
                               {brandAssets.colors.map((c, i) => (
-                                <div key={i} className="relative group">
-                                  <div 
-                                    className="w-10 h-10 rounded-xl border-2 border-gray-200 dark:border-gray-600 shadow-sm cursor-pointer transition-transform hover:scale-110"
+                                <motion.div key={i} className="relative group" whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}>
+                                  <div
+                                    className="w-12 h-12 rounded-xl border-2 border-white dark:border-gray-700 shadow-md cursor-pointer transition-shadow group-hover:shadow-lg"
                                     style={{backgroundColor: c}}
                                     title={c}
                                   />
-                                  <button 
+                                  <button
                                     onClick={() => removeColor(i)}
-                                    className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full text-xs opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                                    className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full text-xs opacity-0 group-hover:opacity-100 transition-all duration-200 flex items-center justify-center shadow-md hover:bg-red-600"
                                   >
-                                    <i className="fas fa-times text-[8px]"></i>
+                                    <i className="fas fa-times text-[10px]"></i>
                                   </button>
-                                </div>
+                                </motion.div>
                               ))}
                               {brandAssets.colors.length < 6 && (
-                                <button 
+                                <motion.button
                                   onClick={() => setShowColorPicker(!showColorPicker)}
-                                  className="w-10 h-10 rounded-xl border-2 border-dashed border-gray-400 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:border-gray-600 transition-colors"
+                                  whileHover={{ scale: 1.05 }}
+                                  whileTap={{ scale: 0.95 }}
+                                  className="w-12 h-12 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center text-gray-400 hover:text-red-500 hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all duration-300"
                                 >
                                   <i className="fas fa-plus"></i>
-                                </button>
+                                </motion.button>
                               )}
                             </div>
                             
-                            {/* Color Picker */}
+                            {/* Color Picker - 优化后的颜色选择器 */}
                             <AnimatePresence>
                               {showColorPicker && (
                                 <motion.div
-                                  initial={{ opacity: 0, height: 0 }}
-                                  animate={{ opacity: 1, height: 'auto' }}
-                                  exit={{ opacity: 0, height: 0 }}
-                                  className="mt-3 flex items-center gap-2"
+                                  initial={{ opacity: 0, height: 0, y: -10 }}
+                                  animate={{ opacity: 1, height: 'auto', y: 0 }}
+                                  exit={{ opacity: 0, height: 0, y: -10 }}
+                                  className="mt-4 p-4 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-600"
                                 >
-                                  <input 
-                                    type="color" 
-                                    value={newColor}
-                                    onChange={(e) => setNewColor(e.target.value)}
-                                    className="w-10 h-10 rounded-lg cursor-pointer"
-                                  />
-                                  <input 
-                                    type="text" 
-                                    value={newColor}
-                                    onChange={(e) => setNewColor(e.target.value)}
-                                    className={`flex-1 px-3 py-2 rounded-lg text-sm ${isDark ? 'bg-gray-800 border-gray-600' : 'bg-white border-gray-200'} border`}
-                                  />
-                                  <TianjinButton size="sm" onClick={addColor}>添加</TianjinButton>
-                                  <button onClick={() => setShowColorPicker(false)} className="px-2 text-gray-400 hover:text-gray-600">
-                                    <i className="fas fa-times"></i>
-                                  </button>
+                                  <div className="flex items-center gap-3">
+                                    <div className="relative">
+                                      <input
+                                        type="color"
+                                        value={newColor}
+                                        onChange={(e) => setNewColor(e.target.value)}
+                                        className="w-12 h-12 rounded-xl cursor-pointer border-2 border-gray-200 dark:border-gray-600"
+                                      />
+                                      <div className="absolute inset-0 rounded-xl ring-2 ring-white dark:ring-gray-700 pointer-events-none"></div>
+                                    </div>
+                                    <input
+                                      type="text"
+                                      value={newColor}
+                                      onChange={(e) => setNewColor(e.target.value)}
+                                      className={`flex-1 px-4 py-3 rounded-xl text-sm font-mono ${isDark ? 'bg-gray-900 border-gray-600' : 'bg-white border-gray-200'} border-2 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 outline-none transition-all`}
+                                      placeholder="#000000"
+                                    />
+                                    <TianjinButton size="sm" primary onClick={addColor} className="px-4">
+                                      <i className="fas fa-plus mr-1"></i>
+                                      添加
+                                    </TianjinButton>
+                                    <button
+                                      onClick={() => setShowColorPicker(false)}
+                                      className="w-10 h-10 rounded-xl flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all"
+                                    >
+                                      <i className="fas fa-times"></i>
+                                    </button>
+                                  </div>
                                 </motion.div>
                               )}
                             </AnimatePresence>
                           </div>
 
-                          {/* Brand Font */}
+                          {/* Brand Font - 优化后的品牌字体选择 */}
                           <div>
-                            <label className="text-xs opacity-60 mb-2 block">品牌字体</label>
-                            <select 
-                              value={brandAssets.font}
-                              onChange={(e) => setBrandAssets({...brandAssets, font: e.target.value})}
-                              className={`w-full px-3 py-2 rounded-lg text-sm ${isDark ? 'bg-gray-800 border-gray-600' : 'bg-white border-gray-200'} border`}
-                            >
-                              {BRAND_FONTS.map(f => (
-                                <option key={f.id} value={f.id}>{f.name} - {f.desc}</option>
-                              ))}
-                            </select>
+                            <label className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-3 block uppercase tracking-wider">品牌字体</label>
+                            <div className="relative">
+                              <select
+                                value={brandAssets.font}
+                                onChange={(e) => setBrandAssets({...brandAssets, font: e.target.value})}
+                                className={`w-full px-4 py-3 pr-10 rounded-xl text-sm appearance-none cursor-pointer transition-all ${isDark ? 'bg-gray-900 border-gray-600 hover:border-gray-500' : 'bg-white border-gray-200 hover:border-gray-300'} border-2 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 outline-none`}
+                              >
+                                {BRAND_FONTS.map(f => (
+                                  <option key={f.id} value={f.id}>{f.name} - {f.desc}</option>
+                                ))}
+                              </select>
+                              <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                <i className="fas fa-chevron-down text-gray-400 text-xs"></i>
+                              </div>
+                            </div>
                           </div>
                         </div>
 
-                        {/* Quick Actions */}
-                        <div className="flex gap-2">
-                          <TianjinButton 
-                            variant="secondary" 
+                        {/* Quick Actions - 优化后的操作按钮 */}
+                        <div className="flex gap-3 pt-2">
+                          <TianjinButton
+                            variant="secondary"
                             fullWidth
                             onClick={() => setState({ brandId: undefined, brandName: '' })}
+                            className="py-3"
                           >
+                            <i className="fas fa-undo mr-2"></i>
                             重新选择
                           </TianjinButton>
-                          <TianjinButton 
-                            primary 
+                          <TianjinButton
+                            primary
                             fullWidth
                             onClick={next}
                             rightIcon={<i className="fas fa-arrow-right"></i>}
+                            className="py-3 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700"
                           >
                             确认选择
                           </TianjinButton>
                         </div>
                       </div>
                     ) : (
-                      <div className="text-center py-12 opacity-50">
-                        <div className="w-24 h-24 rounded-full bg-gradient-to-br from-red-500 to-amber-500 flex items-center justify-center mx-auto mb-6">
-                          <i className="fas fa-store text-white text-4xl"></i>
+                      /* Empty State - 优化后的空状态 */
+                      <div className="text-center py-16">
+                        <motion.div
+                          initial={{ scale: 0.8, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          transition={{ duration: 0.5 }}
+                          className="relative inline-block mb-8"
+                        >
+                          <div className="w-28 h-28 rounded-3xl bg-gradient-to-br from-red-400 via-red-500 to-amber-500 flex items-center justify-center mx-auto shadow-2xl shadow-red-500/30">
+                            <i className="fas fa-store text-white text-5xl"></i>
+                          </div>
+                          <div className="absolute -bottom-2 -right-2 w-10 h-10 bg-white dark:bg-gray-800 rounded-full flex items-center justify-center shadow-lg">
+                            <i className="fas fa-plus text-red-500"></i>
+                          </div>
+                        </motion.div>
+                        <h3 className="text-xl font-bold mb-3 text-gray-900 dark:text-white">开始您的创意之旅</h3>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 max-w-xs mx-auto leading-relaxed">
+                          从左侧选择一个老字号品牌，或搜索您自己的品牌，我们将为您量身定制专属创意方案
+                        </p>
+                        <div className="mt-6 flex items-center justify-center gap-2 text-xs text-gray-400">
+                          <i className="fas fa-lightbulb text-amber-500"></i>
+                          <span>提示：选择品牌后可以自定义Logo和品牌色</span>
                         </div>
-                        <h3 className="text-lg font-bold mb-2">尚未选择品牌</h3>
-                        <p className="text-sm">请在左侧搜索或选择品牌以开始创作</p>
                       </div>
                     )}
-                  </div>
+                  </motion.div>
                 </div>
               </div>
             </motion.div>
           )}
 
           {step === 2 && (
-            <motion.div 
+            <motion.div
               key="step2"
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="space-y-6"
+              exit={{ opacity: 0, y: -30 }}
+              transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
+              className="space-y-8"
             >
-              {/* Creative Templates */}
-              <div>
-                <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-                  <i className="fas fa-lightbulb text-yellow-500"></i> 创意模板
-                </h3>
+              {/* Header - 优化后的步骤2标题 */}
+              <div className="text-center space-y-4">
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.1, duration: 0.5 }}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-amber-500/10 to-yellow-500/10 border border-amber-200 dark:border-amber-800 mb-4"
+                >
+                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                  <span className="text-sm font-medium text-amber-600 dark:text-amber-400">步骤 2/4</span>
+                </motion.div>
+                <motion.h2
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.15, duration: 0.5 }}
+                  className="text-4xl sm:text-5xl font-bold tracking-tight"
+                >
+                  <span className="bg-gradient-to-r from-gray-900 via-gray-800 to-gray-600 dark:from-white dark:via-gray-200 dark:to-gray-400 bg-clip-text text-transparent">
+                    创意输入
+                  </span>
+                </motion.h2>
+                <motion.p
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2, duration: 0.5 }}
+                  className={`text-lg max-w-2xl mx-auto leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-600'}`}
+                >
+                  描述您的创意需求，AI将为您提供专业的创意建议
+                </motion.p>
+              </div>
+
+              {/* Creative Templates - 优化后的创意模板 */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.25, duration: 0.5 }}
+              >
+                <div className="flex items-center justify-between mb-5">
+                  <h3 className="font-bold text-xl flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-yellow-500 flex items-center justify-center shadow-lg shadow-amber-500/25">
+                      <i className="fas fa-lightbulb text-white"></i>
+                    </div>
+                    创意模板
+                  </h3>
+                  <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                    快速开始您的创作
+                  </span>
+                </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                   {CREATIVE_TEMPLATES.map(t => (
                     <motion.div
@@ -1466,7 +1683,7 @@ ${dd.expectedEffect}
                     </motion.div>
                   ))}
                 </div>
-              </div>
+              </motion.div>
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 space-y-6">
@@ -2276,7 +2493,7 @@ ${dd.expectedEffect}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+            className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
             onClick={() => setSelectedTemplateDetail(null)}
           >
             <motion.div
@@ -2449,7 +2666,7 @@ ${dd.expectedEffect}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+            className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
             onClick={() => setShowImagePreview(false)}
           >
             <motion.div

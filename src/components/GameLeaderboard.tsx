@@ -146,7 +146,7 @@ const GameLeaderboard: React.FC<GameLeaderboardProps> = ({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.3 }}
-      className={`${onClose ? 'fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4' : ''}`}
+      className={`${onClose ? 'fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-[70] p-4' : ''}`}
       onClick={onClose ? (e) => e.target === e.currentTarget && onClose() : undefined}
     >
       <div className={`w-full max-w-2xl rounded-xl overflow-hidden shadow-2xl ${isDark ? 'bg-gray-800' : 'bg-white'} text-${isDark ? 'white' : 'gray-900'}`}>

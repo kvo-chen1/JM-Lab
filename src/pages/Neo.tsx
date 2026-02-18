@@ -2195,7 +2195,7 @@ export default function Neo() {
 
       {/* 快捷工具模态框 */}
       {showToolsModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className={`w-full max-w-lg rounded-2xl shadow-2xl ${currentStyle.cardBg} ${currentStyle.text}`}>
             <div className={`p-6 border-b ${currentStyle.border} flex justify-between items-center`}>
               <h3 className="text-xl font-bold">快捷工具</h3>
@@ -2235,7 +2235,7 @@ export default function Neo() {
 
       {/* 创作统计模态框 */}
       {showStatsModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className={`w-full max-w-2xl rounded-2xl shadow-2xl ${currentStyle.cardBg} ${currentStyle.text}`}>
             <div className={`p-6 border-b ${currentStyle.border} flex justify-between items-center`}>
               <h3 className="text-xl font-bold">创作统计</h3>
@@ -3645,7 +3645,7 @@ export default function Neo() {
 
       {/* 风格预设模态框 */}
       {showPresetModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 backdrop-blur-sm">
           <div className={`rounded-2xl shadow-2xl ${isDark ? 'bg-gray-800' : 'bg-white'} p-6 max-w-md w-full max-h-[90vh] overflow-y-auto transition-all duration-300 transform scale-100 opacity-100`}>
              <div className="flex items-center justify-between mb-6">
                <h2 className="text-xl font-bold">{editingPresetId ? '编辑风格预设' : '创建风格预设'}</h2>
@@ -3693,7 +3693,7 @@ export default function Neo() {
       
       {/* 批量导出模态框 */}
       {batchExportModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 backdrop-blur-sm">
           <div className={`rounded-2xl shadow-2xl ${isDark ? 'bg-gray-800' : 'bg-white'} p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto transition-all duration-300 transform scale-100 opacity-100`}>
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold">批量导出</h2>
@@ -3808,7 +3808,7 @@ export default function Neo() {
       
       {/* 交互式教程 */}
       {showTutorial && currentTutorialStep < tutorialSteps.length && (
-        <div className="fixed inset-0 z-50 pointer-events-none">
+        <div className="fixed inset-0 z-[70] pointer-events-none">
           {/* 遮罩层 */}
           <div className="absolute inset-0 bg-black/50 pointer-events-none"></div>
           
@@ -3880,7 +3880,7 @@ export default function Neo() {
   
       {/* Activity Participation Modal */}
       {showActivityModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className={`w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl ${isDark ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}>
             <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
               <h3 className="text-xl font-bold">投稿至天津文化活动</h3>
@@ -4001,7 +4001,7 @@ export default function Neo() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+            className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/50"
             onClick={() => setShowPlanLibrary(false)}
           >
             <motion.div

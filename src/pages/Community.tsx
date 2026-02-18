@@ -129,12 +129,14 @@ const CommunityPageWithNotifications = React.memo(function CommunityPageWithNoti
     submitCreateCommunity,
     onUpvote,
     onToggleFavorite,
+    onToggleLike,
     onSendMessage,
     retrySendMessage,
     onAddReaction,
     onReplyToMessage,
     onDeleteMessage,
     isThreadFavorited,
+    isThreadLiked,
     onCreateThread,
     submitCreateThread,
     onAddComment,
@@ -272,6 +274,7 @@ const CommunityPageWithNotifications = React.memo(function CommunityPageWithNoti
               threads={filteredThreads}
               onUpvote={onUpvote}
               onToggleFavorite={onToggleFavorite}
+              onToggleLike={onToggleLike}
               onAddComment={onAddComment}
               onOpenThread={(id) => console.log('Open thread', id)}
               onViewThread={(id) => console.log('View thread', id)}
@@ -279,6 +282,7 @@ const CommunityPageWithNotifications = React.memo(function CommunityPageWithNoti
               onDeleteThread={onDeleteThread}
               onDeleteComment={onDeleteComment}
               isThreadFavorited={isThreadFavorited}
+              isThreadLiked={isThreadLiked}
               activeCommunity={activeCommunity} // 传递活跃社群信息，用于自定义风格
               user={user} // 传递用户信息，用于显示头像
               loading={loading.threads} // 传递帖子加载状态
@@ -313,6 +317,7 @@ const CommunityPageWithNotifications = React.memo(function CommunityPageWithNoti
                 threads={filteredThreads}
                 onUpvote={onUpvote}
                 onToggleFavorite={onToggleFavorite}
+                onToggleLike={onToggleLike}
                 onAddComment={onAddComment}
                 onOpenThread={(id) => console.log('Open thread', id)}
                 onViewThread={(id) => console.log('View thread', id)}
@@ -320,6 +325,7 @@ const CommunityPageWithNotifications = React.memo(function CommunityPageWithNoti
                 onDeleteThread={onDeleteThread}
                 onDeleteComment={onDeleteComment}
                 isThreadFavorited={isThreadFavorited}
+                isThreadLiked={isThreadLiked}
                 activeCommunity={activeCommunity}
                 user={user}
                 loading={loading.threads}

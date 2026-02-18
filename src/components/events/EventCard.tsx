@@ -8,20 +8,38 @@ import {
   Clock,
   ArrowRight,
   Heart,
-  Share2
+  Share2,
+  Bookmark
 } from 'lucide-react';
 import { useState } from 'react';
+import { toggleBookmark, toggleLike } from '@/services/collectionService';
+import { CollectionType } from '@/types/collection';
+import { toast } from 'sonner';
 
 interface EventCardProps {
   event: Event;
   onClick: () => void;
   viewMode?: 'grid' | 'list';
+  isBookmarked?: boolean;
+  isLiked?: boolean;
+  onBookmarkChange?: (isBookmarked: boolean) => void;
+  onLikeChange?: (isLiked: boolean) => void;
 }
 
-export default function EventCard({ event, onClick, viewMode = 'grid' }: EventCardProps) {
+export default function EventCard({ 
+  event, 
+  onClick, 
+  viewMode = 'grid',
+  isBookmarked: initialBookmarked = false,
+  isLiked: initialLiked = false,
+  onBookmarkChange,
+  onLikeChange
+}: EventCardProps) {
   const { isDark } = useTheme();
   const [isHovered, setIsHovered] = useState(false);
-  const [isLiked, setIsLiked] = useState(false);
+  const [isLiked, setIsLiked] = useState(initialLiked);
+  const [isBookmarked, setIsBookmarked] = useState(initialBookmarked);
+  const [isLoading, setIsLoading] = useState(false);
 
   const now = new Date();
 
@@ -29,31 +47,52 @@ export default function EventCard({ event, onClick, viewMode = 'grid' }: EventCa
   let eventStart: Date;
   let eventEnd: Date;
 
-  if (event.startTime instanceof Date) {
-    eventStart = event.startTime;
-  } else if (typeof event.startTime === 'string') {
-    // 检查是否是纯数字（bigint时间戳）
-    if (/^\d+$/.test(event.startTime)) {
-      eventStart = new Date(parseInt(event.startTime, 10));
-    } else {
+  // 辅助函数：解析日期值
+  const parseDateValue = (dateValue: any): Date => {
+    if (dateValue == null) {
+      return new Date(); // 如果日期为空，返回当前时间作为默认值
+    }
+    if (dateValue instanceof Date) {
+      return dateValue;
+    }
+    if (typeof dateValue === 'string') {
+      // 检查是否是纯数字（时间戳）
+      if (/^\d+$/.test(dateValue)) {
+        const numValue = parseInt(dateValue, 10);
+        // 判断时间戳是秒级还是毫秒级：如果数值小于 1e12，认为是秒级
+        const msValue = numValue < 1e12 ? numValue * 1000 : numValue;
+        return new Date(msValue);
+      }
       // ISO日期字符串
-      eventStart = new Date(event.startTime);
+      const parsed = new Date(dateValue);
+      if (!isNaN(parsed.getTime())) {
+        return parsed;
+      }
+      return new Date(); // 如果解析失败，返回当前时间
     }
-  } else {
-    eventStart = new Date(event.startTime);
-  }
+    if (typeof dateValue === 'number') {
+      // 判断时间戳是秒级还是毫秒级
+      const msValue = dateValue < 1e12 ? dateValue * 1000 : dateValue;
+      return new Date(msValue);
+    }
+    // 对于其他类型，尝试解析，如果失败则返回当前时间
+    const parsed = new Date(dateValue);
+    return isNaN(parsed.getTime()) ? new Date() : parsed;
+  };
 
-  if (event.endTime instanceof Date) {
-    eventEnd = event.endTime;
-  } else if (typeof event.endTime === 'string') {
-    if (/^\d+$/.test(event.endTime)) {
-      eventEnd = new Date(parseInt(event.endTime, 10));
-    } else {
-      eventEnd = new Date(event.endTime);
-    }
-  } else {
-    eventEnd = new Date(event.endTime);
-  }
+  eventStart = parseDateValue(event.startTime);
+  eventEnd = parseDateValue(event.endTime);
+
+  // 调试日志
+  console.log('[EventCard] 日期解析:', {
+    title: event.title,
+    rawStartTime: event.startTime,
+    rawEndTime: event.endTime,
+    parsedStartTime: eventStart.toISOString(),
+    parsedEndTime: eventEnd.toISOString(),
+    isStartValid: !isNaN(eventStart.getTime()),
+    isEndValid: !isNaN(eventEnd.getTime()),
+  });
 
   // 优先检查 final_ranking_published 字段或活动状态，如果已发布排名或状态为completed则视为已结束
   const isRankingPublished = (event as any).finalRankingPublished === true ||
@@ -110,9 +149,38 @@ export default function EventCard({ event, onClick, viewMode = 'grid' }: EventCa
     }
   };
 
-  const handleLike = (e: React.MouseEvent) => {
+  const handleLike = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    setIsLiked(!isLiked);
+    if (isLoading) return;
+    
+    setIsLoading(true);
+    try {
+      const result = await toggleLike(event.id.toString(), CollectionType.ACTIVITY);
+      setIsLiked(result);
+      onLikeChange?.(result);
+    } catch (error) {
+      console.error('Error toggling like:', error);
+      toast.error('操作失败，请重试');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleBookmark = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isLoading) return;
+    
+    setIsLoading(true);
+    try {
+      const result = await toggleBookmark(event.id.toString(), CollectionType.ACTIVITY);
+      setIsBookmarked(result);
+      onBookmarkChange?.(result);
+    } catch (error) {
+      console.error('Error toggling bookmark:', error);
+      toast.error('操作失败，请重试');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   if (viewMode === 'list') {
@@ -167,13 +235,27 @@ export default function EventCard({ event, onClick, viewMode = 'grid' }: EventCa
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.9 }}
                 onClick={handleLike}
+                disabled={isLoading}
                 className={`p-2 rounded-full transition-colors ${
                   isLiked 
                     ? 'bg-red-100 text-red-500' 
                     : isDark ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-400'
-                }`}
+                } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 <Heart className={`w-4 h-4 ${isLiked ? 'fill-current' : ''}`} />
+              </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={handleBookmark}
+                disabled={isLoading}
+                className={`p-2 rounded-full transition-colors ${
+                  isBookmarked 
+                    ? 'bg-yellow-100 text-yellow-500' 
+                    : isDark ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-400'
+                } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                <Bookmark className={`w-4 h-4 ${isBookmarked ? 'fill-current' : ''}`} />
               </motion.button>
               <motion.button
                 whileHover={{ scale: 1.1 }}
@@ -267,13 +349,25 @@ export default function EventCard({ event, onClick, viewMode = 'grid' }: EventCa
         >
           <button
             onClick={handleLike}
+            disabled={isLoading}
             className={`p-2 rounded-full backdrop-blur-md transition-colors ${
               isLiked 
                 ? 'bg-red-500 text-white' 
                 : 'bg-white/90 text-gray-700 hover:bg-white'
-            }`}
+            } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             <Heart className={`w-4 h-4 ${isLiked ? 'fill-current' : ''}`} />
+          </button>
+          <button
+            onClick={handleBookmark}
+            disabled={isLoading}
+            className={`p-2 rounded-full backdrop-blur-md transition-colors ${
+              isBookmarked 
+                ? 'bg-yellow-500 text-white' 
+                : 'bg-white/90 text-gray-700 hover:bg-white'
+            } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+          >
+            <Bookmark className={`w-4 h-4 ${isBookmarked ? 'fill-current' : ''}`} />
           </button>
           <button
             onClick={handleShare}

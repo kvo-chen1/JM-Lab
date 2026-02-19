@@ -436,34 +436,31 @@ export default function AchievementManagement() {
         <div className={`rounded-xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-md overflow-hidden`}>
           <div className="p-6">
             <h3 className="text-lg font-bold mb-4">创作者等级体系</h3>
-            <div className="space-y-4">
-              {levels.map((level, index) => (
-                <div 
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {levels.map((level) => (
+                <div
                   key={level.level}
-                  className={`p-4 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-50'} flex items-center justify-between`}
+                  className={`p-4 rounded-xl border-2 ${
+                    isDark ? 'border-gray-700 bg-gray-700/50' : 'border-gray-200 bg-gray-50'
+                  }`}
                 >
-                  <div className="flex items-center space-x-4">
-                    <div className="w-12 h-12 rounded-full bg-red-600 text-white flex items-center justify-center text-2xl">
-                      {level.icon}
+                  <div className="flex items-center gap-3 mb-3">
+                    <div
+                      className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold"
+                      style={{ backgroundColor: level.color }}
+                    >
+                      L{level.level}
                     </div>
                     <div>
                       <h4 className="font-bold">{level.name}</h4>
                       <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                        {level.description}
-                      </p>
-                      <p className="text-sm text-red-600 mt-1">
-                        需要积分: {level.requiredPoints}
+                        {level.minPoints} - {level.maxPoints} 积分
                       </p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <span className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm font-medium">
-                      Lv.{level.level}
-                    </span>
-                    <div className="mt-2 text-xs text-gray-500">
-                      {level.benefits.length} 项权益
-                    </div>
-                  </div>
+                  <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                    {level.description}
+                  </p>
                 </div>
               ))}
             </div>
@@ -471,97 +468,101 @@ export default function AchievementManagement() {
         </div>
       )}
 
-      {/* 详情/编辑弹窗 */}
+      {/* 弹窗 */}
       <AnimatePresence>
         {showModal && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 z-[70] flex items-center justify-center p-4"
-            onClick={() => !isSubmitting && setShowModal(false)}
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+            onClick={() => setShowModal(false)}
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className={`w-full max-w-2xl max-h-[90vh] overflow-hidden rounded-2xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-2xl`}
-              onClick={e => e.stopPropagation()}
+              className={`w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-2xl`}
+              onClick={(e) => e.stopPropagation()}
             >
               {/* 弹窗头部 */}
-              <div className={`p-6 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'} flex justify-between items-center`}>
-                <h3 className="text-xl font-bold">
-                  {modalMode === 'create' ? '新增成就' :
-                   modalMode === 'edit' ? '编辑成就' : '成就详情'}
-                </h3>
-                <button
-                  onClick={() => setShowModal(false)}
-                  disabled={isSubmitting}
-                  className={`p-2 rounded-lg ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} transition-colors disabled:opacity-50`}
-                >
-                  <X className="w-5 h-5" />
-                </button>
+              <div className={`p-6 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xl font-bold">
+                    {modalMode === 'create' ? '新增成就' : modalMode === 'edit' ? '编辑成就' : '成就详情'}
+                  </h3>
+                  <button
+                    onClick={() => setShowModal(false)}
+                    className={`p-2 rounded-lg ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} transition-colors`}
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
 
               {/* 弹窗内容 */}
-              <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
+              <div className="p-6 space-y-6">
                 {modalMode === 'view' && selectedItem && 'id' in selectedItem ? (
-                  // 查看模式
-                  <div className="space-y-6">
-                    <div className="flex items-center space-x-4">
-                      <div 
+                  /* 查看模式 */
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-4">
+                      <div
                         className="w-20 h-20 rounded-2xl flex items-center justify-center"
-                        style={{ 
+                        style={{
                           backgroundColor: RARITY_CONFIG[selectedItem.rarity]?.bgColor,
-                          color: RARITY_CONFIG[selectedItem.rarity]?.color 
+                          color: RARITY_CONFIG[selectedItem.rarity]?.color,
                         }}
                       >
                         {getIconComponent(selectedItem.icon)}
                       </div>
                       <div>
                         <h4 className="text-2xl font-bold">{selectedItem.name}</h4>
-                        <div className="flex gap-2 mt-2">
+                        <p className={`${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                          {selectedItem.description}
+                        </p>
+                      </div>
+                    </div>
+                    <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>稀有度</p>
                           <span
-                            className="px-3 py-1 rounded-full text-sm"
+                            className="inline-block mt-1 px-3 py-1 rounded-full text-sm font-medium"
                             style={{
                               backgroundColor: RARITY_CONFIG[selectedItem.rarity]?.bgColor,
-                              color: RARITY_CONFIG[selectedItem.rarity]?.color
+                              color: RARITY_CONFIG[selectedItem.rarity]?.color,
                             }}
                           >
                             {RARITY_CONFIG[selectedItem.rarity]?.name}
                           </span>
-                          <span 
-                            className="px-3 py-1 rounded-full text-sm"
+                        </div>
+                        <div>
+                          <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>分类</p>
+                          <span
+                            className="inline-block mt-1 px-3 py-1 rounded-full text-sm font-medium"
                             style={{
                               backgroundColor: `${CATEGORY_CONFIG[selectedItem.category]?.color}20`,
-                              color: CATEGORY_CONFIG[selectedItem.category]?.color
+                              color: CATEGORY_CONFIG[selectedItem.category]?.color,
                             }}
                           >
                             {CATEGORY_CONFIG[selectedItem.category]?.name}
                           </span>
                         </div>
+                        <div>
+                          <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>奖励积分</p>
+                          <p className="text-lg font-medium text-red-600">+{selectedItem.points}</p>
+                        </div>
+                        <div>
+                          <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>达成条件</p>
+                          <p className="text-sm">{selectedItem.criteria}</p>
+                        </div>
                       </div>
-                    </div>
-                    <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
-                      <p className={isDark ? 'text-gray-300' : 'text-gray-700'}>
-                        {selectedItem.description}
-                      </p>
-                    </div>
-                    <div>
-                      <h5 className="font-medium mb-2">达成条件</h5>
-                      <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                        {selectedItem.criteria}
-                      </p>
-                    </div>
-                    <div>
-                      <h5 className="font-medium mb-2">奖励积分</h5>
-                      <p className="text-2xl font-bold text-red-600">+{selectedItem.points}</p>
                     </div>
                   </div>
                 ) : (
-                  // 编辑/创建模式
-                  <div className="space-y-6">
-                    {/* 成就名称 */}
+                  /* 编辑/创建模式 */
+                  <div className="space-y-4">
+                    {/* 名称 */}
                     <div>
                       <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                         成就名称 <span className="text-red-500">*</span>
@@ -569,11 +570,12 @@ export default function AchievementManagement() {
                       <input
                         type="text"
                         value={formData.name}
-                        onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                        placeholder="请输入成就名称"
+                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                        disabled={modalMode === 'view'}
                         className={`w-full px-4 py-2 rounded-lg border ${
-                          formErrors.name ? 'border-red-500' : isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
+                          formErrors.name ? 'border-red-500' : isDark ? 'border-gray-600 bg-gray-700 text-white' : 'border-gray-300 bg-white text-gray-900'
                         }`}
+                        placeholder="请输入成就名称"
                       />
                       {formErrors.name && (
                         <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
@@ -583,19 +585,20 @@ export default function AchievementManagement() {
                       )}
                     </div>
 
-                    {/* 成就描述 */}
+                    {/* 描述 */}
                     <div>
                       <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                         成就描述 <span className="text-red-500">*</span>
                       </label>
                       <textarea
                         value={formData.description}
-                        onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                        placeholder="请输入成就描述"
-                        rows={2}
+                        onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                        disabled={modalMode === 'view'}
+                        rows={3}
                         className={`w-full px-4 py-2 rounded-lg border ${
-                          formErrors.description ? 'border-red-500' : isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
+                          formErrors.description ? 'border-red-500' : isDark ? 'border-gray-600 bg-gray-700 text-white' : 'border-gray-300 bg-white text-gray-900'
                         }`}
+                        placeholder="请输入成就描述"
                       />
                       {formErrors.description && (
                         <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
@@ -605,16 +608,43 @@ export default function AchievementManagement() {
                       )}
                     </div>
 
+                    {/* 图标选择 */}
+                    <div>
+                      <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                        图标
+                      </label>
+                      <div className="grid grid-cols-8 gap-2">
+                        {Object.keys(ICON_MAP).map((iconName) => {
+                          const IconComponent = ICON_MAP[iconName];
+                          return (
+                            <button
+                              key={iconName}
+                              onClick={() => modalMode !== 'view' && setFormData({ ...formData, icon: iconName })}
+                              disabled={modalMode === 'view'}
+                              className={`p-3 rounded-lg border transition-colors ${
+                                formData.icon === iconName
+                                  ? 'border-red-500 bg-red-50 dark:bg-red-900/20'
+                                  : isDark ? 'border-gray-600 hover:border-gray-500' : 'border-gray-300 hover:border-gray-400'
+                              }`}
+                            >
+                              <IconComponent className="w-5 h-5 mx-auto" />
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
                     {/* 稀有度和分类 */}
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                          稀有度 <span className="text-red-500">*</span>
+                          稀有度
                         </label>
                         <select
                           value={formData.rarity}
-                          onChange={(e) => setFormData(prev => ({ ...prev, rarity: e.target.value as any }))}
-                          className={`w-full px-4 py-2 rounded-lg border ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                          onChange={(e) => setFormData({ ...formData, rarity: e.target.value })}
+                          disabled={modalMode === 'view'}
+                          className={`w-full px-4 py-2 rounded-lg border ${isDark ? 'border-gray-600 bg-gray-700 text-white' : 'border-gray-300 bg-white text-gray-900'}`}
                         >
                           <option value="common">普通</option>
                           <option value="rare">稀有</option>
@@ -624,42 +654,18 @@ export default function AchievementManagement() {
                       </div>
                       <div>
                         <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                          分类 <span className="text-red-500">*</span>
+                          分类
                         </label>
                         <select
                           value={formData.category}
-                          onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value as any }))}
-                          className={`w-full px-4 py-2 rounded-lg border ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                          onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                          disabled={modalMode === 'view'}
+                          className={`w-full px-4 py-2 rounded-lg border ${isDark ? 'border-gray-600 bg-gray-700 text-white' : 'border-gray-300 bg-white text-gray-900'}`}
                         >
                           <option value="creation">创作成就</option>
                           <option value="community">社区成就</option>
                           <option value="special">特殊成就</option>
                         </select>
-                      </div>
-                    </div>
-
-                    {/* 图标选择 */}
-                    <div>
-                      <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                        图标
-                      </label>
-                      <div className="grid grid-cols-8 gap-2">
-                        {Object.keys(ICON_MAP).map(iconName => (
-                          <button
-                            key={iconName}
-                            onClick={() => setFormData(prev => ({ ...prev, icon: iconName }))}
-                            className={`p-3 rounded-lg transition-colors ${
-                              formData.icon === iconName
-                                ? 'bg-red-600 text-white'
-                                : isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'
-                            }`}
-                          >
-                            {(() => {
-                              const Icon = ICON_MAP[iconName];
-                              return <Icon className="w-5 h-5 mx-auto" />;
-                            })()}
-                          </button>
-                        ))}
                       </div>
                     </div>
 
@@ -671,11 +677,12 @@ export default function AchievementManagement() {
                       <input
                         type="text"
                         value={formData.criteria}
-                        onChange={(e) => setFormData(prev => ({ ...prev, criteria: e.target.value }))}
-                        placeholder="如：完成1篇作品"
+                        onChange={(e) => setFormData({ ...formData, criteria: e.target.value })}
+                        disabled={modalMode === 'view'}
                         className={`w-full px-4 py-2 rounded-lg border ${
-                          formErrors.criteria ? 'border-red-500' : isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
+                          formErrors.criteria ? 'border-red-500' : isDark ? 'border-gray-600 bg-gray-700 text-white' : 'border-gray-300 bg-white text-gray-900'
                         }`}
+                        placeholder="请输入达成条件"
                       />
                       {formErrors.criteria && (
                         <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
@@ -694,4 +701,56 @@ export default function AchievementManagement() {
                         type="number"
                         min="0"
                         value={formData.points}
-                        on
+                        onChange={(e) => setFormData({ ...formData, points: parseInt(e.target.value) || 0 })}
+                        disabled={modalMode === 'view'}
+                        className={`w-full px-4 py-2 rounded-lg border ${
+                          formErrors.points ? 'border-red-500' : isDark ? 'border-gray-600 bg-gray-700 text-white' : 'border-gray-300 bg-white text-gray-900'
+                        }`}
+                        placeholder="请输入奖励积分"
+                      />
+                      {formErrors.points && (
+                        <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
+                          <AlertCircle className="w-4 h-4" />
+                          {formErrors.points}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 弹窗底部 */}
+              {modalMode !== 'view' && (
+                <div className={`p-6 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'} flex justify-end gap-3`}>
+                  <button
+                    onClick={() => setShowModal(false)}
+                    className={`px-4 py-2 rounded-lg ${isDark ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'} transition-colors`}
+                  >
+                    取消
+                  </button>
+                  <button
+                    onClick={handleSave}
+                    disabled={isSubmitting}
+                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
+                        保存中...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4" />
+                        保存
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}

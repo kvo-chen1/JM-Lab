@@ -75,7 +75,7 @@ const AICollaborationMessage: React.FC<AICollaborationMessageProps> = ({
         {/* 消息内容 */}
         <div className={`flex-1 min-w-0 flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
           {/* 气泡容器 - 包含气泡和复制按钮 */}
-          <div className={`flex items-start gap-2 w-full ${isUser ? 'flex-row-reverse justify-end' : 'flex-row'}`}>
+          <div className={`flex items-start gap-2 w-full ${isUser ? 'flex-row-reverse justify-start' : 'flex-row'}`}>
             {/* 气泡 - 优化圆角和阴影 */}
             <motion.div
               className={`relative rounded-2xl p-3 shadow-sm transition-shadow duration-300 hover:shadow-md ${
@@ -180,7 +180,7 @@ const AICollaborationMessage: React.FC<AICollaborationMessageProps> = ({
           </div>
 
           {/* 时间戳、语音输出、操作按钮和删除按钮 - 优化样式 */}
-          <div className={`mt-1.5 flex items-center justify-between px-1`}>
+          <div className={`mt-1.5 flex items-center w-full px-1 ${isUser ? 'justify-end' : 'justify-start'}`}>
             <div className="flex items-center gap-2">
               <span className="text-xs text-gray-400 font-medium">
                 {formatTime(message.timestamp)}

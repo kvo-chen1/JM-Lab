@@ -54,6 +54,23 @@ class SessionService {
       const data = localStorage.getItem(STORAGE_KEY)
       if (!data) return []
       const sessions = JSON.parse(data) as ChatSession[]
+      
+      // 处理消息中 generationTask.result 可能是字符串的情况
+      sessions.forEach(session => {
+        if (session.messages) {
+          session.messages.forEach(message => {
+            if (message.generationTask?.result && typeof message.generationTask.result === 'string') {
+              try {
+                message.generationTask.result = JSON.parse(message.generationTask.result)
+                console.log('[SessionService] 解析 message.generationTask.result 字符串为对象')
+              } catch (e) {
+                console.error('[SessionService] 解析 message.generationTask.result 字符串失败:', e)
+              }
+            }
+          })
+        }
+      })
+      
       // 按更新时间排序（最新的在前）
       return sessions.sort((a, b) => b.updatedAt - a.updatedAt)
     } catch (error) {

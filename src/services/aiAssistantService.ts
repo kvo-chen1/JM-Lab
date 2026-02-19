@@ -40,7 +40,7 @@ export interface ChatMessage {
 
 // 文化相关意图模式
 const CULTURAL_INTENT_PATTERNS = [
-  { pattern: /杨柳青|年画|泥人张|风筝魏|狗不理|十八街|五大道/i, type: 'specific_element' },
+  { pattern: /杨柳青|年画|泥人张|风筝魏|煎饼果子|十八街|五大道/i, type: 'specific_element' },
   { pattern: /天津.*文化|天津.*特色|天津.*传统/i, type: 'culture_overview' },
   { pattern: /非遗|非物质文化遗产/i, type: 'intangible_heritage' },
   { pattern: /老字号|传统品牌/i, type: 'time_honored_brand' },
@@ -305,7 +305,7 @@ class AIAssistantService {
    * 提取文化元素名称
    */
   private extractCulturalElementName(message: string): string | null {
-    const elementNames = ['杨柳青年画', '泥人张', '风筝魏', '狗不理', '十八街麻花', '五大道', '年画'];
+    const elementNames = ['杨柳青年画', '泥人张', '风筝魏', '煎饼果子', '十八街麻花', '五大道', '年画'];
     for (const name of elementNames) {
       if (message.includes(name)) {
         return name;
@@ -576,13 +576,14 @@ class AIAssistantService {
       // 构建增强的提示词
       const enhancedPrompt = this.buildEnhancedPrompt(message, currentPath, memoryContext);
 
-      // 调用LLM
+      // 调用LLM，支持流式输出
       const response = await llmService.directGenerateResponse(enhancedPrompt, {
         context: {
           page: this.getPageName(currentPath),
           path: currentPath,
           hasMemory: memoryContext.length > 0
-        }
+        },
+        onDelta: onTyping
       });
 
       // 保存助手回复

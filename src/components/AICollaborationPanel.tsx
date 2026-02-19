@@ -21,6 +21,7 @@ import InspirationCard from './InspirationCard'
 import MessageSearch from './MessageSearch'
 import AISettingsPanel from './AISettingsPanel'
 import { useCreateStore } from '@/pages/create/hooks/useCreateStore'
+import { downloadAndUploadImage, downloadAndUploadVideo } from '@/services/imageService'
 
 interface AICollaborationPanelProps {
   isOpen: boolean
@@ -430,6 +431,64 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
           }
         } catch (error) {
           console.error('[TaskListener] 保存/更新生成任务消息失败:', error);
+        }
+      }
+      
+      // 当任务完成时，自动保存到永久存储（云端）
+      if (task.status === 'completed' && task.result?.urls?.[0]) {
+        const originalUrl = task.result.urls[0];
+        // 检查是否已经是永久URL（不是临时URL）
+        const isPermanentUrl = !originalUrl.includes('openai') && 
+                               !originalUrl.includes('replicate') && 
+                               !originalUrl.includes('runway') &&
+                               (originalUrl.includes('supabase') || originalUrl.includes('works/'));
+        
+        if (!isPermanentUrl) {
+          console.log('[TaskListener] 开始自动保存到永久存储:', task.type, task.id);
+          
+          // 异步保存，不阻塞UI
+          setTimeout(async () => {
+            try {
+              let permanentUrl: string;
+              
+              if (task.type === 'image') {
+                permanentUrl = await downloadAndUploadImage(originalUrl, 'ai-generated');
+              } else if (task.type === 'video') {
+                permanentUrl = await downloadAndUploadVideo(originalUrl);
+              } else {
+                return; // 不支持的类型
+              }
+              
+              console.log('[TaskListener] 已保存到永久存储:', permanentUrl);
+              
+              // 更新任务结果中的URL为永久URL
+              const updatedTask = {
+                ...task,
+                result: {
+                  ...task.result,
+                  urls: [permanentUrl],
+                  originalUrl: originalUrl // 保留原始URL
+                },
+                updatedAt: Date.now()
+              };
+              
+              // 更新消息中的任务状态
+              setMessages(prev => prev.map(msg => {
+                if ((msg as any).generationTask && (msg as any).generationTask.id === task.id) {
+                  return {
+                    ...msg,
+                    generationTask: updatedTask
+                  };
+                }
+                return msg;
+              }));
+              
+              toast.success(`${task.type === 'image' ? '图片' : '视频'}已自动保存到云端`);
+            } catch (saveError) {
+              console.error('[TaskListener] 自动保存到永久存储失败:', saveError);
+              toast.error(`${task.type === 'image' ? '图片' : '视频'}保存到云端失败，请手动保存`);
+            }
+          }, 1000); // 延迟1秒执行，让UI先更新
         }
       }
     })

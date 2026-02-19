@@ -14,6 +14,7 @@ import {
   VideoGenerationParams
 } from '@/services/aiGenerationService';
 import { llmService, Message, ConversationSession } from '@/services/llmService';
+import { downloadAndUploadImage, downloadAndUploadVideo } from '@/services/imageService';
 
 // 生成类型
 type GenerateMode = 'image' | 'video';
@@ -215,6 +216,61 @@ export default function AIAssistantPanel() {
             timestamp: Date.now()
           };
           setChatMessages(prev => [...prev, successMessage]);
+          
+          // 自动保存到永久存储（云端）
+          const originalUrl = task.result.urls[0];
+          // 检查是否已经是永久URL
+          const isPermanentUrl = !originalUrl.includes('openai') && 
+                                 !originalUrl.includes('replicate') && 
+                                 !originalUrl.includes('runway') &&
+                                 (originalUrl.includes('supabase') || originalUrl.includes('works/'));
+          
+          if (!isPermanentUrl) {
+            console.log('[AIAssistantPanel] 开始自动保存到永久存储:', task.type, task.id);
+            
+            // 异步保存，不阻塞UI
+            setTimeout(async () => {
+              try {
+                let permanentUrl: string;
+                
+                if (task.type === 'image') {
+                  permanentUrl = await downloadAndUploadImage(originalUrl, 'ai-generated');
+                } else if (task.type === 'video') {
+                  permanentUrl = await downloadAndUploadVideo(originalUrl);
+                } else {
+                  return;
+                }
+                
+                console.log('[AIAssistantPanel] 已保存到永久存储:', permanentUrl);
+                
+                // 更新任务结果中的URL为永久URL
+                const updatedTask = {
+                  ...task,
+                  result: {
+                    ...task.result,
+                    urls: [permanentUrl],
+                    originalUrl: originalUrl
+                  }
+                };
+                
+                // 更新当前任务状态
+                setCurrentTask(updatedTask);
+                
+                // 添加保存成功的消息
+                const saveSuccessMessage: Message = {
+                  role: 'assistant',
+                  content: `☁️ ${task.type === 'image' ? '图片' : '视频'}已自动保存到云端，链接不会过期。`,
+                  timestamp: Date.now()
+                };
+                setChatMessages(prev => [...prev, saveSuccessMessage]);
+                
+                toast.success(`${task.type === 'image' ? '图片' : '视频'}已自动保存到云端`);
+              } catch (saveError) {
+                console.error('[AIAssistantPanel] 自动保存到永久存储失败:', saveError);
+                toast.error(`${task.type === 'image' ? '图片' : '视频'}保存到云端失败，请手动保存`);
+              }
+            }, 1000);
+          }
         }
       } else if (task.status === 'failed') {
         setIsGenerating(false);

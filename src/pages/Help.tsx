@@ -25,8 +25,11 @@ import {
   Menu,
   ArrowRight,
   Lightbulb,
-  Zap
+  Zap,
+  Loader2
 } from 'lucide-react'
+import { feedbackService, FeedbackType } from '@/services/feedbackService'
+import { toast } from 'sonner'
 
 // FAQ类别类型
 type FAQCategory = 'all' | 'basic' | 'auth' | 'creation' | 'community' | 'membership' | 'security' | 'technical'
@@ -80,6 +83,12 @@ export default function Help() {
   const [showFeedbackModal, setShowFeedbackModal] = useState(false)
   const [searchHistory, setSearchHistory] = useState<string[]>([])
   const [showHistory, setShowHistory] = useState(false)
+
+  // 反馈表单状态
+  const [feedbackType, setFeedbackType] = useState<FeedbackType>('inquiry')
+  const [feedbackContent, setFeedbackContent] = useState('')
+  const [feedbackEmail, setFeedbackEmail] = useState('')
+  const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false)
 
   // 分类配置
   const categories: CategoryConfig[] = [
@@ -262,6 +271,158 @@ export default function Help() {
       category: 'technical',
       views: 6780,
       helpful: 94
+    },
+    {
+      id: 'faq-22',
+      question: '如何绑定和解绑第三方账号？',
+      answer: '进入"设置"页面的"账号安全"选项，你可以看到已绑定的第三方账号（微信、支付宝、QQ等）。点击"绑定"按钮可以添加新的第三方账号，点击"解绑"可以解除已绑定的账号。为了账号安全，解绑前需要进行身份验证。',
+      category: 'auth',
+      views: 4560,
+      helpful: 93
+    },
+    {
+      id: 'faq-23',
+      question: '如何注销账号？',
+      answer: '如果你需要注销账号，请进入"设置"页面的"账号安全"选项，点击"注销账号"。注销前请确保已备份重要数据，账号注销后将无法恢复，所有数据将被永久删除。注销申请提交后，我们有7天的冷静期，期间你可以取消注销。',
+      category: 'auth',
+      views: 3210,
+      helpful: 91
+    },
+    {
+      id: 'faq-24',
+      question: 'AI创作需要消耗积分吗？',
+      answer: '是的，AI创作功能需要消耗积分。免费用户每天有固定的免费积分额度，用完后可以等待次日重置，或者购买积分包。会员用户享有更多的免费积分额度和更优惠的积分价格。不同AI模型消耗的积分数量不同，具体请参考创作页面的积分提示。',
+      category: 'creation',
+      views: 9870,
+      helpful: 96
+    },
+    {
+      id: 'faq-25',
+      question: '如何获取更多积分？',
+      answer: '你可以通过以下方式获取积分：1）每日签到领取积分奖励；2）完成平台任务获得积分；3）参与社区活动赢取积分；4）分享作品获得积分奖励；5）直接购买积分包。会员用户还可以享受每日积分返还和积分加成特权。',
+      category: 'membership',
+      views: 8760,
+      helpful: 95
+    },
+    {
+      id: 'faq-26',
+      question: '如何删除已发布的作品？',
+      answer: '进入"我的作品"页面，找到你想要删除的作品，点击作品卡片右上角的"更多"按钮，选择"删除"选项。删除后作品将从平台移除，但已分享的外链可能会失效。删除操作不可恢复，请谨慎操作。',
+      category: 'creation',
+      views: 5430,
+      helpful: 92
+    },
+    {
+      id: 'faq-27',
+      question: '如何修改已发布作品的可见性？',
+      answer: '在"我的作品"页面，点击作品卡片进入详情页，点击"编辑"按钮，在设置中可以修改作品的可见性（公开、仅好友可见、私密）。修改后即时生效，已分享链接的访问权限也会相应改变。',
+      category: 'creation',
+      views: 4320,
+      helpful: 90
+    },
+    {
+      id: 'faq-28',
+      question: '平台支持哪些AI模型？',
+      answer: '平台支持多种主流AI模型，包括GPT-4、Claude、文心一言等文本生成模型，以及Stable Diffusion、Midjourney、DALL-E等图像生成模型。不同会员等级可使用的模型不同，高级会员可以使用更多专业模型。',
+      category: 'technical',
+      views: 7650,
+      helpful: 94
+    },
+    {
+      id: 'faq-29',
+      question: 'AI生成的内容可以编辑吗？',
+      answer: '当然可以。AI生成的内容可以在平台的编辑器中进行二次编辑。你可以调整文字、修改图片元素、更改配色方案等。我们还提供了AI辅助编辑功能，可以帮助你快速优化内容。',
+      category: 'creation',
+      views: 6540,
+      helpful: 93
+    },
+    {
+      id: 'faq-30',
+      question: '如何参与社区共创项目？',
+      answer: '进入"津脉社区"页面，浏览正在进行的共创项目。点击感兴趣的项目卡片查看详情，点击"参与共创"按钮即可加入。在共创项目中，你可以与其他创作者协作，共同完成作品，并分享项目收益。',
+      category: 'community',
+      views: 3890,
+      helpful: 88
+    },
+    {
+      id: 'faq-31',
+      question: '如何举报违规内容或用户？',
+      answer: '如果你发现违规内容或用户，可以点击内容右上角的"举报"按钮，选择举报原因并提交。我们的审核团队会在24小时内处理。对于严重违规行为，你也可以直接联系客服进行举报。',
+      category: 'security',
+      views: 2980,
+      helpful: 91
+    },
+    {
+      id: 'faq-32',
+      question: '如何设置隐私权限？',
+      answer: '进入"设置"页面的"隐私设置"选项，你可以设置：1）个人资料可见性；2）作品默认可见性；3）是否允许他人关注；4）是否接收陌生人消息；5）是否展示在线状态。根据你的需求调整这些设置，保护个人隐私。',
+      category: 'security',
+      views: 4120,
+      helpful: 92
+    },
+    {
+      id: 'faq-33',
+      question: '会员可以退款吗？',
+      answer: '会员购买后7天内，如果未使用任何会员特权，可以申请全额退款。超过7天或已使用会员特权的情况下，不支持退款。如遇特殊情况，请联系客服协商处理。',
+      category: 'membership',
+      views: 5670,
+      helpful: 89
+    },
+    {
+      id: 'faq-34',
+      question: '如何查看我的创作数据统计？',
+      answer: '进入"个人中心"页面的"数据分析"选项，你可以查看作品的浏览量、点赞数、分享数等数据，还可以查看粉丝增长趋势、积分收支明细等。专业会员还可以导出详细的数据报表。',
+      category: 'basic',
+      views: 4560,
+      helpful: 90
+    },
+    {
+      id: 'faq-35',
+      question: '浏览器兼容性有什么要求？',
+      answer: '为了获得最佳体验，建议使用Chrome 90+、Firefox 88+、Safari 14+或Edge 90+版本的浏览器。部分高级功能（如WebGL渲染）需要较新的浏览器支持。如果你遇到兼容性问题，请尝试升级浏览器或更换浏览器。',
+      category: 'technical',
+      views: 3210,
+      helpful: 88
+    },
+    {
+      id: 'faq-36',
+      question: '如何开启两步验证？',
+      answer: '进入"设置"页面的"账号安全"选项，找到"两步验证"设置。你可以选择通过短信验证码或身份验证器应用（如Google Authenticator）进行验证。开启后，每次登录都需要输入额外的验证码，大大提升账号安全性。',
+      category: 'security',
+      views: 3890,
+      helpful: 93
+    },
+    {
+      id: 'faq-37',
+      question: '如何邀请好友加入平台？',
+      answer: '进入"个人中心"页面的"邀请好友"选项，你可以通过分享邀请链接或邀请码的方式邀请好友。好友通过你的邀请链接注册后，你和好友都可以获得积分奖励。邀请越多，奖励越多。',
+      category: 'community',
+      views: 4320,
+      helpful: 87
+    },
+    {
+      id: 'faq-38',
+      question: '创作时如何保存草稿？',
+      answer: '平台会自动保存你的创作进度，每30秒自动保存一次。你也可以手动点击"保存草稿"按钮。草稿会保存在"草稿箱"中，你可以随时继续编辑。草稿默认保存30天，请及时发布或导出。',
+      category: 'creation',
+      views: 5430,
+      helpful: 91
+    },
+    {
+      id: 'faq-39',
+      question: '如何参加平台的创作活动？',
+      answer: '进入"津脉活动"页面，查看正在进行的创作活动。每个活动都有详细的参与规则和奖励说明。点击"立即参与"按钮，按照活动要求创作并提交作品即可。获奖名单会在活动结束后公布。',
+      category: 'community',
+      views: 6780,
+      helpful: 92
+    },
+    {
+      id: 'faq-40',
+      question: '平台对生成内容的版权归属如何规定？',
+      answer: '使用平台AI工具生成的内容，版权归属于创作者本人。但请注意，如果你使用了平台提供的素材库内容，需要遵守相应的授权协议。对于商业用途，建议咨询专业法律意见。平台保留对生成内容的使用权，用于服务改进和展示。',
+      category: 'security',
+      views: 7650,
+      helpful: 90
     }
   ]
 
@@ -329,6 +490,68 @@ export default function Help() {
         part
     )
   }, [isDark])
+
+  // 提交反馈
+  const handleSubmitFeedback = useCallback(async () => {
+    if (!feedbackContent.trim()) {
+      toast.error('请填写反馈内容')
+      return
+    }
+
+    setIsSubmittingFeedback(true)
+
+    try {
+      // 获取设备信息
+      const deviceInfo = {
+        os: navigator.platform,
+        browser: navigator.userAgent,
+        screen: `${window.screen.width}x${window.screen.height}`,
+        userAgent: navigator.userAgent
+      }
+
+      // 获取当前页面URL
+      const pageUrl = window.location.href
+
+      // 获取当前用户信息（如果有）
+      const userStr = localStorage.getItem('user')
+      const userId = userStr ? JSON.parse(userStr)?.id : undefined
+
+      const result = await feedbackService.submitFeedback({
+        type: feedbackType,
+        content: feedbackContent.trim(),
+        contact_info: feedbackEmail.trim() || undefined,
+        contact_type: feedbackEmail.trim() ? 'email' : undefined,
+        device_info: deviceInfo,
+        browser_info: navigator.userAgent,
+        page_url: pageUrl,
+        user_id: userId
+      })
+
+      if (result) {
+        toast.success('反馈提交成功！我们会尽快处理您的反馈')
+        // 重置表单
+        setFeedbackType('inquiry')
+        setFeedbackContent('')
+        setFeedbackEmail('')
+        setShowFeedbackModal(false)
+      } else {
+        toast.error('反馈提交失败，请稍后重试')
+      }
+    } catch (error) {
+      console.error('提交反馈失败:', error)
+      toast.error('反馈提交失败，请稍后重试')
+    } finally {
+      setIsSubmittingFeedback(false)
+    }
+  }, [feedbackType, feedbackContent, feedbackEmail])
+
+  // 反馈类型配置
+  const feedbackTypeOptions: { value: FeedbackType; label: string }[] = [
+    { value: 'feature', label: '功能建议' },
+    { value: 'bug', label: '问题反馈' },
+    { value: 'inquiry', label: '咨询问题' },
+    { value: 'other', label: '其他' }
+  ]
 
   // 获取当前分类信息
   const currentCategory = categories.find(c => c.value === activeCategory)
@@ -1098,7 +1321,7 @@ export default function Help() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
-            onClick={() => setShowFeedbackModal(false)}
+            onClick={() => !isSubmittingFeedback && setShowFeedbackModal(false)}
           >
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -1114,8 +1337,9 @@ export default function Help() {
                 <div className="flex items-center justify-between">
                   <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>提交反馈</h3>
                   <button
-                    onClick={() => setShowFeedbackModal(false)}
-                    className={`p-2 rounded-lg transition-colors ${isDark ? 'hover:bg-slate-800' : 'hover:bg-gray-100'}`}
+                    onClick={() => !isSubmittingFeedback && setShowFeedbackModal(false)}
+                    disabled={isSubmittingFeedback}
+                    className={`p-2 rounded-lg transition-colors ${isDark ? 'hover:bg-slate-800' : 'hover:bg-gray-100'} disabled:opacity-50 disabled:cursor-not-allowed`}
                   >
                     <X size={18} className={isDark ? 'text-slate-400' : 'text-gray-500'} />
                   </button>
@@ -1124,34 +1348,43 @@ export default function Help() {
               <div className="p-6 space-y-4">
                 <div>
                   <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>
-                    反馈类型
+                    反馈类型 <span className="text-red-500">*</span>
                   </label>
                   <div className="flex flex-wrap gap-2">
-                    {['功能建议', '问题反馈', '账号问题', '其他'].map((type, i) => (
+                    {feedbackTypeOptions.map((option) => (
                       <button
-                        key={i}
+                        key={option.value}
+                        onClick={() => setFeedbackType(option.value)}
+                        disabled={isSubmittingFeedback}
                         className={`
-                          px-3 py-1.5 rounded-lg text-sm transition-colors
-                          ${isDark
-                            ? 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                          px-3 py-1.5 rounded-lg text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed
+                          ${feedbackType === option.value
+                            ? isDark
+                              ? 'bg-indigo-500 text-white'
+                              : 'bg-indigo-600 text-white'
+                            : isDark
+                              ? 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                           }
                         `}
                       >
-                        {type}
+                        {option.label}
                       </button>
                     ))}
                   </div>
                 </div>
                 <div>
                   <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>
-                    详细描述
+                    详细描述 <span className="text-red-500">*</span>
                   </label>
                   <textarea
                     rows={4}
+                    value={feedbackContent}
+                    onChange={(e) => setFeedbackContent(e.target.value)}
+                    disabled={isSubmittingFeedback}
                     placeholder="请详细描述您遇到的问题或建议..."
                     className={`
-                      w-full px-4 py-3 rounded-xl resize-none outline-none transition-all
+                      w-full px-4 py-3 rounded-xl resize-none outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed
                       ${isDark
                         ? 'bg-slate-800 border border-slate-700 text-white placeholder-slate-500 focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20'
                         : 'bg-gray-50 border border-gray-200 text-gray-900 placeholder-gray-400 focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100'
@@ -1165,22 +1398,29 @@ export default function Help() {
                   </label>
                   <input
                     type="email"
+                    value={feedbackEmail}
+                    onChange={(e) => setFeedbackEmail(e.target.value)}
+                    disabled={isSubmittingFeedback}
                     placeholder="your@email.com"
                     className={`
-                      w-full px-4 py-3 rounded-xl outline-none transition-all
+                      w-full px-4 py-3 rounded-xl outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed
                       ${isDark
                         ? 'bg-slate-800 border border-slate-700 text-white placeholder-slate-500 focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20'
                         : 'bg-gray-50 border border-gray-200 text-gray-900 placeholder-gray-400 focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100'
                       }
                     `}
                   />
+                  <p className={`text-xs mt-1 ${isDark ? 'text-slate-500' : 'text-gray-400'}`}>
+                    留下邮箱以便我们回复您
+                  </p>
                 </div>
               </div>
               <div className={`p-6 border-t ${isDark ? 'border-slate-800' : 'border-gray-100'} flex justify-end gap-3`}>
                 <button
                   onClick={() => setShowFeedbackModal(false)}
+                  disabled={isSubmittingFeedback}
                   className={`
-                    px-4 py-2 rounded-lg text-sm font-medium transition-colors
+                    px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed
                     ${isDark
                       ? 'text-slate-300 hover:bg-slate-800'
                       : 'text-gray-600 hover:bg-gray-100'
@@ -1190,16 +1430,18 @@ export default function Help() {
                   取消
                 </button>
                 <button
-                  onClick={() => setShowFeedbackModal(false)}
+                  onClick={handleSubmitFeedback}
+                  disabled={isSubmittingFeedback || !feedbackContent.trim()}
                   className={`
-                    px-6 py-2 rounded-lg text-sm font-medium transition-all
+                    px-6 py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2
                     ${isDark
                       ? 'bg-indigo-500 hover:bg-indigo-400 text-white'
                       : 'bg-indigo-600 hover:bg-indigo-500 text-white'
                     }
                   `}
                 >
-                  提交反馈
+                  {isSubmittingFeedback && <Loader2 size={16} className="animate-spin" />}
+                  {isSubmittingFeedback ? '提交中...' : '提交反馈'}
                 </button>
               </div>
             </motion.div>

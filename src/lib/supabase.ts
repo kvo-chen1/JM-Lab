@@ -425,6 +425,53 @@ export interface Database {
           checksum?: string | null
         }
       }
+      generation_tasks: {
+        Row: {
+          id: string
+          user_id: string
+          type: 'image' | 'video'
+          status: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled'
+          params: Record<string, any>
+          progress: number
+          result: Record<string, any> | null
+          error: string | null
+          error_type: 'content_policy' | 'timeout' | 'auth' | 'general' | 'network' | null
+          created_at: string
+          updated_at: string
+          started_at: string | null
+          completed_at: string | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          type: 'image' | 'video'
+          status?: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled'
+          params?: Record<string, any>
+          progress?: number
+          result?: Record<string, any> | null
+          error?: string | null
+          error_type?: 'content_policy' | 'timeout' | 'auth' | 'general' | 'network' | null
+          created_at?: string
+          updated_at?: string
+          started_at?: string | null
+          completed_at?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          type?: 'image' | 'video'
+          status?: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled'
+          params?: Record<string, any>
+          progress?: number
+          result?: Record<string, any> | null
+          error?: string | null
+          error_type?: 'content_policy' | 'timeout' | 'auth' | 'general' | 'network' | null
+          created_at?: string
+          updated_at?: string
+          started_at?: string | null
+          completed_at?: string | null
+        }
+      }
     }
   }
 }
@@ -437,6 +484,7 @@ export type Comment = Tables['comments']['Row']
 export type Follow = Tables['follows']['Row']
 export type Like = Tables['likes']['Row']
 export type Message = Tables['messages']['Row']
+export type GenerationTask = Tables['generation_tasks']['Row']
 
 // 用户资料类型（包含统计信息）
 export interface UserProfile extends User {

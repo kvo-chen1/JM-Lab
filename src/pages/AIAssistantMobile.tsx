@@ -12,6 +12,8 @@ import VoiceOutputButton from '@/components/VoiceOutputButton'
 import SessionSidebar from '@/components/SessionSidebar'
 import { InlineGenerationCard } from '@/components/InlineGenerationCard'
 import AIMessageActions from '@/components/AIMessageActions'
+import { MobileShareSheet } from '@/components/MobileShareSheet'
+import { downloadAndUploadImage } from '@/services/imageService'
 
 // 扩展 Message 类型，支持生成任务
 // 注意：这个类型需要与 InlineGenerationCard 组件的 GenerationTask 类型完全兼容
@@ -287,12 +289,33 @@ export default function AIAssistantMobile() {
   // 生成任务状态管理
   const [activeGenerationTasks, setActiveGenerationTasks] = useState<Record<string, GenerationTaskInfo>>({})
 
+  // 分享面板状态
+  const [isShareSheetOpen, setIsShareSheetOpen] = useState(false)
+  const [shareContent, setShareContent] = useState<{
+    title: string
+    description: string
+    imageUrl: string
+    type: 'image' | 'video'
+  } | null>(null)
+
   // 从 localStorage 恢复生成任务
   useEffect(() => {
     const savedTasks = localStorage.getItem('aiAssistantGenerationTasks')
     if (savedTasks) {
       try {
         const parsed = JSON.parse(savedTasks)
+        // 处理 result 可能是字符串的情况
+        Object.keys(parsed).forEach(key => {
+          const task = parsed[key]
+          if (task.result && typeof task.result === 'string') {
+            try {
+              task.result = JSON.parse(task.result)
+              console.log('[AIAssistant] 恢复时解析 result 字符串为对象，任务ID:', key)
+            } catch (e) {
+              console.error('[AIAssistant] 解析 result 字符串失败:', e)
+            }
+          }
+        })
         setActiveGenerationTasks(parsed)
       } catch (e) {
         console.error('恢复生成任务失败:', e)
@@ -415,41 +438,49 @@ export default function AIAssistantMobile() {
         console.log('[AIAssistant] 解析后的items:', items)
         
         if (items.length > 0 && items[0].url) {
+          const imageUrl = items[0].url
+          console.log('[AIAssistant] 获取到图片URL:', imageUrl)
+          
+          // 确保 result 对象结构正确
           const taskResult = {
-            urls: [items[0].url],
+            urls: [imageUrl],
             revisedPrompt: prompt
           }
-          console.log('[AIAssistant] 设置taskResult:', taskResult)
+          console.log('[AIAssistant] 设置taskResult:', JSON.stringify(taskResult))
           const now = Date.now()
           // 生成成功 - 先更新 activeGenerationTasks
           console.log('[AIAssistant] 更新 activeGenerationTasks 为 completed')
           setActiveGenerationTasks(prev => {
+            const currentTask = prev[taskId] || {}
+            const updatedTask = {
+              ...currentTask,
+              status: 'completed' as const,
+              progress: 100,
+              result: { ...taskResult },
+              updatedAt: now
+            }
             const updated = {
               ...prev,
-              [taskId]: {
-                ...prev[taskId],
-                status: 'completed',
-                progress: 100,
-                result: taskResult,
-                updatedAt: now
-              }
+              [taskId]: updatedTask
             }
-            console.log('[AIAssistant] activeGenerationTasks 已更新:', updated[taskId])
+            console.log('[AIAssistant] activeGenerationTasks 已更新:', JSON.stringify(updated[taskId]))
             return updated
           })
           // 同时更新消息中的 generationTask，确保刷新页面后能恢复
           setMessages(prev => {
             const updatedMessages = prev.map(msg => {
               if (msg.generationTask?.id === taskId) {
+                const updatedGenerationTask = {
+                  ...msg.generationTask,
+                  status: 'completed' as const,
+                  progress: 100,
+                  result: { ...taskResult },
+                  updatedAt: now
+                }
+                console.log('[AIAssistant] 更新消息中的 generationTask:', JSON.stringify(updatedGenerationTask))
                 return {
                   ...msg,
-                  generationTask: {
-                    ...msg.generationTask,
-                    status: 'completed',
-                    progress: 100,
-                    result: taskResult,
-                    updatedAt: now
-                  }
+                  generationTask: updatedGenerationTask
                 }
               }
               return msg
@@ -459,6 +490,62 @@ export default function AIAssistantMobile() {
             return updatedMessages
           })
           toast.success('图片生成完成！')
+          
+          // 自动保存到永久存储（异步执行，不阻塞UI）
+          const saveImageToStorage = async () => {
+            try {
+              console.log('[AIAssistant] 开始自动保存图片到永久存储...')
+              const permanentUrl = await downloadAndUploadImage(imageUrl, 'ai-generated')
+              console.log('[AIAssistant] 图片已保存到永久存储:', permanentUrl)
+              
+              // 更新任务结果中的URL为永久URL
+              const permanentResult = {
+                urls: [permanentUrl],
+                revisedPrompt: prompt,
+                originalUrl: imageUrl // 保留原始URL
+              }
+              
+              // 更新 activeGenerationTasks
+              setActiveGenerationTasks(prev => ({
+                ...prev,
+                [taskId]: {
+                  ...prev[taskId],
+                  result: permanentResult,
+                  updatedAt: Date.now()
+                }
+              }))
+              
+              // 更新消息中的 generationTask
+              setMessages(prev => {
+                const updatedMessages = prev.map(msg => {
+                  if (msg.generationTask?.id === taskId) {
+                    return {
+                      ...msg,
+                      generationTask: {
+                        ...msg.generationTask,
+                        result: permanentResult,
+                        updatedAt: Date.now()
+                      }
+                    }
+                  }
+                  return msg
+                })
+                saveMessagesToSession(updatedMessages)
+                return updatedMessages
+              })
+              
+              toast.success('图片已自动保存到云端')
+            } catch (saveError) {
+              console.error('[AIAssistant] 自动保存图片失败:', saveError)
+              // 保存失败不影响用户体验，只是记录错误
+              toast.error('图片保存到云端失败，请手动保存')
+            }
+          }
+          
+          // 延迟执行保存，让UI先更新
+          setTimeout(() => {
+            saveImageToStorage()
+          }, 1000)
           
           // 自动滚动到生成的图片位置
           setTimeout(() => {
@@ -541,7 +628,188 @@ export default function AIAssistantMobile() {
     }
   }, [saveMessagesToSession])
 
-  // 发送消息 - 支持图片/视频生成和页面跳转
+  // 在聊天中生成视频
+  const generateVideoInChat = useCallback(async (taskId: string, prompt: string) => {
+    // 防止重复生成同一个任务
+    if (processingTasksRef.current.has(taskId)) {
+      console.log('[AIAssistant] 视频任务已在处理中，跳过重复调用:', taskId)
+      return
+    }
+    processingTasksRef.current.add(taskId)
+    
+    console.log('[AIAssistant] 开始生成视频，taskId:', taskId, 'prompt:', prompt)
+    try {
+      const now = Date.now()
+      // 更新任务状态为处理中
+      setActiveGenerationTasks(prev => ({
+        ...prev,
+        [taskId]: {
+          ...prev[taskId],
+          status: 'processing',
+          progress: 10,
+          updatedAt: now
+        }
+      }))
+      console.log('[AIAssistant] 视频任务状态已更新为 processing')
+
+      // 调用视频生成API
+      console.log('[AIAssistant] 调用 llmService.generateVideo...')
+      let result
+      try {
+        result = await llmService.generateVideo({
+          prompt,
+          duration: 5,
+          resolution: '720p',
+          aspectRatio: '16:9'
+        })
+      } catch (apiError) {
+        console.error('[AIAssistant] llmService.generateVideo 抛出异常:', apiError)
+        throw apiError
+      }
+      console.log('[AIAssistant] llmService.generateVideo 返回结果:', result)
+
+      if (result.ok && result.data) {
+        const data: any = result.data
+        console.log('[AIAssistant] 视频生成成功，返回数据:', data)
+        
+        // 视频生成返回的是 video_url
+        const videoUrl = data.video_url || data.url || data.videoUrl
+        
+        if (videoUrl) {
+          console.log('[AIAssistant] 获取到视频URL:', videoUrl)
+          
+          // 确保 result 对象结构正确
+          const taskResult = {
+            urls: [videoUrl],
+            revisedPrompt: prompt
+          }
+          console.log('[AIAssistant] 设置视频taskResult:', JSON.stringify(taskResult))
+          const now = Date.now()
+          // 生成成功 - 先更新 activeGenerationTasks
+          console.log('[AIAssistant] 更新视频 activeGenerationTasks 为 completed')
+          setActiveGenerationTasks(prev => {
+            const currentTask = prev[taskId] || {}
+            const updatedTask = {
+              ...currentTask,
+              status: 'completed' as const,
+              progress: 100,
+              result: { ...taskResult },
+              updatedAt: now
+            }
+            const updated = {
+              ...prev,
+              [taskId]: updatedTask
+            }
+            console.log('[AIAssistant] 视频 activeGenerationTasks 已更新:', JSON.stringify(updated[taskId]))
+            return updated
+          })
+          // 同时更新消息中的 generationTask，确保刷新页面后能恢复
+          setMessages(prev => {
+            const updatedMessages = prev.map(msg => {
+              if (msg.generationTask?.id === taskId) {
+                const updatedGenerationTask = {
+                  ...msg.generationTask,
+                  status: 'completed' as const,
+                  progress: 100,
+                  result: { ...taskResult },
+                  updatedAt: now
+                }
+                console.log('[AIAssistant] 更新视频消息中的 generationTask:', JSON.stringify(updatedGenerationTask))
+                return {
+                  ...msg,
+                  generationTask: updatedGenerationTask
+                }
+              }
+              return msg
+            })
+            // 保存到会话
+            saveMessagesToSession(updatedMessages)
+            return updatedMessages
+          })
+          toast.success('视频生成完成！')
+          
+          // 自动滚动到生成的视频位置
+          setTimeout(() => {
+            const videoElement = document.querySelector(`[data-generation-task-id="${taskId}"]`)
+            if (videoElement) {
+              videoElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            } else {
+              // 如果找不到特定元素，滚动到底部
+              messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+            }
+          }, 300)
+        } else {
+          throw new Error('视频生成结果为空')
+        }
+      } else {
+        throw new Error(result.error || '视频生成失败')
+      }
+    } catch (error: any) {
+      console.error('视频生成失败:', error)
+      
+      // 处理不同类型的错误
+      let errorMsg = error.message || '视频生成失败，请重试'
+      let errorType = 'general'
+      
+      // 检查是否是内容审核错误
+      if (errorMsg.includes('inappropriate content') || 
+          errorMsg.includes('敏感内容') || 
+          errorMsg.includes('内容审核') ||
+          errorMsg.includes('inappropriate')) {
+        errorType = 'content_policy'
+        errorMsg = '提示词包含敏感内容，请尝试修改描述，避免使用敏感词汇'
+      }
+      // 检查是否是超时错误
+      else if (errorMsg.includes('timeout') || errorMsg.includes('超时')) {
+        errorType = 'timeout'
+        errorMsg = '视频生成请求超时，请稍后重试'
+      }
+      // 检查是否是 API Key 错误
+      else if (errorMsg.includes('API Key') || errorMsg.includes('Unauthorized')) {
+        errorType = 'auth'
+        errorMsg = 'API 认证失败，请联系管理员'
+      }
+      
+      const now = Date.now()
+      setActiveGenerationTasks(prev => ({
+        ...prev,
+        [taskId]: {
+          ...prev[taskId],
+          status: 'failed',
+          error: errorMsg,
+          errorType: errorType,
+          updatedAt: now
+        }
+      }))
+      // 同时更新消息中的 generationTask 状态为失败
+      setMessages(prev => {
+        const updatedMessages = prev.map(msg => {
+          if (msg.generationTask?.id === taskId) {
+            return {
+              ...msg,
+              generationTask: {
+                ...msg.generationTask,
+                status: 'failed',
+                error: errorMsg,
+                errorType: errorType as any,
+                updatedAt: now
+              }
+            }
+          }
+          return msg
+        })
+        // 保存到会话
+        saveMessagesToSession(updatedMessages)
+        return updatedMessages
+      })
+      toast.error('视频生成失败: ' + errorMsg)
+    } finally {
+      // 从处理中任务集合中移除
+      processingTasksRef.current.delete(taskId)
+    }
+  }, [saveMessagesToSession])
+
+  // 监听生成任务状态变化发送消息 - 支持图片/视频生成和页面跳转
   const handleSend = useCallback(async (content: string = input) => {
     if (!content.trim() || isGenerating) return
 
@@ -624,10 +892,12 @@ export default function AIAssistantMobile() {
           generateImageInChat(taskId, content)
         }, 100)
       } else {
-        // 视频生成仍然跳转到创作中心（因为视频生成需要更多配置）
+        // 直接在聊天中生成视频
+        console.log('[AIAssistant] 准备调用 generateVideoInChat，taskId:', taskId)
         setTimeout(() => {
-          navigate('/create', { state: { prompt: content, type: 'video' } })
-        }, 2000)
+          console.log('[AIAssistant] setTimeout 触发，开始调用 generateVideoInChat')
+          generateVideoInChat(taskId, content)
+        }, 100)
       }
       
       setIsGenerating(false)
@@ -636,25 +906,51 @@ export default function AIAssistantMobile() {
 
     try {
       await aiAssistantService.initialize(user)
+      
+      // 创建AI消息ID
+      const aiMessageId = (Date.now() + 1).toString()
+      
+      // 先添加一个空的AI消息，用于流式显示
+      const initialAiMessage: Message = {
+        id: aiMessageId,
+        role: 'assistant',
+        content: '',
+        timestamp: Date.now()
+      }
+      setMessages(prev => [...prev, initialAiMessage])
+      
+      // 用于累积流式内容
+      let streamedContent = ''
+      
       const response = await aiAssistantService.processMessage(
         content.trim(),
-        location.pathname
+        location.pathname,
+        (delta: string) => {
+          // 流式回调：逐步更新AI消息内容
+          streamedContent += delta
+          setMessages(prev => {
+            const updatedMessages = prev.map(msg => 
+              msg.id === aiMessageId 
+                ? { ...msg, content: streamedContent }
+                : msg
+            )
+            return updatedMessages
+          })
+        }
       )
 
       if (response && response.content) {
         // 处理导航响应
         if (response.type === 'navigation' && response.shouldNavigate && response.target) {
-          // 添加AI回复消息
-          const aiMessage: Message = {
-            id: (Date.now() + 1).toString(),
-            role: 'assistant',
-            content: response.content,
-            timestamp: Date.now()
-          }
+          // 更新AI回复消息为最终内容
           setMessages(prev => {
-            const newMessages = [...prev, aiMessage]
-            saveMessagesToSession(newMessages)
-            return newMessages
+            const updatedMessages = prev.map(msg => 
+              msg.id === aiMessageId 
+                ? { ...msg, content: response.content }
+                : msg
+            )
+            saveMessagesToSession(updatedMessages)
+            return updatedMessages
           })
 
           // 延迟跳转，让用户看到消息
@@ -664,17 +960,15 @@ export default function AIAssistantMobile() {
           return
         }
 
-        // 普通回复
-        const aiMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          role: 'assistant',
-          content: response.content,
-          timestamp: Date.now()
-        }
+        // 普通回复 - 确保最终内容已保存
         setMessages(prev => {
-          const newMessages = [...prev, aiMessage]
-          saveMessagesToSession(newMessages)
-          return newMessages
+          const updatedMessages = prev.map(msg => 
+            msg.id === aiMessageId 
+              ? { ...msg, content: response.content }
+              : msg
+          )
+          saveMessagesToSession(updatedMessages)
+          return updatedMessages
         })
       } else {
         throw new Error('获取回复失败')
@@ -697,7 +991,7 @@ export default function AIAssistantMobile() {
     } finally {
       setIsGenerating(false)
     }
-  }, [input, isGenerating, user, location.pathname, saveMessagesToSession, navigate, generateImageInChat])
+  }, [input, isGenerating, user, location.pathname, saveMessagesToSession, navigate, generateImageInChat, generateVideoInChat])
 
   // 处理从首页跳转过来的自动发送消息
   useEffect(() => {
@@ -795,8 +1089,13 @@ export default function AIAssistantMobile() {
     }
   }
 
-  // 处理从其他页面传入的自动生成请求
+  // 处理从其他页面传入的模板提示词 - 只在组件挂载时执行一次
   useEffect(() => {
+    // 如果已经触发过，直接返回
+    if (autoGenerateTriggeredRef.current) {
+      return
+    }
+
     const locationState = location.state as { 
       autoGenerate?: boolean
       prompt?: string
@@ -805,35 +1104,54 @@ export default function AIAssistantMobile() {
       templateCategory?: string
     } | null
 
-    // 如果没有自动生成请求，重置触发标志，允许下次触发
-    if (!locationState?.autoGenerate) {
-      autoGenerateTriggeredRef.current = false
+    console.log('[AIAssistant] location.state:', locationState)
+
+    // 优先从 location.state 获取，如果没有则从 sessionStorage 获取
+    let prompt = locationState?.prompt
+    let templateName = locationState?.templateName
+    
+    if (!prompt) {
+      const savedPrompt = sessionStorage.getItem('templatePrompt')
+      const savedTemplateName = sessionStorage.getItem('templateName')
+      if (savedPrompt) {
+        prompt = savedPrompt
+        templateName = savedTemplateName || '模板'
+        console.log('[AIAssistant] 从 sessionStorage 恢复模板提示词:', prompt)
+      }
+    }
+
+    // 如果没有模板提示词，直接返回
+    if (!prompt) {
       return
     }
 
-    // 防止重复触发
-    if (autoGenerateTriggeredRef.current) {
-      console.log('[AIAssistant] 自动生成已触发过，跳过')
-      return
+    console.log('[AIAssistant] 接收到模板提示词:', prompt)
+    
+    // 标记已触发
+    autoGenerateTriggeredRef.current = true
+    
+    // 构建发送文本
+    const promptText = `生成图片：${prompt}`
+    console.log('[AIAssistant] 准备自动发送:', promptText)
+    
+    // 填充输入框
+    setInput(promptText)
+    
+    // 延迟后自动发送
+    setTimeout(() => {
+      toast.success(`正在使用「${templateName || '模板'}」生成图片...`)
+      // 调用 handleSend 发送消息
+      handleSend(promptText)
+    }, 500)
+    
+    // 清除 sessionStorage 和 location state（不刷新页面）
+    sessionStorage.removeItem('templatePrompt')
+    sessionStorage.removeItem('templateName')
+    if (window.history.replaceState) {
+      window.history.replaceState({}, document.title, window.location.pathname)
     }
-
-    if (locationState?.prompt) {
-      console.log('[AIAssistant] 接收到自动生成请求:', locationState)
-      
-      // 标记已触发
-      autoGenerateTriggeredRef.current = true
-      
-      // 清除location state，避免重复触发
-      navigate(location.pathname, { replace: true })
-      
-      // 延迟执行，确保会话已初始化
-      setTimeout(() => {
-        const generateMessage = `使用${locationState.templateName || '模板'}生成图片：${locationState.prompt}`
-        handleSend(generateMessage)
-        toast.success(`正在使用「${locationState.templateName || '模板'}」生成图片...`)
-      }, 500)
-    }
-  }, [location.state, handleSend, navigate])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // 只在组件挂载时执行一次
 
   return (
     <div className={`min-h-screen ${colors.bg.primary} flex flex-col relative overflow-hidden md:max-w-md md:mx-auto md:shadow-2xl`}>
@@ -931,7 +1249,7 @@ export default function AIAssistantMobile() {
         ref={mainRef}
         className={`flex-1 overflow-y-auto px-4 py-6 pb-32 ${colors.bg.primary} relative`}
       >
-        <div className="max-w-2xl mx-auto space-y-3">
+        <div className="w-full space-y-3">
           <AnimatePresence mode="popLayout">
             {messages.map((message, index) => (
               <motion.div
@@ -944,7 +1262,6 @@ export default function AIAssistantMobile() {
               >
                 {/* 检查是否是生成任务消息 */}
                 {(() => {
-                  // 优先使用消息中存储的 generationTask 数据
                   const messageTask = message.generationTask
                   if (!messageTask) {
                     return (
@@ -958,37 +1275,26 @@ export default function AIAssistantMobile() {
                     )
                   }
 
-                  // 尝试从 activeGenerationTasks 获取最新状态
+                  // 获取 activeTask
                   const activeTask = activeGenerationTasks[messageTask.id]
                   
-                  // 处理 result：优先使用 activeTask 的最新结果，其次是 messageTask 的结果
-                  const activeResult = activeTask?.result
-                  const messageResult = messageTask.result
-                  
-                  let mergedResult = null
-                  if (activeResult && activeResult.urls && activeResult.urls.length > 0) {
-                    mergedResult = activeResult
-                  } else if (messageResult && messageResult.urls && messageResult.urls.length > 0) {
-                    mergedResult = messageResult
+                  // 简单的 task 对象
+                  const task = {
+                    id: messageTask.id,
+                    type: messageTask.type,
+                    status: activeTask?.status || messageTask.status,
+                    progress: activeTask?.progress || messageTask.progress,
+                    params: messageTask.params,
+                    error: activeTask?.error || messageTask.error,
+                    result: activeTask?.result || messageTask.result,
                   }
                   
-                  // 合并数据：优先使用消息中的数据，然后用 activeTask 更新实时状态
-                  let mergedTask = {
-                    ...messageTask,
-                    // 如果 activeTask 存在，使用其状态更新
-                    ...(activeTask && {
-                      status: activeTask.status,
-                      progress: activeTask.progress,
-                      error: activeTask.error,
-                    }),
-                    // 单独处理 result，确保使用合并后的结果
-                    ...(mergedResult && { result: mergedResult }),
-                  }
+                  console.log('[AIAssistant] task:', task);
+                  
+                  const isUserMessage = message.role === 'user'
 
-                  console.log('[AIAssistant] 渲染生成任务:', mergedTask?.id, 'status:', mergedTask?.status, 'progress:', mergedTask?.progress, 'hasResult:', !!mergedTask?.result, 'urls:', mergedTask?.result?.urls, 'fullResult:', mergedTask?.result)
-                  
                   return (
-                    <div className="flex justify-start mb-4">
+                    <div className={`flex mb-4 ${isUserMessage ? 'justify-end' : 'justify-start'}`}>
                       <div className="w-full max-w-[90%]" data-generation-task-id={message.generationTask?.id}>
                         {/* 先显示AI回复文本 */}
                         <div className={`mb-3 rounded-2xl px-4 py-3 ${colors.bg.secondary} border ${colors.border.secondary}`}>
@@ -997,40 +1303,48 @@ export default function AIAssistantMobile() {
                         {/* 显示生成卡片 */}
                         <InlineGenerationCard
                           key={`${message.id}-generation-card`}
-                          task={mergedTask as any}
+                          task={task as any}
                           onSave={() => {
-                            const task = mergedTask
-                            if (task?.result?.urls?.[0]) {
+                            if (task.result?.urls?.[0]) {
                               navigate('/create', { state: { imageUrl: task.result.urls[0] } })
                             }
                           }}
                           onPublish={() => {
-                            const task = mergedTask
-                            if (task?.result?.urls?.[0]) {
+                            if (task.result?.urls?.[0]) {
                               navigate('/submit-work', { state: { imageUrl: task.result.urls[0] } })
                             }
                           }}
                           onShare={() => {
-                            const task = mergedTask
-                            if (task?.result?.urls?.[0]) {
-                              navigator.clipboard.writeText(task.result.urls[0])
-                              toast.success('链接已复制到剪贴板')
+                            if (task.result?.urls?.[0]) {
+                              // 打开移动端分享面板
+                              setShareContent({
+                                title: 'AI生成作品',
+                                description: task.params?.prompt || '由津小脉AI助手生成',
+                                imageUrl: task.result.urls[0],
+                                type: 'image'
+                              })
+                              setIsShareSheetOpen(true)
                             }
                           }}
                           onShareToFriend={() => {
-                            const task = mergedTask
-                            if (task?.result?.urls?.[0]) {
-                              // 打开分享对话框或跳转到好友列表
-                              navigate('/friends', { state: { shareImage: task.result.urls[0] } })
+                            if (task.result?.urls?.[0]) {
+                              // 打开移动端分享面板
+                              setShareContent({
+                                title: 'AI生成作品',
+                                description: task.params?.prompt || '由津小脉AI助手生成',
+                                imageUrl: task.result.urls[0],
+                                type: 'image'
+                              })
+                              setIsShareSheetOpen(true)
                             }
                           }}
                         />
                         {/* 消息操作栏 - 时间、语音、复制、引用、点赞等 */}
-                        <div className="mt-2 flex items-center gap-2 px-1">
+                        <div className={`mt-2 flex items-center gap-2 px-1 ${isUserMessage ? 'justify-end' : 'justify-start'}`}>
                           <span className="text-xs text-gray-400 font-medium">
                             {new Date(message.timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
                           </span>
-                          <VoiceOutputButton text={message.content} />
+                          {!isUserMessage && <VoiceOutputButton text={message.content} />}
                           <AIMessageActions
                             content={message.content}
                             onQuote={() => {
@@ -1212,6 +1526,13 @@ export default function AIAssistantMobile() {
         onSessionsChange={() => {
           // 会话列表变化时的回调
         }}
+      />
+
+      {/* 移动端分享面板 */}
+      <MobileShareSheet
+        isOpen={isShareSheetOpen}
+        onClose={() => setIsShareSheetOpen(false)}
+        content={shareContent}
       />
     </div>
   )

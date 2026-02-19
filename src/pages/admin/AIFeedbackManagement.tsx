@@ -158,7 +158,7 @@ export default function AIFeedbackManagement() {
         feedbackType: 'quality',
         comment: '内容不错，但可以更详细一些',
         aiModel: 'kimi',
-        aiResponse: '天津特色小吃包括：狗不理包子、耳朵眼炸糕、十八街麻花...',
+        aiResponse: '天津特色小吃包括：煎饼果子、耳朵眼炸糕、十八街麻花...',
         userQuery: '天津有什么特色小吃',
         createdAt: new Date(Date.now() - 172800000).toISOString(),
         isRead: true,

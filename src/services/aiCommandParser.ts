@@ -316,7 +316,7 @@ class AICommandParser {
     }
 
     // 提取文化元素
-    const culturalElements = input.match(/(杨柳青年画|泥人张|风筝魏|狗不理|十八街麻花|五大道)/g);
+    const culturalElements = input.match(/(杨柳青年画|泥人张|风筝魏|煎饼果子|十八街麻花|五大道)/g);
     if (culturalElements) {
       params.set('cultural_elements', [...new Set(culturalElements)]);
     }

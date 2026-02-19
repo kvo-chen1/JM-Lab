@@ -28,7 +28,7 @@ const BannerCarousel = memo(({ works, isDark }: { works: Work[]; isDark: boolean
 
   if (works.length === 0) {
     return (
-      <div className="relative h-[34rem] w-full overflow-hidden">
+      <div className="relative h-[42rem] w-full overflow-hidden">
         <img
           src="https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=800&q=80"
           alt="津脉广场"
@@ -44,7 +44,7 @@ const BannerCarousel = memo(({ works, isDark }: { works: Work[]; isDark: boolean
   }
 
   return (
-    <div className="relative h-[34rem] w-full overflow-hidden">
+    <div className="relative h-[42rem] w-full overflow-hidden">
       {/* 轮播图片 */}
       <motion.div
         className="flex h-full"
@@ -279,14 +279,14 @@ export default function MobileHome() {
     },
     {
       id: 'jm-005',
-      title: '狗不理包子·国潮',
-      subtitle: '老字号新演绎',
-      thumbnail: getPicsumUrl('goubuli-baozi-steamed-buns-delicious', 600, 400),
+      title: '煎饼果子·国潮',
+      subtitle: '津味早餐新演绎',
+      thumbnail: getPicsumUrl('jianbing-guozi-chinese-crepe-street-food', 600, 400),
       category: 'brand',
-      tags: ['美食', '老字号', '国潮'],
+      tags: ['美食', '早餐', '国潮'],
       likes: 2156,
       usageCount: 567,
-      prompt: '狗不理包子国潮风格插画，传统美食，蒸汽缭绕，红色喜庆，现代设计元素'
+      prompt: '天津煎饼果子国潮风格插画，传统早餐，热气腾腾，金黄色调，现代设计元素，街头美食文化'
     },
     {
       id: 'jm-006',
@@ -524,10 +524,10 @@ export default function MobileHome() {
   const getBrandCategory = (name: string): string => {
     const categoryMap: Record<string, string> = {
       '桂发祥': '传统美食',
-      '狗不理': '传统美食',
       '耳朵眼': '传统美食',
       '大福来': '传统美食',
       '果仁张': '传统美食',
+      '煎饼果子': '传统美食',
       '茶汤李': '传统美食',
       '石头门坎素包': '传统美食',
       '孙记烧卖': '传统美食',
@@ -545,8 +545,8 @@ export default function MobileHome() {
   const getBrandIcon = (name: string): string => {
     const iconMap: Record<string, string> = {
       '桂发祥': '🥨',
-      '狗不理': '🥟',
       '耳朵眼': '🍘',
+      '煎饼果子': '🌯',
       '大福来': '🍜',
       '果仁张': '🌰',
       '茶汤李': '🍵',
@@ -565,7 +565,7 @@ export default function MobileHome() {
   // 静态品牌数据（与PC端一致）
   const getStaticBrands = (): Brand[] => [
     { id: '1', name: '桂发祥', logo: '🥨', category: '传统美食' },
-    { id: '2', name: '狗不理', logo: '🥟', category: '传统美食' },
+    { id: '2', name: '煎饼果子', logo: '🌯', category: '传统美食' },
     { id: '3', name: '耳朵眼', logo: '🍘', category: '传统美食' },
     { id: '4', name: '老美华', logo: '👞', category: '传统服饰' },
     { id: '5', name: '果仁张', logo: '🌰', category: '传统美食' },
@@ -841,7 +841,7 @@ export default function MobileHome() {
     },
     {
       id: 'story-006',
-      title: '狗不理包子的百年传承',
+      title: '煎饼果子的城市记忆',
       category: '传统美食',
       readTime: '5分钟',
       image: 'https://images.unsplash.com/photo-1563245372-f21724e3856d?w=400&q=80'
@@ -854,12 +854,12 @@ export default function MobileHome() {
     { id: '2', title: '天津之眼夜景', thumbnail: 'https://images.unsplash.com/photo-1513415564515-763d91423bdd?w=400&q=80', creator: '摄影师李明', likes: 1856 },
     { id: '3', title: '泥人张现代风格', thumbnail: 'https://images.unsplash.com/photo-1561214115-f2f134cc4912?w=400&q=80', creator: '艺术家张华', likes: 3201 },
     { id: '4', title: '海河风光插画', thumbnail: 'https://images.unsplash.com/photo-1545569341-9eb8b30979d9?w=400&q=80', creator: '插画师小美', likes: 1567 },
-    { id: '5', title: '狗不理品牌视觉', thumbnail: 'https://images.unsplash.com/photo-1558655146-d09347e92766?w=400&q=80', creator: '设计师阿杰', likes: 2890 },
+    { id: '5', title: '煎饼果子品牌视觉', thumbnail: 'https://images.unsplash.com/photo-1558655146-d09347e92766?w=400&q=80', creator: '设计师阿杰', likes: 2890 },
     { id: '6', title: '天津方言文创', thumbnail: 'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?w=400&q=80', creator: '文创达人', likes: 1234 },
   ];
 
   const getMockBrands = (): Brand[] => [
-    { id: '1', name: '狗不理', logo: '🥟', category: '老字号' },
+    { id: '1', name: '煎饼果子', logo: '🌯', category: '老字号' },
     { id: '2', name: '耳朵眼', logo: '🍘', category: '传统美食' },
     { id: '3', name: '十八街麻花', logo: '🥨', category: '传统美食' },
     { id: '4', name: '杨柳青年画', logo: '🖼️', category: '非遗文化' },
@@ -961,7 +961,7 @@ export default function MobileHome() {
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="relative h-[34rem] w-full overflow-hidden -mt-20"
+        className="relative h-[42rem] w-full overflow-hidden -mt-20"
       >
         <BannerCarousel works={works} isDark={isDark} />
       </motion.div>
@@ -1094,11 +1094,13 @@ export default function MobileHome() {
                       transition={{ delay: index * 0.1 }}
                       whileTap={{ scale: 0.95 }}
                       onClick={() => {
-                        toast.success(`正在使用「${template.title}」模板，跳转至AI助手生成图片...`);
-                        // 跳转到AI助手页面，并传递模板信息用于自动生成图片
+                        toast.success(`已选择「${template.title}」模板，跳转至AI助手...`);
+                        // 保存到 sessionStorage（防止页面刷新后丢失）
+                        sessionStorage.setItem('templatePrompt', template.prompt);
+                        sessionStorage.setItem('templateName', template.title);
+                        // 跳转到AI助手页面，并传递模板提示词
                         navigate('/ai-assistant', {
                           state: {
-                            autoGenerate: true,
                             prompt: template.prompt,
                             templateId: template.id,
                             templateName: template.title,
@@ -1167,11 +1169,13 @@ export default function MobileHome() {
                       transition={{ delay: index * 0.1 + 0.05 }}
                       whileTap={{ scale: 0.95 }}
                       onClick={() => {
-                        toast.success(`正在使用「${template.title}」模板，跳转至AI助手生成图片...`);
-                        // 跳转到AI助手页面，并传递模板信息用于自动生成图片
+                        toast.success(`已选择「${template.title}」模板，跳转至AI助手...`);
+                        // 保存到 sessionStorage（防止页面刷新后丢失）
+                        sessionStorage.setItem('templatePrompt', template.prompt);
+                        sessionStorage.setItem('templateName', template.title);
+                        // 跳转到AI助手页面，并传递模板提示词
                         navigate('/ai-assistant', {
                           state: {
-                            autoGenerate: true,
                             prompt: template.prompt,
                             templateId: template.id,
                             templateName: template.title,

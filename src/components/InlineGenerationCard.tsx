@@ -267,19 +267,78 @@ export const InlineGenerationCard: React.FC<InlineGenerationCardProps> = ({
   );
 
   // 完成状态显示
-  const renderCompletedState = () => (
+  const renderCompletedState = () => {
+    // 检查是否有有效的结果URL
+    const resultUrl = task.result?.urls?.[0];
+    
+    // 如果没有结果URL，显示错误状态
+    if (!resultUrl) {
+      return (
+        <div className={`relative p-6 rounded-3xl ${isDark ? 'bg-gradient-to-br from-red-900/30 to-gray-900/80 border border-red-700/30' : 'bg-gradient-to-br from-red-50 to-gray-50/80 border border-red-200/50'} shadow-xl backdrop-blur-xl`}>
+          {/* 头部区域 */}
+          <div className="flex items-center gap-5 mb-6">
+            {/* 错误图标 */}
+            <div className="relative">
+              <div className={`w-16 h-16 rounded-2xl flex items-center justify-center ${
+                isDark ? 'bg-gradient-to-br from-red-500/30 to-orange-500/30' : 'bg-gradient-to-br from-red-100 to-orange-100'
+              }`}>
+                {task.type === 'image' ? (
+                  <ImageIcon className="w-8 h-8 text-red-500" />
+                ) : (
+                  <Video className="w-8 h-8 text-red-500" />
+                )}
+              </div>
+            </div>
+            
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <h4 className={`font-bold text-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                  生成失败
+                </h4>
+              </div>
+              <p className={`text-sm truncate ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                未能获取到生成结果，请重试
+              </p>
+            </div>
+            
+            {/* 错误图标 */}
+            <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center">
+              <span className="text-red-500 text-xl">✕</span>
+            </div>
+          </div>
+          
+          {/* 重试按钮 */}
+          <button
+            onClick={() => window.location.reload()}
+            className={`w-full py-3 rounded-xl font-medium transition-all ${
+              isDark
+                ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
+                : 'bg-red-50 text-red-600 hover:bg-red-100'
+            }`}
+          >
+            刷新页面重试
+          </button>
+        </div>
+      );
+    }
+    
+    return (
     <div className={`p-4 rounded-2xl ${isDark ? 'bg-gray-800/50' : 'bg-gray-50'}`}>
       {/* 生成结果展示 */}
       <div className="relative rounded-xl overflow-hidden mb-4 group">
         {task.type === 'image' ? (
           <img
-            src={task.result?.urls[0]}
+            src={resultUrl}
             alt="Generated"
             className="w-full max-h-96 object-contain"
+            onError={(e) => {
+              console.error('[InlineGenerationCard] 图片加载失败:', resultUrl);
+              (e.target as HTMLImageElement).src = '';
+            }}
           />
         ) : (
           <video
-            src={task.result?.urls[0]}
+            src={resultUrl}
             controls
             className="w-full max-h-96"
           />
@@ -292,7 +351,7 @@ export const InlineGenerationCard: React.FC<InlineGenerationCardProps> = ({
             whileTap={{ scale: 0.9 }}
             onClick={() => {
               const link = document.createElement('a');
-              link.href = task.result?.urls[0] || '';
+              link.href = resultUrl;
               link.download = `generated-${Date.now()}.${task.type === 'image' ? 'png' : 'mp4'}`;
               link.click();
               toast.success('下载成功');
@@ -304,13 +363,14 @@ export const InlineGenerationCard: React.FC<InlineGenerationCardProps> = ({
         </div>
       </div>
 
-      {/* 操作按钮组 */}
+      {/* 操作按钮组 - 手机端：发布+分享 水平对齐；PC端：保存+发布 */}
       <div className="flex flex-wrap gap-2">
+        {/* PC端显示保存到创作中心按钮，手机端隐藏 */}
         <motion.button
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
           onClick={onSave}
-          className={`flex-1 py-2.5 px-4 rounded-xl font-medium flex items-center justify-center gap-2 transition-all ${
+          className={`hidden md:flex flex-1 py-2.5 px-4 rounded-xl font-medium items-center justify-center gap-2 transition-all ${
             isDark
               ? 'bg-indigo-500/20 text-indigo-400 hover:bg-indigo-500/30'
               : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'
@@ -333,10 +393,25 @@ export const InlineGenerationCard: React.FC<InlineGenerationCardProps> = ({
           <Upload className="w-4 h-4" />
           发布到津脉广场
         </motion.button>
+        
+        {/* 手机端分享按钮，与发布按钮水平对齐 */}
+        <motion.button
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          onClick={onShare}
+          className={`md:hidden flex-1 py-2.5 px-4 rounded-xl font-medium flex items-center justify-center gap-2 transition-all ${
+            isDark
+              ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+          }`}
+        >
+          <Share2 className="w-4 h-4" />
+          分享
+        </motion.button>
       </div>
-
-      {/* 分享选项 */}
-      <div className="flex gap-2 mt-3">
+      
+      {/* PC端保持原来的两个按钮 */}
+      <div className="hidden md:flex gap-2 mt-3">
         <motion.button
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
@@ -375,10 +450,43 @@ export const InlineGenerationCard: React.FC<InlineGenerationCardProps> = ({
         不满意？尝试其他风格
       </button>
     </div>
-  );
+    );
+  };
 
   // 失败状态显示
-  const renderFailedState = () => (
+  const renderFailedState = () => {
+    // 判断错误类型
+    const isContentPolicyError = task.error?.includes('inappropriate content') || 
+                                  task.error?.includes('敏感内容') || 
+                                  task.error?.includes('内容审核') ||
+                                  task.errorType === 'content_policy'
+    const isTimeoutError = task.error?.includes('timeout') || 
+                           task.error?.includes('超时') ||
+                           task.errorType === 'timeout'
+    const isAuthError = task.error?.includes('API Key') || 
+                        task.error?.includes('Unauthorized') ||
+                        task.errorType === 'auth'
+    
+    // 获取错误标题和描述
+    let errorTitle = '生成失败'
+    let errorDescription = task.error || '生成过程中出现错误，请重试'
+    let buttonText = '重新生成'
+    
+    if (isContentPolicyError) {
+      errorTitle = '内容审核未通过'
+      errorDescription = '提示词包含敏感内容，请尝试修改描述，避免使用敏感词汇'
+      buttonText = '修改提示词重试'
+    } else if (isTimeoutError) {
+      errorTitle = '生成超时'
+      errorDescription = '生成请求超时，请稍后重试'
+      buttonText = '重新生成'
+    } else if (isAuthError) {
+      errorTitle = '认证失败'
+      errorDescription = 'API 认证失败，请联系管理员'
+      buttonText = '重新生成'
+    }
+    
+    return (
     <div className={`relative p-6 rounded-3xl ${isDark ? 'bg-gradient-to-br from-red-900/30 to-gray-900/80 border border-red-700/30' : 'bg-gradient-to-br from-red-50 to-gray-50/80 border border-red-200/50'} shadow-xl backdrop-blur-xl`}>
       {/* 删除按钮 */}
       {onDelete && (
@@ -415,11 +523,11 @@ export const InlineGenerationCard: React.FC<InlineGenerationCardProps> = ({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <h4 className={`font-bold text-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>
-              生成失败
+              {errorTitle}
             </h4>
           </div>
-          <p className={`text-sm truncate ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-            {task.error || '生成过程中出现错误，请重试'}
+          <p className={`text-sm line-clamp-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+            {errorDescription}
           </p>
         </div>
         
@@ -431,20 +539,27 @@ export const InlineGenerationCard: React.FC<InlineGenerationCardProps> = ({
       
       {/* 重试按钮 */}
       <button
-        onClick={() => window.location.reload()}
+        onClick={() => {
+          // 触发重新生成事件
+          const retryEvent = new CustomEvent('retryGeneration', { 
+            detail: { taskId: task.id, prompt: task.params?.prompt || '', isContentPolicyError }
+          });
+          window.dispatchEvent(retryEvent);
+        }}
         className={`w-full py-3 rounded-xl font-medium transition-all ${
           isDark
             ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
             : 'bg-red-50 text-red-600 hover:bg-red-100'
         }`}
       >
-        刷新页面重试
+        {buttonText}
       </button>
     </div>
   );
+  };
 
   // 调试：在控制台输出任务状态
-  console.log('[InlineGenerationCard] 任务状态:', task.status, '任务ID:', task.id);
+  console.log('[InlineGenerationCard] 任务状态:', task.status, '任务ID:', task.id, 'result:', task.result, 'urls:', task.result?.urls);
 
   return (
     <AnimatePresence mode="wait">

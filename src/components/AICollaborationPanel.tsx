@@ -15,6 +15,12 @@ import { getRecommendations, RecommendedItem, recordRecommendationClick } from '
 import InlineGenerationCard from './InlineGenerationCard'
 import { aiGenerationService, GenerationTask } from '@/services/aiGenerationService'
 import ShareDialog from './ShareDialog'
+import VoiceOutputButton from './VoiceOutputButton'
+import SmartInput from './SmartInput'
+import InspirationCard from './InspirationCard'
+import MessageSearch from './MessageSearch'
+import AISettingsPanel from './AISettingsPanel'
+import { useCreateStore } from '@/pages/create/hooks/useCreateStore'
 
 interface AICollaborationPanelProps {
   isOpen: boolean
@@ -31,6 +37,7 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
   const navigate = useNavigate()
   const { t, i18n } = useTranslation()
   const { user } = useContext(AuthContext)
+  const addGeneratedResult = useCreateStore((state) => state.addGeneratedResult)
   const [sessions, setSessions] = useState<ConversationSession[]>([])
   const [currentSession, setCurrentSession] = useState<ConversationSession | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
@@ -559,6 +566,28 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
+  // 监听引用消息事件
+  useEffect(() => {
+    const handleQuoteMessage = (e: CustomEvent<{ content: string; index: number }>) => {
+      const { content } = e.detail;
+      // 在输入框中添加引用格式
+      const quotedContent = content
+        .split('\n')
+        .map(line => `> ${line}`)
+        .join('\n');
+      setInput(prev => {
+        const prefix = prev ? prev + '\n\n' : '';
+        return prefix + quotedContent + '\n\n';
+      });
+      toast.success('已引用到输入框');
+    };
+
+    window.addEventListener('quoteMessage', handleQuoteMessage as EventListener);
+    return () => {
+      window.removeEventListener('quoteMessage', handleQuoteMessage as EventListener);
+    };
+  }, [])
+
   // 创建新会话 - 使用 Supabase 存储
   const createNewSession = async () => {
     // 如果没有输入名称，使用默认名称
@@ -1069,11 +1098,55 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
       
       // 处理图片/视频生成请求
       if (!isGreeting) {
-        const imageKeywords = ['生成图片', '生成图像', '画一张', '画个', '画幅', '生成图', '画一下', '帮我画图', '帮我画', '画一', '生成一张图', '生成一张图片', '画一张图', '生成画', '想要一张', '想要个', '想要幅', '给我画', '给我生成', '来一张', '来一幅', '来张', '来幅', '需要一张', '需要张', '需要幅', '做一张', '做张', '做幅', '创作一张', '创作张', '创作幅', '设计一张', '设计张', '设计幅'];
-        const videoKeywords = ['生成视频', '生成影片', '做个视频', '做视频', '生成动画', '生成短片', '帮我做视频', '帮我生成视频', '想要个视频', '想要视频', '给我做个视频', '给我生成视频', '来段视频', '来段', '需要视频', '做段视频', '创作视频', '设计视频'];
+        // 图片生成关键词 - 包含更多变体
+        const imageKeywords = [
+          // 基础生成指令
+          '生成图片', '生成图像', '生成图', '生成照片', '生成画',
+          // 画/绘制指令
+          '画一张', '画个', '画幅', '画一下', '帮我画', '画一', '画张', '画幅',
+          '绘制', '画个图', '画张图', '画幅画',
+          // 帮我生成系列
+          '帮我生成', '帮我画图', '帮我画', '给我生成', '给我画',
+          // 想要/需要系列
+          '想要一张', '想要个', '想要幅', '想要张', '想要图',
+          '需要一张', '需要张', '需要幅', '需要个图',
+          // 来一张系列
+          '来一张', '来一幅', '来张', '来幅', '来个图',
+          // 做/创作/设计系列
+          '做一张', '做张', '做幅', '做个图',
+          '创作一张', '创作张', '创作幅', '创作个图',
+          '设计一张', '设计张', '设计幅', '设计个图',
+          // 其他表达
+          '整一张', '整幅', '整张图', '整幅画',
+          '搞一张', '搞幅', '搞张图',
+          '弄一张', '弄幅', '弄张图',
+        ];
         
-        const isImageRequest = imageKeywords.some(k => message.includes(k));
-        const isVideoRequest = videoKeywords.some(k => message.includes(k));
+        // 视频生成关键词
+        const videoKeywords = [
+          '生成视频', '生成影片', '生成动画', '生成短片',
+          '做个视频', '做视频', '做动画', '做短片',
+          '帮我做视频', '帮我生成视频', '帮我生成影片',
+          '想要视频', '想要个视频', '想要段视频',
+          '给我做个视频', '给我生成视频',
+          '来段视频', '来段', '来段动画',
+          '需要视频', '做段视频', '创作视频', '设计视频'
+        ];
+        
+        // 更宽松的匹配：检查是否同时包含"生成/画/做"和"图片/图/画"
+        const generationVerbs = ['生成', '画', '绘制', '做', '创作', '设计', '整', '搞', '弄'];
+        const imageNouns = ['图片', '图像', '图', '照片', '画', '画作', '插画'];
+        const videoNouns = ['视频', '影片', '动画', '短片', '录像'];
+        
+        const hasGenerationVerb = generationVerbs.some(v => message.includes(v));
+        const hasImageNoun = imageNouns.some(n => message.includes(n));
+        const hasVideoNoun = videoNouns.some(n => message.includes(n));
+        
+        // 判断是否为图片/视频请求（关键词匹配 或 动词+名词组合）
+        const isImageRequest = imageKeywords.some(k => message.includes(k)) || 
+                               (hasGenerationVerb && hasImageNoun);
+        const isVideoRequest = videoKeywords.some(k => message.includes(k)) || 
+                               (hasGenerationVerb && hasVideoNoun);
         
         if (isImageRequest || isVideoRequest) {
           // 提取提示词（去掉生成指令部分）
@@ -1401,24 +1474,34 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
       toast.error('生成结果不可用');
       return;
     }
-    
+
     try {
       // 获取提示词
       const prompt = task.params?.prompt || task.result?.revisedPrompt || '';
-      
+
       // 获取认证token
       const token = localStorage.getItem('token');
       if (!token) {
         toast.error('请先登录');
         return;
       }
-      
+
       console.log('[handleSaveGeneration] 保存作品:', { type: task.type, url: task.result.urls[0], prompt });
-      
-      // 保存到创作中心
+
+      // 保存到创作中心预览框 - 添加到 generatedResults
+      const newResult = {
+        id: Date.now(),
+        thumbnail: task.result.urls[0],
+        type: task.type as 'image' | 'video',
+        prompt: prompt,
+      };
+      addGeneratedResult(newResult);
+      console.log('[handleSaveGeneration] 已添加到创作中心预览框:', newResult);
+
+      // 保存到后端
       const response = await fetch('/api/works/save', {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
@@ -1429,17 +1512,18 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
           createdAt: new Date().toISOString()
         })
       });
-      
+
       console.log('[handleSaveGeneration] 响应状态:', response.status);
-      
+
       if (response.ok) {
         const data = await response.json();
         console.log('[handleSaveGeneration] 响应数据:', data);
         toast.success('已保存到创作中心');
       } else {
         const errorData = await response.json().catch(() => ({ message: '未知错误' }));
-        console.error('[handleSaveGeneration] 保存失败:', errorData);
-        throw new Error(errorData.message || `保存失败: ${response.status}`);
+        console.error('[handleSaveGeneration] 后端保存失败:', errorData);
+        // 后端保存失败不影响前端预览框的显示
+        toast.success('已添加到创作中心预览');
       }
     } catch (error) {
       console.error('保存失败:', error);
@@ -2079,6 +2163,20 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
                     
                     {/* 右侧：操作按钮组 */}
                     <div className="flex items-center gap-1.5 bg-gray-100/80 dark:bg-gray-800/80 rounded-xl p-1">
+                      {/* 消息搜索 */}
+                      <MessageSearch
+                        messages={messages}
+                        onNavigateToMessage={(index) => {
+                          // 滚动到指定消息
+                          const messageElements = document.querySelectorAll('[data-message-index]');
+                          if (messageElements[index]) {
+                            messageElements[index].scrollIntoView({ behavior: 'smooth', block: 'center' });
+                          }
+                        }}
+                      />
+                      
+                      <div className="w-px h-4 bg-gray-300 dark:bg-gray-600"></div>
+                      
                       <motion.button
                         onClick={() => setShowTemplates(!showTemplates)}
                         className="p-2 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-700 hover:shadow-sm transition-all"
@@ -2277,112 +2375,20 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
                   {/* 消息内容 */}
                   {showSettings ? (
                     <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      className="p-4"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.3 }}
+                      className="p-5"
                     >
-                      <h3 className="text-lg font-bold mb-4">设置</h3>
-                      
-                      {/* 助手性格设置 */}
-                      <div className="mb-6">
-                        <label className="block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}">助手性格</label>
-                        <div className="grid grid-cols-2 gap-2">
-                          {(['friendly', 'professional', 'creative', 'humorous', 'concise'] as AssistantPersonality[]).map(persona => (
-                            <button
-                              key={persona}
-                              onClick={() => handleSettingChange('personality', persona)}
-                              className={`p-2 rounded-lg transition-all ${personality === persona ? 
-                                (isDark ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white') : 
-                                (isDark ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-100 hover:bg-gray-200 text-gray-700')
-                              }`}
-                            >
-                              {persona === 'friendly' && '友好'}
-                              {persona === 'professional' && '专业'}
-                              {persona === 'creative' && '创意'}
-                              {persona === 'humorous' && '幽默'}
-                              {persona === 'concise' && '简洁'}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      
-                      {/* 主题设置 */}
-                      <div className="mb-6">
-                        <label className="block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}">主题</label>
-                        <div className="grid grid-cols-3 gap-2">
-                          {(['light', 'dark', 'auto'] as AssistantTheme[]).map(themeOption => (
-                            <button
-                              key={themeOption}
-                              onClick={() => handleSettingChange('theme', themeOption)}
-                              className={`p-2 rounded-lg transition-all ${assistantTheme === themeOption ? 
-                                (isDark ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white') : 
-                                (isDark ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-100 hover:bg-gray-200 text-gray-700')
-                              }`}
-                            >
-                              {themeOption === 'light' && '浅色'}
-                              {themeOption === 'dark' && '深色'}
-                              {themeOption === 'auto' && '自动'}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      
-                      {/* 显示预设问题 */}
-                      <div className="mb-4">
-                        <label className="flex items-center justify-between cursor-pointer">
-                          <span className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>显示预设问题</span>
-                          <div className={`relative inline-block w-10 h-5 transition-all ${showPresetQuestions ? 
-                            (isDark ? 'bg-blue-600' : 'bg-blue-500') : 
-                            (isDark ? 'bg-gray-600' : 'bg-gray-300')
-                          } rounded-full`}>
-                            <input
-                              type="checkbox"
-                              checked={showPresetQuestions}
-                              onChange={(e) => handleSettingChange('showPresetQuestions', e.target.checked)}
-                              className="sr-only"
-                            />
-                            <span className={`absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition-transform ${showPresetQuestions ? 'transform translate-x-5' : ''}`}></span>
-                          </div>
-                        </label>
-                      </div>
-                      
-                      {/* 启用打字效果 */}
-                      <div className="mb-4">
-                        <label className="flex items-center justify-between cursor-pointer">
-                          <span className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>启用打字效果</span>
-                          <div className={`relative inline-block w-10 h-5 transition-all ${enableTypingEffect ? 
-                            (isDark ? 'bg-blue-600' : 'bg-blue-500') : 
-                            (isDark ? 'bg-gray-600' : 'bg-gray-300')
-                          } rounded-full`}>
-                            <input
-                              type="checkbox"
-                              checked={enableTypingEffect}
-                              onChange={(e) => handleSettingChange('enableTypingEffect', e.target.checked)}
-                              className="sr-only"
-                            />
-                            <span className={`absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition-transform ${enableTypingEffect ? 'transform translate-x-5' : ''}`}></span>
-                          </div>
-                        </label>
-                      </div>
-                      
-                      {/* 自动滚动 */}
-                      <div className="mb-4">
-                        <label className="flex items-center justify-between cursor-pointer">
-                          <span className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>自动滚动</span>
-                          <div className={`relative inline-block w-10 h-5 transition-all ${autoScroll ? 
-                            (isDark ? 'bg-blue-600' : 'bg-blue-500') : 
-                            (isDark ? 'bg-gray-600' : 'bg-gray-300')
-                          } rounded-full`}>
-                            <input
-                              type="checkbox"
-                              checked={autoScroll}
-                              onChange={(e) => handleSettingChange('autoScroll', e.target.checked)}
-                              className="sr-only"
-                            />
-                            <span className={`absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition-transform ${autoScroll ? 'transform translate-x-5' : ''}`}></span>
-                          </div>
-                        </label>
-                      </div>
+                      <AISettingsPanel
+                        personality={personality}
+                        theme={assistantTheme}
+                        showPresetQuestions={showPresetQuestions}
+                        enableTypingEffect={enableTypingEffect}
+                        autoScroll={autoScroll}
+                        onSettingChange={handleSettingChange}
+                        onClose={() => setShowSettings(false)}
+                      />
                     </motion.div>
                   ) : messages.length <= 1 && !messages.some(m => (m as any).generationTask) ? (
                     <div className="flex flex-col items-center justify-center h-full text-center overflow-y-auto">
@@ -2465,25 +2471,27 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
                     messages.map((message, index) => (
                       <React.Fragment key={index}>
                         {/* 普通消息 */}
-                        <AICollaborationMessage
-                          message={message}
-                          index={index}
-                          userAvatar={user?.avatar}
-                          feedbackRating={feedbackRatings[index]}
-                          feedbackComment={feedbackComments[index]}
-                          isFeedbackVisible={feedbackVisible[index]}
-                          onRating={handleRating}
-                          onFeedbackSubmit={(idx) => handleFeedbackSubmit(idx)}
-                          onFeedbackCommentChange={(idx, val) => setFeedbackComments(prev => ({...prev, [idx]: val}))}
-                          onFeedbackToggle={(idx, visible) => setFeedbackVisible(prev => ({...prev, [idx]: visible}))}
-                          onDelete={handleDeleteMessage}
-                        />
+                        <div data-message-index={index}>
+                          <AICollaborationMessage
+                            message={message}
+                            index={index}
+                            userAvatar={user?.avatar}
+                            feedbackRating={feedbackRatings[index]}
+                            feedbackComment={feedbackComments[index]}
+                            isFeedbackVisible={feedbackVisible[index]}
+                            onRating={handleRating}
+                            onFeedbackSubmit={(idx) => handleFeedbackSubmit(idx)}
+                            onFeedbackCommentChange={(idx, val) => setFeedbackComments(prev => ({...prev, [idx]: val}))}
+                            onFeedbackToggle={(idx, visible) => setFeedbackVisible(prev => ({...prev, [idx]: visible}))}
+                            onDelete={handleDeleteMessage}
+                          />
+                        </div>
                         {/* 生成任务卡片 */}
                         {(message as any).generationTask && (
                           <motion.div
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
-                            className="ml-14 mb-4"
+                            className="ml-14 mb-4 max-w-[55%]"
                           >
                             {(() => {
                               const task = (message as any).generationTask;
@@ -2509,29 +2517,26 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
                 
                 {/* 输入区域 - 优化设计 */}
                 <div className="p-4 border-t dark:border-gray-800/50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md">
+                  {/* 快捷工具栏 */}
+                  <div className="flex items-center gap-2 mb-3">
+                    <InspirationCard 
+                      onSelect={(text) => setInput(prev => prev ? prev + ' ' + text : text)}
+                    />
+                    <SpeechInput 
+                      onTextRecognized={(text) => setInput(prev => prev + text)} 
+                      language={i18n.language.startsWith('zh') ? 'zh-CN' : 'en-US'}
+                    />
+                  </div>
+                  
                   <div className="flex items-end gap-3">
                     <div className="flex-1 relative">
-                      {/* 输入框容器 - 添加发光效果 */}
-                      <div className="relative group">
-                        <div className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-2xl opacity-0 group-focus-within:opacity-30 blur transition-opacity duration-300"></div>
-                        <textarea
-                          value={input}
-                          onChange={(e) => setInput(e.target.value)}
-                          onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
-                          placeholder={t('aiCollab.placeholders.input')}
-                          className={`relative w-full min-h-[60px] max-h-[200px] p-4 pr-12 rounded-xl border resize-none shadow-sm transition-all duration-300 ${isDark ? 'bg-gray-800/90 border-gray-700 text-white placeholder-gray-500 focus:border-indigo-500' : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400 focus:border-indigo-500'} focus:outline-none focus:ring-2 focus:ring-indigo-500/20`}
-                          disabled={isGenerating}
-                          style={{ resize: 'none' }}
-                        />
-                      </div>
-                      
-                      {/* 语音输入按钮 - 优化位置 */}
-                      <div className="absolute right-3 bottom-3">
-                        <SpeechInput 
-                          onTextRecognized={(text) => setInput(prev => prev + text)} 
-                          language={i18n.language.startsWith('zh') ? 'zh-CN' : 'en-US'}
-                        />
-                      </div>
+                      {/* 智能输入框 */}
+                      <SmartInput
+                        value={input}
+                        onChange={setInput}
+                        onSubmit={sendMessage}
+                        placeholder={t('aiCollab.placeholders.input') || '输入消息，输入 / 查看快捷指令...'}
+                      />
                     </div>
                     
                     {/* 发送按钮 - 优化样式 */}
@@ -2574,6 +2579,10 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
                       <span className="flex items-center gap-1">
                         <i className="fas fa-level-down-alt rotate-90"></i>
                         Shift + Enter 换行
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <i className="fas fa-bolt"></i>
+                        / 快捷指令
                       </span>
                     </div>
                     <div className="text-xs text-gray-400">

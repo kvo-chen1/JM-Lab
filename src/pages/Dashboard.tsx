@@ -48,6 +48,7 @@ import { useCommunityLogic } from '@/hooks/useCommunityLogic';
 import postsApi from '@/services/postService';
 import PWAInstallButton from '@/components/PWAInstallButton'
 import { useSupabasePoints } from '@/hooks/useSupabasePoints';
+import MobileDashboard from '@/components/MobileDashboard';
 
 // 模拟数据
 const performanceData = [
@@ -82,7 +83,7 @@ const quickActions = [
 
 export default function Dashboard() {
   const { isDark } = useTheme();
-  const { isAuthenticated, user } = useContext(AuthContext);
+  const { isAuthenticated, user, logout } = useContext(AuthContext);
   const navigate = useNavigate();
   const { startGuide } = useGuide();
   const [isLoading, setIsLoading] = useState(true);
@@ -97,6 +98,17 @@ export default function Dashboard() {
   const [activeContentTab, setActiveContentTab] = useState<'comprehensive' | 'hot' | 'latest'>('comprehensive');
   const [activeNav, setActiveNav] = useState('dashboard');
   const [isCheckInAnimating, setIsCheckInAnimating] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // 检测是否为移动端
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 1024);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // 使用 Supabase 积分服务
   const {
@@ -124,6 +136,7 @@ export default function Dashboard() {
     viewsChange: 12.5,
     likesChange: 8.3,
     worksChange: -2.1,
+    followersChange: 5.7,
   });
 
   // 热门话题数据
@@ -674,6 +687,28 @@ export default function Dashboard() {
           <p className={`text-lg ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>加载中...</p>
         </div>
       </div>
+    );
+  }
+
+  // 准备移动端组件需要的统计数据
+  const mobileStats = {
+    views: realUserStats?.views_count || 0,
+    likes: realUserStats?.likes_count || 0,
+    works: realUserStats?.works_count || 0,
+    followers: realUserStats?.followers_count || 0
+  };
+
+  // 移动端使用专门的移动端组件
+  if (isMobile) {
+    return (
+      <MobileDashboard
+        user={user}
+        isDark={isDark}
+        onLogout={logout}
+        stats={mobileStats}
+        quickNavCounts={quickNavCounts}
+        comparisonData={comparisonData}
+      />
     );
   }
 

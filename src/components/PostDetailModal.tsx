@@ -604,7 +604,7 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
                     >
                       <i className="fas fa-arrow-left"></i>
                     </button>
-                    <div className="relative w-full h-full md:min-h-[400px] flex items-center justify-center">
+                    <div className="relative w-full h-[60vh] md:h-full md:min-h-[400px] flex items-center justify-center">
                        {/* Image/Video */}
                        {(post.type === 'video' || post.category === 'video' || post.videoUrl) ? (
                          <div className="w-full h-full flex items-center justify-center">

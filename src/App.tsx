@@ -43,6 +43,7 @@ import { ScrollRestoration } from '@/components/ScrollRestoration';
 
 // 核心页面 - 只保留最关键的页面进行同步加载，减少初始加载时间
 import Home from "@/pages/Home";
+import MobileHome from "@/pages/MobileHome";
 import ComponentShowcase from "@/pages/ComponentShowcase";
 
 // 认证相关页面 - 懒加载减少初始包大小
@@ -69,11 +70,7 @@ import { createLazyThreeComponent } from '@/components/lazy/LazyThreeComponent';
 // 优化懒加载策略：根据页面访问频率和大小重新分类
 
 // 1. 高频访问页面 - 只保留最核心的页面同步加载
-// 将WorkDetail、PostDetail改为懒加载，进一步减少初始加载时间
-const WorkDetail = createLazyComponent(() => import(/* webpackChunkName: "pages-core" */ "@/pages/WorkDetail"), {
-  priority: ROUTE_PRIORITIES.HIGH,
-  name: 'work-detail'
-});
+// PostDetail改为懒加载，进一步减少初始加载时间
 const PostDetail = createLazyComponent(() => import(/* webpackChunkName: "pages-core" */ "@/pages/PostDetail"), {
   priority: ROUTE_PRIORITIES.HIGH,
   name: 'post-detail'
@@ -307,6 +304,12 @@ const Authenticity = createLazyComponent(() => import(/* webpackChunkName: "page
 const Wizard = createLazyComponent(() => import(/* webpackChunkName: "pages-other" */ "@/pages/Wizard"), {
   priority: ROUTE_PRIORITIES.LOW
 });
+
+// 津小脉AI助手移动端页面 - 懒加载
+const AIAssistantMobile = createLazyComponent(() => import(/* webpackChunkName: "pages-ai" */ "@/pages/AIAssistantMobile"), {
+  priority: ROUTE_PRIORITIES.HIGH,
+  name: 'ai-assistant-mobile'
+});
 const AnalyticsPage = createLazyComponent(() => import(/* webpackChunkName: "pages-other" */ "@/pages/Analytics"), {
   priority: ROUTE_PRIORITIES.LOW,
   name: 'analytics'
@@ -338,7 +341,7 @@ const BlindBoxShop = createLazyComponent(() => import(/* webpackChunkName: "comp
 });
 
 // 导入新的骨架屏组件
-import { DashboardSkeleton, WorkDetailSkeleton, ProfileSkeleton, SimpleLoadingSkeleton } from '@/components/skeletons/PageSkeletons';
+import { DashboardSkeleton, ProfileSkeleton, SimpleLoadingSkeleton } from '@/components/skeletons/PageSkeletons';
 
 // 优化LazyComponent，添加延迟加载和错误处理
 const LazyComponent = React.memo(({ 
@@ -696,7 +699,7 @@ export default function App() {
             <ErrorBoundary>
               <AnimatedPage>
                 {isMobile ? (
-                  <MobileLayout><Home /></MobileLayout>
+                  <MobileLayout><MobileHome /></MobileLayout>
                 ) : (
                   <SidebarLayout><Home /></SidebarLayout>
                 )}
@@ -745,7 +748,6 @@ export default function App() {
           </AnimatedPage>
         }>
 
-          <Route path="/works/:id" element={<LazyComponent fallback={<WorkDetailSkeleton />}><WorkDetail /></LazyComponent>} />
           <Route path="/about" element={<LazyComponent><About /></LazyComponent>} />
           <Route path="/neo" element={<Navigate to="/create/inspiration" replace />} />
           <Route path="/square" element={<LazyComponent><PrivateRoute><Square /></PrivateRoute></LazyComponent>} />
@@ -765,6 +767,9 @@ export default function App() {
           <Route path="/creates" element={<Navigate to="/create" replace />} />
           <Route path="/wizard" element={<LazyComponent><PrivateRoute><Wizard /></PrivateRoute></LazyComponent>} />
           <Route path="/ai-writer" element={<LazyComponent><PrivateRoute><AIWriterV2 /></PrivateRoute></LazyComponent>} />
+          
+          {/* 津小脉AI助手移动端页面 */}
+          <Route path="/ai-assistant" element={<LazyComponent><PrivateRoute><AIAssistantMobile /></PrivateRoute></LazyComponent>} />
           
           {/* 大型组件和低频访问页面使用懒加载 */}
 
@@ -851,8 +856,8 @@ export default function App() {
         <FirstLaunchGuide />
       </LazyComponent>
       
-      {/* 悬浮AI助手按钮 - 用于打开侧边栏AI助手，登录页面和落地页不显示 */}
-      {location.pathname !== '/login' && location.pathname !== '/landing.html' && location.pathname !== '/landing' && (
+      {/* 悬浮AI助手按钮 - 用于打开侧边栏AI助手，登录页面和落地页不显示，移动端不显示（已在底部导航栏集成） */}
+      {!isMobile && location.pathname !== '/login' && location.pathname !== '/landing.html' && location.pathname !== '/landing' && (
         <ErrorBoundary fallback={null}>
           <LazyComponent>
             <FloatingAIAssistant />

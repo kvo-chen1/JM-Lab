@@ -34,6 +34,8 @@ const navItems: AdminNavItem[] = [
   { id: 'contentManagement', name: '内容管理', icon: 'newspaper' },
   { id: 'knowledgeBase', name: '知识库管理', icon: 'book' },
   { id: 'templates', name: '作品模板管理', icon: 'layer-group' },
+  { id: 'achievements', name: '成就管理', icon: 'trophy' },
+  { id: 'aiFeedback', name: 'AI反馈管理', icon: 'robot', showNotification: true },
   { id: 'contentAudit', name: '内容审核', icon: 'file-alt', showNotification: true },
   { id: 'analytics', name: '数据分析', icon: 'chart-bar' },
   { id: 'adoption', name: '品牌管理', icon: 'star' },

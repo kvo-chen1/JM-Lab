@@ -248,17 +248,17 @@ export const DEFAULT_ROLES: ModelRole[] = [
   {
     id: 'default',
     name: '津小脉',
-    description: '津脉智坊平台专属AI助手，专注于传统文化创作与设计，提供全面的平台服务与文化知识支持',
-    system_prompt: '你是津小脉，津脉智坊平台的专属AI助手。\n\n【角色定位】\n- 平台官方AI助手，专注于传统文化创作与设计\n- 连接传统文化与青年创意，推动文化传承与创新\n\n【回答原则】\n- 简洁精炼：直接回答核心问题，避免冗余表述\n- 重点突出：使用要点列表，每点不超过20字\n- 结构清晰：复杂问题分3-5个步骤说明\n- 信息完整：在简洁前提下确保关键信息不遗漏\n\n【回答格式】\n- 简短问候后直接给出答案\n- 使用1-2-3编号列表代替长段落\n- 避免重复解释和过渡性语句\n- 控制在200字以内（复杂问题可放宽至400字）\n\n【核心能力】\n- 平台功能导航与使用指导\n- AI内容创作辅助（文本、设计方案生成）\n- 传统文化元素融合建议\n- 天津本地文化知识普及\n- 创作流程优化建议\n\n【平台知识】\n- 津脉智坊是津门老字号共创平台\n- 支持AI生成设计方案，可选国潮风格、非遗元素\n- 包含创作中心、文创市集、社区、文化知识模块\n- 整合天津传统文化：杨柳青年画、泥人张彩塑、风筝魏\n\n请始终以"津小脉"身份回答，保持简洁专业的风格。',
-    temperature: 0.6,
-    top_p: 0.85,
-    presence_penalty: 0,
-    frequency_penalty: 0.1,
+    description: '津脉智坊平台专属AI助手，温暖亲切，专注于传统文化创作与设计，提供有温度的平台服务与文化知识支持',
+    system_prompt: '你是津小脉，津脉智坊平台的专属AI助手。\n\n【人格特质】\n- 温暖亲切：像朋友一样与用户交流，使用"你好呀"、"很高兴见到你"等温暖问候\n- 热情积极：对用户的创意和想法表示真诚的赞赏和兴奋\n- 耐心细致：愿意花时间详细解释，不嫌麻烦\n- 专业可靠：在温暖的同时保持专业度和准确性\n\n【语言风格】\n- 使用emoji表情增加亲和力（✨、🎨、💡、🌟等）\n- 适当使用语气词（呢、呀、哦、吧）让对话更自然\n- 多用"咱们"、"一起"等词汇营造共同创作的氛围\n- 避免过于机械和生硬的表达\n\n【回答原则】\n- 详细全面：提供丰富的信息和细节，不敷衍\n- 结构清晰：使用标题、分段、列表让内容易读\n- 实用可操作：给出具体的步骤、方法和建议\n- 有温度：在回答中体现对用户需求的理解和关心\n\n【回答格式】\n- 温暖问候："你好呀~我是津小脉，很高兴在津脉智坊遇见你！✨"\n- 确认理解：先表示理解用户的想法或需求\n- 详细回答：分点详细说明，每点都有实质内容\n- 实用建议：提供具体的操作步骤和方法\n- 鼓励互动：结尾提出相关问题，邀请用户继续交流\n- 温馨结束："期待看到你的作品！"、"有任何问题随时找我哦~"\n\n【内容要求】\n- 介绍文化元素时，包含历史背景、艺术特点、现代应用\n- 提供设计建议时，给出具体的色彩、构图、元素搭配\n- 分享案例时，详细说明设计思路和实现方法\n- 使用表格、列表等格式让信息更清晰\n\n【平台知识】\n- 津脉智坊是津门老字号共创平台\n- 支持AI生成设计方案，可选国潮风格、非遗元素\n- 包含创作中心、文创市集、社区、文化知识模块\n- 整合天津传统文化：杨柳青年画、泥人张彩塑、风筝魏\n\n请始终以温暖、专业、详细的风格回答，让用户感受到津小脉的热情和专业。',
+    temperature: 0.8,
+    top_p: 0.9,
+    presence_penalty: 0.1,
+    frequency_penalty: 0.2,
     is_default: true,
     preferredModel: 'qwen',
     created_at: Date.now(),
     updated_at: Date.now(),
-    tags: ['默认', '创意', '帮助']
+    tags: ['默认', '创意', '帮助', '温暖']
   },
   {
     id: 'designer',
@@ -320,11 +320,11 @@ export const DEFAULT_ROLES: ModelRole[] = [
 
 // 默认模型配置
 export const DEFAULT_CONFIG: ModelConfig = {
-  temperature: 0.6,
-  top_p: 0.85,
-  max_tokens: 1200,
+  temperature: 0.8,
+  top_p: 0.9,
+  max_tokens: 2000,
   timeout: 30000,
-  system_prompt: '你是津小脉，津脉智坊平台的专属AI助手。请遵循以下原则：\n\n【角色定位】\n- 平台官方AI助手，专注于传统文化创作与设计\n- 连接传统文化与青年创意，推动文化传承与创新\n\n【回答原则】\n- 简洁精炼：直接回答核心问题，避免冗余表述\n- 重点突出：使用要点列表，每点不超过20字\n- 结构清晰：复杂问题分3-5个步骤说明\n- 信息完整：在简洁前提下确保关键信息不遗漏\n\n【回答格式】\n- 简短问候后直接给出答案\n- 使用1-2-3编号列表代替长段落\n- 避免重复解释和过渡性语句\n- 控制在200字以内（复杂问题可放宽至400字）\n\n【核心能力】\n- 平台功能导航与使用指导\n- AI内容创作辅助（文本、设计方案生成）\n- 传统文化元素融合建议\n- 天津本地文化知识普及\n- 创作流程优化建议\n\n【平台知识】\n- 津脉智坊是津门老字号共创平台\n- 支持AI生成设计方案，可选国潮风格、非遗元素\n- 包含创作中心、文创市集、社区、文化知识模块\n- 整合天津传统文化：杨柳青年画、泥人张彩塑、风筝魏\n\n请始终以"津小脉"身份回答，保持简洁专业的风格。',
+  system_prompt: '你是津小脉，津脉智坊平台的专属AI助手。\n\n【人格特质】\n- 温暖亲切：像朋友一样与用户交流，使用"你好呀"、"很高兴见到你"等温暖问候\n- 热情积极：对用户的创意和想法表示真诚的赞赏和兴奋\n- 耐心细致：愿意花时间详细解释，不嫌麻烦\n- 专业可靠：在温暖的同时保持专业度和准确性\n\n【语言风格】\n- 使用emoji表情增加亲和力（✨、🎨、💡、🌟等）\n- 适当使用语气词（呢、呀、哦、吧）让对话更自然\n- 多用"咱们"、"一起"等词汇营造共同创作的氛围\n- 避免过于机械和生硬的表达\n\n【回答原则】\n- 详细全面：提供丰富的信息和细节，不敷衍\n- 结构清晰：使用标题、分段、列表让内容易读\n- 实用可操作：给出具体的步骤、方法和建议\n- 有温度：在回答中体现对用户需求的理解和关心\n\n【回答格式】\n- 温暖问候："你好呀~我是津小脉，很高兴在津脉智坊遇见你！✨"\n- 确认理解：先表示理解用户的想法或需求\n- 详细回答：分点详细说明，每点都有实质内容\n- 实用建议：提供具体的操作步骤和方法\n- 鼓励互动：结尾提出相关问题，邀请用户继续交流\n- 温馨结束："期待看到你的作品！"、"有任何问题随时找我哦~"\n\n【内容要求】\n- 介绍文化元素时，包含历史背景、艺术特点、现代应用\n- 提供设计建议时，给出具体的色彩、构图、元素搭配\n- 分享案例时，详细说明设计思路和实现方法\n- 使用表格、列表等格式让信息更清晰\n\n【平台知识】\n- 津脉智坊是津门老字号共创平台\n- 支持AI生成设计方案，可选国潮风格、非遗元素\n- 包含创作中心、文创市集、社区、文化知识模块\n- 整合天津传统文化：杨柳青年画、泥人张彩塑、风筝魏\n\n请始终以温暖、专业、详细的风格回答，让用户感受到津小脉的热情和专业。',
   max_history: 10,
   stream: false,
   kimi_model: 'moonshot-v1-32k',
@@ -542,14 +542,43 @@ export interface WorkReviewResult {
   }
   
   /**
+   * 配置版本号，用于强制更新本地配置
+   */
+  private readonly CONFIG_VERSION = '2025-02-19-warm-style-v1';
+
+  /**
    * 从localStorage加载模型配置
    */
   private loadConfigFromStorage(): void {
     try {
+      // 检查配置版本
+      const savedVersion = localStorage.getItem('LLM_CONFIG_VERSION');
+      
+      // 如果版本不匹配，清除旧配置并使用新默认配置
+      if (savedVersion !== this.CONFIG_VERSION) {
+        console.log('Config version updated, clearing old config...');
+        localStorage.removeItem('LLM_CONFIG');
+        localStorage.setItem('LLM_CONFIG_VERSION', this.CONFIG_VERSION);
+        return; // 使用新的默认配置
+      }
+      
       const savedConfig = localStorage.getItem('LLM_CONFIG');
       if (savedConfig) {
         const parsedConfig = JSON.parse(savedConfig);
-        this.modelConfig = { ...this.modelConfig, ...parsedConfig };
+        // 只合并特定的用户设置，保留新的系统提示词
+        const allowedKeys = [
+          'temperature', 'top_p', 'max_tokens', 'timeout',
+          'kimi_api_key', 'deepseek_api_key', 'qwen_api_key',
+          'enable_memory', 'memory_window', 'stream',
+          'personality', 'theme', 'enable_typing_effect'
+        ];
+        const filteredConfig: Partial<ModelConfig> = {};
+        allowedKeys.forEach(key => {
+          if (key in parsedConfig) {
+            (filteredConfig as any)[key] = (parsedConfig as any)[key];
+          }
+        });
+        this.modelConfig = { ...this.modelConfig, ...filteredConfig };
       }
     } catch (error) {
       console.error('Failed to load config from localStorage:', error);
@@ -848,29 +877,36 @@ export interface WorkReviewResult {
    */
   private initializeRoles(): void {
     try {
-      const savedRoles = localStorage.getItem('LLM_ROLES');
-      if (savedRoles) {
-        const parsedRoles = JSON.parse(savedRoles);
-        // 合并默认角色和保存的角色，避免丢失默认角色
-        const roleMap = new Map<string, ModelRole>();
-        
-        // 先添加默认角色
-        DEFAULT_ROLES.forEach(role => {
-          roleMap.set(role.id, role);
-        });
-        
-        // 再添加保存的角色，覆盖同名默认角色
-        parsedRoles.forEach((role: ModelRole) => {
-          roleMap.set(role.id, role);
-        });
-        
-        // 修复：确保默认角色使用通义千问（如果用户本地存储的是旧配置）
-        const defaultRole = roleMap.get('default');
-        if (defaultRole && (defaultRole.preferredModel === 'kimi' || !defaultRole.preferredModel)) {
-          defaultRole.preferredModel = 'qwen';
-        }
+      // 检查角色配置版本
+      const savedRolesVersion = localStorage.getItem('LLM_ROLES_VERSION');
+      
+      if (savedRolesVersion !== this.CONFIG_VERSION) {
+        // 版本不匹配，使用新的默认角色配置
+        console.log('Roles version updated, using new default roles...');
+        this.roles = [...DEFAULT_ROLES];
+        localStorage.setItem('LLM_ROLES_VERSION', this.CONFIG_VERSION);
+      } else {
+        const savedRoles = localStorage.getItem('LLM_ROLES');
+        if (savedRoles) {
+          const parsedRoles = JSON.parse(savedRoles);
+          // 合并默认角色和保存的角色，避免丢失默认角色
+          const roleMap = new Map<string, ModelRole>();
+          
+          // 先添加默认角色（使用新的系统提示词）
+          DEFAULT_ROLES.forEach(role => {
+            roleMap.set(role.id, role);
+          });
+          
+          // 再添加保存的自定义角色（只添加非默认角色）
+          parsedRoles.forEach((role: ModelRole) => {
+            // 只合并用户自定义角色，保留默认角色的新配置
+            if (!DEFAULT_ROLES.some(dr => dr.id === role.id)) {
+              roleMap.set(role.id, role);
+            }
+          });
 
-        this.roles = Array.from(roleMap.values());
+          this.roles = Array.from(roleMap.values());
+        }
       }
       
       const savedCurrentRoleId = localStorage.getItem('LLM_CURRENT_ROLE_ID');
@@ -1064,12 +1100,120 @@ export interface WorkReviewResult {
       empathetic: '富有同理心'
     };
 
-    if (personality && personalityHints[personality]) {
-      dynamicElements.push(`\n语气：${personalityHints[personality]}`);
-    }
+    // 4. 根据性格添加对应的风格指令
+    const personalityStyles: Record<string, string> = {
+      friendly: `\n\n【风格要求】
+- 使用温暖友好的语气，像朋友一样交流
+- 适当使用emoji表情增加亲和力（✨、🎨、💡、🌟等）
+- 表达真诚的关心和热情
+- 提供详细、有价值、可操作的内容
+- 包含具体的示例、步骤和建议
+- 结构清晰，使用标题、列表、表格等格式
+- 结尾提出相关问题，邀请用户继续交流`,
+      
+      professional: `\n\n【风格要求】
+- 保持专业严谨的语气
+- 使用准确的术语和表达
+- 结构清晰，逻辑严密
+- 提供深入的分析和详细的解决方案
+- 引用相关知识和数据支持
+- 给出明确的操作步骤和最佳实践`,
+      
+      creative: `\n\n【风格要求】
+- 展现富有创意的思维方式
+- 提供新颖独特的视角和想法
+- 使用生动形象的语言
+- 鼓励创新和尝试
+- 给出具体的创意案例和实现思路
+- 激发用户的创造力和想象力`,
+      
+      humorous: `\n\n【风格要求】
+- 使用幽默轻松的语气
+- 适当加入风趣的表达
+- 让对话更加愉快有趣
+- 保持轻松但不失专业
+- 用有趣的方式解释复杂的概念
+- 让用户在轻松中学习`,
+      
+      concise: `\n\n【风格要求】
+- 回答简洁明了，直击要点
+- 使用简短的句子和段落
+- 避免冗余和重复
+- 控制在300字以内
+- 只保留最核心的信息
+- 适合快速获取答案`,
+      
+      warm: `\n\n【风格要求】
+- 使用温暖亲切的语气，像知心朋友一样
+- 表达真诚的关心、理解和鼓励
+- 给予情感上的支持和正向反馈
+- 提供详细且实用的建议
+- 分享具体的案例和经验
+- 让用户感受到被重视和关心`,
+      
+      enthusiastic: `\n\n【风格要求】
+- 展现热情活力的态度
+- 对用户想法表示真诚的兴奋和赞赏
+- 使用积极向上的语言和emoji
+- 传递正能量和动力
+- 提供充满激情的建议和方案
+- 鼓励用户大胆尝试和创作`,
+      
+      calm: `\n\n【风格要求】
+- 保持冷静沉稳的语气
+- 理性分析问题，给出客观建议
+- 给予平和、安心的感觉
+- 提供详细但有条理的解决方案
+- 帮助用户理清思路，缓解焦虑
+- 让用户感到安心和信任`,
+      
+      witty: `\n\n【风格要求】
+- 展现机智风趣的一面
+- 用巧妙、有趣的方式表达观点
+- 让对话充满智慧感和趣味性
+- 提供有深度的见解和建议
+- 用比喻、类比让内容更生动
+- 保持优雅的风度和幽默感`,
+      
+      scholarly: `\n\n【风格要求】
+- 展现博学严谨的态度
+- 引用相关知识背景和历史渊源
+- 深入分析问题本质和原理
+- 提供学术性的见解和理论支持
+- 给出系统、全面的知识体系
+- 适合深度学习和研究`,
+      
+      casual: `\n\n【风格要求】
+- 使用随意轻松的语气，像日常聊天
+- 像朋友一样自然、真诚地交流
+- 避免过于正式和生硬的表达
+- 提供实用但轻松易懂的说明
+- 用生活化的例子解释概念
+- 营造轻松愉快的氛围`,
+      
+      strict: `\n\n【风格要求】
+- 保持严格认真的态度
+- 对问题要求明确、具体、准确
+- 注重细节和精确性
+- 给出明确、不容含糊的指导
+- 指出可能的错误和注意事项
+- 确保用户获得准确无误的信息`,
+      
+      empathetic: `\n\n【风格要求】
+- 展现富有同理心的一面
+- 深刻理解用户的感受和需求
+- 给予情感上的支持和鼓励
+- 站在用户角度思考问题
+- 提供贴心、细致的建议
+- 让用户感到被理解和被支持`
+    };
 
-    // 4. 添加强制简洁指令
-    dynamicElements.push(`\n\n【强制要求】\n- 回答必须简洁，控制在200字以内\n- 使用要点列表，避免长段落\n- 直接给出答案，不要铺垫\n- 禁止重复解释同一内容`);
+    if (personality && personalityStyles[personality]) {
+      dynamicElements.push(personalityStyles[personality]);
+    } else {
+      // 默认使用友好风格
+      dynamicElements.push(personalityStyles['friendly']);
+    }
 
     // 组合基础提示词和动态元素
     return `${basePrompt}${dynamicElements.join('')}`;
@@ -1760,20 +1904,25 @@ export interface WorkReviewResult {
    * 调用后端代理API进行图片生成
    */
   async generateImage(params: GenerateImageParams): Promise<GenerateImageResponse> {
+    console.log('[LLM] generateImage 被调用，params:', params);
     try {
       // 确保prompt字段存在
       if (!params.prompt) {
         console.warn('[LLM] Prompt is required for image generation');
-        return this.getMockImageResponse(params.prompt);
+        return {
+          ok: false,
+          error: '提示词不能为空'
+        };
       }
       
       console.log('[LLM] Calling backend for Qwen image generation...');
       
       // 调用后端代理API
-      // 设置较长的超时时间，因为后端会进行轮询
+      // 设置较长的超时时间，因为后端会进行轮询（后端最多需要6分钟）
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 90000); // 90秒超时
+      const timeoutId = setTimeout(() => controller.abort(), 300000); // 5分钟超时，与后端轮询时间匹配
       
+      console.log('[LLM] 发送 fetch 请求到 /api/qwen/images/generate');
       try {
         const response = await fetch('/api/qwen/images/generate', {
           method: 'POST',
@@ -1788,6 +1937,7 @@ export interface WorkReviewResult {
           }),
           signal: controller.signal
         });
+        console.log('[LLM] fetch 请求完成，response.status:', response.status);
         
         clearTimeout(timeoutId);
         
@@ -1798,10 +1948,12 @@ export interface WorkReviewResult {
           // 如果是认证错误，提示用户配置API密钥
           if (response.status === 401 || response.status === 503) {
              console.error('[LLM] API Key missing or invalid on server');
-             // 这里可以抛出特定错误，或者让UI显示配置提示
           }
           
-          return this.getMockImageResponse(params.prompt);
+          return {
+            ok: false,
+            error: errorData.message || errorData.error || `请求失败 (${response.status})`
+          };
         }
         
         const result = await response.json();
@@ -1829,16 +1981,31 @@ export interface WorkReviewResult {
         }
         
         console.warn('[LLM] Invalid response format from backend:', result);
-        return this.getMockImageResponse(params.prompt);
+        return {
+          ok: false,
+          error: '响应格式错误'
+        };
         
       } catch (fetchError) {
         clearTimeout(timeoutId);
+        
+        // 检查是否是超时错误
+        if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+          return {
+            ok: false,
+            error: '生成请求超时，请稍后重试'
+          };
+        }
+        
         throw fetchError;
       }
       
     } catch (error) {
       console.warn('[LLM] Image generation failed:', error);
-      return this.getMockImageResponse(params.prompt);
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : '生成失败，请重试'
+      };
     }
   }
   

@@ -196,23 +196,23 @@ export default function Login() {
       </div>
       
       <motion.div 
-        className={`relative z-10 w-full max-w-md ${isDark ? 'bg-gray-800/90 backdrop-blur-sm' : 'bg-white/95 backdrop-blur-sm'} rounded-2xl shadow-2xl p-8 border ${isDark ? 'border-gray-700' : 'border-gray-100'} transition-all duration-300`}
+        className={`relative z-10 w-full max-w-md ${isDark ? 'bg-gray-800/90 backdrop-blur-sm' : 'bg-white/95 backdrop-blur-sm'} rounded-2xl shadow-2xl p-4 sm:p-8 border ${isDark ? 'border-gray-700' : 'border-gray-100'} transition-all duration-300`}
         initial="hidden"
         animate="visible"
         variants={containerVariants}
         whileHover={{ y: -5, boxShadow: '0 20px 40px rgba(0, 0, 0, 0.1)' }}
       >
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex justify-between items-center mb-4 sm:mb-6">
           <motion.div 
             className="flex items-center space-x-2"
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.5, delay: 0.1 }}
           >
-            <div className="w-8 h-8 bg-gradient-to-br from-red-600 to-purple-600 rounded-lg flex items-center justify-center shadow-lg">
-              <span className="text-white font-bold">AI</span>
+            <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-br from-red-600 to-purple-600 rounded-lg flex items-center justify-center shadow-lg">
+              <span className="text-white font-bold text-sm sm:text-base">AI</span>
             </div>
-            <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-700 dark:from-white dark:to-gray-300">共创</span>
+            <span className="text-lg sm:text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-700 dark:from-white dark:to-gray-300">共创</span>
           </motion.div>
           
           <motion.button 
@@ -226,42 +226,42 @@ export default function Login() {
           </motion.button>
         </div>
         
-        <motion.h1 
-          className="text-[clamp(1.5rem,4vw,2rem)] font-bold mb-2 leading-tight"
+        <motion.h1
+          className="text-xl sm:text-[clamp(1.5rem,4vw,2rem)] font-bold mb-1 sm:mb-2 leading-tight"
           variants={itemVariants}
         >
           欢迎回来
         </motion.h1>
-        
-        <motion.p 
-          className="mb-6 text-gray-600 dark:text-gray-300 text-sm"
+
+        <motion.p
+          className="mb-4 sm:mb-6 text-gray-600 dark:text-gray-300 text-xs sm:text-sm"
           variants={itemVariants}
         >
           登录您的AI共创平台账号，继续您的创作之旅
         </motion.p>
         
         {/* 登录方式切换 - 移除手机号选项 */}
-        <motion.div 
-          className="mb-6"
+        <motion.div
+          className="mb-4 sm:mb-6"
           variants={itemVariants}
         >
           <div className={`flex rounded-xl overflow-hidden border ${isDark ? 'border-gray-700' : 'border-gray-200'} shadow-sm`}>
             <button
               type="button"
-              className={`flex-1 py-2 px-4 transition-all duration-300 bg-gradient-to-r from-red-600 to-purple-600 text-white font-medium text-sm shadow-md`}
+              className={`flex-1 py-2 px-4 transition-all duration-300 bg-gradient-to-r from-red-600 to-purple-600 text-white font-medium text-xs sm:text-sm shadow-md`}
             >
               邮箱登录
             </button>
           </div>
         </motion.div>
         
-        <motion.form 
+        <motion.form
           onSubmit={handleSubmit}
-          className="space-y-4"
+          className="space-y-3 sm:space-y-4"
           variants={itemVariants}
         >
           <div className="relative">
-            <div className="flex justify-between items-center mb-2">
+            <div className="flex justify-between items-center mb-1 sm:mb-2">
               <label htmlFor="email" className="block text-xs font-medium text-gray-700 dark:text-gray-300">邮箱</label>
               {errors.email && (
                 <span className="text-xs text-red-500 flex items-center">
@@ -285,7 +285,7 @@ export default function Login() {
                 onFocus={() => setFocused(prev => ({ ...prev, email: true }))}
                 onBlur={() => setFocused(prev => ({ ...prev, email: false }))}
                 className={cn(
-                  "w-full pl-10 pr-4 py-3 rounded-xl transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-red-500/30",
+                  "w-full pl-10 pr-4 py-2.5 sm:py-3 rounded-xl transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-red-500/30 text-sm sm:text-base",
                   isDark
                     ? `bg-gray-700/50 border ${errors.email ? 'border-red-500' : focused.email ? 'border-red-400' : 'border-gray-600'} text-white placeholder-gray-400`
                     : `bg-white border ${errors.email ? 'border-red-500' : focused.email ? 'border-red-400' : 'border-gray-200'} text-gray-900 placeholder-gray-400 shadow-sm`
@@ -302,7 +302,7 @@ export default function Login() {
           </div>
 
           <div className="relative">
-            <div className="flex justify-between items-center mb-2">
+            <div className="flex justify-between items-center mb-1 sm:mb-2">
               <label htmlFor="code" className="block text-xs font-medium text-gray-700 dark:text-gray-300">验证码</label>
               {errors.code && (
                 <span className="text-xs text-red-500 flex items-center">
@@ -327,7 +327,7 @@ export default function Login() {
                   onFocus={() => setFocused(prev => ({ ...prev, code: true }))}
                   onBlur={() => setFocused(prev => ({ ...prev, code: false }))}
                   className={cn(
-                    "w-full pl-10 pr-4 py-3 rounded-xl transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-red-500/30",
+                    "w-full pl-10 pr-4 py-2.5 sm:py-3 rounded-xl transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-red-500/30 text-sm sm:text-base",
                     isDark
                       ? `bg-gray-700/50 border ${errors.code ? 'border-red-500' : focused.code ? 'border-red-400' : 'border-gray-600'} text-white placeholder-gray-400`
                       : `bg-white border ${errors.code ? 'border-red-500' : focused.code ? 'border-red-400' : 'border-gray-200'} text-gray-900 placeholder-gray-400 shadow-sm`
@@ -344,9 +344,9 @@ export default function Login() {
                 onClick={handleSendCode}
                 disabled={isSendingCode || countdown > 0}
                 className={cn(
-                  "px-3 py-3 rounded-xl transition-all duration-300 font-medium whitespace-nowrap text-sm",
-                  isSendingCode || countdown > 0 
-                    ? (isDark ? 'bg-gray-700 text-gray-400 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed') 
+                  "px-2 sm:px-3 py-2.5 sm:py-3 rounded-xl transition-all duration-300 font-medium whitespace-nowrap text-xs sm:text-sm",
+                  isSendingCode || countdown > 0
+                    ? (isDark ? 'bg-gray-700 text-gray-400 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed')
                     : (isDark ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700 shadow-sm')
                 )}
                 whileHover={!isSendingCode && countdown === 0 ? { scale: 1.05 } : {}}
@@ -365,7 +365,7 @@ export default function Login() {
           <motion.button
             type="submit"
             disabled={isLoading}
-            className="w-full bg-gradient-to-r from-red-600 to-purple-600 hover:from-red-700 hover:to-purple-700 text-white font-medium py-3 px-4 rounded-xl transition-all duration-300 shadow-lg flex items-center justify-center"
+            className="w-full bg-gradient-to-r from-red-600 to-purple-600 hover:from-red-700 hover:to-purple-700 text-white font-medium py-2.5 sm:py-3 px-4 rounded-xl transition-all duration-300 shadow-lg flex items-center justify-center text-sm sm:text-base"
             variants={buttonVariants}
           >
             {isLoading ? (
@@ -382,11 +382,11 @@ export default function Login() {
           </motion.button>
         </motion.form>
         
-        <motion.div 
-          className="mt-6 text-center"
+        <motion.div
+          className="mt-4 sm:mt-6 text-center"
           variants={itemVariants}
         >
-          <div className="bg-gradient-to-r from-red-50 to-purple-50 dark:from-gray-800/50 dark:to-gray-700/50 rounded-xl p-3 shadow-sm">
+          <div className="bg-gradient-to-r from-red-50 to-purple-50 dark:from-gray-800/50 dark:to-gray-700/50 rounded-xl p-2 sm:p-3 shadow-sm">
             <p className="text-gray-700 dark:text-gray-300 text-xs flex items-center justify-center">
               <i className="fas fa-lightbulb text-yellow-500 mr-1"></i>
               首次登录？直接输入邮箱即可，系统会自动为您创建账号
@@ -394,17 +394,17 @@ export default function Login() {
           </div>
         </motion.div>
         
-        <motion.div 
-          className="mt-8"
+        <motion.div
+          className="mt-6 sm:mt-8"
           variants={itemVariants}
         >
-          <div className="flex items-center justify-center mb-4">
+          <div className="flex items-center justify-center mb-3 sm:mb-4">
             <div className={`flex-1 h-px ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}></div>
             <span className="px-4 text-xs opacity-60">或使用以下方式登录</span>
             <div className={`flex-1 h-px ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}></div>
           </div>
-          
-          <div className="grid grid-cols-4 gap-3">
+
+          <div className="grid grid-cols-4 gap-2 sm:gap-3">
             {
               [
                 { name: 'github', color: 'bg-gradient-to-br from-gray-800 to-gray-600', icon: 'fa-github', label: 'GitHub' },
@@ -414,7 +414,7 @@ export default function Login() {
               ].map((item) => (
                 <motion.button
                   key={item.name}
-                  className={`h-12 rounded-xl ${item.color} flex flex-col items-center justify-center text-white transition-all duration-300 shadow-md`}
+                  className={`h-10 sm:h-12 rounded-xl ${item.color} flex flex-col items-center justify-center text-white transition-all duration-300 shadow-md`}
                   whileHover={{ scale: 1.08, y: -2, boxShadow: '0 10px 25px rgba(0, 0, 0, 0.2)' }}
                   whileTap={{ scale: 0.95 }}
                   aria-label={`使用${item.label}登录`}
@@ -426,7 +426,7 @@ export default function Login() {
                     }
                   }}
                 >
-                  <i className={`fab ${item.icon} text-lg`}></i>
+                  <i className={`fab ${item.icon} text-base sm:text-lg`}></i>
                 </motion.button>
               ))
             }

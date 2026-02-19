@@ -42,6 +42,7 @@ export interface GenerationTask {
   progress: number;
   result?: GenerationResult;
   error?: string;
+  errorType?: 'content_policy' | 'timeout' | 'auth' | 'general';  // 错误类型
   createdAt: number;
   updatedAt: number;
   estimatedTime?: number;

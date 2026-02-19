@@ -966,20 +966,22 @@ export default function Square() {
         </div>
       </header>
       
-      {/* 标签栏 - Pinterest风格 - 放在header外面，确保在搜索框下层 */}
-      <div id="guide-step-explore-tags" className={`border-t ${isDark ? 'border-gray-800' : 'border-gray-200'} overflow-x-auto sticky top-[72px] z-10 ${isDark ? 'bg-gray-900' : 'bg-white'} scrollbar-hide`}>
-        <div className="px-4 py-1 flex items-center gap-2">
-          {tags.slice(0, 15).map((tag) => (
-            <button
-              key={tag}
-              onClick={() => incTagClick(tag)}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all duration-200 flex-shrink-0 ${isDark ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-            >
-              {tag}
-            </button>
-          ))}
+      {/* 标签栏 - Pinterest风格 - 放在header外面，确保在搜索框下层 - 仅桌面端显示 */}
+      {!isMobile && (
+        <div id="guide-step-explore-tags" className={`border-t ${isDark ? 'border-gray-800' : 'border-gray-200'} overflow-x-auto sticky top-[72px] z-10 ${isDark ? 'bg-gray-900' : 'bg-white'} scrollbar-hide`}>
+          <div className="px-4 py-1 flex items-center gap-2">
+            {tags.slice(0, 15).map((tag) => (
+              <button
+                key={tag}
+                onClick={() => incTagClick(tag)}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all duration-200 flex-shrink-0 ${isDark ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+              >
+                {tag}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* 主要内容 */}
       <main className={`w-full min-h-screen transition-colors duration-300 overflow-x-hidden ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>

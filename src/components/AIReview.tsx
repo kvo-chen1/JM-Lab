@@ -87,7 +87,7 @@ const AIReview: React.FC<AIReviewProps> = ({ workId, prompt, aiExplanation, sele
     try {
       setLoadingWorks(true);
       // 跳转到作品详情页面
-      navigate(`/works/${workId}`);
+      navigate(`/post/${workId}`);
     } catch (error) {
       console.error('Failed to navigate to work detail:', error);
       toast.error('跳转到作品详情失败，请稍后重试');

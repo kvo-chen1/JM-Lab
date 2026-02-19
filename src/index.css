@@ -5049,3 +5049,144 @@ details p {
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
+
+/* ============================================
+   移动端个人中心专用样式
+   Mobile Dashboard Specific Styles
+   ============================================ */
+
+/* 超小屏幕适配 (320px - 375px) */
+@media (max-width: 375px) {
+  .mobile-dashboard-container {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .mobile-dashboard-container .stat-card {
+    padding: 10px;
+    min-height: 80px;
+  }
+
+  .mobile-dashboard-container .menu-item {
+    padding: 12px;
+    min-height: 48px;
+  }
+
+  .mobile-dashboard-container .achievement-badge {
+    min-width: 65px;
+    padding: 6px;
+  }
+}
+
+/* 小屏幕适配 (376px - 428px) */
+@media (min-width: 376px) and (max-width: 428px) {
+  .mobile-dashboard-container {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+}
+
+/* 移动端个人中心底部间距优化 - 只保留安全区域高度 */
+.mobile-dashboard-container {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* 触摸目标优化 - 确保最小44px */
+.mobile-dashboard-container button,
+.mobile-dashboard-container a,
+.mobile-dashboard-container [role="button"] {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* 卡片悬停效果优化 */
+.mobile-dashboard-container .card-hover {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.mobile-dashboard-container .card-hover:active {
+  transform: scale(0.98);
+}
+
+/* 进度条动画 */
+.mobile-dashboard-container .progress-bar {
+  transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 头像呼吸动画 */
+@keyframes avatar-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(239, 68, 68, 0);
+  }
+}
+
+.mobile-dashboard-container .avatar-pulse {
+  animation: avatar-pulse 2s ease-in-out infinite;
+}
+
+/* 积分闪烁效果 */
+@keyframes points-shine {
+  0% {
+    background-position: -200% center;
+  }
+  100% {
+    background-position: 200% center;
+  }
+}
+
+.mobile-dashboard-container .points-shine {
+  background: linear-gradient(
+    90deg,
+    rgba(245, 158, 11, 0.1) 0%,
+    rgba(245, 158, 11, 0.3) 50%,
+    rgba(245, 158, 11, 0.1) 100%
+  );
+  background-size: 200% 100%;
+  animation: points-shine 3s ease-in-out infinite;
+}
+
+/* iOS 底部安全区域 */
+.mobile-dashboard-container .safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* 减少动画偏好支持 */
+@media (prefers-reduced-motion: reduce) {
+  .mobile-dashboard-container *,
+  .mobile-dashboard-container *::before,
+  .mobile-dashboard-container *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* 高对比度模式支持 */
+@media (prefers-contrast: high) {
+  .mobile-dashboard-container .card {
+    border-width: 2px;
+  }
+
+  .mobile-dashboard-container .menu-item {
+    border-bottom: 1px solid currentColor;
+  }
+}
+
+/* 深色模式优化 */
+@media (prefers-color-scheme: dark) {
+  .mobile-dashboard-container .glass-effect {
+    background: rgba(31, 41, 55, 0.8);
+    backdrop-filter: blur(12px);
+  }
+}
+
+/* 浅色模式优化 */
+@media (prefers-color-scheme: light) {
+  .mobile-dashboard-container .glass-effect {
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(12px);
+  }
+}

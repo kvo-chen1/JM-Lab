@@ -32,10 +32,12 @@ const CommunityManagement = lazy(() => import('./CommunityManagement'));
 const ContentManagement = lazy(() => import('./ContentManagement'));
 const KnowledgeBaseManagement = lazy(() => import('./KnowledgeBaseManagement'));
 const TemplateManagement = lazy(() => import('./TemplateManagement'));
+const AchievementManagement = lazy(() => import('./AchievementManagement'));
+const AIFeedbackManagement = lazy(() => import('./AIFeedbackManagement'));
 
 const COLORS = ['#f59e0b', '#34d399', '#f87171'];
 
-type TabType = 'dashboard' | 'audit' | 'analytics' | 'adoption' | 'users' | 'settings' | 'campaigns' | 'creators' | 'brandPartnerships' | 'orders' | 'permissions' | 'feedback' | 'contentAudit' | 'auditLog' | 'userAudit' | 'eventAudit' | 'productManagement' | 'notificationManagement' | 'systemMonitor' | 'communities' | 'contentManagement' | 'knowledgeBase' | 'templates';
+type TabType = 'dashboard' | 'audit' | 'analytics' | 'adoption' | 'users' | 'settings' | 'campaigns' | 'creators' | 'brandPartnerships' | 'orders' | 'permissions' | 'feedback' | 'contentAudit' | 'auditLog' | 'userAudit' | 'eventAudit' | 'productManagement' | 'notificationManagement' | 'systemMonitor' | 'communities' | 'contentManagement' | 'knowledgeBase' | 'templates' | 'achievements' | 'aiFeedback';
 
 // 安全的 localStorage 操作
 const safeLocalStorage = {
@@ -506,6 +508,8 @@ export default function Admin() {
              {activeTab === 'contentManagement' && '内容管理'}
              {activeTab === 'knowledgeBase' && '知识库管理'}
              {activeTab === 'templates' && '作品模板管理'}
+             {activeTab === 'achievements' && '成就管理'}
+             {activeTab === 'aiFeedback' && 'AI反馈管理'}
            </h1>
           
           <div className="flex items-center space-x-4">
@@ -1611,6 +1615,36 @@ export default function Admin() {
             </div>
           }>
             <TemplateManagement />
+          </Suspense>
+        )}
+
+        {/* 成就管理页面 */}
+        {activeTab === 'achievements' && (
+          <Suspense fallback={
+            <div className={`flex items-center justify-center h-96 ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-md`}>
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+                className="w-12 h-12 border-4 border-red-200 border-t-red-500 rounded-full"
+              />
+            </div>
+          }>
+            <AchievementManagement />
+          </Suspense>
+        )}
+
+        {/* AI反馈管理页面 */}
+        {activeTab === 'aiFeedback' && (
+          <Suspense fallback={
+            <div className={`flex items-center justify-center h-96 ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-md`}>
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+                className="w-12 h-12 border-4 border-red-200 border-t-red-500 rounded-full"
+              />
+            </div>
+          }>
+            <AIFeedbackManagement />
           </Suspense>
         )}
 

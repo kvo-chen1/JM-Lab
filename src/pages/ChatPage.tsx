@@ -238,7 +238,7 @@ const ChatPage: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="flex flex-col h-[calc(100vh-80px)] bg-gray-50 dark:bg-gray-900">
       {/* 顶部导航 */}
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3">
         <div className="flex items-center justify-between max-w-4xl mx-auto">
@@ -287,7 +287,7 @@ const ChatPage: React.FC = () => {
 
       {/* 消息列表 */}
       <div className="flex-1 overflow-y-auto p-4">
-        <div className="max-w-4xl mx-auto space-y-4">
+        <div className="w-full max-w-4xl mx-auto space-y-4">
           {loading ? (
             <div className="flex justify-center py-12">
               <LoadingSpinner className="w-8 h-8" />
@@ -304,9 +304,12 @@ const ChatPage: React.FC = () => {
 
               // 检查是否是作品分享消息
               const workShare = parseWorkShareMessage(message.content);
-              
+
               // 检查是否是社群邀请消息
               const communityInvite = parseCommunityInviteMessage(message.content);
+
+              // 检查是否是 AI 分享消息
+              const aiShare = parseAIShareMessage(message.content);
 
               return (
                 <div key={message.id}>
@@ -355,6 +358,15 @@ const ChatPage: React.FC = () => {
                             isInviter={isMe}
                           />
                         </div>
+                      ) : aiShare.isAIShare ? (
+                        // 渲染 AI 分享卡片
+                        <div className={`${isMe ? 'mr-2' : 'ml-2'}`}>
+                          <AIShareMessageCard
+                            data={aiShare.data}
+                            isMe={isMe}
+                            senderName={isMe ? '我' : otherUser?.username}
+                          />
+                        </div>
                       ) : (
                         // 渲染普通文本消息
                         <div
@@ -378,8 +390,8 @@ const ChatPage: React.FC = () => {
       </div>
 
       {/* 输入框 */}
-      <div className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 px-4 py-3">
-        <div className="max-w-4xl mx-auto flex items-center gap-3">
+      <div className="sticky bottom-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 px-4 py-3">
+        <div className="w-full max-w-4xl mx-auto flex items-center gap-3">
           <div className="flex-1 relative">
             <input
               type="text"
@@ -426,5 +438,92 @@ function parseCommunityInviteMessage(content: string): { isCommunityInvite: bool
   }
   return { isCommunityInvite: false };
 }
+
+/**
+ * 解析 AI 分享消息
+ */
+function parseAIShareMessage(content: string): { isAIShare: boolean; data?: any } {
+  try {
+    const parsed = JSON.parse(content);
+    if (parsed.type === 'ai_share') {
+      return { isAIShare: true, data: parsed };
+    }
+  } catch (e) {
+    // 不是 JSON 格式，不是 AI 分享消息
+  }
+  return { isAIShare: false };
+}
+
+/**
+ * AI 分享消息卡片组件
+ */
+interface AIShareMessageCardProps {
+  data: {
+    type: string;
+    title: string;
+    description: string;
+    imageUrl: string;
+    mediaType: 'image' | 'video';
+    note?: string;
+  };
+  isMe: boolean;
+  senderName?: string;
+}
+
+const AIShareMessageCard: React.FC<AIShareMessageCardProps> = ({ data, isMe, senderName }) => {
+  return (
+    <div className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden max-w-[280px]">
+      {/* 图片/视频 */}
+      {data.imageUrl && (
+        <div className="relative w-full h-40 bg-gray-100">
+          {data.mediaType === 'video' ? (
+            <video
+              src={data.imageUrl}
+              className="w-full h-full object-cover"
+              controls
+              preload="metadata"
+            />
+          ) : (
+            <img
+              src={data.imageUrl}
+              alt={data.title}
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = 'https://via.placeholder.com/400x160?text=图片加载失败';
+              }}
+            />
+          )}
+        </div>
+      )}
+      {/* 内容 */}
+      <div className="p-3">
+        <h4 className="font-semibold text-gray-900 text-sm mb-1">
+          {data.title}
+        </h4>
+        {data.description && (
+          <p className="text-xs text-gray-600 mb-2 line-clamp-2">
+            {data.description}
+          </p>
+        )}
+        {data.note && (
+          <p className="text-xs text-gray-500 italic bg-gray-50 p-2 rounded mb-2">
+            附言：{data.note}
+          </p>
+        )}
+        <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+          <span className="text-[10px] text-gray-400">
+            AI生成的{data.mediaType === 'image' ? '图片' : '视频'}
+          </span>
+          <button
+            onClick={() => window.open(data.imageUrl, '_blank')}
+            className="text-[10px] text-blue-500 hover:text-blue-600 font-medium"
+          >
+            查看原图
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export default ChatPage;

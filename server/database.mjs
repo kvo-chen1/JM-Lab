@@ -3208,6 +3208,59 @@ export const workDB = {
     }
   },
 
+  async getWorkById(workId) {
+    const db = await getDB()
+    const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
+    switch (typeKey) {
+      case DB_TYPE.MEMORY:
+        return (memoryStore.works || []).find(w => w.id === workId) || null
+      case DB_TYPE.POSTGRESQL:
+        try {
+          // 首先尝试从 works 表查询
+          const { rows: worksRows } = await db.query('SELECT w.*, u.username, u.avatar_url FROM works w LEFT JOIN users u ON w.creator_id = u.id WHERE w.id = $1', [workId])
+          if (worksRows && worksRows.length > 0) {
+            console.log('[workDB.getWorkById] Found in works table:', worksRows[0].id)
+            return worksRows[0]
+          }
+          
+          // 如果在 works 表找不到，尝试从 posts 表查询
+          console.log('[workDB.getWorkById] Not found in works, trying posts table:', workId)
+          const { rows: postsRows } = await db.query(`
+            SELECT 
+              p.id,
+              p.title,
+              p.content as description,
+              p.images,
+              COALESCE(p.images->>0, '') as thumbnail,
+              COALESCE(p.images->>0, '') as cover_url,
+              p.author_id as creator_id,
+              p.created_at,
+              p.updated_at,
+              p.views,
+              p.likes_count as likes,
+              p.comments_count as comments,
+              u.username,
+              u.avatar_url
+            FROM posts p 
+            LEFT JOIN users u ON p.author_id = u.id 
+            WHERE p.id = $1 AND p.status = 'published'
+          `, [workId])
+          
+          if (postsRows && postsRows.length > 0) {
+            console.log('[workDB.getWorkById] Found in posts table:', postsRows[0].id)
+            return postsRows[0]
+          }
+          
+          console.log('[workDB.getWorkById] Not found in either table:', workId)
+          return null
+        } catch (error) {
+          console.error('[workDB.getWorkById] Error:', error)
+          throw error
+        }
+      default: return null
+    }
+  },
+
   async getWorksByUserId(userId, limit = 50, offset = 0) {
     const db = await getDB()
     const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
@@ -3247,17 +3300,45 @@ export const workDB = {
       case DB_TYPE.MEMORY:
         return (memoryStore.works || []).sort((a, b) => b.created_at - a.created_at)
       case DB_TYPE.POSTGRESQL: {
-        // 将 creator_id 转换为 UUID 类型进行比较
-        const { rows } = await db.query('SELECT w.*, u.username, u.avatar_url FROM works w LEFT JOIN users u ON w.creator_id = u.id ORDER BY w.created_at DESC')
-        console.log('[workDB.getAllWorks] First work:', rows[0] ? { 
-          id: rows[0].id, 
-          title: rows[0].title, 
-          thumbnail: rows[0].thumbnail,
-          thumbnail_length: rows[0].thumbnail?.length,
-          cover_url: rows[0].cover_url,
-          cover_url_length: rows[0].cover_url?.length
-        } : 'no works')
-        return rows
+        // 首先尝试从 works 表查询
+        const { rows: worksRows } = await db.query('SELECT w.*, u.username, u.avatar_url FROM works w LEFT JOIN users u ON w.creator_id = u.id ORDER BY w.created_at DESC')
+        console.log('[workDB.getAllWorks] Works count:', worksRows.length)
+        
+        // 如果 works 表有数据，直接返回
+        if (worksRows.length > 0) {
+          console.log('[workDB.getAllWorks] First work ID:', worksRows[0].id, 'type:', typeof worksRows[0].id)
+          return worksRows
+        }
+        
+        // 如果 works 表为空，从 posts 表获取已发布的帖子作为作品
+        console.log('[workDB.getAllWorks] No works found, fetching from posts table')
+        const { rows: postsRows } = await db.query(`
+          SELECT 
+            p.id,
+            p.title,
+            p.content as description,
+            p.images,
+            COALESCE(p.images->>0, '') as thumbnail,
+            COALESCE(p.images->>0, '') as cover_url,
+            p.author_id as creator_id,
+            p.created_at,
+            p.updated_at,
+            p.views,
+            p.likes_count as likes,
+            p.comments_count as comments,
+            u.username,
+            u.avatar_url
+          FROM posts p 
+          LEFT JOIN users u ON p.author_id = u.id 
+          WHERE p.status = 'published'
+          ORDER BY p.created_at DESC
+          LIMIT 20
+        `)
+        console.log('[workDB.getAllWorks] Posts count:', postsRows.length)
+        if (postsRows.length > 0) {
+          console.log('[workDB.getAllWorks] First post ID:', postsRows[0].id, 'type:', typeof postsRows[0].id)
+        }
+        return postsRows
       }
       default: return []
     }

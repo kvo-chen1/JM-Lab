@@ -866,10 +866,24 @@ async function route(req, res, u, path) {
       }
 
       // 字段映射
+      // 处理 created_at 字段，支持多种格式（秒级时间戳或 ISO 字符串）
+      let createdDate;
+      if (work.created_at) {
+        if (typeof work.created_at === 'number') {
+          // 秒级时间戳
+          createdDate = new Date(work.created_at * 1000);
+        } else {
+          // ISO 字符串格式
+          createdDate = new Date(work.created_at);
+        }
+      } else {
+        createdDate = new Date();
+      }
+
       const mappedWork = {
         ...work,
         videoUrl: work.video_url,
-        date: work.created_at ? new Date(work.created_at * 1000).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+        date: createdDate.toISOString().split('T')[0],
         author
       }
 

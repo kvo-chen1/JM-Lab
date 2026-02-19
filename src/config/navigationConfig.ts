@@ -115,7 +115,7 @@ export const topNavItems: NavItem[] = [
 export const bottomNavItems: NavItem[] = [
   { id: 'home', path: '/', label: '首页', icon: 'fas fa-home' },
   { id: 'square', path: '/square', label: '津脉广场', icon: 'fas fa-th-large' },
-  { id: 'create', path: '/create', label: '创作中心', icon: 'fas fa-plus-circle' },
+  { id: 'ai-assistant', path: '/ai-assistant', label: '津小脉AI助手', icon: 'fas fa-robot' },
   { id: 'community', path: '/community', label: '津脉社区', icon: 'fas fa-users' },
   { id: 'dashboard', path: '/dashboard', label: '个人中心', icon: 'fas fa-user' }
 ];

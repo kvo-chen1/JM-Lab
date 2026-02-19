@@ -34,7 +34,14 @@ export default function FloatingAIAssistantV2({ defaultOpen = false }: FloatingA
   const buttonRef = useRef<HTMLButtonElement>(null)
   const draggedRef = useRef(false)
 
-  const [isOpen, setIsOpen] = useState(defaultOpen)
+  // 从 localStorage 加载保存的打开状态
+  const [isOpen, setIsOpen] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const savedState = localStorage.getItem('aiAssistantOpenState')
+      return savedState ? JSON.parse(savedState) : defaultOpen
+    }
+    return defaultOpen
+  })
   const [positionStyle, setPositionStyle] = useState({ x: 20, y: 0 })
   const [isDragging, setIsDragging] = useState(false)
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
@@ -101,6 +108,11 @@ export default function FloatingAIAssistantV2({ defaultOpen = false }: FloatingA
       setPositionStyle({ x: 20, y: window.innerHeight - 100 })
     }
   }, [])
+
+  // 保存打开状态到 localStorage
+  useEffect(() => {
+    localStorage.setItem('aiAssistantOpenState', JSON.stringify(isOpen))
+  }, [isOpen])
 
   useEffect(() => {
     if (!isDragging) return

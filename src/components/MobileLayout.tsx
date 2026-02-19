@@ -440,29 +440,16 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
                 </form>
           </div>
         </div>
-      ) : (
+      ) : location.pathname !== '/' && (
         <div className={clsx(
-          'sticky top-0 z-60 border-b py-1.5 px-2 transition-all duration-300 ease-in-out',
-          isDark ? 'bg-gray-800/95 backdrop-blur-2xl border-gray-700 shadow-lg' : 
-          theme === 'pink' ? 'bg-pink-100/95 backdrop-blur-2xl border-pink-200 shadow-lg' : 
-          'bg-white/95 backdrop-blur-2xl border-gray-200 shadow-lg'
+          'sticky top-0 z-60 transition-all duration-300 ease-in-out py-1.5 px-2',
+          isDark ? 'bg-gray-800/95 backdrop-blur-2xl border-b border-gray-700 shadow-lg' : 
+          theme === 'pink' ? 'bg-pink-100/95 backdrop-blur-2xl border-b border-pink-200 shadow-lg' : 
+          'bg-white/95 backdrop-blur-2xl border-b border-gray-200 shadow-lg'
         )} style={{ paddingTop: 'env(safe-area-inset-top)' }}>
           <div className="flex items-center justify-between">
-            {/* Logo 和菜单按钮 - 左侧紧凑布局 */}
+            {/* Logo - 左侧 */}
             <div className="flex items-center flex-1 min-w-0 mr-0.5">
-              {/* 菜单按钮 - 增强交互效果 */}
-              <button
-                onClick={() => setShowSidebarDrawer(true)}
-                className={clsx(
-                  'w-9 h-9 flex items-center justify-center rounded-full transition-all duration-300 hover:scale-105 active:scale-95 mr-2 flex-shrink-0',
-                  isDark ? 'text-gray-400 hover:bg-gray-800 hover:shadow-lg' : 
-                  theme === 'pink' ? 'text-pink-700 hover:bg-pink-200 hover:shadow-lg' : 
-                  'text-gray-700 hover:bg-gray-200 hover:shadow-lg'
-                )}
-                aria-label={t('sidebar.expandSidebar')}
-              >
-                <i className="fas fa-bars text-base"></i>
-              </button>
               <NavLink
                 to="/"
                 onTouchStart={() => prefetchRoute('home')}
@@ -497,22 +484,7 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
               </NavLink>
             </div>
             
-            {/* 右侧按钮组 - 向右靠紧 */}
-            <div className="flex items-center space-x-2 flex-shrink-0">
-              {/* 搜索按钮 */}
-              <button
-                onClick={() => setShowSearch(true)}
-                className={clsx(
-                  'w-9 h-9 flex items-center justify-center rounded-full transition-all duration-300 hover:scale-105 active:scale-95',
-                  isDark ? 'text-gray-400 hover:bg-gray-800 hover:shadow-lg' :
-                  theme === 'pink' ? 'text-pink-700 hover:bg-pink-200 hover:shadow-lg' :
-                  'text-gray-700 hover:bg-gray-200 hover:shadow-lg'
-                )}
-                aria-label={t('common.search')}
-              >
-                <i className="fas fa-search text-base"></i>
-              </button>
-            </div>
+
           </div>
         </div>
       )}
@@ -927,7 +899,7 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
       >
         <div className="flex items-end justify-around">
           {bottomNavItems.map((item) => {
-            const isCreateButton = item.id === 'create';
+            const isAIAssistantButton = item.id === 'ai-assistant';
             return (
               <NavLink
                 key={item.id}
@@ -935,72 +907,47 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
                 onTouchStart={() => prefetchRoute(item.id)}
                 className={({ isActive }) => clsx(
                   'flex flex-col items-center justify-end px-1 py-1 flex-1 group',
-                  isActive && !isCreateButton 
-                    ? (isDark ? 'text-white' : theme === 'pink' ? 'text-pink-600' : 'text-red-600') 
-                    : !isCreateButton 
-                    ? (isDark ? 'text-gray-400' : theme === 'pink' ? 'text-pink-700' : 'text-gray-700')
-                    : ''
+                  isActive
+                    ? (isDark ? 'text-white' : theme === 'pink' ? 'text-pink-600' : 'text-red-600')
+                    : (isDark ? 'text-gray-400' : theme === 'pink' ? 'text-pink-700' : 'text-gray-700')
                 )}
                 end={item.path === '/'}
                 aria-label={item.label}
               >
                 {({ isActive }) => (
-                  <> 
-                    {isCreateButton ? (
-                      <div className="relative -mt-5">
-                        <div 
+                  <>
+                    <div
+                      className={clsx(
+                        'w-7 h-7 flex items-center justify-center rounded-full relative',
+                        isActive && (
+                          isDark ? 'bg-red-900/30' :
+                          theme === 'pink' ? 'bg-pink-200' :
+                          'bg-red-100'
+                        )
+                      )}
+                    >
+                      <i className={clsx(item.icon, "text-base")}></i>
+                      {isActive && (
+                        <div
                           className={clsx(
-                            'w-12 h-12 rounded-full flex items-center justify-center shadow-lg',
-                            isDark ? 'bg-gradient-to-tr from-red-600 to-red-500 text-white' : 
-                            theme === 'pink' ? 'bg-gradient-to-tr from-pink-500 to-pink-400 text-white' : 
-                            'bg-gradient-to-tr from-red-600 to-red-500 text-white'
+                            'absolute -bottom-0.5 w-1 h-1 rounded-full',
+                            isDark ? 'bg-white' :
+                            theme === 'pink' ? 'bg-pink-600' :
+                            'bg-red-600'
                           )}
-                        >
-                          <i className={clsx(item.icon, "text-lg")}></i>
-                        </div>
-                        <span 
-                          className={clsx(
-                            'text-[10px] font-medium mt-0.5 block text-center',
-                            isDark ? 'text-gray-400' : theme === 'pink' ? 'text-pink-700' : 'text-gray-700'
-                          )}
-                        >{item.label}</span>
-                      </div>
-                    ) : (
-                      <>
-                        <div 
-                          className={clsx(
-                            'w-7 h-7 flex items-center justify-center rounded-full relative',
-                            isActive && !isCreateButton && (
-                              isDark ? 'bg-red-900/30' : 
-                              theme === 'pink' ? 'bg-pink-200' : 
-                              'bg-red-100'
-                            )
-                          )}
-                        >
-                          <i className={clsx(item.icon, "text-base")}></i>
-                          {isActive && !isCreateButton && (
-                            <div
-                              className={clsx(
-                                'absolute -bottom-0.5 w-1 h-1 rounded-full',
-                                isDark ? 'bg-white' : 
-                                theme === 'pink' ? 'bg-pink-600' : 
-                                'bg-red-600'
-                              )}
-                            />
-                          )}
-                        </div>
-                        <span 
-                          className={clsx(
-                            'text-[10px] font-medium mt-0.5 block text-center whitespace-nowrap',
-                            isActive && !isCreateButton && (
-                              isDark ? 'text-white font-semibold' : 
-                              theme === 'pink' ? 'text-pink-600 font-semibold' : 
-                              'text-red-600 font-semibold'
-                            )
-                          )}
-                        >{item.label}</span>
-                      </>
-                    )}
+                        />
+                      )}
+                    </div>
+                    <span
+                      className={clsx(
+                        'text-[10px] font-medium mt-0.5 block text-center whitespace-nowrap',
+                        isActive && (
+                          isDark ? 'text-white font-semibold' :
+                          theme === 'pink' ? 'text-pink-600 font-semibold' :
+                          'text-red-600 font-semibold'
+                        )
+                      )}
+                    >{item.label}</span>
                   </>
                 )}
               </NavLink>

@@ -405,7 +405,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                 if (notificationData.event_id) {
                   actionUrl = `/events/${notificationData.event_id}`;
                 } else if (notificationData.work_id) {
-                  actionUrl = `/works/${notificationData.work_id}`;
+                  actionUrl = `/post/${notificationData.work_id}`;
                 } else if (notificationData.user_id) {
                   actionUrl = `/profile/${notificationData.user_id}`;
                 }

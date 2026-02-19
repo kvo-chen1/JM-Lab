@@ -334,23 +334,33 @@ export default function Home() {
   const handleGenerateClick = useCallback(() => {
     const p = ensurePrompt();
     
-    // 保存当前输入到本地存储，以便设计工坊页面读取
-    const workshopData = {
-      prompt: p,
-      tags: selectedTags,
-      timestamp: Date.now(),
-      source: 'home-page'
-    };
-    localStorage.setItem('workshopInspirationData', JSON.stringify(workshopData));
+    // 检测是否为手机端
+    const isMobile = window.innerWidth < 768;
     
-    // 发布创作生成事件
-    eventBus.publish('请求:开始', {
-      url: '/create',
-      method: 'GET',
-      options: { query: p, from: 'home' }
-    });
-    
-    navigate(`/create?from=home&prompt=${encodeURIComponent(p)}`);
+    if (isMobile) {
+      // 手机端：跳转到津小脉AI助手并自动触发消息
+      localStorage.setItem('aiAssistantPendingMessage', p);
+      navigate('/ai-assistant?autoSend=true');
+    } else {
+      // PC端：保持原有行为，跳转到创作中心
+      // 保存当前输入到本地存储，以便设计工坊页面读取
+      const workshopData = {
+        prompt: p,
+        tags: selectedTags,
+        timestamp: Date.now(),
+        source: 'home-page'
+      };
+      localStorage.setItem('workshopInspirationData', JSON.stringify(workshopData));
+      
+      // 发布创作生成事件
+      eventBus.publish('请求:开始', {
+        url: '/create',
+        method: 'GET',
+        options: { query: p, from: 'home' }
+      });
+      
+      navigate(`/create?from=home&prompt=${encodeURIComponent(p)}`);
+    }
   }, [navigate, selectedTags]);
   
   const handleOptimizeClick = async () => {

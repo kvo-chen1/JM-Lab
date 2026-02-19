@@ -382,7 +382,7 @@ class WorkService extends ApiService {
   /**
    * 获取作品详情
    */
-  async getWorkById(id: number): Promise<Work> {
+  async getWorkById(id: number | string): Promise<Work> {
     return this.get<Work>(`/api/works/${id}`);
   }
 
@@ -403,7 +403,7 @@ class WorkService extends ApiService {
   /**
    * 更新作品
    */
-  async updateWork(id: number, work: Partial<Work>): Promise<Work> {
+  async updateWork(id: number | string, work: Partial<Work>): Promise<Work> {
     // 部分验证作品数据
     const validationResult = validationService.validateWorkPartial(work);
     if (!validationResult.success) {
@@ -415,14 +415,14 @@ class WorkService extends ApiService {
   /**
    * 删除作品
    */
-  async deleteWork(id: number): Promise<void> {
+  async deleteWork(id: number | string): Promise<void> {
     return this.delete<void>(`/api/works/${id}`);
   }
 
   /**
    * 点赞作品
    */
-  async likeWork(id: number): Promise<void> {
+  async likeWork(id: number | string): Promise<void> {
     await this.post<void, void>(`/api/works/${id}/like`);
     void historyService.record('like_work', { workId: id });
   }
@@ -430,7 +430,7 @@ class WorkService extends ApiService {
   /**
    * 取消点赞作品
    */
-  async unlikeWork(id: number): Promise<void> {
+  async unlikeWork(id: number | string): Promise<void> {
     return this.post<void, void>(`/api/works/${id}/unlike`);
   }
   

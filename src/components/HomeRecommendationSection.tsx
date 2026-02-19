@@ -386,10 +386,10 @@ const HomeRecommendationSection: React.FC<HomeRecommendationSectionProps> = ({ c
         </div>
 
         <div className="flex items-center gap-3">
-          {/* 类型筛选 - 胶囊式设计 */}
-          <div className="flex gap-1.5 p-1.5 rounded-full bg-gray-100/80 dark:bg-gray-800/80 backdrop-blur-sm">
+          {/* 类型筛选 - 简洁标签式设计 */}
+          <div className="flex items-center gap-1 p-1.5 rounded-2xl bg-gray-100/60 dark:bg-gray-800/60 backdrop-blur-sm">
             {[
-              { value: 'all', label: '全部', icon: 'fa-th-large' },
+              { value: 'all', label: '全部', icon: 'fa-table-cells' },
               { value: 'posts', label: '作品', icon: 'fa-image' },
               { value: 'challenges', label: '挑战', icon: 'fa-trophy' },
               { value: 'templates', label: '模板', icon: 'fa-layer-group' }
@@ -399,34 +399,34 @@ const HomeRecommendationSection: React.FC<HomeRecommendationSectionProps> = ({ c
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => setActiveTab(tab.value as any)}
-                className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 flex items-center gap-2 ${
+                className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
                   activeTab === tab.value 
-                    ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-md' 
+                    ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm' 
                     : isDark 
-                      ? 'text-gray-400 hover:text-gray-200' 
-                      : 'text-gray-600 hover:text-gray-900'
+                      ? 'text-gray-500 hover:text-gray-300 hover:bg-gray-700/50' 
+                      : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200/50'
                 }`}
               >
-                <i className={`fas ${tab.icon} text-xs`}></i>
-                {tab.label}
+                <i className={`fas ${tab.icon} text-[13px] ${activeTab === tab.value ? 'text-blue-500 dark:text-blue-400' : ''}`}></i>
+                <span>{tab.label}</span>
               </motion.button>
             ))}
           </div>
 
           {/* 刷新按钮 */}
           <motion.button
-            whileHover={{ scale: 1.1, rotate: 180 }}
-            whileTap={{ scale: 0.9 }}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
             onClick={handleRefresh}
             disabled={isRefreshing}
-            className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 ${
+            className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-300 ${
               isDark 
-                ? 'bg-gray-800 text-gray-300 hover:bg-gray-700 hover:text-white' 
-                : 'bg-white text-gray-600 hover:bg-gray-50 hover:text-gray-900 shadow-md hover:shadow-lg'
+                ? 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white border border-gray-700' 
+                : 'bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-700 shadow-sm border border-gray-200'
             } ${isRefreshing ? 'animate-spin' : ''}`}
             title="刷新推荐"
           >
-            <i className="fas fa-sync-alt text-sm"></i>
+            <i className="fas fa-rotate text-sm"></i>
           </motion.button>
         </div>
       </div>

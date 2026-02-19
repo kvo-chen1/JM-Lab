@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import type { Community } from '@/services/communityService';
 import { TianjinImage } from '@/components/TianjinStyleComponents';
 
@@ -35,6 +36,7 @@ export const DiscoverySection: React.FC<DiscoverySectionProps> = ({
   search = '',
   setSearch
 }) => {
+  const navigate = useNavigate();
   const [sort, setSort] = useState<'members' | 'name' | 'newest' | 'recommended'>('recommended');
   const [category, setCategory] = useState<string>('all');
 
@@ -102,25 +104,40 @@ export const DiscoverySection: React.FC<DiscoverySectionProps> = ({
         <div className="max-w-6xl mx-auto pt-2 pb-4 px-4">
           {/* 搜索框 */}
           <div className="mb-3">
-            <div className={`relative flex items-center px-3 py-2 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-sm`}>
-              <i className={`fas fa-search text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}></i>
-              <input
-                type="text"
-                placeholder="搜索社群"
-                value={search}
-                onChange={(e) => setSearch?.(e.target.value)}
-                className={`flex-1 ml-2 bg-transparent outline-none text-sm ${isDark ? 'text-white placeholder-gray-500' : 'text-gray-900 placeholder-gray-400'}`}
-              />
-              {search && (
-                <motion.button
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  onClick={() => setSearch?.('')}
-                  className={`w-4 h-4 rounded-full flex items-center justify-center ${isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-500'}`}
-                >
-                  <i className="fas fa-times text-[10px]"></i>
-                </motion.button>
-              )}
+            <div className={`relative flex items-center gap-2`}>
+              <div className={`flex-1 flex items-center px-3 py-2 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-sm`}>
+                <i className={`fas fa-search text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}></i>
+                <input
+                  type="text"
+                  placeholder="搜索社群"
+                  value={search}
+                  onChange={(e) => setSearch?.(e.target.value)}
+                  className={`flex-1 ml-2 bg-transparent outline-none text-sm ${isDark ? 'text-white placeholder-gray-500' : 'text-gray-900 placeholder-gray-400'}`}
+                />
+                {search && (
+                  <motion.button
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    onClick={() => setSearch?.('')}
+                    className={`w-4 h-4 rounded-full flex items-center justify-center ${isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-500'}`}
+                  >
+                    <i className="fas fa-times text-[10px]"></i>
+                  </motion.button>
+                )}
+              </div>
+              {/* 好友管理按钮 */}
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                onClick={() => navigate('/friends')}
+                className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center shadow-sm transition-colors ${
+                  isDark 
+                    ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' 
+                    : 'bg-white text-gray-600 hover:bg-gray-50'
+                }`}
+                title="好友管理"
+              >
+                <i className="fas fa-user-friends text-sm"></i>
+              </motion.button>
             </div>
           </div>
 

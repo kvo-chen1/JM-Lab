@@ -101,25 +101,23 @@ if (root) {
   try {
     // 使用直接的方式渲染应用
     ReactDOMClient.createRoot(root).render(
-      <StrictMode>
-        <LanguageProvider>
-          <ThemeProvider>
-            <AuthProvider>
-              <BrowserRouter>
-                <FriendProvider>
-                  <ChatProvider>
-                    <WorkflowProvider>
-                      <ErrorBoundary>
-                        <App />
-                      </ErrorBoundary>
-                    </WorkflowProvider>
-                  </ChatProvider>
-                </FriendProvider>
-              </BrowserRouter>
-            </AuthProvider>
-          </ThemeProvider>
-        </LanguageProvider>
-      </StrictMode>
+      <LanguageProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <BrowserRouter>
+              <FriendProvider>
+                <ChatProvider>
+                  <WorkflowProvider>
+                    <ErrorBoundary>
+                      <App />
+                    </ErrorBoundary>
+                  </WorkflowProvider>
+                </ChatProvider>
+              </FriendProvider>
+            </BrowserRouter>
+          </AuthProvider>
+        </ThemeProvider>
+      </LanguageProvider>
     );
   } catch (error) {
     console.error('Error rendering app:', error);

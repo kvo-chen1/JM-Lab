@@ -2426,8 +2426,13 @@ async function route(req, res, u, path) {
 
       // 同时存储到数据库，确保持久化和多实例共享
       try {
+        console.log(`[验证码] 准备存储到数据库: ${email}, 验证码: ${verificationCode}, 过期时间: ${expiresAt} (${new Date(expiresAt).toISOString()})`)
         await userDB.updateEmailLoginCode(email, verificationCode, expiresAt)
         console.log(`[验证码] 已存储到数据库: ${email}`)
+        
+        // 立即验证存储是否成功
+        const verifyStored = await userDB.getEmailLoginCode(email);
+        console.log(`[验证码] 验证存储结果:`, verifyStored);
       } catch (dbError) {
         console.error('[验证码] 存储到数据库失败:', dbError)
         // 继续执行，因为内存中已经有验证码了
@@ -2503,25 +2508,35 @@ async function route(req, res, u, path) {
         // 如果内存验证失败，尝试从数据库获取验证码
         if (!isCodeValid) {
           try {
-            console.log('[API] 尝试从数据库获取验证码');
+            console.log(`[API] 尝试从数据库获取验证码，邮箱: ${email}, 输入验证码: ${code}`);
             const emailLoginCode = await userDB.getEmailLoginCode(email);
+            console.log(`[API] 数据库返回的验证码信息:`, JSON.stringify(emailLoginCode));
+            
             if (emailLoginCode && emailLoginCode.email_login_code) {
-              console.log('[API] 从数据库获取到验证码');
+              console.log(`[API] 从数据库获取到验证码: ${emailLoginCode.email_login_code}`);
               
               // 检查验证码是否过期
               const now = new Date();
-              const expiresAt = new Date(emailLoginCode.email_login_expires);
-              console.log(`[API] 验证码过期时间: ${expiresAt}, 当前时间: ${now}`);
+              const expiresAt = emailLoginCode.email_login_expires ? new Date(emailLoginCode.email_login_expires) : null;
+              console.log(`[API] 当前时间: ${now.toISOString()}`);
+              console.log(`[API] 验证码过期时间: ${expiresAt ? expiresAt.toISOString() : 'null'}`);
               
-              if (now > expiresAt) {
+              if (!expiresAt) {
+                console.log('[API] 验证码没有过期时间');
+              } else if (now > expiresAt) {
                 console.log('[API] 数据库验证码已过期');
               } else if (emailLoginCode.email_login_code === code) {
                 isCodeValid = true;
                 console.log('[API] 数据库验证码验证成功');
+              } else {
+                console.log(`[API] 验证码不匹配，数据库: ${emailLoginCode.email_login_code}, 输入: ${code}`);
               }
+            } else {
+              console.log('[API] 数据库中没有找到验证码');
             }
           } catch (error) {
             console.error('[API] 从数据库获取验证码失败:', error.message);
+            console.error('[API] 错误详情:', error);
           }
         }
       }

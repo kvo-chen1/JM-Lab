@@ -1622,18 +1622,12 @@ export async function getUserCollectionStats(): Promise<UserCollectionStats> {
     // 如果后端 API 不可用，从 Supabase 获取
     console.log('[getUserCollectionStats] Trying Supabase...');
 
-    // 统一将 userId 转换为字符串，以匹配数据库字段类型
-    const userIdStr = String(userId);
-    console.log('[getUserCollectionStats] Using userIdStr:', userIdStr);
-
     // 获取广场作品收藏 - 只统计实际存在的作品
     let squareWorkBookmarks = 0;
     const { data: bookmarks, error: bookmarksError } = await supabase
       .from('works_bookmarks')
       .select('work_id')
-      .eq('user_id', userIdStr);
-
-    console.log('[getUserCollectionStats] works_bookmarks query:', { bookmarksCount: bookmarks?.length, error: bookmarksError });
+      .eq('user_id', userId);
 
     if (!bookmarksError && bookmarks && bookmarks.length > 0) {
       const workIds = bookmarks.map(b => b.work_id);
@@ -1651,9 +1645,7 @@ export async function getUserCollectionStats(): Promise<UserCollectionStats> {
     const { data: likes, error: likesError } = await supabase
       .from('works_likes')
       .select('work_id')
-      .eq('user_id', userIdStr);
-
-    console.log('[getUserCollectionStats] works_likes query:', { likesCount: likes?.length, error: likesError });
+      .eq('user_id', userId);
 
     if (!likesError && likes && likes.length > 0) {
       const workIds = likes.map(l => l.work_id);
@@ -1671,9 +1663,7 @@ export async function getUserCollectionStats(): Promise<UserCollectionStats> {
     const { data: templateFavorites, error: templateFavoritesError } = await supabase
       .from('template_favorites')
       .select('template_id')
-      .eq('user_id', userIdStr);
-
-    console.log('[getUserCollectionStats] template_favorites query:', { favoritesCount: templateFavorites?.length, error: templateFavoritesError });
+      .eq('user_id', userId);
 
     if (!templateFavoritesError && templateFavorites && templateFavorites.length > 0) {
       const templateIds = templateFavorites.map(f => f.template_id);
@@ -1690,9 +1680,7 @@ export async function getUserCollectionStats(): Promise<UserCollectionStats> {
     const { data: templateLikesData, error: templateLikesError } = await supabase
       .from('template_likes')
       .select('template_id')
-      .eq('user_id', userIdStr);
-
-    console.log('[getUserCollectionStats] template_likes query:', { likesCount: templateLikesData?.length, error: templateLikesError });
+      .eq('user_id', userId);
 
     if (!templateLikesError && templateLikesData && templateLikesData.length > 0) {
       const templateIds = templateLikesData.map(l => l.template_id);
@@ -1709,9 +1697,7 @@ export async function getUserCollectionStats(): Promise<UserCollectionStats> {
     const { data: postBookmarks, error: postBookmarksError } = await supabase
       .from('bookmarks')
       .select('post_id')
-      .eq('user_id', userIdStr);
-
-    console.log('[getUserCollectionStats] bookmarks query:', { bookmarksCount: postBookmarks?.length, error: postBookmarksError });
+      .eq('user_id', userId);
 
     if (!postBookmarksError && postBookmarks && postBookmarks.length > 0) {
       const postIds = postBookmarks.map(b => b.post_id);
@@ -1728,7 +1714,7 @@ export async function getUserCollectionStats(): Promise<UserCollectionStats> {
     const { data: postLikes, error: postLikesError } = await supabase
       .from('likes')
       .select('post_id')
-      .eq('user_id', userIdStr);
+      .eq('user_id', userId);
 
     if (!postLikesError && postLikes && postLikes.length > 0) {
       const postIds = postLikes.map(l => l.post_id);
@@ -1743,12 +1729,11 @@ export async function getUserCollectionStats(): Promise<UserCollectionStats> {
     // 获取活动收藏 - 只统计实际存在的活动
     let activityBookmarks = 0;
     try {
+      const userIdStr = String(userId);
       const { data: eventBookmarks, error: eventBookmarksError } = await supabase
         .from('event_bookmarks')
         .select('event_id')
         .eq('user_id', userIdStr);
-
-      console.log('[getUserCollectionStats] event_bookmarks query:', { bookmarksCount: eventBookmarks?.length, error: eventBookmarksError });
 
       if (!eventBookmarksError && eventBookmarks && eventBookmarks.length > 0) {
         const eventIds = eventBookmarks.map(b => b.event_id);
@@ -1770,6 +1755,7 @@ export async function getUserCollectionStats(): Promise<UserCollectionStats> {
     // 获取活动点赞 - 只统计实际存在的活动
     let activityLikes = 0;
     try {
+      const userIdStr = String(userId);
       const { data: eventLikes, error: eventLikesError } = await supabase
         .from('event_likes')
         .select('event_id')
@@ -1794,19 +1780,6 @@ export async function getUserCollectionStats(): Promise<UserCollectionStats> {
 
     const totalBookmarks = squareWorkBookmarks + templateBookmarks + communityPostBookmarks + activityBookmarks;
     const totalLikes = squareWorkLikes + templateLikes + communityPostLikes + activityLikes;
-
-    console.log('[getUserCollectionStats] Final stats:', {
-      totalBookmarks,
-      squareWorkBookmarks,
-      templateBookmarks,
-      communityPostBookmarks,
-      activityBookmarks,
-      totalLikes,
-      squareWorkLikes,
-      templateLikes,
-      communityPostLikes,
-      activityLikes,
-    });
 
     return {
       total: totalBookmarks,

@@ -150,8 +150,28 @@ export default function AIAssistantMobile() {
         session.messages.forEach((msg, i) => {
           console.log(`[AIAssistant] 消息 ${i}:`, msg.id, '有generationTask:', !!msg.generationTask)
         })
+        
+        // 检查并修复旧的欢迎消息格式（将纯文本列表转换为Markdown列表）
+        const updatedMessages = session.messages.map(msg => {
+          if (msg.id === 'welcome' && msg.content.includes('🎨 **创意生成**') && !msg.content.includes('- 🎨')) {
+            return {
+              ...msg,
+              content: msg.content.replace(
+                /🎨 \*\*创意生成\*\* — 文案、设计灵感、视觉方案\n🏛️ \*\*文化智库\*\* — 天津非遗、老字号、传统元素\n💡 \*\*创作优化\*\* — 作品点评、改进建议、趋势分析\n📝 \*\*品牌策划\*\* — 故事撰写、营销策略、IP孵化/,
+                `- 🎨 **创意生成** — 文案、设计灵感、视觉方案\n- 🏛️ **文化智库** — 天津非遗、老字号、传统元素\n- 💡 **创作优化** — 作品点评、改进建议、趋势分析\n- 📝 **品牌策划** — 故事撰写、营销策略、IP孵化`
+              )
+            }
+          }
+          return msg
+        })
+        
+        // 如果有更新，保存到 session
+        if (JSON.stringify(updatedMessages) !== JSON.stringify(session.messages)) {
+          sessionService.updateSessionMessages(session.id, updatedMessages)
+        }
+        
         setCurrentSessionId(session.id)
-        setMessages(session.messages)
+        setMessages(updatedMessages)
         setSessionTitle(session.title)
         setShowPresetQuestions(false)
 
@@ -191,10 +211,10 @@ export default function AIAssistantMobile() {
 
 **我能为你做什么？**
 
-🎨 **创意生成** — 文案、设计灵感、视觉方案
-🏛️ **文化智库** — 天津非遗、老字号、传统元素
-💡 **创作优化** — 作品点评、改进建议、趋势分析
-📝 **品牌策划** — 故事撰写、营销策略、IP孵化
+- 🎨 **创意生成** — 文案、设计灵感、视觉方案
+- 🏛️ **文化智库** — 天津非遗、老字号、传统元素
+- 💡 **创作优化** — 作品点评、改进建议、趋势分析
+- 📝 **品牌策划** — 故事撰写、营销策略、IP孵化
 
 有什么我可以帮你的吗？`,
       timestamp: Date.now()
@@ -1163,10 +1183,10 @@ export default function AIAssistantMobile() {
 
 **我能为你做什么？**
 
-🎨 **创意生成** — 文案、设计灵感、视觉方案
-🏛️ **文化智库** — 天津非遗、老字号、传统元素
-💡 **创作优化** — 作品点评、改进建议、趋势分析
-📝 **品牌策划** — 故事撰写、营销策略、IP孵化
+- 🎨 **创意生成** — 文案、设计灵感、视觉方案
+- 🏛️ **文化智库** — 天津非遗、老字号、传统元素
+- 💡 **创作优化** — 作品点评、改进建议、趋势分析
+- 📝 **品牌策划** — 故事撰写、营销策略、IP孵化
 
 有什么我可以帮你的吗？`,
       timestamp: Date.now()

@@ -269,11 +269,15 @@ export default function CulturalEvents() {
     return sortEvents(filtered);
   }, [events, filterEvents, sortEvents]);
 
-  // 即将开始的活动（用于右侧栏）
+  // 即将开始的活动（用于右侧栏）- 只显示尚未开始的活动
   const upcomingEvents = useMemo(() => {
     const now = new Date();
     return events
-      .filter((event) => parseEventDate(event.startTime) > now)
+      .filter((event) => {
+        const startTime = parseEventDate(event.startTime);
+        // 只显示开始时间大于当前时间的活动（严格意义上的即将开始）
+        return startTime > now;
+      })
       .sort((a, b) => parseEventDate(a.startTime).getTime() - parseEventDate(b.startTime).getTime())
       .slice(0, 5);
   }, [events]);

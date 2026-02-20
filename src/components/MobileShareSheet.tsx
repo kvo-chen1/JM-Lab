@@ -650,11 +650,25 @@ export function MobileShareSheet({ isOpen, onClose, content }: MobileShareSheetP
           {currentView === 'menu' && (
             <div className="px-5 py-4">
               <div className={`rounded-xl overflow-hidden mb-4 ${isDark ? 'bg-gray-800' : 'bg-gray-100'}`}>
-                <img
-                  src={content.imageUrl}
-                  alt="Preview"
-                  className="w-full h-40 object-cover"
-                />
+                {content.type === 'video' ? (
+                  <video
+                    src={content.imageUrl}
+                    className="w-full h-40 object-cover"
+                    controls
+                    autoPlay
+                    muted
+                    loop
+                    playsInline
+                    preload="auto"
+                    poster={content.imageUrl}
+                  />
+                ) : (
+                  <img
+                    src={content.imageUrl}
+                    alt="Preview"
+                    className="w-full h-40 object-cover"
+                  />
+                )}
               </div>
               <h4 className={`font-medium mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                 {content.title}

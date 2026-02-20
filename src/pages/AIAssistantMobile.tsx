@@ -298,6 +298,19 @@ export default function AIAssistantMobile() {
     type: 'image' | 'video'
   } | null>(null)
 
+  // 发布模态框状态
+  const [isPublishModalOpen, setIsPublishModalOpen] = useState(false)
+  const [publishContent, setPublishContent] = useState<{
+    imageUrl: string
+    prompt: string
+    type: 'image' | 'video'
+  } | null>(null)
+  const [publishTitle, setPublishTitle] = useState('')
+  const [publishDescription, setPublishDescription] = useState('')
+  const [publishTags, setPublishTags] = useState<string[]>([])
+  const [isGeneratingMetadata, setIsGeneratingMetadata] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
   // 从 localStorage 恢复生成任务
   useEffect(() => {
     const savedTasks = localStorage.getItem('aiAssistantGenerationTasks')
@@ -809,6 +822,128 @@ export default function AIAssistantMobile() {
     }
   }, [saveMessagesToSession])
 
+  // 生成发布元数据（标题、描述、标签）
+  const generatePublishMetadata = async (prompt: string, type: 'image' | 'video') => {
+    setIsGeneratingMetadata(true)
+    try {
+      const result = await llmService.generateTitleAndTags(prompt, type)
+      setPublishTitle(result.title)
+      setPublishTags(result.tags)
+      // 使用prompt作为默认描述
+      setPublishDescription(prompt)
+      toast.success('已使用千问AI生成标题和标签')
+    } catch (error) {
+      console.error('生成元数据失败:', error)
+      toast.error('AI生成标题失败，请手动输入')
+      // 使用默认值
+      setPublishTitle(type === 'video' ? '创意视频作品' : 'AI创意作品')
+      setPublishDescription(prompt)
+      setPublishTags(['AI创作', type === 'video' ? '数字艺术' : '概念设计'])
+    } finally {
+      setIsGeneratingMetadata(false)
+    }
+  }
+
+  // 打开发布模态框
+  const openPublishModal = async (imageUrl: string, prompt: string, type: 'image' | 'video') => {
+    setPublishContent({ imageUrl, prompt, type })
+    setPublishTitle('')
+    setPublishDescription('')
+    setPublishTags([])
+    setIsPublishModalOpen(true)
+    // 自动调用千问API生成标题和标签
+    await generatePublishMetadata(prompt, type)
+  }
+
+  // 提交发布
+  const handlePublishSubmit = async () => {
+    if (!publishContent || !publishTitle.trim()) {
+      toast.error('请输入作品标题')
+      return
+    }
+
+    if (!user) {
+      toast.error('请先登录后再发布作品')
+      return
+    }
+
+    setIsSubmitting(true)
+    try {
+      // 处理图片/视频上传：如果URL不是Supabase永久链接，需要下载并上传
+      let finalThumbnail = publishContent.imageUrl
+      let finalVideoUrl = publishContent.type === 'video' ? publishContent.imageUrl : undefined
+      
+      // 检查是否是外部链接（非Supabase链接）
+      if (!finalThumbnail.includes('supabase.co')) {
+        try {
+          if (publishContent.type === 'video') {
+            // 上传视频
+            console.log('[AIAssistant] Downloading and uploading video to Supabase...')
+            const { downloadAndUploadVideo } = await import('@/services/imageService')
+            const uploadedUrl = await downloadAndUploadVideo(finalThumbnail, user.id)
+            if (uploadedUrl) {
+              finalVideoUrl = uploadedUrl
+              finalThumbnail = uploadedUrl // 视频使用视频URL作为缩略图
+              console.log('[AIAssistant] Video uploaded to:', uploadedUrl)
+            } else {
+              console.warn('[AIAssistant] Video upload returned empty, using original URL')
+            }
+          } else {
+            // 上传图片
+            console.log('[AIAssistant] Downloading and uploading image to Supabase...')
+            const { downloadAndUploadImage } = await import('@/services/imageService')
+            const uploadedUrl = await downloadAndUploadImage(finalThumbnail, user.id)
+            if (uploadedUrl) {
+              finalThumbnail = uploadedUrl
+              console.log('[AIAssistant] Image uploaded to:', uploadedUrl)
+            } else {
+              console.warn('[AIAssistant] Upload returned empty, using original URL')
+            }
+          }
+        } catch (uploadError) {
+          console.error('[AIAssistant] Failed to upload media:', uploadError)
+          toast.error('媒体上传失败，请重试')
+          setIsSubmitting(false)
+          return
+        }
+      }
+
+      const { addPost } = await import('@/services/postService')
+      const postData = {
+        title: publishTitle.trim(),
+        thumbnail: finalThumbnail,
+        videoUrl: finalVideoUrl,
+        type: publishContent.type,
+        category: publishContent.type === 'image' ? 'design' : 'video' as any,
+        tags: publishTags,
+        description: publishDescription.trim() || publishContent.prompt,
+        creativeDirection: '',
+        culturalElements: [],
+        colorScheme: [],
+        toolsUsed: [],
+        publishType: 'explore' as const,
+        communityId: null,
+        visibility: 'public' as const,
+        scheduledPublishDate: null
+      }
+
+      const post = await addPost(postData, user as any)
+      if (post) {
+        toast.success('作品发布成功！')
+        setIsPublishModalOpen(false)
+        // 跳转到广场页面
+        navigate('/square')
+      } else {
+        toast.error('发布失败，请重试')
+      }
+    } catch (error) {
+      console.error('发布失败:', error)
+      toast.error('发布失败，请重试')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
   // 监听生成任务状态变化发送消息 - 支持图片/视频生成和页面跳转
   const handleSend = useCallback(async (content: string = input) => {
     if (!content.trim() || isGenerating) return
@@ -1162,9 +1297,9 @@ export default function AIAssistantMobile() {
         <div className="absolute bottom-20 right-10 w-40 h-40 bg-indigo-500/10 rounded-full blur-3xl" />
       </div>
 
-      {/* 头部 - 玻璃拟态效果 */}
+      {/* 头部 - 固定定位 */}
       <motion.header
-        className={`sticky top-0 z-50 px-4 py-0.5 transition-all duration-300 ${
+        className={`fixed top-0 left-0 right-0 z-50 px-4 py-0.5 transition-all duration-300 md:max-w-md md:mx-auto ${
           isScrolled
             ? `${colors.bg.glass} backdrop-blur-xl border-b ${colors.border.primary}`
             : colors.primary.solid
@@ -1196,8 +1331,6 @@ export default function AIAssistantMobile() {
               <span className="font-bold text-base text-white tracking-tight leading-none">津小脉</span>
               <span className="text-white/40 leading-none">|</span>
               <span className="text-xs text-white/70 font-medium leading-none">AI 创意助手</span>
-              <span className="text-white/40 leading-none">·</span>
-              <span className="text-xs text-emerald-300 font-medium leading-none">在线</span>
             </div>
           </div>
 
@@ -1212,15 +1345,6 @@ export default function AIAssistantMobile() {
             >
               <i className="fas fa-list-ul text-xs" />
               <span className="text-xs font-medium">会话</span>
-            </motion.button>
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => navigate('/create')}
-              className="w-8 h-8 rounded-lg bg-white/10 backdrop-blur-sm border border-white/20 text-white hover:bg-white/20 transition-colors flex items-center justify-center"
-              title="前往创作中心"
-            >
-              <i className="fas fa-wand-magic-sparkles text-xs" />
             </motion.button>
             <motion.button
               whileHover={{ scale: 1.05 }}
@@ -1244,10 +1368,10 @@ export default function AIAssistantMobile() {
         </div>
       </motion.header>
 
-      {/* 消息列表 - 为底部固定输入框和导航栏留出空间 */}
+      {/* 消息列表 - 为顶部固定头部和底部固定输入框留出空间 */}
       <main 
         ref={mainRef}
-        className={`flex-1 overflow-y-auto px-4 py-6 pb-32 ${colors.bg.primary} relative`}
+        className={`flex-1 overflow-y-auto px-4 pt-14 pb-32 ${colors.bg.primary} relative`}
       >
         <div className="w-full space-y-3">
           <AnimatePresence mode="popLayout">
@@ -1311,7 +1435,12 @@ export default function AIAssistantMobile() {
                           }}
                           onPublish={() => {
                             if (task.result?.urls?.[0]) {
-                              navigate('/submit-work', { state: { imageUrl: task.result.urls[0] } })
+                              // 打开发布模态框，自动调用千问API生成标题和描述
+                              openPublishModal(
+                                task.result.urls[0],
+                                task.params?.prompt || '',
+                                task.type as 'image' | 'video'
+                              )
                             }
                           }}
                           onShare={() => {
@@ -1321,7 +1450,7 @@ export default function AIAssistantMobile() {
                                 title: 'AI生成作品',
                                 description: task.params?.prompt || '由津小脉AI助手生成',
                                 imageUrl: task.result.urls[0],
-                                type: 'image'
+                                type: task.type as 'image' | 'video'
                               })
                               setIsShareSheetOpen(true)
                             }
@@ -1333,7 +1462,7 @@ export default function AIAssistantMobile() {
                                 title: 'AI生成作品',
                                 description: task.params?.prompt || '由津小脉AI助手生成',
                                 imageUrl: task.result.urls[0],
-                                type: 'image'
+                                type: task.type as 'image' | 'video'
                               })
                               setIsShareSheetOpen(true)
                             }
@@ -1534,6 +1663,169 @@ export default function AIAssistantMobile() {
         onClose={() => setIsShareSheetOpen(false)}
         content={shareContent}
       />
+
+      {/* 发布作品模态框 */}
+      <AnimatePresence>
+        {isPublishModalOpen && publishContent && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[99999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setIsPublishModalOpen(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className={`w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl ${
+                isDark ? 'bg-gray-900' : 'bg-white'
+              }`}
+              onClick={e => e.stopPropagation()}
+            >
+              {/* 头部 */}
+              <div className={`flex items-center justify-between p-5 border-b ${
+                isDark ? 'border-gray-800' : 'border-gray-100'
+              }`}>
+                <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                  发布作品
+                </h3>
+                <button
+                  onClick={() => setIsPublishModalOpen(false)}
+                  className={`p-2 rounded-lg transition-colors ${
+                    isDark ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-500'
+                  }`}
+                >
+                  <i className="fas fa-times" />
+                </button>
+              </div>
+
+              {/* 内容 */}
+              <div className="p-5 space-y-4">
+                {/* 图片/视频预览 */}
+                <div className={`rounded-xl overflow-hidden ${isDark ? 'bg-gray-800' : 'bg-gray-100'}`}>
+                  {publishContent.type === 'video' ? (
+                    <video
+                      src={publishContent.imageUrl}
+                      className="w-full h-48 object-cover"
+                      controls
+                      autoPlay
+                      muted
+                      loop
+                      playsInline
+                      preload="auto"
+                      poster={publishContent.imageUrl}
+                    />
+                  ) : (
+                    <img
+                      src={publishContent.imageUrl}
+                      alt="Preview"
+                      className="w-full h-48 object-cover"
+                    />
+                  )}
+                </div>
+
+                {/* 标题输入 */}
+                <div>
+                  <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                    作品标题
+                    {isGeneratingMetadata && (
+                      <span className="ml-2 text-xs text-indigo-500">
+                        <i className="fas fa-spinner fa-spin mr-1" />
+                        AI生成中...
+                      </span>
+                    )}
+                  </label>
+                  <input
+                    type="text"
+                    value={publishTitle}
+                    onChange={(e) => setPublishTitle(e.target.value)}
+                    placeholder="输入作品标题"
+                    className={`w-full px-4 py-3 rounded-xl border-2 transition-all ${
+                      isDark
+                        ? 'bg-gray-800 border-gray-700 text-white focus:border-indigo-500'
+                        : 'bg-white border-gray-200 text-gray-900 focus:border-indigo-500'
+                    } outline-none`}
+                  />
+                </div>
+
+                {/* 描述输入 */}
+                <div>
+                  <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                    作品描述
+                  </label>
+                  <textarea
+                    value={publishDescription}
+                    onChange={(e) => setPublishDescription(e.target.value)}
+                    placeholder="描述你的作品..."
+                    rows={3}
+                    className={`w-full px-4 py-3 rounded-xl border-2 transition-all resize-none ${
+                      isDark
+                        ? 'bg-gray-800 border-gray-700 text-white focus:border-indigo-500'
+                        : 'bg-white border-gray-200 text-gray-900 focus:border-indigo-500'
+                    } outline-none`}
+                  />
+                </div>
+
+                {/* 标签显示 */}
+                {publishTags.length > 0 && (
+                  <div>
+                    <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                      标签
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {publishTags.map((tag, index) => (
+                        <span
+                          key={index}
+                          className={`px-3 py-1 rounded-full text-sm ${
+                            isDark
+                              ? 'bg-indigo-500/20 text-indigo-400'
+                              : 'bg-indigo-100 text-indigo-600'
+                          }`}
+                        >
+                          #{tag}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 按钮组 */}
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={() => setIsPublishModalOpen(false)}
+                    className={`flex-1 py-3 rounded-xl font-medium transition-all ${
+                      isDark
+                        ? 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    取消
+                  </button>
+                  <button
+                    onClick={handlePublishSubmit}
+                    disabled={isSubmitting || !publishTitle.trim()}
+                    className={`flex-1 py-3 rounded-xl font-medium transition-all ${
+                      isSubmitting || !publishTitle.trim()
+                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        : 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white'
+                    }`}
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <i className="fas fa-spinner fa-spin mr-2" />
+                        发布中...
+                      </>
+                    ) : (
+                      '确认发布'
+                    )}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

@@ -62,9 +62,6 @@ export default function UserCollection() {
   const [activeFilter, setActiveFilter] = useState<CollectionType | 'all'>('all');
   const [sortOption, setSortOption] = useState<SortOption>(SortOption.NEWEST);
   const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.GRID);
-  const [totalBookmarks, setTotalBookmarks] = useState(0);
-  const [totalLikes, setTotalLikes] = useState(0);
-
   // 数据获取
   const { items, isLoading, hasMore, total, refetch, loadMore, error } = useCollections({
     type: activeFilter,
@@ -75,26 +72,14 @@ export default function UserCollection() {
 
   const { stats, isLoading: statsLoading, refetch: refetchStats } = useCollectionStats();
 
-  // 获取收藏和点赞的总数
+  // 从 stats 中获取收藏和点赞的总数
+  const totalBookmarks = stats.total;
+  const totalLikes = stats.totalLikes;
+
+  // 调试：监听 stats 变化
   useEffect(() => {
-    const fetchCounts = async () => {
-      if (!user?.id) return;
-      try {
-        console.log('[UserCollection] Fetching bookmark and like counts...');
-        const { collectionService } = await import('@/services/collectionService');
-        const [bookmarks, likes] = await Promise.all([
-          collectionService.getBookmarkedSquareWorks(),
-          collectionService.getLikedSquareWorks()
-        ]);
-        console.log('[UserCollection] Bookmark count:', bookmarks.length, 'Like count:', likes.length);
-        setTotalBookmarks(bookmarks.length);
-        setTotalLikes(likes.length);
-      } catch (error) {
-        console.error('获取收藏/点赞数量失败:', error);
-      }
-    };
-    fetchCounts();
-  }, [user?.id]);
+    console.log('[UserCollection] Stats updated:', stats);
+  }, [stats]);
 
   // 操作
   const { toggleBookmark, toggleLike, removeBookmark, removeLike } = useCollectionActions();
@@ -312,7 +297,7 @@ export default function UserCollection() {
                   <div>
                     <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>总收藏</p>
                     <p className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                      {isLoading ? '-' : totalBookmarks}
+                      {statsLoading ? '-' : totalBookmarks}
                     </p>
                   </div>
                 </motion.div>
@@ -331,7 +316,7 @@ export default function UserCollection() {
                   <div>
                     <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>总点赞</p>
                     <p className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                      {isLoading ? '-' : totalLikes}
+                      {statsLoading ? '-' : totalLikes}
                     </p>
                   </div>
                 </motion.div>
@@ -388,6 +373,8 @@ export default function UserCollection() {
                 }`}>
                   {activeTab === TabType.LIKES ? items.length : totalLikes}
                 </span>
+                {/* 调试信息 */}
+                <span className="text-xs text-red-500 ml-1">(totalLikes:{totalLikes},stats:{stats.totalLikes})</span>
               </motion.button>
             </div>
           </motion.div>

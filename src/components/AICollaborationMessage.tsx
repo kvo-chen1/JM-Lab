@@ -156,9 +156,9 @@ const AICollaborationMessage: React.FC<AICollaborationMessageProps> = ({
                         );
                       },
                       a: ({node, ...props}) => <a className="text-blue-500 hover:underline font-medium" target="_blank" rel="noopener noreferrer" {...props} />,
-                      ul: ({node, ...props}) => <ul className="list-disc list-outside ml-4 mb-3 space-y-1.5" {...props} />,
-                      ol: ({node, ...props}) => <ol className="list-decimal list-outside ml-4 mb-3 space-y-1.5" {...props} />,
-                      li: ({node, ...props}) => <li className="mb-1 leading-relaxed" {...props} />,
+                      ul: ({node, ...props}) => <ul className="list-none mb-3 space-y-2" {...props} />,
+                      ol: ({node, ...props}) => <ol className="list-none mb-3 space-y-2" {...props} />,
+                      li: ({node, ...props}) => <li className="grid grid-cols-[auto_1fr] gap-2 leading-relaxed" {...props} />,
                       h1: ({node, ...props}) => <h1 className="text-lg font-bold mb-3 mt-4 pb-2 border-b border-gray-200 dark:border-gray-700" {...props} />,
                       h2: ({node, ...props}) => <h2 className="text-base font-bold mb-2 mt-3 text-indigo-600 dark:text-indigo-400" {...props} />,
                       h3: ({node, ...props}) => <h3 className="text-sm font-bold mb-2 mt-2 text-gray-700 dark:text-gray-300" {...props} />,

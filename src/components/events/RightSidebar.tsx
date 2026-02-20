@@ -139,21 +139,44 @@ function UpcomingEvents({ events, onEventClick }: { events: Event[]; onEventClic
     }
   };
 
-  const getTimeLeft = (startTime: Date) => {
+  const getTimeLeft = (startTime: Date, endTime?: Date) => {
     const now = new Date();
-    const diff = new Date(startTime).getTime() - now.getTime();
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const start = new Date(startTime);
+    const diff = start.getTime() - now.getTime();
     
     // 如果活动已经开始或已结束
     if (diff < 0) {
-      const absDays = Math.abs(days);
-      if (absDays > 0) return `已开始 ${absDays} 天`;
+      // 如果有结束时间，检查活动是否已结束
+      if (endTime) {
+        const end = new Date(endTime);
+        if (now > end) {
+          return '已结束';
+        }
+      }
+      
+      // 计算已经过去的时间
+      const absDiff = Math.abs(diff);
+      const passedDays = Math.floor(absDiff / (1000 * 60 * 60 * 24));
+      const passedHours = Math.floor((absDiff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const passedMinutes = Math.floor((absDiff % (1000 * 60 * 60)) / (1000 * 60));
+      
+      if (passedDays > 0) return `已开始 ${passedDays} 天`;
+      if (passedHours > 0) return `已开始 ${passedHours} 小时`;
+      if (passedMinutes > 0) return `已开始 ${passedMinutes} 分钟`;
       return '进行中';
     }
     
+    // 活动尚未开始，计算剩余时间
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    
+    // 检查是否是今天
+    const isToday = start.toDateString() === now.toDateString();
+    
     if (days > 0) return `${days}天后`;
     if (hours > 0) return `${hours}小时后`;
+    if (minutes > 0) return isToday ? `${minutes}分钟后` : '即将开始';
     return '即将开始';
   };
 
@@ -196,8 +219,25 @@ function UpcomingEvents({ events, onEventClick }: { events: Event[]; onEventClic
                 <span className="truncate">{event.location || (event.type === 'online' ? '线上活动' : '待定')}</span>
               </div>
               <div className="mt-2 flex items-center gap-2">
-                <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
-                  {getTimeLeft(event.startTime)}
+                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                  (() => {
+                    const now = new Date();
+                    const start = new Date(event.startTime);
+                    const end = event.endTime ? new Date(event.endTime) : null;
+                    
+                    // 已结束
+                    if (end && now > end) {
+                      return 'bg-gray-100 text-gray-600';
+                    }
+                    // 进行中
+                    if (now >= start) {
+                      return 'bg-green-100 text-green-700';
+                    }
+                    // 即将开始
+                    return 'bg-amber-100 text-amber-700';
+                  })()
+                }`}>
+                  {getTimeLeft(event.startTime, event.endTime)}
                 </span>
               </div>
             </div>

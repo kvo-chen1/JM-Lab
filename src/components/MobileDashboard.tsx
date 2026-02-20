@@ -812,6 +812,7 @@ export default function MobileDashboard({
                   <SidebarItem icon="fas fa-landmark" label="津脉作品" onClick={() => { navigate('/tianjin'); setShowSidebar(false); }} isDark={isDark} />
                   <SidebarItem icon="fas fa-project-diagram" label="津脉脉络" onClick={() => { navigate('/inspiration-mindmap'); setShowSidebar(false); }} isDark={isDark} />
                   <SidebarItem icon="fas fa-book" label="文化知识" onClick={() => { navigate('/knowledge'); setShowSidebar(false); }} isDark={isDark} />
+                  <SidebarItem icon="fas fa-star" label="津脉活动" onClick={() => { navigate('/events'); setShowSidebar(false); }} isDark={isDark} />
                 </SidebarSection>
 
                 {/* 激励与福利 */}

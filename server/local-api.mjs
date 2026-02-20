@@ -2507,7 +2507,15 @@ async function route(req, res, u, path) {
             const emailLoginCode = await userDB.getEmailLoginCode(email);
             if (emailLoginCode && emailLoginCode.email_login_code) {
               console.log('[API] 从数据库获取到验证码');
-              if (emailLoginCode.email_login_code === code) {
+              
+              // 检查验证码是否过期
+              const now = new Date();
+              const expiresAt = new Date(emailLoginCode.email_login_expires);
+              console.log(`[API] 验证码过期时间: ${expiresAt}, 当前时间: ${now}`);
+              
+              if (now > expiresAt) {
+                console.log('[API] 数据库验证码已过期');
+              } else if (emailLoginCode.email_login_code === code) {
                 isCodeValid = true;
                 console.log('[API] 数据库验证码验证成功');
               }

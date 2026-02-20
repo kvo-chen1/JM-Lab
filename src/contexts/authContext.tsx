@@ -1173,11 +1173,88 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     return { success: false, error: '注册功能已整合到邮箱验证码登录中，请直接使用邮箱验证码登录' };
   };
 
-  // 快速登录方法 - 已移除所有第三方登录，只支持邮箱验证码登录
+  // OAuth 第三方登录方法
   const quickLogin = async (provider: 'wechat' | 'phone' | 'alipay' | 'qq' | 'weibo' | 'google' | 'github' | 'twitter' | 'discord'): Promise<boolean> => {
-    console.warn('第三方登录已被移除，请使用邮箱验证码登录');
-    toast.error('第三方登录已被移除，请使用邮箱验证码登录');
-    return false;
+    // 手机号登录暂不支持
+    if (provider === 'phone') {
+      toast.error('手机号登录暂未开放');
+      return false;
+    }
+
+    // QQ、微博、Twitter、Discord 暂不支持
+    if (['qq', 'weibo', 'twitter', 'discord'].includes(provider)) {
+      toast.error(`${provider} 登录暂未开放`);
+      return false;
+    }
+
+    try {
+      // 获取 OAuth 登录 URL
+      const response = await fetch(`/api/auth/oauth/${provider}`);
+      const data = await response.json();
+
+      if (!data.success) {
+        toast.error(data.error || '登录服务暂不可用');
+        return false;
+      }
+
+      // 在新窗口打开 OAuth 登录页面
+      const width = 500;
+      const height = 600;
+      const left = (window.screen.width - width) / 2;
+      const top = (window.screen.height - height) / 2;
+
+      const popup = window.open(
+        data.url,
+        `${provider}Login`,
+        `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no,scrollbars=yes,resizable=yes`
+      );
+
+      if (!popup) {
+        toast.error('请允许弹出窗口以完成登录');
+        return false;
+      }
+
+      // 监听消息
+      return new Promise((resolve) => {
+        const handleMessage = (event: MessageEvent) => {
+          // 验证消息来源
+          if (event.origin !== window.location.origin) return;
+
+          if (event.data?.type === 'oauth:success') {
+            window.removeEventListener('message', handleMessage);
+
+            // 保存用户数据
+            const { user, token, isNewUser } = event.data;
+            localStorage.setItem('token', token);
+            localStorage.setItem('user', JSON.stringify({ ...user, isNewUser }));
+            localStorage.setItem('isAuthenticated', 'true');
+
+            // 更新状态
+            setUser({ ...user, isNewUser });
+            setIsAuthenticated(true);
+
+            toast.success(isNewUser ? '欢迎新用户！' : '登录成功！');
+            resolve(true);
+          } else if (event.data?.type === 'oauth:error') {
+            window.removeEventListener('message', handleMessage);
+            toast.error(event.data.error || '登录失败');
+            resolve(false);
+          }
+        };
+
+        window.addEventListener('message', handleMessage);
+
+        // 超时处理
+        setTimeout(() => {
+          window.removeEventListener('message', handleMessage);
+          resolve(false);
+        }, 5 * 60 * 1000); // 5 分钟超时
+      });
+    } catch (error) {
+      console.error('OAuth 登录错误:', error);
+      toast.error('登录服务暂不可用');
+      return false;
+    }
   };
 
   // 登出方法

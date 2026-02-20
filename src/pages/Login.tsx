@@ -7,6 +7,15 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { usePersistentAuth } from '@/hooks/usePersistentAuth';
 
+// OAuth 提供商配置
+interface OAuthProvider {
+  name: string;
+  label: string;
+  color: string;
+  icon: string;
+  configured: boolean;
+}
+
 export default function Login() {
   const { toggleTheme, isDark } = useTheme();
   const { login, loginWithCode, sendEmailOtp, isAuthenticated, quickLogin } = useContext(AuthContext);
@@ -16,7 +25,40 @@ export default function Login() {
     storageKeyPrefix: 'app',
     persistAuth: true,
   });
-  
+
+  // OAuth 提供商列表 - 固定显示所有4个图标
+  const oauthProviders: OAuthProvider[] = [
+    { name: 'github', label: 'GitHub', color: 'bg-gradient-to-br from-gray-800 to-gray-600', icon: 'fa-github', configured: true },
+    { name: 'google', label: 'Google', color: 'bg-gradient-to-br from-red-500 to-orange-400', icon: 'fa-google', configured: true },
+    { name: 'wechat', label: '微信', color: 'bg-gradient-to-br from-green-500 to-teal-400', icon: 'fa-weixin', configured: false },
+    { name: 'alipay', label: '支付宝', color: 'bg-gradient-to-br from-blue-500 to-blue-400', icon: 'fa-alipay', configured: false },
+  ];
+
+  // 获取已配置的 OAuth 提供商状态（用于控制是否可用）
+  const [configuredProviders, setConfiguredProviders] = useState<Set<string>>(new Set(['github']));
+
+  useEffect(() => {
+    const fetchProviders = async () => {
+      try {
+        const response = await fetch('/api/auth/oauth-providers');
+        const data = await response.json();
+        if (data.success) {
+          // 更新配置状态集合
+          const configured = new Set(
+            data.providers.filter((p: any) => p.configured).map((p: any) => p.name)
+          );
+          setConfiguredProviders(configured);
+        }
+      } catch (error) {
+        // 如果接口失败，默认只有 GitHub
+        console.log('获取 OAuth 提供商失败，使用默认配置');
+        setConfiguredProviders(new Set(['github']));
+      }
+    };
+
+    fetchProviders();
+  }, []);
+
   // 邮箱登录类型：只保留验证码登录
   const [emailLoginType] = useState<'password' | 'code'>('code');
   const [email, setEmail] = useState('');
@@ -405,31 +447,27 @@ export default function Login() {
           </div>
 
           <div className="grid grid-cols-4 gap-2 sm:gap-3">
-            {
-              [
-                { name: 'github', color: 'bg-gradient-to-br from-gray-800 to-gray-600', icon: 'fa-github', label: 'GitHub' },
-                { name: 'google', color: 'bg-gradient-to-br from-red-500 to-orange-400', icon: 'fa-google', label: 'Google' },
-                { name: 'wechat', color: 'bg-gradient-to-br from-green-500 to-teal-400', icon: 'fa-weixin', label: '微信' },
-                { name: 'alipay', color: 'bg-gradient-to-br from-blue-500 to-blue-400', icon: 'fa-alipay', label: '支付宝' },
-              ].map((item) => (
-                <motion.button
-                  key={item.name}
-                  className={`h-10 sm:h-12 rounded-xl ${item.color} flex flex-col items-center justify-center text-white transition-all duration-300 shadow-md`}
-                  whileHover={{ scale: 1.08, y: -2, boxShadow: '0 10px 25px rgba(0, 0, 0, 0.2)' }}
-                  whileTap={{ scale: 0.95 }}
-                  aria-label={`使用${item.label}登录`}
-                  onClick={async () => {
-                    // 所有第三方登录都使用 quickLogin（包括GitHub）
-                    const ok = await quickLogin(item.name as any)
-                    if (!ok) {
-                      toast.error(`${item.label} 登录暂未开放`)
-                    }
-                  }}
-                >
-                  <i className={`fab ${item.icon} text-base sm:text-lg`}></i>
-                </motion.button>
-              ))
-            }
+            {oauthProviders.map((item) => (
+              <motion.button
+                key={item.name}
+                className={`h-10 sm:h-12 rounded-xl ${item.color} flex flex-col items-center justify-center text-white transition-all duration-300 shadow-md ${!configuredProviders.has(item.name) ? 'opacity-60' : ''}`}
+                whileHover={{ scale: 1.08, y: -2, boxShadow: '0 10px 25px rgba(0, 0, 0, 0.2)' }}
+                whileTap={{ scale: 0.95 }}
+                aria-label={`使用${item.label}登录`}
+                onClick={async () => {
+                  if (!configuredProviders.has(item.name)) {
+                    toast.error(`${item.label} 登录暂未开放`)
+                    return
+                  }
+                  const ok = await quickLogin(item.name as any)
+                  if (!ok) {
+                    toast.error(`${item.label} 登录失败，请稍后重试`)
+                  }
+                }}
+              >
+                <i className={`fab ${item.icon} text-base sm:text-lg`}></i>
+              </motion.button>
+            ))}
           </div>
         </motion.div>
       </motion.div>

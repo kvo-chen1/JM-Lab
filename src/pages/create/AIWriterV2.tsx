@@ -12,9 +12,10 @@ import {
   Header,
   defaultCategories,
   sampleTemplates,
+  OutlineEditor,
 } from '@/components/ai-writer';
 
-import type { Template } from '@/components/ai-writer';
+import type { Template, OutlineTemplate } from '@/components/ai-writer';
 
 export default function AIWriterV2() {
   const { isDark } = useTheme();
@@ -27,6 +28,8 @@ export default function AIWriterV2() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedContent, setGeneratedContent] = useState<string>('');
   const [showResult, setShowResult] = useState(false);
+  const [showOutlineEditor, setShowOutlineEditor] = useState(false);
+  const [pendingFormData, setPendingFormData] = useState<Record<string, string>>({});
 
   // 过滤模板
   const filteredTemplates = useMemo(() => {
@@ -55,19 +58,30 @@ export default function AIWriterV2() {
     setGeneratedContent('');
   }, []);
 
-  // 处理表单提交 - 跳转到编辑页面
+  // 处理表单提交 - 打开大纲编辑器
   const handleSubmit = useCallback(async (formData: Record<string, string>) => {
     if (!selectedTemplate) return;
 
-    // 直接跳转到编辑页面，传递模板信息和表单数据
+    // 保存表单数据并打开大纲编辑器
+    setPendingFormData(formData);
+    setShowOutlineEditor(true);
+  }, [selectedTemplate]);
+
+  // 处理大纲编辑器生成
+  const handleOutlineGenerate = useCallback((outline: OutlineTemplate, formData: Record<string, string>) => {
+    // 关闭大纲编辑器并跳转到编辑页面
+    setShowOutlineEditor(false);
+    
+    // 跳转到编辑页面，传递大纲信息和表单数据
     navigate('/create/ai-writer-editor', {
       state: {
-        templateId: selectedTemplate.id,
-        templateName: selectedTemplate.name,
+        templateId: outline.id,
+        templateName: outline.name,
         formData: formData,
+        outline: outline,
       },
     });
-  }, [selectedTemplate, navigate]);
+  }, [navigate]);
 
   // 构建提示词
   const buildPrompt = (template: Template, formData: Record<string, string>): string => {
@@ -373,6 +387,15 @@ ${formData.competitiveAdvantage || '我们的核心竞争优势包括：'}
         />
       }
       />
+
+      {showOutlineEditor && selectedTemplate && (
+        <OutlineEditor
+          template={selectedTemplate}
+          onClose={() => setShowOutlineEditor(false)}
+          onGenerate={handleOutlineGenerate}
+          initialFormData={pendingFormData}
+        />
+      )}
     </>
   );
 }

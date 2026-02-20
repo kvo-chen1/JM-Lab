@@ -1,0 +1,852 @@
+/* ========================================
+   天津文化主题 - 深化版
+   津脉智坊平台专用
+   设计灵感：海河文化、津门老字号、传统技艺
+   ======================================== */
+
+/* ========================================
+   1. 核心色彩系统扩展
+   ======================================== */
+
+.tianjin-enhanced {
+  /* 海河蓝系 - 主色调 */
+  --haihe-50: #E8F4FC;
+  --haihe-100: #D1E9F9;
+  --haihe-200: #A3D3F3;
+  --haihe-300: #75BDED;
+  --haihe-400: #47A7E7;
+  --haihe-500: #1E5F8E;
+  --haihe-600: #1A4F78;
+  --haihe-700: #163F62;
+  --haihe-800: #122F4C;
+  --haihe-900: #0E1F36;
+
+  /* 砖红系 - 历史建筑 */
+  --brick-50: #F9F0EB;
+  --brick-100: #F3E1D7;
+  --brick-200: #E7C3AF;
+  --brick-300: #DBA587;
+  --brick-400: #CF875F;
+  --brick-500: #A0522D;
+  --brick-600: #884526;
+  --brick-700: #70381F;
+  --brick-800: #582B18;
+  --brick-900: #401E11;
+
+  /* 泥人张红系 */
+  --niren-50: #FDE8E6;
+  --niren-100: #FBD1CD;
+  --niren-200: #F7A39B;
+  --niren-300: #F37569;
+  --niren-400: #EF4737;
+  --niren-500: #C21807;
+  --niren-600: #A81406;
+  --niren-700: #8E1005;
+  --niren-800: #740C04;
+  --niren-900: #5A0803;
+
+  /* 杨柳青绿系 */
+  --yangliuqing-50: #E8F5E9;
+  --yangliuqing-100: #D1EBD3;
+  --yangliuqing-200: #A3D7A7;
+  --yangliuqing-300: #75C37B;
+  --yangliuqing-400: #47AF4F;
+  --yangliuqing-500: #228B22;
+  --yangliuqing-600: #1D761D;
+  --yangliuqing-700: #186118;
+  --yangliuqing-800: #134C13;
+  --yangliuqing-900: #0E370E;
+
+  /* 风筝魏蓝系 */
+  --fengzheng-50: #F0F9FF;
+  --fengzheng-100: #E0F2FE;
+  --fengzheng-200: #BAE6FD;
+  --fengzheng-300: #7DD3FC;
+  --fengzheng-400: #38BDF8;
+  --fengzheng-500: #87CEEB;
+  --fengzheng-600: #0284C7;
+  --fengzheng-700: #0369A1;
+  --fengzheng-800: #075985;
+  --fengzheng-900: #0C4A6E;
+
+  /* 桂发祥金系 */
+  --guifaxiang-50: #FDF8E8;
+  --guifaxiang-100: #FBF1D1;
+  --guifaxiang-200: #F7E3A3;
+  --guifaxiang-300: #F3D575;
+  --guifaxiang-400: #EFC747;
+  --guifaxiang-500: #C68E17;
+  --guifaxiang-600: #A87813;
+  --guifaxiang-700: #8A620F;
+  --guifaxiang-800: #6C4C0B;
+  --guifaxiang-900: #4E3607;
+
+  /* 狗不理棕系 */
+  --goubuli-50: #F5F0EB;
+  --goubuli-100: #EBE1D7;
+  --goubuli-200: #D7C3AF;
+  --goubuli-300: #C3A587;
+  --goubuli-400: #AF875F;
+  --goubuli-500: #8B4513;
+  --goubuli-600: #763A10;
+  --goubuli-700: #612F0D;
+  --goubuli-800: #4C240A;
+  --goubuli-900: #371907;
+
+  /* ========================================
+     2. 传统纹样定义
+     ======================================== */
+  
+  /* 云纹 */
+  --pattern-cloud: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='30' viewBox='0 0 60 30'%3E%3Cpath d='M10,15 Q15,5 20,15 T30,15 T40,15 T50,15' fill='none' stroke='currentColor' stroke-width='0.5' opacity='0.1'/%3E%3C/svg%3E");
+  
+  /* 水波纹 */
+  --pattern-wave: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='20' viewBox='0 0 40 20'%3E%3Cpath d='M0,10 Q10,0 20,10 T40,10' fill='none' stroke='currentColor' stroke-width='0.5' opacity='0.1'/%3E%3C/svg%3E");
+  
+  /* 砖墙纹 */
+  --pattern-brick: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='20' viewBox='0 0 40 20'%3E%3Crect x='0' y='0' width='18' height='8' fill='currentColor' opacity='0.05'/%3E%3Crect x='20' y='0' width='18' height='8' fill='currentColor' opacity='0.05'/%3E%3Crect x='10' y='10' width='18' height='8' fill='currentColor' opacity='0.05'/%3E%3Crect x='30' y='10' width='18' height='8' fill='currentColor' opacity='0.05'/%3E%3C/svg%3E");
+  
+  /* 回纹 */
+  --pattern-huiwen: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20'%3E%3Cpath d='M2,2 L8,2 L8,8 L14,8 L14,14 L8,14 L8,18 L2,18 Z' fill='none' stroke='currentColor' stroke-width='0.5' opacity='0.1'/%3E%3C/svg%3E");
+  
+  /* 鱼鳞纹 */
+  --pattern-fishscale: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20'%3E%3Ccircle cx='10' cy='5' r='8' fill='none' stroke='currentColor' stroke-width='0.5' opacity='0.08'/%3E%3Ccircle cx='0' cy='15' r='8' fill='none' stroke='currentColor' stroke-width='0.5' opacity='0.08'/%3E%3Ccircle cx='20' cy='15' r='8' fill='none' stroke='currentColor' stroke-width='0.5' opacity='0.08'/%3E%3C/svg%3E");
+
+  /* ========================================
+     3. 应用变量
+     ======================================== */
+  
+  /* 主色 */
+  --color-primary: var(--haihe-500);
+  --color-primary-light: var(--haihe-400);
+  --color-primary-dark: var(--haihe-600);
+  
+  /* 辅助色 */
+  --color-secondary: var(--brick-500);
+  --color-accent: var(--guifaxiang-500);
+  
+  /* 功能色 */
+  --color-success: var(--yangliuqing-500);
+  --color-warning: var(--guifaxiang-500);
+  --color-error: var(--niren-500);
+  --color-info: var(--fengzheng-500);
+  
+  /* 背景 */
+  --bg-primary: #FAFAF8;
+  --bg-secondary: #FFFFFF;
+  --bg-tertiary: #F5F3F0;
+  --bg-elevated: #FFFFFF;
+  
+  /* 文字 */
+  --text-primary: #1A1A1A;
+  --text-secondary: #4A4A4A;
+  --text-tertiary: #7A7A7A;
+  --text-muted: #9A9A9A;
+  
+  /* 边框 */
+  --border-primary: #E8E5E0;
+  --border-secondary: #D8D5D0;
+  --border-tertiary: #C8C5C0;
+  
+  /* 阴影 */
+  --shadow-sm: 0 1px 2px rgba(30, 95, 142, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(30, 95, 142, 0.08), 0 2px 4px -1px rgba(30, 95, 142, 0.04);
+  --shadow-lg: 0 10px 15px -3px rgba(30, 95, 142, 0.1), 0 4px 6px -2px rgba(30, 95, 142, 0.05);
+  --shadow-xl: 0 20px 25px -5px rgba(30, 95, 142, 0.12), 0 8px 10px -6px rgba(30, 95, 142, 0.06);
+  
+  /* 发光 */
+  --glow-primary: 0 0 20px rgba(30, 95, 142, 0.2);
+  --glow-success: 0 0 20px rgba(34, 139, 34, 0.2);
+  --glow-warning: 0 0 20px rgba(198, 142, 23, 0.2);
+  --glow-error: 0 0 20px rgba(194, 24, 7, 0.2);
+}
+
+/* ========================================
+   4. 天津文化特色组件样式
+   ======================================== */
+
+/* 海河波纹卡片 */
+.tianjin-enhanced .card-haihe {
+  position: relative;
+  background: var(--bg-secondary);
+  border-radius: 1rem;
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.tianjin-enhanced .card-haihe::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, 
+    var(--haihe-500) 0%, 
+    var(--haihe-400) 25%,
+    var(--brick-500) 50%,
+    var(--haihe-400) 75%,
+    var(--haihe-500) 100%
+  );
+}
+
+.tianjin-enhanced .card-haihe::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 60px;
+  background: var(--pattern-wave);
+  background-size: 40px 20px;
+  opacity: 0.1;
+  pointer-events: none;
+}
+
+.tianjin-enhanced .card-haihe:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-xl), var(--glow-primary);
+}
+
+/* 五大道砖墙卡片 */
+.tianjin-enhanced .card-brick {
+  position: relative;
+  background: var(--bg-secondary);
+  border: 2px solid var(--brick-200);
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+.tianjin-enhanced .card-brick::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--pattern-brick);
+  background-size: 40px 20px;
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.tianjin-enhanced .card-brick:hover {
+  border-color: var(--brick-400);
+  box-shadow: 0 0 0 4px rgba(160, 82, 45, 0.1);
+}
+
+/* 杨柳青年画卡片 */
+.tianjin-enhanced .card-nianhua {
+  position: relative;
+  background: linear-gradient(135deg, #FAF6ED 0%, #FFFEF9 100%);
+  border: 3px double var(--yangliuqing-300);
+  border-radius: 1rem;
+  overflow: hidden;
+}
+
+.tianjin-enhanced .card-nianhua::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: -6px;
+  right: -6px;
+  bottom: -6px;
+  border: 1px solid var(--yangliuqing-200);
+  border-radius: calc(1rem + 6px);
+  pointer-events: none;
+}
+
+.tianjin-enhanced .card-nianhua::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--pattern-huiwen);
+  background-size: 20px 20px;
+  opacity: 0.05;
+  pointer-events: none;
+}
+
+/* 泥人张泥塑质感卡片 */
+.tianjin-enhanced .card-clay {
+  position: relative;
+  background: linear-gradient(145deg, #F5F0EB 0%, #FAF8F5 50%, #E8E0D8 100%);
+  border-radius: 1rem;
+  box-shadow: 
+    inset 0 2px 4px rgba(255, 255, 255, 0.8),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.05),
+    0 4px 6px rgba(0, 0, 0, 0.05);
+}
+
+.tianjin-enhanced .card-clay::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, 
+    transparent 0%,
+    var(--niren-500) 20%,
+    var(--niren-400) 50%,
+    var(--niren-500) 80%,
+    transparent 100%
+  );
+  opacity: 0.8;
+}
+
+/* 风筝魏轻盈卡片 */
+.tianjin-enhanced .card-kite {
+  position: relative;
+  background: linear-gradient(180deg, #F0F7FF 0%, #FFFFFF 100%);
+  border-radius: 1rem;
+  border: 1px solid var(--fengzheng-200);
+  box-shadow: var(--shadow-md);
+  transition: all 0.3s ease;
+}
+
+.tianjin-enhanced .card-kite:hover {
+  transform: translateY(-5px) rotate(1deg);
+  box-shadow: 
+    0 15px 30px rgba(135, 206, 235, 0.2),
+    0 0 0 1px rgba(135, 206, 235, 0.3);
+}
+
+/* 桂发祥金贵卡片 */
+.tianjin-enhanced .card-golden {
+  position: relative;
+  background: linear-gradient(135deg, #FDF9E8 0%, #FFFCF5 50%, #F5ECD0 100%);
+  border-radius: 1rem;
+  border: 1px solid var(--guifaxiang-200);
+  overflow: hidden;
+}
+
+.tianjin-enhanced .card-golden::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(212, 168, 75, 0.2) 50%,
+    transparent 100%
+  );
+  transition: left 0.6s ease;
+}
+
+.tianjin-enhanced .card-golden:hover::before {
+  left: 100%;
+}
+
+/* ========================================
+   5. 天津文化特色按钮
+   ======================================== */
+
+/* 海河蓝主按钮 */
+.tianjin-enhanced .btn-haihe {
+  background: linear-gradient(135deg, var(--haihe-500) 0%, var(--haihe-600) 100%);
+  color: white;
+  border: none;
+  border-radius: 0.75rem;
+  padding: 0.75rem 1.5rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.tianjin-enhanced .btn-haihe::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.2) 50%,
+    transparent 100%
+  );
+  transition: left 0.5s ease;
+}
+
+.tianjin-enhanced .btn-haihe:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--glow-primary);
+}
+
+.tianjin-enhanced .btn-haihe:hover::before {
+  left: 100%;
+}
+
+/* 泥人张红按钮 */
+.tianjin-enhanced .btn-nirenzhang {
+  background: linear-gradient(135deg, var(--niren-500) 0%, var(--niren-600) 100%);
+  color: white;
+  border: none;
+  border-radius: 0.75rem;
+  padding: 0.75rem 1.5rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.tianjin-enhanced .btn-nirenzhang::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, 
+    transparent 0%,
+    rgba(255, 255, 255, 0.5) 50%,
+    transparent 100%
+  );
+}
+
+.tianjin-enhanced .btn-nirenzhang:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 20px rgba(194, 24, 7, 0.3);
+}
+
+/* 杨柳青绿按钮 */
+.tianjin-enhanced .btn-yangliuqing {
+  background: linear-gradient(135deg, var(--yangliuqing-500) 0%, var(--yangliuqing-600) 100%);
+  color: white;
+  border: none;
+  border-radius: 0.75rem;
+  padding: 0.75rem 1.5rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.tianjin-enhanced .btn-yangliuqing::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  background: linear-gradient(135deg, var(--yangliuqing-400), var(--yangliuqing-500));
+  border-radius: calc(0.75rem + 2px);
+  z-index: -1;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.tianjin-enhanced .btn-yangliuqing:hover::before {
+  opacity: 1;
+}
+
+.tianjin-enhanced .btn-yangliuqing:hover {
+  transform: translateY(-2px);
+}
+
+/* 桂发祥金按钮 */
+.tianjin-enhanced .btn-guifaxiang {
+  background: linear-gradient(135deg, var(--guifaxiang-500) 0%, var(--guifaxiang-400) 50%, var(--guifaxiang-500) 100%);
+  color: white;
+  border: none;
+  border-radius: 0.75rem;
+  padding: 0.75rem 1.5rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.tianjin-enhanced .btn-guifaxiang::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(
+    45deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.3) 50%,
+    transparent 70%
+  );
+  animation: shimmer 3s infinite;
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%) rotate(45deg); }
+  100% { transform: translateX(100%) rotate(45deg); }
+}
+
+.tianjin-enhanced .btn-guifaxiang:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 25px rgba(198, 142, 23, 0.4);
+}
+
+/* ========================================
+   6. 天津文化特色动效
+   ======================================== */
+
+/* 海河波浪动画 */
+@keyframes haihe-wave {
+  0%, 100% {
+    transform: translateX(0) translateY(0);
+  }
+  25% {
+    transform: translateX(5px) translateY(-2px);
+  }
+  50% {
+    transform: translateX(0) translateY(0);
+  }
+  75% {
+    transform: translateX(-5px) translateY(-2px);
+  }
+}
+
+.tianjin-enhanced .animate-haihe-wave {
+  animation: haihe-wave 4s ease-in-out infinite;
+}
+
+/* 天津之眼旋转 */
+@keyframes tianjin-eye-rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.tianjin-enhanced .animate-tianjin-eye {
+  animation: tianjin-eye-rotate 20s linear infinite;
+}
+
+/* 泥塑呼吸效果 */
+@keyframes clay-breathe {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+  }
+  50% {
+    transform: scale(1.02);
+    box-shadow: 0 8px 12px rgba(0, 0, 0, 0.08);
+  }
+}
+
+.tianjin-enhanced .animate-clay-breathe {
+  animation: clay-breathe 4s ease-in-out infinite;
+}
+
+/* 风筝飘动 */
+@keyframes kite-float {
+  0%, 100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  25% {
+    transform: translateY(-10px) rotate(2deg);
+  }
+  50% {
+    transform: translateY(0) rotate(0deg);
+  }
+  75% {
+    transform: translateY(-5px) rotate(-2deg);
+  }
+}
+
+.tianjin-enhanced .animate-kite-float {
+  animation: kite-float 5s ease-in-out infinite;
+}
+
+/* 金光闪烁 */
+@keyframes golden-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.tianjin-enhanced .animate-golden-shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(212, 168, 75, 0.4) 25%,
+    rgba(232, 200, 120, 0.6) 50%,
+    rgba(212, 168, 75, 0.4) 75%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: golden-shimmer 2s ease-in-out infinite;
+}
+
+/* 云纹飘动 */
+@keyframes cloud-drift {
+  0% {
+    background-position: 0 0;
+  }
+  100% {
+    background-position: 60px 0;
+  }
+}
+
+.tianjin-enhanced .animate-cloud-drift {
+  background: var(--pattern-cloud);
+  background-size: 60px 30px;
+  animation: cloud-drift 20s linear infinite;
+}
+
+/* ========================================
+   7. 天津文化特色装饰元素
+   ======================================== */
+
+/* 海河波浪分隔线 */
+.tianjin-enhanced .divider-haihe {
+  height: 3px;
+  background: linear-gradient(90deg, 
+    transparent 0%,
+    var(--haihe-300) 10%,
+    var(--haihe-500) 30%,
+    var(--haihe-400) 50%,
+    var(--haihe-500) 70%,
+    var(--haihe-300) 90%,
+    transparent 100%
+  );
+  position: relative;
+}
+
+.tianjin-enhanced .divider-haihe::before,
+.tianjin-enhanced .divider-haihe::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: inherit;
+  opacity: 0.5;
+}
+
+.tianjin-enhanced .divider-haihe::before {
+  top: -4px;
+  transform: scaleY(0.5);
+}
+
+.tianjin-enhanced .divider-haihe::after {
+  bottom: -4px;
+  transform: scaleY(0.5);
+}
+
+/* 砖墙边框 */
+.tianjin-enhanced .border-brick {
+  border: 2px solid var(--brick-300);
+  position: relative;
+}
+
+.tianjin-enhanced .border-brick::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border: 1px solid var(--brick-200);
+  pointer-events: none;
+}
+
+/* 年画风格边框 */
+.tianjin-enhanced .border-nianhua {
+  border: 3px double var(--yangliuqing-400);
+  position: relative;
+}
+
+.tianjin-enhanced .border-nianhua::before {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border: 1px solid var(--yangliuqing-300);
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+/* 泥塑质感边框 */
+.tianjin-enhanced .border-clay {
+  border: 2px solid var(--niren-200);
+  border-radius: 0.75rem;
+  box-shadow: 
+    inset 0 2px 4px rgba(255, 255, 255, 0.8),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.05);
+}
+
+/* ========================================
+   8. 天津文化特色徽章/标签
+   ======================================== */
+
+/* 老字号徽章 */
+.tianjin-enhanced .badge-laozihao {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.75rem;
+  background: linear-gradient(135deg, var(--brick-500) 0%, var(--brick-600) 100%);
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 9999px;
+  box-shadow: 0 2px 4px rgba(160, 82, 45, 0.3);
+}
+
+/* 非遗徽章 */
+.tianjin-enhanced .badge-feiyi {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.75rem;
+  background: linear-gradient(135deg, var(--niren-500) 0%, var(--niren-600) 100%);
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 9999px;
+  box-shadow: 0 2px 4px rgba(194, 24, 7, 0.3);
+}
+
+/* 津门特色徽章 */
+.tianjin-enhanced .badge-jinmen {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.75rem;
+  background: linear-gradient(135deg, var(--haihe-500) 0%, var(--haihe-600) 100%);
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 9999px;
+  box-shadow: 0 2px 4px rgba(30, 95, 142, 0.3);
+}
+
+/* VIP金徽章 */
+.tianjin-enhanced .badge-vip-gold {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.75rem;
+  background: linear-gradient(135deg, var(--guifaxiang-500) 0%, var(--guifaxiang-400) 50%, var(--guifaxiang-500) 100%);
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border-radius: 9999px;
+  box-shadow: 0 2px 8px rgba(198, 142, 23, 0.4);
+  position: relative;
+  overflow: hidden;
+}
+
+.tianjin-enhanced .badge-vip-gold::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(
+    45deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.3) 50%,
+    transparent 70%
+  );
+  animation: shimmer 3s infinite;
+}
+
+/* ========================================
+   9. 响应式适配
+   ======================================== */
+
+@media (max-width: 768px) {
+  .tianjin-enhanced {
+    /* 移动端增强对比度 */
+    --text-primary: #000000;
+    --text-secondary: #333333;
+    --color-primary: #2471A8;
+  }
+  
+  .tianjin-enhanced .card-haihe,
+  .tianjin-enhanced .card-brick,
+  .tianjin-enhanced .card-nianhua,
+  .tianjin-enhanced .card-clay,
+  .tianjin-enhanced .card-kite,
+  .tianjin-enhanced .card-golden {
+    border-radius: 0.75rem;
+  }
+  
+  .tianjin-enhanced .card-haihe::before {
+    height: 3px;
+  }
+  
+  .tianjin-enhanced .btn-haihe,
+  .tianjin-enhanced .btn-nirenzhang,
+  .tianjin-enhanced .btn-yangliuqing,
+  .tianjin-enhanced .btn-guifaxiang {
+    padding: 0.875rem 1.5rem;
+    font-size: 1rem;
+    min-height: 48px;
+  }
+  
+  /* 移动端减少动画 */
+  .tianjin-enhanced .animate-tianjin-eye {
+    animation-duration: 30s;
+  }
+  
+  .tianjin-enhanced .animate-kite-float {
+    animation-duration: 8s;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tianjin-enhanced *,
+  .tianjin-enhanced *::before,
+  .tianjin-enhanced *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ========================================
+   10. 暗色模式
+   ======================================== */
+
+.tianjin-enhanced.dark {
+  /* 暗色背景 */
+  --bg-primary: #1A1918;
+  --bg-secondary: #2C2A28;
+  --bg-tertiary: #3A3834;
+  --bg-elevated: #3A3834;
+  
+  /* 暗色文字 */
+  --text-primary: #F5F3F0;
+  --text-secondary: #D8D5D0;
+  --text-tertiary: #B8B5B0;
+  --text-muted: #989590;
+  
+  /* 暗色边框 */
+  --border-primary: #4A4844;
+  --border-secondary: #5A5854;
+  --border-tertiary: #6A6864;
+  
+  /* 暗色阴影 */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.4);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+  
+  /* 暗色发光 */
+  --glow-primary: 0 0 20px rgba(74, 144, 184, 0.3);
+  --glow-success: 0 0 20px rgba(74, 175, 79, 0.3);
+  --glow-warning: 0 0 20px rgba(230, 184, 77, 0.3);
+  --glow-error: 0 0 20px rgba(232, 69, 58, 0.3);
+  
+  /* 暗色主色 */
+  --color-primary: var(--haihe-400);
+  --color-primary-light: var(--haihe-300);
+  --color-primary-dark: var(--haihe-500);
+}

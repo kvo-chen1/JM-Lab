@@ -2079,11 +2079,12 @@ export const userDB = {
         // Math.random() 部分约为 4 字符
         // 总长度约为 1 + 8 + 4 = 13 字符
         const tempUsername = `u${Date.now().toString(36)}${Math.floor(Math.random() * 10000).toString(36)}`;
-        
+        const now = Date.now();
+
         try {
           await db.query(
-            'INSERT INTO users (id, username, email, password_hash, email_login_code, email_login_expires, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW()) ON CONFLICT (email) DO UPDATE SET email_login_code = $5, email_login_expires = $6, updated_at = NOW()',
-            [randomUUID(), tempUsername, email, 'TEMP_HASH', code, expiresAtDate]
+            'INSERT INTO users (id, username, email, password_hash, email_login_code, email_login_expires, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $7) ON CONFLICT (email) DO UPDATE SET email_login_code = $5, email_login_expires = $6, updated_at = $7',
+            [randomUUID(), tempUsername, email, 'TEMP_HASH', code, expiresAtDate, now]
           )
           return true
         } catch (err) {
@@ -2093,9 +2094,10 @@ export const userDB = {
       }
       case DB_TYPE.NEON_API: {
         const expiresAtDate = new Date(expiresAt);
+        const now = Date.now();
         await db.query(
-          'INSERT INTO users (id, username, email, password_hash, email_login_code, email_login_expires, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW()) ON CONFLICT (email) DO UPDATE SET email_login_code = $5, email_login_expires = $6, updated_at = NOW()',
-          [randomUUID(), `user_${Date.now()}`, email, 'TEMP_HASH', code, expiresAtDate]
+          'INSERT INTO users (id, username, email, password_hash, email_login_code, email_login_expires, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $7) ON CONFLICT (email) DO UPDATE SET email_login_code = $5, email_login_expires = $6, updated_at = $7',
+          [randomUUID(), `user_${Date.now()}`, email, 'TEMP_HASH', code, expiresAtDate, now]
         )
         return true
       }
@@ -2304,6 +2306,72 @@ export const userDB = {
 
     log(`Deleted ${deletedCount} test email users`)
     return deletedCount
+  },
+
+  // OAuth 相关方法
+  async findByProviderId(provider, providerId) {
+    const db = await getDB()
+    const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
+    switch (typeKey) {
+      case DB_TYPE.MEMORY:
+        return memoryStore.users.find(u => u.provider === provider && u.provider_id === providerId)
+      case DB_TYPE.MONGODB:
+        return db.collection('users').findOne({ provider, provider_id: providerId })
+      case DB_TYPE.POSTGRESQL:
+        return (await db.query('SELECT * FROM users WHERE provider = $1 AND provider_id = $2', [provider, providerId])).rows[0]
+      case DB_TYPE.NEON_API:
+        return (await db.query('SELECT * FROM users WHERE provider = $1 AND provider_id = $2', [provider, providerId])).result.rows[0]
+      default:
+        throw new Error(`Unsupported DB Type: ${config.dbType}`)
+    }
+  },
+
+  async linkProvider(userId, provider, providerId) {
+    const db = await getDB()
+    const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
+    switch (typeKey) {
+      case DB_TYPE.MEMORY:
+        const userIndex = memoryStore.users.findIndex(u => u.id === userId)
+        if (userIndex !== -1) {
+          memoryStore.users[userIndex].provider = provider
+          memoryStore.users[userIndex].provider_id = providerId
+          memoryStore.users[userIndex].updated_at = Date.now()
+          saveMemoryStore()
+        }
+        return true
+      case DB_TYPE.MONGODB:
+        await db.collection('users').updateOne(
+          { _id: userId },
+          { $set: { provider, provider_id: providerId, updated_at: Date.now() } }
+        )
+        return true
+      case DB_TYPE.POSTGRESQL:
+        await db.query(
+          'UPDATE users SET provider = $1, provider_id = $2, updated_at = NOW() WHERE id = $3',
+          [provider, providerId, userId]
+        )
+        return true
+      case DB_TYPE.NEON_API:
+        await db.query(
+          'UPDATE users SET provider = $1, provider_id = $2, updated_at = NOW() WHERE id = $3',
+          [provider, providerId, userId]
+        )
+        return true
+      default:
+        throw new Error(`Unsupported DB Type: ${config.dbType}`)
+    }
+  },
+
+  async getUserById(id) {
+    return this.findById(id)
+  },
+
+  async getUserByEmail(email) {
+    return this.findByEmail(email)
+  },
+
+  async updateUser(id, updateData) {
+    return this.updateById(id, updateData)
   }
 }
 

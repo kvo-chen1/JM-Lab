@@ -63,6 +63,10 @@ const CompleteProfile = createLazyComponent(() => import(/* webpackChunkName: "p
   priority: ROUTE_PRIORITIES.MEDIUM,
   name: 'complete-profile'
 });
+const OAuthCallback = createLazyComponent(() => import(/* webpackChunkName: "pages-auth" */ "@/pages/OAuthCallback"), {
+  priority: ROUTE_PRIORITIES.HIGH,
+  name: 'oauth-callback'
+});
 
 // 导入Three.js组件懒加载工具
 import { createLazyThreeComponent } from '@/components/lazy/LazyThreeComponent';
@@ -242,6 +246,10 @@ const MembershipPayment = createLazyComponent(() => import(/* webpackChunkName: 
 });
 const MembershipBenefits = createLazyComponent(() => import(/* webpackChunkName: "pages-membership" */ "@/pages/MembershipBenefits"), {
   priority: ROUTE_PRIORITIES.MEDIUM
+});
+const PersonalPayment = createLazyComponent(() => import(/* webpackChunkName: "pages-membership" */ "@/pages/PersonalPayment"), {
+  priority: ROUTE_PRIORITIES.HIGH,
+  name: 'personal-payment'
 });
 
 const PointsMall = createLazyComponent(() => import(/* webpackChunkName: "pages-membership" */ "@/pages/PointsMall"), {
@@ -735,6 +743,7 @@ export default function App() {
         <Route path="/register" element={<ErrorBoundary><AnimatedPage><Register /></AnimatedPage></ErrorBoundary>} />
         <Route path="/forgot-password" element={<ErrorBoundary><AnimatedPage><ForgotPassword /></AnimatedPage></ErrorBoundary>} />
         <Route path="/complete-profile" element={<ErrorBoundary><AnimatedPage><CompleteProfile /></AnimatedPage></ErrorBoundary>} />
+        <Route path="/oauth/callback/:provider" element={<ErrorBoundary><AnimatedPage><OAuthCallback /></AnimatedPage></ErrorBoundary>} />
 
         
         {/* 使用布局的页面，为所有子路由添加动画 */}
@@ -834,6 +843,7 @@ export default function App() {
           {/* 会员相关路由 - 懒加载 */}
           <Route path="/membership" element={<LazyComponent><Membership /></LazyComponent>} />
           <Route path="/membership/payment" element={<LazyComponent><PrivateRoute><MembershipPayment /></PrivateRoute></LazyComponent>} />
+<Route path="/membership/payment/personal" element={<LazyComponent><PrivateRoute><PersonalPayment /></PrivateRoute></LazyComponent>} />
           <Route path="/membership/benefits" element={<LazyComponent><MembershipBenefits /></LazyComponent>} />
           <Route path="/membership/upgrade" element={<LazyComponent><PrivateRoute><Membership /></PrivateRoute></LazyComponent>} />
           

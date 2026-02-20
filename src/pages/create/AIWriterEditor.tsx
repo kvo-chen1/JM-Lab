@@ -128,14 +128,15 @@ export default function AIWriterEditor() {
 
   // 从location state获取模板信息
   useEffect(() => {
-    const state = location.state as { 
-      templateId?: string; 
-      templateName?: string; 
+    const state = location.state as {
+      templateId?: string;
+      templateName?: string;
       formData?: Record<string, string>;
       historyItemId?: string;
       content?: string;
+      outline?: any;
     };
-    
+
     // 如果是从历史记录进入，直接加载保存的内容，不重新生成
     if (state?.historyItemId && state?.content) {
       setContent(state.content);
@@ -154,7 +155,7 @@ export default function AIWriterEditor() {
       ]);
       return;
     }
-    
+
     // 如果是从模板新建，则生成新内容
     if (state?.templateName) {
       // 更新第一条AI消息
@@ -169,14 +170,19 @@ export default function AIWriterEditor() {
         return newMessages;
       });
     }
-    
+
     // 只有从模板新建且有formData时才生成新内容
     if (state?.formData && !state?.historyItemId) {
       // 根据项目名称设置标题
       if (state.formData.projectName) {
         setTitle(state.formData.projectName);
       }
-      generateInitialContent(state.formData, state?.templateName);
+      // 如果有大纲信息，使用大纲生成内容
+      if (state?.outline) {
+        generateInitialContentFromOutline(state.formData, state.outline);
+      } else {
+        generateInitialContent(state.formData, state?.templateName);
+      }
     }
   }, [location.state]);
 
@@ -277,7 +283,7 @@ export default function AIWriterEditor() {
     const fields = Object.entries(formData)
       .map(([key, value]) => `- ${key}: ${value}`)
       .join('\n');
-    
+
     return `请根据以下信息生成一份${templateName || '商业计划书'}：
 
 ${fields}
@@ -288,6 +294,124 @@ ${fields}
 3. 使用HTML格式，包含h1、h2、h3标题和p段落
 4. 关键数据使用strong标签加粗
 5. 内容要具体、有数据支撑、逻辑清晰`;
+  };
+
+  // 从大纲构建提示词
+  const buildPromptFromOutline = (formData: Record<string, string>, outline: any): string => {
+    const fields = Object.entries(formData)
+      .map(([key, value]) => `- ${key}: ${value}`)
+      .join('\n');
+
+    // 递归构建大纲结构文本
+    const buildOutlineText = (sections: any[], depth: number = 0): string => {
+      return sections.map((section, index) => {
+        const indent = '  '.repeat(depth);
+        const numberLabel = depth === 0 ? `${index + 1}.` : '-';
+        let text = `${indent}${numberLabel} ${section.name}`;
+        if (section.description) {
+          text += ` (${section.description})`;
+        }
+        if (section.children && section.children.length > 0) {
+          text += '\n' + buildOutlineText(section.children, depth + 1);
+        }
+        return text;
+      }).join('\n');
+    };
+
+    const outlineText = outline.sections ? buildOutlineText(outline.sections) : '';
+
+    return `请根据以下信息和章节大纲生成一份${outline.name || '商业计划书'}：
+
+【基本信息】
+${fields}
+
+【文档大纲结构】
+${outlineText}
+
+要求：
+1. 严格按照上述大纲结构生成内容
+2. 每个章节都要包含详细的内容
+3. 使用HTML格式，包含h1、h2、h3标题和p段落
+4. 关键数据使用strong标签加粗
+5. 内容要具体、有数据支撑、逻辑清晰
+6. 确保各章节之间的连贯性和一致性`;
+  };
+
+  // 从大纲生成初始内容
+  const generateInitialContentFromOutline = async (formData: Record<string, string>, outline: any) => {
+    setIsGenerating(true);
+    setContent('');
+
+    try {
+      const prompt = buildPromptFromOutline(formData, outline);
+
+      let accumulatedContent = '';
+      let pendingContent = '';
+
+      const throttledUpdate = throttle((content: string) => {
+        let displayContent = content;
+        displayContent = displayContent.replace(/^```html\s*/i, '');
+        displayContent = displayContent.replace(/```\s*$/i, '');
+
+        setContent(displayContent);
+
+        const textContent = displayContent.replace(/<[^>]*>/g, '');
+        setWordCount(textContent.length);
+        setCharCount(displayContent.length);
+        setReadTime(Math.ceil(textContent.length / 300));
+      }, 100);
+
+      await llmService.directGenerateResponse(prompt, {
+        context: {
+          systemPrompt: '你是一位专业的商业文案撰写专家。请严格按照用户提供的大纲结构生成文档。使用HTML格式输出，包含适当的标题（h1, h2, h3）、段落（p）、加粗（strong）等标签。直接返回HTML内容，不要包含markdown代码块标记。'
+        },
+        onDelta: (chunk: string) => {
+          accumulatedContent += chunk;
+          pendingContent += chunk;
+
+          if (pendingContent.length >= 50 || /[。！？.!?\n]/.test(chunk)) {
+            throttledUpdate(accumulatedContent);
+            pendingContent = '';
+          }
+        }
+      });
+
+      let finalContent = accumulatedContent;
+      finalContent = finalContent.replace(/^```html\s*/i, '');
+      finalContent = finalContent.replace(/```\s*$/i, '');
+      finalContent = finalContent.trim();
+
+      if (!finalContent.includes('<')) {
+        finalContent = convertTextToHtml(finalContent);
+      }
+
+      setContent(finalContent);
+
+      const textContent = finalContent.replace(/<[^>]*>/g, '');
+      setWordCount(textContent.length);
+      setCharCount(finalContent.length);
+      setReadTime(Math.ceil(textContent.length / 300));
+
+      addHistoryItem({
+        title: formData.projectName || '未命名文档',
+        templateName: outline.name || '商业计划书',
+        templateId: outline.id || 'default',
+        content: finalContent,
+        formData: formData,
+        status: 'draft',
+        wordCount: finalContent.replace(/<[^>]*>/g, '').length,
+      });
+
+      toast.success('文案生成完成！');
+    } catch (error) {
+      console.error('AI生成失败:', error);
+      toast.error('生成失败，请重试');
+
+      const fallbackContent = generateFallbackContent(formData);
+      setContent(fallbackContent);
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   // 将纯文本转换为HTML

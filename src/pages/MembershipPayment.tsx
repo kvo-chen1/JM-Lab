@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useState, useCallback } from 'react';
+import React, { useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { AuthContext } from '@/contexts/authContext';
 import { apiClient } from '@/lib/apiClient';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -13,7 +13,8 @@ import {
   Loader2,
   ChevronLeft,
   Sparkles,
-  Lock
+  Lock,
+  RefreshCw
 } from 'lucide-react';
 
 // 支付方式图标组件
@@ -26,7 +27,7 @@ const PaymentIcon: React.FC<{ method: string; className?: string }> = ({ method,
     ),
     alipay: (
       <svg className={className} viewBox="0 0 24 24" fill="currentColor">
-        <path d="M5.5 2.5h13a3 3 0 013 3v13a3 3 0 01-3 3h-13a3 3 0 01-3-3v-13a3 3 0 013-3zm12.35 4.75a.65.65 0 00-.65-.65h-2.6a.65.65 0 00-.65.65v.6h3.9v-.6zm-4.55 2.6c-.36.13-.75.2-1.15.2-1.6 0-2.9-1.1-2.9-2.45 0-1.35 1.3-2.45 2.9-2.45.4 0 .79.07 1.15.2a3.78 3.78 0 00-1.15-.2c-1.6 0-2.9 1.1-2.9 2.45 0 1.35 1.3 2.45 2.9 2.45.4 0 .79-.07 1.15-.2zm-3.25 1.3h4.55v.65h-1.3v3.9h-.65v-3.9h-2.6v-.65zm-2.6 0h.65v4.55h-.65v-4.55zm-1.3 0h.65v4.55h-.65v-4.55zm5.85 4.55h-.65v-1.95h.65v1.95zm-2.6 0h-.65v-1.95h.65v1.95z"/>
+        <path d="M5.5 2.5h13a3 3 0 013 3v13a3 3 0 01-3 3h-13a3 3 0 01-3-3v-13a3 3 0 013-3zm12.35 4.75a.65.65 0 00-.65-.65h-2.6a.65.65 0 00-.65.65v.6h3.9v-.6zm-4.55 2.6c-.36.13-.75.2-1.15.2-1.6 0-2.9-1.1-2.9-2.45 0-1.35 1.3-2.45 2.9-2.45.4 0 .79.07 1.15.2a3.78 3.78 0 00-1.15-.2c-1.6 0-2.9 1.1-2.9 2.45 0 1.35 1.3 2.45 2.9 2.45.4 0 .79-.07 1.15-.2zm-3.25 1.3h4.55v.65h-1.3v3.9h-.65v-3.9h-2.6v-.65zm-2.6 0h.65v4.55h-.65v-4.55zm-1.3 0h.65v4.55h-.65v-4.55zm5.85 4.55h-.65v-1.95h.65v1.95zm-2.6 0h-.65v-1.95h.65v-1.95z"/>
       </svg>
     ),
     credit: <CreditCard className={className} />,
@@ -70,6 +71,9 @@ const MembershipPayment: React.FC = () => {
   const [paymentMethod, setPaymentMethod] = useState('wechat');
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [orderId, setOrderId] = useState<string | null>(null);
+  const [paymentConfig, setPaymentConfig] = useState<any>(null);
+  const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
   // 获取从会员中心传递过来的套餐信息
   const plan = (location.state as any)?.plan || 'premium';
@@ -123,11 +127,35 @@ const MembershipPayment: React.FC = () => {
 
   const selectedPlan = membershipPlans[plan as keyof typeof membershipPlans] || membershipPlans.premium;
 
+  // 获取支付配置
+  useEffect(() => {
+    const fetchPaymentConfig = async () => {
+      try {
+        const response = await apiClient.get('/api/payment/config');
+        if (response.ok && response.data?.success) {
+          setPaymentConfig(response.data.data);
+        }
+      } catch (error) {
+        console.error('获取支付配置失败:', error);
+      }
+    };
+    fetchPaymentConfig();
+  }, []);
+
   useEffect(() => {
     if (!user) {
       navigate('/login');
     }
   }, [user, navigate]);
+
+  // 清理轮询
+  useEffect(() => {
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+      }
+    };
+  }, []);
 
   if (!user || !selectedPlan) {
     return null;
@@ -143,7 +171,8 @@ const MembershipPayment: React.FC = () => {
       bgColor: 'bg-emerald-50',
       borderColor: 'border-emerald-200',
       activeBorder: 'border-emerald-500',
-      activeBg: 'bg-emerald-50/80'
+      activeBg: 'bg-emerald-50/80',
+      available: paymentConfig?.wechat?.available ?? true
     },
     { 
       id: 'alipay', 
@@ -153,7 +182,8 @@ const MembershipPayment: React.FC = () => {
       bgColor: 'bg-blue-50',
       borderColor: 'border-blue-200',
       activeBorder: 'border-blue-500',
-      activeBg: 'bg-blue-50/80'
+      activeBg: 'bg-blue-50/80',
+      available: paymentConfig?.alipay?.available ?? true
     },
     { 
       id: 'credit', 
@@ -163,7 +193,8 @@ const MembershipPayment: React.FC = () => {
       bgColor: 'bg-purple-50',
       borderColor: 'border-purple-200',
       activeBorder: 'border-purple-500',
-      activeBg: 'bg-purple-50/80'
+      activeBg: 'bg-purple-50/80',
+      available: false // 暂未实现
     },
     { 
       id: 'unionpay', 
@@ -173,9 +204,61 @@ const MembershipPayment: React.FC = () => {
       bgColor: 'bg-rose-50',
       borderColor: 'border-rose-200',
       activeBorder: 'border-rose-500',
-      activeBg: 'bg-rose-50/80'
+      activeBg: 'bg-rose-50/80',
+      available: false // 暂未实现
     }
   ];
+
+  // 轮询支付状态
+  const startPolling = useCallback((oid: string) => {
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current);
+    }
+
+    pollingRef.current = setInterval(async () => {
+      try {
+        const response = await apiClient.get(`/api/payment/status/${oid}`);
+        if (response.ok && response.data?.success) {
+          const { status, paidAt } = response.data.data;
+          
+          if (status === 'completed') {
+            // 支付成功
+            if (pollingRef.current) {
+              clearInterval(pollingRef.current);
+            }
+            
+            const now = new Date();
+            const endDate = new Date();
+            endDate.setTime(now.getTime() + selectedPlan.duration);
+            
+            await updateMembership({
+              membershipLevel: plan,
+              membershipStatus: 'active',
+              membershipStart: now.toISOString(),
+              membershipEnd: endDate.toISOString()
+            });
+            
+            setSuccess(true);
+            setIsProcessing(false);
+            
+            // 3秒后跳转到会员中心
+            setTimeout(() => {
+              navigate('/membership');
+            }, 3000);
+          } else if (status === 'failed' || status === 'cancelled') {
+            // 支付失败或取消
+            if (pollingRef.current) {
+              clearInterval(pollingRef.current);
+            }
+            setError('支付失败，请重试');
+            setIsProcessing(false);
+          }
+        }
+      } catch (error) {
+        console.error('查询支付状态失败:', error);
+      }
+    }, 3000); // 每3秒查询一次
+  }, [plan, selectedPlan.duration, updateMembership, navigate]);
 
   // 处理支付
   const handlePayment = useCallback(async () => {
@@ -184,38 +267,23 @@ const MembershipPayment: React.FC = () => {
       setError(null);
       setIsProcessing(true);
       
-      // 模拟支付过程
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
       // 创建订单
-      const orderResponse = await apiClient.post('/api/payment/create', {
+      const response = await apiClient.post('/api/payment/create', {
         plan: plan,
         amount: selectedPlan.price,
-        paymentMethod: paymentMethod
+        paymentMethod: paymentMethod,
+        period: 'monthly'
       });
       
-      if (orderResponse.ok) {
-        // 模拟支付成功
-        const now = new Date();
-        const endDate = new Date();
-        endDate.setTime(now.getTime() + selectedPlan.duration);
+      if (response.ok && response.data?.success) {
+        const { orderId: oid, qrCode: qr } = response.data.data;
+        setOrderId(oid);
+        setQrCode(qr);
         
-        // 更新会员信息
-        await updateMembership({
-          membershipLevel: plan,
-          membershipStatus: 'active',
-          membershipStart: now.toISOString(),
-          membershipEnd: endDate.toISOString()
-        });
-        
-        setSuccess(true);
-        
-        // 3秒后跳转到会员中心
-        setTimeout(() => {
-          navigate('/membership');
-        }, 3000);
+        // 开始轮询支付状态
+        startPolling(oid);
       } else {
-        setError('创建订单失败，请稍后重试');
+        setError(response.data?.error || '创建订单失败，请稍后重试');
         setIsProcessing(false);
       }
     } catch (err) {
@@ -225,7 +293,56 @@ const MembershipPayment: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [plan, selectedPlan, paymentMethod, updateMembership, navigate]);
+  }, [plan, selectedPlan.price, paymentMethod, startPolling]);
+
+  // 模拟支付（用于测试）
+  const handleSimulatePayment = useCallback(async () => {
+    if (!orderId) return;
+    
+    try {
+      const response = await apiClient.post('/api/payment/simulate', {
+        orderId: orderId
+      });
+      
+      if (response.ok && response.data?.success) {
+        // 模拟支付成功
+        const now = new Date();
+        const endDate = new Date();
+        endDate.setTime(now.getTime() + selectedPlan.duration);
+        
+        await updateMembership({
+          membershipLevel: plan,
+          membershipStatus: 'active',
+          membershipStart: now.toISOString(),
+          membershipEnd: endDate.toISOString()
+        });
+        
+        setSuccess(true);
+        setIsProcessing(false);
+        
+        if (pollingRef.current) {
+          clearInterval(pollingRef.current);
+        }
+        
+        // 3秒后跳转到会员中心
+        setTimeout(() => {
+          navigate('/membership');
+        }, 3000);
+      }
+    } catch (error) {
+      console.error('模拟支付失败:', error);
+    }
+  }, [orderId, plan, selectedPlan.duration, updateMembership, navigate]);
+
+  // 取消支付
+  const handleCancelPayment = () => {
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current);
+    }
+    setQrCode(null);
+    setOrderId(null);
+    setIsProcessing(false);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
@@ -434,13 +551,16 @@ const MembershipPayment: React.FC = () => {
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.1 * index }}
-                        whileHover={{ scale: 1.02, y: -2 }}
-                        whileTap={{ scale: 0.98 }}
-                        onClick={() => setPaymentMethod(method.id)}
+                        whileHover={{ scale: method.available ? 1.02 : 1, y: method.available ? -2 : 0 }}
+                        whileTap={{ scale: method.available ? 0.98 : 1 }}
+                        onClick={() => method.available && setPaymentMethod(method.id)}
+                        disabled={!method.available}
                         className={`relative p-5 rounded-2xl border-2 transition-all duration-300 text-left group ${
                           paymentMethod === method.id
                             ? `${method.activeBorder} ${method.activeBg} shadow-lg`
-                            : 'border-slate-100 dark:border-slate-700 hover:border-slate-200 dark:hover:border-slate-600 bg-slate-50/50 dark:bg-slate-800/50'
+                            : method.available
+                              ? 'border-slate-100 dark:border-slate-700 hover:border-slate-200 dark:hover:border-slate-600 bg-slate-50/50 dark:bg-slate-800/50'
+                              : 'border-slate-100 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-800/30 opacity-60 cursor-not-allowed'
                         }`}
                       >
                         {/* 选中指示器 */}
@@ -451,6 +571,13 @@ const MembershipPayment: React.FC = () => {
                           >
                             <CheckCircle2 className="w-3 h-3 text-white" />
                           </motion.div>
+                        )}
+
+                        {/* 不可用标签 */}
+                        {!method.available && (
+                          <div className="absolute top-3 right-3 px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400 text-xs">
+                            暂未开通
+                          </div>
                         )}
 
                         <div className={`w-12 h-12 rounded-xl ${method.bgColor} flex items-center justify-center mb-3 transition-transform group-hover:scale-110`}>
@@ -486,7 +613,7 @@ const MembershipPayment: React.FC = () => {
                         className="text-center py-8 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700/50"
                       >
                         <p className="mb-4 text-slate-600 dark:text-slate-300">
-                          请使用{paymentMethod === 'wechat' ? '微信' : '支付宝'}扫码支付
+                          请使用{paymentMethod === 'wechat' ? '微信' : paymentMethod === 'alipay' ? '支付宝' : ''}扫码支付
                         </p>
                         <div className="w-48 h-48 mx-auto rounded-2xl bg-white p-4 shadow-lg mb-4">
                           <img src={qrCode} alt="Payment QR Code" className="w-full h-full rounded-lg" />
@@ -495,9 +622,20 @@ const MembershipPayment: React.FC = () => {
                           <Loader2 className="w-5 h-5 mr-2 animate-spin" />
                           正在检测支付结果...
                         </div>
+                        
+                        {/* 测试按钮 - 仅开发环境显示 */}
+                        {process.env.NODE_ENV === 'development' && (
+                          <button 
+                            onClick={handleSimulatePayment}
+                            className="mt-4 px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg text-sm hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors"
+                          >
+                            [测试] 模拟支付成功
+                          </button>
+                        )}
+                        
                         <button 
-                          onClick={() => setQrCode(null)}
-                          className="mt-4 text-sm text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 underline"
+                          onClick={handleCancelPayment}
+                          className="mt-4 block mx-auto text-sm text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 underline"
                         >
                           取消支付
                         </button>
@@ -507,7 +645,7 @@ const MembershipPayment: React.FC = () => {
                         whileHover={{ scale: 1.01 }}
                         whileTap={{ scale: 0.99 }}
                         onClick={handlePayment}
-                        disabled={loading}
+                        disabled={loading || !paymentMethods.find(m => m.id === paymentMethod)?.available}
                         className="w-full relative overflow-hidden group"
                       >
                         <div className="relative bg-gradient-to-r from-violet-600 via-purple-600 to-violet-600 text-white py-5 rounded-2xl font-bold text-lg shadow-xl shadow-violet-500/25 hover:shadow-2xl hover:shadow-violet-500/30 transition-all disabled:opacity-70 disabled:cursor-not-allowed disabled:shadow-none">

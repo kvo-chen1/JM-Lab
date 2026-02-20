@@ -945,10 +945,10 @@ ${dd.expectedEffect}
 
   // Steps configuration
   const steps = [
-    { id: 1, title: '选择品牌', icon: 'store', desc: '选择或输入品牌名称' },
-    { id: 2, title: '创意输入', icon: 'pen-nib', desc: '描述您的创意需求' },
-    { id: 3, title: '生成变体', icon: 'wand-magic-sparkles', desc: 'AI生成多种方案' },
-    { id: 4, title: '评分发布', icon: 'star', desc: '评估并发布作品' }
+    { id: 1, title: '选择品牌', icon: 'fa-store', desc: '选择或输入品牌名称' },
+    { id: 2, title: '创意输入', icon: 'fa-pen-nib', desc: '描述您的创意需求' },
+    { id: 3, title: '生成变体', icon: 'fa-wand-magic-sparkles', desc: 'AI生成多种方案' },
+    { id: 4, title: '评分发布', icon: 'fa-star', desc: '评估并发布作品' }
   ];
 
   // Record brand usage when brand is selected
@@ -1297,7 +1297,7 @@ ${dd.expectedEffect}
                         </button>
                       )}
                     </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 max-h-[600px] overflow-y-auto custom-scrollbar pr-1">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 max-h-[900px] overflow-y-auto custom-scrollbar pr-1">
                       {filteredBrands.map((b, index) => (
                         <motion.button
                           key={b.id}
@@ -1361,7 +1361,7 @@ ${dd.expectedEffect}
                     initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.4, duration: 0.5 }}
-                    className={`sticky top-24 p-6 rounded-2xl ${isDark ? 'bg-gray-800/90 border-gray-700' : 'bg-white border-gray-200'} border shadow-xl shadow-black/5`}
+                    className={`sticky top-32 p-6 rounded-2xl ${isDark ? 'bg-gray-800/90 border-gray-700' : 'bg-white border-gray-200'} border shadow-xl shadow-black/5`}
                   >
                     {selectedBrand ? (
                       <div className="space-y-6">

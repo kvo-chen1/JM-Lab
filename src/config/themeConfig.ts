@@ -1,7 +1,7 @@
 // src/config/themeConfig.ts
 
 // 主题类型定义
-export type Theme = 'light' | 'blue' | 'green' | 'pixel' | 'dark' | 'tianjin' | 'nirenzhang' | 'yangliuqing' | 'fengzhengwei' | 'guifaxiang' | 'goubuli';
+export type Theme = 'light' | 'blue' | 'green' | 'pixel' | 'dark' | 'tianjin' | 'nirenzhang' | 'yangliuqing' | 'fengzhengwei' | 'guifaxiang' | 'goubuli' | 'tianjin-enhanced';
 
 // 自定义主题接口
 export interface CustomTheme {
@@ -55,7 +55,8 @@ export const themeConfig: ThemeConfig[] = [
   { value: 'yangliuqing', label: '杨柳青绿', icon: 'fas fa-tree', description: '天津杨柳青年画主题，石青配朱砂红，半印半绘工艺，色彩鲜艳明快' },
   { value: 'fengzhengwei', label: '风筝魏蓝', icon: 'fas fa-paper-plane', description: '传统技艺主题，清新蓝色调，用于信息提示和链接' },
   { value: 'guifaxiang', label: '桂发祥金', icon: 'fas fa-crown', description: '传统美食主题，尊贵金色调，用于VIP标识和会员等级' },
-  { value: 'goubuli', label: '狗不理棕', icon: 'fas fa-bread-slice', description: '传统美食主题，温暖棕色调，用于暖色调装饰' }
+  { value: 'goubuli', label: '狗不理棕', icon: 'fas fa-bread-slice', description: '传统美食主题，温暖棕色调，用于暖色调装饰' },
+  { value: 'tianjin-enhanced', label: '津门雅韵·深', icon: 'fas fa-city', description: '天津文化主题深化版，融合海河波纹、传统纹样、老字号元素，展现津门文化魅力', isSystem: true }
 ];
 
 
@@ -73,7 +74,8 @@ export const themeEnhancements = {
     yangliuqing: 1.15,
     fengzhengwei: 1.15,
     guifaxiang: 1.18,
-    goubuli: 1.15
+    goubuli: 1.15,
+    'tianjin-enhanced': 1.2
   },
   // 色彩饱和度优化
   saturation: {
@@ -87,7 +89,8 @@ export const themeEnhancements = {
     yangliuqing: 1.1,
     fengzhengwei: 1.05,
     guifaxiang: 1.12,
-    goubuli: 1.08
+    goubuli: 1.08,
+    'tianjin-enhanced': 1.1
   },
   // 亮度调整
   brightness: {
@@ -101,7 +104,8 @@ export const themeEnhancements = {
     yangliuqing: 1.02,
     fengzhengwei: 1.05,
     guifaxiang: 1.0,
-    goubuli: 0.98
+    goubuli: 0.98,
+    'tianjin-enhanced': 1.02
   },
   // 主题过渡动画
   transition: {
@@ -157,6 +161,21 @@ export const themeEnhancements = {
       intensity: 'medium',
       color: '#8B4513',
       artStyle: 'warm'
+    },
+    'tianjin-enhanced': {
+      glow: true,
+      intensity: 'medium',
+      color: '#1E5F8E',
+      waveAnimation: true,
+      brickTexture: true,
+      patterns: ['cloud', 'wave', 'brick', 'huiwen'],
+      animations: ['haihe-wave', 'tianjin-eye', 'kite-float', 'golden-shimmer'],
+      culturalElements: {
+        haihe: true,
+        tianjinEye: true,
+        laozihao: true,
+        feiyi: true
+      }
     }
   }
 };
@@ -185,7 +204,7 @@ export const autoThemeConfig = {
 // 主题预设配置
 export const themePresets = {
   // 推荐主题组合
-  recommended: ['light', 'dark', 'blue', 'green', 'pixel', 'tianjin', 'nirenzhang', 'yangliuqing', 'fengzhengwei', 'guifaxiang', 'goubuli'] as Theme[],
+  recommended: ['light', 'dark', 'blue', 'green', 'pixel', 'tianjin', 'nirenzhang', 'yangliuqing', 'fengzhengwei', 'guifaxiang', 'goubuli', 'tianjin-enhanced'] as Theme[],
   // 季节适配
   seasonal: {
     spring: 'green',
@@ -200,8 +219,9 @@ export const themePresets = {
     gaming: 'pixel',
     creative: 'blue',
     relaxation: 'green',
-    cultural: 'tianjin',
-    travel: 'tianjin'
+    cultural: 'tianjin-enhanced',
+    travel: 'tianjin-enhanced',
+    festival: 'tianjin-enhanced'
   }
 };
 
@@ -209,10 +229,10 @@ export const themePresets = {
 export const defaultTheme: Theme = 'light';
 
 // 主题切换顺序
-export const themeOrder: Theme[] = ['light', 'dark', 'blue', 'green', 'pixel', 'tianjin', 'nirenzhang', 'yangliuqing', 'fengzhengwei', 'guifaxiang', 'goubuli'];
+export const themeOrder: Theme[] = ['light', 'dark', 'blue', 'green', 'pixel', 'tianjin', 'nirenzhang', 'yangliuqing', 'fengzhengwei', 'guifaxiang', 'goubuli', 'tianjin-enhanced'];
 
 // 有效的主题列表（用于验证）
-export const validThemes: Theme[] = ['light', 'dark', 'blue', 'green', 'pixel', 'tianjin', 'nirenzhang', 'yangliuqing', 'fengzhengwei', 'guifaxiang', 'goubuli'];
+export const validThemes: Theme[] = ['light', 'dark', 'blue', 'green', 'pixel', 'tianjin', 'nirenzhang', 'yangliuqing', 'fengzhengwei', 'guifaxiang', 'goubuli', 'tianjin-enhanced'];
 
 // 检测系统主题偏好
 export const getSystemTheme = (): 'light' | 'dark' => {

@@ -45,6 +45,7 @@ import { supabaseServer } from './supabase-server.mjs'
 import membershipRoutes from './routes/membership.mjs'
 import searchRoutes from './routes/search.mjs'
 import paymentRoutes from './routes/payment.mjs'
+import { generateOAuthUrl, handleOAuthCallback, getConfiguredProviders, isOAuthConfigured } from './oauth-providers.mjs'
 
 // 内存中存储验证码 (email -> { code, expiresAt })
 const verificationCodes = new Map();
@@ -3134,6 +3135,111 @@ async function route(req, res, u, path) {
       sendJson(res, 500, {
         code: 1,
         message: '更新用户ID失败'
+      })
+    }
+    return
+  }
+
+  // ==========================================
+  // OAuth 第三方登录 API
+  // =========================================
+
+  // 获取 OAuth 登录 URL
+  if (req.method === 'GET' && path.startsWith('/api/auth/oauth/')) {
+    const provider = path.split('/').pop()
+    const validProviders = ['wechat', 'alipay', 'github', 'google']
+    
+    if (!validProviders.includes(provider)) {
+      sendJson(res, 400, { 
+        success: false, 
+        error: '不支持的登录方式' 
+      })
+      return
+    }
+    
+    // 检查是否已配置
+    if (!isOAuthConfigured(provider)) {
+      sendJson(res, 503, { 
+        success: false, 
+        error: `${provider} 登录未配置，请联系管理员` 
+      })
+      return
+    }
+    
+    try {
+      const redirectUri = `${process.env.VITE_APP_URL || `http://localhost:${PORT}`}/oauth/callback/${provider}`
+      const { url, state } = generateOAuthUrl(provider, redirectUri)
+      
+      sendJson(res, 200, {
+        success: true,
+        url,
+        state
+      })
+    } catch (error) {
+      console.error(`[API] 生成 ${provider} OAuth URL 失败:`, error)
+      sendJson(res, 500, {
+        success: false,
+        error: error.message || '生成登录链接失败'
+      })
+    }
+    return
+  }
+
+  // 获取已配置的 OAuth 提供商列表
+  if (req.method === 'GET' && path === '/api/auth/oauth-providers') {
+    const providers = getConfiguredProviders()
+    sendJson(res, 200, {
+      success: true,
+      providers
+    })
+    return
+  }
+
+  // 处理 OAuth 回调
+  if (req.method === 'POST' && path.startsWith('/api/auth/oauth/callback/')) {
+    const provider = path.split('/').pop()
+    const validProviders = ['wechat', 'alipay', 'github', 'google']
+    
+    if (!validProviders.includes(provider)) {
+      sendJson(res, 400, { 
+        success: false, 
+        error: '不支持的登录方式' 
+      })
+      return
+    }
+    
+    try {
+      const body = await readBody(req)
+      const { code, state } = body
+      
+      if (!code || !state) {
+        sendJson(res, 400, {
+          success: false,
+          error: '缺少必要参数'
+        })
+        return
+      }
+      
+      const result = await handleOAuthCallback(provider, code, state)
+      
+      if (result.success) {
+        sendJson(res, 200, {
+          success: true,
+          user: result.user,
+          token: result.token,
+          isNewUser: result.isNewUser
+        })
+      } else {
+        sendJson(res, 400, {
+          success: false,
+          error: result.error
+        })
+      }
+    } catch (error) {
+      console.error(`[API] ${provider} OAuth 回调处理失败:`, error)
+      sendJson(res, 500, {
+        success: false,
+        error: '登录处理失败，请稍后重试'
       })
     }
     return

@@ -205,7 +205,7 @@ const Membership: React.FC = () => {
 
   // 处理升级会员
   const handleUpgrade = (planId?: string) => {
-    navigate('/membership/payment', {
+    navigate('/membership/payment/personal', {
       state: { plan: planId || (user?.membershipLevel === 'free' ? 'premium' : 'vip') }
     });
   };
@@ -214,7 +214,7 @@ const Membership: React.FC = () => {
   const handleRenew = () => {
     // 如果当前是免费会员，则引导到升级页面
     const targetPlan = user?.membershipLevel === 'free' ? 'premium' : user?.membershipLevel;
-    navigate('/membership/payment', {
+    navigate('/membership/payment/personal', {
       state: { plan: targetPlan, renew: user?.membershipLevel !== 'free' }
     });
   };

@@ -29,6 +29,10 @@ BEGIN
             status VARCHAR(50) DEFAULT 'active',
             last_login_at TIMESTAMP WITH TIME ZONE,
             email_verified_at TIMESTAMP WITH TIME ZONE,
+            -- OAuth 相关字段
+            provider VARCHAR(50),
+            provider_id VARCHAR(255),
+            supabase_uid UUID,
             created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
             updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
         );
@@ -48,6 +52,10 @@ BEGIN
             ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'active',
             ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP WITH TIME ZONE,
             ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMP WITH TIME ZONE,
+            -- OAuth 相关字段
+            ADD COLUMN IF NOT EXISTS provider VARCHAR(50),
+            ADD COLUMN IF NOT EXISTS provider_id VARCHAR(255),
+            ADD COLUMN IF NOT EXISTS supabase_uid UUID,
             ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
             ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
     END IF;
@@ -56,6 +64,12 @@ BEGIN
     CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
     CREATE INDEX IF NOT EXISTS idx_users_status ON users(status);
     CREATE INDEX IF NOT EXISTS idx_users_created_at ON users(created_at);
+    -- OAuth 相关索引
+    CREATE INDEX IF NOT EXISTS idx_users_provider ON users(provider);
+    CREATE INDEX IF NOT EXISTS idx_users_provider_id ON users(provider_id);
+    CREATE INDEX IF NOT EXISTS idx_users_supabase_uid ON users(supabase_uid);
+    -- 复合索引用于快速查找 OAuth 用户
+    CREATE INDEX IF NOT EXISTS idx_users_provider_provider_id ON users(provider, provider_id);
 END $$;
 
 

@@ -114,11 +114,18 @@ export const CommunityNavigation: React.FC<CommunityNavigationProps> = ({
     <div className={`w-64 flex-shrink-0 flex flex-col h-full lg:h-screen ${isDark ? 'bg-gray-800 bg-opacity-95' : 'bg-white'} border-r ${isDark ? 'border-gray-700' : 'border-gray-100'} transition-all duration-300 shadow-sm`}>
       {/* Header */}
       <motion.div 
-        className={`h-14 flex items-center px-5 font-bold text-lg ${isDark ? 'text-white' : 'text-gray-900'} border-b ${isDark ? 'border-gray-700' : 'border-gray-100'} transition-all duration-300`}
+        className={`h-14 flex items-center justify-between px-5 font-bold text-lg ${isDark ? 'text-white' : 'text-gray-900'} border-b ${isDark ? 'border-gray-700' : 'border-gray-100'} transition-all duration-300`}
       >
-        <div className="w-full">
+        <div className="flex-1 truncate">
           {mode === 'discovery' ? '发现社群' : communityName || '社群详情'}
         </div>
+        {/* Mobile Close Button */}
+        <button 
+          onClick={() => window.dispatchEvent(new CustomEvent('closeMobileNav'))}
+          className="md:hidden ml-2 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+        >
+          <i className="fas fa-times text-sm"></i>
+        </button>
       </motion.div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4">

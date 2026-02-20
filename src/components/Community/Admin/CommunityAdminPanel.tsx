@@ -22,13 +22,14 @@ import {
   Clock
 } from 'lucide-react';
 import ModerationPanel, { ModerationContent, ModerationRule } from '../Moderation/ModerationPanel';
-import { supabase } from '@/lib/supabaseClient';
+import { supabase, supabaseAdmin } from '@/lib/supabaseClient';
 
 // 导入三栏布局组件
 import ThreeColumnLayout from './ThreeColumnLayout';
 import AdminSidebar from './AdminSidebar';
 import RightSidebar from './RightSidebar';
 import DashboardView from './DashboardView';
+import AnalyticsView from './AnalyticsView';
 
 // 导入优化后的组件
 import StatCard from '../StatCard';
@@ -184,25 +185,29 @@ const CommunityAdminPanel: React.FC<CommunityAdminPanelProps> = ({
         }
 
         if (membersData && membersData.length > 0) {
-          // 获取用户ID列表
-          const userIds = membersData.map(m => m.user_id);
+          // 获取用户ID列表，过滤掉无效的 ID，并转换为字符串
+          const userIds = membersData.map(m => m.user_id).filter(id => id && id !== 'null' && id !== null).map(id => String(id));
 
-          // 再获取用户信息
-          const { data: usersData, error: usersError } = await supabase
+          // 再获取用户信息 - 使用 supabaseAdmin 绕过 RLS 限制
+          console.log('[fetchMembers] Fetching users for IDs:', userIds);
+          const { data: usersData, error: usersError } = await supabaseAdmin
             .from('users')
             .select('id, username, email, avatar_url')
             .in('id', userIds);
 
           if (usersError) {
-            console.error('Failed to fetch users:', usersError);
+            console.error('[fetchMembers] Failed to fetch users:', usersError);
+          } else {
+            console.log('[fetchMembers] Users data:', usersData);
           }
 
-          // 合并数据
-          const userMap = new Map(usersData?.map(u => [u.id, u]) || []);
+          // 合并数据 - 将 ID 转换为字符串以确保匹配
+          const userMap = new Map(usersData?.map(u => [String(u.id), u]) || []);
 
           const formattedMembers: CommunityMember[] = membersData.map(m => {
-            const user = userMap.get(m.user_id);
-            const isCreator = m.user_id === communityData?.creator_id;
+            const userIdStr = String(m.user_id);
+            const user = userMap.get(userIdStr);
+            const isCreator = userIdStr === String(communityData?.creator_id);
             return {
               id: m.user_id,
               email: user?.email || '',
@@ -1044,32 +1049,10 @@ const CommunityAdminPanel: React.FC<CommunityAdminPanelProps> = ({
         return renderSettingsContent();
       case 'analytics':
         return (
-          <div className="space-y-6">
-            <div>
-              <motion.h1 
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className={`text-2xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}
-              >
-                数据分析
-              </motion.h1>
-              <motion.p 
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 }}
-                className={`${isDark ? 'text-slate-400' : 'text-gray-500'}`}
-              >
-                查看社群的活跃数据和增长趋势
-              </motion.p>
-            </div>
-            <div className={`p-12 rounded-2xl border text-center ${isDark ? 'bg-slate-800/50 border-slate-700/50' : 'bg-white border-gray-100'}`}>
-              <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 ${isDark ? 'bg-slate-700/50' : 'bg-gray-100'}`}>
-                <BarChart3 size={40} className={isDark ? 'text-slate-500' : 'text-gray-400'} />
-              </div>
-              <h3 className={`text-lg font-semibold mb-2 ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>数据分析功能开发中</h3>
-              <p className={`text-sm ${isDark ? 'text-slate-500' : 'text-gray-500'}`}>敬请期待更多功能</p>
-            </div>
-          </div>
+          <AnalyticsView 
+            isDark={isDark} 
+            communityId={actualCommunityId} 
+          />
         );
       default:
         return null;
@@ -1102,30 +1085,41 @@ const CommunityAdminPanel: React.FC<CommunityAdminPanelProps> = ({
         // 获取社群帖子发布记录
         const { data: postsData, error: postsError } = await supabase
           .from('posts')
-          .select('author_id, title, created_at')
+          .select('user_id, title, created_at')
           .eq('community_id', actualCommunityId)
           .order('created_at', { ascending: false })
           .limit(10);
 
         if (postsError) {
           console.error('Failed to fetch post activities:', postsError);
+        } else {
+          console.log('[fetchActivities] Posts data:', postsData);
         }
 
-        // 获取用户信息
+        // 获取用户信息 - 使用 supabaseAdmin 绕过 RLS 限制
         const userIds = [
           ...(membersData?.map(m => m.user_id) || []),
-          ...(postsData?.map(p => p.author_id) || [])
-        ];
-        const uniqueUserIds = [...new Set(userIds)];
+          ...(postsData?.map(p => p.user_id) || [])
+        ].filter(id => id && id !== 'null' && id !== null); // 过滤掉无效的 ID
+        // 将所有 ID 转换为字符串以确保一致性
+        const uniqueUserIds = [...new Set(userIds.map(id => String(id)))];
 
         let usersMap = new Map();
         if (uniqueUserIds.length > 0) {
-          const { data: usersData } = await supabase
+          console.log('[fetchActivities] Fetching users for IDs:', uniqueUserIds);
+          const { data: usersData, error: usersError } = await supabaseAdmin
             .from('users')
             .select('id, username')
             .in('id', uniqueUserIds);
           
-          usersMap = new Map(usersData?.map(u => [u.id, u.username]) || []);
+          if (usersError) {
+            console.error('[fetchActivities] Failed to fetch users:', usersError);
+          } else {
+            console.log('[fetchActivities] Users data:', usersData);
+            // 将 ID 转换为字符串以确保匹配
+            usersMap = new Map(usersData?.map(u => [String(u.id), u.username]) || []);
+            console.log('[fetchActivities] UsersMap:', Array.from(usersMap.entries()));
+          }
         }
 
         // 合并活动数据
@@ -1133,10 +1127,11 @@ const CommunityAdminPanel: React.FC<CommunityAdminPanelProps> = ({
 
         // 添加成员加入活动
         membersData?.forEach(m => {
+          const userIdStr = String(m.user_id);
           allActivities.push({
             id: `join-${m.user_id}-${m.joined_at}`,
             type: 'join',
-            user: usersMap.get(m.user_id) || '未知用户',
+            user: usersMap.get(userIdStr) || '未知用户',
             content: '加入了社群',
             time: new Date(m.joined_at)
           });
@@ -1144,10 +1139,12 @@ const CommunityAdminPanel: React.FC<CommunityAdminPanelProps> = ({
 
         // 添加帖子发布活动
         postsData?.forEach(p => {
+          const userIdStr = String(p.user_id);
+          console.log(`[fetchActivities] Post: ${p.title}, user_id: ${p.user_id} (type: ${typeof p.user_id}), user: ${usersMap.get(userIdStr)}`);
           allActivities.push({
-            id: `post-${p.author_id}-${p.created_at}`,
+            id: `post-${p.user_id}-${p.created_at}`,
             type: 'post',
-            user: usersMap.get(p.author_id) || '未知用户',
+            user: usersMap.get(userIdStr) || '未知用户',
             content: `发布了新作品《${p.title}》`,
             time: new Date(p.created_at)
           });

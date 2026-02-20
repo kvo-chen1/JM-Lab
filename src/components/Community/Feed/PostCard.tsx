@@ -129,6 +129,57 @@ const ImageGrid = ({
     }
   };
 
+  // 单张图片单独处理，不使用 grid
+  if (images.length === 1) {
+    const imageUrl = images[0];
+    const isVideo = isVideoUrl(imageUrl);
+
+    return (
+      <div className="mt-4">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className={`relative rounded-xl overflow-hidden border group inline-block ${
+            isDark ? 'border-gray-700' : 'border-gray-200'
+          } ${!isVideo ? 'cursor-zoom-in' : ''}`}
+          onClick={(e) => {
+            if (!isVideo) {
+              e.stopPropagation();
+              onImageClick(imageUrl);
+            }
+          }}
+        >
+          <div className="overflow-hidden bg-gray-100 dark:bg-gray-800 max-h-[360px]">
+            {isVideo ? (
+              <VideoThumbnail videoUrl={imageUrl} />
+            ) : (
+              <img
+                src={imageUrl}
+                alt="Post image"
+                className="max-w-full max-h-[360px] w-auto h-auto object-contain transition-all duration-500 group-hover:scale-105"
+                loading="lazy"
+                onError={(e) => {
+                  console.error('[PostCard] Image failed to load:', imageUrl);
+                  const target = e.target as HTMLImageElement;
+                  const svg = `<svg width="400" height="300" xmlns="http://www.w3.org/2000/svg"><rect width="400" height="300" fill="#e5e7eb"/><text x="50%" y="50%" font-family="Arial" font-size="20" fill="#9ca3af" text-anchor="middle" dominant-baseline="middle">图片已过期</text></svg>`;
+                  target.src = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
+                  target.style.objectFit = 'contain';
+                }}
+              />
+            )}
+          </div>
+          {isVideo && (
+            <div className="absolute top-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded-full flex items-center gap-1">
+              <i className="fas fa-video text-[10px]"></i>
+              视频
+            </div>
+          )}
+          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300" />
+        </motion.div>
+      </div>
+    );
+  }
+
   return (
     <div className={`mt-4 grid gap-2 ${getGridClass()}`}>
       {images.slice(0, 4).map((imageUrl, index) => {
@@ -154,7 +205,7 @@ const ImageGrid = ({
               }
             }}
           >
-            <div className="aspect-[4/3] overflow-hidden bg-gray-100 dark:bg-gray-800">
+            <div className="overflow-hidden bg-gray-100 dark:bg-gray-800 aspect-[4/3]">
               {isVideo ? (
                 <VideoThumbnail videoUrl={imageUrl} />
               ) : (

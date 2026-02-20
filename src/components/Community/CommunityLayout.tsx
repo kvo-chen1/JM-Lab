@@ -1,4 +1,4 @@
-import React, { ReactNode, useState, memo, useMemo } from 'react';
+import React, { ReactNode, useState, memo, useMemo, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { NotificationCenter } from './Notification/NotificationCenter';
 
@@ -30,6 +30,13 @@ export const CommunityLayout: React.FC<CommunityLayoutProps> = memo(({
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [mobileInfoSidebarOpen, setMobileInfoSidebarOpen] = useState(false);
   const [isNotificationCenterOpen, setIsNotificationCenterOpen] = useState(false);
+
+  // Listen for custom event to close mobile nav from child components
+  useEffect(() => {
+    const handleCloseMobileNav = () => setMobileNavOpen(false);
+    window.addEventListener('closeMobileNav', handleCloseMobileNav);
+    return () => window.removeEventListener('closeMobileNav', handleCloseMobileNav);
+  }, []);
 
   const containerStyle = useMemo(() => ({
     '--primary-color': activeCommunity?.theme?.primaryColor || (isDark ? '#3B82F6' : '#3B82F6'),
@@ -72,7 +79,7 @@ export const CommunityLayout: React.FC<CommunityLayoutProps> = memo(({
       </div>
 
       {/* 2. Middle Navigation (Channels) - Mobile Optimization */}
-      <div className={`fixed inset-y-0 left-0 top-16 z-50 transform transition-transform duration-300 ease-in-out md:transform-none md:static md:block md:left-[72px] md:top-0 ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+      <div className={`fixed inset-y-0 left-0 top-0 z-50 transform transition-transform duration-300 ease-in-out md:transform-none md:static md:block md:left-[72px] md:top-0 ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
          {navigation}
       </div>
 

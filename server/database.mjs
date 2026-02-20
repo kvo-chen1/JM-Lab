@@ -1712,8 +1712,8 @@ export const userDB = {
         if (cover_image !== undefined) addPgField('cover_image', cover_image)
         if (updateData.is_new_user !== undefined) addPgField('is_new_user', updateData.is_new_user)
 
-        // 确保 updated_at 使用毫秒时间戳 (bigint) 以匹配数据库字段类型
-        pgUpdateFields.push(`updated_at = ${Date.now()}`)
+        // 确保 updated_at 使用数据库时间戳函数
+        pgUpdateFields.push(`updated_at = NOW()`)
         
         // ID 是最后一个参数
         pgParams.push(id)
@@ -2079,12 +2079,11 @@ export const userDB = {
         // Math.random() 部分约为 4 字符
         // 总长度约为 1 + 8 + 4 = 13 字符
         const tempUsername = `u${Date.now().toString(36)}${Math.floor(Math.random() * 10000).toString(36)}`;
-        const now = Date.now();
 
         try {
           await db.query(
-            'INSERT INTO users (id, username, email, password_hash, email_login_code, email_login_expires, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $7) ON CONFLICT (email) DO UPDATE SET email_login_code = $5, email_login_expires = $6, updated_at = $7',
-            [randomUUID(), tempUsername, email, 'TEMP_HASH', code, expiresAtDate, now]
+            'INSERT INTO users (id, username, email, password_hash, email_login_code, email_login_expires, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW()) ON CONFLICT (email) DO UPDATE SET email_login_code = $5, email_login_expires = $6, updated_at = NOW()',
+            [randomUUID(), tempUsername, email, 'TEMP_HASH', code, expiresAtDate]
           )
           return true
         } catch (err) {
@@ -2094,10 +2093,9 @@ export const userDB = {
       }
       case DB_TYPE.NEON_API: {
         const expiresAtDate = new Date(expiresAt);
-        const now = Date.now();
         await db.query(
-          'INSERT INTO users (id, username, email, password_hash, email_login_code, email_login_expires, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $7) ON CONFLICT (email) DO UPDATE SET email_login_code = $5, email_login_expires = $6, updated_at = $7',
-          [randomUUID(), `user_${Date.now()}`, email, 'TEMP_HASH', code, expiresAtDate, now]
+          'INSERT INTO users (id, username, email, password_hash, email_login_code, email_login_expires, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW()) ON CONFLICT (email) DO UPDATE SET email_login_code = $5, email_login_expires = $6, updated_at = NOW()',
+          [randomUUID(), `user_${Date.now()}`, email, 'TEMP_HASH', code, expiresAtDate]
         )
         return true
       }

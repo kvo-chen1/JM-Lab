@@ -2608,7 +2608,7 @@ async function route(req, res, u, path) {
         // 使用 Supabase Auth 的 ID（如果创建成功），否则生成新的 UUID
         const userId = supabaseUserId || randomUUID();
         
-        const now = Date.now();
+        const now = new Date().toISOString();
         user = {
           id: userId,
           email: email,

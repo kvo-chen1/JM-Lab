@@ -18,31 +18,20 @@ async function restoreSupabaseSession(): Promise<boolean> {
       return true;
     }
 
-    // 尝试从 localStorage 恢复会话
-    const token = localStorage.getItem('token');
-    const refreshToken = localStorage.getItem('refreshToken');
-    
-    if (!token || !refreshToken) {
-      console.error('[AIGeneration] No tokens found in localStorage');
-      return false;
-    }
-
-    // 尝试设置会话
-    const { data, error } = await supabase.auth.setSession({
-      access_token: token,
-      refresh_token: refreshToken
-    });
+    // 尝试刷新会话 - Supabase 会自动从存储中恢复
+    const { data, error } = await supabase.auth.refreshSession();
 
     if (error) {
-      console.error('[AIGeneration] Failed to set session:', error);
+      console.error('[AIGeneration] Failed to refresh session:', error);
       return false;
     }
 
     if (data.session) {
-      console.log('[AIGeneration] Session restored successfully');
+      console.log('[AIGeneration] Session refreshed successfully');
       return true;
     }
 
+    console.error('[AIGeneration] No active session found');
     return false;
   } catch (error) {
     console.error('[AIGeneration] Error restoring session:', error);

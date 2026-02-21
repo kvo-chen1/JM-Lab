@@ -93,12 +93,17 @@ function generateAlipayOAuthUrl(state, redirectUri) {
  */
 function generateGithubOAuthUrl(state, redirectUri) {
   const clientId = process.env.GITHUB_CLIENT_ID;
+  console.log('[OAuth] GITHUB_CLIENT_ID:', clientId ? `${clientId.substring(0, 10)}...` : 'undefined');
+  console.log('[OAuth] Redirect URI:', redirectUri);
+  
   if (!clientId) {
     throw new Error('未配置 GitHub 登录: GITHUB_CLIENT_ID 未设置');
   }
   
   const encodedRedirectUri = encodeURIComponent(redirectUri);
-  return `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodedRedirectUri}&scope=user:email&state=${state}`;
+  const url = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodedRedirectUri}&scope=user:email&state=${state}`;
+  console.log('[OAuth] Generated GitHub URL:', url.substring(0, 100) + '...');
+  return url;
 }
 
 /**

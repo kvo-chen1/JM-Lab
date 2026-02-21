@@ -8,19 +8,27 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const projectRoot = path.resolve(__dirname, '..')
 
-// 首先加载 .env 文件
-dotenv.config({ path: path.join(projectRoot, '.env') })
+// 检查是否在 Vercel 环境（生产环境）
+const isVercel = process.env.VERCEL === '1' || process.env.VERCEL_ENV
 
-// 然后加载 .env.local 文件（覆盖 .env 中的配置）
-const envLocalPath = path.join(projectRoot, '.env.local')
-if (fs.existsSync(envLocalPath)) {
-  const envConfig = dotenv.parse(fs.readFileSync(envLocalPath))
-  for (const k in envConfig) {
-    process.env[k] = envConfig[k]
+if (!isVercel) {
+  // 本地开发环境：从文件加载环境变量
+  // 首先加载 .env 文件
+  dotenv.config({ path: path.join(projectRoot, '.env') })
+
+  // 然后加载 .env.local 文件（覆盖 .env 中的配置）
+  const envLocalPath = path.join(projectRoot, '.env.local')
+  if (fs.existsSync(envLocalPath)) {
+    const envConfig = dotenv.parse(fs.readFileSync(envLocalPath))
+    for (const k in envConfig) {
+      process.env[k] = envConfig[k]
+    }
+    console.log('[Config] 已加载 .env.local 文件:', envLocalPath)
+  } else {
+    console.log('[Config] 未找到 .env.local 文件:', envLocalPath)
   }
-  console.log('[Config] 已加载 .env.local 文件:', envLocalPath)
 } else {
-  console.log('[Config] 未找到 .env.local 文件:', envLocalPath)
+  console.log('[Config] Vercel 环境，使用平台环境变量')
 }
 
 // 打印邮件配置（调试用）
@@ -30,6 +38,14 @@ console.log('[Config] 邮件配置:', {
   secure: process.env.EMAIL_SECURE,
   user: process.env.EMAIL_USER,
   from: process.env.EMAIL_FROM
+})
+
+// 打印 OAuth 配置（调试用）
+console.log('[Config] OAuth 配置:', {
+  github: process.env.GITHUB_CLIENT_ID ? '已配置' : '未配置',
+  google: process.env.GOOGLE_CLIENT_ID ? '已配置' : '未配置',
+  wechat: process.env.WECHAT_APPID ? '已配置' : '未配置',
+  alipay: process.env.ALIPAY_APPID ? '已配置' : '未配置'
 })
 
 import pathModule from 'path'

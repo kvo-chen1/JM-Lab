@@ -8,6 +8,7 @@ import { WorkCard, RatingComponent, WorkActionButtons } from '@/components/works
 import { eventWorkService } from '@/services/eventWorkService';
 import { useEventService } from '@/hooks/useEventService';
 import { eventParticipationService } from '@/services/eventParticipationService';
+import { ImageCarousel } from '@/components/ImageCarousel';
 import { toast } from 'sonner';
 import {
   ChevronLeft,
@@ -63,6 +64,7 @@ export default function EventWorks() {
     title: string;
     description?: string;
     thumbnailUrl?: string;
+    media?: { url: string; type: string }[];
     startTime?: string;
     endTime?: string;
     location?: string;
@@ -117,6 +119,7 @@ export default function EventWorks() {
             title: event.title,
             description: event.description,
             thumbnailUrl: event.media && Array.isArray(event.media) && event.media.length > 0 ? event.media[0].url : undefined,
+            media: event.media,
             startTime: event.startTime,
             endTime: event.endTime,
             location: event.location,
@@ -274,21 +277,32 @@ export default function EventWorks() {
                 animate={{ opacity: 1, y: 0 }}
                 className={`rounded-2xl overflow-hidden ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border`}
               >
-                {eventInfo.thumbnailUrl && (
-                  <div className="aspect-video relative">
-                    <img
-                      src={eventInfo.thumbnailUrl}
-                      alt={eventInfo.title}
-                      className="w-full h-full object-cover"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                    <div className="absolute bottom-3 left-3 right-3">
-                      <h2 className="text-white font-semibold text-sm line-clamp-2">
-                        {eventInfo.title}
-                      </h2>
+                {(() => {
+                  const images = eventInfo.media?.filter(m => m.type === 'image').map(m => m.url) || [];
+                  if (images.length === 0 && eventInfo.thumbnailUrl) {
+                    images.push(eventInfo.thumbnailUrl);
+                  }
+                  
+                  if (images.length === 0) return null;
+                  
+                  return (
+                    <div className="aspect-video relative">
+                      <ImageCarousel
+                        images={images}
+                        alt={eventInfo.title}
+                        aspectRatio="aspect-video"
+                        autoPlay={images.length > 1}
+                        interval={5000}
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
+                      <div className="absolute bottom-3 left-3 right-3 pointer-events-none">
+                        <h2 className="text-white font-semibold text-sm line-clamp-2">
+                          {eventInfo.title}
+                        </h2>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
                 <div className="p-4 space-y-3">
                   {eventInfo.startTime && (
                     <div className="flex items-center gap-2 text-sm">

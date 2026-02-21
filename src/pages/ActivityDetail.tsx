@@ -8,6 +8,7 @@ import { Event } from '@/types';
 import { useEventService } from '@/hooks/useEventService';
 import { InfoCard, StatCard } from '@/components/InfoCard';
 import PublishToSquareModal from '@/components/PublishToSquareModal';
+import { ImageCarousel } from '@/components/ImageCarousel';
 import { ShareModal } from '@/components/ShareModal';
 import { EventCard } from '@/components/EventCard';
 import { PrizeDisplay } from '@/components/prize';
@@ -40,7 +41,8 @@ import {
   Crown,
   Heart,
   Gift,
-  Sparkles
+  Sparkles,
+  ChevronRight
 } from 'lucide-react';
 
 // 活动状态配置
@@ -78,6 +80,23 @@ export default function ActivityDetail() {
   // 弹窗状态
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
+
+  // 封面轮播状态
+  const [currentCoverIndex, setCurrentCoverIndex] = useState(0);
+
+  // 自动轮播效果
+  useEffect(() => {
+    if (!event?.media || event.media.filter(m => m.type === 'image').length <= 1) return;
+    
+    const interval = setInterval(() => {
+      setCurrentCoverIndex(prev => {
+        const imageCount = event.media.filter(m => m.type === 'image').length;
+        return prev === imageCount - 1 ? 0 : prev + 1;
+      });
+    }, 5000); // 每5秒自动切换
+
+    return () => clearInterval(interval);
+  }, [event?.media]);
 
   // 检查登录状态并加载活动数据
   useEffect(() => {
@@ -283,23 +302,37 @@ export default function ActivityDetail() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* 左栏：活动基本信息 (3列) */}
           <div className="lg:col-span-3 xl:col-span-3 space-y-6">
-            {/* 活动封面 */}
+            {/* 活动封面轮播 */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               className="rounded-2xl overflow-hidden shadow-card"
             >
-              {event.thumbnailUrl ? (
-                <img
-                  src={event.thumbnailUrl}
-                  alt={event.title}
-                  className="w-full aspect-[4/3] object-cover"
-                />
-              ) : (
-                <div className={`w-full aspect-[4/3] flex items-center justify-center ${isDark ? 'bg-gray-800' : 'bg-gray-100'}`}>
-                  <CalendarDays className="w-16 h-16 text-gray-400" />
-                </div>
-              )}
+              {(() => {
+                const coverImages = event.media && event.media.length > 0
+                  ? event.media.filter(m => m.type === 'image').map(m => m.url)
+                  : event.thumbnailUrl
+                    ? [event.thumbnailUrl]
+                    : [];
+
+                if (coverImages.length === 0) {
+                  return (
+                    <div className={`w-full aspect-[4/3] flex items-center justify-center ${isDark ? 'bg-gray-800' : 'bg-gray-100'}`}>
+                      <CalendarDays className="w-16 h-16 text-gray-400" />
+                    </div>
+                  );
+                }
+
+                return (
+                  <ImageCarousel
+                    images={coverImages}
+                    alt={event.title}
+                    aspectRatio="aspect-[4/3]"
+                    autoPlay={true}
+                    interval={5000}
+                  />
+                );
+              })()}
             </motion.div>
 
             {/* 活动状态 */}

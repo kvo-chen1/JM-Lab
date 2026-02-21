@@ -23,15 +23,6 @@ interface GenerationParams {
   style?: string
 }
 
-interface GenerationTask {
-  id: string
-  user_id: string
-  type: 'image' | 'video'
-  status: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled'
-  params: GenerationParams
-  progress: number
-}
-
 // 处理 CORS 预检请求
 function handleCors(req: Request): Response | null {
   if (req.method === 'OPTIONS') {
@@ -40,9 +31,11 @@ function handleCors(req: Request): Response | null {
   return null
 }
 
-// 验证请求
+// 验证请求 - 支持多种认证方式
 async function validateRequest(req: Request): Promise<{ userId: string; taskId: string } | Response> {
   const authHeader = req.headers.get('authorization')
+  console.log('Auth header:', authHeader ? 'present' : 'missing')
+  
   if (!authHeader) {
     return new Response(
       JSON.stringify({ error: 'Missing authorization header' }),
@@ -50,8 +43,65 @@ async function validateRequest(req: Request): Promise<{ userId: string; taskId: 
     )
   }
 
+  let body: any = {}
   try {
-    const supabase = createClient(
+    body = await req.json()
+  } catch (e) {
+    console.log('Failed to parse body:', e)
+  }
+  
+  const taskId = body.taskId
+  console.log('TaskId from body:', taskId)
+
+  if (!taskId) {
+    return new Response(
+      JSON.stringify({ error: 'Missing taskId' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  // 创建 Supabase 服务角色客户端
+  const supabase = createClient(
+    Deno.env.get('SUPABASE_URL') || '',
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
+  )
+
+  // 方法1: 直接查询任务表验证（适用于后端 API token）
+  console.log('Trying backend token validation for task:', taskId)
+  try {
+    const { data: task, error } = await supabase
+      .from('generation_tasks')
+      .select('id, user_id, status')
+      .eq('id', taskId)
+      .single()
+
+    console.log('Task query result:', { task, error })
+
+    if (task) {
+      console.log('Task found:', { id: task.id, status: task.status, user_id: task.user_id })
+      if (task.status === 'pending') {
+        console.log('Backend token validation success')
+        return { userId: task.user_id, taskId: task.id }
+      } else {
+        console.log('Task status is not pending:', task.status)
+        return new Response(
+          JSON.stringify({ error: 'Task status is not pending', status: task.status }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+    }
+
+    if (error) {
+      console.error('Task query error:', error)
+    }
+  } catch (e) {
+    console.error('Backend validation error:', e)
+  }
+
+  // 方法2: 尝试 Supabase JWT 验证
+  console.log('Trying Supabase JWT validation')
+  try {
+    const supabaseAuth = createClient(
       Deno.env.get('SUPABASE_URL') || '',
       Deno.env.get('SUPABASE_ANON_KEY') || '',
       {
@@ -59,31 +109,38 @@ async function validateRequest(req: Request): Promise<{ userId: string; taskId: 
       }
     )
 
-    const { data: { user }, error } = await supabase.auth.getUser()
-    if (error || !user) {
-      return new Response(
-        JSON.stringify({ error: 'Invalid token' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+    const { data: { user }, error } = await supabaseAuth.auth.getUser()
+    console.log('Supabase auth result:', { user: user?.id, error: error?.message })
+    
+    if (user) {
+      console.log('Supabase JWT validation success, user:', user.id)
+      
+      // 验证任务是否属于该用户
+      const { data: task } = await supabase
+        .from('generation_tasks')
+        .select('id, user_id, status')
+        .eq('id', taskId)
+        .eq('user_id', user.id)
+        .single()
+      
+      if (task && task.status === 'pending') {
+        return { userId: user.id, taskId }
+      }
     }
-
-    const body = await req.json().catch(() => ({}))
-    const taskId = body.taskId
-
-    if (!taskId) {
-      return new Response(
-        JSON.stringify({ error: 'Missing taskId' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+    
+    if (error) {
+      console.error('Supabase auth error:', error)
     }
-
-    return { userId: user.id, taskId }
-  } catch (error) {
-    return new Response(
-      JSON.stringify({ error: 'Invalid request' }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
+  } catch (e) {
+    console.error('Supabase validation error:', e)
   }
+
+  // 都失败了
+  console.log('All validation methods failed')
+  return new Response(
+    JSON.stringify({ error: 'Invalid token or unauthorized', taskId }),
+    { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
 }
 
 // 调用千问 API 生成图片
@@ -150,6 +207,10 @@ async function pollTaskStatus(taskId: string): Promise<any> {
 
 // 主处理函数
 Deno.serve(async (req) => {
+  console.log('=== Edge Function invoked ===')
+  console.log('Method:', req.method)
+  console.log('URL:', req.url)
+  
   // 处理 CORS
   const corsResponse = handleCors(req)
   if (corsResponse) return corsResponse
@@ -167,6 +228,7 @@ Deno.serve(async (req) => {
   if (validation instanceof Response) return validation
 
   const { userId, taskId } = validation
+  console.log('Validation success:', { userId, taskId })
 
   // 创建 Supabase 客户端
   const supabase = createClient(
@@ -184,6 +246,7 @@ Deno.serve(async (req) => {
       .single()
 
     if (taskError || !task) {
+      console.error('Task not found:', taskError)
       return new Response(
         JSON.stringify({ error: 'Task not found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

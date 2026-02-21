@@ -1,43 +1,10 @@
 /**
  * AI生成服务模块
- * 提供与千问API的集成功能，支持图片生成和视频生成
- * 支持后台生成：用户关闭页面后，生成任务仍会继续执行
+ * 简化版本：直接调用后端代理API，不依赖 Supabase Edge Function
  */
 
-import apiClient from '@/lib/apiClient';
 import { llmService } from './llmService';
-import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { toast } from 'sonner';
-
-// 辅助函数：恢复 Supabase 会话
-async function restoreSupabaseSession(): Promise<boolean> {
-  try {
-    // 先检查当前是否有有效会话
-    const { data: { session: currentSession } } = await supabase.auth.getSession();
-    if (currentSession) {
-      return true;
-    }
-
-    // 尝试刷新会话 - Supabase 会自动从存储中恢复
-    const { data, error } = await supabase.auth.refreshSession();
-
-    if (error) {
-      console.error('[AIGeneration] Failed to refresh session:', error);
-      return false;
-    }
-
-    if (data.session) {
-      console.log('[AIGeneration] Session refreshed successfully');
-      return true;
-    }
-
-    console.error('[AIGeneration] No active session found');
-    return false;
-  } catch (error) {
-    console.error('[AIGeneration] Error restoring session:', error);
-    return false;
-  }
-}
 
 // 生成任务类型
 export type GenerationType = 'image' | 'video' | 'text';
@@ -66,25 +33,6 @@ export interface VideoGenerationParams {
   model?: string;
 }
 
-// 生成任务
-export interface GenerationTask {
-  id: string;
-  type: GenerationType;
-  status: GenerationStatus;
-  params: ImageGenerationParams | VideoGenerationParams;
-  progress: number;
-  result?: GenerationResult;
-  error?: string;
-  errorType?: 'content_policy' | 'timeout' | 'auth' | 'general';  // 错误类型
-  createdAt: number;
-  updatedAt: number;
-  estimatedTime?: number;
-  // 数据库相关字段
-  userId?: string;
-  startedAt?: string;
-  completedAt?: string;
-}
-
 // 生成结果
 export interface GenerationResult {
   urls: string[];
@@ -102,6 +50,23 @@ export interface GenerationHistoryItem {
   createdAt: number;
   isFavorite: boolean;
   tags: string[];
+}
+
+// 生成任务（兼容旧版本接口）
+export interface GenerationTask {
+  id: string;
+  type: GenerationType;
+  status: GenerationStatus;
+  params: ImageGenerationParams | VideoGenerationParams;
+  progress: number;
+  result?: GenerationResult;
+  error?: string;
+  errorType?: string;
+  createdAt: number;
+  updatedAt: number;
+  userId?: string;
+  startedAt?: string;
+  completedAt?: string;
 }
 
 // 风格预设
@@ -199,260 +164,105 @@ export const QUALITY_PRESETS = [
 ];
 
 /**
- * AI生成服务类
- * 支持后台生成：任务持久化到数据库，用户关闭页面后继续执行
+ * AI生成服务类 - 简化版本
+ * 直接调用后端代理API，无需 Edge Function
  */
 class AIGenerationService {
-  private tasks: Map<string, GenerationTask> = new Map();
-  private taskListeners: Array<(task: GenerationTask) => void> = [];
   private historyListeners: Array<(items: GenerationHistoryItem[]) => void> = [];
-  private pollingIntervals: Map<string, number> = new Map();
-
-  constructor() {
-    // 初始化时恢复未完成的任务
-    this.restoreActiveTasks();
-  }
+  private taskListeners: Array<(task: GenerationTask) => void> = [];
+  private tasks: Map<string, GenerationTask> = new Map();
 
   /**
-   * 恢复未完成的生成任务
-   * 页面刷新后自动恢复正在进行的任务
-   */
-  private async restoreActiveTasks(): Promise<void> {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      // 获取用户的活跃任务
-      const { data: activeTasks, error } = await supabase
-        .from('generation_tasks')
-        .select('*')
-        .eq('user_id', user.id)
-        .in('status', ['pending', 'processing'])
-        .order('created_at', { ascending: false });
-
-      if (error || !activeTasks || activeTasks.length === 0) return;
-
-      console.log('[AIGeneration] Restoring', activeTasks.length, 'active tasks');
-
-      // 恢复每个任务到内存并启动轮询
-      for (const dbTask of activeTasks) {
-        const task: GenerationTask = {
-          id: dbTask.id,
-          type: dbTask.type as GenerationType,
-          status: dbTask.status as GenerationStatus,
-          params: dbTask.params,
-          progress: dbTask.progress || 0,
-          result: dbTask.result,
-          error: dbTask.error,
-          errorType: dbTask.error_type,
-          createdAt: new Date(dbTask.created_at).getTime(),
-          updatedAt: new Date(dbTask.updated_at).getTime(),
-          userId: dbTask.user_id,
-          startedAt: dbTask.started_at,
-          completedAt: dbTask.completed_at
-        };
-
-        this.tasks.set(task.id, task);
-        this.notifyTaskUpdate(task);
-
-        // 启动轮询
-        this.startTaskPolling(task.id);
-
-        // 显示恢复提示
-        if (task.status === 'processing') {
-          toast.info(`恢复进行中的生成任务：${task.params.prompt?.substring(0, 20)}...`, {
-            duration: 3000
-          });
-        }
-      }
-    } catch (error) {
-      console.error('[AIGeneration] Failed to restore tasks:', error);
-    }
-  }
-
-  /**
-   * 生成图片（支持后台生成）
+   * 生成图片 - 简化版本，直接调用后端API
+   * 返回 GenerationTask 以兼容旧接口
    */
   async generateImage(params: ImageGenerationParams): Promise<GenerationTask> {
-    // 先尝试恢复会话
-    const sessionRestored = await restoreSupabaseSession();
-    if (!sessionRestored) {
-      throw new Error('登录状态已过期，请刷新页面后重试');
-    }
+    const id = Date.now().toString(36) + Math.random().toString(36).substring(2);
+    const now = Date.now();
     
-    // 获取会话
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
-      throw new Error('登录状态已过期，请刷新页面后重试');
-    }
-    
-    const user = session.user;
-    if (!user) {
-      throw new Error('用户未登录');
-    }
-
-    // 1. 创建数据库任务记录
-    const { data: dbTask, error } = await supabase
-      .from('generation_tasks')
-      .insert({
-        user_id: user.id,
-        type: 'image',
-        status: 'pending',
-        params: params as any,
-        progress: 0
-      })
-      .select()
-      .single();
-
-    if (error || !dbTask) {
-      throw new Error('创建生成任务失败: ' + (error?.message || '未知错误'));
-    }
-
-    // 2. 创建内存任务对象
+    // 创建任务对象
     const task: GenerationTask = {
-      id: dbTask.id,
+      id,
       type: 'image',
-      status: 'pending',
+      status: 'processing',
       params,
       progress: 0,
-      createdAt: new Date(dbTask.created_at).getTime(),
-      updatedAt: new Date(dbTask.updated_at).getTime(),
-      estimatedTime: 30000,
-      userId: user.id
+      createdAt: now,
+      updatedAt: now
     };
-
-    this.tasks.set(task.id, task);
+    
+    this.tasks.set(id, task);
     this.notifyTaskUpdate(task);
 
-    // 3. 调用 Edge Function 启动后台生成
-    this.startBackgroundGeneration(task.id);
-
-    // 4. 启动轮询
-    this.startTaskPolling(task.id);
-
-    return task;
-  }
-
-  /**
-   * 启动后台生成（调用 Edge Function）
-   */
-  private async startBackgroundGeneration(taskId: string): Promise<void> {
-    try {
-      // 先尝试恢复会话
-      const sessionRestored = await restoreSupabaseSession();
-      if (!sessionRestored) {
-        console.error('[AIGeneration] Failed to restore session');
-        return;
+    // 启动进度模拟
+    const progressInterval = setInterval(() => {
+      if (task.progress < 90) {
+        task.progress += Math.random() * 15 + 5;
+        if (task.progress > 90) task.progress = 90;
+        task.updatedAt = Date.now();
+        this.notifyTaskUpdate(task);
       }
+    }, 1000);
+
+    // 直接调用 llmService 的 generateImage 方法
+    try {
+      const result = await llmService.generateImage({
+        prompt: params.prompt,
+        size: params.size || '1024x1024',
+        n: params.n || 1,
+        model: 'wanx2.1-t2i-turbo'
+      });
+
+      // 停止进度模拟
+      clearInterval(progressInterval);
+
+      if (!result.ok || !result.data) {
+        throw new Error(result.error || '图片生成失败');
+      }
+
+      // 提取图片URL
+      const urls = result.data.data?.map((item: any) => item.url) || [];
       
-      // 获取会话
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        console.error('[AIGeneration] No session available');
-        return;
+      if (urls.length === 0) {
+        throw new Error('未获取到生成的图片');
       }
 
-      // 调用 Edge Function
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-image`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`
-          },
-          body: JSON.stringify({ taskId })
-        }
-      );
+      // 更新任务为完成状态
+      task.status = 'completed';
+      task.progress = 100;
+      task.result = { urls };
+      task.updatedAt = Date.now();
+      task.completedAt = new Date().toISOString();
+      
+      this.tasks.set(id, task);
+      this.notifyTaskUpdate(task);
 
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
-        console.error('[AIGeneration] Background generation failed:', error);
-      }
+      // 添加到历史记录
+      this.addToHistory({
+        id,
+        type: 'image',
+        prompt: params.prompt,
+        thumbnail: urls[0],
+        createdAt: now,
+        isFavorite: false,
+        tags: []
+      });
+
+      return task;
     } catch (error) {
-      console.error('[AIGeneration] Failed to start background generation:', error);
-    }
-  }
-
-  /**
-   * 启动任务状态轮询
-   */
-  private startTaskPolling(taskId: string): void {
-    // 清除已有的轮询
-    if (this.pollingIntervals.has(taskId)) {
-      window.clearInterval(this.pollingIntervals.get(taskId));
-    }
-
-    // 每3秒轮询一次
-    const intervalId = window.setInterval(async () => {
-      await this.pollTaskStatus(taskId);
-    }, 3000);
-
-    this.pollingIntervals.set(taskId, intervalId);
-
-    // 立即执行一次
-    this.pollTaskStatus(taskId);
-  }
-
-  /**
-   * 轮询任务状态
-   */
-  private async pollTaskStatus(taskId: string): Promise<void> {
-    const task = this.tasks.get(taskId);
-    if (!task) return;
-
-    // 如果任务已完成或失败，停止轮询
-    if (task.status === 'completed' || task.status === 'failed' || task.status === 'cancelled') {
-      this.stopTaskPolling(taskId);
-      return;
-    }
-
-    try {
-      const { data: dbTask, error } = await supabase
-        .from('generation_tasks')
-        .select('*')
-        .eq('id', taskId)
-        .single();
-
-      if (error || !dbTask) return;
-
-      // 更新内存中的任务状态
-      const updatedTask: GenerationTask = {
-        ...task,
-        status: dbTask.status as GenerationStatus,
-        progress: dbTask.progress || 0,
-        result: dbTask.result,
-        error: dbTask.error,
-        errorType: dbTask.error_type,
-        updatedAt: new Date(dbTask.updated_at).getTime(),
-        completedAt: dbTask.completed_at
-      };
-
-      this.tasks.set(taskId, updatedTask);
-      this.notifyTaskUpdate(updatedTask);
-
-      // 如果任务完成，添加到历史记录
-      if (dbTask.status === 'completed' && task.status !== 'completed') {
-        this.addToHistory(updatedTask);
-        toast.success('图片生成完成！');
-        this.stopTaskPolling(taskId);
-      } else if (dbTask.status === 'failed' && task.status !== 'failed') {
-        toast.error('生成失败: ' + (dbTask.error || '未知错误'));
-        this.stopTaskPolling(taskId);
-      }
-    } catch (error) {
-      console.error('[AIGeneration] Polling error:', error);
-    }
-  }
-
-  /**
-   * 停止任务轮询
-   */
-  private stopTaskPolling(taskId: string): void {
-    const intervalId = this.pollingIntervals.get(taskId);
-    if (intervalId) {
-      window.clearInterval(intervalId);
-      this.pollingIntervals.delete(taskId);
+      // 停止进度模拟
+      clearInterval(progressInterval);
+      
+      // 更新任务为失败状态
+      task.status = 'failed';
+      task.error = error instanceof Error ? error.message : '生成失败';
+      task.updatedAt = Date.now();
+      task.completedAt = new Date().toISOString();
+      
+      this.tasks.set(id, task);
+      this.notifyTaskUpdate(task);
+      
+      throw error;
     }
   }
 
@@ -460,101 +270,24 @@ class AIGenerationService {
    * 生成视频
    */
   async generateVideo(params: VideoGenerationParams): Promise<GenerationTask> {
-    // 先尝试恢复会话
-    const sessionRestored = await restoreSupabaseSession();
-    if (!sessionRestored) {
-      throw new Error('登录状态已过期，请刷新页面后重试');
-    }
+    const id = Date.now().toString(36) + Math.random().toString(36).substring(2);
+    const now = Date.now();
     
-    // 获取会话
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
-      throw new Error('登录状态已过期，请刷新页面后重试');
-    }
-    
-    const user = session.user;
-    if (!user) {
-      throw new Error('用户未登录');
-    }
-
-    // 1. 创建数据库任务记录
-    const { data: dbTask, error } = await supabase
-      .from('generation_tasks')
-      .insert({
-        user_id: user.id,
-        type: 'video',
-        status: 'pending',
-        params: params as any,
-        progress: 0
-      })
-      .select()
-      .single();
-
-    if (error || !dbTask) {
-      throw new Error('创建生成任务失败: ' + (error?.message || '未知错误'));
-    }
-
-    // 2. 创建内存任务对象
+    // 创建任务对象
     const task: GenerationTask = {
-      id: dbTask.id,
+      id,
       type: 'video',
-      status: 'pending',
+      status: 'processing',
       params,
       progress: 0,
-      createdAt: new Date(dbTask.created_at).getTime(),
-      updatedAt: new Date(dbTask.updated_at).getTime(),
-      estimatedTime: 180000,
-      userId: user.id
+      createdAt: now,
+      updatedAt: now
     };
-
-    this.tasks.set(task.id, task);
+    
+    this.tasks.set(id, task);
     this.notifyTaskUpdate(task);
 
-    // 3. 启动后台生成（视频生成使用原来的方式，后续可以改为 Edge Function）
-    this.executeVideoGeneration(task);
-
-    return task;
-  }
-
-  /**
-   * 执行视频生成
-   */
-  private async executeVideoGeneration(task: GenerationTask): Promise<void> {
-    let progressInterval: ReturnType<typeof setInterval> | null = null;
-
     try {
-      // 更新状态为 processing
-      await supabase
-        .from('generation_tasks')
-        .update({
-          status: 'processing',
-          progress: 5,
-          started_at: new Date().toISOString()
-        })
-        .eq('id', task.id);
-
-      const params = task.params as VideoGenerationParams;
-
-      // 启动进度条动画
-      let currentProgress = 5;
-      const maxProgressBeforeResult = 40;
-      const estimatedSubmitTime = 10000;
-      const updateInterval = 1000;
-      const progressIncrement = (maxProgressBeforeResult - currentProgress) / (estimatedSubmitTime / updateInterval);
-
-      progressInterval = setInterval(async () => {
-        if (currentProgress < maxProgressBeforeResult) {
-          currentProgress += progressIncrement + (Math.random() * 2 - 1);
-          currentProgress = Math.min(currentProgress, maxProgressBeforeResult);
-
-          await supabase
-            .from('generation_tasks')
-            .update({ progress: Math.round(currentProgress) })
-            .eq('id', task.id);
-        }
-      }, updateInterval);
-
-      // 调用 llmService 生成视频
       const result = await llmService.generateVideo({
         prompt: params.prompt,
         imageUrl: params.imageUrl,
@@ -564,93 +297,57 @@ class AIGenerationService {
         model: params.model || 'wanx2.1-t2v-turbo'
       });
 
-      // 清除进度动画
-      if (progressInterval) {
-        clearInterval(progressInterval);
-        progressInterval = null;
-      }
-
-      if (result.ok && result.data) {
-        // 轮询检查视频生成状态
-        const videoUrl = await this.pollVideoStatusWithProgress(
-          result.data.task_id || result.data,
-          task.id,
-          40,
-          90
-        );
-
-        // 更新任务为完成状态
-        await supabase
-          .from('generation_tasks')
-          .update({
-            status: 'completed',
-            progress: 100,
-            result: {
-              urls: [videoUrl],
-              metadata: result.data
-            },
-            completed_at: new Date().toISOString()
-          })
-          .eq('id', task.id);
-
-        // 更新内存任务
-        task.status = 'completed';
-        task.progress = 100;
-        task.result = {
-          urls: [videoUrl],
-          metadata: result.data
-        };
-        this.notifyTaskUpdate(task);
-        this.addToHistory(task);
-      } else {
+      if (!result.ok || !result.data) {
         throw new Error(result.error || '视频生成失败');
       }
-    } catch (error) {
-      // 清除进度动画
-      if (progressInterval) {
-        clearInterval(progressInterval);
-      }
 
-      console.error('[AIGeneration] Video generation failed:', error);
+      // 轮询获取视频URL
+      const qwenTaskId = result.data.task_id || result.data;
+      const videoUrl = await this.pollVideoStatus(qwenTaskId);
 
-      // 更新任务为失败状态
-      await supabase
-        .from('generation_tasks')
-        .update({
-          status: 'failed',
-          error: error instanceof Error ? error.message : '生成失败',
-          completed_at: new Date().toISOString()
-        })
-        .eq('id', task.id);
-
-      task.error = error instanceof Error ? error.message : '生成失败';
-      task.status = 'failed';
+      // 更新任务为完成状态
+      task.status = 'completed';
+      task.progress = 100;
+      task.result = { urls: [videoUrl] };
+      task.updatedAt = Date.now();
+      task.completedAt = new Date().toISOString();
+      
+      this.tasks.set(id, task);
       this.notifyTaskUpdate(task);
+
+      this.addToHistory({
+        id,
+        type: 'video',
+        prompt: params.prompt,
+        thumbnail: videoUrl,
+        createdAt: now,
+        isFavorite: false,
+        tags: []
+      });
+
+      return task;
+    } catch (error) {
+      // 更新任务为失败状态
+      task.status = 'failed';
+      task.error = error instanceof Error ? error.message : '生成失败';
+      task.updatedAt = Date.now();
+      task.completedAt = new Date().toISOString();
+      
+      this.tasks.set(id, task);
+      this.notifyTaskUpdate(task);
+      
+      throw error;
     }
   }
 
   /**
-   * 轮询视频生成状态（带进度更新）
+   * 轮询视频生成状态
    */
-  private async pollVideoStatusWithProgress(
-    taskId: string,
-    internalTaskId: string,
-    startProgress: number,
-    maxProgress: number
-  ): Promise<string> {
+  private async pollVideoStatus(taskId: string): Promise<string> {
     const maxAttempts = 60;
     const interval = 5000;
 
     for (let i = 0; i < maxAttempts; i++) {
-      // 计算并更新进度
-      const progressRange = maxProgress - startProgress;
-      const currentProgress = startProgress + (progressRange * (i / maxAttempts));
-
-      await supabase
-        .from('generation_tasks')
-        .update({ progress: Math.round(currentProgress) })
-        .eq('id', internalTaskId);
-
       try {
         const response = await fetch(`/api/qwen/videos/status/${taskId}`);
         if (!response.ok) {
@@ -677,112 +374,11 @@ class AIGenerationService {
   }
 
   /**
-   * 获取任务
-   */
-  getTask(taskId: string): GenerationTask | undefined {
-    return this.tasks.get(taskId);
-  }
-
-  /**
-   * 获取所有任务
-   */
-  getAllTasks(): GenerationTask[] {
-    return Array.from(this.tasks.values()).sort((a, b) => b.createdAt - a.createdAt);
-  }
-
-  /**
-   * 取消任务
-   */
-  async cancelTask(taskId: string): Promise<boolean> {
-    const task = this.tasks.get(taskId);
-    if (!task || (task.status !== 'pending' && task.status !== 'processing')) {
-      return false;
-    }
-
-    try {
-      // 更新数据库状态
-      await supabase
-        .from('generation_tasks')
-        .update({
-          status: 'cancelled',
-          completed_at: new Date().toISOString()
-        })
-        .eq('id', taskId);
-
-      // 更新内存状态
-      task.status = 'cancelled';
-      task.updatedAt = Date.now();
-      this.notifyTaskUpdate(task);
-
-      // 停止轮询
-      this.stopTaskPolling(taskId);
-
-      return true;
-    } catch (error) {
-      console.error('[AIGeneration] Failed to cancel task:', error);
-      return false;
-    }
-  }
-
-  /**
-   * 删除任务
-   */
-  async deleteTask(taskId: string): Promise<boolean> {
-    try {
-      // 从数据库删除
-      await supabase
-        .from('generation_tasks')
-        .delete()
-        .eq('id', taskId);
-
-      // 停止轮询
-      this.stopTaskPolling(taskId);
-
-      // 从内存删除
-      return this.tasks.delete(taskId);
-    } catch (error) {
-      console.error('[AIGeneration] Failed to delete task:', error);
-      return false;
-    }
-  }
-
-  /**
-   * 添加任务监听器
-   */
-  addTaskListener(listener: (task: GenerationTask) => void): () => void {
-    this.taskListeners.push(listener);
-    return () => {
-      const index = this.taskListeners.indexOf(listener);
-      if (index > -1) {
-        this.taskListeners.splice(index, 1);
-      }
-    };
-  }
-
-  /**
-   * 通知任务更新
-   */
-  private notifyTaskUpdate(task: GenerationTask): void {
-    this.taskListeners.forEach(listener => listener(task));
-  }
-
-  /**
    * 添加到历史记录
    */
-  private addToHistory(task: GenerationTask): void {
-    const historyItem: GenerationHistoryItem = {
-      id: task.id,
-      type: task.type,
-      prompt: (task.params as any).prompt || '',
-      thumbnail: task.result?.urls[0] || '',
-      createdAt: task.createdAt,
-      isFavorite: false,
-      tags: []
-    };
-
-    // 保存到 localStorage
+  private addToHistory(item: GenerationHistoryItem): void {
     const history = this.getHistory();
-    history.unshift(historyItem);
+    history.unshift(item);
 
     // 限制历史记录数量
     if (history.length > 100) {
@@ -856,6 +452,26 @@ class AIGenerationService {
   }
 
   /**
+   * 添加任务监听器
+   */
+  addTaskListener(listener: (task: GenerationTask) => void): () => void {
+    this.taskListeners.push(listener);
+    return () => {
+      const index = this.taskListeners.indexOf(listener);
+      if (index > -1) {
+        this.taskListeners.splice(index, 1);
+      }
+    };
+  }
+
+  /**
+   * 通知任务更新
+   */
+  private notifyTaskUpdate(task: GenerationTask): void {
+    this.taskListeners.forEach(listener => listener(task));
+  }
+
+  /**
    * 添加历史记录监听器
    */
   addHistoryListener(listener: (items: GenerationHistoryItem[]) => void): () => void {
@@ -926,44 +542,6 @@ class AIGenerationService {
       return result.split('\n').filter(line => line.trim()).slice(0, 5);
     } catch (error) {
       console.error('[AIGeneration] Prompt suggestion failed:', error);
-      return [];
-    }
-  }
-
-  /**
-   * 获取用户的生成历史（从数据库）
-   */
-  async getUserGenerationHistoryFromDB(limit: number = 50, offset: number = 0): Promise<GenerationTask[]> {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return [];
-
-      const { data, error } = await supabase
-        .rpc('get_user_generation_history', {
-          p_user_id: user.id,
-          p_limit: limit,
-          p_offset: offset
-        });
-
-      if (error || !data) return [];
-
-      return data.map((dbTask: any) => ({
-        id: dbTask.id,
-        type: dbTask.type as GenerationType,
-        status: dbTask.status as GenerationStatus,
-        params: dbTask.params,
-        progress: dbTask.progress || 0,
-        result: dbTask.result,
-        error: dbTask.error,
-        errorType: dbTask.error_type,
-        createdAt: new Date(dbTask.created_at).getTime(),
-        updatedAt: new Date(dbTask.updated_at).getTime(),
-        userId: dbTask.user_id,
-        startedAt: dbTask.started_at,
-        completedAt: dbTask.completed_at
-      }));
-    } catch (error) {
-      console.error('[AIGeneration] Failed to get history from DB:', error);
       return [];
     }
   }

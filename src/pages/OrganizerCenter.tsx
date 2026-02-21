@@ -271,7 +271,7 @@ export default function OrganizerCenter() {
   const [aiPrompt, setAiPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedResults, setGeneratedResults] = useState<string[]>([]);
-  const [selectedGeneratedIndex, setSelectedGeneratedIndex] = useState<number | null>(null);
+  const [selectedGeneratedIndices, setSelectedGeneratedIndices] = useState<number[]>([]);
   const [generationTask, setGenerationTask] = useState<GenerationTask | null>(null);
   const [generationProgress, setGenerationProgress] = useState(0);
   const [generationError, setGenerationError] = useState<string | null>(null);
@@ -639,7 +639,7 @@ export default function OrganizerCenter() {
     setAiGenerateType(type);
     setAiPrompt(generateAIPromptFromEvent());
     setGeneratedResults([]);
-    setSelectedGeneratedIndex(null);
+    setSelectedGeneratedIndices([]);
     setGenerationTask(null);
     setGenerationProgress(0);
     setGenerationError(null);
@@ -677,7 +677,7 @@ export default function OrganizerCenter() {
     setIsGenerating(true);
     setGenerationError(null);
     setGeneratedResults([]);
-    setSelectedGeneratedIndex(null);
+    setSelectedGeneratedIndices([]);
     
     try {
       // 尝试刷新会话以确保token有效
@@ -693,7 +693,7 @@ export default function OrganizerCenter() {
         const params: ImageGenerationParams = {
           prompt: aiPrompt,
           size: '1024x1024',
-          n: 4,
+          n: 2,
           style: 'auto',
           quality: 'hd'
         };
@@ -710,7 +710,18 @@ export default function OrganizerCenter() {
       
       setGenerationTask(task);
       
-      // 监听任务状态
+      // 立即检查任务是否已完成（同步生成的情况）
+      if (task.status === 'completed' && task.result) {
+        setGeneratedResults(task.result.urls);
+        setIsGenerating(false);
+        return;
+      } else if (task.status === 'failed') {
+        setGenerationError(task.error || '生成失败');
+        setIsGenerating(false);
+        return;
+      }
+      
+      // 监听任务状态（异步生成的情况）
       const unsubscribe = aiGenerationService.addTaskListener((updatedTask) => {
         if (updatedTask.id === task.id) {
           setGenerationTask(updatedTask);
@@ -746,25 +757,23 @@ export default function OrganizerCenter() {
 
   // 选择生成的媒体
   const handleSelectGeneratedMedia = async () => {
-    if (selectedGeneratedIndex === null || generatedResults.length === 0) return;
-    
-    const selectedUrl = generatedResults[selectedGeneratedIndex];
+    if (selectedGeneratedIndices.length === 0 || generatedResults.length === 0) return;
     
     try {
-      // 将生成的媒体添加到活动媒体列表
-      const newMedia = {
-        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      // 将选中的所有生成的媒体添加到活动媒体列表
+      const newMedias = selectedGeneratedIndices.map((index, i) => ({
+        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}-${i}`,
         type: aiGenerateType,
-        url: selectedUrl,
+        url: generatedResults[index],
         name: `AI生成${aiGenerateType === 'image' ? '图片' : '视频'}`,
         size: 0,
         uploadDate: new Date(),
-        order: formData.media.length
-      };
+        order: formData.media.length + i
+      }));
       
-      handleChange('media', [...formData.media, newMedia]);
+      handleChange('media', [...formData.media, ...newMedias]);
       
-      toast.success(`已添加AI生成的${aiGenerateType === 'image' ? '图片' : '视频'}`);
+      toast.success(`已添加 ${selectedGeneratedIndices.length} 张AI生成的图片`);
       setIsAIGenerateDialogOpen(false);
     } catch (error) {
       console.error('添加生成的媒体失败:', error);
@@ -2714,9 +2723,15 @@ export default function OrganizerCenter() {
                       initial={{ opacity: 0, scale: 0.9 }}
                       animate={{ opacity: 1, scale: 1 }}
                       transition={{ delay: index * 0.1 }}
-                      onClick={() => setSelectedGeneratedIndex(index)}
+                      onClick={() => {
+                      if (selectedGeneratedIndices.includes(index)) {
+                        setSelectedGeneratedIndices(prev => prev.filter(i => i !== index));
+                      } else {
+                        setSelectedGeneratedIndices(prev => [...prev, index]);
+                      }
+                    }}
                       className={`relative aspect-video rounded-xl overflow-hidden cursor-pointer transition-all ${
-                        selectedGeneratedIndex === index
+                        selectedGeneratedIndices.includes(index)
                           ? 'ring-4 ring-purple-500 ring-offset-2 dark:ring-offset-gray-900'
                           : 'hover:opacity-90'
                       }`}
@@ -2735,7 +2750,7 @@ export default function OrganizerCenter() {
                           className="w-full h-full object-cover"
                         />
                       )}
-                      {selectedGeneratedIndex === index && (
+                      {selectedGeneratedIndices.includes(index) && (
                         <div className="absolute inset-0 bg-purple-500/20 flex items-center justify-center">
                           <div className="w-12 h-12 rounded-full bg-purple-500 text-white flex items-center justify-center">
                             <CheckCircle2 className="w-6 h-6" />
@@ -2750,7 +2765,7 @@ export default function OrganizerCenter() {
                 </div>
 
                 {/* 选择按钮 */}
-                {selectedGeneratedIndex !== null && (
+                {selectedGeneratedIndices.length > 0 && (
                   <motion.button
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -2760,7 +2775,7 @@ export default function OrganizerCenter() {
                     className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-green-500 hover:bg-green-600 text-white font-medium rounded-xl transition-colors"
                   >
                     <CheckCircle2 className="w-5 h-5" />
-                    使用选中的{aiGenerateType === 'image' ? '图片' : '视频'}
+                    使用选中的 {selectedGeneratedIndices.length} 张{aiGenerateType === 'image' ? '图片' : '视频'}
                   </motion.button>
                 )}
               </div>

@@ -24,6 +24,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { AuthContext } from '@/contexts/authContext';
 import { eventParticipationService } from '@/services/eventParticipationService';
+import { ImageCarousel } from '@/components/ImageCarousel';
 
 interface EventDetailModalProps {
   event: Event | null;
@@ -287,12 +288,23 @@ export default function EventDetailModal({ event, isOpen, onClose, submissionCou
 
             {/* 左侧图片区 */}
             <div className="w-full md:w-2/5 h-48 sm:h-56 md:h-auto relative shrink-0 overflow-hidden">
-              <img
-                src={event.media?.[0]?.url || `https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=traditional%20chinese%20culture%20event&image_size=portrait_3_4`}
-                alt={event.title}
-                className="w-full h-full object-cover"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent md:hidden" />
+              {(() => {
+                const images = event.media?.filter(m => m.type === 'image').map(m => m.url) || [];
+                if (images.length === 0) {
+                  images.push(`https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=traditional%20chinese%20culture%20event&image_size=portrait_3_4`);
+                }
+                return (
+                  <ImageCarousel
+                    images={images}
+                    alt={event.title}
+                    aspectRatio="aspect-[3/4] md:aspect-auto md:h-full"
+                    autoPlay={images.length > 1}
+                    interval={4000}
+                    showCounter={images.length > 1}
+                  />
+                );
+              })()}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent md:hidden pointer-events-none" />
               
               {/* 移动端标题 */}
               <div className="absolute bottom-4 left-4 right-4 md:hidden text-white">

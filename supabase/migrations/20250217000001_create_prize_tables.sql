@@ -83,10 +83,7 @@ CREATE POLICY "允许组织者创建奖品" ON event_prizes
         EXISTS (
             SELECT 1 FROM events e
             WHERE e.id = event_id
-            AND (e.organizer_id = auth.uid() OR e.brand_id IN (
-                SELECT bp.id FROM brand_partnerships bp
-                WHERE bp.user_id = auth.uid() AND bp.status = 'approved'
-            ))
+            AND e.organizer_id = auth.uid()
         )
     );
 
@@ -96,10 +93,7 @@ CREATE POLICY "允许组织者更新奖品" ON event_prizes
         EXISTS (
             SELECT 1 FROM events e
             WHERE e.id = event_id
-            AND (e.organizer_id = auth.uid() OR e.brand_id IN (
-                SELECT bp.id FROM brand_partnerships bp
-                WHERE bp.user_id = auth.uid() AND bp.status = 'approved'
-            ))
+            AND e.organizer_id = auth.uid()
         )
     );
 
@@ -109,10 +103,7 @@ CREATE POLICY "允许组织者删除奖品" ON event_prizes
         EXISTS (
             SELECT 1 FROM events e
             WHERE e.id = event_id
-            AND (e.organizer_id = auth.uid() OR e.brand_id IN (
-                SELECT bp.id FROM brand_partnerships bp
-                WHERE bp.user_id = auth.uid() AND bp.status = 'approved'
-            ))
+            AND e.organizer_id = auth.uid()
         )
     );
 
@@ -124,10 +115,7 @@ CREATE POLICY "允许用户查看自己的获奖记录" ON prize_winners
         EXISTS (
             SELECT 1 FROM events e
             WHERE e.id = event_id
-            AND (e.organizer_id = auth.uid() OR e.brand_id IN (
-                SELECT bp.id FROM brand_partnerships bp
-                WHERE bp.user_id = auth.uid() AND bp.status = 'approved'
-            ))
+            AND e.organizer_id = auth.uid()
         )
     );
 
@@ -137,10 +125,7 @@ CREATE POLICY "允许组织者创建获奖记录" ON prize_winners
         EXISTS (
             SELECT 1 FROM events e
             WHERE e.id = event_id
-            AND (e.organizer_id = auth.uid() OR e.brand_id IN (
-                SELECT bp.id FROM brand_partnerships bp
-                WHERE bp.user_id = auth.uid() AND bp.status = 'approved'
-            ))
+            AND e.organizer_id = auth.uid()
         )
     );
 
@@ -151,10 +136,7 @@ CREATE POLICY "允许用户更新自己的领奖状态" ON prize_winners
         EXISTS (
             SELECT 1 FROM events e
             WHERE e.id = event_id
-            AND (e.organizer_id = auth.uid() OR e.brand_id IN (
-                SELECT bp.id FROM brand_partnerships bp
-                WHERE bp.user_id = auth.uid() AND bp.status = 'approved'
-            ))
+            AND e.organizer_id = auth.uid()
         )
     );
 

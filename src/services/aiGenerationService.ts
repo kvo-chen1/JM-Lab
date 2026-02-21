@@ -9,6 +9,47 @@ import { llmService } from './llmService';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { toast } from 'sonner';
 
+// 辅助函数：恢复 Supabase 会话
+async function restoreSupabaseSession(): Promise<boolean> {
+  try {
+    // 先检查当前是否有有效会话
+    const { data: { session: currentSession } } = await supabase.auth.getSession();
+    if (currentSession) {
+      return true;
+    }
+
+    // 尝试从 localStorage 恢复会话
+    const token = localStorage.getItem('token');
+    const refreshToken = localStorage.getItem('refreshToken');
+    
+    if (!token || !refreshToken) {
+      console.error('[AIGeneration] No tokens found in localStorage');
+      return false;
+    }
+
+    // 尝试设置会话
+    const { data, error } = await supabase.auth.setSession({
+      access_token: token,
+      refresh_token: refreshToken
+    });
+
+    if (error) {
+      console.error('[AIGeneration] Failed to set session:', error);
+      return false;
+    }
+
+    if (data.session) {
+      console.log('[AIGeneration] Session restored successfully');
+      return true;
+    }
+
+    return false;
+  } catch (error) {
+    console.error('[AIGeneration] Error restoring session:', error);
+    return false;
+  }
+}
+
 // 生成任务类型
 export type GenerationType = 'image' | 'video' | 'text';
 
@@ -244,7 +285,19 @@ class AIGenerationService {
    * 生成图片（支持后台生成）
    */
   async generateImage(params: ImageGenerationParams): Promise<GenerationTask> {
-    const { data: { user } } = await supabase.auth.getUser();
+    // 先尝试恢复会话
+    const sessionRestored = await restoreSupabaseSession();
+    if (!sessionRestored) {
+      throw new Error('登录状态已过期，请刷新页面后重试');
+    }
+    
+    // 获取会话
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      throw new Error('登录状态已过期，请刷新页面后重试');
+    }
+    
+    const user = session.user;
     if (!user) {
       throw new Error('用户未登录');
     }
@@ -296,8 +349,19 @@ class AIGenerationService {
    */
   private async startBackgroundGeneration(taskId: string): Promise<void> {
     try {
+      // 先尝试恢复会话
+      const sessionRestored = await restoreSupabaseSession();
+      if (!sessionRestored) {
+        console.error('[AIGeneration] Failed to restore session');
+        return;
+      }
+      
+      // 获取会话
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
+      if (!session) {
+        console.error('[AIGeneration] No session available');
+        return;
+      }
 
       // 调用 Edge Function
       const response = await fetch(
@@ -407,7 +471,19 @@ class AIGenerationService {
    * 生成视频
    */
   async generateVideo(params: VideoGenerationParams): Promise<GenerationTask> {
-    const { data: { user } } = await supabase.auth.getUser();
+    // 先尝试恢复会话
+    const sessionRestored = await restoreSupabaseSession();
+    if (!sessionRestored) {
+      throw new Error('登录状态已过期，请刷新页面后重试');
+    }
+    
+    // 获取会话
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      throw new Error('登录状态已过期，请刷新页面后重试');
+    }
+    
+    const user = session.user;
     if (!user) {
       throw new Error('用户未登录');
     }

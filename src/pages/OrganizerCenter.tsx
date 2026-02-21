@@ -28,6 +28,7 @@ import { Prize, PrizeCreateRequest } from '@/types/prize';
 import { prizeService } from '@/services/prizeService';
 import EventTypeSelector from '@/components/events/EventTypeSelector';
 import SubmissionGuide from '@/components/submit/SubmissionGuide';
+import { AIOptimizeButton } from '@/components/AIOptimizeButton';
 import {
   CalendarDays,
   Users,
@@ -666,12 +667,26 @@ export default function OrganizerCenter() {
   const handleStartAIGeneration = async () => {
     if (!aiPrompt.trim() || isGenerating) return;
     
+    // 先检查用户是否已登录
+    if (!isAuthenticated || !user) {
+      toast.error('请先登录后再使用AI生成功能');
+      setGenerationError('您尚未登录，请先登录后再使用AI生成功能。');
+      return;
+    }
+    
     setIsGenerating(true);
     setGenerationError(null);
     setGeneratedResults([]);
     setSelectedGeneratedIndex(null);
     
     try {
+      // 尝试刷新会话以确保token有效
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !session) {
+        console.error('获取会话失败:', sessionError);
+        throw new Error('登录状态已过期，请刷新页面后重试');
+      }
+      
       let task: GenerationTask;
       
       if (aiGenerateType === 'image') {
@@ -715,7 +730,16 @@ export default function OrganizerCenter() {
       
     } catch (error) {
       console.error('AI生成失败:', error);
-      setGenerationError(error instanceof Error ? error.message : '生成失败');
+      const errorMessage = error instanceof Error ? error.message : '生成失败';
+      
+      // 处理未登录错误
+      if (errorMessage.includes('未登录') || errorMessage.includes('auth') || errorMessage.includes('login') || errorMessage.includes('token')) {
+        setGenerationError('登录状态已过期，请刷新页面后重试。');
+        toast.error('登录状态已过期，请刷新页面');
+      } else {
+        setGenerationError(errorMessage);
+      }
+      
       setIsGenerating(false);
     }
   };
@@ -1847,9 +1871,16 @@ export default function OrganizerCenter() {
                         </div>
 
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                            活动描述 <span className="text-red-500">*</span>
-                          </label>
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                              活动描述 <span className="text-red-500">*</span>
+                            </label>
+                            <AIOptimizeButton
+                              content={formData.description || ''}
+                              fieldLabel="活动描述"
+                              onAccept={(optimized) => handleChange('description', optimized)}
+                            />
+                          </div>
                           <textarea
                             value={formData.description}
                             onChange={(e) => handleChange('description', e.target.value)}
@@ -2022,9 +2053,16 @@ export default function OrganizerCenter() {
                     {currentStep === 'content' && (
                       <div className="space-y-6">
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                            活动详情 <span className="text-red-500">*</span>
-                          </label>
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                              活动详情 <span className="text-red-500">*</span>
+                            </label>
+                            <AIOptimizeButton
+                              content={formData.content || ''}
+                              fieldLabel="活动详情"
+                              onAccept={(optimized) => handleChange('content', optimized)}
+                            />
+                          </div>
                           <textarea
                             value={formData.content}
                             onChange={(e) => handleChange('content', e.target.value)}

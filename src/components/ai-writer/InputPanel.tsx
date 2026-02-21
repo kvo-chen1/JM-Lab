@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
+import { Sparkles, X, Check, Loader2 } from 'lucide-react';
 import type { Template } from './TemplatePreview';
 
 export interface FormField {
@@ -17,6 +18,7 @@ interface InputPanelProps {
   template: Template | null;
   onSubmit?: (data: Record<string, string>) => void;
   isGenerating?: boolean;
+  onOptimizePrompt?: (fieldId: string, currentValue: string, fieldLabel: string) => Promise<string>;
 }
 
 // 根据模板类型生成对应的表单字段
@@ -189,10 +191,13 @@ export const InputPanel: React.FC<InputPanelProps> = ({
   template,
   onSubmit,
   isGenerating = false,
+  onOptimizePrompt,
 }) => {
   const { isDark } = useTheme();
   const [formData, setFormData] = useState<Record<string, string>>({});
   const [focusedField, setFocusedField] = useState<string | null>(null);
+  const [optimizingField, setOptimizingField] = useState<string | null>(null);
+  const [optimizedContent, setOptimizedContent] = useState<{ fieldId: string; content: string } | null>(null);
 
   const fields = generateFormFields(template);
 
@@ -216,6 +221,32 @@ export const InputPanel: React.FC<InputPanelProps> = ({
 
   const handleReset = useCallback(() => {
     setFormData({});
+    setOptimizedContent(null);
+  }, []);
+
+  const handleOptimize = useCallback(async (field: FormField) => {
+    if (!onOptimizePrompt || !formData[field.id]?.trim()) return;
+    
+    setOptimizingField(field.id);
+    try {
+      const optimized = await onOptimizePrompt(field.id, formData[field.id], field.label);
+      setOptimizedContent({ fieldId: field.id, content: optimized });
+    } catch (error) {
+      console.error('优化失败:', error);
+    } finally {
+      setOptimizingField(null);
+    }
+  }, [onOptimizePrompt, formData]);
+
+  const handleAcceptOptimization = useCallback(() => {
+    if (optimizedContent) {
+      setFormData(prev => ({ ...prev, [optimizedContent.fieldId]: optimizedContent.content }));
+      setOptimizedContent(null);
+    }
+  }, [optimizedContent]);
+
+  const handleRejectOptimization = useCallback(() => {
+    setOptimizedContent(null);
   }, []);
 
   if (!template) {
@@ -271,30 +302,111 @@ export const InputPanel: React.FC<InputPanelProps> = ({
               className="space-y-2"
             >
               {/* 标签 */}
-              <label className={`block text-sm font-medium ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
-                {field.label}
-                {field.required && <span className="text-red-500 ml-1">*</span>}
-              </label>
+              <div className="flex items-center justify-between">
+                <label className={`block text-sm font-medium ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
+                  {field.label}
+                  {field.required && <span className="text-red-500 ml-1">*</span>}
+                </label>
+                {/* AI优化按钮 - 仅对textarea字段显示 */}
+                {field.type === 'textarea' && onOptimizePrompt && formData[field.id]?.trim() && (
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => handleOptimize(field)}
+                    disabled={optimizingField === field.id || isGenerating}
+                    className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition-all duration-200 ${
+                      optimizingField === field.id
+                        ? isDark
+                          ? 'bg-purple-500/20 text-purple-400 cursor-wait'
+                          : 'bg-purple-100 text-purple-600 cursor-wait'
+                        : isDark
+                        ? 'bg-purple-500/10 text-purple-400 hover:bg-purple-500/20'
+                        : 'bg-purple-50 text-purple-600 hover:bg-purple-100'
+                    }`}
+                  >
+                    {optimizingField === field.id ? (
+                      <>
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        优化中...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-3 h-3" />
+                        AI优化
+                      </>
+                    )}
+                  </motion.button>
+                )}
+              </div>
 
               {/* 输入框 */}
               {field.type === 'textarea' ? (
-                <textarea
-                  value={formData[field.id] || ''}
-                  onChange={(e) => handleChange(field.id, e.target.value)}
-                  onFocus={() => setFocusedField(field.id)}
-                  onBlur={() => setFocusedField(null)}
-                  placeholder={field.placeholder}
-                  rows={4}
-                  className={`w-full px-4 py-3 rounded-xl text-sm transition-all duration-200 resize-none ${
-                    focusedField === field.id
-                      ? isDark
-                        ? 'bg-gray-800 border-blue-500 ring-2 ring-blue-500/20'
-                        : 'bg-white border-blue-500 ring-2 ring-blue-500/20'
-                      : isDark
-                      ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-500'
-                      : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400'
-                  } border-2 outline-none`}
-                />
+                <>
+                  <textarea
+                    value={formData[field.id] || ''}
+                    onChange={(e) => handleChange(field.id, e.target.value)}
+                    onFocus={() => setFocusedField(field.id)}
+                    onBlur={() => setFocusedField(null)}
+                    placeholder={field.placeholder}
+                    rows={4}
+                    className={`w-full px-4 py-3 rounded-xl text-sm transition-all duration-200 resize-none ${
+                      focusedField === field.id
+                        ? isDark
+                          ? 'bg-gray-800 border-blue-500 ring-2 ring-blue-500/20'
+                          : 'bg-white border-blue-500 ring-2 ring-blue-500/20'
+                        : isDark
+                        ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-500'
+                        : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400'
+                    } border-2 outline-none`}
+                  />
+                  {/* 优化结果展示 */}
+                  {optimizedContent?.fieldId === field.id && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className={`mt-3 p-4 rounded-xl border-2 ${
+                        isDark
+                          ? 'bg-purple-500/10 border-purple-500/30'
+                          : 'bg-purple-50 border-purple-200'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 mb-2">
+                        <Sparkles className={`w-4 h-4 ${isDark ? 'text-purple-400' : 'text-purple-600'}`} />
+                        <span className={`text-sm font-medium ${isDark ? 'text-purple-300' : 'text-purple-700'}`}>
+                          AI优化建议
+                        </span>
+                      </div>
+                      <p className={`text-sm mb-3 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                        {optimizedContent.content}
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={handleAcceptOptimization}
+                          className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
+                            isDark
+                              ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30'
+                              : 'bg-green-100 text-green-700 hover:bg-green-200'
+                          }`}
+                        >
+                          <Check className="w-3 h-3" />
+                          采用
+                        </button>
+                        <button
+                          onClick={handleRejectOptimization}
+                          className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
+                            isDark
+                              ? 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+                              : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                          }`}
+                        >
+                          <X className="w-3 h-3" />
+                          放弃
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </>
               ) : field.type === 'select' ? (
                 <div className="relative">
                   <select

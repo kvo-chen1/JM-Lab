@@ -16,6 +16,10 @@ import SubmissionGuide from '@/components/submit/SubmissionGuide';
 import { PrizeManager } from '@/components/prize';
 import { Prize, PrizeCreateRequest } from '@/types/prize';
 import { prizeService } from '@/services/prizeService';
+import { aiGenerationService, ImageGenerationParams, VideoGenerationParams, GenerationTask } from '@/services/aiGenerationService';
+import { llmService } from '@/services/llmService';
+import Modal from '@/components/ui/Modal';
+import { AIOptimizeButton } from '@/components/AIOptimizeButton';
 
 import {
   Save,
@@ -33,7 +37,13 @@ import {
   Loader2,
   ArrowLeft,
   RotateCcw,
-  Gift
+  Gift,
+  Wand2,
+  Image as ImageIcon2,
+  Film,
+  Sparkles,
+  XCircle,
+  RefreshCw
 } from 'lucide-react';
 
 
@@ -104,6 +114,18 @@ export default function EditActivity() {
   // 奖品相关状态
   const [prizes, setPrizes] = useState<Prize[]>([]);
   const [isLoadingPrizes, setIsLoadingPrizes] = useState(false);
+
+  // AI生成相关状态
+  const [isAIGenerateDialogOpen, setIsAIGenerateDialogOpen] = useState(false);
+  const [aiGenerateType, setAiGenerateType] = useState<'image' | 'video' | null>(null);
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generatedResults, setGeneratedResults] = useState<string[]>([]);
+  const [selectedGeneratedIndex, setSelectedGeneratedIndex] = useState<number | null>(null);
+  const [generationTask, setGenerationTask] = useState<GenerationTask | null>(null);
+  const [generationProgress, setGenerationProgress] = useState(0);
+  const [generationError, setGenerationError] = useState<string | null>(null);
+  const [isOptimizingPrompt, setIsOptimizingPrompt] = useState(false);
 
   // 检查登录状态并加载活动数据
   useEffect(() => {
@@ -452,6 +474,164 @@ export default function EditActivity() {
     }
   };
 
+  // 根据活动信息生成AI提示词
+  const generateAIPromptFromEvent = () => {
+    const { title, description, content, tags, type } = eventData;
+    let prompt = '';
+    
+    if (title) {
+      prompt += `活动主题：${title}。`;
+    }
+    
+    if (description) {
+      prompt += `活动简介：${description}。`;
+    }
+    
+    if (tags && tags.length > 0) {
+      prompt += `相关标签：${tags.join('、')}。`;
+    }
+    
+    if (type === 'offline') {
+      prompt += '线下活动，需要展现现场氛围和参与感。';
+    } else {
+      prompt += '线上活动，需要展现数字化和互动感。';
+    }
+    
+    if (!prompt) {
+      prompt = '生成一张精美的活动宣传图片，风格现代、色彩鲜明、具有吸引力。';
+    }
+    
+    return prompt;
+  };
+
+  // 打开AI生成对话框
+  const openAIGenerateDialog = (type: 'image' | 'video') => {
+    setAiGenerateType(type);
+    setAiPrompt(generateAIPromptFromEvent());
+    setGeneratedResults([]);
+    setSelectedGeneratedIndex(null);
+    setGenerationTask(null);
+    setGenerationProgress(0);
+    setGenerationError(null);
+    setIsAIGenerateDialogOpen(true);
+  };
+
+  // 优化提示词
+  const handleOptimizePrompt = async () => {
+    if (!aiPrompt.trim() || isOptimizingPrompt) return;
+    
+    setIsOptimizingPrompt(true);
+    try {
+      const optimized = await aiGenerationService.optimizePrompt(aiPrompt, aiGenerateType || 'image');
+      setAiPrompt(optimized);
+      toast.success('提示词已优化');
+    } catch (error) {
+      console.error('优化提示词失败:', error);
+      toast.error('优化提示词失败');
+    } finally {
+      setIsOptimizingPrompt(false);
+    }
+  };
+
+  // 开始AI生成
+  const handleStartAIGeneration = async () => {
+    if (!aiPrompt.trim() || isGenerating) return;
+    
+    // 先检查用户是否已登录
+    if (!isAuthenticated || !user) {
+      toast.error('请先登录后再使用AI生成功能');
+      setGenerationError('您尚未登录，请先登录后再使用AI生成功能。');
+      return;
+    }
+    
+    setIsGenerating(true);
+    setGenerationError(null);
+    setGeneratedResults([]);
+    setSelectedGeneratedIndex(null);
+    
+    try {
+      let task: GenerationTask;
+      
+      if (aiGenerateType === 'image') {
+        const params: ImageGenerationParams = {
+          prompt: aiPrompt,
+          size: '1024x1024',
+          n: 4,
+          style: 'auto',
+          quality: 'hd'
+        };
+        task = await aiGenerationService.generateImage(params);
+      } else {
+        const params: VideoGenerationParams = {
+          prompt: aiPrompt,
+          duration: 5,
+          resolution: '720p',
+          aspectRatio: '16:9'
+        };
+        task = await aiGenerationService.generateVideo(params);
+      }
+      
+      setGenerationTask(task);
+      
+      // 监听任务状态
+      const unsubscribe = aiGenerationService.addTaskListener((updatedTask) => {
+        if (updatedTask.id === task.id) {
+          setGenerationTask(updatedTask);
+          setGenerationProgress(updatedTask.progress);
+          
+          if (updatedTask.status === 'completed' && updatedTask.result) {
+            setGeneratedResults(updatedTask.result.urls);
+            setIsGenerating(false);
+            unsubscribe();
+          } else if (updatedTask.status === 'failed') {
+            setGenerationError(updatedTask.error || '生成失败');
+            setIsGenerating(false);
+            unsubscribe();
+          }
+        }
+      });
+      
+    } catch (error) {
+      console.error('AI生成失败:', error);
+      const errorMessage = error instanceof Error ? error.message : '生成失败';
+      
+      // 处理未登录错误
+      if (errorMessage.includes('未登录') || errorMessage.includes('auth') || errorMessage.includes('login') || errorMessage.includes('token')) {
+        setGenerationError('登录状态已过期，请刷新页面后重试。');
+        toast.error('登录状态已过期，请刷新页面');
+      } else {
+        setGenerationError(errorMessage);
+      }
+      
+      setIsGenerating(false);
+    }
+  };
+
+  // 选择生成的媒体
+  const handleSelectGeneratedMedia = async () => {
+    if (selectedGeneratedIndex === null || generatedResults.length === 0) return;
+    
+    const selectedUrl = generatedResults[selectedGeneratedIndex];
+    
+    try {
+      // 将生成的媒体添加到活动媒体列表
+      const newMedia = {
+        url: selectedUrl,
+        type: aiGenerateType,
+        name: `AI生成${aiGenerateType === 'image' ? '图片' : '视频'}`,
+      };
+      
+      const currentMedia = eventData.media || [];
+      handleChange('media', [...currentMedia, newMedia]);
+      
+      toast.success(`已添加AI生成的${aiGenerateType === 'image' ? '图片' : '视频'}`);
+      setIsAIGenerateDialogOpen(false);
+    } catch (error) {
+      console.error('添加生成的媒体失败:', error);
+      toast.error('添加失败，请重试');
+    }
+  };
+
   if (isLoading) {
     return (
       <div className={`min-h-screen flex items-center justify-center ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
@@ -590,9 +770,16 @@ export default function EditActivity() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      活动描述 <span className="text-red-500">*</span>
-                    </label>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        活动描述 <span className="text-red-500">*</span>
+                      </label>
+                      <AIOptimizeButton
+                        content={eventData.description || ''}
+                        fieldLabel="活动描述"
+                        onAccept={(optimized) => handleChange('description', optimized)}
+                      />
+                    </div>
                     <textarea
                       value={eventData.description}
                       onChange={(e) => handleChange('description', e.target.value)}
@@ -710,9 +897,16 @@ export default function EditActivity() {
               {currentStep === 'content' && (
                 <div className="space-y-6">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      活动详情 <span className="text-red-500">*</span>
-                    </label>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        活动详情 <span className="text-red-500">*</span>
+                      </label>
+                      <AIOptimizeButton
+                        content={eventData.content || ''}
+                        fieldLabel="活动详情"
+                        onAccept={(optimized) => handleChange('content', optimized)}
+                      />
+                    </div>
                     <textarea
                       value={eventData.content}
                       onChange={(e) => handleChange('content', e.target.value)}
@@ -730,6 +924,48 @@ export default function EditActivity() {
               {/* 多媒体步骤 */}
               {currentStep === 'media' && (
                 <div className="space-y-6">
+                  {/* AI生成按钮区域 */}
+                  <div className="p-4 rounded-xl bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 border border-purple-200 dark:border-purple-800">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center">
+                        <Wand2 className="w-5 h-5 text-white" />
+                      </div>
+                      <div>
+                        <h4 className="font-medium text-gray-900 dark:text-white">AI智能生成</h4>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">根据活动内容自动生成精美的宣传素材</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-3">
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => openAIGenerateDialog('image')}
+                        className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-white dark:bg-gray-800 border border-purple-200 dark:border-purple-700 rounded-xl text-purple-700 dark:text-purple-400 font-medium hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors"
+                      >
+                        <ImageIcon2 className="w-4 h-4" />
+                        生成图片
+                      </motion.button>
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => openAIGenerateDialog('video')}
+                        className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-white dark:bg-gray-800 border border-blue-200 dark:border-blue-700 rounded-xl text-blue-700 dark:text-blue-400 font-medium hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
+                      >
+                        <Film className="w-4 h-4" />
+                        生成视频
+                      </motion.button>
+                    </div>
+                  </div>
+
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-gray-200 dark:border-gray-700"></div>
+                    </div>
+                    <div className="relative flex justify-center text-sm">
+                      <span className="px-2 bg-white dark:bg-gray-800 text-gray-500">或</span>
+                    </div>
+                  </div>
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                       活动封面 <span className="text-red-500">*</span>
@@ -770,6 +1006,12 @@ export default function EditActivity() {
                           >
                             ×
                           </button>
+                          {media.name?.includes('AI生成') && (
+                            <div className="absolute bottom-2 left-2 px-2 py-1 bg-purple-500/80 text-white text-xs rounded flex items-center gap-1">
+                              <Sparkles className="w-3 h-3" />
+                              AI生成
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -1113,6 +1355,191 @@ export default function EditActivity() {
           </div>
         </div>
       </div>
+
+      {/* AI生成对话框 */}
+      <Modal
+        isOpen={isAIGenerateDialogOpen}
+        onClose={() => setIsAIGenerateDialogOpen(false)}
+        title={
+          <div className="flex items-center gap-2">
+            <Wand2 className="w-5 h-5 text-purple-500" />
+            AI生成{aiGenerateType === 'image' ? '图片' : '视频'}
+          </div>
+        }
+        size="lg"
+      >
+        <div className="space-y-6">
+          {/* 提示词输入区域 */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              描述您想要生成的内容
+            </label>
+            <div className="relative">
+              <textarea
+                value={aiPrompt}
+                onChange={(e) => setAiPrompt(e.target.value)}
+                placeholder="例如：一张现代风格的活动宣传海报，色彩鲜明，展现文化氛围..."
+                rows={4}
+                className={`w-full px-4 py-3 pr-24 rounded-xl border text-sm transition-all resize-none ${
+                  isDark ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-200 text-gray-900'
+                } focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500`}
+              />
+              <button
+                onClick={handleOptimizePrompt}
+                disabled={isOptimizingPrompt || !aiPrompt.trim()}
+                className="absolute bottom-3 right-3 px-3 py-1.5 text-xs font-medium text-purple-600 bg-purple-50 dark:bg-purple-900/30 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isOptimizingPrompt ? (
+                  <span className="flex items-center gap-1">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    优化中
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1">
+                    <Sparkles className="w-3 h-3" />
+                    优化
+                  </span>
+                )}
+              </button>
+            </div>
+            <p className="mt-2 text-xs text-gray-500">
+              提示词已根据您填写的活动信息自动生成，您可以根据需要进行修改
+            </p>
+          </div>
+
+          {/* 生成按钮 */}
+          <div className="flex gap-3">
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={handleStartAIGeneration}
+              disabled={isGenerating || !aiPrompt.trim()}
+              className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-500 to-blue-500 text-white font-medium rounded-xl hover:from-purple-600 hover:to-blue-600 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
+            >
+              {isGenerating ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  生成中... {generationProgress}%
+                </>
+              ) : (
+                <>
+                  <Wand2 className="w-5 h-5" />
+                  开始生成
+                </>
+              )}
+            </motion.button>
+          </div>
+
+          {/* 进度条 */}
+          {isGenerating && (
+            <div className="space-y-2">
+              <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${generationProgress}%` }}
+                  className="h-full bg-gradient-to-r from-purple-500 to-blue-500"
+                />
+              </div>
+              <p className="text-xs text-gray-500 text-center">
+                {generationProgress < 30 && '正在提交生成任务...'}
+                {generationProgress >= 30 && generationProgress < 70 && 'AI正在创作中，请稍候...'}
+                {generationProgress >= 70 && generationProgress < 100 && '正在处理生成结果...'}
+                {generationProgress === 100 && '生成完成！'}
+              </p>
+            </div>
+          )}
+
+          {/* 错误提示 */}
+          {generationError && (
+            <div className="p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+              <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
+                <XCircle className="w-5 h-5" />
+                <span className="font-medium">生成失败</span>
+              </div>
+              <p className="mt-1 text-sm text-red-600 dark:text-red-400">{generationError}</p>
+              <button
+                onClick={handleStartAIGeneration}
+                className="mt-3 flex items-center gap-1 text-sm text-red-600 dark:text-red-400 hover:underline"
+              >
+                <RefreshCw className="w-4 h-4" />
+                重试
+              </button>
+            </div>
+          )}
+
+          {/* 生成结果展示 */}
+          {generatedResults.length > 0 && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h4 className="font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                  <CheckCircle2 className="w-5 h-5 text-green-500" />
+                  生成完成！请选择您喜欢的结果
+                </h4>
+                <span className="text-sm text-gray-500">
+                  共 {generatedResults.length} 个结果
+                </span>
+              </div>
+
+              <div className={`grid gap-4 ${generatedResults.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                {generatedResults.map((url, index) => (
+                  <motion.div
+                    key={index}
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: index * 0.1 }}
+                    onClick={() => setSelectedGeneratedIndex(index)}
+                    className={`relative aspect-video rounded-xl overflow-hidden cursor-pointer transition-all ${
+                      selectedGeneratedIndex === index
+                        ? 'ring-4 ring-purple-500 ring-offset-2 dark:ring-offset-gray-900'
+                        : 'hover:opacity-90'
+                    }`}
+                  >
+                    {aiGenerateType === 'video' ? (
+                      <video
+                        src={url}
+                        className="w-full h-full object-cover"
+                        controls
+                        preload="metadata"
+                      />
+                    ) : (
+                      <img
+                        src={url}
+                        alt={`生成结果 ${index + 1}`}
+                        className="w-full h-full object-cover"
+                      />
+                    )}
+                    {selectedGeneratedIndex === index && (
+                      <div className="absolute inset-0 bg-purple-500/20 flex items-center justify-center">
+                        <div className="w-12 h-12 rounded-full bg-purple-500 text-white flex items-center justify-center">
+                          <CheckCircle2 className="w-6 h-6" />
+                        </div>
+                      </div>
+                    )}
+                    <div className="absolute top-2 left-2 px-2 py-1 bg-black/60 text-white text-xs rounded">
+                      结果 {index + 1}
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+
+              {/* 选择按钮 */}
+              {selectedGeneratedIndex !== null && (
+                <motion.button
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={handleSelectGeneratedMedia}
+                  className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-green-500 hover:bg-green-600 text-white font-medium rounded-xl transition-colors"
+                >
+                  <CheckCircle2 className="w-5 h-5" />
+                  使用选中的{aiGenerateType === 'image' ? '图片' : '视频'}
+                </motion.button>
+              )}
+            </div>
+          )}
+        </div>
+      </Modal>
     </div>
   );
 }

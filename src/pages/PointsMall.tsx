@@ -13,7 +13,7 @@ const PointsMall: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<ProductCategory | 'all'>('all');
   const [exchangeRecords, setExchangeRecords] = useState<ExchangeRecord[]>([]);
-  const [showRecords, setShowRecords] = useState(false);
+  const [showRecordsModal, setShowRecordsModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -249,18 +249,16 @@ const PointsMall: React.FC = () => {
 
               {/* 兑换记录按钮 */}
               <button
-                onClick={() => setShowRecords(!showRecords)}
+                onClick={() => setShowRecordsModal(true)}
                 className={`flex items-center gap-2 px-4 py-3 rounded-xl transition-all ${
-                  showRecords
-                    ? isDark ? 'bg-red-600 text-white' : 'bg-red-500 text-white'
-                    : isDark ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:bg-gray-100'
+                  isDark ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:bg-gray-100'
                 } shadow-lg`}
               >
                 <History className="w-5 h-5" />
                 <span className="hidden sm:inline">兑换记录</span>
                 {exchangeRecords.length > 0 && (
                   <span className={`px-2 py-0.5 rounded-full text-xs ${
-                    showRecords ? 'bg-white/20' : isDark ? 'bg-red-500 text-white' : 'bg-red-100 text-red-600'
+                    isDark ? 'bg-red-500 text-white' : 'bg-red-100 text-red-600'
                   }`}>
                     {exchangeRecords.length}
                   </span>
@@ -445,85 +443,142 @@ const PointsMall: React.FC = () => {
           </motion.div>
         )}
 
-        {/* 兑换记录 */}
+        {/* 兑换记录弹窗 */}
         <AnimatePresence>
-          {showRecords && (
+          {showRecordsModal && (
             <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              className="mt-12"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[70] p-4"
+              onClick={() => setShowRecordsModal(false)}
             >
-              <div className="flex items-center gap-2 mb-4">
-                <History className="w-5 h-5" />
-                <h2 className="text-xl font-bold">兑换记录</h2>
-              </div>
-              
-              <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-lg overflow-hidden`}>
-                {exchangeRecords.length === 0 ? (
-                  <div className="p-12 text-center">
-                    <Package className={`w-16 h-16 mx-auto mb-4 ${isDark ? 'text-gray-600' : 'text-gray-300'}`} />
-                    <p className={isDark ? 'text-gray-400' : 'text-gray-600'}>暂无兑换记录</p>
-                    <p className={`text-sm mt-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                      快去兑换心仪的商品吧！
-                    </p>
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                className={`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-2xl max-w-3xl w-full max-h-[80vh] flex flex-col`}
+                onClick={e => e.stopPropagation()}
+              >
+                {/* 弹窗头部 */}
+                <div className={`flex items-center justify-between p-6 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-xl ${isDark ? 'bg-red-500/20' : 'bg-red-100'}`}>
+                      <History className={`w-6 h-6 ${isDark ? 'text-red-400' : 'text-red-600'}`} />
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-bold">兑换记录</h2>
+                      <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        共 {exchangeRecords.length} 条记录
+                      </p>
+                    </div>
                   </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr className={`${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
-                          <th className={`text-left p-4 text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>商品名称</th>
-                          <th className={`text-left p-4 text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>消耗积分</th>
-                          <th className={`text-left p-4 text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>兑换时间</th>
-                          <th className={`text-left p-4 text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>状态</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {exchangeRecords.map((record, index) => (
-                          <motion.tr 
-                            key={record.id}
-                            initial={{ opacity: 0, x: -20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: index * 0.05 }}
-                            className={`${isDark ? 'border-b border-gray-700' : 'border-b border-gray-200'} last:border-0`}
-                          >
-                            <td className="p-4">
-                              <div className="font-medium">{record.productName}</div>
-                            </td>
-                            <td className="p-4">
-                              <span className="text-red-500 font-medium">-{record.points}</span>
-                            </td>
-                            <td className="p-4 text-sm opacity-70">
-                              {new Date(record.date).toLocaleString('zh-CN')}
-                            </td>
-                            <td className="p-4">
-                              <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                                record.status === 'completed' 
-                                  ? 'bg-green-500 text-white' 
-                                  : record.status === 'pending' 
-                                    ? 'bg-yellow-500 text-white' 
-                                    : record.status === 'processing'
-                                      ? 'bg-blue-500 text-white'
-                                      : 'bg-red-500 text-white'
-                              }`}>
-                                {record.status === 'completed' 
-                                  ? '已完成' 
-                                  : record.status === 'pending' 
-                                    ? '待处理' 
-                                    : record.status === 'processing'
-                                      ? '处理中'
-                                      : '已取消'
-                                }
-                              </span>
-                            </td>
-                          </motion.tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
+                  <button
+                    onClick={() => setShowRecordsModal(false)}
+                    className={`p-2 rounded-lg transition-colors ${
+                      isDark ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-500'
+                    }`}
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+
+                {/* 弹窗内容 */}
+                <div className="flex-1 overflow-hidden">
+                  {exchangeRecords.length === 0 ? (
+                    <div className="p-12 text-center">
+                      <div className={`w-20 h-20 mx-auto mb-4 rounded-full flex items-center justify-center ${
+                        isDark ? 'bg-gray-700' : 'bg-gray-100'
+                      }`}>
+                        <Package className={`w-10 h-10 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
+                      </div>
+                      <p className={`text-lg font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                        暂无兑换记录
+                      </p>
+                      <p className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                        快去兑换心仪的商品吧！
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="overflow-auto max-h-[calc(80vh-140px)]">
+                      <table className="w-full">
+                        <thead className={`sticky top-0 ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
+                          <tr className={`${isDark ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                            <th className={`text-left p-4 text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>商品名称</th>
+                            <th className={`text-left p-4 text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>消耗积分</th>
+                            <th className={`text-left p-4 text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>兑换时间</th>
+                            <th className={`text-left p-4 text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>状态</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {exchangeRecords.map((record, index) => (
+                            <motion.tr
+                              key={record.id}
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ delay: index * 0.03 }}
+                              className={`${isDark ? 'border-b border-gray-700/50 hover:bg-gray-700/30' : 'border-b border-gray-100 hover:bg-gray-50'} last:border-0 transition-colors`}
+                            >
+                              <td className="p-4">
+                                <div className="flex items-center gap-3">
+                                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                                    isDark ? 'bg-gray-700' : 'bg-gray-100'
+                                  }`}>
+                                    <Package className={`w-5 h-5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
+                                  </div>
+                                  <div className="font-medium">{record.productName}</div>
+                                </div>
+                              </td>
+                              <td className="p-4">
+                                <span className="text-red-500 font-medium">-{record.points}</span>
+                              </td>
+                              <td className="p-4 text-sm opacity-70">
+                                {new Date(record.date).toLocaleString('zh-CN')}
+                              </td>
+                              <td className="p-4">
+                                <span className={`px-3 py-1.5 rounded-full text-xs font-medium ${
+                                  record.status === 'completed'
+                                    ? 'bg-green-500/10 text-green-500 border border-green-500/20'
+                                    : record.status === 'pending'
+                                      ? 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20'
+                                      : record.status === 'processing'
+                                        ? 'bg-blue-500/10 text-blue-500 border border-blue-500/20'
+                                        : 'bg-red-500/10 text-red-500 border border-red-500/20'
+                                }`}>
+                                  {record.status === 'completed'
+                                    ? '已完成'
+                                    : record.status === 'pending'
+                                      ? '待处理'
+                                      : record.status === 'processing'
+                                        ? '处理中'
+                                        : '已取消'
+                                  }
+                                </span>
+                              </td>
+                            </motion.tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+                {/* 弹窗底部 */}
+                <div className={`p-4 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'} flex justify-end`}>
+                  <button
+                    onClick={() => setShowRecordsModal(false)}
+                    className={`px-6 py-2.5 rounded-xl font-medium transition-all ${
+                      isDark
+                        ? 'bg-gray-700 hover:bg-gray-600 text-gray-200'
+                        : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                    }`}
+                  >
+                    关闭
+                  </button>
+                </div>
+              </motion.div>
             </motion.div>
           )}
         </AnimatePresence>

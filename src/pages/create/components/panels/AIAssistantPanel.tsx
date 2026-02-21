@@ -55,7 +55,8 @@ export default function AIAssistantPanel() {
   // 会话管理
   const [sessions, setSessions] = useState<ConversationSession[]>([]);
   const [currentSession, setCurrentSession] = useState<ConversationSession | null>(null);
-  const [showSessionList, setShowSessionList] = useState(true);
+  // 电脑端默认收缩会话列表，给聊天区域更多空间
+  const [showSessionList, setShowSessionList] = useState(false);
   const [isEditingSessionName, setIsEditingSessionName] = useState(false);
   const [editingSessionName, setEditingSessionName] = useState('');
   // 会话列表中正在编辑的会话ID和名称
@@ -688,14 +689,29 @@ export default function AIAssistantPanel() {
         {showSessionList && (
           <motion.div
             initial={{ width: 0, opacity: 0 }}
-            animate={{ width: 200, opacity: 1 }}
+            animate={{ width: 220, opacity: 1 }}
             exit={{ width: 0, opacity: 0 }}
             transition={{ duration: 0.3 }}
             className={clsx(
-              "flex flex-col border-r shrink-0 h-full overflow-hidden",
+              "flex flex-col border-r shrink-0 h-full overflow-hidden relative",
               isDark ? "border-gray-800/50 bg-gray-900/50" : "border-gray-200/50 bg-gray-50/50"
             )}
           >
+            {/* 关闭按钮 - 在面板内部右上角 */}
+            <motion.button
+              onClick={() => setShowSessionList(false)}
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
+              className={clsx(
+                "absolute top-2 right-2 z-10 w-6 h-6 rounded-lg flex items-center justify-center transition-colors",
+                isDark
+                  ? "bg-gray-800/80 text-gray-400 hover:text-gray-200 hover:bg-gray-700"
+                  : "bg-white/80 text-gray-400 hover:text-gray-600 hover:bg-gray-200"
+              )}
+              title="关闭会话列表"
+            >
+              <i className="fas fa-times text-xs" />
+            </motion.button>
             {/* 会话列表头部 */}
             <div className={clsx(
               "flex items-center justify-between px-3 py-3 border-b",
@@ -884,16 +900,20 @@ export default function AIAssistantPanel() {
             : 'border-gray-200/50 bg-white/80'
         )}>
           <div className="flex items-center space-x-3">
-            {/* 切换会话列表按钮 */}
+            {/* 切换会话列表按钮 - 优化样式使其更明显 */}
             <motion.button
               onClick={() => setShowSessionList(!showSessionList)}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               className={clsx(
-                "p-2 rounded-xl transition-colors",
-                isDark
-                  ? "bg-gray-800 text-gray-300 hover:bg-gray-700"
-                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                "p-2.5 rounded-xl transition-all duration-200 border",
+                showSessionList
+                  ? (isDark
+                      ? "bg-purple-500/20 text-purple-400 border-purple-500/30"
+                      : "bg-purple-100 text-purple-600 border-purple-200")
+                  : (isDark
+                      ? "bg-gray-800 text-gray-300 hover:bg-gray-700 border-gray-700"
+                      : "bg-gray-100 text-gray-600 hover:bg-gray-200 border-gray-200")
               )}
               title={showSessionList ? "隐藏会话列表" : "显示会话列表"}
             >
@@ -1093,22 +1113,27 @@ export default function AIAssistantPanel() {
                           {index === 0 && message.role === 'assistant' ? (
                             <div className="space-y-4">
                               <p className="font-medium text-base">{message.content}</p>
-                              <div className="grid grid-cols-1 gap-2.5">
+                              {/* 功能列表 - 响应式布局：电脑端2列，移动端1列 */}
+                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
                                 {FEATURES.map((feature, idx) => (
                                   <motion.div
                                     key={idx}
                                     initial={{ opacity: 0, x: -10 }}
                                     animate={{ opacity: 1, x: 0 }}
                                     transition={{ delay: idx * 0.1 + 0.3 }}
+                                    onClick={() => {
+                                      const cmd = QUICK_COMMANDS.find(c => c.label === feature.text);
+                                      if (cmd) handleQuickCommand(cmd);
+                                    }}
                                     className={clsx(
-                                      "flex items-center space-x-3 p-2.5 rounded-xl transition-all cursor-pointer group",
+                                      "flex items-center space-x-3 p-3 rounded-xl transition-all cursor-pointer group",
                                       isDark
                                         ? "bg-gray-700/50 hover:bg-gray-700 border border-gray-600/30"
-                                        : "bg-gray-50 hover:bg-gray-100 border border-gray-200/50"
+                                        : "bg-gray-50 hover:bg-gray-100 border border-gray-200/50 hover:shadow-sm"
                                     )}
                                   >
                                     <div
-                                      className="w-8 h-8 rounded-lg flex items-center justify-center transition-transform group-hover:scale-110"
+                                      className="w-9 h-9 rounded-lg flex items-center justify-center transition-transform group-hover:scale-110"
                                       style={{
                                         background: `linear-gradient(135deg, ${feature.color}20, ${feature.color}10)`,
                                         border: `1px solid ${feature.color}30`
@@ -1116,32 +1141,26 @@ export default function AIAssistantPanel() {
                                     >
                                       <i
                                         className={`fas fa-${feature.icon}`}
-                                        style={{ color: feature.color, fontSize: '12px' }}
+                                        style={{ color: feature.color, fontSize: '14px' }}
                                       />
                                     </div>
-                                    <div className="flex-1">
+                                    <div className="flex-1 min-w-0">
                                       <p className={clsx(
-                                        "font-medium text-xs",
+                                        "font-medium text-sm",
                                         isDark ? "text-gray-200" : "text-gray-700"
                                       )}>{feature.text}</p>
                                       <p className={clsx(
-                                        "text-[10px] mt-0.5",
+                                        "text-xs mt-0.5 truncate",
                                         isDark ? "text-gray-500" : "text-gray-500"
                                       )}>{feature.desc}</p>
                                     </div>
                                     <i className={clsx(
-                                      "fas fa-chevron-right text-xs transition-transform group-hover:translate-x-1",
+                                      "fas fa-chevron-right text-xs transition-transform group-hover:translate-x-1 flex-shrink-0",
                                       isDark ? "text-gray-600" : "text-gray-400"
                                     )} />
                                   </motion.div>
                                 ))}
                               </div>
-                              <p className={clsx(
-                                "text-xs text-center pt-2",
-                                isDark ? "text-gray-500" : "text-gray-400"
-                              )}>
-                                试试点击下方快捷指令，或直接输入你的需求
-                              </p>
                             </div>
                           ) : (
                             <div className="whitespace-pre-wrap prose prose-sm max-w-none dark:prose-invert">
@@ -1248,8 +1267,8 @@ export default function AIAssistantPanel() {
                   <div ref={messagesEndRef} />
                 </div>
 
-                {/* 快捷指令 - 卡片式设计 */}
-                {chatMessages.length <= 2 && (
+                {/* 快捷指令 - 仅在有消息时显示，避免与欢迎界面的功能列表重复 */}
+                {chatMessages.length > 1 && chatMessages.length <= 3 && (
                   <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -1260,7 +1279,8 @@ export default function AIAssistantPanel() {
                       'text-[11px] font-medium uppercase tracking-wider mb-3',
                       isDark ? 'text-gray-500' : 'text-gray-400'
                     )}>快捷指令</p>
-                    <div className="grid grid-cols-2 gap-2.5">
+                    {/* 响应式布局：电脑端4列，平板2列，手机2列 */}
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
                       {QUICK_COMMANDS.map((cmd, idx) => (
                         <motion.button
                           key={cmd.id}
@@ -1279,14 +1299,14 @@ export default function AIAssistantPanel() {
                         >
                           <div
                             className={clsx(
-                              "w-7 h-7 rounded-lg flex items-center justify-center transition-transform group-hover:scale-110",
+                              "w-7 h-7 rounded-lg flex items-center justify-center transition-transform group-hover:scale-110 flex-shrink-0",
                               `bg-gradient-to-br ${cmd.gradient}`
                             )}
                           >
                             <i className={`fas fa-${cmd.icon} text-white text-[10px]`} />
                           </div>
                           <span className={clsx(
-                            "font-medium",
+                            "font-medium truncate",
                             isDark ? 'text-gray-300' : 'text-gray-600'
                           )}>{cmd.label}</span>
                         </motion.button>

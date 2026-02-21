@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTheme } from '@/hooks/useTheme';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
+import { llmService } from '@/services/llmService';
 
 import {
   ThreeColumnLayout,
@@ -287,6 +288,31 @@ ${formData.competitiveAdvantage || '我们的核心竞争优势包括：'}
     });
   };
 
+  // 处理AI优化提示词
+  const handleOptimizePrompt = useCallback(async (fieldId: string, currentValue: string, fieldLabel: string): Promise<string> => {
+    try {
+      const prompt = `请优化以下"${fieldLabel}"的描述，使其更加专业、清晰、有吸引力，同时保持原意：
+
+原始内容：
+${currentValue}
+
+要求：
+1. 语言更加专业和流畅
+2. 突出关键信息和卖点
+3. 结构清晰，易于理解
+4. 保持简洁，避免冗余
+
+请直接返回优化后的内容，不需要解释。`;
+
+      const response = await llmService.directGenerateResponse(prompt);
+      return response || currentValue;
+    } catch (error) {
+      console.error('AI优化失败:', error);
+      toast.error('AI优化失败，请稍后重试');
+      throw error;
+    }
+  }, []);
+
   return (
     <>
       <ThreeColumnLayout
@@ -384,6 +410,7 @@ ${formData.competitiveAdvantage || '我们的核心竞争优势包括：'}
           template={selectedTemplate}
           onSubmit={handleSubmit}
           isGenerating={isGenerating}
+          onOptimizePrompt={handleOptimizePrompt}
         />
       }
       />

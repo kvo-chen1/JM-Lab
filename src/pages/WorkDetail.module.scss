@@ -239,6 +239,18 @@ $desktop: 1400px;
     font-weight: 500;
     color: $text-primary;
   }
+
+  // 点赞后的红色样式
+  &.liked {
+    svg {
+      color: #ef4444;
+    }
+  }
+}
+
+// 点赞后的文字样式
+.likedText {
+  color: #ef4444 !important;
 }
 
 .cardSaveButton {
@@ -932,6 +944,7 @@ $desktop: 1400px;
   width: 100%;
   overflow: hidden;
   background: $hover-bg;
+  border-radius: 16px 16px 0 0;
 }
 
 .masonryImage {
@@ -943,20 +956,26 @@ $desktop: 1400px;
   object-fit: cover;
 }
 
-.videoBadge {
+ .videoBadge {
   position: absolute;
   top: 8px;
   right: 8px;
-  width: 24px;
-  height: 24px;
+  padding: 4px 8px;
   background: rgba(0, 0, 0, 0.6);
-  border-radius: 50%;
+  border-radius: 12px;
   @include flex-center;
+  gap: 4px;
   
   svg {
     width: 12px;
     height: 12px;
     color: white;
+  }
+  
+  span {
+    font-size: 10px;
+    color: white;
+    font-weight: 500;
   }
 }
 

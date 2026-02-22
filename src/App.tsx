@@ -152,6 +152,20 @@ const SubmitWork = createLazyComponent(() => import(/* webpackChunkName: "pages-
   priority: ROUTE_PRIORITIES.HIGH
 });
 
+// 移动端活动作品相关页面
+const MobileEventWorks = createLazyComponent(() => import(/* webpackChunkName: "pages-mobile-events" */ "@/pages/MobileEventWorks"), {
+  priority: ROUTE_PRIORITIES.HIGH,
+  name: 'mobile-event-works'
+});
+const MobileWorkDetail = createLazyComponent(() => import(/* webpackChunkName: "pages-mobile-events" */ "@/pages/MobileWorkDetail"), {
+  priority: ROUTE_PRIORITIES.HIGH,
+  name: 'mobile-work-detail'
+});
+const MobileSubmitWork = createLazyComponent(() => import(/* webpackChunkName: "pages-mobile-events" */ "@/pages/MobileSubmitWork"), {
+  priority: ROUTE_PRIORITIES.HIGH,
+  name: 'mobile-submit-work'
+});
+
 const SearchResults = createLazyComponent(() => import(/* webpackChunkName: "pages-explore" */ "@/pages/SearchResults"), {
   priority: ROUTE_PRIORITIES.HIGH,
   name: 'search'
@@ -828,8 +842,9 @@ export default function App() {
           <Route path="/inspiration-mindmap" element={<LazyComponent><PrivateRoute><InspirationMindMapPage /></PrivateRoute></LazyComponent>} />
 
           <Route path="/events" element={<LazyComponent><CulturalEvents /></LazyComponent>} />
-          <Route path="/events/:id/works" element={<LazyComponent><EventWorks /></LazyComponent>} />
-          <Route path="/events/:id/submit" element={<LazyComponent><PrivateRoute><SubmitWork /></PrivateRoute></LazyComponent>} />
+          <Route path="/events/:id/works" element={<LazyComponent>{isMobile ? <MobileEventWorks /> : <EventWorks />}</LazyComponent>} />
+          <Route path="/events/:id/submit" element={<LazyComponent><PrivateRoute>{isMobile ? <MobileSubmitWork /> : <SubmitWork />}</PrivateRoute></LazyComponent>} />
+          <Route path="/events/:eventId/works/:workId" element={<LazyComponent>{isMobile ? <MobileWorkDetail /> : <WorkDetail />}</LazyComponent>} />
           <Route path="/cultural-events" element={<LazyComponent><CulturalEvents /></LazyComponent>} />
           
           {/* 活动管理相关路由 */}

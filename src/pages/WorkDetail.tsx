@@ -13,6 +13,8 @@ import { AuthContext } from '@/contexts/authContext';
 import { communityService } from '@/services/communityService';
 import type { UserProfile } from '@/lib/supabase';
 import styles from './WorkDetail.module.scss';
+import WorkShareModal from '@/components/share/WorkShareModal';
+import { Users, MessageCircle, Link2, X } from 'lucide-react';
 
 // 常用表情列表
 const EMOJI_LIST = [
@@ -89,6 +91,7 @@ interface RecommendedWork {
   aspectRatio: number;
   type?: 'image' | 'video';
   likes?: number;
+  videoUrl?: string;
 }
 
 const WorkDetail: React.FC<WorkDetailProps> = ({ currentUser: propUser }) => {
@@ -118,6 +121,8 @@ const WorkDetail: React.FC<WorkDetailProps> = ({ currentUser: propUser }) => {
   const [replyText, setReplyText] = useState('');
   const [commentsExpanded, setCommentsExpanded] = useState(false);
   const [activeCommentMenu, setActiveCommentMenu] = useState<string | null>(null);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [isWorkShareModalOpen, setIsWorkShareModalOpen] = useState(false);
 
   const commentInputRef = useRef<HTMLTextAreaElement>(null);
   const replyInputRef = useRef<HTMLInputElement>(null);
@@ -185,16 +190,27 @@ const WorkDetail: React.FC<WorkDetailProps> = ({ currentUser: propUser }) => {
         
         // 使用真实作品数据作为推荐作品（排除当前作品）
         const otherPosts = allPosts.filter(p => p.id !== id);
-        const realRecommendedWorks: RecommendedWork[] = otherPosts.map((post, index) => ({
-          id: post.id,
-          thumbnail: post.thumbnail || '',
-          title: post.title || '无标题',
-          author: typeof post.author === 'object' ? post.author?.username || '未知作者' : post.author || '未知作者',
-          authorAvatar: typeof post.author === 'object' ? post.author?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${post.author?.id || index}` : `https://api.dicebear.com/7.x/avataaars/svg?seed=${index}`,
-          aspectRatio: post.aspectRatio || (post.width && post.height ? post.width / post.height : 1),
-          type: post.type || 'image',
-          likes: post.likes || 0
-        }));
+        const realRecommendedWorks: RecommendedWork[] = otherPosts.map((post, index) => {
+          // 计算宽高比：优先使用原始数据，如果没有则基于ID生成一个固定的错落有致的宽高比
+          let aspectRatio = post.aspectRatio || (post.width && post.height ? post.width / post.height : 0);
+          if (!aspectRatio || aspectRatio === 1) {
+            // 基于作品ID生成一个固定的宽高比（0.75 - 1.5之间），确保同一作品每次显示一致
+            const idHash = post.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+            aspectRatio = 0.75 + (idHash % 75) / 100; // 0.75 - 1.5
+          }
+          
+          return {
+            id: post.id,
+            thumbnail: post.thumbnail || '',
+            title: post.title || '无标题',
+            author: typeof post.author === 'object' ? post.author?.username || '未知作者' : post.author || '未知作者',
+            authorAvatar: typeof post.author === 'object' ? post.author?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${post.author?.id || index}` : `https://api.dicebear.com/7.x/avataaars/svg?seed=${index}`,
+            aspectRatio,
+            type: post.type || 'image',
+            likes: post.likes || 0,
+            videoUrl: post.videoUrl || (post.type === 'video' ? post.thumbnail : undefined)
+          };
+        });
         
         setRecommendedWorks(realRecommendedWorks);
       } catch (error) {
@@ -335,19 +351,23 @@ const WorkDetail: React.FC<WorkDetailProps> = ({ currentUser: propUser }) => {
 
   // 处理分享
   const handleShare = async () => {
+    setIsShareModalOpen(true);
+  };
+
+  // 处理复制链接
+  const handleCopyLink = async () => {
     try {
-      if (navigator.share) {
-        await navigator.share({
-          title: post?.title || '作品分享',
-          url: window.location.href,
-        });
-      } else {
-        await navigator.clipboard.writeText(window.location.href);
-        toast.success('链接已复制到剪贴板');
-      }
+      await navigator.clipboard.writeText(window.location.href);
+      toast.success('链接已复制到剪贴板');
     } catch (error) {
-      console.error('分享失败:', error);
+      toast.error('复制失败，请手动复制');
     }
+  };
+
+  // 处理私信分享
+  const handlePrivateShare = () => {
+    setIsShareModalOpen(false);
+    setIsWorkShareModalOpen(true);
   };
 
   // 处理图片选择
@@ -496,11 +516,11 @@ const WorkDetail: React.FC<WorkDetailProps> = ({ currentUser: propUser }) => {
   };
 
   // 渲染瀑布流推荐作品
-  const renderMasonryGrid = (works: RecommendedWork[] = recommendedWorks) => {
-    // 将作品分成3列
-    const columns: RecommendedWork[][] = [[], [], []];
+  const renderMasonryGrid = (works: RecommendedWork[] = recommendedWorks, columnCount: number = 3) => {
+    // 将作品分成指定列数
+    const columns: RecommendedWork[][] = Array.from({ length: columnCount }, () => []);
     works.forEach((work, index) => {
-      columns[index % 3].push(work);
+      columns[index % columnCount].push(work);
     });
 
     return (
@@ -522,17 +542,34 @@ const WorkDetail: React.FC<WorkDetailProps> = ({ currentUser: propUser }) => {
                 }}
               >
                 <div className={styles.masonryImageWrapper} style={{ paddingBottom: `${(1 / work.aspectRatio) * 100}%` }}>
-                  <img
-                    src={work.thumbnail}
-                    alt={work.title}
-                    className={styles.masonryImage}
-                    loading="lazy"
-                  />
+                  {work.type === 'video' && work.videoUrl ? (
+                    <video
+                      src={work.videoUrl}
+                      className={styles.masonryImage}
+                      muted
+                      playsInline
+                      loop
+                      autoPlay
+                      preload="metadata"
+                    />
+                  ) : (
+                    <img
+                      src={work.thumbnail}
+                      alt={work.title}
+                      className={styles.masonryImage}
+                      loading="lazy"
+                      onError={(e) => {
+                        // 图片加载失败时显示占位图
+                        (e.target as HTMLImageElement).src = 'https://via.placeholder.com/400x300?text=No+Image';
+                      }}
+                    />
+                  )}
                   {work.type === 'video' && (
                     <div className={styles.videoBadge}>
                       <svg viewBox="0 0 24 24" fill="currentColor">
                         <path d="M8 5v14l11-7z"/>
                       </svg>
+                      <span>视频</span>
                     </div>
                   )}
                 </div>
@@ -597,13 +634,19 @@ const WorkDetail: React.FC<WorkDetailProps> = ({ currentUser: propUser }) => {
             {/* 卡片内顶部导航 */}
             <div className={styles.cardHeader}>
               <div className={styles.cardHeaderActions}>
-                <button className={styles.cardIconButton} onClick={handleLike}>
+                <button className={`${styles.cardIconButton} ${post.isLiked ? styles.liked : ''}`} onClick={handleLike}>
                   <svg viewBox="0 0 24 24" fill={post.isLiked ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
                     <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/>
                   </svg>
-                  <span>{post.likes || 0}</span>
+                  <span className={post.isLiked ? styles.likedText : ''}>{post.likes || 0}</span>
                 </button>
-                <button className={styles.cardIconButton}>
+                <button className={styles.cardIconButton} onClick={() => {
+                  // 滚动到评论区
+                  const commentsSection = document.getElementById('comments-section');
+                  if (commentsSection) {
+                    commentsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }
+                }}>
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/>
                   </svg>
@@ -705,7 +748,7 @@ const WorkDetail: React.FC<WorkDetailProps> = ({ currentUser: propUser }) => {
             </div>
 
             {/* 评论区 */}
-            <div className={styles.commentsSection}>
+            <div id="comments-section" className={styles.commentsSection}>
               <h3 
                 className={styles.commentsTitle}
                 onClick={() => setCommentsExpanded(!commentsExpanded)}
@@ -951,10 +994,10 @@ const WorkDetail: React.FC<WorkDetailProps> = ({ currentUser: propUser }) => {
               </div>
             </div>
 
-            {/* 底部推荐作品（左半部分） */}
+            {/* 底部推荐作品（两列布局） */}
             <div className={styles.bottomRecommended}>
               <h3 className={styles.bottomRecommendedTitle}>更多精彩推荐</h3>
-              {renderMasonryGrid(recommendedWorks.slice(0, Math.ceil(recommendedWorks.length / 2)))}
+              {renderMasonryGrid(recommendedWorks.slice(0, Math.ceil(recommendedWorks.length / 2)), 2)}
             </div>
           </div>
         </div>
@@ -986,6 +1029,134 @@ const WorkDetail: React.FC<WorkDetailProps> = ({ currentUser: propUser }) => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Share Modal */}
+      <AnimatePresence>
+        {isShareModalOpen && post && (
+          <>
+            {/* 背景遮罩 */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsShareModalOpen(false)}
+              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[150]"
+            />
+
+            {/* 分享弹窗 */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className={`fixed inset-0 m-auto w-full max-w-md h-fit max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl z-[151] ${
+                isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+              } border`}
+            >
+              {/* 头部 */}
+              <div className="flex items-center justify-between p-6 border-b border-gray-100 dark:border-gray-700">
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white">分享</h3>
+                <button
+                  onClick={() => setIsShareModalOpen(false)}
+                  className="p-2 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* 作品预览 */}
+              <div className="p-6">
+                <div className={`p-4 rounded-xl mb-6 ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                  <div className="flex gap-3">
+                    {post.thumbnail && (
+                      <img
+                        src={post.thumbnail}
+                        alt={post.title}
+                        className="w-20 h-20 object-cover rounded-lg flex-shrink-0"
+                      />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <span className="inline-block px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-xs rounded-full mb-1">
+                        作品
+                      </span>
+                      <h4 className="font-medium text-gray-900 dark:text-white mb-1 line-clamp-1">{post.title}</h4>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2">{post.description || '暂无描述'}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 选择分享方式 */}
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">选择分享方式</p>
+
+                {/* 分享选项 */}
+                <div className="space-y-3">
+                  {/* 分享到社群 */}
+                  <button
+                    onClick={() => toast.info('分享到社群功能开发中')}
+                    className={`w-full flex items-center gap-4 p-4 rounded-xl transition-colors ${
+                      isDark ? 'bg-gray-700/50 hover:bg-gray-700' : 'bg-gray-50 hover:bg-gray-100'
+                    }`}
+                  >
+                    <div className="w-12 h-12 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
+                      <Users className="w-6 h-6 text-white" />
+                    </div>
+                    <div className="flex-1 text-left">
+                      <p className="font-medium text-gray-900 dark:text-white">分享到社群</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">分享到你加入的社群</p>
+                    </div>
+                    <i className="fas fa-chevron-right text-gray-400"></i>
+                  </button>
+
+                  {/* 私信分享 */}
+                  <button
+                    onClick={handlePrivateShare}
+                    className={`w-full flex items-center gap-4 p-4 rounded-xl transition-colors ${
+                      isDark ? 'bg-gray-700/50 hover:bg-gray-700' : 'bg-gray-50 hover:bg-gray-100'
+                    }`}
+                  >
+                    <div className="w-12 h-12 rounded-full bg-orange-500 flex items-center justify-center flex-shrink-0">
+                      <MessageCircle className="w-6 h-6 text-white" />
+                    </div>
+                    <div className="flex-1 text-left">
+                      <p className="font-medium text-gray-900 dark:text-white">私信分享</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">发送给好友的私信</p>
+                    </div>
+                    <i className="fas fa-chevron-right text-gray-400"></i>
+                  </button>
+
+                  {/* 复制链接 */}
+                  <button
+                    onClick={handleCopyLink}
+                    className={`w-full flex items-center gap-4 p-4 rounded-xl transition-colors ${
+                      isDark ? 'bg-gray-700/50 hover:bg-gray-700' : 'bg-gray-50 hover:bg-gray-100'
+                    }`}
+                  >
+                    <div className="w-12 h-12 rounded-full bg-gray-500 flex items-center justify-center flex-shrink-0">
+                      <Link2 className="w-6 h-6 text-white" />
+                    </div>
+                    <div className="flex-1 text-left">
+                      <p className="font-medium text-gray-900 dark:text-white">复制链接</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">复制链接分享给其他人</p>
+                    </div>
+                    <i className="fas fa-chevron-right text-gray-400"></i>
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Work Share Modal (Private Message) */}
+      <WorkShareModal
+        isOpen={isWorkShareModalOpen}
+        onClose={() => setIsWorkShareModalOpen(false)}
+        preselectedWork={post ? {
+          id: post.id,
+          title: post.title,
+          thumbnail: post.thumbnail || '',
+          type: (post.type as any) || 'image',
+        } : null}
+      />
     </div>
   );
 };

@@ -4972,16 +4972,16 @@ async function route(req, res, u, path) {
     try {
       const body = await readBody(req)
       console.log('[API] addWorkComment: request body =', body)
-      const { content, parent_id } = body
+      const { content, parent_id, images } = body
 
       if (!content || content.trim() === '') {
         sendJson(res, 400, { code: 1, message: '评论内容不能为空' })
         return
       }
 
-      console.log('[API] addWorkComment: calling workDB.addComment with:', { workId, userId: decoded.userId, content, parent_id })
+      console.log('[API] addWorkComment: calling workDB.addComment with:', { workId, userId: decoded.userId, content, parent_id, imagesCount: images?.length })
       // 创建评论
-      const comment = await workDB.addComment(workId, decoded.userId, content, parent_id)
+      const comment = await workDB.addComment(workId, decoded.userId, content, parent_id, images)
 
       console.log('[API] addWorkComment: success, commentId =', comment.id)
       sendJson(res, 200, { code: 0, data: comment, message: '评论添加成功' })
@@ -5022,7 +5022,8 @@ async function route(req, res, u, path) {
           avatar_url: ''
         },
         likes: c.likes || 0,
-        parent_id: c.parent_id
+        parent_id: c.parent_id,
+        images: c.images ? (typeof c.images === 'string' ? JSON.parse(c.images) : c.images) : []
       }))
       console.log('[API] Get work comments: formatted comments =', JSON.stringify(formattedComments, null, 2))
       sendJson(res, 200, { code: 0, data: formattedComments })

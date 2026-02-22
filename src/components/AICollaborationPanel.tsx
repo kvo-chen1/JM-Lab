@@ -2600,22 +2600,42 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
                                 }`}
                               >
                                 <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-200 flex-shrink-0">
-                                  {item.thumbnail ? (
-                                    <img 
-                                      src={item.thumbnail} 
-                                      alt={item.title} 
-                                      className="w-full h-full object-cover"
-                                      onError={(e) => {
-                                        // 图片加载失败时显示默认图标
-                                        (e.target as HTMLImageElement).style.display = 'none';
-                                        (e.target as HTMLImageElement).parentElement!.innerHTML = '<div class="w-full h-full flex items-center justify-center text-gray-400"><i class="fas fa-image"></i></div>';
-                                      }}
-                                    />
-                                  ) : (
-                                    <div className="w-full h-full flex items-center justify-center text-gray-400">
-                                      <i className="fas fa-image"></i>
-                                    </div>
-                                  )}
+                                  {(() => {
+                                    // 检测是否是视频URL
+                                    const isVideo = item.thumbnail && /\.(mp4|webm|ogg|mov)(\?.*)?$/i.test(item.thumbnail);
+                                    if (isVideo) {
+                                      return (
+                                        <video
+                                          src={item.thumbnail}
+                                          className="w-full h-full object-cover"
+                                          muted
+                                          loop
+                                          autoPlay
+                                          playsInline
+                                          preload="metadata"
+                                        />
+                                      );
+                                    }
+                                    if (item.thumbnail) {
+                                      return (
+                                        <img 
+                                          src={item.thumbnail} 
+                                          alt={item.title} 
+                                          className="w-full h-full object-cover"
+                                          onError={(e) => {
+                                            // 图片加载失败时显示默认图标
+                                            (e.target as HTMLImageElement).style.display = 'none';
+                                            (e.target as HTMLImageElement).parentElement!.innerHTML = '<div class="w-full h-full flex items-center justify-center text-gray-400"><i class="fas fa-image"></i></div>';
+                                          }}
+                                        />
+                                      );
+                                    }
+                                    return (
+                                      <div className="w-full h-full flex items-center justify-center text-gray-400">
+                                        <i className="fas fa-image"></i>
+                                      </div>
+                                    );
+                                  })()}
                                 </div>
                                 <div className="flex-1 min-w-0 text-left overflow-hidden">
                                   <div className={`text-sm font-medium truncate ${isDark ? 'text-white' : 'text-gray-900'}`} title={item.title}>{item.title}</div>

@@ -13,15 +13,15 @@ interface EventTypeSelectorProps {
 
 const defaultConfigs: Partial<Record<EventSubmissionType, { icon: React.ReactNode; color: string }>> = {
   document: {
-    icon: <FileText className="w-6 h-6" />,
+    icon: <FileText className="w-5 h-5" />,
     color: 'blue',
   },
   image_description: {
-    icon: <Image className="w-6 h-6" />,
+    icon: <Image className="w-5 h-5" />,
     color: 'purple',
   },
   other: {
-    icon: <MoreHorizontal className="w-6 h-6" />,
+    icon: <MoreHorizontal className="w-5 h-5" />,
     color: 'gray',
   },
 };
@@ -114,7 +114,7 @@ export default function EventTypeSelector({
   };
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       {typeList.map((type) => {
         const isSelected = value === type;
         const color = getTypeColor(type);
@@ -127,7 +127,7 @@ export default function EventTypeSelector({
             whileHover={disabled ? {} : { scale: 1.01 }}
             whileTap={disabled ? {} : { scale: 0.99 }}
             className={`
-              w-full p-4 rounded-xl border-2 transition-all duration-200 text-left
+              w-full p-3 rounded-xl border-2 transition-all duration-200 text-left
               ${isSelected ? colors.border : 'border-gray-200 dark:border-gray-700'}
               ${isSelected ? colors.bg : isDark ? 'bg-gray-800 hover:bg-gray-750' : 'bg-white hover:bg-gray-50'}
               ${isSelected ? `ring-2 ${colors.ring} ring-offset-2 dark:ring-offset-gray-900` : ''}
@@ -138,7 +138,7 @@ export default function EventTypeSelector({
               {/* 图标 */}
               <div
                 className={`
-                  flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center
+                  flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center
                   ${isSelected ? colors.bg : isDark ? 'bg-gray-700' : 'bg-gray-100'}
                   ${isSelected ? colors.text : 'text-gray-500 dark:text-gray-400'}
                 `}
@@ -150,7 +150,7 @@ export default function EventTypeSelector({
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <h3
-                    className={`font-semibold ${
+                    className={`font-semibold text-base ${
                       isSelected ? colors.text : 'text-gray-900 dark:text-white'
                     }`}
                   >
@@ -166,7 +166,7 @@ export default function EventTypeSelector({
                     </motion.div>
                   )}
                 </div>
-                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
                   {getTypeDescription(type)}
                 </p>
               </div>

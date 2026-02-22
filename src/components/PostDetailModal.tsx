@@ -12,6 +12,8 @@ import MobileCommentDrawer from './MobileCommentDrawer';
 import styles from './WaterfallGallery/WaterfallGallery.module.scss';
 import type { UserProfile } from '@/lib/supabase';
 import type { User as AuthUser } from '@/contexts/authContext';
+import WorkShareModal from './share/WorkShareModal';
+import { Users, MessageCircle, Link2, X } from 'lucide-react';
 
 // 常用表情列表
 const EMOJI_LIST = [
@@ -126,6 +128,7 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isMobileCommentDrawerOpen, setIsMobileCommentDrawerOpen] = useState(false);
+  const [isWorkShareModalOpen, setIsWorkShareModalOpen] = useState(false);
   const commentInputRef = useRef<HTMLTextAreaElement>(null);
   const replyInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -133,6 +136,7 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
   const overlayRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const commentsSectionRef = useRef<HTMLDivElement>(null);
 
   // Load comments when post changes
   useEffect(() => {
@@ -471,29 +475,32 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
   };
 
   // 分享功能
+  // 分享弹窗状态
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+
   const handleShare = async (e?: React.MouseEvent) => {
     e?.stopPropagation();
     if (!post) return;
 
+    // 打开分享弹窗
+    setIsShareModalOpen(true);
+  };
+
+  // 处理复制链接
+  const handleCopyLink = async () => {
     try {
-      if (navigator.share) {
-        await navigator.share({
-          title: post.title,
-          text: post.content?.substring(0, 100) || '',
-          url: window.location.href,
-        });
-      } else {
-        // 复制链接到剪贴板
-        await navigator.clipboard.writeText(window.location.href);
-        toast.success('链接已复制到剪贴板');
-      }
-    } catch (error: any) {
-      console.error('分享失败:', error);
-      // 用户取消分享不显示错误
-      if (error.name !== 'AbortError') {
-        toast.error('分享失败');
-      }
+      await navigator.clipboard.writeText(window.location.href);
+      toast.success('链接已复制到剪贴板');
+    } catch (error) {
+      toast.error('复制失败，请手动复制');
     }
+  };
+
+  // 处理私信分享
+  const handlePrivateShare = () => {
+    setIsShareModalOpen(false);
+    // 打开私信分享弹窗
+    setIsWorkShareModalOpen(true);
   };
 
   // 跳转到作者主页
@@ -514,15 +521,27 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
   if (!isOpen) return null;
 
   // 转换相关作品为 GalleryItem
-  const galleryItems: GalleryItem[] = relatedPosts.map(p => ({
-    id: p.id,
-    thumbnail: p.thumbnail,
-    videoUrl: p.videoUrl,
-    type: p.type,
-    title: p.title,
-    author: p.author,
-    aspectRatio: Math.random() * (1.5 - 0.75) + 0.75
-  }));
+  const galleryItems: GalleryItem[] = relatedPosts.map(p => {
+    // 调试日志
+    if (p.type === 'video') {
+      console.log('[PostDetailModal] Converting video post to GalleryItem:', { 
+        id: p.id, 
+        title: p.title, 
+        type: p.type, 
+        videoUrl: p.videoUrl,
+        thumbnail: p.thumbnail?.substring(0, 50)
+      });
+    }
+    return {
+      id: p.id,
+      thumbnail: p.thumbnail,
+      videoUrl: p.videoUrl,
+      type: p.type,
+      title: p.title,
+      author: p.author,
+      aspectRatio: Math.random() * (1.5 - 0.75) + 0.75
+    };
+  });
 
   return (
     <AnimatePresence mode="wait">
@@ -775,7 +794,7 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
                     {/* Header Actions - 移动端 Pinterest风格 */}
                     <div className="md:hidden px-4 py-3 flex items-center justify-between bg-white dark:bg-gray-900">
                       <div className="flex items-center gap-4">
-                        <button 
+                        <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
@@ -783,13 +802,21 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
                           }}
                           className="flex items-center gap-1.5 text-gray-700 dark:text-gray-300"
                         >
-                          <i className={`${post.isLiked ? 'fas text-red-500' : 'far'} fa-heart text-xl`}></i>
-                          <span className="text-sm font-medium">{post.likes || 0}</span>
+                          <i className={`${post.isLiked ? 'fas text-red-500' : 'far text-gray-700 dark:text-gray-300'} fa-heart text-xl transition-colors`}></i>
+                          <span className={`text-sm font-medium ${post.isLiked ? 'text-red-500' : ''}`}>{post.likes || 0}</span>
+                          <span className="text-xs text-blue-500 ml-1">[TEST]</span>
                         </button>
-                        <button 
+                        <button
                           type="button"
                           className="flex items-center gap-1.5 text-gray-700 dark:text-gray-300"
-                          onClick={() => setIsMobileCommentDrawerOpen(true)}
+                          onClick={() => {
+                            // 移动端打开评论抽屉
+                            setIsMobileCommentDrawerOpen(true);
+                            // 桌面端滚动到评论区
+                            if (window.innerWidth >= 768) {
+                              commentsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            }
+                          }}
                         >
                           <i className="far fa-comment text-xl"></i>
                           <span className="text-sm font-medium">{comments.length || post.commentCount || 0}</span>
@@ -904,7 +931,7 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
                       </div>
 
                       {/* Comments Header */}
-                      <div className="pt-2 border-t border-gray-100 dark:border-gray-800">
+                      <div ref={commentsSectionRef} className="pt-2 border-t border-gray-100 dark:border-gray-800">
                         {/* 桌面端显示完整评论标题 */}
                         <h3 className="hidden md:flex text-lg font-semibold mb-4 items-center gap-2">
                           评论 <span className="text-sm font-normal text-gray-500">{comments.length || post.commentCount || 0}</span>
@@ -1354,6 +1381,134 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
             onLikeComment={handleLikeComment}
             onDeleteComment={handleDeleteComment}
             onReplyToComment={handleReplyToComment}
+          />
+
+          {/* Share Modal */}
+          <AnimatePresence>
+            {isShareModalOpen && post && (
+              <>
+                {/* 背景遮罩 */}
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => setIsShareModalOpen(false)}
+                  className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[150]"
+                />
+
+                {/* 分享弹窗 */}
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                  className={`fixed inset-0 m-auto w-full max-w-md h-fit max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl z-[151] ${
+                    isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+                  } border`}
+                >
+                  {/* 头部 */}
+                  <div className="flex items-center justify-between p-6 border-b border-gray-100 dark:border-gray-700">
+                    <h3 className="text-lg font-bold text-gray-900 dark:text-white">分享</h3>
+                    <button
+                      onClick={() => setIsShareModalOpen(false)}
+                      className="p-2 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  {/* 作品预览 */}
+                  <div className="p-6">
+                    <div className={`p-4 rounded-xl mb-6 ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                      <div className="flex gap-3">
+                        {post.thumbnail && (
+                          <img
+                            src={post.thumbnail}
+                            alt={post.title}
+                            className="w-20 h-20 object-cover rounded-lg flex-shrink-0"
+                          />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <span className="inline-block px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-xs rounded-full mb-1">
+                            作品
+                          </span>
+                          <h4 className="font-medium text-gray-900 dark:text-white mb-1 line-clamp-1">{post.title}</h4>
+                          <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2">{post.description || '暂无描述'}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 选择分享方式 */}
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">选择分享方式</p>
+
+                    {/* 分享选项 */}
+                    <div className="space-y-3">
+                      {/* 分享到社群 */}
+                      <button
+                        onClick={() => toast.info('分享到社群功能开发中')}
+                        className={`w-full flex items-center gap-4 p-4 rounded-xl transition-colors ${
+                          isDark ? 'bg-gray-700/50 hover:bg-gray-700' : 'bg-gray-50 hover:bg-gray-100'
+                        }`}
+                      >
+                        <div className="w-12 h-12 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
+                          <Users className="w-6 h-6 text-white" />
+                        </div>
+                        <div className="flex-1 text-left">
+                          <p className="font-medium text-gray-900 dark:text-white">分享到社群</p>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">分享到你加入的社群</p>
+                        </div>
+                        <i className="fas fa-chevron-right text-gray-400"></i>
+                      </button>
+
+                      {/* 私信分享 */}
+                      <button
+                        onClick={handlePrivateShare}
+                        className={`w-full flex items-center gap-4 p-4 rounded-xl transition-colors ${
+                          isDark ? 'bg-gray-700/50 hover:bg-gray-700' : 'bg-gray-50 hover:bg-gray-100'
+                        }`}
+                      >
+                        <div className="w-12 h-12 rounded-full bg-orange-500 flex items-center justify-center flex-shrink-0">
+                          <MessageCircle className="w-6 h-6 text-white" />
+                        </div>
+                        <div className="flex-1 text-left">
+                          <p className="font-medium text-gray-900 dark:text-white">私信分享</p>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">发送给好友的私信</p>
+                        </div>
+                        <i className="fas fa-chevron-right text-gray-400"></i>
+                      </button>
+
+                      {/* 复制链接 */}
+                      <button
+                        onClick={handleCopyLink}
+                        className={`w-full flex items-center gap-4 p-4 rounded-xl transition-colors ${
+                          isDark ? 'bg-gray-700/50 hover:bg-gray-700' : 'bg-gray-50 hover:bg-gray-100'
+                        }`}
+                      >
+                        <div className="w-12 h-12 rounded-full bg-gray-500 flex items-center justify-center flex-shrink-0">
+                          <Link2 className="w-6 h-6 text-white" />
+                        </div>
+                        <div className="flex-1 text-left">
+                          <p className="font-medium text-gray-900 dark:text-white">复制链接</p>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">复制链接分享给其他人</p>
+                        </div>
+                        <i className="fas fa-chevron-right text-gray-400"></i>
+                      </button>
+                    </div>
+                  </div>
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>
+
+          {/* Work Share Modal (Private Message) */}
+          <WorkShareModal
+            isOpen={isWorkShareModalOpen}
+            onClose={() => setIsWorkShareModalOpen(false)}
+            preselectedWork={post ? {
+              id: post.id,
+              title: post.title,
+              thumbnail: post.thumbnail || '',
+              type: (post.type as any) || 'image',
+            } : null}
           />
         </motion.div>
       )}

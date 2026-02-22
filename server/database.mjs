@@ -866,6 +866,7 @@ async function createPostgreSQLTables(pool) {
       await ensureColumn('comments', 'user_id', 'TEXT REFERENCES users(id) ON DELETE CASCADE') // Changed to TEXT
       await ensureColumn('comments', 'parent_id', 'INTEGER REFERENCES comments(id) ON DELETE CASCADE')
       await ensureColumn('comments', 'work_id', 'TEXT REFERENCES works(id) ON DELETE CASCADE')
+      await ensureColumn('comments', 'images', 'TEXT') // 评论图片支持
       
       // 移除 post_id 的 NOT NULL 约束（因为我们现在支持 work_id）
       try {
@@ -3411,12 +3412,15 @@ export const workDB = {
   },
 
   // 添加作品评论
-  async addComment(workId, userId, content, parentId = null) {
-    console.log('[workDB.addComment] Called with:', { workId, userId, content: content?.substring(0, 50), parentId })
+  async addComment(workId, userId, content, parentId = null, images = null) {
+    console.log('[workDB.addComment] Called with:', { workId, userId, content: content?.substring(0, 50), parentId, imagesCount: images?.length })
     const db = await getDB()
     const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
     const now = Date.now()
     const nowISO = new Date().toISOString()
+
+    // 将图片数组转换为 JSON 字符串
+    const imagesJson = images && images.length > 0 ? JSON.stringify(images) : null
 
     switch (typeKey) {
       case DB_TYPE.POSTGRESQL: {
@@ -3430,6 +3434,7 @@ export const workDB = {
             post_id INTEGER,
             work_id TEXT,
             parent_id INTEGER,
+            images TEXT,
             created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
             updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
           )
@@ -3442,10 +3447,10 @@ export const workDB = {
         // 插入评论
         console.log('[workDB.addComment] Inserting comment...')
         const { rows } = await db.query(`
-          INSERT INTO comments (content, user_id, work_id, parent_id, created_at, updated_at)
-          VALUES ($1, $2, $3, $4, $5, $5)
+          INSERT INTO comments (content, user_id, work_id, parent_id, images, created_at, updated_at)
+          VALUES ($1, $2, $3, $4, $5, $6, $6)
           RETURNING *
-        `, [content, userId, workId, parentId || null, nowISO])
+        `, [content, userId, workId, parentId || null, imagesJson, nowISO])
         console.log('[workDB.addComment] Comment inserted:', rows[0]?.id)
 
         // 更新作品的评论数
@@ -3495,21 +3500,21 @@ export const workDB = {
       case DB_TYPE.POSTGRESQL: {
         const { rows } = await db.query(`
           SELECT
-            wc.id,
-            wc.content,
-            wc.created_at,
-            wc.updated_at,
-            wc.parent_id,
-            wc.likes,
+            c.id,
+            c.content,
+            c.created_at,
+            c.updated_at,
+            c.parent_id,
+            c.images,
             json_build_object(
               'id', u.id,
               'username', u.username,
               'avatar_url', u.avatar_url
             ) as user
-          FROM work_comments wc
-          JOIN users u ON wc.user_id = u.id
-          WHERE wc.work_id = $1
-          ORDER BY wc.created_at ASC
+          FROM comments c
+          JOIN users u ON c.user_id = u.id
+          WHERE c.work_id = $1
+          ORDER BY c.created_at ASC
           LIMIT $2 OFFSET $3
         `, [workId, limit, offset])
         return rows

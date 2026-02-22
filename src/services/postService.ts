@@ -262,6 +262,18 @@ export async function getPosts(category?: string, currentUserId?: string, useSup
             const thumbnail = w.thumbnail || w.cover_url || '';
             const category = (w.category as PostCategory) || 'other';
             const type = w.type || 'image';
+            
+            // 调试日志
+            if (type === 'video') {
+              console.log('[getPosts] Video work:', { 
+                id: w.id, 
+                title: w.title, 
+                videoUrl: w.videoUrl, 
+                video_url: w.video_url,
+                finalVideoUrl: videoUrl,
+                thumbnail: thumbnail?.substring(0, 50)
+              });
+            }
 
             // 如果没有 videoUrl 但 category 是 video 或 type 是 video，尝试从其他字段推断
             if (!videoUrl && (category === 'video' || type === 'video')) {
@@ -323,6 +335,15 @@ export async function getPosts(category?: string, currentUserId?: string, useSup
 
             const workId = w.id?.toString() || Date.now().toString();
 
+            // 调试日志：返回前的最终 videoUrl
+            if (type === 'video') {
+              console.log('[getPosts] Returning video work:', { 
+                id: workId, 
+                title: w.title, 
+                finalVideoUrl: videoUrl 
+              });
+            }
+
             return {
             id: workId,
             title: w.title || 'Untitled',
@@ -373,6 +394,14 @@ export async function getPosts(category?: string, currentUserId?: string, useSup
           };
           });
           console.log('Fetched works from backend API:', worksFromLocal.length);
+          // 调试：检查视频作品的 videoUrl
+          const videoWorks = worksFromLocal.filter(w => w.type === 'video');
+          console.log('[getPosts] Video works from backend API:', videoWorks.map(w => ({ 
+            id: w.id, 
+            title: w.title, 
+            videoUrl: w.videoUrl,
+            type: w.type
+          })));
         }
       } else {
         console.error('Backend API returned error status:', response.status);
@@ -2255,7 +2284,8 @@ export async function getWorkComments(workId: string): Promise<Comment[]> {
             replies: [],
             userId: c.user?.id,
             userReactions: [],
-            parentId: c.parent_id
+            parentId: c.parent_id,
+            images: c.images || []
           }));
         }
       } else if (response.status === 404) {
@@ -2307,7 +2337,8 @@ export async function getWorkComments(workId: string): Promise<Comment[]> {
           replies: [],
           userId: c.user_id,
           userReactions: [],
-          parentId: c.parent_id
+          parentId: c.parent_id,
+          images: c.images || []
         };
       });
     }
@@ -2362,7 +2393,8 @@ export async function getWorkComments(workId: string): Promise<Comment[]> {
         replies: [],
         userId: c.user_id,
         userReactions: [],
-        parentId: c.parent_id
+        parentId: c.parent_id,
+        images: c.images || []
       };
     });
   } catch (error) {

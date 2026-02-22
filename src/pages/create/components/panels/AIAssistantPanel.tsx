@@ -129,8 +129,24 @@ export default function AIAssistantPanel() {
     const currentMessageCount = chatMessages.length;
 
     // 如果有新消息且允许自动滚动
-    if (currentMessageCount > lastMessageCount && shouldAutoScroll && messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    if (currentMessageCount > lastMessageCount && shouldAutoScroll && messagesEndRef.current && messagesContainerRef.current) {
+      // 只在消息容器内部滚动，不影响页面其他部分
+      // 使用 requestAnimationFrame 确保在渲染完成后滚动
+      requestAnimationFrame(() => {
+        if (messagesEndRef.current && messagesContainerRef.current) {
+          const container = messagesContainerRef.current;
+          const target = messagesEndRef.current;
+          // 计算目标位置相对于容器的偏移
+          const targetTop = target.offsetTop;
+          const containerHeight = container.clientHeight;
+          const targetHeight = target.clientHeight;
+          // 平滑滚动到目标位置
+          container.scrollTo({
+            top: targetTop - containerHeight + targetHeight + 20,
+            behavior: 'smooth'
+          });
+        }
+      });
     }
 
     setLastMessageCount(currentMessageCount);
@@ -1043,7 +1059,7 @@ export default function AIAssistantPanel() {
                   ref={messagesContainerRef}
                   onScroll={handleScroll}
                   className={clsx(
-                    "flex-1 overflow-y-auto custom-scrollbar p-4 space-y-5",
+                    "flex-1 overflow-y-auto custom-scrollbar p-4 space-y-5 overscroll-contain",
                     isDark ? "scrollbar-thumb-gray-700 scrollbar-track-gray-800" : "scrollbar-thumb-gray-300 scrollbar-track-gray-100"
                   )}
                 >

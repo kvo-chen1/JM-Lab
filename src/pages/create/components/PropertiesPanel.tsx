@@ -47,8 +47,9 @@ export default function PropertiesPanel() {
     switch (activeTool) {
       case 'ai-assistant':
         // AI助手面板需要固定高度，不随父容器滚动
+        // 高度与左侧画布区域对齐，确保输入框与样式预览水平对齐
         return (
-          <div className="h-[calc(100vh-140px)] overflow-hidden">
+          <div className="h-[calc(100vh-96px)] overflow-hidden overscroll-contain">
             <AIAssistantPanel />
           </div>
         );

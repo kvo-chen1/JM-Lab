@@ -318,7 +318,29 @@ export default defineConfig({
     },
     // 开发服务器代理配置 - 统一的API代理设置
     proxy: {
+      // 外部API代理配置 - 必须放在 /api 之前，否则会被 /api 拦截
+      '/api/proxy/trae-api': {
+        target: 'https://trae-api-sg.mchost.guru',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/proxy\/trae-api/, ''),
+        configure: (proxy, options) => {
+          options.onProxyRes = (proxyRes, req, res) => {
+            proxyRes.headers['Access-Control-Allow-Origin'] = '*';
+          };
+        },
+      },
+      '/api/proxy/unsplash': {
+        target: 'https://images.unsplash.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/proxy\/unsplash/, ''),
+        configure: (proxy, options) => {
+          options.onProxyRes = (proxyRes, req, res) => {
+            proxyRes.headers['Access-Control-Allow-Origin'] = '*';
+          };
+        },
+      },
       // 统一API代理 - 所有 /api/* 请求转发到本地API服务器
+      // 注意：这个配置必须放在最后，因为会匹配所有 /api 开头的请求
       '/api': {
         target: LOCAL_API_TARGET,
         changeOrigin: true,
@@ -341,27 +363,6 @@ export default defineConfig({
           proxy.on('proxyReq', (proxyReq, req, res) => {
             console.log(`[Proxy] ${req.method} ${req.url} -> ${LOCAL_API_TARGET}${req.url}`);
           });
-        },
-      },
-      // 外部API代理配置
-      '/api/proxy/trae-api': {
-        target: 'https://trae-api-sg.mchost.guru',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/proxy\/trae-api/, ''),
-        configure: (proxy, options) => {
-          options.onProxyRes = (proxyRes, req, res) => {
-            proxyRes.headers['Access-Control-Allow-Origin'] = '*';
-          };
-        },
-      },
-      '/api/proxy/unsplash': {
-        target: 'https://images.unsplash.com',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/proxy\/unsplash/, ''),
-        configure: (proxy, options) => {
-          options.onProxyRes = (proxyRes, req, res) => {
-            proxyRes.headers['Access-Control-Allow-Origin'] = '*';
-          };
         },
       },
       // WebSocket代理配置 - 暂时禁用，避免连接失败错误

@@ -166,6 +166,16 @@ const WaterfallGallery: React.FC<WaterfallGalleryProps> = ({
             onClick={() => onItemClick && onItemClick(layoutItem.item)}
           >
             <div style={{ height: layoutItem.height - 28, overflow: 'hidden', position: 'relative' }}>
+              {(() => {
+                console.log('[WaterfallGallery] Rendering item:', { 
+                  id: layoutItem.item.id, 
+                  title: layoutItem.item.title, 
+                  type: layoutItem.item.type, 
+                  videoUrl: layoutItem.item.videoUrl,
+                  thumbnail: layoutItem.item.thumbnail?.substring(0, 50)
+                });
+                return null;
+              })()}
               {layoutItem.item.type === 'video' && layoutItem.item.videoUrl ? (
                 <video
                   src={layoutItem.item.videoUrl}

@@ -30,6 +30,7 @@ try {
   } else {
     console.warn('[Supabase Server] 缺少环境变量，将使用模拟模式')
     // 创建一个模拟的客户端对象，避免服务崩溃
+    const mockError = new Error('Supabase 未配置')
     supabaseServer = {
       auth: {
         admin: {
@@ -39,12 +40,21 @@ try {
       },
       from: () => ({
         select: async () => ({ data: [], error: null })
-      })
+      }),
+      storage: {
+        from: () => ({
+          upload: async () => ({ data: null, error: mockError }),
+          getPublicUrl: () => ({ data: { publicUrl: '' } }),
+          download: async () => ({ data: null, error: mockError }),
+          remove: async () => ({ data: null, error: mockError })
+        })
+      }
     }
   }
 } catch (error) {
   console.error('[Supabase Server] 创建客户端失败:', error.message)
   // 创建模拟对象作为fallback
+  const mockError = new Error('Supabase 客户端初始化失败')
   supabaseServer = {
     auth: {
       admin: {
@@ -54,7 +64,15 @@ try {
     },
     from: () => ({
       select: async () => ({ data: [], error: null })
-    })
+    }),
+    storage: {
+      from: () => ({
+        upload: async () => ({ data: null, error: mockError }),
+        getPublicUrl: () => ({ data: { publicUrl: '' } }),
+        download: async () => ({ data: null, error: mockError }),
+        remove: async () => ({ data: null, error: mockError })
+      })
+    }
   }
 }
 

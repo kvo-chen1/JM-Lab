@@ -5751,30 +5751,42 @@ async function route(req, res, u, path) {
         return
       }
       
-      // 创建上传目录
-      const uploadDir = pathModule.join(projectRoot, 'public', 'uploads')
-      if (!fs.existsSync(uploadDir)) {
-        fs.mkdirSync(uploadDir, { recursive: true })
-      }
-      
       // 生成唯一文件名
       const ext = pathModule.extname(fileName) || '.bin'
       const uniqueName = `${Date.now()}-${randomUUID()}${ext}`
-      const filePath = pathModule.join(uploadDir, uniqueName)
       
-      // 如果是 base64 数据，解码并保存
+      // 解码 base64 数据
+      let fileBuffer
       if (fileData.startsWith('data:')) {
         const base64Data = fileData.split(',')[1]
-        fs.writeFileSync(filePath, Buffer.from(base64Data, 'base64'))
+        fileBuffer = Buffer.from(base64Data, 'base64')
       } else {
-        // 直接保存
-        fs.writeFileSync(filePath, Buffer.from(fileData))
+        fileBuffer = Buffer.from(fileData)
       }
       
-      // 生成访问 URL
-      const fileUrl = `/uploads/${uniqueName}`
+      // 上传到 Supabase Storage
+      const filePath = `works/${uniqueName}`
+      const { data: uploadData, error: uploadError } = await supabaseServer.storage
+        .from('works')
+        .upload(filePath, fileBuffer, {
+          contentType: fileType || 'application/octet-stream',
+          cacheControl: '3600',
+          upsert: false
+        })
       
-      console.log('[API] File uploaded:', fileUrl)
+      if (uploadError) {
+        console.error('[API] Supabase upload error:', uploadError)
+        throw new Error(`上传到 Supabase 失败: ${uploadError.message}`)
+      }
+      
+      // 获取公开 URL
+      const { data: publicUrlData } = supabaseServer.storage
+        .from('works')
+        .getPublicUrl(filePath)
+      
+      const fileUrl = publicUrlData.publicUrl
+      
+      console.log('[API] File uploaded to Supabase:', fileUrl)
       sendJson(res, 200, { code: 0, data: { url: fileUrl, fileName: uniqueName } })
     } catch (e) {
       console.error('[API] File upload failed:', e)
@@ -6124,6 +6136,7 @@ async function route(req, res, u, path) {
     console.log(`[Qwen Prompt Optimize] Request received:`, b.prompt);
     
     const authKey = process.env.DASHSCOPE_API_KEY || process.env.VITE_QWEN_API_KEY || ''
+    
     if (!authKey) { 
       console.error('[Qwen Prompt Optimize] ERROR: API Key not configured');
       sendJson(res, 401, { error: 'API_KEY_MISSING', message: 'Missing DashScope API Key' }); 
@@ -6131,45 +6144,37 @@ async function route(req, res, u, path) {
     }
 
     try {
-      const optimizationPrompt = `As an AI art prompt expert, please optimize the following image generation prompt to make it more professional and detailed. 
+      const optimizationPrompt = `你是一位专业的 AI 绘画提示词专家。请优化以下图像生成提示词，使其更加专业和详细。
 
-Original prompt: "${b.prompt}"
+原始提示词："${b.prompt}"
 
-Please provide:
-1. An optimized version (more detailed, with style, lighting, composition descriptors)
-2. A list of 3-5 suggested keywords to add
-3. A brief explanation of the improvements
+请提供以下内容（使用中文回复）：
+1. 优化后的提示词版本（更加详细，包含风格、光线、构图等描述）
+2. 3-5 个建议添加的关键词
+3. 对改进内容的简要说明
 
-Response format (JSON):
+请以 JSON 格式返回：
 {
-  "optimized": "optimized prompt text",
-  "suggestions": ["keyword1", "keyword2", "keyword3"],
-  "explanation": "explanation text"
+  "optimized": "优化后的中文提示词",
+  "suggestions": ["关键词1", "关键词2", "关键词3"],
+  "explanation": "改进说明"
 }`
 
-      const response = await fetch(`${DASHSCOPE_BASE_URL}/compatible-mode/v1/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authKey}`
-        },
-        body: JSON.stringify({
-          model: 'qwen-plus',
-          messages: [{ role: 'user', content: optimizationPrompt }],
-          temperature: 0.7,
-          max_tokens: 800
-        })
-      })
+      // 使用 dashscopeFetch 函数来调用 API
+      const r = await dashscopeFetch('/chat/completions', 'POST', {
+        model: 'qwen-plus',
+        messages: [{ role: 'user', content: optimizationPrompt }],
+        temperature: 0.7,
+        max_tokens: 800
+      }, authKey, res)
       
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        console.error('[Qwen Prompt Optimize] API error:', errorData)
-        sendJson(res, response.status, { error: 'OPTIMIZE_FAILED', message: errorData.error?.message || 'Failed to optimize prompt' })
+      if (!r.ok) {
+        console.error('[Qwen Prompt Optimize] API error:', r.data)
+        sendJson(res, r.status, { error: 'OPTIMIZE_FAILED', message: r.data?.message || 'Failed to optimize prompt' })
         return
       }
       
-      const result = await response.json()
-      const content = result.choices?.[0]?.message?.content || ''
+      const content = r.data?.choices?.[0]?.message?.content || ''
       
       // 尝试解析JSON响应
       let parsedResult
@@ -6217,47 +6222,39 @@ Response format (JSON):
     }
 
     try {
-      const analysisPrompt = `As an AI art prompt expert, please analyze the following image generation prompt and provide feedback.
+      const analysisPrompt = `你是一位专业的 AI 绘画提示词专家。请分析以下图像生成提示词并提供反馈（使用中文回复）。
 
-Prompt: "${b.prompt}"
+提示词："${b.prompt}"
 
-Please analyze:
-1. Completeness score (0-100)
-2. What elements are present (subject, style, lighting, composition, etc.)
-3. What's missing that could improve the result
-4. Specific improvement suggestions
+请分析以下内容：
+1. 完整性评分（0-100分）
+2. 已包含的元素（主题、风格、光线、构图等）
+3. 缺失但可以改进结果的元素
+4. 具体的改进建议
 
-Response format (JSON):
+请以 JSON 格式返回：
 {
   "score": 75,
-  "presentElements": ["element1", "element2"],
-  "missingElements": ["element3", "element4"],
-  "suggestions": ["suggestion1", "suggestion2"]
+  "presentElements": ["元素1", "元素2"],
+  "missingElements": ["元素3", "元素4"],
+  "suggestions": ["建议1", "建议2"]
 }`
 
-      const response = await fetch(`${DASHSCOPE_BASE_URL}/compatible-mode/v1/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authKey}`
-        },
-        body: JSON.stringify({
-          model: 'qwen-plus',
-          messages: [{ role: 'user', content: analysisPrompt }],
-          temperature: 0.5,
-          max_tokens: 800
-        })
-      })
+      // 使用 dashscopeFetch 函数来调用 API
+      const r = await dashscopeFetch('/chat/completions', 'POST', {
+        model: 'qwen-plus',
+        messages: [{ role: 'user', content: analysisPrompt }],
+        temperature: 0.5,
+        max_tokens: 800
+      }, authKey, res)
       
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        console.error('[Qwen Prompt Analyze] API error:', errorData)
-        sendJson(res, response.status, { error: 'ANALYZE_FAILED', message: errorData.error?.message || 'Failed to analyze prompt' })
+      if (!r.ok) {
+        console.error('[Qwen Prompt Analyze] API error:', r.data)
+        sendJson(res, r.status, { error: 'ANALYZE_FAILED', message: r.data?.message || 'Failed to analyze prompt' })
         return
       }
       
-      const result = await response.json()
-      const content = result.choices?.[0]?.message?.content || ''
+      const content = r.data?.choices?.[0]?.message?.content || ''
       
       // 尝试解析JSON响应
       let parsedResult

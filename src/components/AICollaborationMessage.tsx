@@ -44,7 +44,7 @@ const AICollaborationMessage: React.FC<AICollaborationMessageProps> = ({
         delay: index * 0.05 
       }}
     >
-      <div className={`flex items-start gap-2 ${isUser ? 'max-w-[80%] flex-row-reverse ml-auto' : 'w-full flex-row'}`}>
+      <div className={`flex items-start gap-2 max-w-[85%] ${isUser ? 'flex-row-reverse ml-auto' : 'flex-row'}`}>
         {/* 头像 - 优化样式 */}
         {!hideAvatar && (
           <motion.div 
@@ -73,12 +73,12 @@ const AICollaborationMessage: React.FC<AICollaborationMessageProps> = ({
         )}
 
         {/* 消息内容 */}
-        <div className={`flex-1 min-w-0 flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
+        <div className={`flex-1 min-w-0 flex flex-col max-w-full ${isUser ? 'items-end' : 'items-start'}`}>
           {/* 气泡容器 - 包含气泡和复制按钮 */}
-          <div className={`flex items-start gap-2 w-full ${isUser ? 'flex-row-reverse justify-start' : 'flex-row'}`}>
+          <div className={`flex items-start gap-2 max-w-full ${isUser ? 'flex-row-reverse justify-start' : 'flex-row'}`}>
             {/* 气泡 - 优化圆角和阴影 */}
             <motion.div
-              className={`relative rounded-2xl p-3 shadow-sm transition-shadow duration-300 hover:shadow-md ${
+              className={`relative rounded-2xl p-3 shadow-sm transition-shadow duration-300 hover:shadow-md max-w-full ${
                 isUser
                   ? 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white rounded-tr-sm'
                   : isError

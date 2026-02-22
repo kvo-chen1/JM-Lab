@@ -567,6 +567,7 @@ export const PostCard: React.FC<PostCardProps> = ({
             : 'bg-white border-gray-200 hover:border-gray-300 hover:shadow-xl hover:shadow-gray-200/50'
         }`}
         data-testid="post-card"
+        onClick={() => onClick(thread.id)}
       >
         {/* Desktop Left Vote Column */}
         <VoteButtons 

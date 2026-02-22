@@ -238,121 +238,129 @@ export default function EventRanking() {
 
   return (
     <div className={`min-h-screen ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* 返回按钮 */}
+      {/* 移动端顶部导航 */}
+      <div className="md:hidden sticky top-0 z-50 px-4 py-3 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800">
         <motion.button
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           onClick={handleGoBack}
-          className="flex items-center gap-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 mb-6 transition-colors"
+          className="flex items-center gap-2 text-gray-600 dark:text-gray-300"
+        >
+          <ArrowLeft className="w-5 h-5" />
+          <span className="text-sm">返回</span>
+        </motion.button>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 md:py-8">
+        {/* PC端返回按钮 */}
+        <motion.button
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          onClick={handleGoBack}
+          className="hidden md:flex items-center gap-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 mb-6 transition-colors"
         >
           <ArrowLeft className="w-5 h-5" />
           返回
         </motion.button>
 
-        {/* 页面标题 */}
+        {/* 页面标题 - 移动端紧凑 */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-8"
+          className="mb-4 md:mb-8"
         >
           <div className="flex items-center gap-3 mb-2">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-yellow-400 to-amber-500 flex items-center justify-center shadow-lg shadow-yellow-500/30">
-              <Trophy className="w-6 h-6 text-white" />
+            <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-gradient-to-br from-yellow-400 to-amber-500 flex items-center justify-center shadow-lg shadow-yellow-500/30">
+              <Trophy className="w-5 h-5 md:w-6 md:h-6 text-white" />
             </div>
             <div>
-              <h1 className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+              <h1 className={`text-xl md:text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
                 最终排名
               </h1>
-              <p className={`text-lg ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+              <p className={`text-sm md:text-lg ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                 {eventInfo?.title}
               </p>
             </div>
           </div>
-          {eventInfo?.description && (
-            <p className={`mt-2 max-w-3xl ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-              {eventInfo.description}
-            </p>
-          )}
         </motion.div>
 
-        {/* 活动信息卡片 */}
+        {/* 活动信息卡片 - 移动端简化 */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className={`rounded-2xl p-6 mb-8 ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border shadow-sm`}
+          className={`rounded-xl md:rounded-2xl p-4 md:p-6 mb-4 md:mb-8 ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border shadow-sm`}
         >
-          <div className="flex flex-wrap items-center gap-6">
-            <div className="flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-gray-400" />
-              <span className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                {eventInfo?.start_time && new Date(eventInfo.start_time).toLocaleDateString('zh-CN')} -
-                {eventInfo?.end_time && new Date(eventInfo.end_time).toLocaleDateString('zh-CN')}
+          <div className="flex flex-wrap items-center gap-3 md:gap-6 text-xs md:text-sm">
+            <div className="flex items-center gap-1.5 md:gap-2">
+              <Calendar className="w-4 h-4 md:w-5 md:h-5 text-gray-400" />
+              <span className={isDark ? 'text-gray-300' : 'text-gray-600'}>
+                {eventInfo?.start_time && new Date(eventInfo.start_time).toLocaleDateString('zh-CN')}
               </span>
             </div>
-            <div className="flex items-center gap-2">
-              <Users className="w-5 h-5 text-gray-400" />
-              <span className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+            <div className="flex items-center gap-1.5 md:gap-2">
+              <Users className="w-4 h-4 md:w-5 md:h-5 text-gray-400" />
+              <span className={isDark ? 'text-gray-300' : 'text-gray-600'}>
                 {eventInfo?.participants_count || 0} 人参与
               </span>
             </div>
-            <div className="flex items-center gap-2">
-              <Trophy className="w-5 h-5 text-gray-400" />
-              <span className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+            <div className="flex items-center gap-1.5 md:gap-2">
+              <Trophy className="w-4 h-4 md:w-5 md:h-5 text-gray-400" />
+              <span className={isDark ? 'text-gray-300' : 'text-gray-600'}>
                 {rankingData.length} 个作品排名
               </span>
             </div>
             <div className="flex-1" />
             <button
               onClick={handleShare}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 md:px-4 md:py-2 rounded-lg text-xs md:text-sm transition-colors ${
                 isDark
                   ? 'bg-gray-700 hover:bg-gray-600 text-gray-300'
                   : 'bg-gray-100 hover:bg-gray-200 text-gray-600'
               }`}
             >
-              <Share2 className="w-4 h-4" />
-              分享排名
+              <Share2 className="w-3.5 h-3.5 md:w-4 md:h-4" />
+              <span className="hidden md:inline">分享排名</span>
+              <span className="md:hidden">分享</span>
             </button>
           </div>
         </motion.div>
 
-        {/* 当前用户排名提示 */}
+        {/* 当前用户排名提示 - 移动端紧凑 */}
         {currentUserRank && (
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.15 }}
-            className={`rounded-2xl p-6 mb-8 ${
+            className={`rounded-xl md:rounded-2xl p-4 md:p-6 mb-4 md:mb-8 ${
               isDark
                 ? 'bg-gradient-to-r from-red-500/20 to-pink-500/20 border border-red-500/30'
                 : 'bg-gradient-to-r from-red-50 to-pink-50 border border-red-200'
             }`}
           >
-            <div className="flex items-center gap-4">
-              <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-2xl font-bold ${getRankStyle(currentUserRank.rank)}`}>
+            <div className="flex items-center gap-3 md:gap-4">
+              <div className={`w-12 h-12 md:w-16 md:h-16 rounded-xl md:rounded-2xl flex items-center justify-center text-lg md:text-2xl font-bold ${getRankStyle(currentUserRank.rank)}`}>
                 {getRankIcon(currentUserRank.rank) || currentUserRank.rank}
               </div>
-              <div className="flex-1">
-                <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+              <div className="flex-1 min-w-0">
+                <p className={`text-xs md:text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                   您的排名
                 </p>
-                <h3 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                <h3 className={`text-lg md:text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
                   第 {currentUserRank.rank} 名
                 </h3>
-                <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                <p className={`text-xs md:text-sm truncate ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                   {currentUserRank.title}
                 </p>
               </div>
               <div className="text-right">
                 <div className="flex items-center gap-1 justify-end">
-                  <Star className="w-5 h-5 text-yellow-500 fill-yellow-500" />
-                  <span className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                  <Star className="w-4 h-4 md:w-5 md:h-5 text-yellow-500 fill-yellow-500" />
+                  <span className={`text-xl md:text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
                     {formatScore(currentUserRank.avg_score)}
                   </span>
                 </div>
-                <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                <p className={`text-xs md:text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                   {currentUserRank.judge_count} 人评分
                 </p>
               </div>
@@ -360,49 +368,49 @@ export default function EventRanking() {
           </motion.div>
         )}
 
-        {/* 统计概览 */}
+        {/* 统计概览 - 响应式2x2网格 */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8"
+          className="grid grid-cols-2 gap-3 md:gap-4 mb-4 md:mb-8"
         >
-          <div className={`p-6 rounded-2xl ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border shadow-sm`}>
-            <div className="flex items-center gap-2 mb-2">
-              <Target className="w-5 h-5 text-blue-500" />
-              <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>平均分</span>
+          <div className={`p-4 md:p-6 rounded-xl md:rounded-2xl ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border shadow-sm`}>
+            <div className="flex items-center gap-1.5 md:gap-2 mb-1.5 md:mb-2">
+              <Target className="w-4 h-4 md:w-5 md:h-5 text-blue-500" />
+              <span className={`text-xs md:text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>平均分</span>
             </div>
-            <div className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+            <div className={`text-xl md:text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
               {formatScore(stats.avgScore)}
             </div>
           </div>
 
-          <div className={`p-6 rounded-2xl ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border shadow-sm`}>
-            <div className="flex items-center gap-2 mb-2">
-              <Trophy className="w-5 h-5 text-yellow-500" />
-              <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>最高分</span>
+          <div className={`p-4 md:p-6 rounded-xl md:rounded-2xl ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border shadow-sm`}>
+            <div className="flex items-center gap-1.5 md:gap-2 mb-1.5 md:mb-2">
+              <Trophy className="w-4 h-4 md:w-5 md:h-5 text-yellow-500" />
+              <span className={`text-xs md:text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>最高分</span>
             </div>
-            <div className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+            <div className={`text-xl md:text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
               {formatScore(stats.maxScore)}
             </div>
           </div>
 
-          <div className={`p-6 rounded-2xl ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border shadow-sm`}>
-            <div className="flex items-center gap-2 mb-2">
-              <Users className="w-5 h-5 text-purple-500" />
-              <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>参与作品</span>
+          <div className={`p-4 md:p-6 rounded-xl md:rounded-2xl ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border shadow-sm`}>
+            <div className="flex items-center gap-1.5 md:gap-2 mb-1.5 md:mb-2">
+              <Users className="w-4 h-4 md:w-5 md:h-5 text-purple-500" />
+              <span className={`text-xs md:text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>参与作品</span>
             </div>
-            <div className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+            <div className={`text-xl md:text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
               {stats.totalParticipants}
             </div>
           </div>
 
-          <div className={`p-6 rounded-2xl ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border shadow-sm`}>
-            <div className="flex items-center gap-2 mb-2">
-              <TrendingUp className="w-5 h-5 text-emerald-500" />
-              <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>冠亚军分差</span>
+          <div className={`p-4 md:p-6 rounded-xl md:rounded-2xl ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border shadow-sm`}>
+            <div className="flex items-center gap-1.5 md:gap-2 mb-1.5 md:mb-2">
+              <TrendingUp className="w-4 h-4 md:w-5 md:h-5 text-emerald-500" />
+              <span className={`text-xs md:text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>冠亚军分差</span>
             </div>
-            <div className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+            <div className={`text-xl md:text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
               {formatScore(stats.topScoreGap)}
             </div>
           </div>

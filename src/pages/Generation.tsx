@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import errorService from '@/services/errorService'
 import voiceService from '@/services/voiceService'
 import { llmService } from '@/services/llmService'
+import { aiGenerationSaveService } from '@/services/aiGenerationSaveService'
 
 import { TianjinImage } from '@/components/TianjinStyleComponents'
 // 中文注释：将页面包裹在统一的侧边栏布局组件中，获得顶部导航与搜索
@@ -94,6 +95,22 @@ export default function Generation() {
       const url = videoUrl
       setVariants((arr) => arr.map((it, i) => (i === idx ? { ...it, video: url } : it)))
       toast.success('视频生成完成')
+      
+      // 保存AI生成记录到数据库
+      await aiGenerationSaveService.saveVideoGeneration(
+        text,
+        url,
+        url,
+        {
+          source: 'generation_page',
+          metadata: {
+            duration: 5,
+            resolution: '720p',
+            imageUrl: publicImageUrl
+          }
+        }
+      )
+      
       try {
         if (saveToTutorialId && url) {
           const raw = localStorage.getItem('TUTORIAL_VIDEO_OVERRIDES')
@@ -152,6 +169,23 @@ export default function Generation() {
       })
       setVariants(imgs)
       toast.success('生成完成')
+      
+      // 保存所有生成的图片到数据库
+      for (const img of imgs) {
+        if (img.image) {
+          await aiGenerationSaveService.saveImageGeneration(
+            base,
+            img.image,
+            {
+              source: 'generation_page',
+              metadata: {
+                size: '1024x1024',
+                script: img.script
+              }
+            }
+          )
+        }
+      }
     } catch (e: any) {
       errorService.logError(e instanceof Error ? e : 'SERVER_ERROR', { scope: 'generation', prompt })
       toast.error('生成异常，已回退为占位图')

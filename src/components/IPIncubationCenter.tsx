@@ -2182,12 +2182,17 @@ export default function IPIncubationCenter() {
       setValueTrendData(trendData);
       setTypeDistributionData(typeData);
 
-      // 如果没有选中的资产，选择第一个
-      // 使用函数式更新避免依赖问题
+      // 更新选中的资产：如果没有选中的资产，选择第一个；如果有，同步更新为最新数据
       setSelectedIPAsset(prev => {
-        if (assets.length > 0 && !prev) {
+        if (assets.length === 0) return null;
+        if (!prev) {
           console.log('[IPIncubationCenter] 自动选择第一个资产:', assets[0].id);
           return assets[0];
+        }
+        // 同步更新为最新的资产数据
+        const updatedAsset = assets.find(a => a.id === prev.id);
+        if (updatedAsset) {
+          return updatedAsset;
         }
         return prev;
       });

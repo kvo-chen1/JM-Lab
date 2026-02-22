@@ -7,9 +7,12 @@ import { Event } from '@/types';
 import { useEventFilters } from '@/hooks/useEventFilters';
 import LeftSidebar from '@/components/events/LeftSidebar';
 import EventGrid from '@/components/events/EventGrid';
+import MobileEventGrid from '@/components/events/MobileEventGrid';
 import RightSidebar from '@/components/events/RightSidebar';
 import EventDetailModal from '@/components/events/EventDetailModal';
-import { Menu, X, Sparkles } from 'lucide-react';
+import EventBannerCarousel from '@/components/events/EventBannerCarousel';
+import MobileEventSearchPage from '@/components/events/MobileEventSearchPage';
+import { Menu, X, Sparkles, Search, SlidersHorizontal, Plus } from 'lucide-react';
 import { AuthContext } from '@/contexts/authContext';
 import { eventParticipationService, ParticipationStats } from '@/services/eventParticipationService';
 import { userService } from '@/services/userService';
@@ -105,6 +108,7 @@ export default function CulturalEvents() {
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
+  const [isSearchPageOpen, setIsSearchPageOpen] = useState(false);
   const [submissionCount, setSubmissionCount] = useState(0);
   const [userActivityStats, setUserActivityStats] = useState<ParticipationStats | null>(null);
   const [recommendedCreators, setRecommendedCreators] = useState<any[]>([]);
@@ -318,45 +322,75 @@ export default function CulturalEvents() {
 
   return (
     <main className={`min-h-screen ${isDark ? 'bg-gray-950' : 'bg-gray-50'}`}>
-      {/* 顶部标题栏 - 移动端 */}
-      <div className={`lg:hidden sticky top-0 z-30 px-4 py-3 border-b ${
-        isDark ? 'bg-gray-900/95 border-gray-800' : 'bg-white/95 border-gray-100'
-      } backdrop-blur-md`}>
-        <div className="flex items-center justify-between">
+      {/* 隐藏 MobileLayout 的顶部导航栏 */}
+      <style>{`
+        .sticky.top-0.z-60 {
+          display: none !important;
+        }
+      `}</style>
+      
+      {/* 移动端搜索页面 */}
+      <MobileEventSearchPage
+        isOpen={isSearchPageOpen}
+        onClose={() => setIsSearchPageOpen(false)}
+        onSearch={(query) => setSearchQuery(query)}
+        initialQuery={filters.searchQuery}
+      />
+
+      {/* 移动端顶部 - 采用首页风格 - 轮播图上方悬浮 */}
+      <div className={`lg:hidden fixed top-0 left-0 right-0 z-50 px-4 pt-4 pb-4 pointer-events-none`}>
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2, duration: 0.5 }}
+          className="max-w-md mx-auto pointer-events-auto"
+        >
           <div className="flex items-center gap-3">
-            <button
+            {/* 搜索框 */}
+            <div
+              onClick={() => setIsSearchPageOpen(true)}
+              className={`flex-1 flex items-center gap-3 px-4 py-3 rounded-full cursor-pointer transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] ${
+                isDark
+                  ? 'bg-white/95 text-gray-700 shadow-lg'
+                  : 'bg-white/95 text-gray-700 shadow-lg'
+              }`}
+            >
+              <Search className="w-5 h-5 text-gray-400 flex-shrink-0" />
+              <span className="text-gray-400 text-base">
+                {filters.searchQuery || '搜索活动...'}
+              </span>
+            </div>
+
+            {/* 筛选按钮 */}
+            <motion.button
+              whileTap={{ scale: 0.95 }}
               onClick={() => setIsMobileFilterOpen(true)}
-              className={`p-2 rounded-lg ${
+              className={`relative flex items-center justify-center w-12 h-12 rounded-full shadow-lg transition-all ${
                 activeFiltersCount > 0
                   ? 'bg-red-500 text-white'
                   : isDark
-                  ? 'bg-gray-800 text-gray-300'
-                  : 'bg-gray-100 text-gray-600'
+                  ? 'bg-white/95 text-gray-700'
+                  : 'bg-white/95 text-gray-700'
               }`}
             >
-              <Menu className="w-5 h-5" />
+              <SlidersHorizontal className="w-5 h-5" />
               {activeFiltersCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-600 text-white text-xs rounded-full flex items-center justify-center font-bold">
                   {activeFiltersCount}
                 </span>
               )}
-            </button>
-            <div>
-              <h1 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                津脉活动
-              </h1>
-              <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                探索天津文化的无限魅力
-              </p>
-            </div>
+            </motion.button>
+
+            {/* 创建按钮 */}
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={handleCreateEvent}
+              className="flex items-center justify-center w-12 h-12 rounded-full bg-red-500 text-white shadow-lg shadow-red-500/30"
+            >
+              <Plus className="w-6 h-6" />
+            </motion.button>
           </div>
-          <button
-            onClick={handleCreateEvent}
-            className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-medium transition-colors"
-          >
-            创建
-          </button>
-        </div>
+        </motion.div>
       </div>
 
       {/* 页面标题 - 桌面端 */}
@@ -386,6 +420,16 @@ export default function CulturalEvents() {
         </motion.div>
       </div>
 
+      {/* 移动端轮播图 - 首页风格 - 全屏显示在容器外部 */}
+      <div className="lg:hidden">
+        {!isLoading && filteredAndSortedEvents.length > 0 && (
+          <EventBannerCarousel
+            events={filteredAndSortedEvents}
+            onEventClick={handleEventClick}
+          />
+        )}
+      </div>
+
       {/* 三栏布局 */}
       <div className="container mx-auto px-4 pb-12">
         <div className="flex gap-6">
@@ -408,15 +452,30 @@ export default function CulturalEvents() {
 
           {/* 中间栏 - 活动列表 */}
           <div className="flex-1 min-w-0">
-            <EventGrid
-              events={filteredAndSortedEvents}
-              isLoading={isLoading}
-              searchQuery={filters.searchQuery}
-              setSearchQuery={setSearchQuery}
-              sortBy={filters.sortBy}
-              setSortBy={setSortBy}
-              onEventClick={handleEventClick}
-            />
+            {/* PC端使用原有布局 */}
+            <div className="hidden lg:block">
+              <EventGrid
+                events={filteredAndSortedEvents}
+                isLoading={isLoading}
+                searchQuery={filters.searchQuery}
+                setSearchQuery={setSearchQuery}
+                sortBy={filters.sortBy}
+                setSortBy={setSortBy}
+                onEventClick={handleEventClick}
+              />
+            </div>
+            {/* 移动端使用两列布局 */}
+            <div className="lg:hidden">
+              <MobileEventGrid
+                events={filteredAndSortedEvents}
+                isLoading={isLoading}
+                searchQuery={filters.searchQuery}
+                setSearchQuery={setSearchQuery}
+                sortBy={filters.sortBy}
+                setSortBy={setSortBy}
+                onEventClick={handleEventClick}
+              />
+            </div>
           </div>
 
           {/* 右侧栏 - 桌面端 */}

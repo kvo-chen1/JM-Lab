@@ -249,7 +249,7 @@ export const CommunityInfoSidebar: React.FC<CommunityInfoSidebarProps> = ({
   
   // 状态管理
   const [expandedRules, setExpandedRules] = useState<number[]>([]);
-  const [creatorInfo, setCreatorInfo] = useState<{ username: string; avatar?: string } | null>(null);
+  const [creatorInfo, setCreatorInfo] = useState<{ id: string; username: string; avatar?: string } | null>(null);
   const [isJoining, setIsJoining] = useState(false);
   const [activeMembers, setActiveMembers] = useState<ActiveMember[]>([]);
   const [recentEvents, setRecentEvents] = useState<RecentEvent[]>([]);
@@ -274,6 +274,7 @@ export const CommunityInfoSidebar: React.FC<CommunityInfoSidebarProps> = ({
             console.log('[CommunityInfoSidebar] Creator API result:', result);
             if (result.code === 0 && result.data) {
               setCreatorInfo({
+                id: result.data.id || creatorId,
                 username: result.data.username || '未知用户',
                 avatar: result.data.avatar || result.data.avatar_url
               });
@@ -718,7 +719,7 @@ export const CommunityInfoSidebar: React.FC<CommunityInfoSidebarProps> = ({
       {/* 创建者信息 */}
       <div className="p-4">
         <div 
-          onClick={() => handleUserClick(creatorInfo?.username || creator || '@社区管理员')}
+          onClick={() => handleUserClick(creatorInfo?.id || creator || '@社区管理员')}
           className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all duration-200 ${isDark ? 'bg-gray-800/50 hover:bg-gray-800' : 'bg-white hover:bg-gray-50'} border ${isDark ? 'border-gray-700/50' : 'border-gray-200'} hover:shadow-md`}
         >
           <div className="relative">
@@ -951,7 +952,7 @@ export const CommunityInfoSidebar: React.FC<CommunityInfoSidebarProps> = ({
               {activeMembers.map((member) => (
                 <div
                   key={member.id}
-                  onClick={() => handleUserClick(member.username)}
+                  onClick={() => handleUserClick(member.id)}
                   className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all duration-200 ${
                     isDark
                       ? 'hover:bg-gray-700/30'

@@ -3,6 +3,7 @@ import { CreateState, ToolType, GeneratedResult, SmartLayoutConfig, LayoutRecomm
 import { aiGeneratedResults, traditionalPatterns } from '../data';
 import { workService, communityService, eventService } from '@/services/apiService';
 import postsApi from '@/services/postService';
+import { eventSubmissionService } from '@/services/eventSubmissionService';
 import { inspirationMindMapService } from '@/services/inspirationMindMapService';
 import { generateLayoutRecommendation } from '../utils/layoutEngine';
 
@@ -87,7 +88,7 @@ interface CreateActions {
     title: string;
     description: string;
     imageUrl: string;
-  }) => Promise<{ success: boolean; message: string }>;
+  }, participationId?: string) => Promise<{ success: boolean; message: string }>;
   getModerationStatus: (workId: number) => Promise<{
     status: 'pending' | 'approved' | 'rejected' | 'scheduled';
     reviewedAt: string | null;
@@ -1131,22 +1132,63 @@ export const useCreateStore = create<CreateState & CreateActions>((set) => ({
     }
   },
   
-  submitToEvent: async (eventId, workData) => {
+  submitToEvent: async (eventId, workData, participationId?: string) => {
     try {
-      console.log('Submitting to event:', eventId, workData);
+      console.log('Submitting to event:', eventId, workData, participationId);
 
-      // 模拟提交延迟
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const user = await getCurrentUser();
+      if (!user) {
+        return {
+          success: false,
+          message: '用户未登录'
+        };
+      }
+
+      // 如果没有提供 participationId，尝试从当前状态获取
+      let targetParticipationId = participationId;
+      if (!targetParticipationId) {
+        // 尝试从 URL 参数获取
+        const urlParams = new URLSearchParams(window.location.search);
+        targetParticipationId = urlParams.get('participationId') || '';
+      }
+
+      if (!targetParticipationId) {
+        return {
+          success: false,
+          message: '未找到参与记录，请先报名活动'
+        };
+      }
+
+      // 调用 eventSubmissionService 提交作品
+      const result = await eventSubmissionService.submitWork(
+        eventId,
+        user.id,
+        targetParticipationId,
+        {
+          title: workData.title,
+          description: workData.description,
+          files: [{
+            id: `${Date.now()}_image`,
+            name: 'work_image.jpg',
+            url: workData.imageUrl,
+            type: 'image/jpeg',
+            size: 0,
+            thumbnailUrl: workData.imageUrl
+          }],
+          metadata: {}
+        }
+      );
+
+      if (!result.success) {
+        return {
+          success: false,
+          message: result.error || '提交失败'
+        };
+      }
 
       // 同步到津脉脉络
       (async () => {
         try {
-          const user = await getCurrentUser();
-          if (!user) {
-            console.log('[InspirationMindMap] User not logged in, skipping event submit sync');
-            return;
-          }
-
           // 获取或创建用户的默认津脉脉络
           let mindMaps = await inspirationMindMapService.getUserMindMaps(user.id);
           let mindMap = mindMaps.find(m => m.title === '我的创作脉络') || mindMaps[0];

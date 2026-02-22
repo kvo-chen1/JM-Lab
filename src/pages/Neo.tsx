@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom'
 import { scoreAuthenticity } from '@/services/authenticityService'
 import { useTheme } from '@/hooks/useTheme'
 import { llmService } from '@/services/llmService'
+import { aiGenerationSaveService } from '@/services/aiGenerationSaveService'
 import voiceService from '@/services/voiceService'
 import doubao, { createVideoTask, pollVideoTask, DoubaoVideoContent } from '@/services/doubao'
 import { TianjinImage } from '@/components/TianjinStyleComponents'
@@ -1765,6 +1766,24 @@ export default function Neo() {
             } else {
               toast.success(`${currentModel.name}生图完成`);
             }
+            
+            // 保存AI生成记录到数据库
+            for (const url of urls) {
+              if (!url.includes('unsplash.com')) {
+                await aiGenerationSaveService.saveImageGeneration(
+                  final || input,
+                  url,
+                  {
+                    source: 'neo',
+                    metadata: {
+                      mode: generationMode,
+                      model: currentModel.id,
+                      size: '1024x1024'
+                    }
+                  }
+                );
+              }
+            }
           }
         } catch (e) {
           errorService.logError(e instanceof Error ? e : 'SERVER_ERROR', { scope: 'neo-doubao', prompt: final || input })
@@ -1793,13 +1812,30 @@ export default function Neo() {
           setImages([uploadedImage])
           setVideoByIndex([videoResult.data.video_url])
           
-          saveHistory({ 
-            url: videoResult.data.video_url, 
-            image: uploadedImage, 
-            createdAt: Date.now(), 
+          saveHistory({
+            url: videoResult.data.video_url,
+            image: uploadedImage,
+            createdAt: Date.now(),
             thumb: videoResult.data.last_frame_url || undefined,
             type: 'video'
           })
+          
+          // 保存AI生成记录到数据库
+          await aiGenerationSaveService.saveVideoGeneration(
+            final || input,
+            videoResult.data.video_url,
+            videoResult.data.last_frame_url || uploadedImage,
+            {
+              source: 'neo',
+              metadata: {
+                mode: generationMode,
+                model: 'wanx2.1-i2v-turbo',
+                duration: videoParams.duration,
+                resolution: videoParams.resolution,
+                imageUrl: uploadedImage
+              }
+            }
+          )
         } else {
           toast.error(videoResult.error || '视频生成失败')
         }
@@ -1818,13 +1854,29 @@ export default function Neo() {
           setImages([placeholderImg])
           setVideoByIndex([videoResult.data.video_url])
           
-          saveHistory({ 
-            url: videoResult.data.video_url, 
-            image: placeholderImg, 
-            createdAt: Date.now(), 
+          saveHistory({
+            url: videoResult.data.video_url,
+            image: placeholderImg,
+            createdAt: Date.now(),
             thumb: videoResult.data.last_frame_url || undefined,
             type: 'video'
           })
+          
+          // 保存AI生成记录到数据库
+          await aiGenerationSaveService.saveVideoGeneration(
+            final || input,
+            videoResult.data.video_url,
+            videoResult.data.last_frame_url || placeholderImg,
+            {
+              source: 'neo',
+              metadata: {
+                mode: generationMode,
+                model: 'wanx2.1-t2v-turbo',
+                duration: videoParams.duration,
+                resolution: videoParams.resolution
+              }
+            }
+          )
         } else {
           toast.error(videoResult.error || '视频生成失败')
         }

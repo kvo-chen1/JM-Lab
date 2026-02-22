@@ -2642,17 +2642,24 @@ export async function addComment(
 
 
 // Stub other functions
-export async function getAuthorById(userId: string): Promise<User | null> {
+export async function getAuthorById(userIdOrUsername: string): Promise<User | null> {
   // 首先尝试获取当前登录用户的信息（从 Supabase auth）
   const { data: { user: currentUser } } = await supabase.auth.getUser();
-  console.log('[getAuthorById] userId:', userId, 'currentUser?.id:', currentUser?.id)
+  console.log('[getAuthorById] userIdOrUsername:', userIdOrUsername, 'currentUser?.id:', currentUser?.id)
   console.log('[getAuthorById] user_metadata:', JSON.stringify(currentUser?.user_metadata))
   
-  if (currentUser && currentUser.id === userId) {
+  // 判断传入的是 UUID 还是用户名
+  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userIdOrUsername)
+  console.log('[getAuthorById] isUUID:', isUUID)
+  
+  // 用于存储实际的用户ID（如果是用户名查询，会转换为ID）
+  let actualUserId = userIdOrUsername
+  
+  if (currentUser && (currentUser.id === userIdOrUsername || currentUser.user_metadata?.username === userIdOrUsername)) {
     // 如果是当前登录用户，先尝试从后端 API 获取完整数据
     console.log('[getAuthorById] Current user, trying API first')
     try {
-      const response = await fetch(`/api/users/${userId}`)
+      const response = await fetch(`/api/users/${actualUserId}`)
       if (response.ok) {
         const result = await response.json()
         if (result.code === 0 && result.data) {
@@ -2725,7 +2732,27 @@ export async function getAuthorById(userId: string): Promise<User | null> {
   console.log('[getAuthorById] Not current user, falling back to API')
   // 对于其他用户，使用后端 API 获取信息
   try {
-    const response = await fetch(`/api/users/${userId}`)
+    // 如果是用户名而非 UUID，先尝试通过用户名查询
+    if (!isUUID) {
+      console.log('[getAuthorById] Input is username, trying to find user by username first')
+      
+      // 先尝试通过 Supabase 查询用户名
+      const { data: userByUsername, error: usernameError } = await supabase
+        .from('users')
+        .select('id, username, email, avatar_url, cover_image, bio, location, website, occupation')
+        .eq('username', userIdOrUsername)
+        .single()
+      
+      if (!usernameError && userByUsername) {
+        console.log('[getAuthorById] Found user by username:', userByUsername)
+        // 获取到用户ID后，继续用ID获取完整数据
+        actualUserId = userByUsername.id
+      } else {
+        console.log('[getAuthorById] User not found by username, trying as ID anyway')
+      }
+    }
+    
+    const response = await fetch(`/api/users/${userIdOrUsername}`)
     if (!response.ok) {
       console.error('[getAuthorById] API error:', response.status)
       // 如果 API 返回 404，尝试从 Supabase 获取用户数据
@@ -2735,7 +2762,7 @@ export async function getAuthorById(userId: string): Promise<User | null> {
         // 首先尝试使用 RPC 函数获取完整用户资料
         try {
           const { data: rpcData, error: rpcError } = await supabase
-            .rpc('get_user_profile', { p_user_id: userId })
+            .rpc('get_user_profile', { p_user_id: actualUserId })
           
           if (!rpcError && rpcData && rpcData.length > 0) {
             const userData = rpcData[0]
@@ -2756,12 +2783,18 @@ export async function getAuthorById(userId: string): Promise<User | null> {
           console.log('[getAuthorById] RPC failed, falling back to direct query:', rpcErr)
         }
         
-        // RPC 失败，使用直接查询
-        const { data: userData, error: userError } = await supabase
+        // RPC 失败，使用直接查询 - 同时支持 ID 和 username 查询
+        let query = supabase
           .from('users')
           .select('id, username, email, avatar_url, cover_image, bio, location, website, occupation')
-          .eq('id', userId)
-          .single()
+        
+        if (isUUID) {
+           query = query.eq('id', actualUserId)
+         } else {
+           query = query.eq('username', userIdOrUsername)
+         }
+        
+        const { data: userData, error: userError } = await query.single()
         
         if (!userError && userData) {
           console.log('[getAuthorById] Got user from Supabase:', userData)

@@ -44,7 +44,7 @@ export const InlineGenerationCard: React.FC<InlineGenerationCardProps> = ({
   // 生成中状态
   if (task.status === 'pending' || task.status === 'processing') {
     return (
-      <div className={`p-6 rounded-2xl ${isDark ? 'bg-gray-800/80' : 'bg-white'} shadow-lg`}>
+      <div className={`p-6 rounded-2xl max-w-full ${isDark ? 'bg-gray-800/80' : 'bg-white'} shadow-lg`}>
         <div className="flex items-center gap-4">
           <div className="relative">
             <motion.div
@@ -81,7 +81,7 @@ export const InlineGenerationCard: React.FC<InlineGenerationCardProps> = ({
   // 失败状态
   if (task.status === 'failed') {
     return (
-      <div className={`p-6 rounded-2xl ${isDark ? 'bg-red-900/20' : 'bg-red-50'} shadow-lg`}>
+      <div className={`p-6 rounded-2xl max-w-full ${isDark ? 'bg-red-900/20' : 'bg-red-50'} shadow-lg`}>
         <div className="flex items-center gap-4">
           <div className={`w-14 h-14 rounded-xl flex items-center justify-center ${isDark ? 'bg-red-500/20' : 'bg-red-100'}`}>
             <ImageIcon className="w-7 h-7 text-red-500" />
@@ -99,9 +99,9 @@ export const InlineGenerationCard: React.FC<InlineGenerationCardProps> = ({
 
   // 完成状态
   return (
-    <div className={`p-4 rounded-2xl ${isDark ? 'bg-gray-800/50' : 'bg-gray-50'}`}>
+    <div className={`p-4 rounded-2xl max-w-full ${isDark ? 'bg-gray-800/50' : 'bg-gray-50'}`}>
       {/* 媒体显示 */}
-      <div className="relative rounded-xl overflow-hidden mb-4 group">
+      <div className="relative rounded-xl overflow-hidden mb-4 group max-w-full">
         {mediaUrl && !mediaError ? (
           isVideo ? (
             <video

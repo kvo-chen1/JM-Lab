@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
+import { motion } from 'framer-motion'
 import { 
   MapPin, 
   Calendar, 
@@ -43,7 +44,9 @@ import {
   ChevronLeft,
   Upload,
   MoreVertical,
-  Bookmark
+  Bookmark,
+  Crown,
+  Star
 } from 'lucide-react'
 import LazyImage from '../components/LazyImage'
 import { PostGrid } from '../components/CreatorCommunity/PostGrid'
@@ -52,6 +55,7 @@ import { supabase } from '../lib/supabase'
 import type { User } from '../contexts/authContext'
 import { toast } from 'sonner'
 import { sendDirectMessage, checkIsFriend, sendFriendRequest } from '../services/messageService'
+import { useTheme } from '@/hooks/useTheme'
 
 interface AuthorProfileProps {
   currentUser?: User | null
@@ -84,6 +88,7 @@ interface Achievement {
 export const AuthorProfile: React.FC<AuthorProfileProps> = ({ currentUser }) => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { isDark } = useTheme()
   
   const [author, setAuthor] = useState<any | null>(null)
   const [posts, setPosts] = useState<any[]>([])
@@ -803,309 +808,380 @@ export const AuthorProfile: React.FC<AuthorProfileProps> = ({ currentUser }) => 
 
   // 桌面端视图
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8">
-      {/* 头部横幅 */}
-      <div 
-        className="relative h-80 md:h-[420px] rounded-xl mb-8 overflow-hidden"
-        style={(author.coverImage || author.cover_image) ? {
-          backgroundImage: `url(${author.coverImage || author.cover_image})`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center'
-        } : {}}
-      >
-        {/* 默认渐变背景 */}
-        {!(author.coverImage || author.cover_image) && (
-          <div className="absolute inset-0 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500" />
-        )}
-        
-        {/* 动态背景效果 */}
-        <div className="absolute inset-0 bg-black bg-opacity-20" />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
-        
-        {/* 装饰性元素 - 只在没有封面时显示 */}
-        {!(author.coverImage || author.cover_image) && (
-          <div className="absolute inset-0 overflow-hidden">
-            <div className="absolute -top-20 -right-20 w-60 h-60 bg-white/10 rounded-full blur-3xl animate-pulse" />
-            <div className="absolute -bottom-20 -left-20 w-80 h-80 bg-purple-500/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
-          </div>
-        )}
-        
+    <div className={`min-h-screen pb-8 ${isDark ? 'bg-[#0a0a0f]' : 'bg-[#f8f9fc]'}`}>
+      {/* 背景装饰 */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-20 -right-20 w-60 h-60 bg-gradient-to-br from-red-500/10 to-orange-500/10 rounded-full blur-3xl" />
+        <div className="absolute top-1/4 -left-20 w-40 h-40 bg-gradient-to-br from-blue-500/10 to-purple-500/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-1/4 right-0 w-48 h-48 bg-gradient-to-br from-emerald-500/10 to-teal-500/10 rounded-full blur-3xl" />
       </div>
 
-      {/* 个人信息区域 */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 md:p-8 mb-8">
-        <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
-          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
-            {/* 头像 */}
-            <div className="relative flex-shrink-0 group">
-              <div className="w-28 h-28 md:w-32 md:h-32 rounded-full overflow-hidden border-4 border-white dark:border-gray-700 shadow-xl">
-                <LazyImage
-                  src={author.avatar || author.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${author.username}`}
-                  alt={author.username}
-                  className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
-                  placeholder="blur"
-                  ratio="square"
-                />
-              </div>
-              
-              {/* 在线状态指示器 */}
-              {isOnline && (
-                <div className="absolute bottom-2 right-2 w-5 h-5 bg-green-500 rounded-full border-2 border-white dark:border-gray-700" title="在线" />
-              )}
-              
-              {/* 认证标识 */}
-              {author.is_verified && (
-                <div className="absolute -top-1 -right-1">
-                  <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center border-2 border-white dark:border-gray-700 shadow-lg">
-                    <Award className="w-4 h-4 text-white" />
-                  </div>
-                </div>
-              )}
-              
-              {/* 编辑头像按钮 */}
-              {isOwnProfile && (
-                <button className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Camera className="w-8 h-8 text-white" />
-                </button>
-              )}
+      <div className="relative z-10 max-w-6xl mx-auto px-4 py-8">
+        {/* 头部横幅 */}
+        <div 
+          className="relative h-64 md:h-80 rounded-3xl mb-6 overflow-hidden"
+          style={(author.coverImage || author.cover_image) ? {
+            backgroundImage: `url(${author.coverImage || author.cover_image})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center'
+          } : {}}
+        >
+          {/* 默认渐变背景 */}
+          {!(author.coverImage || author.cover_image) && (
+            <div className="absolute inset-0 bg-gradient-to-r from-red-500 via-orange-500 to-yellow-500" />
+          )}
+          
+          {/* 动态背景效果 */}
+          <div className="absolute inset-0 bg-black/10" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent" />
+          
+          {/* 装饰性元素 - 只在没有封面时显示 */}
+          {!(author.coverImage || author.cover_image) && (
+            <div className="absolute inset-0 overflow-hidden">
+              <div className="absolute -top-20 -right-20 w-60 h-60 bg-white/10 rounded-full blur-3xl animate-pulse" />
+              <div className="absolute -bottom-20 -left-20 w-80 h-80 bg-orange-500/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
             </div>
+          )}
+        </div>
 
-            {/* 基本信息 */}
-            <div className="flex-1 text-center sm:text-left">
-              <div className="flex flex-col sm:flex-row items-center gap-3 mb-3">
-                <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">{author.username}</h1>
-                {author.is_verified && (
-                  <div className="flex items-center gap-1 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-3 py-1 rounded-full text-sm font-medium">
-                    <Award className="w-4 h-4" />
-                    <span>认证创作者</span>
+        {/* 个人信息区域 - 统一样式 */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className={`p-6 md:p-8 rounded-3xl mb-8 ${isDark
+            ? 'bg-gray-800/60 backdrop-blur-xl border border-gray-700/50'
+            : 'bg-white/80 backdrop-blur-xl border border-white/50 shadow-lg shadow-gray-200/30'
+          }`}
+        >
+          <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
+            <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
+              {/* 头像 - 统一样式 */}
+              <div className="relative flex-shrink-0 group">
+                <div className="w-28 h-28 md:w-32 md:h-32 rounded-full p-1 bg-gradient-to-br from-red-500 via-orange-500 to-yellow-500">
+                  <div className="w-full h-full rounded-full overflow-hidden border-4 border-white dark:border-gray-800">
+                    <LazyImage
+                      src={author.avatar || author.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${author.username}`}
+                      alt={author.username}
+                      className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+                      placeholder="blur"
+                      ratio="square"
+                    />
                   </div>
-                )}
-              </div>
-
-              {author.bio && (
-                <p className="text-gray-600 dark:text-gray-300 text-base mb-4 leading-relaxed max-w-xl">
-                  {author.bio}
-                </p>
-              )}
-
-              {/* 统计信息 */}
-              <div className="flex flex-wrap justify-center sm:justify-start gap-4 md:gap-8 text-sm text-gray-500 dark:text-gray-400 mb-6">
-                <div className="flex items-center gap-2 hover:text-gray-700 dark:hover:text-gray-200 transition-colors cursor-pointer">
-                  <Users className="w-4 h-4" />
-                  <span className="font-semibold text-gray-900 dark:text-white">{author.followersCount || author.followers_count || 0}</span>
-                  <span>粉丝</span>
                 </div>
-                <div className="flex items-center gap-2 hover:text-gray-700 dark:hover:text-gray-200 transition-colors cursor-pointer">
-                  <BookOpen className="w-4 h-4" />
-                  <span className="font-semibold text-gray-900 dark:text-white">{author.followingCount || author.following_count || 0}</span>
-                  <span>关注</span>
-                </div>
-                <div className="flex items-center gap-2 hover:text-gray-700 dark:hover:text-gray-200 transition-colors cursor-pointer">
-                  <Edit3 className="w-4 h-4" />
-                  <span className="font-semibold text-gray-900 dark:text-white">{posts.length}</span>
-                  <span>作品</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Calendar className="w-4 h-4" />
-                  <span>加入于 {author.created_at || author.membershipStart ? new Date(author.created_at || author.membershipStart).toLocaleDateString('zh-CN') : '未知'}</span>
-                </div>
-              </div>
-
-              {/* 操作按钮 */}
-              <div className="flex flex-wrap justify-center sm:justify-start gap-3">
-                {!isOwnProfile ? (
-                  <>
-                    <button
-                      onClick={handleFollow}
-                      className={`flex items-center gap-2 px-6 py-2.5 rounded-full font-medium transition-all duration-200 ${
-                        isFollowing
-                          ? 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600'
-                          : 'bg-blue-500 text-white hover:bg-blue-600 shadow-lg shadow-blue-500/30'
-                      }`}
-                    >
-                      {isFollowing ? <UserCheck className="w-4 h-4" /> : <UserPlus className="w-4 h-4" />}
-                      {isFollowing ? '已关注' : '关注'}
-                    </button>
-                    <button
-                      onClick={handleMessage}
-                      className="px-6 py-2.5 bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors font-medium"
-                    >
-                      私信
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button
-                      onClick={() => navigate('/settings')}
-                      className="flex items-center gap-2 px-6 py-2.5 bg-blue-500 text-white rounded-full hover:bg-blue-600 transition-colors font-medium shadow-lg shadow-blue-500/30"
-                    >
-                      <Edit3 className="w-4 h-4" />
-                      编辑资料
-                    </button>
-                    <button
-                      onClick={() => navigate('/dashboard')}
-                      className="flex items-center gap-2 px-6 py-2.5 bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors font-medium"
-                    >
-                      <LayoutDashboard className="w-4 h-4" />
-                      个人中心
-                    </button>
-                  </>
-                )}
-
-                <button
-                  onClick={handleShare}
-                  className="p-2.5 bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                  title="分享"
-                >
-                  <Share2 className="w-5 h-5" />
-                </button>
                 
-                {!isOwnProfile && (
-                  <div className="relative">
-                    <button
-                      onClick={handleReport}
-                      className="p-2.5 bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200 rounded-full hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition-colors"
-                      title="举报"
-                    >
-                      <Flag className="w-5 h-5" />
-                    </button>
+                {/* 在线状态指示器 */}
+                {isOnline && (
+                  <div className="absolute bottom-2 right-2 w-5 h-5 bg-green-500 rounded-full border-2 border-white dark:border-gray-800" title="在线">
+                    <div className="w-full h-full rounded-full bg-green-500 animate-ping opacity-75" />
                   </div>
                 )}
+                
+                {/* 认证标识 - 改为皇冠样式 */}
+                {author.is_verified && (
+                  <div className="absolute -top-1 -right-1 w-8 h-8 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center border-2 border-white dark:border-gray-800 shadow-lg">
+                    <Crown className="w-4 h-4 text-white" />
+                  </div>
+                )}
+                
+                {/* 编辑头像按钮 */}
+                {isOwnProfile && (
+                  <button className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Camera className="w-8 h-8 text-white" />
+                  </button>
+                )}
+              </div>
+
+              {/* 基本信息 */}
+              <div className="flex-1 text-center sm:text-left">
+                <div className="flex flex-col sm:flex-row items-center gap-3 mb-3">
+                  <h1 className={`text-2xl md:text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r ${isDark ? 'from-white to-gray-400' : 'from-gray-900 to-gray-600'}`}>
+                    {author.username}
+                  </h1>
+                  {author.is_verified && (
+                    <div className="flex items-center gap-1 bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 px-3 py-1 rounded-full text-sm font-medium">
+                      <Award className="w-4 h-4" />
+                      <span>认证创作者</span>
+                    </div>
+                  )}
+                </div>
+
+                {author.bio && (
+                  <p className={`text-base mb-4 leading-relaxed max-w-xl ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                    {author.bio}
+                  </p>
+                )}
+
+                {/* 统计信息 */}
+                <div className={`flex flex-wrap justify-center sm:justify-start gap-4 md:gap-8 text-sm mb-6 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                  <div className="flex items-center gap-2 hover:text-gray-700 dark:hover:text-gray-200 transition-colors cursor-pointer">
+                    <Users className="w-4 h-4" />
+                    <span className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{author.followersCount || author.followers_count || 0}</span>
+                    <span>粉丝</span>
+                  </div>
+                  <div className="flex items-center gap-2 hover:text-gray-700 dark:hover:text-gray-200 transition-colors cursor-pointer">
+                    <BookOpen className="w-4 h-4" />
+                    <span className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{author.followingCount || author.following_count || 0}</span>
+                    <span>关注</span>
+                  </div>
+                  <div className="flex items-center gap-2 hover:text-gray-700 dark:hover:text-gray-200 transition-colors cursor-pointer">
+                    <Edit3 className="w-4 h-4" />
+                    <span className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{posts.length}</span>
+                    <span>作品</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4" />
+                    <span>加入于 {author.created_at || author.membershipStart ? new Date(author.created_at || author.membershipStart).toLocaleDateString('zh-CN') : '未知'}</span>
+                  </div>
+                </div>
+
+                {/* 操作按钮 - 统一样式 */}
+                <div className="flex flex-wrap justify-center sm:justify-start gap-3">
+                  {!isOwnProfile ? (
+                    <>
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={handleFollow}
+                        className={`flex items-center gap-2 px-6 py-2.5 rounded-2xl font-medium transition-all duration-200 ${
+                          isFollowing
+                            ? 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600'
+                            : 'bg-gradient-to-r from-red-500 to-orange-500 text-white shadow-lg shadow-red-500/25'
+                        }`}
+                      >
+                        {isFollowing ? <UserCheck className="w-4 h-4" /> : <UserPlus className="w-4 h-4" />}
+                        {isFollowing ? '已关注' : '关注'}
+                      </motion.button>
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={handleMessage}
+                        className={`px-6 py-2.5 rounded-2xl font-medium transition-colors ${
+                          isDark
+                            ? 'bg-gray-700 text-gray-200 hover:bg-gray-600'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                      >
+                        私信
+                      </motion.button>
+                    </>
+                  ) : (
+                    <>
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => navigate('/settings')}
+                        className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-red-500 to-orange-500 text-white rounded-2xl font-medium shadow-lg shadow-red-500/25"
+                      >
+                        <Edit3 className="w-4 h-4" />
+                        编辑资料
+                      </motion.button>
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => navigate('/dashboard')}
+                        className={`flex items-center gap-2 px-6 py-2.5 rounded-2xl font-medium transition-colors ${
+                          isDark
+                            ? 'bg-gray-700 text-gray-200 hover:bg-gray-600'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                      >
+                        <LayoutDashboard className="w-4 h-4" />
+                        个人中心
+                      </motion.button>
+                    </>
+                  )}
+
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={handleShare}
+                    className={`p-2.5 rounded-2xl transition-colors ${
+                      isDark
+                        ? 'bg-gray-700 text-gray-200 hover:bg-gray-600'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                    title="分享"
+                  >
+                    <Share2 className="w-5 h-5" />
+                  </motion.button>
+                  
+                  {!isOwnProfile && (
+                    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="relative">
+                      <button
+                        onClick={handleReport}
+                        className={`p-2.5 rounded-2xl transition-colors ${
+                          isDark
+                            ? 'bg-gray-700 text-gray-200 hover:bg-red-900/30 hover:text-red-400'
+                            : 'bg-gray-100 text-gray-700 hover:bg-red-50 hover:text-red-600'
+                        }`}
+                        title="举报"
+                      >
+                        <Flag className="w-5 h-5" />
+                      </button>
+                    </motion.div>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* 联系信息 */}
-          <div className="flex flex-col gap-3 text-sm text-gray-600 dark:text-gray-400 min-w-[200px]">
-            {author.location && (
-              <div className="flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-gray-400" />
-                <span>{author.location}</span>
-              </div>
-            )}
-            {author.email && (
-              <div className="flex items-center gap-2">
-                <Mail className="w-4 h-4 text-gray-400" />
-                <a href={`mailto:${author.email}`} className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300">
-                  {author.email}
-                </a>
-              </div>
-            )}
-            {author.website && (
-              <div className="flex items-center gap-2">
-                <Globe className="w-4 h-4 text-gray-400" />
-                <a href={author.website} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 flex items-center gap-1">
-                  个人网站
-                  <ArrowUpRight className="w-3 h-3" />
-                </a>
-              </div>
-            )}
-            
-            {/* 社交链接 */}
-            {author.socialLinks && (
-              <div className="flex items-center gap-2 mt-2 pt-3 border-t border-gray-200 dark:border-gray-700">
-                {author.socialLinks.github && (
-                  <a href={author.socialLinks.github} target="_blank" rel="noopener noreferrer" className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
-                    <Github className="w-4 h-4" />
+            {/* 联系信息 */}
+            <div className={`flex flex-col gap-3 text-sm min-w-[200px] ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+              {author.location && (
+                <div className="flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-gray-400" />
+                  <span>{author.location}</span>
+                </div>
+              )}
+              {author.email && (
+                <div className="flex items-center gap-2">
+                  <Mail className="w-4 h-4 text-gray-400" />
+                  <a href={`mailto:${author.email}`} className="text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300">
+                    {author.email}
                   </a>
-                )}
-                {author.socialLinks.twitter && (
-                  <a href={author.socialLinks.twitter} target="_blank" rel="noopener noreferrer" className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
-                    <Twitter className="w-4 h-4" />
+                </div>
+              )}
+              {author.website && (
+                <div className="flex items-center gap-2">
+                  <Globe className="w-4 h-4 text-gray-400" />
+                  <a href={author.website} target="_blank" rel="noopener noreferrer" className="text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300 flex items-center gap-1">
+                    个人网站
+                    <ArrowUpRight className="w-3 h-3" />
                   </a>
-                )}
+                </div>
+              )}
+              
+              {/* 社交链接 */}
+              {author.socialLinks && (
+                <div className={`flex items-center gap-2 mt-2 pt-3 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+                  {author.socialLinks.github && (
+                    <a href={author.socialLinks.github} target="_blank" rel="noopener noreferrer" className={`p-2 rounded-xl transition-colors ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}>
+                      <Github className="w-4 h-4" />
+                    </a>
+                  )}
+                  {author.socialLinks.twitter && (
+                    <a href={author.socialLinks.twitter} target="_blank" rel="noopener noreferrer" className={`p-2 rounded-xl transition-colors ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}>
+                      <Twitter className="w-4 h-4" />
+                    </a>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </motion.div>
+
+        {/* 数据概览卡片 - 统一样式 */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          <motion.div 
+            whileHover={{ y: -4, scale: 1.02 }}
+            className={`rounded-2xl p-4 border ${isDark 
+              ? 'bg-gray-800/60 backdrop-blur-xl border-gray-700/50' 
+              : 'bg-white/80 backdrop-blur-xl border-white/50 shadow-lg shadow-gray-200/30'}`}
+          >
+            <div className="flex items-start justify-between mb-2">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white shadow-lg">
+                <Eye className="w-4 h-4" />
               </div>
-            )}
-          </div>
+            </div>
+            <p className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{(author.stats?.totalViews || 0).toLocaleString()}</p>
+            <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>总浏览量</p>
+          </motion.div>
+          <motion.div 
+            whileHover={{ y: -4, scale: 1.02 }}
+            className={`rounded-2xl p-4 border ${isDark 
+              ? 'bg-gray-800/60 backdrop-blur-xl border-gray-700/50' 
+              : 'bg-white/80 backdrop-blur-xl border-white/50 shadow-lg shadow-gray-200/30'}`}
+          >
+            <div className="flex items-start justify-between mb-2">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-red-500 to-rose-500 flex items-center justify-center text-white shadow-lg">
+                <Heart className="w-4 h-4" />
+              </div>
+            </div>
+            <p className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{(author.stats?.totalLikes || 0).toLocaleString()}</p>
+            <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>总点赞数</p>
+          </motion.div>
+          <motion.div 
+            whileHover={{ y: -4, scale: 1.02 }}
+            className={`rounded-2xl p-4 border ${isDark 
+              ? 'bg-gray-800/60 backdrop-blur-xl border-gray-700/50' 
+              : 'bg-white/80 backdrop-blur-xl border-white/50 shadow-lg shadow-gray-200/30'}`}
+          >
+            <div className="flex items-start justify-between mb-2">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center text-white shadow-lg">
+                <MessageCircle className="w-4 h-4" />
+              </div>
+            </div>
+            <p className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{(author.stats?.totalComments || 0).toLocaleString()}</p>
+            <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>总评论数</p>
+          </motion.div>
+          <motion.div 
+            whileHover={{ y: -4, scale: 1.02 }}
+            className={`rounded-2xl p-4 border ${isDark 
+              ? 'bg-gray-800/60 backdrop-blur-xl border-gray-700/50' 
+              : 'bg-white/80 backdrop-blur-xl border-white/50 shadow-lg shadow-gray-200/30'}`}
+          >
+            <div className="flex items-start justify-between mb-2">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-purple-500 to-violet-500 flex items-center justify-center text-white shadow-lg">
+                <Zap className="w-4 h-4" />
+              </div>
+            </div>
+            <p className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{author.stats?.streakDays || 0}</p>
+            <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>创作天数</p>
+          </motion.div>
         </div>
-      </div>
 
-      {/* 数据概览卡片 */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-xl p-4 border border-blue-200 dark:border-blue-800">
-          <div className="flex items-center justify-between mb-2">
-            <Eye className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-            <TrendingUp className="w-4 h-4 text-blue-400" />
+        {/* 标签页切换 - 统一样式 */}
+        <div className={`rounded-3xl overflow-hidden border ${isDark 
+          ? 'bg-gray-800/60 backdrop-blur-xl border-gray-700/50' 
+          : 'bg-white/80 backdrop-blur-xl border-white/50 shadow-lg shadow-gray-200/30'}`}>
+          {/* 标签页头部 */}
+          <div className={`flex items-center border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+            <button
+              onClick={() => setActiveTab('works')}
+              className={`flex items-center gap-2 px-6 py-4 font-medium transition-colors relative ${
+                activeTab === 'works'
+                  ? 'text-red-500 dark:text-red-400'
+                  : isDark ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <Grid className="w-4 h-4" />
+              作品集
+              <span className={`ml-1 text-xs px-2 py-0.5 rounded-full ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
+                {posts.length}
+              </span>
+              {activeTab === 'works' && (
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-red-500 to-orange-500" />
+              )}
+            </button>
+            <button
+              onClick={() => setActiveTab('activity')}
+              className={`flex items-center gap-2 px-6 py-4 font-medium transition-colors relative ${
+                activeTab === 'activity'
+                  ? 'text-red-500 dark:text-red-400'
+                  : isDark ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <Activity className="w-4 h-4" />
+              动态
+              {activeTab === 'activity' && (
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-red-500 to-orange-500" />
+              )}
+            </button>
+            <button
+              onClick={() => setActiveTab('achievements')}
+              className={`flex items-center gap-2 px-6 py-4 font-medium transition-colors relative ${
+                activeTab === 'achievements'
+                  ? 'text-red-500 dark:text-red-400'
+                  : isDark ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <Award className="w-4 h-4" />
+              成就
+              {activeTab === 'achievements' && (
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-red-500 to-orange-500" />
+              )}
+            </button>
           </div>
-          <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">{(author.stats?.totalViews || 0).toLocaleString()}</p>
-          <p className="text-sm text-blue-600 dark:text-blue-400">总浏览量</p>
-        </div>
-        <div className="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/20 rounded-xl p-4 border border-red-200 dark:border-red-800">
-          <div className="flex items-center justify-between mb-2">
-            <Heart className="w-5 h-5 text-red-600 dark:text-red-400" />
-            <TrendingUp className="w-4 h-4 text-red-400" />
-          </div>
-          <p className="text-2xl font-bold text-red-900 dark:text-red-100">{(author.stats?.totalLikes || 0).toLocaleString()}</p>
-          <p className="text-sm text-red-600 dark:text-red-400">总点赞数</p>
-        </div>
-        <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 rounded-xl p-4 border border-green-200 dark:border-green-800">
-          <div className="flex items-center justify-between mb-2">
-            <MessageCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
-            <TrendingUp className="w-4 h-4 text-green-400" />
-          </div>
-          <p className="text-2xl font-bold text-green-900 dark:text-green-100">{(author.stats?.totalComments || 0).toLocaleString()}</p>
-          <p className="text-sm text-green-600 dark:text-green-400">总评论数</p>
-        </div>
-        <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 rounded-xl p-4 border border-purple-200 dark:border-purple-800">
-          <div className="flex items-center justify-between mb-2">
-            <Zap className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-            <span className="text-xs text-purple-500 font-medium">连续{author.stats?.streakDays || 0}天</span>
-          </div>
-          <p className="text-2xl font-bold text-purple-900 dark:text-purple-100">{author.stats?.streakDays || 0}</p>
-          <p className="text-sm text-purple-600 dark:text-purple-400">创作天数</p>
-        </div>
-      </div>
-
-      {/* 标签页切换 */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-        {/* 标签页头部 */}
-        <div className="flex items-center border-b border-gray-200 dark:border-gray-700">
-          <button
-            onClick={() => setActiveTab('works')}
-            className={`flex items-center gap-2 px-6 py-4 font-medium transition-colors relative ${
-              activeTab === 'works'
-                ? 'text-blue-600 dark:text-blue-400'
-                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-            }`}
-          >
-            <Grid className="w-4 h-4" />
-            作品集
-            <span className="ml-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 px-2 py-0.5 rounded-full">
-              {posts.length}
-            </span>
-            {activeTab === 'works' && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500" />
-            )}
-          </button>
-          <button
-            onClick={() => setActiveTab('activity')}
-            className={`flex items-center gap-2 px-6 py-4 font-medium transition-colors relative ${
-              activeTab === 'activity'
-                ? 'text-blue-600 dark:text-blue-400'
-                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-            }`}
-          >
-            <Activity className="w-4 h-4" />
-            动态
-            {activeTab === 'activity' && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500" />
-            )}
-          </button>
-          <button
-            onClick={() => setActiveTab('achievements')}
-            className={`flex items-center gap-2 px-6 py-4 font-medium transition-colors relative ${
-              activeTab === 'achievements'
-                ? 'text-blue-600 dark:text-blue-400'
-                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-            }`}
-          >
-            <Award className="w-4 h-4" />
-            成就
-            {activeTab === 'achievements' && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500" />
-            )}
-          </button>
-        </div>
 
         {/* 标签页内容 */}
         <div className="p-6 md:p-8">
@@ -1455,6 +1531,7 @@ export const AuthorProfile: React.FC<AuthorProfileProps> = ({ currentUser }) => 
           </div>
         </div>
       )}
+      </div>
     </div>
   )
 }

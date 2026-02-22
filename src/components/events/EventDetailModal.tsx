@@ -270,7 +270,7 @@ export default function EventDetailModal({ event, isOpen, onClose, submissionCou
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 30 }}
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-            className={`relative w-full max-w-4xl max-h-[90vh] overflow-hidden rounded-2xl md:rounded-3xl shadow-2xl flex flex-col md:flex-row ${
+            className={`relative w-full max-w-md md:max-w-4xl max-h-[85vh] md:max-h-[90vh] overflow-hidden rounded-2xl md:rounded-3xl shadow-2xl flex flex-col md:flex-row ${
               isDark ? 'bg-gray-900' : 'bg-white'
             }`}
           >
@@ -280,24 +280,25 @@ export default function EventDetailModal({ event, isOpen, onClose, submissionCou
               whileTap={{ scale: 0.9 }}
               onClick={onClose}
               className={`absolute top-3 right-3 md:top-4 md:right-4 z-20 p-2 rounded-full transition-all ${
-                isDark ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-white/90 text-gray-600 hover:bg-white shadow-lg'
+                isDark ? 'bg-gray-800/80 md:bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-white/90 text-gray-600 hover:bg-white shadow-lg'
               }`}
             >
               <X className="w-5 h-5" />
             </motion.button>
 
-            {/* 左侧图片区 */}
-            <div className="w-full md:w-2/5 h-48 sm:h-56 md:h-auto relative shrink-0 overflow-hidden">
+            {/* 图片区 - 响应式适配 */}
+            <div className="w-full md:w-1/2 aspect-[16/10] md:aspect-auto md:h-auto relative shrink-0 overflow-hidden">
               {(() => {
                 const images = event.media?.filter(m => m.type === 'image').map(m => m.url) || [];
                 if (images.length === 0) {
-                  images.push(`https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=traditional%20chinese%20culture%20event&image_size=portrait_3_4`);
+                  images.push(`https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=traditional%20chinese%20culture%20event&image_size=landscape_16_9`);
                 }
                 return (
                   <ImageCarousel
                     images={images}
                     alt={event.title}
-                    aspectRatio="aspect-[3/4] md:aspect-auto md:h-full"
+                    aspectRatio="aspect-[16/10] md:aspect-auto md:h-full"
+                    objectFit="contain"
                     autoPlay={images.length > 1}
                     interval={4000}
                     showCounter={images.length > 1}
@@ -306,22 +307,27 @@ export default function EventDetailModal({ event, isOpen, onClose, submissionCou
               })()}
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent md:hidden pointer-events-none" />
               
-              {/* 移动端标题 */}
-              <div className="absolute bottom-4 left-4 right-4 md:hidden text-white">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${statusBg}`}>
-                    <span className={`inline-block w-1.5 h-1.5 rounded-full ${statusColor} mr-1.5 ${status !== 'completed' ? 'animate-pulse' : ''}`} />
+              {/* 移动端标题覆盖层 */}
+              <div className="absolute bottom-3 left-3 right-3 md:hidden text-white">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${statusBg}`}>
+                    <span className={`inline-block w-1.5 h-1.5 rounded-full ${statusColor} mr-1 ${status !== 'completed' ? 'animate-pulse' : ''}`} />
                     {statusText}
                   </span>
+                  <span className={`px-2 py-0.5 rounded-full text-xs ${
+                    isDark ? 'bg-gray-800/80 text-gray-300' : 'bg-white/80 text-gray-600'
+                  }`}>
+                    {event.type === 'online' ? '线上' : '线下'}
+                  </span>
                 </div>
-                <h2 className="text-xl font-bold line-clamp-2">{event.title}</h2>
+                <h2 className="text-base font-bold line-clamp-2">{event.title}</h2>
               </div>
             </div>
 
-            {/* 右侧内容区 */}
-            <div className="flex-1 flex flex-col h-full overflow-hidden">
-              <div className="flex-1 overflow-y-auto p-5 md:p-8">
-                {/* Desktop Header */}
+            {/* 内容区 - 响应式布局 */}
+            <div className="flex-1 flex flex-col overflow-hidden">
+              <div className="flex-1 overflow-y-auto p-3 md:p-8">
+                {/* PC端标题 */}
                 <div className="hidden md:block mb-6">
                   <div className="flex items-center gap-2 mb-3">
                     <span className={`px-3 py-1 rounded-full text-xs font-semibold ${statusBg}`}>
@@ -339,41 +345,41 @@ export default function EventDetailModal({ event, isOpen, onClose, submissionCou
                   </h2>
                 </div>
 
-                {/* 信息卡片 */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
-                  <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-800/50' : 'bg-gray-50'}`}>
-                    <div className="flex items-start gap-3">
-                      <div className={`p-2 rounded-lg ${isDark ? 'bg-red-500/10' : 'bg-red-100'}`}>
-                        <Calendar className="w-5 h-5 text-red-500" />
+                {/* 信息卡片 - 移动端横向排列，PC端网格布局 */}
+                <div className="flex md:grid md:grid-cols-2 gap-2 md:gap-3 mb-3 md:mb-6">
+                  <div className={`flex-1 md:flex-none p-2.5 md:p-4 rounded-lg md:rounded-xl ${isDark ? 'bg-gray-800/50' : 'bg-gray-50'}`}>
+                    <div className="flex items-center gap-2 md:gap-3">
+                      <div className={`p-1.5 md:p-2 rounded-md md:rounded-lg ${isDark ? 'bg-red-500/10' : 'bg-red-100'}`}>
+                        <Calendar className="w-4 h-4 md:w-5 md:h-5 text-red-500" />
                       </div>
-                      <div>
-                        <p className={`text-xs uppercase tracking-wider mb-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                      <div className="min-w-0">
+                        <p className={`text-[10px] md:text-xs uppercase tracking-wider ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                           时间
                         </p>
-                        <p className={`font-semibold ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>
+                        <p className={`text-xs md:text-base font-semibold truncate ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>
                           {date}
                         </p>
-                        <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        <p className={`hidden md:block text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                           {time}
                         </p>
                       </div>
                     </div>
                   </div>
 
-                  <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-800/50' : 'bg-gray-50'}`}>
-                    <div className="flex items-start gap-3">
-                      <div className={`p-2 rounded-lg ${isDark ? 'bg-blue-500/10' : 'bg-blue-100'}`}>
-                        <MapPin className="w-5 h-5 text-blue-500" />
+                  <div className={`flex-1 md:flex-none p-2.5 md:p-4 rounded-lg md:rounded-xl ${isDark ? 'bg-gray-800/50' : 'bg-gray-50'}`}>
+                    <div className="flex items-center gap-2 md:gap-3">
+                      <div className={`p-1.5 md:p-2 rounded-md md:rounded-lg ${isDark ? 'bg-blue-500/10' : 'bg-blue-100'}`}>
+                        <MapPin className="w-4 h-4 md:w-5 md:h-5 text-blue-500" />
                       </div>
-                      <div>
-                        <p className={`text-xs uppercase tracking-wider mb-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                      <div className="min-w-0">
+                        <p className={`text-[10px] md:text-xs uppercase tracking-wider ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                           地点
                         </p>
-                        <p className={`font-semibold ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>
-                          {event.location || (event.type === 'online' ? '线上活动' : '待定')}
+                        <p className={`text-xs md:text-base font-semibold truncate ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>
+                          {event.location || (event.type === 'online' ? '线上' : '待定')}
                         </p>
                         {event.type === 'online' && (
-                          <p className="text-sm text-blue-500 hover:text-blue-600 cursor-pointer inline-flex items-center gap-1">
+                          <p className="hidden md:block text-sm text-blue-500 hover:text-blue-600 cursor-pointer inline-flex items-center gap-1">
                             查看链接 <ExternalLink className="w-3 h-3" />
                           </p>
                         )}
@@ -383,17 +389,17 @@ export default function EventDetailModal({ event, isOpen, onClose, submissionCou
                 </div>
 
                 {/* 活动详情 */}
-                <div className="mb-6">
-                  <h3 className={`font-semibold mb-3 flex items-center gap-2 ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>
-                    <div className={`w-1 h-5 rounded-full ${isDark ? 'bg-red-500' : 'bg-red-500'}`} />
+                <div className="mb-3 md:mb-6">
+                  <h3 className={`text-sm md:text-base font-semibold mb-2 flex items-center gap-1.5 ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>
+                    <div className={`w-0.5 md:w-1 h-4 md:h-5 rounded-full ${isDark ? 'bg-red-500' : 'bg-red-500'}`} />
                     活动详情
                   </h3>
-                  <p className={`text-sm leading-relaxed ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                  <p className={`text-xs md:text-sm leading-relaxed ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
                     {event.description}
                   </p>
                   {event.content && (
                     <div 
-                      className={`mt-4 p-4 rounded-xl text-sm leading-relaxed ${isDark ? 'bg-gray-800/30 text-gray-300' : 'bg-gray-50 text-gray-600'}`}
+                      className={`mt-2 md:mt-4 p-2.5 md:p-4 rounded-lg md:rounded-xl text-xs md:text-sm leading-relaxed ${isDark ? 'bg-gray-800/30 text-gray-300' : 'bg-gray-50 text-gray-600'}`}
                       dangerouslySetInnerHTML={{ __html: event.content }}
                     />
                   )}
@@ -401,19 +407,19 @@ export default function EventDetailModal({ event, isOpen, onClose, submissionCou
 
                 {/* 标签 */}
                 {event.tags && event.tags.length > 0 && (
-                  <div className="mb-6">
-                    <h4 className={`text-xs uppercase tracking-wider mb-3 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                  <div className="mb-3 md:mb-6">
+                    <h4 className={`hidden md:block text-xs uppercase tracking-wider mb-3 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                       相关标签
                     </h4>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-1.5 md:gap-2">
                       {event.tags.map((tag, i) => (
                         <span
                           key={i}
-                          className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium ${
+                          className={`inline-flex items-center gap-1 px-2 md:px-3 py-1 md:py-1.5 rounded-full text-[10px] md:text-xs font-medium ${
                             isDark ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-600'
                           }`}
                         >
-                          <Tag className="w-3 h-3" />
+                          <Tag className="w-2.5 h-2.5 md:w-3 md:h-3" />
                           {tag}
                         </span>
                       ))}
@@ -422,19 +428,19 @@ export default function EventDetailModal({ event, isOpen, onClose, submissionCou
                 )}
 
                 {/* 参与人数 */}
-                <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-800/50' : 'bg-gray-50'} mb-6`}>
-                  <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-lg ${isDark ? 'bg-purple-500/10' : 'bg-purple-100'}`}>
-                      <Users className="w-5 h-5 text-purple-500" />
+                <div className={`p-2.5 md:p-4 rounded-lg md:rounded-xl ${isDark ? 'bg-gray-800/50' : 'bg-gray-50'} mb-3 md:mb-6`}>
+                  <div className="flex items-center gap-2 md:gap-3">
+                    <div className={`p-1.5 md:p-2 rounded-md md:rounded-lg ${isDark ? 'bg-purple-500/10' : 'bg-purple-100'}`}>
+                      <Users className="w-4 h-4 md:w-5 md:h-5 text-purple-500" />
                     </div>
                     <div>
-                      <p className={`text-xs uppercase tracking-wider mb-0.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                      <p className={`text-[10px] md:text-xs uppercase tracking-wider ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                         参与人数
                       </p>
-                      <p className={`font-semibold ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>
+                      <p className={`text-xs md:text-base font-semibold ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>
                         {event.participants || 0}
                         {event.maxParticipants && (
-                          <span className={`text-sm font-normal ml-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                          <span className={`text-[10px] md:text-sm font-normal ml-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                             / {event.maxParticipants} 人
                           </span>
                         )}
@@ -444,31 +450,31 @@ export default function EventDetailModal({ event, isOpen, onClose, submissionCou
                 </div>
               </div>
 
-              {/* 底部操作栏 */}
-              <div className={`p-4 md:p-6 border-t ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
-                <div className="flex items-center gap-3">
+              {/* 底部操作栏 - 响应式 */}
+              <div className={`p-3 md:p-6 border-t ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
+                <div className="flex items-center gap-2 md:gap-3">
                   <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={handleShare}
-                    className={`p-3 rounded-xl transition-colors ${
+                    className={`p-2.5 md:p-3 rounded-lg md:rounded-xl transition-colors ${
                       isDark ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                     }`}
                   >
-                    <Share2 className="w-5 h-5" />
+                    <Share2 className="w-4 h-4 md:w-5 md:h-5" />
                   </motion.button>
 
                   <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={() => setIsLiked(!isLiked)}
-                    className={`p-3 rounded-xl transition-colors ${
+                    className={`p-2.5 md:p-3 rounded-lg md:rounded-xl transition-colors ${
                       isLiked
                         ? 'bg-red-100 text-red-500'
                         : isDark ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                     }`}
                   >
-                    <Heart className={`w-5 h-5 ${isLiked ? 'fill-current' : ''}`} />
+                    <Heart className={`w-4 h-4 md:w-5 md:h-5 ${isLiked ? 'fill-current' : ''}`} />
                   </motion.button>
 
                   {/* 查看作品按钮 */}
@@ -479,16 +485,17 @@ export default function EventDetailModal({ event, isOpen, onClose, submissionCou
                       onClose();
                       navigate(`/events/${event.id}/works`);
                     }}
-                    className={`flex-1 px-4 py-3 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 ${
+                    className={`flex-1 px-3 md:px-4 py-2.5 md:py-3 rounded-lg md:rounded-xl font-medium text-xs md:text-sm transition-all flex items-center justify-center gap-1 md:gap-2 ${
                       isDark
                         ? 'bg-purple-600 hover:bg-purple-500 text-white'
                         : 'bg-purple-500 hover:bg-purple-600 text-white'
                     }`}
                   >
-                    <LayoutGrid className="w-4 h-4" />
-                    查看作品
+                    <LayoutGrid className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                    <span className="md:hidden">作品</span>
+                    <span className="hidden md:inline">查看作品</span>
                     {submissionCount > 0 && (
-                      <span className="ml-1 text-xs bg-white/20 px-1.5 py-0.5 rounded-full">
+                      <span className="ml-0.5 text-[10px] md:text-xs bg-white/20 px-1 md:px-1.5 py-0 md:py-0.5 rounded-full">
                         {submissionCount}
                       </span>
                     )}
@@ -497,8 +504,8 @@ export default function EventDetailModal({ event, isOpen, onClose, submissionCou
                   {/* 主操作按钮 */}
                   {isCheckingRegistration ? (
                     // 检查中
-                    <div className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-gray-100 text-gray-400 rounded-xl font-semibold cursor-not-allowed">
-                      <Loader2 className="w-4 h-4 animate-spin" />
+                    <div className="flex-1 flex items-center justify-center gap-1 md:gap-2 px-3 md:px-6 py-2.5 md:py-3 bg-gray-100 text-gray-400 rounded-lg md:rounded-xl font-medium text-xs md:text-sm cursor-not-allowed">
+                      <Loader2 className="w-3.5 h-3.5 md:w-4 md:h-4 animate-spin" />
                       检查中...
                     </div>
                   ) : status === 'completed' ? (
@@ -510,10 +517,11 @@ export default function EventDetailModal({ event, isOpen, onClose, submissionCou
                         onClose();
                         navigate(`/ranking/${event.id}`);
                       }}
-                      className="flex-1 px-6 py-3 bg-gradient-to-r from-yellow-500 to-amber-500 hover:from-yellow-600 hover:to-amber-600 text-white rounded-xl font-semibold shadow-lg shadow-yellow-500/25 transition-all flex items-center justify-center gap-2"
+                      className="flex-1 px-3 md:px-6 py-2.5 md:py-3 bg-gradient-to-r from-yellow-500 to-amber-500 hover:from-yellow-600 hover:to-amber-600 text-white rounded-lg md:rounded-xl font-medium text-xs md:text-sm shadow-lg shadow-yellow-500/25 transition-all flex items-center justify-center gap-1 md:gap-2"
                     >
-                      <Trophy className="w-4 h-4" />
-                      查看排名
+                      <Trophy className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                      <span className="md:hidden">排名</span>
+                      <span className="hidden md:inline">查看排名</span>
                     </motion.button>
                   ) : hasRegistered && hasSubmitted ? (
                     // 已报名且已提交作品 - 显示编辑作品按钮
@@ -521,10 +529,11 @@ export default function EventDetailModal({ event, isOpen, onClose, submissionCou
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
                       onClick={handleSubmitWork}
-                      className="flex-1 px-6 py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white rounded-xl font-semibold shadow-lg shadow-emerald-500/25 transition-all flex items-center justify-center gap-2"
+                      className="flex-1 px-3 md:px-6 py-2.5 md:py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white rounded-lg md:rounded-xl font-medium text-xs md:text-sm shadow-lg shadow-emerald-500/25 transition-all flex items-center justify-center gap-1 md:gap-2"
                     >
-                      <Edit className="w-4 h-4" />
-                      编辑作品
+                      <Edit className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                      <span className="md:hidden">编辑</span>
+                      <span className="hidden md:inline">编辑作品</span>
                     </motion.button>
                   ) : hasRegistered ? (
                     // 已报名但未提交作品 - 显示提交作品按钮
@@ -532,10 +541,11 @@ export default function EventDetailModal({ event, isOpen, onClose, submissionCou
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
                       onClick={handleSubmitWork}
-                      className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-xl font-semibold shadow-lg shadow-blue-500/25 transition-all flex items-center justify-center gap-2"
+                      className="flex-1 px-3 md:px-6 py-2.5 md:py-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-lg md:rounded-xl font-medium text-xs md:text-sm shadow-lg shadow-blue-500/25 transition-all flex items-center justify-center gap-1 md:gap-2"
                     >
-                      提交作品
-                      <ExternalLink className="w-4 h-4" />
+                      <span className="md:hidden">提交</span>
+                      <span className="hidden md:inline">提交作品</span>
+                      <ExternalLink className="w-3.5 h-3.5 md:w-4 md:h-4" />
                     </motion.button>
                   ) : status === 'upcoming' ? (
                     // 未报名且活动即将开始 - 显示报名按钮
@@ -544,7 +554,7 @@ export default function EventDetailModal({ event, isOpen, onClose, submissionCou
                       whileTap={{ scale: 0.98 }}
                       onClick={handleRegister}
                       disabled={isRegistering || Boolean(event.maxParticipants && event.participants >= event.maxParticipants)}
-                      className={`flex-1 px-6 py-3 rounded-xl font-semibold shadow-lg transition-all flex items-center justify-center gap-2 ${
+                      className={`flex-1 px-3 md:px-6 py-2.5 md:py-3 rounded-lg md:rounded-xl font-medium text-xs md:text-sm shadow-lg transition-all flex items-center justify-center gap-1 md:gap-2 ${
                         isRegistering || (event.maxParticipants && event.participants >= event.maxParticipants)
                           ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                           : 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white shadow-red-500/25'
@@ -552,15 +562,19 @@ export default function EventDetailModal({ event, isOpen, onClose, submissionCou
                     >
                       {isRegistering ? (
                         <>
-                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <Loader2 className="w-3.5 h-3.5 md:w-4 md:h-4 animate-spin" />
                           报名中...
                         </>
                       ) : event.maxParticipants && event.participants >= event.maxParticipants ? (
-                        '活动已满'
+                        <>
+                          <span className="md:hidden">已满</span>
+                          <span className="hidden md:inline">活动已满</span>
+                        </>
                       ) : (
                         <>
-                          立即报名
-                          <ChevronRight className="w-4 h-4" />
+                          <span className="md:hidden">报名</span>
+                          <span className="hidden md:inline">立即报名</span>
+                          <ChevronRight className="w-3.5 h-3.5 md:w-4 md:h-4" />
                         </>
                       )}
                     </motion.button>
@@ -571,7 +585,7 @@ export default function EventDetailModal({ event, isOpen, onClose, submissionCou
                       whileTap={{ scale: 0.98 }}
                       onClick={handleRegister}
                       disabled={isRegistering || Boolean(event.maxParticipants && event.participants >= event.maxParticipants)}
-                      className={`flex-1 px-6 py-3 rounded-xl font-semibold shadow-lg transition-all flex items-center justify-center gap-2 ${
+                      className={`flex-1 px-3 md:px-6 py-2.5 md:py-3 rounded-lg md:rounded-xl font-medium text-xs md:text-sm shadow-lg transition-all flex items-center justify-center gap-1 md:gap-2 ${
                         isRegistering || (event.maxParticipants && event.participants >= event.maxParticipants)
                           ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                           : 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white shadow-red-500/25'
@@ -579,15 +593,19 @@ export default function EventDetailModal({ event, isOpen, onClose, submissionCou
                     >
                       {isRegistering ? (
                         <>
-                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <Loader2 className="w-3.5 h-3.5 md:w-4 md:h-4 animate-spin" />
                           报名中...
                         </>
                       ) : event.maxParticipants && event.participants >= event.maxParticipants ? (
-                        '活动已满'
+                        <>
+                          <span className="md:hidden">已满</span>
+                          <span className="hidden md:inline">活动已满</span>
+                        </>
                       ) : (
                         <>
-                          立即参与
-                          <ChevronRight className="w-4 h-4" />
+                          <span className="md:hidden">参与</span>
+                          <span className="hidden md:inline">立即参与</span>
+                          <ChevronRight className="w-3.5 h-3.5 md:w-4 md:h-4" />
                         </>
                       )}
                     </motion.button>

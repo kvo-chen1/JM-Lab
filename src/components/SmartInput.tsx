@@ -14,6 +14,7 @@ interface SmartInputProps {
   value: string;
   onChange: (value: string) => void;
   onSubmit: () => void;
+  onNavigate?: (path: string) => void; // 新增导航回调
   placeholder?: string;
   className?: string;
 }
@@ -40,6 +41,7 @@ export const SmartInput: React.FC<SmartInputProps> = ({
   value,
   onChange,
   onSubmit,
+  onNavigate,
   placeholder = '输入消息...',
   className = ''
 }) => {
@@ -275,6 +277,7 @@ export const SmartInput: React.FC<SmartInputProps> = ({
                     onChange(`${value} ${suggestion.title}`);
                     setShowSuggestions(false);
                   }}
+                  onNavigate={onNavigate}
                 />
               </div>
             )}

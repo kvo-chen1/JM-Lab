@@ -252,8 +252,8 @@ export default function EditActivity() {
   };
 
   // 处理步骤切换
-  const handleStepChange = (step: StepType) => {
-    if (!validateCurrentStep()) return;
+  const handleStepChange = (step: StepType, skipValidation = false) => {
+    if (!skipValidation && !validateCurrentStep()) return;
     setCurrentStep(step);
   };
 
@@ -456,7 +456,7 @@ export default function EditActivity() {
     const currentIndex = steps.findIndex(step => step.id === currentStep);
     if (currentIndex > 0) {
       const prevStep = steps[currentIndex - 1].id as StepType;
-      handleStepChange(prevStep);
+      handleStepChange(prevStep, true); // 跳过验证
     }
   };
 

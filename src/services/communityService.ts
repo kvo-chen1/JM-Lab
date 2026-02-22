@@ -1602,14 +1602,20 @@ export const communityService = {
     
     if (error) throw error;
 
+    console.log('[getThread] Post data:', post);
+    // 尝试使用 author_id 或 user_id 获取作者信息
+    const authorId = post.author_id || post.user_id;
+    console.log('[getThread] Author ID:', authorId);
+
     // 获取作者信息
     let user: any = null;
-    if (post.author_id) {
+    if (authorId) {
       const { data: userData, error: userError } = await supabase
         .from('users')
         .select('id, username, avatar_url')
-        .eq('id', post.author_id)
+        .eq('id', authorId)
         .single();
+      console.log('[getThread] User data:', userData, 'Error:', userError);
       if (!userError && userData) {
         user = userData;
       }
@@ -1623,12 +1629,38 @@ export const communityService = {
 
     const postComments = commentsError ? [] : (comments || []);
 
+    // 获取所有评论的作者信息
+    const commentsWithAuthor = await Promise.all(
+      postComments.map(async (comment: any) => {
+        const commentAuthorId = comment.author_id || comment.user_id;
+        if (commentAuthorId) {
+          const { data: commentUser } = await supabase
+            .from('users')
+            .select('id, username, avatar_url')
+            .eq('id', commentAuthorId)
+            .single();
+          return {
+            ...comment,
+            author: commentUser?.username || '未知用户',
+            authorAvatar: commentUser?.avatar_url || '',
+            authorId: commentUser?.id || commentAuthorId,
+          };
+        }
+        return {
+          ...comment,
+          author: '未知用户',
+          authorAvatar: '',
+          authorId: null,
+        };
+      })
+    );
+
     return {
       id: post.id,
       title: post.title,
       content: post.content,
       createdAt: new Date(post.created_at).getTime(),
-      replies: postComments.map(comment => ({
+      replies: commentsWithAuthor.map(comment => ({
         id: comment.id,
         content: comment.content,
         createdAt: new Date(comment.created_at).getTime()
@@ -1639,8 +1671,8 @@ export const communityService = {
       communityId: post.community_id,
       author: user?.username || '未知用户',
       authorAvatar: user?.avatar_url || '',
-      authorId: user?.id,
-      comments: postComments
+      authorId: user?.id || authorId,
+      comments: commentsWithAuthor
     };
   },
 

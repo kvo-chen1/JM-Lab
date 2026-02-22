@@ -1,4 +1,5 @@
 import React, { lazy, Suspense, useMemo, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useTheme } from '@/hooks/useTheme';
 import { CommunityLayout } from '@/components/Community/CommunityLayout';
 import { CommunitySidebar } from '@/components/Community/CommunitySidebar';
@@ -109,6 +110,7 @@ const PageTransition = ({ children }: { children: React.ReactNode }) => (
 // 社区页面主组件，集成通知系统
 const CommunityPageWithNotifications = React.memo(function CommunityPageWithNotifications() {
   const { isDark } = useTheme();
+  const navigate = useNavigate();
   const {
       user,
     activeCommunityId,
@@ -276,7 +278,7 @@ const CommunityPageWithNotifications = React.memo(function CommunityPageWithNoti
               onToggleFavorite={onToggleFavorite}
               onToggleLike={onToggleLike}
               onAddComment={onAddComment}
-              onOpenThread={(id) => console.log('Open thread', id)}
+              onOpenThread={(id) => navigate(`/community/${activeCommunityId}/post/${id}`)}
               onViewThread={(id) => console.log('View thread', id)}
               onCreateThread={onCreateThread}
               onDeleteThread={onDeleteThread}
@@ -319,7 +321,7 @@ const CommunityPageWithNotifications = React.memo(function CommunityPageWithNoti
                 onToggleFavorite={onToggleFavorite}
                 onToggleLike={onToggleLike}
                 onAddComment={onAddComment}
-                onOpenThread={(id) => console.log('Open thread', id)}
+                onOpenThread={(id) => navigate(`/community/${activeCommunityId}/post/${id}`)}
                 onViewThread={(id) => console.log('View thread', id)}
                 onCreateThread={onCreateThread}
                 onDeleteThread={onDeleteThread}

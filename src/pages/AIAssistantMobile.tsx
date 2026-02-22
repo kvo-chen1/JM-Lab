@@ -49,43 +49,52 @@ interface GenerationTaskInfo {
   estimatedTime?: number
 }
 
+// 快速选项
+interface QuickOption {
+  icon: string
+  label: string
+  prompt: string
+}
+
 interface Message extends BaseMessage {
   generationTask?: GenerationTaskInfo
+  quickOptions?: QuickOption[]
 }
 
 // 预设问题 - 分类展示
 const PRESET_QUESTIONS = {
   creative: {
-    title: '创意生成',
-    icon: '✨',
+    title: '✨ 快速生成',
+    icon: '🎨',
     color: 'from-violet-500 to-purple-500',
     bgColor: 'bg-violet-50',
     items: [
-      { icon: '🎨', text: '生成创意文案和设计灵感' },
-      { icon: '✍️', text: '帮我写一段品牌故事' },
-      { icon: '📦', text: '生成文创产品方案' }
+      { icon: '🌃', text: '生成一张天津海河夜景图', type: 'generate' },
+      { icon: '🏮', text: '画一幅杨柳青年画风格的福字', type: 'generate' },
+      { icon: '🥟', text: '生成国潮风格的天津美食海报', type: 'generate' },
+      { icon: '🏛️', text: '生成一张五大道建筑插画', type: 'generate' }
     ]
   },
   culture: {
-    title: '文化探索',
-    icon: '🏛️',
+    title: '🏛️ 文化探索',
+    icon: '📚',
     color: 'from-amber-500 to-orange-500',
     bgColor: 'bg-amber-50',
     items: [
-      { icon: '🏛️', text: '了解天津传统文化' },
-      { icon: '🎭', text: '探索非遗技艺元素' },
-      { icon: '🏮', text: '国潮风格设计推荐' }
+      { icon: '🎭', text: '天津有哪些非遗文化？', type: 'chat' },
+      { icon: '🏮', text: '杨柳青年画有什么特点？', type: 'chat' },
+      { icon: '🎨', text: '如何在设计中融入天津元素？', type: 'chat' }
     ]
   },
-  optimize: {
-    title: '优化提升',
-    icon: '💡',
+  tools: {
+    title: '🛠️ 创作工具',
+    icon: '🎯',
     color: 'from-emerald-500 to-teal-500',
     bgColor: 'bg-emerald-50',
     items: [
-      { icon: '💡', text: '优化我的创作方案' },
-      { icon: '🎯', text: '营销文案撰写技巧' },
-      { icon: '🔥', text: '热门设计趋势分析' }
+      { icon: '✍️', text: '帮我写一段天津文创品牌故事', type: 'chat' },
+      { icon: '💡', text: '给我一些国潮设计灵感', type: 'chat' },
+      { icon: '🎨', text: '推荐适合的风格和配色', type: 'chat' }
     ]
   }
 }
@@ -590,6 +599,30 @@ export default function AIAssistantMobile() {
               messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
             }
           }, 300)
+
+          // 延迟添加生成完成后的引导消息
+          setTimeout(() => {
+            const followUpMessage: Message = {
+              id: (Date.now() + 10).toString(),
+              role: 'assistant',
+              content: `**✨ 图片生成完成！**
+
+您对这张图片满意吗？您可以选择：`,
+              timestamp: Date.now(),
+              quickOptions: [
+                { icon: '👍', label: '很满意', prompt: '这张图片我很满意，帮我保存' },
+                { icon: '🎨', label: '换个风格', prompt: '重新生成，换个风格试试' },
+                { icon: '✏️', label: '调整细节', prompt: '帮我调整一下细节，让画面更精致' },
+                { icon: '🔄', label: '再生成一张', prompt: '基于这个主题再生成一张类似的' }
+              ]
+            }
+
+            setMessages(prev => {
+              const newMessages = [...prev, followUpMessage]
+              saveMessagesToSession(newMessages)
+              return newMessages
+            })
+          }, 2000)
         } else {
           throw new Error('生成结果为空')
         }
@@ -760,7 +793,7 @@ export default function AIAssistantMobile() {
             return updatedMessages
           })
           toast.success('视频生成完成！')
-          
+
           // 自动滚动到生成的视频位置
           setTimeout(() => {
             const videoElement = document.querySelector(`[data-generation-task-id="${taskId}"]`)
@@ -771,6 +804,30 @@ export default function AIAssistantMobile() {
               messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
             }
           }, 300)
+
+          // 延迟添加生成完成后的引导消息
+          setTimeout(() => {
+            const followUpMessage: Message = {
+              id: (Date.now() + 10).toString(),
+              role: 'assistant',
+              content: `**🎬 视频生成完成！**
+
+您对这段视频满意吗？您可以选择：`,
+              timestamp: Date.now(),
+              quickOptions: [
+                { icon: '👍', label: '很满意', prompt: '这段视频我很满意，帮我保存' },
+                { icon: '🎨', label: '换个风格', prompt: '重新生成，换个风格试试' },
+                { icon: '✏️', label: '调整细节', prompt: '帮我调整一下细节，让画面更流畅' },
+                { icon: '🔄', label: '再生成一段', prompt: '基于这个主题再生成一段类似的视频' }
+              ]
+            }
+
+            setMessages(prev => {
+              const newMessages = [...prev, followUpMessage]
+              saveMessagesToSession(newMessages)
+              return newMessages
+            })
+          }, 2000)
         } else {
           throw new Error('视频生成结果为空')
         }
@@ -981,34 +1038,125 @@ export default function AIAssistantMobile() {
     setShowPresetQuestions(false)
 
     // 首先检查是否是图片/视频生成请求（优先于知识库匹配）
-    const imageKeywords = ['生成图片', '生成图像', '画一张', '画个', '画幅', '生成图', '帮我画图', '帮我画', '帮我生成', '帮我创作', '画一', '生成一张图', '生成一张图片', '画一张图', '生成画', '想要一张', '想要个', '想要幅', '给我画', '给我生成', '给我创作', '来一张', '来一幅', '来张', '来幅', '需要一张', '需要张', '需要幅', '做一张', '做张', '做幅', '创作一张', '创作张', '创作幅', '设计一张', '设计张', '设计幅', '整一张', '整幅', '整张图', '整幅画', '搞一张', '搞幅', '搞张图', '弄一张', '弄幅', '弄张图', '生成海河', '生成天津', '生成国潮', '生成非遗', '生成一张', '生成个', '生成幅']
-    const videoKeywords = ['生成视频', '生成影片', '做个视频', '做视频', '生成动画', '生成短片', '帮我做视频', '帮我生成视频', '想要个视频', '想要视频', '给我做个视频', '给我生成视频', '来段视频', '来段', '需要视频', '做段视频', '创作视频', '设计视频']
+    // 明确生成意图关键词 - 用户明确说了要生成什么
+    const explicitImageKeywords = [
+      '生成图片', '生成图像', '画一张', '画个', '画幅', '生成图',
+      '画一', '生成一张图', '生成一张图片', '画一张图', '生成画',
+      '生成海河', '生成天津', '生成国潮', '生成非遗', '生成一张', '生成个', '生成幅',
+      '画.*图', '画.*画', '生成.*图', '生成.*画'
+    ]
+    const explicitVideoKeywords = [
+      '生成视频', '生成影片', '做个视频', '做视频', '生成动画', '生成短片',
+      '做段视频', '创作视频', '设计视频'
+    ]
 
-    const isImageRequest = imageKeywords.some(k => content.includes(k))
-    const isVideoRequest = videoKeywords.some(k => content.includes(k))
+    // 模糊生成意图关键词 - 用户表达了生成意愿但没有具体内容
+    const vagueCreationKeywords = [
+      '帮我创作', '帮我生成', '帮我画图', '帮我画', '给我画', '给我生成', '给我创作',
+      '想要一张', '想要个', '想要幅', '想要视频',
+      '来一张', '来一幅', '来张', '来幅', '来段', '来段视频',
+      '需要一张', '需要张', '需要幅', '需要视频',
+      '做一张', '做张', '做幅',
+      '创作一张', '创作张', '创作幅',
+      '设计一张', '设计张', '设计幅',
+      '整一张', '整幅', '整张图', '整幅画',
+      '搞一张', '搞幅', '搞张图',
+      '弄一张', '弄幅', '弄张图'
+    ]
+
+    // 检查是否是明确的生成请求（包含具体内容）
+    const hasExplicitImageRequest = explicitImageKeywords.some(k => {
+      if (k.includes('.*')) {
+        const regex = new RegExp(k)
+        return regex.test(content)
+      }
+      return content.includes(k)
+    })
+    const hasExplicitVideoRequest = explicitVideoKeywords.some(k => content.includes(k))
+
+    // 检查是否是模糊的生成请求（只有意愿没有内容）
+    const hasVagueCreationRequest = vagueCreationKeywords.some(k => content.includes(k))
 
     console.log('[AIAssistant] ==========================================')
     console.log('[AIAssistant] 消息内容:', content)
-    console.log('[AIAssistant] 匹配到的图片关键词:', imageKeywords.filter(k => content.includes(k)))
-    console.log('[AIAssistant] 是否是图片请求:', isImageRequest)
-    console.log('[AIAssistant] 是否是视频请求:', isVideoRequest)
+    console.log('[AIAssistant] 明确图片请求:', hasExplicitImageRequest)
+    console.log('[AIAssistant] 明确视频请求:', hasExplicitVideoRequest)
+    console.log('[AIAssistant] 模糊创作请求:', hasVagueCreationRequest)
     console.log('[AIAssistant] ==========================================')
 
-    // 如果是图片/视频生成请求，直接处理，不走知识库
-    if (isImageRequest || isVideoRequest) {
+    // 如果是模糊的生成请求（如"可以帮我创作吗"），先引导用户
+    if (hasVagueCreationRequest && !hasExplicitImageRequest && !hasExplicitVideoRequest) {
+      console.log('[AIAssistant] 模糊的生成请求，引导用户')
+
+      const now = Date.now()
+
+      // 添加引导消息，包含快速选项
+      const guidanceMessage: Message = {
+        id: (now + 1).toString(),
+        role: 'assistant',
+        content: `你好呀~我是津小脉，很高兴为你创作！✨
+
+看到你想创作，我忍不住开心地眨眨眼——这就像打开一扇通往津门烟火气与千年文脉的大门呢 🌟
+
+既然咱们相遇，那咱们的创作，就不是"随便画点什么"，而是——
+✅ 有根有魂：扎根天津的泥土，汲取杨柳青的墨香、泥人张的指温、风筝魏的风骨；
+✅ 有颜有料：AI赋能+人文温度，国潮不浮夸，传统不陈旧；
+✅ 有你有我：你的想法是火种，我是陪你一起添柴、调色、定稿的共创伙伴 🎨
+
+下面这份「津门创意手账」送给你，分三步走，清晰又暖心 👇
+
+🌈 第一步｜找到你的「津门灵感锚点」
+先别急着生成！和自己聊聊天，问问：
+• 今天想画天津的什么？（建筑/美食/文化/风景）
+• 想加点什么风格？（国潮/水墨/油画/写实/卡通）
+• 用来做什么？（海报/头像/壁纸/宣传图）
+
+🎯 第二步｜一句话点亮创意
+把你的想法告诉我，比如：
+• "生成一张天津海河夜景图，国潮风格"
+• "画一幅杨柳青年画风格的福字，传统红色"
+• "生成国潮风格的天津美食海报，煎饼果子"
+
+🚀 第三步｜点击生成，静待花开
+我会为你调好颜料、铺好宣纸、备好茶，咱们一起，把天津的故事，一笔一笔，认真画下去 🖌️
+
+或者，你也可以直接选择下面的快速选项，马上开始创作：`,
+        timestamp: now,
+        quickOptions: [
+          { icon: '🌃', label: '海河夜景', prompt: '生成一张天津海河夜景图，国潮风格' },
+          { icon: '🏮', label: '杨柳青年画', prompt: '画一幅杨柳青年画风格的福字，传统红色' },
+          { icon: '🥟', label: '天津美食', prompt: '生成国潮风格的天津美食海报，煎饼果子' },
+          { icon: '🏛️', label: '五大道', prompt: '生成一张五大道建筑插画，欧式风格' },
+          { icon: '🎭', label: '泥人张', prompt: '生成泥人张风格的可爱人物' },
+          { icon: '🪁', label: '风筝魏', prompt: '生成风筝魏风格的传统风筝图案' }
+        ]
+      }
+
+      setMessages(prev => {
+        const newMessages = [...prev, guidanceMessage]
+        saveMessagesToSession(newMessages)
+        return newMessages
+      })
+
+      setIsGenerating(false)
+      return
+    }
+
+    // 如果是明确的图片/视频生成请求，直接处理
+    if (hasExplicitImageRequest || hasExplicitVideoRequest) {
       console.log('[AIAssistant] 进入图片/视频生成流程')
       const taskId = `gen-${Date.now()}`
-      
+
       // 添加AI回复消息，包含生成任务
       const now = Date.now()
       const aiMessage: Message = {
         id: (now + 1).toString(),
         role: 'assistant',
-        content: `正在为您${isImageRequest ? '生成图片' : '生成视频'}，请稍候...`,
+        content: `正在为您${hasExplicitImageRequest ? '生成图片' : '生成视频'}，请稍候...`,
         timestamp: now,
         generationTask: {
           id: taskId,
-          type: isImageRequest ? 'image' : 'video',
+          type: hasExplicitImageRequest ? 'image' : 'video',
           status: 'pending',
           progress: 0,
           params: { prompt: content },
@@ -1016,7 +1164,7 @@ export default function AIAssistantMobile() {
           updatedAt: now
         }
       }
-      
+
       setMessages(prev => {
         const newMessages = [...prev, aiMessage]
         saveMessagesToSession(newMessages)
@@ -1028,7 +1176,7 @@ export default function AIAssistantMobile() {
         ...prev,
         [taskId]: {
           id: taskId,
-          type: isImageRequest ? 'image' : 'video',
+          type: hasExplicitImageRequest ? 'image' : 'video',
           status: 'pending',
           progress: 0,
           params: { prompt: content },
@@ -1038,7 +1186,7 @@ export default function AIAssistantMobile() {
       }))
 
       // 开始生成
-      if (isImageRequest) {
+      if (hasExplicitImageRequest) {
         // 直接在聊天中生成图片
         console.log('[AIAssistant] 准备调用 generateImageInChat，taskId:', taskId)
         // 使用 setTimeout 确保在 React 状态更新后执行
@@ -1054,7 +1202,7 @@ export default function AIAssistantMobile() {
           generateVideoInChat(taskId, content)
         }, 100)
       }
-      
+
       setIsGenerating(false)
       return
     }
@@ -1309,7 +1457,7 @@ export default function AIAssistantMobile() {
   }, []) // 只在组件挂载时执行一次
 
   return (
-    <div className={`min-h-screen ${colors.bg.primary} flex flex-col relative overflow-hidden md:max-w-md md:mx-auto md:shadow-2xl`}>
+    <div className={`min-h-screen w-full max-w-full ${colors.bg.primary} flex flex-col relative overflow-x-hidden md:max-w-md md:mx-auto md:shadow-2xl`}>
       {/* 背景装饰 - 增加视觉层次 */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-40 -right-40 w-80 h-80 bg-violet-500/10 rounded-full blur-3xl" />
@@ -1319,7 +1467,7 @@ export default function AIAssistantMobile() {
 
       {/* 头部 - 固定定位 */}
       <motion.header
-        className={`fixed top-0 left-0 right-0 z-50 px-4 py-0.5 transition-all duration-300 md:max-w-md md:mx-auto ${
+        className={`fixed top-0 left-0 right-0 z-50 px-4 py-0.5 transition-all duration-300 w-full max-w-full md:max-w-md md:mx-auto ${
           isScrolled
             ? `${colors.bg.glass} backdrop-blur-xl border-b ${colors.border.primary}`
             : colors.primary.solid
@@ -1389,11 +1537,11 @@ export default function AIAssistantMobile() {
       </motion.header>
 
       {/* 消息列表 - 为顶部固定头部和底部固定输入框留出空间 */}
-      <main 
+      <main
         ref={mainRef}
-        className={`flex-1 overflow-y-auto px-4 pt-14 pb-32 ${colors.bg.primary} relative`}
+        className={`flex-1 overflow-y-auto overflow-x-hidden px-4 pt-14 pb-32 ${colors.bg.primary} relative w-full`}
       >
-        <div className="w-full space-y-3">
+        <div className="w-full max-w-full space-y-3">
           <AnimatePresence mode="popLayout">
             {messages.map((message, index) => (
               <motion.div
@@ -1407,6 +1555,44 @@ export default function AIAssistantMobile() {
                 {/* 检查是否是生成任务消息 */}
                 {(() => {
                   const messageTask = message.generationTask
+                  const quickOptions = message.quickOptions
+
+                  // 处理快速选项消息
+                  if (quickOptions && quickOptions.length > 0) {
+                    return (
+                      <div className="flex mb-4 justify-start">
+                        <div className="max-w-[90%]">
+                          <div className={`mb-3 rounded-2xl px-4 py-3 ${colors.bg.secondary} border ${colors.border.secondary}`}>
+                            <p className={`text-sm whitespace-pre-wrap leading-relaxed ${colors.text.primary} mb-3`}>{message.content}</p>
+                            <div className="grid grid-cols-2 gap-2">
+                              {quickOptions.map((option, idx) => (
+                                <motion.button
+                                  key={idx}
+                                  whileHover={{ scale: 1.02 }}
+                                  whileTap={{ scale: 0.98 }}
+                                  onClick={() => handleSend(option.prompt)}
+                                  className={`flex items-center gap-2 p-3 rounded-xl text-left transition-all ${
+                                    isDark
+                                      ? 'bg-slate-700 hover:bg-slate-600 text-slate-200'
+                                      : 'bg-white hover:bg-violet-50 text-slate-700 border border-slate-200'
+                                  }`}
+                                >
+                                  <span className="text-lg">{option.icon}</span>
+                                  <span className="text-xs font-medium">{option.label}</span>
+                                </motion.button>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="mt-2 flex items-center gap-2 px-1 justify-start">
+                            <span className="text-xs text-gray-400 font-medium">
+                              {new Date(message.timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  }
+
                   if (!messageTask) {
                     return (
                       <AICollaborationMessage
@@ -1439,7 +1625,7 @@ export default function AIAssistantMobile() {
 
                   return (
                     <div className={`flex mb-4 ${isUserMessage ? 'justify-end' : 'justify-start'}`}>
-                      <div className="w-full max-w-[90%]" data-generation-task-id={message.generationTask?.id}>
+                      <div className="max-w-[90%]" data-generation-task-id={message.generationTask?.id}>
                         {/* 先显示AI回复文本 */}
                         <div className={`mb-3 rounded-2xl px-4 py-3 ${colors.bg.secondary} border ${colors.border.secondary}`}>
                           <p className={`text-sm ${colors.text.primary}`}>{message.content}</p>
@@ -1557,7 +1743,7 @@ export default function AIAssistantMobile() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.4 }}
-              className="mt-6 max-w-2xl mx-auto px-1"
+              className="mt-6 max-w-full mx-auto px-1"
             >
               <motion.div
                 className="text-center mb-5"
@@ -1628,12 +1814,12 @@ export default function AIAssistantMobile() {
 
       {/* 输入区域 - 固定在底部导航栏上方 */}
       <motion.footer
-        className={`fixed left-0 right-0 bottom-14 px-3 py-2 z-40 ${isDark ? 'bg-slate-900/90' : 'bg-white/90'} backdrop-blur-xl border-t ${isDark ? 'border-slate-700/50' : 'border-slate-200/50'}`}
+        className={`fixed left-0 right-0 bottom-14 px-3 py-2 z-40 w-full max-w-full ${isDark ? 'bg-slate-900/90' : 'bg-white/90'} backdrop-blur-xl border-t ${isDark ? 'border-slate-700/50' : 'border-slate-200/50'}`}
         initial={{ y: 100 }}
         animate={{ y: 0 }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
       >
-        <div className="max-w-2xl mx-auto">
+        <div className="max-w-full mx-auto">
           {/* 普通聊天输入框 */}
           <div className={`flex items-center gap-2 rounded-full ${isDark ? 'bg-slate-800/70' : 'bg-slate-100/70'} backdrop-blur-xl border ${isDark ? 'border-slate-700/50' : 'border-slate-200/50'} px-4 py-2`}>
             <input

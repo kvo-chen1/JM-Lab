@@ -547,7 +547,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
     e.target.value = ''
   }
 
-  // 中文注释：侧边栏最小宽度从 200px 调整为 180px，使默认更紧凑
+  // 中文注释：侧边栏最小宽度恢复为 180px，但折叠状态更宽
   const minW = 180
   const maxW = 320
 
@@ -739,8 +739,8 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
   // 统一导航项高度和内边距，避免激活时布局变化
   // 平板端优化：在平板尺寸(md)下增加垂直内边距(py-3)，提升触摸体验；桌面端(lg)保持原样
   const navItemClass = useMemo(() => (
-    `${isDark ? 'hover:text-blue-200 hover:bg-blue-800/40 text-[13px]' : 'hover:bg-[var(--bg-hover)]'} flex items-center px-3 py-2 md:py-3 lg:py-2 rounded-lg transition-all duration-200`
-  ), [isDark])
+    `${isDark ? 'hover:text-blue-200 hover:bg-blue-800/40 text-[13px]' : 'hover:bg-[var(--bg-hover)]'} flex items-center px-3 py-2 md:py-3 lg:py-2 rounded-lg transition-all duration-200 ${collapsed ? 'justify-center py-3' : ''}`
+  ), [isDark, collapsed])
 
   // 中文注释：主题激活态使用CSS变量，确保主题变化时样式同步更新
   // 优化激活状态样式，暗色主题使用蓝色渐变
@@ -815,26 +815,26 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
       <aside
         ref={sidebarRef}
         className={`hidden md:flex flex-col ${isDark ? 'bg-gradient-to-b from-[#0F172A] via-[#1E3A5F] to-[#0F172A] backdrop-blur-xl border-blue-500/50 shadow-[0_0_20px_rgba(59,130,246,0.15)]' : theme === 'pink' ? 'bg-white/90 backdrop-blur-sm border-pink-200' : 'bg-white border-gray-200'} border-r relative ring-1 z-10 ${isDark ? 'ring-blue-500/30' : theme === 'pink' ? 'ring-pink-200' : 'ring-gray-200'}`}
-        style={{ width: collapsed ? 72 : width, transition: 'width 0.2s ease-in-out' }}
+        style={{ width: collapsed ? 80 : width, transition: 'width 0.2s ease-in-out' }}
         role="navigation"
         aria-label={t('sidebar.navigation')}
       >
-        <div className={`px-4 py-3 flex items-center justify-between rounded-lg transition-colors group ${isDark ? 'hover:bg-blue-900/30' : theme === 'pink' ? 'hover:bg-pink-50' : 'hover:bg-gray-50'}`}>
+        <div className={`${collapsed ? 'px-3' : 'px-4'} py-3 flex items-center justify-between rounded-lg transition-colors group ${isDark ? 'hover:bg-blue-900/30' : theme === 'pink' ? 'hover:bg-pink-50' : 'hover:bg-gray-50'}`}>
           <div className="flex items-center space-x-2 overflow-hidden">
             {!collapsed && <span className={`font-extrabold bg-gradient-to-r ${isDark ? 'from-blue-400 to-cyan-400' : 'from-red-600 to-rose-500'} bg-clip-text text-transparent tracking-tight whitespace-nowrap`}>{t('common.appNameBrand')}</span>}
             {!collapsed && <span className={`font-bold ${isDark ? 'text-blue-100' : ''} whitespace-nowrap`}>{t('common.appNameProduct')}</span>}
           </div>
-          <div className="flex items-center space-x-1">
+          <div className="flex items-center justify-center">
             {/* 展开/收缩按钮 */}
             <button
-              className={`p-2 rounded-lg ring-1 transition-all ${isDark ? 'hover:bg-blue-800/50 ring-blue-500/50 hover:ring-blue-400 hover:ring-2' : 'hover:bg-gray-100 ring-gray-200 hover:ring-2'} hover:shadow-sm ${!collapsed ? (isDark ? 'ring-blue-500' : 'ring-blue-500') : ''}`}
+              className={`${collapsed ? 'p-3' : 'p-2'} rounded-xl transition-all bg-gradient-to-br from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 shadow-lg shadow-red-500/30 hover:shadow-red-500/50 hover:scale-105 active:scale-95`}
               onClick={() => {
                 setCollapsed(!collapsed);
               }}
               aria-label={collapsed ? '展开侧边栏' : '收缩侧边栏'}
               title={collapsed ? '展开侧边栏' : '收缩侧边栏'}
             >
-              <i className={`fas ${collapsed ? 'fa-toggle-off' : `fa-toggle-on ${isDark ? 'text-blue-400' : 'text-blue-500'}`} ${isDark ? 'text-blue-200' : 'text-gray-500'} transition-transform group-hover:scale-110`}></i>
+              <i className={`fas ${collapsed ? 'fa-toggle-off' : 'fa-toggle-on'} text-white ${collapsed ? 'text-xl' : 'text-base'} transition-transform group-hover:scale-110 drop-shadow-sm`}></i>
             </button>
 
           </div>
@@ -844,7 +844,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
           {navigationGroups.map((group) => (
             <motion.div
               key={group.id}
-              className={`rounded-xl ${isDark ? 'bg-blue-900/20 backdrop-blur-md border border-blue-500/30' : 'bg-gray-50 border border-gray-100'} p-3 transition-all duration-300 hover:shadow-md dark:hover:shadow-lg hover:shadow-gray-100/50 dark:hover:shadow-blue-900/30`}
+              className={`rounded-xl ${isDark ? 'bg-blue-900/20 backdrop-blur-md border border-blue-500/30' : 'bg-gray-50 border border-gray-100'} ${collapsed ? 'p-3' : 'p-3'} transition-all duration-300 hover:shadow-md dark:hover:shadow-lg hover:shadow-gray-100/50 dark:hover:shadow-blue-900/30`}
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: getDuration(0.3), delay: getDelay(0.1) }}
@@ -863,17 +863,17 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                   </span>
                 </motion.h3>
               )}
-              <div className="space-y-1.5">
+              <div className={`${collapsed ? 'space-y-3' : 'space-y-1.5'}`}>
                 {group.items.map((item, index) => (
                   <NavLink 
                     key={item.id}
                     to={`${item.path}${item.search || ''}`}
                     title={collapsed ? item.label : undefined} 
                     onMouseEnter={() => debouncedPrefetch(item.id)} 
-                    className={({ isActive }) => `${navItemClass} ${isActive ? activeClass : (isDark ? 'text-[#E2E8F0]' : 'text-gray-700')} relative overflow-hidden group ${collapsed ? 'justify-center px-2 py-2.5' : ''}`}
+                    className={({ isActive }) => `${navItemClass} ${isActive ? activeClass : (isDark ? 'text-[#E2E8F0]' : 'text-gray-700')} relative overflow-hidden group ${collapsed ? 'justify-center px-2 py-4' : ''}`}
                     end
                   > 
-                    <i className={`fas ${item.icon} ${collapsed ? 'mr-0' : 'mr-3'} transition-all duration-300 group-hover:scale-110 group-hover:rotate-5 text-current`}></i>
+                    <i className={`fas ${item.icon} ${collapsed ? 'mr-0 text-xl' : 'mr-3 text-base'} transition-all duration-300 group-hover:scale-110 group-hover:rotate-5 text-current ${collapsed ? 'w-8' : 'w-5'} text-center`}></i>
                     {!collapsed && (
                       <span 
                         className="transition-all duration-300 ease-in-out opacity-100 truncate font-medium"

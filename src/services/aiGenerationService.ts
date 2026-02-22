@@ -4,6 +4,8 @@
  */
 
 import { llmService } from './llmService';
+import { eventSubmissionService } from './eventSubmissionService';
+import { aiGenerationSaveService } from './aiGenerationSaveService';
 import { toast } from 'sonner';
 
 // 生成任务类型
@@ -50,6 +52,15 @@ export interface GenerationHistoryItem {
   createdAt: number;
   isFavorite: boolean;
   tags: string[];
+}
+
+// 活动提交选项
+export interface ActivitySubmissionOptions {
+  eventId: string;
+  userId: string;
+  participationId: string;
+  title?: string;
+  description?: string;
 }
 
 // 生成任务（兼容旧版本接口）
@@ -176,10 +187,10 @@ class AIGenerationService {
    * 生成图片 - 简化版本，直接调用后端API
    * 返回 GenerationTask 以兼容旧接口
    */
-  async generateImage(params: ImageGenerationParams): Promise<GenerationTask> {
+  async generateImage(params: ImageGenerationParams, submissionOptions?: ActivitySubmissionOptions): Promise<GenerationTask> {
     const id = Date.now().toString(36) + Math.random().toString(36).substring(2);
     const now = Date.now();
-    
+
     // 创建任务对象
     const task: GenerationTask = {
       id,
@@ -190,7 +201,7 @@ class AIGenerationService {
       createdAt: now,
       updatedAt: now
     };
-    
+
     this.tasks.set(id, task);
     this.notifyTaskUpdate(task);
 
@@ -222,7 +233,7 @@ class AIGenerationService {
 
       // 提取图片URL
       const urls = result.data.data?.map((item: any) => item.url) || [];
-      
+
       if (urls.length === 0) {
         throw new Error('未获取到生成的图片');
       }
@@ -233,7 +244,7 @@ class AIGenerationService {
       task.result = { urls };
       task.updatedAt = Date.now();
       task.completedAt = new Date().toISOString();
-      
+
       this.tasks.set(id, task);
       this.notifyTaskUpdate(task);
 
@@ -248,20 +259,39 @@ class AIGenerationService {
         tags: []
       });
 
+      // 保存到数据库（所有AI生成都要保存）
+      await aiGenerationSaveService.saveImageGeneration(params.prompt, urls[0], {
+        source: submissionOptions ? 'activity' : 'ai_generation',
+        sourceId: submissionOptions?.eventId,
+        metadata: {
+          generationId: id,
+          type: 'image',
+          size: params.size,
+          quality: params.quality,
+          style: params.style,
+          aiGenerated: true
+        }
+      });
+
+      // 如果提供了活动提交选项，自动提交到活动
+      if (submissionOptions) {
+        await this.submitToActivity(submissionOptions, urls[0], 'image', params.prompt);
+      }
+
       return task;
     } catch (error) {
       // 停止进度模拟
       clearInterval(progressInterval);
-      
+
       // 更新任务为失败状态
       task.status = 'failed';
       task.error = error instanceof Error ? error.message : '生成失败';
       task.updatedAt = Date.now();
       task.completedAt = new Date().toISOString();
-      
+
       this.tasks.set(id, task);
       this.notifyTaskUpdate(task);
-      
+
       throw error;
     }
   }
@@ -269,10 +299,10 @@ class AIGenerationService {
   /**
    * 生成视频
    */
-  async generateVideo(params: VideoGenerationParams): Promise<GenerationTask> {
+  async generateVideo(params: VideoGenerationParams, submissionOptions?: ActivitySubmissionOptions): Promise<GenerationTask> {
     const id = Date.now().toString(36) + Math.random().toString(36).substring(2);
     const now = Date.now();
-    
+
     // 创建任务对象
     const task: GenerationTask = {
       id,
@@ -283,7 +313,7 @@ class AIGenerationService {
       createdAt: now,
       updatedAt: now
     };
-    
+
     this.tasks.set(id, task);
     this.notifyTaskUpdate(task);
 
@@ -311,7 +341,7 @@ class AIGenerationService {
       task.result = { urls: [videoUrl] };
       task.updatedAt = Date.now();
       task.completedAt = new Date().toISOString();
-      
+
       this.tasks.set(id, task);
       this.notifyTaskUpdate(task);
 
@@ -325,6 +355,25 @@ class AIGenerationService {
         tags: []
       });
 
+      // 保存到数据库（所有AI生成都要保存）
+      await aiGenerationSaveService.saveVideoGeneration(params.prompt, videoUrl, videoUrl, {
+        source: submissionOptions ? 'activity' : 'ai_generation',
+        sourceId: submissionOptions?.eventId,
+        metadata: {
+          generationId: id,
+          type: 'video',
+          duration: params.duration,
+          resolution: params.resolution,
+          aspectRatio: params.aspectRatio,
+          aiGenerated: true
+        }
+      });
+
+      // 如果提供了活动提交选项，自动提交到活动
+      if (submissionOptions) {
+        await this.submitToActivity(submissionOptions, videoUrl, 'video', params.prompt);
+      }
+
       return task;
     } catch (error) {
       // 更新任务为失败状态
@@ -332,10 +381,10 @@ class AIGenerationService {
       task.error = error instanceof Error ? error.message : '生成失败';
       task.updatedAt = Date.now();
       task.completedAt = new Date().toISOString();
-      
+
       this.tasks.set(id, task);
       this.notifyTaskUpdate(task);
-      
+
       throw error;
     }
   }
@@ -371,6 +420,58 @@ class AIGenerationService {
     }
 
     throw new Error('视频生成超时');
+  }
+
+  /**
+   * 提交AI生成内容到活动
+   */
+  private async submitToActivity(
+    options: ActivitySubmissionOptions,
+    mediaUrl: string,
+    type: 'image' | 'video',
+    prompt: string
+  ): Promise<void> {
+    try {
+      console.log('[AIGeneration] Submitting to activity:', {
+        eventId: options.eventId,
+        type,
+        mediaUrl: mediaUrl.substring(0, 50) + '...'
+      });
+
+      const result = await eventSubmissionService.submitWork(
+        options.eventId,
+        options.userId,
+        options.participationId,
+        {
+          title: options.title || `AI生成${type === 'image' ? '图片' : '视频'}作品`,
+          description: options.description || `使用AI生成的${type === 'image' ? '图片' : '视频'}作品\n提示词: ${prompt}`,
+          files: [{
+            id: `${Date.now()}_${type}`,
+            name: `ai_generated_${type}.${type === 'image' ? 'jpg' : 'mp4'}`,
+            url: mediaUrl,
+            type: type === 'image' ? 'image/jpeg' : 'video/mp4',
+            size: 0,
+            thumbnailUrl: type === 'image' ? mediaUrl : undefined
+          }],
+          metadata: {
+            aiGenerated: true,
+            prompt,
+            generatedAt: new Date().toISOString()
+          }
+        }
+      );
+
+      if (result.success) {
+        console.log('[AIGeneration] Successfully submitted to activity:', result.submissionId);
+        toast.success(`AI生成${type === 'image' ? '图片' : '视频'}已自动提交到活动`);
+      } else {
+        console.error('[AIGeneration] Failed to submit to activity:', result.error);
+        toast.error(`提交到活动失败: ${result.error || '未知错误'}`);
+      }
+    } catch (error) {
+      console.error('[AIGeneration] Error submitting to activity:', error);
+      toast.error('提交到活动时发生错误');
+    }
   }
 
   /**

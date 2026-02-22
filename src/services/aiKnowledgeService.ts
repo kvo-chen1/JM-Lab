@@ -304,6 +304,41 @@ class AIKnowledgeService {
   }
 
   /**
+   * 检测是否是创作/生成相关的询问
+   */
+  private isCreationQuery(message: string): boolean {
+    const creationPatterns = [
+      '如何创作', '怎么创作', '如何生成', '怎么生成',
+      '如何画图', '怎么画图', '如何画画', '怎么画画',
+      '怎么使用', '如何使用', '怎么用', '怎么用ai',
+      '怎么生成图片', '如何生成图片', '怎么生成图',
+      '想创作', '想生成', '想画图', '想画画'
+    ];
+    const lowerMessage = message.toLowerCase();
+    return creationPatterns.some(pattern => lowerMessage.includes(pattern));
+  }
+
+  /**
+   * 生成移动端直接创作指导回复
+   */
+  private generateMobileCreationGuide(): string {
+    return `**🎨 您可以直接在这里生成图片！**
+
+只需要告诉我您想要什么，例如：
+• "生成一张天津海河夜景图"
+• "画一幅杨柳青年画风格的福字"
+• "生成国潮风格的天津美食海报"
+• "帮我生成一张五大道建筑插画"
+
+**💡 提示技巧：**
+1. 描述越详细，效果越好
+2. 可以指定风格（国潮、水墨、油画等）
+3. 可以融入天津文化元素（杨柳青年画、泥人张、风筝魏等）
+
+请直接告诉我您想生成什么图片，我马上为您创作！`;
+  }
+
+  /**
    * 智能回复生成
    * 根据用户消息生成合适的回复，包括导航、指导等
    */
@@ -313,6 +348,9 @@ class AIKnowledgeService {
     target?: NavigationTarget;
     knowledge?: KnowledgeItem;
   }> {
+    // 检查是否是移动端AI助手页面
+    const isMobileAIAssistant = currentPath === '/ai-assistant-mobile' || currentPath === '/ai-assistant';
+
     // 1. 检查是否是导航意图
     const navTarget = this.recognizeNavigationIntent(message);
     if (navTarget) {
@@ -323,11 +361,27 @@ class AIKnowledgeService {
           content: `您当前已经在「${navTarget.name}」页面了。${navTarget.description ? '\n\n' + navTarget.description : ''}\n\n有什么我可以帮您的吗？`
         };
       }
-      
+
+      // 移动端AI助手页面：如果是创作相关的询问，不跳转，直接提供指导
+      if (isMobileAIAssistant && navTarget.path === '/create' && this.isCreationQuery(message)) {
+        return {
+          type: 'guide',
+          content: this.generateMobileCreationGuide()
+        };
+      }
+
       return {
         type: 'navigation',
         content: this.generateNavigationResponse(navTarget),
         target: navTarget
+      };
+    }
+
+    // 移动端AI助手页面：如果是创作相关的询问但没有匹配到导航，也提供指导
+    if (isMobileAIAssistant && this.isCreationQuery(message)) {
+      return {
+        type: 'guide',
+        content: this.generateMobileCreationGuide()
       };
     }
 

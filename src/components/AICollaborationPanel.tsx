@@ -2696,6 +2696,11 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
                         value={input}
                         onChange={setInput}
                         onSubmit={sendMessage}
+                        onNavigate={(path) => {
+                          // 关闭面板并导航到指定页面
+                          onClose();
+                          navigate(path);
+                        }}
                         placeholder={t('aiCollab.placeholders.input') || '输入消息，输入 / 查看快捷指令...'}
                       />
                     </div>

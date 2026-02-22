@@ -35,17 +35,20 @@ export interface ActionSuggestion {
   color: string;
   gradient: string;
   action: () => void;
+  navigateTo?: string; // 可选的导航路径
 }
 
 interface AIActionSuggestionsProps {
   input: string;
   onSuggestionClick: (suggestion: ActionSuggestion) => void;
+  onNavigate?: (path: string) => void; // 新增导航回调
   className?: string;
 }
 
 export const AIActionSuggestions: React.FC<AIActionSuggestionsProps> = ({
   input,
   onSuggestionClick,
+  onNavigate,
   className = ''
 }) => {
   const { isDark } = useTheme();
@@ -55,7 +58,7 @@ export const AIActionSuggestions: React.FC<AIActionSuggestionsProps> = ({
     const matchedSuggestions: ActionSuggestion[] = [];
 
     // 图片生成建议
-    if (lowerInput.includes('图') || lowerInput.includes('画') || lowerInput.includes('照片') || 
+    if (lowerInput.includes('图') || lowerInput.includes('画') || lowerInput.includes('照片') ||
         lowerInput.includes('生成') || lowerInput.includes('绘制')) {
       matchedSuggestions.push({
         id: 'generate_image',
@@ -65,7 +68,8 @@ export const AIActionSuggestions: React.FC<AIActionSuggestionsProps> = ({
         icon: <Image className="w-5 h-5" />,
         color: 'from-purple-500 to-pink-500',
         gradient: 'from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20',
-        action: () => {}
+        action: () => {},
+        navigateTo: '/create'
       });
     }
 
@@ -79,7 +83,8 @@ export const AIActionSuggestions: React.FC<AIActionSuggestionsProps> = ({
         icon: <Video className="w-5 h-5" />,
         color: 'from-blue-500 to-cyan-500',
         gradient: 'from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20',
-        action: () => {}
+        action: () => {},
+        navigateTo: '/create'
       });
     }
 
@@ -93,7 +98,8 @@ export const AIActionSuggestions: React.FC<AIActionSuggestionsProps> = ({
         icon: <Palette className="w-5 h-5" />,
         color: 'from-amber-500 to-orange-500',
         gradient: 'from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20',
-        action: () => {}
+        action: () => {},
+        navigateTo: '/create'
       });
     }
 
@@ -107,7 +113,8 @@ export const AIActionSuggestions: React.FC<AIActionSuggestionsProps> = ({
         icon: <Lightbulb className="w-5 h-5" />,
         color: 'from-yellow-500 to-amber-500',
         gradient: 'from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20',
-        action: () => {}
+        action: () => {},
+        navigateTo: '/inspiration'
       });
     }
 
@@ -122,7 +129,8 @@ export const AIActionSuggestions: React.FC<AIActionSuggestionsProps> = ({
         icon: <BookOpen className="w-5 h-5" />,
         color: 'from-red-500 to-rose-500',
         gradient: 'from-red-50 to-rose-50 dark:from-red-900/20 dark:to-rose-900/20',
-        action: () => {}
+        action: () => {},
+        navigateTo: '/cultural-knowledge'
       });
     }
 
@@ -137,7 +145,8 @@ export const AIActionSuggestions: React.FC<AIActionSuggestionsProps> = ({
         icon: <FileText className="w-5 h-5" />,
         color: 'from-emerald-500 to-teal-500',
         gradient: 'from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20',
-        action: () => {}
+        action: () => {},
+        navigateTo: '/create'
       });
     }
 
@@ -152,7 +161,8 @@ export const AIActionSuggestions: React.FC<AIActionSuggestionsProps> = ({
         icon: <Compass className="w-5 h-5" />,
         color: 'from-indigo-500 to-violet-500',
         gradient: 'from-indigo-50 to-violet-50 dark:from-indigo-900/20 dark:to-violet-900/20',
-        action: () => {}
+        action: () => {},
+        navigateTo: '/'
       });
     }
 
@@ -166,7 +176,8 @@ export const AIActionSuggestions: React.FC<AIActionSuggestionsProps> = ({
         icon: <Search className="w-5 h-5" />,
         color: 'from-cyan-500 to-blue-500',
         gradient: 'from-cyan-50 to-blue-50 dark:from-cyan-900/20 dark:to-blue-900/20',
-        action: () => {}
+        action: () => {},
+        navigateTo: '/search'
       });
     }
 
@@ -210,7 +221,14 @@ export const AIActionSuggestions: React.FC<AIActionSuggestionsProps> = ({
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: index * 0.05 }}
-              onClick={() => onSuggestionClick(suggestion)}
+              onClick={() => {
+                // 优先执行导航
+                if (suggestion.navigateTo && onNavigate) {
+                  onNavigate(suggestion.navigateTo);
+                }
+                // 同时触发点击回调
+                onSuggestionClick(suggestion);
+              }}
               className={`relative p-3 rounded-xl border-2 transition-all duration-200 text-left group ${
                 isDark
                   ? 'border-gray-700 hover:border-gray-600 bg-gray-800/50'

@@ -943,8 +943,8 @@ export default function Square() {
           </div>
           
           {/* 搜索框 - Pinterest风格 */}
-          <div id="guide-step-explore-search" className="flex-1 max-w-2xl mx-4 md:mx-6 relative">
-            <div className={`relative ${isDark ? 'bg-gray-800' : 'bg-gray-100'} rounded-full overflow-hidden`}>
+          <div id="guide-step-explore-search" className="flex-1 max-w-2xl mx-4 md:mx-6 relative flex items-center gap-2">
+            <div className={`relative flex-1 ${isDark ? 'bg-gray-800' : 'bg-gray-100'} rounded-full overflow-hidden`}>
               <i className="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
               <input
                 type="text"
@@ -960,6 +960,23 @@ export default function Square() {
                 }}
               />
             </div>
+            
+            {/* 津脉活动快捷键 - 移动端显示 */}
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => navigate('/cultural-events')}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all md:hidden ${
+                isDark 
+                  ? 'bg-red-600/20 text-red-400 border border-red-600/30 hover:bg-red-600/30' 
+                  : 'bg-red-50 text-red-600 border border-red-100 hover:bg-red-100'
+              }`}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              <span>活动</span>
+            </motion.button>
           </div>
           
 
@@ -1022,8 +1039,7 @@ export default function Square() {
                 }
               }}
               onArtworkClick={(artwork) => {
-                loadPostDetail(artwork.id)
-                window.history.pushState({ modal: true }, '', `/post/${artwork.id}`)
+                navigate(`/post/${artwork.id}`)
               }}
               onAuthorClick={(authorId) => {
                 navigate(`/profile/${authorId}`)
@@ -1049,15 +1065,13 @@ export default function Square() {
               posts={viewList}
               onLike={like}
               onComment={(id) => {
-                loadPostDetail(id)
+                navigate(`/post/${id}`)
               }}
               onShare={sharePost}
               onBookmark={toggleFavorite}
               onDelete={deletePost}
               onPostClick={(id) => {
-                loadPostDetail(id)
-                // 更新URL但不跳转，保持模态框体验
-                window.history.pushState({ modal: true }, '', `/post/${id}`)
+                navigate(`/post/${id}`)
               }}
               favorites={favorites}
               isLoading={isLoading}

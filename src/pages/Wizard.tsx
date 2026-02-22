@@ -9,6 +9,7 @@ import { scoreAuthenticity } from '@/services/authenticityService';
 import postService from '@/services/postService';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { llmService } from '@/services/llmService';
+import { aiGenerationSaveService } from '@/services/aiGenerationSaveService';
 import { TianjinImage, TianjinButton, YangliuqingCard } from '@/components/TianjinStyleComponents';
 import AISuggestionBox from '@/components/AISuggestionBox';
 import { toast } from 'sonner';
@@ -814,6 +815,24 @@ export default function Wizard() {
       setState({ variants: newVariants });
       setGenerationProgress(100);
       toast.success('创意方案生成完成！');
+      
+      // 保存所有生成的方案到数据库
+      for (const variant of newVariants) {
+        if (variant.image && !variant.image.includes('unsplash.com')) {
+          await aiGenerationSaveService.saveImageGeneration(
+            `${basePrompt} ${variant.script}`,
+            variant.image,
+            {
+              source: 'wizard',
+              metadata: {
+                template: templateTitle,
+                style: variant.script,
+                size: '1024x1024'
+              }
+            }
+          );
+        }
+      }
     } catch (error) {
       console.error('[Wizard] Image generation failed:', error);
       toast.error('生成图片失败，已加载示例图片');

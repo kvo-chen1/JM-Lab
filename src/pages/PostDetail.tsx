@@ -6,6 +6,7 @@ import { useCommunityStore, useLikeStatus } from '../stores/communityStore'
 import type { UserProfile } from '../lib/supabase'
 import PostDetailModal from '@/components/PostDetailModal'
 import { AuthContext } from '@/contexts/authContext'
+import { communityService } from '@/services/communityService'
 
 interface PostDetailProps {
   currentUser?: UserProfile
@@ -25,6 +26,60 @@ export const PostDetail: React.FC<PostDetailProps> = ({ currentUser: propUser })
   
   const { isLiked } = useLikeStatus(id || '')
   
+  // 将社区帖子转换为 Post 格式
+  const convertThreadToPost = (thread: any): Post => {
+    return {
+      id: thread.id,
+      title: thread.title || '无标题',
+      thumbnail: thread.images?.[0] || '',
+      type: thread.images?.length > 0 ? 'image' : 'text',
+      likes: thread.upvotes || 0,
+      comments: (thread.comments || []).map((c: any) => ({
+        id: c.id,
+        content: c.content,
+        date: c.created_at || new Date(c.createdAt).toISOString(),
+        author: c.author || c.user || '未知用户',
+        authorAvatar: c.authorAvatar || c.userAvatar || c.avatar || '',
+        likes: c.likes || 0,
+      })),
+      date: new Date(thread.createdAt).toISOString(),
+      author: thread.author ? {
+        id: thread.authorId || '',
+        username: thread.author,
+        email: '',
+        avatar: thread.authorAvatar || '',
+      } : undefined,
+      isLiked: false,
+      isBookmarked: false,
+      category: 'other',
+      tags: thread.topic ? [thread.topic] : [],
+      description: thread.content || '',
+      views: 0,
+      shares: 0,
+      isFeatured: false,
+      isDraft: false,
+      completionStatus: 'published',
+      creativeDirection: '',
+      culturalElements: [],
+      colorScheme: [],
+      toolsUsed: [],
+      publishType: 'community',
+      communityId: thread.communityId || null,
+      moderationStatus: 'approved',
+      rejectionReason: null,
+      scheduledPublishDate: null,
+      visibility: 'public',
+      commentCount: thread.comments?.length || 0,
+      engagementRate: 0,
+      trendingScore: 0,
+      reach: 0,
+      moderator: null,
+      reviewedAt: null,
+      recommendationScore: 0,
+      recommendedFor: [],
+    }
+  }
+  
   // 加载帖子详情
   useEffect(() => {
     const loadPost = async () => {
@@ -33,7 +88,8 @@ export const PostDetail: React.FC<PostDetailProps> = ({ currentUser: propUser })
       try {
         setLoading(true)
         setError(null)
-        // 从 postsApi 获取帖子数据
+        
+        // 首先尝试从 postsApi 获取帖子数据
         const allPosts = await postsApi.getPosts(undefined, currentUser?.id)
         const postData = allPosts.find(p => p.id === id)
 
@@ -50,11 +106,23 @@ export const PostDetail: React.FC<PostDetailProps> = ({ currentUser: propUser })
             }
           }
         } else {
-          setError("未找到该作品")
+          // 如果 postsApi 找不到，尝试从 communityService 获取
+          try {
+            const thread = await communityService.getThread(id)
+            if (thread) {
+              const convertedPost = convertThreadToPost(thread)
+              setPost(convertedPost)
+            } else {
+              setError('未找到该帖子')
+            }
+          } catch (threadError) {
+            console.error('从社区服务获取帖子失败:', threadError)
+            setError('未找到该帖子')
+          }
         }
       } catch (error) {
         console.error('加载帖子详情失败:', error)
-        setError("加载失败，请稍后重试")
+        setError('加载失败，请稍后重试')
       } finally {
         setLoading(false)
       }

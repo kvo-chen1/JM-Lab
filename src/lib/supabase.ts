@@ -6,6 +6,9 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || ''
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
 const supabaseServiceKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY || ''
 
+// 导出配置供其他模块使用
+export { supabaseUrl, supabaseAnonKey }
+
 // 检查是否在浏览器环境
 const isBrowser = typeof window !== 'undefined'
 

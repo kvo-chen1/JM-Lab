@@ -287,9 +287,9 @@ export default function MobileWorkDetail() {
                 e.stopPropagation();
                 navigate(-1);
               }}
-              className="absolute top-4 left-4 w-10 h-10 rounded-full bg-black/30 backdrop-blur-md flex items-center justify-center text-white"
+              className="absolute top-4 left-4 w-12 h-12 rounded-full bg-black/50 backdrop-blur-md flex items-center justify-center text-white"
             >
-              <ChevronLeft className="w-5 h-5" />
+              <ChevronLeft className="w-7 h-7" />
             </motion.button>
             {/* 分享按钮（浮动） */}
             <motion.button
@@ -300,9 +300,9 @@ export default function MobileWorkDetail() {
                 e.stopPropagation();
                 setShowShareSheet(true);
               }}
-              className="absolute top-4 right-4 w-10 h-10 rounded-full bg-black/30 backdrop-blur-md flex items-center justify-center text-white"
+              className="absolute top-4 right-4 w-12 h-12 rounded-full bg-black/50 backdrop-blur-md flex items-center justify-center text-white"
             >
-              <Share2 className="w-5 h-5" />
+              <Share2 className="w-6 h-6" />
             </motion.button>
           </div>
         ) : (

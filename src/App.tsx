@@ -161,6 +161,10 @@ const MobileWorkDetail = createLazyComponent(() => import(/* webpackChunkName: "
   priority: ROUTE_PRIORITIES.HIGH,
   name: 'mobile-work-detail'
 });
+const MobilePostDetail = createLazyComponent(() => import(/* webpackChunkName: "pages-mobile-events" */ "@/pages/MobilePostDetail"), {
+  priority: ROUTE_PRIORITIES.HIGH,
+  name: 'mobile-post-detail'
+});
 const MobileSubmitWork = createLazyComponent(() => import(/* webpackChunkName: "pages-mobile-events" */ "@/pages/MobileSubmitWork"), {
   priority: ROUTE_PRIORITIES.HIGH,
   name: 'mobile-submit-work'
@@ -782,7 +786,7 @@ export default function App() {
           <Route path="/about" element={<LazyComponent><About /></LazyComponent>} />
           <Route path="/neo" element={<Navigate to="/create/inspiration" replace />} />
           <Route path="/square" element={<LazyComponent><PrivateRoute><Square /></PrivateRoute></LazyComponent>} />
-          <Route path="/square/:id" element={<LazyComponent><PrivateRoute><Square /></PrivateRoute></LazyComponent>} />
+<Route path="/square/:id" element={<LazyComponent><PrivateRoute>{isMobile ? <MobilePostDetail /> : <Square />}</PrivateRoute></LazyComponent>} />
           <Route path="/community" element={<LazyComponent><PrivateRoute><Community /></PrivateRoute></LazyComponent>} />
           <Route path="/community/:id" element={<LazyComponent><PrivateRoute><Community /></PrivateRoute></LazyComponent>} />
           <Route path="/community/:id/:channel" element={<LazyComponent><PrivateRoute><Community /></PrivateRoute></LazyComponent>} />

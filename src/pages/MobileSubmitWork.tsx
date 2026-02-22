@@ -350,26 +350,26 @@ export default function MobileSubmitWork() {
         <div className="px-4 py-3">
           <div className="flex items-center justify-between">
             <motion.button
-              whileTap={{ scale: 0.95 }}
+              whileTap={{ scale: 0.9 }}
               onClick={handleBack}
-              className={`flex items-center justify-center w-10 h-10 rounded-xl ${
-                isDark ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-600'
+              className={`flex items-center justify-center w-11 h-11 rounded-xl ${
+                isDark ? 'bg-gray-700 text-white' : 'bg-gray-200 text-gray-700'
               }`}
             >
-              <ChevronLeft className="w-5 h-5" />
+              <ChevronLeft className="w-7 h-7" />
             </motion.button>
             <h1 className={`text-base font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
               提交作品
             </h1>
             <motion.button
-              whileTap={{ scale: 0.95 }}
+              whileTap={{ scale: 0.9 }}
               onClick={handleSaveDraft}
               disabled={isSaving}
-              className={`flex items-center justify-center w-10 h-10 rounded-xl ${
-                isDark ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-600'
+              className={`flex items-center justify-center w-11 h-11 rounded-xl ${
+                isDark ? 'bg-gray-700 text-white' : 'bg-gray-200 text-gray-700'
               } ${isSaving ? 'opacity-50' : ''}`}
             >
-              {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+              {isSaving ? <Loader2 className="w-6 h-6 animate-spin" /> : <Save className="w-6 h-6" />}
             </motion.button>
           </div>
         </div>

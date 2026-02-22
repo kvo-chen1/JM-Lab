@@ -252,41 +252,38 @@ export default function MobileEventWorks() {
           <div className="flex items-center justify-between">
             {/* 左侧：返回按钮 */}
             <motion.button
-              whileTap={{ scale: 0.95 }}
+              whileTap={{ scale: 0.9 }}
               onClick={() => navigate('/events')}
-              className={`flex items-center justify-center w-10 h-10 rounded-xl ${
-                isDark ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-600'
+              className={`flex items-center justify-center w-11 h-11 rounded-xl ${
+                isDark 
+                  ? 'bg-gray-700 text-white' 
+                  : 'bg-gray-200 text-gray-700'
               }`}
             >
-              <ChevronLeft className="w-5 h-5" />
+              <ChevronLeft className="w-7 h-7" />
             </motion.button>
 
             {/* 中间：活动标题 */}
-            <div className="flex-1 mx-3 min-w-0">
+            <div className="flex-1 mx-2 min-w-0 text-center">
               {isLoadingEvent ? (
-                <div className={`h-5 w-32 rounded animate-pulse ${isDark ? 'bg-gray-800' : 'bg-gray-200'}`} />
+                <div className={`h-5 w-32 rounded animate-pulse mx-auto ${isDark ? 'bg-gray-800' : 'bg-gray-200'}`} />
               ) : (
-                <div>
-                  <h1 className={`text-base font-bold truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                    {eventInfo?.title || '活动作品'}
-                  </h1>
-                  <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                    {totalCount} 个作品
-                  </p>
-                </div>
+                <h1 className={`text-base font-semibold truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                  {eventInfo?.title || '活动作品'}
+                </h1>
               )}
             </div>
 
-            {/* 右侧：分享按钮 */}
-            <motion.button
-              whileTap={{ scale: 0.95 }}
-              onClick={handleShare}
-              className={`flex items-center justify-center w-10 h-10 rounded-xl ${
-                isDark ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-600'
-              }`}
-            >
-              <Share2 className="w-5 h-5" />
-            </motion.button>
+            {/* 右侧：作品数量 */}
+            <div className="flex items-center justify-end w-16 h-9">
+              {isLoadingEvent ? (
+                <div className={`h-4 w-12 rounded animate-pulse ${isDark ? 'bg-gray-800' : 'bg-gray-200'}`} />
+              ) : (
+                <span className={`text-xs whitespace-nowrap ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                  {totalCount} 个作品
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </motion.header>

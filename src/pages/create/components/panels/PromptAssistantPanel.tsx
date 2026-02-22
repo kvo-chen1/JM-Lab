@@ -4,7 +4,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { useCreateStore } from '../../hooks/useCreateStore';
 import { llmService } from '@/services/llmService';
 import { toast } from 'sonner';
-import { Sparkles, Wand2, History, Trash2, Check, X, Lightbulb, AlertCircle } from 'lucide-react';
+import { Sparkles, Wand2, History, Trash2, Check, X, Lightbulb, AlertCircle, Send, Wand, Edit3, Eye, ArrowRight } from 'lucide-react';
 
 // 提示词模板
 const PROMPT_TEMPLATES = [
@@ -71,6 +71,15 @@ export const PromptAssistantPanel: React.FC = () => {
   } | null>(null);
   const [showOptimized, setShowOptimized] = useState(false);
 
+  // 模板编辑状态
+  const [selectedTemplate, setSelectedTemplate] = useState<{
+    name: string;
+    template: string;
+    category: string;
+  } | null>(null);
+  const [editedTemplateContent, setEditedTemplateContent] = useState('');
+  const [showTemplateEditor, setShowTemplateEditor] = useState(false);
+
   // 优化提示词
   const handleOptimize = useCallback(async () => {
     if (!prompt.trim()) {
@@ -126,7 +135,7 @@ export const PromptAssistantPanel: React.FC = () => {
     }
   }, [prompt]);
 
-  // 应用优化后的提示词
+  // 应用优化后的提示词到当前输入框
   const applyOptimizedPrompt = useCallback(() => {
     if (optimizedPrompt) {
       setPrompt(optimizedPrompt);
@@ -135,13 +144,66 @@ export const PromptAssistantPanel: React.FC = () => {
     }
   }, [optimizedPrompt, setPrompt]);
 
-  // 使用模板
-  const useTemplate = useCallback((template: string) => {
-    const subject = prompt.trim() || '主体内容';
-    const filledTemplate = template.replace('{subject}', subject);
-    setPrompt(filledTemplate);
-    toast.success('模板已应用');
-  }, [prompt, setPrompt]);
+  // 应用到 AI 创作并跳转
+  const applyToAICreation = useCallback(() => {
+    if (optimizedPrompt) {
+      setPrompt(optimizedPrompt);
+      setShowOptimized(false);
+      toast.success('已应用到 AI 创作，正在跳转...');
+      // 延迟跳转，让用户看到提示
+      setTimeout(() => {
+        window.location.href = '/create?tool=sketch&prompt=' + encodeURIComponent(optimizedPrompt);
+      }, 800);
+    }
+  }, [optimizedPrompt, setPrompt]);
+
+  // 打开模板编辑器
+  const openTemplateEditor = useCallback((template: { name: string; template: string }, category: string) => {
+    setSelectedTemplate({ name: template.name, template: template.template, category });
+    setEditedTemplateContent(template.template);
+    setShowTemplateEditor(true);
+  }, []);
+
+  // 关闭模板编辑器
+  const closeTemplateEditor = useCallback(() => {
+    setShowTemplateEditor(false);
+    setSelectedTemplate(null);
+    setEditedTemplateContent('');
+  }, []);
+
+  // 应用编辑后的模板到当前输入框
+  const applyEditedTemplate = useCallback(() => {
+    if (editedTemplateContent.trim()) {
+      setPrompt(editedTemplateContent);
+      closeTemplateEditor();
+      toast.success('模板已应用');
+    }
+  }, [editedTemplateContent, setPrompt, closeTemplateEditor]);
+
+  // 应用编辑后的模板到 AI 创作
+  const applyEditedTemplateToAI = useCallback(() => {
+    if (editedTemplateContent.trim()) {
+      setPrompt(editedTemplateContent);
+      closeTemplateEditor();
+      toast.success('正在跳转到 AI 创作...');
+      setTimeout(() => {
+        window.location.href = '/create?tool=sketch&prompt=' + encodeURIComponent(editedTemplateContent);
+      }, 800);
+    }
+  }, [editedTemplateContent, setPrompt, closeTemplateEditor]);
+
+  // 将编辑后的模板发送到 AI 优化
+  const sendToAIOptimize = useCallback(() => {
+    if (editedTemplateContent.trim()) {
+      setPrompt(editedTemplateContent);
+      closeTemplateEditor();
+      setActiveTab('optimize');
+      // 延迟执行优化
+      setTimeout(() => {
+        handleOptimize();
+      }, 300);
+    }
+  }, [editedTemplateContent, setPrompt, closeTemplateEditor, handleOptimize]);
 
   // 添加关键词
   const addKeyword = useCallback((keyword: string) => {
@@ -272,14 +334,24 @@ export const PromptAssistantPanel: React.FC = () => {
                     <p className="text-sm text-gray-700 dark:text-gray-300 mb-3">
                       {optimizedPrompt}
                     </p>
-                    <motion.button
-                      onClick={applyOptimizedPrompt}
-                      whileTap={{ scale: 0.95 }}
-                      className="w-full py-2 rounded-lg bg-violet-500 text-white text-sm font-medium flex items-center justify-center gap-2"
-                    >
-                      <Check className="w-4 h-4" />
-                      应用此提示词
-                    </motion.button>
+                    <div className="space-y-2">
+                      <motion.button
+                        onClick={applyOptimizedPrompt}
+                        whileTap={{ scale: 0.95 }}
+                        className="w-full py-2 rounded-lg bg-violet-500 text-white text-sm font-medium flex items-center justify-center gap-2"
+                      >
+                        <Check className="w-4 h-4" />
+                        应用此提示词
+                      </motion.button>
+                      <motion.button
+                        onClick={applyToAICreation}
+                        whileTap={{ scale: 0.95 }}
+                        className="w-full py-2 rounded-lg bg-gradient-to-r from-pink-500 to-rose-500 text-white text-sm font-medium flex items-center justify-center gap-2 shadow-lg shadow-pink-500/30"
+                      >
+                        <Wand className="w-4 h-4" />
+                        应用到 AI 创作
+                      </motion.button>
+                    </div>
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -410,15 +482,18 @@ export const PromptAssistantPanel: React.FC = () => {
                     {category.templates.map((template) => (
                       <motion.button
                         key={template.name}
-                        onClick={() => useTemplate(template.template)}
+                        onClick={() => openTemplateEditor(template, category.category)}
                         whileTap={{ scale: 0.95 }}
-                        className={`p-3 rounded-xl text-left transition-all border ${
+                        className={`p-3 rounded-xl text-left transition-all border group ${
                           isDark 
                             ? 'bg-gray-800 border-gray-700 hover:border-violet-500' 
                             : 'bg-white border-gray-200 hover:border-violet-300'
                         }`}
                       >
-                        <div className="font-medium text-sm mb-1">{template.name}</div>
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="font-medium text-sm">{template.name}</div>
+                          <Edit3 className="w-3 h-3 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </div>
                         <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2">
                           {template.template}
                         </p>
@@ -503,6 +578,105 @@ export const PromptAssistantPanel: React.FC = () => {
           )}
         </AnimatePresence>
       </div>
+
+      {/* 模板编辑器弹窗 */}
+      <AnimatePresence>
+        {showTemplateEditor && selectedTemplate && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={closeTemplateEditor}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className={`w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden ${
+                isDark ? 'bg-gray-900' : 'bg-white'
+              }`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* 弹窗头部 */}
+              <div className={`px-6 py-4 border-b ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold">{selectedTemplate.name}</h3>
+                    <p className="text-xs text-gray-500 mt-0.5">{selectedTemplate.category}</p>
+                  </div>
+                  <motion.button
+                    onClick={closeTemplateEditor}
+                    whileTap={{ scale: 0.95 }}
+                    className={`p-2 rounded-lg ${isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-100'}`}
+                  >
+                    <X className="w-5 h-5" />
+                  </motion.button>
+                </div>
+              </div>
+
+              {/* 弹窗内容 */}
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="text-sm font-medium mb-2 block flex items-center gap-2">
+                    <Edit3 className="w-4 h-4 text-violet-500" />
+                    编辑提示词
+                  </label>
+                  <textarea
+                    value={editedTemplateContent}
+                    onChange={(e) => setEditedTemplateContent(e.target.value)}
+                    className={`w-full h-40 p-4 rounded-xl text-sm resize-none transition-all ${
+                      isDark
+                        ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-500 focus:border-violet-500'
+                        : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400 focus:border-violet-400'
+                    } border focus:outline-none focus:ring-2 focus:ring-violet-500/20`}
+                    placeholder="在此编辑模板内容..."
+                  />
+                  <p className="text-xs text-gray-500 mt-2">
+                    提示：将 {'{subject}'} 替换为你想要的具体主体内容
+                  </p>
+                </div>
+
+                {/* 操作按钮 */}
+                <div className="space-y-2 pt-2">
+                  <motion.button
+                    onClick={applyEditedTemplateToAI}
+                    whileTap={{ scale: 0.98 }}
+                    className="w-full py-3 rounded-xl bg-gradient-to-r from-pink-500 to-rose-500 text-white font-medium flex items-center justify-center gap-2 shadow-lg shadow-pink-500/30"
+                  >
+                    <Wand className="w-4 h-4" />
+                    应用到 AI 创作
+                    <ArrowRight className="w-4 h-4" />
+                  </motion.button>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <motion.button
+                      onClick={sendToAIOptimize}
+                      whileTap={{ scale: 0.98 }}
+                      className="py-2.5 rounded-xl bg-violet-500 text-white font-medium flex items-center justify-center gap-2"
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      AI 优化
+                    </motion.button>
+                    <motion.button
+                      onClick={applyEditedTemplate}
+                      whileTap={{ scale: 0.98 }}
+                      className={`py-2.5 rounded-xl font-medium flex items-center justify-center gap-2 ${
+                        isDark
+                          ? 'bg-gray-800 text-white hover:bg-gray-700'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      <Check className="w-4 h-4" />
+                      应用此提示词
+                    </motion.button>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

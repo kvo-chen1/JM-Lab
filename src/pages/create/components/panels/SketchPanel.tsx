@@ -345,7 +345,7 @@ export default function SketchPanel() {
     const input = stylePreset ? `${inputBase}；风格：${stylePreset}` : inputBase;
     const currentModel = llmService.getCurrentModel();
 
-    // 启动进度模拟
+    // 启动进度模拟（生成阶段）
     startImageProgressSimulation();
     
     const r = await llmService.generateImage({ 
@@ -362,26 +362,92 @@ export default function SketchPanel() {
     const urls = dataArray.map((d: any) => d.url || (d.b64_json ? `data:image/png;base64,${d.b64_json}` : '')).filter(Boolean);
 
     if (urls.length) {
+      // 停止模拟进度，切换到真实进度
+      if (imageProgressIntervalRef.current) {
+        clearInterval(imageProgressIntervalRef.current);
+        imageProgressIntervalRef.current = null;
+      }
+      
+      setImageGenerationProgress(95);
       setImageGenerationStatus('正在保存到云存储...');
       
-      // 下载图片并上传到 Supabase Storage
-      const { downloadAndUploadImage } = await import('@/services/imageService');
+      // 下载图片并上传到 Supabase Storage，使用带进度回调的版本
+      const { downloadAndUploadImageWithProgress, uploadImageWithProgress } = await import('@/services/imageService');
+      
+      // 计算每张图片的上传进度权重
+      const progressPerImage = 5 / urls.length; // 剩余5%的进度分配给所有图片上传
+      let completedImages = 0;
+      
       const uploadedUrls = await Promise.all(
         urls.map(async (url: string, idx: number) => {
           try {
             // 如果是 base64 数据，直接上传；如果是 URL，下载后上传
             if (url.startsWith('data:')) {
               const { uploadBase64Image } = await import('@/services/imageService');
-              return await uploadBase64Image(url);
+              // 将 base64 转换为 File 对象以支持进度回调
+              const matches = url.match(/^data:image\/([a-zA-Z]+);base64,(.+)$/);
+              if (matches) {
+                const imageType = matches[1];
+                const base64Content = matches[2];
+                const byteCharacters = atob(base64Content);
+                const byteNumbers = new Array(byteCharacters.length);
+                for (let i = 0; i < byteCharacters.length; i++) {
+                  byteNumbers[i] = byteCharacters.charCodeAt(i);
+                }
+                const byteArray = new Uint8Array(byteNumbers);
+                const blob = new Blob([byteArray], { type: `image/${imageType}` });
+                const fileName = `image-${Date.now()}-${idx}.${imageType}`;
+                const file = new File([blob], fileName, { type: `image/${imageType}` });
+                
+                return await uploadImageWithProgress(file, 'works', (progress, stage) => {
+                  // 计算整体进度：95% + 当前图片的进度贡献
+                  const baseProgress = 95;
+                  const currentImageProgress = (completedImages + progress / 100) * progressPerImage;
+                  const totalProgress = Math.min(99, baseProgress + currentImageProgress);
+                  
+                  setImageGenerationProgress(Math.floor(totalProgress));
+                  
+                  // 根据阶段更新状态文字
+                  if (stage === 'uploading') {
+                    setImageGenerationStatus(`正在上传图片 ${idx + 1}/${urls.length} (${progress}%)...`);
+                  } else if (stage === 'processing') {
+                    setImageGenerationStatus(`正在处理图片 ${idx + 1}/${urls.length}...`);
+                  }
+                });
+              } else {
+                return await uploadBase64Image(url);
+              }
             } else {
-              return await downloadAndUploadImage(url, 'works');
+              return await downloadAndUploadImageWithProgress(url, 'works', (progress, stage) => {
+                // 计算整体进度：95% + 当前图片的进度贡献
+                const baseProgress = 95;
+                const currentImageProgress = (completedImages + progress / 100) * progressPerImage;
+                const totalProgress = Math.min(99, baseProgress + currentImageProgress);
+                
+                setImageGenerationProgress(Math.floor(totalProgress));
+                
+                // 根据阶段更新状态文字
+                if (stage === 'downloading') {
+                  setImageGenerationStatus(`正在下载图片 ${idx + 1}/${urls.length}...`);
+                } else if (stage === 'processing') {
+                  setImageGenerationStatus(`正在处理图片 ${idx + 1}/${urls.length}...`);
+                } else if (stage === 'uploading') {
+                  setImageGenerationStatus(`正在上传图片 ${idx + 1}/${urls.length} (${progress}%)...`);
+                }
+              });
             }
           } catch (error) {
             console.error(`[generateTextToImage] Failed to upload image ${idx}:`, error);
             return url; // 上传失败，使用原始 URL
+          } finally {
+            completedImages++;
           }
         })
       );
+      
+      // 上传完成，显示100%
+      setImageGenerationProgress(100);
+      setImageGenerationStatus('保存完成！');
       
       // 为每个生成的作品获取AI评分
       const newResults = await Promise.all(

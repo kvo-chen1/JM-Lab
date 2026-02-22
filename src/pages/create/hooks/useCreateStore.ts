@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import { CreateState, ToolType, GeneratedResult, SmartLayoutConfig, LayoutRecommendation } from '../types';
 import { aiGeneratedResults, traditionalPatterns } from '../data';
 import { workService, communityService, eventService } from '@/services/apiService';
@@ -274,10 +275,12 @@ const getInitialState = (): CreateState => {
   };
 };
 
-export const useCreateStore = create<CreateState & CreateActions>((set) => ({
-  ...getInitialState(),
+export const useCreateStore = create<CreateState & CreateActions>()(
+  persist(
+    (set) => ({
+      ...getInitialState(),
 
-  setActiveTool: (tool) => {
+      setActiveTool: (tool) => {
     // 保存到 localStorage
     if (typeof localStorage !== 'undefined') {
       try {
@@ -1349,4 +1352,12 @@ export const useCreateStore = create<CreateState & CreateActions>((set) => ({
       canvasSize: { width: 1242, height: 1660 }
     }
   }),
-}));
+}),
+    {
+      name: 'create-store',
+      partialize: (state) => ({ 
+        promptHistory: state.promptHistory 
+      }),
+    }
+  )
+);

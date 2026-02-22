@@ -125,6 +125,21 @@ export const DiscoverySection: React.FC<DiscoverySectionProps> = ({
                   </motion.button>
                 )}
               </div>
+              {/* 通知按钮 */}
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                onClick={() => navigate('/notifications')}
+                className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center shadow-sm transition-colors relative ${
+                  isDark
+                    ? 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                    : 'bg-white text-gray-600 hover:bg-gray-50'
+                }`}
+                title="通知"
+              >
+                <i className="fas fa-bell text-sm"></i>
+                {/* 通知红点 */}
+                <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full"></span>
+              </motion.button>
               {/* 好友管理按钮 */}
               <motion.button
                 whileTap={{ scale: 0.95 }}

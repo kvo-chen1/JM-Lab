@@ -854,6 +854,9 @@ const fileToBase64 = (file: File): Promise<string> => {
   });
 };
 
+// 上传进度回调类型
+export type UploadProgressCallback = (progress: number, stage: 'downloading' | 'uploading' | 'processing') => void;
+
 // 图片上传功能扩展
 // 设置：是否优先使用后端 API 上传（避免 Supabase Storage RLS 问题）
 // 如果 Supabase Storage 已配置好 RLS 策略，可以设置为 false
@@ -862,10 +865,21 @@ const PREFER_BACKEND_UPLOAD = false;
 // 默认 Storage bucket 名称
 const DEFAULT_BUCKET = 'works';
 
-export const uploadImage = async (file: File, folder: string = 'works'): Promise<string> => {
+/**
+ * 使用 XMLHttpRequest 上传文件到 Supabase Storage，支持进度回调
+ * @param file 要上传的文件
+ * @param folder 目标文件夹
+ * @param onProgress 进度回调函数
+ * @returns 上传后的公开 URL
+ */
+export const uploadImageWithProgress = async (
+  file: File,
+  folder: string = 'works',
+  onProgress?: UploadProgressCallback
+): Promise<string> => {
   try {
-    // 动态导入 supabase 避免循环依赖
-    const { supabaseAdmin, isSupabaseConfigured } = await import('@/lib/supabase');
+    // 动态导入 supabase 获取配置
+    const { supabaseAdmin, isSupabaseConfigured, supabaseUrl, supabaseAnonKey } = await import('@/lib/supabase');
 
     // 检查 supabase 是否配置正确
     if (!isSupabaseConfigured() || !supabaseAdmin || !supabaseAdmin.storage) {
@@ -876,23 +890,121 @@ export const uploadImage = async (file: File, folder: string = 'works'): Promise
     // 生成唯一文件名
     const fileExt = file.name.split('.').pop() || 'jpg';
     const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+    const filePath = `${folder}/${fileName}`;
+
+    // 获取当前用户的 session token
+    const { data: { session } } = await supabaseAdmin.auth.getSession();
+    const accessToken = session?.access_token;
+
+    if (!accessToken) {
+      throw new Error('未获取到用户认证信息，请重新登录');
+    }
+
+    // 使用 XMLHttpRequest 实现进度追踪
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      
+      // 构建 Supabase Storage 上传 URL
+      const uploadUrl = `${supabaseUrl}/storage/v1/object/${DEFAULT_BUCKET}/${filePath}`;
+      
+      // 监听上传进度
+      xhr.upload.addEventListener('progress', (event) => {
+        if (event.lengthComputable && onProgress) {
+          const progress = Math.round((event.loaded / event.total) * 100);
+          onProgress(progress, 'uploading');
+        }
+      });
+
+      // 监听状态变化
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          // 上传成功，获取公开 URL
+          const publicUrl = `${supabaseUrl}/storage/v1/object/public/${DEFAULT_BUCKET}/${filePath}`;
+          console.log('[uploadImageWithProgress] Upload successful:', publicUrl);
+          resolve(publicUrl);
+        } else {
+          let errorMessage = '上传失败';
+          try {
+            const errorData = JSON.parse(xhr.responseText);
+            errorMessage = errorData.message || errorData.error || `HTTP ${xhr.status}`;
+          } catch {
+            errorMessage = `上传失败: HTTP ${xhr.status}`;
+          }
+          reject(new Error(errorMessage));
+        }
+      });
+
+      xhr.addEventListener('error', () => {
+        reject(new Error('网络错误，上传失败'));
+      });
+
+      xhr.addEventListener('abort', () => {
+        reject(new Error('上传已取消'));
+      });
+
+      // 打开连接并发送请求
+      xhr.open('POST', uploadUrl, true);
+      xhr.setRequestHeader('Authorization', `Bearer ${accessToken}`);
+      xhr.setRequestHeader('Content-Type', file.type || 'image/jpeg');
+      xhr.setRequestHeader('x-upsert', 'false');
+      
+      xhr.send(file);
+    });
+  } catch (error: any) {
+    console.error('[uploadImageWithProgress] Upload failed:', error);
+    throw new Error('图片上传失败: ' + (error.message || 'Unknown error'));
+  }
+};
+
+export const uploadImage = async (file: File, folder: string = 'works'): Promise<string> => {
+  try {
+    // 动态导入 supabase 避免循环依赖
+    const { supabase, supabaseAdmin, isSupabaseConfigured } = await import('@/lib/supabase');
+
+    // 检查 supabase 是否配置正确
+    if (!isSupabaseConfigured() || !supabase || !supabase.storage) {
+      console.error('Supabase not configured, cannot upload image');
+      throw new Error('Supabase 未配置，无法上传图片');
+    }
+
+    // 生成唯一文件名
+    const fileExt = file.name.split('.').pop() || 'jpg';
+    const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
     const filePath = `${folder}/${fileName}`; // 使用指定的子目录
 
-    // 使用 supabaseAdmin 上传到 works bucket（绕过 RLS）
-    const { error: uploadError } = await supabaseAdmin.storage
+    // 优先使用普通客户端上传（使用用户自己的权限）
+    // 如果失败且有 admin 客户端，则回退到 admin 上传
+    let uploadError;
+    
+    // 首先尝试使用普通 supabase 客户端上传
+    const { error: userUploadError } = await supabase.storage
       .from(DEFAULT_BUCKET)
       .upload(filePath, file, {
         cacheControl: '3600',
         upsert: false
       });
+    
+    uploadError = userUploadError;
+    
+    // 如果用户上传失败且是因为权限问题，尝试使用 admin 客户端
+    if (uploadError && supabaseAdmin && supabaseAdmin !== supabase) {
+      console.warn('[uploadImage] User upload failed, trying admin upload:', uploadError.message);
+      const { error: adminUploadError } = await supabaseAdmin.storage
+        .from(DEFAULT_BUCKET)
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
+      uploadError = adminUploadError;
+    }
 
     if (uploadError) {
       console.error('Supabase upload error:', uploadError);
       throw new Error(`上传到 Supabase 失败: ${uploadError.message}`);
     }
 
-    // 获取公开 URL
-    const { data } = supabaseAdmin.storage
+    // 获取公开 URL（使用普通客户端即可）
+    const { data } = supabase.storage
       .from(DEFAULT_BUCKET)
       .getPublicUrl(filePath);
 
@@ -915,10 +1027,10 @@ const AVATARS_BUCKET = 'avatars';
 export const uploadAvatar = async (file: File): Promise<string> => {
   try {
     // 动态导入 supabase 避免循环依赖
-    const { supabaseAdmin, isSupabaseConfigured } = await import('@/lib/supabase');
+    const { supabase, supabaseAdmin, isSupabaseConfigured } = await import('@/lib/supabase');
 
     // 检查 supabase 是否配置正确
-    if (!isSupabaseConfigured() || !supabaseAdmin || !supabaseAdmin.storage) {
+    if (!isSupabaseConfigured() || !supabase || !supabase.storage) {
       console.error('Supabase not configured, cannot upload avatar');
       throw new Error('Supabase 未配置，无法上传头像');
     }
@@ -928,21 +1040,38 @@ export const uploadAvatar = async (file: File): Promise<string> => {
     const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
     const filePath = `${fileName}`; // 直接上传到 avatars bucket 根目录
 
-    // 使用 supabaseAdmin 上传到 avatars bucket（绕过 RLS）
-    const { error: uploadError } = await supabaseAdmin.storage
+    // 优先使用普通客户端上传（使用用户自己的权限）
+    let uploadError;
+    
+    // 首先尝试使用普通 supabase 客户端上传
+    const { error: userUploadError } = await supabase.storage
       .from(AVATARS_BUCKET)
       .upload(filePath, file, {
         cacheControl: '3600',
         upsert: false
       });
+    
+    uploadError = userUploadError;
+    
+    // 如果用户上传失败且是因为权限问题，尝试使用 admin 客户端
+    if (uploadError && supabaseAdmin && supabaseAdmin !== supabase) {
+      console.warn('[uploadAvatar] User upload failed, trying admin upload:', uploadError.message);
+      const { error: adminUploadError } = await supabaseAdmin.storage
+        .from(AVATARS_BUCKET)
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
+      uploadError = adminUploadError;
+    }
 
     if (uploadError) {
       console.error('Supabase avatar upload error:', uploadError);
       throw new Error(`上传到 Supabase 失败: ${uploadError.message}`);
     }
 
-    // 获取公开 URL
-    const { data } = supabaseAdmin.storage
+    // 获取公开 URL（使用普通客户端即可）
+    const { data } = supabase.storage
       .from(AVATARS_BUCKET)
       .getPublicUrl(filePath);
 
@@ -1156,6 +1285,79 @@ export const downloadAndUploadImage = async (imageUrl: string, folder: string = 
     return uploadedUrl;
   } catch (error: any) {
     console.error('[downloadAndUploadImage] Failed:', error);
+    throw new Error('图片下载或上传失败: ' + (error.message || 'Unknown error'));
+  }
+};
+
+/**
+ * 下载图片并上传到永久存储，支持进度回调
+ * @param imageUrl 图片URL
+ * @param folder 目标文件夹
+ * @param onProgress 进度回调函数
+ * @returns 上传后的公开 URL
+ */
+export const downloadAndUploadImageWithProgress = async (
+  imageUrl: string,
+  folder: string = 'works',
+  onProgress?: UploadProgressCallback
+): Promise<string> => {
+  try {
+    console.log('[downloadAndUploadImageWithProgress] Downloading image from:', imageUrl);
+    
+    // 通知开始下载
+    onProgress?.(0, 'downloading');
+    
+    // 使用后端代理下载图片（解决CORS问题）
+    const proxyResponse = await fetch('/api/image/download', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ imageUrl })
+    });
+    
+    if (!proxyResponse.ok) {
+      const errorData = await proxyResponse.json().catch(() => ({}));
+      throw new Error(errorData.message || `Failed to download image: ${proxyResponse.status}`);
+    }
+    
+    const result = await proxyResponse.json();
+    if (result.code !== 0 || !result.data?.base64) {
+      throw new Error(result.message || 'Failed to download image');
+    }
+    
+    console.log('[downloadAndUploadImageWithProgress] Image downloaded via proxy, size:', (result.data.size / 1024).toFixed(2), 'KB');
+    
+    // 通知下载完成，开始处理
+    onProgress?.(100, 'downloading');
+    onProgress?.(0, 'processing');
+    
+    // 将base64转换为Blob
+    const base64Data = result.data.base64;
+    const base64Content = base64Data.split(',')[1];
+    const contentType = result.data.type || 'image/jpeg';
+    const byteCharacters = atob(base64Content);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    const blob = new Blob([byteArray], { type: contentType });
+    
+    // 创建 File 对象
+    const fileName = `image-${Date.now()}.${contentType.split('/')[1] || 'jpg'}`;
+    const file = new File([blob], fileName, { type: contentType });
+    
+    // 通知处理完成，开始上传
+    onProgress?.(100, 'processing');
+    
+    // 使用支持进度的上传函数
+    const uploadedUrl = await uploadImageWithProgress(file, folder, onProgress);
+    console.log('[downloadAndUploadImageWithProgress] Image uploaded to:', uploadedUrl);
+    
+    return uploadedUrl;
+  } catch (error: any) {
+    console.error('[downloadAndUploadImageWithProgress] Failed:', error);
     throw new Error('图片下载或上传失败: ' + (error.message || 'Unknown error'));
   }
 };

@@ -9,7 +9,17 @@ if (fs.existsSync('.env.local')) {
 dotenv.config()
 
 const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY
+
+// 调试：打印环境变量状态（不打印完整密钥）
+console.log('[Supabase Server] 环境变量检查:', {
+  SUPABASE_URL: process.env.SUPABASE_URL ? '已设置' : '未设置',
+  VITE_SUPABASE_URL: process.env.VITE_SUPABASE_URL ? '已设置' : '未设置',
+  SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ? `已设置(${process.env.SUPABASE_SERVICE_ROLE_KEY.length}字符)` : '未设置',
+  VITE_SUPABASE_SERVICE_ROLE_KEY: process.env.VITE_SUPABASE_SERVICE_ROLE_KEY ? `已设置(${process.env.VITE_SUPABASE_SERVICE_ROLE_KEY.length}字符)` : '未设置',
+  最终URL: supabaseUrl ? '已设置' : '未设置',
+  最终KEY: supabaseServiceKey ? '已设置' : '未设置'
+})
 
 // 创建服务端 Supabase 客户端
 // 使用 Service Role Key，可以绕过 RLS，拥有完全数据库访问权限
@@ -26,9 +36,9 @@ try {
         schema: 'public'
       }
     })
-    console.log('[Supabase Server] 客户端创建成功')
+    console.log('[Supabase Server] 客户端创建成功:', supabaseUrl)
   } else {
-    console.warn('[Supabase Server] 缺少环境变量，将使用模拟模式')
+    console.warn('[Supabase Server] 缺少环境变量，将使用模拟模式。请检查 Vercel 环境变量配置。')
     // 创建一个模拟的客户端对象，避免服务崩溃
     const mockError = new Error('Supabase 未配置')
     supabaseServer = {

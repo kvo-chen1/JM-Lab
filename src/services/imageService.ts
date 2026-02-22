@@ -963,8 +963,9 @@ export const uploadImage = async (file: File, folder: string = 'works'): Promise
 
     // 检查 supabase 是否配置正确
     if (!isSupabaseConfigured() || !supabase || !supabase.storage) {
-      console.error('Supabase not configured, cannot upload image');
-      throw new Error('Supabase 未配置，无法上传图片');
+      console.error('Supabase not configured, trying backend upload');
+      // 如果 Supabase 未配置，直接尝试后端上传
+      return await uploadToBackend(file);
     }
 
     // 生成唯一文件名
@@ -1000,7 +1001,9 @@ export const uploadImage = async (file: File, folder: string = 'works'): Promise
 
     if (uploadError) {
       console.error('Supabase upload error:', uploadError);
-      throw new Error(`上传到 Supabase 失败: ${uploadError.message}`);
+      console.warn('[uploadImage] Supabase upload failed, trying backend upload as fallback');
+      // Supabase 上传失败，尝试使用后端 API 上传
+      return await uploadToBackend(file);
     }
 
     // 获取公开 URL（使用普通客户端即可）
@@ -1016,7 +1019,14 @@ export const uploadImage = async (file: File, folder: string = 'works'): Promise
     return data.publicUrl;
   } catch (error: any) {
     console.error('Image upload failed:', error);
-    throw new Error('图片上传失败: ' + (error.message || 'Unknown error'));
+    // 最后尝试后端上传
+    try {
+      console.warn('[uploadImage] All Supabase attempts failed, trying backend upload as final fallback');
+      return await uploadToBackend(file);
+    } catch (backendError) {
+      console.error('Backend upload also failed:', backendError);
+      throw new Error('图片上传失败: ' + (error.message || 'Unknown error'));
+    }
   }
 };
 

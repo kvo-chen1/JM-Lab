@@ -286,8 +286,12 @@ async function initPostgreSQL() {
     await client.query('SELECT 1')
     client.release()
     
-    // 初始化表结构
-    await createPostgreSQLTables(pool)
+    // 初始化表结构（仅在非Vercel环境执行，避免Serverless冷启动超时）
+    if (!isVercel) {
+      await createPostgreSQLTables(pool)
+    } else {
+      console.log('[DB] Vercel环境：跳过表结构初始化，假设表已存在')
+    }
     
     // 标记连接状态
     connectionStatus.postgresql = {

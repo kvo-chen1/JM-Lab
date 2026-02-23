@@ -6675,21 +6675,21 @@ async function route(req, res, u, path) {
       }
       
       // 统计设备类型分布
-      const deviceMap = new Map<string, Set<string>>()
+      const deviceMap = new Map()
       
       devices?.forEach(device => {
         const deviceType = device.device_type || 'desktop'
         if (!deviceMap.has(deviceType)) {
           deviceMap.set(deviceType, new Set())
         }
-        deviceMap.get(deviceType)!.add(device.user_id)
+        deviceMap.get(deviceType).add(device.user_id)
       })
       
       // 计算百分比
       const total = devices?.length || 0
-      const distribution: { name: string; value: number }[] = []
+      const distribution = []
       
-      const deviceTypeNames: Record<string, string> = {
+      const deviceTypeNames = {
         'desktop': '桌面端',
         'mobile': '移动端',
         'tablet': '平板'
@@ -6752,7 +6752,7 @@ async function route(req, res, u, path) {
       }
       
       // 统计来源类型分布
-      const sourceMap = new Map<string, number>()
+      const sourceMap = new Map()
       
       sources?.forEach(source => {
         const sourceType = source.source_type || 'direct'
@@ -6762,9 +6762,9 @@ async function route(req, res, u, path) {
       
       // 计算百分比
       const total = sources?.length || 0
-      const distribution: { name: string; value: number }[] = []
+      const distribution = []
       
-      const sourceTypeNames: Record<string, string> = {
+      const sourceTypeNames = {
         'direct': '直接访问',
         'search': '搜索引擎',
         'social': '社交媒体',
@@ -6838,9 +6838,6 @@ async function route(req, res, u, path) {
 
   sendJson(res, 404, { error: 'NOT_FOUND', message: '接口不存在' })
 }
-
-// 检查是否在 Vercel 环境
-const isVercel = process.env.VERCEL === '1' || process.env.VERCEL_ENV
 
 // 只在非 Vercel 环境下创建 HTTP 服务器和 WebSocket 服务器
 if (!isVercel) {
